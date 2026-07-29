@@ -1109,6 +1109,10 @@ export interface DeckDef {
    *  played AFTER the last question clip and BEFORE the outro in the stitch. Additive;
    *  rides in SceneDoc.decks. */
   wrap?: TakeRef[];
+  /** LOOKBACK PROMO (Lee) — ONE vertical social file per set, staged in Supabase and
+   *  re-downloadable from the Publish panel. NO pipeline — Lee posts socials manually.
+   *  Additive. */
+  lookback?: TakeRef;
   /** CONSISTENT DEAL LAYOUT (Lee) — the set's canonical geometry: every question
    *  deals/previews at this baseline so nothing drifts. Frame-local px (same coord
    *  space as dealCentre/defaultMemoPos). Absent ⇒ the default (centred card, memos

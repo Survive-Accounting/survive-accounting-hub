@@ -23,7 +23,7 @@ import { CeqPreviewer, dealCentre, defaultMemoPos } from "./CeqPreviewer";
 import { seedCeqSets } from "./ceq-seed";
 import { buildStitch, fmtDur, loadPrefs, savePrefs, stageTake, stitchManifest, stitchRuntime, videoFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
 import { CeqStitch } from "./CeqStitch";
-import { CeqVideoLibrary } from "./CeqVideoLibrary";
+import { CeqVideoLibrary, vidCourseMatch, vidTopicMatch } from "./CeqVideoLibrary";
 import { DEFAULT_CROSSFADE_MS } from "./segment-assembly";
 import { detectAuphonicSlots, resolveCeqConcat, resolvePipelineTestAuphonic, startCeqConcat, startPipelineTestAuphonic } from "@/lib/publish.functions";
 import type { LessonBox } from "./types";
@@ -42,6 +42,7 @@ const NONE = "__uncat__";
 const MEMO_DND = "text/sa-studio-memo";
 const QREORDER = "text/sa-ceq-qreorder"; // dragging a question ROW to reorder
 const SET_DND = "text/sa-ceq-set"; // dragging a SET row onto a topic / the Library
+const TABS_SS = "sa-ceq-studio-set-tabs"; // sessionStorage: open set tabs + active (per session)
 
 export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initialCeqId, onPopOut, popped, onClose }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void; globalClips?: GlobalClips; setGlobalClips?: (patch: Partial<GlobalClips>) => void; initialCeqId?: string | null; onPopOut?: () => void; popped?: boolean; onClose: () => void }) {
   const gc = globalClips ?? {};
@@ -50,14 +51,28 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const nodes = useNodes(); // reactive
   const nav = useFrameNav();
   const cardDecks = decks.filter((d) => d.payloadType === "cards");
-  const [setId, setSetId] = useState<string | null>(cardDecks[0]?.id ?? null);
+  // SET TABS (unified layout) — open sets are internal Studio tabs; the ACTIVE tab is
+  // `setId`. Last-open restored per SESSION (sessionStorage, not prefs).
+  const [openTabs, setOpenTabs] = useState<string[]>(() => { try { const r = JSON.parse(sessionStorage.getItem(TABS_SS) || "{}") as { open?: string[] }; return Array.isArray(r.open) ? r.open.filter((x): x is string => typeof x === "string") : []; } catch { return []; } });
+  const [setId, setSetId] = useState<string | null>(() => { try { const r = JSON.parse(sessionStorage.getItem(TABS_SS) || "{}") as { active?: string }; if (typeof r.active === "string" && cardDecks.some((d) => d.id === r.active)) return r.active; } catch { /* ignore */ } return null; });
   const [qId, setQId] = useState<string | null>(null);
+  useEffect(() => { try { sessionStorage.setItem(TABS_SS, JSON.stringify({ open: openTabs, active: setId })); } catch { /* ignore */ } }, [openTabs, setId]);
+  /** Open a set as a Studio tab (adds to the strip if absent) and activate it. */
+  const openSetTab = (id: string) => { setOpenTabs((prev) => (prev.includes(id) ? prev : [...prev, id])); setSetId(id); setQId(null); };
+  const closeSetTab = (id: string) => {
+    setOpenTabs((prev) => {
+      const next = prev.filter((x) => x !== id);
+      if (setId === id) { const at = prev.indexOf(id); setSetId(next[Math.max(0, at - 1)] ?? null); setQId(null); }
+      return next;
+    });
+  };
+  const [publishOpen, setPublishOpen] = useState(false); // the Publish panel (per active set)
   // OPEN FROM A CEQ (Lee) — pre-select the set (its deck) + that question.
   useEffect(() => {
     if (!initialCeqId) return;
     const n = rf.getNode(initialCeqId);
     const deckId = (n?.data as { deckId?: string } | undefined)?.deckId;
-    if (deckId && cardDecks.some((d) => d.id === deckId)) setSetId(deckId);
+    if (deckId && cardDecks.some((d) => d.id === deckId)) { setOpenTabs((p) => (p.includes(deckId) ? p : [...p, deckId])); setSetId(deckId); }
     setQId(initialCeqId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialCeqId]);
@@ -105,6 +120,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const [bulkVal, setBulkVal] = useState("");
   const [justCreated, setJustCreated] = useState<Set<string>>(() => new Set()); // fresh (unchained) memos kept visible past the scope filter
   const memoScope: "question" | "set" | "all" = prefs.memoScope ?? "set"; // default: This set
+  const topTab: "videos" | "topics" | "sets" | "tools" = prefs.topTab ?? "sets"; // top bar tab
+  const wrapMemos = !!prefs.wrapMemos;
 
   // TOPICS SPINE (Lee) — the real Course → Topic rows (Manage Course order), same
   // fetch path the canvas uses everywhere else.
@@ -160,11 +177,45 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     }
     return m;
   }, [cardDecks, nodes]);
+  // READINESS (Topics tab) — live per-set gaps, aggregated per topic. This IS the
+  // cross-set readiness board (no separate overlay): clips missing (free/full),
+  // intro/outro/wrap presence, est. FULL runtime, published count.
+  const deckReadiness = useMemo(() => {
+    const m = new Map<string, { missFull: number; missFree: number; intro: boolean; outro: boolean; wrapN: number; runtimeS: number }>();
+    for (const d of cardDecks) {
+      const mem = deckMembersOf(nodes as { id: string; type?: string; data?: { deckId?: string; stageOrder?: number } }[], d.id).filter((n) => (n as { type?: string }).type === "ceq");
+      const ceqs = mem.map((n) => { const dd = rf.getNode(n.id)?.data as unknown as CeqCard | undefined; return { id: n.id, prompt: dd?.prompt ?? "", takes: cardClips(dd), free: dd?.free }; });
+      const missFull = ceqs.filter((c) => c.takes.length === 0).length;
+      const missFree = ceqs.filter((c) => c.free && c.takes.length === 0).length;
+      const intro = !!(d.intro ?? gc.intro); const outro = !!(d.outro ?? gc.outro);
+      const stitch = buildStitch("full", { intro: d.intro ?? gc.intro, transition: gc.transition, outro: d.outro ?? gc.outro, wrap: d.wrap, ceqs });
+      m.set(d.id, { missFull, missFree, intro, outro, wrapN: d.wrap?.length ?? 0, runtimeS: stitchRuntime(stitch.items) });
+    }
+    return m;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardDecks, nodes, gc.intro, gc.outro, gc.transition]);
+  // Published videos matched onto the spine (same matching the Videos tab uses).
+  const pubVidsByTopic = useMemo(() => {
+    const m = new Map<string, { id: string; name: string; paid: boolean }[]>();
+    for (const n of nodes) {
+      if (n.type !== "lesson" || !(n.data as { muxPlaybackId?: string | null }).muxPlaybackId) continue;
+      const d = n.data as unknown as LessonBox;
+      const c = vidCourseMatch(courseOptions, d.videoCourse || "");
+      const t = c ? vidTopicMatch(c, d.videoChapter || d.topic || "") : undefined;
+      if (!t) continue;
+      const l = m.get(t.id) ?? []; l.push({ id: n.id, name: d.label || "Lesson", paid: (d.access ?? "FREE") === "PAID" }); m.set(t.id, l);
+    }
+    return m;
+  }, [nodes, courseOptions]);
   // Outline expand state — persisted in panel prefs; default open where sets live.
   const outlineExp = prefs.setsOutline ?? {};
   const isExp = (key: string, dflt: boolean) => outlineExp[key] ?? dflt;
   const toggleExp = (key: string, dflt: boolean) => setPrefs({ setsOutline: { ...outlineExp, [key]: !isExp(key, dflt) } });
   const deck = cardDecks.find((d) => d.id === setId) ?? null;
+  // Open set tabs resolved to live decks (stale session ids drop out silently).
+  const tabDecks = useMemo(() => openTabs.map((id) => cardDecks.find((d) => d.id === id)).filter((d): d is DeckDef => !!d), [openTabs, cardDecks]);
+  // An active set always has a visible tab chip (covers session-restore edge cases).
+  useEffect(() => { if (setId && cardDecks.some((d) => d.id === setId)) setOpenTabs((p) => (p.includes(setId) ? p : [...p, setId])); }, [setId, cardDecks]);
   const questions = useMemo(() => (deck ? deckMembersOf(nodes as { id: string; type?: string; data?: { deckId?: string; stageOrder?: number } }[], deck.id).filter((n) => (n as { type?: string }).type === "ceq") : []), [deck, nodes]);
   const starCount = useMemo(() => questions.reduce((n, q) => n + ((rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.starred ? 1 : 0), 0), [questions, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
   const qNode = qId ? nodes.find((n) => n.id === qId) : null;
@@ -246,7 +297,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
         <div draggable className="ml-4 flex cursor-grab items-center gap-1 rounded px-1 py-0.5" style={{ background: on ? "rgba(252,163,17,0.12)" : "transparent", border: `1px solid ${on ? NEON.border : "transparent"}` }}
           onDragStart={(e) => { e.dataTransfer.setData(SET_DND, d.id); e.dataTransfer.effectAllowed = "move"; }}
           title="Click to open · drag onto a topic to assign · double-click to rename">
-          <button className="min-w-0 flex-1 truncate text-left text-[10.5px] font-semibold" style={{ color: on ? NEON.yellow : NEON.text }} onClick={() => { setSetId(d.id); setQId(null); }} onDoubleClick={() => renameSet(d)}>{d.name}</button>
+          <button className="min-w-0 flex-1 truncate text-left text-[10.5px] font-semibold" style={{ color: on ? NEON.yellow : NEON.text }} onClick={() => openSetTab(d.id)} onDoubleClick={() => renameSet(d)}>{d.name}</button>
           <span className="shrink-0 rounded px-1 text-[7.5px] font-bold tabular-nums" style={{ color: counts.free > 0 ? "#3BF5A0" : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} title={`${counts.free} free · ${counts.full} full${laid ? " · laid" : ""}`}>{counts.free}F·{counts.full}{laid ? "▦" : ""}</span>
           <button className="shrink-0" style={{ color: assignFor === d.id ? NEON.yellow : NEON.muted }} onClick={() => { setAssignFor((k) => (k === d.id ? null : d.id)); setAssignCourseSel(d.courseId ?? "lib"); }} title="Assign to a Course → Topic (or the Library)"><FolderInput className="h-3 w-3" /></button>
           <button className="shrink-0" style={{ color: NEON.red }} onClick={() => deleteSet(d)} title="Delete set (keeps cards loose)"><Trash2 className="h-3 w-3" /></button>
@@ -339,9 +390,10 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const reorderClip = (ceqId: string, idx: number, dir: -1 | 1) => { const clips = [...cardClips(rf.getNode(ceqId)?.data as unknown as CeqCard | undefined)]; const j = idx + dir; if (j < 0 || j >= clips.length) return; [clips[idx], clips[j]] = [clips[j], clips[idx]]; patchQ(ceqId, { takes: clips, take: undefined }); };
   /** Set which earlier questions a clip references (reference picker, per clip). */
   const setClipRefs = (ceqId: string, idx: number, refs: string[]) => { const clips = cardClips(rf.getNode(ceqId)?.data as unknown as CeqCard | undefined).map((t, i) => (i === idx ? { ...t, refs: refs.length ? refs : undefined } : t)); patchQ(ceqId, { takes: clips, take: undefined }); };
-  /** Stage a dropped clip into a set's INTRO/OUTRO (per set), the shared TRANSITION, or
-   *  the set's WRAP stack (0..n end-of-video clips, appended). */
-  const dropSlot = async (kind: "intro" | "outro" | "transition" | "wrap", file: File) => {
+  /** Stage a dropped clip into a set's INTRO/OUTRO (per set), the shared TRANSITION,
+   *  the set's WRAP stack (0..n, appended), or the LOOKBACK vertical promo (staging
+   *  only, re-downloadable — no pipeline). */
+  const dropSlot = async (kind: "intro" | "outro" | "transition" | "wrap" | "lookback", file: File) => {
     const key = kind === "transition" ? "transition" : `${kind}:${setId}`;
     if (takeBusy || (kind !== "transition" && !deck)) return;
     setTakeBusy(key); setNote(`Uploading ${kind}…`);
@@ -349,6 +401,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       const fresh = await stageTake(file);
       if (kind === "transition") setGlobalClips?.({ transition: withPrev(fresh, gc.transition) });
       else if (kind === "wrap" && deck) setDecks((prev) => updateDeck(prev, deck.id, { wrap: [...(deck.wrap ?? []), fresh] }));
+      else if (kind === "lookback" && deck) setDecks((prev) => updateDeck(prev, deck.id, { lookback: withPrev(fresh, deck.lookback) }));
       else if (deck && (kind === "intro" || kind === "outro")) setDecks((prev) => updateDeck(prev, deck.id, { [kind]: withPrev(fresh, deck[kind]) }));
       setNote(`Attached ${kind} (${fmtDur(fresh.duration)}).`);
     } catch (e) { setNote(`${kind} upload failed: ${e instanceof Error ? e.message : String(e)}`); }
@@ -926,6 +979,25 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
           <button className="grid h-7 w-7 place-items-center rounded" style={{ border: `1px solid ${NEON.borderSoft}` }} title="Close" onClick={onClose}><X className="h-4 w-4" /></button>
         </div>
       </div>
+      {/* TOP BAR — Videos · Topics · Sets · Tools; every tab speaks the same Obsidian
+          outline grammar in the left rail. */}
+      <div className="flex shrink-0 items-center gap-1 border-b px-3 py-1" style={{ borderColor: NEON.borderSoft }}>
+        {([["videos", "Videos"], ["topics", "Topics"], ["sets", "Sets"], ["tools", "Tools"]] as const).map(([k, l]) => (
+          <button key={k} className="rounded px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: topTab === k ? "#0B1322" : NEON.muted, background: topTab === k ? NEON.yellow : "transparent", border: `1px solid ${topTab === k ? NEON.yellow : NEON.borderSoft}` }} onClick={() => { setPrefs({ topTab: k }); if (!setsOpen) setSetsOpen(true); }}>{l}</button>
+        ))}
+      </div>
+      {/* SET TAB STRIP — open sets are INTERNAL Studio tabs (not browser tabs); multiple
+          open at once, close per-tab, last-open restored per session. */}
+      {tabDecks.length > 0 && (
+        <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b px-3 py-1" style={{ borderColor: NEON.borderSoft }}>
+          {tabDecks.map((d) => { const on = setId === d.id; return (
+            <div key={d.id} className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5" style={{ background: on ? "rgba(252,163,17,0.14)" : "rgba(0,0,0,0.25)", border: `1px solid ${on ? NEON.border : NEON.borderSoft}` }}>
+              <button className="max-w-[150px] truncate text-[10px] font-semibold" style={{ color: on ? NEON.yellow : NEON.text }} onClick={() => { setSetId(d.id); setQId(null); }} title={d.name}>{d.name}</button>
+              <button className="grid h-3.5 w-3.5 place-items-center" style={{ color: NEON.muted }} onClick={() => closeSetTab(d.id)} title="Close tab"><X className="h-3 w-3" /></button>
+            </div>
+          ); })}
+        </div>
+      )}
       {/* SHORTS QUEUE (Lee) — the batch-filming worklist of every shorts-flagged CEQ. */}
       {shortsQueueOpen && (
         <div className="absolute inset-0 z-[70] flex flex-col" style={{ background: "rgba(6,10,20,0.97)" }} onClick={() => setShortsQueueOpen(false)}>
@@ -939,7 +1011,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
               {shortsList.length === 0 ? (
                 <div className="px-2 py-6 text-center text-[11px] italic" style={{ color: NEON.muted }}>No CEQs flagged as shorts yet — toggle 🎬 Short on a question.</div>
               ) : shortsList.map((s) => (
-                <button key={s.id} className="mb-1 flex w-full flex-col gap-0.5 rounded px-2 py-1.5 text-left" style={{ background: "rgba(0,0,0,0.25)", border: `1px solid ${NEON.borderSoft}` }} title="Jump to this question" onClick={() => { if (s.deckId) setSetId(s.deckId); setQId(s.id); setExpandedQ((x) => new Set(x).add(s.id)); setShortsQueueOpen(false); }}>
+                <button key={s.id} className="mb-1 flex w-full flex-col gap-0.5 rounded px-2 py-1.5 text-left" style={{ background: "rgba(0,0,0,0.25)", border: `1px solid ${NEON.borderSoft}` }} title="Jump to this question" onClick={() => { if (s.deckId) openSetTab(s.deckId); setQId(s.id); setExpandedQ((x) => new Set(x).add(s.id)); setShortsQueueOpen(false); }}>
                   <div className="flex items-center gap-2">
                     <span className="shrink-0 rounded px-1 text-[8px] font-bold uppercase tabular-nums" style={{ color: "#FF8B9E", border: "1px solid rgba(255,92,110,0.5)" }}>{s.tqq}</span>
                     <span className="min-w-0 flex-1 truncate text-[11px]" style={{ color: NEON.text }}>{s.stem}</span>
@@ -953,19 +1025,82 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       )}
 
       <div className="flex min-h-0 flex-1 gap-2 p-2">
-        {/* PANE 0 — VIDEO LIBRARY (leftmost; published videos grouped Course → Chapter) */}
-        <CeqVideoLibrary open={prefs.videoLibOpen !== false} onToggle={() => setPrefs({ videoLibOpen: prefs.videoLibOpen === false })} costOn={!!prefs.costOn} onToggleCost={() => setPrefs({ costOn: !prefs.costOn })} />
-        {/* PANE 1 — SETS: Obsidian-style outline over the REAL Course → Topic spine.
-            The outline IS the filter (old course/chapter dropdowns removed). */}
+        {/* LEFT RAIL — the active top-bar tab (Videos / Topics / Sets / Tools), all on
+            the same Obsidian outline grammar. Collapsible to a slim strip. */}
         {!setsOpen ? (
-          <button className="flex w-8 shrink-0 flex-col items-center gap-2 rounded-lg py-2" style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)", color: NEON.cyan }} onClick={() => setSetsOpen(true)} title="Show the sets outline">
+          <button className="flex w-8 shrink-0 flex-col items-center gap-2 rounded-lg py-2" style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)", color: NEON.cyan }} onClick={() => setSetsOpen(true)} title="Show the left rail">
             <ListChecks className="h-4 w-4" />
-            <span className="text-[9px] font-bold uppercase tracking-wider" style={{ writingMode: "vertical-rl" }}>Sets ({cardDecks.length})</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider" style={{ writingMode: "vertical-rl" }}>{topTab}</span>
           </button>
         ) : (
-        <div className={COL} style={{ maxWidth: 230, border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)" }}>
+        <div className={COL} style={{ maxWidth: 240, border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)" }}>
+          {topTab === "videos" && <CeqVideoLibrary courses={courseOptions} costOn={!!prefs.costOn} onToggleCost={() => setPrefs({ costOn: !prefs.costOn })} />}
+          {topTab === "tools" && (<>
+            <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Tools</div>
+            <div className="grid flex-1 place-items-center p-3 text-center text-[10.5px] leading-relaxed" style={{ color: NEON.muted }}>🛠 Coming soon —<br />batch take ingest · publish queue ·<br />shorts factory.</div>
+          </>)}
+          {topTab === "topics" && (<>
+            {/* TOPICS — the "is this topic FINISHED" view + THE readiness board: per-topic
+                chips derived LIVE (missing clips, intro/outro/wrap, runtime, published).
+                Click a chip to jump to the gap. */}
+            <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Topics <span style={{ color: NEON.muted }}>readiness</span>
+              <button className="ml-auto grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => setSetsOpen(false)} title="Collapse the left rail"><ChevronLeft className="h-3.5 w-3.5" /></button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-1">
+              {courseOptions.length === 0 && <div className="px-1.5 py-2 text-[10px] italic" style={{ color: NEON.muted }}>{courseOptionsQ.isError ? "Couldn't load the Course → Topic rows." : "Loading courses…"}</div>}
+              {courseOptions.map((c) => {
+                const cTopics = c.chapters.filter((ch) => ch.status !== "archived" || decksByTopic.has(ch.id));
+                const cHas = cardDecks.some((d) => d.courseId === c.id && !!d.topicId) || cTopics.some((ch) => pubVidsByTopic.has(ch.id));
+                const cKey = `topc:${c.id}`;
+                const cOpen = isExp(cKey, cHas);
+                return (
+                  <div key={c.id}>
+                    <button className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10.5px] font-bold uppercase tracking-wide" style={{ color: cHas ? NEON.cyan : NEON.muted }} onClick={() => toggleExp(cKey, cHas)}>
+                      {cOpen ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+                      <span className="min-w-0 flex-1 truncate">{courseLabel(c)}</span>
+                    </button>
+                    {cOpen && cTopics.map((ch) => {
+                      const tDecks = decksByTopic.get(ch.id) ?? [];
+                      const vids = pubVidsByTopic.get(ch.id) ?? [];
+                      let missFull = 0, missFree = 0, runtimeS = 0, wrapN = 0;
+                      let introAll = tDecks.length > 0, outroAll = tDecks.length > 0;
+                      for (const d of tDecks) { const r = deckReadiness.get(d.id); if (!r) continue; missFull += r.missFull; missFree += r.missFree; runtimeS += r.runtimeS; wrapN += r.wrapN; introAll = introAll && r.intro; outroAll = outroAll && r.outro; }
+                      const firstGap = tDecks.find((d) => (deckReadiness.get(d.id)?.missFull ?? 0) > 0) ?? tDecks[0];
+                      const tKey = `topt:${ch.id}`;
+                      const tOpen = isExp(tKey, tDecks.length > 0);
+                      return (
+                        <div key={ch.id} className="ml-1.5">
+                          <button className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px]" style={{ color: tDecks.length || vids.length ? NEON.text : NEON.muted }} onClick={() => toggleExp(tKey, tDecks.length > 0)}>
+                            {tOpen ? <ChevronDown className="h-2.5 w-2.5 shrink-0" /> : <ChevronRight className="h-2.5 w-2.5 shrink-0" />}
+                            <span className="min-w-0 flex-1 truncate">{chapterLabel(ch)}</span>
+                          </button>
+                          {(tDecks.length > 0 || vids.length > 0) && (
+                            <div className="ml-4 flex flex-wrap items-center gap-1 pb-0.5">
+                              <button className="rounded px-1 text-[7.5px] font-bold tabular-nums" style={missFull > 0 ? { color: "#FF8B9E", border: "1px solid rgba(255,92,108,0.5)" } : { color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.4)" }} onClick={() => firstGap && openSetTab(firstGap.id)} title={missFull > 0 ? `${missFull} question(s) missing clips (${missFree} in the free cut) — click to open the gap` : "Every question has a clip"}>{missFull > 0 ? `✂ ${missFull} (${missFree}F)` : "✂ ✓"}</button>
+                              <button className="rounded px-1 text-[7.5px] font-bold" style={introAll && outroAll ? { color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.4)" } : { color: NEON.yellow, border: `1px solid ${NEON.border}` }} onClick={() => { if (tDecks[0]) { openSetTab(tDecks[0].id); setPublishOpen(true); } }} title={`Intro ${introAll ? "✓" : "✗"} · Outro ${outroAll ? "✓" : "✗"} · ${wrapN} wrap clip(s) — click to open the Publish panel`}>I{introAll ? "✓" : "✗"} O{outroAll ? "✓" : "✗"} W{wrapN}</button>
+                              <span className="rounded px-1 text-[7.5px] font-bold tabular-nums" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} title="Estimated FULL runtime (summed clips)">⏱ {fmtDur(runtimeS)}</span>
+                              <button className="rounded px-1 text-[7.5px] font-bold tabular-nums" style={vids.length > 0 ? { color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.4)" } : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setPrefs({ topTab: "videos" })} title={`${vids.length} published video(s) — click for the Videos tab`}>▶ {vids.length}</button>
+                            </div>
+                          )}
+                          {tOpen && tDecks.map((d) => renderSetRow(d))}
+                          {tOpen && vids.map((v) => (
+                            <div key={v.id} className="ml-4 flex items-center gap-1 px-1 py-0.5 text-[9px]" style={{ color: NEON.muted }}>
+                              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "#3BF5A0" }} />
+                              <span className="min-w-0 flex-1 truncate">{v.name}</span>
+                              <span className="shrink-0 text-[7px] font-bold uppercase" style={{ color: v.paid ? "#FF8B9E" : "#3BF5A0" }}>{v.paid ? "Paid" : "Free"}</span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </>)}
+          {topTab === "sets" && (<>
           <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Sets <span style={{ color: NEON.muted }}>({cardDecks.length})</span>
-            <button className="ml-auto grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => setSetsOpen(false)} title="Collapse the sets outline"><ChevronLeft className="h-3.5 w-3.5" /></button>
+            <button className="ml-auto grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => setSetsOpen(false)} title="Collapse the left rail"><ChevronLeft className="h-3.5 w-3.5" /></button>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-1">
             {courseOptionsQ.isLoading && <div className="px-1.5 py-2 text-[10px] italic" style={{ color: NEON.muted }}>Loading courses…</div>}
@@ -1050,6 +1185,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
             <button className="m-1 flex items-center justify-center gap-1 rounded px-1 py-1 text-[9.5px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px dashed ${NEON.borderSoft}` }} onClick={() => setNewSetForm({ name: `Set ${cardDecks.length + 1}`, courseId: "", topicId: "" })}><Plus className="h-3 w-3" /> new set</button>
           )}
           <button className="mx-1 mb-1 flex items-center justify-center gap-1 rounded px-1 py-1 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} onClick={runSeed} title="Create the Ch 1–5 CEQ sets (Free + Full each) — mechanical stems/choices, empty chains. Idempotent.">seed Ch 1–5</button>
+          </>)}
         </div>
         )}
 
@@ -1063,9 +1199,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
               {deck && (starOnly || starCount > 0) && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: starOnly ? "#0B1322" : "#FFD23F", background: starOnly ? "#FFD23F" : "transparent", border: `1px solid ${starOnly ? "#FFD23F" : NEON.borderSoft}` }} onClick={() => setStarOnly((v) => !v)} title="Show only STARRED questions (performer's notes)">★ {starCount}</button>}
               {deck && starCount > 0 && <button className="rounded px-1 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={clearAllStars} title="Clear ALL stars in this set (confirm)">clear ★</button>}
               {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setStitchMode("full")} title="Sequential rhythm preview — plays the Free/Full stitch list back-to-back (no render)"><Play className="h-3 w-3" /> preview</button>}
-              {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase disabled:opacity-50" style={{ color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.5)" }} disabled={!!publishBusy || !deck.topicId} onClick={() => publishStitch("free")} title={deck.topicId ? "Concat the FREE stitch → Auphonic → Mux → attach to the FREE CEQ lesson (deployed env)" : "Library set — assign it to a Course → Topic to publish"}>{publishBusy === "free" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} pub free</button>}
-              {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase disabled:opacity-50" style={{ color: "#FF8B9E", border: "1px solid rgba(255,92,108,0.5)" }} disabled={!!publishBusy || !deck.topicId} onClick={() => publishStitch("full")} title={deck.topicId ? "Concat the FULL stitch → Auphonic → Mux → attach to the PAID CEQ lesson (deployed env)" : "Library set — assign it to a Course → Topic to publish"}>{publishBusy === "full" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} pub full</button>}
-              {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: wrapStems ? NEON.yellow : NEON.muted, border: `1px solid ${wrapStems ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` }} onClick={() => setPrefs({ wrapStems: !wrapStems })} title="Wrap full stems ↔ clamp to 2 lines (saved). (NOT the wrap CLIP slot — that's in Set clips.)"><WrapText className="h-3 w-3" /> wrap stems</button>}
+              {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: publishOpen ? "#0B0F1E" : "#3BF5A0", background: publishOpen ? "#3BF5A0" : "transparent", border: "1px solid rgba(59,245,160,0.5)" }} onClick={() => setPublishOpen(true)} title="Publish panel — Publish Free / Full, the lookback vertical, and the intro/transition/outro/wrap clips (one home)">{publishBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} Publish</button>}
+              {deck && <button className="grid h-5 w-5 place-items-center rounded" style={{ color: wrapStems ? NEON.yellow : NEON.muted, border: `1px solid ${wrapStems ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` }} onClick={() => setPrefs({ wrapStems: !wrapStems })} title="Wrap question text ↔ clamp to 2 lines"><WrapText className="h-3 w-3" /></button>}
               {deck && selChainMemos.size > 0 && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={copyMemos} title="Copy the selected memos (Ctrl+C)"><Copy className="h-3 w-3" /> copy {selChainMemos.size}</button>}
               {deck && memoClip.length > 0 && qId && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => pasteMemos(qId)} title="Paste the copied memos into this question (Ctrl+V)"><ClipboardPaste className="h-3 w-3" /> paste {memoClip.length}</button>}
               {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={dealIntoFrame} title="Deal this set into the frame you're in (stack; Space flips, Enter-walks chains)"><Film className="h-3 w-3" /> deal into frame</button>}
@@ -1147,14 +1282,37 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                   </div>
                 ); })}
                 <button className="mt-1 flex w-full items-center justify-center gap-1 rounded px-1 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} onClick={addQuestion}><Plus className="h-3 w-3" /> question</button>
-                {/* SPECIAL SLOTS — INTRO/OUTRO per set, TRANSITION shared, WRAP stack.
-                    These are PUBLISH-PATH concepts, so LIBRARY (unassigned) sets hide
-                    them — assign the set to a Course → Topic to unlock. Data-side the
-                    stitch/publish plumbing is untouched (publish is gated separately). */}
-                {!deck.topicId ? (
-                  <div className="mt-2 border-t px-0.5 pt-2 text-[9px] italic" style={{ borderColor: NEON.borderSoft, color: NEON.muted }}>Library set — assign it to a Course → Topic (drag it in the outline, or 📁 on its row) to unlock publish clips.</div>
-                ) : (
-                <div className="mt-2 flex flex-col gap-1 border-t pt-2" style={{ borderColor: NEON.borderSoft }}>
+              </div>
+              {/* (SET CLIPS moved to the Publish panel — one home for the publish path.) */}
+              {publishOpen && deck && (
+                <div className="absolute inset-0 z-[72] flex items-start justify-center" style={{ background: "rgba(4,7,14,0.6)" }} onClick={() => setPublishOpen(false)}>
+                  <div className="mt-8 flex max-h-[85vh] w-[440px] max-w-[94vw] flex-col overflow-hidden rounded-xl shadow-2xl" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}` }} onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-2 border-b px-3 py-2" style={{ borderColor: NEON.borderSoft }}>
+                      <Film className="h-4 w-4" style={{ color: "#3BF5A0" }} />
+                      <span className="min-w-0 flex-1 truncate text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>Publish — {deck.name}</span>
+                      <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setPublishOpen(false)} title="Close"><X className="h-4 w-4" /></button>
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                    {!deck.topicId ? (
+                      <div className="px-1 py-4 text-center text-[11px] italic" style={{ color: NEON.muted }}>Library set — assign it to a Course → Topic (drag it in the Sets outline, or 📁 on its row) to unlock publishing.</div>
+                    ) : (<>
+                      <div className="mb-2 flex items-center gap-2">
+                        <button className="flex flex-1 items-center justify-center gap-1 rounded px-2 py-1.5 text-[10px] font-bold uppercase disabled:opacity-50" style={{ color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.5)" }} disabled={!!publishBusy} onClick={() => publishStitch("free")} title="Concat the FREE stitch → Auphonic → Mux → attach to the FREE CEQ lesson">{publishBusy === "free" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} Publish Free</button>
+                        <button className="flex flex-1 items-center justify-center gap-1 rounded px-2 py-1.5 text-[10px] font-bold uppercase disabled:opacity-50" style={{ color: "#FF8B9E", border: "1px solid rgba(255,92,108,0.5)" }} disabled={!!publishBusy} onClick={() => publishStitch("full")} title="Concat the FULL stitch → Auphonic → Mux → attach to the PAID CEQ lesson">{publishBusy === "full" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} Publish Full</button>
+                      </div>
+                      {/* LOOKBACK — ONE vertical social file, staged + re-downloadable. NO
+                          pipeline: Lee posts socials manually. */}
+                      <div className="mb-2 flex flex-col gap-1 rounded p-1" style={{ background: dragKey === `lookback:${setId}` ? "rgba(252,163,17,0.14)" : "rgba(0,0,0,0.15)", outline: dragKey === `lookback:${setId}` ? `1px dashed ${NEON.yellow}` : `1px solid ${NEON.borderSoft}` }} {...dragProps(`lookback:${setId}`, (f) => dropSlot("lookback", f))}>
+                        <div className="flex items-center gap-1 text-[8px] font-bold uppercase" style={{ color: NEON.muted }}><span className="w-14 shrink-0">Lookback</span><span className="min-w-0 flex-1 truncate">vertical for socials — drop to stage (no pipeline)</span>{takeBusy === `lookback:${setId}` && <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: NEON.cyan }} />}</div>
+                        {deck.lookback && (
+                          <div className="flex items-center gap-1 text-[8.5px]" style={{ color: NEON.muted }}>
+                            <span className="min-w-0 flex-1 truncate" title={deck.lookback.name}>{deck.lookback.name || "vertical"} · {fmtDur(deck.lookback.duration)}</span>
+                            <a className="rounded px-1 text-[8px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} href={deck.lookback.url} download target="_blank" rel="noreferrer" title="Re-download the staged file">download</a>
+                            <button className="grid h-4 w-4 place-items-center" style={{ color: NEON.red }} onClick={() => setDecks((prev) => updateDeck(prev, deck.id, { lookback: undefined }))} title="Remove (file stays in staging)"><X className="h-3 w-3" /></button>
+                          </div>
+                        )}
+                      </div>
+                <div className="flex flex-col gap-1 border-t pt-2" style={{ borderColor: NEON.borderSoft }}>
                   <div className="px-0.5 text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Set clips — drop a video</div>
                   {([
                     { label: "Intro", kind: "intro", key: `intro:${setId}`, local: deck.intro, global: gc.intro, onFile: (f: File) => dropSlot("intro", f) },
@@ -1205,8 +1363,11 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                     ))}
                   </div>
                 </div>
-                )}
-              </div>
+                    </>)}
+                    </div>
+                  </div>
+                </div>
+              )}
               {/* WYSIWYG previewer (top) + collapsible stem/choices editor (bottom) */}
               <div className="flex min-h-0 flex-1 flex-col">
                 <div className="min-h-0 flex-1">
@@ -1274,6 +1435,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
           </div>
           <div className="flex items-center gap-1 px-1.5 pt-1.5"><Search className="h-3 w-3 shrink-0" style={{ color: NEON.muted }} /><input value={memoQuery} onChange={(e) => setMemoQuery(e.target.value)} placeholder="search title / sub-category" className="min-w-0 flex-1 bg-transparent text-[10.5px] outline-none" style={{ color: NEON.text }} />
             <button className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setMemoSort((s) => (s === "recent" ? "az" : "recent"))} title="Toggle sort: most recent ↔ A–Z">{memoSort === "recent" ? "recent" : "A–Z"}</button>
+            <button className="grid h-5 w-5 shrink-0 place-items-center rounded" style={{ color: wrapMemos ? NEON.yellow : NEON.muted, border: `1px solid ${wrapMemos ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` }} onClick={() => setPrefs({ wrapMemos: !wrapMemos })} title="Wrap memo labels ↔ truncate"><WrapText className="h-3 w-3" /></button>
           </div>
           {/* SCOPE (Lee) — narrow the library to the current question / set, or show all.
               Persists in panel prefs; category chips + search work WITHIN the scope. */}
@@ -1311,7 +1473,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                 {editing ? (
                   <input autoFocus className="nodrag min-w-0 flex-1 rounded bg-black/40 px-1 text-[10.5px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.border}` }} value={editMemoVal} onChange={(e) => setEditMemoVal(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") commitEditMemo(m.id, editMemoVal); else if (e.key === "Escape") { setEditMemo(null); setEditMemoVal(""); } }} onBlur={() => commitEditMemo(m.id, editMemoVal)} />
                 ) : (
-                  <span className="min-w-0 flex-1 cursor-text truncate text-[10.5px]" style={{ color: NEON.text }} onDoubleClick={() => { setEditMemo(m.id); setEditMemoVal(m.label); }}>{m.label}{m.subcategory && <span className="ml-1 text-[8px]" style={{ color: NEON.cyan }}>· {m.subcategory}</span>}</span>
+                  <span className={`min-w-0 flex-1 cursor-text text-[10.5px] ${wrapMemos ? "whitespace-normal break-words" : "truncate"}`} style={{ color: NEON.text }} onDoubleClick={() => { setEditMemo(m.id); setEditMemoVal(m.label); }}>{m.label}{m.subcategory && <span className="ml-1 text-[8px]" style={{ color: NEON.cyan }}>· {m.subcategory}</span>}</span>
                 )}
                 {/* ×N usage — the "shared, edits ripple" signal; tooltip lists the T.QQ ids. */}
                 {uses > 1 && <span className="shrink-0 text-[7.5px] font-bold tabular-nums" style={{ color: "#7CC4FF" }} title={usageTip(m.id)}>×{uses}</span>}
