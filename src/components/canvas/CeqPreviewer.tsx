@@ -323,6 +323,12 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // frame (unchanged). Needs the deck's ordered ceq ids (deckCeqIds).
   const [overview, setOverview] = useState(false);
   const overviewOn = overview && !!deckCeqIds && deckCeqIds.length > 1;
+  // COPY/PASTE STYLE (Lee) — marquee-select (Ctrl+drag) memos, right-click → copy their
+  // STYLE (size + frame-local position + choice-label/arrow flags, NOT content), then
+  // paste onto another selection. Generic node op (cards later). styleClip is ordered.
+  const [selMemoIds, setSelMemoIds] = useState<Set<string>>(new Set());
+  const [styleClip, setStyleClip] = useState<{ x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean }[]>([]);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null);
   // The active frame's vertical offset in the stack (0 outside overview). Node positions
   // carry it; the baseline is FRAME-LOCAL, so persistence subtracts it back off.
   const activeYOff = useMemo(() => (overviewOn && deckCeqIds ? Math.max(0, deckCeqIds.indexOf(ceqId)) * (frameH + Math.round(frameH * 0.16)) : 0), [overviewOn, deckCeqIds, ceqId, frameH]);
@@ -481,6 +487,40 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // baseline so it STICKS across navigation (was transient → reverted on re-seed).
   const commitGeom = () => { if (onSaveBaseline) saveBaseline(); };
 
+  // COPY / PASTE STYLE — the acted-on memos = the marquee selection if it includes the
+  // right-clicked memo, else just that memo. Ordered by flat chain index for a stable
+  // arrangement. Style captured = frame-local {x,y,scale} + the choice-label/arrow flags.
+  const styleTargets = (nodeId: string) => {
+    const ids = selMemoIds.size > 0 && selMemoIds.has(nodeId) ? [...selMemoIds] : [nodeId];
+    return ids.map((id) => ({ id, idx: walk.findIndex((w) => w.memoNodeId === id) })).filter((x) => x.idx >= 0).sort((a, b) => a.idx - b.idx);
+  };
+  const copyStyle = (nodeId: string) => {
+    const styles = styleTargets(nodeId).map(({ id, idx }) => {
+      const n = nodes.find((nn) => nn.id === id);
+      const w = walk[idx];
+      return { x: Math.round(n?.position.x ?? 0), y: Math.round((n?.position.y ?? 0) - activeYOff), scale: (n?.data as { scale?: number } | undefined)?.scale ?? 1, hideChoiceLabel: w?.hideChoiceLabel, hideArrow: w?.hideArrow };
+    });
+    setStyleClip(styles); setCtxMenu(null);
+  };
+  const pasteStyle = (nodeId: string) => {
+    setCtxMenu(null);
+    if (styleClip.length === 0 || !onSaveBaseline) return;
+    const targets = styleTargets(nodeId);
+    // Snapshot all current geometry (untouched memos keep their spots), overwrite targets.
+    const memoSlots: DeckSlotLayout[] = [];
+    walk.forEach((w, i) => { const m = nodes.find((n) => n.id === w.memoNodeId); if (m) memoSlots[i] = { x: Math.round(m.position.x), y: Math.round(m.position.y - activeYOff), scale: (m.data as { scale?: number }).scale ?? 1 }; });
+    const pos1to1 = styleClip.length === 1 && targets.length === 1; // exact 1↔1 copies location too
+    targets.forEach(({ idx }, i) => {
+      const s = styleClip.length === 1 ? styleClip[0] : styleClip[Math.min(i, styleClip.length - 1)];
+      const cur = memoSlots[idx] ?? { x: 0, y: 0, scale: 1 };
+      const copyPos = styleClip.length > 1 || pos1to1; // multi = replicate arrangement; single→many keeps positions
+      memoSlots[idx] = copyPos ? { x: s.x, y: s.y, scale: s.scale } : { x: cur.x, y: cur.y, scale: s.scale };
+    });
+    const c = nodes.find((n) => n.id === ceqId);
+    onSaveBaseline({ card: c ? { x: Math.round(c.position.x), y: Math.round(c.position.y - activeYOff), scale: (c.data as { scale?: number }).scale ?? 1 } : undefined, memoSlots });
+    targets.forEach(({ id }, i) => { const s = styleClip.length === 1 ? styleClip[0] : styleClip[Math.min(i, styleClip.length - 1)]; onPatchChainItem?.(id, { hideChoiceLabel: s.hideChoiceLabel, hideArrow: s.hideArrow }); });
+  };
+
   const miniIds = useMemo(() => new Set<string>(["__frame__", ceqId, ...walk.map((w) => w.memoNodeId)]), [ceqId, walk]);
   // Memos whose arrow Lee has toggled OFF — the previewer shows them faint (so the
   // toggle is discoverable), the film mirror drops them entirely (see filmEdges).
@@ -578,6 +618,10 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                   onEdgeClick={onEdgeClick}
                   onSelectionChange={({ nodes: sel, edges: selE }) => {
                     onSelectMemo?.((sel.find((n) => n.type === "memoPreview")?.id) ?? null);
+                    // Track the marquee memo selection (for Copy/Paste style) — same
+                    // compare-before-set discipline as the edges below.
+                    const mids = sel.filter((n) => n.type === "memoPreview").map((n) => n.id);
+                    setSelMemoIds((prev) => (prev.size === mids.length && mids.every((id) => prev.has(id)) ? prev : new Set(mids)));
                     // STABILIZE (fix #185): RF re-fires onSelectionChange every time the
                     // controlled `edges` prop is re-adopted; building a fresh Set here each
                     // time gave `selEdgeIds` a new reference → the `edges` memo (which reads
@@ -587,6 +631,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                     const ids = selE.map((e) => e.id);
                     setSelEdgeIds((prev) => (prev.size === ids.length && ids.every((id) => prev.has(id)) ? prev : new Set(ids)));
                   }}
+                  onNodeContextMenu={(e, node) => { if (node.type === "memoPreview") { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, nodeId: node.id }); } }}
                   onInit={(inst) => { fitRef.current = inst; }}
                   nodeTypes={nodeTypes}
                   fitView
@@ -595,6 +640,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                   maxZoom={2}
                   proOptions={{ hideAttribution: true }}
                   connectionMode={ConnectionMode.Loose}
+                  selectionKeyCode="Control"
                   nodesConnectable
                   elementsSelectable
                   deleteKeyCode={null}
@@ -633,6 +679,18 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                 </div>
               </div>
             </div>
+            {/* COPY / PASTE STYLE context menu (right-click a memo). Marquee-select
+                (Ctrl+drag) first to act on several at once. */}
+            {ctxMenu && (
+              <>
+                <div className="fixed inset-0 z-[60]" onClick={() => setCtxMenu(null)} onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null); }} />
+                <div className="fixed z-[61] flex flex-col gap-0.5 rounded-lg p-1 shadow-2xl" style={{ left: ctxMenu.x, top: ctxMenu.y, background: NEON.panelSolid, border: `1px solid ${NEON.border}`, minWidth: 156 }}>
+                  <div className="px-1.5 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.muted }}>{selMemoIds.size > 1 && selMemoIds.has(ctxMenu.nodeId) ? `${selMemoIds.size} memos selected` : "memo style"}</div>
+                  <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: NEON.text }} onClick={() => copyStyle(ctxMenu.nodeId)} title="Copy size + position + choice-label/arrow flags (not the memo text)">Copy style</button>
+                  <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5 disabled:opacity-40" style={{ color: styleClip.length ? NEON.cyan : NEON.muted }} disabled={!styleClip.length} onClick={() => pasteStyle(ctxMenu.nodeId)} title="Apply the copied style to the selected memo(s)">Paste style{styleClip.length ? ` (${styleClip.length})` : ""}</button>
+                </div>
+              </>
+            )}
             {/* FILM MODE popout — a clean 16:9 canvas frame on the 2nd monitor that is
                 TWO-WAY with this previewer: it renders the SAME nodes/edges + Practice/
                 Reveal/Spot state (one React tree ⇒ live mirror), and its ReactFlow is now
