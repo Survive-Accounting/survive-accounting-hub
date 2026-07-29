@@ -26,7 +26,7 @@ import { detectAuphonicSlots, resolveCeqConcat, resolvePipelineTestAuphonic, sta
 import type { LessonBox } from "./types";
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { useFrameNav } from "./FrameNavContext";
-import { cardId, type CeqCard, type ChainSound, type CeqChainItem, type CeqChoice, type DeckDef, type GlobalClips, type TakeRef } from "./types";
+import { cardId, type CeqCard, type ChainSound, type CeqChainItem, type CeqChoice, type DeckDef, type DeckSlotLayout, type GlobalClips, type TakeRef } from "./types";
 import { NEON } from "./theme";
 
 const memoText = (title?: string, body?: string) => ((title && title.trim()) || (body || "").replace(/[*_=~`#>]/g, "").trim() || "memo");
@@ -572,10 +572,10 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
 
   // ---- COPY ITEMS (Lee) — copy the actual memos between questions, then paste as NEW
   //      independent copies OR EXACT shared references (edits ripple). ---------------
-  /** Copy the given memo nodes (by id) off the CURRENT question — captures their choice
-   *  index + label + flags + content for a later new/exact paste. */
-  const copyItems = (memoNodeIds: string[]) => {
-    if (!qd) return;
+  /** Capture the given memo nodes (by id) off the CURRENT question — choice index +
+   *  label + flags + content. Shared by Copy items and Send to starred. */
+  const captureItems = (memoNodeIds: string[]): typeof itemsClip => {
+    if (!qd) return [];
     const idSet = new Set(memoNodeIds);
     const clips: typeof itemsClip = [];
     qd.choices.forEach((c, ci) => (c.chain ?? []).forEach((it) => {
@@ -583,9 +583,73 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       const md = rf.getNode(it.memoNodeId)?.data as { title?: string; body?: string; memoKind?: string; category?: string; subcategory?: string } | undefined;
       clips.push({ memoNodeId: it.memoNodeId, choiceIdx: ci, label: it.label, title: md?.title ?? "", body: md?.body ?? "", memoKind: md?.memoKind ?? "note", category: md?.category ?? "", subcategory: md?.subcategory ?? "", sound: it.sound, hideChoiceLabel: it.hideChoiceLabel, hideArrow: it.hideArrow });
     }));
+    return clips;
+  };
+  const copyItems = (memoNodeIds: string[]) => {
+    const clips = captureItems(memoNodeIds);
     if (clips.length === 0) { setNote("No memos to copy."); return; }
     setItemsClip(clips);
     setNote(`Copied ${clips.length} item${clips.length === 1 ? "" : "s"} — open another question, then Ctrl+V (new copies) or right-click → paste (new/shared).`);
+  };
+  /** SEND TO STARRED (Lee, bulk) — every ★ question in the set receives NEW independent
+   *  copies of the given memos, at the same choice letters. One undoable step. */
+  const sendToStarred = (memoNodeIds: string[]) => {
+    if (!qId) return;
+    const clips = captureItems(memoNodeIds);
+    if (clips.length === 0) { setNote("No memos to send."); return; }
+    const targets = questions.filter((q) => q.id !== qId && !!(rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.starred);
+    if (targets.length === 0) { setNote("No starred questions to send to — star (☆) some first."); return; }
+    const cmds: NonNullable<ReturnType<typeof patchDataFnCmd>>[] = [];
+    let placed = 0;
+    for (const t of targets) {
+      const tChoices = (rf.getNode(t.id)?.data as unknown as CeqCard | undefined)?.choices ?? [];
+      const newNodes: Record<string, unknown>[] = [];
+      const newEdges: Record<string, unknown>[] = [];
+      const adds = new Map<string, NonNullable<CeqChoice["chain"]>>();
+      clips.forEach((clip, k) => {
+        const ch = tChoices[clip.choiceIdx]; if (!ch) return;
+        const memoId = cardId("memo");
+        newNodes.push({ id: memoId, type: "memo", position: defaultMemoPos(frameW, frameH, k), selected: false, data: { kind: "memo", memoKind: clip.memoKind, title: clip.title, body: clip.body, category: clip.category, subcategory: clip.subcategory, sourceId: clip.memoNodeId } });
+        newEdges.push({ id: `chn-${ch.id}-${memoId}`, source: memoId, sourceHandle: "l", target: t.id, targetHandle: memoAnchorId(ch.id), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } });
+        const arr = adds.get(ch.id) ?? []; arr.push({ kind: "memo", memoNodeId: memoId, label: clip.label, sound: clip.sound, hideChoiceLabel: clip.hideChoiceLabel, hideArrow: clip.hideArrow }); adds.set(ch.id, arr);
+        placed++;
+      });
+      if (newNodes.length === 0) continue;
+      const add = addNodesAndEdgesCmd(rfl, newNodes as never, newEdges as never, "send memos"); if (add) cmds.push(add);
+      const patch = patchDataFnCmd(rfl, t.id, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => (adds.has(c.id) ? { ...c, chain: [...(c.chain ?? []), ...(adds.get(c.id) ?? [])] } : c)) }), "send chain memos"); if (patch) cmds.push(patch);
+    }
+    if (placed === 0) { setNote("Nothing sent — the starred questions lack those choice slots."); return; }
+    const cmd = compositeCmd(cmds, "send memos to starred"); if (cmd) bus.dispatch(cmd);
+    setNote(`Sent ${clips.length} memo${clips.length === 1 ? "" : "s"} to ${targets.length} starred question${targets.length === 1 ? "" : "s"} (new copies · Ctrl+Z undoes all).`);
+  };
+  /** COPY STYLE TO ALL IN SET (Lee, bulk) — geometry goes to the shared baseline
+   *  (memoSlots, which every question renders from) and the SETTINGS (caption/arrow/
+   *  sound — copied exactly, including "off") are patched onto every question's chain
+   *  items. Single memo = its size + settings apply to ALL memos (positions kept);
+   *  multi-select = slot-mapped (selection memo #1 → every question's memo #1, 2→2…). */
+  const applyStyleToSet = (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: ChainSound }[]) => {
+    if (!deck || styles.length === 0) return;
+    const single = styles.length === 1;
+    const slots: (DeckSlotLayout | undefined)[] = [...(deck.layout?.memoSlots ?? [])];
+    if (single) {
+      const s = styles[0];
+      slots[s.idx] = { x: s.x, y: s.y, scale: s.scale };
+      for (let i = 0; i < slots.length; i++) if (slots[i] && i !== s.idx) slots[i] = { ...slots[i]!, scale: s.scale };
+    } else {
+      styles.forEach((s) => { slots[s.idx] = { x: s.x, y: s.y, scale: s.scale }; });
+    }
+    setDecks((prev) => updateDeck(prev, deck.id, { layout: { ...(deck.layout ?? {}), memoSlots: slots as DeckSlotLayout[] } }));
+    const bySlot = new Map(styles.map((s) => [s.idx, s]));
+    const cmds: NonNullable<ReturnType<typeof patchDataFnCmd>>[] = [];
+    for (const q of questions) {
+      const p = patchDataFnCmd(rfl, q.id, (prev) => {
+        let flat = -1;
+        return { choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => ({ ...c, chain: (c.chain ?? []).map((it) => { flat += 1; const s = single ? styles[0] : bySlot.get(flat); return s ? { ...it, hideChoiceLabel: s.hideChoiceLabel, hideArrow: s.hideArrow, sound: s.sound } : it; }) })) };
+      }, "style to set");
+      if (p) cmds.push(p);
+    }
+    const cmd = compositeCmd(cmds, "copy style to set"); if (cmd) bus.dispatch(cmd);
+    setNote(single ? `Applied that memo's size + settings to every memo in the set (${questions.length} questions · Ctrl+Z undoes the settings).` : `Applied ${styles.length} styles slot-by-slot (1→1, 2→2…) across ${questions.length} questions.`);
   };
   /** Paste the copied items onto the CURRENT question at the SAME choice index. `new` =
    *  fresh independent memo nodes; `exact` = chain the SAME shared memo nodes (edits
@@ -981,7 +1045,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                   {stitchMode ? (
                     <CeqStitch free={stitchFree.items} full={stitchFull.items} freeMissing={stitchFree.missing} fullMissing={stitchFull.missing} initialMode={stitchMode} onExit={() => setStitchMode(null)} onJumpCeq={(id) => setQId(id)} />
                   ) : (
-                    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { layout: l })); setNote("Saved as the set's baseline layout — every question deals here now."); } }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={questions.map((q) => q.id)} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
+                    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { layout: l })); setNote("Saved as the set's baseline layout — every question deals here now."); } }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={questions.map((q) => q.id)} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
                   )}
                 </div>
                 {qd && (
