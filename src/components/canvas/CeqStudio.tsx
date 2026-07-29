@@ -6,8 +6,11 @@
 // ELEMENT), search/filter, bulk triage for the unfiled pile, and drag-onto-a-choice
 // to attach to a chain. No new storage beyond panel prefs.
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useEdges, useNodes, useReactFlow } from "@xyflow/react";
-import { CheckCircle2, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Circle, ClipboardPaste, Copy, ExternalLink, Globe, Library, Lightbulb, ListChecks, Loader2, Play, Plus, Search, Square, Trash2, WrapText, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
+import { CheckCircle2, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Circle, ClipboardPaste, Copy, ExternalLink, FolderInput, Globe, Library, Lightbulb, ListChecks, Loader2, Play, Plus, Search, Square, Trash2, WrapText, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
+
+import { chapterLabel, courseLabel, fetchCourseOptions, type CourseOption } from "@/lib/je-api";
 
 import { addDeck, deckMembersOf, newDeckDef, removeDeck, updateDeck } from "./deck-defs";
 import { nextStageOrder } from "./BaseCard";
@@ -38,6 +41,7 @@ const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
 const NONE = "__uncat__";
 const MEMO_DND = "text/sa-studio-memo";
 const QREORDER = "text/sa-ceq-qreorder"; // dragging a question ROW to reorder
+const SET_DND = "text/sa-ceq-set"; // dragging a SET row onto a topic / the Library
 
 export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initialCeqId, onPopOut, popped, onClose }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void; globalClips?: GlobalClips; setGlobalClips?: (patch: Partial<GlobalClips>) => void; initialCeqId?: string | null; onPopOut?: () => void; popped?: boolean; onClose: () => void }) {
   const gc = globalClips ?? {};
@@ -67,8 +71,11 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const [editorOpen, setEditorOpen] = useState(true); // collapsible stem/choices editor
   const [libOpen, setLibOpen] = useState(true); // collapsible memo-library pane
   const [setsOpen, setSetsOpen] = useState(true); // collapsible sets pane
-  const [setsCourseFilter, setSetsCourseFilter] = useState("all"); // filter sets by course
-  const [setsChapterFilter, setSetsChapterFilter] = useState("all"); // filter sets by chapter
+  // TOPICS SPINE (Lee) — the sets pane is an outline over the REAL Course → Topic
+  // model (courses/chapters rows, Manage Course order). No more free-text filters.
+  const [assignFor, setAssignFor] = useState<string | null>(null); // deck id whose course/topic picker is open
+  const [assignCourseSel, setAssignCourseSel] = useState<string>("lib"); // picker's course selection ("lib" = Library)
+  const [newSetForm, setNewSetForm] = useState<{ name: string; courseId: string; topicId: string } | null>(null); // inline New Set form ("" = Library)
   const [previewSelMemo, setPreviewSelMemo] = useState<string | null>(null); // memo selected in the previewer
   const [shortsQueueOpen, setShortsQueueOpen] = useState(false); // shorts-worthy worklist overlay
   const [prefs, setPrefsState] = useState<CeqStudioPrefs>(() => loadPrefs()); // panel prefs (wrap toggle + shared transition)
@@ -99,10 +106,64 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const [justCreated, setJustCreated] = useState<Set<string>>(() => new Set()); // fresh (unchained) memos kept visible past the scope filter
   const memoScope: "question" | "set" | "all" = prefs.memoScope ?? "set"; // default: This set
 
-  // SET ORGANISATION (Lee) — filter the sets list by course → chapter.
-  const setCourses = useMemo(() => [...new Set(cardDecks.map((d) => d.course).filter((c): c is string => !!c))].sort(), [cardDecks]);
-  const setChapters = useMemo(() => [...new Set(cardDecks.filter((d) => setsCourseFilter === "all" || d.course === setsCourseFilter).map((d) => d.chapter).filter((c): c is string => !!c))].sort(), [cardDecks, setsCourseFilter]);
-  const filteredDecks = cardDecks.filter((d) => (setsCourseFilter === "all" || d.course === setsCourseFilter) && (setsChapterFilter === "all" || d.chapter === setsChapterFilter));
+  // TOPICS SPINE (Lee) — the real Course → Topic rows (Manage Course order), same
+  // fetch path the canvas uses everywhere else.
+  const courseOptionsQ = useQuery({ queryKey: ["course-options"], queryFn: () => fetchCourseOptions(), staleTime: 600_000, networkMode: "always" });
+  const courseOptions = useMemo(() => courseOptionsQ.data ?? [], [courseOptionsQ.data]);
+  // ONE-TIME MIGRATION — decks that predate the spine (courseId strictly undefined)
+  // are matched by their legacy free-text tags: course string → course row (name/code,
+  // "Foundations" falls back to the foundations-family / "Start Here" course), then
+  // "Ch N" → that course's ACTIVE chapter with number N. Unmatchable ⇒ Library (null).
+  // Idempotent: after this pass courseId/topicId are string-or-null, never undefined.
+  const migratedRef = useRef(false);
+  useEffect(() => {
+    if (migratedRef.current || courseOptions.length === 0) return;
+    const pending = decks.filter((d) => d.payloadType === "cards" && d.courseId === undefined && d.topicId === undefined);
+    migratedRef.current = true;
+    if (pending.length === 0) return;
+    const report: string[] = [];
+    setDecks((prev) => prev.map((d) => {
+      if (d.payloadType !== "cards" || d.courseId !== undefined || d.topicId !== undefined) return d;
+      const cstr = (d.course ?? "").trim().toLowerCase();
+      const course = courseOptions.find((c) => (c.course_name ?? "").toLowerCase() === cstr || (c.code ?? "").toLowerCase() === cstr)
+        ?? (cstr === "foundations" ? courseOptions.find((c) => c.course_family === "foundations" || /start\s*here/i.test(c.course_name ?? "")) : undefined);
+      const chNum = /ch\s*\.?\s*(\d+)/i.exec(d.chapter ?? "")?.[1];
+      const topic = course && chNum ? course.chapters.find((ch) => ch.number === Number(chNum) && ch.status !== "archived") : undefined;
+      if (course && topic) { report.push(`"${d.name}" → ${courseLabel(course)} / ${chapterLabel(topic)}`); return { ...d, courseId: course.id, topicId: topic.id }; }
+      report.push(`"${d.name}" → Library (unmatched: ${d.course ?? "no course"} · ${d.chapter ?? "no chapter"})`);
+      return { ...d, courseId: course?.id ?? null, topicId: null };
+    }));
+    console.info(`[CEQ Studio] topics-spine migration (${pending.length} sets):\n${report.join("\n")}`);
+    setNote(`Organized ${pending.length} set${pending.length === 1 ? "" : "s"} under Course → Topic — mapping in the console. Unmatched sets are in the Library.`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courseOptions, decks]);
+  /** Assign / reassign a set. null topic ⇒ Library. Keeps the legacy course/chapter
+   *  display tags in sync (the publish passthrough still reads them). */
+  const assignSet = (deckId: string, course: CourseOption | null, topic: CourseOption["chapters"][number] | null) => {
+    setDecks((prev) => updateDeck(prev, deckId, {
+      courseId: course?.id ?? null,
+      topicId: topic?.id ?? null,
+      ...(course ? { course: courseLabel(course) } : {}),
+      ...(topic ? { chapter: `Ch ${topic.number ?? "?"}` } : {}),
+    }));
+    setAssignFor(null);
+    setNote(topic && course ? `Moved set → ${courseLabel(course)} / ${chapterLabel(topic)}.` : "Returned set to the Library (unassigned).");
+  };
+  const decksByTopic = useMemo(() => { const m = new Map<string, DeckDef[]>(); for (const d of cardDecks) if (d.topicId) { const l = m.get(d.topicId) ?? []; l.push(d); m.set(d.topicId, l); } return m; }, [cardDecks]);
+  const libraryDecks = useMemo(() => cardDecks.filter((d) => !d.topicId), [cardDecks]);
+  // Per-set Free/Full counts for the outline badges.
+  const deckCounts = useMemo(() => {
+    const m = new Map<string, { free: number; full: number }>();
+    for (const d of cardDecks) {
+      const mem = deckMembersOf(nodes as { id: string; type?: string; data?: { deckId?: string; stageOrder?: number } }[], d.id).filter((n) => (n as { type?: string }).type === "ceq");
+      m.set(d.id, { free: mem.filter((n) => !!((n as { data?: { free?: boolean } }).data?.free)).length, full: mem.length });
+    }
+    return m;
+  }, [cardDecks, nodes]);
+  // Outline expand state — persisted in panel prefs; default open where sets live.
+  const outlineExp = prefs.setsOutline ?? {};
+  const isExp = (key: string, dflt: boolean) => outlineExp[key] ?? dflt;
+  const toggleExp = (key: string, dflt: boolean) => setPrefs({ setsOutline: { ...outlineExp, [key]: !isExp(key, dflt) } });
   const deck = cardDecks.find((d) => d.id === setId) ?? null;
   const questions = useMemo(() => (deck ? deckMembersOf(nodes as { id: string; type?: string; data?: { deckId?: string; stageOrder?: number } }[], deck.id).filter((n) => (n as { type?: string }).type === "ceq") : []), [deck, nodes]);
   const starCount = useMemo(() => questions.reduce((n, q) => n + ((rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.starred ? 1 : 0), 0), [questions, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -143,12 +204,22 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     }), [nodes, cardDecks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- SETS -----------------------------------------------------------------
-  const newSet = () => {
-    const name = window.prompt("New set name?", `Set ${cardDecks.length + 1}`);
-    if (!name) return;
-    const def = { ...newDeckDef(name.trim(), "cards"), lessonId: (nav.currentFrameId ? (rf.getNode(nav.currentFrameId)?.parentId ?? null) : null) };
+  /** Create a set from the inline New Set form — asks course + topic (or Library). */
+  const createSet = () => {
+    if (!newSetForm || !newSetForm.name.trim()) return;
+    const course = newSetForm.courseId ? courseOptions.find((c) => c.id === newSetForm.courseId) ?? null : null;
+    const topic = course && newSetForm.topicId ? course.chapters.find((ch) => ch.id === newSetForm.topicId) ?? null : null;
+    const def = {
+      ...newDeckDef(newSetForm.name.trim(), "cards"),
+      lessonId: (nav.currentFrameId ? (rf.getNode(nav.currentFrameId)?.parentId ?? null) : null),
+      courseId: course?.id ?? null,
+      topicId: topic?.id ?? null,
+      ...(course ? { course: courseLabel(course) } : {}),
+      ...(topic ? { chapter: `Ch ${topic.number ?? "?"}` } : {}),
+    };
     setDecks((prev) => addDeck(prev, def));
-    setSetId(def.id); setQId(null);
+    setSetId(def.id); setQId(null); setNewSetForm(null);
+    setNote(topic && course ? `Created "${def.name}" under ${courseLabel(course)} / ${chapterLabel(topic)}.` : `Created "${def.name}" in the Library (unassigned).`);
   };
   const runSeed = () => {
     if (!window.confirm("Seed the Ch 1–5 CEQ sets? Re-seeding replaces each seeded set's cards (idempotent) — your other sets are untouched.")) return;
@@ -163,6 +234,41 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     if (cmd) bus.dispatch(cmd);
     setDecks((prev) => removeDeck(prev, d.id));
     if (setId === d.id) { setSetId(null); setQId(null); }
+  };
+  /** One SET row in the outline (draggable onto a topic / the Library) + its inline
+   *  course/topic picker. Badges: Free/Full counts + laid marker. */
+  const renderSetRow = (d: DeckDef) => {
+    const counts = deckCounts.get(d.id) ?? { free: 0, full: 0 };
+    const laid = (d.slots?.length ?? 0) > 0;
+    const on = setId === d.id;
+    return (
+      <div key={d.id}>
+        <div draggable className="ml-4 flex cursor-grab items-center gap-1 rounded px-1 py-0.5" style={{ background: on ? "rgba(252,163,17,0.12)" : "transparent", border: `1px solid ${on ? NEON.border : "transparent"}` }}
+          onDragStart={(e) => { e.dataTransfer.setData(SET_DND, d.id); e.dataTransfer.effectAllowed = "move"; }}
+          title="Click to open · drag onto a topic to assign · double-click to rename">
+          <button className="min-w-0 flex-1 truncate text-left text-[10.5px] font-semibold" style={{ color: on ? NEON.yellow : NEON.text }} onClick={() => { setSetId(d.id); setQId(null); }} onDoubleClick={() => renameSet(d)}>{d.name}</button>
+          <span className="shrink-0 rounded px-1 text-[7.5px] font-bold tabular-nums" style={{ color: counts.free > 0 ? "#3BF5A0" : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} title={`${counts.free} free · ${counts.full} full${laid ? " · laid" : ""}`}>{counts.free}F·{counts.full}{laid ? "▦" : ""}</span>
+          <button className="shrink-0" style={{ color: assignFor === d.id ? NEON.yellow : NEON.muted }} onClick={() => { setAssignFor((k) => (k === d.id ? null : d.id)); setAssignCourseSel(d.courseId ?? "lib"); }} title="Assign to a Course → Topic (or the Library)"><FolderInput className="h-3 w-3" /></button>
+          <button className="shrink-0" style={{ color: NEON.red }} onClick={() => deleteSet(d)} title="Delete set (keeps cards loose)"><Trash2 className="h-3 w-3" /></button>
+        </div>
+        {assignFor === d.id && (
+          <div className="mb-1 ml-4 flex flex-col gap-1 rounded p-1" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${NEON.borderSoft}` }}>
+            <select value={assignCourseSel} onChange={(e) => setAssignCourseSel(e.target.value)} className="rounded bg-black/40 px-1 py-0.5 text-[9.5px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}>
+              <option value="lib">Library (unassigned)</option>
+              {courseOptions.map((c) => <option key={c.id} value={c.id}>{courseLabel(c)}</option>)}
+            </select>
+            {assignCourseSel === "lib" ? (
+              <button className="rounded px-1 py-0.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => assignSet(d.id, null, null)}>move to Library</button>
+            ) : (
+              <select value="" onChange={(e) => { const c = courseOptions.find((x) => x.id === assignCourseSel); const t = c?.chapters.find((ch) => ch.id === e.target.value); if (c && t) assignSet(d.id, c, t); }} className="rounded bg-black/40 px-1 py-0.5 text-[9.5px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}>
+                <option value="">pick a topic…</option>
+                {courseOptions.find((c) => c.id === assignCourseSel)?.chapters.filter((ch) => ch.status !== "archived").map((ch) => <option key={ch.id} value={ch.id}>{chapterLabel(ch)}</option>)}
+              </select>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   // ---- QUESTIONS ------------------------------------------------------------
@@ -304,6 +410,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
    *  clip (no silent skips at publish, unlike preview). Runs on the deployed env. */
   const publishStitch = async (mode: "free" | "full") => {
     if (publishBusy || !deck) return;
+    // LIBRARY sets are not publishable — publish attaches to a lesson under a topic.
+    if (!deck.topicId) { setNote("This set is in the Library (unassigned) — assign it to a Course → Topic before publishing."); return; }
     const stitch = mode === "free" ? stitchFree : stitchFull;
     if (stitch.missing.length > 0) { setNote(`Publish blocked — ${stitch.missing.length} CEQ(s) in the ${mode} cut have no clip: ${stitch.missing.map((m) => (m.prompt || "?").slice(0, 18)).join(", ")}. Attach clips first.`); return; }
     if (stitch.items.filter((i) => i.kind === "ceq").length === 0) { setNote(`No CEQ clips in the ${mode} cut.`); return; }
@@ -847,47 +955,100 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       <div className="flex min-h-0 flex-1 gap-2 p-2">
         {/* PANE 0 — VIDEO LIBRARY (leftmost; published videos grouped Course → Chapter) */}
         <CeqVideoLibrary open={prefs.videoLibOpen !== false} onToggle={() => setPrefs({ videoLibOpen: prefs.videoLibOpen === false })} costOn={!!prefs.costOn} onToggleCost={() => setPrefs({ costOn: !prefs.costOn })} />
-        {/* PANE 1 — SETS (collapsible; filter by course → chapter) */}
+        {/* PANE 1 — SETS: Obsidian-style outline over the REAL Course → Topic spine.
+            The outline IS the filter (old course/chapter dropdowns removed). */}
         {!setsOpen ? (
-          <button className="flex w-8 shrink-0 flex-col items-center gap-2 rounded-lg py-2" style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)", color: NEON.cyan }} onClick={() => setSetsOpen(true)} title="Show the sets list">
+          <button className="flex w-8 shrink-0 flex-col items-center gap-2 rounded-lg py-2" style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)", color: NEON.cyan }} onClick={() => setSetsOpen(true)} title="Show the sets outline">
             <ListChecks className="h-4 w-4" />
             <span className="text-[9px] font-bold uppercase tracking-wider" style={{ writingMode: "vertical-rl" }}>Sets ({cardDecks.length})</span>
           </button>
         ) : (
-        <div className={COL} style={{ maxWidth: 220, border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)" }}>
-          <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Sets <span style={{ color: NEON.muted }}>({filteredDecks.length === cardDecks.length ? cardDecks.length : `${filteredDecks.length}/${cardDecks.length}`})</span>
-            <button className="ml-auto grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => setSetsOpen(false)} title="Collapse the sets list"><ChevronLeft className="h-3.5 w-3.5" /></button>
+        <div className={COL} style={{ maxWidth: 230, border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)" }}>
+          <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Sets <span style={{ color: NEON.muted }}>({cardDecks.length})</span>
+            <button className="ml-auto grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => setSetsOpen(false)} title="Collapse the sets outline"><ChevronLeft className="h-3.5 w-3.5" /></button>
           </div>
-          {setCourses.length > 0 && (
-            <div className="flex flex-col gap-1 px-1.5 pt-1.5">
-              <select value={setsCourseFilter} onChange={(e) => { setSetsCourseFilter(e.target.value); setSetsChapterFilter("all"); }} className="rounded bg-black/40 px-1 py-0.5 text-[9.5px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} title="Filter sets by course">
-                <option value="all">all courses</option>
-                {setCourses.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-              {setChapters.length > 0 && (
-                <select value={setsChapterFilter} onChange={(e) => setSetsChapterFilter(e.target.value)} className="rounded bg-black/40 px-1 py-0.5 text-[9.5px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} title="Filter sets by chapter">
-                  <option value="all">all chapters</option>
-                  {setChapters.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              )}
-            </div>
-          )}
           <div className="min-h-0 flex-1 overflow-y-auto p-1">
-            {filteredDecks.length === 0 && <div className="px-1.5 py-2 text-[10px] italic" style={{ color: NEON.muted }}>{cardDecks.length === 0 ? "No sets yet — a set is a named deck of CEQ questions." : "No sets match the filter."}</div>}
-            {filteredDecks.map((d) => {
-              const count = deckMembersOf(nodes as { id: string; data?: { deckId?: string; stageOrder?: number } }[], d.id).length;
-              const laid = (d.slots?.length ?? 0) > 0;
-              const on = setId === d.id;
+            {courseOptionsQ.isLoading && <div className="px-1.5 py-2 text-[10px] italic" style={{ color: NEON.muted }}>Loading courses…</div>}
+            {courseOptionsQ.isError && (
+              <>
+                <div className="px-1.5 py-1 text-[9.5px]" style={{ color: NEON.red }}>Couldn't load Course → Topic rows — flat list:</div>
+                {cardDecks.filter((d) => !!d.topicId).map((d) => renderSetRow(d))}
+              </>
+            )}
+            {!courseOptionsQ.isError && courseOptions.map((c) => {
+              const cTopics = c.chapters.filter((ch) => ch.status !== "archived" || decksByTopic.has(ch.id));
+              const cHasSets = cardDecks.some((d) => d.courseId === c.id && !!d.topicId);
+              const cKey = `c:${c.id}`;
+              const cOpen = isExp(cKey, cHasSets);
               return (
-                <div key={d.id} className="flex items-center gap-1 rounded px-1.5 py-1" style={{ background: on ? "rgba(252,163,17,0.12)" : "transparent", border: `1px solid ${on ? NEON.border : "transparent"}` }}>
-                  <button className="min-w-0 flex-1 truncate text-left text-[11.5px] font-semibold" style={{ color: on ? NEON.yellow : NEON.text }} onClick={() => { setSetId(d.id); setQId(null); }} onDoubleClick={() => renameSet(d)} title="Click to open · double-click to rename">{d.name}</button>
-                  <span className="shrink-0 rounded px-1 text-[8px] font-bold tabular-nums" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} title={`${count} questions${laid ? " · laid" : ""}`}>{count}{laid ? "·▦" : ""}</span>
-                  <button className="shrink-0" style={{ color: NEON.red }} onClick={() => deleteSet(d)} title="Delete set (keeps cards loose)"><Trash2 className="h-3 w-3" /></button>
+                <div key={c.id}>
+                  <button className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10.5px] font-bold uppercase tracking-wide" style={{ color: cHasSets ? NEON.cyan : NEON.muted }} onClick={() => toggleExp(cKey, cHasSets)}>
+                    {cOpen ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+                    <span className="min-w-0 flex-1 truncate">{courseLabel(c)}</span>
+                  </button>
+                  {cOpen && cTopics.map((ch) => {
+                    const tDecks = decksByTopic.get(ch.id) ?? [];
+                    const tKey = `t:${ch.id}`;
+                    const tOpen = isExp(tKey, tDecks.length > 0);
+                    const dropOn = dragKey === `sett:${ch.id}`;
+                    return (
+                      <div key={ch.id} className="ml-2">
+                        <button className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px]" style={{ color: tDecks.length ? NEON.text : NEON.muted, background: dropOn ? "rgba(252,163,17,0.16)" : "transparent", outline: dropOn ? `1px dashed ${NEON.yellow}` : "none" }}
+                          onClick={() => toggleExp(tKey, tDecks.length > 0)}
+                          onDragOver={(e) => { if (e.dataTransfer.types.includes(SET_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dragKey !== `sett:${ch.id}`) setDragKey(`sett:${ch.id}`); } }}
+                          onDragLeave={() => setDragKey((k) => (k === `sett:${ch.id}` ? null : k))}
+                          onDrop={(e) => { const id = e.dataTransfer.getData(SET_DND); if (id) { e.preventDefault(); setDragKey(null); assignSet(id, c, ch); } }}
+                          title={`${chapterLabel(ch)} — drop a set here to assign it`}>
+                          {tOpen ? <ChevronDown className="h-2.5 w-2.5 shrink-0" /> : <ChevronRight className="h-2.5 w-2.5 shrink-0" />}
+                          <span className="min-w-0 flex-1 truncate">{chapterLabel(ch)}</span>
+                          {tDecks.length > 0 && <span className="shrink-0 text-[8px] font-bold tabular-nums" style={{ color: NEON.muted }}>{tDecks.length}</span>}
+                        </button>
+                        {tOpen && tDecks.map((d) => renderSetRow(d))}
+                      </div>
+                    );
+                  })}
                 </div>
               );
             })}
+            {/* LIBRARY (unassigned) — untied sets; also a drop target to unassign. */}
+            {!courseOptionsQ.isError && (
+              <div className="mt-1 border-t pt-1" style={{ borderColor: NEON.borderSoft }}>
+                <button className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10.5px] font-bold uppercase tracking-wide" style={{ color: libraryDecks.length ? NEON.yellow : NEON.muted, background: dragKey === "sett:lib" ? "rgba(252,163,17,0.16)" : "transparent", outline: dragKey === "sett:lib" ? `1px dashed ${NEON.yellow}` : "none" }}
+                  onClick={() => toggleExp("lib", true)}
+                  onDragOver={(e) => { if (e.dataTransfer.types.includes(SET_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dragKey !== "sett:lib") setDragKey("sett:lib"); } }}
+                  onDragLeave={() => setDragKey((k) => (k === "sett:lib" ? null : k))}
+                  onDrop={(e) => { const id = e.dataTransfer.getData(SET_DND); if (id) { e.preventDefault(); setDragKey(null); assignSet(id, null, null); } }}
+                  title="Unassigned sets — drop a set here to return it to the Library">
+                  {isExp("lib", true) ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+                  <span className="min-w-0 flex-1 truncate">Library (unassigned)</span>
+                  <span className="shrink-0 text-[8px] font-bold tabular-nums" style={{ color: NEON.muted }}>{libraryDecks.length}</span>
+                </button>
+                {isExp("lib", true) && libraryDecks.map((d) => renderSetRow(d))}
+                {isExp("lib", true) && libraryDecks.length === 0 && <div className="ml-4 px-1 py-0.5 text-[9px] italic" style={{ color: NEON.muted }}>Empty — every set has a topic.</div>}
+              </div>
+            )}
           </div>
-          <button className="m-1 flex items-center justify-center gap-1 rounded px-1 py-1 text-[9.5px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px dashed ${NEON.borderSoft}` }} onClick={newSet}><Plus className="h-3 w-3" /> new set</button>
+          {newSetForm ? (
+            <div className="m-1 flex flex-col gap-1 rounded p-1.5" style={{ border: `1px dashed ${NEON.borderSoft}` }}>
+              <input autoFocus className="nodrag rounded bg-black/40 px-1.5 py-0.5 text-[10.5px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} placeholder="Set name…" value={newSetForm.name} onChange={(e) => setNewSetForm({ ...newSetForm, name: e.target.value })} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") createSet(); else if (e.key === "Escape") setNewSetForm(null); }} />
+              <select value={newSetForm.courseId} onChange={(e) => setNewSetForm({ ...newSetForm, courseId: e.target.value, topicId: "" })} className="rounded bg-black/40 px-1 py-0.5 text-[9.5px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}>
+                <option value="">Library (unassigned)</option>
+                {courseOptions.map((c) => <option key={c.id} value={c.id}>{courseLabel(c)}</option>)}
+              </select>
+              {newSetForm.courseId && (
+                <select value={newSetForm.topicId} onChange={(e) => setNewSetForm({ ...newSetForm, topicId: e.target.value })} className="rounded bg-black/40 px-1 py-0.5 text-[9.5px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}>
+                  <option value="">pick a topic…</option>
+                  {courseOptions.find((c) => c.id === newSetForm.courseId)?.chapters.filter((ch) => ch.status !== "archived").map((ch) => <option key={ch.id} value={ch.id}>{chapterLabel(ch)}</option>)}
+                </select>
+              )}
+              <div className="flex items-center gap-1">
+                <button className="flex-1 rounded px-1 py-0.5 text-[9.5px] font-bold uppercase disabled:opacity-40" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} disabled={!newSetForm.name.trim() || (!!newSetForm.courseId && !newSetForm.topicId)} onClick={createSet}>create</button>
+                <button className="rounded px-1.5 py-0.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setNewSetForm(null)}>✕</button>
+              </div>
+            </div>
+          ) : (
+            <button className="m-1 flex items-center justify-center gap-1 rounded px-1 py-1 text-[9.5px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px dashed ${NEON.borderSoft}` }} onClick={() => setNewSetForm({ name: `Set ${cardDecks.length + 1}`, courseId: "", topicId: "" })}><Plus className="h-3 w-3" /> new set</button>
+          )}
           <button className="mx-1 mb-1 flex items-center justify-center gap-1 rounded px-1 py-1 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} onClick={runSeed} title="Create the Ch 1–5 CEQ sets (Free + Full each) — mechanical stems/choices, empty chains. Idempotent.">seed Ch 1–5</button>
         </div>
         )}
@@ -902,8 +1063,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
               {deck && (starOnly || starCount > 0) && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: starOnly ? "#0B1322" : "#FFD23F", background: starOnly ? "#FFD23F" : "transparent", border: `1px solid ${starOnly ? "#FFD23F" : NEON.borderSoft}` }} onClick={() => setStarOnly((v) => !v)} title="Show only STARRED questions (performer's notes)">★ {starCount}</button>}
               {deck && starCount > 0 && <button className="rounded px-1 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={clearAllStars} title="Clear ALL stars in this set (confirm)">clear ★</button>}
               {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setStitchMode("full")} title="Sequential rhythm preview — plays the Free/Full stitch list back-to-back (no render)"><Play className="h-3 w-3" /> preview</button>}
-              {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase disabled:opacity-50" style={{ color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.5)" }} disabled={!!publishBusy} onClick={() => publishStitch("free")} title="Concat the FREE stitch → Auphonic → Mux → attach to the FREE CEQ lesson (deployed env)">{publishBusy === "free" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} pub free</button>}
-              {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase disabled:opacity-50" style={{ color: "#FF8B9E", border: "1px solid rgba(255,92,108,0.5)" }} disabled={!!publishBusy} onClick={() => publishStitch("full")} title="Concat the FULL stitch → Auphonic → Mux → attach to the PAID CEQ lesson (deployed env)">{publishBusy === "full" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} pub full</button>}
+              {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase disabled:opacity-50" style={{ color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.5)" }} disabled={!!publishBusy || !deck.topicId} onClick={() => publishStitch("free")} title={deck.topicId ? "Concat the FREE stitch → Auphonic → Mux → attach to the FREE CEQ lesson (deployed env)" : "Library set — assign it to a Course → Topic to publish"}>{publishBusy === "free" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} pub free</button>}
+              {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase disabled:opacity-50" style={{ color: "#FF8B9E", border: "1px solid rgba(255,92,108,0.5)" }} disabled={!!publishBusy || !deck.topicId} onClick={() => publishStitch("full")} title={deck.topicId ? "Concat the FULL stitch → Auphonic → Mux → attach to the PAID CEQ lesson (deployed env)" : "Library set — assign it to a Course → Topic to publish"}>{publishBusy === "full" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} pub full</button>}
               {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: wrapStems ? NEON.yellow : NEON.muted, border: `1px solid ${wrapStems ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` }} onClick={() => setPrefs({ wrapStems: !wrapStems })} title="Wrap full stems ↔ clamp to 2 lines (saved). (NOT the wrap CLIP slot — that's in Set clips.)"><WrapText className="h-3 w-3" /> wrap stems</button>}
               {deck && selChainMemos.size > 0 && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={copyMemos} title="Copy the selected memos (Ctrl+C)"><Copy className="h-3 w-3" /> copy {selChainMemos.size}</button>}
               {deck && memoClip.length > 0 && qId && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => pasteMemos(qId)} title="Paste the copied memos into this question (Ctrl+V)"><ClipboardPaste className="h-3 w-3" /> paste {memoClip.length}</button>}
@@ -986,7 +1147,13 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                   </div>
                 ); })}
                 <button className="mt-1 flex w-full items-center justify-center gap-1 rounded px-1 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} onClick={addQuestion}><Plus className="h-3 w-3" /> question</button>
-                {/* SPECIAL SLOTS — INTRO/OUTRO per set, TRANSITION shared across sets */}
+                {/* SPECIAL SLOTS — INTRO/OUTRO per set, TRANSITION shared, WRAP stack.
+                    These are PUBLISH-PATH concepts, so LIBRARY (unassigned) sets hide
+                    them — assign the set to a Course → Topic to unlock. Data-side the
+                    stitch/publish plumbing is untouched (publish is gated separately). */}
+                {!deck.topicId ? (
+                  <div className="mt-2 border-t px-0.5 pt-2 text-[9px] italic" style={{ borderColor: NEON.borderSoft, color: NEON.muted }}>Library set — assign it to a Course → Topic (drag it in the outline, or 📁 on its row) to unlock publish clips.</div>
+                ) : (
                 <div className="mt-2 flex flex-col gap-1 border-t pt-2" style={{ borderColor: NEON.borderSoft }}>
                   <div className="px-0.5 text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Set clips — drop a video</div>
                   {([
@@ -1038,6 +1205,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                     ))}
                   </div>
                 </div>
+                )}
               </div>
               {/* WYSIWYG previewer (top) + collapsible stem/choices editor (bottom) */}
               <div className="flex min-h-0 flex-1 flex-col">

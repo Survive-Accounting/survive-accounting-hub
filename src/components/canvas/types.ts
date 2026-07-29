@@ -1090,9 +1090,17 @@ export interface DeckDef {
   /** Show ghosted skeletons for undealt slots (P4). Default true. */
   showSkeletons?: boolean;
   /** CEQ Studio organisation (Lee) — optional course + chapter tags so the Studio
-   *  can group/filter sets by course → chapter. Additive; free-text. */
+   *  can group/filter sets by course → chapter. Additive; free-text. LEGACY display
+   *  tags (publish passthrough still reads them) — the topics SPINE below is the
+   *  real organisation. */
   course?: string;
   chapter?: string;
+  /** TOPICS SPINE (Lee) — the REAL Course → Topic assignment: courses.id and
+   *  chapters.id (uuid rows ordered by Manage Course). `undefined` = not yet
+   *  migrated; `null` = deliberately unassigned ("Library"). A set with a NULL
+   *  topic is a library set — not publishable until assigned. Additive. */
+  courseId?: string | null;
+  topicId?: string | null;
   /** CEQ Studio special slots (per set): INTRO + OUTRO staged clips. The shared
    *  TRANSITION lives in panel prefs (one file across all sets). Additive. */
   intro?: TakeRef;
