@@ -397,13 +397,17 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     const dc = dealCentre(frameW, frameH);
     const frameNode = { id: "__frame__", type: "frameBg", position: { x: 0, y: yOff }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion }, draggable: false, selectable: false, zIndex: -10 };
     const ceqNode = { id: ceqId, type: "ceqPreview", position: cb ? { x: cb.x, y: yOff + cb.y } : { x: dc.x, y: yOff + dc.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cb?.scale ?? 1 }, draggable: true, zIndex: 1 };
-    // SPEEDIER MEMOS (Lee): a memo with no baseline slot of its own MIRRORS the previous
-    // memo's spot + size (Lee places them in the same place, revealing one at a time),
-    // instead of stacking down the right. First memo with no layout falls to defaultMemoPos.
+    // SPEEDIER MEMOS (Lee): a memo with no baseline slot of its own inherits the previous
+    // memo's SIZE and column (x), stacked UNDERNEATH it with padding (not on top). First
+    // memo with no layout falls to defaultMemoPos.
     let lastGeom: { x: number; y: number; scale: number } | null = null;
     const memoNodes = walk.map((w, i) => {
       const slot = baseline?.memoSlots?.[i];
-      const geom = slot ? { x: slot.x, y: slot.y, scale: slot.scale ?? 1 } : lastGeom ?? { ...defaultMemoPos(frameW, frameH, i), scale: 1 };
+      const geom = slot
+        ? { x: slot.x, y: slot.y, scale: slot.scale ?? 1 }
+        : lastGeom
+          ? { x: lastGeom.x, y: lastGeom.y + Math.round(150 * lastGeom.scale), scale: lastGeom.scale }
+          : { ...defaultMemoPos(frameW, frameH, i), scale: 1 };
       lastGeom = geom;
       return { id: w.memoNodeId, type: "memoPreview", position: { x: geom.x, y: yOff + geom.y }, data: { label: w.label, walkNum: w.num, choice: w.choice, scale: geom.scale, hideChoiceLabel: w.hideChoiceLabel, hideArrow: w.hideArrow, sound: w.sound }, draggable: true, zIndex: 5 };
     });
