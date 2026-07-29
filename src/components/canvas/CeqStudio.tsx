@@ -85,6 +85,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const [expandedQ, setExpandedQ] = useState<Set<string>>(new Set()); // questions whose memo list stays shown
   const [selChainMemos, setSelChainMemos] = useState<Set<string>>(new Set()); // outline memo selection (memoNodeId)
   const [memoClip, setMemoClip] = useState<{ label: string; title: string; body: string; memoKind: string; category: string; subcategory: string; x: number; y: number; scale: number; choiceIdx: number }[]>([]); // copied chain memos
+  const [itemsClip, setItemsClip] = useState<{ memoNodeId: string; choiceIdx: number; label: string; title: string; body: string; memoKind: string; category: string; subcategory: string; sound?: ChainSound; hideChoiceLabel?: boolean; hideArrow?: boolean }[]>([]); // "copy items" clipboard (memos, for new/exact paste)
   const [qClip, setQClip] = useState<{ prompt: string; scale: number; choices: { text: string; correct?: boolean }[]; memos: { label: string; title: string; body: string; memoKind: string; category: string; subcategory: string; x: number; y: number; scale: number; choiceIdx: number }[] } | null>(null); // copied whole question
   // MEMO WORKFLOW (Lee) — the +💡 picker modal, inline edits (replacing prompt()),
   // bulk-field inline entry, and the library scope filter (question|set|all).
@@ -569,6 +570,52 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
 
   const toggleChainSel = (memoNodeId: string) => setSelChainMemos((p) => { const n = new Set(p); n.has(memoNodeId) ? n.delete(memoNodeId) : n.add(memoNodeId); return n; });
 
+  // ---- COPY ITEMS (Lee) — copy the actual memos between questions, then paste as NEW
+  //      independent copies OR EXACT shared references (edits ripple). ---------------
+  /** Copy the given memo nodes (by id) off the CURRENT question — captures their choice
+   *  index + label + flags + content for a later new/exact paste. */
+  const copyItems = (memoNodeIds: string[]) => {
+    if (!qd) return;
+    const idSet = new Set(memoNodeIds);
+    const clips: typeof itemsClip = [];
+    qd.choices.forEach((c, ci) => (c.chain ?? []).forEach((it) => {
+      if (!idSet.has(it.memoNodeId)) return;
+      const md = rf.getNode(it.memoNodeId)?.data as { title?: string; body?: string; memoKind?: string; category?: string; subcategory?: string } | undefined;
+      clips.push({ memoNodeId: it.memoNodeId, choiceIdx: ci, label: it.label, title: md?.title ?? "", body: md?.body ?? "", memoKind: md?.memoKind ?? "note", category: md?.category ?? "", subcategory: md?.subcategory ?? "", sound: it.sound, hideChoiceLabel: it.hideChoiceLabel, hideArrow: it.hideArrow });
+    }));
+    if (clips.length === 0) { setNote("No memos to copy."); return; }
+    setItemsClip(clips);
+    setNote(`Copied ${clips.length} item${clips.length === 1 ? "" : "s"} — open another question, then Ctrl+V (new copies) or right-click → paste (new/shared).`);
+  };
+  /** Paste the copied items onto the CURRENT question at the SAME choice index. `new` =
+   *  fresh independent memo nodes; `exact` = chain the SAME shared memo nodes (edits
+   *  ripple — confirm-guarded). */
+  const pasteItems = (mode: "new" | "exact") => {
+    if (itemsClip.length === 0 || !qId) return;
+    const tChoices = (rf.getNode(qId)?.data as unknown as CeqCard | undefined)?.choices ?? [];
+    if (mode === "exact" && !window.confirm(`Paste ${itemsClip.length} item${itemsClip.length === 1 ? "" : "s"} as SHARED references? Editing them will change the original memo(s) everywhere — including the question you copied from.`)) return;
+    const newNodes: Record<string, unknown>[] = [];
+    const newEdges: Record<string, unknown>[] = [];
+    const adds = new Map<string, CeqChoice["chain"]>();
+    let placed = 0;
+    itemsClip.forEach((clip, k) => {
+      const ch = tChoices[clip.choiceIdx]; if (!ch) return;
+      if (mode === "exact" && (ch.chain ?? []).some((it) => it.memoNodeId === clip.memoNodeId)) return; // already shared here
+      let memoId = clip.memoNodeId;
+      if (mode === "new") {
+        memoId = cardId("memo");
+        newNodes.push({ id: memoId, type: "memo", position: defaultMemoPos(frameW, frameH, k), selected: false, data: { kind: "memo", memoKind: clip.memoKind, title: clip.title, body: clip.body, category: clip.category, subcategory: clip.subcategory, sourceId: clip.memoNodeId } });
+      }
+      newEdges.push({ id: `chn-${ch.id}-${memoId}`, source: memoId, sourceHandle: "l", target: qId, targetHandle: memoAnchorId(ch.id), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } });
+      const arr = (adds.get(ch.id) ?? []) as NonNullable<CeqChoice["chain"]>; arr.push({ kind: "memo", memoNodeId: memoId, label: clip.label, sound: clip.sound, hideChoiceLabel: clip.hideChoiceLabel, hideArrow: clip.hideArrow }); adds.set(ch.id, arr);
+      placed++;
+    });
+    if (placed === 0) { setNote("Nothing pasted — the target question lacks those choice slots (or the memo is already shared here)."); return; }
+    const add = addNodesAndEdgesCmd(rfl, newNodes as never, newEdges as never, `paste ${mode} items`); if (add) bus.dispatch(add);
+    const patch = patchDataFnCmd(rfl, qId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => (adds.has(c.id) ? { ...c, chain: [...(c.chain ?? []), ...(adds.get(c.id) ?? [])] } : c)) }), "paste items"); if (patch) bus.dispatch(patch);
+    setNote(`Pasted ${placed} ${mode === "exact" ? "shared" : "new"} item${placed === 1 ? "" : "s"} into the question.`);
+  };
+
   /** Copy the CURRENT question (stem + choices + its chain memos, deep) to the
    *  question clipboard. */
   const copyQuestion = () => {
@@ -620,7 +667,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       if (typing) return;
       const ctrl = e.ctrlKey || e.metaKey;
       if (ctrl && (e.key === "c" || e.key === "C")) { e.preventDefault(); if (selChainMemos.size > 0) copyMemos(); else if (qId) copyQuestion(); return; }
-      if (ctrl && (e.key === "v" || e.key === "V")) { e.preventDefault(); if (memoClip.length > 0 && qId) pasteMemos(qId); else if (qClip) pasteQuestion(); return; }
+      if (ctrl && (e.key === "v" || e.key === "V")) { e.preventDefault(); if (itemsClip.length > 0 && qId) pasteItems("new"); else if (memoClip.length > 0 && qId) pasteMemos(qId); else if (qClip) pasteQuestion(); return; }
       if (ctrl && (e.key === "d" || e.key === "D")) { if (qId) { e.preventDefault(); duplicateQuestion(qId); } return; }
       if (e.key !== "Delete" && e.key !== "Backspace") return;
       if (previewSelMemo && qId) { e.preventDefault(); removeFromChain(qId, previewSelMemo); return; }
@@ -629,7 +676,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewSelMemo, qId, sel, selChainMemos, memoClip, qClip]);
+  }, [previewSelMemo, qId, sel, selChainMemos, memoClip, qClip, itemsClip]);
 
   /** CREATE a brand-new memo (text + category from the +💡 modal), attached to a
    *  choice's chain + placed (frame-local) so it shows immediately in the previewer. */
@@ -934,7 +981,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                   {stitchMode ? (
                     <CeqStitch free={stitchFree.items} full={stitchFull.items} freeMissing={stitchFree.missing} fullMissing={stitchFull.missing} initialMode={stitchMode} onExit={() => setStitchMode(null)} onJumpCeq={(id) => setQId(id)} />
                   ) : (
-                    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { layout: l })); setNote("Saved as the set's baseline layout — every question deals here now."); } }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={questions.map((q) => q.id)} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
+                    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { layout: l })); setNote("Saved as the set's baseline layout — every question deals here now."); } }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={questions.map((q) => q.id)} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
                   )}
                 </div>
                 {qd && (
