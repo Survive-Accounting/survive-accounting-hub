@@ -50,6 +50,8 @@ const PracticeContext = createContext<{ emph: number | null; resolved: Set<numbe
 const RevealContext = createContext<Set<string>>(new Set());
 /** Live resize: write a node's data.scale (mini + main store). */
 const ScaleContext = createContext<(id: string, s: number) => void>(() => {});
+/** Called once when a resize DRAG ends (pointer-up), so the new size can be persisted. */
+const ScaleCommitContext = createContext<() => void>(() => {});
 /** LOCAL rehearsal-spotlight layer (never the global controller). Keyed spotKey. */
 interface PreviewSpotApi { state: (key: string) => "spot" | null; flamed: (key: string) => boolean; tone: (key: string) => SuperTone; onClick: (key: string, e: React.PointerEvent) => void }
 const PreviewSpotContext = createContext<PreviewSpotApi>({ state: () => null, flamed: () => false, tone: () => "focus", onClick: () => {} });
@@ -107,13 +109,14 @@ const HANDLE: React.CSSProperties = { width: 9, height: 9, background: NEON.cyan
  *  the grip's OWN window (ev target) so the drag tracks in the popout too. */
 function ScaleGrip({ id, scale, color, film }: { id: string; scale: number; color: string; film?: boolean }) {
   const setScale = useContext(ScaleContext);
+  const commit = useContext(ScaleCommitContext);
   const start = useRef({ v: 0, s: 1 });
   const down = (e: React.PointerEvent) => {
     e.stopPropagation(); e.preventDefault();
     start.current = { v: e.clientX + e.clientY, s: scale };
     const win = (e.currentTarget as HTMLElement).ownerDocument?.defaultView ?? window;
     const move = (ev: PointerEvent) => setScale(id, clampScale(start.current.s + ((ev.clientX + ev.clientY) - start.current.v) / 300));
-    const up = () => { win.removeEventListener("pointermove", move); win.removeEventListener("pointerup", up); };
+    const up = () => { win.removeEventListener("pointermove", move); win.removeEventListener("pointerup", up); commit(); };
     win.addEventListener("pointermove", move);
     win.addEventListener("pointerup", up);
   };
@@ -320,6 +323,9 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // frame (unchanged). Needs the deck's ordered ceq ids (deckCeqIds).
   const [overview, setOverview] = useState(false);
   const overviewOn = overview && !!deckCeqIds && deckCeqIds.length > 1;
+  // The active frame's vertical offset in the stack (0 outside overview). Node positions
+  // carry it; the baseline is FRAME-LOCAL, so persistence subtracts it back off.
+  const activeYOff = useMemo(() => (overviewOn && deckCeqIds ? Math.max(0, deckCeqIds.indexOf(ceqId)) * (frameH + Math.round(frameH * 0.16)) : 0), [overviewOn, deckCeqIds, ceqId, frameH]);
   // BOSS test cue (Lee): hear the cram-launch when you ADVANCE to a boss-flagged CEQ
   // in the previewer (not on the first open). Read the flag fresh from the main store.
   const bossArmed = useRef(false);
@@ -392,8 +398,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     // IDENTICAL to the single-frame render, just offset by yOff — so all the practice /
     // arrow / spotlight / film machinery is untouched.
     const GAP = Math.round(frameH * 0.16);
-    const idx = overviewOn && deckCeqIds ? Math.max(0, deckCeqIds.indexOf(ceqId)) : 0;
-    const yOff = overviewOn ? idx * (frameH + GAP) : 0;
+    const yOff = activeYOff;
     const dc = dealCentre(frameW, frameH);
     const frameNode = { id: "__frame__", type: "frameBg", position: { x: 0, y: yOff }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion }, draggable: false, selectable: false, zIndex: -10 };
     const ceqNode = { id: ceqId, type: "ceqPreview", position: cb ? { x: cb.x, y: yOff + cb.y } : { x: dc.x, y: yOff + dc.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cb?.scale ?? 1 }, draggable: true, zIndex: 1 };
@@ -426,7 +431,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     });
     return [...active, ...others] as typeof active;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds]);
+  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, activeYOff]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   useEffect(() => { setNodes(build() as unknown as Node[]); }, [build, setNodes]);
@@ -469,9 +474,12 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   const saveBaseline = () => {
     const c = nodes.find((n) => n.id === ceqId);
     const memoSlots: DeckSlotLayout[] = [];
-    walk.forEach((w, i) => { const m = nodes.find((n) => n.id === w.memoNodeId); if (m) memoSlots[i] = { x: Math.round(m.position.x), y: Math.round(m.position.y), scale: (m.data as { scale?: number }).scale ?? 1 }; });
-    onSaveBaseline?.({ card: c ? { x: Math.round(c.position.x), y: Math.round(c.position.y), scale: (c.data as { scale?: number }).scale ?? 1 } : undefined, memoSlots });
+    walk.forEach((w, i) => { const m = nodes.find((n) => n.id === w.memoNodeId); if (m) memoSlots[i] = { x: Math.round(m.position.x), y: Math.round(m.position.y - activeYOff), scale: (m.data as { scale?: number }).scale ?? 1 }; });
+    onSaveBaseline?.({ card: c ? { x: Math.round(c.position.x), y: Math.round(c.position.y - activeYOff), scale: (c.data as { scale?: number }).scale ?? 1 } : undefined, memoSlots });
   };
+  // AUTO-PERSIST (Lee) — a drag or resize commits the current geometry to the set
+  // baseline so it STICKS across navigation (was transient → reverted on re-seed).
+  const commitGeom = () => { if (onSaveBaseline) saveBaseline(); };
 
   const miniIds = useMemo(() => new Set<string>(["__frame__", ceqId, ...walk.map((w) => w.memoNodeId)]), [ceqId, walk]);
   // Memos whose arrow Lee has toggled OFF — the previewer shows them faint (so the
@@ -551,6 +559,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     <PracticeContext.Provider value={{ emph, resolved }}>
       <RevealContext.Provider value={revealedMemoIds}>
         <ScaleContext.Provider value={setScale}>
+         <ScaleCommitContext.Provider value={commitGeom}>
           <PreviewSpotContext.Provider value={spotApi}>
            <ChainToggleContext.Provider value={onPatchChainItem ?? (() => {})}>
            <AttachMemoContext.Provider value={onAttachMemo ?? (() => {})}>
@@ -564,6 +573,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                   nodes={nodes}
                   edges={edges}
                   onNodesChange={onNodesChange}
+                  onNodeDragStop={commitGeom}
                   onConnect={onConnect}
                   onEdgeClick={onEdgeClick}
                   onSelectionChange={({ nodes: sel, edges: selE }) => {
@@ -641,6 +651,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                         nodes={nodes}
                         edges={filmEdges}
                         onNodesChange={onNodesChange}
+                        onNodeDragStop={commitGeom}
                         onConnect={onConnect}
                         onEdgeClick={onEdgeClick}
                         nodeTypes={nodeTypes}
@@ -672,6 +683,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
            </AttachMemoContext.Provider>
            </ChainToggleContext.Provider>
           </PreviewSpotContext.Provider>
+         </ScaleCommitContext.Provider>
         </ScaleContext.Provider>
       </RevealContext.Provider>
     </PracticeContext.Provider>
