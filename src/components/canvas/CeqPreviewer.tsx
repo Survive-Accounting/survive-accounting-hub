@@ -102,13 +102,28 @@ const PV_CSS = `
    baseline anchor and it settles back, reading as "it animated from the wrong
    spot". Origin only: durations/easing above are untouched. (Non-!important, so
    the flame rule's own transform-origin !important still wins.) */
-.sa-ceq-in, .sa-memo-pop { transform-origin: 0 0; }
+/* MEMO ARRIVES (Lee) — Enter-walk reveal (film only): the memo translates up + fades
+   over 260ms rather than the old scale-overshoot POP. A 40ms delay lets the choice
+   arrow (which lights immediately) read a beat AHEAD, so the arrow leads and the memo
+   settles into it. GPU-only (transform/opacity); will-change released on animationend. */
+@keyframes sa-memo-in { from { opacity: 0; transform: translateY(8px) scale(0.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.sa-memo-in { animation: sa-memo-in 260ms cubic-bezier(0.2,0.7,0.3,1) 40ms both; will-change: transform, opacity; }
+/* CORRECT SETTLE (Lee) — a small scale-pulse on the right answer at resolve, timed to
+   land with the chaching (both fire on the same Enter). A settle, not a bounce. */
+@keyframes sa-ceq-correct { 0% { transform: scale(1); } 45% { transform: scale(1.035); } 100% { transform: scale(1); } }
+.sa-ceq-correct { animation: sa-ceq-correct 300ms cubic-bezier(0.2,0.7,0.3,1) both; will-change: transform; }
+/* WRONG STRIKE (Lee) — the line-through DRAWS left-to-right over 200ms instead of
+   snapping in. Base is scaleX(1) so a surface WITHOUT these keyframes (the canvas card)
+   still shows a full strike; where the keyframes exist it animates. */
+@keyframes sa-strike { from { transform: translateY(-50%) scaleX(0); } to { transform: translateY(-50%) scaleX(1); } }
+.sa-strike-draw { animation: sa-strike 200ms cubic-bezier(0.4,0,0.2,1) both; }
+.sa-ceq-in, .sa-memo-pop, .sa-memo-in { transform-origin: 0 0; }
 /* On-memo cluster: slight grow on hover (legibility), authoring-only by gating. */
 .sa-memo-cluster { transition: transform 120ms; }
 .sa-memo-cluster:hover { scale: 1.15; }
 /* Selection ring in film: present but quiet — the shot shows intent, not UI. */
 .film-mode .sa-msel { outline: none; }
-@media (prefers-reduced-motion: reduce) { .sa-ceq-in, .sa-memo-pop { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .sa-ceq-in, .sa-memo-pop, .sa-memo-in, .sa-ceq-correct, .sa-strike-draw { animation: none !important; } }
 /* SPOTLIGHT GUARDRAILS (Lee) — cap the FLAME super-scale inside the previewer so a
    flamed choice/memo can't blow outside the CEQ box / frame on a take (beats
    FLAME_CSS's scale(1.4) !important by specificity; origin stays left-center). */
@@ -227,7 +242,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
   const d = data as unknown as { stem: string; choices: { id: string; text: string; correct?: boolean; chain?: unknown[] }[]; scale?: number; layoutBadge?: boolean };
   const s = d.scale ?? 1;
   return (
-    <div className="sa-pv-node sa-ceq-in" style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", animation: "sa-ceq-in 380ms cubic-bezier(0.2,0.7,0.3,1) both" }}>
+    <div className="sa-pv-node sa-ceq-in" onAnimationEnd={(ev) => { if (ev.animationName === "sa-ceq-in") (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: "sa-ceq-in 300ms cubic-bezier(0.2,0.7,0.3,1) both" }}>
       {/* QUESTION 0 ribbon — unmistakably the LAYOUT stage, never content. */}
       {d.layoutBadge && !film && <span style={{ position: "absolute", top: -12, left: 12, borderRadius: 6, padding: "1px 8px", fontSize: 10, fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase", color: "#0B0F1E", background: NEON.yellow, zIndex: 21 }}>Layout</span>}
       {/* CLIP — a spotlit choice's scale + glow stays INSIDE the CEQ box (never spills
@@ -248,7 +263,8 @@ function CeqPreviewNode({ id, data }: NodeProps) {
           return (
             <div
               key={c.id ?? i}
-              className="sa-ceq-choice"
+              className={`sa-ceq-choice${st === "right" ? " sa-ceq-correct" : ""}`}
+              onAnimationEnd={(ev) => { if (ev.animationName === "sa-ceq-correct") (ev.currentTarget as HTMLElement).style.willChange = "auto"; }}
               data-flame={flamed ? "on" : undefined}
               data-flame-tone={flamed ? spot.tone(key) : undefined}
               onPointerDownCapture={(e) => spot.onClick(key, e)}
@@ -305,11 +321,12 @@ function MemoPreviewNode({ id, data, selected }: NodeProps) {
   const flamed = spot.flamed(key);
   return (
     <div
-      className={`sa-pv-node${film && walked ? " sa-memo-pop" : ""}${selected ? " sa-msel" : ""}`}
+      className={`sa-pv-node${film && walked ? " sa-memo-in" : ""}${selected ? " sa-msel" : ""}`}
+      onAnimationEnd={(ev) => { if (ev.animationName === "sa-memo-in") (ev.currentTarget as HTMLElement).style.willChange = "auto"; }}
       data-flame={flamed ? "on" : undefined}
       data-flame-tone={flamed ? spot.tone(key) : undefined}
       onPointerDownCapture={(e) => spot.onClick(key, e)}
-      style={{ boxShadow: selected ? (film ? "0 0 0 1.5px rgba(79,163,227,0.35)" : "0 0 0 2px rgba(79,163,227,0.8)") : undefined, position: "relative", width: 210 * s, borderRadius: 12 * s, background: slotOff ? "transparent" : NEON.panelSolid, border: `${1.5 * s}px ${slotOff ? "dashed" : "solid"} ${slotOff ? NEON.borderSoft : walked ? NEON.yellow : NEON.borderSoft}`, padding: `${10 * s}px ${12 * s}px`, opacity: slotOff ? 0.3 : walked ? 1 : film ? 0 : 0.4, filter: slotOff || walked || film ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "grab", animation: film && walked ? "sa-memo-pop 340ms cubic-bezier(0.2,0.7,0.3,1)" : undefined, ...containSpot(spState) }}
+      style={{ boxShadow: selected ? (film ? "0 0 0 1.5px rgba(79,163,227,0.35)" : "0 0 0 2px rgba(79,163,227,0.8)") : undefined, position: "relative", width: 210 * s, borderRadius: 12 * s, background: slotOff ? "transparent" : NEON.panelSolid, border: `${1.5 * s}px ${slotOff ? "dashed" : "solid"} ${slotOff ? NEON.borderSoft : walked ? NEON.yellow : NEON.borderSoft}`, padding: `${10 * s}px ${12 * s}px`, opacity: slotOff ? 0.3 : walked ? 1 : film ? 0 : 0.4, filter: slotOff || walked || film ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "grab", ...containSpot(spState) }}
     >
       {/* chain-order badge — useful IN the previewer, never on camera (hidden in film). */}
       {!film && (slotToggle ? (
@@ -479,7 +496,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       const cur = shown.get(e) ?? 0;
       if (cur < chainLenOf(e)) {
         setShown((s) => new Map(s).set(e, cur + 1));
-        const it = cd?.choices[e]?.chain?.[cur]; if (it?.sound) playSfx(it.sound); // per-chain-item reveal sound
+        const it = cd?.choices[e]?.chain?.[cur]; if (it?.sound) { const snd = it.sound; window.setTimeout(() => playSfx(snd), 200); } // per-chain-item reveal sound — fire at SETTLE (~200ms), as the memo arrives, not at the start of the ease-in
       }
     }
   };

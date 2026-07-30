@@ -85,7 +85,7 @@ export function TextAnchor({ subId, nodeId, children, strike }: { subId: string;
           last glyph); wraps within the row at 100% for long text. NOTE: inline-block
           BREAKS text-decoration inheritance from the parent, so a wrong-answer
           strike (Lee) must be applied HERE, not on an ancestor. */}
-      <span ref={ref} style={{ display: "inline-block", maxWidth: "100%", verticalAlign: "middle", textDecoration: strike ? "line-through" : undefined, textDecorationThickness: strike ? "0.12em" : undefined }}>{children}</span>
+      <span ref={ref} style={{ display: "inline-block", position: "relative", maxWidth: "100%", verticalAlign: "middle" }}>{children}{strike ? <span className="sa-strike-draw" aria-hidden onAnimationEnd={(ev) => { (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} style={{ position: "absolute", left: 0, right: 0, top: "50%", height: "0.12em", background: "currentColor", transform: "translateY(-50%) scaleX(1)", transformOrigin: "left center", willChange: "transform", pointerEvents: "none" }} /> : null}</span>
       <Handle
         type="target"
         position={Position.Right}
