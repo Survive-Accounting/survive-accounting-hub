@@ -1,4 +1,6 @@
-// RUN TIMER + READOUT (Lee) — a self-clock for whole-take cram filming. F9 starts
+// RUN TIMER + READOUT (Lee) — a self-clock for whole-take cram filming. DORMANT:
+// the F9 bind was removed 2026-07-27 (6b1a3a0 — timing moved to the CEQ Studio
+// previewer); nothing starts a run anymore. Kept for the historical readout. F9 started
 // a run; this shows the elapsed time BIG in a 2nd-monitor popout (invisible to
 // Window Capture of the main window) with the current CEQ number and a soft
 // colour shift past 3:00. The readout lists a finished run's events as mm:ss +
@@ -35,7 +37,7 @@ export function RunTimerBody({ elapsedMs, ceqN, ceqTotal }: { elapsedMs: number;
 /** A simple readout of a finished run — mm:ss + label per event, copy-to-clipboard. */
 export function RunReadout({ run }: { run: FilmRun | null }) {
   const [copied, setCopied] = useState(false);
-  if (!run) return <div className="p-3 text-[11px]" style={{ color: NEON.muted }}>No runs yet — press F9 to start one.</div>;
+  if (!run) return <div className="p-3 text-[11px]" style={{ color: NEON.muted }}>No runs yet. (The F9 bind was retired — timing lives in the CEQ Studio previewer now; this readout only shows historical runs.)</div>;
   const lines = run.events.map((e) => `${mmss(e.ms)}  ${e.label}`);
   const copy = () => {
     void navigator.clipboard?.writeText(lines.join("\n")).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1200); });
