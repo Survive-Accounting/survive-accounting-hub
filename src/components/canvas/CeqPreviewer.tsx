@@ -684,9 +684,12 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     }
     return out;
   }, [liveChain, ceqId, nodes, hideArrowSources]);
-  const edges: Edge[] = useMemo(() => liveChain
+  /** Build the arrow set against a given REVEAL state. The previewer passes the
+   *  authoring set (Arrows toggle lights everything); film passes the true walk
+   *  state, so an authoring aid can never change what the camera records. */
+  const buildEdges = (revealSet: Set<string>): Edge[] => liveChain
     .map((e) => {
-      const revealed = revealedMemoIds.has(e.source) && (e.target === ceqId || revealedMemoIds.has(e.target));
+      const revealed = revealSet.has(e.source) && (e.target === ceqId || revealSet.has(e.target));
       const sk = spotKey(e.id, "self");
       const flamedE = spots.superKey === sk;
       const spotE = spots.regular.has(sk) || flamedE;
@@ -713,13 +716,17 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
         style: { stroke, strokeWidth: width, opacity: hidden ? 0.14 : lit ? 1 : 0.4, strokeDasharray: hidden ? "3 5" : spotE ? undefined : lit ? undefined : "5 4", filter: hidden ? undefined : flamedE ? "drop-shadow(0 0 6px rgba(252,163,17,0.95))" : spotE ? "drop-shadow(0 0 4px rgba(255,211,106,0.8))" : undefined },
         markerEnd: bundle && bundle.carrier !== e.source ? undefined : marker,
       } as Edge;
-    }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [liveChain, revealedMemoIds, ceqId, spots, selEdgeIds, hideArrowSources, bundles]);
-  // FILM edges — NONE. Arrows are authoring chrome: a take shows the reveal
-  // choreography, not the lines Lee uses to aim it. (The per-memo hideArrow toggle
-  // still controls the previewer's own faint/solid rendering.)
-  const filmEdges = useMemo<Edge[]>(() => [], []);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const edges: Edge[] = useMemo(() => buildEdges(revealedMemoIds), [liveChain, revealedMemoIds, ceqId, spots, selEdgeIds, hideArrowSources, bundles]);
+  // FILM edges — arrows ARE part of the shot (Lee wants them on camera). Two
+  // differences from the previewer's set, both deliberate: memos toggled arrow-OFF
+  // are dropped entirely rather than shown faint (a clean take), and the styling is
+  // built from the TRUE walk state, so the Arrows authoring toggle can't light the
+  // whole board mid-take. A bundled trunk survives because its carrier is always a
+  // memo whose arrow is on.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const filmEdges = useMemo(() => buildEdges(walkRevealedIds).filter((e) => !hideArrowSources.has(e.source)), [liveChain, walkRevealedIds, ceqId, spots, selEdgeIds, hideArrowSources, bundles]);
   const onConnect = (c: Connection) => {
     if (!c.source || !c.target || c.source === c.target) return;
     const id = `chn-arrow-${c.source}-${c.target}`;
@@ -860,7 +867,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                   </select>
                 )}
                 <span className="flex items-center gap-1 tabular-nums text-[12px] font-bold" style={{ color: NEON.text }}><Timer className="h-3.5 w-3.5" style={{ color: NEON.cyan }} />{mmss(elapsed)}</span>
-                {walk.length > 0 && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: showAll ? "#0B0F1E" : "#E0284A", background: showAll ? "#E0284A" : "transparent", border: `1px solid ${showAll ? "#E0284A" : "rgba(224,40,74,0.5)"}` }} onClick={() => setShowAll((v) => !v)} title="Show arrows — AUTHORING ONLY: reveal every memo so you can check the arrows land on the right choices (Ctrl/Shift-click one to test its spotlight). Arrows never appear in film, and this toggle does not change what the film window shows. Toggle off to Enter-walk normally."><Spline className="h-3.5 w-3.5" /> Arrows</button>}
+                {walk.length > 0 && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: showAll ? "#0B0F1E" : "#E0284A", background: showAll ? "#E0284A" : "transparent", border: `1px solid ${showAll ? "#E0284A" : "rgba(224,40,74,0.5)"}` }} onClick={() => setShowAll((v) => !v)} title="Show arrows — AUTHORING AID: reveal every memo here so you can check the arrows land on the right choices (Ctrl/Shift-click one to test its spotlight). Arrows DO appear on camera, but this toggle does not — the film window keeps showing the real Enter-walk. Toggle off to walk normally."><Spline className="h-3.5 w-3.5" /> Arrows</button>}
                 <span className="text-[9px] uppercase tracking-wide" style={{ color: NEON.muted }}>{showAll ? `${walk.length} shown` : `${revealedCount}/${walk.length} shown`}</span>
                 <div className="ml-auto flex items-center gap-1">
                   <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => onPrevQuestion?.()} title="Previous question (Shift+Space)"><ChevronLeft className="h-3.5 w-3.5" /></button>
