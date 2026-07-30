@@ -273,6 +273,9 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   /** A set's TOPIC NAME for display — resolved from the spine (topicId), never from
    *  the legacy `deck.chapter` tag, which stores "Ch N" and is still parsed by the
    *  migration + video matchers. Empty string when the set is unassigned. */
+  /** SET NAME for display — hide the legacy "Ch N ·" prefix on screen WITHOUT
+   *  touching the stored name. (The "clean set names" button strips it for real.) */
+  const setDisplayName = (name: string): string => name.replace(/^chs*d+s*[·.-]s*/i, "").trim() || name;
   const deckTopicName = (d: DeckDef | null | undefined): string => {
     if (!d?.topicId) return "";
     for (const c of courseOptions) { const ch = c.chapters.find((x) => x.id === d.topicId); if (ch) return topicLabel(ch); }
@@ -345,7 +348,13 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const ceqSig = qd ? `${qId}|${qd.prompt}|${qd.choices.map((c) => `${c.text}:${c.correct ? 1 : 0}:${(c.chain ?? []).map((it) => `${it.memoNodeId}~${it.label}~${it.sound ?? ""}~${it.hideChoiceLabel ? 1 : 0}~${it.hideArrow ? 1 : 0}`).join(",")}`).join("|")}` : "";
   // The frame the set will be dealt into — the previewer mirrors ITS size so the
   // composition you build == the dealt frame exactly. Defaults to a 1600×900 stage.
-  const targetFrame = nav.currentFrameId ? rf.getNode(nav.currentFrameId) : null;
+  // Mirror a canvas frame's size ONLY when it actually hosts this deck's CEQs (you
+  // dealt the set there). Entering an unrelated frame — the intro frame, another
+  // lesson's frame — must NOT rescale the previewer: a 450px intro frame halved the
+  // overview stack spacing and scrambled every question. Default: the 1600x900 stage.
+  const curFrame = nav.currentFrameId ? rf.getNode(nav.currentFrameId) : null;
+  const curHostsDeck = !!(curFrame && deck && nodes.some((n) => n.parentId === curFrame.id && n.type === "ceq" && (n.data as { deckId?: string }).deckId === deck.id));
+  const targetFrame = curHostsDeck ? curFrame : null;
   const frameW = (targetFrame?.data as { w?: number } | undefined)?.w ?? targetFrame?.width ?? 1600;
   const frameH = (targetFrame?.data as { h?: number } | undefined)?.h ?? targetFrame?.height ?? 900;
   // Chain arrows for the previewer — any edge whose SOURCE is a memo in this CEQ's
@@ -434,7 +443,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
         <div draggable className="ml-4 flex cursor-grab items-center gap-1 rounded px-1 py-0.5" style={{ background: on ? "rgba(252,163,17,0.12)" : "transparent", border: `1px solid ${on ? NEON.border : "transparent"}` }}
           onDragStart={(e) => { e.dataTransfer.setData(SET_DND, d.id); e.dataTransfer.effectAllowed = "move"; }}
           title="Click to open · drag onto a topic to assign · double-click to rename">
-          <button className="min-w-0 flex-1 truncate text-left text-[10.5px] font-semibold" style={{ color: on ? NEON.yellow : NEON.text }} onClick={() => openSetTab(d.id)} onDoubleClick={() => renameSet(d)}>{d.name}</button>
+          <button className="min-w-0 flex-1 truncate text-left text-[10.5px] font-semibold" style={{ color: on ? NEON.yellow : NEON.text }} onClick={() => openSetTab(d.id)} onDoubleClick={() => renameSet(d)} title={d.name}>{setDisplayName(d.name)}</button>
           <span className="shrink-0 rounded px-1 text-[7.5px] font-bold tabular-nums" style={{ color: counts.free > 0 ? "#3BF5A0" : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} title={`${counts.free} free · ${counts.full} full${laid ? " · laid" : ""}`}>{counts.free}F·{counts.full}{laid ? "▦" : ""}</span>
           <button className="shrink-0" style={{ color: assignFor === d.id ? NEON.yellow : NEON.muted }} onClick={() => { setAssignFor((k) => (k === d.id ? null : d.id)); setAssignCourseSel(d.courseId ?? "lib"); }} title="Assign to a Course → Topic (or the Library)"><FolderInput className="h-3 w-3" /></button>
           <button className="shrink-0" style={{ color: NEON.red }} onClick={() => deleteSet(d)} title="Delete set (keeps cards loose)"><Trash2 className="h-3 w-3" /></button>
@@ -523,7 +532,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const openIntroFrame = () => {
     if (!deck) return;
     const existing = deck.introFrameId ? rf.getNode(deck.introFrameId) : null;
-    if (existing) { nav.enter(existing.id); return; }
+    if (existing) { nav.enter(existing.id); onClose(); return; }
     const all = rf.getNodes();
     const lessonId = deck.lessonId ?? (nav.currentFrameId ? rf.getNode(nav.currentFrameId)?.parentId : undefined);
     const isHook = (n: (typeof all)[number]) => n.type === "frame" && /hook/i.test(((n.data as { title?: string }).title ?? ""));
@@ -533,7 +542,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     nav.duplicate(src.id, { onCreated: (newId) => {
       setDecks((prev) => updateDeck(prev, deckId, { introFrameId: newId }));
       nav.enter(newId);
-      setNote("Intro frame created (a copy of the CEQ HOOK frame) — edit the text, then drop its clip on the Intro row.");
+      onClose(); // land on the frame — the Studio overlay was hiding it
+      setNote("Intro frame created (a copy of the CEQ HOOK frame). Edit its text on the canvas, then reopen the Studio and drop its clip on the Intro row.");
     } });
   };
   const dropHookTake = async (f: File) => {
@@ -1683,7 +1693,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
         <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b px-3 py-1" style={{ borderColor: NEON.borderSoft }}>
           {tabDecks.map((d) => { const on = setId === d.id; return (
             <div key={d.id} className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5" style={{ background: on ? "rgba(252,163,17,0.14)" : "rgba(0,0,0,0.25)", border: `1px solid ${on ? NEON.border : NEON.borderSoft}` }}>
-              <button className="max-w-[150px] truncate text-[10px] font-semibold" style={{ color: on ? NEON.yellow : NEON.text }} onClick={() => { setSetId(d.id); setQId(null); }} title={d.name}>{d.name}</button>
+              <button className="max-w-[150px] truncate text-[10px] font-semibold" style={{ color: on ? NEON.yellow : NEON.text }} onClick={() => { setSetId(d.id); setQId(null); }} title={d.name}>{setDisplayName(d.name)}</button>
               <button className="grid h-3.5 w-3.5 place-items-center" style={{ color: NEON.muted }} onClick={() => closeSetTab(d.id)} title="Close tab"><X className="h-3 w-3" /></button>
             </div>
           ); })}
@@ -1855,7 +1865,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
         {/* PANE 2 — QUESTIONS + editor */}
         <div className={COL} style={{ flex: 1.4, border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)" }}>
           <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>
-            <span className="truncate">Questions {deck && <span style={{ color: NEON.muted }}>· {deck.name}</span>}</span>
+            <span className="truncate">CEQs {deck && <span style={{ color: NEON.muted }}>· {setDisplayName(deck.name)}</span>}</span>
             {deck && <span className="shrink-0 text-[8.5px] font-bold tabular-nums" style={{ color: NEON.muted }} title="Free-flagged CEQs · all CEQs">Free {freeCount} · Full {questions.length}</span>}
             {deck && <span className="shrink-0 text-[8.5px] tabular-nums" style={{ color: NEON.cyan }} title="Estimated runtime = summed durations of the stitch clips (intro + transition + takes + outro)">~{fmtDur(stitchRuntime(stitchFree.items))}/{fmtDur(stitchRuntime(stitchFull.items))}</span>}
             <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -1928,7 +1938,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
                   <button className="min-w-0 flex-1 truncate text-left text-[10.5px] font-bold" style={{ color: qId === LAYOUT_Q0 ? NEON.yellow : NEON.text }} onClick={() => setQId(LAYOUT_Q0)} title="Question 0 — sculpt the baseline: drag the LAYOUT card + memo slots and every question deals there. Not content: never films, stitches or counts.">0 · Layout</button>
                   <span className="shrink-0 text-[8px] font-bold tabular-nums" style={{ color: NEON.muted }} title="Baseline memo slots">{deck.layout?.memoSlots?.length ?? 0} slots</span>
                 </div>
-                {questions.length === 0 && <div className="px-1 py-1 text-[9.5px] italic" style={{ color: NEON.muted }}>No questions — add one below.</div>}
+                {questions.length === 0 && <div className="px-1 py-1 text-[9.5px] italic" style={{ color: NEON.muted }}>No CEQs — add one below.</div>}
                 {questions.map((q, i) => { const qdata = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; if (starOnly && !qdata?.starred) return null; const p = qdata?.prompt || "Question"; const expanded = expandedQ.has(q.id); const walk = expanded ? walkOf(q) : []; const clips = cardClips(qdata); const starred = !!qdata?.starred; const chained = (qdata?.choices ?? []).some((c) => (c.chain?.length ?? 0) > 0); const traps = questionMisconceptions(qdata?.choices, memoSlugOf); const boss = !!qdata?.boss; const chainSound = (qdata?.choices ?? []).some((c) => (c.chain ?? []).some((it) => !!it.sound)); const chachingOff = qdata?.confirmSfx === false; const isShort = !!qdata?.short; const dropOn = dragKey === q.id; const reOn = dragKey === `qre:${q.id}`; return (
                   <div key={q.id}>
                     <div className="flex items-start gap-0.5 rounded py-0.5" style={{ background: dropOn ? "rgba(252,163,17,0.14)" : undefined, outline: dropOn ? `1px dashed ${NEON.yellow}` : reOn ? `1px solid ${NEON.cyan}` : undefined }} {...qRowDnd(q.id)}>
@@ -2008,7 +2018,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
                   <div className="mt-8 flex max-h-[85vh] w-[440px] max-w-[94vw] flex-col overflow-hidden rounded-xl shadow-2xl" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}` }} onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-2 border-b px-3 py-2" style={{ borderColor: NEON.borderSoft }}>
                       <Film className="h-4 w-4" style={{ color: "#3BF5A0" }} />
-                      <span className="min-w-0 flex-1 truncate text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>Publish — {deck.name}</span>
+                      <span className="min-w-0 flex-1 truncate text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>Publish — {setDisplayName(deck.name)}</span>
                       <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setPublishOpen(false)} title="Close"><X className="h-4 w-4" /></button>
                     </div>
                     <div className="min-h-0 flex-1 overflow-y-auto p-2">
@@ -2303,7 +2313,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
         <div className="absolute inset-0 z-[73] flex items-start justify-center" style={{ background: "rgba(4,7,14,0.6)" }} onClick={() => { if (!ingestBusy) setIngest(null); }}>
           <div className="mt-8 flex max-h-[85vh] w-[600px] max-w-[95vw] flex-col overflow-hidden rounded-xl shadow-2xl" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}` }} onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 border-b px-3 py-2" style={{ borderColor: NEON.borderSoft }}>
-              <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>Batch takes — {deck.name}</span>
+              <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>Batch takes — {setDisplayName(deck.name)}</span>
               <span className="text-[10px] tabular-nums" style={{ color: NEON.muted }}>{ingest.filter((r) => r.include && r.qId).length}/{ingest.length} matched</span>
               <button className="ml-auto grid h-6 w-6 place-items-center rounded disabled:opacity-40" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} disabled={ingestBusy} onClick={() => setIngest(null)} title="Close (nothing already uploaded is undone)"><X className="h-4 w-4" /></button>
             </div>
