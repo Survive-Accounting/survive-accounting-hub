@@ -69,6 +69,10 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     });
   };
   const [publishOpen, setPublishOpen] = useState(false); // the Publish panel (per active set)
+  // PUBLISH FREE+FULL COMBO — preflight checklist → confirm → sequential publish.
+  const [combo, setCombo] = useState<{ free: "pending" | "running" | "done" | "error"; full: "pending" | "running" | "done" | "error"; running: boolean } | null>(null);
+  useEffect(() => { if (!publishOpen) setCombo(null); }, [publishOpen]);
+  useEffect(() => { setCombo(null); }, [setId]);
   // OPEN FROM A CEQ (Lee) — pre-select the set (its deck) + that question.
   useEffect(() => {
     if (!initialCeqId) return;
@@ -554,13 +558,13 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   /** PUBLISH the Free/Full stitch: Mux concat (hard-cut) → Auphonic → Supabase → Mux
    *  → attach to the Free/Paid lesson + store the manifest. FAILS LOUD on any missing
    *  clip (no silent skips at publish, unlike preview). Runs on the deployed env. */
-  const publishStitch = async (mode: "free" | "full") => {
-    if (publishBusy || !deck) return;
+  const publishStitch = async (mode: "free" | "full"): Promise<boolean> => {
+    if (publishBusy || !deck) return false;
     // LIBRARY sets are not publishable — publish attaches to a lesson under a topic.
-    if (!deck.topicId) { setNote("This set is in the Library (unassigned) — assign it to a Course → Topic before publishing."); return; }
+    if (!deck.topicId) { setNote("This set is in the Library (unassigned) — assign it to a Course → Topic before publishing."); return false; }
     const stitch = mode === "free" ? stitchFree : stitchFull;
-    if (stitch.missing.length > 0) { setNote(`Publish blocked — ${stitch.missing.length} CEQ(s) in the ${mode} cut have no clip: ${stitch.missing.map((m) => (m.prompt || "?").slice(0, 18)).join(", ")}. Attach clips first.`); return; }
-    if (stitch.items.filter((i) => i.kind === "ceq").length === 0) { setNote(`No CEQ clips in the ${mode} cut.`); return; }
+    if (stitch.missing.length > 0) { setNote(`Publish blocked — ${stitch.missing.length} CEQ(s) in the ${mode} cut have no clip: ${stitch.missing.map((m) => (m.prompt || "?").slice(0, 18)).join(", ")}. Attach clips first.`); return false; }
+    if (stitch.items.filter((i) => i.kind === "ceq").length === 0) { setNote(`No CEQ clips in the ${mode} cut.`); return false; }
     const sleep = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
     // Resolve the target lesson + the Mux passthrough scheme UP FRONT so the final
     // asset carries them: {course}/{topic}/{lesson-name}/{free|full}.
@@ -599,8 +603,29 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
         rf.updateNodeData(lessonId, { muxAssetId, muxPlaybackId: final, status: "PUBLISHED", ceqManifest: manifest, muxPublishedAt: Date.now(), muxDurationS: runtimeS, videoCourse: course, videoChapter: topic });
         setNote(`Published ${mode} ✓ → attached to the ${access} lesson (${manifest.length} CEQs indexed). passthrough "${passthrough}".${prevAsset ? ` Old Mux asset ${prevAsset} superseded — delete it in Mux manually.` : ""} Concat asset: ${assetId}.`);
       } else setNote(`Published ${mode} ✓ (playback ${final}) — no ${access} CEQ lesson found to attach to. Final asset ${muxAssetId}, concat ${assetId}.`);
-    } catch (e) { setNote(`Publish ${mode} failed: ${e instanceof Error ? e.message : String(e)}`); }
+      return true;
+    } catch (e) { setNote(`Publish ${mode} failed: ${e instanceof Error ? e.message : String(e)}`); return false; }
     finally { setPublishBusy(null); }
+  };
+  /** PREFLIGHT for the Free+Full combo — every gate the two publishes will hit,
+   *  checked up front with specifics. Recomputed live at render. */
+  const comboChecks = () => [
+    { label: "Assigned to a Course → Topic", ok: !!deck?.topicId, detail: deck?.topicId ? "" : "Library set — assign it first" },
+    { label: `Free cut non-empty (${freeCount} flagged)`, ok: freeCount > 0, detail: freeCount > 0 ? "" : "Flag questions F for the free cut" },
+    { label: "No missing clips — free cut", ok: stitchFree.missing.length === 0, detail: stitchFree.missing.map((m) => clip(m.prompt || "?", 18)).join(", ") },
+    { label: "No missing clips — full cut", ok: stitchFull.missing.length === 0, detail: stitchFull.missing.map((m) => clip(m.prompt || "?", 18)).join(", ") },
+    { label: "Intro resolved (local or global)", ok: !!resolvedIntro, detail: resolvedIntro ? "" : "Drop an intro or set a global" },
+    { label: "Outro resolved (local or global)", ok: !!resolvedOutro, detail: resolvedOutro ? "" : "Drop an outro or set a global" },
+  ];
+  /** Run the combo: Free first, then Full, statuses live. A Free failure STOPS the
+   *  run (Full stays pending) so the partial state is unambiguous. */
+  const runCombo = async () => {
+    setCombo({ free: "running", full: "pending", running: true });
+    const okFree = await publishStitch("free");
+    if (!okFree) { setCombo({ free: "error", full: "pending", running: false }); return; }
+    setCombo({ free: "done", full: "running", running: true });
+    const okFull = await publishStitch("full");
+    setCombo({ free: "done", full: okFull ? "done" : "error", running: false });
   };
   const dragProps = (key: string, onFile: (f: File) => void) => ({
     onDragOver: (e: React.DragEvent) => { if (Array.from(e.dataTransfer.types).includes("Files")) { e.preventDefault(); if (dragKey !== key) setDragKey(key); } },
@@ -1568,6 +1593,36 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                         <button className="flex flex-1 items-center justify-center gap-1 rounded px-2 py-1.5 text-[10px] font-bold uppercase disabled:opacity-50" style={{ color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.5)" }} disabled={!!publishBusy} onClick={() => publishStitch("free")} title="Concat the FREE stitch → Auphonic → Mux → attach to the FREE CEQ lesson">{publishBusy === "free" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} Publish Free</button>
                         <button className="flex flex-1 items-center justify-center gap-1 rounded px-2 py-1.5 text-[10px] font-bold uppercase disabled:opacity-50" style={{ color: "#FF8B9E", border: "1px solid rgba(255,92,108,0.5)" }} disabled={!!publishBusy} onClick={() => publishStitch("full")} title="Concat the FULL stitch → Auphonic → Mux → attach to the PAID CEQ lesson">{publishBusy === "full" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} Publish Full</button>
                       </div>
+                      {/* FREE+FULL COMBO — preflight checklist gates the confirm; on
+                          confirm publishes Free then Full sequentially, statuses live. */}
+                      {combo === null ? (
+                        <button className="mb-2 flex w-full items-center justify-center gap-1 rounded px-2 py-1.5 text-[10px] font-bold uppercase disabled:opacity-50" style={{ color: "#0B0F1E", background: NEON.yellow, border: `1px solid ${NEON.yellow}` }} disabled={!!publishBusy} onClick={() => setCombo({ free: "pending", full: "pending", running: false })} title="Preflight both cuts, then publish Free and Full back-to-back">⚡ Publish Free + Full</button>
+                      ) : (
+                        <div className="mb-2 flex flex-col gap-1 rounded p-1.5" style={{ background: "rgba(0,0,0,0.25)", border: `1px solid ${NEON.borderSoft}` }}>
+                          {(combo.free === "pending" && combo.full === "pending" && !combo.running) ? (<>
+                            <div className="text-[8.5px] font-bold uppercase tracking-wide" style={{ color: NEON.cyan }}>Preflight</div>
+                            {comboChecks().map((c) => (
+                              <div key={c.label} className="flex items-start gap-1.5 text-[9.5px]">
+                                <span className="shrink-0 font-black" style={{ color: c.ok ? "#3BF5A0" : NEON.red }}>{c.ok ? "✓" : "✗"}</span>
+                                <span className="min-w-0 flex-1" style={{ color: c.ok ? NEON.text : NEON.red }}>{c.label}{!c.ok && c.detail ? <span className="opacity-80"> — {c.detail}</span> : null}</span>
+                              </div>
+                            ))}
+                            <div className="mt-1 flex items-center gap-1.5">
+                              <button className="flex-1 rounded px-2 py-1 text-[10px] font-bold uppercase disabled:opacity-40" style={{ color: "#0B0F1E", background: "#3BF5A0", border: "1px solid #3BF5A0" }} disabled={!comboChecks().every((c) => c.ok) || !!publishBusy} onClick={() => void runCombo()} title={comboChecks().every((c) => c.ok) ? "Publish Free, then Full" : "Fix the ✗ items first — the run is blocked"}>confirm — publish both</button>
+                              <button className="rounded px-2 py-1 text-[10px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setCombo(null)}>cancel</button>
+                            </div>
+                          </>) : (<>
+                            <div className="text-[8.5px] font-bold uppercase tracking-wide" style={{ color: NEON.cyan }}>Publishing Free + Full</div>
+                            {(["free", "full"] as const).map((m) => { const st = combo[m]; return (
+                              <div key={m} className="flex items-center gap-1.5 text-[10px]">
+                                <span className="grid h-4 w-4 shrink-0 place-items-center">{st === "running" ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: NEON.cyan }} /> : st === "done" ? <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "#3BF5A0" }} /> : st === "error" ? <span style={{ color: NEON.red, fontWeight: 900 }}>✗</span> : <Circle className="h-3.5 w-3.5" style={{ color: NEON.muted }} />}</span>
+                                <span style={{ color: st === "error" ? NEON.red : NEON.text }}>{m === "free" ? "Free" : "Full"} {st === "running" ? "— publishing… (see the status note)" : st === "done" ? "— published ✓" : st === "error" ? "— FAILED (details in the header note)" : combo.free === "error" ? "— not started (free failed)" : "— queued"}</span>
+                              </div>
+                            ); })}
+                            {!combo.running && <button className="mt-1 rounded px-2 py-1 text-[10px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setCombo(null)}>close</button>}
+                          </>)}
+                        </div>
+                      )}
                       {/* LOOKBACK — ONE vertical social file, staged + re-downloadable. NO
                           pipeline: Lee posts socials manually. */}
                       <div className="mb-2 flex flex-col gap-1 rounded p-1" style={{ background: dragKey === `lookback:${setId}` ? "rgba(252,163,17,0.14)" : "rgba(0,0,0,0.15)", outline: dragKey === `lookback:${setId}` ? `1px dashed ${NEON.yellow}` : `1px solid ${NEON.borderSoft}` }} {...dragProps(`lookback:${setId}`, (f) => dropSlot("lookback", f))}>
