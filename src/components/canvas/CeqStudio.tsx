@@ -566,13 +566,31 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     setNote("Saved as the set's baseline layout — every question deals here now.");
   };
 
-  /** Which lesson a Free/Full publish attaches to: the CEQ lesson (category CEQ) of
-   *  the matching access in the set's topic; falls back to the set's linked lesson. */
+  /** The set's assigned spine rows (courseId/topicId → the real course + chapter). */
+  const spineRows = (d: DeckDef | null): { course: CourseOption; topic: CourseOption["chapters"][number] } | null => {
+    if (!d?.topicId) return null;
+    const course = courseOptions.find((c) => c.id === d.courseId) ?? courseOptions.find((c) => c.chapters.some((ch) => ch.id === d.topicId));
+    const topic = course?.chapters.find((ch) => ch.id === d.topicId);
+    return course && topic ? { course, topic } : null;
+  };
+  /** Which lesson a Free/Full publish attaches to — resolved from the set's OUTLINE
+   *  assignment (courseId/topicId): the CEQ lesson of the matching access whose topic
+   *  string points at the assigned topic (same matcher the Videos tab uses, so attach
+   *  targeting and video filing agree). Falls back to the set's explicitly LINKED
+   *  lesson when its access matches. NEVER a first-match scan: nothing resolves ⇒
+   *  null, and publish blocks loud (both accesses — PAID included). */
   const targetLesson = (access: "FREE" | "PAID"): string | null => {
+    const rows = spineRows(deck);
+    if (rows) {
+      const cand = rf.getNodes().find((n) => {
+        const ld = n.data as unknown as LessonBox;
+        return n.type === "lesson" && ld.category === "CEQ" && (ld.access ?? "FREE") === access && !!ld.topic && vidTopicMatch(rows.course, ld.topic)?.id === rows.topic.id;
+      });
+      if (cand) return cand.id;
+    }
     const dl = deck?.lessonId ? rf.getNode(deck.lessonId) : null;
-    const topic = (dl?.data as unknown as LessonBox | undefined)?.topic;
-    const cand = rf.getNodes().find((n) => { const ld = n.data as unknown as LessonBox; return n.type === "lesson" && ld.category === "CEQ" && (ld.access ?? "FREE") === access && (!topic || ld.topic === topic); });
-    return cand?.id ?? (access === "FREE" ? deck?.lessonId ?? null : null);
+    const dld = dl?.data as unknown as LessonBox | undefined;
+    return dl && dld?.category === "CEQ" && (dld.access ?? "FREE") === access ? dl.id : null;
   };
 
   /** PUBLISH the Free/Full stitch: Mux concat (hard-cut) → Auphonic → Supabase → Mux
@@ -581,18 +599,24 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const publishStitch = async (mode: "free" | "full"): Promise<boolean> => {
     if (publishBusy || !deck) return false;
     // LIBRARY sets are not publishable — publish attaches to a lesson under a topic.
-    if (!deck.topicId) { setNote("This set is in the Library (unassigned) — assign it to a Course → Topic before publishing."); return false; }
+    if (!deck.topicId) { setNote("Publish blocked — assign this set to a Course → Topic first (it's in the Library)."); return false; }
     const stitch = mode === "free" ? stitchFree : stitchFull;
     if (stitch.missing.length > 0) { setNote(`Publish blocked — ${stitch.missing.length} CEQ(s) in the ${mode} cut have no clip: ${stitch.missing.map((m) => (m.prompt || "?").slice(0, 18)).join(", ")}. Attach clips first.`); return false; }
     if (stitch.items.filter((i) => i.kind === "ceq").length === 0) { setNote(`No CEQ clips in the ${mode} cut.`); return false; }
     const sleep = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
-    // Resolve the target lesson + the Mux passthrough scheme UP FRONT so the final
-    // asset carries them: {course}/{topic}/{lesson-name}/{free|full}.
+    // Resolve the target lesson + the Mux passthrough scheme UP FRONT — no lesson ⇒
+    // block HERE, before any Mux/Auphonic money is spent (both accesses; a PAID gap
+    // is a loud block, never a publish-without-attach).
     const access = mode === "free" ? "FREE" : "PAID";
+    const rows = spineRows(deck);
     const lessonId = targetLesson(access);
-    const ld = lessonId ? (rf.getNode(lessonId)?.data as unknown as LessonBox | undefined) : undefined;
-    const course = deck.course || "Course";
-    const topic = ld?.topic || deck.chapter || "Topic";
+    if (!lessonId) { setNote(`Publish blocked — no ${access} CEQ lesson found under ${rows ? `${courseLabel(rows.course)} / ${chapterLabel(rows.topic)}` : "this set's topic"} to attach to. Create one (category CEQ, access ${access}, topic "Ch ${rows?.topic.number ?? "N"}") or link one to this set.`); return false; }
+    const ld = rf.getNode(lessonId)?.data as unknown as LessonBox | undefined;
+    // Passthrough + library-grouping strings come from the SPINE (the Videos tab's
+    // matchers round-trip them exactly), never from legacy free-text tags — a
+    // migrated-but-never-reassigned set must not file its video under "Unfiled".
+    const course = rows?.course.course_name || deck.course || "Course";
+    const topic = rows ? `Ch ${rows.topic.number}` : (ld?.topic || deck.chapter || "Topic");
     const lessonName = ld?.label || deck.name;
     const sanitize = (s: string) => s.replace(/\//g, "-").trim();
     const passthrough = `${sanitize(course)}/${sanitize(topic)}/${sanitize(lessonName)}/${mode}`.slice(0, 250);
@@ -616,13 +640,12 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       let muxAssetId: string | null = null; let final: string | null = null;
       for (let i = 0; i < 240 && !final; i++) { const r: Awaited<ReturnType<typeof resolvePipelineTestAuphonic>> = await resolvePipelineTestAuphonic({ data: { auphonicUuid, muxAssetId, passthrough, title } }); muxAssetId = r.muxAssetId; if (r.stage === "errored") throw new Error(r.error ?? "Pipeline errored"); if (r.stage === "ready") { final = r.playbackId; break; } setNote(r.stage === "auphonic" ? `Auphonic: ${r.auphonicStatus ?? "processing"}…` : "Mux ingesting the processed file…"); await sleep(5000); }
       if (!final) throw new Error("Timed out waiting for the final Mux asset.");
-      // 3) manifest + attach to the Free/Paid CEQ lesson (+ library metadata)
+      // 3) manifest + attach to the Free/Paid CEQ lesson (+ library metadata).
+      // lessonId is guaranteed — publish blocks up front when nothing resolves.
       const manifest = stitchManifest(stitch.items, DEFAULT_CROSSFADE_MS);
-      if (lessonId) {
-        const prevAsset = ld?.muxAssetId ?? null;
-        rf.updateNodeData(lessonId, { muxAssetId, muxPlaybackId: final, status: "PUBLISHED", ceqManifest: manifest, muxPublishedAt: Date.now(), muxDurationS: runtimeS, videoCourse: course, videoChapter: topic });
-        setNote(`Published ${mode} ✓ → attached to the ${access} lesson (${manifest.length} CEQs indexed). passthrough "${passthrough}".${prevAsset ? ` Old Mux asset ${prevAsset} superseded — delete it in Mux manually.` : ""} Concat asset: ${assetId}.`);
-      } else setNote(`Published ${mode} ✓ (playback ${final}) — no ${access} CEQ lesson found to attach to. Final asset ${muxAssetId}, concat ${assetId}.`);
+      const prevAsset = ld?.muxAssetId ?? null;
+      rf.updateNodeData(lessonId, { muxAssetId, muxPlaybackId: final, status: "PUBLISHED", ceqManifest: manifest, muxPublishedAt: Date.now(), muxDurationS: runtimeS, videoCourse: course, videoChapter: topic });
+      setNote(`Published ${mode} ✓ → attached to the ${access} lesson (${manifest.length} CEQs indexed). passthrough "${passthrough}".${prevAsset ? ` Old Mux asset ${prevAsset} superseded — delete it in Mux manually.` : ""} Concat asset: ${assetId}.`);
       return true;
     } catch (e) { setNote(`Publish ${mode} failed: ${e instanceof Error ? e.message : String(e)}`); return false; }
     finally { setPublishBusy(null); }
@@ -631,6 +654,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
    *  checked up front with specifics. Recomputed live at render. */
   const comboChecks = () => [
     { label: "Assigned to a Course → Topic", ok: !!deck?.topicId, detail: deck?.topicId ? "" : "Library set — assign it first" },
+    { label: "FREE lesson to attach to", ok: !!targetLesson("FREE"), detail: targetLesson("FREE") ? "" : "No FREE CEQ lesson under this topic — create or link one" },
+    { label: "PAID lesson to attach to", ok: !!targetLesson("PAID"), detail: targetLesson("PAID") ? "" : "No PAID CEQ lesson under this topic — create or link one" },
     { label: `Free cut non-empty (${freeCount} flagged)`, ok: freeCount > 0, detail: freeCount > 0 ? "" : "Flag questions F for the free cut" },
     { label: "No missing clips — free cut", ok: stitchFree.missing.length === 0, detail: stitchFree.missing.map((m) => clip(m.prompt || "?", 18)).join(", ") },
     { label: "No missing clips — full cut", ok: stitchFull.missing.length === 0, detail: stitchFull.missing.map((m) => clip(m.prompt || "?", 18)).join(", ") },
