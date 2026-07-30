@@ -31,7 +31,7 @@ import { detectAuphonicSlots, resolveCeqConcat, resolvePipelineTestAuphonic, sta
 import type { LessonBox } from "./types";
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { useFrameNav } from "./FrameNavContext";
-import { cardId, type CeqCard, type ChainSound, type CeqChainItem, type CeqChoice, type DeckDef, type DeckLayout, type DeckSlotLayout, type GlobalClips, type TakeRef } from "./types";
+import { cardId, type CeqCard, type ChainSound, type CeqChainItem, type CeqChoice, type CeqInstanceGeom, type DeckDef, type DeckLayout, type DeckSlotLayout, type GlobalClips, type TakeRef } from "./types";
 import { NEON } from "./theme";
 import { BufferedInput, BufferedTextarea } from "./ui";
 
@@ -289,6 +289,10 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   // An active set always has a visible tab chip (covers session-restore edge cases).
   useEffect(() => { if (setId && cardDecks.some((d) => d.id === setId)) setOpenTabs((p) => (p.includes(setId) ? p : [...p, setId])); }, [setId, cardDecks]);
   const questions = useMemo(() => (deck ? deckMembersOf(nodes as { id: string; type?: string; data?: { deckId?: string; stageOrder?: number } }[], deck.id).filter((n) => (n as { type?: string }).type === "ceq") : []), [deck, nodes]);
+  // STABLE identity — this feeds the previewer's build() deps. A fresh array every
+  // render re-seeded the preview constantly, which is what made an in-progress move
+  // snap back to the saved geometry mid-edit.
+  const deckCeqIds = useMemo(() => questions.map((q) => q.id), [questions]);
   const starCount = useMemo(() => questions.reduce((n, q) => n + ((rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.starred ? 1 : 0), 0), [questions, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
   const qNode = qId ? nodes.find((n) => n.id === qId) : null;
   const qd = qNode?.data as unknown as CeqCard | undefined;
@@ -667,6 +671,17 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       coalesceKey: `baseline:${deckId}`,
     });
     setNote("Saved as the set's baseline layout — every question deals here now.");
+  };
+
+  /** INSTANCE GEOMETRY write — one question's own card/memo spots. Rides the bus like
+   *  every other card edit (so Ctrl+Z works), skips no-op writes so a drag-and-back
+   *  never pollutes the stack, and coalesces per question so a sculpting burst is ONE
+   *  undo step. NEVER touches deck.layout: the template is Question 0's business. */
+  const saveInstanceGeom = (questionId: string, g: CeqInstanceGeom) => {
+    const before = (rf.getNode(questionId)?.data as unknown as CeqCard | undefined)?.geom;
+    if (JSON.stringify(before ?? null) === JSON.stringify(g ?? null)) return;
+    const c = patchDataCmd(rfl, questionId, { geom: g }, "move CEQ geometry", `geom:${questionId}`);
+    if (c) bus.dispatch(c);
   };
 
   /** The set's assigned spine rows (courseId/topicId → the real course + chapter). */
@@ -1902,7 +1917,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                   {stitchMode ? (
                     <CeqStitch free={stitchFree.items} full={stitchFull.items} freeMissing={stitchFree.missing} fullMissing={stitchFull.missing} initialMode={stitchMode} onExit={() => setStitchMode(null)} onJumpCeq={(id) => setQId(id)} />
                   ) : (
-                    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={questions.map((q) => q.id)} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
+                    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSaveInstance={(g) => { if (qId && qId !== LAYOUT_Q0) saveInstanceGeom(qId, g); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
                   )}
                 </div>
                 {qd && (
