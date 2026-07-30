@@ -352,7 +352,13 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // the full live rig; the others are static clickable cards. Off ⇒ the focused single
   // frame (unchanged). Needs the deck's ordered ceq ids (deckCeqIds).
   const [overview, setOverview] = useState(false);
-  const overviewOn = overview && !!deckCeqIds && deckCeqIds.length > 1;
+  // Where the ACTIVE id sits in the deck order. -1 = it isn't one of the deck's
+  // questions at all (Question 0's layout stage), so it has no slot in the vertical
+  // stack — and a stack built around it would draw the deck's questions straight
+  // through it. Whenever the active id isn't a member, overview is simply off and
+  // the single-frame render stands alone.
+  const activeIdx = deckCeqIds ? deckCeqIds.indexOf(ceqId) : -1;
+  const overviewOn = overview && !!deckCeqIds && deckCeqIds.length > 1 && activeIdx >= 0;
   // COPY/PASTE STYLE (Lee) — marquee-select (Ctrl+drag) memos, right-click → copy their
   // STYLE (size + frame-local position + choice-label/arrow flags, NOT content), then
   // paste onto another selection. Generic node op (cards later). styleClip is ordered.
@@ -365,7 +371,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   const [memoMode, setMemoMode] = useState<null | "rename" | "cat">(null);
   // The active frame's vertical offset in the stack (0 outside overview). Node positions
   // carry it; the baseline is FRAME-LOCAL, so persistence subtracts it back off.
-  const activeYOff = useMemo(() => (overviewOn && deckCeqIds ? Math.max(0, deckCeqIds.indexOf(ceqId)) * (frameH + Math.round(frameH * 0.16)) : 0), [overviewOn, deckCeqIds, ceqId, frameH]);
+  const activeYOff = useMemo(() => (overviewOn ? activeIdx * (frameH + Math.round(frameH * 0.16)) : 0), [overviewOn, activeIdx, frameH]);
   // BOSS test cue (Lee): hear the cram-launch when you ADVANCE to a boss-flagged CEQ
   // in the previewer (not on the first open). Read the flag fresh from the main store.
   const bossArmed = useRef(false);
@@ -760,7 +766,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                   <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={addSlot} title="Add a memo slot to the baseline (lands below the last slot)"><Plus className="h-3 w-3" /> slot</button>
                   <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase disabled:opacity-40" style={{ color: NEON.red, border: `1px solid ${NEON.borderSoft}` }} disabled={walk.length === 0} onClick={removeSlot} title="Remove the last memo slot from the baseline">− slot</button>
                 </>)}
-                {deckCeqIds && deckCeqIds.length > 1 && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: overview ? "#0B0F1E" : NEON.cyan, background: overview ? NEON.cyan : "transparent", border: `1px solid ${overview ? NEON.cyan : NEON.borderSoft}` }} onClick={() => setOverview((v) => !v)} title="Overview — stack every question as its own frame vertically. Zoom out (scroll) to see them all, drag to pan, click a question to glide to it. The active question stays fully live."><Rows3 className="h-3.5 w-3.5" /> {overview ? "Overview" : "Overview"}</button>}
+                {deckCeqIds && deckCeqIds.length > 1 && activeIdx >= 0 && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: overview ? "#0B0F1E" : NEON.cyan, background: overview ? NEON.cyan : "transparent", border: `1px solid ${overview ? NEON.cyan : NEON.borderSoft}` }} onClick={() => setOverview((v) => !v)} title="Overview — stack every question as its own frame vertically. Zoom out (scroll) to see them all, drag to pan, click a question to glide to it. The active question stays fully live."><Rows3 className="h-3.5 w-3.5" /> {overview ? "Overview" : "Overview"}</button>}
                 {overviewOn && <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={fitAll} title="Fit all questions in view (zoom out)"><Maximize2 className="h-3.5 w-3.5" /></button>}
                 {onSetWorld && (
                   <select
