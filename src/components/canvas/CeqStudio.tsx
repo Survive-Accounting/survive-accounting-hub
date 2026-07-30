@@ -14,7 +14,7 @@ import { chapterLabel, courseLabel, fetchCourseOptions, type CourseOption } from
 
 import { addDeck, deckMembersOf, newDeckDef, removeDeck, updateDeck } from "./deck-defs";
 import { nextStageOrder } from "./BaseCard";
-import { addNodesAndEdgesCmd, addNodesCmd, bus, compositeCmd, patchDataCmd, patchDataFnCmd, removeNodesCmd, type RfLike } from "./commands";
+import { addNodesAndEdgesCmd, addNodesCmd, bus, compositeCmd, patchDataCmd, patchDataFnCmd, removeNodesCmd, type Command, type RfLike } from "./commands";
 import { memoAnchorId } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { CeqChainEditor } from "./CeqChainEditor";
@@ -30,7 +30,7 @@ import { detectAuphonicSlots, resolveCeqConcat, resolvePipelineTestAuphonic, sta
 import type { LessonBox } from "./types";
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { useFrameNav } from "./FrameNavContext";
-import { cardId, type CeqCard, type ChainSound, type CeqChainItem, type CeqChoice, type DeckDef, type DeckSlotLayout, type GlobalClips, type TakeRef } from "./types";
+import { cardId, type CeqCard, type ChainSound, type CeqChainItem, type CeqChoice, type DeckDef, type DeckLayout, type DeckSlotLayout, type GlobalClips, type TakeRef } from "./types";
 import { NEON } from "./theme";
 
 const memoText = (title?: string, body?: string) => ((title && title.trim()) || (body || "").replace(/[*_=~`#>]/g, "").trim() || "memo");
@@ -546,6 +546,22 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     setNote(global ? `Cleared this set's ${kind} — it falls back to the global.` : `Cleared this set's ${kind}.`);
   };
 
+  /** BASELINE LAYOUT writes ride the undo bus like every other canvas edit (Ctrl+Z
+   *  restores the previous baseline). Same-set writes coalesce, so a sculpting burst
+   *  of drags is one undo step; a no-op write (drag back to the same spot) is skipped
+   *  entirely so it never pollutes the stack. */
+  const saveBaselineLayout = (deckId: string, layout: DeckLayout) => {
+    const before = decks.find((d) => d.id === deckId)?.layout;
+    if (JSON.stringify(before ?? null) === JSON.stringify(layout ?? null)) return;
+    bus.dispatch({
+      label: "baseline layout",
+      do: () => setDecks((prev) => updateDeck(prev, deckId, { layout })),
+      undo: () => setDecks((prev) => updateDeck(prev, deckId, { layout: before })),
+      coalesceKey: `baseline:${deckId}`,
+    });
+    setNote("Saved as the set's baseline layout — every question deals here now.");
+  };
+
   /** Which lesson a Free/Full publish attaches to: the CEQ lesson (category CEQ) of
    *  the matching access in the set's topic; falls back to the set's linked lesson. */
   const targetLesson = (access: "FREE" | "PAID"): string | null => {
@@ -994,9 +1010,16 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     } else {
       styles.forEach((s) => { slots[s.idx] = { x: s.x, y: s.y, scale: s.scale }; });
     }
-    setDecks((prev) => updateDeck(prev, deck.id, { layout: { ...(deck.layout ?? {}), memoSlots: slots as DeckSlotLayout[] } }));
+    // The baseline-geometry write joins the composite so the whole action stays ONE
+    // undo step (Ctrl+Z restores slots + settings together).
+    const layoutBefore = deck.layout;
+    const layoutAfter = { ...(deck.layout ?? {}), memoSlots: slots as DeckSlotLayout[] };
     const bySlot = new Map(styles.map((s) => [s.idx, s]));
-    const cmds: NonNullable<ReturnType<typeof patchDataFnCmd>>[] = [];
+    const cmds: Command[] = [{
+      label: "style to set — baseline geometry",
+      do: () => setDecks((prev) => updateDeck(prev, deck.id, { layout: layoutAfter })),
+      undo: () => setDecks((prev) => updateDeck(prev, deck.id, { layout: layoutBefore })),
+    }];
     for (const q of questions) {
       const p = patchDataFnCmd(rfl, q.id, (prev) => {
         let flat = -1;
@@ -1697,7 +1720,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                   {stitchMode ? (
                     <CeqStitch free={stitchFree.items} full={stitchFull.items} freeMissing={stitchFree.missing} fullMissing={stitchFull.missing} initialMode={stitchMode} onExit={() => setStitchMode(null)} onJumpCeq={(id) => setQId(id)} />
                   ) : (
-                    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { layout: l })); setNote("Saved as the set's baseline layout — every question deals here now."); } }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={questions.map((q) => q.id)} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
+                    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={questions.map((q) => q.id)} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
                   )}
                 </div>
                 {qd && (

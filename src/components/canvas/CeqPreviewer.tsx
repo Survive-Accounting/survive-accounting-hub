@@ -501,19 +501,24 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // switch / baseline change). We no longer write them back to the real canvas nodes;
   // the SET BASELINE is the single source of truth. Promote via "Set as layout" only.
   const setScale = (nodeId: string, scale: number) => setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, scale } } : n)));
-  /** SET AS LAYOUT — snapshot the current card + memo geometry as the set's baseline
-   *  (the only thing that changes it). Reads the live local nodes; keys memos by flat
-   *  chain-slot index. Save from the question with the MOST chain items to fill slots. */
-  const saveBaseline = () => {
+  /** SET AS LAYOUT — snapshot the current card + memo geometry as the set's baseline.
+   *  Keys memos by flat chain-slot index. Two write modes:
+   *  "replace" — the explicit Set-layout button (and Q0's stage, where the walk IS the
+   *  full slot list): rebuild the slots wholesale from what's on stage.
+   *  "merge" — auto-persist from drags/resizes: start from the EXISTING baseline and
+   *  overwrite only the slots this question's chain actually shows, so sculpted extra
+   *  slots survive and a chainless question can never truncate or wipe the baseline. */
+  const saveBaseline = (writeMode: "replace" | "merge") => {
     const c = nodes.find((n) => n.id === ceqId);
-    const memoSlots: DeckSlotLayout[] = [];
+    const memoSlots: DeckSlotLayout[] = writeMode === "merge" ? (baseline?.memoSlots ?? []).map((s) => ({ ...s })) : [];
     walk.forEach((w, i) => { const m = nodes.find((n) => n.id === w.memoNodeId); if (m) memoSlots[i] = { x: Math.round(m.position.x), y: Math.round(m.position.y - activeYOff), scale: (m.data as { scale?: number }).scale ?? 1 }; });
     onSaveBaseline?.({ card: c ? { x: Math.round(c.position.x), y: Math.round(c.position.y - activeYOff), scale: (c.data as { scale?: number }).scale ?? 1 } : undefined, memoSlots });
   };
   // AUTO-PERSIST (Lee) — a drag or resize commits the current geometry to the set
   // baseline so it STICKS across navigation (was transient → reverted on re-seed).
-  // In QUESTION 0 this IS the editing model: dragging the stage edits the baseline.
-  const commitGeom = () => { if (onSaveBaseline) saveBaseline(); };
+  // Always a MERGE: only the walked slots are overwritten (in QUESTION 0 the walk
+  // covers every slot, so dragging the stage still edits the whole baseline).
+  const commitGeom = () => { if (onSaveBaseline) saveBaseline("merge"); };
   /** QUESTION 0 — add/remove a baseline memo slot (snapshots live geometry so slots
    *  keep any unsaved drags, then appends below the last / pops the last). */
   const snapshotSlots = (): { card: DeckSlotLayout | undefined; memoSlots: DeckSlotLayout[] } => {
@@ -554,8 +559,9 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     setCtxMenu(null);
     if (styleClip.length === 0 || !onSaveBaseline) return;
     const targets = styleTargets(nodeId);
-    // Snapshot all current geometry (untouched memos keep their spots), overwrite targets.
-    const memoSlots: DeckSlotLayout[] = [];
+    // Snapshot current geometry MERGED over the existing baseline (untouched memos and
+    // sculpted extra slots keep their spots), then overwrite the paste targets.
+    const memoSlots: DeckSlotLayout[] = (baseline?.memoSlots ?? []).map((s) => ({ ...s }));
     walk.forEach((w, i) => { const m = nodes.find((n) => n.id === w.memoNodeId); if (m) memoSlots[i] = { x: Math.round(m.position.x), y: Math.round(m.position.y - activeYOff), scale: (m.data as { scale?: number }).scale ?? 1 }; });
     const pos1to1 = styleClip.length === 1 && targets.length === 1; // exact 1↔1 copies location too
     targets.forEach(({ idx }, i) => {
@@ -728,7 +734,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                 <button className="grid h-6 w-6 place-items-center rounded" style={{ color: running ? "#FF8B9E" : "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={toggleRun} title={running ? "Pause timer" : "Start practice timer"}>{running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}</button>
                 <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={resetAll} title="Reset the CEQ to blank + clear spotlights + timer (`)"><RotateCcw className="h-3.5 w-3.5" /></button>
                 <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: filmWin ? "#0B0F1E" : "#FF8B9E", background: filmWin ? "#FF8B9E" : "transparent", border: `1px solid ${filmWin ? "#FF8B9E" : "rgba(255,139,158,0.5)"}` }} onClick={toggleFilm} title={filmWin ? "Close the film window" : "FILM MODE — pops a clean 16:9 canvas frame (world background + watermark) onto your 2nd monitor. TWO-WAY: drag / resize / spotlight / Space-Tab-Enter work in EITHER window and stay in sync. Maximize it for OBS."}><Clapperboard className="h-3.5 w-3.5" /> {filmWin ? "Filming" : "Film"}</button>
-                {onSaveBaseline && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={saveBaseline} title="Set as layout — save THIS card + memo arrangement as the set's baseline (same baseline Question 0 edits directly). Every question then deals/previews at this geometry."><LayoutGrid className="h-3.5 w-3.5" /> Set layout</button>}
+                {onSaveBaseline && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => saveBaseline("replace")} title="Set as layout — save THIS card + memo arrangement as the set's baseline (same baseline Question 0 edits directly). Every question then deals/previews at this geometry."><LayoutGrid className="h-3.5 w-3.5" /> Set layout</button>}
                 {layoutMode && onSaveBaseline && (<>
                   <span className="flex h-6 items-center rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#0B0F1E", background: NEON.yellow }}>Q0 · Layout</span>
                   <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={addSlot} title="Add a memo slot to the baseline (lands below the last slot)"><Plus className="h-3 w-3" /> slot</button>
