@@ -27,6 +27,7 @@ import { seedCeqSets } from "./ceq-seed";
 import { buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, stageTake, stitchManifest, stitchRuntime, videoFromDrop, videosFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
 import { buildSetExport } from "./ceq-export";
 import { MISCONCEPTION_SEEDS, questionMisconceptions, toSlug } from "./ceq-misconceptions";
+import { ingestNumOf } from "./ceq-walk";
 import { CeqStitch } from "./CeqStitch";
 import { CeqVideoLibrary, vidCourseMatch, vidTopicMatch } from "./CeqVideoLibrary";
 import { DEFAULT_CROSSFADE_MS } from "./segment-assembly";
@@ -708,16 +709,6 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   // ---- BATCH TAKE INGEST (Lee) ------------------------------------------------
   /** Question number from a filename: "1.03"→3 (topic.question), "q3"→3, leading
    *  "03"/"3-"→3. Null when no number is found. */
-  const ingestNumOf = (name: string): number | null => {
-    const base = name.replace(/\.[a-z0-9]+$/i, "");
-    let m = /(?:^|[^0-9])(\d+)\.(\d{1,2})(?:[^0-9]|$)/.exec(base);
-    if (m) return Number(m[2]);
-    m = /(?:^|[^a-z0-9])q\s*(\d{1,2})(?:[^0-9]|$)/i.exec(base);
-    if (m) return Number(m[1]);
-    m = /^(\d{1,2})(?:[^0-9]|$)/.exec(base);
-    if (m) return Number(m[1]);
-    return null;
-  };
   /** Build the CONFIRM table from dropped files — NOTHING uploads until confirmed.
    *  Match order: (a) filename question number → that question; (b) else deck order
    *  onto questions missing base clips. Durations read from metadata for the table. */

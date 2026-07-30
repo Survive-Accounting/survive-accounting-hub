@@ -85,6 +85,7 @@ import { DEFAULT_RIFF, DEFAULT_READTIME_THRESHOLD_S, estimateFrameSeconds } from
 import { deckMembers, lastDealtCross, lastDealtInFrame, lessonIdOf, nextTuckedCross, nextTuckedInFrame } from "@/components/canvas/deck-logic";
 import { addNodesAndEdgesCmd, addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, patchDataFnCmd, removeNodesCmd, type Command, type RfLike } from "@/components/canvas/commands";
 import { cloneNodeSet, orderParentsFirst, type CloneEdge, type CloneNode } from "@/components/canvas/duplicate-frame";
+import { walkTransition } from "@/components/canvas/ceq-walk";
 import { decksOfLesson, duplicateLessonDecks, mintDeckIds, nextRegionCell } from "@/components/canvas/duplicate-lesson";
 import { buildSnippetPayload, spawnSnippet, SNIPPET_DND_MIME, type SnippetPayload } from "@/components/canvas/snippet-payload";
 import { deleteSnippet as deleteSnippetFn, listSnippets, renameSnippet as renameSnippetFn, saveSnippet as saveSnippetFn, type SnippetRow } from "@/lib/snippet.functions";
@@ -2429,16 +2430,9 @@ function PresentCanvas() {
     const wasResolved = !!choice.resolved;
     const shown = choice.chainShown ?? 0;
     // Resolve the transition (no-op past either end).
-    let nextResolved = wasResolved;
-    let nextShown = shown;
-    let action: "resolve" | "reveal" | "hide" | "unresolve" | "noop" = "noop";
-    if (dir > 0) {
-      if (!wasResolved) { nextResolved = true; nextShown = 0; action = "resolve"; }
-      else if (shown < chainLen) { nextShown = shown + 1; action = "reveal"; }
-    } else {
-      if (shown > 0) { nextShown = shown - 1; action = "hide"; }
-      else if (wasResolved) { nextResolved = false; nextShown = 0; action = "unresolve"; }
-    }
+    // The transition itself is pure + regression-tested (ceq-walk.walkTransition).
+    const t = walkTransition(wasResolved, shown, chainLen, dir);
+    const nextResolved = t.resolved, nextShown = t.shown, action = t.action;
     if (action === "noop") return;
     const cmd = patchDataFnCmd(rf as unknown as RfLike, cardId, (prev) => {
       const pd = prev as unknown as { choices: CeqChoice[]; tags?: string[] };
