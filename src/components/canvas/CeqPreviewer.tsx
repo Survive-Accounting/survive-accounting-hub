@@ -28,9 +28,10 @@
 // dirty the real CEQ, and reset when you switch questions.
 import { Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Background, BackgroundVariant, ConnectionMode, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodes, useNodesState, useUpdateNodeInternals, type Connection, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
-import { Clapperboard, ChevronLeft, ChevronRight, LayoutGrid, Maximize2, Pause, Play, RotateCcw, Rows3, Spline, Timer } from "lucide-react";
+import { Clapperboard, ChevronLeft, ChevronRight, LayoutGrid, Maximize2, Pause, Play, Plus, RotateCcw, Rows3, Spline, Timer } from "lucide-react";
 
 import { BrandWatermark } from "./BrandBar";
+import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { FLAME_CSS } from "./FilmOverlays";
 import { openPopoutWindow, PanelPopout } from "./PanelPopout";
 import { WorldBackground } from "./WorldBackground";
@@ -68,6 +69,13 @@ const MEMO_DND = "text/sa-studio-memo";
 const AttachMemoContext = createContext<(choiceId: string, memoId: string) => void>(() => {});
 /** VERTICAL OVERVIEW — click a stacked (non-active) question frame to make it active. */
 const SelectQuestionContext = createContext<(qid: string) => void>(() => {});
+/** RIGHT-CLICK a choice row → "Add memo to this choice" flow (category → text). */
+const ChoiceMenuContext = createContext<(choiceId: string, e: React.MouseEvent) => void>(() => {});
+/** QUESTION 0 (layout mode) — the placeholder card shown on the baseline stage. */
+const LAYOUT_CARD = { prompt: "**LAYOUT** — the question card deals here", choices: [
+  { id: "__l-a", text: "Answer choice A" }, { id: "__l-b", text: "Answer choice B" }, { id: "__l-c", text: "Answer choice C" },
+  { id: "__l-d", text: "Answer choice D" }, { id: "__l-e", text: "Answer choice E" },
+] };
 /** In the film popout the resize grips are HOVER-ONLY (like the real canvas film
  *  mode) — invisible on camera, but there when Lee reaches in to nudge a card. */
 const PV_CSS = `
@@ -157,11 +165,14 @@ function CeqPreviewNode({ id, data }: NodeProps) {
   const spot = useContext(PreviewSpotContext);
   const film = useContext(FilmContext);
   const attachMemo = useContext(AttachMemoContext);
+  const choiceMenu = useContext(ChoiceMenuContext);
   const [dropChoice, setDropChoice] = useState<string | null>(null); // choice a memo is hovering (drag-to-chain)
-  const d = data as unknown as { stem: string; choices: { id: string; text: string; correct?: boolean }[]; scale?: number };
+  const d = data as unknown as { stem: string; choices: { id: string; text: string; correct?: boolean }[]; scale?: number; layoutBadge?: boolean };
   const s = d.scale ?? 1;
   return (
-    <div className="sa-pv-node sa-ceq-in" style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", animation: "sa-ceq-in 380ms cubic-bezier(0.2,0.7,0.3,1) both" }}>
+    <div className="sa-pv-node sa-ceq-in" style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", animation: "sa-ceq-in 380ms cubic-bezier(0.2,0.7,0.3,1) both" }}>
+      {/* QUESTION 0 ribbon — unmistakably the LAYOUT stage, never content. */}
+      {d.layoutBadge && <span style={{ position: "absolute", top: -12, left: 12, borderRadius: 6, padding: "1px 8px", fontSize: 10, fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase", color: "#0B0F1E", background: NEON.yellow, zIndex: 21 }}>Layout</span>}
       {/* CLIP — a spotlit choice's scale + glow stays INSIDE the CEQ box (never spills
           into the frame on a take). The ScaleGrip lives OUTSIDE this clip. */}
       <div style={{ overflow: "hidden", borderRadius: 13 * s, padding: 16 * s }}>
@@ -184,6 +195,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
               data-flame={flamed ? "on" : undefined}
               data-flame-tone={flamed ? spot.tone(key) : undefined}
               onPointerDownCapture={(e) => spot.onClick(key, e)}
+              onContextMenu={(e) => choiceMenu(c.id, e)}
               // DRAG-TO-CHAIN (Lee) — drop a library memo straight onto a choice here in
               // the previewer (same-window drag) to chain it, exactly like the Pane-2 rows.
               onDragOver={film ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; if (dropChoice !== c.id) setDropChoice(c.id); } }}
@@ -299,16 +311,25 @@ function FilmInternalsNudge({ sig }: { sig: string }) {
   return null;
 }
 
-function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, world, worldIntensity, worldMotion, deckCeqIds, onSaveBaseline, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onNextQuestion, onPrevQuestion }: { ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number; chainEdges: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; onSaveBaseline?: (l: DeckLayout) => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onNextQuestion?: () => void; onPrevQuestion?: () => void }) {
+function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, world, worldIntensity, worldMotion, deckCeqIds, layoutMode, onSaveBaseline, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onAddMemoAtChoice, onAddMemoAt, onNextQuestion, onPrevQuestion }: { ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number; chainEdges: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; layoutMode?: boolean; onSaveBaseline?: (l: DeckLayout) => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onAddMemoAtChoice?: (choiceId: string, text: string, category: string) => void; onAddMemoAt?: (pos: { x: number; y: number }, text: string, category: string) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void }) {
   const ceq = mainRf.getNode(ceqId);
-  const cd = ceq?.data as unknown as CeqCard | undefined;
+  // QUESTION 0 (layoutMode): the stage edits the SET BASELINE directly — a placeholder
+  // LAYOUT card + "Slot N" placeholders stand in for a real question. Same nodes, same
+  // grips, same auto-persist path; it IS the baseline, made visible.
+  const cd = layoutMode ? (LAYOUT_CARD as unknown as CeqCard) : (ceq?.data as unknown as CeqCard | undefined);
   // Flat walk list: each chain memo with its choice index + position within the chain.
   const walk = useMemo(() => {
     const list: { memoNodeId: string; label: string; choice: string; choiceIdx: number; chainPos: number; num: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: string }[] = [];
+    if (layoutMode) {
+      // Question 0: one placeholder per baseline memo slot (add/remove via +/− slot).
+      const n = baseline?.memoSlots?.length ?? 0;
+      for (let i = 0; i < n; i++) list.push({ memoNodeId: `__slot${i}`, label: `Slot ${i + 1}`, choice: "—", choiceIdx: 0, chainPos: i, num: i + 1 });
+      return list;
+    }
     (cd?.choices ?? []).forEach((ch, ci) => (ch.chain ?? []).forEach((it, p) => list.push({ memoNodeId: it.memoNodeId, label: it.label, choice: LETTER(ci), choiceIdx: ci, chainPos: p, num: list.length + 1, hideChoiceLabel: it.hideChoiceLabel, hideArrow: it.hideArrow, sound: it.sound })));
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mainSig]);
+  }, [mainSig, layoutMode, baseline?.memoSlots?.length]);
 
   // ---- PRACTICE (local; never touches the real CEQ) ------------------------
   const [emph, setEmph] = useState<number | null>(null);
@@ -328,7 +349,9 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // paste onto another selection. Generic node op (cards later). styleClip is ordered.
   const [selMemoIds, setSelMemoIds] = useState<Set<string>>(new Set());
   const [styleClip, setStyleClip] = useState<{ x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean }[]>([]);
-  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; nodeId: string; kind: "memo" | "pane" } | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; nodeId: string; kind: "memo" | "pane" | "choice"; choiceId?: string; pos?: { x: number; y: number } } | null>(null);
+  // RIGHT-CLICK ADD-MEMO flow: pick a category, then type the text inline.
+  const [addCat, setAddCat] = useState<string | null>(null);
   // The active frame's vertical offset in the stack (0 outside overview). Node positions
   // carry it; the baseline is FRAME-LOCAL, so persistence subtracts it back off.
   const activeYOff = useMemo(() => (overviewOn && deckCeqIds ? Math.max(0, deckCeqIds.indexOf(ceqId)) * (frameH + Math.round(frameH * 0.16)) : 0), [overviewOn, deckCeqIds, ceqId, frameH]);
@@ -370,7 +393,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // state (solid memo + lit arrow, aligned at the choice), for checking alignment +
   // spotlighting them without walking. Off ⇒ the normal Enter-walk reveal.
   const [showAll, setShowAll] = useState(false);
-  const revealedMemoIds = useMemo(() => { if (showAll) return new Set<string>(walk.map((w) => w.memoNodeId)); const set = new Set<string>(); for (const w of walk) if (resolved.has(w.choiceIdx) && w.chainPos < (shown.get(w.choiceIdx) ?? 0)) set.add(w.memoNodeId); return set; }, [walk, resolved, shown, showAll]);
+  const revealedMemoIds = useMemo(() => { if (showAll || layoutMode) return new Set<string>(walk.map((w) => w.memoNodeId)); const set = new Set<string>(); for (const w of walk) if (resolved.has(w.choiceIdx) && w.chainPos < (shown.get(w.choiceIdx) ?? 0)) set.add(w.memoNodeId); return set; }, [walk, resolved, shown, showAll, layoutMode]);
   const revealedCount = revealedMemoIds.size;
 
   // Rehearsal-spotlight click: Ctrl+Shift = super (Alt ⇒ siren); Ctrl = toggle a gold
@@ -401,7 +424,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // centred card + right-stacked memos (dealCentre/defaultMemoPos), which matches the
   // seed spots. Memos key off the FLAT chain-slot index `i` (choice-major, chain-order).
   const build = useMemo(() => () => {
-    if (!ceq || !cd) return [];
+    if ((!layoutMode && !ceq) || !cd) return [];
     const cb = baseline?.card;
     // In OVERVIEW the active frame sits at its deck index in the vertical stack (gap =
     // 16% of a frame); otherwise at the origin. The active frame + CEQ + memos are
@@ -411,7 +434,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     const yOff = activeYOff;
     const dc = dealCentre(frameW, frameH);
     const frameNode = { id: "__frame__", type: "frameBg", position: { x: 0, y: yOff }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion }, draggable: false, selectable: false, zIndex: -10 };
-    const ceqNode = { id: ceqId, type: "ceqPreview", position: cb ? { x: cb.x, y: yOff + cb.y } : { x: dc.x, y: yOff + dc.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cb?.scale ?? 1 }, draggable: true, zIndex: 1 };
+    const ceqNode = { id: ceqId, type: "ceqPreview", position: cb ? { x: cb.x, y: yOff + cb.y } : { x: dc.x, y: yOff + dc.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cb?.scale ?? 1, layoutBadge: layoutMode }, draggable: true, zIndex: 1 };
     // SPEEDIER MEMOS (Lee): a memo with no baseline slot of its own inherits the previous
     // memo's SIZE and column (x), stacked UNDERNEATH it with padding (not on top). First
     // memo with no layout falls to defaultMemoPos.
@@ -441,7 +464,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     });
     return [...active, ...others] as typeof active;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, activeYOff]);
+  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, activeYOff, layoutMode, walk]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   useEffect(() => { setNodes(build() as unknown as Node[]); }, [build, setNodes]);
@@ -489,7 +512,28 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   };
   // AUTO-PERSIST (Lee) — a drag or resize commits the current geometry to the set
   // baseline so it STICKS across navigation (was transient → reverted on re-seed).
+  // In QUESTION 0 this IS the editing model: dragging the stage edits the baseline.
   const commitGeom = () => { if (onSaveBaseline) saveBaseline(); };
+  /** QUESTION 0 — add/remove a baseline memo slot (snapshots live geometry so slots
+   *  keep any unsaved drags, then appends below the last / pops the last). */
+  const snapshotSlots = (): { card: DeckSlotLayout | undefined; memoSlots: DeckSlotLayout[] } => {
+    const c = nodes.find((n) => n.id === ceqId);
+    const memoSlots: DeckSlotLayout[] = [];
+    walk.forEach((w, i) => { const m = nodes.find((n) => n.id === w.memoNodeId); if (m) memoSlots[i] = { x: Math.round(m.position.x), y: Math.round(m.position.y - activeYOff), scale: (m.data as { scale?: number }).scale ?? 1 }; });
+    return { card: c ? { x: Math.round(c.position.x), y: Math.round(c.position.y - activeYOff), scale: (c.data as { scale?: number }).scale ?? 1 } : baseline?.card, memoSlots };
+  };
+  const addSlot = () => {
+    const { card, memoSlots } = snapshotSlots();
+    const last = memoSlots[memoSlots.length - 1];
+    memoSlots.push(last ? { x: last.x, y: last.y + Math.round(150 * (last.scale ?? 1)), scale: last.scale } : { ...defaultMemoPos(frameW, frameH, 0), scale: 1 });
+    onSaveBaseline?.({ card, memoSlots });
+  };
+  const removeSlot = () => {
+    const { card, memoSlots } = snapshotSlots();
+    if (memoSlots.length === 0) return;
+    memoSlots.pop();
+    onSaveBaseline?.({ card, memoSlots });
+  };
 
   // COPY / PASTE STYLE — the acted-on memos = the marquee selection if it includes the
   // right-clicked memo, else just that memo. Ordered by flat chain index for a stable
@@ -523,6 +567,15 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     const c = nodes.find((n) => n.id === ceqId);
     onSaveBaseline({ card: c ? { x: Math.round(c.position.x), y: Math.round(c.position.y - activeYOff), scale: (c.data as { scale?: number }).scale ?? 1 } : undefined, memoSlots });
     targets.forEach(({ id }, i) => { const s = styleClip.length === 1 ? styleClip[0] : styleClip[Math.min(i, styleClip.length - 1)]; onPatchChainItem?.(id, { hideChoiceLabel: s.hideChoiceLabel, hideArrow: s.hideArrow }); });
+  };
+  /** RIGHT-CLICK a choice row → the add-memo flow (category → inline text). Main
+   *  window only (the fixed-position menu lives in the inline tree). */
+  const onChoiceMenu = (choiceId: string, e: React.MouseEvent) => {
+    if (!onAddMemoAtChoice || layoutMode) return;
+    if ((e.target as HTMLElement).ownerDocument !== document) { e.preventDefault(); return; } // film popout: suppress, don't mis-place
+    e.preventDefault(); e.stopPropagation();
+    setAddCat(null);
+    setCtxMenu({ x: e.clientX, y: e.clientY, nodeId: "", kind: "choice", choiceId });
   };
   /** STYLE → ALL IN SET (Lee, bulk) — capture the acted-on memos' full style (frame-
    *  local geometry + caption/arrow/sound) keyed by flat slot index and hand it to the
@@ -610,7 +663,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emph, resolved, shown, cd, onNextQuestion, onPrevQuestion, filmWin]);
 
-  if (!ceq || !cd) return <div className="grid h-full place-items-center text-[11px]" style={{ color: NEON.muted }}>Select a question to preview.</div>;
+  if ((!layoutMode && !ceq) || !cd) return <div className="grid h-full place-items-center text-[11px]" style={{ color: NEON.muted }}>Select a question to preview.</div>;
 
   return (
     <PracticeContext.Provider value={{ emph, resolved }}>
@@ -621,6 +674,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
            <ChainToggleContext.Provider value={onPatchChainItem ?? (() => {})}>
            <AttachMemoContext.Provider value={onAttachMemo ?? (() => {})}>
            <SelectQuestionContext.Provider value={onSelectQuestion ?? (() => {})}>
+           <ChoiceMenuContext.Provider value={onChoiceMenu}>
             {/* FLAME/SIREN CSS injected locally so it works even when the Studio is
                 popped out to a 2nd window (the global copy lives on the main canvas). */}
             <style>{FLAME_CSS}{PV_CSS}</style>
@@ -649,7 +703,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                     setSelEdgeIds((prev) => (prev.size === ids.length && ids.every((id) => prev.has(id)) ? prev : new Set(ids)));
                   }}
                   onNodeContextMenu={(e, node) => { if (node.type === "memoPreview") { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, nodeId: node.id, kind: "memo" }); } }}
-                  onPaneContextMenu={(e) => { if (!hasItemsClip) return; e.preventDefault(); const me = e as React.MouseEvent; setCtxMenu({ x: me.clientX, y: me.clientY, nodeId: "", kind: "pane" }); }}
+                  onPaneContextMenu={(e) => { if (!hasItemsClip && !onAddMemoAt) return; e.preventDefault(); const me = e as React.MouseEvent; const fp = fitRef.current?.screenToFlowPosition({ x: me.clientX, y: me.clientY }); setAddCat(null); setCtxMenu({ x: me.clientX, y: me.clientY, nodeId: "", kind: "pane", pos: fp ? { x: Math.round(fp.x), y: Math.round(fp.y - activeYOff) } : undefined }); }}
                   onInit={(inst) => { fitRef.current = inst; }}
                   nodeTypes={nodeTypes}
                   fitView
@@ -674,7 +728,12 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                 <button className="grid h-6 w-6 place-items-center rounded" style={{ color: running ? "#FF8B9E" : "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={toggleRun} title={running ? "Pause timer" : "Start practice timer"}>{running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}</button>
                 <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={resetAll} title="Reset the CEQ to blank + clear spotlights + timer (`)"><RotateCcw className="h-3.5 w-3.5" /></button>
                 <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: filmWin ? "#0B0F1E" : "#FF8B9E", background: filmWin ? "#FF8B9E" : "transparent", border: `1px solid ${filmWin ? "#FF8B9E" : "rgba(255,139,158,0.5)"}` }} onClick={toggleFilm} title={filmWin ? "Close the film window" : "FILM MODE — pops a clean 16:9 canvas frame (world background + watermark) onto your 2nd monitor. TWO-WAY: drag / resize / spotlight / Space-Tab-Enter work in EITHER window and stay in sync. Maximize it for OBS."}><Clapperboard className="h-3.5 w-3.5" /> {filmWin ? "Filming" : "Film"}</button>
-                {onSaveBaseline && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={saveBaseline} title="Set as layout — save THIS card + memo arrangement as the set's baseline. Every question then deals/previews at this geometry. (Save from the question with the most chain memos to fill all slots.)"><LayoutGrid className="h-3.5 w-3.5" /> Set layout</button>}
+                {onSaveBaseline && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={saveBaseline} title="Set as layout — save THIS card + memo arrangement as the set's baseline (same baseline Question 0 edits directly). Every question then deals/previews at this geometry."><LayoutGrid className="h-3.5 w-3.5" /> Set layout</button>}
+                {layoutMode && onSaveBaseline && (<>
+                  <span className="flex h-6 items-center rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#0B0F1E", background: NEON.yellow }}>Q0 · Layout</span>
+                  <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={addSlot} title="Add a memo slot to the baseline (lands below the last slot)"><Plus className="h-3 w-3" /> slot</button>
+                  <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase disabled:opacity-40" style={{ color: NEON.red, border: `1px solid ${NEON.borderSoft}` }} disabled={walk.length === 0} onClick={removeSlot} title="Remove the last memo slot from the baseline">− slot</button>
+                </>)}
                 {deckCeqIds && deckCeqIds.length > 1 && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: overview ? "#0B0F1E" : NEON.cyan, background: overview ? NEON.cyan : "transparent", border: `1px solid ${overview ? NEON.cyan : NEON.borderSoft}` }} onClick={() => setOverview((v) => !v)} title="Overview — stack every question as its own frame vertically. Zoom out (scroll) to see them all, drag to pan, click a question to glide to it. The active question stays fully live."><Rows3 className="h-3.5 w-3.5" /> {overview ? "Overview" : "Overview"}</button>}
                 {overviewOn && <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={fitAll} title="Fit all questions in view (zoom out)"><Maximize2 className="h-3.5 w-3.5" /></button>}
                 {onSetWorld && (
@@ -690,7 +749,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                   </select>
                 )}
                 <span className="flex items-center gap-1 tabular-nums text-[12px] font-bold" style={{ color: NEON.text }}><Timer className="h-3.5 w-3.5" style={{ color: NEON.cyan }} />{mmss(elapsed)}</span>
-                {walk.length > 0 && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: showAll ? "#0B0F1E" : "#E0284A", background: showAll ? "#E0284A" : "transparent", border: `1px solid ${showAll ? "#E0284A" : "rgba(224,40,74,0.5)"}` }} onClick={() => setShowAll((v) => !v)} title="Show arrows — reveal every memo so the arrows render exactly as they will in film (aligned + lit). Ctrl/Shift-click an arrow to check its spotlight. Toggle off to Enter-walk normally."><Spline className="h-3.5 w-3.5" /> Arrows</button>}
+                {walk.length > 0 && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: showAll ? "#0B0F1E" : "#E0284A", background: showAll ? "#E0284A" : "transparent", border: `1px solid ${showAll ? "#E0284A" : "rgba(224,40,74,0.5)"}` }} onClick={() => setShowAll((v) => !v)} title="Show arrows — reveal every memo so the arrows render exactly as they will in film (aligned + lit). Ctrl/Shift-click an arrow to check its spotlight. Toggle off to Enter-walk normally."><Spline className="h-3.5 w-3.5" /> Arrows</button>}
                 <span className="text-[9px] uppercase tracking-wide" style={{ color: NEON.muted }}>{showAll ? `${walk.length} shown` : `${revealedCount}/${walk.length} shown`}</span>
                 <div className="ml-auto flex items-center gap-1">
                   <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => onPrevQuestion?.()} title="Previous question (Shift+Space)"><ChevronLeft className="h-3.5 w-3.5" /></button>
@@ -714,10 +773,31 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                       <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: NEON.text }} onClick={() => { onCopyItems(selMemoIds.size > 0 && selMemoIds.has(ctxMenu.nodeId) ? [...selMemoIds] : [ctxMenu.nodeId]); setCtxMenu(null); }} title="Copy the actual memo(s) — paste into another question as new copies or shared references">Copy items</button></>}
                       {onSendToStarred && <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5 disabled:opacity-40" style={{ color: starredCount ? "#FFD23F" : NEON.muted }} disabled={!starredCount} onClick={() => { onSendToStarred(selMemoIds.size > 0 && selMemoIds.has(ctxMenu.nodeId) ? [...selMemoIds] : [ctxMenu.nodeId]); setCtxMenu(null); }} title="Send NEW copies of the memo(s) to every ★ starred question in the set (same choice letters). Star questions first to build the target list.">Send to ★ starred{starredCount ? ` (${starredCount})` : ""}</button>}
                     </>
+                  ) : ctxMenu.kind === "choice" ? (
+                    <>
+                      <div className="px-1.5 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.muted }}>Add memo to this choice</div>
+                      {addCat === null ? (
+                        MEMO_CATEGORIES.map((c) => <button key={c} className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: NEON.text }} onClick={() => setAddCat(c)}>{c === "ELEMENT" ? "🧩 ELEMENT" : c}</button>)
+                      ) : (
+                        <input autoFocus placeholder={`${addCat} memo… (Enter)`} className="nodrag m-1 rounded bg-black/40 px-1.5 py-1 text-[11px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.border}` }} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") { const v = (e.target as HTMLInputElement).value.trim(); if (v && ctxMenu.choiceId) onAddMemoAtChoice?.(ctxMenu.choiceId, v, addCat); setCtxMenu(null); setAddCat(null); } else if (e.key === "Escape") { setAddCat(null); } }} />
+                      )}
+                    </>
                   ) : (
-                    <div className="px-1.5 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.muted }}>Paste into this question</div>
+                    <>
+                      {onAddMemoAt && ctxMenu.pos && (
+                        <>
+                          <div className="px-1.5 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.muted }}>Add memo here (unchained)</div>
+                          {addCat === null ? (
+                            MEMO_CATEGORIES.map((c) => <button key={c} className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: NEON.text }} onClick={() => setAddCat(c)}>{c === "ELEMENT" ? "🧩 ELEMENT" : c}</button>)
+                          ) : (
+                            <input autoFocus placeholder={`${addCat} memo… (Enter)`} className="nodrag m-1 rounded bg-black/40 px-1.5 py-1 text-[11px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.border}` }} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") { const v = (e.target as HTMLInputElement).value.trim(); if (v && ctxMenu.pos) onAddMemoAt?.(ctxMenu.pos, v, addCat); setCtxMenu(null); setAddCat(null); } else if (e.key === "Escape") { setAddCat(null); } }} />
+                          )}
+                        </>
+                      )}
+                      {!!hasItemsClip && <div className="px-1.5 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.muted }}>Paste into this question</div>}
+                    </>
                   )}
-                  {onPasteItems && !!hasItemsClip && <>
+                  {ctxMenu.kind !== "choice" && onPasteItems && !!hasItemsClip && <>
                     <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: NEON.cyan }} onClick={() => { onPasteItems("new"); setCtxMenu(null); }} title="Paste the copied memos as fresh, INDEPENDENT copies">Paste items ({hasItemsClip}) — new copies</button>
                     <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: "#FF8B9E" }} onClick={() => { onPasteItems("exact"); setCtxMenu(null); }} title="Paste as the SAME shared memos — editing them changes the originals too">Paste items — exact (shared ⚠)</button>
                   </>}
@@ -770,6 +850,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                 </FilmContext.Provider>
               </PanelPopout>
             )}
+           </ChoiceMenuContext.Provider>
            </SelectQuestionContext.Provider>
            </AttachMemoContext.Provider>
            </ChainToggleContext.Provider>
@@ -818,12 +899,12 @@ class PreviewErrorBoundary extends Component<{ children: ReactNode; resetKey: st
   }
 }
 
-export function CeqPreviewer({ ceqId, mainRf, mainSig, frameW = 1600, frameH = 900, chainEdges = [], baseline, world, worldIntensity, worldMotion, deckCeqIds, onSaveBaseline, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onNextQuestion, onPrevQuestion }: { ceqId: string | null; mainRf: MainRf; mainSig: string; frameW?: number; frameH?: number; chainEdges?: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; onSaveBaseline?: (l: DeckLayout) => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onNextQuestion?: () => void; onPrevQuestion?: () => void }) {
+export function CeqPreviewer({ ceqId, mainRf, mainSig, frameW = 1600, frameH = 900, chainEdges = [], baseline, world, worldIntensity, worldMotion, deckCeqIds, layoutMode, onSaveBaseline, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onAddMemoAtChoice, onAddMemoAt, onNextQuestion, onPrevQuestion }: { ceqId: string | null; mainRf: MainRf; mainSig: string; frameW?: number; frameH?: number; chainEdges?: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; layoutMode?: boolean; onSaveBaseline?: (l: DeckLayout) => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onAddMemoAtChoice?: (choiceId: string, text: string, category: string) => void; onAddMemoAt?: (pos: { x: number; y: number }, text: string, category: string) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void }) {
   if (!ceqId) return <div className="grid h-full place-items-center text-[11px]" style={{ color: NEON.muted }}>Select a question to preview.</div>;
   return (
     <PreviewErrorBoundary resetKey={ceqId}>
       <ReactFlowProvider>
-        <Inner ceqId={ceqId} mainRf={mainRf} mainSig={mainSig} frameW={frameW} frameH={frameH} chainEdges={chainEdges} baseline={baseline} world={world} worldIntensity={worldIntensity} worldMotion={worldMotion} deckCeqIds={deckCeqIds} onSaveBaseline={onSaveBaseline} onSetWorld={onSetWorld} onPatchChainItem={onPatchChainItem} onAttachMemo={onAttachMemo} onSelectMemo={onSelectMemo} onSelectQuestion={onSelectQuestion} onCopyItems={onCopyItems} onPasteItems={onPasteItems} hasItemsClip={hasItemsClip} onSendToStarred={onSendToStarred} onCopyStyleToSet={onCopyStyleToSet} starredCount={starredCount} onNextQuestion={onNextQuestion} onPrevQuestion={onPrevQuestion} />
+        <Inner ceqId={ceqId} mainRf={mainRf} mainSig={mainSig} frameW={frameW} frameH={frameH} chainEdges={chainEdges} baseline={baseline} world={world} worldIntensity={worldIntensity} worldMotion={worldMotion} deckCeqIds={deckCeqIds} layoutMode={layoutMode} onSaveBaseline={onSaveBaseline} onSetWorld={onSetWorld} onPatchChainItem={onPatchChainItem} onAttachMemo={onAttachMemo} onSelectMemo={onSelectMemo} onSelectQuestion={onSelectQuestion} onCopyItems={onCopyItems} onPasteItems={onPasteItems} hasItemsClip={hasItemsClip} onSendToStarred={onSendToStarred} onCopyStyleToSet={onCopyStyleToSet} starredCount={starredCount} onAddMemoAtChoice={onAddMemoAtChoice} onAddMemoAt={onAddMemoAt} onNextQuestion={onNextQuestion} onPrevQuestion={onPrevQuestion} />
       </ReactFlowProvider>
     </PreviewErrorBoundary>
   );

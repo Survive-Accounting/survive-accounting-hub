@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useEdges, useNodes, useReactFlow } from "@xyflow/react";
-import { CheckCircle2, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Circle, ClipboardPaste, Copy, ExternalLink, FolderInput, Globe, Library, Lightbulb, ListChecks, Loader2, Play, Plus, Search, Square, Trash2, WrapText, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
+import { CheckCircle2, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Circle, ClipboardPaste, Copy, ExternalLink, FolderInput, Globe, LayoutGrid, Library, Lightbulb, ListChecks, Loader2, Play, Plus, Search, Square, Trash2, WrapText, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
 
 import { chapterLabel, courseLabel, fetchCourseOptions, type CourseOption } from "@/lib/je-api";
 
@@ -43,6 +43,7 @@ const MEMO_DND = "text/sa-studio-memo";
 const QREORDER = "text/sa-ceq-qreorder"; // dragging a question ROW to reorder
 const SET_DND = "text/sa-ceq-set"; // dragging a SET row onto a topic / the Library
 const TABS_SS = "sa-ceq-studio-set-tabs"; // sessionStorage: open set tabs + active (per session)
+const LAYOUT_Q0 = "__layout0__"; // Question 0 sentinel — the set BASELINE as an editable stage (never films/stitches/counts/deals)
 
 export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initialCeqId, onPopOut, popped, onClose }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void; globalClips?: GlobalClips; setGlobalClips?: (patch: Partial<GlobalClips>) => void; initialCeqId?: string | null; onPopOut?: () => void; popped?: boolean; onClose: () => void }) {
   const gc = globalClips ?? {};
@@ -273,6 +274,9 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       topicId: topic?.id ?? null,
       ...(course ? { course: courseLabel(course) } : {}),
       ...(topic ? { chapter: `Ch ${topic.number ?? "?"}` } : {}),
+      // DEFAULT QUESTION 0 — the baseline is never empty: centred card + two memo
+      // slots right-stacked (the classic deal geometry), sculptable from row 0.
+      layout: { card: { ...dealCentre(frameW, frameH), scale: 1 }, memoSlots: [{ ...defaultMemoPos(frameW, frameH, 0), scale: 1 }, { ...defaultMemoPos(frameW, frameH, 1), scale: 1 }] },
     };
     setDecks((prev) => addDeck(prev, def));
     setSetId(def.id); setQId(null); setNewSetForm(null);
@@ -773,10 +777,12 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       const newNodes: Record<string, unknown>[] = [];
       const newEdges: Record<string, unknown>[] = [];
       const adds = new Map<string, NonNullable<CeqChoice["chain"]>>();
-      clips.forEach((clip, k) => {
+      let flat = tChoices.reduce((s, c) => s + (c.chain?.length ?? 0), 0); // next baseline slot for THIS question
+      clips.forEach((clip) => {
         const ch = tChoices[clip.choiceIdx]; if (!ch) return;
         const memoId = cardId("memo");
-        newNodes.push({ id: memoId, type: "memo", position: defaultMemoPos(frameW, frameH, k), selected: false, data: { kind: "memo", memoKind: clip.memoKind, title: clip.title, body: clip.body, category: clip.category, subcategory: clip.subcategory, sourceId: clip.memoNodeId } });
+        const spot = baselineSpot(flat); flat += 1;
+        newNodes.push({ id: memoId, type: "memo", position: { x: Math.round(spot.x), y: Math.round(spot.y) }, selected: false, data: { kind: "memo", memoKind: clip.memoKind, title: clip.title, body: clip.body, category: clip.category, subcategory: clip.subcategory, sourceId: clip.memoNodeId, ...(spot.scale != null ? { scale: spot.scale } : {}) } });
         newEdges.push({ id: `chn-${ch.id}-${memoId}`, source: memoId, sourceHandle: "l", target: t.id, targetHandle: memoAnchorId(ch.id), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } });
         const arr = adds.get(ch.id) ?? []; arr.push({ kind: "memo", memoNodeId: memoId, label: clip.label, sound: clip.sound, hideChoiceLabel: clip.hideChoiceLabel, hideArrow: clip.hideArrow }); adds.set(ch.id, arr);
         placed++;
@@ -829,13 +835,15 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     const newEdges: Record<string, unknown>[] = [];
     const adds = new Map<string, CeqChoice["chain"]>();
     let placed = 0;
-    itemsClip.forEach((clip, k) => {
+    let flat = tChoices.reduce((s, c) => s + (c.chain?.length ?? 0), 0); // next baseline slot
+    itemsClip.forEach((clip) => {
       const ch = tChoices[clip.choiceIdx]; if (!ch) return;
       if (mode === "exact" && (ch.chain ?? []).some((it) => it.memoNodeId === clip.memoNodeId)) return; // already shared here
       let memoId = clip.memoNodeId;
+      const spot = baselineSpot(flat); flat += 1;
       if (mode === "new") {
         memoId = cardId("memo");
-        newNodes.push({ id: memoId, type: "memo", position: defaultMemoPos(frameW, frameH, k), selected: false, data: { kind: "memo", memoKind: clip.memoKind, title: clip.title, body: clip.body, category: clip.category, subcategory: clip.subcategory, sourceId: clip.memoNodeId } });
+        newNodes.push({ id: memoId, type: "memo", position: { x: Math.round(spot.x), y: Math.round(spot.y) }, selected: false, data: { kind: "memo", memoKind: clip.memoKind, title: clip.title, body: clip.body, category: clip.category, subcategory: clip.subcategory, sourceId: clip.memoNodeId, ...(spot.scale != null ? { scale: spot.scale } : {}) } });
       }
       newEdges.push({ id: `chn-${ch.id}-${memoId}`, source: memoId, sourceHandle: "l", target: qId, targetHandle: memoAnchorId(ch.id), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } });
       const arr = (adds.get(ch.id) ?? []) as NonNullable<CeqChoice["chain"]>; arr.push({ kind: "memo", memoNodeId: memoId, label: clip.label, sound: clip.sound, hideChoiceLabel: clip.hideChoiceLabel, hideArrow: clip.hideArrow }); adds.set(ch.id, arr);
@@ -898,8 +906,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       if (typing) return;
       const ctrl = e.ctrlKey || e.metaKey;
       if (ctrl && (e.key === "c" || e.key === "C")) { e.preventDefault(); if (selChainMemos.size > 0) copyMemos(); else if (qId) copyQuestion(); return; }
-      if (ctrl && (e.key === "v" || e.key === "V")) { e.preventDefault(); if (itemsClip.length > 0 && qId) pasteItems("new"); else if (memoClip.length > 0 && qId) pasteMemos(qId); else if (qClip) pasteQuestion(); return; }
-      if (ctrl && (e.key === "d" || e.key === "D")) { if (qId) { e.preventDefault(); duplicateQuestion(qId); } return; }
+      if (ctrl && (e.key === "v" || e.key === "V")) { e.preventDefault(); if (itemsClip.length > 0 && qId && qId !== LAYOUT_Q0) pasteItems("new"); else if (memoClip.length > 0 && qId && qId !== LAYOUT_Q0) pasteMemos(qId); else if (qClip) pasteQuestion(); return; }
+      if (ctrl && (e.key === "d" || e.key === "D")) { if (qId && qId !== LAYOUT_Q0) { e.preventDefault(); duplicateQuestion(qId); } return; }
       if (e.key === "/") { e.preventDefault(); setLibOpen(true); window.setTimeout(() => memoSearchRef.current?.focus(), 60); return; } // "/" focuses the memo search from anywhere
       if (e.key !== "Delete" && e.key !== "Backspace") return;
       if (previewSelMemo && qId) { e.preventDefault(); removeFromChain(qId, previewSelMemo); return; }
@@ -910,20 +918,45 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewSelMemo, qId, sel, selChainMemos, memoClip, qClip, itemsClip]);
 
-  /** CREATE a brand-new memo (text + category from the +💡 modal), attached to a
-   *  choice's chain + placed (frame-local) so it shows immediately in the previewer. */
+  /** NEXT-SLOT PLACEMENT (Question 0) — a new memo at flat chain index N lands at
+   *  baseline slot N (position + size). Overflow (all slots occupied) stacks below the
+   *  LAST slot at slot-N's size. No baseline at all ⇒ the classic default stagger. */
+  const baselineSpot = (flatIdx: number): { x: number; y: number; scale?: number } => {
+    const slots = deck?.layout?.memoSlots ?? [];
+    const s = slots[flatIdx];
+    if (s) return s;
+    const last = slots[slots.length - 1];
+    if (last) return { x: last.x, y: last.y + Math.round(150 * (last.scale ?? 1)) * (flatIdx - slots.length + 1), scale: last.scale };
+    return { ...defaultMemoPos(frameW, frameH, flatIdx), scale: 1 };
+  };
+  /** CREATE a brand-new memo (text + category from the +💡 modal or right-click),
+   *  attached to a choice's chain + SNAPPED to the next baseline slot. */
   const createMemoChained = (ceqId: string, choiceId: string, text: string, category: string) => {
     const label = text.trim() || "Memo";
     const memoId = cardId("memo");
     const cc = (rf.getNode(ceqId)?.data as unknown as CeqCard | undefined)?.choices ?? [];
     const chainCount = cc.reduce((s, ch) => s + (ch.chain?.length ?? 0), 0);
-    const memoNode = { id: memoId, type: "memo", position: defaultMemoPos(frameW, frameH, chainCount), selected: false, data: { kind: "memo", memoKind: "note", title: label, body: "", category } };
+    const spot = baselineSpot(chainCount);
+    const memoNode = { id: memoId, type: "memo", position: { x: Math.round(spot.x), y: Math.round(spot.y) }, selected: false, data: { kind: "memo", memoKind: "note", title: label, body: "", category, ...(spot.scale != null ? { scale: spot.scale } : {}) } };
     const edge = { id: `chn-${choiceId}-${memoId}`, source: memoId, sourceHandle: "l", target: ceqId, targetHandle: memoAnchorId(choiceId), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } };
     const add = addNodesAndEdgesCmd(rfl, [memoNode] as never, [edge] as never, "create chain memo"); if (add) bus.dispatch(add);
     const patch = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => (c.id === choiceId ? { ...c, chain: [...(c.chain ?? []), { kind: "memo" as const, memoNodeId: memoId, label }] } : c)) }), "add memo to chain"); if (patch) bus.dispatch(patch);
     setLastMemoCat(category || lastMemoCat);
     touchRecent(memoId);
-    setNote(`Created memo "${clip(label, 24)}" — drag it in the preview to place it.`);
+    setNote(`Created memo "${clip(label, 24)}" — placed at the next baseline slot.`);
+  };
+  /** RIGHT-CLICK empty frame space → "Add memo here": UNCHAINED, placed AT the click
+   *  point (the one case click position wins over slots) at baseline slot-1's SIZE. */
+  const addMemoAt = (pos: { x: number; y: number }, text: string, category: string) => {
+    const label = text.trim() || "Memo";
+    const s1 = deck?.layout?.memoSlots?.[0];
+    const memoId = cardId("memo");
+    const node = { id: memoId, type: "memo", position: { x: Math.round(pos.x), y: Math.round(pos.y) }, selected: false, data: { kind: "memo", memoKind: "note", title: label, label: clip(label, 40), body: "", category, ...(s1?.scale != null ? { scale: s1.scale } : {}) } };
+    const add = addNodesCmd(rfl, [node] as never, "add memo here"); if (add) bus.dispatch(add);
+    setJustCreated((p) => new Set(p).add(memoId));
+    touchRecent(memoId);
+    setLastMemoCat(category);
+    setNote(`Added "${clip(label, 24)}" (unchained) at the click point — it's in the library.`);
   };
   /** Commit an inline rename of a CHAIN memo (label on the item + title on the node).
    *  Replaces the old window.prompt("Memo label"). */
@@ -1247,6 +1280,13 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
             <div className="flex min-h-0 flex-1">
               {/* OUTLINE — CEQ → its chain memos. Each row is a TAKE drop target. */}
               <div className="min-h-0 w-56 shrink-0 overflow-y-auto border-r p-1" style={{ borderColor: NEON.borderSoft }}>
+                {/* QUESTION 0 — the set's LAYOUT as an editable stage. Never films,
+                    never stitches, never counts in Free/Full, never deals. */}
+                <div className="mb-0.5 flex items-center gap-1 rounded px-1 py-0.5" style={{ background: qId === LAYOUT_Q0 ? "rgba(252,163,17,0.14)" : "transparent", border: `1px solid ${qId === LAYOUT_Q0 ? NEON.border : NEON.borderSoft}` }}>
+                  <LayoutGrid className="h-3 w-3 shrink-0" style={{ color: NEON.yellow }} />
+                  <button className="min-w-0 flex-1 truncate text-left text-[10.5px] font-bold" style={{ color: qId === LAYOUT_Q0 ? NEON.yellow : NEON.text }} onClick={() => setQId(LAYOUT_Q0)} title="Question 0 — sculpt the baseline: drag the LAYOUT card + memo slots and every question deals there. Not content: never films, stitches or counts.">0 · Layout</button>
+                  <span className="shrink-0 text-[8px] font-bold tabular-nums" style={{ color: NEON.muted }} title="Baseline memo slots">{deck.layout?.memoSlots?.length ?? 0} slots</span>
+                </div>
                 {questions.length === 0 && <div className="px-1 py-1 text-[9.5px] italic" style={{ color: NEON.muted }}>No questions — add one below.</div>}
                 {questions.map((q, i) => { const qdata = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; if (starOnly && !qdata?.starred) return null; const p = qdata?.prompt || "Question"; const expanded = expandedQ.has(q.id); const walk = expanded ? walkOf(q) : []; const clips = cardClips(qdata); const starred = !!qdata?.starred; const chained = (qdata?.choices ?? []).some((c) => (c.chain?.length ?? 0) > 0); const boss = !!qdata?.boss; const chainSound = (qdata?.choices ?? []).some((c) => (c.chain ?? []).some((it) => !!it.sound)); const chachingOff = qdata?.confirmSfx === false; const isShort = !!qdata?.short; const dropOn = dragKey === q.id; const reOn = dragKey === `qre:${q.id}`; return (
                   <div key={q.id}>
@@ -1409,7 +1449,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                   {stitchMode ? (
                     <CeqStitch free={stitchFree.items} full={stitchFull.items} freeMissing={stitchFree.missing} fullMissing={stitchFull.missing} initialMode={stitchMode} onExit={() => setStitchMode(null)} onJumpCeq={(id) => setQId(id)} />
                   ) : (
-                    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { layout: l })); setNote("Saved as the set's baseline layout — every question deals here now."); } }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={questions.map((q) => q.id)} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
+                    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { layout: l })); setNote("Saved as the set's baseline layout — every question deals here now."); } }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={questions.map((q) => q.id)} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
                   )}
                 </div>
                 {qd && (
