@@ -3341,6 +3341,29 @@ function PresentCanvas() {
   const [snipSaveIds, setSnipSaveIds] = useState<string[] | null>(null); // save dialog
   const [snipName, setSnipName] = useState("");
   const [snipMenu, setSnipMenu] = useState<{ x: number; y: number; ids: string[] } | null>(null); // right-click
+  /** LOCK (right-click) — flips posLock on the clicked selection via the bus (the
+   *  existing dragFrozen enforcement makes a locked node ignore drags; shift-click
+   *  still selects it, so right-click → Unlock always works). One undo step. */
+  const toggleLockIds = (ids: string[]) => {
+    const nodesById = new Map(rf.getNodes().map((n) => [n.id, n]));
+    const anyUnlocked = ids.some((id) => !(nodesById.get(id)?.data as { posLock?: boolean } | undefined)?.posLock);
+    const cmds = ids.map((id) => patchDataCmd(rf as unknown as RfLike, id, { posLock: anyUnlocked }, anyUnlocked ? "lock" : "unlock")).filter((c): c is NonNullable<typeof c> => !!c);
+    const cmd = compositeCmd(cmds, anyUnlocked ? "lock elements" : "unlock elements");
+    if (cmd) bus.dispatch(cmd);
+  };
+  /** LAYER NUDGE (right-click) — bring forward / send backward WITHIN the node's
+   *  z tier: ±1 on node.zIndex, bus-backed so it undoes and persists (zIndex is a
+   *  top-level node field the scene serializer already round-trips). */
+  const nudgeLayer = (ids: string[], dir: 1 | -1) => {
+    const before = new Map(rf.getNodes().filter((n) => ids.includes(n.id)).map((n) => [n.id, n.zIndex]));
+    if (before.size === 0) return;
+    bus.dispatch({
+      label: dir > 0 ? "bring forward" : "send backward",
+      do: () => rf.setNodes((nds) => nds.map((n) => (before.has(n.id) ? { ...n, zIndex: (n.zIndex ?? 0) + dir } : n))),
+      undo: () => rf.setNodes((nds) => nds.map((n) => (before.has(n.id) ? { ...n, zIndex: before.get(n.id) } : n))),
+    });
+  };
+
 
   const refreshSnippets = useCallback(async () => {
     try { setSnippets(await listSnippets()); } catch (e) { flashToast(e instanceof Error ? e.message : "snippets unavailable"); }
@@ -6499,6 +6522,15 @@ function PresentCanvas() {
           <div className="fixed z-[76] overflow-hidden rounded-lg py-1 text-[12px]" style={{ left: snipMenu.x, top: snipMenu.y, background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text, boxShadow: "0 12px 30px -12px rgba(0,0,0,0.7)" }}>
             <button className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left hover:bg-white/5" onClick={() => openSnippetSave(snipMenu.ids)}>
               <Layers className="h-3.5 w-3.5" style={{ color: NEON.pink }} /> Save as snippet{snipMenu.ids.length > 1 ? ` (${snipMenu.ids.length} cards)` : ""}
+            </button>
+            <button className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left hover:bg-white/5" onClick={() => { toggleLockIds(snipMenu.ids); setSnipMenu(null); }}>
+              <Lock className="h-3.5 w-3.5" style={{ color: NEON.yellow }} /> {rf.getNodes().some((n) => snipMenu.ids.includes(n.id) && !(n.data as { posLock?: boolean }).posLock) ? "Lock" : "Unlock"}{snipMenu.ids.length > 1 ? ` (${snipMenu.ids.length})` : ""}
+            </button>
+            <button className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left hover:bg-white/5" onClick={() => { nudgeLayer(snipMenu.ids, 1); setSnipMenu(null); }}>
+              <span className="w-3.5 text-center font-black" style={{ color: NEON.cyan }}>↑</span> Bring forward
+            </button>
+            <button className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left hover:bg-white/5" onClick={() => { nudgeLayer(snipMenu.ids, -1); setSnipMenu(null); }}>
+              <span className="w-3.5 text-center font-black" style={{ color: NEON.cyan }}>↓</span> Send backward
             </button>
           </div>
         </>

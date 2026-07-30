@@ -361,6 +361,7 @@ export function BaseCard({
           />
         )}
         {/* DECK CHIP (item 4b) — names the card's deck + drag source to (re)assign */}
+        {(data as { posLock?: boolean }).posLock && <span className="sa-chrome shrink-0 text-[9px]" style={{ opacity: 0.55 }} title="Locked — right-click to unlock">🔒</span>}
         <span className="shrink-0 opacity-0 transition-opacity group-hover/shell:opacity-100"><DeckChip nodeId={id} deckId={data.deckId} /></span>
         <div className="card-actions flex items-center gap-0.5">
           {headerRight}
