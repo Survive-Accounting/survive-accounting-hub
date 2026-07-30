@@ -1260,6 +1260,66 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   // Search focus: autofocus whenever the library opens; "/" (global, below) also lands here.
   useEffect(() => { if (libOpen) { const t = window.setTimeout(() => memoSearchRef.current?.focus(), 60); return () => window.clearTimeout(t); } }, [libOpen]);
 
+  // ---- RIGHT-CLICK A MEMO in the previewer (rename / duplicate / category / delete) --
+  /** RENAME everywhere: the previewer + film render the CHAIN item's label, so a
+   *  rename must patch every chaining question's `chain[].label` AND the node's own
+   *  title — otherwise the library row changes and the card on camera doesn't. One
+   *  undo step. */
+  const renameMemoEverywhere = (memoNodeId: string, next: string) => {
+    const label = next.trim() || "Memo";
+    const ceqIds = new Set((memoUsage.get(memoNodeId) ?? []).map((u) => u.ceqId));
+    if (qId && qId !== LAYOUT_Q0) ceqIds.add(qId);
+    const cmds: NonNullable<ReturnType<typeof patchDataCmd>>[] = [];
+    for (const cid of ceqIds) {
+      const p = patchDataFnCmd(rfl, cid, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => ({ ...c, chain: (c.chain ?? []).map((it) => (it.memoNodeId === memoNodeId ? { ...it, label } : it)) })) }), "rename chain label");
+      if (p) cmds.push(p);
+    }
+    const node = patchDataCmd(rfl, memoNodeId, { title: label, label }, "rename memo"); if (node) cmds.push(node);
+    const cmd = compositeCmd(cmds, "rename memo"); if (cmd) bus.dispatch(cmd);
+    touchRecent(memoNodeId);
+    setNote(`Renamed → "${clip(label, 24)}"${ceqIds.size > 1 ? ` (${ceqIds.size} questions chain it)` : ""}.`);
+  };
+  /** DUPLICATE into the same chain — a library copy would be unchained and therefore
+   *  invisible in the previewer, so clone the node AND append it to the same choice's
+   *  chain at the next baseline slot. One undo step. */
+  const duplicateChainMemo = (ceqId: string, memoNodeId: string) => {
+    const src = rf.getNode(memoNodeId); if (!src) return;
+    const cc = (rf.getNode(ceqId)?.data as unknown as CeqCard | undefined)?.choices ?? [];
+    const host = cc.find((c) => (c.chain ?? []).some((it) => it.memoNodeId === memoNodeId));
+    if (!host) { setNote("That memo isn't chained to this question — duplicate it from the library instead."); return; }
+    const d = src.data as { memoKind?: string; title?: string; body?: string; category?: string; subcategory?: string; course?: string; label?: string; scale?: number };
+    const label = `${d.label || memoText(d.title, d.body)} copy`;
+    const memoId = cardId("memo");
+    const spot = baselineSpot(cc.reduce((s, ch) => s + (ch.chain?.length ?? 0), 0));
+    const memoNode = { id: memoId, type: "memo", position: { x: Math.round(spot.x), y: Math.round(spot.y) }, selected: false, data: { kind: "memo", memoKind: d.memoKind ?? "note", title: label, body: d.body ?? "", category: d.category ?? "", subcategory: d.subcategory ?? "", course: d.course ?? "", label, sourceId: memoNodeId, ...(spot.scale != null ? { scale: spot.scale } : {}) } };
+    const edge = { id: `chn-${host.id}-${memoId}`, source: memoId, sourceHandle: "l", target: ceqId, targetHandle: memoAnchorId(host.id), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } };
+    const add = addNodesAndEdgesCmd(rfl, [memoNode] as never, [edge] as never, "duplicate memo");
+    const patch = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => (c.id === host.id ? { ...c, chain: [...(c.chain ?? []), { kind: "memo" as const, memoNodeId: memoId, label }] } : c)) }), "chain the copy");
+    const cmd = compositeCmd([add, patch].filter((c): c is NonNullable<typeof c> => !!c), "duplicate memo into chain"); if (cmd) bus.dispatch(cmd);
+    touchRecent(memoId);
+    setNote(`Duplicated → "${clip(label, 24)}" on the same choice (next baseline slot).`);
+  };
+  /** SET a chosen category on the acted-on memo(s) — one undo step (the library's
+   *  chip cycles instead; this picks directly). */
+  const setMemoCategory = (ids: string[], cat: string) => {
+    const cmds = ids.map((id) => patchDataCmd(rfl, id, { category: cat }, "set category")).filter((c): c is NonNullable<typeof c> => !!c);
+    const cmd = compositeCmd(cmds, "set memo category"); if (cmd) bus.dispatch(cmd);
+    setLastMemoCat(cat);
+    ids.forEach(touchRecent);
+    setNote(`Category → ${cat} (${ids.length} memo${ids.length === 1 ? "" : "s"}).`);
+  };
+  /** DELETE from the previewer — confirm-guarded (it removes the memo from EVERY
+   *  question that chains it, not just this one) then reuses the library's existing
+   *  one-step delete. The guard lives here so the library row × and the Delete key
+   *  keep their current behaviour. */
+  const deleteMemosGuarded = (ids: string[]) => {
+    if (ids.length === 0) return;
+    const uses = ids.reduce((s, id) => s + usageOf(id), 0);
+    if (!window.confirm(`Delete ${ids.length} memo${ids.length === 1 ? "" : "s"} from the scene${uses ? ` — chained in ${uses} place${uses === 1 ? "" : "s"}` : ""}?\n\nCtrl+Z restores everything.`)) return;
+    setPreviewSelMemo(null);
+    deleteMemos(ids);
+  };
+
   /** Drop a memo onto a choice → attach it (existing node) to that choice's chain. */
   const attachMemoToChoice = (ceqId: string, choiceId: string, memoId: string) => {
     const m = rf.getNode(memoId); if (!m) return;
@@ -1752,7 +1812,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                   {stitchMode ? (
                     <CeqStitch free={stitchFree.items} full={stitchFull.items} freeMissing={stitchFree.missing} fullMissing={stitchFull.missing} initialMode={stitchMode} onExit={() => setStitchMode(null)} onJumpCeq={(id) => setQId(id)} />
                   ) : (
-                    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={questions.map((q) => q.id)} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
+                    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={questions.map((q) => q.id)} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
                   )}
                 </div>
                 {qd && (
