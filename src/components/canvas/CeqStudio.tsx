@@ -22,7 +22,7 @@ import { listChainTemplates } from "./ceq-chain-templates";
 import { MemoPickerModal } from "./MemoPickerModal";
 import { CeqPreviewer, dealCentre, defaultMemoPos } from "./CeqPreviewer";
 import { seedCeqSets } from "./ceq-seed";
-import { buildStitch, fmtDur, loadPrefs, savePrefs, stageTake, stitchManifest, stitchRuntime, videoFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
+import { buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, stageTake, stitchManifest, stitchRuntime, videoFromDrop, videosFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
 import { CeqStitch } from "./CeqStitch";
 import { CeqVideoLibrary, vidCourseMatch, vidTopicMatch } from "./CeqVideoLibrary";
 import { DEFAULT_CROSSFADE_MS } from "./segment-assembly";
@@ -105,6 +105,10 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const setPrefs = (p: Partial<CeqStudioPrefs>) => setPrefsState((cur) => { const n = { ...cur, ...p }; savePrefs(n); return n; });
   const wrapStems = !!prefs.wrapStems;
   const [takeBusy, setTakeBusy] = useState<string | null>(null); // slot key currently uploading
+  // BATCH TAKE INGEST (Lee) — drop N clips → match → CONFIRM table → bulk upload.
+  const [ingest, setIngest] = useState<{ file: File; name: string; duration: number; qId: string | null; lookback: boolean; include: boolean; status: "pending" | "uploading" | "done" | "error"; error?: string }[] | null>(null);
+  const [ingestBusy, setIngestBusy] = useState(false);
+  const ingestFileRef = useRef<HTMLInputElement>(null);
   const [takePreview, setTakePreview] = useState<string | null>(null); // slot key previewed inline (clip stack)
   const [clipRefsOpen, setClipRefsOpen] = useState<string | null>(null); // `${ceqId}:${clipIdx}` whose refs picker is open
   const [starOnly, setStarOnly] = useState(false); // Starred filter on the question list
@@ -446,6 +450,68 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     setNote(`Cleared ${starred.length} star${starred.length === 1 ? "" : "s"}.`);
   };
   const clearTake = (ceqId: string) => { patchQ(ceqId, { take: undefined, takes: undefined }); if (takePreview === ceqId) setTakePreview(null); };
+
+  // ---- BATCH TAKE INGEST (Lee) ------------------------------------------------
+  /** Question number from a filename: "1.03"→3 (topic.question), "q3"→3, leading
+   *  "03"/"3-"→3. Null when no number is found. */
+  const ingestNumOf = (name: string): number | null => {
+    const base = name.replace(/\.[a-z0-9]+$/i, "");
+    let m = /(?:^|[^0-9])(\d+)\.(\d{1,2})(?:[^0-9]|$)/.exec(base);
+    if (m) return Number(m[2]);
+    m = /(?:^|[^a-z0-9])q\s*(\d{1,2})(?:[^0-9]|$)/i.exec(base);
+    if (m) return Number(m[1]);
+    m = /^(\d{1,2})(?:[^0-9]|$)/.exec(base);
+    if (m) return Number(m[1]);
+    return null;
+  };
+  /** Build the CONFIRM table from dropped files — NOTHING uploads until confirmed.
+   *  Match order: (a) filename question number → that question; (b) else deck order
+   *  onto questions missing base clips. Durations read from metadata for the table. */
+  const matchIngest = async (files: File[]) => {
+    if (files.length === 0 || !deck) return;
+    const sorted = [...files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    const taken = new Set<string>();
+    const rows: NonNullable<typeof ingest> = sorted.map((f) => {
+      const n = ingestNumOf(f.name);
+      let qid: string | null = null;
+      if (n != null && n >= 1 && n <= questions.length) { const cand = questions[n - 1].id; if (!taken.has(cand)) { qid = cand; taken.add(cand); } }
+      return { file: f, name: f.name, duration: 0, qId: qid, lookback: false, include: true, status: "pending" as const };
+    });
+    const missing = questions.filter((q) => !taken.has(q.id) && cardClips(rf.getNode(q.id)?.data as unknown as CeqCard | undefined).length === 0).map((q) => q.id);
+    let mi = 0;
+    for (const r of rows) if (!r.qId && mi < missing.length) { r.qId = missing[mi]; mi += 1; }
+    setIngest(rows); // show the table immediately…
+    const withDur = await Promise.all(rows.map(async (r) => ({ ...r, duration: await readDuration(r.file) })));
+    setIngest((cur) => (cur && cur.length === withDur.length && cur.every((c, i) => c.file === withDur[i].file) ? withDur.map((w, i) => ({ ...w, qId: cur[i].qId, lookback: cur[i].lookback, include: cur[i].include })) : cur)); // …then fill durations without clobbering edits
+  };
+  /** CONFIRMED upload: sequential staging; failures mark the row and RETRY re-runs
+   *  ONLY failures/pending (done rows are never re-uploaded). Base = clips[0]
+   *  (replaces the base, keeping one prev); lookback-toggled rows append. */
+  const runIngest = async () => {
+    if (!ingest || ingestBusy) return;
+    setIngestBusy(true);
+    const rows = [...ingest];
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (!r.include || !r.qId || r.status === "done") continue;
+      rows[i] = { ...r, status: "uploading", error: undefined }; setIngest([...rows]);
+      try {
+        const fresh = await stageTake(r.file);
+        const d = rf.getNode(r.qId)?.data as unknown as CeqCard | undefined;
+        const clips = cardClips(d);
+        const takes = r.lookback ? [...clips, fresh] : clips.length === 0 ? [fresh] : [withPrev(fresh, clips[0]), ...clips.slice(1)];
+        patchQ(r.qId, { takes, take: undefined });
+        rows[i] = { ...rows[i], status: "done" };
+      } catch (e) {
+        rows[i] = { ...rows[i], status: "error", error: e instanceof Error ? e.message : String(e) };
+      }
+      setIngest([...rows]);
+    }
+    setIngestBusy(false);
+    const done = rows.filter((r) => r.status === "done").length;
+    const err = rows.filter((r) => r.status === "error").length;
+    setNote(`Batch ingest: ${done} clip${done === 1 ? "" : "s"} attached${err ? ` · ${err} failed — Retry uploads only the failures` : ""}.`);
+  };
 
   /** GLOBAL clip inheritance (Lee) — intro/outro resolve to `local ?? global`.
    *  Toggle the globe on a slot: if the set is already INHERITING the global, turn
@@ -1373,6 +1439,17 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
             <div className="flex min-h-0 flex-1">
               {/* OUTLINE — CEQ → its chain memos. Each row is a TAKE drop target. */}
               <div className="min-h-0 w-56 shrink-0 overflow-y-auto border-r p-1" style={{ borderColor: NEON.borderSoft }}>
+                {/* BATCH TAKE INGEST — drop a whole filming session; a CONFIRM table
+                    gates every upload (nothing touches storage until confirmed). */}
+                <div className="mb-1 rounded border border-dashed px-1.5 py-1 text-center text-[8.5px] leading-snug" style={{ borderColor: dragKey === "ingest" ? NEON.yellow : NEON.borderSoft, color: NEON.muted, background: dragKey === "ingest" ? "rgba(252,163,17,0.12)" : "transparent", cursor: "pointer" }}
+                  onClick={() => ingestFileRef.current?.click()}
+                  onDragOver={(e) => { if (Array.from(e.dataTransfer.types).includes("Files")) { e.preventDefault(); if (dragKey !== "ingest") setDragKey("ingest"); } }}
+                  onDragLeave={(e) => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setDragKey((k) => (k === "ingest" ? null : k)); }}
+                  onDrop={(e) => { e.preventDefault(); setDragKey(null); void matchIngest(videosFromDrop(e)); }}
+                  title="Batch takes — drop multiple clips (or click to browse); a confirm table opens before anything uploads">
+                  ⬇ <b>batch takes</b> — drop clips here<br /><span style={{ opacity: 0.7 }}>name clips 01, 02… or q1.03 for auto-match</span>
+                  <input ref={ingestFileRef} type="file" accept="video/*" multiple className="hidden" onChange={(e) => { const fs = Array.from(e.target.files ?? []); e.target.value = ""; void matchIngest(fs); }} />
+                </div>
                 {/* BULK ACTION BAR — appears with a selection; every action is ONE
                     undoable composite step across the selected questions. */}
                 {qSel.size > 0 && (
@@ -1724,6 +1801,43 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
         )}
       </div>
 
+      {/* BATCH INGEST CONFIRM TABLE — file → matched question → duration; per-row
+          override + exclude + base/lookback; NOTHING uploads until confirmed. Failures
+          retry individually (done rows never re-upload). */}
+      {ingest && deck && (
+        <div className="absolute inset-0 z-[73] flex items-start justify-center" style={{ background: "rgba(4,7,14,0.6)" }} onClick={() => { if (!ingestBusy) setIngest(null); }}>
+          <div className="mt-8 flex max-h-[85vh] w-[600px] max-w-[95vw] flex-col overflow-hidden rounded-xl shadow-2xl" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}` }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 border-b px-3 py-2" style={{ borderColor: NEON.borderSoft }}>
+              <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>Batch takes — {deck.name}</span>
+              <span className="text-[10px] tabular-nums" style={{ color: NEON.muted }}>{ingest.filter((r) => r.include && r.qId).length}/{ingest.length} matched</span>
+              <button className="ml-auto grid h-6 w-6 place-items-center rounded disabled:opacity-40" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} disabled={ingestBusy} onClick={() => setIngest(null)} title="Close (nothing already uploaded is undone)"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-2">
+              {ingest.map((r, i) => { const setRow = (patch: Partial<NonNullable<typeof ingest>[number]>) => setIngest((cur) => (cur ? cur.map((x, j) => (j === i ? { ...x, ...patch } : x)) : cur)); return (
+                <div key={`${r.name}-${i}`} className="mb-1 flex items-center gap-1.5 rounded px-1.5 py-1" style={{ background: "rgba(0,0,0,0.25)", border: `1px solid ${r.status === "error" ? "rgba(255,92,108,0.6)" : r.status === "done" ? "rgba(59,245,160,0.5)" : NEON.borderSoft}`, opacity: r.include ? 1 : 0.45 }}>
+                  <button className="shrink-0" style={{ color: r.include ? NEON.yellow : NEON.muted }} disabled={ingestBusy || r.status === "done"} onClick={() => setRow({ include: !r.include })} title="Include / exclude this file">{r.include ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}</button>
+                  <span className="w-40 shrink-0 truncate text-[10px]" style={{ color: NEON.text }} title={r.name}>{r.name}</span>
+                  <span className="w-9 shrink-0 text-[9px] tabular-nums" style={{ color: NEON.muted }}>{r.duration ? fmtDur(r.duration) : "…"}</span>
+                  <select value={r.qId ?? ""} disabled={ingestBusy || r.status === "done"} onChange={(e) => setRow({ qId: e.target.value || null })} className="min-w-0 flex-1 rounded bg-black/40 px-1 py-0.5 text-[9.5px]" style={{ color: r.qId ? NEON.text : NEON.red, border: `1px solid ${NEON.borderSoft}` }} title="Matched question — override here">
+                    <option value="">— skip (no match) —</option>
+                    {questions.map((q, qi) => { const stem = (rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.prompt ?? "Question"; return <option key={q.id} value={q.id}>{qi + 1}. {clip(stem, 38)}</option>; })}
+                  </select>
+                  <button className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: r.lookback ? "#0B0F1E" : NEON.muted, background: r.lookback ? NEON.cyan : "transparent", border: `1px solid ${r.lookback ? NEON.cyan : NEON.borderSoft}` }} disabled={ingestBusy || r.status === "done"} onClick={() => setRow({ lookback: !r.lookback })} title={r.lookback ? "Will APPEND as a lookback clip" : "Will attach as the BASE clip (replaces an existing base, keeping one prev)"}>{r.lookback ? "LB" : "base"}</button>
+                  <span className="grid h-4 w-4 shrink-0 place-items-center" title={r.error ?? r.status}>{r.status === "uploading" ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: NEON.cyan }} /> : r.status === "done" ? <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "#3BF5A0" }} /> : r.status === "error" ? <span style={{ color: NEON.red, fontWeight: 900 }}>✗</span> : <Circle className="h-3.5 w-3.5" style={{ color: NEON.muted }} />}</span>
+                </div>
+              ); })}
+              {ingest.some((r) => r.status === "error") && <div className="px-1 text-[9px]" style={{ color: NEON.red }}>Failed rows keep their file — Retry uploads only those (successes are never re-uploaded).</div>}
+            </div>
+            <div className="flex items-center gap-2 border-t px-3 py-2" style={{ borderColor: NEON.borderSoft }}>
+              <span className="min-w-0 flex-1 truncate text-[9px] italic" style={{ color: NEON.muted }}>Nothing touches storage until you confirm.</span>
+              <button className="rounded px-2 py-1 text-[10px] font-bold uppercase disabled:opacity-40" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} disabled={ingestBusy} onClick={() => setIngest(null)}>cancel</button>
+              <button className="rounded px-2.5 py-1 text-[10px] font-bold uppercase disabled:opacity-40" style={{ color: "#0B0F1E", background: "#3BF5A0", border: "1px solid #3BF5A0" }} disabled={ingestBusy || !ingest.some((r) => r.include && r.qId && r.status !== "done")} onClick={() => void runIngest()}>
+                {ingestBusy ? "uploading…" : ingest.some((r) => r.status === "error") ? "retry failures" : `upload ${ingest.filter((r) => r.include && r.qId && r.status !== "done").length}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {chainFor && <CeqChainEditor nodeId={chainFor} onClose={() => setChainFor(null)} />}
       {pickModal && (
         <MemoPickerModal

@@ -45,6 +45,10 @@ export function videoFromDrop(e: React.DragEvent): File | null {
   const fs = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("video/") || /\.(mp4|mov|mkv|webm|m4v)$/i.test(f.name));
   return fs[0] ?? null;
 }
+/** ALL video files from a drop (batch take ingest). */
+export function videosFromDrop(e: React.DragEvent): File[] {
+  return Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith("video/") || /\.(mp4|mov|mkv|webm|m4v)$/i.test(f.name));
+}
 
 export const fmtDur = (s?: number) => { const t = Math.max(0, Math.round(s ?? 0)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
 
