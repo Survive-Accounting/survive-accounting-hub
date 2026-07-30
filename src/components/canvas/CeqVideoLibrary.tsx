@@ -9,7 +9,7 @@ import { useMemo, useState } from "react";
 import { useNodes } from "@xyflow/react";
 import { ChevronDown, ChevronRight, DollarSign, ExternalLink, Play, Video } from "lucide-react";
 
-import { chapterLabel, courseLabel, type CourseOption } from "@/lib/je-api";
+import { courseLabel, topicLabel, type CourseOption } from "@/lib/je-api";
 import { fmtDur } from "./ceq-takes";
 import { encodingEst, muxAssetUrl, storageEstPerMonth, usd } from "./mux-rates";
 import { NEON } from "./theme";
@@ -52,7 +52,10 @@ function VidRow({ v, costOn, playing, setPlaying }: { v: Vid; costOn: boolean; p
 export function CeqVideoLibrary({ courses, costOn, onToggleCost }: { courses: CourseOption[]; costOn: boolean; onToggleCost: () => void }) {
   const nodes = useNodes();
   const [playing, setPlaying] = useState<string | null>(null);
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  // COLLAPSED BY DEFAULT — absent key = closed (was an inverted "collapsed" set, i.e.
+  // everything open). Still component-local, exactly as before: the Videos tab unmounts
+  // on tab switch, so this is a per-visit view state, not a persisted preference.
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
   const vids = useMemo(() => nodes
     .filter((n) => n.type === "lesson" && !!(n.data as { muxPlaybackId?: string | null }).muxPlaybackId)
@@ -72,7 +75,7 @@ export function CeqVideoLibrary({ courses, costOn, onToggleCost }: { courses: Co
 
   const totalEnc = vids.reduce((s, v) => s + encodingEst(v.duration), 0);
   const totalStore = vids.reduce((s, v) => s + storageEstPerMonth(v.duration), 0);
-  const toggle = (k: string) => setCollapsed((p) => { const n = new Set(p); n.has(k) ? n.delete(k) : n.add(k); return n; });
+  const toggle = (k: string) => setExpanded((p) => { const n = new Set(p); n.has(k) ? n.delete(k) : n.add(k); return n; });
 
   /** The Free / Paid / Short Promo groups under one topic (only non-empty render). */
   const groupsOf = (rows: Vid[]) => [
@@ -98,7 +101,7 @@ export function CeqVideoLibrary({ courses, costOn, onToggleCost }: { courses: Co
           const cVids = c.chapters.reduce((s, ch) => s + (byTopic.get(ch.id)?.length ?? 0), 0);
           if (cVids === 0) return null;
           const cKey = `c:${c.id}`;
-          const cOpen = !collapsed.has(cKey);
+          const cOpen = expanded.has(cKey);
           return (
             <div key={c.id} className="mb-1">
               <button className="flex w-full items-center gap-1 px-0.5 pt-1 text-left text-[9px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }} onClick={() => toggle(cKey)}>{cOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />} {courseLabel(c)} <span className="opacity-60">({cVids})</span></button>
@@ -106,10 +109,10 @@ export function CeqVideoLibrary({ courses, costOn, onToggleCost }: { courses: Co
                 const rows = byTopic.get(ch.id) ?? [];
                 if (rows.length === 0) return null;
                 const tKey = `t:${ch.id}`;
-                const tOpen = !collapsed.has(tKey);
+                const tOpen = expanded.has(tKey);
                 return (
                   <div key={ch.id} className="ml-1.5">
-                    <button className="flex w-full items-center gap-1 px-0.5 py-0.5 text-left text-[9px] font-bold uppercase" style={{ color: NEON.muted }} onClick={() => toggle(tKey)}>{tOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />} {chapterLabel(ch)} <span className="opacity-60">({rows.length})</span></button>
+                    <button className="flex w-full items-center gap-1 px-0.5 py-0.5 text-left text-[9px] font-bold uppercase" style={{ color: NEON.muted }} onClick={() => toggle(tKey)}>{tOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />} {topicLabel(ch)} <span className="opacity-60">({rows.length})</span></button>
                     {tOpen && groupsOf(rows).map((g) => (
                       <div key={g.label} className="ml-2">
                         <div className="px-0.5 text-[7.5px] font-bold uppercase tracking-wide" style={{ color: g.label === "CEQ Paid" ? "#FF8B9E" : g.label === "CEQ Free" ? "#3BF5A0" : NEON.cyan }}>{g.label}</div>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { chapterLabel, courseLabel } from "./je-api";
+import { chapterLabel, courseLabel, topicLabel } from "./je-api";
 
 describe("courseLabel", () => {
   it("prefers course_name over code (migration 0089 flip — code is legacy)", () => {
@@ -31,5 +31,24 @@ describe("chapterLabel", () => {
 
   it("treats undefined status as active (pre-migration / /je tolerance)", () => {
     expect(chapterLabel({ number: 1, name: "Intro" })).toBe("Ch 1 · Intro");
+  });
+});
+
+describe("topicLabel", () => {
+  it("shows the NAME only — position comes from outline order, not a number", () => {
+    expect(topicLabel({ number: 4, name: "Journal Entries", status: "active" })).toBe("Journal Entries");
+  });
+
+  it("still marks archived topics", () => {
+    expect(topicLabel({ number: 100, name: "Receivables & Payables", status: "archived" })).toBe("Receivables & Payables (archived)");
+  });
+
+  it("never renders an empty row", () => {
+    expect(topicLabel({ number: 2, name: null })).toBe("Untitled topic");
+    expect(topicLabel({ number: 2, name: "   " })).toBe("Untitled topic");
+  });
+
+  it("leaves chapterLabel's Ch-N format alone — parsers and the library sort depend on it", () => {
+    expect(chapterLabel({ number: 4, name: "Journal Entries", status: "active" })).toBe("Ch 4 · Journal Entries");
   });
 });

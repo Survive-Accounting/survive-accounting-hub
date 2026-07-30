@@ -95,9 +95,6 @@ export function ManageCourseDialog({ courseId, courseName, onClose }: {
       style={{ border: `1px solid ${NEON.borderSoft}`, opacity: dragId === ch.id ? 0.4 : 1 }}
     >
       {kind === "active" && <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab" style={{ color: NEON.muted }} />}
-      <span className="shrink-0 rounded px-1 text-[9.5px] font-bold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }}>
-        Ch {ch.chapter_number}
-      </span>
       {editing?.id === ch.id ? (
         <>
           <input
@@ -145,7 +142,7 @@ export function ManageCourseDialog({ courseId, courseName, onClose }: {
         <button
           className="shrink-0 rounded p-0.5"
           style={{ color: NEON.red }}
-          title="Archive this chapter (existing references keep working)"
+          title="Archive this topic (existing references keep working)"
           onClick={() => statusMut.mutate({ id: ch.id, status: "archived" })}
         >
           <Archive className="h-3.5 w-3.5" />
@@ -199,12 +196,12 @@ export function ManageCourseDialog({ courseId, courseName, onClose }: {
         </label>
 
         <div className="mb-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>
-          Chapters ({active.length}) <span className="normal-case opacity-60">— drag the grip to reorder</span>
+          Topics ({active.length}) <span className="normal-case opacity-60">— drag the grip to reorder</span>
         </div>
         <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
           {active.map((ch) => chapterRow(ch, "active"))}
           {active.length === 0 && !chaptersQuery.isLoading && (
-            <p className="py-2 text-[11px] italic" style={{ color: NEON.muted }}>No active chapters yet — add one below.</p>
+            <p className="py-2 text-[11px] italic" style={{ color: NEON.muted }}>No topics yet — add one below.</p>
           )}
           {chaptersQuery.isLoading && <p className="text-[11px] italic" style={{ color: NEON.muted }}>Loading…</p>}
 
@@ -222,7 +219,7 @@ export function ManageCourseDialog({ courseId, courseName, onClose }: {
           <input
             className="min-w-0 flex-1 rounded bg-black/30 px-2 py-1 text-[11.5px] outline-none"
             style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
-            placeholder="New chapter name…"
+            placeholder="New topic name…"
             value={newChapterName}
             onChange={(e) => setNewChapterName(e.target.value)}
             onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter" && newChapterName.trim()) createMut.mutate(); }}

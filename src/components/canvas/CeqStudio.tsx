@@ -6,11 +6,12 @@
 // ELEMENT), search/filter, bulk triage for the unfiled pile, and drag-onto-a-choice
 // to attach to a chain. No new storage beyond panel prefs.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEdges, useNodes, useReactFlow } from "@xyflow/react";
 import { CheckCircle2, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Circle, ClipboardPaste, Copy, ExternalLink, FolderInput, Globe, LayoutGrid, Library, Lightbulb, ListChecks, Loader2, Play, Plus, Search, Square, Trash2, WrapText, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
 
-import { chapterLabel, courseLabel, fetchCourseOptions, type CourseOption } from "@/lib/je-api";
+import { courseLabel, fetchCourseOptions, topicLabel, type CourseOption } from "@/lib/je-api";
+import { createChapter } from "@/lib/canvas.functions";
 
 import { addDeck, deckMembersOf, newDeckDef, removeDeck, updateDeck } from "./deck-defs";
 import { nextStageOrder } from "./BaseCard";
@@ -183,7 +184,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
         ?? (cstr === "foundations" ? courseOptions.find((c) => c.course_family === "foundations" || /start\s*here/i.test(c.course_name ?? "")) : undefined);
       const chNum = /ch\s*\.?\s*(\d+)/i.exec(d.chapter ?? "")?.[1];
       const topic = course && chNum ? course.chapters.find((ch) => ch.number === Number(chNum) && ch.status !== "archived") : undefined;
-      if (course && topic) { report.push(`"${d.name}" → ${courseLabel(course)} / ${chapterLabel(topic)}`); return { ...d, courseId: course.id, topicId: topic.id }; }
+      if (course && topic) { report.push(`"${d.name}" → ${courseLabel(course)} / ${topicLabel(topic)}`); return { ...d, courseId: course.id, topicId: topic.id }; }
       report.push(`"${d.name}" → Library (unmatched: ${d.course ?? "no course"} · ${d.chapter ?? "no chapter"})`);
       return { ...d, courseId: course?.id ?? null, topicId: null };
     }));
@@ -201,7 +202,37 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       ...(topic ? { chapter: `Ch ${topic.number ?? "?"}` } : {}),
     }));
     setAssignFor(null);
-    setNote(topic && course ? `Moved set → ${courseLabel(course)} / ${chapterLabel(topic)}.` : "Returned set to the Library (unassigned).");
+    setNote(topic && course ? `Moved set → ${courseLabel(course)} / ${topicLabel(topic)}.` : "Returned set to the Library (unassigned).");
+  };
+  // OUTLINE SELECTION (Lee) — the last course/topic row clicked, which is what the
+  // footer "+ Add" button is context-aware about. Independent of setId (the open SET):
+  // clicking a row still toggles its expand state, this just rides along.
+  const [outlineSel, setOutlineSel] = useState<{ courseId: string; topicId: string | null } | null>(null);
+  const [addMenu, setAddMenu] = useState(false); // the nothing-selected dropdown
+  const [newTopicFor, setNewTopicFor] = useState<string | null>(null); // courseId whose inline "new topic" row is open
+  const [newTopicName, setNewTopicName] = useState("");
+  const qc = useQueryClient();
+  /** NEW TOPIC — reuses the SAME server fn Manage course uses (chapter_number is
+   *  assigned server-side as max(active)+1, so a new topic lands at the bottom of the
+   *  outline, which is exactly what "position = list order" means here). Both course
+   *  caches must be invalidated or the 10-minute staleTime hides the new row. */
+  const createTopicMut = useMutation({
+    mutationFn: (v: { course_id: string; chapter_name: string }) => createChapter({ data: v }),
+    onSuccess: (row) => {
+      setNewTopicFor(null); setNewTopicName("");
+      void qc.invalidateQueries({ queryKey: ["course-options"] });
+      void qc.invalidateQueries({ queryKey: ["je-tree"] });
+      setNote(`Added topic "${row.chapter_name}" — it's at the end of the course.`);
+    },
+    onError: (e: unknown) => setNote(`Couldn't add the topic: ${e instanceof Error ? e.message : String(e)}`),
+  });
+  /** A set's TOPIC NAME for display — resolved from the spine (topicId), never from
+   *  the legacy `deck.chapter` tag, which stores "Ch N" and is still parsed by the
+   *  migration + video matchers. Empty string when the set is unassigned. */
+  const deckTopicName = (d: DeckDef | null | undefined): string => {
+    if (!d?.topicId) return "";
+    for (const c of courseOptions) { const ch = c.chapters.find((x) => x.id === d.topicId); if (ch) return topicLabel(ch); }
+    return "";
   };
   const decksByTopic = useMemo(() => { const m = new Map<string, DeckDef[]>(); for (const d of cardDecks) if (d.topicId) { const l = m.get(d.topicId) ?? []; l.push(d); m.set(d.topicId, l); } return m; }, [cardDecks]);
   const libraryDecks = useMemo(() => cardDecks.filter((d) => !d.topicId), [cardDecks]);
@@ -244,10 +275,14 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     }
     return m;
   }, [nodes, courseOptions]);
-  // Outline expand state — persisted in panel prefs; default open where sets live.
+  // Outline expand state — persisted per user in panel prefs. COLLAPSED BY DEFAULT:
+  // a topic-first outline opens as a short list of courses you drill into, not a wall.
+  // A stored flag always wins, so anything Lee has already expanded stays expanded —
+  // the default only decides never-touched nodes. (The dflt arg is kept in the
+  // signatures so the many call sites stay untouched and read/toggle can't drift.)
   const outlineExp = prefs.setsOutline ?? {};
-  const isExp = (key: string, dflt: boolean) => outlineExp[key] ?? dflt;
-  const toggleExp = (key: string, dflt: boolean) => setPrefs({ setsOutline: { ...outlineExp, [key]: !isExp(key, dflt) } });
+  const isExp = (key: string, _dflt?: boolean) => outlineExp[key] ?? false;
+  const toggleExp = (key: string, dflt?: boolean) => setPrefs({ setsOutline: { ...outlineExp, [key]: !isExp(key, dflt) } });
   const deck = cardDecks.find((d) => d.id === setId) ?? null;
   // Open set tabs resolved to live decks (stale session ids drop out silently).
   const tabDecks = useMemo(() => openTabs.map((id) => cardDecks.find((d) => d.id === id)).filter((d): d is DeckDef => !!d), [openTabs, cardDecks]);
@@ -288,7 +323,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       const dk = d.deckId ? cardDecks.find((x) => x.id === d.deckId) : null;
       const members = d.deckId ? deckMembersOf(nodes as { id: string; type?: string; data?: { deckId?: string; stageOrder?: number } }[], d.deckId).filter((m) => (m as { type?: string }).type === "ceq") : [];
       const qnum = members.findIndex((m) => m.id === n.id) + 1;
-      return { id: n.id, deckId: d.deckId, setName: dk?.name ?? "Loose", tqq: `${dk?.chapter || dk?.name || "Set"} · Q${qnum || "?"}`, stem: d.prompt || "Question", note: d.shortNote || "" };
+      return { id: n.id, deckId: d.deckId, setName: dk?.name ?? "Loose", tqq: `${deckTopicName(dk) || dk?.name || "Set"} · Q${qnum || "?"}`, stem: d.prompt || "Question", note: d.shortNote || "" };
     }), [nodes, cardDecks]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- SETS -----------------------------------------------------------------
@@ -310,14 +345,16 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     };
     setDecks((prev) => addDeck(prev, def));
     setSetId(def.id); setQId(null); setNewSetForm(null);
-    setNote(topic && course ? `Created "${def.name}" under ${courseLabel(course)} / ${chapterLabel(topic)}.` : `Created "${def.name}" in the Library (unassigned).`);
+    setNote(topic && course ? `Created "${def.name}" under ${courseLabel(course)} / ${topicLabel(topic)}.` : `Created "${def.name}" in the Library (unassigned).`);
   };
   const runSeed = () => {
-    if (!window.confirm("Seed the Ch 1–5 CEQ sets? Re-seeding replaces each seeded set's cards (idempotent) — your other sets are untouched.")) return;
+    if (!window.confirm("Seed the starter CEQ sets for the first five topics? Re-seeding replaces each seeded set's cards (idempotent) — your other sets are untouched.")) return;
     const rep = seedCeqSets(rf, setDecks);
     const total = rep.reduce((s, r) => s + r.count, 0);
     setNote(`Seeded ${rep.length} sets · ${total} questions${rep.some((r) => r.replaced) ? " (replaced existing)" : ""}. Chains/memos empty — add your voice.`);
   };
+  /** Open the existing New Set form pre-filled for a course/topic ("" = Library). */
+  const openNewSet = (courseId: string, topicId: string) => { setAddMenu(false); setNewTopicFor(null); setNewSetForm({ name: `Set ${cardDecks.length + 1}`, courseId, topicId }); };
   const renameSet = (d: DeckDef) => { const n = window.prompt("Rename set", d.name); if (n) setDecks((prev) => updateDeck(prev, d.id, { name: n.trim() })); };
   const deleteSet = (d: DeckDef) => {
     const members = deckMembersOf(rf.getNodes() as { id: string; data?: { deckId?: string; stageOrder?: number } }[], d.id);
@@ -353,13 +390,76 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
             ) : (
               <select value="" onChange={(e) => { const c = courseOptions.find((x) => x.id === assignCourseSel); const t = c?.chapters.find((ch) => ch.id === e.target.value); if (c && t) assignSet(d.id, c, t); }} className="rounded bg-black/40 px-1 py-0.5 text-[9.5px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}>
                 <option value="">pick a topic…</option>
-                {courseOptions.find((c) => c.id === assignCourseSel)?.chapters.filter((ch) => ch.status !== "archived").map((ch) => <option key={ch.id} value={ch.id}>{chapterLabel(ch)}</option>)}
+                {courseOptions.find((c) => c.id === assignCourseSel)?.chapters.filter((ch) => ch.status !== "archived").map((ch) => <option key={ch.id} value={ch.id}>{topicLabel(ch)}</option>)}
               </select>
             )}
           </div>
         )}
       </div>
     );
+  };
+
+  /** OUTLINE FOOTER — one context-aware "+ Add", shared by the Sets and Topics tabs.
+   *  What it offers follows the last outline row clicked: a topic ⇒ add a CEQ set to
+   *  it, a course ⇒ add a topic to it, nothing ⇒ a small menu. Also hosts the inline
+   *  new-set form and the inline new-topic name row, so both tabs get them. */
+  const renderOutlineFooter = () => {
+    const selCourse = outlineSel ? courseOptions.find((c) => c.id === outlineSel.courseId) : undefined;
+    const selTopic = selCourse && outlineSel?.topicId ? selCourse.chapters.find((ch) => ch.id === outlineSel.topicId) : undefined;
+    const BTN = "m-1 flex items-center justify-center gap-1 rounded px-1 py-1 text-[9.5px] font-bold uppercase";
+    const ITEM = "rounded px-1.5 py-1 text-left text-[10px] font-bold hover:bg-white/5 disabled:opacity-40";
+    if (newSetForm) {
+      return (
+        <div className="m-1 flex flex-col gap-1 rounded p-1.5" style={{ border: `1px dashed ${NEON.borderSoft}` }}>
+          <input autoFocus className="nodrag rounded bg-black/40 px-1.5 py-0.5 text-[10.5px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} placeholder="Set name…" value={newSetForm.name} onChange={(e) => setNewSetForm({ ...newSetForm, name: e.target.value })} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") createSet(); else if (e.key === "Escape") setNewSetForm(null); }} />
+          <select value={newSetForm.courseId} onChange={(e) => setNewSetForm({ ...newSetForm, courseId: e.target.value, topicId: "" })} className="rounded bg-black/40 px-1 py-0.5 text-[9.5px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}>
+            <option value="">Library (unassigned)</option>
+            {courseOptions.map((c) => <option key={c.id} value={c.id}>{courseLabel(c)}</option>)}
+          </select>
+          {newSetForm.courseId && (
+            <select value={newSetForm.topicId} onChange={(e) => setNewSetForm({ ...newSetForm, topicId: e.target.value })} className="rounded bg-black/40 px-1 py-0.5 text-[9.5px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}>
+              <option value="">pick a topic…</option>
+              {courseOptions.find((c) => c.id === newSetForm.courseId)?.chapters.filter((ch) => ch.status !== "archived").map((ch) => <option key={ch.id} value={ch.id}>{topicLabel(ch)}</option>)}
+            </select>
+          )}
+          <div className="flex items-center gap-1">
+            <button className="flex-1 rounded px-1 py-0.5 text-[9.5px] font-bold uppercase disabled:opacity-40" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} disabled={!newSetForm.name.trim() || (!!newSetForm.courseId && !newSetForm.topicId)} onClick={createSet}>create</button>
+            <button className="rounded px-1.5 py-0.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setNewSetForm(null)}>✕</button>
+          </div>
+        </div>
+      );
+    }
+    if (newTopicFor) {
+      const c = courseOptions.find((x) => x.id === newTopicFor);
+      const commit = () => { const n = newTopicName.trim(); if (n && !createTopicMut.isPending) createTopicMut.mutate({ course_id: newTopicFor, chapter_name: n }); };
+      return (
+        <div className="m-1 flex flex-col gap-1 rounded p-1.5" style={{ border: `1px dashed ${NEON.borderSoft}` }}>
+          <div className="text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>New topic in {c ? courseLabel(c) : "course"}</div>
+          <input autoFocus className="nodrag rounded bg-black/40 px-1.5 py-0.5 text-[10.5px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} placeholder="Topic name…" value={newTopicName} onChange={(e) => setNewTopicName(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") commit(); else if (e.key === "Escape") { setNewTopicFor(null); setNewTopicName(""); } }} />
+          <div className="flex items-center gap-1">
+            <button className="flex-1 rounded px-1 py-0.5 text-[9.5px] font-bold uppercase disabled:opacity-40" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} disabled={!newTopicName.trim() || createTopicMut.isPending} onClick={commit}>{createTopicMut.isPending ? "adding…" : "add topic"}</button>
+            <button className="rounded px-1.5 py-0.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setNewTopicFor(null); setNewTopicName(""); }}>✕</button>
+          </div>
+          <div className="text-[8px] italic" style={{ color: NEON.muted }}>Lands at the end of the course — reorder in Manage course.</div>
+        </div>
+      );
+    }
+    if (addMenu) {
+      return (
+        <div className="m-1 flex flex-col gap-0.5 rounded p-1" style={{ border: `1px dashed ${NEON.borderSoft}` }}>
+          <div className="px-1.5 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.muted }}>Add…</div>
+          {/* Courses have NO create path in the app (the DB is only ever read or
+              renamed) — offered but disabled rather than silently missing. */}
+          <button className={ITEM} style={{ color: NEON.muted }} disabled title="Courses aren't created in the Studio — they're set up in the database. Ask for a course-create pass if you need one.">New course (not available here)</button>
+          <button className={ITEM} style={{ color: NEON.text }} onClick={() => { setAddMenu(false); setNewTopicFor(courseOptions[0]?.id ?? null); }} disabled={courseOptions.length === 0} title="Add a topic to a course">New topic…</button>
+          <button className={ITEM} style={{ color: NEON.text }} onClick={() => openNewSet("", "")} title="Create a CEQ set — pick its course + topic, or leave it in the Library">New CEQ set…</button>
+          <button className={`${ITEM} mt-0.5`} style={{ color: NEON.muted }} onClick={() => setAddMenu(false)}>cancel</button>
+        </div>
+      );
+    }
+    if (selTopic && selCourse) return <button className={BTN} style={{ color: NEON.yellow, border: `1px dashed ${NEON.borderSoft}` }} onClick={() => openNewSet(selCourse.id, selTopic.id)} title={`Create a CEQ set under ${topicLabel(selTopic)}`}><Plus className="h-3 w-3" /> <span className="min-w-0 truncate">Add CEQ set to {topicLabel(selTopic)}</span></button>;
+    if (selCourse) return <button className={BTN} style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} onClick={() => { setNewTopicName(""); setNewTopicFor(selCourse.id); }} title={`Add a topic to ${courseLabel(selCourse)}`}><Plus className="h-3 w-3" /> <span className="min-w-0 truncate">Add topic to {courseLabel(selCourse)}</span></button>;
+    return <button className={BTN} style={{ color: NEON.yellow, border: `1px dashed ${NEON.borderSoft}` }} onClick={() => setAddMenu(true)} title="Add a course, topic, or CEQ set — or click a course/topic in the outline first for a one-click add"><Plus className="h-3 w-3" /> Add…</button>;
   };
 
   // ---- QUESTIONS ------------------------------------------------------------
@@ -613,7 +713,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     const access = mode === "free" ? "FREE" : "PAID";
     const rows = spineRows(deck);
     const lessonId = targetLesson(access);
-    if (!lessonId) { setNote(`Publish blocked — no ${access} CEQ lesson found under ${rows ? `${courseLabel(rows.course)} / ${chapterLabel(rows.topic)}` : "this set's topic"} to attach to. Create one (category CEQ, access ${access}, topic "Ch ${rows?.topic.number ?? "N"}") or link one to this set.`); return false; }
+    if (!lessonId) { setNote(`Publish blocked — no ${access} CEQ lesson found under ${rows ? `${courseLabel(rows.course)} / ${topicLabel(rows.topic)}` : "this set's topic"} to attach to. Create one (category CEQ, access ${access}, topic "${rows ? topicLabel(rows.topic) : "this topic"}") or link one to this set.`); return false; }
     const ld = rf.getNode(lessonId)?.data as unknown as LessonBox | undefined;
     // Passthrough + library-grouping strings come from the SPINE (the Videos tab's
     // matchers round-trip them exactly), never from legacy free-text tags — a
@@ -847,7 +947,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       const dk = d.deckId ? cardDecks.find((x) => x.id === d.deckId) : null;
       const members = d.deckId ? deckMembersOf(nodes as { id: string; type?: string; data?: { deckId?: string; stageOrder?: number } }[], d.deckId).filter((m) => (m as { type?: string }).type === "ceq") : [];
       const qnum = members.findIndex((m) => m.id === n.id) + 1;
-      const tqq = `${dk?.chapter || dk?.name || "Set"} · Q${qnum || "?"}`;
+      const tqq = `${deckTopicName(dk) || dk?.name || "Set"} · Q${qnum || "?"}`;
       ids.forEach((mid) => { const arr = map.get(mid) ?? []; arr.push({ ceqId: n.id, tqq }); map.set(mid, arr); });
     }
     return map;
@@ -1422,7 +1522,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                 const cOpen = isExp(cKey, cHas);
                 return (
                   <div key={c.id}>
-                    <button className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10.5px] font-bold uppercase tracking-wide" style={{ color: cHas ? NEON.cyan : NEON.muted }} onClick={() => toggleExp(cKey, cHas)}>
+                    <button className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10.5px] font-bold uppercase tracking-wide" style={{ color: cHas ? NEON.cyan : NEON.muted, background: outlineSel?.courseId === c.id && !outlineSel.topicId ? "rgba(79,163,227,0.14)" : "transparent" }} onClick={() => { toggleExp(cKey, cHas); setOutlineSel({ courseId: c.id, topicId: null }); setAddMenu(false); }}>
                       {cOpen ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
                       <span className="min-w-0 flex-1 truncate">{courseLabel(c)}</span>
                     </button>
@@ -1437,9 +1537,9 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                       const tOpen = isExp(tKey, tDecks.length > 0);
                       return (
                         <div key={ch.id} className="ml-1.5">
-                          <button className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px]" style={{ color: tDecks.length || vids.length ? NEON.text : NEON.muted }} onClick={() => toggleExp(tKey, tDecks.length > 0)}>
+                          <button className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px]" style={{ color: tDecks.length || vids.length ? NEON.text : NEON.muted, background: outlineSel?.topicId === ch.id ? "rgba(79,163,227,0.14)" : "transparent" }} onClick={() => { toggleExp(tKey, tDecks.length > 0); setOutlineSel({ courseId: c.id, topicId: ch.id }); setAddMenu(false); }}>
                             {tOpen ? <ChevronDown className="h-2.5 w-2.5 shrink-0" /> : <ChevronRight className="h-2.5 w-2.5 shrink-0" />}
-                            <span className="min-w-0 flex-1 truncate">{chapterLabel(ch)}</span>
+                            <span className="min-w-0 flex-1 truncate">{topicLabel(ch)}</span>
                           </button>
                           {(tDecks.length > 0 || vids.length > 0) && (
                             <div className="ml-4 flex flex-wrap items-center gap-1 pb-0.5">
@@ -1450,6 +1550,9 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                             </div>
                           )}
                           {tOpen && tDecks.map((d) => renderSetRow(d))}
+                          {tOpen && tDecks.length === 0 && ch.status !== "archived" && (
+                            <button className="ml-4 flex items-center gap-1 px-1 py-0.5 text-[9px] font-bold" style={{ color: NEON.yellow }} onClick={() => openNewSet(c.id, ch.id)} title={`Create the first CEQ set under ${topicLabel(ch)}`}><Plus className="h-2.5 w-2.5" /> Add CEQ set</button>
+                          )}
                           {tOpen && vids.map((v) => (
                             <div key={v.id} className="ml-4 flex items-center gap-1 px-1 py-0.5 text-[9px]" style={{ color: NEON.muted }}>
                               <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "#3BF5A0" }} />
@@ -1464,6 +1567,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                 );
               })}
             </div>
+            {renderOutlineFooter()}
           </>)}
           {topTab === "sets" && (<>
           <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Sets <span style={{ color: NEON.muted }}>({cardDecks.length})</span>
@@ -1484,7 +1588,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
               const cOpen = isExp(cKey, cHasSets);
               return (
                 <div key={c.id}>
-                  <button className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10.5px] font-bold uppercase tracking-wide" style={{ color: cHasSets ? NEON.cyan : NEON.muted }} onClick={() => toggleExp(cKey, cHasSets)}>
+                  <button className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10.5px] font-bold uppercase tracking-wide" style={{ color: cHasSets ? NEON.cyan : NEON.muted, background: outlineSel?.courseId === c.id && !outlineSel.topicId ? "rgba(79,163,227,0.14)" : "transparent" }} onClick={() => { toggleExp(cKey, cHasSets); setOutlineSel({ courseId: c.id, topicId: null }); setAddMenu(false); }}>
                     {cOpen ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
                     <span className="min-w-0 flex-1 truncate">{courseLabel(c)}</span>
                   </button>
@@ -1496,16 +1600,20 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                     return (
                       <div key={ch.id} className="ml-2">
                         <button className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px]" style={{ color: tDecks.length ? NEON.text : NEON.muted, background: dropOn ? "rgba(252,163,17,0.16)" : "transparent", outline: dropOn ? `1px dashed ${NEON.yellow}` : "none" }}
-                          onClick={() => toggleExp(tKey, tDecks.length > 0)}
+                          onClick={() => { toggleExp(tKey, tDecks.length > 0); setOutlineSel({ courseId: c.id, topicId: ch.id }); setAddMenu(false); }}
                           onDragOver={(e) => { if (e.dataTransfer.types.includes(SET_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dragKey !== `sett:${ch.id}`) setDragKey(`sett:${ch.id}`); } }}
                           onDragLeave={() => setDragKey((k) => (k === `sett:${ch.id}` ? null : k))}
                           onDrop={(e) => { const id = e.dataTransfer.getData(SET_DND); if (id) { e.preventDefault(); setDragKey(null); assignSet(id, c, ch); } }}
-                          title={`${chapterLabel(ch)} — drop a set here to assign it`}>
+                          title={`${topicLabel(ch)} — drop a set here to assign it`}>
                           {tOpen ? <ChevronDown className="h-2.5 w-2.5 shrink-0" /> : <ChevronRight className="h-2.5 w-2.5 shrink-0" />}
-                          <span className="min-w-0 flex-1 truncate">{chapterLabel(ch)}</span>
+                          <span className="min-w-0 flex-1 truncate">{topicLabel(ch)}</span>
                           {tDecks.length > 0 && <span className="shrink-0 text-[8px] font-bold tabular-nums" style={{ color: NEON.muted }}>{tDecks.length}</span>}
                         </button>
                         {tOpen && tDecks.map((d) => renderSetRow(d))}
+                        {/* EMPTY TOPIC — one affordance, nothing else. */}
+                        {tOpen && tDecks.length === 0 && ch.status !== "archived" && (
+                          <button className="ml-4 flex items-center gap-1 px-1 py-0.5 text-[9px] font-bold" style={{ color: NEON.yellow }} onClick={() => openNewSet(c.id, ch.id)} title={`Create the first CEQ set under ${topicLabel(ch)}`}><Plus className="h-2.5 w-2.5" /> Add CEQ set</button>
+                        )}
                       </div>
                     );
                   })}
@@ -1530,28 +1638,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
               </div>
             )}
           </div>
-          {newSetForm ? (
-            <div className="m-1 flex flex-col gap-1 rounded p-1.5" style={{ border: `1px dashed ${NEON.borderSoft}` }}>
-              <input autoFocus className="nodrag rounded bg-black/40 px-1.5 py-0.5 text-[10.5px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} placeholder="Set name…" value={newSetForm.name} onChange={(e) => setNewSetForm({ ...newSetForm, name: e.target.value })} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") createSet(); else if (e.key === "Escape") setNewSetForm(null); }} />
-              <select value={newSetForm.courseId} onChange={(e) => setNewSetForm({ ...newSetForm, courseId: e.target.value, topicId: "" })} className="rounded bg-black/40 px-1 py-0.5 text-[9.5px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}>
-                <option value="">Library (unassigned)</option>
-                {courseOptions.map((c) => <option key={c.id} value={c.id}>{courseLabel(c)}</option>)}
-              </select>
-              {newSetForm.courseId && (
-                <select value={newSetForm.topicId} onChange={(e) => setNewSetForm({ ...newSetForm, topicId: e.target.value })} className="rounded bg-black/40 px-1 py-0.5 text-[9.5px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}>
-                  <option value="">pick a topic…</option>
-                  {courseOptions.find((c) => c.id === newSetForm.courseId)?.chapters.filter((ch) => ch.status !== "archived").map((ch) => <option key={ch.id} value={ch.id}>{chapterLabel(ch)}</option>)}
-                </select>
-              )}
-              <div className="flex items-center gap-1">
-                <button className="flex-1 rounded px-1 py-0.5 text-[9.5px] font-bold uppercase disabled:opacity-40" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} disabled={!newSetForm.name.trim() || (!!newSetForm.courseId && !newSetForm.topicId)} onClick={createSet}>create</button>
-                <button className="rounded px-1.5 py-0.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setNewSetForm(null)}>✕</button>
-              </div>
-            </div>
-          ) : (
-            <button className="m-1 flex items-center justify-center gap-1 rounded px-1 py-1 text-[9.5px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px dashed ${NEON.borderSoft}` }} onClick={() => setNewSetForm({ name: `Set ${cardDecks.length + 1}`, courseId: "", topicId: "" })}><Plus className="h-3 w-3" /> new set</button>
-          )}
-          <button className="mx-1 mb-1 flex items-center justify-center gap-1 rounded px-1 py-1 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} onClick={runSeed} title="Create the Ch 1–5 CEQ sets (Free + Full each) — mechanical stems/choices, empty chains. Idempotent.">seed Ch 1–5</button>
+          {renderOutlineFooter()}
+          <button className="mx-1 mb-1 flex items-center justify-center gap-1 rounded px-1 py-1 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} onClick={runSeed} title="DEV/TEST — create the starter CEQ sets for the first five topics (Free + Full each): mechanical stems/choices, empty chains. Idempotent.">seed starter sets</button>
           </>)}
         </div>
         )}

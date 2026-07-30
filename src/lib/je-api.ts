@@ -314,6 +314,20 @@ export function chapterLabel(ch: { number: number | null; name: string | null; s
   return ch.status === "archived" ? `${base} (archived)` : base;
 }
 
+/** TOPIC label — the topic's NAME only, no "Ch N" prefix: position is conveyed by
+ *  the outline's order, so the number is noise on screen. Use this for anything a
+ *  user reads (Studio outlines, pickers, notes, Manage course).
+ *
+ *  Deliberately a SIBLING of chapterLabel rather than a replacement: the "Ch N · "
+ *  prefix is load-bearing elsewhere (lessonLabelOf does regex surgery on it, the
+ *  library sorts on it, and the stored deck.chapter / videoChapter strings that
+ *  vidTopicMatch parses use the same shape). Nothing that parses may switch to
+ *  this one. */
+export function topicLabel(ch: { number: number | null; name: string | null; status?: "active" | "archived" }): string {
+  const base = (ch.name ?? "").trim() || "Untitled topic";
+  return ch.status === "archived" ? `${base} (archived)` : base;
+}
+
 export async function fetchCourseOptions(): Promise<CourseOption[]> {
   let coursesRes = await supabase
     .from("courses")
