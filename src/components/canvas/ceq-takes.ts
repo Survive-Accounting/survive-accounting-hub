@@ -53,19 +53,18 @@ export function videosFromDrop(e: React.DragEvent): File[] {
 export const fmtDur = (s?: number) => { const t = Math.max(0, Math.round(s ?? 0)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
 
 // ---- DERIVED stitch lists (never stored independently) -----------------------
-export type StitchItem = { kind: "intro" | "hook" | "transition" | "ceq" | "wrap" | "outro"; ceqId?: string; clip?: number; take: TakeRef; label: string };
+export type StitchItem = { kind: "intro" | "hook" | "ceq" | "wrap" | "outro"; ceqId?: string; clip?: number; take: TakeRef; label: string };
 /** FULL = intro → transition → all clip-bearing CEQs in DECK ORDER (each CEQ's CLIP
  *  STACK plays base→lookbacks) → WRAP clips → outro. FREE = same but only free-flagged
  *  CEQs. A CEQ with NO clips is skipped and returned in `missing`. Order is derived
  *  from the passed ceqs (deck order) only. */
-export function buildStitch(mode: "free" | "full", opts: { intro?: TakeRef; hook?: TakeRef; transition?: TakeRef; outro?: TakeRef; wrap?: TakeRef[]; ceqs: { id: string; prompt: string; take?: TakeRef; takes?: TakeRef[]; free?: boolean }[] }): { items: StitchItem[]; missing: { id: string; prompt: string }[] } {
+export function buildStitch(mode: "free" | "full", opts: { intro?: TakeRef; hook?: TakeRef; outro?: TakeRef; wrap?: TakeRef[]; ceqs: { id: string; prompt: string; take?: TakeRef; takes?: TakeRef[]; free?: boolean }[] }): { items: StitchItem[]; missing: { id: string; prompt: string }[] } {
   const items: StitchItem[] = [];
   const missing: { id: string; prompt: string }[] = [];
   if (opts.intro) items.push({ kind: "intro", take: opts.intro, label: "Intro" });
-  // SET INTRO (the filmed hook frame): boilerplate intro → THIS → transition. Both
-  // cuts include it; absent ⇒ skipped silently (exactly the pre-hook order).
+  // SET INTRO (the filmed hook frame): boilerplate intro → THIS → the CEQ takes
+  // (hard cut, no transition). Both cuts include it; absent ⇒ skipped silently.
   if (opts.hook) items.push({ kind: "hook", take: opts.hook, label: "Set intro" });
-  if (opts.transition) items.push({ kind: "transition", take: opts.transition, label: "Transition" });
   for (const c of opts.ceqs) {
     if (mode === "free" && !c.free) continue;
     // A question's CLIP STACK plays in order (base first, then lookbacks); fall back to

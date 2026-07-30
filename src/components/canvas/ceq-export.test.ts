@@ -30,7 +30,7 @@ const INPUT: SetExportInput = {
   questions: Array.from({ length: 22 }, (_, i) => q(i + 1)),
   introFrame: { exists: true, clip: { name: "intro.mp4", duration: 12 } },
   wrap: [{ name: "wrap.mp4", duration: 40, refs: ["Types of Accounts · Q4", "Types of Accounts · Q8"] }],
-  slots: { intro: { state: "global", name: "brand-intro.mp4", duration: 6 }, transition: { state: "global", name: "swoosh.mp4", duration: 1 }, outro: { state: "empty" } },
+  slots: { intro: { state: "global", name: "brand-intro.mp4", duration: 6 }, outro: { state: "empty" } },
 };
 
 describe("buildSetExport", () => {

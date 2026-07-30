@@ -22,7 +22,7 @@ export interface SetExportInput {
   questions: ExportQuestion[];
   introFrame: { exists: boolean; clip?: { name: string; duration?: number } };
   wrap: { name: string; duration?: number; refs: string[] }[];
-  slots: { intro: ExportSlot; transition: ExportSlot; outro: ExportSlot };
+  slots: { intro: ExportSlot; outro: ExportSlot };
   /** DERIVED: slug → the questions (tqq labels) exposed to it. */
   misconceptions?: { slug: string; questions: string[] }[];
 }
@@ -81,7 +81,6 @@ export function buildSetExport(x: SetExportInput): string {
   if (x.wrap.length) x.wrap.forEach((w, i) => L.push(`- Wrap ${i + 1}: ${w.name}${w.duration != null ? ` (${fmtDur(w.duration)})` : ""}${w.refs.length ? ` — covers: ${w.refs.join(", ")}` : ""}`));
   else L.push("- Wrap clips: none");
   L.push(slotLine("Intro slot", x.slots.intro));
-  L.push(slotLine("Transition", x.slots.transition));
   L.push(slotLine("Outro slot", x.slots.outro));
   if (x.misconceptions && x.misconceptions.length > 0) {
     L.push("");

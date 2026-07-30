@@ -303,12 +303,12 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       const missFull = ceqs.filter((c) => c.takes.length === 0).length;
       const missFree = ceqs.filter((c) => c.free && c.takes.length === 0).length;
       const intro = !!(d.intro ?? gc.intro); const outro = !!(d.outro ?? gc.outro);
-      const stitch = buildStitch("full", { intro: d.intro ?? gc.intro, hook: d.hookTake, transition: gc.transition, outro: d.outro ?? gc.outro, wrap: d.wrap, ceqs });
+      const stitch = buildStitch("full", { intro: d.intro ?? gc.intro, hook: d.hookTake, outro: d.outro ?? gc.outro, wrap: d.wrap, ceqs });
       m.set(d.id, { missFull, missFree, intro, outro, wrapN: d.wrap?.length ?? 0, runtimeS: stitchRuntime(stitch.items), shortReady: ceqs.some((c) => c.short && c.takes.length > 0) });
     }
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cardDecks, nodes, gc.intro, gc.outro, gc.transition]);
+  }, [cardDecks, nodes, gc.intro, gc.outro]);
   // Published videos matched onto the spine (same matching the Videos tab uses).
   const pubVidsByTopic = useMemo(() => {
     const m = new Map<string, { id: string; name: string; paid: boolean }[]>();
@@ -368,8 +368,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   // stitch lists and publish all read these, so what you preview is what publishes.
   const resolvedIntro = deck?.intro ?? gc.intro;
   const resolvedOutro = deck?.outro ?? gc.outro;
-  const stitchFree = useMemo(() => buildStitch("free", { intro: resolvedIntro, hook: deck?.hookTake, transition: gc.transition, outro: resolvedOutro, wrap: deck?.wrap, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, gc.transition, deck?.wrap, deck?.hookTake]);
-  const stitchFull = useMemo(() => buildStitch("full", { intro: resolvedIntro, hook: deck?.hookTake, transition: gc.transition, outro: resolvedOutro, wrap: deck?.wrap, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, gc.transition, deck?.wrap, deck?.hookTake]);
+  const stitchFree = useMemo(() => buildStitch("free", { intro: resolvedIntro, hook: deck?.hookTake, outro: resolvedOutro, wrap: deck?.wrap, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, gc.transition, deck?.wrap, deck?.hookTake]);
+  const stitchFull = useMemo(() => buildStitch("full", { intro: resolvedIntro, hook: deck?.hookTake, outro: resolvedOutro, wrap: deck?.wrap, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, gc.transition, deck?.wrap, deck?.hookTake]);
   const freeCount = stitchCeqs.filter((c) => c.free).length;
   // SHORTS QUEUE (Lee) — every shorts-flagged CEQ across ALL sets, with its set +
   // question number, stem and angle note. Lee's batch-filming worklist.
@@ -498,7 +498,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       questions: eq,
       introFrame: { exists: !!(deck.introFrameId && rf.getNode(deck.introFrameId)), clip: deck.hookTake ? { name: deck.hookTake.name ?? "clip", duration: deck.hookTake.duration } : undefined },
       wrap: (deck.wrap ?? []).map((w) => ({ name: w.name ?? "clip", duration: w.duration, refs: (w.refs ?? []).map(tqqOf) })),
-      slots: { intro: slotOf(deck.intro, gc.intro), transition: slotOf(undefined, gc.transition), outro: slotOf(deck.outro, gc.outro) },
+      slots: { intro: slotOf(deck.intro, gc.intro), outro: slotOf(deck.outro, gc.outro) },
       misconceptions: (() => { const m = new Map<string, string[]>(); questions.forEach((q, qi) => { const qc = (rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.choices; for (const sl of questionMisconceptions(qc, memoSlugOf)) { const l = m.get(sl) ?? []; l.push(`${deckTopicName(deck) || deck.name} · Q${qi + 1}`); m.set(sl, l); } }); return [...m.entries()].map(([slug, qs]) => ({ slug, questions: qs })); })(),
     });
     try { await navigator.clipboard.writeText(md); } catch { /* clipboard can be blocked; the download still lands */ }
@@ -549,7 +549,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const dropHookTake = async (f: File) => {
     if (!deck) return;
     setNote(`Uploading intro clip "${f.name}"…`);
-    try { const fresh = await stageTake(f); setDecks((prev) => updateDeck(prev, deck.id, { hookTake: withPrev(fresh, deck.hookTake) })); setNote(`Intro clip attached (${fmtDur(fresh.duration)}) — stitches after the boilerplate intro, before the transition.`); }
+    try { const fresh = await stageTake(f); setDecks((prev) => updateDeck(prev, deck.id, { hookTake: withPrev(fresh, deck.hookTake) })); setNote(`Intro clip attached (${fmtDur(fresh.duration)}) — stitches after the boilerplate intro, before the takes.`); }
     catch (e) { setNote(`Intro clip upload failed: ${e instanceof Error ? e.message : String(e)}`); }
   };
 
@@ -689,14 +689,13 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   /** Stage a dropped clip into a set's INTRO/OUTRO (per set), the shared TRANSITION,
    *  the set's WRAP stack (0..n, appended), or the LOOKBACK vertical promo (staging
    *  only, re-downloadable — no pipeline). */
-  const dropSlot = async (kind: "intro" | "outro" | "transition" | "wrap" | "lookback", file: File) => {
-    const key = kind === "transition" ? "transition" : `${kind}:${setId}`;
-    if (takeBusy || (kind !== "transition" && !deck)) return;
+  const dropSlot = async (kind: "intro" | "outro" | "wrap" | "lookback", file: File) => {
+    const key = `${kind}:${setId}`;
+    if (takeBusy || !deck) return;
     setTakeBusy(key); setNote(`Uploading ${kind}…`);
     try {
       const fresh = await stageTake(file);
-      if (kind === "transition") setGlobalClips?.({ transition: withPrev(fresh, gc.transition) });
-      else if (kind === "wrap" && deck) setDecks((prev) => updateDeck(prev, deck.id, { wrap: [...(deck.wrap ?? []), fresh] }));
+      if (kind === "wrap" && deck) setDecks((prev) => updateDeck(prev, deck.id, { wrap: [...(deck.wrap ?? []), fresh] }));
       else if (kind === "lookback" && deck) setDecks((prev) => updateDeck(prev, deck.id, { lookback: withPrev(fresh, deck.lookback) }));
       else if (deck && (kind === "intro" || kind === "outro")) setDecks((prev) => updateDeck(prev, deck.id, { [kind]: withPrev(fresh, deck[kind]) }));
       setNote(`Attached ${kind} (${fmtDur(fresh.duration)}).`);
@@ -1867,13 +1866,13 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
           <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>
             <span className="truncate">CEQs {deck && <span style={{ color: NEON.muted }}>· {setDisplayName(deck.name)}</span>}</span>
             {deck && <span className="shrink-0 text-[8.5px] font-bold tabular-nums" style={{ color: NEON.muted }} title="Free-flagged CEQs · all CEQs">Free {freeCount} · Full {questions.length}</span>}
-            {deck && <span className="shrink-0 text-[8.5px] tabular-nums" style={{ color: NEON.cyan }} title="Estimated runtime = summed durations of the stitch clips (intro + transition + takes + outro)">~{fmtDur(stitchRuntime(stitchFree.items))}/{fmtDur(stitchRuntime(stitchFull.items))}</span>}
+            {deck && <span className="shrink-0 text-[8.5px] tabular-nums" style={{ color: NEON.cyan }} title="Estimated runtime = summed durations of the stitch clips (intro + set intro + takes + wrap + outro)">~{fmtDur(stitchRuntime(stitchFree.items))}/{fmtDur(stitchRuntime(stitchFull.items))}</span>}
             <div className="ml-auto flex shrink-0 items-center gap-1">
               {deck && (starOnly || starCount > 0) && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: starOnly ? "#0B1322" : "#FFD23F", background: starOnly ? "#FFD23F" : "transparent", border: `1px solid ${starOnly ? "#FFD23F" : NEON.borderSoft}` }} onClick={() => setStarOnly((v) => !v)} title="Show only STARRED questions (performer's notes)">★ {starCount}</button>}
               {deck && starCount > 0 && <button className="rounded px-1 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={clearAllStars} title="Clear ALL stars in this set (confirm)">clear ★</button>}
               {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setStitchMode("full")} title="Sequential rhythm preview — plays the Free/Full stitch list back-to-back (no render)"><Play className="h-3 w-3" /> preview</button>}
               {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => void exportSet()} title="Export this set as one markdown doc — every question, chain, flag, script layer and clip, in deck order. Copies to the clipboard AND downloads.">Export</button>}
-              {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: publishOpen ? "#0B0F1E" : "#3BF5A0", background: publishOpen ? "#3BF5A0" : "transparent", border: "1px solid rgba(59,245,160,0.5)" }} onClick={() => setPublishOpen(true)} title="Publish panel — Publish Free / Full, the lookback vertical, and the intro/transition/outro/wrap clips (one home)">{publishBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} Publish</button>}
+              {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: publishOpen ? "#0B0F1E" : "#3BF5A0", background: publishOpen ? "#3BF5A0" : "transparent", border: "1px solid rgba(59,245,160,0.5)" }} onClick={() => setPublishOpen(true)} title="Publish panel — Publish Free / Full, the lookback vertical, and the intro/outro/wrap clips (one home)">{publishBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} Publish</button>}
               {deck && <button className="grid h-5 w-5 place-items-center rounded" style={{ color: wrapStems ? NEON.yellow : NEON.muted, border: `1px solid ${wrapStems ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` }} onClick={() => setPrefs({ wrapStems: !wrapStems })} title="Wrap question text ↔ clamp to 2 lines"><WrapText className="h-3 w-3" /></button>}
               {deck && selChainMemos.size > 0 && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={copyMemos} title="Copy the selected memos (Ctrl+C)"><Copy className="h-3 w-3" /> copy {selChainMemos.size}</button>}
               {deck && memoClip.length > 0 && qId && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => pasteMemos(qId)} title="Paste the copied memos into this question (Ctrl+V)"><ClipboardPaste className="h-3 w-3" /> paste {memoClip.length}</button>}
@@ -1924,7 +1923,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
                     Never a question: no counts, no deal, no choices semantics. */}
                 <div className="mb-0.5 flex items-center gap-1 rounded px-1 py-0.5" style={{ background: dragKey === "hook" ? "rgba(252,163,17,0.14)" : "transparent", border: `1px solid ${dragKey === "hook" ? NEON.yellow : NEON.borderSoft}` }} {...dragProps("hook", dropHookTake)}>
                   <Film className="h-3 w-3 shrink-0" style={{ color: NEON.cyan }} />
-                  <button className="min-w-0 flex-1 truncate text-left text-[10.5px] font-bold" style={{ color: NEON.text }} onClick={openIntroFrame} title="The set's INTRO — opens (creating on first use) an editable frame copied from the CEQ HOOK frame. Films like a question: drop its clip on this row; it stitches after the boilerplate intro, before the transition, in BOTH cuts. No clip = skipped silently.">Intro</button>
+                  <button className="min-w-0 flex-1 truncate text-left text-[10.5px] font-bold" style={{ color: NEON.text }} onClick={openIntroFrame} title="The set's INTRO — opens (creating on first use) an editable frame copied from the CEQ HOOK frame. Films like a question: drop its clip on this row; it stitches after the boilerplate intro, before the CEQ takes, in BOTH cuts. No clip = skipped silently.">Intro</button>
                   {deck.hookTake ? (
                     <span className="flex shrink-0 items-center gap-1 text-[8px] font-bold tabular-nums" style={{ color: "#3BF5A0" }} title={`${deck.hookTake.name} — drop a new clip to replace`}><CheckCircle2 className="h-3 w-3" /> {fmtDur(deck.hookTake.duration)}</span>
                   ) : (
@@ -2075,7 +2074,6 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
                   <div className="px-0.5 text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Set clips — drop a video</div>
                   {([
                     { label: "Intro", kind: "intro", key: `intro:${setId}`, local: deck.intro, global: gc.intro, onFile: (f: File) => dropSlot("intro", f) },
-                    { label: "Transition", kind: "transition", key: "transition", local: gc.transition, global: undefined as TakeRef | undefined, onFile: (f: File) => dropSlot("transition", f) },
                     { label: "Outro", kind: "outro", key: `outro:${setId}`, local: deck.outro, global: gc.outro, onFile: (f: File) => dropSlot("outro", f) },
                   ] as const).map((s) => {
                     // RESOLVED = the set's own clip, else the shared global fallback. The
