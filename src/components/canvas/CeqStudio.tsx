@@ -120,6 +120,10 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   // BULK QUESTION OPS (Lee) — multi-select question rows + one action bar.
   const [qSel, setQSel] = useState<Set<string>>(() => new Set());
   const lastQSelRef = useRef<string | null>(null);
+  // Switching sets (tab click, chip jump, session restore) DROPS the selection — the
+  // bar must never stay armed with the previous set's questions (bulkPatchQ resolves
+  // ids scene-wide, so a stale qSel would silently mutate cards that aren't on screen).
+  useEffect(() => { setQSel((prev) => (prev.size > 0 ? new Set<string>() : prev)); lastQSelRef.current = null; }, [setId]);
   const toggleQSel = (id: string, shift: boolean) => {
     setQSel((prev) => {
       const n = new Set(prev);
