@@ -293,6 +293,23 @@ export const FILM_MODE_CSS = `
   .film-mode.sa-entrance-pop .react-flow__node > * { animation: sa-deal-pop 180ms cubic-bezier(0.22,1,0.36,1) both; }
   /* (b) CHECK GATE GLOW — the red Check frame reads hotter on camera. */
   .film-mode.sa-check-glow [data-beat="cram"] { box-shadow: 0 0 0 2px rgba(206,17,38,0.65), 0 0 42px -6px rgba(206,17,38,0.75) !important; }
+  /* DISCLAIMER PLATE — a plate="black" frame is a TRUE-BLACK card on camera:
+     opaque fill, beat border and current-frame ring blacked out, no check glow
+     (same specificity as the glow rule but later in the sheet, so black wins
+     even on a cram-beat frame), and SQUARE corners — the 8px rounded-lg radius
+     at the 2.4x film zoom leaked ~19px arcs of navy canvas + dots into all four
+     corners of a fullscreen capture. */
+  .film-mode [data-beat][data-plate="black"] { background: #000 !important; border-color: #000 !important; box-shadow: none !important; border-radius: 0 !important; }
+  /* An EMPTY image element (no url yet) is an authoring placeholder — never show
+     the dashed upload box on camera (the Disclaimer logo slot ships empty). */
+  .film-mode [data-empty-image] { visibility: hidden !important; }
+  /* DISCLAIMER LINE REVEAL — a slowReveal element ARRIVES with a ~600ms fade
+     using the reveal-motion easing, instead of the 180ms deal pop. Mount-scoped
+     like sa-deal-pop (RF unmounts cueHidden nodes, so this fires exactly when a
+     line is revealed); placed after the entrance-pop rule at equal specificity,
+     so slow lines fade even with the pop toggle on. */
+  @keyframes sa-line-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .film-mode .react-flow__node > [data-reveal-slow] { animation: sa-line-in 600ms cubic-bezier(0.2,0.7,0.3,1) both; }
   /* FILM = STRUCTURE INERT, CONTENT LIVE. Every design/structure node
      (frame, lesson, region/zone, heading, text, gate) goes pointer-events:none
      so it can't be selected, dragged, resized, or hovered — clicks fall through

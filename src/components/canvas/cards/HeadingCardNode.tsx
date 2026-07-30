@@ -141,7 +141,7 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
           {...spot.props}
           style={{
             display: "inline-block", // so the spotlight scale/pill can render
-            color: d.faded ? "rgba(158,168,184,0.5)" : d.text ? "#F4EFE6" : "rgba(147,160,180,0.6)",
+            color: d.faded ? "rgba(158,168,184,0.5)" : d.text ? (d.tone === "red" ? NEON.pink : "#F4EFE6") : "rgba(147,160,180,0.6)",
             fontFamily: font,
             fontWeight: d.spartan ? 800 : undefined,
             letterSpacing: d.spartan ? "-0.01em" : undefined,
@@ -179,6 +179,7 @@ export function HeadingCardNode({ id, data, selected }: NodeProps) {
   return (
     <div
       onPointerDownCapture={toFront}
+      data-reveal-slow={d.slowReveal ? "1" : undefined}
       className="group/el animate-in fade-in relative duration-200"
       style={{
         width: d.w ?? undefined,

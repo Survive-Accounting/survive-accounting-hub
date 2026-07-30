@@ -29,7 +29,8 @@ import { EditableText } from "../ui";
 import { NEON } from "../theme";
 import { WorldBackground } from "../WorldBackground";
 import { WORLDS, worldById } from "../worlds";
-import { cardId, FRAME_BG_ANCHOR_CSS, FRAME_BG_DEFAULT_OPACITY, FRAME_BG_DEFAULT_ZOOM, FRAME_BG_LOOPS, FRAME_CARD_SCALE, FRAME_H, FRAME_W, type FrameBeat, type FrameBgAnchor, type FrameBox, type LessonBox } from "../types";
+import { WHOLE_TARGET } from "../choreo";
+import { cardId, FRAME_BG_ANCHOR_CSS, FRAME_BG_DEFAULT_OPACITY, FRAME_BG_DEFAULT_ZOOM, FRAME_BG_LOOPS, FRAME_CARD_SCALE, FRAME_H, FRAME_W, type FrameBeat, type FrameBgAnchor, type FrameBox, type LessonBox, type RecCue } from "../types";
 
 /** 9-point anchor grid, row-major for a 3×3 button pad. */
 const BG_ANCHORS: FrameBgAnchor[] = ["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"];
@@ -276,15 +277,32 @@ export function FrameNode({ id, data, selected }: NodeProps) {
   const applyTemplate = (t: FrameTemplate) => {
     const fw = d.w ?? FRAME_W;
     const fh = d.h ?? FRAME_H;
-    const nodes = placeTemplate(t, fw, fh).map((pl) => ({
+    const placed = placeTemplate(t, fw, fh);
+    const nodes = placed.map((pl) => ({
       id: cardId(pl.kind),
       type: pl.kind,
       parentId: id,
       position: { x: pl.x, y: pl.y },
-      data: { ...blankCard(pl.kind), w: pl.w } as Record<string, unknown>,
+      data: { ...blankCard(pl.kind), w: pl.w, ...(pl.h != null ? { h: pl.h } : {}), ...(pl.data ?? {}) } as Record<string, unknown>,
     }));
-    bus.dispatch(addNodesCmd(rf as unknown as RfLike, nodes, `apply ${t.name} template`));
-    update({ visualType: t.visualType });
+    // CHOREOGRAPHED template (Disclaimer): cue-flagged placements become this
+    // frame's recordedCues in placement order — Space then reveals one line per
+    // press through the standard recorded-replay tier (no new walk mechanics).
+    const cues: RecCue[] = placed.flatMap((pl, i) => pl.cue
+      ? [{ id: cardId("cc"), kind: "reveal" as const, cardId: nodes[i].id, targetId: WHOLE_TARGET, label: "Reveal", target: String((pl.data?.text as string | undefined) ?? pl.kind) }]
+      : []);
+    // ONE undoable step (review): the spawned nodes and the frame patch land and
+    // lift together — a lone Ctrl+Z must never strand cueHidden lines with their
+    // governing queue gone. `plate` is ALWAYS in the patch (undefined for plain
+    // templates) so re-templating a Disclaimer frame lifts the black plate;
+    // recordedCues are only written by choreographed templates, so a
+    // hand-recorded take is never clobbered by a plain template.
+    const patch: Partial<FrameBox> = { visualType: t.visualType, plate: undefined, ...(t.frameData ?? {}), ...(cues.length ? { recordedCues: cues } : {}) };
+    const cmd = compositeCmd([
+      addNodesCmd(rf as unknown as RfLike, nodes, `apply ${t.name} template`),
+      patchDataCmd(rf as unknown as RfLike, id, patch, "template frame data"),
+    ], `apply ${t.name} template`);
+    if (cmd) bus.dispatch(cmd);
     setBgMenu(false);
   };
 
@@ -332,10 +350,15 @@ export function FrameNode({ id, data, selected }: NodeProps) {
   const swooshSfxOn = d.swooshSfx ?? !cramSfxOn;
   const keypadSfxOn = d.keypadOnEntry ?? false;
 
+  // TRUE-BLACK PLATE (Disclaimer): opaque #000 card — no beat tint, no world, no
+  // loop. FILM_MODE_CSS additionally blacks the border/ring so the capture is
+  // pure black; authoring keeps the beat border for findability.
+  const plateBlack = d.plate === "black";
   return (
     <div
       className="group/frame relative h-full w-full rounded-lg"
       data-beat={beat}
+      data-plate={d.plate}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onDoubleClick={() => nav.enter(id)}
@@ -343,7 +366,7 @@ export function FrameNode({ id, data, selected }: NodeProps) {
       style={{
         minWidth: 320,
         minHeight: 180,
-        background: meta.tint,
+        background: plateBlack ? "#000" : meta.tint,
         border: `1.5px solid ${selected || isCurrent ? meta.color : meta.edge}`,
         boxShadow: isCurrent ? `0 0 0 2px ${meta.color}, 0 0 26px -8px ${meta.color}` : selected ? `0 0 20px -10px ${meta.color}` : "none",
       }}
@@ -351,7 +374,7 @@ export function FrameNode({ id, data, selected }: NodeProps) {
       {/* VISUAL WORLD (Phase 2) — a rendered atmosphere behind ALL cards. Deepest
           layer (z-0, pointer-events-none) so cards, chrome and the spotlight
           overlay always read on top. Frame's own world wins; else lesson default. */}
-      {worldPreset && (
+      {!plateBlack && worldPreset && (
         <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg">
           <WorldBackground worldId={worldPreset.id} intensity={worldInten} motion={worldMot} seed={d.worldSeed} />
         </div>
@@ -362,7 +385,7 @@ export function FrameNode({ id, data, selected }: NodeProps) {
           inside the 16:9 stage. fit (cover/contain) + zoom (scale) + anchor
           (object-position AND transform-origin) let Lee compose the focal
           content without re-cutting the file. Keyed by src so switching remounts. */}
-      {bgLoop && (
+      {!plateBlack && bgLoop && (
         <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-lg">
           <BgLoopVideo
             key={bgLoop.id}

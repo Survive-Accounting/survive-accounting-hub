@@ -549,6 +549,13 @@ export interface HeadingCard extends CardBase {
   /** KEYPAD SFX (Lee): when on, revealing this element in FILM (its reveal-on-step
    *  / typewriter entrance) plays the keypad cue. Off by default; per-element. */
   keypadSfx?: boolean;
+  /** TONE (Disclaimer card): render the text in brand red instead of the cream
+   *  ink — the "HEADS UP" header voice. Only applies when text is present. */
+  tone?: "red";
+  /** SLOW REVEAL (Disclaimer card): when this element is revealed by a cue in
+   *  FILM, it ARRIVES with a ~600ms ease-in fade (the reveal-motion easing)
+   *  instead of the crisp 180ms deal-pop. No effect outside film. */
+  slowReveal?: boolean;
 }
 
 // ---- Text element (freeform markdown-lite block; ELEMENT category) ----
@@ -1008,6 +1015,10 @@ export interface FrameBox {
   worldIntensity?: number; // 0..0.6
   worldMotion?: number;    // 0..1
   worldSeed?: number;
+  /** TRUE-BLACK PLATE (Disclaimer card): the frame renders as an opaque #000
+   *  card — no beat tint; in film the beat border/ring/glow and the watermark are
+   *  suppressed so the capture is pure black. Additive; scene JSON only. */
+  plate?: "black";
   /** VISUAL MIX (Phase 8) — an optional lightweight tag for the read-only lesson
    *  summary ("stage", "statement", "diagram", …). Purely informational; unset
    *  frames are simply "untagged" in the summary. */

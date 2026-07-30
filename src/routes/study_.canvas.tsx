@@ -5281,7 +5281,9 @@ function PresentCanvas() {
       {chrome && <CardTapPulse />}
       {film && (
         <>
-          <CursorSpotlight />
+          {/* cursor glow never over a TRUE-BLACK plate frame (Disclaimer) — the
+              capture must stay pure black between line reveals */}
+          {!(currentFrameId && (rf.getNode(currentFrameId)?.data as { plate?: string } | undefined)?.plate) && <CursorSpotlight />}
           <ClickRipples />
         </>
       )}
@@ -5744,11 +5746,13 @@ function PresentCanvas() {
         </BrandBar>
       )}
       {/* Corner watermark — toggleable; NEVER over a frame's full-bleed background loop
-          (the branded loop is the mark), and suppressed while a CEQ is SPOTLIT since the
-          redesigned CEQ carries its own in-card logotype (redesign Item 4 — reuses the
-          existing spotlight signal, no new mechanism built). */}
+          (the branded loop is the mark), never over a TRUE-BLACK plate frame (the
+          Disclaimer card must capture pure black), and suppressed while a CEQ is
+          SPOTLIT since the redesigned CEQ carries its own in-card logotype (redesign
+          Item 4 — reuses the existing spotlight signal, no new mechanism built). */}
       {!chrome && watermarkOn
         && !(currentFrameId && (rf.getNode(currentFrameId)?.data as { bgSrc?: string } | undefined)?.bgSrc)
+        && !(currentFrameId && (rf.getNode(currentFrameId)?.data as { plate?: string } | undefined)?.plate)
         && !(spot.focusTarget && rf.getNode(spot.focusTarget.cardId)?.type === "ceq")
         && <BrandWatermark />}
 

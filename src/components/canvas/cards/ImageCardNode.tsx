@@ -60,6 +60,7 @@ export function ImageCardNode({ id, data, selected }: NodeProps) {
   return (
     <div
       onPointerDownCapture={toFront}
+      data-empty-image={d.url ? undefined : "1"}
       className="group/el animate-in fade-in relative rounded-lg duration-150"
       style={{ width: w, minHeight: d.h ?? 80 }}
     >
