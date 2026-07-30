@@ -450,6 +450,13 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   const nChoices = cd?.choices.length ?? 0;
   const chainLenOf = (ci: number) => cd?.choices[ci]?.chain?.length ?? 0;
   const resetPractice = () => { setEmph(null); setResolved(new Set()); setShown(new Map()); };
+  /** MEMO SWEEP (Shift+`) — clear the memos off the board WITHOUT un-resolving
+   *  anything: struck distractors stay struck, the correct choice stays green, and
+   *  because nothing re-resolves no sound re-fires. Every chain's walk position goes
+   *  back to zero, so Enter on a choice re-walks it from memo 1. `resolved` is what
+   *  drives the choice styling and `shown` is what drives the reveals — so sweeping
+   *  is exactly "empty `shown`, keep `resolved`". */
+  const sweepMemos = () => setShown((s) => (s.size === 0 ? s : new Map()));
   const tabNav = (dir: 1 | -1) => setEmph((e) => (nChoices === 0 ? null : e == null ? (dir > 0 ? 0 : nChoices - 1) : (e + dir + nChoices) % nChoices));
   const advance = () => { // Enter — resolve the emphasised choice, then walk its chain
     const e = emph == null ? 0 : emph;
@@ -835,7 +842,10 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       if (e.key === "Tab") { e.preventDefault(); e.stopImmediatePropagation(); tabNav(e.shiftKey ? -1 : 1); return; }
       if (e.key === "Enter") { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) retreat(); else advance(); return; }
       if (e.key === " " || e.code === "Space") { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) onPrevQuestion?.(); else onNextQuestion?.(); return; }
-      if (e.key === "`" || e.code === "Backquote") { e.preventDefault(); e.stopImmediatePropagation(); resetPractice(); return; }
+      // ` = full reset (choices + memos). SHIFT+` = MEMO SWEEP: clear the memos off
+      // the board but KEEP every choice's resolution, so a wrong answer stays struck
+      // and the correct one stays green. Nothing re-resolves, so no sound re-fires.
+      if (e.key === "`" || e.code === "Backquote" || (e.shiftKey && e.key === "~")) { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) sweepMemos(); else resetPractice(); return; }
     };
     const onOwnerKey = (e: KeyboardEvent) => handle(e, ownerWin, false);
     ownerWin.addEventListener("keydown", onOwnerKey, true);
@@ -920,7 +930,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                   Ctrl+click a choice/memo/arrow = spotlight · +Shift = 🔥 · +Alt+Shift = 🚨. */}
               <div className="flex shrink-0 items-center gap-1.5 border-t px-2 py-1.5" style={{ borderColor: NEON.borderSoft, background: "rgba(11,19,34,0.9)" }}>
                 <button className="grid h-6 w-6 place-items-center rounded" style={{ color: running ? "#FF8B9E" : "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={toggleRun} title={running ? "Pause timer" : "Start practice timer"}>{running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}</button>
-                <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={resetAll} title="Reset the CEQ to blank + clear spotlights + timer (`)"><RotateCcw className="h-3.5 w-3.5" /></button>
+                <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={resetAll} title="Reset the CEQ to blank + clear spotlights + timer (`) — Shift+` instead SWEEPS just the memos and keeps the choice states"><RotateCcw className="h-3.5 w-3.5" /></button>
                 <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: filmWin ? "#0B0F1E" : "#FF8B9E", background: filmWin ? "#FF8B9E" : "transparent", border: `1px solid ${filmWin ? "#FF8B9E" : "rgba(255,139,158,0.5)"}` }} onClick={toggleFilm} title={filmWin ? "Close the film window" : "FILM MODE — pops a clean 16:9 canvas frame (world background + watermark) onto your 2nd monitor. TWO-WAY: drag / resize / spotlight / Space-Tab-Enter work in EITHER window and stay in sync. Maximize it for OBS."}><Clapperboard className="h-3.5 w-3.5" /> {filmWin ? "Filming" : "Film"}</button>
                 {onSaveBaseline && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => saveBaseline()} title="Set as layout — save THIS card + memo arrangement as the set's baseline (same baseline Question 0 edits directly). Every question then deals/previews at this geometry."><LayoutGrid className="h-3.5 w-3.5" /> Set layout</button>}
                 {layoutMode && onSaveBaseline && (<>

@@ -3,7 +3,8 @@
 import { NEON } from "./theme";
 import { groupedBindings, type KeyBinding } from "./keymap";
 
-const COMBO_LABEL: Record<string, string> = { space: "Space", escape: "Esc" };
+// "~" is what the browser reports for Shift+` — label it the way it's actually typed.
+const COMBO_LABEL: Record<string, string> = { space: "Space", escape: "Esc", "~": "Shift + `" };
 
 function comboChip(combo: string): string {
   return combo

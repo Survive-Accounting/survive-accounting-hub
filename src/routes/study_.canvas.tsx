@@ -2383,6 +2383,26 @@ function PresentCanvas() {
   //      resolve. Arrows are ALWAYS frame nav now (Lee, item 4): the old
   //      arrow-cycling ceqEmphasisMove is removed; emphasis is set by the click
   //      handler in CeqCardNode (selects the card + sets data.emphasis).
+  /** MEMO SWEEP (Shift+`) — clear every revealed chain memo off the dealt CEQ(s)
+   *  while KEEPING each choice's resolution: a struck distractor stays struck, the
+   *  correct choice stays green, and since nothing re-resolves no sound re-fires.
+   *  Only `chainShown` is touched — memo visibility is DERIVED from it by the
+   *  hiddenOf reconciler, so the memos leave without anyone writing node.hidden.
+   *  Every chain restarts at zero, so Enter on a choice re-walks it from memo 1.
+   *  Targets the selected CEQ, else every CEQ in the frame you're in. One undo step.
+   *  Distinct from ` (full reset), which also clears the choice states. */
+  const ceqSweepMemos = useCallback(() => {
+    const sel = rf.getNodes().find((n) => n.selected && n.type === "ceq");
+    const pool = sel ? [sel] : rf.getNodes().filter((n) => n.type === "ceq" && n.parentId === currentFrameRef.current);
+    const targets = pool.filter((n) => ((n.data as unknown as { choices?: CeqChoice[] }).choices ?? []).some((c) => (c.chainShown ?? 0) > 0));
+    if (targets.length === 0) return;
+    const cmds = targets
+      .map((n) => patchDataFnCmd(rf as unknown as RfLike, n.id, (prev) => ({ choices: ((prev as unknown as { choices: CeqChoice[] }).choices ?? []).map((c) => ({ ...c, chainShown: 0 })) }), "memo sweep"))
+      .filter((c): c is NonNullable<typeof c> => !!c);
+    const cmd = compositeCmd(cmds, `memo sweep (${targets.length} CEQ${targets.length === 1 ? "" : "s"})`);
+    if (cmd) bus.dispatch(cmd);
+  }, [rf]);
+
   /** ENTER / SHIFT+ENTER CHAIN WALK (prompt 1) on the emphasised CEQ choice.
    *  dir=+1 (Enter): first press RESOLVES (correct → green + chaching; wrong → red +
    *  strike; NO memo yet), each further press reveals the NEXT chain item (they
@@ -5090,6 +5110,12 @@ function PresentCanvas() {
           e.preventDefault();
           ceqStep(sel.id, emp, 1);
         },
+      },
+      {
+        combo: "~",
+        group: "CEQ",
+        description: "MEMO SWEEP — clear every revealed chain memo off the dealt CEQ but KEEP the choice states (struck stays struck, green stays green, nothing re-sounds). Enter then re-walks a choice from its memo 1. Works in film.",
+        handler: (e) => { e.preventDefault(); ceqSweepMemos(); },
       },
       {
         combo: "shift+enter",
