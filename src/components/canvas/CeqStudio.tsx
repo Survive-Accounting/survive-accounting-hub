@@ -85,6 +85,12 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const [sel, setSel] = useState<Set<string>>(() => new Set());
   const [editorOpen, setEditorOpen] = useState(true); // collapsible stem/choices editor
   const [libOpen, setLibOpen] = useState(true); // collapsible memo-library pane
+  // MEMO SPEED PASS (Lee) — quick-add + recent strip + last-used category + search focus.
+  const [qaText, setQaText] = useState(""); // quick-add input (Enter creates, no modal)
+  const [lastMemoCat, setLastMemoCat] = useState<string>("OTHER TIPS"); // last-used category for quick-add
+  const [recentMemoIds, setRecentMemoIds] = useState<string[]>([]); // 5 most recently created/edited/chained
+  const touchRecent = (id: string) => setRecentMemoIds((p) => [id, ...p.filter((x) => x !== id)].slice(0, 5));
+  const memoSearchRef = useRef<HTMLInputElement>(null);
   const [setsOpen, setSetsOpen] = useState(true); // collapsible sets pane
   // TOPICS SPINE (Lee) — the sets pane is an outline over the REAL Course → Topic
   // model (courses/chapters rows, Manage Course order). No more free-text filters.
@@ -894,6 +900,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       if (ctrl && (e.key === "c" || e.key === "C")) { e.preventDefault(); if (selChainMemos.size > 0) copyMemos(); else if (qId) copyQuestion(); return; }
       if (ctrl && (e.key === "v" || e.key === "V")) { e.preventDefault(); if (itemsClip.length > 0 && qId) pasteItems("new"); else if (memoClip.length > 0 && qId) pasteMemos(qId); else if (qClip) pasteQuestion(); return; }
       if (ctrl && (e.key === "d" || e.key === "D")) { if (qId) { e.preventDefault(); duplicateQuestion(qId); } return; }
+      if (e.key === "/") { e.preventDefault(); setLibOpen(true); window.setTimeout(() => memoSearchRef.current?.focus(), 60); return; } // "/" focuses the memo search from anywhere
       if (e.key !== "Delete" && e.key !== "Backspace") return;
       if (previewSelMemo && qId) { e.preventDefault(); removeFromChain(qId, previewSelMemo); return; }
       if (sel.size > 0) { e.preventDefault(); deleteMemos([...sel]); }
@@ -914,6 +921,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     const edge = { id: `chn-${choiceId}-${memoId}`, source: memoId, sourceHandle: "l", target: ceqId, targetHandle: memoAnchorId(choiceId), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } };
     const add = addNodesAndEdgesCmd(rfl, [memoNode] as never, [edge] as never, "create chain memo"); if (add) bus.dispatch(add);
     const patch = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => (c.id === choiceId ? { ...c, chain: [...(c.chain ?? []), { kind: "memo" as const, memoNodeId: memoId, label }] } : c)) }), "add memo to chain"); if (patch) bus.dispatch(patch);
+    setLastMemoCat(category || lastMemoCat);
+    touchRecent(memoId);
     setNote(`Created memo "${clip(label, 24)}" — drag it in the preview to place it.`);
   };
   /** Commit an inline rename of a CHAIN memo (label on the item + title on the node).
@@ -945,6 +954,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     const add = addNodesCmd(rfl, [memoNode] as never, "duplicate memo"); if (add) bus.dispatch(add);
     setJustCreated((p) => new Set(p).add(memoId)); // keep the (unchained) copy visible under any scope
     setEditMemo(memoId); setEditMemoVal(label); // open the copy for inline editing
+    touchRecent(memoId);
     setNote(`Duplicated memo → "${clip(label, 24)}" (linked to the original).`);
   };
   /** Commit an inline rename of a LIBRARY memo (title + label on the node). */
@@ -952,7 +962,31 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     const label = next.trim() || "Memo";
     const p = patchDataCmd(rfl, id, { title: label, label }, "rename memo"); if (p) bus.dispatch(p);
     setEditMemo(null); setEditMemoVal("");
+    touchRecent(id);
   };
+  /** QUICK-ADD (Lee, speed pass) — Enter in the pinned library input creates a memo
+   *  instantly: category = LAST-USED, label = the text. No modal on this path. */
+  const quickAddMemo = () => {
+    const text = qaText.trim();
+    if (!text) return;
+    const memoId = cardId("memo");
+    const node = { id: memoId, type: "memo", position: { x: 80 + (memos.length % 6) * 24, y: 80 + (memos.length % 6) * 24 }, selected: false, data: { kind: "memo", memoKind: "note", title: text, label: clip(text, 40), body: "", category: lastMemoCat } };
+    const add = addNodesCmd(rfl, [node] as never, "quick-add memo"); if (add) bus.dispatch(add);
+    setJustCreated((p) => new Set(p).add(memoId));
+    touchRecent(memoId);
+    setQaText("");
+    setNote(`Added "${clip(text, 24)}" · ${lastMemoCat}.`);
+  };
+  /** ONE-CLICK CATEGORY — clicking a memo's category chip cycles MEMO_CATEGORIES. */
+  const cycleCategory = (id: string, cur: string) => {
+    const idx = (MEMO_CATEGORIES as readonly string[]).indexOf(cur);
+    const next = MEMO_CATEGORIES[(idx + 1) % MEMO_CATEGORIES.length];
+    const p = patchDataCmd(rfl, id, { category: next }, "cycle category"); if (p) bus.dispatch(p);
+    setLastMemoCat(next);
+    touchRecent(id);
+  };
+  // Search focus: autofocus whenever the library opens; "/" (global, below) also lands here.
+  useEffect(() => { if (libOpen) { const t = window.setTimeout(() => memoSearchRef.current?.focus(), 60); return () => window.clearTimeout(t); } }, [libOpen]);
 
   /** Drop a memo onto a choice → attach it (existing node) to that choice's chain. */
   const attachMemoToChoice = (ceqId: string, choiceId: string, memoId: string) => {
@@ -963,6 +997,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     const add = addNodesAndEdgesCmd(rfl, [] as never, [edge] as never, "chain arrow"); if (add) bus.dispatch(add);
     const patch = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => (c.id === choiceId ? { ...c, chain: [...(c.chain ?? []), { kind: "memo" as const, memoNodeId: memoId, label }] } : c)) }), "attach memo");
     if (patch) bus.dispatch(patch);
+    touchRecent(memoId);
     setNote(`Attached "${clip(label, 24)}" to choice.`);
   };
 
@@ -1433,7 +1468,13 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
           <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Memo library <span style={{ color: NEON.muted }}>({memos.length})</span>
             <button className="ml-auto grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => setLibOpen(false)} title="Collapse the memo library"><ChevronRight className="h-3.5 w-3.5" /></button>
           </div>
-          <div className="flex items-center gap-1 px-1.5 pt-1.5"><Search className="h-3 w-3 shrink-0" style={{ color: NEON.muted }} /><input value={memoQuery} onChange={(e) => setMemoQuery(e.target.value)} placeholder="search title / sub-category" className="min-w-0 flex-1 bg-transparent text-[10.5px] outline-none" style={{ color: NEON.text }} />
+          {/* QUICK-ADD (speed pass) — type + Enter creates a memo instantly (category =
+              last-used). No modal on this path; +💡 keeps the search-or-create modal. */}
+          <div className="flex items-center gap-1 px-1.5 pt-1.5">
+            <Plus className="h-3 w-3 shrink-0" style={{ color: "#3BF5A0" }} />
+            <input value={qaText} onChange={(e) => setQaText(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") quickAddMemo(); else if (e.key === "Escape") setQaText(""); }} placeholder={`quick add… Enter → ${lastMemoCat}`} className="min-w-0 flex-1 rounded bg-black/30 px-1.5 py-0.5 text-[10.5px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} />
+          </div>
+          <div className="flex items-center gap-1 px-1.5 pt-1.5"><Search className="h-3 w-3 shrink-0" style={{ color: NEON.muted }} /><input ref={memoSearchRef} value={memoQuery} onChange={(e) => setMemoQuery(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Escape") setMemoQuery(""); }} placeholder="search… ( / from anywhere · Esc clears)" className="min-w-0 flex-1 bg-transparent text-[10.5px] outline-none" style={{ color: NEON.text }} />
             <button className="shrink-0 rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setMemoSort((s) => (s === "recent" ? "az" : "recent"))} title="Toggle sort: most recent ↔ A–Z">{memoSort === "recent" ? "recent" : "A–Z"}</button>
             <button className="grid h-5 w-5 shrink-0 place-items-center rounded" style={{ color: wrapMemos ? NEON.yellow : NEON.muted, border: `1px solid ${wrapMemos ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` }} onClick={() => setPrefs({ wrapMemos: !wrapMemos })} title="Wrap memo labels ↔ truncate"><WrapText className="h-3 w-3" /></button>
           </div>
@@ -1463,21 +1504,36 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
             <button className="flex items-center gap-1 rounded px-1 py-0.5 font-bold uppercase" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} onClick={() => setSel((p) => { const n = new Set(p); if (allShownSel) shownMemos.forEach((m) => n.delete(m.id)); else shownMemos.forEach((m) => n.add(m.id)); return n; })} disabled={shownMemos.length === 0}>{allShownSel ? <CheckSquare className="h-3 w-3" /> : <Square className="h-3 w-3" />} {allShownSel ? "none" : "all"}</button>
             <span>{sel.size} selected</span>
           </div>
+          {/* RECENT STRIP (speed pass) — the 5 most recently created/edited/chained
+              memos, ALWAYS visible regardless of scope/filters; drag-to-chain works. */}
+          {recentMemoIds.length > 0 && (
+            <div className="shrink-0 border-b px-1 pb-1" style={{ borderColor: NEON.borderSoft }}>
+              <div className="px-0.5 pt-1 text-[7.5px] font-bold uppercase tracking-wide" style={{ color: NEON.cyan }}>Recent</div>
+              {recentMemoIds.map((id) => { const m = memos.find((x) => x.id === id); if (!m) return null; return (
+                <div key={id} draggable className="flex cursor-grab items-center gap-1 rounded px-1 py-0.5" style={{ background: "rgba(79,163,227,0.08)", border: `1px solid ${NEON.borderSoft}` }}
+                  onDragStart={(e) => { e.dataTransfer.setData(MEMO_DND, id); e.dataTransfer.effectAllowed = "copy"; }}
+                  title="Recent — drag onto a choice to chain it">
+                  <span className="min-w-0 flex-1 truncate text-[10px]" style={{ color: NEON.text }}>{m.label}</span>
+                  <button className="shrink-0 rounded px-1 text-[7px] font-bold uppercase" style={{ color: m.category ? NEON.cyan : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => cycleCategory(m.id, m.category)} title={`Category: ${m.category || "unfiled"} — click to cycle`}>{m.category === "ELEMENT" ? "🧩" : m.category ? m.category.slice(0, 4) : "UNF"}</button>
+                </div>
+              ); })}
+            </div>
+          )}
           <div className="min-h-0 flex-1 overflow-y-auto p-1">
             {shownMemos.length === 0 && <div className="px-1 py-2 text-[9.5px] italic" style={{ color: NEON.muted }}>No memos match — or none exist yet.</div>}
             {shownMemos.map((m) => { const on = sel.has(m.id); const uses = usageOf(m.id); const editing = editMemo === m.id; const picked = m.id === previewSelMemo; return (
               <div key={m.id} ref={picked ? selMemoRowRef : undefined} draggable={!editing} className="flex cursor-grab items-center gap-1 rounded px-1 py-0.5" style={{ background: picked ? "rgba(79,163,227,0.22)" : on ? "rgba(252,163,17,0.1)" : "rgba(0,0,0,0.2)", border: `1px solid ${picked ? NEON.cyan : on ? NEON.border : NEON.borderSoft}` }}
                 onDragStart={(e) => { e.dataTransfer.setData(MEMO_DND, m.id); e.dataTransfer.effectAllowed = "copy"; }}
-                title="Drag onto a choice to attach · click to select · double-click to rename">
+                title="Drag onto a choice to attach · ☐ selects · click the label to rename · click the chip to cycle category">
                 <button className="shrink-0" style={{ color: on ? NEON.yellow : NEON.muted }} onClick={() => toggleSel(m.id)}>{on ? <CheckSquare className="h-3 w-3" /> : <Square className="h-3 w-3" />}</button>
                 {editing ? (
                   <input autoFocus className="nodrag min-w-0 flex-1 rounded bg-black/40 px-1 text-[10.5px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.border}` }} value={editMemoVal} onChange={(e) => setEditMemoVal(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") commitEditMemo(m.id, editMemoVal); else if (e.key === "Escape") { setEditMemo(null); setEditMemoVal(""); } }} onBlur={() => commitEditMemo(m.id, editMemoVal)} />
                 ) : (
-                  <span className={`min-w-0 flex-1 cursor-text text-[10.5px] ${wrapMemos ? "whitespace-normal break-words" : "truncate"}`} style={{ color: NEON.text }} onDoubleClick={() => { setEditMemo(m.id); setEditMemoVal(m.label); }}>{m.label}{m.subcategory && <span className="ml-1 text-[8px]" style={{ color: NEON.cyan }}>· {m.subcategory}</span>}</span>
+                  <span className={`min-w-0 flex-1 cursor-text text-[10.5px] ${wrapMemos ? "whitespace-normal break-words" : "truncate"}`} style={{ color: NEON.text }} onClick={() => { setEditMemo(m.id); setEditMemoVal(m.label); }} title="Click to rename">{m.label}{m.subcategory && <span className="ml-1 text-[8px]" style={{ color: NEON.cyan }}>· {m.subcategory}</span>}</span>
                 )}
                 {/* ×N usage — the "shared, edits ripple" signal; tooltip lists the T.QQ ids. */}
                 {uses > 1 && <span className="shrink-0 text-[7.5px] font-bold tabular-nums" style={{ color: "#7CC4FF" }} title={usageTip(m.id)}>×{uses}</span>}
-                {m.category && <span className="shrink-0 text-[7.5px] font-bold uppercase" style={{ color: NEON.muted }}>{m.category === "ELEMENT" ? "🧩" : m.category.slice(0, 4)}</span>}
+                <button className="shrink-0 rounded px-1 text-[7.5px] font-bold uppercase" style={{ color: m.category ? NEON.cyan : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => cycleCategory(m.id, m.category)} title={`Category: ${m.category || "unfiled"} — click to cycle (${MEMO_CATEGORIES.join(" → ")})`}>{m.category === "ELEMENT" ? "🧩" : m.category ? m.category.slice(0, 4) : "UNF"}</button>
                 <button className="shrink-0" style={{ color: NEON.muted }} onClick={() => duplicateMemo(m.id)} title="Duplicate this memo (a linked copy, opens for editing)"><Copy className="h-3 w-3" /></button>
                 <button className="shrink-0" style={{ color: NEON.red }} onClick={() => deleteMemos([m.id])} title="Delete this memo from the library (also unchains it)"><X className="h-3 w-3" /></button>
               </div>
