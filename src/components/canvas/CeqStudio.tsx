@@ -72,7 +72,9 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       return next;
     });
   };
-  const [publishOpen, setPublishOpen] = useState(false); // the Publish panel (per active set)
+  const [publishOpen, setPublishOpen] = useState(false);
+  // IN-APP CONFIRM (memo paths) — replaces window.confirm so it themes + works in the popout.
+  const [confirmBox, setConfirmBox] = useState<{ msg: string; onYes: () => void } | null>(null); // the Publish panel (per active set)
   // PUBLISH FREE+FULL COMBO — preflight checklist → confirm → sequential publish.
   const [combo, setCombo] = useState<{ free: "pending" | "running" | "done" | "error"; full: "pending" | "running" | "done" | "error"; running: boolean } | null>(null);
   useEffect(() => { if (!publishOpen) setCombo(null); }, [publishOpen]);
@@ -952,6 +954,13 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
     };
   };
   /** Reorder a chain memo within its choice (the outline "renumber"). */
+  /** Reorder by MEMO ID (the on-memo ↑/↓ cluster) — finds the memo's choice + index
+   *  and delegates to the existing reorder. */
+  const reorderChainByMemo = (memoNodeId: string, dir: -1 | 1) => {
+    if (!qId || qId === LAYOUT_Q0) return;
+    const cc = (rf.getNode(qId)?.data as unknown as CeqCard | undefined)?.choices ?? [];
+    for (const ch of cc) { const i = (ch.chain ?? []).findIndex((it) => it.memoNodeId === memoNodeId); if (i >= 0) { reorderChainMemo(qId, ch.id, i, dir); return; } }
+  };
   const reorderChainMemo = (ceqId: string, choiceId: string, idx: number, dir: -1 | 1) => {
     const c = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((ch) => { if (ch.id !== choiceId) return ch; const arr = [...(ch.chain ?? [])]; const j = idx + dir; if (j < 0 || j >= arr.length) return ch; [arr[idx], arr[j]] = [arr[j], arr[idx]]; return { ...ch, chain: arr }; }) }), "renumber chain");
     if (c) bus.dispatch(c);
@@ -1598,9 +1607,12 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
   const deleteMemosGuarded = (ids: string[]) => {
     if (ids.length === 0) return;
     const uses = ids.reduce((s, id) => s + usageOf(id), 0);
-    if (!window.confirm(`Delete ${ids.length} memo${ids.length === 1 ? "" : "s"} from the scene${uses ? ` — chained in ${uses} place${uses === 1 ? "" : "s"}` : ""}?\n\nCtrl+Z restores everything.`)) return;
-    setPreviewSelMemo(null);
-    deleteMemos(ids);
+    // IN-APP confirm (no native dialog): themed, and works in the popped-out Studio
+    // where a native confirm binds to the opener window.
+    setConfirmBox({
+      msg: `Delete ${ids.length} memo${ids.length === 1 ? "" : "s"} from the scene${uses ? ` — chained in ${uses} place${uses === 1 ? "" : "s"}` : ""}? Ctrl+Z restores everything.`,
+      onYes: () => { setPreviewSelMemo(null); deleteMemos(ids); },
+    });
   };
 
   /** Drop a memo onto a choice → attach it (existing node) to that choice's chain. */
@@ -1930,8 +1942,8 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
                         )}
                         {/* VINYL on entry (Lee) — one-click reveal-sound toggle; the full sound picker lives in the chain editor. */}
                         <button className="grid h-3.5 w-3.5 shrink-0 place-items-center" style={{ color: vinyl ? NEON.yellow : NEON.muted, opacity: vinyl ? 1 : 0.45 }} onClick={() => setChainSound(q.id, w.choiceId, w.idx, vinyl ? undefined : "vinylScratch")} title={vinyl ? "💿 Vinyl scratch plays on this item's reveal (film) — click to remove" : "Play the vinyl scratch on this item's reveal (film)"}>💿</button>
-                        <button disabled={w.idx === 0} className="grid h-3.5 w-3.5 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderChainMemo(q.id, w.choiceId, w.idx, -1)} title="Earlier in walk"><ArrowUp className="h-2.5 w-2.5" /></button>
-                        <button className="grid h-3.5 w-3.5 place-items-center" style={{ color: NEON.muted }} onClick={() => reorderChainMemo(q.id, w.choiceId, w.idx, 1)} title="Later in walk"><ArrowDown className="h-2.5 w-2.5" /></button>
+                        
+                        
                         <button className="grid h-3.5 w-3.5 place-items-center" style={{ color: NEON.red }} onClick={() => removeFromChain(q.id, w.memoNodeId)} title="Remove from chain (keeps the memo in the library)"><X className="h-2.5 w-2.5" /></button>
                       </div>
                     ); })}
@@ -2063,7 +2075,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
                   ) : (
                     <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSaveInstance={(g) => { if (qId && qId !== LAYOUT_Q0) saveInstanceGeom(qId, g); }} layoutOn={deck?.layoutMode !== false} onSetLayoutMode={setLayoutMode} onApplyLayoutToAll={() => { const n = questions.length; if (n > 0 && window.confirm(`Re-stamp all ${n} question${n === 1 ? "" : "s"} from the layout?
 
-This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undoes all of it.`)) applyLayoutToAll(); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
+This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undoes all of it.`)) applyLayoutToAll(); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onReorderChainMemo={reorderChainByMemo} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
                   )}
                 </div>
                 {qd && (
@@ -2271,6 +2283,17 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
         </div>
       )}
       {chainFor && <CeqChainEditor nodeId={chainFor} onClose={() => setChainFor(null)} />}
+      {confirmBox && (
+        <div className="absolute inset-0 z-[80] grid place-items-center" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setConfirmBox(null)}>
+          <div className="w-[340px] rounded-lg p-3" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}` }} onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 text-[11.5px]" style={{ color: NEON.text }}>{confirmBox.msg}</div>
+            <div className="flex justify-end gap-1.5">
+              <button className="rounded px-2 py-1 text-[10px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setConfirmBox(null)}>cancel</button>
+              <button className="rounded px-2 py-1 text-[10px] font-bold uppercase" style={{ color: "#0B0F1E", background: NEON.red }} onClick={() => { confirmBox.onYes(); setConfirmBox(null); }}>delete</button>
+            </div>
+          </div>
+        </div>
+      )}
       {pickModal && (
         <MemoPickerModal
           memos={memosForPicker}
