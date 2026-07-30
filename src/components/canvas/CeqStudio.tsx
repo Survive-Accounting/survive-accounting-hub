@@ -26,6 +26,7 @@ import { resolveCardSpot, resolveMemoSpot, stampFromTemplate, withInstanceSpot, 
 import { seedCeqSets } from "./ceq-seed";
 import { buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, stageTake, stitchManifest, stitchRuntime, videoFromDrop, videosFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
 import { buildSetExport } from "./ceq-export";
+import { MISCONCEPTION_SEEDS, questionMisconceptions, toSlug } from "./ceq-misconceptions";
 import { CeqStitch } from "./CeqStitch";
 import { CeqVideoLibrary, vidCourseMatch, vidTopicMatch } from "./CeqVideoLibrary";
 import { DEFAULT_CROSSFADE_MS } from "./segment-assembly";
@@ -49,6 +50,19 @@ const QREORDER = "text/sa-ceq-qreorder"; // dragging a question ROW to reorder
 const SET_DND = "text/sa-ceq-set"; // dragging a SET row onto a topic / the Library
 const TABS_SS = "sa-ceq-studio-set-tabs"; // sessionStorage: open set tabs + active (per session)
 const LAYOUT_Q0 = "__layout0__"; // Question 0 sentinel — the set BASELINE as an editable stage (never films/stitches/counts/deals)
+
+/** Inline "add a misconception" row (Tools tab): slug + one-line description. */
+function NewMisconceptionRow({ onAdd }: { onAdd: (slug: string, description: string) => string | null }) {
+  const [slug, setSlug] = useState("");
+  const [desc, setDesc] = useState("");
+  return (
+    <div className="mt-1 flex items-center gap-1">
+      <input className="w-28 rounded bg-black/40 px-1.5 py-0.5 text-[9.5px] uppercase outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} placeholder="NEW_SLUG" value={slug} onChange={(e) => setSlug(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
+      <input className="min-w-0 flex-1 rounded bg-black/40 px-1.5 py-0.5 text-[9.5px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} placeholder="one-line description…" value={desc} onChange={(e) => setDesc(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter" && onAdd(slug, desc)) { setSlug(""); setDesc(""); } }} />
+      <button className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { if (onAdd(slug, desc)) { setSlug(""); setDesc(""); } }}>add</button>
+    </div>
+  );
+}
 
 export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initialCeqId, onPopOut, popped, onClose }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void; globalClips?: GlobalClips; setGlobalClips?: (patch: Partial<GlobalClips>) => void; initialCeqId?: string | null; onPopOut?: () => void; popped?: boolean; onClose: () => void }) {
   const gc = globalClips ?? {};
@@ -232,6 +246,29 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     },
     onError: (e: unknown) => setNote(`Couldn't add the topic: ${e instanceof Error ? e.message : String(e)}`),
   });
+  /** MISCONCEPTIONS — registry (seeds + Lee's custom, prefs-described) and the
+   *  read-only derivations. The only WRITE anywhere is the memo's own slug patch. */
+  const misconceptionDefs = useMemo(() => {
+    const custom = Object.entries(prefs.misconceptions ?? {}).map(([slug, description]) => ({ slug, description }));
+    const used = new Set<string>();
+    for (const n of nodes) if (n.type === "memo") { const s = (n.data as { misconceptionId?: string }).misconceptionId; if (s) used.add(s); }
+    const known = new Set([...MISCONCEPTION_SEEDS.map((d) => d.slug), ...custom.map((d) => d.slug)]);
+    const orphans = [...used].filter((s) => !known.has(s)).map((slug) => ({ slug, description: "(no description — add one in Tools)" }));
+    return [...MISCONCEPTION_SEEDS, ...custom, ...orphans];
+  }, [prefs.misconceptions, nodes]);
+  const memoSlugOf = (mid: string) => (rf.getNode(mid)?.data as { misconceptionId?: string } | undefined)?.misconceptionId;
+  const setMemoMisconception = (ids: string[], slug: string | null) => {
+    const cmds = ids.map((id) => patchDataCmd(rfl, id, { misconceptionId: slug ?? undefined }, "tag misconception")).filter((c): c is NonNullable<typeof c> => !!c);
+    const cmd = compositeCmd(cmds, "tag misconception"); if (cmd) bus.dispatch(cmd);
+    setNote(slug ? `Tagged ${ids.length} memo${ids.length === 1 ? "" : "s"} → ${slug}.` : "Cleared the misconception tag.");
+  };
+  const addMisconceptionDef = (rawSlug: string, description: string) => {
+    const slug = toSlug(rawSlug);
+    if (!slug) { setNote("Slug must be 2-32 chars: A-Z, 0-9, underscores."); return null; }
+    setPrefs({ misconceptions: { ...(prefs.misconceptions ?? {}), [slug]: description.trim() } });
+    return slug;
+  };
+
   /** A set's TOPIC NAME for display — resolved from the spine (topicId), never from
    *  the legacy `deck.chapter` tag, which stores "Ch N" and is still parsed by the
    *  migration + video matchers. Empty string when the set is unassigned. */
@@ -452,6 +489,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       introFrame: { exists: !!(deck.introFrameId && rf.getNode(deck.introFrameId)), clip: deck.hookTake ? { name: deck.hookTake.name ?? "clip", duration: deck.hookTake.duration } : undefined },
       wrap: (deck.wrap ?? []).map((w) => ({ name: w.name ?? "clip", duration: w.duration, refs: (w.refs ?? []).map(tqqOf) })),
       slots: { intro: slotOf(deck.intro, gc.intro), transition: slotOf(undefined, gc.transition), outro: slotOf(deck.outro, gc.outro) },
+      misconceptions: (() => { const m = new Map<string, string[]>(); questions.forEach((q, qi) => { const qc = (rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.choices; for (const sl of questionMisconceptions(qc, memoSlugOf)) { const l = m.get(sl) ?? []; l.push(`${deckTopicName(deck) || deck.name} · Q${qi + 1}`); m.set(sl, l); } }); return [...m.entries()].map(([slug, qs]) => ({ slug, questions: qs })); })(),
     });
     try { await navigator.clipboard.writeText(md); } catch { /* clipboard can be blocked; the download still lands */ }
     const a = document.createElement("a");
@@ -1698,6 +1736,27 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
         <div className={COL} style={{ maxWidth: 240, border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)" }}>
           {topTab === "videos" && <CeqVideoLibrary courses={courseOptions} costOn={!!prefs.costOn} onToggleCost={() => setPrefs({ costOn: !prefs.costOn })} />}
           {topTab === "tools" && (<>
+            <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Misconceptions <span style={{ color: NEON.muted }}>observed scope</span></div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-1.5 text-[10px]" style={{ color: NEON.text }}>
+              {misconceptionDefs.map((def) => {
+                const memoIds = nodes.filter((n) => n.type === "memo" && (n.data as { misconceptionId?: string }).misconceptionId === def.slug).map((n) => n.id);
+                const qIds = new Set<string>();
+                const topics = new Set<string>();
+                for (const d of cardDecks) {
+                  const mem = deckMembersOf(nodes as { id: string; type?: string; data?: { deckId?: string; stageOrder?: number } }[], d.id).filter((n) => (n as { type?: string }).type === "ceq");
+                  for (const q of mem) { const qc = (rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.choices; if (questionMisconceptions(qc, memoSlugOf).includes(def.slug)) { qIds.add(q.id); if (d.topicId) topics.add(deckTopicName(d) || d.name); } }
+                }
+                return (
+                  <div key={def.slug} className="mb-1.5 rounded border px-1.5 py-1" style={{ borderColor: NEON.borderSoft }}>
+                    <div className="flex items-center gap-1.5"><span className="font-black" style={{ color: NEON.yellow }}>{def.slug}</span><span className="text-[8.5px]" style={{ color: NEON.muted }}>{memoIds.length} memo(s) · {qIds.size} question(s)</span></div>
+                    <div className="text-[9px]" style={{ color: NEON.muted }}>{def.description}</div>
+                    {topics.size > 0 && <div className="text-[8px]" style={{ color: NEON.cyan }}>topics: {[...topics].join(" · ")}</div>}
+                  </div>
+                );
+              })}
+              <NewMisconceptionRow onAdd={addMisconceptionDef} />
+            </div>
+
             <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Tools</div>
             <div className="grid flex-1 place-items-center p-3 text-center text-[10.5px] leading-relaxed" style={{ color: NEON.muted }}>🛠 Coming soon —<br />batch take ingest · publish queue ·<br />shorts factory.</div>
           </>)}
@@ -1879,13 +1938,14 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
                   <span className="shrink-0 text-[8px] font-bold tabular-nums" style={{ color: NEON.muted }} title="Baseline memo slots">{deck.layout?.memoSlots?.length ?? 0} slots</span>
                 </div>
                 {questions.length === 0 && <div className="px-1 py-1 text-[9.5px] italic" style={{ color: NEON.muted }}>No questions — add one below.</div>}
-                {questions.map((q, i) => { const qdata = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; if (starOnly && !qdata?.starred) return null; const p = qdata?.prompt || "Question"; const expanded = expandedQ.has(q.id); const walk = expanded ? walkOf(q) : []; const clips = cardClips(qdata); const starred = !!qdata?.starred; const chained = (qdata?.choices ?? []).some((c) => (c.chain?.length ?? 0) > 0); const boss = !!qdata?.boss; const chainSound = (qdata?.choices ?? []).some((c) => (c.chain ?? []).some((it) => !!it.sound)); const chachingOff = qdata?.confirmSfx === false; const isShort = !!qdata?.short; const dropOn = dragKey === q.id; const reOn = dragKey === `qre:${q.id}`; return (
+                {questions.map((q, i) => { const qdata = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; if (starOnly && !qdata?.starred) return null; const p = qdata?.prompt || "Question"; const expanded = expandedQ.has(q.id); const walk = expanded ? walkOf(q) : []; const clips = cardClips(qdata); const starred = !!qdata?.starred; const chained = (qdata?.choices ?? []).some((c) => (c.chain?.length ?? 0) > 0); const traps = questionMisconceptions(qdata?.choices, memoSlugOf); const boss = !!qdata?.boss; const chainSound = (qdata?.choices ?? []).some((c) => (c.chain ?? []).some((it) => !!it.sound)); const chachingOff = qdata?.confirmSfx === false; const isShort = !!qdata?.short; const dropOn = dragKey === q.id; const reOn = dragKey === `qre:${q.id}`; return (
                   <div key={q.id}>
                     <div className="flex items-start gap-0.5 rounded py-0.5" style={{ background: dropOn ? "rgba(252,163,17,0.14)" : undefined, outline: dropOn ? `1px dashed ${NEON.yellow}` : reOn ? `1px solid ${NEON.cyan}` : undefined }} {...qRowDnd(q.id)}>
                       <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" style={{ color: qSel.has(q.id) ? NEON.yellow : NEON.muted }} onClick={(e) => toggleQSel(q.id, e.shiftKey)} title="Select for bulk actions (Shift+click = range · Esc clears)">{qSel.has(q.id) ? <CheckSquare className="h-3 w-3" /> : <Square className="h-3 w-3" />}</button>
                       <span className="mt-0.5 shrink-0 cursor-grab select-none text-[11px] leading-none" style={{ color: NEON.muted }} draggable onDragStart={(e) => { e.dataTransfer.setData(QREORDER, q.id); e.dataTransfer.effectAllowed = "move"; }} title="Drag to reorder">⠿</span>
                       <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" style={{ color: NEON.muted }} onClick={() => setExpandedQ((s) => { const n = new Set(s); n.has(q.id) ? n.delete(q.id) : n.add(q.id); return n; })} title={expanded ? "Collapse memos" : "Show memos"}>{expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}</button>
                       <button className={`min-w-0 flex-1 rounded px-1 py-0.5 text-left text-[10.5px] ${wrapStems ? "whitespace-normal break-words" : "line-clamp-2"}`} style={{ background: qId === q.id ? "rgba(252,163,17,0.14)" : "transparent", color: qId === q.id ? NEON.yellow : NEON.text }} onClick={() => { setQId(q.id); setExpandedQ((s) => new Set(s).add(q.id)); }}><span className="tabular-nums opacity-60">{i + 1}.</span> {p}</button>
+                      {traps.length > 0 && <span className="flex shrink-0 gap-0.5">{traps.map((tr) => <span key={tr} className="rounded px-0.5 text-[6.5px] font-bold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} title={`Misconception exposure (derived from chained memos): ${tr}`}>{tr}</span>)}</span>}
                       {chained && <span className="mt-0.5 shrink-0" title="Has ≥1 chain item"><Lightbulb className="h-3 w-3" style={{ color: "rgba(252,163,17,0.55)" }} /></span>}
                       {boss && <span className="mt-0.5 shrink-0 text-[10px] leading-none" title="Boss card — cram launch fires when this question is dealt (film)">👑</span>}
                       {chainSound && <span className="mt-0.5 shrink-0 text-[9px] leading-none" title="A chain item has a reveal sound">🔊</span>}
@@ -2075,7 +2135,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
                   ) : (
                     <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSaveInstance={(g) => { if (qId && qId !== LAYOUT_Q0) saveInstanceGeom(qId, g); }} layoutOn={deck?.layoutMode !== false} onSetLayoutMode={setLayoutMode} onApplyLayoutToAll={() => { const n = questions.length; if (n > 0 && window.confirm(`Re-stamp all ${n} question${n === 1 ? "" : "s"} from the layout?
 
-This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undoes all of it.`)) applyLayoutToAll(); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onReorderChainMemo={reorderChainByMemo} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
+This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undoes all of it.`)) applyLayoutToAll(); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onReorderChainMemo={reorderChainByMemo} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSetMisconception={setMemoMisconception} misconceptionSlugs={misconceptionDefs.map((d) => d.slug)} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
                   )}
                 </div>
                 {qd && (

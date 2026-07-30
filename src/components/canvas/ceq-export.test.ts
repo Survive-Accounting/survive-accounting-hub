@@ -1,6 +1,6 @@
 // SET EXPORT — the document contract, plus the report's size measurement for a
 // realistic 22-question set. Pure module: no canvas needed.
-import { describe, expect, it } from "bun:test";
+import { describe, expect, it, test } from "bun:test";
 
 import { buildSetExport, type SetExportInput } from "./ceq-export";
 import { migrateScriptLayers } from "./scene-io";
@@ -85,4 +85,10 @@ describe("migrateScriptLayers", () => {
     ];
     expect(migrateScriptLayers(nodes)).toBe(nodes); // idempotent: identical reference when nothing changes
   });
+});
+
+test("misconception summary renders slug → questions; derivation helper is pure/read-only", () => {
+  const md = buildSetExport({ ...INPUT, misconceptions: [{ slug: "FLIP", questions: ["T · Q1", "T · Q4"] }] });
+  expect(md).toContain("## Misconceptions covered");
+  expect(md).toContain("- FLIP: T · Q1, T · Q4");
 });

@@ -23,6 +23,8 @@ export interface SetExportInput {
   introFrame: { exists: boolean; clip?: { name: string; duration?: number } };
   wrap: { name: string; duration?: number; refs: string[] }[];
   slots: { intro: ExportSlot; transition: ExportSlot; outro: ExportSlot };
+  /** DERIVED: slug → the questions (tqq labels) exposed to it. */
+  misconceptions?: { slug: string; questions: string[] }[];
 }
 
 const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
@@ -81,5 +83,10 @@ export function buildSetExport(x: SetExportInput): string {
   L.push(slotLine("Intro slot", x.slots.intro));
   L.push(slotLine("Transition", x.slots.transition));
   L.push(slotLine("Outro slot", x.slots.outro));
+  if (x.misconceptions && x.misconceptions.length > 0) {
+    L.push("");
+    L.push("## Misconceptions covered");
+    x.misconceptions.forEach((m) => L.push(`- ${m.slug}: ${m.questions.join(", ")}`));
+  }
   return L.join("\n");
 }
