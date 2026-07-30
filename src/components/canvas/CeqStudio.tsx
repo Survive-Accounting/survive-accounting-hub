@@ -22,7 +22,7 @@ import { CeqChainEditor } from "./CeqChainEditor";
 import { listChainTemplates } from "./ceq-chain-templates";
 import { MemoPickerModal } from "./MemoPickerModal";
 import { activeSlots, CeqPreviewer, dealCentre, defaultMemoPos, paletteSlots, rackOf } from "./CeqPreviewer";
-import { resolveCardSpot, resolveMemoSpot, stampFromTemplate, type Spot } from "./ceq-geom";
+import { resolveCardSpot, resolveMemoSpot, stampFromTemplate, withInstanceSpot, type Spot } from "./ceq-geom";
 import { seedCeqSets } from "./ceq-seed";
 import { buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, stageTake, stitchManifest, stitchRuntime, videoFromDrop, videosFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
 import { CeqStitch } from "./CeqStitch";
@@ -1345,16 +1345,26 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
   const createMemoChained = (ceqId: string, choiceId: string, text: string, category: string) => {
     const label = text.trim() || "Memo";
     const memoId = cardId("memo");
-    const cc = (rf.getNode(ceqId)?.data as unknown as CeqCard | undefined)?.choices ?? [];
+    const qNodeRef = rf.getNode(ceqId);
+    const cc = (qNodeRef?.data as unknown as CeqCard | undefined)?.choices ?? [];
     const chainCount = cc.reduce((s, ch) => s + (ch.chain?.length ?? 0), 0);
-    const spot = baselineSpot(chainCount);
-    const memoNode = { id: memoId, type: "memo", position: { x: Math.round(spot.x), y: Math.round(spot.y) }, selected: false, data: { kind: "memo", memoKind: "note", title: label, body: "", category, ...(spot.scale != null ? { scale: spot.scale } : {}) } };
+    // Next slot for THIS question (its own instance first, then the template's active
+    // slots) — and PARENT the memo to the question's frame. Slot coordinates are
+    // frame-local, so an unparented memo landed at those numbers in WORLD space, i.e.
+    // nowhere near the frame: created-but-not-placed, which is what Lee was seeing.
+    const frameId = qNodeRef?.parentId ?? nav.currentFrameId ?? undefined;
+    const spot = resolveMemoSpot((qNodeRef?.data as unknown as CeqCard | undefined)?.geom, deck?.layout, chainCount, frameW, frameH);
+    const memoNode = { id: memoId, type: "memo", ...(frameId ? { parentId: frameId } : {}), position: { x: Math.round(spot.x), y: Math.round(spot.y) }, selected: false, data: { kind: "memo", memoKind: "note", title: label, body: "", category, scale: spot.scale } };
     const edge = { id: `chn-${choiceId}-${memoId}`, source: memoId, sourceHandle: "l", target: ceqId, targetHandle: memoAnchorId(choiceId), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } };
-    const add = addNodesAndEdgesCmd(rfl, [memoNode] as never, [edge] as never, "create chain memo"); if (add) bus.dispatch(add);
-    const patch = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => (c.id === choiceId ? { ...c, chain: [...(c.chain ?? []), { kind: "memo" as const, memoNodeId: memoId, label }] } : c)) }), "add memo to chain"); if (patch) bus.dispatch(patch);
+    // ONE undo step: the node+edge, the chain entry, and the instance slot together —
+    // it used to be two dispatches, so undo left an orphan memo with a dangling arrow.
+    const add = addNodesAndEdgesCmd(rfl, [memoNode] as never, [edge] as never, "create chain memo");
+    const patch = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => (c.id === choiceId ? { ...c, chain: [...(c.chain ?? []), { kind: "memo" as const, memoNodeId: memoId, label }] } : c)) }), "add memo to chain");
+    const geomCmd = patchDataCmd(rfl, ceqId, { geom: withInstanceSpot((qNodeRef?.data as unknown as CeqCard | undefined)?.geom, chainCount, spot) }, "place memo");
+    const cmd = compositeCmd([add, patch, geomCmd].filter((c): c is NonNullable<typeof c> => !!c), "add memo to choice"); if (cmd) bus.dispatch(cmd);
     setLastMemoCat(category || lastMemoCat);
     touchRecent(memoId);
-    setNote(`Created memo "${clip(label, 24)}" — placed at the next baseline slot.`);
+    setNote(`Created "${clip(label, 24)}" and chained it — placed at slot ${chainCount + 1} in this question.`);
   };
   /** RIGHT-CLICK empty frame space → "Add memo here": UNCHAINED, placed AT the click
    *  point (the one case click position wins over slots) at baseline slot-1's SIZE. */
@@ -1362,7 +1372,10 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
     const label = text.trim() || "Memo";
     const s1 = deck?.layout?.memoSlots?.[0];
     const memoId = cardId("memo");
-    const node = { id: memoId, type: "memo", position: { x: Math.round(pos.x), y: Math.round(pos.y) }, selected: false, data: { kind: "memo", memoKind: "note", title: label, label: clip(label, 40), body: "", category, ...(s1?.scale != null ? { scale: s1.scale } : {}) } };
+    // Frame-local click point ⇒ must be parented to the frame, or it lands at those
+    // coordinates in world space instead of where Lee clicked.
+    const frameId = (qId && qId !== LAYOUT_Q0 ? rf.getNode(qId)?.parentId : null) ?? nav.currentFrameId ?? undefined;
+    const node = { id: memoId, type: "memo", ...(frameId ? { parentId: frameId } : {}), position: { x: Math.round(pos.x), y: Math.round(pos.y) }, selected: false, data: { kind: "memo", memoKind: "note", title: label, label: clip(label, 40), body: "", category, ...(s1?.scale != null ? { scale: s1.scale } : {}) } };
     const add = addNodesCmd(rfl, [node] as never, "add memo here"); if (add) bus.dispatch(add);
     setJustCreated((p) => new Set(p).add(memoId));
     touchRecent(memoId);
