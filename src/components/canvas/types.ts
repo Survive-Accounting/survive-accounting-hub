@@ -1143,6 +1143,15 @@ export interface DeckDef {
    *  stacked to the right). Only "Set as layout" writes it; per-instance drags never
    *  do. Additive. */
   layout?: DeckLayout;
+  /** LAYOUT MODE (Lee) — does the TEMPLATE govern new deals for this set?
+   *  ON (default, and how every pre-existing set behaves): a deal stamps each
+   *  question's instance from the template, and a new memo snaps to the next active
+   *  slot. OFF: fully freeform — deals land at whatever each question was last
+   *  authored to, and nothing conforms.
+   *  In BOTH modes a manual move/resize writes that question's instance and sticks;
+   *  Layout mode decides what a DEAL starts from, never whether an edit survives.
+   *  Additive; rides in SceneDoc.decks (no DB migration). */
+  layoutMode?: boolean;
   /** FILM MODE (Lee) — a per-set visual world background (worlds.ts WorldId) drawn
    *  behind the CEQ card in the previewer + film popout, so a filmed set has a
    *  consistent sense of place. Mirrors FrameBox's world* fields. Absent ⇒ plain

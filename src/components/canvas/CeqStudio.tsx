@@ -685,6 +685,42 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     if (c) bus.dispatch(c);
   };
 
+  /** APPLY THE LAYOUT TO EVERY QUESTION — re-stamp each question's instance from the
+   *  template. Confirm-guarded (it overwrites hand-placed geometry) and ONE composite,
+   *  so a single Ctrl+Z puts every question back exactly where it was. Questions the
+   *  stamp wouldn't change are skipped, so the undo entry only covers real edits. */
+  const applyLayoutToAll = (opts?: { silent?: boolean }) => {
+    if (!deck) return 0;
+    const cmds: NonNullable<ReturnType<typeof patchDataCmd>>[] = [];
+    for (const q of questions) {
+      const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; if (!d) continue;
+      const chainCount = (d.choices ?? []).reduce((n, c) => n + (c.chain?.length ?? 0), 0);
+      const g = stampFromTemplate(deck.layout, chainCount, frameW, frameH);
+      if (JSON.stringify(d.geom ?? null) === JSON.stringify(g)) continue;
+      const c = patchDataCmd(rfl, q.id, { geom: g }, "apply layout"); if (c) cmds.push(c);
+    }
+    if (cmds.length === 0) { if (!opts?.silent) setNote("Every question already matches the layout."); return 0; }
+    const cmd = compositeCmd(cmds, `apply layout to ${cmds.length} question${cmds.length === 1 ? "" : "s"}`);
+    if (cmd) bus.dispatch(cmd);
+    setNote(`Re-stamped ${cmds.length} question${cmds.length === 1 ? "" : "s"} from the layout — one Ctrl+Z puts them all back.`);
+    return cmds.length;
+  };
+  /** LAYOUT MODE toggle. Turning it ON asks ONCE whether to re-stamp what's already
+   *  authored — never silent, because that would overwrite hand-placed geometry. */
+  const setLayoutMode = (on: boolean) => {
+    if (!deck) return;
+    setDecks((prev) => updateDeck(prev, deck.id, { layoutMode: on }));
+    if (!on) { setNote("Layout mode OFF — deals land where each question was last authored; nothing conforms."); return; }
+    const n = questions.length;
+    if (n > 0 && window.confirm(`Layout mode ON.
+
+Re-stamp all ${n} question${n === 1 ? "" : "s"} from the layout now?
+
+OK = apply to all (one Ctrl+Z undoes it).
+Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: true });
+    else setNote("Layout mode ON — the layout governs future deals; existing questions left as they are.");
+  };
+
   /** The set's assigned spine rows (courseId/topicId → the real course + chapter). */
   const spineRows = (d: DeckDef | null): { course: CourseOption; topic: CourseOption["chapters"][number] } | null => {
     if (!d?.topicId) return null;
@@ -933,12 +969,17 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     // same resolver the previewer draws with — so what you previewed is what deals.
     // (It previously read raw memoSlots[i] while the previewer walked ACTIVE slots, so
     // a set with a switched-off slot dealt differently from its preview.)
-    const cardSpotOf = (m: (typeof members)[number]) => resolveCardSpot((m.data as unknown as CeqCard).geom, deck.layout, fw, fh);
+    // LAYOUT MODE decides what a DEAL starts from. ON: the template governs, so each
+    // question is stamped from it (a fresh, consistent deal). OFF: freeform — each
+    // question deals exactly where it was last authored. Either way a manual move
+    // afterwards writes that question's instance and sticks.
+    const layoutGoverns = deck.layoutMode !== false;
+    const cardSpotOf = (m: (typeof members)[number]) => resolveCardSpot(layoutGoverns ? undefined : (m.data as unknown as CeqCard).geom, deck.layout, fw, fh);
     const dealSpot = { x: Math.round(cardSpotOf(members[0] ?? ({ data: {} } as never)).x), y: Math.round(cardSpotOf(members[0] ?? ({ data: {} } as never)).y) };
     const cardPlace = new Map<string, Spot>();
     const memoPlace = new Map<string, Spot>();
     for (const m of members) {
-      const qGeom = (m.data as unknown as CeqCard).geom;
+      const qGeom = layoutGoverns ? undefined : (m.data as unknown as CeqCard).geom;
       cardPlace.set(m.id, cardSpotOf(m));
       let i = 0;
       for (const ch of ((m.data as unknown as CeqCard).choices ?? [])) for (const it of (ch.chain ?? [])) { if (it.memoNodeId) memoPlace.set(it.memoNodeId, resolveMemoSpot(qGeom, deck.layout, i, fw, fh)); i++; }
@@ -953,6 +994,9 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       undo: () => { /* transient staging move — re-deal to redo; not separately undone */ },
     });
     const c = patchDataCmd(rfl, frameId, { stackDeal: true, dealSpot }, "stack deal"); if (c) bus.dispatch(c);
+    // Stamp what we just dealt onto each question's instance, so a later Space flip
+    // (and any nudge) is per-question from here on.
+    if (layoutGoverns) applyLayoutToAll({ silent: true });
     setNote(`Dealt ${members.length} question${members.length === 1 ? "" : "s"} + ${memoPlace.size} memo${memoPlace.size === 1 ? "" : "s"} at the set baseline. Film-ready (Enter reveals the memos).`);
   };
 
@@ -1928,7 +1972,9 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                   {stitchMode ? (
                     <CeqStitch free={stitchFree.items} full={stitchFull.items} freeMissing={stitchFree.missing} fullMissing={stitchFull.missing} initialMode={stitchMode} onExit={() => setStitchMode(null)} onJumpCeq={(id) => setQId(id)} />
                   ) : (
-                    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSaveInstance={(g) => { if (qId && qId !== LAYOUT_Q0) saveInstanceGeom(qId, g); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
+                    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSaveInstance={(g) => { if (qId && qId !== LAYOUT_Q0) saveInstanceGeom(qId, g); }} layoutOn={deck?.layoutMode !== false} onSetLayoutMode={setLayoutMode} onApplyLayoutToAll={() => { const n = questions.length; if (n > 0 && window.confirm(`Re-stamp all ${n} question${n === 1 ? "" : "s"} from the layout?
+
+This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undoes all of it.`)) applyLayoutToAll(); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
                   )}
                 </div>
                 {qd && (
