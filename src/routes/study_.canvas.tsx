@@ -2344,8 +2344,14 @@ function PresentCanvas() {
     // FLIP-SPOT: the frame's dealSpot (the CEQ set's BASELINE card position, written by
     // dealIntoFrame) so every question lands identically; else the frame centre (legacy).
     // This also fixes the old first-card-at-dealSpot / rest-at-centre divergence.
+    // INSTANCE FIRST: a question that has its own geometry (it was moved, or stamped
+    // from the layout) flips to ITS OWN spot. Without this the flip re-stamped the
+    // frame's shared dealSpot over a card Lee had deliberately placed — the canvas
+    // half of the snap-back. Only this expression changed; the command below is the
+    // Space-walk core and is untouched.
     const dealSpot = (frame.data as { dealSpot?: { x: number; y: number } }).dealSpot;
-    const pos = dealSpot ?? { x: Math.round(fw / 2 - cw / 2), y: Math.round(fh / 2 - ch / 2) };
+    const own = (showNode.data as unknown as { geom?: { card?: { x: number; y: number } } }).geom?.card;
+    const pos = own ?? dealSpot ?? { x: Math.round(fw / 2 - cw / 2), y: Math.round(fh / 2 - ch / 2) };
     const sd = showNode.data as { deckMember?: boolean; tucked?: boolean; staged?: boolean; minimized?: boolean };
     const beforeShow = { pos: { ...showNode.position }, deckMember: sd.deckMember, tucked: sd.tucked, staged: sd.staged, minimized: sd.minimized };
     const hideNode = hideId ? rf.getNode(hideId) : null;

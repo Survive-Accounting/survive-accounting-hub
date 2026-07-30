@@ -22,6 +22,7 @@ import { CeqChainEditor } from "./CeqChainEditor";
 import { listChainTemplates } from "./ceq-chain-templates";
 import { MemoPickerModal } from "./MemoPickerModal";
 import { activeSlots, CeqPreviewer, dealCentre, defaultMemoPos, paletteSlots, rackOf } from "./CeqPreviewer";
+import { resolveCardSpot, resolveMemoSpot, stampFromTemplate, type Spot } from "./ceq-geom";
 import { seedCeqSets } from "./ceq-seed";
 import { buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, stageTake, stitchManifest, stitchRuntime, videoFromDrop, videosFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
 import { CeqStitch } from "./CeqStitch";
@@ -928,15 +929,25 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     // positions — every question deals identically. dealSpot is the stack flip-spot
     // (stackStep reads it now); memos key off the FLAT chain index PER question so
     // slot 1 of every question sits in the same baseline spot. Default = centre / right-stack.
-    const cardBase = deck.layout?.card;
-    const dealSpot = cardBase ? { x: Math.round(cardBase.x), y: Math.round(cardBase.y) } : dealCentre(fw, fh);
-    const memoPlace = new Map<string, { x: number; y: number; scale?: number }>();
-    for (const m of members) { let i = 0; for (const ch of ((m.data as unknown as CeqCard).choices ?? [])) for (const it of (ch.chain ?? [])) { if (it.memoNodeId) memoPlace.set(it.memoNodeId, deck.layout?.memoSlots?.[i] ?? defaultMemoPos(fw, fh, i)); i++; } }
+    // Each question deals at ITS OWN resolved spot (instance ?? template), through the
+    // same resolver the previewer draws with — so what you previewed is what deals.
+    // (It previously read raw memoSlots[i] while the previewer walked ACTIVE slots, so
+    // a set with a switched-off slot dealt differently from its preview.)
+    const cardSpotOf = (m: (typeof members)[number]) => resolveCardSpot((m.data as unknown as CeqCard).geom, deck.layout, fw, fh);
+    const dealSpot = { x: Math.round(cardSpotOf(members[0] ?? ({ data: {} } as never)).x), y: Math.round(cardSpotOf(members[0] ?? ({ data: {} } as never)).y) };
+    const cardPlace = new Map<string, Spot>();
+    const memoPlace = new Map<string, Spot>();
+    for (const m of members) {
+      const qGeom = (m.data as unknown as CeqCard).geom;
+      cardPlace.set(m.id, cardSpotOf(m));
+      let i = 0;
+      for (const ch of ((m.data as unknown as CeqCard).choices ?? [])) for (const it of (ch.chain ?? [])) { if (it.memoNodeId) memoPlace.set(it.memoNodeId, resolveMemoSpot(qGeom, deck.layout, i, fw, fh)); i++; }
+    }
     bus.dispatch({
       label: `deal ${deck.name} into frame`,
       do: () => rf.setNodes((nds) => nds.map((n) => {
-        if (memberIds.has(n.id)) { const mi = members.findIndex((m) => m.id === n.id); return { ...n, parentId: frameId, position: { x: dealSpot.x, y: dealSpot.y }, data: { ...n.data, tucked: mi > 0, deckMember: true, staged: undefined, minimized: undefined, ...(cardBase?.scale != null ? { scale: cardBase.scale } : {}) } } as typeof n; }
-        if (memoPlace.has(n.id)) { const p = memoPlace.get(n.id)!; return { ...n, parentId: frameId, position: { x: p.x, y: p.y }, data: { ...n.data, ...(p.scale != null ? { scale: p.scale } : {}) } } as typeof n; }
+        if (memberIds.has(n.id)) { const mi = members.findIndex((m) => m.id === n.id); const cp = cardPlace.get(n.id) ?? { x: dealSpot.x, y: dealSpot.y, scale: 1 }; return { ...n, parentId: frameId, position: { x: Math.round(cp.x), y: Math.round(cp.y) }, data: { ...n.data, tucked: mi > 0, deckMember: true, staged: undefined, minimized: undefined, scale: cp.scale } } as typeof n; }
+        if (memoPlace.has(n.id)) { const p = memoPlace.get(n.id)!; return { ...n, parentId: frameId, position: { x: Math.round(p.x), y: Math.round(p.y) }, data: { ...n.data, scale: p.scale } } as typeof n; }
         return n;
       })),
       undo: () => { /* transient staging move — re-deal to redo; not separately undone */ },
