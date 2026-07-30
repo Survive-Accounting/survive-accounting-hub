@@ -27,7 +27,7 @@
 // A start/stop timer times the run. Practice + spotlight state are LOCAL — they never
 // dirty the real CEQ, and reset when you switch questions.
 import { Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Background, BackgroundVariant, BaseEdge, ConnectionMode, getSmoothStepPath, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodes, useNodesState, useUpdateNodeInternals, type Connection, type Edge, type EdgeProps, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
+import { Background, BackgroundVariant, BaseEdge, ConnectionMode, getSmoothStepPath, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodesState, type Connection, type Edge, type EdgeProps, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
 import { Clapperboard, ChevronLeft, ChevronRight, LayoutGrid, Maximize2, Pause, Play, Plus, RotateCcw, Rows3, Spline, Timer } from "lucide-react";
 
 import { BrandWatermark } from "./BrandBar";
@@ -219,9 +219,9 @@ function CeqPreviewNode({ id, data }: NodeProps) {
   const d = data as unknown as { stem: string; choices: { id: string; text: string; correct?: boolean; chain?: unknown[] }[]; scale?: number; layoutBadge?: boolean };
   const s = d.scale ?? 1;
   return (
-    <div className="sa-pv-node sa-ceq-in" style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", animation: "sa-ceq-in 380ms cubic-bezier(0.2,0.7,0.3,1) both" }}>
+    <div className="sa-pv-node sa-ceq-in" style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", animation: "sa-ceq-in 380ms cubic-bezier(0.2,0.7,0.3,1) both" }}>
       {/* QUESTION 0 ribbon — unmistakably the LAYOUT stage, never content. */}
-      {d.layoutBadge && <span style={{ position: "absolute", top: -12, left: 12, borderRadius: 6, padding: "1px 8px", fontSize: 10, fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase", color: "#0B0F1E", background: NEON.yellow, zIndex: 21 }}>Layout</span>}
+      {d.layoutBadge && !film && <span style={{ position: "absolute", top: -12, left: 12, borderRadius: 6, padding: "1px 8px", fontSize: 10, fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase", color: "#0B0F1E", background: NEON.yellow, zIndex: 21 }}>Layout</span>}
       {/* CLIP — a spotlit choice's scale + glow stays INSIDE the CEQ box (never spills
           into the frame on a take). The ScaleGrip lives OUTSIDE this clip. */}
       <div style={{ overflow: "hidden", borderRadius: 13 * s, padding: 16 * s }}>
@@ -267,7 +267,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
         })}
       </div>
       </div>
-      <ScaleGrip id={id} scale={s} color={NEON.yellow} film={film} />
+      {!film && <ScaleGrip id={id} scale={s} color={NEON.yellow} film={film} />}
     </div>
   );
 }
@@ -321,7 +321,7 @@ function MemoPreviewNode({ id, data }: NodeProps) {
       <div style={{ fontSize: 14 * s, color: NEON.text, lineHeight: 1.25 }}>{d.label}</div>
       <Handle id="l" type="source" position={Position.Left} style={HANDLE} />
       <Handle id="r" type="target" position={Position.Right} style={HANDLE} />
-      <ScaleGrip id={id} scale={s} color={NEON.cyan} film={film} />
+      {!film && <ScaleGrip id={id} scale={s} color={NEON.cyan} film={film} />}
     </div>
   );
 }
@@ -372,25 +372,6 @@ const edgeTypes = { chainBundle: ChainBundleEdge };
 const nodeTypes = { frameBg: FrameBgNode, ceqPreview: CeqPreviewNode, memoPreview: MemoPreviewNode, ovCeq: OverviewCeqNode };
 const EMPTY_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "focus" };
 
-/** FILM ARROW FIX — TextAnchor registers each choice's `anc:<id>` target handle via
- *  useUpdateNodeInternals, which is SCOPED to its ReactFlowProvider. The film popout is
- *  a SECOND provider that mounts later, so its handle registration races and the memo
- *  arrow falls back to the node origin (top-left). Rendered INSIDE the film provider,
- *  this nudges RF to re-scan every node's handles on open + question change (a few
- *  settle passes), so the anc handles register and the arrow lands at the choice. */
-function FilmInternalsNudge({ sig }: { sig: string }) {
-  const upd = useUpdateNodeInternals();
-  const filmNodes = useNodes();
-  const idsRef = useRef<string[]>([]);
-  idsRef.current = filmNodes.map((n) => n.id);
-  useEffect(() => {
-    const fire = () => idsRef.current.forEach((id) => upd(id));
-    fire();
-    const timers = [60, 180, 400, 800].map((ms) => window.setTimeout(fire, ms));
-    return () => timers.forEach((t) => window.clearTimeout(t));
-  }, [sig, upd]);
-  return null;
-}
 
 function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, world, worldIntensity, worldMotion, deckCeqIds, layoutMode, onSaveBaseline, onSaveInstance, layoutOn, onSetLayoutMode, onApplyLayoutToAll, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onAddMemoAtChoice, onAddMemoAt, onRenameMemo, onDuplicateMemo, onSetMemoCategory, onDeleteMemo, onNextQuestion, onPrevQuestion }: { ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number; chainEdges: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; layoutMode?: boolean; onSaveBaseline?: (l: DeckLayout) => void; onSaveInstance?: (g: CeqInstanceGeom) => void; layoutOn?: boolean; onSetLayoutMode?: (on: boolean) => void; onApplyLayoutToAll?: () => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onAddMemoAtChoice?: (choiceId: string, text: string, category: string) => void; onAddMemoAt?: (pos: { x: number; y: number }, text: string, category: string) => void; onRenameMemo?: (memoNodeId: string, label: string) => void; onDuplicateMemo?: (memoNodeId: string) => void; onSetMemoCategory?: (memoNodeIds: string[], category: string) => void; onDeleteMemo?: (memoNodeIds: string[]) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void }) {
   const ceq = mainRf.getNode(ceqId);
@@ -613,7 +594,18 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // NOT on `nodes` changes, else dragging a card in film would snap the view back.
   const [filmWin, setFilmWin] = useState<Window | null>(null);
   const filmFitRef = useRef<ReactFlowInstance | null>(null);
-  const fitFilm = useCallback(() => filmFitRef.current?.fitView({ nodes: [{ id: "__frame__" }], padding: 0.012, duration: 0 }), []);
+  /** FILL the popout (cover), not fitView (contain). fitView preserves aspect, so a
+   *  16:9 frame in a window of any other shape letterboxed — black bars Lee then had
+   *  to crop in OBS. This scales to the LARGER ratio and centres, so the frame runs
+   *  edge to edge; on a 16:9 window cover and contain are identical. */
+  const fitFilm = useCallback(() => {
+    const inst = filmFitRef.current; const win = filmWin;
+    if (!inst || !win) return;
+    const w = win.innerWidth, h = win.innerHeight;
+    if (!w || !h) return;
+    const zoom = Math.max(w / frameW, h / frameH);
+    inst.setViewport({ x: (w - frameW * zoom) / 2, y: (h - frameH * zoom) / 2 - activeYOff * zoom, zoom }, { duration: 0 });
+  }, [filmWin, frameW, frameH, activeYOff]);
   useEffect(() => {
     if (!filmWin) return;
     // Double-fire (40ms + 240ms) so a maximize/resize that ANIMATES its layout still
@@ -845,6 +837,11 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // whole board mid-take. A bundled trunk survives because its carrier is always a
   // memo whose arrow is on.
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  /** FILM NODES — the take is ONE frame. In Overview the node list also carries the
+   *  other questions' stand-ins (ovf:/ov:), which sat just outside the fit and became
+   *  visible the moment the window wasn't exactly 16:9 — complete with their yellow
+   *  number badges. The camera gets the active frame only. */
+  const filmNodes = useMemo(() => nodes.filter((n) => !n.id.startsWith("ov:") && !n.id.startsWith("ovf:")), [nodes]);
   const filmEdges = useMemo(() => buildEdges(walkRevealedIds).filter((e) => !hideArrowSources.has(e.source)), [liveChain, walkRevealedIds, ceqId, spots, selEdgeIds, hideArrowSources, bundles]);
   const onConnect = (c: Connection) => {
     if (!c.source || !c.target || c.source === c.target) return;
@@ -883,7 +880,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       // ` = full reset (choices + memos). SHIFT+` = MEMO SWEEP: clear the memos off
       // the board but KEEP every choice's resolution, so a wrong answer stays struck
       // and the correct one stays green. Nothing re-resolves, so no sound re-fires.
-      if (e.key === "`" || e.code === "Backquote" || (e.shiftKey && e.key === "~")) { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) sweepMemos(); else resetPractice(); return; }
+      if (e.key === "`" || e.code === "Backquote" || (e.shiftKey && e.key === "~")) { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) sweepMemos(); else { resetPractice(); setSpots(EMPTY_SPOTS); } return; }
     };
     const onOwnerKey = (e: KeyboardEvent) => handle(e, ownerWin, false);
     ownerWin.addEventListener("keydown", onOwnerKey, true);
@@ -1083,7 +1080,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                   <div className="film-mode" style={{ position: "relative", width: "100%", height: "100%" }}>
                     <ReactFlowProvider>
                       <ReactFlow
-                        nodes={nodes}
+                        nodes={filmNodes}
                         edges={filmEdges}
                         onNodesChange={onNodesChange}
                         onNodeDragStop={commitGeom}
@@ -1107,7 +1104,6 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                         preventScrolling={false}
                         style={{ width: "100%", height: "100%", background: "#05070d" }}
                       />
-                      <FilmInternalsNudge sig={`${ceqId}|${nodes.length}`} />
                     </ReactFlowProvider>
                     <BrandWatermark />
                   </div>

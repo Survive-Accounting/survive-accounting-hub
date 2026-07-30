@@ -249,8 +249,13 @@ export const FILM_MODE_CSS = `
      formula derived/override badge + component picker. */
   .film-mode .card-actions { display: none !important; }
   .film-mode .sa-chrome { display: none !important; }
-  .film-mode .conn-dot,
-  .film-mode .react-flow__handle { display: none !important; }
+  .film-mode .conn-dot { display: none !important; }
+  /* HANDLES: visibility, NOT display. React Flow measures handle positions with
+     getBoundingClientRect, and a display:none element reports an all-zero rect — so
+     every handle collapsed onto the viewport's top-left corner and every memo→choice
+     arrow anchored there. visibility:hidden keeps a real layout rect (and still takes
+     no pointer events), so the anchor math stays correct while nothing shows. */
+  .film-mode .react-flow__handle { visibility: hidden !important; }
   /* NO TEXT-BOX OUTLINE ON CAMERA (Lee): in film the resize LINE (the rectangle
      outline around a header/element) is NEVER shown; the corner HANDLES + move grip
      reveal only when you HOVER the node, so you can still grab/resize mid-take. Uses
