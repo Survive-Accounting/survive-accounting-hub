@@ -27,7 +27,7 @@
 // A start/stop timer times the run. Practice + spotlight state are LOCAL — they never
 // dirty the real CEQ, and reset when you switch questions.
 import { Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Background, BackgroundVariant, ConnectionMode, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodes, useNodesState, useUpdateNodeInternals, type Connection, type Edge, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
+import { Background, BackgroundVariant, BaseEdge, ConnectionMode, getSmoothStepPath, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodes, useNodesState, useUpdateNodeInternals, type Connection, type Edge, type EdgeProps, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
 import { Clapperboard, ChevronLeft, ChevronRight, LayoutGrid, Maximize2, Pause, Play, Plus, RotateCcw, Rows3, Spline, Timer } from "lucide-react";
 
 import { BrandWatermark } from "./BrandBar";
@@ -37,7 +37,7 @@ import { openPopoutWindow, PanelPopout } from "./PanelPopout";
 import { WorldBackground } from "./WorldBackground";
 import { WORLDS } from "./worlds";
 import { renderInline } from "./inline-md";
-import { TextAnchor } from "./MemoLightbulb";
+import { memoAnchorId, TextAnchor } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { playSfx } from "./sfx";
 import { spotStyle } from "./SpotlightContext";
@@ -304,6 +304,21 @@ function OverviewCeqNode({ data }: NodeProps) {
   );
 }
 
+/** BUNDLED chain arrow — when several memos point at the SAME choice they share one
+ *  trunk that lands on the choice, with a branch back to each memo. Each memo keeps
+ *  its OWN edge (so ids, spotlight, selection and the reveal styling are unchanged);
+ *  the edge simply routes via the group's junction, and only the carrier draws the
+ *  trunk + arrowhead. Groups of one never use this type at all. */
+function ChainBundleEdge({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, style, markerEnd, data }: EdgeProps) {
+  const d = data as unknown as { jx: number; jy: number; trunk?: boolean };
+  const [branch] = getSmoothStepPath({ sourceX, sourceY, sourcePosition, targetX: d.jx, targetY: d.jy, targetPosition: Position.Right, borderRadius: 8 });
+  const [trunk] = d.trunk ? getSmoothStepPath({ sourceX: d.jx, sourceY: d.jy, sourcePosition: Position.Left, targetX, targetY, targetPosition, borderRadius: 8 }) : [null];
+  return (<>
+    <BaseEdge path={branch} style={style} interactionWidth={16} />
+    {trunk && <BaseEdge path={trunk} style={style} markerEnd={markerEnd} interactionWidth={16} />}
+  </>);
+}
+const edgeTypes = { chainBundle: ChainBundleEdge };
 const nodeTypes = { frameBg: FrameBgNode, ceqPreview: CeqPreviewNode, memoPreview: MemoPreviewNode, ovCeq: OverviewCeqNode };
 const EMPTY_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "focus" };
 
@@ -417,7 +432,12 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // state (solid memo + lit arrow, aligned at the choice), for checking alignment +
   // spotlighting them without walking. Off ⇒ the normal Enter-walk reveal.
   const [showAll, setShowAll] = useState(false);
-  const revealedMemoIds = useMemo(() => { if (showAll || layoutMode) return new Set<string>(walk.map((w) => w.memoNodeId)); const set = new Set<string>(); for (const w of walk) if (resolved.has(w.choiceIdx) && w.chainPos < (shown.get(w.choiceIdx) ?? 0)) set.add(w.memoNodeId); return set; }, [walk, resolved, shown, showAll, layoutMode]);
+  // TRUE walk state — what the CAMERA sees: only memos the Enter-walk has revealed.
+  const walkRevealedIds = useMemo(() => { const set = new Set<string>(); for (const w of walk) if (resolved.has(w.choiceIdx) && w.chainPos < (shown.get(w.choiceIdx) ?? 0)) set.add(w.memoNodeId); return set; }, [walk, resolved, shown]);
+  // AUTHORING view — the Arrows toggle (and Q0) light everything so Lee can check
+  // alignment without walking. Deliberately NOT given to the film subtree: an
+  // authoring aid must never change what a take records.
+  const revealedMemoIds = useMemo(() => (showAll || layoutMode ? new Set<string>(walk.map((w) => w.memoNodeId)) : walkRevealedIds), [walk, showAll, layoutMode, walkRevealedIds]);
   const revealedCount = revealedMemoIds.size;
 
   // Rehearsal-spotlight click: Ctrl+Shift = super (Alt ⇒ siren); Ctrl = toggle a gold
@@ -635,8 +655,36 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // Memos whose arrow Lee has toggled OFF — the previewer shows them faint (so the
   // toggle is discoverable), the film mirror drops them entirely (see filmEdges).
   const hideArrowSources = useMemo(() => new Set(walk.filter((w) => w.hideArrow).map((w) => w.memoNodeId)), [walk]);
-  const edges: Edge[] = useMemo(() => (chainEdges ?? [])
-    .filter((e) => miniIds.has(e.source) && miniIds.has(e.target))
+  // Live choice anchors — an edge pointing at a handle that no longer exists (choice
+  // deleted, memo unchained) draws nothing anyway; dropping it here keeps the
+  // bundler from grouping around a dead anchor. Unchained memos never reach `walk`,
+  // so they're already out via miniIds: a memo with no choice simply has no arrow.
+  const choiceHandles = useMemo(() => new Set((cd?.choices ?? []).map((c) => memoAnchorId(c.id))), [cd]);
+  const liveChain = useMemo(() => (chainEdges ?? []).filter((e) => miniIds.has(e.source) && miniIds.has(e.target) && (e.target !== ceqId || !e.targetHandle || choiceHandles.has(e.targetHandle))), [chainEdges, miniIds, ceqId, choiceHandles]);
+  // BUNDLE PER CHOICE — 2+ arrows into the SAME choice become one trunk landing on
+  // that choice with a branch back to each memo, instead of N lines crowding it.
+  // Only edges that are actually DRAWN count toward a group (an un-revealed memo's
+  // branch is faint but present, so the trunk grows as the walk reveals them).
+  const bundles = useMemo(() => {
+    const groups = new Map<string, string[]>();
+    for (const e of liveChain) if (e.target === ceqId && e.targetHandle) { const l = groups.get(e.targetHandle) ?? []; l.push(e.source); groups.set(e.targetHandle, l); }
+    const out = new Map<string, { jx: number; jy: number; carrier: string }>();
+    for (const [handle, sources] of groups) {
+      if (sources.length < 2) continue;
+      const pts = sources.map((sid) => nodes.find((n) => n.id === sid)).filter((n): n is NonNullable<typeof n> => !!n)
+        .map((n) => ({ x: n.position.x, y: n.position.y + (n.measured?.height ?? 60) / 2 }));
+      if (pts.length < 2) continue;
+      // Junction sits just left of the memo column, vertically centred on the group.
+      const jx = Math.min(...pts.map((p) => p.x)) - 40;
+      const jy = (Math.min(...pts.map((p) => p.y)) + Math.max(...pts.map((p) => p.y))) / 2;
+      // The trunk (the leg with the arrowhead) rides a memo whose arrow is ON, so a
+      // hidden memo can't take the shared trunk down with it.
+      const carrier = sources.find((s) => !hideArrowSources.has(s));
+      if (carrier) out.set(handle, { jx, jy, carrier });
+    }
+    return out;
+  }, [liveChain, ceqId, nodes, hideArrowSources]);
+  const edges: Edge[] = useMemo(() => liveChain
     .map((e) => {
       const revealed = revealedMemoIds.has(e.source) && (e.target === ceqId || revealedMemoIds.has(e.target));
       const sk = spotKey(e.id, "self");
@@ -649,12 +697,29 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       const lit = revealed || spotE || selectedE;
       // Spotlit/flamed → RF's flowing-dash `animated` + a glow (Lee's "show animation
       // of it"). markerEnd sized up so the ← arrowhead reads at the choice.
-      return { id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle ?? "l", targetHandle: e.targetHandle ?? undefined, type: "smoothstep", animated: spotE && !hidden, style: { stroke, strokeWidth: width, opacity: hidden ? 0.14 : lit ? 1 : 0.4, strokeDasharray: hidden ? "3 5" : spotE ? undefined : lit ? undefined : "5 4", filter: hidden ? undefined : flamedE ? "drop-shadow(0 0 6px rgba(252,163,17,0.95))" : spotE ? "drop-shadow(0 0 4px rgba(255,211,106,0.8))" : undefined }, markerEnd: { type: MarkerType.ArrowClosed, color: stroke, width: 18, height: 18 } } as Edge;
+      const bundle = e.target === ceqId && e.targetHandle ? bundles.get(e.targetHandle) : undefined;
+      const marker = { type: MarkerType.ArrowClosed, color: stroke, width: 18, height: 18 };
+      return {
+        id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle ?? "l", targetHandle: e.targetHandle ?? undefined,
+        type: bundle ? "chainBundle" : "smoothstep",
+        // Only the trunk carrier draws the junction→choice leg + its arrowhead; the
+        // other members stop at the junction, so one arrowhead lands on the choice.
+        ...(bundle ? { data: { jx: bundle.jx, jy: bundle.jy, trunk: bundle.carrier === e.source } } : {}),
+        animated: spotE && !hidden,
+        // ABOVE the card (zIndex 1) and the memos (5) — the anchor sits just past the
+        // choice TEXT, i.e. inside the card body, so a default-z edge buried its own
+        // arrowhead. EDGE_Z is the same constant the real scene arrows use.
+        zIndex: EDGE_Z,
+        style: { stroke, strokeWidth: width, opacity: hidden ? 0.14 : lit ? 1 : 0.4, strokeDasharray: hidden ? "3 5" : spotE ? undefined : lit ? undefined : "5 4", filter: hidden ? undefined : flamedE ? "drop-shadow(0 0 6px rgba(252,163,17,0.95))" : spotE ? "drop-shadow(0 0 4px rgba(255,211,106,0.8))" : undefined },
+        markerEnd: bundle && bundle.carrier !== e.source ? undefined : marker,
+      } as Edge;
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [chainEdges, miniIds, revealedMemoIds, ceqId, spots, selEdgeIds, hideArrowSources]);
-  // FILM edges — the mirror drops arrows toggled OFF entirely (clean take).
-  const filmEdges = useMemo(() => edges.filter((e) => !hideArrowSources.has(e.source)), [edges, hideArrowSources]);
+    [liveChain, revealedMemoIds, ceqId, spots, selEdgeIds, hideArrowSources, bundles]);
+  // FILM edges — NONE. Arrows are authoring chrome: a take shows the reveal
+  // choreography, not the lines Lee uses to aim it. (The per-memo hideArrow toggle
+  // still controls the previewer's own faint/solid rendering.)
+  const filmEdges = useMemo<Edge[]>(() => [], []);
   const onConnect = (c: Connection) => {
     if (!c.source || !c.target || c.source === c.target) return;
     const id = `chn-arrow-${c.source}-${c.target}`;
@@ -751,7 +816,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                   onNodeDoubleClick={(_e, n) => { if (overviewOn && !n.id.startsWith("ov:")) fitActive(420); }}
                   onPaneContextMenu={(e) => { if (!hasItemsClip && !onAddMemoAt) return; e.preventDefault(); const me = e as React.MouseEvent; const fp = fitRef.current?.screenToFlowPosition({ x: me.clientX, y: me.clientY }); setAddCat(null); setCtxMenu({ x: me.clientX, y: me.clientY, nodeId: "", kind: "pane", pos: fp ? { x: Math.round(fp.x), y: Math.round(fp.y - activeYOff) } : undefined }); }}
                   onInit={(inst) => { fitRef.current = inst; }}
-                  nodeTypes={nodeTypes}
+                  nodeTypes={nodeTypes} edgeTypes={edgeTypes}
                   fitView
                   fitViewOptions={{ padding: 0.14 }}
                   minZoom={0.04}
@@ -795,7 +860,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                   </select>
                 )}
                 <span className="flex items-center gap-1 tabular-nums text-[12px] font-bold" style={{ color: NEON.text }}><Timer className="h-3.5 w-3.5" style={{ color: NEON.cyan }} />{mmss(elapsed)}</span>
-                {walk.length > 0 && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: showAll ? "#0B0F1E" : "#E0284A", background: showAll ? "#E0284A" : "transparent", border: `1px solid ${showAll ? "#E0284A" : "rgba(224,40,74,0.5)"}` }} onClick={() => setShowAll((v) => !v)} title="Show arrows — reveal every memo so the arrows render exactly as they will in film (aligned + lit). Ctrl/Shift-click an arrow to check its spotlight. Toggle off to Enter-walk normally."><Spline className="h-3.5 w-3.5" /> Arrows</button>}
+                {walk.length > 0 && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: showAll ? "#0B0F1E" : "#E0284A", background: showAll ? "#E0284A" : "transparent", border: `1px solid ${showAll ? "#E0284A" : "rgba(224,40,74,0.5)"}` }} onClick={() => setShowAll((v) => !v)} title="Show arrows — AUTHORING ONLY: reveal every memo so you can check the arrows land on the right choices (Ctrl/Shift-click one to test its spotlight). Arrows never appear in film, and this toggle does not change what the film window shows. Toggle off to Enter-walk normally."><Spline className="h-3.5 w-3.5" /> Arrows</button>}
                 <span className="text-[9px] uppercase tracking-wide" style={{ color: NEON.muted }}>{showAll ? `${walk.length} shown` : `${revealedCount}/${walk.length} shown`}</span>
                 <div className="ml-auto flex items-center gap-1">
                   <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => onPrevQuestion?.()} title="Previous question (Shift+Space)"><ChevronLeft className="h-3.5 w-3.5" /></button>
@@ -875,6 +940,9 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                 `film-mode` class lets the world gradient breathe (WorldBackground). */}
             {filmWin && (
               <PanelPopout win={filmWin} title="Film — CEQ" onReturn={() => setFilmWin(null)} chromeless>
+                {/* The camera sees the TRUE walk state — the Arrows toggle lights every
+                    memo for authoring, and that must not reach a take. */}
+                <RevealContext.Provider value={walkRevealedIds}>
                 <FilmContext.Provider value={true}>
                   <style>{FLAME_CSS}{PV_CSS}</style>
                   <div className="film-mode" style={{ position: "relative", width: "100%", height: "100%" }}>
@@ -886,7 +954,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                         onNodeDragStop={commitGeom}
                         onConnect={onConnect}
                         onEdgeClick={onEdgeClick}
-                        nodeTypes={nodeTypes}
+                        nodeTypes={nodeTypes} edgeTypes={edgeTypes}
                         onInit={(inst) => { filmFitRef.current = inst; window.setTimeout(fitFilm, 60); }}
                         minZoom={0.02}
                         maxZoom={4}
@@ -909,6 +977,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                     <BrandWatermark />
                   </div>
                 </FilmContext.Provider>
+                </RevealContext.Provider>
               </PanelPopout>
             )}
            </ChoiceMenuContext.Provider>
