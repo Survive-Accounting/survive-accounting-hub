@@ -18,6 +18,7 @@ import { addNodesAndEdgesCmd, addNodesCmd, bus, compositeCmd, patchDataCmd, patc
 import { memoAnchorId } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { CeqChainEditor } from "./CeqChainEditor";
+import { listChainTemplates } from "./ceq-chain-templates";
 import { MemoPickerModal } from "./MemoPickerModal";
 import { CeqPreviewer, dealCentre, defaultMemoPos } from "./CeqPreviewer";
 import { seedCeqSets } from "./ceq-seed";
@@ -108,6 +109,22 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const [clipRefsOpen, setClipRefsOpen] = useState<string | null>(null); // `${ceqId}:${clipIdx}` whose refs picker is open
   const [starOnly, setStarOnly] = useState(false); // Starred filter on the question list
   const [qMenu, setQMenu] = useState<string | null>(null); // question row whose "…" action menu is open
+  // BULK QUESTION OPS (Lee) — multi-select question rows + one action bar.
+  const [qSel, setQSel] = useState<Set<string>>(() => new Set());
+  const lastQSelRef = useRef<string | null>(null);
+  const toggleQSel = (id: string, shift: boolean) => {
+    setQSel((prev) => {
+      const n = new Set(prev);
+      if (shift && lastQSelRef.current) {
+        const ids = questions.map((q) => q.id);
+        const a = ids.indexOf(lastQSelRef.current), b = ids.indexOf(id);
+        if (a >= 0 && b >= 0) { for (let i = Math.min(a, b); i <= Math.max(a, b); i++) n.add(ids[i]); lastQSelRef.current = id; return n; }
+      }
+      n.has(id) ? n.delete(id) : n.add(id);
+      lastQSelRef.current = id;
+      return n;
+    });
+  };
   const [dragKey, setDragKey] = useState<string | null>(null); // slot key a clip is hovering
   const [stitchMode, setStitchMode] = useState<"free" | "full" | null>(null); // center = sequential preview
   const [publishBusy, setPublishBusy] = useState<"free" | "full" | null>(null);
@@ -564,6 +581,81 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     if (cmd) bus.dispatch(cmd);
   };
 
+  // ---- BULK QUESTION OPS (Lee) — every action = ONE undoable composite step. -----
+  /** Patch every selected question (null patch = skip that question). Returns count. */
+  const bulkPatchQ = (label: string, patch: (d: CeqCard | undefined) => Partial<CeqCard> | null) => {
+    const cmds = [...qSel].map((id) => { const d = rf.getNode(id)?.data as unknown as CeqCard | undefined; const p = patch(d); return p ? patchDataCmd(rfl, id, p as never, label) : null; }).filter((c): c is NonNullable<typeof c> => !!c);
+    const cmd = compositeCmd(cmds, label); if (cmd) bus.dispatch(cmd);
+    return cmds.length;
+  };
+  const selData = () => [...qSel].map((id) => rf.getNode(id)?.data as unknown as CeqCard | undefined);
+  const bulkStar = () => { const allOn = selData().every((d) => !!d?.starred); const n = bulkPatchQ(allOn ? "bulk unstar" : "bulk star", () => ({ starred: !allOn })); setNote(`${allOn ? "Unstarred" : "Starred"} ${n} question${n === 1 ? "" : "s"} (one undo).`); };
+  const bulkFree = () => { const allOn = selData().every((d) => !!d?.free); const n = bulkPatchQ(allOn ? "bulk un-free" : "bulk free", () => ({ free: !allOn })); setNote(`${allOn ? "Removed" : "Added"} ${n} question${n === 1 ? "" : "s"} ${allOn ? "from" : "to"} the FREE cut.`); };
+  const bulkBoss = () => { const allOn = selData().every((d) => !!d?.boss); const n = bulkPatchQ("bulk boss", () => ({ boss: !allOn })); setNote(`Boss ${allOn ? "off" : "on"} for ${n} question${n === 1 ? "" : "s"}.`); };
+  const bulkChaching = () => { const allSilenced = selData().every((d) => d?.confirmSfx === false); const n = bulkPatchQ("bulk chaching", () => ({ confirmSfx: allSilenced ? true : false })); setNote(`Chaching-on-correct ${allSilenced ? "ON" : "OFF"} for ${n} question${n === 1 ? "" : "s"}.`); };
+  const bulkShort = () => { const allOn = selData().every((d) => !!d?.short); const n = bulkPatchQ("bulk short", () => ({ short: !allOn })); setNote(`Shorts flag ${allOn ? "cleared" : "set"} on ${n} question${n === 1 ? "" : "s"}.`); };
+  const bulkClearClips = () => {
+    const withClips = selData().filter((d) => cardClips(d).length > 0).length;
+    if (withClips === 0) { setNote("No clips to clear in the selection."); return; }
+    if (!window.confirm(`Clear ALL clips from ${withClips} selected question${withClips === 1 ? "" : "s"}? (Ctrl+Z restores; staged files stay in storage.)`)) return;
+    const n = bulkPatchQ("bulk clear clips", (d) => (cardClips(d).length ? { takes: undefined, take: undefined } : null));
+    setNote(`Cleared clips on ${n} question${n === 1 ? "" : "s"} (one undo).`);
+  };
+  const bulkSwapPrev = () => {
+    const n = bulkPatchQ("bulk swap takes", (d) => {
+      const clips = cardClips(d);
+      if (!clips.some((t) => t.prev)) return null;
+      const swapped = clips.map((t) => (t.prev ? { ...t.prev, refs: t.refs, prev: { url: t.url, path: t.path, name: t.name, duration: t.duration } } : t));
+      return { takes: swapped, take: undefined };
+    });
+    setNote(n ? `Swapped to the previous take on ${n} question${n === 1 ? "" : "s"} (swap again to undo, or Ctrl+Z).` : "No prior takes exist in the selection.");
+  };
+  /** Vinyl on the LAST chain item of each selected question's CORRECT-choice chain. */
+  const bulkVinylLast = () => {
+    let skipped = 0;
+    const cmds: NonNullable<ReturnType<typeof patchDataFnCmd>>[] = [];
+    for (const id of qSel) {
+      const d = rf.getNode(id)?.data as unknown as CeqCard | undefined;
+      const correct = d?.choices.find((c) => c.correct);
+      if (!correct || !(correct.chain?.length)) { skipped++; continue; }
+      const p = patchDataFnCmd(rfl, id, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => { if (!c.correct || !(c.chain?.length)) return c; return { ...c, chain: c.chain.map((it, i) => (i === (c.chain?.length ?? 0) - 1 ? { ...it, sound: "vinylScratch" as ChainSound } : it)) }; }) }), "vinyl on last"); if (p) cmds.push(p);
+    }
+    const cmd = compositeCmd(cmds, "vinyl on last chain item"); if (cmd) bus.dispatch(cmd);
+    setNote(`💿 Vinyl set on the last correct-chain item of ${cmds.length} question${cmds.length === 1 ? "" : "s"}${skipped ? ` · ${skipped} skipped (no correct-choice chain)` : ""}.`);
+  };
+  /** Stamp a saved chain TEMPLATE onto every selected question with NO chains yet —
+   *  never overwrites; slots land at the SET BASELINE. One undoable step. */
+  const applyTemplateToSelection = (tplId: string) => {
+    const tpl = listChainTemplates().find((t) => t.id === tplId);
+    if (!tpl) return;
+    const targets = questions.filter((q) => qSel.has(q.id)).filter((q) => { const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; return !(d?.choices ?? []).some((c) => (c.chain?.length ?? 0) > 0); });
+    const skipped = qSel.size - targets.length;
+    const cmds: NonNullable<ReturnType<typeof patchDataFnCmd>>[] = [];
+    for (const q of targets) {
+      const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; if (!d) continue;
+      const newNodes: Record<string, unknown>[] = [];
+      const newEdges: Record<string, unknown>[] = [];
+      const perChoice = new Map<string, NonNullable<CeqChoice["chain"]>>();
+      let flat = 0;
+      d.choices.forEach((c, ci) => {
+        const slots = tpl.slots[ci] ?? [];
+        const items: NonNullable<CeqChoice["chain"]> = [];
+        for (const slot of slots) {
+          const memoId = cardId("memo");
+          const spot = baselineSpot(flat); flat += 1;
+          newNodes.push({ id: memoId, type: "memo", position: { x: Math.round(spot.x), y: Math.round(spot.y) }, selected: false, data: { kind: "memo", memoKind: "note", title: slot.label, body: "", ...(spot.scale != null ? { scale: spot.scale } : {}) } });
+          newEdges.push({ id: `chn-${c.id}-${memoId}`, source: memoId, sourceHandle: "l", target: q.id, targetHandle: memoAnchorId(c.id), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } });
+          items.push({ kind: slot.kind, memoNodeId: memoId, label: slot.label });
+        }
+        if (items.length) perChoice.set(c.id, items);
+      });
+      if (newNodes.length) { const a = addNodesAndEdgesCmd(rfl, newNodes as never, newEdges as never, "stamp template"); if (a) cmds.push(a); }
+      const p = patchDataFnCmd(rfl, q.id, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((ch) => (perChoice.has(ch.id) ? { ...ch, chain: [...(ch.chain ?? []), ...(perChoice.get(ch.id) ?? [])] } : ch)) }), "apply template"); if (p) cmds.push(p);
+    }
+    const cmd = compositeCmd(cmds, `template → ${targets.length} questions`); if (cmd) bus.dispatch(cmd);
+    setNote(`Stamped "${tpl.name}" onto ${targets.length} question${targets.length === 1 ? "" : "s"} (one undo)${skipped > 0 ? ` · ${skipped} skipped (already have chains)` : ""}.`);
+  };
+
   /** DEAL the set into the current frame — reparent its CEQ cards (a tucked stack)
    *  AND their chain memos, each at the EXACT position it holds in this previewer.
    *  The CEQ sits at the deal-centre; memos keep their frame-local spots but are
@@ -909,6 +1001,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       if (ctrl && (e.key === "v" || e.key === "V")) { e.preventDefault(); if (itemsClip.length > 0 && qId && qId !== LAYOUT_Q0) pasteItems("new"); else if (memoClip.length > 0 && qId && qId !== LAYOUT_Q0) pasteMemos(qId); else if (qClip) pasteQuestion(); return; }
       if (ctrl && (e.key === "d" || e.key === "D")) { if (qId && qId !== LAYOUT_Q0) { e.preventDefault(); duplicateQuestion(qId); } return; }
       if (e.key === "/") { e.preventDefault(); setLibOpen(true); window.setTimeout(() => memoSearchRef.current?.focus(), 60); return; } // "/" focuses the memo search from anywhere
+      if (e.key === "Escape" && qSel.size > 0) { setQSel(new Set()); return; } // Esc clears the question selection
       if (e.key !== "Delete" && e.key !== "Backspace") return;
       if (previewSelMemo && qId) { e.preventDefault(); removeFromChain(qId, previewSelMemo); return; }
       if (sel.size > 0) { e.preventDefault(); deleteMemos([...sel]); }
@@ -916,7 +1009,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewSelMemo, qId, sel, selChainMemos, memoClip, qClip, itemsClip]);
+  }, [previewSelMemo, qId, sel, selChainMemos, memoClip, qClip, itemsClip, qSel]);
 
   /** NEXT-SLOT PLACEMENT (Question 0) — a new memo at flat chain index N lands at
    *  baseline slot N (position + size). Overflow (all slots occupied) stacks below the
@@ -1280,6 +1373,28 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
             <div className="flex min-h-0 flex-1">
               {/* OUTLINE — CEQ → its chain memos. Each row is a TAKE drop target. */}
               <div className="min-h-0 w-56 shrink-0 overflow-y-auto border-r p-1" style={{ borderColor: NEON.borderSoft }}>
+                {/* BULK ACTION BAR — appears with a selection; every action is ONE
+                    undoable composite step across the selected questions. */}
+                {qSel.size > 0 && (
+                  <div className="mb-1 flex flex-wrap items-center gap-1 rounded p-1" style={{ background: "rgba(252,163,17,0.08)", border: `1px solid ${NEON.border}` }}>
+                    <span className="px-0.5 text-[8.5px] font-bold uppercase tabular-nums" style={{ color: NEON.yellow }}>{qSel.size} sel</span>
+                    <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: "#FFD23F", border: `1px solid ${NEON.borderSoft}` }} onClick={bulkStar} title="Star / unstar all selected (one undo)">★</button>
+                    <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={bulkFree} title="Add/remove all selected from the FREE cut (one undo)">F</button>
+                    <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkBoss} title="Boss flag on/off for all selected (one undo)">👑</button>
+                    <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkChaching} title="Chaching-on-correct on/off for all selected (one undo)">🪙</button>
+                    <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: "#FF8B9E", border: `1px solid ${NEON.borderSoft}` }} onClick={bulkShort} title="Shorts flag on/off for all selected (one undo)">🎬</button>
+                    <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.red, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkClearClips} title="Clear ALL clips from the selected questions (confirm; one undo)">✂ clear</button>
+                    <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkSwapPrev} title="Swap every clip to its PREVIOUS version where one exists (one undo)">⇄ prev</button>
+                    <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkVinylLast} title="Vinyl scratch on the LAST chain item of each selected question's correct-choice chain (skips chainless; one undo)">💿 last</button>
+                    {(() => { const tpls = listChainTemplates(); return tpls.length > 0 ? (
+                      <select value="" onChange={(e) => { if (e.target.value) applyTemplateToSelection(e.target.value); }} className="rounded bg-black/40 px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} title="Stamp a chain template onto selected questions with NO chains yet (never overwrites; slots land at the baseline)">
+                        <option value="">template…</option>
+                        {tpls.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </select>
+                    ) : null; })()}
+                    <button className="ml-auto rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setQSel(new Set())} title="Clear selection (Esc)">✕</button>
+                  </div>
+                )}
                 {/* QUESTION 0 — the set's LAYOUT as an editable stage. Never films,
                     never stitches, never counts in Free/Full, never deals. */}
                 <div className="mb-0.5 flex items-center gap-1 rounded px-1 py-0.5" style={{ background: qId === LAYOUT_Q0 ? "rgba(252,163,17,0.14)" : "transparent", border: `1px solid ${qId === LAYOUT_Q0 ? NEON.border : NEON.borderSoft}` }}>
@@ -1291,6 +1406,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                 {questions.map((q, i) => { const qdata = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; if (starOnly && !qdata?.starred) return null; const p = qdata?.prompt || "Question"; const expanded = expandedQ.has(q.id); const walk = expanded ? walkOf(q) : []; const clips = cardClips(qdata); const starred = !!qdata?.starred; const chained = (qdata?.choices ?? []).some((c) => (c.chain?.length ?? 0) > 0); const boss = !!qdata?.boss; const chainSound = (qdata?.choices ?? []).some((c) => (c.chain ?? []).some((it) => !!it.sound)); const chachingOff = qdata?.confirmSfx === false; const isShort = !!qdata?.short; const dropOn = dragKey === q.id; const reOn = dragKey === `qre:${q.id}`; return (
                   <div key={q.id}>
                     <div className="flex items-start gap-0.5 rounded py-0.5" style={{ background: dropOn ? "rgba(252,163,17,0.14)" : undefined, outline: dropOn ? `1px dashed ${NEON.yellow}` : reOn ? `1px solid ${NEON.cyan}` : undefined }} {...qRowDnd(q.id)}>
+                      <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" style={{ color: qSel.has(q.id) ? NEON.yellow : NEON.muted }} onClick={(e) => toggleQSel(q.id, e.shiftKey)} title="Select for bulk actions (Shift+click = range · Esc clears)">{qSel.has(q.id) ? <CheckSquare className="h-3 w-3" /> : <Square className="h-3 w-3" />}</button>
                       <span className="mt-0.5 shrink-0 cursor-grab select-none text-[11px] leading-none" style={{ color: NEON.muted }} draggable onDragStart={(e) => { e.dataTransfer.setData(QREORDER, q.id); e.dataTransfer.effectAllowed = "move"; }} title="Drag to reorder">⠿</span>
                       <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" style={{ color: NEON.muted }} onClick={() => setExpandedQ((s) => { const n = new Set(s); n.has(q.id) ? n.delete(q.id) : n.add(q.id); return n; })} title={expanded ? "Collapse memos" : "Show memos"}>{expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}</button>
                       <button className={`min-w-0 flex-1 rounded px-1 py-0.5 text-left text-[10.5px] ${wrapStems ? "whitespace-normal break-words" : "line-clamp-2"}`} style={{ background: qId === q.id ? "rgba(252,163,17,0.14)" : "transparent", color: qId === q.id ? NEON.yellow : NEON.text }} onClick={() => { setQId(q.id); setExpandedQ((s) => new Set(s).add(q.id)); }}><span className="tabular-nums opacity-60">{i + 1}.</span> {p}</button>
