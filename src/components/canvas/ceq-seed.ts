@@ -153,16 +153,16 @@ const CH5_FREE: SQ[] = [CH5_A[1], CH5_A[2], CH5_A[4], CH5_A[6], CH5_B[0], CH5_B[
 
 // ---- the 10 sets ------------------------------------------------------------
 export const SEED_SETS: SSet[] = [
-  { key: "ch1-free", name: "Ch 1 · Types of Accounts — Free", questions: CH1_FREE_NAMES.map(ch1Q), noRotate: true },
-  { key: "ch1-full", name: "Ch 1 · Types of Accounts — Full", questions: CH1_FULL_NAMES.map(ch1Q), noRotate: true },
-  { key: "ch2-free", name: "Ch 2 · A=L+E Effects — Free", questions: CH2_FREE },
-  { key: "ch2-full", name: "Ch 2 · A=L+E Effects — Full", questions: CH2_FULL },
-  { key: "ch3-free", name: "Ch 3 · Accounting Cycle Order — Free", questions: CH3_FREE },
-  { key: "ch3-full", name: "Ch 3 · Accounting Cycle Order — Full", questions: CH3_FULL },
-  { key: "ch4-free", name: "Ch 4 · Debits & Credits — Free", questions: CH4_FREE },
-  { key: "ch4-full", name: "Ch 4 · Debits & Credits — Full", questions: CH4_FULL },
-  { key: "ch5-free", name: "Ch 5 · Journal Entries — Free", questions: CH5_FREE },
-  { key: "ch5-full", name: "Ch 5 · Journal Entries — Full", questions: CH5_FULL },
+  { key: "ch1-free", name: "Types of Accounts — Free", questions: CH1_FREE_NAMES.map(ch1Q), noRotate: true },
+  { key: "ch1-full", name: "Types of Accounts — Full", questions: CH1_FULL_NAMES.map(ch1Q), noRotate: true },
+  { key: "ch2-free", name: "A=L+E Effects — Free", questions: CH2_FREE },
+  { key: "ch2-full", name: "A=L+E Effects — Full", questions: CH2_FULL },
+  { key: "ch3-free", name: "Accounting Cycle Order — Free", questions: CH3_FREE },
+  { key: "ch3-full", name: "Accounting Cycle Order — Full", questions: CH3_FULL },
+  { key: "ch4-free", name: "Debits & Credits — Free", questions: CH4_FREE },
+  { key: "ch4-full", name: "Debits & Credits — Full", questions: CH4_FULL },
+  { key: "ch5-free", name: "Journal Entries — Free", questions: CH5_FREE },
+  { key: "ch5-full", name: "Journal Entries — Full", questions: CH5_FULL },
 ];
 
 /** Rotate choices so the correct answer isn't always in slot A. Deterministic. */

@@ -160,7 +160,9 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const [bulkVal, setBulkVal] = useState("");
   const [justCreated, setJustCreated] = useState<Set<string>>(() => new Set()); // fresh (unchained) memos kept visible past the scope filter
   const memoScope: "question" | "set" | "all" = prefs.memoScope ?? "set"; // default: This set
-  const topTab: "videos" | "topics" | "sets" | "tools" = prefs.topTab ?? "sets"; // top bar tab
+  // Legacy stored "sets" maps to the merged Topics tab; the old union stays in the
+  // prefs type so old localStorage blobs keep parsing.
+  const topTab: "videos" | "topics" | "tools" = prefs.topTab === "sets" || !prefs.topTab ? "topics" : prefs.topTab;
   const wrapMemos = !!prefs.wrapMemos;
 
   // TOPICS SPINE (Lee) — the real Course → Topic rows (Manage Course order), same
@@ -251,15 +253,15 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   // cross-set readiness board (no separate overlay): clips missing (free/full),
   // intro/outro/wrap presence, est. FULL runtime, published count.
   const deckReadiness = useMemo(() => {
-    const m = new Map<string, { missFull: number; missFree: number; intro: boolean; outro: boolean; wrapN: number; runtimeS: number }>();
+    const m = new Map<string, { missFull: number; missFree: number; intro: boolean; outro: boolean; wrapN: number; runtimeS: number; shortReady: boolean }>();
     for (const d of cardDecks) {
       const mem = deckMembersOf(nodes as { id: string; type?: string; data?: { deckId?: string; stageOrder?: number } }[], d.id).filter((n) => (n as { type?: string }).type === "ceq");
-      const ceqs = mem.map((n) => { const dd = rf.getNode(n.id)?.data as unknown as CeqCard | undefined; return { id: n.id, prompt: dd?.prompt ?? "", takes: cardClips(dd), free: dd?.free }; });
+      const ceqs = mem.map((n) => { const dd = rf.getNode(n.id)?.data as unknown as CeqCard | undefined; return { id: n.id, prompt: dd?.prompt ?? "", takes: cardClips(dd), free: dd?.free, short: dd?.short }; });
       const missFull = ceqs.filter((c) => c.takes.length === 0).length;
       const missFree = ceqs.filter((c) => c.free && c.takes.length === 0).length;
       const intro = !!(d.intro ?? gc.intro); const outro = !!(d.outro ?? gc.outro);
       const stitch = buildStitch("full", { intro: d.intro ?? gc.intro, hook: d.hookTake, transition: gc.transition, outro: d.outro ?? gc.outro, wrap: d.wrap, ceqs });
-      m.set(d.id, { missFull, missFree, intro, outro, wrapN: d.wrap?.length ?? 0, runtimeS: stitchRuntime(stitch.items) });
+      m.set(d.id, { missFull, missFree, intro, outro, wrapN: d.wrap?.length ?? 0, runtimeS: stitchRuntime(stitch.items), shortReady: ceqs.some((c) => c.short && c.takes.length > 0) });
     }
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -361,6 +363,18 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   };
   /** Open the existing New Set form pre-filled for a course/topic ("" = Library). */
   const openNewSet = (courseId: string, topicId: string) => { setAddMenu(false); setNewTopicFor(null); setNewSetForm({ name: `Set ${cardDecks.length + 1}`, courseId, topicId }); };
+  /** ONE-TIME NAME MIGRATION (manual, never auto-run) — strip the legacy "Ch N ·"
+   *  prefix from set NAMES. Names only: ids, deck keys and the parsed deck.chapter
+   *  tag are untouched, so nothing that matches on "Ch N" ever sees a difference.
+   *  Idempotent: the regex no-ops on names without the prefix. Scene data, so this
+   *  is a Studio action rather than SQL — there is no table to run SQL against. */
+  const cleanSetNames = () => {
+    const hit = cardDecks.filter((d) => /^chs*d+s*[·.-]s*/i.test(d.name));
+    if (hit.length === 0) { setNote("Set names are already clean — nothing to strip."); return; }
+    if (!window.confirm(`Strip the "Ch N ·" prefix from ${hit.length} set name${hit.length === 1 ? "" : "s"}? Names only — ids and chapter tags stay. Idempotent.`)) return;
+    setDecks((prev) => prev.map((d) => ({ ...d, name: d.name.replace(/^chs*d+s*[·.-]s*/i, "") })));
+    setNote(`Cleaned ${hit.length} set name${hit.length === 1 ? "" : "s"} — position is the outline's job now.`);
+  };
   const renameSet = (d: DeckDef) => { const n = window.prompt("Rename set", d.name); if (n) setDecks((prev) => updateDeck(prev, d.id, { name: n.trim() })); };
   const deleteSet = (d: DeckDef) => {
     const members = deckMembersOf(rf.getNodes() as { id: string; data?: { deckId?: string; stageOrder?: number } }[], d.id);
@@ -1618,7 +1632,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
       {/* TOP BAR — Videos · Topics · Sets · Tools; every tab speaks the same Obsidian
           outline grammar in the left rail. */}
       <div className="flex shrink-0 items-center gap-1 border-b px-3 py-1" style={{ borderColor: NEON.borderSoft }}>
-        {([["videos", "Videos"], ["topics", "Topics"], ["sets", "Sets"], ["tools", "Tools"]] as const).map(([k, l]) => (
+        {([["videos", "Videos"], ["topics", "Topics"], ["tools", "Tools"]] as const).map(([k, l]) => (
           <button key={k} className="rounded px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: topTab === k ? "#0B1322" : NEON.muted, background: topTab === k ? NEON.yellow : "transparent", border: `1px solid ${topTab === k ? NEON.yellow : NEON.borderSoft}` }} onClick={() => { setPrefs({ topTab: k }); if (!setsOpen) setSetsOpen(true); }}>{l}</button>
         ))}
       </div>
@@ -1676,15 +1690,22 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
             <div className="grid flex-1 place-items-center p-3 text-center text-[10.5px] leading-relaxed" style={{ color: NEON.muted }}>🛠 Coming soon —<br />batch take ingest · publish queue ·<br />shorts factory.</div>
           </>)}
           {topTab === "topics" && (<>
-            {/* TOPICS — the "is this topic FINISHED" view + THE readiness board: per-topic
-                chips derived LIVE (missing clips, intro/outro/wrap, runtime, published).
-                Click a chip to jump to the gap. */}
-            <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Topics <span style={{ color: NEON.muted }}>readiness</span>
+            {/* TOPICS — ONE outline for everything the old Topics + Sets tabs did:
+                Course → Topic (readiness chips + drop-to-assign) → sets → published
+                videos, then LIBRARY (unassigned). Chips are the four signals only:
+                ✂ missing clips (hidden at 0) · ⏱ runtime · ▶ published · 🎬 short. */}
+            <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Topics <span style={{ color: NEON.muted }}>({cardDecks.length} sets)</span>
               <button className="ml-auto grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => setSetsOpen(false)} title="Collapse the left rail"><ChevronLeft className="h-3.5 w-3.5" /></button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-1">
-              {courseOptions.length === 0 && <div className="px-1.5 py-2 text-[10px] italic" style={{ color: NEON.muted }}>{courseOptionsQ.isError ? "Couldn't load the Course → Topic rows." : "Loading courses…"}</div>}
-              {courseOptions.map((c) => {
+              {courseOptionsQ.isLoading && <div className="px-1.5 py-2 text-[10px] italic" style={{ color: NEON.muted }}>Loading courses…</div>}
+              {courseOptionsQ.isError && (
+                <>
+                  <div className="px-1.5 py-1 text-[9.5px]" style={{ color: NEON.red }}>Couldn&apos;t load Course → Topic rows — flat list:</div>
+                  {cardDecks.map((d) => renderSetRow(d))}
+                </>
+              )}
+              {!courseOptionsQ.isError && courseOptions.map((c) => {
                 const cTopics = c.chapters.filter((ch) => ch.status !== "archived" || decksByTopic.has(ch.id));
                 const cHas = cardDecks.some((d) => d.courseId === c.id && !!d.topicId) || cTopics.some((ch) => pubVidsByTopic.has(ch.id));
                 const cKey = `topc:${c.id}`;
@@ -1698,24 +1719,31 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
                     {cOpen && cTopics.map((ch) => {
                       const tDecks = decksByTopic.get(ch.id) ?? [];
                       const vids = pubVidsByTopic.get(ch.id) ?? [];
-                      let missFull = 0, missFree = 0, runtimeS = 0, wrapN = 0;
-                      let introAll = tDecks.length > 0, outroAll = tDecks.length > 0;
-                      for (const d of tDecks) { const r = deckReadiness.get(d.id); if (!r) continue; missFull += r.missFull; missFree += r.missFree; runtimeS += r.runtimeS; wrapN += r.wrapN; introAll = introAll && r.intro; outroAll = outroAll && r.outro; }
+                      let missFull = 0, missFree = 0, runtimeS = 0;
+                      let shortReady = false;
+                      for (const d of tDecks) { const r = deckReadiness.get(d.id); if (!r) continue; missFull += r.missFull; missFree += r.missFree; runtimeS += r.runtimeS; shortReady = shortReady || !!r.shortReady; }
                       const firstGap = tDecks.find((d) => (deckReadiness.get(d.id)?.missFull ?? 0) > 0) ?? tDecks[0];
                       const tKey = `topt:${ch.id}`;
                       const tOpen = isExp(tKey, tDecks.length > 0);
+                      const dropOn = dragKey === `sett:${ch.id}`;
                       return (
                         <div key={ch.id} className="ml-1.5">
-                          <button className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px]" style={{ color: tDecks.length || vids.length ? NEON.text : NEON.muted, background: outlineSel?.topicId === ch.id ? "rgba(79,163,227,0.14)" : "transparent" }} onClick={() => { toggleExp(tKey, tDecks.length > 0); setOutlineSel({ courseId: c.id, topicId: ch.id }); setAddMenu(false); }}>
+                          <button className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px]" style={{ color: tDecks.length || vids.length ? NEON.text : NEON.muted, background: dropOn ? "rgba(252,163,17,0.16)" : outlineSel?.topicId === ch.id ? "rgba(79,163,227,0.14)" : "transparent", outline: dropOn ? `1px dashed ${NEON.yellow}` : "none" }}
+                            onClick={() => { toggleExp(tKey, tDecks.length > 0); setOutlineSel({ courseId: c.id, topicId: ch.id }); setAddMenu(false); }}
+                            onDragOver={(e) => { if (e.dataTransfer.types.includes(SET_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dragKey !== `sett:${ch.id}`) setDragKey(`sett:${ch.id}`); } }}
+                            onDragLeave={() => setDragKey((k) => (k === `sett:${ch.id}` ? null : k))}
+                            onDrop={(e) => { const id = e.dataTransfer.getData(SET_DND); if (id) { e.preventDefault(); setDragKey(null); assignSet(id, c, ch); } }}
+                            title={`${topicLabel(ch)} — drop a set here to assign it`}>
                             {tOpen ? <ChevronDown className="h-2.5 w-2.5 shrink-0" /> : <ChevronRight className="h-2.5 w-2.5 shrink-0" />}
                             <span className="min-w-0 flex-1 truncate">{topicLabel(ch)}</span>
+                            {tDecks.length > 0 && <span className="shrink-0 text-[8px] font-bold tabular-nums" style={{ color: NEON.muted }}>{tDecks.length}</span>}
                           </button>
                           {(tDecks.length > 0 || vids.length > 0) && (
                             <div className="ml-4 flex flex-wrap items-center gap-1 pb-0.5">
-                              <button className="rounded px-1 text-[7.5px] font-bold tabular-nums" style={missFull > 0 ? { color: "#FF8B9E", border: "1px solid rgba(255,92,108,0.5)" } : { color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.4)" }} onClick={() => firstGap && openSetTab(firstGap.id)} title={missFull > 0 ? `${missFull} question(s) missing clips (${missFree} in the free cut) — click to open the gap` : "Every question has a clip"}>{missFull > 0 ? `✂ ${missFull} (${missFree}F)` : "✂ ✓"}</button>
-                              <button className="rounded px-1 text-[7.5px] font-bold" style={introAll && outroAll ? { color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.4)" } : { color: NEON.yellow, border: `1px solid ${NEON.border}` }} onClick={() => { if (tDecks[0]) { openSetTab(tDecks[0].id); setPublishOpen(true); } }} title={`Intro ${introAll ? "✓" : "✗"} · Outro ${outroAll ? "✓" : "✗"} · ${wrapN} wrap clip(s) — click to open the Publish panel`}>I{introAll ? "✓" : "✗"} O{outroAll ? "✓" : "✗"} W{wrapN}</button>
-                              <span className="rounded px-1 text-[7.5px] font-bold tabular-nums" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} title="Estimated FULL runtime (summed clips)">⏱ {fmtDur(runtimeS)}</span>
-                              <button className="rounded px-1 text-[7.5px] font-bold tabular-nums" style={vids.length > 0 ? { color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.4)" } : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setPrefs({ topTab: "videos" })} title={`${vids.length} published video(s) — click for the Videos tab`}>▶ {vids.length}</button>
+                              {missFull > 0 && <button className="rounded px-1 text-[7.5px] font-bold tabular-nums" style={{ color: "#FF8B9E", border: "1px solid rgba(255,92,108,0.5)" }} onClick={() => firstGap && openSetTab(firstGap.id)} title={`${missFull} question(s) missing clips${missFree > 0 ? ` (${missFree} in the free cut)` : ""} — click to open the gap`}>✂ {missFull}{missFree > 0 ? ` (${missFree}F)` : ""}</button>}
+                              {runtimeS > 0 && <span className="rounded px-1 text-[7.5px] font-bold tabular-nums" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} title="Estimated FULL runtime (summed clips)">⏱ {fmtDur(runtimeS)}</span>}
+                              {vids.length > 0 && <button className="rounded px-1 text-[7.5px] font-bold tabular-nums" style={{ color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.4)" }} onClick={() => setPrefs({ topTab: "videos" })} title={`${vids.length} published video(s) — click for the Videos tab`}>▶ {vids.length}</button>}
+                              {shortReady && <span className="rounded px-1 text-[7.5px]" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} title="A short-flagged question here has its clip uploaded">🎬</span>}
                             </div>
                           )}
                           {tOpen && tDecks.map((d) => renderSetRow(d))}
@@ -1735,80 +1763,29 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
                   </div>
                 );
               })}
+              {/* LIBRARY (unassigned) — untied sets; also a drop target to unassign. */}
+              {!courseOptionsQ.isError && (
+                <div className="mt-1 border-t pt-1" style={{ borderColor: NEON.borderSoft }}>
+                  <button className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10.5px] font-bold uppercase tracking-wide" style={{ color: libraryDecks.length ? NEON.yellow : NEON.muted, background: dragKey === "sett:lib" ? "rgba(252,163,17,0.16)" : "transparent", outline: dragKey === "sett:lib" ? `1px dashed ${NEON.yellow}` : "none" }}
+                    onClick={() => toggleExp("lib", true)}
+                    onDragOver={(e) => { if (e.dataTransfer.types.includes(SET_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dragKey !== "sett:lib") setDragKey("sett:lib"); } }}
+                    onDragLeave={() => setDragKey((k) => (k === "sett:lib" ? null : k))}
+                    onDrop={(e) => { const id = e.dataTransfer.getData(SET_DND); if (id) { e.preventDefault(); setDragKey(null); assignSet(id, null, null); } }}
+                    title="Unassigned sets — drop a set here to return it to the Library">
+                    {isExp("lib", true) ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+                    <span className="min-w-0 flex-1 truncate">Library (unassigned)</span>
+                    <span className="shrink-0 text-[8px] font-bold tabular-nums" style={{ color: NEON.muted }}>{libraryDecks.length}</span>
+                  </button>
+                  {isExp("lib", true) && libraryDecks.map((d) => renderSetRow(d))}
+                  {isExp("lib", true) && libraryDecks.length === 0 && <div className="ml-4 px-1 py-0.5 text-[9px] italic" style={{ color: NEON.muted }}>Empty — every set has a topic.</div>}
+                </div>
+              )}
             </div>
             {renderOutlineFooter()}
-          </>)}
-          {topTab === "sets" && (<>
-          <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Sets <span style={{ color: NEON.muted }}>({cardDecks.length})</span>
-            <button className="ml-auto grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => setSetsOpen(false)} title="Collapse the left rail"><ChevronLeft className="h-3.5 w-3.5" /></button>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto p-1">
-            {courseOptionsQ.isLoading && <div className="px-1.5 py-2 text-[10px] italic" style={{ color: NEON.muted }}>Loading courses…</div>}
-            {courseOptionsQ.isError && (
-              <>
-                <div className="px-1.5 py-1 text-[9.5px]" style={{ color: NEON.red }}>Couldn't load Course → Topic rows — flat list:</div>
-                {cardDecks.filter((d) => !!d.topicId).map((d) => renderSetRow(d))}
-              </>
-            )}
-            {!courseOptionsQ.isError && courseOptions.map((c) => {
-              const cTopics = c.chapters.filter((ch) => ch.status !== "archived" || decksByTopic.has(ch.id));
-              const cHasSets = cardDecks.some((d) => d.courseId === c.id && !!d.topicId);
-              const cKey = `c:${c.id}`;
-              const cOpen = isExp(cKey, cHasSets);
-              return (
-                <div key={c.id}>
-                  <button className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10.5px] font-bold uppercase tracking-wide" style={{ color: cHasSets ? NEON.cyan : NEON.muted, background: outlineSel?.courseId === c.id && !outlineSel.topicId ? "rgba(79,163,227,0.14)" : "transparent" }} onClick={() => { toggleExp(cKey, cHasSets); setOutlineSel({ courseId: c.id, topicId: null }); setAddMenu(false); }}>
-                    {cOpen ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
-                    <span className="min-w-0 flex-1 truncate">{courseLabel(c)}</span>
-                  </button>
-                  {cOpen && cTopics.map((ch) => {
-                    const tDecks = decksByTopic.get(ch.id) ?? [];
-                    const tKey = `t:${ch.id}`;
-                    const tOpen = isExp(tKey, tDecks.length > 0);
-                    const dropOn = dragKey === `sett:${ch.id}`;
-                    return (
-                      <div key={ch.id} className="ml-2">
-                        <button className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px]" style={{ color: tDecks.length ? NEON.text : NEON.muted, background: dropOn ? "rgba(252,163,17,0.16)" : "transparent", outline: dropOn ? `1px dashed ${NEON.yellow}` : "none" }}
-                          onClick={() => { toggleExp(tKey, tDecks.length > 0); setOutlineSel({ courseId: c.id, topicId: ch.id }); setAddMenu(false); }}
-                          onDragOver={(e) => { if (e.dataTransfer.types.includes(SET_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dragKey !== `sett:${ch.id}`) setDragKey(`sett:${ch.id}`); } }}
-                          onDragLeave={() => setDragKey((k) => (k === `sett:${ch.id}` ? null : k))}
-                          onDrop={(e) => { const id = e.dataTransfer.getData(SET_DND); if (id) { e.preventDefault(); setDragKey(null); assignSet(id, c, ch); } }}
-                          title={`${topicLabel(ch)} — drop a set here to assign it`}>
-                          {tOpen ? <ChevronDown className="h-2.5 w-2.5 shrink-0" /> : <ChevronRight className="h-2.5 w-2.5 shrink-0" />}
-                          <span className="min-w-0 flex-1 truncate">{topicLabel(ch)}</span>
-                          {tDecks.length > 0 && <span className="shrink-0 text-[8px] font-bold tabular-nums" style={{ color: NEON.muted }}>{tDecks.length}</span>}
-                        </button>
-                        {tOpen && tDecks.map((d) => renderSetRow(d))}
-                        {/* EMPTY TOPIC — one affordance, nothing else. */}
-                        {tOpen && tDecks.length === 0 && ch.status !== "archived" && (
-                          <button className="ml-4 flex items-center gap-1 px-1 py-0.5 text-[9px] font-bold" style={{ color: NEON.yellow }} onClick={() => openNewSet(c.id, ch.id)} title={`Create the first CEQ set under ${topicLabel(ch)}`}><Plus className="h-2.5 w-2.5" /> Add CEQ set</button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })}
-            {/* LIBRARY (unassigned) — untied sets; also a drop target to unassign. */}
-            {!courseOptionsQ.isError && (
-              <div className="mt-1 border-t pt-1" style={{ borderColor: NEON.borderSoft }}>
-                <button className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10.5px] font-bold uppercase tracking-wide" style={{ color: libraryDecks.length ? NEON.yellow : NEON.muted, background: dragKey === "sett:lib" ? "rgba(252,163,17,0.16)" : "transparent", outline: dragKey === "sett:lib" ? `1px dashed ${NEON.yellow}` : "none" }}
-                  onClick={() => toggleExp("lib", true)}
-                  onDragOver={(e) => { if (e.dataTransfer.types.includes(SET_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dragKey !== "sett:lib") setDragKey("sett:lib"); } }}
-                  onDragLeave={() => setDragKey((k) => (k === "sett:lib" ? null : k))}
-                  onDrop={(e) => { const id = e.dataTransfer.getData(SET_DND); if (id) { e.preventDefault(); setDragKey(null); assignSet(id, null, null); } }}
-                  title="Unassigned sets — drop a set here to return it to the Library">
-                  {isExp("lib", true) ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
-                  <span className="min-w-0 flex-1 truncate">Library (unassigned)</span>
-                  <span className="shrink-0 text-[8px] font-bold tabular-nums" style={{ color: NEON.muted }}>{libraryDecks.length}</span>
-                </button>
-                {isExp("lib", true) && libraryDecks.map((d) => renderSetRow(d))}
-                {isExp("lib", true) && libraryDecks.length === 0 && <div className="ml-4 px-1 py-0.5 text-[9px] italic" style={{ color: NEON.muted }}>Empty — every set has a topic.</div>}
-              </div>
-            )}
-          </div>
-          {renderOutlineFooter()}
-          <button className="mx-1 mb-1 flex items-center justify-center gap-1 rounded px-1 py-1 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} onClick={runSeed} title="DEV/TEST — create the starter CEQ sets for the first five topics (Free + Full each): mechanical stems/choices, empty chains. Idempotent.">seed starter sets</button>
+            <div className="mx-1 mb-1 flex gap-1">
+              <button className="flex flex-1 items-center justify-center gap-1 rounded px-1 py-1 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} onClick={runSeed} title="DEV/TEST — create the starter CEQ sets for the first five topics (Free + Full each): mechanical stems/choices, empty chains. Idempotent.">seed starter sets</button>
+              <button className="flex flex-1 items-center justify-center gap-1 rounded px-1 py-1 text-[9px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px dashed ${NEON.borderSoft}` }} onClick={cleanSetNames} title="ONE-TIME MIGRATION — strip the legacy 'Ch N ·' prefix from set NAMES (names only; ids, keys and the parsed chapter tags are untouched). Idempotent: running again changes nothing. Never runs on its own.">clean set names</button>
+            </div>
           </>)}
         </div>
         )}
