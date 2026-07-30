@@ -1060,8 +1060,15 @@ export interface DeckSlot { x: number; y: number }
  *  across sessions/URLs — localStorage was per-origin and dropped them on a new deploy. */
 export interface GlobalClips { intro?: TakeRef; outro?: TakeRef; transition?: TakeRef }
 /** One placed element in a set's baseline layout — frame-local position + optional
- *  scale (data.scale). Used for the CEQ card and each chain-memo slot. */
-export interface DeckSlotLayout { x: number; y: number; scale?: number }
+ *  scale (data.scale). Used for the CEQ card and each chain-memo slot.
+ *
+ *  KIND-AGNOSTIC BY DESIGN: a slot stores geometry ONLY. Whatever gets placed there
+ *  (a memo today, a card later) adopts the slot's position and size — there is
+ *  deliberately no memo-vs-card type field, so a bigger slot IS how a slot becomes
+ *  "card-sized". `off` is not a kind: it's the palette's on/off switch, and only
+ *  ACTIVE slots take placements. Undefined = active, so every layout saved before
+ *  the palette keeps all of its slots live. */
+export interface DeckSlotLayout { x: number; y: number; scale?: number; off?: boolean }
 /** A CEQ set's baseline geometry (DeckDef.layout). `memoSlots` is keyed by the FLAT
  *  chain-slot index (choice-major, chain-order — the previewer/walkOf `num - 1`),
  *  NOT by memo id, so slot 1 of every question in the set lands in the same place. */

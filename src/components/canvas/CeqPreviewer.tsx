@@ -63,6 +63,9 @@ const FilmContext = createContext(false);
  *  arrow / vinyl-on-entry). Keyed by memoNodeId; writes back through the main store
  *  (undoable) via CeqStudio's onPatchChainItem. Noop when not authoring. */
 const ChainToggleContext = createContext<(memoNodeId: string, patch: Partial<CeqChainItem>) => void>(() => {});
+/** QUESTION 0 — switch a palette slot on/off from its number badge. Non-null ONLY on
+ *  the layout stage, so a real question's memo chips keep their normal badge. */
+const SlotToggleContext = createContext<((slotIdx: number) => void) | null>(null);
 /** Drop a library memo onto a CEQ choice IN THE PREVIEWER (chains it). The dataTransfer
  *  mime must match CeqStudio's MEMO_DND — a memo node id. Same-window drag only. */
 const MEMO_DND = "text/sa-studio-memo";
@@ -112,7 +115,34 @@ const mmss = (ms: number) => { const s = Math.max(0, Math.floor(ms / 1000)); ret
 
 const CARD_W = 560, CARD_H = 480;
 export const dealCentre = (fw: number, fh: number) => ({ x: Math.max(0, Math.round((fw - CARD_W) / 2)), y: Math.max(0, Math.round((fh - CARD_H) / 2)) });
-export const defaultMemoPos = (fw: number, fh: number, i: number) => { const c = dealCentre(fw, fh); return { x: Math.min(fw - 210, c.x + CARD_W + 70), y: Math.max(20, c.y + i * 160) }; };
+export const defaultMemoPos = (fw: number, fh: number, i: number) => paletteSlots(fw, fh)[Math.min(i, PALETTE_N - 1)];
+
+/** THE SLOT PALETTE (Lee) — a set's baseline is a fixed rack of {@link PALETTE_N}
+ *  slots running down the RIGHT side of the frame, evenly spaced and guaranteed not
+ *  to overlap (the step is never smaller than a slot's own height). Generated, never
+ *  hand-placed, so two slots can't be born at the same coordinate. Lee then drags
+ *  any slot where he wants it and resizes it — a bigger slot is simply one that fits
+ *  bigger content. */
+export const PALETTE_N = 5;
+const SLOT_H = 150; // nominal chip height at scale 1 — the minimum clear gap between slots
+export const paletteSlots = (fw: number, fh: number, n: number = PALETTE_N): { x: number; y: number; scale: number }[] => {
+  const c = dealCentre(fw, fh);
+  const x = Math.min(fw - 210, c.x + CARD_W + 70);
+  const top = 20;
+  const span = Math.max(SLOT_H, fh - top - 20 - SLOT_H); // room the rack can use
+  const step = n > 1 ? Math.max(SLOT_H + 12, Math.round(span / (n - 1))) : 0;
+  return Array.from({ length: n }, (_, i) => ({ x, y: top + i * step, scale: 1 }));
+};
+/** The set's slot rack: whatever is saved, padded out to the full palette with
+ *  INACTIVE generated slots. Saved slots keep their geometry and their on/off state;
+ *  layouts predating the palette have no `off` flag, so all of their slots stay
+ *  active and nothing moves. */
+export const rackOf = (saved: DeckSlotLayout[] | undefined, fw: number, fh: number): DeckSlotLayout[] => {
+  const gen = paletteSlots(fw, fh);
+  return gen.map((g, i) => saved?.[i] ?? { ...g, off: true }).concat((saved ?? []).slice(PALETTE_N));
+};
+/** Only ACTIVE slots take placements, in order. */
+export const activeSlots = (rack: DeckSlotLayout[]): DeckSlotLayout[] => rack.filter((s) => !s.off);
 
 type MainRf = Pick<ReactFlowInstance, "getNode" | "setNodes" | "setEdges">;
 export type PreviewEdge = { id: string; source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null };
@@ -241,8 +271,13 @@ function MemoPreviewNode({ id, data }: NodeProps) {
   const spot = useContext(PreviewSpotContext);
   const film = useContext(FilmContext);
   const chainToggle = useContext(ChainToggleContext);
-  const d = data as unknown as { label: string; walkNum: number; choice: string; scale?: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: string };
+  const slotToggle = useContext(SlotToggleContext);
+  const d = data as unknown as { label: string; walkNum: number; choice: string; scale?: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: string; slotOff?: boolean };
   const s = d.scale ?? 1;
+  // QUESTION 0 only: an INACTIVE palette slot. It stays on the stage (so it can be
+  // switched on and positioned) but reads as dashed + faded, and it never takes a
+  // memo in a real question.
+  const slotOff = !!d.slotOff;
   const vinyl = d.sound === "vinylScratch";
   const walked = revealed.has(id);
   const key = spotKey(id, "self");
@@ -254,13 +289,19 @@ function MemoPreviewNode({ id, data }: NodeProps) {
       data-flame={flamed ? "on" : undefined}
       data-flame-tone={flamed ? spot.tone(key) : undefined}
       onPointerDownCapture={(e) => spot.onClick(key, e)}
-      style={{ position: "relative", width: 210 * s, borderRadius: 12 * s, background: NEON.panelSolid, border: `${1.5 * s}px solid ${walked ? NEON.yellow : NEON.borderSoft}`, padding: `${10 * s}px ${12 * s}px`, opacity: walked ? 1 : film ? 0 : 0.4, filter: walked || film ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "grab", animation: film && walked ? "sa-memo-pop 340ms cubic-bezier(0.2,0.7,0.3,1)" : undefined, ...containSpot(spState) }}
+      style={{ position: "relative", width: 210 * s, borderRadius: 12 * s, background: slotOff ? "transparent" : NEON.panelSolid, border: `${1.5 * s}px ${slotOff ? "dashed" : "solid"} ${slotOff ? NEON.borderSoft : walked ? NEON.yellow : NEON.borderSoft}`, padding: `${10 * s}px ${12 * s}px`, opacity: slotOff ? 0.3 : walked ? 1 : film ? 0 : 0.4, filter: slotOff || walked || film ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "grab", animation: film && walked ? "sa-memo-pop 340ms cubic-bezier(0.2,0.7,0.3,1)" : undefined, ...containSpot(spState) }}
     >
       {/* chain-order badge — useful IN the previewer, never on camera (hidden in film). */}
-      {!film && <span style={{ position: "absolute", top: -11 * s, left: -11 * s, display: "grid", placeItems: "center", width: 24 * s, height: 24 * s, borderRadius: 999, fontSize: 12 * s, fontWeight: 900, color: "#0B0F1E", background: walked ? NEON.yellow : NEON.muted }}>{d.walkNum}</span>}
+      {!film && (slotToggle ? (
+        <button className="nodrag" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); slotToggle(d.walkNum - 1); }}
+          title={slotOff ? `Slot ${d.walkNum} is OFF — click to switch it on (memos will fill it in order)` : `Slot ${d.walkNum} is ON — click to switch it off (no memo will use it)`}
+          style={{ position: "absolute", top: -11 * s, left: -11 * s, display: "grid", placeItems: "center", width: 24 * s, height: 24 * s, borderRadius: 999, fontSize: 12 * s, fontWeight: 900, cursor: "pointer", color: slotOff ? NEON.muted : "#0B0F1E", background: slotOff ? "transparent" : NEON.yellow, border: `${1.5 * s}px ${slotOff ? "dashed" : "solid"} ${slotOff ? NEON.borderSoft : NEON.yellow}` }}>{d.walkNum}</button>
+      ) : (
+        <span style={{ position: "absolute", top: -11 * s, left: -11 * s, display: "grid", placeItems: "center", width: 24 * s, height: 24 * s, borderRadius: 999, fontSize: 12 * s, fontWeight: 900, color: "#0B0F1E", background: walked ? NEON.yellow : NEON.muted }}>{d.walkNum}</span>
+      ))}
       {/* DISPLAY TOGGLES (Lee) — authoring-only, hover-only cluster on the memo:
           choice-caption toggle, arrow show/hide, and vinyl-on-entry. Never on camera. */}
-      {!film && (
+      {!film && !slotToggle && (
         <div className="sa-grip-film nodrag" style={{ position: "absolute", top: -9, right: -6, display: "flex", gap: 3, zIndex: 22 }}>
           <button className="nodrag" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); chainToggle(id, { hideChoiceLabel: !d.hideChoiceLabel }); }} title={d.hideChoiceLabel ? `Show the "choice ${d.choice}" caption` : `Hide the "choice ${d.choice}" caption`} style={{ display: "grid", placeItems: "center", width: 18, height: 18, borderRadius: 5, fontSize: 10, fontWeight: 900, cursor: "pointer", color: d.hideChoiceLabel ? NEON.muted : "#0B0F1E", background: d.hideChoiceLabel ? "transparent" : NEON.yellow, border: `1px solid ${d.hideChoiceLabel ? NEON.borderSoft : NEON.yellow}` }}>{d.choice}</button>
           <button className="nodrag" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); chainToggle(id, { hideArrow: !d.hideArrow }); }} title={d.hideArrow ? "Show the memo → choice arrow" : "Hide the memo → choice arrow"} style={{ display: "grid", placeItems: "center", width: 18, height: 18, borderRadius: 5, fontSize: 11, fontWeight: 900, cursor: "pointer", color: d.hideArrow ? NEON.muted : "#0B0F1E", background: d.hideArrow ? "transparent" : NEON.cyan, border: `1px solid ${d.hideArrow ? NEON.borderSoft : NEON.cyan}` }}>↜</button>
@@ -349,18 +390,22 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // grips, same auto-persist path; it IS the baseline, made visible.
   const cd = layoutMode ? (LAYOUT_CARD as unknown as CeqCard) : (ceq?.data as unknown as CeqCard | undefined);
   // Flat walk list: each chain memo with its choice index + position within the chain.
+  // The set's slot rack (saved slots padded out to the full palette) and the ACTIVE
+  // ones, which are what real questions actually place memos into.
+  const rack = useMemo(() => rackOf(baseline?.memoSlots, frameW, frameH), [baseline?.memoSlots, frameW, frameH]);
+  const liveSlots = useMemo(() => activeSlots(rack), [rack]);
   const walk = useMemo(() => {
-    const list: { memoNodeId: string; label: string; choice: string; choiceIdx: number; chainPos: number; num: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: string }[] = [];
+    const list: { memoNodeId: string; label: string; choice: string; choiceIdx: number; chainPos: number; num: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: string; slotOff?: boolean }[] = [];
     if (layoutMode) {
-      // Question 0: one placeholder per baseline memo slot (add/remove via +/− slot).
-      const n = baseline?.memoSlots?.length ?? 0;
-      for (let i = 0; i < n; i++) list.push({ memoNodeId: `__slot${i}`, label: `Slot ${i + 1}`, choice: "—", choiceIdx: 0, chainPos: i, num: i + 1 });
+      // QUESTION 0 — the whole palette is on stage: every slot, active or not, so the
+      // rack is visible and Lee can switch slots on as a question needs them.
+      rack.forEach((s, i) => list.push({ memoNodeId: `__slot${i}`, label: `Slot ${i + 1}`, choice: "—", choiceIdx: 0, chainPos: i, num: i + 1, slotOff: !!s.off }));
       return list;
     }
     (cd?.choices ?? []).forEach((ch, ci) => (ch.chain ?? []).forEach((it, p) => list.push({ memoNodeId: it.memoNodeId, label: it.label, choice: LETTER(ci), choiceIdx: ci, chainPos: p, num: list.length + 1, hideChoiceLabel: it.hideChoiceLabel, hideArrow: it.hideArrow, sound: it.sound })));
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mainSig, layoutMode, baseline?.memoSlots?.length]);
+  }, [mainSig, layoutMode, rack]);
 
   // ---- PRACTICE (local; never touches the real CEQ) ------------------------
   const [emph, setEmph] = useState<number | null>(null);
@@ -487,19 +532,20 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     const qNum = layoutMode ? 0 : Math.max(0, (deckCeqIds?.indexOf(ceqId) ?? -1) + 1);
     const frameNode = { id: "__frame__", type: "frameBg", position: { x: 0, y: yOff }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum }, draggable: false, selectable: false, zIndex: -10 };
     const ceqNode = { id: ceqId, type: "ceqPreview", position: { x: cs.x, y: yOff + cs.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cs.scale, layoutBadge: layoutMode }, draggable: true, zIndex: 1 };
-    // SPEEDIER MEMOS (Lee): a memo with no baseline slot of its own inherits the previous
-    // memo's SIZE and column (x), stacked UNDERNEATH it with padding (not on top). First
-    // memo with no layout falls to defaultMemoPos.
-    let lastGeom: { x: number; y: number; scale: number } | null = null;
+    // PLACEMENT: in Question 0 each stage chip IS its slot (whole rack, so inactive
+    // ones stay visible to switch on). In a real question memos fill the ACTIVE slots
+    // in order — inactive slots simply don't exist here. Past the last active slot,
+    // memos stack below it at THAT slot's size (never on top of each other).
+    const src = layoutMode ? rack : liveSlots;
     const memoNodes = walk.map((w, i) => {
-      const slot = baseline?.memoSlots?.[i];
+      const slot = src[i];
+      const last = src[src.length - 1];
       const geom = slot
         ? { x: slot.x, y: slot.y, scale: slot.scale ?? 1 }
-        : lastGeom
-          ? { x: lastGeom.x, y: lastGeom.y + Math.round(150 * lastGeom.scale), scale: lastGeom.scale }
+        : last
+          ? { x: last.x, y: last.y + Math.round(SLOT_H * (last.scale ?? 1)) * (i - src.length + 1), scale: last.scale ?? 1 }
           : { ...defaultMemoPos(frameW, frameH, i), scale: 1 };
-      lastGeom = geom;
-      return { id: w.memoNodeId, type: "memoPreview", position: { x: geom.x, y: yOff + geom.y }, data: { label: w.label, walkNum: w.num, choice: w.choice, scale: geom.scale, hideChoiceLabel: w.hideChoiceLabel, hideArrow: w.hideArrow, sound: w.sound }, draggable: true, zIndex: 5 };
+      return { id: w.memoNodeId, type: "memoPreview", position: { x: geom.x, y: yOff + geom.y }, data: { label: w.label, walkNum: w.num, choice: w.choice, scale: geom.scale, hideChoiceLabel: w.hideChoiceLabel, hideArrow: w.hideArrow, sound: w.sound, slotOff: w.slotOff }, draggable: true, zIndex: 5 };
     });
     const active = [frameNode, ceqNode, ...memoNodes];
     if (!overviewOn || !deckCeqIds) return active;
@@ -555,44 +601,47 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // switch / baseline change). We no longer write them back to the real canvas nodes;
   // the SET BASELINE is the single source of truth. Promote via "Set as layout" only.
   const setScale = (nodeId: string, scale: number) => setNodes((nds) => nds.map((n) => (n.id === nodeId ? { ...n, data: { ...n.data, scale } } : n)));
-  /** SET AS LAYOUT — snapshot the current card + memo geometry as the set's baseline.
-   *  Keys memos by flat chain-slot index. Two write modes:
-   *  "replace" — the explicit Set-layout button (and Q0's stage, where the walk IS the
-   *  full slot list): rebuild the slots wholesale from what's on stage.
-   *  "merge" — auto-persist from drags/resizes: start from the EXISTING baseline and
-   *  overwrite only the slots this question's chain actually shows, so sculpted extra
-   *  slots survive and a chainless question can never truncate or wipe the baseline. */
-  const saveBaseline = (writeMode: "replace" | "merge") => {
+  /** Which RACK slot a stage chip owns. In Question 0 the chips ARE the rack, 1:1. In
+   *  a real question only ACTIVE slots are on stage, so chip i owns the i-th active
+   *  slot — writing rack[i] there would edit the wrong (possibly inactive) slot.
+   *  Returns -1 for an overflow chip, which owns no slot and must not persist. */
+  const rackIndexOf = (i: number): number => {
+    if (layoutMode) return i;
+    let seen = -1;
+    for (let r = 0; r < rack.length; r++) if (!rack[r].off) { seen += 1; if (seen === i) return r; }
+    return -1;
+  };
+  /** SET AS LAYOUT / auto-persist — write the stage's geometry into the set's rack.
+   *  ALWAYS starts from the full rack, so slots that aren't on stage (inactive ones,
+   *  or slots a chain-less question never shows) keep their geometry and on/off state
+   *  and a wipe is structurally impossible. Only the slots a chip actually occupies
+   *  are updated, and `off` is carried through untouched — this writes geometry, and
+   *  geometry is all a slot has. */
+  const saveBaseline = () => {
     const c = nodes.find((n) => n.id === ceqId);
-    const memoSlots: DeckSlotLayout[] = writeMode === "merge" ? (baseline?.memoSlots ?? []).map((s) => ({ ...s })) : [];
-    walk.forEach((w, i) => { const m = nodes.find((n) => n.id === w.memoNodeId); if (m) memoSlots[i] = { x: Math.round(m.position.x), y: Math.round(m.position.y - activeYOff), scale: (m.data as { scale?: number }).scale ?? 1 }; });
+    const memoSlots: DeckSlotLayout[] = rack.map((s) => ({ ...s }));
+    walk.forEach((w, i) => {
+      const r = rackIndexOf(i); if (r < 0 || !memoSlots[r]) return;
+      const m = nodes.find((n) => n.id === w.memoNodeId); if (!m) return;
+      memoSlots[r] = { ...memoSlots[r], x: Math.round(m.position.x), y: Math.round(m.position.y - activeYOff), scale: (m.data as { scale?: number }).scale ?? 1 };
+    });
     onSaveBaseline?.({ card: c ? { x: Math.round(c.position.x), y: Math.round(c.position.y - activeYOff), scale: (c.data as { scale?: number }).scale ?? 1 } : undefined, memoSlots });
+  };
+  /** QUESTION 0 — switch a slot on/off. Snapshots the stage first so an unsaved drag
+   *  isn't lost, then flips just that slot. Inactive slots stay in the rack (and on
+   *  the Q0 stage, greyed) but never take a placement in a real question. */
+  const toggleSlot = (i: number) => {
+    const c = nodes.find((n) => n.id === ceqId);
+    const memoSlots: DeckSlotLayout[] = rack.map((s) => ({ ...s }));
+    walk.forEach((w, k) => { const m = nodes.find((n) => n.id === w.memoNodeId); if (m && memoSlots[k]) memoSlots[k] = { ...memoSlots[k], x: Math.round(m.position.x), y: Math.round(m.position.y - activeYOff), scale: (m.data as { scale?: number }).scale ?? 1 }; });
+    if (!memoSlots[i]) return;
+    memoSlots[i] = { ...memoSlots[i], off: !memoSlots[i].off };
+    onSaveBaseline?.({ card: c ? { x: Math.round(c.position.x), y: Math.round(c.position.y - activeYOff), scale: (c.data as { scale?: number }).scale ?? 1 } : baseline?.card, memoSlots });
   };
   // AUTO-PERSIST (Lee) — a drag or resize commits the current geometry to the set
   // baseline so it STICKS across navigation (was transient → reverted on re-seed).
-  // Always a MERGE: only the walked slots are overwritten (in QUESTION 0 the walk
-  // covers every slot, so dragging the stage still edits the whole baseline).
-  const commitGeom = () => { if (onSaveBaseline) saveBaseline("merge"); };
-  /** QUESTION 0 — add/remove a baseline memo slot (snapshots live geometry so slots
-   *  keep any unsaved drags, then appends below the last / pops the last). */
-  const snapshotSlots = (): { card: DeckSlotLayout | undefined; memoSlots: DeckSlotLayout[] } => {
-    const c = nodes.find((n) => n.id === ceqId);
-    const memoSlots: DeckSlotLayout[] = [];
-    walk.forEach((w, i) => { const m = nodes.find((n) => n.id === w.memoNodeId); if (m) memoSlots[i] = { x: Math.round(m.position.x), y: Math.round(m.position.y - activeYOff), scale: (m.data as { scale?: number }).scale ?? 1 }; });
-    return { card: c ? { x: Math.round(c.position.x), y: Math.round(c.position.y - activeYOff), scale: (c.data as { scale?: number }).scale ?? 1 } : baseline?.card, memoSlots };
-  };
-  const addSlot = () => {
-    const { card, memoSlots } = snapshotSlots();
-    const last = memoSlots[memoSlots.length - 1];
-    memoSlots.push(last ? { x: last.x, y: last.y + Math.round(150 * (last.scale ?? 1)), scale: last.scale } : { ...defaultMemoPos(frameW, frameH, 0), scale: 1 });
-    onSaveBaseline?.({ card, memoSlots });
-  };
-  const removeSlot = () => {
-    const { card, memoSlots } = snapshotSlots();
-    if (memoSlots.length === 0) return;
-    memoSlots.pop();
-    onSaveBaseline?.({ card, memoSlots });
-  };
+  // The rack is fixed-size, so this only ever UPDATES slots — it can't add or drop any.
+  const commitGeom = () => { if (onSaveBaseline) saveBaseline(); };
 
   // COPY / PASTE STYLE — the acted-on memos = the marquee selection if it includes the
   // right-clicked memo, else just that memo. Ordered by flat chain index for a stable
@@ -784,6 +833,8 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
          <ScaleCommitContext.Provider value={commitGeom}>
           <PreviewSpotContext.Provider value={spotApi}>
            <ChainToggleContext.Provider value={onPatchChainItem ?? (() => {})}>
+           {/* Q0 only — the number badge becomes the slot on/off switch. */}
+           <SlotToggleContext.Provider value={layoutMode && onSaveBaseline ? toggleSlot : null}>
            <AttachMemoContext.Provider value={onAttachMemo ?? (() => {})}>
            <SelectQuestionContext.Provider value={onSelectQuestion ?? (() => {})}>
            <ChoiceMenuContext.Provider value={onChoiceMenu}>
@@ -846,11 +897,10 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                 <button className="grid h-6 w-6 place-items-center rounded" style={{ color: running ? "#FF8B9E" : "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={toggleRun} title={running ? "Pause timer" : "Start practice timer"}>{running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}</button>
                 <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={resetAll} title="Reset the CEQ to blank + clear spotlights + timer (`)"><RotateCcw className="h-3.5 w-3.5" /></button>
                 <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: filmWin ? "#0B0F1E" : "#FF8B9E", background: filmWin ? "#FF8B9E" : "transparent", border: `1px solid ${filmWin ? "#FF8B9E" : "rgba(255,139,158,0.5)"}` }} onClick={toggleFilm} title={filmWin ? "Close the film window" : "FILM MODE — pops a clean 16:9 canvas frame (world background + watermark) onto your 2nd monitor. TWO-WAY: drag / resize / spotlight / Space-Tab-Enter work in EITHER window and stay in sync. Maximize it for OBS."}><Clapperboard className="h-3.5 w-3.5" /> {filmWin ? "Filming" : "Film"}</button>
-                {onSaveBaseline && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => saveBaseline("replace")} title="Set as layout — save THIS card + memo arrangement as the set's baseline (same baseline Question 0 edits directly). Every question then deals/previews at this geometry."><LayoutGrid className="h-3.5 w-3.5" /> Set layout</button>}
+                {onSaveBaseline && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => saveBaseline()} title="Set as layout — save THIS card + memo arrangement as the set's baseline (same baseline Question 0 edits directly). Every question then deals/previews at this geometry."><LayoutGrid className="h-3.5 w-3.5" /> Set layout</button>}
                 {layoutMode && onSaveBaseline && (<>
                   <span className="flex h-6 items-center rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#0B0F1E", background: NEON.yellow }}>Q0 · Layout</span>
-                  <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={addSlot} title="Add a memo slot to the baseline (lands below the last slot)"><Plus className="h-3 w-3" /> slot</button>
-                  <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase disabled:opacity-40" style={{ color: NEON.red, border: `1px solid ${NEON.borderSoft}` }} disabled={walk.length === 0} onClick={removeSlot} title="Remove the last memo slot from the baseline">− slot</button>
+                  <span className="flex h-6 items-center text-[9px] font-bold uppercase" style={{ color: NEON.muted }}>{liveSlots.length}/{rack.length} slots on — click a slot’s number to switch it</span>
                 </>)}
                 {deckCeqIds && deckCeqIds.length > 1 && activeIdx >= 0 && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: overview ? "#0B0F1E" : NEON.cyan, background: overview ? NEON.cyan : "transparent", border: `1px solid ${overview ? NEON.cyan : NEON.borderSoft}` }} onClick={() => setOverview((v) => !v)} title="Overview — stack every question as its own frame vertically. Zoom out (scroll) to see them all, drag to pan, click a question to glide to it. The active question stays fully live."><Rows3 className="h-3.5 w-3.5" /> {overview ? "Overview" : "Overview"}</button>}
                 {overviewOn && <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={fitAll} title="Fit all questions in view (zoom out)"><Maximize2 className="h-3.5 w-3.5" /></button>}
@@ -990,6 +1040,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
            </ChoiceMenuContext.Provider>
            </SelectQuestionContext.Provider>
            </AttachMemoContext.Provider>
+           </SlotToggleContext.Provider>
            </ChainToggleContext.Provider>
           </PreviewSpotContext.Provider>
          </ScaleCommitContext.Provider>

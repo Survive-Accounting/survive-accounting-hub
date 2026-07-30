@@ -21,7 +21,7 @@ import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { CeqChainEditor } from "./CeqChainEditor";
 import { listChainTemplates } from "./ceq-chain-templates";
 import { MemoPickerModal } from "./MemoPickerModal";
-import { CeqPreviewer, dealCentre, defaultMemoPos } from "./CeqPreviewer";
+import { activeSlots, CeqPreviewer, dealCentre, defaultMemoPos, paletteSlots, rackOf } from "./CeqPreviewer";
 import { seedCeqSets } from "./ceq-seed";
 import { buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, stageTake, stitchManifest, stitchRuntime, videoFromDrop, videosFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
 import { CeqStitch } from "./CeqStitch";
@@ -341,7 +341,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       ...(topic ? { chapter: `Ch ${topic.number ?? "?"}` } : {}),
       // DEFAULT QUESTION 0 — the baseline is never empty: centred card + two memo
       // slots right-stacked (the classic deal geometry), sculptable from row 0.
-      layout: { card: { ...dealCentre(frameW, frameH), scale: 1 }, memoSlots: [{ ...defaultMemoPos(frameW, frameH, 0), scale: 1 }, { ...defaultMemoPos(frameW, frameH, 1), scale: 1 }] },
+      layout: { card: { ...dealCentre(frameW, frameH), scale: 1 }, memoSlots: paletteSlots(frameW, frameH).map((sl, i) => (i < 2 ? sl : { ...sl, off: true })) }, // full rack; first two ON, rest ready to switch on
     };
     setDecks((prev) => addDeck(prev, def));
     setSetId(def.id); setQId(null); setNewSetForm(null);
@@ -1257,17 +1257,19 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewSelMemo, qId, sel, selChainMemos, memoClip, qClip, itemsClip, qSel]);
 
-  /** NEXT-SLOT PLACEMENT (Question 0) — a new memo at flat chain index N lands at
-   *  baseline slot N (position + size). Overflow (all slots occupied) stacks below the
-   *  LAST slot at slot-N's size. No baseline at all ⇒ the classic default stagger. */
+  /** NEXT-SLOT PLACEMENT — a new memo at flat chain index N lands in the Nth ACTIVE
+   *  palette slot (position + size; slots Lee switched OFF are skipped entirely).
+   *  Past the last active slot it stacks BELOW it at that slot's size, so two memos
+   *  can never be born at the same coordinate. */
   const baselineSpot = (flatIdx: number): { x: number; y: number; scale?: number } => {
-    const slots = deck?.layout?.memoSlots ?? [];
-    const s = slots[flatIdx];
-    if (s) return s;
-    const last = slots[slots.length - 1];
-    if (last) return { x: last.x, y: last.y + Math.round(150 * (last.scale ?? 1)) * (flatIdx - slots.length + 1), scale: last.scale };
+    const live = activeSlots(rackOf(deck?.layout?.memoSlots, frameW, frameH));
+    const s = live[flatIdx];
+    if (s) return { x: s.x, y: s.y, scale: s.scale };
+    const last = live[live.length - 1];
+    if (last) return { x: last.x, y: last.y + Math.round(150 * (last.scale ?? 1)) * (flatIdx - live.length + 1), scale: last.scale };
     return { ...defaultMemoPos(frameW, frameH, flatIdx), scale: 1 };
   };
+
   /** CREATE a brand-new memo (text + category from the +💡 modal or right-click),
    *  attached to a choice's chain + SNAPPED to the next baseline slot. */
   const createMemoChained = (ceqId: string, choiceId: string, text: string, category: string) => {
