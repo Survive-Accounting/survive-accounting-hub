@@ -20,6 +20,7 @@ import { lessonNodeOf, topicKey, topicOfLessonNode, topicOfNode } from "./memo-s
 import { captureChainTemplate, deleteChainTemplate, listChainTemplates } from "./ceq-chain-templates";
 import { cardId, type ChainSound, type CeqCard, type CeqChainItem, type CeqChoice, type CeqChainTemplate } from "./types";
 import { NEON } from "./theme";
+import { BufferedInput } from "./ui";
 
 const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
 const memoLabel = (title?: string, body?: string) => ((title && title.trim()) || (body || "").replace(/[*_=~`#>]/g, "").trim() || "memo").slice(0, 40);
@@ -198,7 +199,7 @@ export function CeqChainEditor({ nodeId, onClose }: { nodeId: string; onClose: (
                   {chain.map((it, i) => (
                     <div key={`${it.memoNodeId}-${i}`} className="flex items-center gap-1">
                       <span className="w-3 shrink-0 text-right text-[9px] tabular-nums" style={{ color: NEON.muted }}>{i + 1}</span>
-                      <input className={`min-w-0 flex-1 ${FIELD}`} style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={it.label} onChange={(e) => renameItem(c.id, i, e.target.value)} onKeyDown={(e) => e.stopPropagation()} title="Chain item label (shown in the run log)" />
+                      <BufferedInput className={`min-w-0 flex-1 ${FIELD}`} style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={it.label} onCommit={(v) => renameItem(c.id, i, v)} onKeyDown={(e) => e.stopPropagation()} title="Chain item label (shown in the run log)" />
                       {/* REVEAL SOUND (sound pass) — fires on this item's Enter reveal (film). */}
                       <select className="nodrag shrink-0 rounded px-0.5 py-0.5 text-[9px] outline-none" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${it.sound ? "rgba(252,163,17,0.5)" : NEON.borderSoft}`, color: it.sound ? NEON.yellow : NEON.muted }} value={it.sound ?? ""} onChange={(e) => setItemSound(c.id, i, (e.target.value || undefined) as ChainSound | undefined)} onKeyDown={(e) => e.stopPropagation()} title="Sound on this item's Enter reveal (film) — none / chaching / cram launch / vinyl scratch">
                         <option value="">🔇 none</option>

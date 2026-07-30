@@ -23,6 +23,7 @@ import { downloadText } from "./export";
 import { courseScriptMarkdown, scriptTree } from "./script-doc";
 import { estimateFrameSeconds, formatReadTime, isOverReadTime } from "./script-timing";
 import { NEON } from "./theme";
+import { BufferedInput } from "./ui";
 import { cardId, FRAME_H, FRAME_W, isContainerType, type Beat, type CardMark, type FrameScript, type MarkKind } from "./types";
 
 const FIELD_BG = "rgba(255,255,255,0.05)";
@@ -349,7 +350,7 @@ export function ScriptEditor({ courseName, currentFrameId, onClose, statusCell, 
                     return (
                       <span key={m.id} className="inline-flex items-center gap-1 rounded px-1 py-0.5 text-[10px]" style={{ background: linked ? "rgba(126,243,192,0.1)" : "rgba(252,163,17,0.1)", border: `1px solid ${linked ? "rgba(126,243,192,0.4)" : "rgba(252,163,17,0.4)"}` }}>
                         <b style={{ color: linked ? "#7EF3C0" : NEON.yellow }}>@{markLabel(m.kind)}</b>
-                        <input value={m.note ?? ""} onChange={(e) => setNote(frame.frameId, m.id, e.target.value)} placeholder="note" title={m.note || "note"} className="w-24 bg-transparent text-[10px] outline-none" style={{ color: NEON.text }} />
+                        <BufferedInput value={m.note ?? ""} onCommit={(v) => setNote(frame.frameId, m.id, v)} placeholder="note" title={m.note || "note"} className="w-24 bg-transparent text-[10px] outline-none" style={{ color: NEON.text }} />
                         {linked ? (
                           <button className="grid h-4 w-4 place-items-center" style={{ color: "#7EF3C0" }} title="Linked — click to unlink" onClick={() => linkMark(frame.frameId, m.id, null)}><Link2 className="h-3 w-3" /></button>
                         ) : (

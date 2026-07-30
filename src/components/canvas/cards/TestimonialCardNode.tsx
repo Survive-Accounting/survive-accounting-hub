@@ -10,7 +10,7 @@ import { ImagePlus, Settings2, Star, X } from "lucide-react";
 import { BaseCard, useCardActions } from "../BaseCard";
 import { CardPopover } from "../CardPopover";
 import { renderInline } from "../inline-md";
-import { EditableText, useEditSignal } from "../ui";
+import { BufferedInput, EditableText, useEditSignal } from "../ui";
 import { NEON, PAPER } from "../theme";
 import { uploadImageFile } from "./ImageCardNode";
 import type { AttrMode, TestimonialCard } from "../types";
@@ -164,7 +164,7 @@ function TestimonialSettings({ d, onUpdate, onClose }: { d: TestimonialCard; onU
       </div>
 
       <label className="mb-1 mt-1 block text-[9.5px] font-semibold uppercase tracking-wide" style={{ color: NEON.muted }}>Student name</label>
-      <input className={field} style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={d.studentName} placeholder="e.g. Maya R." onChange={(e) => onUpdate({ studentName: e.target.value })} onKeyDown={(e) => e.stopPropagation()} />
+      <BufferedInput className={field} style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={d.studentName} placeholder="e.g. Maya R." onCommit={(v) => onUpdate({ studentName: v })} onKeyDown={(e) => e.stopPropagation()} />
 
       <div className={`${row} mt-1.5`}>
         <span>Rating</span>
@@ -191,13 +191,13 @@ function TestimonialSettings({ d, onUpdate, onClose }: { d: TestimonialCard; onU
           })}
         </div>
         {(d.attrMode ?? "generic") === "generic" && (
-          <input className={field} style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={d.attrGeneric ?? ""} placeholder="e.g. Intro Accounting student" onChange={(e) => onUpdate({ attrGeneric: e.target.value })} onKeyDown={(e) => e.stopPropagation()} />
+          <BufferedInput className={field} style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={d.attrGeneric ?? ""} placeholder="e.g. Intro Accounting student" onCommit={(v) => onUpdate({ attrGeneric: v })} onKeyDown={(e) => e.stopPropagation()} />
         )}
         {d.attrMode === "specific" && (
-          <input className={field} style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={d.attrSpecific ?? ""} placeholder="e.g. ACCY 201 · Ole Miss" onChange={(e) => onUpdate({ attrSpecific: e.target.value })} onKeyDown={(e) => e.stopPropagation()} />
+          <BufferedInput className={field} style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={d.attrSpecific ?? ""} placeholder="e.g. ACCY 201 · Ole Miss" onCommit={(v) => onUpdate({ attrSpecific: v })} onKeyDown={(e) => e.stopPropagation()} />
         )}
         {d.attrMode === "custom" && (
-          <input className={field} style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={d.attrCustom ?? ""} placeholder="free text" onChange={(e) => onUpdate({ attrCustom: e.target.value })} onKeyDown={(e) => e.stopPropagation()} />
+          <BufferedInput className={field} style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={d.attrCustom ?? ""} placeholder="free text" onCommit={(v) => onUpdate({ attrCustom: v })} onKeyDown={(e) => e.stopPropagation()} />
         )}
         <p className="mt-1 text-[9px] leading-snug" style={{ color: NEON.muted }}>Default is the portable “generic” line — reference the context, not hard coordinates, so the card reuses across frames.</p>
       </div>

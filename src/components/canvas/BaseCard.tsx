@@ -9,6 +9,7 @@ import { DeckChip, useDecks } from "./DecksContext";
 import { attachMemo } from "./MemoLightbulb";
 import { useCardDim, useCardEmphasis } from "./SpotlightContext";
 import { NEON, PAPER } from "./theme";
+import { BufferedInput } from "./ui";
 import { nextZ } from "./zorder";
 import { cardId, clampScale, FRAME_CARD_SCALE, isElementKind, type CardBase } from "./types";
 
@@ -350,12 +351,12 @@ export function BaseCard({
           <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: accent, boxShadow: `0 0 8px ${accent}` }} />
         )}
         {titleNode ?? (
-          <input
+          <BufferedInput
             className="nodrag min-w-0 flex-1 bg-transparent text-[11px] font-semibold uppercase tracking-wide outline-none"
             style={{ color: PAPER.headerMuted }}
             value={title}
             placeholder={(data as { kind: string }).kind}
-            onChange={(e) => update({ title: e.target.value })}
+            onCommit={(v) => update({ title: v })}
             onPointerDown={(e) => e.stopPropagation()}
           />
         )}

@@ -10,6 +10,7 @@ import { bus, patchDataFnCmd, type RfLike } from "./commands";
 import { estimateFrameSeconds, formatReadTime, isOverReadTime, parseScriptLines, DEFAULT_READTIME_THRESHOLD_S } from "./script-timing";
 import { NEON } from "./theme";
 import type { FrameScript } from "./types";
+import { BufferedTextarea } from "./ui";
 
 /** The editable body — shared by the docked panel and the pop-out window. */
 export function FrameScriptDockBody({ frameId, cramMode }: { frameId: string | null; cramMode?: boolean }) {
@@ -50,7 +51,7 @@ export function FrameScriptDockBody({ frameId, cramMode }: { frameId: string | n
           return (
             <div key={c.id} className="flex flex-col gap-1">
               <label className="truncate text-[10.5px] font-semibold" style={{ color: NEON.text }} title={cd.prompt}>{i + 1}. {cd.prompt || "Question"}</label>
-              <textarea rows={2} className={FIELD} style={fieldStyle} placeholder="A line to say for this question…" value={cd.note ?? ""} onChange={(e) => setNote(c.id, e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
+              <BufferedTextarea rows={2} className={FIELD} style={fieldStyle} placeholder="A line to say for this question…" value={cd.note ?? ""} onCommit={(v) => setNote(c.id, v)} onKeyDown={(e) => e.stopPropagation()} />
             </div>
           );
         })}
@@ -72,12 +73,12 @@ export function FrameScriptDockBody({ frameId, cramMode }: { frameId: string | n
       </div>
 
       <label className="text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Entry line</label>
-      <textarea rows={2} className={FIELD} style={fieldStyle} placeholder="How you walk into this frame…" value={script?.entry ?? ""} onChange={(e) => patch("entry", e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
+      <BufferedTextarea rows={2} className={FIELD} style={fieldStyle} placeholder="How you walk into this frame…" value={script?.entry ?? ""} onCommit={(v) => patch("entry", v)} onKeyDown={(e) => e.stopPropagation()} />
 
       <label className="text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>
         Beats <span className="font-normal normal-case opacity-70">— prefix a line with “!” for a money line</span>
       </label>
-      <textarea rows={6} className={FIELD} style={fieldStyle} placeholder={"• point one\n• point two\n! the line that must land"} value={script?.beats ?? ""} onChange={(e) => patch("beats", e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
+      <BufferedTextarea rows={6} className={FIELD} style={fieldStyle} placeholder={"• point one\n• point two\n! the line that must land"} value={script?.beats ?? ""} onCommit={(v) => patch("beats", v)} onKeyDown={(e) => e.stopPropagation()} />
       {beatLines.some((l) => l.text.trim()) && (
         <div className="rounded p-1.5" style={{ background: "rgba(0,0,0,0.18)", border: `1px solid ${NEON.borderSoft}` }}>
           {beatLines.filter((l) => l.text.trim()).map((l, i) => (
@@ -90,7 +91,7 @@ export function FrameScriptDockBody({ frameId, cramMode }: { frameId: string | n
       )}
 
       <label className="text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Exit line</label>
-      <textarea rows={2} className={FIELD} style={fieldStyle} placeholder="How you hand off to the next frame…" value={script?.exit ?? ""} onChange={(e) => patch("exit", e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
+      <BufferedTextarea rows={2} className={FIELD} style={fieldStyle} placeholder="How you hand off to the next frame…" value={script?.exit ?? ""} onCommit={(v) => patch("exit", v)} onKeyDown={(e) => e.stopPropagation()} />
     </div>
   );
 }

@@ -71,6 +71,52 @@ export function parseNum(s: string): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
+/** CARET FIX (Lee) — own a live-committing field's text LOCALLY.
+ *
+ *  Why: canvas writes ride the command bus → `rf.updateNodeData`, which only QUEUES
+ *  the store write (@xyflow's BatchProvider drains the queue in a later layout
+ *  effect). Meanwhile `bus.onMutate` marks the scene tab dirty SYNCHRONOUSLY, which
+ *  re-renders the panels inside that gap — so a controlled field reading node data
+ *  re-renders with the PREVIOUS string while the DOM already holds the typed one.
+ *  React then pushes the stale value into the focused element, and assigning
+ *  `.value` collapses the selection: the caret jumps to the end mid-word.
+ *
+ *  This keeps the commit per-keystroke (live previews and `ceqSig` re-seeds still
+ *  work) but renders from local state. An incoming value is adopted only when it is
+ *  NOT the echo of our own last write — same guard shape as NoteEditor's `lastHtml`
+ *  ref — so undo, scene load and edits from another surface still resync the field.
+ *
+ *  For fields that only need to commit on blur/Enter, prefer `EditableText`. */
+export function useBufferedValue(value: string, commit: (v: string) => void) {
+  const [local, setLocal] = useState(value);
+  const mine = useRef(value);
+  useEffect(() => { if (value !== mine.current) { mine.current = value; setLocal(value); } }, [value]);
+  return {
+    value: local,
+    set: (v: string) => { mine.current = v; setLocal(v); commit(v); },
+  };
+}
+
+type BufferedProps<E extends HTMLInputElement | HTMLTextAreaElement> = {
+  value: string;
+  /** Fires on every keystroke (same cadence as a plain controlled onChange). */
+  onCommit: (v: string) => void;
+} & Omit<React.InputHTMLAttributes<E> & React.TextareaHTMLAttributes<E>, "value" | "onChange">;
+
+/** Drop-in `<input>` that renders from a local buffer — see `useBufferedValue`.
+ *  Use anywhere the value round-trips through the node store (the caret jumps
+ *  otherwise). Every other prop passes through untouched. */
+export function BufferedInput({ value, onCommit, ...rest }: BufferedProps<HTMLInputElement>) {
+  const b = useBufferedValue(value, onCommit);
+  return <input {...rest} value={b.value} onChange={(e) => b.set(e.target.value)} />;
+}
+
+/** Drop-in `<textarea>` counterpart of {@link BufferedInput}. */
+export function BufferedTextarea({ value, onCommit, ...rest }: BufferedProps<HTMLTextAreaElement>) {
+  const b = useBufferedValue(value, onCommit);
+  return <textarea {...rest} value={b.value} onChange={(e) => b.set(e.target.value)} />;
+}
+
 interface EditableTextProps {
   value: string;
   onChange: (v: string) => void;

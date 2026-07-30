@@ -20,6 +20,7 @@ import { NEON } from "./theme";
 import { useFrameNav } from "./FrameNavContext";
 import { BEAT_COLUMNS, beatColOf, framesInLesson } from "./frames";
 import { BEAT_META } from "./cards/FrameNode";
+import { BufferedInput } from "./ui";
 import { cardId, LESSON_CATEGORIES, LESSON_CATEGORY_LABEL, LESSON_STATUSES, type CardBase, type CardNode, type CeqCard, type CeqChoice, type FrameBox, type LessonBox, type LessonCategory, type LessonStatus } from "./types";
 
 const STATUS_TONE: Record<LessonStatus, string> = { UNFILMED: "#FF5C6C", FILMED: "#FCA311", PUBLISHED: "#3BF5A0" };
@@ -259,7 +260,7 @@ export function OutlinePanel() {
                                                       {isOpen(`${c.id}:${ch.id}`) && chain.map((it, i) => (
                                                         <div key={`${it.memoNodeId}-${i}`} className="ml-5 flex items-center gap-1 py-0.5 text-[10.5px]">
                                                           <span className="shrink-0 text-[8px]" style={{ color: NEON.muted }}>↳ {i + 1}</span>
-                                                          <input className="min-w-0 flex-1 rounded bg-black/30 px-1 text-[10.5px] outline-none" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={it.label} onChange={(e) => renameChainMemo(c.id, ch.id, i, e.target.value)} onKeyDown={(e) => e.stopPropagation()} title="Rename this chain memo's label" />
+                                                          <BufferedInput className="min-w-0 flex-1 rounded bg-black/30 px-1 text-[10.5px] outline-none" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={it.label} onCommit={(v) => renameChainMemo(c.id, ch.id, i, v)} onKeyDown={(e) => e.stopPropagation()} title="Rename this chain memo's label" />
                                                           <button className="shrink-0" style={{ color: NEON.muted }} onClick={() => copyChainMemo(it)} title="Copy this memo"><ClipboardCopy className="h-3 w-3" /></button>
                                                         </div>
                                                       ))}

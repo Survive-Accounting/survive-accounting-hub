@@ -32,6 +32,7 @@ import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { useFrameNav } from "./FrameNavContext";
 import { cardId, type CeqCard, type ChainSound, type CeqChainItem, type CeqChoice, type DeckDef, type DeckLayout, type DeckSlotLayout, type GlobalClips, type TakeRef } from "./types";
 import { NEON } from "./theme";
+import { BufferedInput, BufferedTextarea } from "./ui";
 
 const memoText = (title?: string, body?: string) => ((title && title.trim()) || (body || "").replace(/[*_=~`#>]/g, "").trim() || "memo");
 /** A question's ordered CLIP STACK — the new `takes` list, else the legacy single
@@ -370,7 +371,9 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     const cmd = addNodesCmd(rfl, [node] as never, "add question"); if (cmd) bus.dispatch(cmd);
     setQId(id);
   };
-  const patchQ = (id: string, patch: Record<string, unknown>) => { const c = patchDataCmd(rfl, id, patch, "edit question"); if (c) bus.dispatch(c); };
+  /** `coalesceKey` (optional) merges a keystroke burst into ONE undo step — pass it
+   *  from live-committing text fields so a typed stem isn't 60 Ctrl+Z presses. */
+  const patchQ = (id: string, patch: Record<string, unknown>, coalesceKey?: string) => { const c = patchDataCmd(rfl, id, patch, "edit question", coalesceKey); if (c) bus.dispatch(c); };
   /** Duplicate a question into the same set (fresh stem/choices, EMPTY chains) — a
    *  fast start for a similar question. */
   const duplicateQuestion = (srcId: string) => {
@@ -705,7 +708,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   };
   /** Flat walk list for a question (choice order → chain index) for the outline. */
   const walkOf = (q: { id: string }) => { const cc = (rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.choices ?? []; const list: { choiceId: string; idx: number; label: string; letter: string; num: number; memoNodeId: string; sound?: ChainSound }[] = []; cc.forEach((ch, ci) => (ch.chain ?? []).forEach((it, i) => list.push({ choiceId: ch.id, idx: i, label: it.label, letter: LETTER(ci), num: list.length + 1, memoNodeId: it.memoNodeId, sound: it.sound }))); return list; };
-  const patchChoice = (id: string, choiceId: string, patch: Partial<CeqChoice>) => { const c = patchDataFnCmd(rfl, id, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((ch) => (ch.id === choiceId ? { ...ch, ...patch } : ch)) }), "edit choice"); if (c) bus.dispatch(c); };
+  const patchChoice = (id: string, choiceId: string, patch: Partial<CeqChoice>, coalesceKey?: string) => { const c = patchDataFnCmd(rfl, id, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((ch) => (ch.id === choiceId ? { ...ch, ...patch } : ch)) }), "edit choice", coalesceKey); if (c) bus.dispatch(c); };
   const setCorrect = (id: string, choiceId: string) => { const c = patchDataFnCmd(rfl, id, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((ch) => ({ ...ch, correct: ch.id === choiceId })) }), "mark correct"); if (c) bus.dispatch(c); };
   const addChoice = (id: string) => { const c = patchDataFnCmd(rfl, id, (prev) => ({ choices: [...(prev as unknown as { choices: CeqChoice[] }).choices, { id: cardId("ch"), text: "" }] }), "add choice"); if (c) bus.dispatch(c); };
   const removeChoice = (id: string, choiceId: string) => { const c = patchDataFnCmd(rfl, id, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.filter((ch) => ch.id !== choiceId) }), "remove choice"); if (c) bus.dispatch(c); };
@@ -1767,20 +1770,20 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                     {qd.short && (
                       <div className="flex items-center gap-1.5 px-2 pb-1">
                         <span className="shrink-0 text-[8px] font-bold uppercase" style={{ color: "#FF8B9E" }}>Short angle</span>
-                        <input className="nodrag min-w-0 flex-1 rounded bg-black/30 px-1.5 py-0.5 text-[10px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} value={qd.shortNote ?? ""} onChange={(e) => patchQ(qId!, { shortNote: e.target.value })} placeholder="one-line angle (e.g. the contra trap)" onKeyDown={(e) => e.stopPropagation()} />
+                        <BufferedInput className="nodrag min-w-0 flex-1 rounded bg-black/30 px-1.5 py-0.5 text-[10px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} value={qd.shortNote ?? ""} onCommit={(v) => patchQ(qId!, { shortNote: v }, `q:${qId}:shortNote`)} placeholder="one-line angle (e.g. the contra trap)" onKeyDown={(e) => e.stopPropagation()} />
                       </div>
                     )}
                     {editorOpen && (
                       <div className="max-h-[38vh] overflow-y-auto px-2 pb-2">
                         <div className="flex flex-col gap-2">
-                          <textarea rows={2} className="nodrag w-full resize-none rounded px-2 py-1.5 text-[13px] outline-none" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={qd.prompt} onChange={(e) => patchQ(qId!, { prompt: e.target.value })} placeholder="The question stem…" />
+                          <BufferedTextarea rows={2} className="nodrag w-full resize-none rounded px-2 py-1.5 text-[13px] outline-none" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={qd.prompt} onCommit={(v) => patchQ(qId!, { prompt: v }, `q:${qId}:prompt`)} placeholder="The question stem…" onKeyDown={(e) => e.stopPropagation()} />
                           <div className="text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Choices — click ○ to mark correct · +💡 or drop a memo to chain it</div>
                           {qd.choices.map((ch, ci) => (
                             <div key={ch.id} className="flex items-center gap-1 rounded px-1 py-0.5" style={{ border: `1px solid ${ch.correct ? "rgba(59,245,160,0.5)" : NEON.borderSoft}` }}
                               onDragOver={(e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }}
                               onDrop={(e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); attachMemoToChoice(qId!, ch.id, mid); } }}>
                               <button className="grid h-4 w-4 shrink-0 place-items-center rounded-full text-[8px] font-black" style={{ color: ch.correct ? "#0B0F1E" : NEON.muted, background: ch.correct ? "#3BF5A0" : "transparent", border: `1px solid ${ch.correct ? "#3BF5A0" : NEON.borderSoft}` }} onClick={() => setCorrect(qId!, ch.id)} title="Mark correct">{LETTER(ci)}</button>
-                              <input className="min-w-0 flex-1 bg-transparent text-[12px] outline-none" style={{ color: NEON.text }} value={ch.text} onChange={(e) => patchChoice(qId!, ch.id, { text: e.target.value })} placeholder={`Choice ${LETTER(ci)}`} />
+                              <BufferedInput className="min-w-0 flex-1 bg-transparent text-[12px] outline-none" style={{ color: NEON.text }} value={ch.text} onCommit={(v) => patchChoice(qId!, ch.id, { text: v }, `q:${qId}:${ch.id}:text`)} placeholder={`Choice ${LETTER(ci)}`} onKeyDown={(e) => e.stopPropagation()} />
                               {(ch.chain?.length ?? 0) > 0 && <span className="shrink-0 text-[8px] tabular-nums" style={{ color: NEON.cyan }} title="chain items">⛓{ch.chain!.length}</span>}
                               <button className="shrink-0 rounded px-1 text-[9px] font-bold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setPickModal({ ceqId: qId!, choiceId: ch.id })} title="Add a memo to this choice — search existing (shared) or create new">+💡</button>
                               <button className="shrink-0" style={{ color: NEON.red }} onClick={() => removeChoice(qId!, ch.id)} title="Remove choice"><X className="h-3 w-3" /></button>
