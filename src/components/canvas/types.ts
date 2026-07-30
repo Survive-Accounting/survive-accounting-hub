@@ -329,9 +329,17 @@ export interface CeqCard extends CardBase {
   prompt: string;
   choices: CeqChoice[];
   revealedAnswer?: boolean;
-  /** PER-CEQ SCRIPT NOTE (cram-mode batch) — a line Lee jots per question, shown
-   *  in the script dock while cram mode is on. Additive; frame script untouched. */
+  /** PER-CEQ SCRIPT NOTE — LEGACY field. Superseded by the SCRIPT LAYERS below:
+   *  migrateScriptLayers copies it into revisedScript once (keep-old-readable), and
+   *  every writer now writes revisedScript. Kept so old scenes stay readable. */
   note?: string;
+  /** SCRIPT LAYERS (Lee, capture only — no AI generation, no diffing):
+   *  suggested = a drafted line · revised = what Lee actually says (seeded from the
+   *  legacy note) · transcript = empty for now, the future Mux caption import target.
+   *  All optional, all additive scene JSON; exported when present. */
+  suggestedScript?: string;
+  revisedScript?: string;
+  transcript?: string;
   /** TAKE SLOT (CEQ Studio) — LEGACY single clip. Superseded by `takes` (migrated as a
    *  one-item list); still read as a fallback for pre-stack scenes. Additive. */
   take?: TakeRef;

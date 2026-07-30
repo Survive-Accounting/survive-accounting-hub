@@ -269,3 +269,19 @@ export function migrateElementDeckFields<T extends { data?: Record<string, unkno
   if (stripped > 0) console.info(`[canvas] ${stripped} element(s) had deck membership from an old scene — membership dropped (elements never deck).`);
   return out;
 }
+
+/** SCRIPT LAYERS (Lee) — seed revisedScript from the legacy per-CEQ note, once.
+ *  Keep-old-readable: note stays in place (old readers keep working); a question
+ *  that already has a revisedScript is never touched, so the migration is
+ *  idempotent and a later note edit can't clobber a revision. */
+export function migrateScriptLayers<T extends { type?: string; data?: Record<string, unknown> }>(nodes: T[]): T[] {
+  let changed = false;
+  const out = nodes.map((n) => {
+    if (n.type !== "ceq") return n;
+    const d = n.data as { note?: string; revisedScript?: string } | undefined;
+    if (!d?.note || d.revisedScript !== undefined) return n;
+    changed = true;
+    return { ...n, data: { ...n.data, revisedScript: d.note } };
+  });
+  return changed ? out : nodes;
+}

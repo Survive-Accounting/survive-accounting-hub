@@ -90,7 +90,7 @@ import { buildSnippetPayload, spawnSnippet, SNIPPET_DND_MIME, type SnippetPayloa
 import { deleteSnippet as deleteSnippetFn, listSnippets, renameSnippet as renameSnippetFn, saveSnippet as saveSnippetFn, type SnippetRow } from "@/lib/snippet.functions";
 import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
-import { migrateCheckToCram, migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateFrameGrid, migrateFrameLocks, migrateIntroCards, migrateJeMemos, migrateLegendSlips, migrateLessonCategory, migrateLessonFields, sanitizeSceneNodes } from "@/components/canvas/scene-io";
+import { migrateCheckToCram, migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateFrameGrid, migrateFrameLocks, migrateIntroCards, migrateJeMemos, migrateLegendSlips, migrateLessonCategory, migrateLessonFields, sanitizeSceneNodes, migrateScriptLayers } from "@/components/canvas/scene-io";
 import { migrateZTiers, nextZ, Z_SPOTLIGHT } from "@/components/canvas/zorder";
 import { addEdgeCmd, lineIdOfHandle, memoOfHandle, resolveConnection, type EdgeLike } from "@/components/canvas/arrows";
 import { ArrowEdge, ARROW_EDGE_CSS } from "@/components/canvas/ArrowEdge";
@@ -4196,7 +4196,7 @@ function PresentCanvas() {
       // sanitize on LOAD too (S2.0 heal) + migrate v1 staged/minimized → deckMember/tucked
       // MEMBERSHIP FIX 5 — parents before children so RF v12 never hydrates a child
       // detached at the origin (a stranded/teleporting element). Content-only reorder.
-      rf.setNodes(markLessonHidden(orderParentsFirst(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(migrateLessonFields(migrateLessonCategory(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])))), isElementKind))))))))), activeId));
+      rf.setNodes(markLessonHidden(orderParentsFirst(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateScriptLayers(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(migrateLessonFields(migrateLessonCategory(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])))), isElementKind)))))))))), activeId));
       // old Ctrl+click-era edges have no handle ids — stamp r→l + smoothstep
       rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
       setSceneName(payload.name);
@@ -4278,7 +4278,7 @@ function PresentCanvas() {
         setTimeout(() => {
           if (rf.getNodes().length === 0) {
             // MEMBERSHIP FIX 5 — parents before children (see above). Re-mark gating.
-            rf.setNodes(markLessonHidden(orderParentsFirst(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(migrateLessonFields(migrateLessonCategory(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])))), isElementKind))))))))), activeLessonRef.current));
+            rf.setNodes(markLessonHidden(orderParentsFirst(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateScriptLayers(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(migrateLessonFields(migrateLessonCategory(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])))), isElementKind)))))))))), activeLessonRef.current));
             rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
             setTimeout(() => {
               if (rf.getNodes().length === 0) setDbDown(`Scene "${payload.name}" loaded but the canvas failed to hydrate — reload the page (autosave is holding off).`);
@@ -4644,7 +4644,7 @@ function PresentCanvas() {
       const snap = await loadSnapshot({ data: { id: snapId } });
       let nj: { nodes?: CardNode[]; edges?: unknown[]; sceneSettings?: { jeCardWidth?: number; jePreset?: string } } = {};
       try { nj = JSON.parse(snap.nodes_json || "{}"); } catch { return; }
-      const nodesAfter = migrateIntroCards(migrateZTiers(migrateFrameLocks(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(migrateLessonFields(migrateLessonCategory(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])))), isElementKind)))))));
+      const nodesAfter = migrateIntroCards(migrateZTiers(migrateFrameLocks(migrateScriptLayers(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(migrateLessonFields(migrateLessonCategory(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])))), isElementKind))))))));
       const edgesAfter = migrateEdges((nj.edges ?? []) as never[]);
       const nodesBefore = structuredClone(rf.getNodes());
       const edgesBefore = structuredClone(rf.getEdges());

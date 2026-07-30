@@ -25,6 +25,7 @@ import { activeSlots, CeqPreviewer, dealCentre, defaultMemoPos, paletteSlots, ra
 import { resolveCardSpot, resolveMemoSpot, stampFromTemplate, withInstanceSpot, type Spot } from "./ceq-geom";
 import { seedCeqSets } from "./ceq-seed";
 import { buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, stageTake, stitchManifest, stitchRuntime, videoFromDrop, videosFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
+import { buildSetExport } from "./ceq-export";
 import { CeqStitch } from "./CeqStitch";
 import { CeqVideoLibrary, vidCourseMatch, vidTopicMatch } from "./CeqVideoLibrary";
 import { DEFAULT_CROSSFADE_MS } from "./segment-assembly";
@@ -402,6 +403,61 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
         )}
       </div>
     );
+  };
+
+  /** EXPORT the set as one markdown doc (clipboard + download) — assembly here,
+   *  formatting in the pure ceq-export module so the document shape is testable. */
+  const exportSet = async () => {
+    if (!deck) return;
+    const rows = spineRows(deck);
+    const slotOf = (local?: TakeRef, global?: TakeRef): { state: "custom" | "global" | "empty"; name?: string; duration?: number } =>
+      local ? { state: "custom", name: local.name, duration: local.duration } : global ? { state: "global", name: global.name, duration: global.duration } : { state: "empty" };
+    const memoTextOf = (mid: string) => { const md = rf.getNode(mid)?.data as { title?: string; body?: string; label?: string } | undefined; return (md?.body || md?.title || md?.label || "").trim(); };
+    const tqqOf = (qid: string) => { const n = questions.findIndex((q) => q.id === qid) + 1; return `${deckTopicName(deck) || deck.name} · Q${n || "?"}`; };
+    const eq = questions.map((q, qi) => {
+      const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined;
+      return {
+        tqq: `${deckTopicName(deck) || deck.name} · Q${qi + 1}`,
+        stem: d?.prompt || "Question",
+        choices: (d?.choices ?? []).map((c) => ({ text: c.text, correct: c.correct, chain: (c.chain ?? []).map((it) => ({ label: it.label, body: memoTextOf(it.memoNodeId), sound: it.sound })) })),
+        flags: { boss: d?.boss, chachingSilenced: d?.confirmSfx === false, short: d?.short, shortNote: d?.shortNote, starred: d?.starred, free: d?.free },
+        scripts: { suggested: d?.suggestedScript, revised: d?.revisedScript ?? d?.note, transcript: d?.transcript },
+        clips: cardClips(d).map((t, i) => ({ name: t.name ?? "clip", duration: t.duration, lookback: i > 0, refs: (t.refs ?? []).map(tqqOf) })),
+      };
+    });
+    const md = buildSetExport({
+      setName: deck.name,
+      course: rows ? courseLabel(rows.course) : deck.course,
+      topic: rows ? topicLabel(rows.topic) : undefined,
+      freeCount, fullCount: questions.length,
+      runtimeFreeS: stitchRuntime(stitchFree.items), runtimeFullS: stitchRuntime(stitchFull.items),
+      clipCoverage: { withBase: eq.filter((q) => q.clips.length > 0).length, total: eq.length },
+      questions: eq,
+      introFrame: { exists: !!(deck.introFrameId && rf.getNode(deck.introFrameId)), clip: deck.hookTake ? { name: deck.hookTake.name ?? "clip", duration: deck.hookTake.duration } : undefined },
+      wrap: (deck.wrap ?? []).map((w) => ({ name: w.name ?? "clip", duration: w.duration, refs: (w.refs ?? []).map(tqqOf) })),
+      slots: { intro: slotOf(deck.intro, gc.intro), transition: slotOf(undefined, gc.transition), outro: slotOf(deck.outro, gc.outro) },
+    });
+    try { await navigator.clipboard.writeText(md); } catch { /* clipboard can be blocked; the download still lands */ }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([md], { type: "text/markdown" }));
+    a.download = `${deck.name.replace(/[^A-Za-z0-9 _-]+/g, "").trim() || "ceq-set"}.md`;
+    a.click();
+    window.setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+    setNote(`Exported "${deck.name}" (${Math.round(md.length / 102.4) / 10}KB markdown) — copied to the clipboard + downloaded.`);
+  };
+  /** COVERS-STARRED — stamp the currently-★ questions onto a clip's references in
+   *  one click (union: existing refs are kept). */
+  const starredIds = () => questions.filter((q) => (rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.starred).map((q) => q.id);
+  const stampStarredOnClip = (ceqId: string, idx: number) => {
+    const ids = starredIds(); if (ids.length === 0) return;
+    const t = cardClips(rf.getNode(ceqId)?.data as unknown as CeqCard | undefined)[idx];
+    setClipRefs(ceqId, idx, [...new Set([...(t?.refs ?? []), ...ids.filter((id) => id !== ceqId)])]);
+    setNote(`Stamped ${ids.filter((id) => id !== ceqId).length} starred question(s) onto the clip's references.`);
+  };
+  const stampStarredOnWrap = (idx: number) => {
+    if (!deck) return; const ids = starredIds(); if (ids.length === 0) return;
+    setDecks((prev) => updateDeck(prev, deck.id, { wrap: (deck.wrap ?? []).map((w, i) => (i === idx ? { ...w, refs: [...new Set([...(w.refs ?? []), ...ids])] } : w)) }));
+    setNote(`Stamped ${ids.length} starred question(s) onto wrap ${idx + 1}'s references.`);
   };
 
   /** SET INTRO FRAME — open it, creating it on first use as a DEEP COPY of the
@@ -1767,6 +1823,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
               {deck && (starOnly || starCount > 0) && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: starOnly ? "#0B1322" : "#FFD23F", background: starOnly ? "#FFD23F" : "transparent", border: `1px solid ${starOnly ? "#FFD23F" : NEON.borderSoft}` }} onClick={() => setStarOnly((v) => !v)} title="Show only STARRED questions (performer's notes)">★ {starCount}</button>}
               {deck && starCount > 0 && <button className="rounded px-1 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={clearAllStars} title="Clear ALL stars in this set (confirm)">clear ★</button>}
               {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setStitchMode("full")} title="Sequential rhythm preview — plays the Free/Full stitch list back-to-back (no render)"><Play className="h-3 w-3" /> preview</button>}
+              {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => void exportSet()} title="Export this set as one markdown doc — every question, chain, flag, script layer and clip, in deck order. Copies to the clipboard AND downloads.">Export</button>}
               {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: publishOpen ? "#0B0F1E" : "#3BF5A0", background: publishOpen ? "#3BF5A0" : "transparent", border: "1px solid rgba(59,245,160,0.5)" }} onClick={() => setPublishOpen(true)} title="Publish panel — Publish Free / Full, the lookback vertical, and the intro/transition/outro/wrap clips (one home)">{publishBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} Publish</button>}
               {deck && <button className="grid h-5 w-5 place-items-center rounded" style={{ color: wrapStems ? NEON.yellow : NEON.muted, border: `1px solid ${wrapStems ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` }} onClick={() => setPrefs({ wrapStems: !wrapStems })} title="Wrap question text ↔ clamp to 2 lines"><WrapText className="h-3 w-3" /></button>}
               {deck && selChainMemos.size > 0 && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={copyMemos} title="Copy the selected memos (Ctrl+C)"><Copy className="h-3 w-3" /> copy {selChainMemos.size}</button>}
@@ -1869,6 +1926,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
                               <button disabled={ci === 0} className="grid h-4 w-4 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderClip(q.id, ci, -1)} title="Move earlier"><ArrowUp className="h-3 w-3" /></button>
                               <button disabled={ci === clips.length - 1} className="grid h-4 w-4 place-items-center disabled:opacity-25" style={{ color: NEON.muted }} onClick={() => reorderClip(q.id, ci, 1)} title="Move later"><ArrowDown className="h-3 w-3" /></button>
                               <button className="grid h-4 place-items-center rounded px-0.5 text-[8px] font-bold" style={{ color: (t.refs?.length || refsOpen) ? NEON.yellow : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setClipRefsOpen((k) => (k === rk ? null : rk))} title="References earlier questions (lookback)">↩{t.refs?.length ? t.refs.length : ""}</button>
+                              <button className="grid h-4 w-4 place-items-center disabled:opacity-25" style={{ color: "#FFD23F" }} disabled={starCount === 0} onClick={() => stampStarredOnClip(q.id, ci)} title={starCount ? `Covers starred — stamp the ${starCount} ★ question(s) onto this clip’s references (one click, union)` : "Star questions first, then stamp them as this clip’s references"}>★</button>
                               <button className="grid h-4 w-4 place-items-center" style={{ color: NEON.red }} onClick={() => removeClip(q.id, ci)} title="Remove this clip"><X className="h-3 w-3" /></button>
                             </div>
                             <video src={t.url} controls playsInline preload="none" className="w-full rounded" style={{ background: "#000", aspectRatio: "16 / 9" }} />
@@ -2007,6 +2065,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
                           <span className="shrink-0 rounded px-1 font-bold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }}>W{wi + 1}</span>
                           <span className="min-w-0 flex-1 truncate" title={t.name}>{t.name || "clip"} · {fmtDur(t.duration)}</span>
                           <button className="grid h-4 w-4 place-items-center" onClick={() => setTakePreview((k) => (k === `wrap:${setId}:${wi}` ? null : `wrap:${setId}:${wi}`))} title="Preview"><CheckCircle2 className="h-3.5 w-3.5" style={{ color: "#3BF5A0" }} /></button>
+                          <button className="grid h-4 w-4 place-items-center disabled:opacity-25" style={{ color: "#FFD23F" }} disabled={starCount === 0} onClick={() => stampStarredOnWrap(wi)} title={starCount ? `Covers starred — stamp the ${starCount} ★ question(s) onto this wrap clip’s references` : "Star questions first, then stamp them here"}>★</button>
                           <button className="grid h-4 w-4 place-items-center" style={{ color: NEON.red }} onClick={() => removeWrapClip(wi)} title="Remove wrap clip"><X className="h-3 w-3" /></button>
                         </div>
                         {takePreview === `wrap:${setId}:${wi}` && <video src={t.url} controls playsInline preload="none" className="w-full rounded" style={{ background: "#000", aspectRatio: "16 / 9" }} />}
@@ -2051,6 +2110,17 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                     {editorOpen && (
                       <div className="max-h-[38vh] overflow-y-auto px-2 pb-2">
                         <div className="flex flex-col gap-2">
+                          {/* SCRIPT LAYERS — capture only. Revised is what Lee says
+                              (seeded from the legacy note); transcript is the future
+                              Mux caption target. Export includes whatever is set. */}
+                          <details className="rounded border px-1.5 py-1" style={{ borderColor: NEON.borderSoft }}>
+                            <summary className="cursor-pointer text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Script{(qd.suggestedScript || qd.revisedScript || qd.transcript || qd.note) ? " ·" : ""}{qd.suggestedScript ? " S" : ""}{(qd.revisedScript ?? qd.note) ? " R" : ""}{qd.transcript ? " T" : ""}</summary>
+                            <div className="mt-1 flex flex-col gap-1">
+                              <BufferedTextarea rows={2} className="nodrag w-full resize-none rounded px-1.5 py-1 text-[11px] outline-none" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} placeholder="Suggested script…" value={qd.suggestedScript ?? ""} onCommit={(v) => patchQ(qId!, { suggestedScript: v }, `q:${qId}:sug`)} onKeyDown={(e) => e.stopPropagation()} />
+                              <BufferedTextarea rows={2} className="nodrag w-full resize-none rounded px-1.5 py-1 text-[11px] outline-none" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} placeholder="Revised script (what you actually say)…" value={qd.revisedScript ?? qd.note ?? ""} onCommit={(v) => patchQ(qId!, { revisedScript: v }, `q:${qId}:rev`)} onKeyDown={(e) => e.stopPropagation()} />
+                              <BufferedTextarea rows={2} className="nodrag w-full resize-none rounded px-1.5 py-1 text-[11px] outline-none" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} placeholder="Transcript (Mux import lands here later)…" value={qd.transcript ?? ""} onCommit={(v) => patchQ(qId!, { transcript: v }, `q:${qId}:tr`)} onKeyDown={(e) => e.stopPropagation()} />
+                            </div>
+                          </details>
                           <BufferedTextarea rows={2} className="nodrag w-full resize-none rounded px-2 py-1.5 text-[13px] outline-none" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={qd.prompt} onCommit={(v) => patchQ(qId!, { prompt: v }, `q:${qId}:prompt`)} placeholder="The question stem…" onKeyDown={(e) => e.stopPropagation()} />
                           <div className="text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Choices — click ○ to mark correct · +💡 or drop a memo to chain it</div>
                           {qd.choices.map((ch, ci) => (

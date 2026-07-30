@@ -41,17 +41,19 @@ export function FrameScriptDockBody({ frameId, cramMode }: { frameId: string | n
     const ceqs = nodes
       .filter((n) => n.parentId === frameId && n.type === "ceq")
       .sort((a, b) => (((a.data as { stageOrder?: number }).stageOrder ?? 0) - ((b.data as { stageOrder?: number }).stageOrder ?? 0)));
-    const setNote = (id: string, value: string) => { const c = patchDataFnCmd(rfl, id, () => ({ note: value }), "edit CEQ note", `d:${id}:note`); if (c) bus.dispatch(c); };
+    // SCRIPT LAYERS: the dock now edits revisedScript (the legacy note seeded it via
+    // migrateScriptLayers and remains as a read fallback for unsaved old scenes).
+    const setNote = (id: string, value: string) => { const c = patchDataFnCmd(rfl, id, () => ({ revisedScript: value }), "edit CEQ script", `d:${id}:revised`); if (c) bus.dispatch(c); };
     return (
       <div className="flex flex-col gap-2 p-2.5 text-[12px]">
         <div className="text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>Per-question notes · {title || "cram"}</div>
         {ceqs.length === 0 && <div className="text-[11.5px]" style={{ color: NEON.muted }}>No CEQ cards in this frame yet — deal a set into it.</div>}
         {ceqs.map((c, i) => {
-          const cd = c.data as { prompt?: string; note?: string };
+          const cd = c.data as { prompt?: string; note?: string; revisedScript?: string };
           return (
             <div key={c.id} className="flex flex-col gap-1">
               <label className="truncate text-[10.5px] font-semibold" style={{ color: NEON.text }} title={cd.prompt}>{i + 1}. {cd.prompt || "Question"}</label>
-              <BufferedTextarea rows={2} className={FIELD} style={fieldStyle} placeholder="A line to say for this question…" value={cd.note ?? ""} onCommit={(v) => setNote(c.id, v)} onKeyDown={(e) => e.stopPropagation()} />
+              <BufferedTextarea rows={2} className={FIELD} style={fieldStyle} placeholder="A line to say for this question…" value={cd.revisedScript ?? cd.note ?? ""} onCommit={(v) => setNote(c.id, v)} onKeyDown={(e) => e.stopPropagation()} />
             </div>
           );
         })}
