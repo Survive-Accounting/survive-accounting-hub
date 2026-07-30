@@ -3148,7 +3148,7 @@ function PresentCanvas() {
     data: n.data as Record<string, unknown>,
   }), []);
 
-  const duplicateFrame = useCallback((frameId: string, dest?: { lessonId: string; beat: Beat }) => {
+  const duplicateFrame = useCallback((frameId: string, dest?: { lessonId?: string; beat?: Beat; onCreated?: (newFrameId: string) => void }) => {
     const all = rf.getNodes() as CardNode[];
     const src = all.find((n) => n.id === frameId && n.type === "frame");
     if (!src?.parentId) return;
@@ -3185,6 +3185,7 @@ function PresentCanvas() {
     const addCmd = addNodesAndEdgesCmd(rf as unknown as RfLike, placed, clonedEdges, "duplicate frame");
     const cmd = shiftCmds.length ? compositeCmd([...shiftCmds, addCmd], "duplicate frame") : addCmd;
     if (cmd) bus.dispatch(cmd);
+    dest?.onCreated?.(newFrameId);
     setDupFrameFor(null);
     // frame the copy where it landed (grid view — no film mode)
     const lesson = rf.getNode(lessonId);
@@ -3500,7 +3501,7 @@ function PresentCanvas() {
 
   const openStudio = useCallback((ceqId?: string) => { setStudioFocusCeq(ceqId ?? null); setCeqStudioOpen(true); }, []);
 
-  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, film, enter: (fid: string) => enterFrame(fid, { smooth: true }), exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId: string; beat: Beat } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson, copyFrame, pasteFrameBelow, hasFrameClip: clip?.kind === "frame", copyScaffold, pasteScaffold, hasScaffoldClip: clip?.kind === "scaffold", cramMode, activateLesson: setActiveLesson, openVideoSlot, focusCeq, openStudio }), [currentFrameId, film, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson, copyFrame, pasteFrameBelow, copyScaffold, pasteScaffold, clip, cramMode, setActiveLesson, openVideoSlot, focusCeq, openStudio]);
+  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, film, enter: (fid: string) => enterFrame(fid, { smooth: true }), exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId?: string; beat?: Beat; onCreated?: (newFrameId: string) => void } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson, copyFrame, pasteFrameBelow, hasFrameClip: clip?.kind === "frame", copyScaffold, pasteScaffold, hasScaffoldClip: clip?.kind === "scaffold", cramMode, activateLesson: setActiveLesson, openVideoSlot, focusCeq, openStudio }), [currentFrameId, film, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson, copyFrame, pasteFrameBelow, copyScaffold, pasteScaffold, clip, cramMode, setActiveLesson, openVideoSlot, focusCeq, openStudio]);
 
   /** Row ×: remove MEMBERSHIP only — a tucked card re-deals to its remembered
    *  spot as a loose card first. Cards never vanish. */

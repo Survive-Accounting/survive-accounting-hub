@@ -837,7 +837,7 @@ export interface LessonBox {
   runs?: FilmRun[];
   /** CEQ STITCH MANIFEST (CEQ Studio publish) — per-CEQ [start,end] on the published
    *  video's timeline (player-progress + shorts + interactive index). Metadata only. */
-  ceqManifest?: { ceqId?: string; clip?: number; kind?: "ceq" | "wrap"; start: number; end: number }[];
+  ceqManifest?: { ceqId?: string; clip?: number; kind?: "ceq" | "wrap" | "intro"; start: number; end: number }[];
   /** CHECK GATE (L1): a red-tinted "this is where I get tested" lesson — the
    *  visual seed of the free/paid gate (roadmap). */
   check?: boolean;
@@ -1152,6 +1152,14 @@ export interface DeckDef {
    *  Layout mode decides what a DEAL starts from, never whether an edit survives.
    *  Additive; rides in SceneDoc.decks (no DB migration). */
   layoutMode?: boolean;
+  /** SET INTRO FRAME (Lee) — a per-set FILMABLE intro: a real canvas frame (a deep
+   *  copy of the lesson's CEQ HOOK frame, fully editable) whose id lives here so the
+   *  Studio's Intro row can reopen it. Never a deck member: it can't enter counts,
+   *  the deal, or Free/Full totals by construction. Additive scene JSON. */
+  introFrameId?: string;
+  /** The intro frame's FILMED clip. Stitches (Free AND Full) at: boilerplate intro →
+   *  THIS → transition → questions. Absent ⇒ the stitch skips it silently. */
+  hookTake?: TakeRef;
   /** FILM MODE (Lee) — a per-set visual world background (worlds.ts WorldId) drawn
    *  behind the CEQ card in the previewer + film popout, so a filmed set has a
    *  consistent sense of place. Mirrors FrameBox's world* fields. Absent ⇒ plain

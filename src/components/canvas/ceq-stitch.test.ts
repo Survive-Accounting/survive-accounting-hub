@@ -72,3 +72,26 @@ test("WRAP clips play after the last question, before the outro; manifest tags t
   expect(m.map((x) => x.kind)).toEqual(["ceq", "wrap", "wrap"]); // outro not indexed
   expect(m.filter((x) => x.kind === "wrap").map((x) => x.clip)).toEqual([0, 1]);
 });
+
+test("SET INTRO (hook) stitches boilerplate intro → hook → transition → Q1, in BOTH cuts", () => {
+  for (const mode of ["free", "full"] as const) {
+    const { items } = buildStitch(mode, { intro: t(3), hook: t(8), transition: t(2), ceqs: [{ id: "a", prompt: "A", take: t(10), free: true }] });
+    expect(items.map((i) => i.kind)).toEqual(["intro", "hook", "transition", "ceq"]);
+  }
+});
+
+test("no intro clip attached ⇒ the stitch skips it silently (pre-hook order exactly)", () => {
+  const { items } = buildStitch("full", { intro: t(3), transition: t(2), ceqs: [{ id: "a", prompt: "A", take: t(10), free: true }] });
+  expect(items.map((i) => i.kind)).toEqual(["intro", "transition", "ceq"]);
+});
+
+test("manifest tags the SET INTRO as kind 'intro' — not a ceqId entry; boilerplate stays unindexed", () => {
+  const { items } = buildStitch("full", { intro: t(3), hook: t(8), transition: t(2), ceqs: [{ id: "a", prompt: "A", take: t(10), free: true }] });
+  const m = stitchManifest(items, 0);
+  expect(m.map((x) => x.kind)).toEqual(["intro", "ceq"]); // boilerplate intro + transition not indexed
+  const intro = m[0];
+  expect(intro.ceqId).toBeUndefined();
+  expect(intro.clip).toBe(0);
+  expect(intro.start).toBe(3); // after the 3s boilerplate
+  expect(intro.end).toBe(11);
+});

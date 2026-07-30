@@ -257,7 +257,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       const missFull = ceqs.filter((c) => c.takes.length === 0).length;
       const missFree = ceqs.filter((c) => c.free && c.takes.length === 0).length;
       const intro = !!(d.intro ?? gc.intro); const outro = !!(d.outro ?? gc.outro);
-      const stitch = buildStitch("full", { intro: d.intro ?? gc.intro, transition: gc.transition, outro: d.outro ?? gc.outro, wrap: d.wrap, ceqs });
+      const stitch = buildStitch("full", { intro: d.intro ?? gc.intro, hook: d.hookTake, transition: gc.transition, outro: d.outro ?? gc.outro, wrap: d.wrap, ceqs });
       m.set(d.id, { missFull, missFree, intro, outro, wrapN: d.wrap?.length ?? 0, runtimeS: stitchRuntime(stitch.items) });
     }
     return m;
@@ -316,8 +316,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   // stitch lists and publish all read these, so what you preview is what publishes.
   const resolvedIntro = deck?.intro ?? gc.intro;
   const resolvedOutro = deck?.outro ?? gc.outro;
-  const stitchFree = useMemo(() => buildStitch("free", { intro: resolvedIntro, transition: gc.transition, outro: resolvedOutro, wrap: deck?.wrap, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, gc.transition, deck?.wrap]);
-  const stitchFull = useMemo(() => buildStitch("full", { intro: resolvedIntro, transition: gc.transition, outro: resolvedOutro, wrap: deck?.wrap, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, gc.transition, deck?.wrap]);
+  const stitchFree = useMemo(() => buildStitch("free", { intro: resolvedIntro, hook: deck?.hookTake, transition: gc.transition, outro: resolvedOutro, wrap: deck?.wrap, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, gc.transition, deck?.wrap, deck?.hookTake]);
+  const stitchFull = useMemo(() => buildStitch("full", { intro: resolvedIntro, hook: deck?.hookTake, transition: gc.transition, outro: resolvedOutro, wrap: deck?.wrap, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, gc.transition, deck?.wrap, deck?.hookTake]);
   const freeCount = stitchCeqs.filter((c) => c.free).length;
   // SHORTS QUEUE (Lee) — every shorts-flagged CEQ across ALL sets, with its set +
   // question number, stem and angle note. Lee's batch-filming worklist.
@@ -402,6 +402,34 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
         )}
       </div>
     );
+  };
+
+  /** SET INTRO FRAME — open it, creating it on first use as a DEEP COPY of the
+   *  lesson's CEQ HOOK frame (cards, script, @marks — the full duplicate machinery),
+   *  so Lee edits a real frame that already looks like Foundations #1.2. The new
+   *  frame's id is recorded on the deck; it is never a deck member, so counts, the
+   *  deal and Free/Full totals can't see it. Fails LOUD when no hook frame exists. */
+  const openIntroFrame = () => {
+    if (!deck) return;
+    const existing = deck.introFrameId ? rf.getNode(deck.introFrameId) : null;
+    if (existing) { nav.enter(existing.id); return; }
+    const all = rf.getNodes();
+    const lessonId = deck.lessonId ?? (nav.currentFrameId ? rf.getNode(nav.currentFrameId)?.parentId : undefined);
+    const isHook = (n: (typeof all)[number]) => n.type === "frame" && /hook/i.test(((n.data as { title?: string }).title ?? ""));
+    const src = all.find((n) => n.parentId === lessonId && isHook(n)) ?? all.find(isHook);
+    if (!src) { setNote("No CEQ HOOK frame found to seed the intro from — name a frame's title 'CEQ HOOK' (like Foundations #1.2), then reopen the Intro row."); return; }
+    const deckId = deck.id;
+    nav.duplicate(src.id, { onCreated: (newId) => {
+      setDecks((prev) => updateDeck(prev, deckId, { introFrameId: newId }));
+      nav.enter(newId);
+      setNote("Intro frame created (a copy of the CEQ HOOK frame) — edit the text, then drop its clip on the Intro row.");
+    } });
+  };
+  const dropHookTake = async (f: File) => {
+    if (!deck) return;
+    setNote(`Uploading intro clip "${f.name}"…`);
+    try { const fresh = await stageTake(f); setDecks((prev) => updateDeck(prev, deck.id, { hookTake: withPrev(fresh, deck.hookTake) })); setNote(`Intro clip attached (${fmtDur(fresh.duration)}) — stitches after the boilerplate intro, before the transition.`); }
+    catch (e) { setNote(`Intro clip upload failed: ${e instanceof Error ? e.message : String(e)}`); }
   };
 
   /** OUTLINE FOOTER — one context-aware "+ Add", shared by the Sets and Topics tabs.
@@ -1785,6 +1813,18 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
                     <button className="ml-auto rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setQSel(new Set())} title="Clear selection (Esc)">✕</button>
                   </div>
                 )}
+                {/* SET INTRO — a filmable, fully editable frame (a copy of the CEQ
+                    HOOK frame) with its own take slot. Above 0 · Layout, above Q1.
+                    Never a question: no counts, no deal, no choices semantics. */}
+                <div className="mb-0.5 flex items-center gap-1 rounded px-1 py-0.5" style={{ background: dragKey === "hook" ? "rgba(252,163,17,0.14)" : "transparent", border: `1px solid ${dragKey === "hook" ? NEON.yellow : NEON.borderSoft}` }} {...dragProps("hook", dropHookTake)}>
+                  <Film className="h-3 w-3 shrink-0" style={{ color: NEON.cyan }} />
+                  <button className="min-w-0 flex-1 truncate text-left text-[10.5px] font-bold" style={{ color: NEON.text }} onClick={openIntroFrame} title="The set's INTRO — opens (creating on first use) an editable frame copied from the CEQ HOOK frame. Films like a question: drop its clip on this row; it stitches after the boilerplate intro, before the transition, in BOTH cuts. No clip = skipped silently.">Intro</button>
+                  {deck.hookTake ? (
+                    <span className="flex shrink-0 items-center gap-1 text-[8px] font-bold tabular-nums" style={{ color: "#3BF5A0" }} title={`${deck.hookTake.name} — drop a new clip to replace`}><CheckCircle2 className="h-3 w-3" /> {fmtDur(deck.hookTake.duration)}</span>
+                  ) : (
+                    <span className="flex shrink-0 items-center gap-1 text-[8px] font-bold" style={{ color: NEON.muted }} title="No intro clip yet — drop one here (the stitch skips it until then)"><Circle className="h-3 w-3" /> drop clip</span>
+                  )}
+                </div>
                 {/* QUESTION 0 — the set's LAYOUT as an editable stage. Never films,
                     never stitches, never counts in Free/Full, never deals. */}
                 <div className="mb-0.5 flex items-center gap-1 rounded px-1 py-0.5" style={{ background: qId === LAYOUT_Q0 ? "rgba(252,163,17,0.14)" : "transparent", border: `1px solid ${qId === LAYOUT_Q0 ? NEON.border : NEON.borderSoft}` }}>

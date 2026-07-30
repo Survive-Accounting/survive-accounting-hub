@@ -27,7 +27,7 @@ export interface FrameNav {
   canReorder: (frameId: string, dir: -1 | 1) => boolean;
   /** DUPLICATE a frame (deep copy) to the next slot in its beat by default, or to
    *  an explicit lesson+beat. One undoable step. */
-  duplicate: (frameId: string, dest?: { lessonId: string; beat: string }) => void;
+  duplicate: (frameId: string, dest?: { lessonId?: string; beat?: string; onCreated?: (newFrameId: string) => void }) => void;
   /** Open the small "duplicate to lesson + beat" dialog for a frame. */
   duplicateDialog: (frameId: string) => void;
   /** DUPLICATE a whole lesson cell (frames, cards, scripts, named decks) to the

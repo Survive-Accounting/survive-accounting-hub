@@ -53,15 +53,18 @@ export function videosFromDrop(e: React.DragEvent): File[] {
 export const fmtDur = (s?: number) => { const t = Math.max(0, Math.round(s ?? 0)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
 
 // ---- DERIVED stitch lists (never stored independently) -----------------------
-export type StitchItem = { kind: "intro" | "transition" | "ceq" | "wrap" | "outro"; ceqId?: string; clip?: number; take: TakeRef; label: string };
+export type StitchItem = { kind: "intro" | "hook" | "transition" | "ceq" | "wrap" | "outro"; ceqId?: string; clip?: number; take: TakeRef; label: string };
 /** FULL = intro → transition → all clip-bearing CEQs in DECK ORDER (each CEQ's CLIP
  *  STACK plays base→lookbacks) → WRAP clips → outro. FREE = same but only free-flagged
  *  CEQs. A CEQ with NO clips is skipped and returned in `missing`. Order is derived
  *  from the passed ceqs (deck order) only. */
-export function buildStitch(mode: "free" | "full", opts: { intro?: TakeRef; transition?: TakeRef; outro?: TakeRef; wrap?: TakeRef[]; ceqs: { id: string; prompt: string; take?: TakeRef; takes?: TakeRef[]; free?: boolean }[] }): { items: StitchItem[]; missing: { id: string; prompt: string }[] } {
+export function buildStitch(mode: "free" | "full", opts: { intro?: TakeRef; hook?: TakeRef; transition?: TakeRef; outro?: TakeRef; wrap?: TakeRef[]; ceqs: { id: string; prompt: string; take?: TakeRef; takes?: TakeRef[]; free?: boolean }[] }): { items: StitchItem[]; missing: { id: string; prompt: string }[] } {
   const items: StitchItem[] = [];
   const missing: { id: string; prompt: string }[] = [];
   if (opts.intro) items.push({ kind: "intro", take: opts.intro, label: "Intro" });
+  // SET INTRO (the filmed hook frame): boilerplate intro → THIS → transition. Both
+  // cuts include it; absent ⇒ skipped silently (exactly the pre-hook order).
+  if (opts.hook) items.push({ kind: "hook", take: opts.hook, label: "Set intro" });
   if (opts.transition) items.push({ kind: "transition", take: opts.transition, label: "Transition" });
   for (const c of opts.ceqs) {
     if (mode === "free" && !c.free) continue;
@@ -81,10 +84,10 @@ export const stitchRuntime = (items: StitchItem[]) => items.reduce((s, it) => s 
 /** Player-progress index stored with a published video: per-CEQ [start,end] on the
  *  FINAL timeline, accounting for the audio crossfade overlap (each join pulls the
  *  next clip cf earlier). Metadata only — no player work now. */
-export function stitchManifest(items: StitchItem[], crossfadeMs: number): { ceqId?: string; clip?: number; kind?: "ceq" | "wrap"; start: number; end: number }[] {
+export function stitchManifest(items: StitchItem[], crossfadeMs: number): { ceqId?: string; clip?: number; kind?: "ceq" | "wrap" | "intro"; start: number; end: number }[] {
   const cf = Math.max(0, crossfadeMs) / 1000;
   const r2 = (n: number) => Math.round(n * 1000) / 1000;
-  const out: { ceqId?: string; clip?: number; kind?: "ceq" | "wrap"; start: number; end: number }[] = [];
+  const out: { ceqId?: string; clip?: number; kind?: "ceq" | "wrap" | "intro"; start: number; end: number }[] = [];
   let cum = 0;
   items.forEach((it, i) => {
     const start = Math.max(0, cum - i * cf);
@@ -93,6 +96,9 @@ export function stitchManifest(items: StitchItem[], crossfadeMs: number): { ceqI
     // tagged kind:"wrap". Player/shorts consumers get layer visibility for free.
     if (it.kind === "ceq" && it.ceqId) out.push({ ceqId: it.ceqId, clip: it.clip ?? 0, kind: "ceq", start: r2(start), end: r2(start + dur) });
     else if (it.kind === "wrap") out.push({ kind: "wrap", clip: it.clip ?? 0, start: r2(start), end: r2(start + dur) });
+    // The SET INTRO is tagged "intro" for players — not a ceqId entry (it isn't a
+    // question), and distinct from the boilerplate intro, which stays unindexed.
+    else if (it.kind === "hook") out.push({ kind: "intro", clip: 0, start: r2(start), end: r2(start + dur) });
     cum += dur;
   });
   return out;
