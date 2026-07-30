@@ -43,7 +43,7 @@ import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { playSfx } from "./sfx";
 import { spotStyle } from "./SpotlightContext";
 import { applyRegularClick, applySuperClick, spotKey, type SpotSets, type SuperTone } from "./spotlight";
-import { NEON, PAPER } from "./theme";
+import { CHAINED_MARKER, NEON, PAPER } from "./theme";
 import { clampScale, type CeqCard, type CeqChainItem, type CeqInstanceGeom, type DeckLayout, type DeckSlotLayout } from "./types";
 
 /** Practice state read by the CEQ mock (emphasis + which choices are resolved). */
@@ -67,6 +67,10 @@ const ChainToggleContext = createContext<(memoNodeId: string, patch: Partial<Ceq
 /** QUESTION 0 — switch a palette slot on/off from its number badge. Non-null ONLY on
  *  the layout stage, so a real question's memo chips keep their normal badge. */
 const SlotToggleContext = createContext<((slotIdx: number) => void) | null>(null);
+/** EXCLUSIVE CHAIN VIEW (authoring) — which choice's chain is on stage, and the
+ *  handler to switch it. null = none shown. Never provided in film: a performance
+ *  reveals by Enter-walk and accumulates across choices. */
+const ViewChoiceContext = createContext<{ view: number | null; set: (i: number) => void } | null>(null);
 /** Drop a library memo onto a CEQ choice IN THE PREVIEWER (chains it). The dataTransfer
  *  mime must match CeqStudio's MEMO_DND — a memo node id. Same-window drag only. */
 const MEMO_DND = "text/sa-studio-memo";
@@ -204,12 +208,15 @@ function FrameBgNode({ data }: NodeProps) {
  *  Ctrl+click a choice = rehearsal spotlight (local). */
 function CeqPreviewNode({ id, data }: NodeProps) {
   const pr = useContext(PracticeContext);
+  const vc = useContext(ViewChoiceContext);
+  const viewChoice = vc?.view ?? null;
+  const onViewChoice = vc?.set;
   const spot = useContext(PreviewSpotContext);
   const film = useContext(FilmContext);
   const attachMemo = useContext(AttachMemoContext);
   const choiceMenu = useContext(ChoiceMenuContext);
   const [dropChoice, setDropChoice] = useState<string | null>(null); // choice a memo is hovering (drag-to-chain)
-  const d = data as unknown as { stem: string; choices: { id: string; text: string; correct?: boolean }[]; scale?: number; layoutBadge?: boolean };
+  const d = data as unknown as { stem: string; choices: { id: string; text: string; correct?: boolean; chain?: unknown[] }[]; scale?: number; layoutBadge?: boolean };
   const s = d.scale ?? 1;
   return (
     <div className="sa-pv-node sa-ceq-in" style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", animation: "sa-ceq-in 380ms cubic-bezier(0.2,0.7,0.3,1) both" }}>
@@ -237,15 +244,16 @@ function CeqPreviewNode({ id, data }: NodeProps) {
               data-flame={flamed ? "on" : undefined}
               data-flame-tone={flamed ? spot.tone(key) : undefined}
               onPointerDownCapture={(e) => spot.onClick(key, e)}
+              onClick={film ? undefined : (e) => { if (e.ctrlKey || e.metaKey || e.shiftKey) return; onViewChoice?.(i); }}
               onContextMenu={(e) => choiceMenu(c.id, e)}
               // DRAG-TO-CHAIN (Lee) — drop a library memo straight onto a choice here in
               // the previewer (same-window drag) to chain it, exactly like the Pane-2 rows.
               onDragOver={film ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; if (dropChoice !== c.id) setDropChoice(c.id); } }}
               onDragLeave={film ? undefined : () => setDropChoice((p) => (p === c.id ? null : p))}
               onDrop={film ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); setDropChoice(null); if (mid) { e.preventDefault(); attachMemo(c.id, mid); } }}
-              style={{ display: "flex", alignItems: "center", gap: 10 * s, borderRadius: 10 * s, border: `${1.5 * s}px solid ${dropChoice === c.id ? "#FCA311" : border}`, background: dropChoice === c.id ? "rgba(252,163,17,0.16)" : bg, padding: `${9 * s}px ${12 * s}px`, position: "relative", boxShadow: dropChoice === c.id ? `0 0 0 ${2 * s}px rgba(252,163,17,0.6)` : emph ? `0 0 0 ${2 * s}px rgba(184,134,11,0.7)` : undefined, filter: st === "wrong" ? "grayscale(0.3)" : undefined, ...containSpot(spState) }}
+              style={{ display: "flex", alignItems: "center", gap: 10 * s, borderRadius: 10 * s, border: `${1.5 * s}px solid ${!film && viewChoice === i ? NEON.cyan : dropChoice === c.id ? "#FCA311" : border}`, outline: !film && viewChoice === i ? `${2 * s}px solid rgba(79,163,227,0.35)` : undefined, outlineOffset: 2, background: dropChoice === c.id ? "rgba(252,163,17,0.16)" : bg, padding: `${9 * s}px ${12 * s}px`, position: "relative", boxShadow: dropChoice === c.id ? `0 0 0 ${2 * s}px rgba(252,163,17,0.6)` : emph ? `0 0 0 ${2 * s}px rgba(184,134,11,0.7)` : undefined, filter: st === "wrong" ? "grayscale(0.3)" : undefined, ...containSpot(spState) }}
             >
-              <span style={{ display: "grid", placeItems: "center", width: 28 * s, height: 28 * s, borderRadius: 8 * s, fontWeight: 900, fontSize: 15 * s, color: st ? "#fff" : chipC, background: st === "right" ? PAPER.green : st === "wrong" ? PAPER.red : "transparent", border: `${2 * s}px solid ${chipC}` }}>{LETTER(i)}</span>
+              <span title={(c.chain?.length ?? 0) > 0 ? `${c.chain!.length} explanation memo(s) behind this choice` : undefined} style={{ display: "grid", placeItems: "center", width: 28 * s, height: 28 * s, borderRadius: 8 * s, fontWeight: 900, fontSize: 15 * s, color: st ? "#fff" : chipC, background: st === "right" ? PAPER.green : st === "wrong" ? PAPER.red : "transparent", border: `${2 * s}px solid ${chipC}`, ...((c.chain?.length ?? 0) > 0 ? { boxShadow: film ? CHAINED_MARKER.ringFilm : CHAINED_MARKER.ring } : {}) }}>{LETTER(i)}</span>
               {/* TextAnchor drops the anc:<choiceId> handle ~7px past the choice TEXT
                   (exactly like the real dealt card), so the memo arrow lands AT the choice
                   — right after "Asset" — not at the card's far edge. It measures the text
@@ -485,12 +493,22 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // state (solid memo + lit arrow, aligned at the choice), for checking alignment +
   // spotlighting them without walking. Off ⇒ the normal Enter-walk reveal.
   const [showAll, setShowAll] = useState(false);
+  // EXCLUSIVE CHAIN VIEW (authoring): which choice's chain is on stage. Click a choice
+  // to show its chain alone; click it again to close. Reset whenever the question
+  // changes so a new question opens clean.
+  const [viewChoice, setViewChoice] = useState<number | null>(null);
+  useEffect(() => { setViewChoice(null); }, [ceqId]);
   // TRUE walk state — what the CAMERA sees: only memos the Enter-walk has revealed.
   const walkRevealedIds = useMemo(() => { const set = new Set<string>(); for (const w of walk) if (resolved.has(w.choiceIdx) && w.chainPos < (shown.get(w.choiceIdx) ?? 0)) set.add(w.memoNodeId); return set; }, [walk, resolved, shown]);
   // AUTHORING view — the Arrows toggle (and Q0) light everything so Lee can check
   // alignment without walking. Deliberately NOT given to the film subtree: an
   // authoring aid must never change what a take records.
-  const revealedMemoIds = useMemo(() => (showAll || layoutMode ? new Set<string>(walk.map((w) => w.memoNodeId)) : walkRevealedIds), [walk, showAll, layoutMode, walkRevealedIds]);
+  const revealedMemoIds = useMemo(() => {
+    // Exclusive view wins in AUTHORING only — it is a way of looking at one chain, not
+    // a change to the walk. Film reads walkRevealedIds and is unaffected.
+    if (viewChoice != null) return new Set<string>(walk.filter((w) => w.choiceIdx === viewChoice).map((w) => w.memoNodeId));
+    return showAll || layoutMode ? new Set<string>(walk.map((w) => w.memoNodeId)) : walkRevealedIds;
+  }, [walk, showAll, layoutMode, walkRevealedIds, viewChoice]);
   const revealedCount = revealedMemoIds.size;
 
   // Rehearsal-spotlight click: Ctrl+Shift = super (Alt ⇒ siren); Ctrl = toggle a gold
@@ -550,9 +568,13 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       // Q0 stages the WHOLE rack (inactive slots included, so they can be switched on);
       // a real question resolves its own instance first, then the active template slots.
       const rs = rack[i];
+      // While ONE chain is on stage its items lay out from slot 1 upward (A’s memo 1 and
+      // B’s memo 1 both use slot 1 — they are never on stage together). A saved instance
+      // spot still wins, so anything Lee has placed by hand stays put.
+      const slotIdx = viewChoice != null ? w.chainPos : i;
       const geom = layoutMode
         ? (rs ? { x: rs.x, y: rs.y, scale: rs.scale ?? 1 } : { ...defaultMemoPos(frameW, frameH, i), scale: 1 })
-        : resolveMemoSpot(cd?.geom, baseline, i, frameW, frameH);
+        : resolveMemoSpot(cd?.geom, baseline, slotIdx, frameW, frameH);
       return { id: w.memoNodeId, type: "memoPreview", position: { x: geom.x, y: yOff + geom.y }, data: { label: w.label, walkNum: w.num, choice: w.choice, scale: geom.scale, hideChoiceLabel: w.hideChoiceLabel, hideArrow: w.hideArrow, sound: w.sound, slotOff: w.slotOff }, draggable: true, zIndex: 5 };
     });
     const active = [frameNode, ceqNode, ...memoNodes];
@@ -572,7 +594,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     });
     return [...active, ...others] as typeof active;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, activeYOff, layoutMode, walk]);
+  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, activeYOff, layoutMode, walk, viewChoice]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   useEffect(() => { setNodes(build() as unknown as Node[]); }, [build, setNodes]);
@@ -886,6 +908,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
            <ChainToggleContext.Provider value={onPatchChainItem ?? (() => {})}>
            {/* Q0 only — the number badge becomes the slot on/off switch. */}
            <SlotToggleContext.Provider value={layoutMode && onSaveBaseline ? toggleSlot : null}>
+           <ViewChoiceContext.Provider value={layoutMode ? null : { view: viewChoice, set: (i) => setViewChoice((p) => (p === i ? null : i)) }}>
            <AttachMemoContext.Provider value={onAttachMemo ?? (() => {})}>
            <SelectQuestionContext.Provider value={onSelectQuestion ?? (() => {})}>
            <ChoiceMenuContext.Provider value={onChoiceMenu}>
@@ -1095,6 +1118,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
            </ChoiceMenuContext.Provider>
            </SelectQuestionContext.Provider>
            </AttachMemoContext.Provider>
+           </ViewChoiceContext.Provider>
            </SlotToggleContext.Provider>
            </ChainToggleContext.Provider>
           </PreviewSpotContext.Provider>

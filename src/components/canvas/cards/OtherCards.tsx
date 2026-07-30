@@ -11,7 +11,7 @@ import { renderInline } from "../inline-md";
 import { MemoLightbulb, memoAnchorId, TextAnchor } from "../MemoLightbulb";
 import { CeqChainEditor } from "../CeqChainEditor";
 import { playSfx } from "../sfx";
-import { NEON, NOTE_COLORS, PAPER } from "../theme";
+import { CHAINED_MARKER, NEON, NOTE_COLORS, PAPER } from "../theme";
 import {
   cardId,
   type CeqCard,
@@ -168,6 +168,8 @@ const CEQ_TYPEOUT_CSS = `
 .film-mode .sa-ceq-type { animation: sa-ceq-type 520ms steps(24, end) both; }
 @keyframes sa-ceq-opt { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .film-mode .sa-ceq-opt { animation: sa-ceq-opt 240ms ease both; }
+/* CHAINED-CHOICE MARKER — quieter on camera: legible as design, not as UI. */
+.film-mode .sa-chain-mark { box-shadow: 0 0 0 2px rgba(252,163,17,0.30) !important; }
 @keyframes sa-ceq-pulse { 0% { transform: scale(1); } 42% { transform: scale(1.045); } 100% { transform: scale(1); } }
 .sa-ceq-pulse { animation: sa-ceq-pulse 420ms ease; }
 `;
@@ -279,13 +281,17 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
             >
               {/* LETTER CHIP (A, B, C… by position) */}
               <span
-                className="grid shrink-0 place-items-center rounded-md font-black"
                 style={{
                   width: chipSize, height: chipSize, fontSize: Math.round(choicePx * 0.82),
                   color: st ? "#fff" : chip,
                   background: st === "right" ? PAPER.green : st === "wrong" ? PAPER.red : emphasized ? "rgba(184,134,11,0.16)" : "transparent",
                   border: `1.5px solid ${chip}`,
+                  // CHAINED-CHOICE MARKER — static ring when this choice has memos
+                  // behind it; the film variant is quieter (see theme CHAINED_MARKER).
+                  ...((c.chain?.length ?? 0) > 0 ? { boxShadow: CHAINED_MARKER.ring } : {}),
                 }}
+                className={(c.chain?.length ?? 0) > 0 ? "grid shrink-0 place-items-center rounded-md font-black sa-chain-mark" : "grid shrink-0 place-items-center rounded-md font-black"}
+                title={(c.chain?.length ?? 0) > 0 ? `${c.chain!.length} explanation memo(s) behind this choice` : undefined}
               >
                 {chipLetter(ci)}
               </span>

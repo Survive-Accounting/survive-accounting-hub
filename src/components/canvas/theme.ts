@@ -58,3 +58,19 @@ export const NOTE_COLORS = [
   { name: "amber", ink: "#8A5A00", bg: "#FDF8EC", border: "#E4CD9A" },
   { name: "navy", ink: "#14213D", bg: "#F1F4F9", border: "#B9C4D8" },
 ] as const;
+
+/** CHAINED-CHOICE MARKER (Lee) — the static cue that a choice has explanation memos
+ *  behind it. Deliberately quiet: a soft ring on the letter chip, no animation and no
+ *  pulse, so it reads as intentional design on a 1080p take rather than as UI.
+ *
+ *  This is the SAME affordance the student side will use for "tap to explore why",
+ *  so it lives here as a token rather than inline: change it once and authoring,
+ *  the previewer, film and the future student card all move together.
+ *  `film` is a touch dimmer — on camera it only needs to be legible, not to explain
+ *  itself. Apply as a box-shadow on the letter chip. */
+export const CHAINED_MARKER = {
+  /** Authoring surfaces (Studio previewer + canvas while editing). */
+  ring: "0 0 0 2px rgba(252,163,17,0.55)",
+  /** In film: present but quieter — design, not chrome. */
+  ringFilm: "0 0 0 2px rgba(252,163,17,0.30)",
+} as const;
