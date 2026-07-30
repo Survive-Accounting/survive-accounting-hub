@@ -13,6 +13,7 @@ import { Clapperboard, ClipboardCopy, ClipboardPaste, Copy, Film, Loader2, Lock,
 import { useCardActions } from "../BaseCard";
 import { useCanvasSettings } from "../CanvasSettingsContext";
 import { addNodesCmd, bus, compositeCmd, patchDataCmd, type RfLike } from "../commands";
+import { deckMembersOf } from "../deck-defs";
 import { blankCard } from "../templates";
 import { FRAME_TEMPLATES, placeTemplate, type FrameTemplate } from "../frame-templates";
 import { baseTextPxForKind, phoneChecks, PHONE_LANDSCAPE, type PhoneEl } from "../phone-check";
@@ -129,6 +130,24 @@ export function FrameNode({ id, data, selected }: NodeProps) {
     const order = framesInLesson(rf.getNodes() as never, p);
     const i = order.findIndex((f) => f.id === id);
     return `#${lessonNum}.${i < 0 ? 1 : i + 1}`;
+  })();
+
+  // QUESTION NUMBER (Lee) — for authoring navigation: which question of its SET the
+  // CEQ in this frame is. Same deck-order number the Studio question rows and batch
+  // take filenames use. Derived at render (never written to node data). A frame can
+  // hold a whole dealt stack, so mirror the Outline's rule: untucked ones first,
+  // then the furthest along the deal order. 0 ⇒ nothing to show, nothing renders.
+  const qNum = (() => {
+    const kids = rf.getNodes().filter((n) => n.parentId === id && n.type === "ceq");
+    if (kids.length === 0) return 0;
+    const live = kids.filter((n) => !(n.data as { tucked?: boolean }).tucked);
+    const pool = live.length ? live : kids;
+    const cur = pool.reduce((best, n) => (!best || ((n.data as { stageOrder?: number }).stageOrder ?? 0) > ((best.data as { stageOrder?: number }).stageOrder ?? 0) ? n : best), pool[0]);
+    const dk = (cur.data as { deckId?: string }).deckId;
+    if (!dk) return ((cur.data as { stageOrder?: number }).stageOrder ?? 0) + 1;
+    return deckMembersOf(rf.getNodes() as { id: string; type?: string; data?: { deckId?: string; stageOrder?: number } }[], dk)
+      .filter((m) => (m as { type?: string }).type === "ceq")
+      .findIndex((m) => m.id === cur.id) + 1;
   })();
 
   // PHONE-LANDSCAPE CHECK (Phase 6) — advisory only. Build lightweight element
@@ -467,6 +486,17 @@ export function FrameNode({ id, data, selected }: NodeProps) {
           <button className={btn} style={{ color: NEON.red }} title="Delete frame (its cards go loose in the lesson)" onPointerDown={stop} onClick={(e) => { e.stopPropagation(); deleteFrame(); }}><X className="h-3.5 w-3.5" /></button>
         </span>
       </div>
+
+      {/* QUESTION NUMBER — authoring chrome only: which question of the set this
+          frame holds (deck order — the number the Studio rows and take filenames
+          use). data-frame-chrome ⇒ film hides it, so it never reaches a take.
+          pointer-events-none so it can't eat clicks/double-click-to-enter; it sits
+          BEHIND the cards (React Flow renders them as DOM siblings, not children). */}
+      {qNum > 0 && (
+        <div data-frame-chrome className="pointer-events-none absolute left-3 top-8 z-[4] select-none" style={{ fontSize: 92, fontWeight: 900, lineHeight: 1, letterSpacing: "-0.03em", color: "rgba(244,239,230,0.10)" }}>
+          Q{qNum}
+        </div>
+      )}
 
       {/* BACKGROUND PICKER — loop chooser + opacity slider (author-facing). nodrag/
           nowheel so the slider works; stops propagation so clicks don't enter. */}

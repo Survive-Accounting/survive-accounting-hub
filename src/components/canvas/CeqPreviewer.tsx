@@ -137,7 +137,7 @@ function ScaleGrip({ id, scale, color, film }: { id: string; scale: number; colo
  *  frame reads as a real canvas frame; the world only animates under `.film-mode`. */
 function FrameBgNode({ data }: NodeProps) {
   const film = useContext(FilmContext);
-  const d = data as unknown as { w: number; h: number; world?: string; worldIntensity?: number; worldMotion?: number };
+  const d = data as unknown as { w: number; h: number; world?: string; worldIntensity?: number; worldMotion?: number; qNum?: number };
   const world = d.world ? <WorldBackground worldId={d.world} intensity={d.worldIntensity} motion={d.worldMotion} /> : null;
   // FILM: clean stage + a soft cinematic EDGE GLOW (like the canvas film frame) —
   // a faint outer bloom into the letterbox + an inner vignette over the world. The
@@ -152,6 +152,11 @@ function FrameBgNode({ data }: NodeProps) {
     <div style={{ width: d.w, height: d.h, borderRadius: 12, border: `2px solid ${NEON.cyan}`, background: d.world ? "#05070d" : "rgba(8,14,26,0.5)", boxShadow: `0 0 0 1px rgba(79,163,227,0.25), inset 0 0 60px rgba(0,0,0,0.35)`, pointerEvents: "none", position: "relative", overflow: "hidden" }}>
       {world}
       <span style={{ position: "absolute", top: 8, left: 12, fontSize: 13, fontWeight: 800, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(79,163,227,0.7)" }}>16:9 frame</span>
+      {/* QUESTION NUMBER — authoring chrome: which question of the set this is (deck
+          order, the same number the Studio rows and take filenames use). The film
+          branch above returns early so it can never reach a take; data-frame-chrome
+          is belt-and-braces if this ever mounts under a .film-mode root. */}
+      {!!d.qNum && <span data-frame-chrome style={{ position: "absolute", top: 26, left: 12, fontSize: 92, fontWeight: 900, lineHeight: 1, letterSpacing: "-0.03em", color: "rgba(244,239,230,0.10)", pointerEvents: "none", userSelect: "none" }}>Q{d.qNum}</span>}
     </div>
   );
 }
@@ -433,7 +438,10 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     const GAP = Math.round(frameH * 0.16);
     const yOff = activeYOff;
     const dc = dealCentre(frameW, frameH);
-    const frameNode = { id: "__frame__", type: "frameBg", position: { x: 0, y: yOff }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion }, draggable: false, selectable: false, zIndex: -10 };
+    // qNum = this question's DECK position (what the Studio rows and take filenames
+    // use). Q0/layout is not in deckCeqIds → 0 → the overlay doesn't render.
+    const qNum = layoutMode ? 0 : Math.max(0, (deckCeqIds?.indexOf(ceqId) ?? -1) + 1);
+    const frameNode = { id: "__frame__", type: "frameBg", position: { x: 0, y: yOff }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum }, draggable: false, selectable: false, zIndex: -10 };
     const ceqNode = { id: ceqId, type: "ceqPreview", position: cb ? { x: cb.x, y: yOff + cb.y } : { x: dc.x, y: yOff + dc.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cb?.scale ?? 1, layoutBadge: layoutMode }, draggable: true, zIndex: 1 };
     // SPEEDIER MEMOS (Lee): a memo with no baseline slot of its own inherits the previous
     // memo's SIZE and column (x), stacked UNDERNEATH it with padding (not on top). First
@@ -459,7 +467,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       if (qid === ceqId) return;
       const y = k * (frameH + GAP);
       const od = mainRf.getNode(qid)?.data as unknown as CeqCard | undefined;
-      others.push({ id: `ovf:${qid}`, type: "frameBg", position: { x: 0, y }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion }, draggable: false, selectable: false, zIndex: -10 });
+      others.push({ id: `ovf:${qid}`, type: "frameBg", position: { x: 0, y }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum: k + 1 }, draggable: false, selectable: false, zIndex: -10 });
       others.push({ id: `ov:${qid}`, type: "ovCeq", position: { x: dc.x, y: y + dc.y }, data: { qid, num: k + 1, stem: od?.prompt ?? "", choices: od?.choices ?? [] }, draggable: false, selectable: false, zIndex: 1 });
     });
     return [...active, ...others] as typeof active;
