@@ -86,6 +86,12 @@ const PV_CSS = `
    in film — a touch more emphatic than a plain fade. */
 @keyframes sa-ceq-in { from { opacity: 0; transform: translateY(12px) scale(0.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @keyframes sa-memo-pop { 0% { opacity: 0; transform: scale(0.84) translateY(9px); } 55% { opacity: 1; transform: scale(1.05) translateY(0); } 100% { opacity: 1; transform: scale(1); } }
+/* Anchor the entrance to the element's TOP-LEFT — the node's authored position.
+   With the default 50% 50% origin the keyframes' scale() pulls the card off its
+   baseline anchor and it settles back, reading as "it animated from the wrong
+   spot". Origin only: durations/easing above are untouched. (Non-!important, so
+   the flame rule's own transform-origin !important still wins.) */
+.sa-ceq-in, .sa-memo-pop { transform-origin: 0 0; }
 @media (prefers-reduced-motion: reduce) { .sa-ceq-in, .sa-memo-pop { animation: none !important; } }
 /* SPOTLIGHT GUARDRAILS (Lee) — cap the FLAME super-scale inside the previewer so a
    flamed choice/memo can't blow outside the CEQ box / frame on a take (beats
@@ -274,13 +280,14 @@ function MemoPreviewNode({ id, data }: NodeProps) {
  *  + choices, no practice/arrows). Click makes it the active question (smooth fit). */
 function OverviewCeqNode({ data }: NodeProps) {
   const onSelect = useContext(SelectQuestionContext);
-  const d = data as unknown as { qid: string; num: number; stem: string; choices: { id?: string; text: string }[] };
+  const d = data as unknown as { qid: string; num: number; stem: string; choices: { id?: string; text: string }[]; scale?: number };
+  const s = d.scale ?? 1; // match the live card's size too, so a swap doesn't resize
   return (
     // pointerEvents:auto is LOAD-BEARING — React Flow gives a node wrapper
     // `pointer-events:none` unless it is selectable/draggable or the flow has node
     // mouse handlers, and these overview stand-ins are deliberately neither. Without
     // this the click below never fires (the cursor/tooltip don't even show).
-    <div onClick={() => onSelect(d.qid)} title="Click (or double-click) to open this question — the view glides to it" style={{ pointerEvents: "auto", cursor: "pointer", width: CARD_W, borderRadius: 14, background: PAPER.card, border: `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.5)", padding: 16, opacity: 0.9 }}>
+    <div onClick={() => onSelect(d.qid)} title="Click (or double-click) to open this question — the view glides to it" style={{ pointerEvents: "auto", cursor: "pointer", width: CARD_W, borderRadius: 14, background: PAPER.card, border: `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.5)", padding: 16, opacity: 0.9, ...(s === 1 ? {} : { transform: `scale(${s})`, transformOrigin: "0 0" }) }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
         <span style={{ display: "grid", placeItems: "center", width: 30, height: 30, borderRadius: 8, fontWeight: 900, fontSize: 16, color: "#0B0F1E", background: NEON.yellow, flexShrink: 0 }}>{d.num}</span>
         <div style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.2, color: PAPER.ink }}>{renderInline(d.stem || "Question")}</div>
@@ -450,11 +457,16 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     const GAP = Math.round(frameH * 0.16);
     const yOff = activeYOff;
     const dc = dealCentre(frameW, frameH);
+    // The RESOLVED card spot (frame-local): the set's baseline, else the deal centre.
+    // ONE source for BOTH the live card and the overview stand-ins — otherwise a
+    // question change swaps a card between two different spots and it visibly snaps
+    // to centre mid-transition.
+    const cs = cb ? { x: cb.x, y: cb.y, scale: cb.scale ?? 1 } : { ...dc, scale: 1 };
     // qNum = this question's DECK position (what the Studio rows and take filenames
     // use). Q0/layout is not in deckCeqIds → 0 → the overlay doesn't render.
     const qNum = layoutMode ? 0 : Math.max(0, (deckCeqIds?.indexOf(ceqId) ?? -1) + 1);
     const frameNode = { id: "__frame__", type: "frameBg", position: { x: 0, y: yOff }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum }, draggable: false, selectable: false, zIndex: -10 };
-    const ceqNode = { id: ceqId, type: "ceqPreview", position: cb ? { x: cb.x, y: yOff + cb.y } : { x: dc.x, y: yOff + dc.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cb?.scale ?? 1, layoutBadge: layoutMode }, draggable: true, zIndex: 1 };
+    const ceqNode = { id: ceqId, type: "ceqPreview", position: { x: cs.x, y: yOff + cs.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cs.scale, layoutBadge: layoutMode }, draggable: true, zIndex: 1 };
     // SPEEDIER MEMOS (Lee): a memo with no baseline slot of its own inherits the previous
     // memo's SIZE and column (x), stacked UNDERNEATH it with padding (not on top). First
     // memo with no layout falls to defaultMemoPos.
@@ -480,7 +492,9 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       const y = k * (frameH + GAP);
       const od = mainRf.getNode(qid)?.data as unknown as CeqCard | undefined;
       others.push({ id: `ovf:${qid}`, type: "frameBg", position: { x: 0, y }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum: k + 1 }, draggable: false, selectable: false, zIndex: -10 });
-      others.push({ id: `ov:${qid}`, type: "ovCeq", position: { x: dc.x, y: y + dc.y }, data: { qid, num: k + 1, stem: od?.prompt ?? "", choices: od?.choices ?? [] }, draggable: false, selectable: false, zIndex: 1 });
+      // Stand-ins sit at the SAME resolved spot + scale as the live card, so making
+      // one active (or stepping off it) is a swap in place, not a jump to centre.
+      others.push({ id: `ov:${qid}`, type: "ovCeq", position: { x: cs.x, y: y + cs.y }, data: { qid, num: k + 1, stem: od?.prompt ?? "", choices: od?.choices ?? [], scale: cs.scale }, draggable: false, selectable: false, zIndex: 1 });
     });
     return [...active, ...others] as typeof active;
     // eslint-disable-next-line react-hooks/exhaustive-deps
