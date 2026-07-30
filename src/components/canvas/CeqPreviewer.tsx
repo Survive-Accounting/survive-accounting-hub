@@ -276,7 +276,11 @@ function OverviewCeqNode({ data }: NodeProps) {
   const onSelect = useContext(SelectQuestionContext);
   const d = data as unknown as { qid: string; num: number; stem: string; choices: { id?: string; text: string }[] };
   return (
-    <div onClick={() => onSelect(d.qid)} title="Click to open this question" style={{ cursor: "pointer", width: CARD_W, borderRadius: 14, background: PAPER.card, border: `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.5)", padding: 16, opacity: 0.9 }}>
+    // pointerEvents:auto is LOAD-BEARING — React Flow gives a node wrapper
+    // `pointer-events:none` unless it is selectable/draggable or the flow has node
+    // mouse handlers, and these overview stand-ins are deliberately neither. Without
+    // this the click below never fires (the cursor/tooltip don't even show).
+    <div onClick={() => onSelect(d.qid)} title="Click (or double-click) to open this question — the view glides to it" style={{ pointerEvents: "auto", cursor: "pointer", width: CARD_W, borderRadius: 14, background: PAPER.card, border: `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.5)", padding: 16, opacity: 0.9 }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
         <span style={{ display: "grid", placeItems: "center", width: 30, height: 30, borderRadius: 8, fontWeight: 900, fontSize: 16, color: "#0B0F1E", background: NEON.yellow, flexShrink: 0 }}>{d.num}</span>
         <div style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.2, color: PAPER.ink }}>{renderInline(d.stem || "Question")}</div>
@@ -717,6 +721,12 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                     setSelEdgeIds((prev) => (prev.size === ids.length && ids.every((id) => prev.has(id)) ? prev : new Set(ids)));
                   }}
                   onNodeContextMenu={(e, node) => { if (node.type === "memoPreview") { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY, nodeId: node.id, kind: "memo" }); } }}
+                  // DOUBLE-CLICK TO ZOOM (Lee) — in Overview, double-clicking the ACTIVE
+                  // question's card/memos glides back to its frame (the same fitActive the
+                  // question-switch effect uses), so "Fit all" → double-click re-frames.
+                  // Neighbours are handled by their own click → setQId → that effect; the
+                  // guard keeps this from fitting the OLD offset before the switch commits.
+                  onNodeDoubleClick={(_e, n) => { if (overviewOn && !n.id.startsWith("ov:")) fitActive(420); }}
                   onPaneContextMenu={(e) => { if (!hasItemsClip && !onAddMemoAt) return; e.preventDefault(); const me = e as React.MouseEvent; const fp = fitRef.current?.screenToFlowPosition({ x: me.clientX, y: me.clientY }); setAddCat(null); setCtxMenu({ x: me.clientX, y: me.clientY, nodeId: "", kind: "pane", pos: fp ? { x: Math.round(fp.x), y: Math.round(fp.y - activeYOff) } : undefined }); }}
                   onInit={(inst) => { fitRef.current = inst; }}
                   nodeTypes={nodeTypes}
