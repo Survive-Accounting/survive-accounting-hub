@@ -342,6 +342,10 @@ export interface CeqCard extends CardBase {
   /** STAR (Lee) — a performer's-note marker. Purely visual/inert: NEVER affects
    *  spacewalk, stitch, publish, or any metadata consumer. Cleared via "Clear stars". */
   starred?: boolean;
+  /** INSTANCE GEOMETRY (Lee) — THIS question's own card + memo spots. See
+   *  {@link CeqInstanceGeom}. Absent ⇒ the set template governs (pre-split
+   *  behaviour). Additive scene JSON: no DB column, no SQL. */
+  geom?: CeqInstanceGeom;
   /** FREE cut (CEQ Studio) — include this question in the FREE stitch list (the FULL
    *  list is every clip-bearing CEQ). Additive; the stitch order stays deck-derived. */
   free?: boolean;
@@ -1076,6 +1080,19 @@ export interface DeckLayout {
   card?: DeckSlotLayout;
   memoSlots?: DeckSlotLayout[];
 }
+/** INSTANCE geometry — ONE question's own dealt card spot/size + its per-chain-slot
+ *  memo spots, in the same frame-local coordinate space as {@link DeckLayout}.
+ *
+ *  The set's `deck.layout` is a TEMPLATE, not live-linked state. A question's
+ *  instance is what actually renders; ABSENT means "follow the template", which is
+ *  exactly how everything rendered before the split — so nothing moves until Lee
+ *  moves it. A move/resize on a real question writes the INSTANCE only, so nudging
+ *  one question can never disturb another. Question 0 and "Set as layout" write the
+ *  TEMPLATE only and never write an instance.
+ *
+ *  `off` is meaningless here: a slot being on or off is a set-level decision, so the
+ *  resolver reads it from the template. */
+export type CeqInstanceGeom = DeckLayout;
 export interface DeckDef {
   id: string;
   name: string;
