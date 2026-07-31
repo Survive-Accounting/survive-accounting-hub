@@ -62,7 +62,7 @@ export const startWorkerRender = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({
       urls: z.array(z.string().url()).min(1).max(64),
-      mode: z.enum(["free", "full"]),
+      mode: z.enum(["free", "full", "test"]),
       crossfadeMs: z.number().int().min(0).max(2000).optional(),
     }).parse(d))
   .handler(async ({ data }): Promise<{ jobId: string; path: string }> => {
