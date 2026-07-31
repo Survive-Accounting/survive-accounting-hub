@@ -32,6 +32,7 @@ import { CeqStitch } from "./CeqStitch";
 import { CeqVideoLibrary, vidCourseMatch, vidTopicMatch } from "./CeqVideoLibrary";
 import { DEFAULT_CROSSFADE_MS } from "./segment-assembly";
 import { detectAuphonicSlots, resolveCeqConcat, resolvePipelineTestAuphonic, startCeqConcat, startPipelineTestAuphonic } from "@/lib/publish.functions";
+import { resolveWorkerRender, startWorkerRender, workerPreflight } from "@/lib/render-worker.functions";
 import type { LessonBox } from "./types";
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { useFrameNav } from "./FrameNavContext";
@@ -92,6 +93,18 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const [confirmBox, setConfirmBox] = useState<{ msg: string; onYes: () => void } | null>(null); // the Publish panel (per active set)
   // PUBLISH FREE+FULL COMBO — preflight checklist → confirm → sequential publish.
   const [combo, setCombo] = useState<{ free: "pending" | "running" | "done" | "error"; full: "pending" | "running" | "done" | "error"; running: boolean } | null>(null);
+  // RENDER WORKER preflight (Fly ffmpeg worker) — probed when the Publish panel
+  // opens. Three states the checklist distinguishes: not configured (legacy Mux
+  // concat fallback, non-blocking), healthy (renders on the worker), and
+  // configured-but-unreachable (BLOCKS — never a silent fallback once opted in).
+  const [workerState, setWorkerState] = useState<{ configured: boolean; healthy: boolean; detail: string } | null>(null);
+  useEffect(() => {
+    if (!publishOpen) return;
+    setWorkerState(null);
+    void workerPreflight()
+      .then(setWorkerState)
+      .catch((e) => setWorkerState({ configured: true, healthy: false, detail: e instanceof Error ? e.message : String(e) }));
+  }, [publishOpen]);
   useEffect(() => { if (!publishOpen) setCombo(null); }, [publishOpen]);
   useEffect(() => { setCombo(null); }, [setId]);
   // OPEN FROM A CEQ (Lee) — pre-select the set (its deck) + that question.
@@ -923,13 +936,35 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
       if (slots.hasOutro) items = items.filter((i) => i.kind !== "outro");
       if (slots.hasIntro) items = items.filter((i) => i.kind !== "intro");
       const urls = items.map((i) => i.take.url);
-      // 1) Mux multi-input concat (hard cut)
-      const { assetId } = await startCeqConcat({ data: { urls, passthrough: `ceq-concat-${mode}` } });
-      let mp4Url: string | null = null;
-      for (let i = 0; i < 120 && !mp4Url; i++) { const r: Awaited<ReturnType<typeof resolveCeqConcat>> = await resolveCeqConcat({ data: { assetId } }); if (r.status === "errored") throw new Error(r.error ?? "Mux concat failed"); if (r.status === "ready") { mp4Url = r.mp4Url; break; } setNote(`Mux concatenating ${items.length} clips…`); await sleep(4000); }
-      if (!mp4Url) throw new Error("Timed out waiting for the Mux concat.");
+      // 1) RENDER the stitch. Worker configured → the Fly ffmpeg worker (REAL
+      //    crossfades at DEFAULT_CROSSFADE_MS, matching the manifest's offsets;
+      //    the home of the queued brand-intro/music-bed stages). Not configured →
+      //    the legacy Mux multi-input concat (hard cut). Configured-but-down →
+      //    throw HERE, before any money is spent — never a silent fallback.
+      let stitchedUrl: string; let renderNote: string;
+      const wp = await workerPreflight();
+      if (wp.configured && !wp.healthy) throw new Error(`Render worker configured but not healthy — fix it or unset RENDER_WORKER_URL. (${wp.detail})`);
+      if (wp.configured) {
+        setNote(`Render worker: submitting ${items.length} clips…`);
+        const { jobId, path } = await startWorkerRender({ data: { urls, mode, crossfadeMs: DEFAULT_CROSSFADE_MS } });
+        let fileUrl: string | null = null;
+        // TIME-based budget (60 min) — sits ABOVE the worker's whole-job
+        // ceiling (LIMITS.jobTimeoutMs = 50 min, which clamps every op to the
+        // job's remaining time), so the app can never declare failure on a
+        // render the worker still considers legal.
+        const renderDeadline = Date.now() + 60 * 60_000;
+        while (Date.now() < renderDeadline && !fileUrl) { const r: Awaited<ReturnType<typeof resolveWorkerRender>> = await resolveWorkerRender({ data: { jobId, path } }); if (r.state === "error") throw new Error(`Worker render failed: ${r.error ?? "unknown"}`); if (r.state === "done") { fileUrl = r.fileUrl; break; } setNote(`Render worker: ${r.note || r.state}…`); await sleep(4000); }
+        if (!fileUrl) throw new Error("Timed out waiting for the worker render (60 min).");
+        stitchedUrl = fileUrl; renderNote = `ffmpeg worker (${items.length} clips, ${DEFAULT_CROSSFADE_MS}ms crossfades)`;
+      } else {
+        const { assetId } = await startCeqConcat({ data: { urls, passthrough: `ceq-concat-${mode}` } });
+        let mp4Url: string | null = null;
+        for (let i = 0; i < 120 && !mp4Url; i++) { const r: Awaited<ReturnType<typeof resolveCeqConcat>> = await resolveCeqConcat({ data: { assetId } }); if (r.status === "errored") throw new Error(r.error ?? "Mux concat failed"); if (r.status === "ready") { mp4Url = r.mp4Url; break; } setNote(`Mux concatenating ${items.length} clips…`); await sleep(4000); }
+        if (!mp4Url) throw new Error("Timed out waiting for the Mux concat.");
+        stitchedUrl = mp4Url; renderNote = `Mux concat asset ${assetId} (legacy hard cut — render worker not configured)`;
+      }
       // 2) Auphonic → Supabase → FINAL Mux (reuse the staged pipeline; carry passthrough + title)
-      const { auphonicUuid } = await startPipelineTestAuphonic({ data: { fileUrl: mp4Url } });
+      const { auphonicUuid } = await startPipelineTestAuphonic({ data: { fileUrl: stitchedUrl } });
       let muxAssetId: string | null = null; let final: string | null = null;
       for (let i = 0; i < 240 && !final; i++) { const r: Awaited<ReturnType<typeof resolvePipelineTestAuphonic>> = await resolvePipelineTestAuphonic({ data: { auphonicUuid, muxAssetId, passthrough, title } }); muxAssetId = r.muxAssetId; if (r.stage === "errored") throw new Error(r.error ?? "Pipeline errored"); if (r.stage === "ready") { final = r.playbackId; break; } setNote(r.stage === "auphonic" ? `Auphonic: ${r.auphonicStatus ?? "processing"}…` : "Mux ingesting the processed file…"); await sleep(5000); }
       if (!final) throw new Error("Timed out waiting for the final Mux asset.");
@@ -938,7 +973,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
       const manifest = stitchManifest(stitch.items, DEFAULT_CROSSFADE_MS);
       const prevAsset = ld?.muxAssetId ?? null;
       rf.updateNodeData(lessonId, { muxAssetId, muxPlaybackId: final, status: "PUBLISHED", ceqManifest: manifest, muxPublishedAt: Date.now(), muxDurationS: runtimeS, videoCourse: course, videoChapter: topic });
-      setNote(`Published ${mode} ✓ → attached to the ${access} lesson (${manifest.length} CEQs indexed). passthrough "${passthrough}".${prevAsset ? ` Old Mux asset ${prevAsset} superseded — delete it in Mux manually.` : ""} Concat asset: ${assetId}.`);
+      setNote(`Published ${mode} ✓ → attached to the ${access} lesson (${manifest.length} CEQs indexed). passthrough "${passthrough}".${prevAsset ? ` Old Mux asset ${prevAsset} superseded — delete it in Mux manually.` : ""} Render: ${renderNote}.`);
       return true;
     } catch (e) { setNote(`Publish ${mode} failed: ${e instanceof Error ? e.message : String(e)}`); return false; }
     finally { setPublishBusy(null); }
@@ -954,6 +989,9 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
     { label: "No missing clips — full cut", ok: stitchFull.missing.length === 0, detail: stitchFull.missing.map((m) => clip(m.prompt || "?", 18)).join(", ") },
     { label: "Intro resolved (local or global)", ok: !!resolvedIntro, detail: resolvedIntro ? "" : "Drop an intro or set a global" },
     { label: "Outro resolved (local or global)", ok: !!resolvedOutro, detail: resolvedOutro ? "" : "Drop an outro or set a global" },
+    // Render worker: not configured = legacy Mux fallback (ok, says so) ·
+    // healthy = worker renders (ok) · configured-but-down = BLOCKS (fail loud).
+    { label: "Render worker", ok: !!workerState && (!workerState.configured || workerState.healthy), detail: workerState ? workerState.detail : "checking…" },
   ];
   /** Run the combo: Free first, then Full, statuses live. A Free failure STOPS the
    *  run (Full stays pending) so the partial state is unambiguous. */
