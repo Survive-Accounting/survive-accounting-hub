@@ -1,13 +1,15 @@
-// CEQ STITCH (Lee — CEQ Studio) — a rhythm-judgment tool. A center-view (NOT a
-// popout, NOT a rendered file) that plays a Free/Full stitch list back-to-back with
-// HARD CUTS straight from the Supabase staging URLs, so Lee can feel the pacing
-// before publishing. Shows position ("clip 4/9"), summed runtime, a clickable clip
-// list to jump, and any clip-less CEQs as "missing" (skipped in preview). No
-// rendering, no crossfades here — that's publish (prompt 3).
+// CEQ STITCH (Lee — CEQ Studio) — the "how is it looking so far" tool, two ways:
+// (1) CLIP MODE (instant): plays the Free/Full stitch list back-to-back with
+//     hard cuts straight from the Supabase staging URLs — feel the pacing.
+// (2) TRUE RENDER (⚡, ~a minute): the SAME list rendered through the ffmpeg
+//     worker — real crossfades, one file, played inline. Missing CEQs are
+//     skipped in both (unlike publish, which fails loud). No Auphonic, no Mux,
+//     nothing published — this is the double-check BEFORE publish.
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, Pause, Play } from "lucide-react";
+import { ChevronLeft, Loader2, Pause, Play, Zap } from "lucide-react";
 
 import { fmtDur, stitchRuntime, type StitchItem } from "./ceq-takes";
+import { renderStitchViaWorker } from "./render-worker-client";
 import { NEON } from "./theme";
 
 export function CeqStitch({ free, full, freeMissing, fullMissing, initialMode, onExit, onJumpCeq }: {
@@ -19,8 +21,23 @@ export function CeqStitch({ free, full, freeMissing, fullMissing, initialMode, o
   const missing = mode === "free" ? freeMissing : fullMissing;
   const [idx, setIdx] = useState(0);
   const [playing, setPlaying] = useState(false);
+  // TRUE RENDER — url of the rendered file (the player swaps to it), the live
+  // status note while the worker runs, and any error. Reset on mode switch.
+  const [rendered, setRendered] = useState<string | null>(null);
+  const [renderNote, setRenderNote] = useState<string | null>(null);
+  const [renderErr, setRenderErr] = useState<string | null>(null);
   const vidRef = useRef<HTMLVideoElement>(null);
-  useEffect(() => { setIdx(0); setPlaying(false); }, [mode]);
+  useEffect(() => { setIdx(0); setPlaying(false); setRendered(null); setRenderNote(null); setRenderErr(null); }, [mode]);
+  const rendering = renderNote !== null && rendered === null && renderErr === null;
+  const runTrueRender = async () => {
+    if (rendering || items.length === 0) return;
+    setRendered(null); setRenderErr(null); setRenderNote("checking the render worker…");
+    try {
+      const url = await renderStitchViaWorker(items, "test", setRenderNote);
+      setRendered(url);
+      setRenderNote(`${items.length} clip(s), real crossfades${missing.length ? ` · ${missing.length} CEQ(s) skipped (no clip yet)` : ""}`);
+    } catch (e) { setRenderErr(e instanceof Error ? e.message : String(e)); setRenderNote(null); }
+  };
   const total = stitchRuntime(items);
   const cur = items[Math.min(idx, items.length - 1)];
   const playAt = (i: number) => { setIdx(i); setPlaying(true); window.setTimeout(() => vidRef.current?.play().catch(() => {}), 30); };
@@ -39,11 +56,31 @@ export function CeqStitch({ free, full, freeMissing, fullMissing, initialMode, o
         </div>
         <button className="grid h-6 w-6 place-items-center rounded" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={toggle} disabled={items.length === 0} title={playing ? "Pause" : "Play the stitch list"}>{playing ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}</button>
         <span className="text-[11px] font-bold tabular-nums" style={{ color: NEON.text }}>{items.length ? `clip ${Math.min(idx + 1, items.length)}/${items.length}` : "0 clips"}</span>
+        {/* TRUE RENDER — the same list through the ffmpeg worker (real crossfades).
+            While a render is showing, the button flips back to clip-by-clip. */}
+        <button
+          className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase disabled:opacity-40"
+          style={{ color: rendered ? "#0B0F1E" : NEON.yellow, background: rendered ? NEON.yellow : "transparent", border: `1px solid ${NEON.yellow}` }}
+          disabled={rendering || items.length === 0}
+          onClick={() => { if (rendered) { setRendered(null); setRenderNote(null); } else void runTrueRender(); }}
+          title={rendered ? "Back to the clip-by-clip preview" : "Render this list through the ffmpeg worker — real crossfades, one file (takes a minute; nothing is published)"}
+        >
+          {rendering ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />} {rendered ? "clips" : "true render"}
+        </button>
         <span className="ml-auto text-[10px] tabular-nums" style={{ color: NEON.cyan }}>~{fmtDur(total)} total</span>
       </div>
+      {/* render status / error strip */}
+      {(renderNote || renderErr) && (
+        <div className="flex shrink-0 items-center gap-1.5 border-b px-2 py-1 text-[9.5px]" style={{ borderColor: NEON.borderSoft, color: renderErr ? NEON.red : rendered ? "#3BF5A0" : NEON.muted }}>
+          {rendering && <Loader2 className="h-3 w-3 shrink-0 animate-spin" style={{ color: NEON.cyan }} />}
+          <span className="min-w-0 flex-1">{renderErr ?? (rendered ? `RENDERED — ${renderNote}` : renderNote)}</span>
+        </div>
+      )}
       {/* player — hard cuts, straight from staging URLs */}
       <div className="grid min-h-0 flex-1 place-items-center p-2" style={{ background: "rgba(4,7,14,0.6)" }}>
-        {cur ? (
+        {rendered ? (
+          <video key={rendered} src={rendered} controls playsInline autoPlay style={{ maxHeight: "100%", maxWidth: "100%", borderRadius: 8, background: "#000", aspectRatio: "16 / 9" }} />
+        ) : cur ? (
           <video ref={vidRef} key={cur.take.path} src={cur.take.url} controls playsInline onEnded={onEnded} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} style={{ maxHeight: "100%", maxWidth: "100%", borderRadius: 8, background: "#000", aspectRatio: "16 / 9" }} />
         ) : (
           <div className="text-[11px]" style={{ color: NEON.muted }}>No clips in the {mode} list yet — attach takes to your CEQs.</div>

@@ -32,7 +32,7 @@ import { CeqStitch } from "./CeqStitch";
 import { CeqVideoLibrary, vidCourseMatch, vidTopicMatch } from "./CeqVideoLibrary";
 import { DEFAULT_CROSSFADE_MS } from "./segment-assembly";
 import { detectAuphonicSlots, resolveCeqConcat, resolvePipelineTestAuphonic, startCeqConcat, startPipelineTestAuphonic } from "@/lib/publish.functions";
-import { resolveWorkerRender, startWorkerRender, workerPreflight } from "@/lib/render-worker.functions";
+import { renderStitchViaWorker, wakeRenderWorker } from "./render-worker-client";
 import type { LessonBox } from "./types";
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { useFrameNav } from "./FrameNavContext";
@@ -101,17 +101,14 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   useEffect(() => {
     if (!publishOpen) return;
     setWorkerState(null);
-    void workerPreflight()
+    // wakeRenderWorker retries "unreachable" for ~30s — the worker self-exits
+    // when idle, so the first probe after a break has to ride out a cold start.
+    void wakeRenderWorker((n) => setWorkerState({ configured: true, healthy: false, detail: n }))
       .then(setWorkerState)
       .catch((e) => setWorkerState({ configured: true, healthy: false, detail: e instanceof Error ? e.message : String(e) }));
   }, [publishOpen]);
-  // TEST RENDER (Lee) — "how is the stitching looking so far": the current cut's
-  // ATTACHED clips only, rendered through the worker, played raw inline. No
-  // Auphonic, no Mux, no lesson writes — missing CEQs are skipped (preview
-  // semantics), so it works long before the set is publishable.
-  const [testRender, setTestRender] = useState<{ state: "running" | "done" | "error"; url: string | null; note: string } | null>(null);
-  useEffect(() => { if (!publishOpen) { setCombo(null); setTestRender(null); } }, [publishOpen]);
-  useEffect(() => { setCombo(null); setTestRender(null); }, [setId]);
+  useEffect(() => { if (!publishOpen) setCombo(null); }, [publishOpen]);
+  useEffect(() => { setCombo(null); }, [setId]);
   // OPEN FROM A CEQ (Lee) — pre-select the set (its deck) + that question.
   useEffect(() => {
     if (!initialCeqId) return;
@@ -947,20 +944,15 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
       //    the legacy Mux multi-input concat (hard cut). Configured-but-down →
       //    throw HERE, before any money is spent — never a silent fallback.
       let stitchedUrl: string; let renderNote: string;
-      const wp = await workerPreflight();
+      // wake-aware probe: a cold worker (self-exited when idle) boots on the
+      // first request — "unreachable" retries ~30s before it counts as down.
+      const wp = await wakeRenderWorker((n) => setNote(`Render worker: ${n}`));
       if (wp.configured && !wp.healthy) throw new Error(`Render worker configured but not healthy — fix it or unset RENDER_WORKER_URL. (${wp.detail})`);
       if (wp.configured) {
-        setNote(`Render worker: submitting ${items.length} clips…`);
-        const { jobId, path } = await startWorkerRender({ data: { urls, mode, crossfadeMs: DEFAULT_CROSSFADE_MS } });
-        let fileUrl: string | null = null;
-        // TIME-based budget (60 min) — sits ABOVE the worker's whole-job
-        // ceiling (LIMITS.jobTimeoutMs = 50 min, which clamps every op to the
-        // job's remaining time), so the app can never declare failure on a
-        // render the worker still considers legal.
-        const renderDeadline = Date.now() + 60 * 60_000;
-        while (Date.now() < renderDeadline && !fileUrl) { const r: Awaited<ReturnType<typeof resolveWorkerRender>> = await resolveWorkerRender({ data: { jobId, path } }); if (r.state === "error") throw new Error(`Worker render failed: ${r.error ?? "unknown"}`); if (r.state === "done") { fileUrl = r.fileUrl; break; } setNote(`Render worker: ${r.note || r.state}…`); await sleep(4000); }
-        if (!fileUrl) throw new Error("Timed out waiting for the worker render (60 min).");
-        stitchedUrl = fileUrl; renderNote = `ffmpeg worker (${items.length} clips, ${DEFAULT_CROSSFADE_MS}ms crossfades)`;
+        // shared render/poll loop (render-worker-client): 60-min budget above
+        // the worker's 50-min whole-job ceiling.
+        stitchedUrl = await renderStitchViaWorker(items, mode, (n) => setNote(`Render worker: ${n}`));
+        renderNote = `ffmpeg worker (${items.length} clips, ${DEFAULT_CROSSFADE_MS}ms crossfades)`;
       } else {
         const { assetId } = await startCeqConcat({ data: { urls, passthrough: `ceq-concat-${mode}` } });
         let mp4Url: string | null = null;
@@ -1008,38 +1000,8 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
     const okFull = await publishStitch("full");
     setCombo({ free: "done", full: okFull ? "done" : "error", running: false });
   };
-  /** TEST RENDER — the cut's attached clips through the ffmpeg worker, raw
-   *  result played inline. Missing CEQs are SKIPPED (preview semantics — unlike
-   *  publish, which fails loud), so it answers "how is the stitching looking so
-   *  far" mid-authoring. Worker-only on purpose: no Mux fallback (a test must
-   *  never mint a paid Mux asset), no Auphonic, no lesson writes. */
-  const runTestRender = async (mode: "free" | "full") => {
-    if (testRender?.state === "running" || !deck) return;
-    const stitch = mode === "free" ? stitchFree : stitchFull;
-    const urls = stitch.items.map((i) => i.take.url);
-    const skipNote = stitch.missing.length ? ` · ${stitch.missing.length} CEQ(s) skipped (no clip yet)` : "";
-    if (urls.length === 0) { setTestRender({ state: "error", url: null, note: `No clips attached in the ${mode} cut yet — drop takes on some CEQs first.` }); return; }
-    setTestRender({ state: "running", url: null, note: "checking the render worker…" });
-    try {
-      const wp = await workerPreflight();
-      if (!wp.configured) throw new Error("Render worker not configured — the test render needs it (tests never use Mux).");
-      if (!wp.healthy) throw new Error(`Render worker not healthy: ${wp.detail}`);
-      const { jobId, path } = await startWorkerRender({ data: { urls, mode: "test", crossfadeMs: DEFAULT_CROSSFADE_MS } });
-      const deadline = Date.now() + 30 * 60_000;
-      let fileUrl: string | null = null;
-      while (Date.now() < deadline && !fileUrl) {
-        const r: Awaited<ReturnType<typeof resolveWorkerRender>> = await resolveWorkerRender({ data: { jobId, path } });
-        if (r.state === "error") throw new Error(r.error ?? "render failed");
-        if (r.state === "done") { fileUrl = r.fileUrl; break; }
-        setTestRender({ state: "running", url: null, note: r.note || r.state });
-        await new Promise((res) => window.setTimeout(res, 3000));
-      }
-      if (!fileUrl) throw new Error("Timed out waiting for the test render (30 min).");
-      setTestRender({ state: "done", url: fileUrl, note: `${urls.length} clip(s), ${DEFAULT_CROSSFADE_MS}ms crossfades${skipNote}` });
-    } catch (e) {
-      setTestRender({ state: "error", url: null, note: e instanceof Error ? e.message : String(e) });
-    }
-  };
+  // (The test render moved into the PREVIEW pane — CeqStitch's ⚡ "true render",
+  // Lee's original vision for preview: double-check the stitch as clips land.)
   const dragProps = (key: string, onFile: (f: File) => void) => ({
     onDragOver: (e: React.DragEvent) => { if (Array.from(e.dataTransfer.types).includes("Files")) { e.preventDefault(); if (dragKey !== key) setDragKey(key); } },
     onDragLeave: (e: React.DragEvent) => { if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setDragKey((k) => (k === key ? null : k)); },
@@ -2133,23 +2095,6 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
                           </>)}
                         </div>
                       )}
-                      {/* TEST RENDER — stitch-so-far through the worker (skips
-                          missing CEQs; no Auphonic/Mux/lesson writes). */}
-                      <div className="mb-2 flex flex-col gap-1 rounded p-1.5" style={{ background: "rgba(0,0,0,0.15)", border: `1px solid ${NEON.borderSoft}` }}>
-                        <div className="flex items-center gap-1.5">
-                          <span className="min-w-0 flex-1 truncate text-[8.5px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }} title="Renders the clips attached SO FAR through the ffmpeg worker and plays the raw result here. Missing CEQs are skipped. No Auphonic, no Mux, nothing published — publish gates unaffected.">Test render — stitch so far</span>
-                          <button className="rounded px-2 py-0.5 text-[9px] font-bold uppercase disabled:opacity-40" style={{ color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.5)" }} disabled={testRender?.state === "running" || !!publishBusy} onClick={() => void runTestRender("free")}>free</button>
-                          <button className="rounded px-2 py-0.5 text-[9px] font-bold uppercase disabled:opacity-40" style={{ color: "#FF8B9E", border: "1px solid rgba(255,92,108,0.5)" }} disabled={testRender?.state === "running" || !!publishBusy} onClick={() => void runTestRender("full")}>full</button>
-                        </div>
-                        {testRender && (
-                          <div className="flex items-center gap-1 text-[9.5px]" style={{ color: testRender.state === "error" ? NEON.red : NEON.muted }}>
-                            {testRender.state === "running" && <Loader2 className="h-3 w-3 shrink-0 animate-spin" style={{ color: NEON.cyan }} />}
-                            {testRender.state === "done" && <CheckCircle2 className="h-3 w-3 shrink-0" style={{ color: "#3BF5A0" }} />}
-                            <span className="min-w-0 flex-1">{testRender.note}</span>
-                          </div>
-                        )}
-                        {testRender?.url && <video controls src={testRender.url} className="w-full rounded" style={{ maxHeight: 200, background: "#000" }} />}
-                      </div>
                       {/* LOOKBACK — ONE vertical social file, staged + re-downloadable. NO
                           pipeline: Lee posts socials manually. */}
                       <div className="mb-2 flex flex-col gap-1 rounded p-1" style={{ background: dragKey === `lookback:${setId}` ? "rgba(252,163,17,0.14)" : "rgba(0,0,0,0.15)", outline: dragKey === `lookback:${setId}` ? `1px dashed ${NEON.yellow}` : `1px solid ${NEON.borderSoft}` }} {...dragProps(`lookback:${setId}`, (f) => dropSlot("lookback", f))}>
