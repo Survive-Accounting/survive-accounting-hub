@@ -27,8 +27,10 @@
 // A start/stop timer times the run. Practice + spotlight state are LOCAL — they never
 // dirty the real CEQ, and reset when you switch questions.
 import { Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Background, BackgroundVariant, BaseEdge, ConnectionMode, getSmoothStepPath, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodesState, useStore, type Connection, type Edge, type EdgeProps, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
-import { Clapperboard, ChevronLeft, ChevronRight, LayoutGrid, Maximize2, Pause, Play, Plus, RotateCcw, Rows3, Spline, Timer } from "lucide-react";
+import { Background, BackgroundVariant, BaseEdge, ConnectionMode, getSmoothStepPath, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodesState, useStore, ViewportPortal, type Connection, type Edge, type EdgeProps, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
+import { Clapperboard, ChevronLeft, ChevronRight, Grid3x3, LayoutGrid, Maximize2, Pause, Play, Plus, RotateCcw, Rows3, Spline, Timer } from "lucide-react";
+
+import { frameCompositionGuides, SAFE_INSET_FRAC, type Guide } from "./frames";
 
 import { BrandWatermark } from "./BrandBar";
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
@@ -199,9 +201,36 @@ function ScaleGrip({ id, scale, color, film }: { id: string; scale: number; colo
  *  becomes a clean stage (no outline/label — the camera sees only the cards). Both
  *  render the set's chosen visual WORLD (worlds.ts) behind the cards when set, so the
  *  frame reads as a real canvas frame; the world only animates under `.film-mode`. */
+/** COMPOSITION GUIDES (authoring only) — rule-of-thirds grid + broadcast safe
+ *  zones drawn in FRAME-LOCAL space, so they scale with the frame and sit behind
+ *  the cards. Same zone fractions as the canvas SafeGuidesOverlay so the two
+ *  surfaces agree. Never rendered in film. */
+function GuidesOverlay({ w, h }: { w: number; h: number }) {
+  const lf = Math.max(9, Math.round(h * 0.028)); // label size, proportional to the frame
+  const rule = (o: React.CSSProperties) => <div className="absolute" style={{ background: "rgba(126,243,192,0.20)", ...o }} />;
+  const box = (x: number, y: number, bw: number, bh: number, color: string, label: string) => (
+    <div className="absolute" style={{ left: x, top: y, width: bw, height: bh, border: `${Math.max(1, Math.round(h * 0.0025))}px dashed ${color}`, borderRadius: Math.round(h * 0.01) }}>
+      <span className="absolute font-bold uppercase" style={{ left: 3, top: 2, fontSize: lf, letterSpacing: "0.06em", color }}>{label}</span>
+    </div>
+  );
+  return (
+    <div className="pointer-events-none absolute inset-0" style={{ zIndex: 2 }}>
+      {/* rule of thirds */}
+      {rule({ left: w / 3, top: 0, width: 1, height: h })}
+      {rule({ left: (2 * w) / 3, top: 0, width: 1, height: h })}
+      {rule({ left: 0, top: h / 3, width: w, height: 1 })}
+      {rule({ left: 0, top: (2 * h) / 3, width: w, height: 1 })}
+      {box(w * SAFE_INSET_FRAC, h * SAFE_INSET_FRAC, w * (1 - 2 * SAFE_INSET_FRAC), h * (1 - 2 * SAFE_INSET_FRAC), "rgba(126,243,192,0.5)", "title-safe")}
+      {box(w * 0.72, h * 0.7, w * 0.26, h * 0.28, "rgba(140,192,238,0.6)", "camera")}
+      {box(w * 0.78, h * 0.03, w * 0.2, h * 0.12, "rgba(245,212,143,0.55)", "watermark")}
+      {box(w * 0.62, h * 0.12, w * 0.34, h * 0.76, "rgba(255,139,158,0.42)", "end-screen")}
+    </div>
+  );
+}
+
 function FrameBgNode({ data }: NodeProps) {
   const film = useContext(FilmContext);
-  const d = data as unknown as { w: number; h: number; world?: string; worldIntensity?: number; worldMotion?: number; qNum?: number };
+  const d = data as unknown as { w: number; h: number; world?: string; worldIntensity?: number; worldMotion?: number; qNum?: number; guides?: boolean };
   const world = d.world ? <WorldBackground worldId={d.world} intensity={d.worldIntensity} motion={d.worldMotion} /> : null;
   // FILM: clean stage + a soft cinematic EDGE GLOW (like the canvas film frame) —
   // a faint outer bloom into the letterbox + an inner vignette over the world. The
@@ -221,6 +250,7 @@ function FrameBgNode({ data }: NodeProps) {
           branch above returns early so it can never reach a take; data-frame-chrome
           is belt-and-braces if this ever mounts under a .film-mode root. */}
       {!!d.qNum && <span data-frame-chrome style={{ position: "absolute", top: 26, left: 12, fontSize: 92, fontWeight: 900, lineHeight: 1, letterSpacing: "-0.03em", color: "rgba(244,239,230,0.10)", pointerEvents: "none", userSelect: "none" }}>Q{d.qNum}</span>}
+      {d.guides && <GuidesOverlay w={d.w} h={d.h} />}
     </div>
   );
 }
@@ -514,6 +544,11 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // to show its chain alone; click it again to close. Reset whenever the question
   // changes so a new question opens clean.
   const [viewChoice, setViewChoice] = useState<number | null>(null);
+  // COMPOSITION GUIDES (authoring) — the thirds/safe-zone overlay + drag snap for
+  // laying out the CEQ card and its memo slots. Toggle persists across sessions.
+  const [guidesOn, setGuidesOn] = useState<boolean>(() => { try { return localStorage.getItem("sa-ceq-guides") === "1"; } catch { return false; } });
+  const toggleGuides = () => setGuidesOn((v) => { const nv = !v; try { localStorage.setItem("sa-ceq-guides", nv ? "1" : "0"); } catch { /* ignore */ } return nv; });
+  const [dragGuides, setDragGuides] = useState<{ v: Guide[]; h: Guide[] }>({ v: [], h: [] });
   useEffect(() => { setViewChoice(null); }, [ceqId]);
   // TRUE walk state — what the CAMERA sees: only memos the Enter-walk has revealed.
   const walkRevealedIds = useMemo(() => { const set = new Set<string>(); for (const w of walk) if (resolved.has(w.choiceIdx) && w.chainPos < (shown.get(w.choiceIdx) ?? 0)) set.add(w.memoNodeId); return set; }, [walk, resolved, shown]);
@@ -575,7 +610,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     // qNum = this question's DECK position (what the Studio rows and take filenames
     // use). Q0/layout is not in deckCeqIds → 0 → the overlay doesn't render.
     const qNum = layoutMode ? 0 : Math.max(0, (deckCeqIds?.indexOf(ceqId) ?? -1) + 1);
-    const frameNode = { id: "__frame__", type: "frameBg", position: { x: 0, y: yOff }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum }, draggable: false, selectable: false, zIndex: -10 };
+    const frameNode = { id: "__frame__", type: "frameBg", position: { x: 0, y: yOff }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum, guides: guidesOn }, draggable: false, selectable: false, zIndex: -10 };
     const ceqNode = { id: ceqId, type: "ceqPreview", position: { x: cs.x, y: yOff + cs.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cs.scale, layoutBadge: layoutMode }, draggable: true, zIndex: 1 };
     // PLACEMENT: in Question 0 each stage chip IS its slot (whole rack, so inactive
     // ones stay visible to switch on). In a real question memos fill the ACTIVE slots
@@ -619,7 +654,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     });
     return [...active, ...others] as typeof active;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, activeYOff, layoutMode, walk, viewChoice]);
+  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, activeYOff, layoutMode, walk, viewChoice, guidesOn]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   useEffect(() => { setNodes(build() as unknown as Node[]); }, [build, setNodes]);
@@ -747,6 +782,54 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       g = withInstanceSpot(g, i, { x: m.position.x, y: m.position.y - activeYOff, scale: (m.data as { scale?: number }).scale ?? 1 });
     });
     if (g) onSaveInstance(g);
+  };
+  // commitGeom closes over `nodes`; a ref keeps snap-on-drop pointed at the
+  // latest one so it persists the SNAPPED position, not the pre-snap state.
+  const commitRef = useRef(commitGeom);
+  commitRef.current = commitGeom;
+
+  // COMPOSITION SNAP — reuse the canvas frame guides (frames.ts) on the previewer.
+  // Only while the guides overlay is ON and not in overview (single-question
+  // authoring); alt-drag keeps the lines but places freely.
+  const snapOf = (node: Node, altBypass: boolean) => {
+    if (!guidesOn || overviewOn) return null;
+    if (node.type !== "memoPreview" && node.id !== ceqId) return null;
+    const dim = (n: Node) => { const m = (n as { measured?: { width?: number; height?: number } }).measured; return { w: m?.width ?? 210, h: m?.height ?? 130 }; };
+    const nd = dim(node);
+    const rect = { x: node.position.x, y: node.position.y - activeYOff, w: nd.w, h: nd.h };
+    const sibs = nodes.filter((n) => n.id !== node.id && (n.type === "memoPreview" || n.id === ceqId)).map((n) => { const d = dim(n); return { x: n.position.x, y: n.position.y - activeYOff, w: d.w, h: d.h }; });
+    return frameCompositionGuides({ w: frameW, h: frameH }, rect, sibs, { safeInset: Math.round(frameH * SAFE_INSET_FRAC), altBypass, threshold: Math.max(10, Math.round(frameW * 0.012)) });
+  };
+  const onNodeDrag = (e: MouseEvent | TouchEvent, node: Node) => {
+    const g = snapOf(node, "altKey" in e && e.altKey);
+    setDragGuides(g ? { v: g.v, h: g.h } : { v: [], h: [] });
+  };
+  const onNodeDragStop = (e: MouseEvent | TouchEvent, node: Node) => {
+    const g = snapOf(node, "altKey" in e && e.altKey);
+    setDragGuides({ v: [], h: [] });
+    if (g && (g.snapX != null || g.snapY != null)) {
+      setNodes((nds) => nds.map((n) => (n.id === node.id ? { ...n, position: { x: g.snapX ?? n.position.x, y: g.snapY != null ? g.snapY + activeYOff : n.position.y } } : n)));
+      requestAnimationFrame(() => commitRef.current()); // after the snap flushes to state
+    } else {
+      commitRef.current();
+    }
+  };
+
+  /** STANDARD LANDSCAPE — a saveable baseline: CEQ card top-left, three memo slots
+   *  down the right ABOVE the bottom-right camera box, the other two off. One click
+   *  to a camera-safe layout Lee can then tweak. Writes the set template. */
+  const standardLandscape = () => {
+    if (!onSaveBaseline) return;
+    const card: DeckSlotLayout = { x: Math.round(frameW * 0.06), y: Math.round(frameH * 0.16), scale: 0.92 };
+    const sx = Math.round(frameW * 0.66);
+    const extra = paletteSlots(frameW, frameH).slice(3).map((s) => ({ x: Math.round(s.x), y: Math.round(s.y), scale: s.scale, off: true }));
+    const memoSlots: DeckSlotLayout[] = [
+      { x: sx, y: Math.round(frameH * 0.1), scale: 0.85 },
+      { x: sx, y: Math.round(frameH * 0.32), scale: 0.85 },
+      { x: sx, y: Math.round(frameH * 0.54), scale: 0.85 },
+      ...extra,
+    ];
+    onSaveBaseline({ card, memoSlots });
   };
 
   // COPY / PASTE STYLE — the acted-on memos = the marquee selection if it includes the
@@ -977,7 +1060,8 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                   nodes={nodes}
                   edges={edges}
                   onNodesChange={onNodesChange}
-                  onNodeDragStop={commitGeom}
+                  onNodeDrag={onNodeDrag}
+                  onNodeDragStop={onNodeDragStop}
                   onConnect={onConnect}
                   onEdgeClick={onEdgeClick}
                   onSelectionChange={({ nodes: sel, edges: selE }) => {
@@ -1019,6 +1103,14 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                   onlyRenderVisibleElements={overviewOn}
                 >
                   <Background variant={BackgroundVariant.Dots} gap={22} size={1.2} color="rgba(147,160,180,0.18)" />
+                  {/* LIVE SNAP LINES while dragging a slot/card — frame-local coords
+                      (frame origin is flow (0, activeYOff)); brighter = stronger guide. */}
+                  {(dragGuides.v.length > 0 || dragGuides.h.length > 0) && (
+                    <ViewportPortal>
+                      {dragGuides.v.map((g, i) => <div key={`gv${i}`} className="pointer-events-none absolute" style={{ left: g.pos, top: activeYOff, width: 1, height: frameH, background: g.weight === "center" ? "rgba(79,163,227,0.95)" : g.weight === "card" ? "rgba(255,139,158,0.9)" : g.weight === "safe" ? "rgba(126,243,192,0.9)" : "rgba(252,163,17,0.85)" }} />)}
+                      {dragGuides.h.map((g, i) => <div key={`gh${i}`} className="pointer-events-none absolute" style={{ left: 0, top: activeYOff + g.pos, width: frameW, height: 1, background: g.weight === "center" ? "rgba(79,163,227,0.95)" : g.weight === "card" ? "rgba(255,139,158,0.9)" : g.weight === "safe" ? "rgba(126,243,192,0.9)" : "rgba(252,163,17,0.85)" }} />)}
+                    </ViewportPortal>
+                  )}
                 </ReactFlow>
               </div>
               {/* PRACTICE BAR — hover the preview, then Tab/Enter/Space/` (mouse-free).
@@ -1027,6 +1119,11 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                 <button className="grid h-6 w-6 place-items-center rounded" style={{ color: running ? "#FF8B9E" : "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={toggleRun} title={running ? "Pause timer" : "Start practice timer"}>{running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}</button>
                 <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={resetAll} title="Reset the CEQ to blank + clear spotlights + timer (`) — Shift+` instead SWEEPS just the memos and keeps the choice states"><RotateCcw className="h-3.5 w-3.5" /></button>
                 <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: filmWin ? "#0B0F1E" : "#FF8B9E", background: filmWin ? "#FF8B9E" : "transparent", border: `1px solid ${filmWin ? "#FF8B9E" : "rgba(255,139,158,0.5)"}` }} onClick={toggleFilm} title={filmWin ? "Close the film window" : "FILM MODE — pops a clean 16:9 canvas frame (world background + watermark) onto your 2nd monitor. TWO-WAY: drag / resize / spotlight / Space-Tab-Enter work in EITHER window and stay in sync. Maximize it for OBS."}><Clapperboard className="h-3.5 w-3.5" /> {filmWin ? "Filming" : "Film"}</button>
+                {/* COMPOSITION GUIDES — thirds grid + safe zones (title-safe, camera,
+                    watermark, end-screen) for laying out the CEQ; drag a slot/card and
+                    it snaps to the lines (hold Alt to place freely). Persists. */}
+                <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: guidesOn ? "#0B0F1E" : NEON.muted, background: guidesOn ? "#7EF3C0" : "transparent", border: `1px solid ${guidesOn ? "#7EF3C0" : NEON.borderSoft}` }} onClick={toggleGuides} title={guidesOn ? "Composition guides ON — rule-of-thirds + title-safe/camera/watermark/end-screen zones, and drag-to-snap. Click to hide." : "Composition guides — show the rule-of-thirds grid + safe zones and snap dragged slots/cards to them (hold Alt while dragging to place freely)."}><Grid3x3 className="h-3.5 w-3.5" /> Guides</button>
+                {onSaveBaseline && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={standardLandscape} title="Standard Landscape — set a camera-safe baseline in one click: CEQ card top-left, three memo slots down the right above the camera box (the other two off). Tweak from there; writes the set's layout.">Standard</button>}
                 {onSetLayoutMode && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: layoutOn === false ? NEON.muted : "#0B0F1E", background: layoutOn === false ? "transparent" : NEON.cyan, border: `1px solid ${layoutOn === false ? NEON.borderSoft : NEON.cyan}` }} onClick={() => onSetLayoutMode(layoutOn === false)} title={layoutOn === false ? "Layout mode OFF — deals land where each question was last authored, nothing conforms. Click to turn ON (the layout governs new deals)." : "Layout mode ON — a deal starts each question from the layout, and new memos snap to the next active slot. Click to turn OFF for fully freeform placement. Either way, a move you make always sticks to that question."}>Layout {layoutOn === false ? "off" : "on"}</button>}
                 {onApplyLayoutToAll && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={onApplyLayoutToAll} title="Apply the layout to EVERY question in the set — re-stamps each question's card + memo spots from the template. Overwrites hand-placed geometry; one Ctrl+Z puts it all back.">Apply to all</button>}
                 {onSaveBaseline && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => saveBaseline()} title="Set as layout — save THIS card + memo arrangement as the set's baseline (same baseline Question 0 edits directly). Every question then deals/previews at this geometry."><LayoutGrid className="h-3.5 w-3.5" /> Set layout</button>}

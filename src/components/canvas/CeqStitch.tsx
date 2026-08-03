@@ -152,14 +152,17 @@ export function CeqStitch({ freeRows, fullRows, initialMode, onExit, onJumpCeq, 
           <span className="min-w-0 flex-1">{renderErr ?? (rendered ? `RENDERED — ${renderNote}` : renderNote)}</span>
         </div>
       )}
-      {/* player — clip mode (hard cuts) or the rendered file (seekable) */}
-      <div className="grid min-h-0 place-items-center p-2" style={{ flex: "1 1 55%", background: "rgba(4,7,14,0.6)" }}>
+      {/* player — clip mode (hard cuts) or the rendered file (seekable). The
+          video FILLS a bounded box (objectFit:contain letterboxes inside) so its
+          intrinsic 16:9 height can't grow past the flex basis and shove the clip
+          list below the fold (that was the "can't scroll to the clips" bug). */}
+      <div className="min-h-0 overflow-hidden p-2" style={{ flex: "1 1 55%", minHeight: 160, background: "rgba(4,7,14,0.6)" }}>
         {rendered ? (
-          <video ref={renderedRef} key={rendered} src={rendered} controls playsInline autoPlay style={{ maxHeight: "100%", maxWidth: "100%", borderRadius: 8, background: "#000", aspectRatio: "16 / 9" }} />
+          <video ref={renderedRef} key={rendered} src={rendered} controls playsInline autoPlay style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 8, background: "#000" }} />
         ) : cur ? (
-          <video ref={vidRef} key={cur.take!.path} src={cur.take!.url} controls playsInline onEnded={onEnded} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} style={{ maxHeight: "100%", maxWidth: "100%", borderRadius: 8, background: "#000", aspectRatio: "16 / 9" }} />
+          <video ref={vidRef} key={cur.take!.path} src={cur.take!.url} controls playsInline onEnded={onEnded} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: 8, background: "#000" }} />
         ) : (
-          <div className="text-[11px]" style={{ color: NEON.muted }}>No clips in the {mode} cut yet — upload takes from the list below (or drop them on CEQs in the editor).</div>
+          <div className="grid h-full place-items-center text-center text-[11px]" style={{ color: NEON.muted }}>No clips in the {mode} cut yet — upload takes from the list below (or drop them on CEQs in the editor).</div>
         )}
       </div>
       {/* THE LIST — every position 1..N; greyed = no clip yet; click zips there */}
