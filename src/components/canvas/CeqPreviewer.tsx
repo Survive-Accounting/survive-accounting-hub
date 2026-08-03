@@ -28,7 +28,7 @@
 // dirty the real CEQ, and reset when you switch questions.
 import { Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Background, BackgroundVariant, BaseEdge, ConnectionMode, getSmoothStepPath, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodesState, useStore, ViewportPortal, type Connection, type Edge, type EdgeProps, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
-import { Clapperboard, ChevronLeft, ChevronRight, Grid3x3, LayoutGrid, Maximize2, Pause, Play, Plus, RotateCcw, Rows3, Spline, Timer } from "lucide-react";
+import { Clapperboard, ChevronLeft, ChevronRight, Grid3x3, LayoutGrid, Maximize2, Pause, Play, Plus, RotateCcw, Rows3, Save, Spline, Timer, X } from "lucide-react";
 
 import { Bolt, BOLT_PRESETS, BOLT_RATIO, boltColorById } from "./brand";
 import { frameCompositionGuides, SAFE_INSET_FRAC, type Guide } from "./frames";
@@ -270,7 +270,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
   const attachMemo = useContext(AttachMemoContext);
   const choiceMenu = useContext(ChoiceMenuContext);
   const [dropChoice, setDropChoice] = useState<string | null>(null); // choice a memo is hovering (drag-to-chain)
-  const d = data as unknown as { stem: string; choices: { id: string; text: string; correct?: boolean; chain?: unknown[] }[]; scale?: number; layoutBadge?: boolean; brandBolt?: false | string; progress?: { x: number; y: number } | null };
+  const d = data as unknown as { stem: string; choices: { id: string; text: string; correct?: boolean; chain?: unknown[] }[]; scale?: number; layoutBadge?: boolean; brandBolt?: false | string; progress?: { x: number; y: number } | null; topic?: string | null };
   const s = d.scale ?? 1;
   // BRANDING — the bolt sits top-left of the CEQ box, filmed with the card. Floated
   // so the stem wraps around it. `brandBolt` false hides it; a string picks a colour
@@ -289,6 +289,9 @@ function CeqPreviewNode({ id, data }: NodeProps) {
       {/* CLIP — a spotlit choice's scale + glow stays INSIDE the CEQ box (never spills
           into the frame on a take). The ScaleGrip lives OUTSIDE this clip. */}
       <div style={{ overflow: "hidden", borderRadius: 13 * s, padding: 16 * s }}>
+      {/* TOPIC kicker — name only (no Ch#), small uppercase above the stem so a
+          viewer landing mid-clip knows the topic. */}
+      {d.topic && <div style={{ fontSize: 12 * s, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: PAPER.inkMuted, marginBottom: 6 * s, maxWidth: "58%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.topic}</div>}
       <div style={{ fontSize: 24 * s, fontWeight: 800, lineHeight: 1.25, color: PAPER.ink, marginBottom: 12 * s }}>
         {boltCol && <span style={{ float: "left", height: 42 * s, width: 42 * s * BOLT_RATIO, marginRight: 12 * s, marginTop: 2 * s }}><Bolt c1={boltCol.c1} c2={boltCol.c2} keyline={PAPER.card} /></span>}
         {renderInline(d.stem || "Question")}
@@ -453,7 +456,7 @@ const nodeTypes = { frameBg: FrameBgNode, ceqPreview: CeqPreviewNode, memoPrevie
 const EMPTY_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "focus" };
 
 
-function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, world, worldIntensity, worldMotion, deckCeqIds, layoutMode, onSaveBaseline, onSaveInstance, onReorderChainMemo, layoutOn, onSetLayoutMode, onApplyLayoutToAll, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onAddMemoAtChoice, onAddMemoAt, onRenameMemo, onDuplicateMemo, onSetMemoCategory, onDeleteMemo, onSetMisconception, misconceptionSlugs, onNextQuestion, onPrevQuestion, showProgress, onSetShowProgress, onOpenMemoLib }: { ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number; chainEdges: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; layoutMode?: boolean; onSaveBaseline?: (l: DeckLayout) => void; onSaveInstance?: (g: CeqInstanceGeom) => void; onReorderChainMemo?: (memoNodeId: string, dir: -1 | 1) => void; layoutOn?: boolean; onSetLayoutMode?: (on: boolean) => void; onApplyLayoutToAll?: () => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onAddMemoAtChoice?: (choiceId: string, text: string, category: string) => void; onAddMemoAt?: (pos: { x: number; y: number }, text: string, category: string) => void; onRenameMemo?: (memoNodeId: string, label: string) => void; onDuplicateMemo?: (memoNodeId: string) => void; onSetMemoCategory?: (memoNodeIds: string[], category: string) => void; onSetMisconception?: (memoNodeIds: string[], slug: string | null) => void; misconceptionSlugs?: string[]; onDeleteMemo?: (memoNodeIds: string[]) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void; showProgress?: boolean; onSetShowProgress?: (b: boolean) => void; onOpenMemoLib?: (id: string) => void }) {
+function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, world, worldIntensity, worldMotion, deckCeqIds, layoutMode, onSaveBaseline, onSaveInstance, onReorderChainMemo, layoutOn, onSetLayoutMode, onApplyLayoutToAll, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onAddMemoAtChoice, onAddMemoAt, onRenameMemo, onDuplicateMemo, onSetMemoCategory, onDeleteMemo, onSetMisconception, misconceptionSlugs, onNextQuestion, onPrevQuestion, showProgress, onSetShowProgress, onOpenMemoLib, topicName }: { ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number; chainEdges: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; layoutMode?: boolean; onSaveBaseline?: (l: DeckLayout) => void; onSaveInstance?: (g: CeqInstanceGeom) => void; onReorderChainMemo?: (memoNodeId: string, dir: -1 | 1) => void; layoutOn?: boolean; onSetLayoutMode?: (on: boolean) => void; onApplyLayoutToAll?: () => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onAddMemoAtChoice?: (choiceId: string, text: string, category: string) => void; onAddMemoAt?: (pos: { x: number; y: number }, text: string, category: string) => void; onRenameMemo?: (memoNodeId: string, label: string) => void; onDuplicateMemo?: (memoNodeId: string) => void; onSetMemoCategory?: (memoNodeIds: string[], category: string) => void; onSetMisconception?: (memoNodeIds: string[], slug: string | null) => void; misconceptionSlugs?: string[]; onDeleteMemo?: (memoNodeIds: string[]) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void; showProgress?: boolean; onSetShowProgress?: (b: boolean) => void; onOpenMemoLib?: (id: string) => void; topicName?: string }) {
   const ceq = mainRf.getNode(ceqId);
   // QUESTION 0 (layoutMode): the stage edits the SET BASELINE directly — a placeholder
   // LAYOUT card + "Slot N" placeholders stand in for a real question. Same nodes, same
@@ -625,11 +628,15 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     // use). Q0/layout is not in deckCeqIds → 0 → the overlay doesn't render.
     const qNum = layoutMode ? 0 : Math.max(0, (deckCeqIds?.indexOf(ceqId) ?? -1) + 1);
     const frameNode = { id: "__frame__", type: "frameBg", position: { x: 0, y: yOff }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum, guides: guidesOn }, draggable: false, selectable: false, zIndex: -10 };
-    // STUDENT PROGRESS (Lee) — "X of Y" over the deck order, filmed on the card.
+    // STUDENT OVERLAY (Lee) — filmed on the card, one toggle (showProgress):
+    //   "X of Y" over the deck order + a fill bar, and the TOPIC name kicker
+    //   (name only, no chapter number — Lee's call). Never on the Q0 stage.
+    const student = showProgress !== false && !layoutMode;
     const pIdx = deckCeqIds?.indexOf(ceqId) ?? -1;
     const pTot = deckCeqIds?.length ?? 0;
-    const progress = showProgress !== false && !layoutMode && pIdx >= 0 && pTot > 1 ? { x: pIdx + 1, y: pTot } : null;
-    const ceqNode = { id: ceqId, type: "ceqPreview", position: { x: cs.x, y: yOff + cs.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cs.scale, layoutBadge: layoutMode, progress }, draggable: true, zIndex: 1 };
+    const progress = student && pIdx >= 0 && pTot > 1 ? { x: pIdx + 1, y: pTot } : null;
+    const topic = student && topicName ? topicName : null;
+    const ceqNode = { id: ceqId, type: "ceqPreview", position: { x: cs.x, y: yOff + cs.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cs.scale, layoutBadge: layoutMode, progress, topic }, draggable: true, zIndex: 1 };
     // PLACEMENT: in Question 0 each stage chip IS its slot (whole rack, so inactive
     // ones stay visible to switch on). In a real question memos fill the ACTIVE slots
     // in order — inactive slots simply don't exist here. Past the last active slot,
@@ -658,9 +665,12 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       const y = k * (frameH + GAP);
       const od = mainRf.getNode(qid)?.data as unknown as CeqCard | undefined;
       others.push({ id: `ovf:${qid}`, type: "frameBg", position: { x: 0, y }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum: k + 1 }, draggable: false, selectable: false, zIndex: -10 });
-      // Stand-ins sit at the SAME resolved spot + scale as the live card, so making
-      // one active (or stepping off it) is a swap in place, not a jump to centre.
-      others.push({ id: `ov:${qid}`, type: "ovCeq", position: { x: cs.x, y: y + cs.y }, data: { qid, num: k + 1, stem: od?.prompt ?? "", choices: od?.choices ?? [], scale: cs.scale }, draggable: false, selectable: false, zIndex: 1 });
+      // Each stand-in sits at ITS OWN resolved card spot (not the active card's), so
+      // the overview shows every question's TRUE layout — after "apply to all" they
+      // all conform; before, each reads honestly (fix: neighbours used the active
+      // card's x, making the active question look like the odd one out).
+      const ocs = resolveCardSpot(od?.geom, baseline, frameW, frameH);
+      others.push({ id: `ov:${qid}`, type: "ovCeq", position: { x: ocs.x, y: y + ocs.y }, data: { qid, num: k + 1, stem: od?.prompt ?? "", choices: od?.choices ?? [], scale: ocs.scale }, draggable: false, selectable: false, zIndex: 1 });
       // ALL-CHAINS: the other questions' chained memos, at their resolved instance
       // spots — static, non-interactive, ovm:-prefixed (excluded from film + save).
       let mi = 0;
@@ -672,7 +682,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     });
     return [...active, ...others] as typeof active;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, activeYOff, layoutMode, walk, viewChoice, guidesOn, showProgress]);
+  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, activeYOff, layoutMode, walk, viewChoice, guidesOn, showProgress, topicName]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   useEffect(() => { setNodes(build() as unknown as Node[]); }, [build, setNodes]);
@@ -736,7 +746,9 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
    *  and a wipe is structurally impossible. Only the slots a chip actually occupies
    *  are updated, and `off` is carried through untouched — this writes geometry, and
    *  geometry is all a slot has. */
-  const saveBaseline = () => {
+  /** Snapshot the current arrangement into a DeckLayout (card + memo slots) —
+   *  shared by "Set layout" and "Save as template". */
+  const captureLayout = (): DeckLayout => {
     const c = nodes.find((n) => n.id === ceqId);
     const memoSlots: DeckSlotLayout[] = rack.map((s) => ({ ...s }));
     walk.forEach((w, i) => {
@@ -744,8 +756,19 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       const m = nodes.find((n) => n.id === w.memoNodeId); if (!m) return;
       memoSlots[r] = { ...memoSlots[r], x: Math.round(m.position.x), y: Math.round(m.position.y - activeYOff), scale: (m.data as { scale?: number }).scale ?? 1 };
     });
-    onSaveBaseline?.({ card: c ? { x: Math.round(c.position.x), y: Math.round(c.position.y - activeYOff), scale: (c.data as { scale?: number }).scale ?? 1 } : undefined, memoSlots });
+    return { card: c ? { x: Math.round(c.position.x), y: Math.round(c.position.y - activeYOff), scale: (c.data as { scale?: number }).scale ?? 1 } : undefined, memoSlots };
   };
+  const saveBaseline = () => onSaveBaseline?.(captureLayout());
+  // NAMED LAYOUT TEMPLATES (Lee) — arrange the card + memo slots, name it, save.
+  // Stored in localStorage so a template is reusable across sets. Applying one
+  // writes the SET baseline (deck.layout); "Apply to all" then stamps every CEQ.
+  const [templates, setTemplates] = useState<{ name: string; layout: DeckLayout }[]>(() => { try { return JSON.parse(localStorage.getItem("sa-ceq-layout-templates") || "[]"); } catch { return []; } });
+  const [tplName, setTplName] = useState("");
+  const [tplSel, setTplSel] = useState("");
+  const persistTemplates = (list: { name: string; layout: DeckLayout }[]) => { setTemplates(list); try { localStorage.setItem("sa-ceq-layout-templates", JSON.stringify(list)); } catch { /* ignore */ } };
+  const saveTemplate = () => { const name = tplName.trim(); if (!name) return; persistTemplates([...templates.filter((t) => t.name !== name), { name, layout: captureLayout() }]); setTplName(""); };
+  const applyTemplate = (name: string) => { const t = templates.find((x) => x.name === name); if (t) onSaveBaseline?.(t.layout); };
+  const deleteTemplate = (name: string) => persistTemplates(templates.filter((t) => t.name !== name));
   /** QUESTION 0 — the stage's live geometry folded back into the rack. Every rack
    *  edit starts here so an unsaved drag is never lost by a click. */
   const snapshotRack = (): { card: DeckSlotLayout | undefined; memoSlots: DeckSlotLayout[] } => {
@@ -1142,7 +1165,21 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                     it snaps to the lines (hold Alt to place freely). Persists. */}
                 <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: guidesOn ? "#0B0F1E" : NEON.muted, background: guidesOn ? "#7EF3C0" : "transparent", border: `1px solid ${guidesOn ? "#7EF3C0" : NEON.borderSoft}` }} onClick={toggleGuides} title={guidesOn ? "Composition guides ON — rule-of-thirds + title-safe/camera/watermark/end-screen zones, and drag-to-snap. Click to hide." : "Composition guides — show the rule-of-thirds grid + safe zones and snap dragged slots/cards to them (hold Alt while dragging to place freely)."}><Grid3x3 className="h-3.5 w-3.5" /> Guides</button>
                 {onSaveBaseline && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={standardLandscape} title="Standard Landscape — set a camera-safe baseline in one click: CEQ card top-left, three memo slots down the right above the camera box (the other two off). Tweak from there; writes the set's layout.">Standard</button>}
-                {onSetShowProgress && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: showProgress === false ? NEON.muted : "#0B0F1E", background: showProgress === false ? "transparent" : "#3BF5A0", border: `1px solid ${showProgress === false ? NEON.borderSoft : "#3BF5A0"}` }} onClick={() => onSetShowProgress(showProgress === false)} title={showProgress === false ? 'Progress OFF — click to show "X of Y" + a fill bar on each CEQ box (filmed; entices students to keep going).' : 'Progress ON — "X of Y" counter + fill bar filmed on every CEQ. Click to hide.'}>X of Y</button>}
+                {/* NAMED TEMPLATES — save the current arrangement under a name (reusable
+                    across sets); pick one to apply it to this set's layout, then
+                    "Apply to all" stamps every CEQ. */}
+                {onSaveBaseline && (<>
+                  <input className="h-6 w-20 rounded bg-black/30 px-1.5 text-[9px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} placeholder="name…" value={tplName} onChange={(e) => setTplName(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") saveTemplate(); }} title="Name for a new layout template" />
+                  <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase disabled:opacity-40" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} disabled={!tplName.trim()} onClick={saveTemplate} title="Save the current card + memo arrangement as a named template (stored for every set)"><Save className="h-3 w-3" /> tpl</button>
+                  {templates.length > 0 && (<>
+                    <select className="h-6 rounded px-1 text-[9.5px] font-bold" style={{ color: NEON.cyan, background: "transparent", border: `1px solid ${NEON.borderSoft}`, maxWidth: 120 }} value={tplSel} onChange={(e) => { setTplSel(e.target.value); if (e.target.value) applyTemplate(e.target.value); }} title="Apply a saved template to this set's layout — then 'Apply to all' stamps every CEQ">
+                      <option value="">apply template…</option>
+                      {templates.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
+                    </select>
+                    <button className="grid h-6 w-6 place-items-center rounded disabled:opacity-30" style={{ color: NEON.red, border: `1px solid ${NEON.borderSoft}` }} disabled={!tplSel} onClick={() => { if (tplSel) { deleteTemplate(tplSel); setTplSel(""); } }} title="Delete the selected template"><X className="h-3 w-3" /></button>
+                  </>)}
+                </>)}
+                {onSetShowProgress && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: showProgress === false ? NEON.muted : "#0B0F1E", background: showProgress === false ? "transparent" : "#3BF5A0", border: `1px solid ${showProgress === false ? NEON.borderSoft : "#3BF5A0"}` }} onClick={() => onSetShowProgress(showProgress === false)} title={showProgress === false ? "Student overlay OFF — click to film the topic name + \"X of Y\" progress + fill bar on every CEQ box (momentum cue for viewers)." : "Student overlay ON — topic name + \"X of Y\" + fill bar filmed on every CEQ. Click to hide."}>Student</button>}
                 {onSetLayoutMode && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: layoutOn === false ? NEON.muted : "#0B0F1E", background: layoutOn === false ? "transparent" : NEON.cyan, border: `1px solid ${layoutOn === false ? NEON.borderSoft : NEON.cyan}` }} onClick={() => onSetLayoutMode(layoutOn === false)} title={layoutOn === false ? "Layout mode OFF — deals land where each question was last authored, nothing conforms. Click to turn ON (the layout governs new deals)." : "Layout mode ON — a deal starts each question from the layout, and new memos snap to the next active slot. Click to turn OFF for fully freeform placement. Either way, a move you make always sticks to that question."}>Layout {layoutOn === false ? "off" : "on"}</button>}
                 {onApplyLayoutToAll && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={onApplyLayoutToAll} title="Apply the layout to EVERY question in the set — re-stamps each question's card + memo spots from the template. Overwrites hand-placed geometry; one Ctrl+Z puts it all back.">Apply to all</button>}
                 {onSaveBaseline && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => saveBaseline()} title="Set as layout — save THIS card + memo arrangement as the set's baseline (same baseline Question 0 edits directly). Every question then deals/previews at this geometry."><LayoutGrid className="h-3.5 w-3.5" /> Set layout</button>}
@@ -1346,12 +1383,12 @@ class PreviewErrorBoundary extends Component<{ children: ReactNode; resetKey: st
   }
 }
 
-export function CeqPreviewer({ ceqId, mainRf, mainSig, frameW = 1600, frameH = 900, chainEdges = [], baseline, world, worldIntensity, worldMotion, deckCeqIds, layoutMode, onSaveBaseline, onSaveInstance, onReorderChainMemo, layoutOn, onSetLayoutMode, onApplyLayoutToAll, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onAddMemoAtChoice, onAddMemoAt, onRenameMemo, onDuplicateMemo, onSetMemoCategory, onDeleteMemo, onSetMisconception, misconceptionSlugs, onNextQuestion, onPrevQuestion, showProgress, onSetShowProgress, onOpenMemoLib }: { ceqId: string | null; mainRf: MainRf; mainSig: string; frameW?: number; frameH?: number; chainEdges?: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; layoutMode?: boolean; onSaveBaseline?: (l: DeckLayout) => void; onSaveInstance?: (g: CeqInstanceGeom) => void; onReorderChainMemo?: (memoNodeId: string, dir: -1 | 1) => void; layoutOn?: boolean; onSetLayoutMode?: (on: boolean) => void; onApplyLayoutToAll?: () => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onAddMemoAtChoice?: (choiceId: string, text: string, category: string) => void; onAddMemoAt?: (pos: { x: number; y: number }, text: string, category: string) => void; onRenameMemo?: (memoNodeId: string, label: string) => void; onDuplicateMemo?: (memoNodeId: string) => void; onSetMemoCategory?: (memoNodeIds: string[], category: string) => void; onSetMisconception?: (memoNodeIds: string[], slug: string | null) => void; misconceptionSlugs?: string[]; onDeleteMemo?: (memoNodeIds: string[]) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void; showProgress?: boolean; onSetShowProgress?: (b: boolean) => void; onOpenMemoLib?: (id: string) => void }) {
+export function CeqPreviewer({ ceqId, mainRf, mainSig, frameW = 1600, frameH = 900, chainEdges = [], baseline, world, worldIntensity, worldMotion, deckCeqIds, layoutMode, onSaveBaseline, onSaveInstance, onReorderChainMemo, layoutOn, onSetLayoutMode, onApplyLayoutToAll, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onAddMemoAtChoice, onAddMemoAt, onRenameMemo, onDuplicateMemo, onSetMemoCategory, onDeleteMemo, onSetMisconception, misconceptionSlugs, onNextQuestion, onPrevQuestion, showProgress, onSetShowProgress, onOpenMemoLib, topicName }: { ceqId: string | null; mainRf: MainRf; mainSig: string; frameW?: number; frameH?: number; chainEdges?: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; layoutMode?: boolean; onSaveBaseline?: (l: DeckLayout) => void; onSaveInstance?: (g: CeqInstanceGeom) => void; onReorderChainMemo?: (memoNodeId: string, dir: -1 | 1) => void; layoutOn?: boolean; onSetLayoutMode?: (on: boolean) => void; onApplyLayoutToAll?: () => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onAddMemoAtChoice?: (choiceId: string, text: string, category: string) => void; onAddMemoAt?: (pos: { x: number; y: number }, text: string, category: string) => void; onRenameMemo?: (memoNodeId: string, label: string) => void; onDuplicateMemo?: (memoNodeId: string) => void; onSetMemoCategory?: (memoNodeIds: string[], category: string) => void; onSetMisconception?: (memoNodeIds: string[], slug: string | null) => void; misconceptionSlugs?: string[]; onDeleteMemo?: (memoNodeIds: string[]) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void; showProgress?: boolean; onSetShowProgress?: (b: boolean) => void; onOpenMemoLib?: (id: string) => void; topicName?: string }) {
   if (!ceqId) return <div className="grid h-full place-items-center text-[11px]" style={{ color: NEON.muted }}>Select a question to preview.</div>;
   return (
     <PreviewErrorBoundary resetKey={ceqId}>
       <ReactFlowProvider>
-        <Inner ceqId={ceqId} mainRf={mainRf} mainSig={mainSig} frameW={frameW} frameH={frameH} chainEdges={chainEdges} baseline={baseline} world={world} worldIntensity={worldIntensity} worldMotion={worldMotion} deckCeqIds={deckCeqIds} layoutMode={layoutMode} onSaveBaseline={onSaveBaseline} onSaveInstance={onSaveInstance} onReorderChainMemo={onReorderChainMemo} layoutOn={layoutOn} onSetLayoutMode={onSetLayoutMode} onApplyLayoutToAll={onApplyLayoutToAll} onSetWorld={onSetWorld} onPatchChainItem={onPatchChainItem} onAttachMemo={onAttachMemo} onSelectMemo={onSelectMemo} onSelectQuestion={onSelectQuestion} onCopyItems={onCopyItems} onPasteItems={onPasteItems} hasItemsClip={hasItemsClip} onSendToStarred={onSendToStarred} onCopyStyleToSet={onCopyStyleToSet} starredCount={starredCount} onAddMemoAtChoice={onAddMemoAtChoice} onAddMemoAt={onAddMemoAt} onRenameMemo={onRenameMemo} onDuplicateMemo={onDuplicateMemo} onSetMemoCategory={onSetMemoCategory} onDeleteMemo={onDeleteMemo} onSetMisconception={onSetMisconception} misconceptionSlugs={misconceptionSlugs} onNextQuestion={onNextQuestion} onPrevQuestion={onPrevQuestion} showProgress={showProgress} onSetShowProgress={onSetShowProgress} onOpenMemoLib={onOpenMemoLib} />
+        <Inner ceqId={ceqId} mainRf={mainRf} mainSig={mainSig} frameW={frameW} frameH={frameH} chainEdges={chainEdges} baseline={baseline} world={world} worldIntensity={worldIntensity} worldMotion={worldMotion} deckCeqIds={deckCeqIds} layoutMode={layoutMode} onSaveBaseline={onSaveBaseline} onSaveInstance={onSaveInstance} onReorderChainMemo={onReorderChainMemo} layoutOn={layoutOn} onSetLayoutMode={onSetLayoutMode} onApplyLayoutToAll={onApplyLayoutToAll} onSetWorld={onSetWorld} onPatchChainItem={onPatchChainItem} onAttachMemo={onAttachMemo} onSelectMemo={onSelectMemo} onSelectQuestion={onSelectQuestion} onCopyItems={onCopyItems} onPasteItems={onPasteItems} hasItemsClip={hasItemsClip} onSendToStarred={onSendToStarred} onCopyStyleToSet={onCopyStyleToSet} starredCount={starredCount} onAddMemoAtChoice={onAddMemoAtChoice} onAddMemoAt={onAddMemoAt} onRenameMemo={onRenameMemo} onDuplicateMemo={onDuplicateMemo} onSetMemoCategory={onSetMemoCategory} onDeleteMemo={onDeleteMemo} onSetMisconception={onSetMisconception} misconceptionSlugs={misconceptionSlugs} onNextQuestion={onNextQuestion} onPrevQuestion={onPrevQuestion} showProgress={showProgress} onSetShowProgress={onSetShowProgress} onOpenMemoLib={onOpenMemoLib} topicName={topicName} />
       </ReactFlowProvider>
     </PreviewErrorBoundary>
   );
