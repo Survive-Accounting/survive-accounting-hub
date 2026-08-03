@@ -1029,6 +1029,7 @@ const ADD_ELEMENT_BLANKS: { label: string; make: () => CardData }[] = [
   { label: "Exam Cue", make: () => blankCard("examcue") },
   { label: "CEQ Tease", make: () => blankCard("ceqtease") },
   { label: "Accounting Cycle", make: () => blankCard("cycle") },
+  { label: "Logo", make: () => blankCard("logo") },
   { label: "Memo", make: () => blankCard("memo") },
 ];
 

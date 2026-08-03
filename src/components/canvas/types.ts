@@ -1134,6 +1134,10 @@ export interface DeckDef {
   id: string;
   name: string;
   payloadType: DeckPayloadType;
+  /** STUDENT PROGRESS (Lee) — show a "X of Y" counter + slim bar on each CEQ box
+   *  (filmed), so viewers see momentum through the set. Undefined = ON for CEQ
+   *  sets; false hides it. Toggled from the previewer toolbar. */
+  showProgress?: boolean;
   /** Card-kind (cards) or memoKind/category (memos) to auto-include, or null. */
   filter?: string | null;
   runMode: DeckRunMode;
