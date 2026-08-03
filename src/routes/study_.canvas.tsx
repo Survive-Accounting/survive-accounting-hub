@@ -58,7 +58,7 @@ import { SpotlightCtx, useSpotlightController, type FocusDimMode } from "@/compo
 import { revealedTargetId } from "@/components/canvas/spotlight";
 import { ambientViewport, fillViewport, spotlightPushViewport } from "@/components/canvas/camera-push";
 import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, BEAT_LABEL, blankFrameData, columnX, frameCellLabel, frameCompositionGuides, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type GuideWeight } from "@/components/canvas/frames";
-import { BridgeCardNode, CeqTeaseNode, ExamCueNode, GateNode, TextElementNode } from "@/components/canvas/cards/elements";
+import { BridgeCardNode, CeqTeaseNode, ExamCueNode, GateNode, LogoCardNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { CycleNode } from "@/components/canvas/cards/CycleNode";
 import { configureSfx, playSfx, preloadSfx, SFX_DEFAULT, type SfxConfig, type SfxEvent } from "@/components/canvas/sfx";
 import { framePartIds, framePartLabels, materializeFrame, REST_TARGET, WHOLE_TARGET } from "@/components/canvas/choreo";
@@ -829,6 +829,7 @@ const nodeTypes = {
   text: TextElementNode,
   examcue: ExamCueNode,
   ceqtease: CeqTeaseNode,
+  logo: LogoCardNode,
   cycle: CycleNode,
   memo: MemoCardNode,
   paygate: GateNode,

@@ -18,7 +18,8 @@ import { useCanvasSettings } from "../CanvasSettingsContext";
 import { BIG_FONT, DISPLAY_FONT, NEON, NOTE_COLORS, PAPER } from "../theme";
 import { useEditSignal } from "../ui";
 import { renderTokens, TokenMenu } from "../variables";
-import type { BridgeCard, CeqTeaseElement, ExamCueElement, GateElement, TextElement } from "../types";
+import { BOLT_PRESETS, BrandLogo, boltColorById, LOGO_MODES, SEC_SCHOOLS, type LogoMode } from "../brand";
+import type { BridgeCard, CeqTeaseElement, ExamCueElement, GateElement, LogoElement, TextElement } from "../types";
 
 // ---- shared element chrome: clone · × · pos-lock (hover only) ---------------
 export function ElementChrome({ id, posLock, selected, align = "right" }: { id: string; posLock?: boolean; selected?: boolean; align?: "left" | "right" }) {
@@ -618,5 +619,47 @@ export function BridgeCardNode({ id, data, selected }: NodeProps) {
         </button>
       </div>
     </BaseCard>
+  );
+}
+
+// ---- Logo (Lee): the Survive brand mark as a design element. Toggle the MODE
+//      (bolt / wordmark / lockup / slogan) and the bolt COLOURWAY (house preset or
+//      SEC school). Renders the shared BrandLogo, so it always matches the kit. ----
+const LOGO_SIZE_FOR: Record<LogoMode, number> = { bolt: 0.82, wordmark: 0.6, lockup: 0.4, slogan: 0.48 };
+
+export function LogoCardNode({ id, data, selected }: NodeProps) {
+  const d = data as unknown as LogoElement;
+  const { update, toFront } = useCardActions(id);
+  const nav = useFrameNav();
+  const spot = useSpotTarget(id, "self");
+  const cleanShot = spot.state === "spot";
+  const mode = d.mode ?? "wordmark";
+  const col = boltColorById(d.colorId);
+  const ink = d.ink === "dark" ? "#141414" : "#F4EFE6";
+  const w = d.w ?? 360;
+  const h = d.h ?? 120;
+  const size = Math.max(16, Math.round(h * LOGO_SIZE_FOR[mode]));
+  const cycleMode = () => { const i = LOGO_MODES.findIndex((m) => m.id === mode); update({ mode: LOGO_MODES[(i + 1) % LOGO_MODES.length].id }); };
+
+  return (
+    <div onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150" style={{ width: w, minHeight: h }}>
+      <ConnectionDots />
+      {!cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
+      <ElementResizer id={id} selected={selected && !cleanShot} minWidth={64} minHeight={48} />
+      <div className="grid h-full place-items-center" style={{ width: w, minHeight: h, ...spotStyle(spot.state) }}>
+        <span {...spot.props}><BrandLogo mode={mode} c1={col.c1} c2={col.c2} ink={ink} size={size} /></span>
+      </div>
+      {/* MODE + COLOUR + INK controls (hover; hidden in film / on a clean shot) */}
+      {!cleanShot && !nav.film && (
+        <div className="card-actions absolute -bottom-7 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-lg px-1.5 py-1 opacity-0 transition-opacity group-hover/el:opacity-100" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}>
+          <button className="nodrag h-5 rounded px-1.5 text-[8.5px] font-black uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); cycleMode(); }} title="Cycle the logo mode: bolt → wordmark → lockup → slogan">{mode}</button>
+          <select className="nodrag h-5 rounded px-1 text-[8.5px] font-bold uppercase" style={{ color: NEON.cyan, background: "transparent", border: `1px solid ${NEON.borderSoft}`, maxWidth: 110 }} value={d.colorId ?? "red-blue"} onPointerDown={(e) => e.stopPropagation()} onChange={(e) => { e.stopPropagation(); update({ colorId: e.target.value }); }} title="Bolt colours — house presets + SEC schools">
+            <optgroup label="House">{BOLT_PRESETS.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</optgroup>
+            <optgroup label="SEC">{SEC_SCHOOLS.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</optgroup>
+          </select>
+          <button className="nodrag h-5 w-5 rounded text-[9px] font-black" style={{ color: d.ink === "dark" ? "#141414" : NEON.muted, background: d.ink === "dark" ? "#F4EFE6" : "transparent", border: `1px solid ${NEON.borderSoft}` }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); update({ ink: d.ink === "dark" ? "light" : "dark" }); }} title={d.ink === "dark" ? "Letters DARK (near-black) — click for light" : "Letters LIGHT (cream) — click for dark"}>A</button>
+        </div>
+      )}
+    </div>
   );
 }

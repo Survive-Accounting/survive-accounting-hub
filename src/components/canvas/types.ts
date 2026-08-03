@@ -22,6 +22,7 @@ export type CardKind =
   | "examcue"
   | "ceqtease"
   | "cycle"
+  | "logo"
   | "memo"
   | "outline"
   | "paygate"
@@ -58,6 +59,7 @@ export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
   examcue: "element",
   ceqtease: "element",
   cycle: "element",
+  logo: "element",
   memo: "element",
   paygate: "element",
   signupgate: "element",
@@ -613,6 +615,21 @@ export interface CeqTeaseElement extends CardBase {
   h?: number;
 }
 
+// ---- Logo (Lee): the Survive brand mark as a design element. `mode` picks the
+//      form (bolt / wordmark / lockup / slogan); `colorId` picks the bolt colours
+//      (a preset or SEC-school id — see brand.tsx). `ink` overrides the letter
+//      colour when the default (context) isn't right. ----
+export interface LogoElement extends CardBase {
+  kind: "logo";
+  mode: "bolt" | "wordmark" | "lockup" | "slogan";
+  /** Bolt colourway id (BOLT_PRESETS / SEC_SCHOOLS); absent = house red/blue. */
+  colorId?: string;
+  /** Letter colour: "light" (cream) | "dark" (near-black). Default light. */
+  ink?: "light" | "dark";
+  w?: number;
+  h?: number;
+}
+
 // ---- Cycle (Lee): the Accounting Cycle — a raised callout box (exam-cue vibe)
 //      with N steps laid out evenly around an OVAL, connected by flow arrows that
 //      close the loop. Add / remove / rename steps; the oval re-solves from the
@@ -738,6 +755,7 @@ export type CardData =
   | ExamCueElement
   | CeqTeaseElement
   | CycleElement
+  | LogoElement
   | MemoCard
   | GateElement
   | OutlineCard

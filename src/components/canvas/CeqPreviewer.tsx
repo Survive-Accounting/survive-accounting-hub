@@ -30,6 +30,7 @@ import { Component, createContext, useCallback, useContext, useEffect, useMemo, 
 import { Background, BackgroundVariant, BaseEdge, ConnectionMode, getSmoothStepPath, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodesState, useStore, ViewportPortal, type Connection, type Edge, type EdgeProps, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
 import { Clapperboard, ChevronLeft, ChevronRight, Grid3x3, LayoutGrid, Maximize2, Pause, Play, Plus, RotateCcw, Rows3, Spline, Timer } from "lucide-react";
 
+import { Bolt, BOLT_PRESETS, BOLT_RATIO, boltColorById } from "./brand";
 import { frameCompositionGuides, SAFE_INSET_FRAC, type Guide } from "./frames";
 
 import { BrandWatermark } from "./BrandBar";
@@ -269,8 +270,12 @@ function CeqPreviewNode({ id, data }: NodeProps) {
   const attachMemo = useContext(AttachMemoContext);
   const choiceMenu = useContext(ChoiceMenuContext);
   const [dropChoice, setDropChoice] = useState<string | null>(null); // choice a memo is hovering (drag-to-chain)
-  const d = data as unknown as { stem: string; choices: { id: string; text: string; correct?: boolean; chain?: unknown[] }[]; scale?: number; layoutBadge?: boolean };
+  const d = data as unknown as { stem: string; choices: { id: string; text: string; correct?: boolean; chain?: unknown[] }[]; scale?: number; layoutBadge?: boolean; brandBolt?: false | string };
   const s = d.scale ?? 1;
+  // BRANDING — the bolt sits top-left of the CEQ box, filmed with the card. Floated
+  // so the stem wraps around it. `brandBolt` false hides it; a string picks a colour
+  // (preset/SEC id); default = house red/blue. Not on the Q0 layout stage.
+  const boltCol = d.brandBolt === false ? null : d.layoutBadge ? null : typeof d.brandBolt === "string" ? boltColorById(d.brandBolt) : BOLT_PRESETS[0];
   return (
     <div className="sa-pv-node sa-ceq-in" onAnimationEnd={(ev) => { if (ev.animationName === "sa-ceq-in") (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: "sa-ceq-in 300ms cubic-bezier(0.2,0.7,0.3,1) both" }}>
       {/* QUESTION 0 ribbon — unmistakably the LAYOUT stage, never content. */}
@@ -278,7 +283,10 @@ function CeqPreviewNode({ id, data }: NodeProps) {
       {/* CLIP — a spotlit choice's scale + glow stays INSIDE the CEQ box (never spills
           into the frame on a take). The ScaleGrip lives OUTSIDE this clip. */}
       <div style={{ overflow: "hidden", borderRadius: 13 * s, padding: 16 * s }}>
-      <div style={{ fontSize: 24 * s, fontWeight: 800, lineHeight: 1.25, color: PAPER.ink, marginBottom: 12 * s }}>{renderInline(d.stem || "Question")}</div>
+      <div style={{ fontSize: 24 * s, fontWeight: 800, lineHeight: 1.25, color: PAPER.ink, marginBottom: 12 * s }}>
+        {boltCol && <span style={{ float: "left", height: 42 * s, width: 42 * s * BOLT_RATIO, marginRight: 12 * s, marginTop: 2 * s }}><Bolt c1={boltCol.c1} c2={boltCol.c2} keyline={PAPER.card} /></span>}
+        {renderInline(d.stem || "Question")}
+      </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 * s }}>
         {d.choices.map((c, i) => {
           const emph = pr.emph === i;
