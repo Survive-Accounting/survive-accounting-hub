@@ -710,7 +710,10 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const gotoQuestion = (dir: 1 | -1) => {
     if (questions.length === 0) return;
     const i = questions.findIndex((q) => q.id === qId);
-    const ni = i < 0 ? (dir > 0 ? 0 : questions.length - 1) : (i + dir + questions.length) % questions.length;
+    // CLAMP, don't wrap: from Q0 (i<0, e.g. the Layout stage) both directions
+    // land on Q1; Shift+Space back from Q1 STAYS at Q1 (never wraps to the last
+    // question, never reaches the authoring-only Q0). Q0 isn't in `questions`.
+    const ni = i < 0 ? 0 : Math.max(0, Math.min(questions.length - 1, i + dir));
     setQId(questions[ni].id);
     setExpandedQ((s) => new Set(s).add(questions[ni].id));
   };

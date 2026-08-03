@@ -724,6 +724,13 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     return () => { filmWin.removeEventListener("resize", refit); filmWin.removeEventListener("focus", refit); };
   }, [filmWin, ceqId, frameW, frameH, fitFilm]);
   const toggleFilm = () => { if (filmWin) { try { filmWin.close(); } catch { /* ignore */ } setFilmWin(null); return; } const w = openPopoutWindow("ceqfilm", 1000, 600); if (w) setFilmWin(w); };
+  // Q0 / LAYOUT NEVER FILMS — it's the authoring stage (already excluded from
+  // counts/stitch/deck). If film is entered while on it, jump to the first real
+  // question so the take opens on Q1 and the space-walk has real question state.
+  // Covers every film-entry path (toolbar toggle, keyboard), not just one button.
+  useEffect(() => {
+    if (filmWin && layoutMode && deckCeqIds && deckCeqIds.length) onSelectQuestion?.(deckCeqIds[0]);
+  }, [filmWin, layoutMode, deckCeqIds, onSelectQuestion]);
 
   // Drags (via onNodesChange) + grip resizes are TRANSIENT per-instance overrides —
   // they live ONLY in the local `nodes` state and DIE when build() re-seeds (question
