@@ -28,7 +28,7 @@ import { buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, stageTake, sti
 import { buildSetExport } from "./ceq-export";
 import { MISCONCEPTION_SEEDS, questionMisconceptions, toSlug } from "./ceq-misconceptions";
 import { ingestNumOf } from "./ceq-walk";
-import { CeqStitch } from "./CeqStitch";
+import { CeqStitch, type StitchRow } from "./CeqStitch";
 import { CeqVideoLibrary, vidCourseMatch, vidTopicMatch } from "./CeqVideoLibrary";
 import { DEFAULT_CROSSFADE_MS } from "./segment-assembly";
 import { detectAuphonicSlots, resolveCeqConcat, resolvePipelineTestAuphonic, startCeqConcat, startPipelineTestAuphonic } from "@/lib/publish.functions";
@@ -174,7 +174,6 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     });
   };
   const [dragKey, setDragKey] = useState<string | null>(null); // slot key a clip is hovering
-  const [stitchMode, setStitchMode] = useState<"free" | "full" | null>(null); // center = sequential preview
   const [publishBusy, setPublishBusy] = useState<"free" | "full" | null>(null);
   const [expandedQ, setExpandedQ] = useState<Set<string>>(new Set()); // questions whose memo list stays shown
   const [selChainMemos, setSelChainMemos] = useState<Set<string>>(new Set()); // outline memo selection (memoNodeId)
@@ -194,7 +193,10 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const memoScope: "question" | "set" | "all" = prefs.memoScope ?? "set"; // default: This set
   // Legacy stored "sets" maps to the merged Topics tab; the old union stays in the
   // prefs type so old localStorage blobs keep parsing.
-  const topTab: "videos" | "topics" | "tools" = prefs.topTab === "sets" || !prefs.topTab ? "topics" : prefs.topTab;
+  // Legacy pref values map forward: "sets" folded into Topics long ago; "tools"
+  // became STUDENT (Lee: that tab is for student-facing previews, not authoring).
+  const topTab: "videos" | "topics" | "preview" | "student" =
+    prefs.topTab === "sets" || !prefs.topTab ? "topics" : prefs.topTab === "tools" ? "student" : prefs.topTab;
   const wrapMemos = !!prefs.wrapMemos;
 
   // TOPICS SPINE (Lee) — the real Course → Topic rows (Manage Course order), same
@@ -386,6 +388,37 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const stitchFree = useMemo(() => buildStitch("free", { intro: resolvedIntro, hook: deck?.hookTake, outro: resolvedOutro, wrap: deck?.wrap, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, gc.transition, deck?.wrap, deck?.hookTake]);
   const stitchFull = useMemo(() => buildStitch("full", { intro: resolvedIntro, hook: deck?.hookTake, outro: resolvedOutro, wrap: deck?.wrap, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, gc.transition, deck?.wrap, deck?.hookTake]);
   const freeCount = stitchCeqs.filter((c) => c.free).length;
+  /** PREVIEW ROWS — the cut's FULL order including clip-less CEQs (greyed 1..N
+   *  in the Preview tab's list), interleaved at their deck positions: leading
+   *  intro/hook items, then every cut CEQ (clips or placeholder), then wrap/outro. */
+  const stitchRowsFor = (mode: "free" | "full"): StitchRow[] => {
+    const stitch = mode === "free" ? stitchFree : stitchFull;
+    const rows: Omit<StitchRow, "num">[] = [];
+    for (const it of stitch.items) { if (it.kind === "ceq" || it.kind === "wrap" || it.kind === "outro") break; rows.push({ key: it.kind, kind: it.kind, label: it.label, take: it.take }); }
+    const ceqItems = stitch.items.filter((i) => i.kind === "ceq");
+    for (const c of stitchCeqs) {
+      if (mode === "free" && !c.free) continue;
+      const its = ceqItems.filter((i) => i.ceqId === c.id);
+      if (its.length) its.forEach((it, k) => rows.push({ key: `${c.id}:${k}`, kind: "ceq", label: it.label, take: it.take, ceqId: c.id }));
+      else rows.push({ key: `${c.id}:missing`, kind: "ceq", label: c.prompt || "Question", ceqId: c.id });
+    }
+    stitch.items.forEach((it, i) => { if (it.kind === "wrap" || it.kind === "outro") rows.push({ key: `${it.kind}:${i}`, kind: it.kind, label: it.label, take: it.take }); });
+    return rows.map((r, i) => ({ ...r, num: i + 1 }));
+  };
+  const stitchRows = useMemo(() => ({ free: stitchRowsFor("free"), full: stitchRowsFor("full") }), [stitchFree, stitchFull, stitchCeqs]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** PREVIEW-list upload — attach a first take, or REPLACE THE BASE take keeping
+   *  lookbacks + one prior (batch-ingest semantics). Throws to the caller (the
+   *  Preview shows the error); the row + stitch recompute reactively. */
+  const replaceBaseTake = async (ceqId: string, file: File) => {
+    // fail BEFORE staging if the question vanished (deleted mid-preview) — a
+    // silent patchQ no-op would leave the preview's re-render flag armed forever.
+    if (!rf.getNode(ceqId)) throw new Error("That question no longer exists in this set.");
+    const fresh = await stageTake(file);
+    const clips = cardClips(rf.getNode(ceqId)?.data as unknown as CeqCard | undefined);
+    const takes = clips.length === 0 ? [fresh] : [withPrev(fresh, clips[0]), ...clips.slice(1)];
+    patchQ(ceqId, { takes, take: undefined });
+    setNote(`${clips.length ? "Base take replaced" : "Take attached"} (${fmtDur(fresh.duration)}).`);
+  };
   // SHORTS QUEUE (Lee) — every shorts-flagged CEQ across ALL sets, with its set +
   // question number, stem and angle note. Lee's batch-filming worklist.
   const shortsList = useMemo(() => rf.getNodes()
@@ -1716,10 +1749,11 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
           <button className="grid h-7 w-7 place-items-center rounded" style={{ border: `1px solid ${NEON.borderSoft}` }} title="Close" onClick={onClose}><X className="h-4 w-4" /></button>
         </div>
       </div>
-      {/* TOP BAR — Videos · Topics · Sets · Tools; every tab speaks the same Obsidian
-          outline grammar in the left rail. */}
+      {/* TOP BAR — Videos · Topics (the editor) · Preview (the stitch) · Student
+          (student-facing previews). Preview is a FIRST-CLASS tab so the editor
+          and the video preview stop competing for the same center pane. */}
       <div className="flex shrink-0 items-center gap-1 border-b px-3 py-1" style={{ borderColor: NEON.borderSoft }}>
-        {([["videos", "Videos"], ["topics", "Topics"], ["tools", "Tools"]] as const).map(([k, l]) => (
+        {([["videos", "Videos"], ["topics", "Topics"], ["preview", "Preview"], ["student", "Student"]] as const).map(([k, l]) => (
           <button key={k} className="rounded px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: topTab === k ? "#0B1322" : NEON.muted, background: topTab === k ? NEON.yellow : "transparent", border: `1px solid ${topTab === k ? NEON.yellow : NEON.borderSoft}` }} onClick={() => { setPrefs({ topTab: k }); if (!setsOpen) setSetsOpen(true); }}>{l}</button>
         ))}
       </div>
@@ -1772,7 +1806,11 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
         ) : (
         <div className={COL} style={{ maxWidth: 240, border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)" }}>
           {topTab === "videos" && <CeqVideoLibrary courses={courseOptions} costOn={!!prefs.costOn} onToggleCost={() => setPrefs({ costOn: !prefs.costOn })} />}
-          {topTab === "tools" && (<>
+          {topTab === "student" && (<>
+            {/* STUDENT (Lee) — this tab is for student-facing previews of CEQ
+                sets/cards as they'll ship. Those views land here; the authoring
+                utilities below keep an interim home until they do. */}
+            <div className="border-b px-2 py-1.5 text-[9px] leading-snug" style={{ borderColor: NEON.borderSoft, color: NEON.muted }}>Student-facing previews of CEQ sets & cards land here. Below: authoring utilities (interim home).</div>
             <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Misconceptions <span style={{ color: NEON.muted }}>observed scope</span></div>
             <div className="min-h-0 flex-1 overflow-y-auto p-1.5 text-[10px]" style={{ color: NEON.text }}>
               {misconceptionDefs.map((def) => {
@@ -1797,7 +1835,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
             <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Tools</div>
             <div className="grid flex-1 place-items-center p-3 text-center text-[10.5px] leading-relaxed" style={{ color: NEON.muted }}>🛠 Coming soon —<br />batch take ingest · publish queue ·<br />shorts factory.</div>
           </>)}
-          {topTab === "topics" && (<>
+          {(topTab === "topics" || topTab === "preview") && (<>
             {/* TOPICS — ONE outline for everything the old Topics + Sets tabs did:
                 Course → Topic (readiness chips + drop-to-assign) → sets → published
                 videos, then LIBRARY (unassigned). Chips are the four signals only:
@@ -1900,6 +1938,19 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
 
         {/* PANE 2 — QUESTIONS + editor */}
         <div className={COL} style={{ flex: 1.4, border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)" }}>
+          {/* PREVIEW TAB takes over this pane wholesale — the editor and the
+              video preview stop competing for the same center (Lee). The left
+              outline stays live so sets switch without leaving Preview. */}
+          {topTab === "preview" ? (
+            deck ? (
+              /* key: switching sets REMOUNTS the preview — a rendered file, seek
+                 offsets and re-render flags from set A must never survive into
+                 set B (review: seeks used B's offsets against A's video). */
+              <CeqStitch key={deck.id} freeRows={stitchRows.free} fullRows={stitchRows.full} initialMode="full" onExit={() => setPrefs({ topTab: "topics" })} onJumpCeq={(id) => setQId(id)} onReplaceTake={replaceBaseTake} />
+            ) : (
+              <div className="grid flex-1 place-items-center text-[11px]" style={{ color: NEON.muted }}>Open a set (pick one in the outline) to preview its stitch.</div>
+            )
+          ) : (<>
           <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>
             <span className="truncate">CEQs {deck && <span style={{ color: NEON.muted }}>· {setDisplayName(deck.name)}</span>}</span>
             {deck && <span className="shrink-0 text-[8.5px] font-bold tabular-nums" style={{ color: NEON.muted }} title="Free-flagged CEQs · all CEQs">Free {freeCount} · Full {questions.length}</span>}
@@ -1907,7 +1958,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
             <div className="ml-auto flex shrink-0 items-center gap-1">
               {deck && (starOnly || starCount > 0) && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: starOnly ? "#0B1322" : "#FFD23F", background: starOnly ? "#FFD23F" : "transparent", border: `1px solid ${starOnly ? "#FFD23F" : NEON.borderSoft}` }} onClick={() => setStarOnly((v) => !v)} title="Show only STARRED questions (performer's notes)">★ {starCount}</button>}
               {deck && starCount > 0 && <button className="rounded px-1 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={clearAllStars} title="Clear ALL stars in this set (confirm)">clear ★</button>}
-              {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setStitchMode("full")} title="Sequential rhythm preview — plays the Free/Full stitch list back-to-back (no render)"><Play className="h-3 w-3" /> preview</button>}
+              {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setPrefs({ topTab: "preview" })} title="Open the Preview tab — the full clip list, instant playback, and the ⚡ true render"><Play className="h-3 w-3" /> preview</button>}
               {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => void exportSet()} title="Export this set as one markdown doc — every question, chain, flag, script layer and clip, in deck order. Copies to the clipboard AND downloads.">Export</button>}
               {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: publishOpen ? "#0B0F1E" : "#3BF5A0", background: publishOpen ? "#3BF5A0" : "transparent", border: "1px solid rgba(59,245,160,0.5)" }} onClick={() => setPublishOpen(true)} title="Publish panel — Publish Free / Full, the lookback vertical, and the intro/outro/wrap clips (one home)">{publishBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} Publish</button>}
               {deck && <button className="grid h-5 w-5 place-items-center rounded" style={{ color: wrapStems ? NEON.yellow : NEON.muted, border: `1px solid ${wrapStems ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` }} onClick={() => setPrefs({ wrapStems: !wrapStems })} title="Wrap question text ↔ clamp to 2 lines"><WrapText className="h-3 w-3" /></button>}
@@ -2166,9 +2217,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
               {/* WYSIWYG previewer (top) + collapsible stem/choices editor (bottom) */}
               <div className="flex min-h-0 flex-1 flex-col">
                 <div className="min-h-0 flex-1">
-                  {stitchMode ? (
-                    <CeqStitch free={stitchFree.items} full={stitchFull.items} freeMissing={stitchFree.missing} fullMissing={stitchFull.missing} initialMode={stitchMode} onExit={() => setStitchMode(null)} onJumpCeq={(id) => setQId(id)} />
-                  ) : (
+                  {(
                     <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSaveInstance={(g) => { if (qId && qId !== LAYOUT_Q0) saveInstanceGeom(qId, g); }} layoutOn={deck?.layoutMode !== false} onSetLayoutMode={setLayoutMode} onApplyLayoutToAll={() => { const n = questions.length; if (n > 0 && window.confirm(`Re-stamp all ${n} question${n === 1 ? "" : "s"} from the layout?
 
 This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undoes all of it.`)) applyLayoutToAll(); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onReorderChainMemo={reorderChainByMemo} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSetMisconception={setMemoMisconception} misconceptionSlugs={misconceptionDefs.map((d) => d.slug)} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} />
@@ -2228,6 +2277,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
               </div>
             </div>
           )}
+          </>)}
         </div>
 
         {/* PANE 3 — MEMO LIBRARY (collapsible to a thin rail to give the previewer room) */}

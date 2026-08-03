@@ -179,7 +179,9 @@ Bun.serve({
   async fetch(req) {
     lastActivity = Date.now();
     const url = new URL(req.url);
-    if (url.pathname === "/healthz") return json({ ok: !ffmpegVersion.startsWith("MISSING"), ffmpeg: ffmpegVersion });
+    // machineId lets the app PIN job polls to this machine (fly-force-instance-id):
+    // jobs are in-memory, so with >1 machine a load-balanced poll would 404.
+    if (url.pathname === "/healthz") return json({ ok: !ffmpegVersion.startsWith("MISSING"), ffmpeg: ffmpegVersion, machineId: process.env.FLY_MACHINE_ID ?? null });
     if (!authed(req)) return json({ error: "unauthorized" }, 401);
 
     if (req.method === "POST" && url.pathname === "/render") {
@@ -200,7 +202,7 @@ Bun.serve({
         for (const j of oldest.slice(0, jobs.size - MAX_KEPT)) jobs.delete(j.id);
       }
       void runJob(job, spec);
-      return json({ jobId: id }, 202);
+      return json({ jobId: id, machineId: process.env.FLY_MACHINE_ID ?? null }, 202);
     }
 
     const m = url.pathname.match(/^\/jobs\/([0-9a-f-]{36})$/);

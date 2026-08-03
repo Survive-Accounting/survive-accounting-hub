@@ -65,7 +65,7 @@ export const startWorkerRender = createServerFn({ method: "POST" })
       mode: z.enum(["free", "full", "test"]),
       crossfadeMs: z.number().int().min(0).max(2000).optional(),
     }).parse(d))
-  .handler(async ({ data }): Promise<{ jobId: string; path: string }> => {
+  .handler(async ({ data }): Promise<{ jobId: string; path: string; machineId: string | null }> => {
     const c = cfg();
     if (c.state !== "on") throw new Error(c.state === "partial" ? `Render worker half-configured — ${c.missing} is missing.` : "Render worker not configured (RENDER_WORKER_URL / RENDER_WORKER_TOKEN).");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -81,16 +81,21 @@ export const startWorkerRender = createServerFn({ method: "POST" })
     };
     const res = await workerFetch(c, "/render", { method: "POST", body: JSON.stringify(body) });
     if (typeof res.jobId !== "string") throw new Error("render worker returned no jobId");
-    return { jobId: res.jobId, path };
+    // machineId pins every poll to the machine holding this in-memory job —
+    // with >1 Fly machine, an unpinned poll load-balances to the wrong one and
+    // 404s ("unknown job"). Null on old workers / local runs (no pinning).
+    return { jobId: res.jobId, path, machineId: typeof res.machineId === "string" ? res.machineId : null };
   });
 
 /** POLL a render job; when done, hand back the public URL Auphonic will read. */
 export const resolveWorkerRender = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), path: z.string().min(5) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), path: z.string().min(5), machineId: z.string().max(64).nullable().optional() }).parse(d))
   .handler(async ({ data }): Promise<{ state: "queued" | "downloading" | "rendering" | "uploading" | "done" | "error"; note: string; fileUrl: string | null; error: string | null }> => {
     const c = cfg();
     if (c.state !== "on") throw new Error("Render worker not (fully) configured.");
-    const res = await workerFetch(c, `/jobs/${data.jobId}`);
+    // pin to the job's machine (see startWorkerRender) — Fly routes the request
+    // to that instance instead of load-balancing to one that never saw the job.
+    const res = await workerFetch(c, `/jobs/${data.jobId}`, data.machineId ? { headers: { "fly-force-instance-id": data.machineId } } : undefined);
     const state = String(res.state ?? "error") as "queued" | "downloading" | "rendering" | "uploading" | "done" | "error";
     if (state === "done") {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

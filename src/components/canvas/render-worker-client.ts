@@ -32,15 +32,28 @@ export async function renderStitchViaWorker(items: StitchItem[], mode: "free" | 
   if (!wp.configured) throw new Error("Render worker not configured (RENDER_WORKER_URL / RENDER_WORKER_TOKEN).");
   if (!wp.healthy) throw new Error(`Render worker not healthy: ${wp.detail}`);
   onNote(`submitting ${items.length} clip(s)…`);
-  const { jobId, path } = await startWorkerRender({ data: { urls: items.map((i) => i.take.url), mode, crossfadeMs: DEFAULT_CROSSFADE_MS } });
+  const { jobId, path, machineId } = await startWorkerRender({ data: { urls: items.map((i) => i.take.url), mode, crossfadeMs: DEFAULT_CROSSFADE_MS } });
   // 60-min budget — sits above the worker's own 50-min whole-job ceiling.
   const deadline = Date.now() + 60 * 60_000;
+  // TRANSIENT-TOLERANT poll (review): one network blip / cold server fn must not
+  // abort a render that's 40 minutes in. Up to 5 consecutive status-check
+  // failures are retried; a job 404 is TERMINAL (the machine restarted — the
+  // in-memory job is gone), as is the worker reporting state "error".
+  let pollFails = 0;
   for (;;) {
     if (Date.now() >= deadline) throw new Error("Timed out waiting for the worker render (60 min).");
-    const r: Awaited<ReturnType<typeof resolveWorkerRender>> = await resolveWorkerRender({ data: { jobId, path } });
-    if (r.state === "error") throw new Error(`Worker render failed: ${r.error ?? "unknown"}`);
-    if (r.state === "done" && r.fileUrl) return r.fileUrl;
-    onNote(r.note || r.state);
+    try {
+      const r: Awaited<ReturnType<typeof resolveWorkerRender>> = await resolveWorkerRender({ data: { jobId, path, machineId } });
+      pollFails = 0;
+      if (r.state === "error") throw new Error(`Worker render failed: ${r.error ?? "unknown"}`);
+      if (r.state === "done" && r.fileUrl) return r.fileUrl;
+      onNote(r.note || r.state);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (/Worker render failed/.test(msg) || /HTTP 404/.test(msg)) throw e; // terminal
+      if (++pollFails >= 5) throw new Error(`Lost contact with the render worker (${pollFails} failed status checks): ${msg}`);
+      onNote(`status check failed — retrying (${pollFails}/5)…`);
+    }
     await new Promise((res) => setTimeout(res, 3500));
   }
 }

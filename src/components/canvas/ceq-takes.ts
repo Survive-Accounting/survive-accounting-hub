@@ -33,7 +33,9 @@ export async function stageTake(file: File): Promise<TakeRef> {
   const { path, token, publicUrl } = await createPipelineTestStagingUpload({ data: { ext, folder: CEQ_TAKES_FOLDER } });
   const { error } = await supabase.storage.from("canvas-media").uploadToSignedUrl(path, token, file, { contentType: file.type || "video/mp4" });
   if (error) throw new Error(error.message);
-  return { url: publicUrl, path, name: file.name, duration: Math.round(duration) };
+  // 0.1s precision (was whole seconds): the preview's rendered-file seek and the
+  // manifest offsets sum these — integer rounding drifted up to ±0.5s per clip.
+  return { url: publicUrl, path, name: file.name, duration: Math.round(duration * 10) / 10 };
 }
 
 /** Attach a fresh take to a slot, keeping exactly ONE prior version. */
@@ -107,7 +109,7 @@ export function stitchManifest(items: StitchItem[], crossfadeMs: number): { ceqI
 //      GLOBAL intro/outro clips). transition has always been shared (one file for
 //      every set); globalIntro/globalOutro extend that to intro & outro as a FALLBACK
 //      a set inherits when it has no local drop of its own (resolved = local ?? global). ----
-export interface CeqStudioPrefs { wrapStems?: boolean; wrapMemos?: boolean; transition?: TakeRef; videoLibOpen?: boolean; costOn?: boolean; globalIntro?: TakeRef; globalOutro?: TakeRef; memoScope?: "question" | "set" | "all"; setsOutline?: Record<string, boolean>; topTab?: "videos" | "topics" | "sets" | "tools"; misconceptions?: Record<string, string> }
+export interface CeqStudioPrefs { wrapStems?: boolean; wrapMemos?: boolean; transition?: TakeRef; videoLibOpen?: boolean; costOn?: boolean; globalIntro?: TakeRef; globalOutro?: TakeRef; memoScope?: "question" | "set" | "all"; setsOutline?: Record<string, boolean>; topTab?: "videos" | "topics" | "preview" | "student" | "sets" | "tools"; misconceptions?: Record<string, string> }
 const PREFS_KEY = "sa-ceq-studio-prefs";
 export function loadPrefs(): CeqStudioPrefs {
   try { return JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") as CeqStudioPrefs; } catch { return {}; }
