@@ -9,7 +9,10 @@ import { BOLT_PRESETS, SEC_SCHOOLS, boltColorById } from "@/components/canvas/br
 import { BOLT_STYLE_PRESETS, DEFAULT_BOLT, forgeBolt, type BoltParams } from "@/lib/bolt-forge";
 import { analyzeAngles, applyAssist, averageAxis, bounds, cleanupGeometry, DEFAULT_ASSIST, mirrorHalf, ptsToPath, symmetrize, toPt, toV, type GeometryAssist, type V } from "@/lib/bolt-geom-edit";
 
-export const Route = createFileRoute("/logo-lab")({ component: LogoLab });
+export const Route = createFileRoute("/logo-lab")({
+  head: () => ({ meta: [{ title: "⚡ Logo Lab — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
+  component: LogoLab,
+});
 
 // ---- fonts available in the workshop -----------------------------------------
 type FontDef = { n: string; w: number[]; raw?: string; cat: "sans" | "round" | "display" | "serif" };

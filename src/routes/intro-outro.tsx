@@ -11,7 +11,10 @@ import { CornerBolt } from "@/components/brand-cards/CornerBolt";
 import { BRAND_NAVY, BRAND_CREAM, BoltContext, DEFAULT_BOLT_SPEC, type BoltSpec } from "@/components/brand-cards/bolt-boil";
 import { boltSpecFromLogoState } from "@/components/brand-cards/bolt-from-preset";
 
-export const Route = createFileRoute("/intro-outro")({ component: IntroOutroPreview });
+export const Route = createFileRoute("/intro-outro")({
+  head: () => ({ meta: [{ title: "⚡ Intro / Outro Cards — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
+  component: IntroOutroPreview,
+});
 
 const PREVIEW_SCALE = 0.44; // 1920x1080 -> ~845x475 for review
 const LS_PRESETS = "sa-logo-lab-presets-v1"; // Logo Lab presets: [{ name, state }]

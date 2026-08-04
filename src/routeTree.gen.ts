@@ -21,6 +21,7 @@ import { Route as OrderRouteImport } from './routes/order'
 import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as LogoLabRouteImport } from './routes/logo-lab'
 import { Route as JeRouteImport } from './routes/je'
+import { Route as IntroOutroRouteImport } from './routes/intro-outro'
 import { Route as CeqRouteImport } from './routes/ceq'
 import { Route as BeyondRouteImport } from './routes/beyond'
 import { Route as IndexRouteImport } from './routes/index'
@@ -122,6 +123,11 @@ const LogoLabRoute = LogoLabRouteImport.update({
 const JeRoute = JeRouteImport.update({
   id: '/je',
   path: '/je',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IntroOutroRoute = IntroOutroRouteImport.update({
+  id: '/intro-outro',
+  path: '/intro-outro',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CeqRoute = CeqRouteImport.update({
@@ -346,6 +352,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/beyond': typeof BeyondRoute
   '/ceq': typeof CeqRouteWithChildren
+  '/intro-outro': typeof IntroOutroRoute
   '/je': typeof JeRouteWithChildren
   '/logo-lab': typeof LogoLabRoute
   '/onboard': typeof OnboardRoute
@@ -402,6 +409,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/beyond': typeof BeyondRoute
   '/ceq': typeof CeqRouteWithChildren
+  '/intro-outro': typeof IntroOutroRoute
   '/je': typeof JeRouteWithChildren
   '/logo-lab': typeof LogoLabRoute
   '/onboard': typeof OnboardRoute
@@ -458,6 +466,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/beyond': typeof BeyondRoute
   '/ceq': typeof CeqRouteWithChildren
+  '/intro-outro': typeof IntroOutroRoute
   '/je': typeof JeRouteWithChildren
   '/logo-lab': typeof LogoLabRoute
   '/onboard': typeof OnboardRoute
@@ -516,6 +525,7 @@ export interface FileRouteTypes {
     | '/'
     | '/beyond'
     | '/ceq'
+    | '/intro-outro'
     | '/je'
     | '/logo-lab'
     | '/onboard'
@@ -572,6 +582,7 @@ export interface FileRouteTypes {
     | '/'
     | '/beyond'
     | '/ceq'
+    | '/intro-outro'
     | '/je'
     | '/logo-lab'
     | '/onboard'
@@ -627,6 +638,7 @@ export interface FileRouteTypes {
     | '/'
     | '/beyond'
     | '/ceq'
+    | '/intro-outro'
     | '/je'
     | '/logo-lab'
     | '/onboard'
@@ -684,6 +696,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BeyondRoute: typeof BeyondRoute
   CeqRoute: typeof CeqRouteWithChildren
+  IntroOutroRoute: typeof IntroOutroRoute
   JeRoute: typeof JeRouteWithChildren
   LogoLabRoute: typeof LogoLabRoute
   OnboardRoute: typeof OnboardRoute
@@ -791,6 +804,13 @@ declare module '@tanstack/react-router' {
       path: '/je'
       fullPath: '/je'
       preLoaderRoute: typeof JeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/intro-outro': {
+      id: '/intro-outro'
+      path: '/intro-outro'
+      fullPath: '/intro-outro'
+      preLoaderRoute: typeof IntroOutroRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ceq': {
@@ -1188,6 +1208,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BeyondRoute: BeyondRoute,
   CeqRoute: CeqRouteWithChildren,
+  IntroOutroRoute: IntroOutroRoute,
   JeRoute: JeRouteWithChildren,
   LogoLabRoute: LogoLabRoute,
   OnboardRoute: OnboardRoute,
