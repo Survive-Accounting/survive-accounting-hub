@@ -3,7 +3,7 @@
 // and animation (incl. an upward-scrolling TikTok/Reels/Shorts cycler). Build the
 // logo by hand here, then Copy the config / paths to bake into the brand module.
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useId, useMemo, useState, type CSSProperties } from "react";
 
 import { BOLT_PRESETS, SEC_SCHOOLS, boltColorById } from "@/components/canvas/brand";
 import { BOLT_STYLE_PRESETS, DEFAULT_BOLT, forgeBolt, type BoltParams } from "@/lib/bolt-forge";
@@ -58,6 +58,12 @@ type State = {
   showWord: boolean; prefix: string; suffix: string;
   wordFont: string; wordWeight: number; wordSize: number; wordSpacing: number; wordCase: "lower" | "upper" | "none";
   textColor: string; boltScale: number; boltDrop: number; boltNudge: number;
+  // bolt placement (composition)
+  boltOffX: number; boltOffY: number; boltRotate: number; boltDepth: "back" | "mid" | "front";
+  boltOverlapL: number; boltOverlapR: number; boltPivotX: number; boltPivotY: number;
+  // effects (0 = off, else intensity)
+  fxInner: number; fxShadow: number; fxEmboss: number; fxSticker: number; fxVintage: number; fxInk: number;
+  zoom: number; // preview zoom
   showAcc: boolean; accText: string; accFont: string; accWeight: number; accTracking: number; accSize: number;
   rules: boolean; rulesFromBolt: boolean; ruleC1: string; ruleC2: string;
   showSlogan: boolean; sloganMode: "plain" | "scroller"; sloganFont: string; sloganWeight: number; sloganSize: number;
@@ -75,6 +81,8 @@ const DEFAULTS: State = {
   showWord: true, prefix: "surv", suffix: "ve",
   wordFont: "Rubik", wordWeight: 900, wordSize: 96, wordSpacing: -0.01, wordCase: "lower",
   textColor: "", boltScale: 1.12, boltDrop: 0.16, boltNudge: -0.01,
+  boltOffX: 0, boltOffY: 0, boltRotate: 0, boltDepth: "mid", boltOverlapL: 0, boltOverlapR: 0, boltPivotX: 50, boltPivotY: 50,
+  fxInner: 0, fxShadow: 0, fxEmboss: 0, fxSticker: 0, fxVintage: 0, fxInk: 0, zoom: 1,
   showAcc: true, accText: "Accounting", accFont: "Rubik", accWeight: 600, accTracking: 0.34, accSize: 0.15,
   rules: true, rulesFromBolt: true, ruleC1: "#C62828", ruleC2: "#1565C0",
   showSlogan: false, sloganMode: "scroller", sloganFont: "Rubik", sloganWeight: 600, sloganSize: 0.2,
@@ -104,15 +112,48 @@ function effColors(s: State) {
 }
 
 // ---- little bolt renderer -----------------------------------------------------
-function BoltSVG({ geom, c1, c2, keyline, outline, style }: { geom: ReturnType<typeof forgeBolt>; c1: string; c2: string; keyline: string; outline: number; style?: CSSProperties }) {
+function BoltSVG({ geom, c1, c2, keyline, outline, innerGlow = 0, style }: { geom: ReturnType<typeof forgeBolt>; c1: string; c2: string; keyline: string; outline: number; innerGlow?: number; style?: CSSProperties }) {
   const mono = c1.toLowerCase() === c2.toLowerCase();
   const stroke = keyline && keyline !== "none";
-  return (
-    <svg viewBox={geom.viewBox} width="100%" height="100%" style={style} preserveAspectRatio="xMidYMid meet">
+  const uid = useId().replace(/[:]/g, "");
+  const fid = `ig-${uid}`;
+  const paths = (
+    <>
       <path d={geom.outer} fill={c1} stroke={stroke ? keyline : undefined} strokeWidth={stroke ? outline : undefined} strokeLinejoin="round" strokeLinecap="round" paintOrder="stroke" />
       {!mono && <path d={geom.seam} fill={c2} />}
+    </>
+  );
+  return (
+    <svg viewBox={geom.viewBox} width="100%" height="100%" style={style} preserveAspectRatio="xMidYMid meet">
+      {innerGlow > 0 && (
+        <defs>
+          {/* INNER GLOW — a soft light band along the inside edge (SourceAlpha minus a
+              blurred copy → the inner rim), flooded white and merged over the bolt. */}
+          <filter id={fid} x="-10%" y="-10%" width="120%" height="120%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation={innerGlow} result="b" />
+            <feComposite in="SourceAlpha" in2="b" operator="out" result="rim" />
+            <feFlood floodColor="#ffffff" floodOpacity={Math.min(0.85, innerGlow * 0.16)} result="w" />
+            <feComposite in="w" in2="rim" operator="in" result="glow" />
+            <feMerge><feMergeNode in="SourceGraphic" /><feMergeNode in="glow" /></feMerge>
+          </filter>
+        </defs>
+      )}
+      {innerGlow > 0 ? <g filter={`url(#${fid})`}>{paths}</g> : paths}
     </svg>
   );
+}
+
+/** Compose the CSS filter chain for the bolt from the effect knobs (glow, shadow,
+ *  emboss bevel, sticker lift, vintage/ink print). Inner glow is an SVG filter. */
+function boltFx(s: State, c1: string, c2: string): string | undefined {
+  const f: string[] = [];
+  if (s.glow > 0) f.push(`drop-shadow(0 0 ${s.glow}px ${c1}88)`, `drop-shadow(0 0 ${s.glow * 1.6}px ${c2}55)`);
+  if (s.fxShadow > 0) f.push(`drop-shadow(${(s.fxShadow * 0.5).toFixed(1)}px ${s.fxShadow}px ${(s.fxShadow * 1.3).toFixed(1)}px rgba(0,0,0,${Math.min(0.6, s.fxShadow * 0.08).toFixed(2)}))`);
+  if (s.fxEmboss > 0) f.push(`drop-shadow(${(s.fxEmboss * 0.5).toFixed(1)}px ${(s.fxEmboss * 0.5).toFixed(1)}px 0 rgba(255,255,255,${Math.min(0.6, s.fxEmboss * 0.14).toFixed(2)}))`, `drop-shadow(-${(s.fxEmboss * 0.5).toFixed(1)}px -${(s.fxEmboss * 0.5).toFixed(1)}px ${(s.fxEmboss * 0.4).toFixed(1)}px rgba(0,0,0,${Math.min(0.55, s.fxEmboss * 0.16).toFixed(2)}))`);
+  if (s.fxSticker > 0) f.push(`drop-shadow(0 ${(s.fxSticker * 0.8).toFixed(1)}px ${(s.fxSticker * 1.4).toFixed(1)}px rgba(0,0,0,0.35))`);
+  if (s.fxVintage > 0) f.push(`sepia(${Math.min(0.5, s.fxVintage * 0.11).toFixed(2)})`, `saturate(${(1 - s.fxVintage * 0.05).toFixed(2)})`, `contrast(${(1 + s.fxVintage * 0.03).toFixed(2)})`, `brightness(${(1 - s.fxVintage * 0.015).toFixed(3)})`);
+  if (s.fxInk > 0) f.push(`contrast(${(1 + s.fxInk * 0.05).toFixed(2)})`, `brightness(${(1 - s.fxInk * 0.02).toFixed(2)})`, `blur(${(s.fxInk * 0.09).toFixed(2)}px)`);
+  return f.length ? f.join(" ") : undefined;
 }
 
 // ---- upward-scrolling word cycler (TikTok → Reels → Shorts) --------------------
@@ -148,19 +189,31 @@ function LogoComposition({ s, geom }: { s: State; geom: ReturnType<typeof forgeB
   const boltH = Math.round(size * s.boltScale);
   const boltW = Math.round(boltH * geom.ratio);
   const casing = (t: string) => (s.wordCase === "upper" ? t.toUpperCase() : s.wordCase === "lower" ? t.toLowerCase() : t);
-  const glow = s.glow > 0 ? { filter: `drop-shadow(0 0 ${s.glow}px ${s.c1}88) drop-shadow(0 0 ${s.glow * 1.6}px ${s.c2}55)` } : undefined;
   const ruleC1 = s.rulesFromBolt ? col.c1 : s.ruleC1;
   const ruleC2 = s.rulesFromBolt ? col.c2 : s.ruleC2;
+  // effects: CSS filter chain + (sticker → force a slightly thicker white keyline)
+  const fx = boltFx(s, col.c1, col.c2);
+  const stickerKey = s.fxSticker > 0 ? "#FFFFFF" : col.key;
+  const stickerOutline = s.bolt.outline + (s.fxSticker > 0 ? s.fxSticker * 1.6 : 0);
+  // placement: offset + rotate about a pivot, per-side overlap, and depth (z vs the
+  // letters). `?? 0` guards keep an older saved state (missing these keys) from NaN.
+  const depthZ = s.boltDepth === "front" ? 3 : s.boltDepth === "back" ? 1 : 2;
+  const num = (v: number | undefined, d: number) => (typeof v === "number" && !Number.isNaN(v) ? v : d);
+  const mL = Math.round(size * (num(s.boltNudge, 0) + num(s.boltOverlapL, 0)));
+  const mR = Math.round(size * (num(s.boltNudge, 0) + num(s.boltOverlapR, 0)));
 
   const boltEl = (
-    <span style={{ display: "inline-block", width: boltW, height: boltH, verticalAlign: "baseline", transform: `translateY(${Math.round(size * s.boltDrop)}px)`, margin: `0 ${Math.round(size * s.boltNudge)}px`, ...glow }}>
-      <BoltSVG geom={geom} c1={col.c1} c2={col.c2} keyline={col.key} outline={s.bolt.outline} />
+    <span style={{ display: "inline-block", position: "relative", zIndex: depthZ, width: boltW, height: boltH, verticalAlign: "baseline",
+      transform: `translate(${num(s.boltOffX, 0)}px, ${Math.round(size * num(s.boltDrop, 0)) + num(s.boltOffY, 0)}px) rotate(${num(s.boltRotate, 0)}deg)`,
+      transformOrigin: `${num(s.boltPivotX, 50)}% ${num(s.boltPivotY, 50)}%`, marginLeft: mL, marginRight: mR, filter: fx }}>
+      <BoltSVG geom={geom} c1={col.c1} c2={col.c2} keyline={stickerKey} outline={stickerOutline} innerGlow={s.fxInner} />
     </span>
   );
 
+  const letterSpan = (t: string) => <span style={{ position: "relative", zIndex: 2 }}>{casing(t)}</span>;
   const word = s.showWord && (
     <span style={{ display: "inline-flex", alignItems: "baseline", fontFamily: ff(s.wordFont), fontWeight: s.wordWeight, fontSize: size, lineHeight: 1, letterSpacing: `${s.wordSpacing}em`, color: col.ink }}>
-      {casing(s.prefix)}{boltEl}{casing(s.suffix)}
+      {letterSpan(s.prefix)}{boltEl}{letterSpan(s.suffix)}
     </span>
   );
 
@@ -304,6 +357,47 @@ function LogoLab() {
           <Slider label="Outline" value={s.bolt.outline} min={0} max={16} step={0.5} onChange={(v) => setBolt({ outline: v })} />
         </Section>
 
+        <Section title="Bolt profile" open={false}>
+          <Slider label="Width" value={s.bolt.width} min={0.5} max={1.8} step={0.02} onChange={(v) => setBolt({ width: v })} fmt={(v) => v.toFixed(2)} />
+          <Slider label="Height" value={s.bolt.height} min={0.5} max={1.8} step={0.02} onChange={(v) => setBolt({ height: v })} fmt={(v) => v.toFixed(2)} />
+          <Slider label="Spine curve" value={s.bolt.spineCurve} min={-24} max={24} step={1} onChange={(v) => setBolt({ spineCurve: v })} />
+          <Slider label="Top taper" value={s.bolt.topTaper} min={0} max={0.8} step={0.02} onChange={(v) => setBolt({ topTaper: v })} fmt={(v) => v.toFixed(2)} />
+          <Slider label="Bottom taper" value={s.bolt.botTaper} min={0} max={0.8} step={0.02} onChange={(v) => setBolt({ botTaper: v })} fmt={(v) => v.toFixed(2)} />
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", color: "#5c6675", margin: "8px 0 2px" }}>LEFT FLANK</div>
+          <Slider label="Length ×" value={s.bolt.lenL} min={0.3} max={1.8} step={0.02} onChange={(v) => setBolt({ lenL: v })} fmt={(v) => v.toFixed(2)} />
+          <Slider label="Taper" value={s.bolt.taperL ?? s.bolt.taper} min={0} max={1} step={0.02} onChange={(v) => setBolt({ taperL: v })} fmt={(v) => v.toFixed(2)} />
+          <Slider label="Jaggedness" value={s.bolt.jagL} min={0} max={2} step={0.05} onChange={(v) => setBolt({ jagL: v })} fmt={(v) => v.toFixed(2)} />
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", color: "#5c6675", margin: "8px 0 2px" }}>RIGHT FLANK</div>
+          <Slider label="Length ×" value={s.bolt.lenR} min={0.3} max={1.8} step={0.02} onChange={(v) => setBolt({ lenR: v })} fmt={(v) => v.toFixed(2)} />
+          <Slider label="Taper" value={s.bolt.taperR ?? s.bolt.taper} min={0} max={1} step={0.02} onChange={(v) => setBolt({ taperR: v })} fmt={(v) => v.toFixed(2)} />
+          <Slider label="Jaggedness" value={s.bolt.jagR} min={0} max={2} step={0.05} onChange={(v) => setBolt({ jagR: v })} fmt={(v) => v.toFixed(2)} />
+        </Section>
+
+        <Section title="Per-tooth sizing" open={false}>
+          <div style={{ fontSize: 10.5, color: "#67707e", margin: "2px 0 6px" }}>Length of each tooth (top → bottom).</div>
+          {Array.from({ length: s.bolt.teeth }, (_, k) => (
+            <Slider key={k} label={`Tooth ${k + 1}`} value={s.bolt.toothProfile?.[k] ?? 1} min={0.2} max={1.8} step={0.05} onChange={(v) => setBolt({ toothProfile: Array.from({ length: s.bolt.teeth }, (_, i) => (i === k ? v : (s.bolt.toothProfile?.[i] ?? 1))) })} fmt={(x) => x.toFixed(2)} />
+          ))}
+          <Row label=""><button onClick={() => setBolt({ toothProfile: undefined })} style={{ ...inp, cursor: "pointer" }}>Reset all teeth</button></Row>
+        </Section>
+
+        <Section title="Organic randomness" open={false}>
+          <div style={{ fontSize: 10.5, color: "#67707e", margin: "2px 0 6px" }}>Length var + seed live under Bolt geometry.</div>
+          <Slider label="Angle var" value={s.bolt.jitAngle} min={0} max={0.8} step={0.02} onChange={(v) => setBolt({ jitAngle: v })} fmt={(v) => v.toFixed(2)} />
+          <Slider label="Width var" value={s.bolt.jitWidth} min={0} max={0.8} step={0.02} onChange={(v) => setBolt({ jitWidth: v })} fmt={(v) => v.toFixed(2)} />
+          <Slider label="Hand-drawn" value={s.bolt.handDrawn} min={0} max={0.8} step={0.02} onChange={(v) => setBolt({ handDrawn: v })} fmt={(v) => v.toFixed(2)} />
+        </Section>
+
+        <Section title="Effects" open={false}>
+          <div style={{ fontSize: 10.5, color: "#67707e", margin: "2px 0 6px" }}>Subtle; 0 = off. (Glow lives under Colours &amp; finish.)</div>
+          <Slider label="Inner glow" value={s.fxInner} min={0} max={8} step={0.5} onChange={(v) => set({ fxInner: v })} />
+          <Slider label="Shadow" value={s.fxShadow} min={0} max={12} step={0.5} onChange={(v) => set({ fxShadow: v })} />
+          <Slider label="Emboss" value={s.fxEmboss} min={0} max={6} step={0.5} onChange={(v) => set({ fxEmboss: v })} />
+          <Slider label="Sticker outline" value={s.fxSticker} min={0} max={8} step={0.5} onChange={(v) => set({ fxSticker: v })} />
+          <Slider label="Vintage print" value={s.fxVintage} min={0} max={6} step={0.5} onChange={(v) => set({ fxVintage: v })} />
+          <Slider label="Ink print" value={s.fxInk} min={0} max={6} step={0.5} onChange={(v) => set({ fxInk: v })} />
+        </Section>
+
         <Section title="Colours & finish">
           <Sel label="Mode" value={s.inkMode} options={[{ v: "color", t: "Colour" }, { v: "mono", t: "Monochrome" }, { v: "grayscale", t: "Grayscale" }, { v: "white", t: "All white" }, { v: "black", t: "All black" }]} onChange={(v) => set({ inkMode: v as InkMode })} />
           {s.inkMode === "mono" && <Col label="Mono colour" value={s.monoColor} onChange={(v) => set({ monoColor: v })} />}
@@ -335,6 +429,17 @@ function LogoLab() {
           <Slider label="Bolt size" value={s.boltScale} min={0.8} max={1.6} step={0.02} onChange={(v) => set({ boltScale: v })} fmt={(v) => v.toFixed(2)} />
           <Slider label="Bolt baseline" value={s.boltDrop} min={-0.1} max={0.35} step={0.01} onChange={(v) => set({ boltDrop: v })} fmt={(v) => v.toFixed(2)} />
           <Slider label="Bolt kerning" value={s.boltNudge} min={-0.08} max={0.06} step={0.005} onChange={(v) => set({ boltNudge: v })} fmt={(v) => v.toFixed(3)} />
+        </Section>
+
+        <Section title="Bolt placement" open={false}>
+          <Slider label="Offset X" value={s.boltOffX} min={-60} max={60} step={1} onChange={(v) => set({ boltOffX: v })} fmt={(v) => `${v}px`} />
+          <Slider label="Offset Y" value={s.boltOffY} min={-60} max={60} step={1} onChange={(v) => set({ boltOffY: v })} fmt={(v) => `${v}px`} />
+          <Slider label="Rotation" value={s.boltRotate} min={-45} max={45} step={1} onChange={(v) => set({ boltRotate: v })} fmt={(v) => `${v}°`} />
+          <Sel label="Depth" value={s.boltDepth} options={[{ v: "back", t: "Behind letters" }, { v: "mid", t: "Between letters" }, { v: "front", t: "In front" }]} onChange={(v) => set({ boltDepth: v as State["boltDepth"] })} />
+          <Slider label="Overlap left" value={s.boltOverlapL} min={-0.2} max={0.1} step={0.005} onChange={(v) => set({ boltOverlapL: v })} fmt={(v) => v.toFixed(3)} />
+          <Slider label="Overlap right" value={s.boltOverlapR} min={-0.2} max={0.1} step={0.005} onChange={(v) => set({ boltOverlapR: v })} fmt={(v) => v.toFixed(3)} />
+          <Slider label="Pivot X" value={s.boltPivotX} min={0} max={100} step={1} onChange={(v) => set({ boltPivotX: v })} fmt={(v) => `${v}%`} />
+          <Slider label="Pivot Y" value={s.boltPivotY} min={0} max={100} step={1} onChange={(v) => set({ boltPivotY: v })} fmt={(v) => `${v}%`} />
         </Section>
 
         <Section title="Accounting line" open={false}>
@@ -383,12 +488,35 @@ function LogoLab() {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderBottom: "1px solid #1c2330", fontSize: 12, color: "#8b96a6" }}>
           <span>Live preview</span>
+          <div style={{ display: "flex", gap: 4 }}>
+            {([["Fit", 1], ["150%", 1.5], ["50%", 0.5], ["Distance", 0.22]] as [string, number][]).map(([t, z]) => (
+              <button key={t} onClick={() => set({ zoom: z })} title={t === "Distance" ? "Distance test — how it reads far away / tiny" : undefined} style={{ ...inp, width: "auto", cursor: "pointer", padding: "3px 8px", background: s.zoom === z ? "#FCA31122" : "#0e131b", borderColor: s.zoom === z ? "#FCA311" : "#2a3342", color: s.zoom === z ? "#FCA311" : "#8b96a6" }}>{t}</button>
+            ))}
+          </div>
           <span style={{ marginLeft: "auto", color: "#5c6675" }}>ratio {geom.ratio.toFixed(3)} · viewBox {geom.viewBox}</span>
         </div>
         <div style={{ flex: 1, display: "grid", placeItems: "center", overflow: "auto", ...stageBg }}>
-          <div key={playKey} style={{ ...anim, padding: 40 }}>
-            <LogoComposition s={s} geom={geom} />
+          <div style={{ transform: `scale(${s.zoom})`, transition: "transform 200ms ease" }}>
+            <div key={playKey} style={{ ...anim, padding: 40 }}>
+              <LogoComposition s={s} geom={geom} />
+            </div>
           </div>
+        </div>
+        {/* PREVIEW EXTRAS (Lee) — favicon sizes + small logo cards to judge legibility. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "10px 16px", borderTop: "1px solid #1c2330", background: "#0b0e14", overflowX: "auto", flex: "0 0 auto" }}>
+          <span style={{ fontSize: 11, color: "#67707e", flex: "0 0 auto" }}>Favicon</span>
+          {[16, 32, 64].map((px) => (
+            <div key={px} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, flex: "0 0 auto" }}>
+              <div style={{ width: px, height: px, display: "grid", placeItems: "center", background: "#15304a", borderRadius: px >= 32 ? 6 : 3 }}>
+                <span style={{ display: "block", width: Math.round(px * 0.8), height: Math.round(px * 0.8) }}><BoltSVG geom={geom} c1={col.c1} c2={col.c2} keyline={col.key} outline={s.bolt.outline} innerGlow={s.fxInner} /></span>
+              </div>
+              <span style={{ fontSize: 9, color: "#5c6675" }}>{px}px</span>
+            </div>
+          ))}
+          <span style={{ width: 1, alignSelf: "stretch", background: "#1c2330", flex: "0 0 auto" }} />
+          <span style={{ fontSize: 11, color: "#67707e", flex: "0 0 auto" }}>Small logo</span>
+          <div style={{ background: "#fff", borderRadius: 8, padding: "10px 14px", flex: "0 0 auto" }}><LogoComposition s={{ ...s, wordSize: 32, showSlogan: false, bg: "white" }} geom={geom} /></div>
+          <div style={{ background: "#0A0A0A", borderRadius: 8, padding: "10px 14px", flex: "0 0 auto" }}><LogoComposition s={{ ...s, wordSize: 32, showSlogan: false, bg: "black" }} geom={geom} /></div>
         </div>
         {toast && <div style={{ position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", background: "#FCA311", color: "#111", fontWeight: 700, fontSize: 12, padding: "8px 16px", borderRadius: 8 }}>{toast}</div>}
       </div>

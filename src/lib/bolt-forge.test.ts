@@ -21,9 +21,19 @@ describe("bolt forge", () => {
     expect(forgeBolt(DEFAULT_BOLT).outer).toBe(forgeBolt({ ...DEFAULT_BOLT }).outer);
   });
 
-  test("seed changes the jittered shape; zero jitter ignores the seed", () => {
+  test("seed changes the jittered shape; zero jitter on ALL axes ignores the seed", () => {
     expect(forgeBolt({ ...DEFAULT_BOLT, seed: 1 }).outer).not.toBe(forgeBolt({ ...DEFAULT_BOLT, seed: 2 }).outer);
-    expect(forgeBolt({ ...DEFAULT_BOLT, jitter: 0, seed: 1 }).outer).toBe(forgeBolt({ ...DEFAULT_BOLT, jitter: 0, seed: 2 }).outer);
+    const noJit = { jitter: 0, jitAngle: 0, jitWidth: 0, handDrawn: 0 };
+    expect(forgeBolt({ ...DEFAULT_BOLT, ...noJit, seed: 1 }).outer).toBe(forgeBolt({ ...DEFAULT_BOLT, ...noJit, seed: 2 }).outer);
+  });
+
+  test("new knobs move the geometry (width/height/spine/taper/per-side/per-tooth)", () => {
+    const base = forgeBolt(DEFAULT_BOLT).outer;
+    for (const patch of [{ width: 1.4 }, { height: 1.3 }, { spineCurve: 12 }, { topTaper: 0.4 }, { botTaper: 0.4 }, { lenR: 1.5 }, { lenL: 0.6 }, { toothProfile: [1.8, 0.4, 1.5, 0.5, 1.2] }] as const) {
+      expect(forgeBolt({ ...DEFAULT_BOLT, ...patch }).outer).not.toBe(base);
+    }
+    // width scales the viewBox wider
+    expect(forgeBolt({ ...DEFAULT_BOLT, width: 1.5 }).ratio).toBeGreaterThan(forgeBolt(DEFAULT_BOLT).ratio);
   });
 
   test("teeth knob changes vertex count", () => {
