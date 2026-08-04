@@ -477,19 +477,24 @@ function ChainArrowEdge({ sourceX, sourceY, targetX, targetY, style, markerEnd }
   const path = `M ${targetX} ${targetY} L ${sourceX} ${sourceY}`;
   return <BaseEdge path={path} style={style} markerEnd={markerEnd} interactionWidth={22} />;
 }
-/** FREE ARROW (Lee) — a THICK, POINTY pointer drawn between two draggable endpoint
- *  dots. The line stops short of the head so a wide triangular arrowhead reads clean;
- *  both are drawn in the edge's stroke colour. */
-function FreeArrowEdge({ sourceX, sourceY, targetX, targetY, style }: EdgeProps) {
-  const dx = targetX - sourceX, dy = targetY - sourceY;
+/** FREE ARROW (Lee) — a THICK, POINTY pointer. The CHOICE points AT the memo: the tail
+ *  sits at the choice's text anchor and the arrowhead lands on the memo's draggable head
+ *  dot. `data.headAtSource` puts the arrowhead on the edge SOURCE (the head node) with the
+ *  tail at the TARGET (the choice anchor); without it, head-at-target (legacy). The line
+ *  stops short of the head so the wide triangle reads clean; both use the stroke colour. */
+function FreeArrowEdge({ sourceX, sourceY, targetX, targetY, style, data }: EdgeProps) {
+  const headAtSource = (data as { headAtSource?: boolean } | undefined)?.headAtSource;
+  const hx = headAtSource ? sourceX : targetX, hy = headAtSource ? sourceY : targetY; // arrowhead point
+  const tx = headAtSource ? targetX : sourceX, ty = headAtSource ? targetY : sourceY; // tail (line start)
+  const dx = hx - tx, dy = hy - ty;
   const len = Math.hypot(dx, dy) || 1;
   const ux = dx / len, uy = dy / len;                       // unit vector toward the head
   const HEAD = 26, HALF = 11;                               // long + broad = thick but pointy
-  const bx = targetX - ux * HEAD, by = targetY - uy * HEAD; // base of the head triangle
+  const bx = hx - ux * HEAD, by = hy - uy * HEAD;           // base of the head triangle
   const px = -uy, py = ux;                                  // perpendicular
   const color = (style?.stroke as string) ?? "#E0284A";
-  const line = `M ${sourceX} ${sourceY} L ${bx} ${by}`;
-  const head = `M ${targetX} ${targetY} L ${bx + px * HALF} ${by + py * HALF} L ${bx - px * HALF} ${by - py * HALF} Z`;
+  const line = `M ${tx} ${ty} L ${bx} ${by}`;
+  const head = `M ${hx} ${hy} L ${bx + px * HALF} ${by + py * HALF} L ${bx - px * HALF} ${by - py * HALF} Z`;
   return (<>
     <BaseEdge path={line} style={{ ...style, strokeLinecap: "round" }} interactionWidth={26} />
     <path d={head} fill={color} stroke={color} strokeWidth={2} strokeLinejoin="round" />
@@ -528,14 +533,14 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   const rack = useMemo(() => rackOf(baseline?.memoSlots, frameW, frameH), [baseline?.memoSlots, frameW, frameH]);
   const liveSlots = useMemo(() => activeSlots(rack), [rack]);
   const walk = useMemo(() => {
-    const list: { memoNodeId: string; label: string; choice: string; choiceIdx: number; chainPos: number; num: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: string; slotOff?: boolean; arrow?: CeqChainItem["arrow"] }[] = [];
+    const list: { memoNodeId: string; label: string; choice: string; choiceIdx: number; choiceId: string; chainPos: number; num: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: string; slotOff?: boolean; arrow?: CeqChainItem["arrow"] }[] = [];
     if (layoutMode) {
       // QUESTION 0 — the whole palette is on stage: every slot, active or not, so the
       // rack is visible and Lee can switch slots on as a question needs them.
-      rack.forEach((s, i) => list.push({ memoNodeId: `__slot${i}`, label: `Slot ${i + 1}`, choice: "—", choiceIdx: 0, chainPos: i, num: i + 1, slotOff: !!s.off }));
+      rack.forEach((s, i) => list.push({ memoNodeId: `__slot${i}`, label: `Slot ${i + 1}`, choice: "—", choiceIdx: 0, choiceId: "", chainPos: i, num: i + 1, slotOff: !!s.off }));
       return list;
     }
-    (cd?.choices ?? []).forEach((ch, ci) => (ch.chain ?? []).forEach((it, p) => list.push({ memoNodeId: it.memoNodeId, label: it.label, choice: LETTER(ci), choiceIdx: ci, chainPos: p, num: list.length + 1, hideChoiceLabel: it.hideChoiceLabel, hideArrow: it.hideArrow, sound: it.sound, arrow: it.arrow })));
+    (cd?.choices ?? []).forEach((ch, ci) => (ch.chain ?? []).forEach((it, p) => list.push({ memoNodeId: it.memoNodeId, label: it.label, choice: LETTER(ci), choiceIdx: ci, choiceId: ch.id ?? "", chainPos: p, num: list.length + 1, hideChoiceLabel: it.hideChoiceLabel, hideArrow: it.hideArrow, sound: it.sound, arrow: it.arrow })));
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mainSig, layoutMode, rack]);
@@ -717,16 +722,16 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       return { w, geom };
     });
     const memoNodes = memoGeoms.map(({ w, geom }) => ({ id: w.memoNodeId, type: "memoPreview", position: { x: geom.x, y: yOff + geom.y }, data: { label: w.label, walkNum: w.num, choice: w.choice, scale: geom.scale, hideChoiceLabel: w.hideChoiceLabel, hideArrow: w.hideArrow, sound: w.sound, slotOff: w.slotOff }, draggable: true, zIndex: 5 }));
-    // FREE ARROW endpoints (Lee) — two draggable dots per memo (tail + head). Default
-    // starts a leftward arrow off the memo; item.arrow (once dragged) wins. Not in Q0,
-    // and skipped when the memo's arrow is toggled off.
+    // MEMO ARROW HEAD (Lee) — the arrow's TAIL is pinned to the choice's last-letter
+    // text anchor (an RF edge source handle in buildEdges); only the HEAD is a draggable
+    // dot. It starts at the memo's centre-right and item.arrow.x2/y2 (once dragged) wins.
+    // Not in Q0, and skipped when the memo's arrow is toggled off or it has no choice.
     const arrowNodes = layoutMode ? [] : memoGeoms.flatMap(({ w, geom }) => {
-      if (w.hideArrow) return [];
-      const cy = geom.y + Math.round(26 * geom.scale);
-      const a = w.arrow ?? { x1: geom.x + 6, y1: cy, x2: geom.x - 104, y2: cy };
+      if (w.hideArrow || !w.choiceId) return [];
+      const memoW = Math.round(210 * geom.scale);
+      const head = w.arrow ? { x: w.arrow.x2, y: w.arrow.y2 } : { x: geom.x + memoW, y: geom.y + Math.round(30 * geom.scale) };
       return [
-        { id: `at:${w.memoNodeId}`, type: "arrowEnd", position: { x: a.x1, y: yOff + a.y1 }, data: { memoNodeId: w.memoNodeId, color: "#E0284A" }, draggable: true, selectable: false, zIndex: 6 },
-        { id: `ah:${w.memoNodeId}`, type: "arrowEnd", position: { x: a.x2, y: yOff + a.y2 }, data: { memoNodeId: w.memoNodeId, head: true, color: "#E0284A" }, draggable: true, selectable: false, zIndex: 6 },
+        { id: `ah:${w.memoNodeId}`, type: "arrowEnd", position: { x: head.x, y: yOff + head.y }, data: { memoNodeId: w.memoNodeId, head: true, color: "#E0284A" }, draggable: true, selectable: false, zIndex: 6 },
       ];
     });
     const active = [frameNode, ceqNode, ...memoNodes, ...arrowNodes];
@@ -935,17 +940,17 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     const g = snapOf(node, "altKey" in e && e.altKey);
     setDragGuides(g ? { v: g.v, h: g.h } : { v: [], h: [] });
   };
-  // FREE ARROW persistence — dragging an endpoint dot (at:/ah:<memoId>) saves BOTH ends
-  // of that memo's arrow (frame-local) to the chain item. skipSeed keeps the drop smooth.
+  // MEMO ARROW persistence — only the HEAD dot is draggable now (the tail is pinned to
+  // the choice's text anchor), so we save the head in x2/y2 (frame-local). x1/y1 are
+  // legacy (the tail is derived from the choice, not stored). skipSeed keeps it smooth.
   const persistArrow = (memoNodeId: string) => {
-    const tail = nodes.find((n) => n.id === `at:${memoNodeId}`);
     const head = nodes.find((n) => n.id === `ah:${memoNodeId}`);
-    if (!tail || !head || !onPatchChainItem) return;
+    if (!head || !onPatchChainItem) return;
     skipSeedRef.current = true;
-    onPatchChainItem(memoNodeId, { arrow: { x1: Math.round(tail.position.x), y1: Math.round(tail.position.y - activeYOff), x2: Math.round(head.position.x), y2: Math.round(head.position.y - activeYOff) } });
+    onPatchChainItem(memoNodeId, { arrow: { x1: 0, y1: 0, x2: Math.round(head.position.x), y2: Math.round(head.position.y - activeYOff) } });
   };
   const onNodeDragStop = (e: MouseEvent | TouchEvent, node: Node) => {
-    if (node.id.startsWith("at:") || node.id.startsWith("ah:")) { setDragGuides({ v: [], h: [] }); persistArrow(node.id.slice(3)); return; }
+    if (node.id.startsWith("ah:")) { setDragGuides({ v: [], h: [] }); persistArrow(node.id.slice(3)); return; }
     const g = snapOf(node, "altKey" in e && e.altKey);
     setDragGuides({ v: [], h: [] });
     if (g && (g.snapX != null || g.snapY != null)) {
@@ -1063,18 +1068,21 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     }
     return out;
   }, [liveChain, ceqId, nodes, hideArrowSources]);
-  /** FREE ARROWS (Lee) — one thick, pointy arrow per REVEALED memo (unless its arrow is
-   *  toggled off), drawn between that memo's two draggable endpoint dots. The previewer
-   *  passes the authoring reveal set; film passes the true walk state, so an arrow shows
-   *  on camera exactly when its memo is revealed (no faded ghost when you step back). */
+  /** MEMO ARROWS (Lee) — one thick, pointy arrow per REVEALED memo (unless its arrow is
+   *  toggled off): the CHOICE points at the memo. Tail = the choice's last-letter text
+   *  anchor (anc:<choiceId>, an RF target handle on the CEQ node); head = the memo's
+   *  draggable dot (ah:<memoId>), with the arrowhead at that end (headAtSource). The
+   *  previewer passes the authoring reveal set; film passes the true walk state, so an
+   *  arrow shows on camera exactly when its memo is revealed (no ghost when you step back). */
   const buildEdges = (revealSet: Set<string>): Edge[] => walk.flatMap((w) => {
-    if (w.hideArrow || !revealSet.has(w.memoNodeId)) return [];
+    if (w.hideArrow || !w.choiceId || !revealSet.has(w.memoNodeId)) return [];
     return [{
       id: `arr:${w.memoNodeId}`,
-      source: `at:${w.memoNodeId}`, sourceHandle: "s",
-      target: `ah:${w.memoNodeId}`, targetHandle: "t",
+      source: `ah:${w.memoNodeId}`, sourceHandle: "s",
+      target: ceqId, targetHandle: memoAnchorId(w.choiceId),
       type: "freeArrow",
       zIndex: EDGE_Z,
+      data: { headAtSource: true },
       style: { stroke: "#E0284A", strokeWidth: 6 },
     } as Edge];
   });
@@ -1106,6 +1114,9 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   useEffect(() => { if (!running) return; const iv = window.setInterval(() => { if (startRef.current != null) setElapsed(Date.now() - startRef.current); }, 250); return () => window.clearInterval(iv); }, [running]);
   const toggleRun = () => { if (running) { setRunning(false); return; } startRef.current = Date.now() - elapsed; setRunning(true); };
   const resetAll = () => { resetPractice(); setSpots(EMPTY_SPOTS); setRunning(false); setElapsed(0); startRef.current = null; };
+  // ` also resets the ARROWS (Lee) — clear every memo's dragged head so the whole CEQ
+  // starts over: each arrow snaps back to the choice-anchor → memo-centre-right default.
+  const resetArrows = () => { if (!onPatchChainItem) return; walk.forEach((w) => { if (w.arrow) onPatchChainItem(w.memoNodeId, { arrow: null }); }); };
 
   // Practice KEYS (Tab/Enter/Space/`) — CAPTURE phase + stopImmediatePropagation so
   // the canvas keymap's own "space" show-key (bubble phase, registered earlier) never
@@ -1144,7 +1155,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       // ` = full reset (choices + memos). SHIFT+` = MEMO SWEEP: clear the memos off
       // the board but KEEP every choice's resolution, so a wrong answer stays struck
       // and the correct one stays green. Nothing re-resolves, so no sound re-fires.
-      if (e.key === "`" || e.code === "Backquote" || (e.shiftKey && e.key === "~")) { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) sweepMemos(); else { resetPractice(); setSpots(EMPTY_SPOTS); } return; }
+      if (e.key === "`" || e.code === "Backquote" || (e.shiftKey && e.key === "~")) { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) sweepMemos(); else { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); } return; }
     };
     const onOwnerKey = (e: KeyboardEvent) => handle(e, ownerWin, false);
     ownerWin.addEventListener("keydown", onOwnerKey, true);
@@ -1385,7 +1396,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                         nodes={filmNodes}
                         edges={filmEdges}
                         onNodesChange={onNodesChange}
-                        onNodeDragStop={(_e, node) => { if (node.id.startsWith("at:") || node.id.startsWith("ah:")) persistArrow(node.id.slice(3)); else commitGeom(); }}
+                        onNodeDragStop={(_e, node) => { if (node.id.startsWith("ah:")) persistArrow(node.id.slice(3)); else commitGeom(); }}
                         onConnect={onConnect}
                         onEdgeClick={onEdgeClick}
                         nodeTypes={nodeTypes} edgeTypes={edgeTypes}
