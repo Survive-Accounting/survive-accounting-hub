@@ -72,6 +72,12 @@ const ChainToggleContext = createContext<(memoNodeId: string, patch: Partial<Ceq
  *  CeqStudio's renameMemoEverywhere, so an edit ripples to the library + all CEQ sets. null
  *  ⇒ editing disabled (film / layout stage). */
 const MemoEditContext = createContext<((memoNodeId: string, text: string) => void) | null>(null);
+/** INLINE-EDIT the CEQ stem from the previewer (authoring only). Commits the new text as the
+ *  question prompt via CeqStudio's patchQ. null ⇒ disabled (film / layout stage). */
+const StemEditContext = createContext<((ceqId: string, text: string) => void) | null>(null);
+/** Strip the inline-md markers so a film text-selection's char offsets (measured against the
+ *  RENDERED text) line up with the string we slice for the bold-emphasis re-render. */
+const stripInlineMarks = (t: string) => t.replace(/\*\*([^*]+?)\*\*/g, "$1").replace(/==([^=]+?)==/g, "$1");
 /** QUESTION 0 — switch a palette slot on/off from its number badge. Non-null ONLY on
  *  the layout stage, so a real question's memo chips keep their normal badge. */
 const SlotToggleContext = createContext<((slotIdx: number) => void) | null>(null);
@@ -315,6 +321,27 @@ function CeqPreviewNode({ id, data }: NodeProps) {
   // so the stem wraps around it. `brandBolt` false hides it; a string picks a colour
   // (preset/SEC id); default = house red/blue. Not on the Q0 layout stage.
   const boltCol = d.brandBolt === false ? null : d.layoutBadge ? null : typeof d.brandBolt === "string" ? boltColorById(d.brandBolt) : BOLT_PRESETS[0];
+  // STEM: film highlight-to-bold (same live teaching gesture as memos) + authoring inline
+  // edit (double-click → textarea → commits the question prompt everywhere).
+  const editStem = useContext(StemEditContext);
+  const stemRef = useRef<HTMLDivElement>(null);
+  const [stemSel, setStemSel] = useState<{ a: number; b: number } | null>(null);
+  const stemPlain = stripInlineMarks(d.stem || "Question");
+  const readStemSelection = () => {
+    if (!film) return;
+    const el = stemRef.current; const win = el?.ownerDocument.defaultView; const sel = win?.getSelection();
+    if (!el || !sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+    const r = sel.getRangeAt(0);
+    if (!el.contains(r.commonAncestorContainer)) return;
+    const pre = r.cloneRange(); pre.selectNodeContents(el); pre.setEnd(r.startContainer, r.startOffset);
+    const a = pre.toString().length, b = a + r.toString().length;
+    if (b > a) setStemSel({ a, b });
+  };
+  const canEditStem = !film && !!editStem && !d.layoutBadge;
+  const [stemEditing, setStemEditing] = useState(false);
+  const [stemDraft, setStemDraft] = useState("");
+  const startStemEdit = () => { if (!canEditStem) return; setStemDraft(d.stem || ""); setStemEditing(true); };
+  const commitStemEdit = () => { editStem?.(id, stemDraft); setStemEditing(false); };
   return (
     <div data-ceq-card="" className="sa-pv-node sa-ceq-in" onAnimationEnd={(ev) => { if (ev.animationName === "sa-ceq-in") (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: "sa-ceq-in 300ms cubic-bezier(0.2,0.7,0.3,1) both" }}>
       {/* QUESTION 0 ribbon — unmistakably the LAYOUT stage, never content. */}
@@ -331,9 +358,31 @@ function CeqPreviewNode({ id, data }: NodeProps) {
       {/* TOPIC kicker — name only (no Ch#), small uppercase above the stem so a
           viewer landing mid-clip knows the topic. */}
       {d.topic && <div style={{ fontSize: 12 * s, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: PAPER.inkMuted, marginBottom: 6 * s, maxWidth: "58%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.topic}</div>}
-      <div style={{ fontSize: 24 * s, fontWeight: 800, lineHeight: 1.25, color: PAPER.ink, marginBottom: 12 * s }}>
-        {renderInline(d.stem || "Question")}
-      </div>
+      {stemEditing ? (
+        <textarea
+          autoFocus
+          className="nodrag"
+          value={stemDraft}
+          onChange={(e) => setStemDraft(e.target.value)}
+          onPointerDown={(e) => e.stopPropagation()}
+          onBlur={commitStemEdit}
+          onFocus={(e) => e.currentTarget.select()}
+          onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitStemEdit(); } else if (e.key === "Escape") { e.preventDefault(); setStemEditing(false); } }}
+          rows={Math.max(2, stemDraft.split("\n").length)}
+          style={{ width: "100%", boxSizing: "border-box", resize: "none", fontFamily: "inherit", fontSize: 24 * s, fontWeight: 800, lineHeight: 1.25, color: PAPER.ink, marginBottom: 12 * s, background: "rgba(0,0,0,0.05)", border: `1px solid ${NEON.cyan}`, borderRadius: 8 * s, padding: `${6 * s}px ${8 * s}px`, outline: "none" }}
+        />
+      ) : (
+        <div
+          ref={stemRef}
+          onMouseDown={film ? () => setStemSel(null) : undefined}
+          onMouseUp={film ? readStemSelection : undefined}
+          onDoubleClick={canEditStem ? (e) => { e.stopPropagation(); startStemEdit(); } : undefined}
+          title={canEditStem ? "Double-click to edit the question" : undefined}
+          style={{ fontSize: 24 * s, fontWeight: 800, lineHeight: 1.25, color: PAPER.ink, marginBottom: 12 * s, whiteSpace: "pre-wrap", ...(film ? { userSelect: "text", WebkitUserSelect: "text", cursor: "text" } : canEditStem ? { cursor: "text" } : {}) }}
+        >
+          {stemSel && stemSel.a < stemPlain.length ? (<>{stemPlain.slice(0, stemSel.a)}<span className="sa-sel-emph">{stemPlain.slice(stemSel.a, stemSel.b)}</span>{stemPlain.slice(stemSel.b)}</>) : renderInline(d.stem || "Question")}
+        </div>
+      )}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 * s }}>
         {d.choices.map((c, i) => {
           const emph = pr.emph === i;
@@ -704,7 +753,7 @@ function PerfArrowLayer({ arrows, add, sel, setSel }: { arrows: PerfArrow[]; add
 }
 
 
-function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, world, worldIntensity, worldMotion, deckCeqIds, layoutMode, onSaveBaseline, onSaveInstance, onReorderChainMemo, layoutOn, onSetLayoutMode, onApplyLayoutToAll, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onAddMemoAtChoice, onAddMemoAt, onRenameMemo, onDuplicateMemo, onSetMemoCategory, onDeleteMemo, onSetMisconception, misconceptionSlugs, onNextQuestion, onPrevQuestion, showProgress, onSetShowProgress, onOpenMemoLib, topicName }: { ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number; chainEdges: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; layoutMode?: boolean; onSaveBaseline?: (l: DeckLayout) => void; onSaveInstance?: (g: CeqInstanceGeom) => void; onReorderChainMemo?: (memoNodeId: string, dir: -1 | 1) => void; layoutOn?: boolean; onSetLayoutMode?: (on: boolean) => void; onApplyLayoutToAll?: () => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onAddMemoAtChoice?: (choiceId: string, text: string, category: string) => void; onAddMemoAt?: (pos: { x: number; y: number }, text: string, category: string) => void; onRenameMemo?: (memoNodeId: string, label: string) => void; onDuplicateMemo?: (memoNodeId: string) => void; onSetMemoCategory?: (memoNodeIds: string[], category: string) => void; onSetMisconception?: (memoNodeIds: string[], slug: string | null) => void; misconceptionSlugs?: string[]; onDeleteMemo?: (memoNodeIds: string[]) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void; showProgress?: boolean; onSetShowProgress?: (b: boolean) => void; onOpenMemoLib?: (id: string) => void; topicName?: string }) {
+function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, world, worldIntensity, worldMotion, deckCeqIds, layoutMode, onSaveBaseline, onSaveInstance, onReorderChainMemo, layoutOn, onSetLayoutMode, onApplyLayoutToAll, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onAddMemoAtChoice, onAddMemoAt, onRenameMemo, onEditStem, onDuplicateMemo, onSetMemoCategory, onDeleteMemo, onSetMisconception, misconceptionSlugs, onNextQuestion, onPrevQuestion, showProgress, onSetShowProgress, onOpenMemoLib, topicName }: { ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number; chainEdges: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; layoutMode?: boolean; onSaveBaseline?: (l: DeckLayout) => void; onSaveInstance?: (g: CeqInstanceGeom) => void; onReorderChainMemo?: (memoNodeId: string, dir: -1 | 1) => void; layoutOn?: boolean; onSetLayoutMode?: (on: boolean) => void; onApplyLayoutToAll?: () => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onAddMemoAtChoice?: (choiceId: string, text: string, category: string) => void; onAddMemoAt?: (pos: { x: number; y: number }, text: string, category: string) => void; onRenameMemo?: (memoNodeId: string, label: string) => void; onEditStem?: (ceqId: string, text: string) => void; onDuplicateMemo?: (memoNodeId: string) => void; onSetMemoCategory?: (memoNodeIds: string[], category: string) => void; onSetMisconception?: (memoNodeIds: string[], slug: string | null) => void; misconceptionSlugs?: string[]; onDeleteMemo?: (memoNodeIds: string[]) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void; showProgress?: boolean; onSetShowProgress?: (b: boolean) => void; onOpenMemoLib?: (id: string) => void; topicName?: string }) {
   const ceq = mainRf.getNode(ceqId);
   // QUESTION 0 (layoutMode): the stage edits the SET BASELINE directly — a placeholder
   // LAYOUT card + "Slot N" placeholders stand in for a real question. Same nodes, same
@@ -1385,6 +1434,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
           <PreviewSpotContext.Provider value={spotApi}>
            <ChainToggleContext.Provider value={onPatchChainItem ?? (() => {})}>
            <MemoEditContext.Provider value={layoutMode ? null : (onRenameMemo ?? null)}>
+           <StemEditContext.Provider value={layoutMode ? null : (onEditStem ?? null)}>
            {/* Q0 only — the number badge becomes the slot on/off switch. */}
            <SlotToggleContext.Provider value={layoutMode && onSaveBaseline ? toggleSlot : null}>
            <ViewChoiceContext.Provider value={layoutMode ? null : { view: viewChoice, set: (i) => setViewChoice((p) => (p === i ? null : i)) }}>
@@ -1640,6 +1690,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
            </ChainReorderContext.Provider>
            </ViewChoiceContext.Provider>
            </SlotToggleContext.Provider>
+           </StemEditContext.Provider>
            </MemoEditContext.Provider>
            </ChainToggleContext.Provider>
           </PreviewSpotContext.Provider>
@@ -1687,12 +1738,12 @@ class PreviewErrorBoundary extends Component<{ children: ReactNode; resetKey: st
   }
 }
 
-export function CeqPreviewer({ ceqId, mainRf, mainSig, frameW = 1600, frameH = 900, chainEdges = [], baseline, world, worldIntensity, worldMotion, deckCeqIds, layoutMode, onSaveBaseline, onSaveInstance, onReorderChainMemo, layoutOn, onSetLayoutMode, onApplyLayoutToAll, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onAddMemoAtChoice, onAddMemoAt, onRenameMemo, onDuplicateMemo, onSetMemoCategory, onDeleteMemo, onSetMisconception, misconceptionSlugs, onNextQuestion, onPrevQuestion, showProgress, onSetShowProgress, onOpenMemoLib, topicName }: { ceqId: string | null; mainRf: MainRf; mainSig: string; frameW?: number; frameH?: number; chainEdges?: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; layoutMode?: boolean; onSaveBaseline?: (l: DeckLayout) => void; onSaveInstance?: (g: CeqInstanceGeom) => void; onReorderChainMemo?: (memoNodeId: string, dir: -1 | 1) => void; layoutOn?: boolean; onSetLayoutMode?: (on: boolean) => void; onApplyLayoutToAll?: () => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onAddMemoAtChoice?: (choiceId: string, text: string, category: string) => void; onAddMemoAt?: (pos: { x: number; y: number }, text: string, category: string) => void; onRenameMemo?: (memoNodeId: string, label: string) => void; onDuplicateMemo?: (memoNodeId: string) => void; onSetMemoCategory?: (memoNodeIds: string[], category: string) => void; onSetMisconception?: (memoNodeIds: string[], slug: string | null) => void; misconceptionSlugs?: string[]; onDeleteMemo?: (memoNodeIds: string[]) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void; showProgress?: boolean; onSetShowProgress?: (b: boolean) => void; onOpenMemoLib?: (id: string) => void; topicName?: string }) {
+export function CeqPreviewer({ ceqId, mainRf, mainSig, frameW = 1600, frameH = 900, chainEdges = [], baseline, world, worldIntensity, worldMotion, deckCeqIds, layoutMode, onSaveBaseline, onSaveInstance, onReorderChainMemo, layoutOn, onSetLayoutMode, onApplyLayoutToAll, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onAddMemoAtChoice, onAddMemoAt, onRenameMemo, onEditStem, onDuplicateMemo, onSetMemoCategory, onDeleteMemo, onSetMisconception, misconceptionSlugs, onNextQuestion, onPrevQuestion, showProgress, onSetShowProgress, onOpenMemoLib, topicName }: { ceqId: string | null; mainRf: MainRf; mainSig: string; frameW?: number; frameH?: number; chainEdges?: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; layoutMode?: boolean; onSaveBaseline?: (l: DeckLayout) => void; onSaveInstance?: (g: CeqInstanceGeom) => void; onReorderChainMemo?: (memoNodeId: string, dir: -1 | 1) => void; layoutOn?: boolean; onSetLayoutMode?: (on: boolean) => void; onApplyLayoutToAll?: () => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onAddMemoAtChoice?: (choiceId: string, text: string, category: string) => void; onAddMemoAt?: (pos: { x: number; y: number }, text: string, category: string) => void; onRenameMemo?: (memoNodeId: string, label: string) => void; onEditStem?: (ceqId: string, text: string) => void; onDuplicateMemo?: (memoNodeId: string) => void; onSetMemoCategory?: (memoNodeIds: string[], category: string) => void; onSetMisconception?: (memoNodeIds: string[], slug: string | null) => void; misconceptionSlugs?: string[]; onDeleteMemo?: (memoNodeIds: string[]) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void; showProgress?: boolean; onSetShowProgress?: (b: boolean) => void; onOpenMemoLib?: (id: string) => void; topicName?: string }) {
   if (!ceqId) return <div className="grid h-full place-items-center text-[11px]" style={{ color: NEON.muted }}>Select a question to preview.</div>;
   return (
     <PreviewErrorBoundary resetKey={ceqId}>
       <ReactFlowProvider>
-        <Inner ceqId={ceqId} mainRf={mainRf} mainSig={mainSig} frameW={frameW} frameH={frameH} chainEdges={chainEdges} baseline={baseline} world={world} worldIntensity={worldIntensity} worldMotion={worldMotion} deckCeqIds={deckCeqIds} layoutMode={layoutMode} onSaveBaseline={onSaveBaseline} onSaveInstance={onSaveInstance} onReorderChainMemo={onReorderChainMemo} layoutOn={layoutOn} onSetLayoutMode={onSetLayoutMode} onApplyLayoutToAll={onApplyLayoutToAll} onSetWorld={onSetWorld} onPatchChainItem={onPatchChainItem} onAttachMemo={onAttachMemo} onSelectMemo={onSelectMemo} onSelectQuestion={onSelectQuestion} onCopyItems={onCopyItems} onPasteItems={onPasteItems} hasItemsClip={hasItemsClip} onSendToStarred={onSendToStarred} onCopyStyleToSet={onCopyStyleToSet} starredCount={starredCount} onAddMemoAtChoice={onAddMemoAtChoice} onAddMemoAt={onAddMemoAt} onRenameMemo={onRenameMemo} onDuplicateMemo={onDuplicateMemo} onSetMemoCategory={onSetMemoCategory} onDeleteMemo={onDeleteMemo} onSetMisconception={onSetMisconception} misconceptionSlugs={misconceptionSlugs} onNextQuestion={onNextQuestion} onPrevQuestion={onPrevQuestion} showProgress={showProgress} onSetShowProgress={onSetShowProgress} onOpenMemoLib={onOpenMemoLib} topicName={topicName} />
+        <Inner ceqId={ceqId} mainRf={mainRf} mainSig={mainSig} frameW={frameW} frameH={frameH} chainEdges={chainEdges} baseline={baseline} world={world} worldIntensity={worldIntensity} worldMotion={worldMotion} deckCeqIds={deckCeqIds} layoutMode={layoutMode} onSaveBaseline={onSaveBaseline} onSaveInstance={onSaveInstance} onReorderChainMemo={onReorderChainMemo} layoutOn={layoutOn} onSetLayoutMode={onSetLayoutMode} onApplyLayoutToAll={onApplyLayoutToAll} onSetWorld={onSetWorld} onPatchChainItem={onPatchChainItem} onAttachMemo={onAttachMemo} onSelectMemo={onSelectMemo} onSelectQuestion={onSelectQuestion} onCopyItems={onCopyItems} onPasteItems={onPasteItems} hasItemsClip={hasItemsClip} onSendToStarred={onSendToStarred} onCopyStyleToSet={onCopyStyleToSet} starredCount={starredCount} onAddMemoAtChoice={onAddMemoAtChoice} onAddMemoAt={onAddMemoAt} onRenameMemo={onRenameMemo} onEditStem={onEditStem} onDuplicateMemo={onDuplicateMemo} onSetMemoCategory={onSetMemoCategory} onDeleteMemo={onDeleteMemo} onSetMisconception={onSetMisconception} misconceptionSlugs={misconceptionSlugs} onNextQuestion={onNextQuestion} onPrevQuestion={onPrevQuestion} showProgress={showProgress} onSetShowProgress={onSetShowProgress} onOpenMemoLib={onOpenMemoLib} topicName={topicName} />
       </ReactFlowProvider>
     </PreviewErrorBoundary>
   );

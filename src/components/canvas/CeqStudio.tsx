@@ -1069,10 +1069,33 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
   /** Reorder a chain memo within its choice (the outline "renumber"). */
   /** Reorder by MEMO ID (the on-memo ↑/↓ cluster) — finds the memo's choice + index
    *  and delegates to the existing reorder. */
+  /** Move a memo earlier/later in the QUESTION'S FULL REVEAL WALK (choice order → within-
+   *  choice chain order), not just within one choice's chain. Within a choice it's a simple
+   *  swap; at a choice boundary it MOVES the memo into the neighbouring choice's chain so
+   *  ↑/↓ traverse the entire walk. (Previously it only swapped within a single choice, so a
+   *  memo that was alone in its choice's chain — one memo per choice — could never move.) */
   const reorderChainByMemo = (memoNodeId: string, dir: -1 | 1) => {
     if (!qId || qId === LAYOUT_Q0) return;
     const cc = (rf.getNode(qId)?.data as unknown as CeqCard | undefined)?.choices ?? [];
-    for (const ch of cc) { const i = (ch.chain ?? []).findIndex((it) => it.memoNodeId === memoNodeId); if (i >= 0) { reorderChainMemo(qId, ch.id, i, dir); return; } }
+    const flat: { ci: number; p: number; id: string }[] = [];
+    cc.forEach((ch, ci) => (ch.chain ?? []).forEach((it, p) => flat.push({ ci, p, id: it.memoNodeId })));
+    const g = flat.findIndex((f) => f.id === memoNodeId);
+    if (g < 0) return;
+    const gj = g + dir;
+    if (gj < 0 || gj >= flat.length) return; // already at the very top / bottom of the whole walk
+    const a = flat[g], b = flat[gj];
+    if (a.ci === b.ci) { reorderChainMemo(qId, cc[a.ci].id, a.p, dir); return; } // same choice → swap
+    // cross-choice: splice the item out of choice a and into choice b beside its new neighbour.
+    // dir -1 → land just before b (b.p); dir +1 → land just after b (b.p + 1).
+    const toIndex = dir === -1 ? b.p : b.p + 1;
+    const c = patchDataFnCmd(rfl, qId, (prev) => {
+      const choices = (prev as unknown as { choices: CeqChoice[] }).choices.map((ch) => ({ ...ch, chain: [...(ch.chain ?? [])] }));
+      const [item] = choices[a.ci].chain.splice(a.p, 1);
+      if (!item) return { choices };
+      choices[b.ci].chain.splice(toIndex, 0, item);
+      return { choices };
+    }, "reorder memo across choices");
+    if (c) bus.dispatch(c);
   };
   const reorderChainMemo = (ceqId: string, choiceId: string, idx: number, dir: -1 | 1) => {
     const c = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((ch) => { if (ch.id !== choiceId) return ch; const arr = [...(ch.chain ?? [])]; const j = idx + dir; if (j < 0 || j >= arr.length) return ch; [arr[idx], arr[j]] = [arr[j], arr[idx]]; return { ...ch, chain: arr }; }) }), "renumber chain");
@@ -2233,7 +2256,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
                   {(
                     <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSaveInstance={(g) => { if (qId && qId !== LAYOUT_Q0) saveInstanceGeom(qId, g); }} layoutOn={deck?.layoutMode !== false} onSetLayoutMode={setLayoutMode} onApplyLayoutToAll={() => { const n = questions.length; if (n > 0 && window.confirm(`Re-stamp all ${n} question${n === 1 ? "" : "s"} from the layout?
 
-This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undoes all of it.`)) applyLayoutToAll(); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onReorderChainMemo={reorderChainByMemo} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSetMisconception={setMemoMisconception} misconceptionSlugs={misconceptionDefs.map((d) => d.slug)} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} showProgress={deck?.showProgress} onSetShowProgress={(b) => { if (deck) setDecks((prev) => updateDeck(prev, deck.id, { showProgress: b })); }} onOpenMemoLib={(id) => { setLibOpen(true); setPreviewSelMemo(id); }} topicName={(() => { const rows = spineRows(deck); return rows ? topicLabel(rows.topic).replace(/^ch\s*\d+\s*[·.\-:]\s*/i, "").replace(/\s*\(archived\)\s*$/i, "").trim() : undefined; })()} />
+This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undoes all of it.`)) applyLayoutToAll(); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onReorderChainMemo={reorderChainByMemo} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onEditStem={(cid, text) => patchQ(cid, { prompt: text }, `q:${cid}:prompt`)} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSetMisconception={setMemoMisconception} misconceptionSlugs={misconceptionDefs.map((d) => d.slug)} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} showProgress={deck?.showProgress} onSetShowProgress={(b) => { if (deck) setDecks((prev) => updateDeck(prev, deck.id, { showProgress: b })); }} onOpenMemoLib={(id) => { setLibOpen(true); setPreviewSelMemo(id); }} topicName={(() => { const rows = spineRows(deck); return rows ? topicLabel(rows.topic).replace(/^ch\s*\d+\s*[·.\-:]\s*/i, "").replace(/\s*\(archived\)\s*$/i, "").trim() : undefined; })()} />
                   )}
                 </div>
                 {qd && (
