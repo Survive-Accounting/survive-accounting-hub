@@ -130,17 +130,17 @@ async function runJob(job: Job, spec: JobSpec): Promise<void> {
       job.stageIndex = s;
       job.note = `rendering stage ${s + 1}/${spec.stages.length} (${stage.kind})`;
       const outPath = join(dir, `stage-${s}.mp4`);
+      // `__stage<k>` outputs are registered in `local` (with a real probed duration)
+      // right after stage k runs — one lookup covers raw inputs and prior stages alike.
+      const resolve = (id: string) => {
+        const f = local.get(id);
+        if (!f) throw new Error(`stage ${s}: unknown input "${id}"`);
+        return f;
+      };
       const files: StagedFile[] =
-        stage.kind === "concat"
-          ? stage.inputs.map((id) => {
-              // `__stage<k>` outputs are registered in `local` (with a real
-              // probed duration) right after stage k runs — one lookup covers
-              // raw inputs and prior stages alike.
-              const f = local.get(id);
-              if (!f) throw new Error(`stage ${s}: unknown input "${id}"`);
-              return f;
-            })
-          : [];
+        stage.kind === "concat" ? stage.inputs.map(resolve)
+          : stage.kind === "warp_intro" ? [resolve(stage.input), resolve(stage.bed)]
+            : [];
       await runFfmpeg(planStage(stage, files, outPath), remaining(LIMITS.renderTimeoutMs));
       // Later stages may reference this output as `__stage<s>`; re-probe so a
       // following concat gets a real duration for its offset math.

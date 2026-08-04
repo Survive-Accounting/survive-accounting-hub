@@ -58,6 +58,47 @@ placement follow automatically.
 
 ---
 
+## Warp intro + music bed (published video)
+
+The **warp intro** is a render-pipeline effect applied to the **intro take slot** when you
+publish. Turn it on with the **⚡ Warp intro** checkbox in the Publish panel (per-browser pref,
+off by default). It needs the **render worker** (the legacy Mux concat can't stage effects).
+
+What it produces (one self-contained intro clip, then concatenated as usual):
+
+```
+[front clip: slogan + bolt]   ← optional, placeholder until Lee's animation exists
+→ [intro clip, first 1.82s REVERSED]      audio: music bed reversed (builds to the beat)
+→ white-flash SNAP at t=1.82  (the beat drop)
+→ [intro clip FORWARD]                    audio: music bed forward, fading into Q1
+→ [transition] → Q1 …
+```
+
+- **`reversedTailS = 1.82`** is the single shared constant (`WARP_REVERSED_TAIL_S` in
+  `segment-assembly.ts` → passed to the worker AND added to the intro's duration in the chapter
+  manifest, so they can never drift). Lee trimmed the music so the beat-drop lands exactly here.
+- The **music bed** is `public/audio/intro-music.mp3` (served from the app origin). The reversed
+  first 1.82s plays during the rewind and lands on the beat at the snap; the forward bed continues
+  under the forward intro and fades out into Q1.
+- The **white flash** is frame-accurate: the reversed segment fades TO white and the forward
+  segment fades FROM white, meeting white exactly at the concat seam t=1.82.
+- If the Auphonic preset ALSO prepends an intro, you'll be warned (you'd get two) — remove the
+  intro from the Auphonic preset, or leave warp off.
+
+### First live test (billable — do this yourself)
+
+Rendering spends Fly/Mux/Auphonic minutes, so verify deliberately:
+1. Drop an intro clip in the set's (or global) **intro** take slot.
+2. Tick **⚡ Warp intro**, publish **Free** (the cheaper cut).
+3. Watch the published video: the rewind whoosh, the flash + beat landing together at ~1.82s, and
+   the music fading into Q1. If the beat is slightly off, it's a one-line tune of `reversedTailS`
+   (and re-trim the mp3); the flash duration is `flashMs`, the music duck is `musicBedDb`, the
+   fade-out is `musicFadeS` — all in `worker/src/config.ts` (overridable per render).
+
+Tunables live in `worker/src/config.ts` (`reversedTailS`, `flashMs`, `musicBedDb`, `musicFadeS`).
+The front slogan/bolt clip is an optional prepended input — wire its URL through `warp.frontUrl`
+when the animation asset exists.
+
 ### Where this lives in code (for future edits)
 
 - Brand compositions: `src/components/brand-cards/{IntroCard,OutroCard,CornerBolt,bolt-boil}.tsx`

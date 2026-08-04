@@ -76,6 +76,12 @@ export function edlDuration(edl: SegmentInput[]): number {
 
 export const DEFAULT_CROSSFADE_MS = 50;
 
+/** WARP INTRO reversed-tail length (seconds) — THE shared beat-drop constant. The app
+ *  passes it to the render worker (warp.reversedTailS) AND adds it to the intro clip's
+ *  duration when computing the chapter manifest, so the two can never drift. Lee trimmed
+ *  the music so the assembled intro's beat-drop lands exactly here. */
+export const WARP_REVERSED_TAIL_S = 1.82;
+
 /** The ffmpeg `-filter_complex` body that concatenates N segment inputs with a
  *  short AUDIO crossfade at each join while the VIDEO stays a hard cut. Empty for
  *  ≤ 1 input (nothing to join). Pair with `-map "[v]" -map "[a]"`. */

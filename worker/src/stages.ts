@@ -20,9 +20,16 @@ export interface ConcatStage {
 /** QUEUED — brand intro: reversed muted first-N-seconds of `input`, white flash
  *  baked on its tail. Registered so job specs can name it; not renderable yet. */
 export interface ReversedTailStage { kind: "reversed_tail"; input: string; seconds?: number; flashMs?: number }
-/** QUEUED — music bed under the speech track. */
+/** QUEUED — music bed under the speech track (a WHOLE-lesson bed; the intro's own
+ *  bed lives inside warp_intro). */
 export interface MusicBedStage { kind: "music_bed"; input: string; bed: string; gainDb?: number }
-export type Stage = ConcatStage | ReversedTailStage | MusicBedStage;
+/** WARP INTRO — one self-contained clip: [first `reversedTailS` of `input`, REVERSED]
+ *  → white-flash SNAP at the seam → [`input` FORWARD], with audio = [reversed music
+ *  bed] → [forward music bed] (ducked under the clip's speech if any, else the bed is
+ *  the whole track), fading out over `musicFadeS` into the next clip. reversedTailS is
+ *  THE shared beat-drop constant. */
+export interface WarpIntroStage { kind: "warp_intro"; input: string; bed: string; reversedTailS?: number; flashMs?: number; musicBedDb?: number; musicFadeS?: number }
+export type Stage = ConcatStage | ReversedTailStage | MusicBedStage | WarpIntroStage;
 
 export interface JobSpec {
   v: 1;
@@ -106,12 +113,83 @@ export function concatArgs(files: StagedFile[], outPath: string, opts?: { crossf
 
 const round3 = (n: number) => Math.round(n * 1000) / 1000;
 
-/** Registry gate — the server calls this per stage. Only "concat" renders today;
- *  the queued kinds fail LOUD (never a silent skip), unknown kinds fail louder. */
+/** WARP INTRO argv. files[0] = the intro clip (video; may be silent), files[1] = the
+ *  music bed (audio-only mp3 — its VIDEO is never referenced). Produces a self-contained
+ *  clip of length R + D (D = clip duration):
+ *
+ *  VIDEO  0..R   the first R seconds of the clip, REVERSED (a rewind whoosh)
+ *         t=R    a white flash peaking EXACTLY on the seam — the reversed segment fades
+ *                OUT to white over its last `half`, the forward segment fades IN from
+ *                white over its first `half`; both are white at the concat seam t=R, so
+ *                the flash is frame-accurate with NO overlay / colour source / PTS shift.
+ *         R..R+D the clip FORWARD.
+ *  AUDIO  0..R   the music bed's first R seconds REVERSED (builds up, lands on the beat
+ *                at t=R). A short bed is front-padded with silence (adelay) so the beat
+ *                still lands at t=R rather than shortening the video rewind.
+ *         R..R+D the bed FORWARD from its start (the drop), ducked to musicBedDb UNDER
+ *                the clip's speech if the clip has audio (else the bed is the whole
+ *                track at full), fading out over musicFadeS into the next clip.
+ *
+ *  R is anchored to the CLIP (min(reversedTailS, D)) so the video seam, the flash peak
+ *  and the audio beat all coincide at t=R (audio is sample-accurate; the video quantizes
+ *  to the nearest frame — R·30 is non-integer, so expect ≤~½-frame rounding, within spec). */
+export function warpIntroArgs(clip: StagedFile, bed: StagedFile, outPath: string, opts?: { reversedTailS?: number; flashMs?: number; musicBedDb?: number; musicFadeS?: number }): string[] {
+  const { width: w, height: h, fps, audioHz: hz } = RENDER;
+  const D = clip.durationS;
+  const bedDur = bed.durationS;
+  const R = Math.min(opts?.reversedTailS ?? RENDER.reversedTailS, D);        // seam / flash / beat anchor
+  const Rb = Math.min(R, bedDur);                                            // bed reverse window (short-bed clamp)
+  const revDelayMs = Math.round(Math.max(0, R - Rb) * 1000);                 // silence to front-pad the reversed bed
+  const flashMs = opts?.flashMs ?? RENDER.flashMs;
+  const half = Math.min(flashMs / 2000, R / 2, D / 2);
+  const flashOn = flashMs > 0 && half > 0;
+  const musicBedDb = opts?.musicBedDb ?? RENDER.musicBedDb;
+  const musicFadeS = Math.min(opts?.musicFadeS ?? RENDER.musicFadeS, D);
+  const fadeStart = Math.max(0, D - musicFadeS);
+  const clipHasAudio = clip.hasAudio !== false;
+
+  // VIDEO — reverse the first R (fade OUT to white over its last `half`) + forward clip
+  // (fade IN from white over its first `half`); they meet white at the concat seam t=R.
+  const vRevFade = flashOn ? `,fade=t=out:st=${round3(R - half)}:d=${round3(half)}:color=white` : "";
+  const vFwdFade = flashOn ? `,fade=t=in:st=0:d=${round3(half)}:color=white` : "";
+  const vGraph = [
+    `[0:v]scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2,fps=${fps},setsar=1,format=yuv420p,split=2[vb0][vb1]`,
+    `[vb0]trim=0:${round3(R)},setpts=PTS-STARTPTS,reverse,setpts=PTS-STARTPTS${vRevFade}[vrev]`,
+    `[vb1]setpts=PTS-STARTPTS${vFwdFade}[vfwd]`,
+    `[vrev][vfwd]concat=n=2:v=1:a=0[vout]`,
+  ].join(";");
+
+  // AUDIO — reversed bed buildup → forward bed, ducked under the clip's speech if any.
+  const revPad = revDelayMs > 0 ? `,adelay=${revDelayMs}:all=1,atrim=0:${round3(R)},asetpts=PTS-STARTPTS` : "";
+  const aParts = [
+    `[1:a]aresample=${hz},aformat=sample_fmts=fltp:channel_layouts=stereo,asetpts=PTS-STARTPTS,asplit=2[bedA][bedB]`,
+    `[bedA]atrim=0:${round3(Rb)},asetpts=PTS-STARTPTS,areverse,asetpts=PTS-STARTPTS${revPad}[brev]`,
+    `[bedB]apad,atrim=0:${round3(D)},asetpts=PTS-STARTPTS,afade=t=out:st=${round3(fadeStart)}:d=${round3(musicFadeS)}[bedfwd]`,
+  ];
+  if (clipHasAudio) {
+    aParts.push(`[0:a]aresample=${hz},aformat=sample_fmts=fltp:channel_layouts=stereo,apad,atrim=0:${round3(D)},asetpts=PTS-STARTPTS[clipfwd]`);
+    aParts.push(`[bedfwd]volume=${musicBedDb}dB[bedduck]`);
+    aParts.push(`[clipfwd][bedduck]amix=inputs=2:duration=longest:dropout_transition=0:normalize=0[fwd]`);
+    aParts.push(`[brev][fwd]concat=n=2:v=0:a=1[aout]`);
+  } else {
+    aParts.push(`[brev][bedfwd]concat=n=2:v=0:a=1[aout]`);
+  }
+
+  const graph = `${vGraph};${aParts.join(";")}`;
+  return ["-y", "-i", clip.path, "-i", bed.path, "-filter_complex", graph, "-map", "[vout]", "-map", "[aout]", ...enc(RENDER), outPath];
+}
+
+/** Registry gate — the server calls this per stage. concat + warp_intro render today;
+ *  the still-queued kinds fail LOUD (never a silent skip), unknown kinds fail louder. */
 export function planStage(stage: Stage, files: StagedFile[], outPath: string): string[] {
   switch (stage.kind) {
     case "concat":
       return concatArgs(files, outPath, { crossfadeMs: stage.crossfadeMs });
+    case "warp_intro": {
+      const [clip, bed] = files;
+      if (!clip || !bed) throw new Error("warp_intro: needs the intro clip and the music bed");
+      return warpIntroArgs(clip, bed, outPath, { reversedTailS: stage.reversedTailS, flashMs: stage.flashMs, musicBedDb: stage.musicBedDb, musicFadeS: stage.musicFadeS });
+    }
     case "reversed_tail":
     case "music_bed":
       throw new QueuedStageError(stage.kind);
@@ -134,6 +212,10 @@ export function validateSpec(spec: unknown): asserts spec is JobSpec {
     // feed the concat.
     const known = (id: string) => ids.has(id) || (/^__stage(\d+)$/.test(id) && Number(id.slice(7)) < si);
     if (st.kind === "concat") { for (const id of st.inputs) if (!known(id)) throw new Error(`job spec: concat names unknown input "${id}"`); }
+    else if (st.kind === "warp_intro") {
+      if (!known(st.input)) throw new Error(`job spec: warp_intro names unknown input "${st.input}"`);
+      if (!known(st.bed)) throw new Error(`job spec: warp_intro names unknown bed "${st.bed}"`);
+    }
     else if (st.kind === "reversed_tail" || st.kind === "music_bed") { /* queued kinds validated at plan time */ }
     else throw new Error(`job spec: unknown stage kind "${(st as { kind?: string }).kind}"`);
   });

@@ -17,15 +17,18 @@ export const RENDER = {
    *  app's stitch manifest models this same constant (DEFAULT_CROSSFADE_MS = 50)
    *  so chapter offsets stay aligned with what the worker actually renders. */
   crossfadeMs: 50,
-  /** QUEUED — BRAND INTRO reversed tail (stage kind "reversed_tail"): how many
-   *  seconds of the CEQ-intro to reverse, and the white-flash duration at the
-   *  reverse→forward seam. Not rendered yet; the stage registry reserves them. */
-  reversedTailS: 2.5,
+  /** WARP INTRO (stage kind "warp_intro"): reversedTailS is THE shared constant —
+   *  Lee trimmed the music so the assembled intro's beat-drop lands exactly this far
+   *  in, so the reversed-video duration AND the music groove-land are locked together
+   *  (1.82s). flashMs = the white-flash SNAP at the reverse→forward seam; flashColor =
+   *  its colour; musicBedDb = the music's gain when ducked under a talking intro's
+   *  speech (a silent brand intro plays the bed at full); musicFadeS = the forward
+   *  music's fade-out into Q1. Job specs may override any of these per render. */
+  reversedTailS: 1.82,
   flashMs: 150,
   flashColor: "white",
-  /** QUEUED — MUSIC BED (stage kind "music_bed"): default bed gain in dB under
-   *  speech. Not rendered yet. */
   musicBedDb: -18,
+  musicFadeS: 1.0,
 } as const;
 
 /** Hard ceilings — fail loud rather than render garbage or fill the disk.

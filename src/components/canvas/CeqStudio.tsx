@@ -30,7 +30,7 @@ import { MISCONCEPTION_SEEDS, questionMisconceptions, toSlug } from "./ceq-misco
 import { ingestNumOf } from "./ceq-walk";
 import { CeqStitch, type StitchRow } from "./CeqStitch";
 import { CeqVideoLibrary, vidCourseMatch, vidTopicMatch } from "./CeqVideoLibrary";
-import { DEFAULT_CROSSFADE_MS } from "./segment-assembly";
+import { DEFAULT_CROSSFADE_MS, WARP_REVERSED_TAIL_S } from "./segment-assembly";
 import { detectAuphonicSlots, resolveCeqConcat, resolvePipelineTestAuphonic, startCeqConcat, startPipelineTestAuphonic } from "@/lib/publish.functions";
 import { renderStitchViaWorker, wakeRenderWorker } from "./render-worker-client";
 import type { LessonBox } from "./types";
@@ -967,14 +967,26 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
     const sanitize = (s: string) => s.replace(/\//g, "-").trim();
     const passthrough = `${sanitize(course)}/${sanitize(topic)}/${sanitize(lessonName)}/${mode}`.slice(0, 250);
     const title = `${lessonName} — ${mode === "free" ? "Free" : "Full"} CEQ`;
-    const runtimeS = Math.round(stitchRuntime(stitch.items) - Math.max(0, stitch.items.length - 1) * (DEFAULT_CROSSFADE_MS / 1000));
+    // WARP INTRO (opt-in) — run the intro clip (items[0]) through the warp_intro stage
+    // (reversed tail + white-flash snap + forward clip + music bed). It is only actually
+    // APPLIED when the render worker is up (the legacy Mux concat can't stage), so the
+    // runtime + chapter-manifest accounting for the added reversed tail is deferred until
+    // after the worker probe (warpApplied) — otherwise a legacy fallback would store
+    // offsets 1.82s late for a video that plays the intro forward.
+    const warpOn = !!prefs.warpIntro && stitch.items[0]?.kind === "intro";
     setPublishBusy(mode); setNote(`Publishing ${mode} — detecting the Auphonic preset…`);
     try {
       // Don't double intro/outro if the Auphonic preset already prepends/appends them.
       const slots = await detectAuphonicSlots();
       let items = stitch.items;
       if (slots.hasOutro) items = items.filter((i) => i.kind !== "outro");
-      if (slots.hasIntro) items = items.filter((i) => i.kind !== "intro");
+      // Keep the intro clip when warping (the worker consumes it); only strip it when
+      // Auphonic prepends its own intro.
+      if (slots.hasIntro && !warpOn) items = items.filter((i) => i.kind !== "intro");
+      // HARD GATE before any render/Auphonic/Mux spend: warp keeps the app intro to warp it,
+      // so if Auphonic ALSO prepends one you'd get two intros + a manifest short by the
+      // Auphonic intro's length. Block, like every other publish gate.
+      if (warpOn && slots.hasIntro) { setNote("Publish blocked — Warp intro is ON but the Auphonic preset also prepends an intro (you'd get two, and the chapter offsets would be wrong). Remove the intro from the Auphonic preset, or turn off warp."); return false; }
       const urls = items.map((i) => i.take.url);
       // 1) RENDER the stitch. Worker configured → the Fly ffmpeg worker (REAL
       //    crossfades at DEFAULT_CROSSFADE_MS, matching the manifest's offsets;
@@ -986,11 +998,18 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
       // first request — "unreachable" retries ~30s before it counts as down.
       const wp = await wakeRenderWorker((n) => setNote(`Render worker: ${n}`));
       if (wp.configured && !wp.healthy) throw new Error(`Render worker configured but not healthy — fix it or unset RENDER_WORKER_URL. (${wp.detail})`);
+      if (warpOn && !wp.configured) setNote("Warp intro needs the render worker (the legacy Mux concat can't stage) — publishing without the warp.");
+      // The warp is only APPLIED on the worker path; drive runtime + manifest off this, not
+      // the mere intent, so a legacy fallback doesn't inflate offsets/duration by the tail.
+      const warpApplied = warpOn && wp.configured;
+      const runtimeS = Math.round((warpApplied ? WARP_REVERSED_TAIL_S : 0) + stitchRuntime(stitch.items) - Math.max(0, stitch.items.length - 1) * (DEFAULT_CROSSFADE_MS / 1000));
       if (wp.configured) {
         // shared render/poll loop (render-worker-client): 60-min budget above
-        // the worker's 50-min whole-job ceiling.
-        stitchedUrl = await renderStitchViaWorker(items, mode, (n) => setNote(`Render worker: ${n}`));
-        renderNote = `ffmpeg worker (${items.length} clips, ${DEFAULT_CROSSFADE_MS}ms crossfades)`;
+        // the worker's 50-min whole-job ceiling. WARP passes the music bed (served
+        // from /audio) + the shared reversedTailS so worker + manifest agree.
+        const warp = warpApplied ? { bedUrl: `${window.location.origin}/audio/intro-music.mp3`, reversedTailS: WARP_REVERSED_TAIL_S } : undefined;
+        stitchedUrl = await renderStitchViaWorker(items, mode, (n) => setNote(`Render worker: ${n}`), warp);
+        renderNote = `ffmpeg worker (${items.length} clips${warpApplied ? " + warp intro" : ""}, ${DEFAULT_CROSSFADE_MS}ms crossfades)`;
       } else {
         const { assetId } = await startCeqConcat({ data: { urls, passthrough: `ceq-concat-${mode}` } });
         let mp4Url: string | null = null;
@@ -1005,7 +1024,13 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
       if (!final) throw new Error("Timed out waiting for the final Mux asset.");
       // 3) manifest + attach to the Free/Paid CEQ lesson (+ library metadata).
       // lessonId is guaranteed — publish blocks up front when nothing resolves.
-      const manifest = stitchManifest(stitch.items, DEFAULT_CROSSFADE_MS);
+      // Warp adds the reversed tail to the intro's rendered length — add it to the intro's
+      // duration ONLY when the warp was actually applied (worker path) so the chapter offsets
+      // match the rendered file; on the legacy Mux fallback the intro is native length.
+      const manifestItems = warpApplied
+        ? stitch.items.map((it) => (it.kind === "intro" ? { ...it, take: { ...it.take, duration: (it.take.duration ?? 0) + WARP_REVERSED_TAIL_S } } : it))
+        : stitch.items;
+      const manifest = stitchManifest(manifestItems, DEFAULT_CROSSFADE_MS);
       const prevAsset = ld?.muxAssetId ?? null;
       rf.updateNodeData(lessonId, { muxAssetId, muxPlaybackId: final, status: "PUBLISHED", ceqManifest: manifest, muxPublishedAt: Date.now(), muxDurationS: runtimeS, videoCourse: course, videoChapter: topic });
       setNote(`Published ${mode} ✓ → attached to the ${access} lesson (${manifest.length} CEQs indexed). passthrough "${passthrough}".${prevAsset ? ` Old Mux asset ${prevAsset} superseded — delete it in Mux manually.` : ""} Render: ${renderNote}.`);
@@ -2148,6 +2173,13 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
                     {!deck.topicId ? (
                       <div className="px-1 py-4 text-center text-[11px] italic" style={{ color: NEON.muted }}>Library set — assign it to a Course → Topic (drag it in the Sets outline, or 📁 on its row) to unlock publishing.</div>
                     ) : (<>
+                      {/* WARP INTRO (opt-in) — runs the intro clip through the reversed-tail +
+                          white-flash + music-bed warp before the concat. Needs the render worker. */}
+                      <label className="mb-2 flex cursor-pointer items-center gap-1.5 rounded px-1.5 py-1 text-[10px]" style={{ color: NEON.text, border: `1px solid ${prefs.warpIntro ? "rgba(252,163,17,0.5)" : NEON.borderSoft}`, background: prefs.warpIntro ? "rgba(252,163,17,0.08)" : "transparent" }} title="Warp intro: reversed intro tail → white-flash snap at the beat → forward intro, with a reversed→forward music bed (public/audio/intro-music.mp3) fading into Q1. Needs the render worker; applies to the intro take slot only.">
+                        <input type="checkbox" className="nodrag" checked={!!prefs.warpIntro} onChange={(e) => setPrefs({ warpIntro: e.target.checked })} />
+                        <span className="font-bold uppercase tracking-wide" style={{ color: prefs.warpIntro ? NEON.yellow : NEON.muted }}>⚡ Warp intro</span>
+                        <span className="min-w-0 flex-1 truncate" style={{ color: NEON.muted }}>reversed tail + flash + music bed on the intro</span>
+                      </label>
                       <div className="mb-2 flex items-center gap-2">
                         <button className="flex flex-1 items-center justify-center gap-1 rounded px-2 py-1.5 text-[10px] font-bold uppercase disabled:opacity-50" style={{ color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.5)" }} disabled={!!publishBusy} onClick={() => publishStitch("free")} title="Concat the FREE stitch → Auphonic → Mux → attach to the FREE CEQ lesson">{publishBusy === "free" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} Publish Free</button>
                         <button className="flex flex-1 items-center justify-center gap-1 rounded px-2 py-1.5 text-[10px] font-bold uppercase disabled:opacity-50" style={{ color: "#FF8B9E", border: "1px solid rgba(255,92,108,0.5)" }} disabled={!!publishBusy} onClick={() => publishStitch("full")} title="Concat the FULL stitch → Auphonic → Mux → attach to the PAID CEQ lesson">{publishBusy === "full" ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} Publish Full</button>

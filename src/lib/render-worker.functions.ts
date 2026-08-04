@@ -64,6 +64,17 @@ export const startWorkerRender = createServerFn({ method: "POST" })
       urls: z.array(z.string().url()).min(1).max(64),
       mode: z.enum(["free", "full", "test"]),
       crossfadeMs: z.number().int().min(0).max(2000).optional(),
+      // WARP INTRO — when present, urls[0] (the intro clip) is run through the
+      // warp_intro stage (reversed tail + white-flash snap + forward clip + music
+      // bed) before the concat; an optional front clip (slogan/bolt) prepends it.
+      warp: z.object({
+        bedUrl: z.string().url(),
+        frontUrl: z.string().url().optional(),
+        reversedTailS: z.number().min(0.1).max(10).optional(),
+        flashMs: z.number().int().min(0).max(2000).optional(),
+        musicBedDb: z.number().min(-60).max(0).optional(),
+        musicFadeS: z.number().min(0).max(10).optional(),
+      }).optional(),
     }).parse(d))
   .handler(async ({ data }): Promise<{ jobId: string; path: string; machineId: string | null }> => {
     const c = cfg();
@@ -72,13 +83,28 @@ export const startWorkerRender = createServerFn({ method: "POST" })
     const path = `ceq-stitch/${Date.now()}-${data.mode}.mp4`;
     const { data: signed, error } = await supabaseAdmin.storage.from("canvas-media").createSignedUploadUrl(path);
     if (error || !signed?.signedUrl) throw new Error(`signed upload URL failed: ${error?.message ?? "no url"}`);
-    const inputs = data.urls.map((url, i) => ({ id: `c${i}`, url }));
-    const body = {
-      v: 1,
-      inputs,
-      stages: [{ kind: "concat", inputs: inputs.map((i) => i.id), ...(data.crossfadeMs != null ? { crossfadeMs: data.crossfadeMs } : {}) }],
-      output: { putUrl: signed.signedUrl, contentType: "video/mp4" },
-    };
+    const inputs: { id: string; url: string }[] = data.urls.map((url, i) => ({ id: `c${i}`, url }));
+    const cf = data.crossfadeMs != null ? { crossfadeMs: data.crossfadeMs } : {};
+    let stages: Record<string, unknown>[];
+    if (data.warp) {
+      // WARP: intro clip (c0) → warp_intro(__stage0), then concat [front?, __stage0,
+      // c1..cN]. The bed + front are extra inputs the concat never names directly.
+      const w = data.warp;
+      inputs.push({ id: "bed", url: w.bedUrl });
+      if (w.frontUrl) inputs.push({ id: "front", url: w.frontUrl });
+      const warpStage = {
+        kind: "warp_intro", input: "c0", bed: "bed",
+        ...(w.reversedTailS != null ? { reversedTailS: w.reversedTailS } : {}),
+        ...(w.flashMs != null ? { flashMs: w.flashMs } : {}),
+        ...(w.musicBedDb != null ? { musicBedDb: w.musicBedDb } : {}),
+        ...(w.musicFadeS != null ? { musicFadeS: w.musicFadeS } : {}),
+      };
+      const concatIds = [...(w.frontUrl ? ["front"] : []), "__stage0", ...data.urls.slice(1).map((_, i) => `c${i + 1}`)];
+      stages = [warpStage, { kind: "concat", inputs: concatIds, ...cf }];
+    } else {
+      stages = [{ kind: "concat", inputs: inputs.map((i) => i.id), ...cf }];
+    }
+    const body = { v: 1, inputs, stages, output: { putUrl: signed.signedUrl, contentType: "video/mp4" } };
     const res = await workerFetch(c, "/render", { method: "POST", body: JSON.stringify(body) });
     if (typeof res.jobId !== "string") throw new Error("render worker returned no jobId");
     // machineId pins every poll to the machine holding this in-memory job —

@@ -8,6 +8,12 @@ import { DEFAULT_CROSSFADE_MS } from "./segment-assembly";
 
 export type WorkerProbe = { configured: boolean; healthy: boolean; detail: string };
 
+/** WARP INTRO options — when passed, the worker runs the stitch's first clip (the
+ *  intro) through the warp_intro stage (reversed tail + white-flash snap + forward
+ *  clip + music bed) before the concat. `frontUrl` optionally prepends a slogan/bolt
+ *  open. Requires the render worker (the legacy Mux concat can't do stages). */
+export type WarpParam = { bedUrl: string; frontUrl?: string; reversedTailS?: number; flashMs?: number; musicBedDb?: number; musicFadeS?: number };
+
 /** Preflight with COLD-START patience. The worker self-exits when idle (that's
  *  the ≈$0 Fly strategy), so the FIRST request after a break auto-starts a
  *  machine — a few seconds of boot that can outlive one probe's timeout.
@@ -26,13 +32,13 @@ export async function wakeRenderWorker(onNote?: (note: string) => void): Promise
 /** Render a stitch list through the worker → the raw Supabase file URL.
  *  Wakes the worker first; fails loud on every real problem. `mode` names the
  *  staged file (test renders land as ceq-stitch/<ts>-test.mp4). */
-export async function renderStitchViaWorker(items: StitchItem[], mode: "free" | "full" | "test", onNote: (note: string) => void): Promise<string> {
+export async function renderStitchViaWorker(items: StitchItem[], mode: "free" | "full" | "test", onNote: (note: string) => void, warp?: WarpParam): Promise<string> {
   if (items.length === 0) throw new Error("No clips to render.");
   const wp = await wakeRenderWorker(onNote);
   if (!wp.configured) throw new Error("Render worker not configured (RENDER_WORKER_URL / RENDER_WORKER_TOKEN).");
   if (!wp.healthy) throw new Error(`Render worker not healthy: ${wp.detail}`);
-  onNote(`submitting ${items.length} clip(s)…`);
-  const { jobId, path, machineId } = await startWorkerRender({ data: { urls: items.map((i) => i.take.url), mode, crossfadeMs: DEFAULT_CROSSFADE_MS } });
+  onNote(`submitting ${items.length} clip(s)${warp ? " + warp intro" : ""}…`);
+  const { jobId, path, machineId } = await startWorkerRender({ data: { urls: items.map((i) => i.take.url), mode, crossfadeMs: DEFAULT_CROSSFADE_MS, ...(warp ? { warp } : {}) } });
   // 60-min budget — sits above the worker's own 50-min whole-job ceiling.
   const deadline = Date.now() + 60 * 60_000;
   // TRANSIENT-TOLERANT poll (review): one network blip / cold server fn must not
