@@ -192,25 +192,46 @@ export const CARD_CURSOR_CSS = `
   .film-mode .react-flow__node { cursor: default; }
 `;
 
-/** DOUBLE-EMPHASIS 🔥 — an always-on (authoring + film) flame that runs across
- *  the BOTTOM of any target carrying data-flame="on" (toggled by Ctrl+Shift+click
- *  in SpotlightContext). A moving gradient bar + a 🔥 emoji that travels the
- *  width, so a memo or lesson row can be really-really emphasized in the moment. */
+/** SUPER-SPOTLIGHT emphasis (authoring + film), toggled by Ctrl+Shift+click in
+ *  SpotlightContext. FOCUS tone (Lee's redesign): no flame — two subtle accent bars
+ *  glide in ALIGNMENT along the top AND bottom edges, a calm "this is the moment"
+ *  mark. WARN tone (Ctrl+Alt+Shift, 🚨) is unchanged: the loud red siren for traps. */
 export const FLAME_CSS = `
   /* Super-spotlight → ~40% larger (Lee's call). !important beats the inline
      scale(1.2) from spotStyle so a target that is both spotlit AND flamed lands
      at 40%, not 20%. */
   [data-flame="on"] { position: relative; border-radius: 8px; transform: scale(1.4) !important; transform-origin: left center !important; transition: transform 150ms ease; }
-  [data-flame="on"]::after {
-    content: ""; position: absolute; left: 0; right: 0; bottom: -3px; height: 4px; border-radius: 4px;
-    background: linear-gradient(90deg, transparent, #FF7A00 25%, #FFD23F 50%, #FF7A00 75%, transparent);
-    background-size: 220% 100%; animation: sa-flame-run 1.1s linear infinite;
-    filter: drop-shadow(0 0 6px rgba(255,122,0,0.85)); pointer-events: none; z-index: 7;
+
+  /* FOCUS tone — subtle synchronised top + bottom accent bars (no 🔥). Both use the
+     same animation with the same phase, so they drift in alignment; low opacity + a
+     thin bar keep it understated. */
+  [data-flame-tone="focus"]::before, [data-flame-tone="focus"]::after {
+    content: ""; position: absolute; left: 6%; right: 6%; height: 2px; border-radius: 2px;
+    background: linear-gradient(90deg, transparent, rgba(252,163,17,0.9) 50%, transparent);
+    filter: drop-shadow(0 0 4px rgba(252,163,17,0.55)); pointer-events: none; z-index: 7;
+    animation: sa-focus-glide 2.2s ease-in-out infinite;
   }
-  [data-flame="on"]::before {
-    content: "🔥"; position: absolute; bottom: -11px; left: 0; font-size: 15px; line-height: 1;
+  [data-flame-tone="focus"]::before { top: -5px; }
+  [data-flame-tone="focus"]::after  { bottom: -5px; }
+  @keyframes sa-focus-glide {
+    0%, 100% { opacity: 0.32; transform: translateX(-4%); }
+    50%      { opacity: 0.8;  transform: translateX(4%); }
+  }
+
+  /* WARN tone (🚨 red siren) — Ctrl+ALT+Shift+click: "this is BAD / a trap".
+     Loud on purpose: a moving red bar along the bottom + a travelling 🚨 emoji +
+     a pulsing red outline so the target reads as a warning on camera. */
+  [data-flame-tone="warn"] { outline: 2px solid rgba(255,45,60,0.9); outline-offset: 2px; border-radius: 8px; animation: sa-siren-pulse 0.66s ease-in-out infinite; }
+  [data-flame-tone="warn"]::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -3px; height: 4px; border-radius: 4px;
+    background: linear-gradient(90deg, transparent, #FF1E32 25%, #FF7A7A 50%, #FF1E32 75%, transparent);
+    background-size: 220% 100%; animation: sa-flame-run 1.1s linear infinite;
+    filter: drop-shadow(0 0 6px rgba(255,30,50,0.95)); pointer-events: none; z-index: 7;
+  }
+  [data-flame-tone="warn"]::before {
+    content: "🚨"; position: absolute; bottom: -11px; left: 0; font-size: 15px; line-height: 1;
     animation: sa-flame-emoji 1.5s linear infinite; pointer-events: none; z-index: 8;
-    filter: drop-shadow(0 0 4px rgba(255,122,0,0.9));
+    filter: drop-shadow(0 0 5px rgba(255,30,50,0.95));
   }
   @keyframes sa-flame-run { from { background-position: 220% 0; } to { background-position: 0% 0; } }
   @keyframes sa-flame-emoji {
@@ -218,18 +239,6 @@ export const FLAME_CSS = `
     50%  {             transform: translateY(-2px) scaleX(-1); }
     100% { left: 100%; transform: translateY(0)    scaleX(1); }
   }
-
-  /* WARN tone (🚨 red siren) — Ctrl+ALT+Shift+click: "this is BAD / a trap".
-     Rides on the same data-flame="on" (scale 1.4 + moving bar + travelling emoji)
-     but recolours everything RED and swaps the emoji to a siren. A pulsing red
-     outline (spotStyle never sets outline, so no !important cascade fight) makes
-     the target read as a warning on camera. */
-  [data-flame-tone="warn"] { outline: 2px solid rgba(255,45,60,0.9); outline-offset: 2px; border-radius: 8px; animation: sa-siren-pulse 0.66s ease-in-out infinite; }
-  [data-flame-tone="warn"]::after {
-    background: linear-gradient(90deg, transparent, #FF1E32 25%, #FF7A7A 50%, #FF1E32 75%, transparent);
-    filter: drop-shadow(0 0 6px rgba(255,30,50,0.95));
-  }
-  [data-flame-tone="warn"]::before { content: "🚨"; filter: drop-shadow(0 0 5px rgba(255,30,50,0.95)); }
   @keyframes sa-siren-pulse {
     0%, 100% { outline-color: rgba(255,45,60,0.5);  outline-offset: 1px; }
     50%      { outline-color: rgba(255,90,100,1);   outline-offset: 3px; }
