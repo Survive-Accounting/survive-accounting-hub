@@ -60,9 +60,9 @@ describe("brand system", () => {
     // both the outer silhouette and the blue seam region OPEN at the same top tip
     const mOf = (d: string) => d.slice(0, d.indexOf("L")).trim();
     expect(mOf(BOLT_OUTER)).toBe(mOf(BOLT_RIGHT));
-    // both converge on the shared bottom tip (26 142)
-    expect(BOLT_OUTER).toContain("26 142");
-    expect(BOLT_RIGHT).toContain("26 142");
+    // both converge on the shared bottom tip (32 130)
+    expect(BOLT_OUTER).toContain("32 130");
+    expect(BOLT_RIGHT).toContain("32 130");
     // a serrated bolt: many vertices, and both paths are closed
     expect((BOLT_OUTER.match(/[ML]/g) ?? []).length).toBeGreaterThan(12);
     expect(BOLT_OUTER.endsWith("Z")).toBe(true);
