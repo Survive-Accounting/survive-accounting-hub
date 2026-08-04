@@ -71,7 +71,7 @@ export const BOLT_STYLE_PRESETS: { id: string; name: string; params: Partial<Bol
   { id: "electric", name: "Electric", params: { teeth: 7, lean: 0.34, coreWidth: 10, toothLen: 18, taper: 0.5, notch: 8, jitter: 0.5, jitAngle: 0.7, jitWidth: 0.25, handDrawn: 0.15, drop: 0.82, spineCurve: -6 } },
 ];
 
-export type BoltGeom = { outer: string; seam: string; viewBox: string; ratio: number };
+export type BoltGeom = { outer: string; seam: string; viewBox: string; ratio: number; outerPts: [number, number][]; seamPts: [number, number][] };
 
 type Pt = [number, number];
 
@@ -151,13 +151,19 @@ export function forgeBolt(pIn: BoltParams): BoltGeom {
     RIGHT = RIGHT.map(sc); LEFT = LEFT.map(sc); SEAM = SEAM.map(sc);
   }
 
-  const outer = toPath([...RIGHT, ...rev(LEFT).slice(1, -1)]);
-  const seam = toPath([...SEAM, ...rev(RIGHT).slice(1, -1)]);
+  // The explicit ordered vertex rings — the editor's source of truth. The outer ring
+  // is the silhouette (right flank down, left flank up); the seam ring is the red/blue
+  // divider. Paths are derived from these, so a manual/assist edit of the points flows
+  // straight through to render + export.
+  const outerPts: Pt[] = [...RIGHT, ...rev(LEFT).slice(1, -1)];
+  const seamPts: Pt[] = [...SEAM, ...rev(RIGHT).slice(1, -1)];
+  const outer = toPath(outerPts);
+  const seam = toPath(seamPts);
 
   const all = [...RIGHT, ...LEFT, ...SEAM];
   const xs = all.map((q) => q[0]), ys = all.map((q) => q[1]);
   const pad = p.outline / 2 + 2;
   const vx = Math.min(...xs) - pad, vy = Math.min(...ys) - pad;
   const w = Math.max(...xs) - vx + pad, h = Math.max(...ys) - vy + pad;
-  return { outer, seam, viewBox: `${r1(vx)} ${r1(vy)} ${r1(w)} ${r1(h)}`, ratio: w / h };
+  return { outer, seam, viewBox: `${r1(vx)} ${r1(vy)} ${r1(w)} ${r1(h)}`, ratio: w / h, outerPts, seamPts };
 }
