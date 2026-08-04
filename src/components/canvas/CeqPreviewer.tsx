@@ -626,14 +626,16 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     if (emph == null) setEmph(0);
     if (!resolved.has(e)) {
       setResolved((r) => new Set(r).add(e)); setShown((s) => new Map(s).set(e, 0));
-      // CHACHING test cue (Lee): hear it on the correct-resolve when the CEQ is
-      // chaching-on (confirmSfx !== false). playSfx respects the global mute.
-      if (cd?.choices[e]?.correct && cd?.confirmSfx !== false) playSfx("chaching");
+      // RESOLVE SFX (Lee): correct → chaching; WRONG → a record scratch, fired on this
+      // same resolve so it lands WITH the strikethrough (st="wrong" renders now). playSfx
+      // respects the global mute. The vinyl is no longer a memo-reveal sound.
+      if (cd?.choices[e]?.correct) { if (cd?.confirmSfx !== false) playSfx("chaching"); }
+      else if (cd?.choices[e]) playSfx("vinylScratch");
     } else {
       const cur = shown.get(e) ?? 0;
       if (cur < chainLenOf(e)) {
         setShown((s) => new Map(s).set(e, cur + 1));
-        const it = cd?.choices[e]?.chain?.[cur]; if (it?.sound) { const snd = it.sound; window.setTimeout(() => playSfx(snd), 200); } // per-chain-item reveal sound — fire at SETTLE (~200ms), as the memo arrives, not at the start of the ease-in
+        const it = cd?.choices[e]?.chain?.[cur]; if (it?.sound && it.sound !== "vinylScratch") { const snd = it.sound; window.setTimeout(() => playSfx(snd), 200); } // per-chain-item reveal sound — fire at SETTLE (~200ms) as the memo arrives. Vinyl is EXCLUDED (Lee): it's now the wrong-answer cue, not a memo-reveal sound.
       }
     }
   };
