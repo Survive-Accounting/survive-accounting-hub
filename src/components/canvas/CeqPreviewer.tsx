@@ -388,7 +388,12 @@ function MemoPreviewNode({ id, data, selected }: NodeProps) {
       data-flame={flamed ? "on" : undefined}
       data-flame-tone={flamed ? spot.tone(key) : undefined}
       onPointerDownCapture={(e) => spot.onClick(key, e)}
-      style={{ boxShadow: selected ? (film ? "0 0 0 1.5px rgba(79,163,227,0.35)" : "0 0 0 2px rgba(79,163,227,0.8)") : undefined, position: "relative", width: 210 * s, borderRadius: 12 * s, background: slotOff ? "transparent" : NEON.panelSolid, border: `${1.5 * s}px ${slotOff ? "dashed" : "solid"} ${slotOff ? NEON.borderSoft : walked ? NEON.yellow : NEON.borderSoft}`, padding: `${10 * s}px ${12 * s}px`, opacity: (slotOff ? 0.3 : walked ? 1 : film ? 0 : 0.4) * (spot.any() && !spState ? 0.5 : 1), filter: slotOff || walked || film ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "grab", ...containSpot(spState) }}
+      // SPOTLIT MEMO POPS IN ITS OWN NAVY (Lee) — spotStyle paints a spotlit target with
+      // var(--spot-bg): a choice inherits the card's PAPER so it pops in the card material,
+      // but a memo isn't inside a card, so it fell back to a translucent gold wash and read
+      // see-through over the CEQ card. Give the memo its own lifted navy here so a spotlit
+      // memo stays OPAQUE and pops out above the paper card (gold rail + glow + lift do the rest).
+      style={{ ["--spot-bg" as string]: "#1B2B49", boxShadow: selected ? (film ? "0 0 0 1.5px rgba(79,163,227,0.35)" : "0 0 0 2px rgba(79,163,227,0.8)") : undefined, position: "relative", width: 210 * s, borderRadius: 12 * s, background: slotOff ? "transparent" : NEON.panelSolid, border: `${1.5 * s}px ${slotOff ? "dashed" : "solid"} ${slotOff ? NEON.borderSoft : walked ? NEON.yellow : NEON.borderSoft}`, padding: `${10 * s}px ${12 * s}px`, opacity: (slotOff ? 0.3 : walked ? 1 : film ? 0 : 0.4) * (spot.any() && !spState ? 0.5 : 1), filter: slotOff || walked || film ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "grab", ...containSpot(spState) }}
     >
       {/* chain-order badge — useful IN the previewer, never on camera (hidden in film). */}
       {!film && (slotToggle ? (
