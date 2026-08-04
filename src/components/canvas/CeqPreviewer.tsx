@@ -16,7 +16,8 @@
 //   Enter            — resolve the emphasised choice (green / red+strike), then each
 //                      further Enter reveals the next chain item of THAT choice.
 //   Shift+Enter      — step back.
-//   Space            — next question.  Shift+Space — previous.  ` — reset to blank.
+//   Space / PageDown — next question (deal).  Shift+Space / PageUp — previous.
+//   `                — reset to blank.
 // Keys are captured (capture phase + stopImmediatePropagation) while the pointer is
 // over the preview, so the canvas space-walk / keymap never steals them.
 //
@@ -1405,7 +1406,15 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       }
       if (e.key === "Tab") { e.preventDefault(); e.stopImmediatePropagation(); tabNav(e.shiftKey ? -1 : 1); return; }
       if (e.key === "Enter") { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) retreat(); else advance(); return; }
-      if (e.key === " " || e.code === "Space") { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) onPrevQuestion?.(); else onNextQuestion?.(); return; }
+      // DEAL-ADVANCE between CEQs — Space / Shift+Space, plus Page Down / Page Up as a
+      // presenter-remote-friendly pair (SAME handlers, no new walk logic). Page Down = deal
+      // next (like Space), Page Up = reverse (like Shift+Space); Space still respects Shift.
+      if (e.key === " " || e.code === "Space" || e.key === "PageDown" || e.key === "PageUp") {
+        e.preventDefault(); e.stopImmediatePropagation();
+        const back = e.key === "PageUp" || ((e.key === " " || e.code === "Space") && e.shiftKey);
+        if (back) onPrevQuestion?.(); else onNextQuestion?.();
+        return;
+      }
       // ` = full reset (choices + memos). SHIFT+` = MEMO SWEEP: clear the memos off
       // the board but KEEP every choice's resolution, so a wrong answer stays struck
       // and the correct one stays green. Nothing re-resolves, so no sound re-fires.
@@ -1503,12 +1512,13 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                   )}
                 </ReactFlow>
               </div>
-              {/* PRACTICE BAR — hover the preview, then Tab/Enter/Space/` (mouse-free).
+              {/* PRACTICE BAR — hover the preview, then Tab/Enter/Space/` (mouse-free;
+                  Page Down / Page Up also deal next / previous — presenter-remote friendly).
                   Ctrl+click a choice/memo/arrow = spotlight · +Shift = 🔥 · +Alt+Shift = 🚨. */}
               <div className="flex shrink-0 items-center gap-1.5 border-t px-2 py-1.5" style={{ borderColor: NEON.borderSoft, background: "rgba(11,19,34,0.9)" }}>
                 <button className="grid h-6 w-6 place-items-center rounded" style={{ color: running ? "#FF8B9E" : "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={toggleRun} title={running ? "Pause timer" : "Start practice timer"}>{running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}</button>
                 <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={resetAll} title="Reset the CEQ to blank + clear spotlights + timer (`) — Shift+` instead SWEEPS just the memos and keeps the choice states"><RotateCcw className="h-3.5 w-3.5" /></button>
-                <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: filmWin ? "#0B0F1E" : "#FF8B9E", background: filmWin ? "#FF8B9E" : "transparent", border: `1px solid ${filmWin ? "#FF8B9E" : "rgba(255,139,158,0.5)"}` }} onClick={toggleFilm} title={filmWin ? "Close the film window" : "FILM MODE — pops a clean 16:9 canvas frame (world background + watermark) onto your 2nd monitor. TWO-WAY: drag / resize / spotlight / Space-Tab-Enter work in EITHER window and stay in sync. Maximize it for OBS."}><Clapperboard className="h-3.5 w-3.5" /> {filmWin ? "Filming" : "Film"}</button>
+                <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: filmWin ? "#0B0F1E" : "#FF8B9E", background: filmWin ? "#FF8B9E" : "transparent", border: `1px solid ${filmWin ? "#FF8B9E" : "rgba(255,139,158,0.5)"}` }} onClick={toggleFilm} title={filmWin ? "Close the film window" : "FILM MODE — pops a clean 16:9 canvas frame (world background + watermark) onto your 2nd monitor. TWO-WAY: drag / resize / spotlight / Space-Tab-Enter (Page Down / Page Up deal between CEQs) work in EITHER window and stay in sync. Maximize it for OBS."}><Clapperboard className="h-3.5 w-3.5" /> {filmWin ? "Filming" : "Film"}</button>
                 {/* COMPOSITION GUIDES — thirds grid + safe zones (title-safe, camera,
                     watermark, end-screen) for laying out the CEQ; drag a slot/card and
                     it snaps to the lines (hold Alt to place freely). Persists. */}
@@ -1558,8 +1568,8 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                 {walk.length > 0 && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: showAll ? "#0B0F1E" : "#E0284A", background: showAll ? "#E0284A" : "transparent", border: `1px solid ${showAll ? "#E0284A" : "rgba(224,40,74,0.5)"}` }} onClick={() => setShowAll((v) => !v)} title="Show arrows — AUTHORING AID: reveal every memo here so you can check the arrows land on the right choices (Ctrl/Shift-click one to test its spotlight). Arrows DO appear on camera, but this toggle does not — the film window keeps showing the real Enter-walk. Toggle off to walk normally."><Spline className="h-3.5 w-3.5" /> Arrows</button>}
                 <span className="text-[9px] uppercase tracking-wide" style={{ color: NEON.muted }}>{showAll ? `${walk.length} shown` : `${revealedCount}/${walk.length} shown`}</span>
                 <div className="ml-auto flex items-center gap-1">
-                  <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => onPrevQuestion?.()} title="Previous question (Shift+Space)"><ChevronLeft className="h-3.5 w-3.5" /></button>
-                  <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => onNextQuestion?.()} title="Next question (Space)"><ChevronRight className="h-3.5 w-3.5" /></button>
+                  <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => onPrevQuestion?.()} title="Previous question (Shift+Space / Page Up)"><ChevronLeft className="h-3.5 w-3.5" /></button>
+                  <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => onNextQuestion?.()} title="Next question — deal (Space / Page Down)"><ChevronRight className="h-3.5 w-3.5" /></button>
                 </div>
               </div>
             </div>
