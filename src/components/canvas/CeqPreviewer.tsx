@@ -95,6 +95,10 @@ const LAYOUT_CARD = { prompt: "**LAYOUT** — the question card deals here", cho
 const PV_CSS = `
 .sa-pv-node .sa-grip-film { opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
 .sa-pv-node:hover .sa-grip-film { opacity: 1; pointer-events: auto; }
+/* FREE-ARROW endpoint dots in film: faint (so they barely read on camera) but grabbable,
+   and they pop to full on hover so Lee can aim the arrow mid-take. */
+.sa-arrow-end-film { opacity: 0.14; transition: opacity 120ms ease; }
+.sa-arrow-end-film:hover { opacity: 1; }
 /* Modern transitions (Lee): a CEQ slides+fades in when the question changes (the
    card node remounts on ceqId change), and a chain memo POPS in when it's revealed
    in film — a touch more emphatic than a plain fade. */
@@ -473,8 +477,42 @@ function ChainArrowEdge({ sourceX, sourceY, targetX, targetY, style, markerEnd }
   const path = `M ${targetX} ${targetY} L ${sourceX} ${sourceY}`;
   return <BaseEdge path={path} style={style} markerEnd={markerEnd} interactionWidth={22} />;
 }
-const edgeTypes = { chainBundle: ChainBundleEdge, chainArrow: ChainArrowEdge };
-const nodeTypes = { frameBg: FrameBgNode, ceqPreview: CeqPreviewNode, memoPreview: MemoPreviewNode, ovCeq: OverviewCeqNode, ovMemo: OvMemoNode };
+/** FREE ARROW (Lee) — a THICK, POINTY pointer drawn between two draggable endpoint
+ *  dots. The line stops short of the head so a wide triangular arrowhead reads clean;
+ *  both are drawn in the edge's stroke colour. */
+function FreeArrowEdge({ sourceX, sourceY, targetX, targetY, style }: EdgeProps) {
+  const dx = targetX - sourceX, dy = targetY - sourceY;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len, uy = dy / len;                       // unit vector toward the head
+  const HEAD = 26, HALF = 11;                               // long + broad = thick but pointy
+  const bx = targetX - ux * HEAD, by = targetY - uy * HEAD; // base of the head triangle
+  const px = -uy, py = ux;                                  // perpendicular
+  const color = (style?.stroke as string) ?? "#E0284A";
+  const line = `M ${sourceX} ${sourceY} L ${bx} ${by}`;
+  const head = `M ${targetX} ${targetY} L ${bx + px * HALF} ${by + py * HALF} L ${bx - px * HALF} ${by - py * HALF} Z`;
+  return (<>
+    <BaseEdge path={line} style={{ ...style, strokeLinecap: "round" }} interactionWidth={26} />
+    <path d={head} fill={color} stroke={color} strokeWidth={2} strokeLinejoin="round" />
+  </>);
+}
+/** A draggable endpoint dot for a free arrow (tail or head). Hidden until its memo is
+ *  revealed; in film it's faint (grabbable) and pops on hover, so it never distracts on
+ *  camera but Lee can still reach in and aim the arrow mid-take. */
+function ArrowEndNode({ data }: NodeProps) {
+  const d = data as unknown as { head?: boolean; color?: string; memoNodeId?: string };
+  const revealed = useContext(RevealContext);
+  const film = useContext(FilmContext);
+  const shown = d.memoNodeId ? revealed.has(d.memoNodeId) : true;
+  const hidden = film && !shown;
+  return (
+    <div className={`nodrag${film && shown ? " sa-arrow-end-film" : ""}`} title="Drag to aim the arrow" style={{ width: 16, height: 16, borderRadius: 999, background: d.head ? (d.color ?? "#E0284A") : "rgba(224,40,74,0.55)", border: "2px solid #fff", cursor: "grab", opacity: hidden ? 0 : film ? undefined : 1, pointerEvents: hidden ? "none" : "auto", boxShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>
+      <Handle id="s" type="source" position={Position.Left} style={{ left: "50%", top: "50%", transform: "translate(-50%,-50%)", width: 1, height: 1, opacity: 0, border: "none", background: "transparent", pointerEvents: "none" }} />
+      <Handle id="t" type="target" position={Position.Right} style={{ left: "50%", top: "50%", transform: "translate(-50%,-50%)", width: 1, height: 1, opacity: 0, border: "none", background: "transparent", pointerEvents: "none" }} />
+    </div>
+  );
+}
+const edgeTypes = { chainBundle: ChainBundleEdge, chainArrow: ChainArrowEdge, freeArrow: FreeArrowEdge };
+const nodeTypes = { frameBg: FrameBgNode, ceqPreview: CeqPreviewNode, memoPreview: MemoPreviewNode, ovCeq: OverviewCeqNode, ovMemo: OvMemoNode, arrowEnd: ArrowEndNode };
 const EMPTY_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "focus" };
 
 
@@ -490,14 +528,14 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   const rack = useMemo(() => rackOf(baseline?.memoSlots, frameW, frameH), [baseline?.memoSlots, frameW, frameH]);
   const liveSlots = useMemo(() => activeSlots(rack), [rack]);
   const walk = useMemo(() => {
-    const list: { memoNodeId: string; label: string; choice: string; choiceIdx: number; chainPos: number; num: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: string; slotOff?: boolean }[] = [];
+    const list: { memoNodeId: string; label: string; choice: string; choiceIdx: number; chainPos: number; num: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: string; slotOff?: boolean; arrow?: CeqChainItem["arrow"] }[] = [];
     if (layoutMode) {
       // QUESTION 0 — the whole palette is on stage: every slot, active or not, so the
       // rack is visible and Lee can switch slots on as a question needs them.
       rack.forEach((s, i) => list.push({ memoNodeId: `__slot${i}`, label: `Slot ${i + 1}`, choice: "—", choiceIdx: 0, chainPos: i, num: i + 1, slotOff: !!s.off }));
       return list;
     }
-    (cd?.choices ?? []).forEach((ch, ci) => (ch.chain ?? []).forEach((it, p) => list.push({ memoNodeId: it.memoNodeId, label: it.label, choice: LETTER(ci), choiceIdx: ci, chainPos: p, num: list.length + 1, hideChoiceLabel: it.hideChoiceLabel, hideArrow: it.hideArrow, sound: it.sound })));
+    (cd?.choices ?? []).forEach((ch, ci) => (ch.chain ?? []).forEach((it, p) => list.push({ memoNodeId: it.memoNodeId, label: it.label, choice: LETTER(ci), choiceIdx: ci, chainPos: p, num: list.length + 1, hideChoiceLabel: it.hideChoiceLabel, hideArrow: it.hideArrow, sound: it.sound, arrow: it.arrow })));
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mainSig, layoutMode, rack]);
@@ -665,7 +703,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     // ones stay visible to switch on). In a real question memos fill the ACTIVE slots
     // in order — inactive slots simply don't exist here. Past the last active slot,
     // memos stack below it at THAT slot's size (never on top of each other).
-    const memoNodes = walk.map((w, i) => {
+    const memoGeoms = walk.map((w, i) => {
       // Q0 stages the WHOLE rack (inactive slots included, so they can be switched on);
       // a real question resolves its own instance first, then the active template slots.
       const rs = rack[i];
@@ -676,9 +714,22 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       const geom = layoutMode
         ? (rs ? { x: rs.x, y: rs.y, scale: rs.scale ?? 1 } : { ...defaultMemoPos(frameW, frameH, i), scale: 1 })
         : resolveMemoSpot(cd?.geom, baseline, slotIdx, frameW, frameH);
-      return { id: w.memoNodeId, type: "memoPreview", position: { x: geom.x, y: yOff + geom.y }, data: { label: w.label, walkNum: w.num, choice: w.choice, scale: geom.scale, hideChoiceLabel: w.hideChoiceLabel, hideArrow: w.hideArrow, sound: w.sound, slotOff: w.slotOff }, draggable: true, zIndex: 5 };
+      return { w, geom };
     });
-    const active = [frameNode, ceqNode, ...memoNodes];
+    const memoNodes = memoGeoms.map(({ w, geom }) => ({ id: w.memoNodeId, type: "memoPreview", position: { x: geom.x, y: yOff + geom.y }, data: { label: w.label, walkNum: w.num, choice: w.choice, scale: geom.scale, hideChoiceLabel: w.hideChoiceLabel, hideArrow: w.hideArrow, sound: w.sound, slotOff: w.slotOff }, draggable: true, zIndex: 5 }));
+    // FREE ARROW endpoints (Lee) — two draggable dots per memo (tail + head). Default
+    // starts a leftward arrow off the memo; item.arrow (once dragged) wins. Not in Q0,
+    // and skipped when the memo's arrow is toggled off.
+    const arrowNodes = layoutMode ? [] : memoGeoms.flatMap(({ w, geom }) => {
+      if (w.hideArrow) return [];
+      const cy = geom.y + Math.round(26 * geom.scale);
+      const a = w.arrow ?? { x1: geom.x + 6, y1: cy, x2: geom.x - 104, y2: cy };
+      return [
+        { id: `at:${w.memoNodeId}`, type: "arrowEnd", position: { x: a.x1, y: yOff + a.y1 }, data: { memoNodeId: w.memoNodeId, color: "#E0284A" }, draggable: true, selectable: false, zIndex: 6 },
+        { id: `ah:${w.memoNodeId}`, type: "arrowEnd", position: { x: a.x2, y: yOff + a.y2 }, data: { memoNodeId: w.memoNodeId, head: true, color: "#E0284A" }, draggable: true, selectable: false, zIndex: 6 },
+      ];
+    });
+    const active = [frameNode, ceqNode, ...memoNodes, ...arrowNodes];
     if (!overviewOn || !deckCeqIds) return active;
     // OVERVIEW — lightweight static frames for the OTHER questions (prefixed ids so a
     // memo shared across questions can't collide with the active render). No memos/
@@ -884,7 +935,17 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     const g = snapOf(node, "altKey" in e && e.altKey);
     setDragGuides(g ? { v: g.v, h: g.h } : { v: [], h: [] });
   };
+  // FREE ARROW persistence — dragging an endpoint dot (at:/ah:<memoId>) saves BOTH ends
+  // of that memo's arrow (frame-local) to the chain item. skipSeed keeps the drop smooth.
+  const persistArrow = (memoNodeId: string) => {
+    const tail = nodes.find((n) => n.id === `at:${memoNodeId}`);
+    const head = nodes.find((n) => n.id === `ah:${memoNodeId}`);
+    if (!tail || !head || !onPatchChainItem) return;
+    skipSeedRef.current = true;
+    onPatchChainItem(memoNodeId, { arrow: { x1: Math.round(tail.position.x), y1: Math.round(tail.position.y - activeYOff), x2: Math.round(head.position.x), y2: Math.round(head.position.y - activeYOff) } });
+  };
   const onNodeDragStop = (e: MouseEvent | TouchEvent, node: Node) => {
+    if (node.id.startsWith("at:") || node.id.startsWith("ah:")) { setDragGuides({ v: [], h: [] }); persistArrow(node.id.slice(3)); return; }
     const g = snapOf(node, "altKey" in e && e.altKey);
     setDragGuides({ v: [], h: [] });
     if (g && (g.snapX != null || g.snapY != null)) {
@@ -1002,45 +1063,23 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     }
     return out;
   }, [liveChain, ceqId, nodes, hideArrowSources]);
-  /** Build the arrow set against a given REVEAL state. The previewer passes the
-   *  authoring set (Arrows toggle lights everything); film passes the true walk
-   *  state, so an authoring aid can never change what the camera records. */
-  const buildEdges = (revealSet: Set<string>): Edge[] => liveChain
-    .map((e) => {
-      const revealed = revealSet.has(e.source) && (e.target === ceqId || revealSet.has(e.target));
-      const sk = spotKey(e.id, "self");
-      const flamedE = spots.superKey === sk;
-      const spotE = spots.regular.has(sk) || flamedE;
-      const selectedE = selEdgeIds.has(e.id);
-      const hidden = hideArrowSources.has(e.source);
-      const stroke = flamedE ? "#FCA311" : spotE ? "#FFD36A" : selectedE ? NEON.cyan : revealed ? "#E0284A" : "rgba(147,160,180,0.5)";
-      // WIDER variance (Lee): subtle at rest, boldly prominent when spotlit.
-      const width = flamedE ? 7 : spotE ? 6 : selectedE ? 4 : revealed ? 3 : 2.5;
-      const lit = revealed || spotE || selectedE;
-      // Every memo draws its OWN straight arrow (no bundling): the choice fans out to
-      // its explanation memos. markerEnd sized up when lit so the arrowhead reads.
-      const markerSize = flamedE || spotE ? 26 : selectedE ? 20 : 15;
-      const marker = { type: MarkerType.ArrowClosed, color: stroke, width: markerSize, height: markerSize };
-      return {
-        id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle ?? "l", targetHandle: e.targetHandle ?? undefined,
-        // Custom straight edge draws choice→memo with the arrowhead ON the memo.
-        type: "chainArrow",
-        // ABOVE the card (zIndex 1) and the memos (5). EDGE_Z is the scene-arrow z.
-        zIndex: EDGE_Z,
-        style: {
-          stroke, strokeWidth: width, strokeLinecap: "round",
-          opacity: hidden ? 0.12 : spotE ? 1 : lit ? 0.82 : 0.42,
-          // No dash when lit (a clean solid line); a reading SWEEP flows choice→memo
-          // (left→right) only when spotlit, looping so re-reading feels natural.
-          strokeDasharray: hidden ? "3 5" : spotE ? "11 8" : lit ? undefined : "6 5",
-          animation: spotE && !hidden ? "sa-arrow-read 640ms linear infinite" : undefined,
-          filter: hidden ? undefined : flamedE ? "drop-shadow(0 0 9px rgba(252,163,17,0.95))" : spotE ? "drop-shadow(0 0 7px rgba(255,211,106,0.9))" : undefined,
-        },
-        markerEnd: marker,
-      } as Edge;
-    });
+  /** FREE ARROWS (Lee) — one thick, pointy arrow per REVEALED memo (unless its arrow is
+   *  toggled off), drawn between that memo's two draggable endpoint dots. The previewer
+   *  passes the authoring reveal set; film passes the true walk state, so an arrow shows
+   *  on camera exactly when its memo is revealed (no faded ghost when you step back). */
+  const buildEdges = (revealSet: Set<string>): Edge[] => walk.flatMap((w) => {
+    if (w.hideArrow || !revealSet.has(w.memoNodeId)) return [];
+    return [{
+      id: `arr:${w.memoNodeId}`,
+      source: `at:${w.memoNodeId}`, sourceHandle: "s",
+      target: `ah:${w.memoNodeId}`, targetHandle: "t",
+      type: "freeArrow",
+      zIndex: EDGE_Z,
+      style: { stroke: "#E0284A", strokeWidth: 6 },
+    } as Edge];
+  });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const edges: Edge[] = useMemo(() => buildEdges(revealedMemoIds), [liveChain, revealedMemoIds, ceqId, spots, selEdgeIds, hideArrowSources, bundles]);
+  const edges: Edge[] = useMemo(() => buildEdges(revealedMemoIds), [walk, revealedMemoIds, ceqId]);
   // FILM edges — arrows ARE part of the shot (Lee wants them on camera). Two
   // differences from the previewer's set, both deliberate: memos toggled arrow-OFF
   // are dropped entirely rather than shown faint (a clean take), and the styling is
@@ -1053,7 +1092,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
    *  visible the moment the window wasn't exactly 16:9 — complete with their yellow
    *  number badges. The camera gets the active frame only. */
   const filmNodes = useMemo(() => nodes.filter((n) => !n.id.startsWith("ov:") && !n.id.startsWith("ovf:") && !n.id.startsWith("ovm:")), [nodes]);
-  const filmEdges = useMemo(() => buildEdges(walkRevealedIds).filter((e) => !hideArrowSources.has(e.source)), [liveChain, walkRevealedIds, ceqId, spots, selEdgeIds, hideArrowSources, bundles]);
+  const filmEdges = useMemo(() => buildEdges(walkRevealedIds), [walk, walkRevealedIds, ceqId]);
   const onConnect = (c: Connection) => {
     if (!c.source || !c.target || c.source === c.target) return;
     const id = `chn-arrow-${c.source}-${c.target}`;
@@ -1346,7 +1385,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                         nodes={filmNodes}
                         edges={filmEdges}
                         onNodesChange={onNodesChange}
-                        onNodeDragStop={commitGeom}
+                        onNodeDragStop={(_e, node) => { if (node.id.startsWith("at:") || node.id.startsWith("ah:")) persistArrow(node.id.slice(3)); else commitGeom(); }}
                         onConnect={onConnect}
                         onEdgeClick={onEdgeClick}
                         nodeTypes={nodeTypes} edgeTypes={edgeTypes}

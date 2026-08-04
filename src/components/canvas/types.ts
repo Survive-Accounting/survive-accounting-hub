@@ -283,6 +283,10 @@ export interface CeqChainItem {
    *  Additive; absent ⇒ shown. */
   hideChoiceLabel?: boolean;
   hideArrow?: boolean;
+  /** FREE ARROW (Lee) — a draggable pointer for this memo: BOTH ends free (frame-local
+   *  coords, x1/y1 = tail, x2/y2 = head). Auto-started at a default, then dragged
+   *  anywhere to point at very specific things. Absent ⇒ the computed default. */
+  arrow?: { x1: number; y1: number; x2: number; y2: number } | null;
 }
 /** A staged raw video clip (in the Supabase canvas-media bucket) attached to a CEQ
  *  take slot / a set's intro-outro / the shared transition. Additive, scene JSON —
