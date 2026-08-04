@@ -119,6 +119,7 @@ import { FilmPerfProbe } from "@/components/canvas/FilmPerfProbe";
 import { CameraBubble } from "@/components/canvas/CameraBubble";
 import { FrameRearrangeGrid } from "@/components/canvas/FrameRearrangeGrid";
 import { BrandBar, BrandWatermark } from "@/components/canvas/BrandBar";
+import { CanvasNavbar } from "@/components/canvas/CanvasNavbar";
 
 // Panels that can be popped out to the director's second-monitor window.
 type PopKey = "teleprompter" | "cuesheet" | "deck" | "script" | "runtimer" | "outline" | "ceqstudio";
@@ -126,7 +127,7 @@ const POP_KEYS: PopKey[] = ["teleprompter", "cuesheet", "deck", "script", "runti
 
 export const Route = createFileRoute("/study_/canvas")({
   ssr: false, // React Flow is client-only; nothing here needs SSR (unlinked playground)
-  head: () => ({ meta: [{ title: "Present Canvas — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({ meta: [{ title: "⚡ Study Canvas — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
   component: () => (
     <ReactFlowProvider>
       <PresentCanvas />
@@ -1160,8 +1161,11 @@ function GroupChromeBar({ onSaveSnippet }: { onSaveSnippet: (ids: string[]) => v
   };
 
   return (
+    // FIXED, not absolute: pos comes from flowToScreenPosition (CLIENT coords) — in
+    // v2 chrome the stage wrapper's client origin is (aside width, navbar height),
+    // so absolute-in-stage would drift by exactly that. Fixed == client everywhere.
     <div
-      className="absolute z-[45] flex items-center gap-1 rounded-lg px-1.5 py-1"
+      className="fixed z-[45] flex items-center gap-1 rounded-lg px-1.5 py-1"
       style={{ left: pos.x, top: pos.y - 12, transform: "translate(-50%, -100%)", background: NEON.panelSolid, border: `1px solid ${NEON.border}`, boxShadow: "0 10px 28px -12px rgba(0,0,0,0.7)" }}
     >
       <span className="px-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>{selectedCards.length} cards</span>
@@ -1398,6 +1402,11 @@ function PresentCanvas() {
   // teleprompter, frame-visuals) and trims the palette to CEQ/memo/heading/note.
   // Persisted in scene settings; additive.
   const [cramMode, setCramMode] = useState(false);
+  // DASHBOARD VERSION (Lee's v2 simplification) — v2 (default): top navbar + persistent
+  // outline sidebar, bottom toolbar/drawer/pager HIDDEN. v1 ("View archive"): the full
+  // original chrome, untouched, for tweaking old settings. Persisted per browser.
+  const [chromeV1, setChromeV1] = useState<boolean>(() => { try { return localStorage.getItem("sa-canvas-chrome") === "v1"; } catch { return false; } });
+  const setChromeVersion = useCallback((v1: boolean) => { setChromeV1(v1); try { localStorage.setItem("sa-canvas-chrome", v1 ? "v1" : "v2"); } catch { /* ignore */ } }, []);
   const [videoSlotSeq, setVideoSlotSeq] = useState(0); // OUTLINE v2: bump to force-open the active lesson's video slot
   const [frameHeaderOpen, setFrameHeaderOpen] = useState(false); // Frame Header panel (header toggle + lesson media)
   const [rearrangeOpen, setRearrangeOpen] = useState(false); // "r": full-grid frame rearrange overlay
@@ -2020,11 +2029,11 @@ function PresentCanvas() {
   // Make `lessonId` the active lesson: the hiddenOf reconciler (which OWNS node
   // .hidden) folds gating in and unmounts the rest; here we just record the choice
   // and fly the camera to its grid (never deletes; nothing structural changes).
-  const setActiveLesson = useCallback((lessonId: string) => {
+  const setActiveLesson = useCallback((lessonId: string | null) => {
     activeLessonRef.current = lessonId;
     lastLessonRef.current = lessonId; // keep on-load camera + save consistent
     setActiveLessonIdState(lessonId);
-    const l = rf.getNode(lessonId);
+    const l = lessonId ? rf.getNode(lessonId) : undefined;
     // Point the run readout at the newly-active lesson's stored runs (unless a run
     // is live — that one owns the readout until F9 ends it).
     if (!runActiveRef.current) { const ar = (l?.data as { runs?: FilmRun[] } | undefined)?.runs ?? []; setLastRun(ar.length ? ar[ar.length - 1] : null); setRunReadoutOpen(false); }
@@ -2778,6 +2787,17 @@ function PresentCanvas() {
     if (currentFrameRef.current) enterFrame(currentFrameRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [vpTick]);
+  // …and when the STAGE resizes without a window event: toggling film or switching
+  // v1↔v2 mounts/unmounts the v2 navbar + outline aside (flex siblings), so the
+  // .react-flow rect changes with NO resize event. Any camera fit computed inside
+  // the same commit measured the OLD stage — re-fit after paint so a take entered
+  // from v2 chrome is framed to the true full-window stage (pixel-identical takes).
+  useEffect(() => {
+    if (!currentFrameRef.current) return;
+    const raf = requestAnimationFrame(() => { if (currentFrameRef.current) enterFrame(currentFrameRef.current); });
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [film, chromeV1]);
 
   const exitFrame = useCallback(() => {
     const cur = currentFrameRef.current;
@@ -3126,6 +3146,78 @@ function PresentCanvas() {
       }),
     });
   }, [rf, gridPos, exitFrame]);
+
+  // ---- RESET CANVAS (v2) — fresh ONE-COLUMN starter, CEQ DATA PRESERVED --------
+  /** Rebuild the canvas to the 4-frame starter column (Intro CTA → CEQ Hook →
+   *  CEQ Portal → Outro) WITHOUT deleting any CEQ info/data:
+   *  - `decks` / `ceqSets` state is untouched (the Studio's sets live there);
+   *  - deck-member CEQ question nodes are TUCKED back into their sets (hidden,
+   *    re-deal cleanly — chains inside their data ride along);
+   *  - memo nodes + non-deck content cards (JE, schedules, lists, …) are parked
+   *    on an ARCHIVE SHELF left of the canvas (memos are chain targets by node id
+   *    — they must never be deleted);
+   *  - only containers (lesson/frame/zone) and pure design furniture (headings,
+   *    text, logos, gates, …) are removed — recreatable UI, not data.
+   *  ONE bus command — Ctrl+Z restores the entire previous canvas. */
+  const resetCanvasToStarter = useCallback(() => {
+    if (!window.confirm(
+      "Reset this canvas to the fresh one-column starter?\n\n"
+      + "KEEPS all CEQ data — sets, questions + chains, memos (questions tuck back into their sets; memos and content cards park on an archive shelf to the left).\n"
+      + "REMOVES the current lessons, frames and design furniture (headings, text, logos).\n\n"
+      + "Ctrl+Z undoes the whole reset.")) return;
+    const prevNodes = rf.getNodes() as CardNode[];
+    const prevEdges = rf.getEdges();
+    const prevActive = activeLessonId;
+    // Partition: containers + design furniture go; content survives.
+    const CONTAINERS = new Set(["lesson", "frame", "zone"]);
+    const DESIGN = new Set(["heading", "text", "examcue", "ceqtease", "logo", "intro", "outro", "corner", "paygate", "signupgate"]);
+    let shelfI = 0;
+    const shelfPos = () => { const i = shelfI++; return { x: -3400 + (i % 6) * 380, y: 80 + Math.floor(i / 6) * 320 }; };
+    const kept: CardNode[] = [];
+    for (const n of prevNodes) {
+      const t = n.type ?? "";
+      if (CONTAINERS.has(t) || DESIGN.has(t)) continue;
+      const d = n.data as unknown as { deckMember?: boolean };
+      if (t === "ceq" && d.deckMember) {
+        // tucked members are offCanvas-hidden and re-deal from the Studio exactly as before
+        kept.push({ ...n, parentId: undefined, position: { x: -3000, y: -1200 }, data: { ...n.data, tucked: true } } as CardNode);
+      } else {
+        kept.push({ ...n, parentId: undefined, position: shelfPos() } as CardNode);
+      }
+    }
+    // Starter column: one lesson + 4 hook frames (subIndex 0..3) + their cards.
+    const lessonId = cardId("lesson");
+    const cell = lessonCellSize();
+    const fIds = [cardId("frame"), cardId("frame"), cardId("frame"), cardId("frame")];
+    const frameAt = (s: number, title: string, extra: Record<string, unknown> = {}) =>
+      ({ id: fIds[s], type: "frame", parentId: lessonId, position: { x: columnX(0), y: rowY(s) }, width: FRAME_W, height: FRAME_H, data: { ...blankFrameData("hook", s), title, ...extra } }) as unknown as CardNode;
+    const starters: CardNode[] = [
+      { id: lessonId, type: "lesson", position: { x: 160, y: 120 }, data: { label: "Start Here", w: cell.w, h: cell.h, pathOrder: 0 } } as unknown as CardNode,
+      // Intro CTA — branded dream loop + the slogan lockup ("Cram videos by Lee Ingram")
+      frameAt(0, "Intro", { bgSrc: "dream", bgPlaying: true, bgOpacity: 1, bgFit: "cover", bgZoom: 110, bgAnchor: "bottom" }),
+      frameAt(1, "CEQ Hook"),
+      frameAt(2, "CEQ Portal", { portal: true }),
+      frameAt(3, "Outro"),
+      { id: cardId("logo"), type: "logo", parentId: fIds[0], position: { x: 160, y: 130 }, data: { kind: "logo", mode: "slogan", colorId: "red-blue", ink: "light", w: 480, h: 190 } } as unknown as CardNode,
+      { id: cardId("heading"), type: "heading", parentId: fIds[1], position: { x: 60, y: 150 }, data: { kind: "heading", text: 'Common Exam Question "________"', level: 1, scrim: true } } as unknown as CardNode,
+      // Outro brand card — tagline "Only what's on your exam." + url are baked into the element
+      { id: cardId("outro"), type: "outro", parentId: fIds[3], position: { x: 0, y: 0 }, data: { kind: "outro", transparent: false, w: 800, h: 450 } } as unknown as CardNode,
+    ];
+    // Parents first (lesson → frames → cards → loose shelf) so RF v12 never hydrates
+    // a child before its parent (MEMBERSHIP FIX 5).
+    const nextNodes = [...starters, ...kept];
+    const ids = new Set(nextNodes.map((n) => n.id));
+    const nextEdges = prevEdges.filter((e) => ids.has(e.source) && ids.has(e.target));
+    if (currentFrameRef.current) exitFrame();
+    bus.dispatch({
+      label: "reset canvas (starter frames)",
+      do: () => { rf.setNodes(nextNodes as never); rf.setEdges(nextEdges); setActiveLesson(lessonId); },
+      undo: () => { rf.setNodes(prevNodes as never); rf.setEdges(prevEdges); setActiveLesson(prevActive); },
+    });
+    // Frame the STARTER lesson cell, not fitView — the archive shelf (x≈-3400) is
+    // visible-by-design and would drag a fitView far off the fresh column.
+    window.setTimeout(() => { const c2 = lessonCellSize(); void rf.fitBounds({ x: 160, y: 120, width: c2.w, height: c2.h }, { duration: 500, padding: 0.08 }); }, 60);
+  }, [rf, activeLessonId, setActiveLesson, exitFrame]);
 
   // ---- DUPLICATION (PROMPT 1 — the swap-many foundation) ---------------------
   // Deep-copy a frame or a whole lesson: cards + per-element state, script +
@@ -3916,22 +4008,28 @@ function PresentCanvas() {
   const onNodeDrag = useCallback(
     (e: unknown, node: CardNode) => {
       if (isContainerType(node.type)) { setGuides({ v: [], h: [] }); return; }
+      // flowToScreenPosition returns CLIENT coords, but the guide divs are absolute
+      // children of the STAGE wrapper — whose client origin in v2 chrome is the aside
+      // width + navbar height, not (0,0). Subtract the RF container origin so the
+      // lines land stage-local in every chrome (v1 stage origin IS (0,0) — no-op).
+      const stage = document.querySelector(".react-flow")?.getBoundingClientRect();
+      const ox = stage?.left ?? 0, oy = stage?.top ?? 0;
       const parent = node.parentId ? rf.getNode(node.parentId) : undefined;
       if (parent?.type === "frame") {
         if (!compositionGuides || filmRef.current) { setGuides({ v: [], h: [] }); return; }
         const g = frameGuidesFor(node, parent, !!(e as MouseEvent | undefined)?.altKey);
         const fo = absOrigin(parent);
         setGuides({
-          v: g.v.map((l) => ({ pos: rf.flowToScreenPosition({ x: fo.x + l.pos, y: 0 }).x, weight: l.weight })),
-          h: g.h.map((l) => ({ pos: rf.flowToScreenPosition({ x: 0, y: fo.y + l.pos }).y, weight: l.weight })),
+          v: g.v.map((l) => ({ pos: rf.flowToScreenPosition({ x: fo.x + l.pos, y: 0 }).x - ox, weight: l.weight })),
+          h: g.h.map((l) => ({ pos: rf.flowToScreenPosition({ x: 0, y: fo.y + l.pos }).y - oy, weight: l.weight })),
         });
         return;
       }
       if (node.parentId) { setGuides({ v: [], h: [] }); return; }
       const m = guideMatches(node);
       setGuides({
-        v: m.vx.map((gx) => ({ pos: rf.flowToScreenPosition({ x: gx, y: 0 }).x, weight: "card" as GuideWeight })),
-        h: m.vy.map((gy) => ({ pos: rf.flowToScreenPosition({ x: 0, y: gy }).y, weight: "card" as GuideWeight })),
+        v: m.vx.map((gx) => ({ pos: rf.flowToScreenPosition({ x: gx, y: 0 }).x - ox, weight: "card" as GuideWeight })),
+        h: m.vy.map((gy) => ({ pos: rf.flowToScreenPosition({ x: 0, y: gy }).y - oy, weight: "card" as GuideWeight })),
       });
     },
     [rf, guideMatches, compositionGuides, frameGuidesFor, absOrigin],
@@ -5270,12 +5368,47 @@ function PresentCanvas() {
     <ActiveLessonContext.Provider value={activeLessonCtx}>
     <FrameTakesProvider courseName={sceneCourse ? courseLabel(sceneCourse) : null} introClipLength={introClipLength} autoTrimIntros={autoTrimIntros}>
     <div
-      className={`fixed inset-0 ${film ? "film-mode" : ""} ${connecting ? "sa-connecting" : ""} ${film && filmEntrancePop ? "sa-entrance-pop" : ""} ${film && filmCheckGlow ? "sa-check-glow" : ""} ${chrome && backstage === "cinema" ? "sa-cinema" : ""}`}
+      className={`fixed inset-0 flex flex-col ${film ? "film-mode" : ""} ${connecting ? "sa-connecting" : ""} ${film && filmEntrancePop ? "sa-entrance-pop" : ""} ${film && filmCheckGlow ? "sa-check-glow" : ""} ${chrome && backstage === "cinema" ? "sa-cinema" : ""}`}
       style={{ background: chrome ? BACKSTAGE_BG[backstage] : chromaBlack ? "#000" : NEON.bg }}
       onDragOver={(e) => { if (e.dataTransfer.types.includes(SNIPPET_DND_MIME)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }}
       onDrop={(e) => { const id = e.dataTransfer.getData(SNIPPET_DND_MIME); if (!id) return; e.preventDefault(); spawnSnippetById(id, rf.screenToFlowPosition({ x: e.clientX, y: e.clientY })); }}
     >
       <style>{FILM_MODE_CSS}</style>
+      {/* ---- V2 CHROME (Lee's simplification): ONE top navbar + a persistent outline
+           sidebar; the old toolbar/drawer/pager live on under "View archive" (v1).
+           Film mode renders neither — the stage wrapper fills the root exactly as
+           before, so takes are pixel-identical. */}
+      {chrome && !chromeV1 && (
+        <CanvasNavbar
+          sceneName={sceneName}
+          setSceneName={setSceneName}
+          savedNote={savedAt ? `saved ${savedAt}` : null}
+          onSave={() => void doSave()}
+          onSaveAs={() => void doSave(true)}
+          onLoad={() => void openLoad()}
+          onExport={exportScene}
+          onImport={() => importRef.current?.click()}
+          onNewTab={newTab}
+          onReset={resetCanvasToStarter}
+          onHotkeys={() => setHelpOpen(true)}
+          onOpenStudio={() => setCeqStudioOpen(true)}
+          onViewV1={() => setChromeVersion(true)}
+        />
+      )}
+      {/* Hidden import input — lives OUTSIDE the v1 toolbar so File → Import works in
+          both chrome versions. */}
+      {chrome && <input ref={importRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => void onImportFile(e)} />}
+      <div className="flex min-h-0 min-w-0 flex-1">
+        {chrome && !chromeV1 && (
+          <aside className="sa-dock flex w-[280px] shrink-0 flex-col overflow-hidden" style={{ background: "rgba(9,14,26,0.92)", borderRight: `1px solid ${NEON.borderSoft}` }}>
+            <div className="min-h-0 flex-1 p-1.5">
+              {!isPopped("outline")
+                ? <OutlinePanel />
+                : <PopoutPlaceholder title="Outline" onReturn={() => returnPop("outline")} style={{ position: "relative", inset: "auto", margin: 8 }} />}
+            </div>
+          </aside>
+        )}
+        <div className="relative min-h-0 min-w-0 flex-1">
       {/* TAKE BOARD: loud banner when Mux env vars / frame_takes table are missing */}
       {chrome && <MuxBanner />}
       {/* CINEMA BACKSTAGE (authoring only) — dark-red animated studio behind the canvas.
@@ -5376,9 +5509,14 @@ function PresentCanvas() {
         if (!currentFrameId) return null;
         const cues = (rf.getNode(currentFrameId)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues;
         if (!cues || !cues.length || cueRecording) return null;
-        const cw = window.innerWidth, chh = window.innerHeight;
+        // 16:9 band from the STAGE rect (the frame is fit to .react-flow, which in v2
+        // chrome is smaller than the window) — the scrubber is viewport-fixed, so add
+        // the stage's client offset. v1/film: stage == window → identical to before.
+        const srect = document.querySelector(".react-flow")?.getBoundingClientRect();
+        const cw = srect?.width ?? window.innerWidth, chh = srect?.height ?? window.innerHeight;
+        const offX = srect?.left ?? 0, offY = srect?.top ?? 0;
         const iw = Math.min(cw, (chh * 16) / 9), ih = (iw * 9) / 16;
-        const left = (cw - iw) / 2, top = (chh - ih) / 2;
+        const left = offX + (cw - iw) / 2, top = offY + (chh - ih) / 2;
         const pos = recPlayIdxRef.current.get(currentFrameId) ?? 0;
         return <ChoreoScrubber left={left + iw * 0.12} width={iw * 0.76} top={top + ih + 8} steps={cues.length} pos={pos} onSeek={(k) => applyFrameToStep(currentFrameId, k)} />;
       })()}
@@ -5491,10 +5629,14 @@ function PresentCanvas() {
       {/* CAMERA-SAFE GUIDES (PROMPT 3) — advisory overlay on the current frame's
           16:9 rect; never in film, never persisted. */}
       {safeGuides && currentFrameId && !film && (() => {
-        const cw = window.innerWidth, ch = window.innerHeight;
+        // Stage rect, not window — the overlay is viewport-fixed but the frame is fit
+        // to .react-flow (smaller than the window in v2 chrome), so offset by the
+        // stage's client origin. v1: stage == window → unchanged.
+        const srect = document.querySelector(".react-flow")?.getBoundingClientRect();
+        const cw = srect?.width ?? window.innerWidth, ch = srect?.height ?? window.innerHeight;
         const iw = Math.min(cw, (ch * 16) / 9);
         const ih = (iw * 9) / 16;
-        return <SafeGuidesOverlay rect={{ left: (cw - iw) / 2, top: (ch - ih) / 2, width: iw, height: ih }} />;
+        return <SafeGuidesOverlay rect={{ left: (srect?.left ?? 0) + (cw - iw) / 2, top: (srect?.top ?? 0) + (ch - ih) / 2, width: iw, height: ih }} />;
       })()}
       {/* looping video background (low opacity, filming-optional); key remounts on swap.
           In the cinema backstage BackstageStage owns the animation, so skip this one. */}
@@ -5593,7 +5735,11 @@ function PresentCanvas() {
           Film mode → pure black. Only while FULLSCREEN — windowed (and right after
           exiting fullscreen) the bars just leave black sides, so we drop them. */}
       {currentFrameId && isFullscreen && (() => {
-        const cw = window.innerWidth, ch = window.innerHeight;
+        // STAGE dims, not window — the bars are absolute in the stage wrapper and the
+        // frame is fit to .react-flow. In film/fullscreen stage == window (no chrome),
+        // so takes are unchanged; this only corrects the rare fullscreen-in-v2 case.
+        const srect = document.querySelector(".react-flow")?.getBoundingClientRect();
+        const cw = srect?.width ?? window.innerWidth, ch = srect?.height ?? window.innerHeight;
         const innerW = Math.min(cw, (ch * 16) / 9);
         const innerH = innerW * 9 / 16;
         const mx = Math.max(0, Math.round((cw - innerW) / 2));
@@ -5719,10 +5865,20 @@ function PresentCanvas() {
         );
       })()}
 
+      {/* V1 → V2 return pill (archive view only) */}
+      {chrome && chromeV1 && (
+        <button
+          className="absolute right-3 top-14 z-[59] rounded-lg px-2.5 py-1 text-[11px] font-black"
+          style={{ color: "#0B1322", background: NEON.yellow, border: `1px solid ${NEON.yellow}`, boxShadow: "0 10px 30px -10px rgba(252,163,17,0.6)" }}
+          onClick={() => setChromeVersion(false)}
+          title="Back to the simplified v2 dashboard (navbar + outline sidebar)"
+        >⚡ Dashboard v2</button>
+      )}
       {/* BRAND BAR + DRAWER (workspace chrome) — the drawer is the menu:
           Cards (palette) and Key (legend) open as panels inside it, keeping
-          the canvas top-left clean. Film swaps the bar for the watermark. */}
-      {chrome && (
+          the canvas top-left clean. Film swaps the bar for the watermark.
+          V1 ARCHIVE ONLY — v2 replaces it with the persistent outline sidebar. */}
+      {chrome && chromeV1 && (
         <BrandBar
           items={[{ key: "cards", label: "Cards" }, { key: "outline", label: "Outline" }, { key: "memos", label: "Memos" }, { key: "key", label: "Key" }, { key: "pipeline", label: "Pipeline" }]}
           activeItem={drawerPanel}
@@ -5837,11 +5993,11 @@ function PresentCanvas() {
         <PopoutPlaceholder title="Deck" onReturn={() => returnPop("deck")} style={{ top: 12, right: 12 }} />
       )}
 
-      {/* LESSON NAVIGATOR — bottom pager (one lesson at a time; expand for frames) */}
-      {chrome && <LessonNavigator />}
+      {/* LESSON NAVIGATOR — bottom pager (v1 archive only; v2 navigates via the sidebar) */}
+      {chrome && chromeV1 && <LessonNavigator />}
 
-      {/* Toolbar */}
-      {chrome && (
+      {/* Toolbar (v1 archive only — v2's navbar owns File/Hotkeys/Studio) */}
+      {chrome && chromeV1 && (
         <div
           className="absolute bottom-3 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1.5 rounded-xl px-2.5 py-1.5"
           style={{ background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", color: NEON.text }}
@@ -5855,7 +6011,6 @@ function PresentCanvas() {
           />
           {/* CUE SHEET — moved to the leftmost tool slot (Lee's call, swapped with File) */}
           {!cramMode && <TB title="Cue sheet — the entered frame's space-walk sequence (enter a frame first)" active={cueSheetOpen} onClick={() => { setCueSheetOpen((v) => { const nv = !v; if (nv && !currentFrameId) flashToast("Enter a frame to see its cue sheet"); return nv; }); }}><ListOrdered className="h-3.5 w-3.5" /></TB>}
-          <input ref={importRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => void onImportFile(e)} />
           <span className="mx-1 h-4 w-px" style={{ background: NEON.borderSoft }} />
           {/* ADD CARD — card-kind picker (upward). Replaces Add region / Add lesson. */}
           <div className="relative">
@@ -6847,6 +7002,8 @@ function PresentCanvas() {
           </div>
         </div>
       )}
+        </div>
+      </div>
     </div>
     </FrameTakesProvider>
     </ActiveLessonContext.Provider>

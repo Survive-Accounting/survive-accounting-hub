@@ -153,8 +153,10 @@ export function OutlinePanel() {
     </button>
   );
 
+  // h-full lets a docked host (the v2 sidebar, class sa-dock) give it the full column;
+  // max-h-[74vh] still caps it inside the v1 drawer, whose panel has no fixed height.
   return (
-    <div className="nodrag nowheel max-h-[74vh] w-full overflow-y-auto px-0.5 py-1 text-[12px]" style={{ color: NEON.text }}>
+    <div className="nodrag nowheel h-full max-h-[74vh] w-full overflow-y-auto px-0.5 py-1 text-[12px] [.sa-dock_&]:max-h-full" style={{ color: NEON.text }}>
       {/* QUICK JUMP (Ctrl+K) */}
       <div className="sticky top-0 z-10 mb-1 flex items-center gap-1 rounded px-1.5 py-1" style={{ background: "rgba(11,19,34,0.96)", border: `1px solid ${NEON.borderSoft}` }}>
         <Search className="h-3 w-3 shrink-0" style={{ color: NEON.muted }} />

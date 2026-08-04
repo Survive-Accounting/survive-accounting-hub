@@ -1001,6 +1001,9 @@ export interface FrameBox {
   /** 16:9 aspect-locked (h = round(w * 9 / 16)). */
   w: number;
   h: number;
+  /** CEQ PORTAL frame (v2 starter): renders a big "[ ENTER CEQ PORTAL ]" button
+   *  (authoring only, never on camera) that opens the CEQ Studio. */
+  portal?: boolean;
   /** SCRIPT: entry line / beats / exit line (teleprompter + script modal). */
   script?: FrameScript;
   /** TAKE BOARD: unfilmed (absent) | filmed | retake. Authoring chrome only. */
