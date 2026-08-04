@@ -399,25 +399,43 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     for (const c of stitchCeqs) {
       if (mode === "free" && !c.free) continue;
       const its = ceqItems.filter((i) => i.ceqId === c.id);
-      if (its.length) its.forEach((it, k) => rows.push({ key: `${c.id}:${k}`, kind: "ceq", label: it.label, take: it.take, ceqId: c.id }));
-      else rows.push({ key: `${c.id}:missing`, kind: "ceq", label: c.prompt || "Question", ceqId: c.id });
+      if (its.length) its.forEach((it, k) => rows.push({ key: `${c.id}:${k}`, kind: "ceq", label: it.label, take: it.take, ceqId: c.id, clip: k }));
+      else rows.push({ key: `${c.id}:missing`, kind: "ceq", label: c.prompt || "Question", ceqId: c.id, clip: 0 });
     }
-    stitch.items.forEach((it, i) => { if (it.kind === "wrap" || it.kind === "outro") rows.push({ key: `${it.kind}:${i}`, kind: it.kind, label: it.label, take: it.take }); });
+    // wrap rows carry their INDEX in deck.wrap (it.clip) so the table's ✕/＋ hit the
+    // right clip; outro has no per-clip actions.
+    stitch.items.forEach((it, i) => { if (it.kind === "wrap" || it.kind === "outro") rows.push({ key: `${it.kind}:${i}`, kind: it.kind, label: it.label, take: it.take, clip: it.kind === "wrap" ? it.clip : undefined }); });
     return rows.map((r, i) => ({ ...r, num: i + 1 }));
   };
   const stitchRows = useMemo(() => ({ free: stitchRowsFor("free"), full: stitchRowsFor("full") }), [stitchFree, stitchFull, stitchCeqs]); // eslint-disable-line react-hooks/exhaustive-deps
-  /** PREVIEW-list upload — attach a first take, or REPLACE THE BASE take keeping
-   *  lookbacks + one prior (batch-ingest semantics). Throws to the caller (the
-   *  Preview shows the error); the row + stitch recompute reactively. */
-  const replaceBaseTake = async (ceqId: string, file: File) => {
-    // fail BEFORE staging if the question vanished (deleted mid-preview) — a
-    // silent patchQ no-op would leave the preview's re-render flag armed forever.
+  /** PREVIEW-list per-clip ops (the clip table's ✕ / ＋ / replace). All write the
+   *  CEQ node's `takes[]` through the undo bus (Ctrl+Z restores), and clear the
+   *  legacy single `take` so `cardClips` reads one source. Replacing keeps ONE prior
+   *  (withPrev) on the replaced clip only; delete is a plain removal (undoable).
+   *  The staged file itself stays in the bucket — only the reference changes. */
+  const replaceClipAt = async (ceqId: string, clip: number, file: File) => {
     if (!rf.getNode(ceqId)) throw new Error("That question no longer exists in this set.");
     const fresh = await stageTake(file);
     const clips = cardClips(rf.getNode(ceqId)?.data as unknown as CeqCard | undefined);
-    const takes = clips.length === 0 ? [fresh] : [withPrev(fresh, clips[0]), ...clips.slice(1)];
-    patchQ(ceqId, { takes, take: undefined });
-    setNote(`${clips.length ? "Base take replaced" : "Take attached"} (${fmtDur(fresh.duration)}).`);
+    const next = clips.length === 0 ? [fresh] : clips.map((c, i) => (i === clip ? withPrev(fresh, clips[clip]) : c));
+    patchQ(ceqId, { takes: next, take: undefined });
+    setNote(`${clips.length ? `Clip ${clip + 1} replaced` : "Take attached"} (${fmtDur(fresh.duration)}).`);
+  };
+  const addClipAfter = async (ceqId: string, clip: number, file: File) => {
+    if (!rf.getNode(ceqId)) throw new Error("That question no longer exists in this set.");
+    const fresh = await stageTake(file);
+    const clips = cardClips(rf.getNode(ceqId)?.data as unknown as CeqCard | undefined);
+    const at = Math.min(Math.max(clip + 1, 0), clips.length);
+    const next = [...clips.slice(0, at), fresh, ...clips.slice(at)];
+    patchQ(ceqId, { takes: next, take: undefined });
+    setNote(`Clip added (${fmtDur(fresh.duration)}) — ${next.length} on this question.`);
+  };
+  const deleteClipAt = (ceqId: string, clip: number) => {
+    if (!rf.getNode(ceqId)) return;
+    const clips = cardClips(rf.getNode(ceqId)?.data as unknown as CeqCard | undefined);
+    const next = clips.filter((_, i) => i !== clip);
+    patchQ(ceqId, { takes: next, take: undefined });
+    setNote(next.length ? `Clip removed — ${next.length} left (Ctrl+Z to undo).` : "Last clip removed — this question has no clip now (Ctrl+Z to undo).");
   };
   // SHORTS QUEUE (Lee) — every shorts-flagged CEQ across ALL sets, with its set +
   // question number, stem and angle note. Lee's batch-filming worklist.
@@ -2007,7 +2025,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
               /* key: switching sets REMOUNTS the preview — a rendered file, seek
                  offsets and re-render flags from set A must never survive into
                  set B (review: seeks used B's offsets against A's video). */
-              <CeqStitch key={deck.id} freeRows={stitchRows.free} fullRows={stitchRows.full} initialMode="full" onExit={() => setPrefs({ topTab: "topics" })} onJumpCeq={(id) => setQId(id)} onReplaceTake={replaceBaseTake} />
+              <CeqStitch key={deck.id} freeRows={stitchRows.free} fullRows={stitchRows.full} initialMode="full" onExit={() => setPrefs({ topTab: "topics" })} onJumpCeq={(id) => setQId(id)} onReplaceClip={replaceClipAt} onAddClipAfter={addClipAfter} onDeleteClip={deleteClipAt} onAddWrap={(f) => dropSlot("wrap", f)} onDeleteWrap={removeWrapClip} />
             ) : (
               <div className="grid flex-1 place-items-center text-[11px]" style={{ color: NEON.muted }}>Open a set (pick one in the outline) to preview its stitch.</div>
             )

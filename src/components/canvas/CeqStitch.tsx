@@ -11,7 +11,7 @@
 // render is showing it re-renders automatically). Nothing here publishes:
 // no Auphonic, no Mux, no lesson writes.
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, Loader2, Pause, Play, Upload, Zap } from "lucide-react";
+import { ChevronLeft, Loader2, Pause, Play, Plus, Upload, X, Zap } from "lucide-react";
 
 import { fmtDur, type StitchItem } from "./ceq-takes";
 import type { TakeRef } from "./types";
@@ -29,13 +29,21 @@ export interface StitchRow {
   take?: TakeRef;
   /** ceq rows only — the editor-jump + upload/replace target. */
   ceqId?: string;
+  /** clip index WITHIN this position — the clip's slot in the CEQ's takes[]
+   *  (0 = base, 1+ = lookbacks), or the wrap clip's index in deck.wrap. Lets the
+   *  table's ✕ / ＋ / replace hit exactly this clip, not just the base take. */
+  clip?: number;
 }
 
-export function CeqStitch({ freeRows, fullRows, initialMode, onExit, onJumpCeq, onReplaceTake }: {
+export function CeqStitch({ freeRows, fullRows, initialMode, onExit, onJumpCeq, onReplaceClip, onAddClipAfter, onDeleteClip, onAddWrap, onDeleteWrap }: {
   freeRows: StitchRow[]; fullRows: StitchRow[];
   initialMode: "free" | "full"; onExit: () => void; onJumpCeq?: (ceqId: string) => void;
-  /** Stage + attach/replace a CEQ's BASE take (parent owns the node write). */
-  onReplaceTake?: (ceqId: string, file: File) => Promise<void>;
+  /** All parent-owned + undoable. CEQ clips write the node's takes[]; wrap writes deck.wrap. */
+  onReplaceClip?: (ceqId: string, clip: number, file: File) => Promise<void>;
+  onAddClipAfter?: (ceqId: string, clip: number, file: File) => Promise<void>;
+  onDeleteClip?: (ceqId: string, clip: number) => void;
+  onAddWrap?: (file: File) => Promise<void>;
+  onDeleteWrap?: (idx: number) => void;
 }) {
   const [mode, setMode] = useState<"free" | "full">(initialMode);
   const rows = mode === "free" ? freeRows : fullRows;
@@ -52,7 +60,9 @@ export function CeqStitch({ freeRows, fullRows, initialMode, onExit, onJumpCeq, 
   const vidRef = useRef<HTMLVideoElement>(null);
   const renderedRef = useRef<HTMLVideoElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  const pendingCeq = useRef<string | null>(null);
+  // Which clip a pending file pick targets: the row + whether we're REPLACING that
+  // clip or ADDING a new one after it (one hidden <input> serves both).
+  const pendingPick = useRef<{ row: StitchRow; mode: "replace" | "add" } | null>(null);
   // set when an upload should re-render once the parent's rows recompute — the
   // render must use the NEW take, so it waits for the rows prop to change.
   const reRenderOnRows = useRef(false);
@@ -107,18 +117,30 @@ export function CeqStitch({ freeRows, fullRows, initialMode, onExit, onJumpCeq, 
     else playAt(pi);
   };
 
-  const pickFor = (ceqId: string) => { pendingCeq.current = ceqId; fileRef.current?.click(); };
+  // A shown render is now stale after any clip edit — drop it and re-render off the
+  // recomputed rows. (Uploads + renders cross-disable, so no in-flight render races.)
+  const invalidateRender = () => { if (rendered || renderNote) { renderEpoch.current++; setRendered(null); setRenderNote(null); reRenderOnRows.current = true; } };
+  const pick = (row: StitchRow, mode: "replace" | "add") => { pendingPick.current = { row, mode }; fileRef.current?.click(); };
   const onFile = async (f: File | null) => {
-    const ceqId = pendingCeq.current; pendingCeq.current = null;
-    if (!f || !ceqId || !onReplaceTake) return;
-    setUploadBusy(ceqId); setRenderErr(null);
+    const p = pendingPick.current; pendingPick.current = null;
+    if (!f || !p) return;
+    const { row, mode } = p;
+    setUploadBusy(row.key); setRenderErr(null);
     try {
-      await onReplaceTake(ceqId, f);
-      // a SHOWN render is now stale — re-render off the new rows. (Uploads and
-      // renders cross-disable each other, so an in-flight render can't race this.)
-      if (rendered || renderNote) { renderEpoch.current++; setRendered(null); setRenderNote(null); reRenderOnRows.current = true; }
+      if (row.kind === "ceq" && row.ceqId != null) {
+        if (mode === "replace") await onReplaceClip?.(row.ceqId, row.clip ?? 0, f);
+        else await onAddClipAfter?.(row.ceqId, row.clip ?? 0, f);
+      } else if (row.kind === "wrap" && mode === "add") await onAddWrap?.(f);
+      invalidateRender();
     } catch (e) { setRenderErr(`Upload failed: ${e instanceof Error ? e.message : String(e)}`); }
     finally { setUploadBusy(null); }
+  };
+  /** ✕ — remove this clip (parent write is undoable; the staged file stays put). */
+  const del = (row: StitchRow) => {
+    if (row.kind === "ceq" && row.ceqId != null && row.take) onDeleteClip?.(row.ceqId, row.clip ?? 0);
+    else if (row.kind === "wrap" && row.clip != null) onDeleteWrap?.(row.clip);
+    else return;
+    invalidateRender();
   };
 
   return (
@@ -165,28 +187,56 @@ export function CeqStitch({ freeRows, fullRows, initialMode, onExit, onJumpCeq, 
           <div className="grid h-full place-items-center text-center text-[11px]" style={{ color: NEON.muted }}>No clips in the {mode} cut yet — upload takes from the list below (or drop them on CEQs in the editor).</div>
         )}
       </div>
-      {/* THE LIST — every position 1..N; greyed = no clip yet; click zips there */}
-      <div className="min-h-0 overflow-y-auto border-t p-1" style={{ flex: "1 1 45%", borderColor: NEON.borderSoft }}>
+      {/* THE CLIP TABLE — # · Type · CEQ · Length · actions. Every position 1..N;
+          greyed = no clip yet; click #/Type/CEQ/Length to play/seek. CEQ + wrap rows
+          get Replace / ＋ add / ✕ delete (all undoable via the editor's Ctrl+Z). */}
+      <div className="min-h-0 overflow-y-auto border-t" style={{ flex: "1 1 45%", borderColor: NEON.borderSoft }}>
+        {/* column header — sticky so it stays put while the list scrolls */}
+        <div className="sticky top-0 z-[1] flex items-center gap-1.5 border-b px-1.5 py-1 text-[7.5px] font-bold uppercase tracking-wide" style={{ background: "rgba(6,10,20,0.96)", borderColor: NEON.borderSoft, color: NEON.muted }}>
+          <span className="w-6 shrink-0 text-right">#</span>
+          <span className="w-16 shrink-0">Type</span>
+          <span className="min-w-0 flex-1">CEQ</span>
+          <span className="w-10 shrink-0 text-right">Length</span>
+          <span className="w-[52px] shrink-0 text-center">·</span>
+        </div>
         {rows.map((r) => {
           const isCur = !rendered && cur && r.key === cur.key;
           const has = !!r.take;
+          const isCeq = r.kind === "ceq";
+          const isWrap = r.kind === "wrap";
+          // Type cell: a CEQ clip reads base / look N; other positions read their kind.
+          const typeLabel = isCeq ? (has ? ((r.clip ?? 0) === 0 ? "base" : `look ${r.clip}`) : "base") : r.kind;
+          // CEQ cell: the question stem (or the position label for intro/wrap/outro),
+          // with the "— lookback N" suffix dropped (Type already says which clip).
+          const ceqLabel = r.label.replace(/ — lookback \d+$/, "");
+          const busy = uploadBusy === r.key;
+          const acting = !!uploadBusy || rendering;
           return (
-            <div key={r.key} className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-[10px]" style={{ background: isCur ? "rgba(252,163,17,0.14)" : "transparent" }}>
+            <div key={r.key} className="flex w-full items-center gap-1.5 px-1.5 py-0.5 text-[10px]" style={{ background: isCur ? "rgba(252,163,17,0.14)" : "transparent" }}>
               <button className="flex min-w-0 flex-1 items-center gap-1.5 text-left disabled:cursor-default" onClick={() => clickRow(r)} title={has ? (rendered ? "Seek the rendered file to this clip" : "Play from this clip") : "No clip yet — nothing to play"}>
-                <span className="w-5 shrink-0 text-right font-bold tabular-nums" style={{ color: has ? (isCur ? NEON.yellow : NEON.text) : "rgba(147,160,180,0.35)" }}>{r.num}</span>
-                <span className="shrink-0 rounded px-1 text-[7.5px] font-bold uppercase" style={{ color: has ? (r.kind === "ceq" ? NEON.cyan : NEON.muted) : "rgba(147,160,180,0.35)", border: `1px solid ${NEON.borderSoft}` }}>{r.kind}</span>
-                <span className="min-w-0 flex-1 truncate" style={{ color: has ? (isCur ? NEON.yellow : NEON.text) : "rgba(147,160,180,0.45)", fontStyle: has ? undefined : "italic" }}>{r.label}</span>
-                <span className="shrink-0 tabular-nums" style={{ color: has ? NEON.muted : "rgba(147,160,180,0.35)" }}>{has ? fmtDur(r.take!.duration) : "no clip yet"}</span>
+                <span className="w-6 shrink-0 text-right font-bold tabular-nums" style={{ color: has ? (isCur ? NEON.yellow : NEON.text) : "rgba(147,160,180,0.35)" }}>{r.num}</span>
+                <span className="w-16 shrink-0 truncate rounded px-1 text-[7.5px] font-bold uppercase" style={{ color: has ? (isCeq ? NEON.cyan : NEON.muted) : "rgba(147,160,180,0.35)", border: `1px solid ${NEON.borderSoft}` }}>{typeLabel}</span>
+                <span className="min-w-0 flex-1 truncate" style={{ color: has ? (isCur ? NEON.yellow : NEON.text) : "rgba(147,160,180,0.45)", fontStyle: has ? undefined : "italic" }}>{ceqLabel}</span>
+                <span className="w-10 shrink-0 text-right tabular-nums" style={{ color: has ? NEON.muted : "rgba(147,160,180,0.35)" }}>{has ? fmtDur(r.take!.duration) : "—"}</span>
               </button>
-              {r.ceqId && onReplaceTake && (
-                <button className="grid h-4.5 w-4.5 shrink-0 place-items-center rounded disabled:opacity-40" style={{ color: has ? NEON.muted : NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} disabled={!!uploadBusy || rendering} onClick={() => pickFor(r.ceqId!)} title={rendering ? "Wait for the render to finish" : has ? "Replace this take — upload a new clip (lookbacks kept; a shown render re-renders)" : "Upload this question's first take"}>
-                  {uploadBusy === r.ceqId ? <Loader2 className="h-3 w-3 animate-spin" style={{ color: NEON.cyan }} /> : <Upload className="h-3 w-3" />}
-                </button>
-              )}
+              {/* actions — CEQ rows: replace · add-below · delete. Wrap rows: add · delete.
+                  intro/hook/outro have no per-clip actions here (set once in the Videos panel). */}
+              <div className="flex w-[52px] shrink-0 items-center justify-end gap-0.5">
+                {busy ? (
+                  <Loader2 className="h-3 w-3 animate-spin" style={{ color: NEON.cyan }} />
+                ) : isCeq ? (<>
+                  <button className="grid h-4.5 w-4.5 place-items-center rounded disabled:opacity-40" style={{ color: has ? NEON.muted : NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} disabled={acting} onClick={() => pick(r, "replace")} title={has ? "Replace this clip (keeps one prior version)" : "Upload this question's first clip"}><Upload className="h-3 w-3" /></button>
+                  {has && <button className="grid h-4.5 w-4.5 place-items-center rounded disabled:opacity-40" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} disabled={acting} onClick={() => pick(r, "add")} title="Add a clip right after this one (lookback)"><Plus className="h-3 w-3" /></button>}
+                  {has && <button className="grid h-4.5 w-4.5 place-items-center rounded disabled:opacity-40" style={{ color: NEON.red, border: `1px solid ${NEON.borderSoft}` }} disabled={acting} onClick={() => del(r)} title="Remove this clip (Ctrl+Z to undo)"><X className="h-3 w-3" /></button>}
+                </>) : isWrap ? (<>
+                  <button className="grid h-4.5 w-4.5 place-items-center rounded disabled:opacity-40" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} disabled={acting} onClick={() => pick(r, "add")} title="Add a wrap clip"><Plus className="h-3 w-3" /></button>
+                  <button className="grid h-4.5 w-4.5 place-items-center rounded disabled:opacity-40" style={{ color: NEON.red, border: `1px solid ${NEON.borderSoft}` }} disabled={acting} onClick={() => del(r)} title="Remove this wrap clip"><X className="h-3 w-3" /></button>
+                </>) : null}
+              </div>
             </div>
           );
         })}
-        {rows.length === 0 && <div className="px-1 py-2 text-[10px] italic" style={{ color: NEON.muted }}>Nothing in the {mode} cut.</div>}
+        {rows.length === 0 && <div className="px-1.5 py-2 text-[10px] italic" style={{ color: NEON.muted }}>Nothing in the {mode} cut.</div>}
       </div>
     </div>
   );
