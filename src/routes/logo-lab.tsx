@@ -1,90 +1,423 @@
-// LOGO LAB — the Survive Accounting brand kit, live. The FINAL system up top
-// (the four logo modes + every bolt colourway, on both backgrounds it lives on),
-// then the earlier concept explorations kept below for reference. Standalone route
-// (/logo-lab), linked from nowhere.
+// LOGO LAB — an interactive workshop for the Survive mark. Dial the bolt geometry,
+// fonts, colours, backgrounds (incl. mono / grayscale / white / black), the slogan,
+// and animation (incl. an upward-scrolling TikTok/Reels/Shorts cycler). Build the
+// logo by hand here, then Copy the config / paths to bake into the brand module.
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
-import { BOLT_PRESETS, BrandLogo, LOGO_MODES, SEC_SCHOOLS, type ColorOption, type LogoMode } from "@/components/canvas/brand";
-import { LOGO_CONCEPTS } from "@/lib/logo-concepts";
+import { BOLT_PRESETS, SEC_SCHOOLS, boltColorById } from "@/components/canvas/brand";
+import { BOLT_STYLE_PRESETS, DEFAULT_BOLT, forgeBolt, type BoltParams } from "@/lib/bolt-forge";
 
 export const Route = createFileRoute("/logo-lab")({ component: LogoLab });
 
-const PAGE_BG = "#070D1E";
-const NAVY = "#0A1128";
-const CREAM = "#FBF9F4";
+// ---- fonts available in the workshop -----------------------------------------
+type FontDef = { n: string; w: number[]; raw?: string; cat: "sans" | "round" | "display" | "serif" };
+const FONTS: FontDef[] = [
+  { n: "Rubik", w: [400, 500, 700, 900], cat: "round" },
+  { n: "Baloo 2", w: [400, 600, 700, 800], cat: "round" },
+  { n: "Fredoka", w: [400, 500, 600, 700], cat: "round" },
+  { n: "Nunito", w: [400, 600, 800, 900], cat: "round" },
+  { n: "Quicksand", w: [400, 500, 600, 700], cat: "round" },
+  { n: "Baloo Bhaijaan 2", w: [400, 600, 700, 800], cat: "round" },
+  { n: "Poppins", w: [400, 500, 600, 700, 800, 900], cat: "sans" },
+  { n: "Montserrat", w: [400, 600, 700, 800, 900], cat: "sans" },
+  { n: "Archivo", w: [400, 600, 700, 800, 900], cat: "sans" },
+  { n: "Onest", w: [400, 600, 700, 800], cat: "sans" },
+  { n: "Hanken Grotesk", w: [400, 600, 700, 800], cat: "sans" },
+  { n: "Space Grotesk", w: [400, 500, 600, 700], cat: "sans" },
+  { n: "Sora", w: [400, 600, 700, 800], cat: "sans" },
+  { n: "Inter", w: [400, 500, 600, 700, 800], cat: "sans" },
+  { n: "Bricolage Grotesque", w: [400, 600, 700, 800], cat: "sans" },
+  { n: "Anton", w: [400], cat: "display" },
+  { n: "Bebas Neue", w: [400], cat: "display" },
+  { n: "Lilita One", w: [400], cat: "display" },
+  { n: "Paytone One", w: [400], cat: "display" },
+  { n: "Passion One", w: [400, 700, 900], cat: "display" },
+  { n: "Fraunces", w: [400, 600, 700, 900], raw: "Fraunces:opsz,wght@9..144,400..900", cat: "serif" },
+  { n: "DM Serif Display", w: [400], cat: "serif" },
+];
+const fontsHref = () =>
+  "https://fonts.googleapis.com/css2?" +
+  FONTS.map((f) => "family=" + (f.raw ?? `${f.n.replace(/ /g, "+")}:wght@${f.w.join(";")}`)).join("&") +
+  "&display=swap";
+const FONT_BY = Object.fromEntries(FONTS.map((f) => [f.n, f]));
+const ff = (name: string) => `'${name}', system-ui, sans-serif`;
 
-/** A logo mode on both backgrounds (letters flip white/near-black by context). */
-function ModeRow({ mode, name, c1, c2 }: { mode: LogoMode; name: string; c1: string; c2: string }) {
+// ---- workshop state ----------------------------------------------------------
+type InkMode = "color" | "white" | "black" | "mono" | "grayscale";
+type BgKind = "white" | "black" | "navy" | "transparent" | "custom";
+type Entrance = "none" | "strike" | "pop" | "fadeup" | "wipe";
+
+type State = {
+  bg: BgKind; bgCustom: string;
+  inkMode: InkMode; monoColor: string;
+  bolt: BoltParams;
+  colourway: string; c1: string; c2: string;
+  keyline: "white" | "black" | "none" | "custom"; keylineCustom: string;
+  glow: number;
+  showWord: boolean; prefix: string; suffix: string;
+  wordFont: string; wordWeight: number; wordSize: number; wordSpacing: number; wordCase: "lower" | "upper" | "none";
+  textColor: string; boltScale: number; boltDrop: number; boltNudge: number;
+  showAcc: boolean; accText: string; accFont: string; accWeight: number; accTracking: number; accSize: number;
+  rules: boolean; rulesFromBolt: boolean; ruleC1: string; ruleC2: string;
+  showSlogan: boolean; sloganMode: "plain" | "scroller"; sloganFont: string; sloganWeight: number; sloganSize: number;
+  plain: string; line1: string; pre: string; cycle: string; suf: string; cycleMs: number;
+  entrance: Entrance; animMs: number;
+};
+
+const DEFAULTS: State = {
+  bg: "black", bgCustom: "#0A0A0A",
+  inkMode: "color", monoColor: "#F4EFE6",
+  bolt: { ...DEFAULT_BOLT },
+  colourway: "red-blue", c1: BOLT_PRESETS[0].c1, c2: BOLT_PRESETS[0].c2,
+  keyline: "white", keylineCustom: "#FFFFFF",
+  glow: 0,
+  showWord: true, prefix: "surv", suffix: "ve",
+  wordFont: "Rubik", wordWeight: 900, wordSize: 96, wordSpacing: -0.01, wordCase: "lower",
+  textColor: "", boltScale: 1.12, boltDrop: 0.16, boltNudge: -0.01,
+  showAcc: true, accText: "Accounting", accFont: "Rubik", accWeight: 600, accTracking: 0.34, accSize: 0.15,
+  rules: true, rulesFromBolt: true, ruleC1: "#C62828", ruleC2: "#1565C0",
+  showSlogan: false, sloganMode: "scroller", sloganFont: "Rubik", sloganWeight: 600, sloganSize: 0.2,
+  plain: "Cram videos by Lee Ingram", line1: "Not boring lecture videos.", pre: "More like ", cycle: "TikTok, Reels, Shorts", suf: " for cramming.", cycleMs: 1400,
+  entrance: "none", animMs: 900,
+};
+
+const LS = "sa-logo-lab-v1";
+const LS_PRESETS = "sa-logo-lab-presets-v1";
+
+function isLight(hex: string) {
+  const h = hex.replace("#", "");
+  if (h.length < 6) return false;
+  const r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+  return 0.299 * r + 0.587 * g + 0.114 * b > 150;
+}
+
+function effColors(s: State) {
+  const bgHex = s.bg === "white" ? "#ffffff" : s.bg === "navy" ? "#0A1128" : s.bg === "custom" ? s.bgCustom : "#0A0A0A";
+  const lightBg = s.bg === "white" || (s.bg === "custom" && isLight(s.bgCustom));
+  const autoInk = lightBg ? "#141414" : "#F4EFE6";
+  if (s.inkMode === "white") return { c1: "#FFFFFF", c2: "#FFFFFF", ink: "#FFFFFF", key: "none", gray: false, bgHex };
+  if (s.inkMode === "black") return { c1: "#111111", c2: "#111111", ink: "#111111", key: "none", gray: false, bgHex };
+  if (s.inkMode === "mono") return { c1: s.monoColor, c2: s.monoColor, ink: s.monoColor, key: "none", gray: false, bgHex };
+  const key = s.keyline === "custom" ? s.keylineCustom : s.keyline;
+  return { c1: s.c1, c2: s.c2, ink: s.textColor || autoInk, key, gray: s.inkMode === "grayscale", bgHex };
+}
+
+// ---- little bolt renderer -----------------------------------------------------
+function BoltSVG({ geom, c1, c2, keyline, outline, style }: { geom: ReturnType<typeof forgeBolt>; c1: string; c2: string; keyline: string; outline: number; style?: CSSProperties }) {
+  const mono = c1.toLowerCase() === c2.toLowerCase();
+  const stroke = keyline && keyline !== "none";
   return (
-    <div style={{ marginTop: 16 }}>
-      <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(244,246,250,0.62)" }}>{name}</div>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 14, marginTop: 8 }}>
-        {([["navy", NAVY, "#F4EFE6"], ["cream", CREAM, "#141414"]] as const).map(([k, bg, ink]) => (
-          <div key={k} style={{ display: "grid", placeItems: "center", minWidth: 260, minHeight: mode === "bolt" ? 120 : 108, padding: "22px 28px", borderRadius: 14, background: bg, border: `1px solid ${k === "navy" ? "rgba(244,246,250,0.14)" : "rgba(10,17,40,0.16)"}` }}>
-            <BrandLogo mode={mode} c1={c1} c2={c2} ink={ink} size={mode === "bolt" ? 84 : 44} />
+    <svg viewBox={geom.viewBox} width="100%" height="100%" style={style} preserveAspectRatio="xMidYMid meet">
+      <path d={geom.outer} fill={c1} stroke={stroke ? keyline : undefined} strokeWidth={stroke ? outline : undefined} strokeLinejoin="round" strokeLinecap="round" paintOrder="stroke" />
+      {!mono && <path d={geom.seam} fill={c2} />}
+    </svg>
+  );
+}
+
+// ---- upward-scrolling word cycler (TikTok → Reels → Shorts) --------------------
+// Only ever renders the CURRENT + NEXT word with a bounded 0→1 offset, so the index
+// can never run away (robust even if a transitionend is missed / motion reduced).
+const LH = 1.18;
+function WordCycler({ words, ms, style }: { words: string[]; ms: number; style?: CSSProperties }) {
+  const [cur, setCur] = useState(0);
+  const [offset, setOffset] = useState(0); // 0 = resting, 1 = scrolled up one line
+  useEffect(() => { setCur(0); setOffset(0); }, [words.join("|")]);
+  useEffect(() => {
+    if (!ms || words.length < 2) return;
+    const t = setInterval(() => setOffset(1), ms);
+    return () => clearInterval(t);
+  }, [ms, words.length]);
+  if (words.length < 2) return <span style={style}>{words[0] ?? ""}</span>;
+  const next = (cur + 1) % words.length;
+  const cell: CSSProperties = { height: `${LH}em`, lineHeight: `${LH}em`, whiteSpace: "nowrap" };
+  return (
+    <span style={{ display: "inline-block", height: `${LH}em`, overflow: "hidden", verticalAlign: "bottom", ...style }}>
+      <span onTransitionEnd={() => { setCur(next); setOffset(0); }} style={{ display: "flex", flexDirection: "column", transform: `translateY(-${offset * LH}em)`, transition: offset ? "transform .45s cubic-bezier(.6,0,.15,1)" : "none" }}>
+        <span style={cell}>{words[cur]}</span>
+        <span style={cell}>{words[next]}</span>
+      </span>
+    </span>
+  );
+}
+
+// ---- the composed logo --------------------------------------------------------
+function LogoComposition({ s, geom }: { s: State; geom: ReturnType<typeof forgeBolt> }) {
+  const col = effColors(s);
+  const size = s.wordSize;
+  const boltH = Math.round(size * s.boltScale);
+  const boltW = Math.round(boltH * geom.ratio);
+  const casing = (t: string) => (s.wordCase === "upper" ? t.toUpperCase() : s.wordCase === "lower" ? t.toLowerCase() : t);
+  const glow = s.glow > 0 ? { filter: `drop-shadow(0 0 ${s.glow}px ${s.c1}88) drop-shadow(0 0 ${s.glow * 1.6}px ${s.c2}55)` } : undefined;
+  const ruleC1 = s.rulesFromBolt ? col.c1 : s.ruleC1;
+  const ruleC2 = s.rulesFromBolt ? col.c2 : s.ruleC2;
+
+  const boltEl = (
+    <span style={{ display: "inline-block", width: boltW, height: boltH, verticalAlign: "baseline", transform: `translateY(${Math.round(size * s.boltDrop)}px)`, margin: `0 ${Math.round(size * s.boltNudge)}px`, ...glow }}>
+      <BoltSVG geom={geom} c1={col.c1} c2={col.c2} keyline={col.key} outline={s.bolt.outline} />
+    </span>
+  );
+
+  const word = s.showWord && (
+    <span style={{ display: "inline-flex", alignItems: "baseline", fontFamily: ff(s.wordFont), fontWeight: s.wordWeight, fontSize: size, lineHeight: 1, letterSpacing: `${s.wordSpacing}em`, color: col.ink }}>
+      {casing(s.prefix)}{boltEl}{casing(s.suffix)}
+    </span>
+  );
+
+  const acc = s.showAcc && (
+    <div style={{ display: "flex", alignItems: "center", gap: Math.round(size * 0.12), padding: `0 ${Math.round(size * 0.04)}px`, marginTop: Math.round(size * 0.1) }}>
+      {s.rules && <span style={{ flex: 1, height: Math.max(2, Math.round(size * 0.03)), borderRadius: 2, background: ruleC1 }} />}
+      <span style={{ fontFamily: ff(s.accFont), fontWeight: s.accWeight, fontSize: Math.round(size * s.accSize), letterSpacing: `${s.accTracking}em`, textTransform: "uppercase", color: col.ink, whiteSpace: "nowrap", paddingLeft: `${s.accTracking}em` }}>{s.accText}</span>
+      {s.rules && <span style={{ flex: 1, height: Math.max(2, Math.round(size * 0.03)), borderRadius: 2, background: ruleC2 }} />}
+    </div>
+  );
+
+  const slogan = s.showSlogan && (
+    <div style={{ marginTop: Math.round(size * 0.16), fontFamily: ff(s.sloganFont), fontWeight: s.sloganWeight, fontSize: Math.round(size * s.sloganSize), color: col.ink, textAlign: "center", lineHeight: 1.3 }}>
+      {s.sloganMode === "plain" ? (
+        <div style={{ whiteSpace: "pre-line" }}>{s.plain}</div>
+      ) : (
+        <>
+          <div style={{ opacity: 0.9 }}>{s.line1}</div>
+          <div>
+            {s.pre}
+            <WordCycler words={s.cycle.split(",").map((w) => w.trim()).filter(Boolean)} ms={s.cycleMs} style={{ fontWeight: 800, color: col.c1 }} />
+            {s.suf}
           </div>
-        ))}
-      </div>
+        </>
+      )}
     </div>
   );
-}
 
-/** A bolt-alone swatch in one colourway, on navy (white keyline reads there). */
-function BoltSwatch({ o }: { o: ColorOption }) {
   return (
-    <div style={{ display: "grid", placeItems: "center", gap: 8, padding: "16px 14px", borderRadius: 12, background: NAVY, border: "1px solid rgba(244,246,250,0.12)" }}>
-      <div style={{ height: 74 }}><BrandLogo mode="bolt" c1={o.c1} c2={o.c2} size={74} /></div>
-      <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", color: "rgba(244,246,250,0.7)", textAlign: "center" }}>{o.name}</div>
+    <div style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", filter: col.gray ? "grayscale(1)" : undefined }}>
+      {word}
+      {acc}
+      {slogan}
     </div>
   );
 }
 
+// ---- small controls -----------------------------------------------------------
+const lbl: CSSProperties = { fontSize: 11.5, color: "#aab", minWidth: 96, flex: "0 0 auto" };
+const inp: CSSProperties = { background: "#0e131b", color: "#e7ecf3", border: "1px solid #2a3342", borderRadius: 6, padding: "5px 7px", fontSize: 12, width: "100%" };
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return <label style={{ display: "flex", alignItems: "center", gap: 10, margin: "7px 0" }}><span style={lbl}>{label}</span><span style={{ flex: 1, display: "flex", alignItems: "center", gap: 8 }}>{children}</span></label>;
+}
+function Slider({ label, value, min, max, step, onChange, fmt }: { label: string; value: number; min: number; max: number; step: number; onChange: (v: number) => void; fmt?: (v: number) => string }) {
+  return <Row label={label}><input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(parseFloat(e.target.value))} style={{ flex: 1, accentColor: "#FCA311" }} /><span style={{ fontSize: 11, color: "#8b96a6", width: 42, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fmt ? fmt(value) : value}</span></Row>;
+}
+function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (v: boolean) => void }) {
+  return <Row label={label}><button onClick={() => onChange(!value)} style={{ ...inp, cursor: "pointer", width: "auto", padding: "4px 12px", background: value ? "#FCA31122" : "#0e131b", borderColor: value ? "#FCA311" : "#2a3342", color: value ? "#FCA311" : "#8b96a6", fontWeight: 700 }}>{value ? "ON" : "OFF"}</button></Row>;
+}
+function Sel({ label, value, options, onChange }: { label: string; value: string; options: { v: string; t: string }[]; onChange: (v: string) => void }) {
+  return <Row label={label}><select value={value} onChange={(e) => onChange(e.target.value)} style={{ ...inp, cursor: "pointer" }}>{options.map((o) => <option key={o.v} value={o.v}>{o.t}</option>)}</select></Row>;
+}
+function Text({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return <Row label={label}><input value={value} onChange={(e) => onChange(e.target.value)} style={inp} /></Row>;
+}
+function Col({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return <Row label={label}><input type="color" value={value} onChange={(e) => onChange(e.target.value)} style={{ width: 34, height: 26, background: "none", border: "1px solid #2a3342", borderRadius: 6, cursor: "pointer" }} /><input value={value} onChange={(e) => onChange(e.target.value)} style={{ ...inp, width: 84 }} /></Row>;
+}
+function FontSel({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  return <Row label={label}><select value={value} onChange={(e) => onChange(e.target.value)} style={{ ...inp, cursor: "pointer", fontFamily: ff(value) }}>{FONTS.map((f) => <option key={f.n} value={f.n} style={{ fontFamily: ff(f.n) }}>{f.n}</option>)}</select></Row>;
+}
+function Section({ title, children, open = true }: { title: string; children: React.ReactNode; open?: boolean }) {
+  const [o, setO] = useState(open);
+  return (
+    <div style={{ borderTop: "1px solid #1c2330" }}>
+      <button onClick={() => setO(!o)} style={{ width: "100%", textAlign: "left", background: "none", border: "none", color: "#FCA311", fontSize: 12, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", padding: "12px 2px 8px", cursor: "pointer", display: "flex", justifyContent: "space-between" }}><span>{title}</span><span style={{ color: "#556" }}>{o ? "–" : "+"}</span></button>
+      {o && <div style={{ paddingBottom: 10 }}>{children}</div>}
+    </div>
+  );
+}
+
+// ---- main --------------------------------------------------------------------
 function LogoLab() {
+  // Start from DEFAULTS (matches SSR), then load any saved state on the client to
+  // avoid a hydration mismatch.
+  const [s, setS] = useState<State>(DEFAULTS);
+  const [loaded, setLoaded] = useState(false);
+  const set = (patch: Partial<State>) => setS((p) => ({ ...p, ...patch }));
+  const setBolt = (patch: Partial<BoltParams>) => setS((p) => ({ ...p, bolt: { ...p.bolt, ...patch } }));
+  const [playKey, setPlayKey] = useState(0);
+  const [toast, setToast] = useState("");
+
+  useEffect(() => {
+    try { const raw = localStorage.getItem(LS); if (raw) { const j = JSON.parse(raw); setS({ ...DEFAULTS, ...j, bolt: { ...DEFAULT_BOLT, ...(j.bolt ?? {}) } }); } } catch { /* noop */ }
+    setLoaded(true);
+  }, []);
+
+  // load fonts once
+  useEffect(() => {
+    const id = "logo-lab-fonts";
+    if (!document.getElementById(id)) {
+      const l = document.createElement("link"); l.id = id; l.rel = "stylesheet"; l.href = fontsHref(); document.head.appendChild(l);
+    }
+    if (!document.getElementById("logo-lab-anim")) {
+      const st = document.createElement("style"); st.id = "logo-lab-anim";
+      st.textContent = `@keyframes ll-strike{0%{opacity:0;transform:scale(1.35) rotate(-7deg)}45%{opacity:1}60%{transform:scale(.97) rotate(1deg)}100%{opacity:1;transform:none}}@keyframes ll-pop{0%{opacity:0;transform:scale(.6)}70%{transform:scale(1.06)}100%{opacity:1;transform:none}}@keyframes ll-fadeup{0%{opacity:0;transform:translateY(26px)}100%{opacity:1;transform:none}}@keyframes ll-wipe{0%{clip-path:inset(0 0 100% 0)}100%{clip-path:inset(0 0 0 0)}}`;
+      document.head.appendChild(st);
+    }
+  }, []);
+
+  useEffect(() => { if (loaded) { try { localStorage.setItem(LS, JSON.stringify(s)); } catch { /* noop */ } } }, [s, loaded]);
+
+  const geom = useMemo(() => forgeBolt(s.bolt), [s.bolt]);
+  const col = effColors(s);
+
+  const copy = (text: string, msg: string) => { navigator.clipboard?.writeText(text).then(() => { setToast(msg); setTimeout(() => setToast(""), 1600); }); };
+  const boltSvg = `<svg viewBox="${geom.viewBox}" xmlns="http://www.w3.org/2000/svg"><path d="${geom.outer}" fill="${col.c1}"${col.key !== "none" ? ` stroke="${col.key}" stroke-width="${s.bolt.outline}" stroke-linejoin="round" stroke-linecap="round" paint-order="stroke"` : ""}/>${col.c1.toLowerCase() !== col.c2.toLowerCase() ? `<path d="${geom.seam}" fill="${col.c2}"/>` : ""}</svg>`;
+  const brandPaths = `// paste into brand.tsx forgeBolt call, or as static paths:\nexport const BOLT_PARAMS = ${JSON.stringify(s.bolt)};\n// BOLT_OUTER:\n"${geom.outer}"\n// BOLT_RIGHT (seam):\n"${geom.seam}"\n// BOLT_VIEWBOX: "${geom.viewBox}"  ratio ${geom.ratio.toFixed(4)}`;
+
+  const anim: CSSProperties = s.entrance === "none" ? {} : { animation: `ll-${s.entrance} ${s.animMs}ms cubic-bezier(.5,.1,.2,1) both` };
+
+  const colourways = [...BOLT_PRESETS, ...SEC_SCHOOLS];
+  const stageBg = s.bg === "transparent"
+    ? { backgroundImage: "linear-gradient(45deg,#20262f 25%,transparent 25%),linear-gradient(-45deg,#20262f 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#20262f 75%),linear-gradient(-45deg,transparent 75%,#20262f 75%)", backgroundSize: "24px 24px", backgroundPosition: "0 0,0 12px,12px -12px,-12px 0", backgroundColor: "#171b22" }
+    : { background: col.bgHex };
+
   return (
-    <div style={{ minHeight: "100vh", background: PAGE_BG, color: "#F4EFE6", fontFamily: "'Sora', 'Inter', system-ui, sans-serif" }}>
-      <div style={{ maxWidth: 1120, margin: "0 auto", padding: "40px 24px 120px" }}>
-        <h1 style={{ fontSize: 30, fontWeight: 800, letterSpacing: "-0.01em" }}>Logo Lab</h1>
-        <p style={{ marginTop: 6, fontSize: 14, color: "rgba(244,246,250,0.6)", maxWidth: 760 }}>
-          The Survive Accounting brand kit, rendered live from the same components the app uses
-          (watermark, CEQ box, logo card). Bolt colours are data — presets, plus every SEC school.
-        </p>
+    <div style={{ minHeight: "100vh", display: "flex", background: "#0b0e14", color: "#e7ecf3", fontFamily: "'Inter',system-ui,sans-serif" }}>
+      {/* control panel */}
+      <div style={{ width: 360, flex: "0 0 360px", height: "100vh", overflowY: "auto", borderRight: "1px solid #1c2330", padding: "16px 16px 60px", boxSizing: "border-box" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <h1 style={{ fontSize: 17, fontWeight: 800, margin: 0 }}>Logo Lab <span style={{ color: "#FCA311" }}>workshop</span></h1>
+          <button onClick={() => { if (confirm("Reset all controls to defaults?")) setS(DEFAULTS); }} style={{ ...inp, width: "auto", cursor: "pointer", color: "#8b96a6" }}>Reset</button>
+        </div>
+        <p style={{ fontSize: 11, color: "#67707e", margin: "6px 0 4px" }}>Dial the bolt, fonts, colours, slogan & animation. Auto-saves.</p>
 
-        <section style={{ marginTop: 40, paddingTop: 26, borderTop: "1px solid rgba(147,160,180,0.2)" }}>
-          <h2 style={{ fontSize: 20, fontWeight: 800 }}><span style={{ color: "#FCA311" }}>Final kit</span> — logo modes</h2>
-          <p style={{ marginTop: 4, fontSize: 13, color: "rgba(244,246,250,0.6)" }}>The four modes the logo card toggles between. Letters flip white / near-black by background; the bolt keeps its colours.</p>
-          {LOGO_MODES.map((m) => <ModeRow key={m.id} mode={m.id} name={m.name} c1={BOLT_PRESETS[0].c1} c2={BOLT_PRESETS[0].c2} />)}
-        </section>
+        <Section title="Bolt geometry">
+          <Row label="Style"><select onChange={(e) => { const pr = BOLT_STYLE_PRESETS.find((x) => x.id === e.target.value); if (pr) setBolt(pr.params); }} value="" style={{ ...inp, cursor: "pointer" }}><option value="">Presets…</option>{BOLT_STYLE_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Row>
+          <Slider label="Teeth / side" value={s.bolt.teeth} min={3} max={8} step={1} onChange={(v) => setBolt({ teeth: v })} />
+          <Slider label="Lean" value={s.bolt.lean} min={0} max={0.6} step={0.01} onChange={(v) => setBolt({ lean: v })} fmt={(v) => v.toFixed(2)} />
+          <Slider label="Core width" value={s.bolt.coreWidth} min={6} max={22} step={0.5} onChange={(v) => setBolt({ coreWidth: v })} />
+          <Slider label="Tooth length" value={s.bolt.toothLen} min={4} max={26} step={0.5} onChange={(v) => setBolt({ toothLen: v })} />
+          <Slider label="Taper" value={s.bolt.taper} min={0} max={1} step={0.02} onChange={(v) => setBolt({ taper: v })} fmt={(v) => v.toFixed(2)} />
+          <Slider label="Shoulder" value={s.bolt.shoulder} min={0} max={20} step={0.5} onChange={(v) => setBolt({ shoulder: v })} />
+          <Slider label="Notch depth" value={s.bolt.notch} min={0} max={16} step={0.5} onChange={(v) => setBolt({ notch: v })} />
+          <Slider label="Barb drop" value={s.bolt.drop} min={0.4} max={0.95} step={0.01} onChange={(v) => setBolt({ drop: v })} fmt={(v) => v.toFixed(2)} />
+          <Slider label="Tail" value={s.bolt.tail} min={0} max={30} step={1} onChange={(v) => setBolt({ tail: v })} />
+          <Slider label="Jitter (hand-drawn)" value={s.bolt.jitter} min={0} max={0.9} step={0.02} onChange={(v) => setBolt({ jitter: v })} fmt={(v) => v.toFixed(2)} />
+          <Row label="Seed"><input type="range" min={1} max={40} step={1} value={s.bolt.seed} onChange={(e) => setBolt({ seed: parseFloat(e.target.value) })} style={{ flex: 1, accentColor: "#FCA311" }} /><button onClick={() => setBolt({ seed: (s.bolt.seed % 40) + 1 })} style={{ ...inp, width: "auto", cursor: "pointer" }}>Reshuffle</button></Row>
+          <Slider label="Seam zigzag" value={s.bolt.seamAmp} min={0} max={16} step={0.5} onChange={(v) => setBolt({ seamAmp: v })} />
+          <Slider label="Outline" value={s.bolt.outline} min={0} max={16} step={0.5} onChange={(v) => setBolt({ outline: v })} />
+        </Section>
 
-        <section style={{ marginTop: 40, paddingTop: 26, borderTop: "1px solid rgba(147,160,180,0.2)" }}>
-          <h2 style={{ fontSize: 20, fontWeight: 800 }}><span style={{ color: "#FCA311" }}>Bolt</span> — colourways</h2>
-          <p style={{ marginTop: 4, fontSize: 13, color: "rgba(244,246,250,0.6)" }}>House presets (red/blue is primary; white + black are the single-colour versions), then every SEC school in its two colours.</p>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(244,246,250,0.5)", marginTop: 16 }}>House</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 12, marginTop: 8 }}>
-            {BOLT_PRESETS.map((o) => <BoltSwatch key={o.id} o={o} />)}
-          </div>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(244,246,250,0.5)", marginTop: 22 }}>SEC schools</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(120px, 1fr))", gap: 12, marginTop: 8 }}>
-            {SEC_SCHOOLS.map((o) => <BoltSwatch key={o.id} o={o} />)}
-          </div>
-        </section>
+        <Section title="Colours & finish">
+          <Sel label="Mode" value={s.inkMode} options={[{ v: "color", t: "Colour" }, { v: "mono", t: "Monochrome" }, { v: "grayscale", t: "Grayscale" }, { v: "white", t: "All white" }, { v: "black", t: "All black" }]} onChange={(v) => set({ inkMode: v as InkMode })} />
+          {s.inkMode === "mono" && <Col label="Mono colour" value={s.monoColor} onChange={(v) => set({ monoColor: v })} />}
+          {(s.inkMode === "color" || s.inkMode === "grayscale") && <>
+            <Sel label="Colourway" value={s.colourway} options={[...colourways.map((o) => ({ v: o.id, t: o.name })), { v: "custom", t: "Custom" }]} onChange={(v) => { if (v === "custom") { set({ colourway: v }); } else { const o = boltColorById(v); set({ colourway: v, c1: o.c1, c2: o.c2 }); } }} />
+            <Col label="Bolt left (c1)" value={s.c1} onChange={(v) => set({ c1: v, colourway: "custom" })} />
+            <Col label="Bolt right (c2)" value={s.c2} onChange={(v) => set({ c2: v, colourway: "custom" })} />
+            <Sel label="Keyline" value={s.keyline} options={[{ v: "white", t: "White" }, { v: "black", t: "Black" }, { v: "none", t: "None" }, { v: "custom", t: "Custom" }]} onChange={(v) => set({ keyline: v as State["keyline"] })} />
+            {s.keyline === "custom" && <Col label="Keyline colour" value={s.keylineCustom} onChange={(v) => set({ keylineCustom: v })} />}
+            <Col label="Text colour" value={s.textColor || "#F4EFE6"} onChange={(v) => set({ textColor: v })} />
+          </>}
+          <Slider label="Glow" value={s.glow} min={0} max={40} step={1} onChange={(v) => set({ glow: v })} />
+        </Section>
 
-        <section style={{ marginTop: 44, paddingTop: 26, borderTop: "1px solid rgba(147,160,180,0.2)", opacity: 0.75 }}>
-          <h2 style={{ fontSize: 17, fontWeight: 800, color: "rgba(244,246,250,0.7)" }}>Earlier concept explorations</h2>
-          <p style={{ marginTop: 4, fontSize: 12.5, color: "rgba(244,246,250,0.5)" }}>Kept for reference — superseded by the final kit above.</p>
-          {LOGO_CONCEPTS.map((c) => (
-            <div key={c.id} style={{ marginTop: 18 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: "rgba(244,246,250,0.6)" }}>Concept {c.id} — {c.name}</div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 8 }}>
-                {c.marks.map((m) => (
-                  <div key={m.id} style={{ display: "grid", placeItems: "center", padding: "14px 16px", borderRadius: 10, background: NAVY, border: "1px solid rgba(244,246,250,0.1)" }}>
-                    <div style={{ height: 56, width: m.ratio ? Math.round(56 * m.ratio) : 56, color: "#F4EFE6" }} dangerouslySetInnerHTML={{ __html: m.svg }} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </section>
+        <Section title="Background">
+          <Sel label="Backdrop" value={s.bg} options={[{ v: "black", t: "Black" }, { v: "white", t: "White" }, { v: "navy", t: "Navy" }, { v: "transparent", t: "Transparent" }, { v: "custom", t: "Custom" }]} onChange={(v) => set({ bg: v as BgKind })} />
+          {s.bg === "custom" && <Col label="Colour" value={s.bgCustom} onChange={(v) => set({ bgCustom: v })} />}
+        </Section>
+
+        <Section title="Wordmark">
+          <Toggle label="Show" value={s.showWord} onChange={(v) => set({ showWord: v })} />
+          <FontSel label="Font" value={s.wordFont} onChange={(v) => set({ wordFont: v, wordWeight: (FONT_BY[v]?.w.slice(-1)[0]) ?? 700 })} />
+          <Sel label="Weight" value={String(s.wordWeight)} options={(FONT_BY[s.wordFont]?.w ?? [400, 700]).map((w) => ({ v: String(w), t: String(w) }))} onChange={(v) => set({ wordWeight: parseInt(v) })} />
+          <Sel label="Case" value={s.wordCase} options={[{ v: "lower", t: "lowercase" }, { v: "upper", t: "UPPERCASE" }, { v: "none", t: "As typed" }]} onChange={(v) => set({ wordCase: v as State["wordCase"] })} />
+          <Text label="Before bolt" value={s.prefix} onChange={(v) => set({ prefix: v })} />
+          <Text label="After bolt" value={s.suffix} onChange={(v) => set({ suffix: v })} />
+          <Slider label="Size" value={s.wordSize} min={40} max={180} step={2} onChange={(v) => set({ wordSize: v })} />
+          <Slider label="Tracking" value={s.wordSpacing} min={-0.06} max={0.1} step={0.005} onChange={(v) => set({ wordSpacing: v })} fmt={(v) => v.toFixed(3)} />
+          <Slider label="Bolt size" value={s.boltScale} min={0.8} max={1.6} step={0.02} onChange={(v) => set({ boltScale: v })} fmt={(v) => v.toFixed(2)} />
+          <Slider label="Bolt baseline" value={s.boltDrop} min={-0.1} max={0.35} step={0.01} onChange={(v) => set({ boltDrop: v })} fmt={(v) => v.toFixed(2)} />
+          <Slider label="Bolt kerning" value={s.boltNudge} min={-0.08} max={0.06} step={0.005} onChange={(v) => set({ boltNudge: v })} fmt={(v) => v.toFixed(3)} />
+        </Section>
+
+        <Section title="Accounting line" open={false}>
+          <Toggle label="Show" value={s.showAcc} onChange={(v) => set({ showAcc: v })} />
+          <Text label="Text" value={s.accText} onChange={(v) => set({ accText: v })} />
+          <FontSel label="Font" value={s.accFont} onChange={(v) => set({ accFont: v, accWeight: (FONT_BY[v]?.w.find((w) => w >= 600)) ?? 600 })} />
+          <Sel label="Weight" value={String(s.accWeight)} options={(FONT_BY[s.accFont]?.w ?? [400, 600]).map((w) => ({ v: String(w), t: String(w) }))} onChange={(v) => set({ accWeight: parseInt(v) })} />
+          <Slider label="Size" value={s.accSize} min={0.08} max={0.3} step={0.005} onChange={(v) => set({ accSize: v })} fmt={(v) => v.toFixed(2)} />
+          <Slider label="Tracking" value={s.accTracking} min={0} max={0.6} step={0.01} onChange={(v) => set({ accTracking: v })} fmt={(v) => v.toFixed(2)} />
+          <Toggle label="Flanking rules" value={s.rules} onChange={(v) => set({ rules: v })} />
+          <Toggle label="Rules = bolt colours" value={s.rulesFromBolt} onChange={(v) => set({ rulesFromBolt: v })} />
+          {!s.rulesFromBolt && <><Col label="Rule left" value={s.ruleC1} onChange={(v) => set({ ruleC1: v })} /><Col label="Rule right" value={s.ruleC2} onChange={(v) => set({ ruleC2: v })} /></>}
+        </Section>
+
+        <Section title="Slogan" open={false}>
+          <Toggle label="Show" value={s.showSlogan} onChange={(v) => set({ showSlogan: v })} />
+          <Sel label="Mode" value={s.sloganMode} options={[{ v: "scroller", t: "TikTok scroller" }, { v: "plain", t: "Plain text" }]} onChange={(v) => set({ sloganMode: v as State["sloganMode"] })} />
+          <FontSel label="Font" value={s.sloganFont} onChange={(v) => set({ sloganFont: v })} />
+          <Slider label="Size" value={s.sloganSize} min={0.1} max={0.4} step={0.01} onChange={(v) => set({ sloganSize: v })} fmt={(v) => v.toFixed(2)} />
+          {s.sloganMode === "plain"
+            ? <Text label="Text" value={s.plain} onChange={(v) => set({ plain: v })} />
+            : <>
+              <Text label="Line 1" value={s.line1} onChange={(v) => set({ line1: v })} />
+              <Text label="Before" value={s.pre} onChange={(v) => set({ pre: v })} />
+              <Text label="Scroll words" value={s.cycle} onChange={(v) => set({ cycle: v })} />
+              <Text label="After" value={s.suf} onChange={(v) => set({ suf: v })} />
+              <Slider label="Scroll speed" value={s.cycleMs} min={500} max={3000} step={100} onChange={(v) => set({ cycleMs: v })} fmt={(v) => `${(v / 1000).toFixed(1)}s`} />
+            </>}
+        </Section>
+
+        <Section title="Animation" open={false}>
+          <Sel label="Entrance" value={s.entrance} options={[{ v: "none", t: "None" }, { v: "strike", t: "Lightning strike" }, { v: "pop", t: "Pop" }, { v: "fadeup", t: "Fade up" }, { v: "wipe", t: "Wipe reveal" }]} onChange={(v) => set({ entrance: v as Entrance })} />
+          <Slider label="Duration" value={s.animMs} min={300} max={2500} step={50} onChange={(v) => set({ animMs: v })} fmt={(v) => `${v}ms`} />
+          <Row label=""><button onClick={() => setPlayKey((k) => k + 1)} style={{ ...inp, cursor: "pointer", background: "#FCA31122", borderColor: "#FCA311", color: "#FCA311", fontWeight: 800 }}>▶ Play</button></Row>
+        </Section>
+
+        <Section title="Export">
+          <Row label=""><button onClick={() => copy(boltSvg, "Bolt SVG copied")} style={{ ...inp, cursor: "pointer" }}>Copy bolt SVG</button></Row>
+          <Row label=""><button onClick={() => copy(brandPaths, "Brand paths copied")} style={{ ...inp, cursor: "pointer" }}>Copy brand paths + params</button></Row>
+          <Row label=""><button onClick={() => copy(JSON.stringify(s, null, 2), "Full config copied")} style={{ ...inp, cursor: "pointer" }}>Copy full config JSON</button></Row>
+          <PresetBar s={s} onLoad={(st) => setS(st)} notify={(m) => { setToast(m); setTimeout(() => setToast(""), 1600); }} />
+        </Section>
       </div>
+
+      {/* stage */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", height: "100vh" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderBottom: "1px solid #1c2330", fontSize: 12, color: "#8b96a6" }}>
+          <span>Live preview</span>
+          <span style={{ marginLeft: "auto", color: "#5c6675" }}>ratio {geom.ratio.toFixed(3)} · viewBox {geom.viewBox}</span>
+        </div>
+        <div style={{ flex: 1, display: "grid", placeItems: "center", overflow: "auto", ...stageBg }}>
+          <div key={playKey} style={{ ...anim, padding: 40 }}>
+            <LogoComposition s={s} geom={geom} />
+          </div>
+        </div>
+        {toast && <div style={{ position: "fixed", bottom: 20, left: "50%", transform: "translateX(-50%)", background: "#FCA311", color: "#111", fontWeight: 700, fontSize: 12, padding: "8px 16px", borderRadius: 8 }}>{toast}</div>}
+      </div>
+    </div>
+  );
+}
+
+function PresetBar({ s, onLoad, notify }: { s: State; onLoad: (s: State) => void; notify: (m: string) => void }) {
+  const [presets, setPresets] = useState<{ name: string; state: State }[]>([]);
+  const [name, setName] = useState("");
+  useEffect(() => { try { setPresets(JSON.parse(localStorage.getItem(LS_PRESETS) ?? "[]")); } catch { /* noop */ } }, []);
+  const save = () => {
+    const nm = name.trim() || `logo ${presets.length + 1}`;
+    const next = [...presets.filter((p) => p.name !== nm), { name: nm, state: s }];
+    setPresets(next); localStorage.setItem(LS_PRESETS, JSON.stringify(next)); setName(""); notify(`Saved "${nm}"`);
+  };
+  const del = (nm: string) => { const next = presets.filter((p) => p.name !== nm); setPresets(next); localStorage.setItem(LS_PRESETS, JSON.stringify(next)); };
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div style={{ display: "flex", gap: 6 }}>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="preset name" style={inp} />
+        <button onClick={save} style={{ ...inp, width: "auto", cursor: "pointer", color: "#FCA311", borderColor: "#FCA311" }}>Save</button>
+      </div>
+      {presets.map((p) => (
+        <div key={p.name} style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 5 }}>
+          <button onClick={() => onLoad({ ...DEFAULTS, ...p.state, bolt: { ...DEFAULT_BOLT, ...p.state.bolt } })} style={{ ...inp, cursor: "pointer", textAlign: "left", flex: 1 }}>{p.name}</button>
+          <button onClick={() => del(p.name)} style={{ ...inp, width: "auto", cursor: "pointer", color: "#a55" }}>✕</button>
+        </div>
+      ))}
     </div>
   );
 }
