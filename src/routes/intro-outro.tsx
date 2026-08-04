@@ -7,6 +7,7 @@ import { useState, useEffect, type CSSProperties } from "react";
 
 import { OutroCard } from "@/components/brand-cards/OutroCard";
 import { IntroCard } from "@/components/brand-cards/IntroCard";
+import { AnimatedIntro } from "@/components/brand-cards/AnimatedIntro";
 import { CornerBolt } from "@/components/brand-cards/CornerBolt";
 import { BRAND_NAVY, BRAND_CREAM, BoltContext, DEFAULT_BOLT_SPEC, type BoltSpec } from "@/components/brand-cards/bolt-boil";
 import { boltSpecFromLogoState } from "@/components/brand-cards/bolt-from-preset";
@@ -24,6 +25,12 @@ function IntroOutroPreview() {
   const [playKey, setPlayKey] = useState(0);
   const [title, setTitle] = useState("Trial Balance");
   const [transparent, setTransparent] = useState(false);
+  // ANIMATED INTRO controls — sound + the two timing anchors + the editable slogan/tagline.
+  const [sound, setSound] = useState(true);
+  const [beatMs, setBeatMs] = useState(1820); // beat drop in intro-music.mp3 (warp reference)
+  const [sloganMs, setSloganMs] = useState(640); // gap after the drop before the slogan
+  const [slogan, setSlogan] = useState("Cram videos by Lee Ingram");
+  const [tagline, setTagline] = useState("Only what’s on your exam.");
   // Bolt comes from a saved Logo Lab preset (default: "FINAL"), read from THIS browser's
   // localStorage at runtime — presets are per-browser, so they can't be baked at build time.
   const [presetNames, setPresetNames] = useState<string[]>([]);
@@ -79,11 +86,38 @@ function IntroOutroPreview() {
         Previewed at {Math.round(PREVIEW_SCALE * 100)}% &mdash; each is exactly 1920&times;1080 at full size. The built-in bolt is your FINAL logo, baked into the code (canonical everywhere, incl. the film watermark). The bolt boils continuously (~8fps); Play/Replay re-runs the entrance animations. Screen-capture each full-size card in OBS. The checkerboard shows through where a card is transparent.
       </p>
       <BoltContext.Provider value={spec}>
+      {/* FEATURED — the music-synced ANIMATED INTRO. Big boiling bolt loops through the
+          music build, flies into the wordmark on the beat drop (white flash), then the
+          slogan lands just before the VO. Play/Replay restarts it in lock-step with the
+          audio. Dial the two timings against the music, then bake the values you like. */}
+      <div style={{ marginBottom: 28, paddingBottom: 24, borderBottom: "1px solid #1c2330" }}>
+        <div style={{ ...cap, marginBottom: 10 }}>Animated intro — music-synced (capture at full size)</div>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 14, marginBottom: 12 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+            <input type="checkbox" checked={sound} onChange={(e) => setSound(e.target.checked)} /> play intro music
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>Beat drop
+            <input type="number" step={20} value={beatMs} onChange={(e) => setBeatMs(Math.max(0, +e.target.value || 0))} style={{ ...inp, width: 90 }} /> ms
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>Slogan after
+            <input type="number" step={20} value={sloganMs} onChange={(e) => setSloganMs(Math.max(0, +e.target.value || 0))} style={{ ...inp, width: 80 }} /> ms
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>Slogan
+            <input value={slogan} onChange={(e) => setSlogan(e.target.value)} style={{ ...inp, width: 240 }} />
+          </label>
+        </div>
+        <div style={{ display: "inline-block", borderRadius: 12, overflow: "hidden", background: transparent ? "conic-gradient(#1b2330 90deg, #10151d 0 180deg, #1b2330 0 270deg, #10151d 0) 0 0 / 24px 24px" : BRAND_NAVY }}>
+          <AnimatedIntro slogan={slogan} beatMs={beatMs} sloganMs={sloganMs} audioSrc="/audio/intro-music.mp3" soundOn={sound} scale={0.5} transparent={transparent} playKey={playKey} />
+        </div>
+      </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 32, alignItems: "flex-start" }}>
         <div>
           <div style={cap}>Outro (hold ~2.5s)</div>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginBottom: 8 }}>Tagline
+            <input value={tagline} onChange={(e) => setTagline(e.target.value)} style={{ ...inp, width: 240 }} />
+          </label>
           <div style={{ borderRadius: 10, overflow: "hidden", background: transparent ? "conic-gradient(#1b2330 90deg, #10151d 0 180deg, #1b2330 0 270deg, #10151d 0) 0 0 / 24px 24px" : BRAND_NAVY }}>
-            <OutroCard scale={PREVIEW_SCALE} transparent={transparent} playKey={playKey} />
+            <OutroCard tagline={tagline} scale={PREVIEW_SCALE} transparent={transparent} playKey={playKey} />
           </div>
         </div>
         <div>
