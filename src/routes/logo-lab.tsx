@@ -85,6 +85,10 @@ type State = {
   // reference overlay + distance test
   refImg: string; refOn: boolean; refOpacity: number; refScale: number; refX: number; refY: number; refSide: boolean; refOutline: boolean;
   dist: string; // "full" | "25" | "10" | "64" | "32" | "16"
+  // BOLT FX (Lee) — a dry/wet WARP over the final rings. dry (wet=0) = the exact current
+  // bolt, so it always reverts. The warp is a coherent seeded displacement field driven by
+  // the organic knobs; wetSeed reshuffles it (like the old seed), wetLoop auto-reshuffles.
+  wet: number; wetSeed: number; wetLoop: boolean; wetSpeed: number;
 };
 
 const DEFAULTS: State = {
@@ -108,10 +112,34 @@ const DEFAULTS: State = {
   editRing: "outer", outerEdit: null, seamEdit: null,
   refImg: "", refOn: false, refOpacity: 0.5, refScale: 1, refX: 0, refY: 0, refSide: false, refOutline: false,
   dist: "full",
+  wet: 0, wetSeed: 1, wetLoop: false, wetSpeed: 450,
 };
 
 const LS = "sa-logo-lab-v1";
 const LS_PRESETS = "sa-logo-lab-presets-v1";
+
+// BOLT FX warp (Lee) — a COHERENT seeded displacement over a ring: three low-frequency
+// spatial waves (whose phases/amplitudes come from `seed`) flex the whole bolt together,
+// so points that are near each other move together and the seam stays inside the border.
+// `rough` adds a small per-vertex sketchiness. amp<=0 is a pure identity (the dry bolt),
+// which is what makes the dry/wet knob revert exactly. Same seed → both rings share the
+// low-freq field, keeping them aligned.
+function fxPrng(seed: number) {
+  let a = (Math.floor(seed) * 2654435761) >>> 0 || 1;
+  return () => { a = (a ^ (a << 13)) >>> 0; a = (a ^ (a >>> 17)) >>> 0; a = (a ^ (a << 5)) >>> 0; return a / 4294967296; };
+}
+function warpRing(pts: V[], amp: number, seed: number, rough: number): V[] {
+  if (amp <= 0) return pts;
+  const rnd = fxPrng(seed);
+  const W = Array.from({ length: 3 }, () => ({ fx: 0.014 + rnd() * 0.03, fy: 0.014 + rnd() * 0.03, px: rnd() * Math.PI * 2, py: rnd() * Math.PI * 2, ax: rnd() * 2 - 1, ay: rnd() * 2 - 1 }));
+  return pts.map((p) => {
+    let dx = 0, dy = 0;
+    for (const w of W) { dx += Math.sin(p.x * w.fx + p.y * w.fy + w.px) * w.ax; dy += Math.cos(p.x * w.fx + p.y * w.fy + w.py) * w.ay; }
+    dx /= W.length; dy /= W.length; // averaged → smooth field, displacement ≈ ±(1+rough)·amp
+    const rx = rough > 0 ? (rnd() * 2 - 1) * rough : 0, ry = rough > 0 ? (rnd() * 2 - 1) * rough : 0;
+    return { x: p.x + (dx + rx) * amp, y: p.y + (dy + ry) * amp };
+  });
+}
 
 function isLight(hex: string) {
   const h = hex.replace("#", "");
@@ -360,11 +388,31 @@ function LogoLab() {
   useEffect(() => {
     if (!loaded) return;
     const id = setTimeout(() => {
-      try { localStorage.setItem(LS, JSON.stringify(s)); }
-      catch { try { localStorage.setItem(LS, JSON.stringify({ ...s, refImg: "" })); } catch { /* noop */ } }
+      // wetSeed / wetLoop are TRANSIENT animation state — don't persist them (no localStorage
+      // churn while looping, and the loop doesn't silently auto-resume on the next visit).
+      const save = { ...s, wetSeed: 1, wetLoop: false };
+      try { localStorage.setItem(LS, JSON.stringify(save)); }
+      catch { try { localStorage.setItem(LS, JSON.stringify({ ...save, refImg: "" })); } catch { /* noop */ } }
     }, 150);
     return () => clearTimeout(id);
   }, [s, loaded]);
+
+  // BOLT FX LOOP (Lee) — auto-reshuffle the warp seed at RANDOM intervals: the "bolt seeds
+  // at random intervals" animation. Only while wetLoop is on; each tick jumps to a new seed
+  // and schedules the next at ~wetSpeed × [0.55, 1.55]. Uses setState so the render updates.
+  useEffect(() => {
+    if (!s.wetLoop) return;
+    let alive = true;
+    let timer = 0 as unknown as ReturnType<typeof setTimeout>;
+    const tick = () => {
+      if (!alive) return;
+      setS((st) => ({ ...st, wetSeed: (st.wetSeed % 999983) + 1 + Math.floor(Math.random() * 4096) }));
+      timer = setTimeout(tick, Math.max(120, s.wetSpeed * (0.55 + Math.random())));
+    };
+    timer = setTimeout(tick, Math.max(120, s.wetSpeed * (0.55 + Math.random())));
+    return () => { alive = false; clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.wetLoop, s.wetSpeed]);
 
   // GEOMETRY PIPELINE (Lee's editor). Each ring is either PROCEDURAL (base → assist,
   // plus legacy manual offsets for the outer) or EXPLICIT (a hand-edited point list in
@@ -376,13 +424,24 @@ function LogoLab() {
   const assistedOuter = useMemo(() => applyAssist(baseOuter, s.assist), [baseOuter, s.assist]);
   const assistedSeam = useMemo(() => applyAssist(base.seamPts.map(toV), s.assist), [base, s.assist]);
   const geom = useMemo(() => {
-    const finalOuter = s.outerEdit ? s.outerEdit.map(toV) : assistedOuter.map((v, i) => { const m = s.manual[i]; return m ? { x: v.x + m[0], y: v.y + m[1] } : v; });
-    const finalSeam = s.seamEdit ? s.seamEdit.map(toV) : assistedSeam;
-    const b = bounds([...finalOuter, ...finalSeam]);
-    const pad = s.bolt.outline / 2 + 2;
+    // DRY rings — the exact edited bolt. The vertex editor + bake read these (finalOuter /
+    // finalSeam / outerPts), so hand-editing is never contaminated by the live warp.
+    const dryOuter = s.outerEdit ? s.outerEdit.map(toV) : assistedOuter.map((v, i) => { const m = s.manual[i]; return m ? { x: v.x + m[0], y: v.y + m[1] } : v; });
+    const drySeam = s.seamEdit ? s.seamEdit.map(toV) : assistedSeam;
+    // WET warp — displacement amplitude scales with the dry/wet knob AND the organic knobs
+    // (so they "apply" to the hand-edited bolt now); wetSeed reshuffles the field. wet=0 →
+    // amp 0 → identity, so the RENDER equals the dry bolt (always revertible).
+    const wetAmp = s.wet * (6 + 9 * (s.bolt.jitter + (s.bolt.jitWidth ?? 0) + (s.bolt.jitAngle ?? 0)));
+    const rough = (s.bolt.handDrawn ?? 0) * 1.5;
+    const outerW = warpRing(dryOuter, wetAmp, s.wetSeed, rough);
+    const seamW = warpRing(drySeam, wetAmp, s.wetSeed, rough);
+    // viewBox from the DRY bounds (+ room for the warp) so the frame stays STILL while the
+    // shape flexes — a looping reshuffle animates in place instead of jumping around.
+    const b = bounds([...dryOuter, ...drySeam]);
+    const pad = s.bolt.outline / 2 + 2 + (1 + rough) * wetAmp;
     const vx = b.minX - pad, vy = b.minY - pad, w = b.maxX - b.minX + 2 * pad, h = b.maxY - b.minY + 2 * pad;
-    return { outer: ptsToPath(finalOuter), seam: ptsToPath(finalSeam), viewBox: `${vx.toFixed(2)} ${vy.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)}`, ratio: w / h, outerPts: finalOuter.map(toPt) as [number, number][], seamPts: finalSeam.map(toPt) as [number, number][], finalOuter, finalSeam };
-  }, [assistedOuter, assistedSeam, s.outerEdit, s.seamEdit, s.manual, s.bolt.outline]);
+    return { outer: ptsToPath(outerW), seam: ptsToPath(seamW), viewBox: `${vx.toFixed(2)} ${vy.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)}`, ratio: w / h, outerPts: dryOuter.map(toPt) as [number, number][], seamPts: drySeam.map(toPt) as [number, number][], finalOuter: dryOuter, finalSeam: drySeam };
+  }, [assistedOuter, assistedSeam, s.outerEdit, s.seamEdit, s.manual, s.bolt.outline, s.wet, s.wetSeed, s.bolt.jitter, s.bolt.jitWidth, s.bolt.jitAngle, s.bolt.handDrawn]);
   const col = effColors(s);
 
   // ---- geometry operations (undoable). All edits act on the ACTIVE ring (border/outer
@@ -511,6 +570,19 @@ function LogoLab() {
           <button onClick={() => { if (confirm("Reset all controls to defaults?")) setS(DEFAULTS); }} style={{ ...inp, width: "auto", cursor: "pointer", color: "#8b96a6" }}>Reset</button>
         </div>
         <p style={{ fontSize: 11, color: "#67707e", margin: "6px 0 4px" }}>Dial the bolt, fonts, colours, slogan & animation. Auto-saves.</p>
+
+        <Section title="Bolt FX">
+          <div style={{ fontSize: 10.5, color: "#67707e", margin: "0 0 8px" }}>Dry = your exact bolt. Turn up <b style={{ color: "#FCA311" }}>Wet</b> to warp it with the organic knobs (jitter / hand-drawn) + a random seed — coherent, so the seam stays put. Loop auto-reshuffles for a live "seeding" animation. <b>Wet 0 always reverts.</b></div>
+          <Slider label="Dry / Wet" value={s.wet} min={0} max={1} step={0.01} onChange={(v) => set({ wet: v })} fmt={(v) => `${Math.round(v * 100)}%`} />
+          <Slider label="Loop speed" value={s.wetSpeed} min={120} max={1200} step={20} onChange={(v) => set({ wetSpeed: v })} fmt={(v) => `${v}ms`} />
+          <Row label="">
+            <div style={{ display: "flex", gap: 6, width: "100%" }}>
+              <button onClick={() => set({ wetSeed: (s.wetSeed % 999983) + 1 + Math.floor(Math.random() * 4096) })} title="Jump to a new random warp" style={{ ...inp, cursor: "pointer", flex: 1 }}>⟳ Reshuffle</button>
+              <button onClick={() => set({ wetLoop: !s.wetLoop })} style={{ ...inp, cursor: "pointer", flex: 1, background: s.wetLoop ? "#FCA31122" : "#0e131b", borderColor: s.wetLoop ? "#FCA311" : "#2a3342", color: s.wetLoop ? "#FCA311" : "#8b96a6", fontWeight: 700 }}>{s.wetLoop ? "⏸ Looping" : "▶ Loop"}</button>
+              <button onClick={() => set({ wet: 0, wetLoop: false })} title="Back to your exact bolt" style={{ ...inp, cursor: "pointer", flex: 1 }}>Revert</button>
+            </div>
+          </Row>
+        </Section>
 
         <Section title="Bolt geometry">
           <Row label="Style"><select onChange={(e) => { const pr = BOLT_STYLE_PRESETS.find((x) => x.id === e.target.value); if (pr) setBolt(pr.params); }} value="" style={{ ...inp, cursor: "pointer" }}><option value="">Presets…</option>{BOLT_STYLE_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Row>
@@ -810,9 +882,10 @@ function LogoLab() {
                   {s.refImg && <button onClick={() => set({ refOn: !s.refOn })} title="Show the reference image behind the vertices to trace it (position / opacity in the left Reference panel)" style={{ ...inp, width: "auto", cursor: "pointer", padding: "3px 10px", background: s.refOn ? "#FCA31122" : "#0e131b", borderColor: s.refOn ? "#FCA311" : "#2a3342", color: s.refOn ? "#FCA311" : "#8b96a6", fontWeight: 700 }}>Ref</button>}
                 </div>
                 <svg ref={editSvgRef} viewBox={geom.viewBox} width="100%" height="100%" style={{ overflow: "visible", position: "relative", zIndex: 1 }}>
-                  {/* both rings for context; active brighter, inactive faint */}
-                  <path d={geom.outer} fill={s.editRing === "outer" ? "rgba(224,40,74,0.07)" : "none"} stroke="#E0284A" strokeWidth={s.editRing === "outer" ? 1.1 : 0.7} opacity={s.editRing === "outer" ? 0.7 : 0.3} />
-                  <path d={geom.seam} fill={s.editRing === "seam" ? "rgba(79,163,227,0.09)" : "none"} stroke="#4FA3E3" strokeWidth={s.editRing === "seam" ? 1.1 : 0.7} opacity={s.editRing === "seam" ? 0.8 : 0.35} />
+                  {/* both rings for context (DRY paths, so they match the dry handles even
+                      while the live preview behind is warped); active brighter, inactive faint */}
+                  <path d={ptsToPath(geom.finalOuter)} fill={s.editRing === "outer" ? "rgba(224,40,74,0.07)" : "none"} stroke="#E0284A" strokeWidth={s.editRing === "outer" ? 1.1 : 0.7} opacity={s.editRing === "outer" ? 0.7 : 0.3} />
+                  <path d={ptsToPath(geom.finalSeam)} fill={s.editRing === "seam" ? "rgba(79,163,227,0.09)" : "none"} stroke="#4FA3E3" strokeWidth={s.editRing === "seam" ? 1.1 : 0.7} opacity={s.editRing === "seam" ? 0.8 : 0.35} />
                   {/* selected vertex's two edges (incoming amber, outgoing blue) */}
                   {selVert != null && selVert < an && (() => { const v = activePts[selVert], p = activePts[(selVert - 1 + an) % an], q = activePts[(selVert + 1) % an]; return (<><line x1={p.x} y1={p.y} x2={v.x} y2={v.y} stroke="#FCA311" strokeWidth={2.5} /><line x1={v.x} y1={v.y} x2={q.x} y2={q.y} stroke="#4FA3E3" strokeWidth={2.5} /></>); })()}
                   {refEdge != null && refEdge < an && (() => { const a = activePts[refEdge], b = activePts[(refEdge + 1) % an]; return <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#3BF5A0" strokeWidth={2} strokeDasharray="4 3" />; })()}
