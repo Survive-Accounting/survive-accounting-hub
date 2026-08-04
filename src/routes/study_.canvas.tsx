@@ -3193,12 +3193,13 @@ function PresentCanvas() {
       ({ id: fIds[s], type: "frame", parentId: lessonId, position: { x: columnX(0), y: rowY(s) }, width: FRAME_W, height: FRAME_H, data: { ...blankFrameData("hook", s), title, ...extra } }) as unknown as CardNode;
     const starters: CardNode[] = [
       { id: lessonId, type: "lesson", position: { x: 160, y: 120 }, data: { label: "Start Here", w: cell.w, h: cell.h, pathOrder: 0 } } as unknown as CardNode,
-      // Intro CTA — branded dream loop + the slogan lockup ("Cram videos by Lee Ingram")
-      frameAt(0, "Intro", { bgSrc: "dream", bgPlaying: true, bgOpacity: 1, bgFit: "cover", bgZoom: 110, bgAnchor: "bottom" }),
+      // Intro — the music-synced AnimatedIntro (big bolt → beat-drop fly-in → slogan).
+      // ▶ play (with 🔊 music) + editable slogan live on the element's hover toolbar.
+      frameAt(0, "Intro"),
       frameAt(1, "CEQ Hook"),
       frameAt(2, "CEQ Portal", { portal: true }),
       frameAt(3, "Outro"),
-      { id: cardId("logo"), type: "logo", parentId: fIds[0], position: { x: 160, y: 130 }, data: { kind: "logo", mode: "slogan", colorId: "red-blue", ink: "light", w: 480, h: 190 } } as unknown as CardNode,
+      { id: cardId("intro"), type: "intro", parentId: fIds[0], position: { x: 0, y: 0 }, data: { kind: "intro", slogan: "Cram videos by Lee Ingram", soundOn: false, transparent: false, w: 800, h: 450 } } as unknown as CardNode,
       { id: cardId("heading"), type: "heading", parentId: fIds[1], position: { x: 60, y: 150 }, data: { kind: "heading", text: 'Common Exam Question "________"', level: 1, scrim: true } } as unknown as CardNode,
       // Outro brand card — tagline "Only what's on your exam." + url are baked into the element
       { id: cardId("outro"), type: "outro", parentId: fIds[3], position: { x: 0, y: 0 }, data: { kind: "outro", transparent: false, w: 800, h: 450 } } as unknown as CardNode,

@@ -648,14 +648,24 @@ export interface LogoElement extends CardBase {
 //      frame-entry in film. Being "element" kinds, choreograph reveals them whole. ----
 export interface IntroCardElement extends CardBase {
   kind: "intro";
-  /** Topic/title shown in the plate (no chapter number). */
+  /** Topic/title shown in the plate (no chapter number). Legacy — the animated intro
+   *  uses `slogan` below; kept so old scenes still typecheck. */
   cardTitle?: string;
+  /** Slogan under the wordmark in the music-synced AnimatedIntro (editable on canvas). */
+  slogan?: string;
+  /** Music-sync anchors: the beat drop, and the extra gap after it before the slogan. */
+  beatMs?: number;
+  sloganMs?: number;
+  /** Play the intro music with the ▶ replay (so a canvas preview is see + hear). */
+  soundOn?: boolean;
   transparent?: boolean;
   w?: number;
   h?: number;
 }
 export interface OutroCardElement extends CardBase {
   kind: "outro";
+  /** Tagline under the wordmark (editable on canvas). */
+  tagline?: string;
   transparent?: boolean;
   w?: number;
   h?: number;
