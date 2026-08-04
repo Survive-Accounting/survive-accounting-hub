@@ -100,6 +100,10 @@ const PV_CSS = `
 .sa-memo-move { background: transparent; }
 /* TEXT SELECTION inside a memo reads in the brand's amber instead of the OS blue. */
 .sa-pv-node ::selection { background: rgba(252,163,17,0.9); color: #0B0F1E; }
+/* KEPT SELECTION EMPHASIS (Lee) — after you release, the highlighted text stays BOLD +
+   amber; when the memo is spotlit it also grows a touch, so it reads as "spotlighted". */
+.sa-sel-emph { font-weight: 900; background: rgba(252,163,17,0.92); color: #0B0F1E; border-radius: 3px; padding: 0 2px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+.sa-sel-emph-spot { font-size: 1.18em; }
 .sa-pv-node ::-moz-selection { background: rgba(252,163,17,0.9); color: #0B0F1E; }
 /* FREE-ARROW endpoint dots in film: faint (so they barely read on camera) but grabbable,
    and they pop to full on hover so Lee can aim the arrow mid-take. */
@@ -423,6 +427,22 @@ function MemoPreviewNode({ id, data, selected, dragging }: NodeProps) {
     raf = requestAnimationFrame(loop);
     return () => { alive = false; if (raf) cancelAnimationFrame(raf); setTwoFace(undefined); };
   }, [dragging, slotOff]);
+  // TEXT-SELECTION EMPHASIS (Lee) — highlight text in a memo → it goes BOLD + amber (and
+  // BIGGER when the memo is spotlit), and STAYS lit after you release ("click-hold to keep
+  // it spotlighted"). React-safe: we capture the selection's char range and re-render the
+  // label as [before][<b>selected</b>][after] — no manual DOM mutation of the teaching text.
+  const labelRef = useRef<HTMLDivElement>(null);
+  const [selEmph, setSelEmph] = useState<{ a: number; b: number } | null>(null);
+  const readSelection = () => {
+    const el = labelRef.current; const win = el?.ownerDocument.defaultView; const sel = win?.getSelection();
+    if (!el || !sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+    const r = sel.getRangeAt(0);
+    if (!el.contains(r.commonAncestorContainer)) return; // selection isn't in this memo
+    const pre = r.cloneRange(); pre.selectNodeContents(el); pre.setEnd(r.startContainer, r.startOffset);
+    const a = pre.toString().length, b = a + r.toString().length;
+    if (b > a) setSelEmph({ a, b });
+  };
+  const lbl = d.label ?? "";
   return (
     <div
       className={`sa-pv-node${film && walked ? " sa-memo-in" : ""}${selected ? " sa-msel" : ""}`}
@@ -465,7 +485,9 @@ function MemoPreviewNode({ id, data, selected, dragging }: NodeProps) {
       {/* CONTENT — nodrag + selectable (branded orange ::selection via PV_CSS). */}
       <div className="nodrag" style={{ padding: `${10 * s}px ${12 * s}px`, userSelect: "text", WebkitUserSelect: "text", cursor: "text", position: "relative", zIndex: 1 }}>
         {!d.hideChoiceLabel && <div style={{ fontFamily: BRAND_DISPLAY, fontSize: 9 * s, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: NEON.muted, marginBottom: 3 * s }}>choice {d.choice}</div>}
-        <div style={{ fontFamily: BRAND_DISPLAY, fontWeight: 500, fontSize: 14 * s, color: NEON.text, lineHeight: 1.28 }}>{d.label}</div>
+        <div ref={labelRef} onMouseDown={() => setSelEmph(null)} onMouseUp={readSelection} style={{ fontFamily: BRAND_DISPLAY, fontWeight: 500, fontSize: 14 * s, color: NEON.text, lineHeight: 1.28 }}>
+          {selEmph && selEmph.a < lbl.length ? (<>{lbl.slice(0, selEmph.a)}<span className={`sa-sel-emph${spState ? " sa-sel-emph-spot" : ""}`}>{lbl.slice(selEmph.a, selEmph.b)}</span>{lbl.slice(selEmph.b)}</>) : lbl}
+        </div>
       </div>
       <Handle id="l" type="source" position={Position.Left} style={HANDLE} />
       <Handle id="r" type="target" position={Position.Right} style={HANDLE} />
