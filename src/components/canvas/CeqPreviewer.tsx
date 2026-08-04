@@ -95,6 +95,14 @@ const LAYOUT_CARD = { prompt: "**LAYOUT** — the question card deals here", cho
 const PV_CSS = `
 .sa-pv-node .sa-grip-film { opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
 .sa-pv-node:hover .sa-grip-film { opacity: 1; pointer-events: auto; }
+/* MOVE STRIPS (Lee) — the memo moves only by its top/bottom edge; a faint amber handle
+   hints where to grab on hover (invisible at rest, so it never reads on camera). */
+.sa-memo-move { border-radius: 4px; transition: background 120ms ease; }
+.sa-pv-node:hover .sa-memo-move { background: rgba(252,163,17,0.12); }
+.sa-memo-move:hover { background: rgba(252,163,17,0.3) !important; }
+/* TEXT SELECTION inside a memo reads in the brand's amber instead of the OS blue. */
+.sa-pv-node ::selection { background: rgba(252,163,17,0.9); color: #0B0F1E; }
+.sa-pv-node ::-moz-selection { background: rgba(252,163,17,0.9); color: #0B0F1E; }
 /* FREE-ARROW endpoint dots in film: faint (so they barely read on camera) but grabbable,
    and they pop to full on hover so Lee can aim the arrow mid-take. */
 .sa-arrow-end-film { opacity: 0.14; transition: opacity 120ms ease; }
@@ -393,7 +401,7 @@ function MemoPreviewNode({ id, data, selected }: NodeProps) {
       // but a memo isn't inside a card, so it fell back to a translucent gold wash and read
       // see-through over the CEQ card. Give the memo its own lifted navy here so a spotlit
       // memo stays OPAQUE and pops out above the paper card (gold rail + glow + lift do the rest).
-      style={{ ["--spot-bg" as string]: "#1B2B49", boxShadow: selected ? (film ? "0 0 0 1.5px rgba(79,163,227,0.35)" : "0 0 0 2px rgba(79,163,227,0.8)") : undefined, position: "relative", width: 210 * s, borderRadius: 12 * s, background: slotOff ? "transparent" : NEON.panelSolid, border: `${1.5 * s}px ${slotOff ? "dashed" : "solid"} ${slotOff ? NEON.borderSoft : walked ? NEON.yellow : NEON.borderSoft}`, padding: `${10 * s}px ${12 * s}px`, opacity: (slotOff ? 0.3 : walked ? 1 : film ? 0 : 0.4) * (spot.any() && !spState ? 0.5 : 1), filter: slotOff || walked || film ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "grab", ...containSpot(spState) }}
+      style={{ ["--spot-bg" as string]: "#1B2B49", boxShadow: selected ? (film ? "0 0 0 1.5px rgba(79,163,227,0.35)" : "0 0 0 2px rgba(79,163,227,0.8)") : undefined, position: "relative", width: 210 * s, borderRadius: 12 * s, background: slotOff ? "transparent" : NEON.panelSolid, border: `${1.5 * s}px ${slotOff ? "dashed" : "solid"} ${slotOff ? NEON.borderSoft : walked ? NEON.yellow : NEON.borderSoft}`, opacity: (slotOff ? 0.3 : walked ? 1 : film ? 0 : 0.4) * (spot.any() && !spState ? 0.5 : 1), filter: slotOff || walked || film ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "default", ...containSpot(spState) }}
     >
       {/* chain-order badge — useful IN the previewer, never on camera (hidden in film). */}
       {!film && (slotToggle ? (
@@ -414,8 +422,16 @@ function MemoPreviewNode({ id, data, selected }: NodeProps) {
           <button className="nodrag" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); chainToggle(id, { sound: vinyl ? undefined : "vinylScratch" }); }} title={vinyl ? "Vinyl scratch on entry (film) — click to remove" : "Play the vinyl scratch when this memo enters (film)"} style={{ display: "grid", placeItems: "center", width: 18, height: 18, borderRadius: 5, fontSize: 10, cursor: "pointer", opacity: vinyl ? 1 : 0.5, background: vinyl ? "rgba(252,163,17,0.22)" : "transparent", border: `1px solid ${vinyl ? NEON.yellow : NEON.borderSoft}` }}>💿</button>
         </div>
       )}
-      {!d.hideChoiceLabel && <div style={{ fontFamily: BRAND_DISPLAY, fontSize: 9 * s, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: NEON.muted, marginBottom: 3 * s }}>choice {d.choice}</div>}
-      <div style={{ fontFamily: BRAND_DISPLAY, fontWeight: 500, fontSize: 14 * s, color: NEON.text, lineHeight: 1.28 }}>{d.label}</div>
+      {/* MOVE STRIPS (Lee) — the memo now moves ONLY by grabbing its top or bottom edge.
+          The body below is `nodrag` + text-selectable, so a click-drag in the text SELECTS
+          it instead of dragging the node; corners still resize via the ScaleGrip. */}
+      <div className="sa-memo-move" title="Drag to move" style={{ position: "absolute", top: 0, left: 12, right: 12, height: 11 * s, cursor: "move", zIndex: 4 }} />
+      <div className="sa-memo-move" title="Drag to move" style={{ position: "absolute", bottom: 0, left: 12, right: 20, height: 11 * s, cursor: "move", zIndex: 4 }} />
+      {/* CONTENT — nodrag + selectable (branded orange ::selection via PV_CSS). */}
+      <div className="nodrag" style={{ padding: `${10 * s}px ${12 * s}px`, userSelect: "text", WebkitUserSelect: "text", cursor: "text", position: "relative", zIndex: 1 }}>
+        {!d.hideChoiceLabel && <div style={{ fontFamily: BRAND_DISPLAY, fontSize: 9 * s, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: NEON.muted, marginBottom: 3 * s }}>choice {d.choice}</div>}
+        <div style={{ fontFamily: BRAND_DISPLAY, fontWeight: 500, fontSize: 14 * s, color: NEON.text, lineHeight: 1.28 }}>{d.label}</div>
+      </div>
       <Handle id="l" type="source" position={Position.Left} style={HANDLE} />
       <Handle id="r" type="target" position={Position.Right} style={HANDLE} />
       {/* RESIZE — grip now shows in film too (hover-only via sa-grip-film, so it's
