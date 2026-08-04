@@ -31,20 +31,59 @@ export const BRAND_WHITE = "#FFFFFF";
 // up the outer right flank; SEAM is the internal mini-bolt (top→bottom). The two
 // colour regions are built from these so red+blue tile the whole bolt exactly.
 type Pt = [number, number];
-const T: Pt = [60, 6];   // top point
-const B: Pt = [44, 144]; // bottom point
-const LEFT_EDGE: Pt[] = [T, [30, 66], [46, 66], [26, 112], [40, 112], B];
-const RIGHT_EDGE: Pt[] = [B, [84, 78], [64, 78], [86, 32], [66, 32], T];
-const SEAM: Pt[] = [T, [41, 62], [55, 62], [37, 110], [49, 110], B];
-const toPath = (pts: Pt[]) => pts.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x} ${y}`).join(" ") + " Z";
-/** Full silhouette (used for the c1 fill + the white keyline stroke). */
-export const BOLT_OUTER = toPath([T, ...LEFT_EDGE.slice(1), ...RIGHT_EDGE.slice(1)]);
-/** The BLUE (right) region: down the seam, up the right edge — overlaid on the
- *  red base so red shows left, blue right, meeting exactly at the seam. */
-export const BOLT_RIGHT = toPath([T, ...SEAM.slice(1), ...RIGHT_EDGE.slice(1)]);
-export const BOLT_VIEWBOX = "18 -2 76 154";
-export const BOLT_RATIO = 76 / 154; // w/h — narrow + tall, works as the "i"
+// THE 13-point lightning bolt (Grateful Dead style): a solid, right-leaning core
+// with sharp DOWNWARD barbs — deep V-notches, teeth interleaved left/right, a sharp
+// tip top and bottom. Built parametrically (BT) so the whole shape is one tunable
+// definition. The red/blue split runs down an internal lightning SEAM (a mini-bolt):
+// red left, blue right, meeting DIRECTLY with NO white between — the white keyline
+// is only on the OUTSIDE of the silhouette.
 const OUTLINE = 9; // white keyline stroke width (half shows outside the fill)
+const BT = { TX: 66, TY: 4, BX: 26, BY: 142, HALF: 13, OUT: 16, IN: 9, TEETH: 5, DOWN: 0.72, SEAM: 6 };
+const _cx = (y: number) => BT.TX + (BT.BX - BT.TX) * ((y - BT.TY) / (BT.BY - BT.TY));
+// one saw-tooth flank, top→bottom (sign +1 right / -1 left; phase interleaves the
+// two sides). Each cell: a tooth tip low in the cell, then the notch below it —
+// long upper edge + short lower edge = barbs that angle downward.
+function _edge(sign: number, phase: number): Pt[] {
+  const pts: Pt[] = [];
+  const y0 = BT.TY + 6, y1 = BT.BY - 6, span = y1 - y0, cell = span / BT.TEETH;
+  for (let k = 0; k < BT.TEETH; k++) {
+    const yTip = y0 + cell * (k + BT.DOWN + phase);
+    const yNotch = y0 + cell * (k + 1 + phase);
+    pts.push([Math.round(_cx(yTip) + sign * (BT.HALF + BT.OUT)), Math.round(yTip)]);
+    if (yNotch < y1) pts.push([Math.round(_cx(yNotch) + sign * (BT.HALF - BT.IN)), Math.round(yNotch)]);
+  }
+  return pts;
+}
+const _TIP_T: Pt = [BT.TX, BT.TY], _TIP_B: Pt = [BT.BX, BT.BY];
+const _RIGHT: Pt[] = [_TIP_T, ..._edge(+1, 0), _TIP_B];
+const _LEFT: Pt[] = [_TIP_T, ..._edge(-1, -0.5), _TIP_B];
+// central lightning seam: a small zigzag down the core → an even-ish red/blue split
+const _SEAM: Pt[] = [_TIP_T];
+{
+  const y0 = BT.TY + 6, y1 = BT.BY - 6, span = y1 - y0, n = BT.TEETH * 2;
+  for (let k = 1; k < n; k++) {
+    const y = y0 + (span * k) / n;
+    _SEAM.push([Math.round(_cx(y) + (k % 2 ? BT.SEAM : -BT.SEAM)), Math.round(y)]);
+  }
+}
+_SEAM.push(_TIP_B);
+const _rev = (a: Pt[]) => [...a].reverse();
+const toPath = (pts: Pt[]) => pts.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x} ${y}`).join(" ") + " Z";
+/** Full silhouette (c1 fill + the white outer keyline): down the right flank, up
+ *  the left flank. */
+export const BOLT_OUTER = toPath([..._RIGHT, ..._rev(_LEFT).slice(1, -1)]);
+/** BLUE (right) region: down the centred seam, up the right flank. Overlaid on the
+ *  red base so red = left, blue = right, meeting along the seam with NO gap. */
+export const BOLT_RIGHT = toPath([..._SEAM, ..._rev(_RIGHT).slice(1, -1)]);
+// viewBox from the actual point bounds (+ keyline padding), so BT can change without
+// hand-editing the frame.
+const _all = [..._RIGHT, ..._LEFT, ..._SEAM];
+const _xs = _all.map((p) => p[0]), _ys = _all.map((p) => p[1]);
+const _pad = OUTLINE / 2 + 2;
+const _x0 = Math.min(..._xs) - _pad, _y0 = Math.min(..._ys) - _pad;
+const _w = Math.max(..._xs) - _x0 + _pad, _h = Math.max(..._ys) - _y0 + _pad;
+export const BOLT_VIEWBOX = `${_x0} ${_y0} ${_w} ${_h}`;
+export const BOLT_RATIO = _w / _h;
 
 export interface BoltColors { c1: string; c2: string; keyline?: string }
 export interface ColorOption { id: string; name: string; c1: string; c2: string }
@@ -117,13 +156,13 @@ export const LOGO_MODES: { id: LogoMode; name: string }[] = [
 export function BrandLogo({ mode, c1, c2, keyline, ink = "#141414", size = 48, slogan = "Cram videos by Lee Ingram", style }: {
   mode: LogoMode; c1: string; c2: string; keyline?: string; ink?: string; size?: number; slogan?: string; style?: React.CSSProperties;
 }) {
-  // The bolt reads as the "i": a touch taller than the caps, tight kerning so it
-  // sits where the lowercase i would, not a hole.
-  const boltH = Math.round(size * 1.14);
-  const gap = Math.max(1, Math.round(size * -0.02)); // slight negative → no hole
-  const boltEl = <span style={{ display: "inline-block", height: boltH, width: Math.round(boltH * BOLT_RATIO), verticalAlign: "baseline", margin: `0 ${gap}px`, transform: `translateY(${Math.round(size * 0.14)}px)` }}><Bolt c1={c1} c2={c2} keyline={keyline} /></span>;
+  // The bolt reads as the "i": ~cap height, leaning. A negative side margin tucks
+  // the letters against the bolt's actual ink (the viewBox is wider than the lean).
+  const boltH = Math.round(size * 1.18);
+  const gap = Math.round(size * -0.03);
+  const boltEl = <span style={{ display: "inline-block", height: boltH, width: Math.round(boltH * BOLT_RATIO), verticalAlign: "baseline", margin: `0 ${gap}px`, transform: `translateY(${Math.round(size * 0.09)}px)` }}><Bolt c1={c1} c2={c2} keyline={keyline} /></span>;
   const word = (
-    <span style={{ display: "inline-flex", alignItems: "baseline", fontFamily: BRAND_SERIF, fontVariationSettings: BRAND_SERIF_VARIATION, fontWeight: 900, fontSize: size, lineHeight: 1, letterSpacing: "-0.005em", color: ink }}>
+    <span style={{ display: "inline-flex", alignItems: "baseline", fontFamily: BRAND_SERIF, fontVariationSettings: BRAND_SERIF_VARIATION, fontWeight: 900, fontSize: size, lineHeight: 1, letterSpacing: "0.02em", color: ink }}>
       Surv{boltEl}ve
     </span>
   );
@@ -134,7 +173,8 @@ export function BrandLogo({ mode, c1, c2, keyline, ink = "#141414", size = 48, s
       {word}
       {/* thin amber→red underline, ~ACCOUNTING width (not full wordmark width) */}
       <span style={{ height: Math.max(2, Math.round(size * 0.045)), width: "72%", borderRadius: 999, background: "linear-gradient(90deg, #F4A020, #C62828)" }} />
-      <span style={{ fontFamily: BRAND_SANS, fontWeight: 600, fontSize: Math.round(size * 0.28), letterSpacing: "0.42em", textTransform: "uppercase", color: ink, paddingLeft: "0.42em" }}>Accounting</span>
+      {/* ACCOUNTING: SAME serif as the wordmark, all-caps, tighter tracking */}
+      <span style={{ fontFamily: BRAND_SERIF, fontVariationSettings: BRAND_SERIF_VARIATION, fontWeight: 700, fontSize: Math.round(size * 0.3), letterSpacing: "0.24em", textTransform: "uppercase", color: ink, paddingLeft: "0.24em" }}>Accounting</span>
     </span>
   );
   // slogan — clean sans companion, always secondary
