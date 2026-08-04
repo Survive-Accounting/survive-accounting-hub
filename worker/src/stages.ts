@@ -6,7 +6,8 @@
 // files and produces ONE file; the last stage's output is uploaded. New effects
 // (the queued reversed-tail brand intro, the music bed) register here as new
 // stage kinds — the concat is just the first stage kind, not the pipeline.
-import { RENDER } from "./config";
+import { LOOP, RENDER } from "./config";
+import { loopBuilderArgs } from "./loop-builder";
 
 export interface JobInput { id: string; url: string }
 
@@ -29,7 +30,17 @@ export interface MusicBedStage { kind: "music_bed"; input: string; bed: string; 
  *  the whole track), fading out over `musicFadeS` into the next clip. reversedTailS is
  *  THE shared beat-drop constant. */
 export interface WarpIntroStage { kind: "warp_intro"; input: string; bed: string; reversedTailS?: number; flashMs?: number; musicBedDb?: number; musicFadeS?: number }
-export type Stage = ConcatStage | ReversedTailStage | MusicBedStage | WarpIntroStage;
+/** LOOP BUILDER — `input` = the assembled vertical short, `bed` = the music. Engineers a
+ *  seamless-loop 1080x1920 clip of length X = (60/bpm)*beatsPerBar*bars. See loop-builder.ts. */
+export interface LoopBuilderStage {
+  kind: "loop_builder";
+  input: string; bed: string;
+  bpm: number; bars: number; rotationPointSec: number;
+  beatsPerBar?: number; fps?: number;
+  boltFlash?: boolean; bedDb?: number; voiceSeamMs?: number;
+  loudI?: number; loudTP?: number; loudLRA?: number;
+}
+export type Stage = ConcatStage | ReversedTailStage | MusicBedStage | WarpIntroStage | LoopBuilderStage;
 
 export interface JobSpec {
   v: 1;
@@ -190,6 +201,17 @@ export function planStage(stage: Stage, files: StagedFile[], outPath: string): s
       if (!clip || !bed) throw new Error("warp_intro: needs the intro clip and the music bed");
       return warpIntroArgs(clip, bed, outPath, { reversedTailS: stage.reversedTailS, flashMs: stage.flashMs, musicBedDb: stage.musicBedDb, musicFadeS: stage.musicFadeS });
     }
+    case "loop_builder": {
+      const [short, bed] = files;
+      if (!short || !bed) throw new Error("loop_builder: needs the short and the music bed");
+      return loopBuilderArgs(short.path, bed.path, outPath, {
+        bpm: stage.bpm, beatsPerBar: stage.beatsPerBar ?? LOOP.beatsPerBar, bars: stage.bars,
+        rotationPointSec: stage.rotationPointSec, fps: stage.fps ?? LOOP.fps,
+        hasAudio: short.hasAudio !== false,
+        boltFlash: stage.boltFlash, bedDb: stage.bedDb, voiceSeamMs: stage.voiceSeamMs,
+        loudI: stage.loudI, loudTP: stage.loudTP, loudLRA: stage.loudLRA,
+      });
+    }
     case "reversed_tail":
     case "music_bed":
       throw new QueuedStageError(stage.kind);
@@ -215,6 +237,10 @@ export function validateSpec(spec: unknown): asserts spec is JobSpec {
     else if (st.kind === "warp_intro") {
       if (!known(st.input)) throw new Error(`job spec: warp_intro names unknown input "${st.input}"`);
       if (!known(st.bed)) throw new Error(`job spec: warp_intro names unknown bed "${st.bed}"`);
+    }
+    else if (st.kind === "loop_builder") {
+      if (!known(st.input)) throw new Error(`job spec: loop_builder names unknown input "${st.input}"`);
+      if (!known(st.bed)) throw new Error(`job spec: loop_builder names unknown bed "${st.bed}"`);
     }
     else if (st.kind === "reversed_tail" || st.kind === "music_bed") { /* queued kinds validated at plan time */ }
     else throw new Error(`job spec: unknown stage kind "${(st as { kind?: string }).kind}"`);

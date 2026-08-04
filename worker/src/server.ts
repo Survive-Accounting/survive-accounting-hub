@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { LIMITS } from "./config";
+import { computeLoop } from "./loop-builder";
 import { planStage, validateSpec, type JobSpec, type StagedFile } from "./stages";
 
 const PORT = Number(process.env.PORT ?? 8080);
@@ -140,11 +141,27 @@ async function runJob(job: Job, spec: JobSpec): Promise<void> {
       const files: StagedFile[] =
         stage.kind === "concat" ? stage.inputs.map(resolve)
           : stage.kind === "warp_intro" ? [resolve(stage.input), resolve(stage.bed)]
-            : [];
+            : stage.kind === "loop_builder" ? [resolve(stage.input), resolve(stage.bed)]
+              : [];
+      // LOOP BUILDER pre-flight — a fractional bar is the whole failure mode, so fail LOUD
+      // before rendering if the music bed or the short can't cover a whole X bars.
+      if (stage.kind === "loop_builder") {
+        const { X } = computeLoop({ bpm: stage.bpm, beatsPerBar: stage.beatsPerBar ?? 4, bars: stage.bars, rotationPointSec: stage.rotationPointSec, fps: stage.fps ?? 30 });
+        const [short, bed] = files;
+        if (bed.durationS < X - 0.001) throw new Error(`loop_builder: music bed is ${bed.durationS.toFixed(3)}s but a whole ${stage.bars} bars need X=${X.toFixed(3)}s — the bed can't fill a full loop`);
+        if (short.durationS < X - 0.001) throw new Error(`loop_builder: short is ${short.durationS.toFixed(3)}s but X=${X.toFixed(3)}s — the video can't cover a full loop`);
+      }
       await runFfmpeg(planStage(stage, files, outPath), remaining(LIMITS.renderTimeoutMs));
-      // Later stages may reference this output as `__stage<s>`; re-probe so a
-      // following concat gets a real duration for its offset math.
-      local.set(`__stage${s}`, { path: outPath, durationS: await probeDuration(outPath) });
+      const outDur = await probeDuration(outPath);
+      // LOOP BUILDER post-flight — the music dictates runtime: assert the output IS X
+      // (within one frame; the video trim quantizes to a frame boundary).
+      if (stage.kind === "loop_builder") {
+        const { X, frameDur } = computeLoop({ bpm: stage.bpm, beatsPerBar: stage.beatsPerBar ?? 4, bars: stage.bars, rotationPointSec: stage.rotationPointSec, fps: stage.fps ?? 30 });
+        if (Math.abs(outDur - X) > frameDur + 0.001) throw new Error(`loop_builder: output is ${outDur.toFixed(3)}s but must equal X=${X.toFixed(3)}s (±1 frame) — the loop would drift`);
+      }
+      // Later stages may reference this output as `__stage<s>`; the probed duration lets a
+      // following concat get a real length for its offset math.
+      local.set(`__stage${s}`, { path: outPath, durationS: outDur });
       lastOut = outPath;
     }
     if (!lastOut) throw new Error("no stage produced output");
