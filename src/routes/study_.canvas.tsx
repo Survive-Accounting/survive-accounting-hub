@@ -58,7 +58,7 @@ import { SpotlightCtx, useSpotlightController, type FocusDimMode } from "@/compo
 import { revealedTargetId } from "@/components/canvas/spotlight";
 import { ambientViewport, fillViewport, spotlightPushViewport } from "@/components/canvas/camera-push";
 import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, BEAT_LABEL, blankFrameData, columnX, frameCellLabel, frameCompositionGuides, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type GuideWeight } from "@/components/canvas/frames";
-import { BridgeCardNode, CeqTeaseNode, ExamCueNode, GateNode, LogoCardNode, TextElementNode } from "@/components/canvas/cards/elements";
+import { BridgeCardNode, CeqTeaseNode, CornerBoltNode, ExamCueNode, GateNode, IntroCardNode, LogoCardNode, OutroCardNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { CycleNode } from "@/components/canvas/cards/CycleNode";
 import { configureSfx, playSfx, preloadSfx, SFX_DEFAULT, type SfxConfig, type SfxEvent } from "@/components/canvas/sfx";
 import { framePartIds, framePartLabels, materializeFrame, REST_TARGET, WHOLE_TARGET } from "@/components/canvas/choreo";
@@ -830,6 +830,9 @@ const nodeTypes = {
   examcue: ExamCueNode,
   ceqtease: CeqTeaseNode,
   logo: LogoCardNode,
+  intro: IntroCardNode,
+  outro: OutroCardNode,
+  corner: CornerBoltNode,
   cycle: CycleNode,
   memo: MemoCardNode,
   paygate: GateNode,
@@ -1030,6 +1033,9 @@ const ADD_ELEMENT_BLANKS: { label: string; make: () => CardData }[] = [
   { label: "CEQ Tease", make: () => blankCard("ceqtease") },
   { label: "Accounting Cycle", make: () => blankCard("cycle") },
   { label: "Logo", make: () => blankCard("logo") },
+  { label: "Intro card", make: () => blankCard("intro") },
+  { label: "Outro card", make: () => blankCard("outro") },
+  { label: "Corner bolt", make: () => blankCard("corner") },
   { label: "Memo", make: () => blankCard("memo") },
 ];
 

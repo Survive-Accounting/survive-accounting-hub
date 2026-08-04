@@ -23,6 +23,9 @@ export type CardKind =
   | "ceqtease"
   | "cycle"
   | "logo"
+  | "intro"
+  | "outro"
+  | "corner"
   | "memo"
   | "outline"
   | "paygate"
@@ -60,6 +63,9 @@ export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
   ceqtease: "element",
   cycle: "element",
   logo: "element",
+  intro: "element",
+  outro: "element",
+  corner: "element",
   memo: "element",
   paygate: "element",
   signupgate: "element",
@@ -634,6 +640,36 @@ export interface LogoElement extends CardBase {
   h?: number;
 }
 
+// ---- Branded VIDEO CARDS (Lee) — full-frame 1920×1080 compositions dropped as
+//      elements: intro (wordmark + title plate), outro (wordmark + tagline + url),
+//      corner (bolt-only watermark). They render src/components/brand-cards/* scaled
+//      to the node box (scale = w/1920). `transparent` drops the navy for OBS keying.
+//      Their own entrance (wordmark snap / plate wipe / tagline fade) re-fires on
+//      frame-entry in film. Being "element" kinds, choreograph reveals them whole. ----
+export interface IntroCardElement extends CardBase {
+  kind: "intro";
+  /** Topic/title shown in the plate (no chapter number). */
+  cardTitle?: string;
+  transparent?: boolean;
+  w?: number;
+  h?: number;
+}
+export interface OutroCardElement extends CardBase {
+  kind: "outro";
+  transparent?: boolean;
+  w?: number;
+  h?: number;
+}
+export interface CornerBoltElement extends CardBase {
+  kind: "corner";
+  corner?: "tl" | "tr" | "bl" | "br";
+  /** Watermark opacity (0–1). */
+  boltOpacity?: number;
+  transparent?: boolean;
+  w?: number;
+  h?: number;
+}
+
 // ---- Cycle (Lee): the Accounting Cycle — a raised callout box (exam-cue vibe)
 //      with N steps laid out evenly around an OVAL, connected by flow arrows that
 //      close the loop. Add / remove / rename steps; the oval re-solves from the
@@ -760,6 +796,9 @@ export type CardData =
   | CeqTeaseElement
   | CycleElement
   | LogoElement
+  | IntroCardElement
+  | OutroCardElement
+  | CornerBoltElement
   | MemoCard
   | GateElement
   | OutlineCard

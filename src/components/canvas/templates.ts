@@ -43,6 +43,12 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
       return { kind: "ceqtease", text: "What type of account is ___?", emoji: "📝", w: 720, h: 150 };
     case "logo":
       return { kind: "logo", mode: "wordmark", colorId: "red-blue", ink: "light", w: 360, h: 120 };
+    case "intro":
+      return { kind: "intro", cardTitle: "Trial Balance", transparent: false, w: 800, h: 450 };
+    case "outro":
+      return { kind: "outro", transparent: false, w: 800, h: 450 };
+    case "corner":
+      return { kind: "corner", corner: "tr", boltOpacity: 0.7, transparent: true, w: 800, h: 450 };
     case "cycle":
       return {
         kind: "cycle",
@@ -249,6 +255,9 @@ export const CARD_KIND_LABEL: Record<CardData["kind"], string> = {
   examcue: "Exam Cue",
   ceqtease: "CEQ Tease",
   logo: "Logo",
+  intro: "Intro card",
+  outro: "Outro card",
+  corner: "Corner bolt",
   cycle: "Accounting Cycle",
   memo: "Memo",
   paygate: "Payment Gate",

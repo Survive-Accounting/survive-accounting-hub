@@ -19,7 +19,10 @@ import { BIG_FONT, DISPLAY_FONT, NEON, NOTE_COLORS, PAPER } from "../theme";
 import { useEditSignal } from "../ui";
 import { renderTokens, TokenMenu } from "../variables";
 import { BOLT_PRESETS, BrandLogo, boltColorById, LOGO_MODES, SEC_SCHOOLS, type LogoMode } from "../brand";
-import type { BridgeCard, CeqTeaseElement, ExamCueElement, GateElement, LogoElement, TextElement } from "../types";
+import { IntroCard } from "@/components/brand-cards/IntroCard";
+import { OutroCard } from "@/components/brand-cards/OutroCard";
+import { CornerBolt } from "@/components/brand-cards/CornerBolt";
+import type { BridgeCard, CeqTeaseElement, CornerBoltElement, ExamCueElement, GateElement, IntroCardElement, LogoElement, OutroCardElement, TextElement } from "../types";
 
 // ---- shared element chrome: clone · × · pos-lock (hover only) ---------------
 export function ElementChrome({ id, posLock, selected, align = "right" }: { id: string; posLock?: boolean; selected?: boolean; align?: "left" | "right" }) {
@@ -658,6 +661,108 @@ export function LogoCardNode({ id, data, selected }: NodeProps) {
             <optgroup label="SEC">{SEC_SCHOOLS.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</optgroup>
           </select>
           <button className="nodrag h-5 w-5 rounded text-[9px] font-black" style={{ color: d.ink === "dark" ? "#141414" : NEON.muted, background: d.ink === "dark" ? "#F4EFE6" : "transparent", border: `1px solid ${NEON.borderSoft}` }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); update({ ink: d.ink === "dark" ? "light" : "dark" }); }} title={d.ink === "dark" ? "Letters DARK (near-black) — click for light" : "Letters LIGHT (cream) — click for dark"}>A</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- BRANDED VIDEO CARDS (Lee) — intro / outro / corner as full-frame elements -------
+// Each renders src/components/brand-cards/* scaled to the node box (scale = w/1920). Being
+// "element" kinds they choreograph-reveal as a whole; their own entrance re-fires on frame
+// entry in film via a bumped playKey. A hover toolbar (authoring only) edits their fields.
+const ELEM_TOOLBAR = "card-actions absolute -bottom-8 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-lg px-1.5 py-1 opacity-0 transition-opacity group-hover/el:opacity-100";
+const ELEM_BTN = "nodrag h-5 rounded px-1.5 text-[8.5px] font-bold uppercase";
+
+/** Bump a playKey each time this element (re)enters the current frame in FILM, so the card's
+ *  own entrance animation replays on the take. Static (0) in authoring. */
+function useFrameEntryReplay(id: string) {
+  const nav = useFrameNav();
+  const rf = useReactFlow();
+  const inFrame = nav.currentFrameId != null && rf.getNode(id)?.parentId === nav.currentFrameId;
+  const [playKey, setPlayKey] = useState(0);
+  const was = useRef(false);
+  useEffect(() => {
+    if (nav.film && inFrame && !was.current) setPlayKey((k) => k + 1);
+    was.current = inFrame;
+  }, [inFrame, nav.film]);
+  return { nav, playKey, bump: () => setPlayKey((k) => k + 1) };
+}
+
+export function IntroCardNode({ id, data, selected }: NodeProps) {
+  const d = data as unknown as IntroCardElement;
+  const { update, toFront } = useCardActions(id);
+  const spot = useSpotTarget(id, "self");
+  const cleanShot = spot.state === "spot";
+  const w = d.w ?? 800, h = d.h ?? 450;
+  const { nav, playKey, bump } = useFrameEntryReplay(id);
+  return (
+    <div onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150" style={{ width: w, minHeight: h }}>
+      <ConnectionDots />
+      {!cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
+      <ElementResizer id={id} selected={selected && !cleanShot} minWidth={240} minHeight={135} keepAspect />
+      <div {...spot.props} style={{ width: w, height: h, overflow: "hidden", borderRadius: 8, ...spotStyle(spot.state) }}>
+        <IntroCard title={d.cardTitle ?? "Title"} scale={w / 1920} transparent={d.transparent} playKey={playKey} />
+      </div>
+      {!cleanShot && !nav.film && (
+        <div className={ELEM_TOOLBAR} style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}>
+          <input className="nodrag h-5 rounded px-1 text-[9px]" style={{ color: NEON.text, background: "transparent", border: `1px solid ${NEON.borderSoft}`, width: 132 }} value={d.cardTitle ?? ""} placeholder="Title (topic, no ch#)" onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ cardTitle: e.target.value })} title="Plate title — topic name, no chapter number" />
+          <button className={ELEM_BTN} style={{ color: d.transparent ? NEON.yellow : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); update({ transparent: !d.transparent }); }} title="Transparent background for OBS keying (else navy)">{d.transparent ? "keyed" : "navy"}</button>
+          <button className={ELEM_BTN} style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); bump(); }} title="Replay the entrance animation">▶</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function OutroCardNode({ id, data, selected }: NodeProps) {
+  const d = data as unknown as OutroCardElement;
+  const { update, toFront } = useCardActions(id);
+  const spot = useSpotTarget(id, "self");
+  const cleanShot = spot.state === "spot";
+  const w = d.w ?? 800, h = d.h ?? 450;
+  const { nav, playKey, bump } = useFrameEntryReplay(id);
+  return (
+    <div onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150" style={{ width: w, minHeight: h }}>
+      <ConnectionDots />
+      {!cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
+      <ElementResizer id={id} selected={selected && !cleanShot} minWidth={240} minHeight={135} keepAspect />
+      <div {...spot.props} style={{ width: w, height: h, overflow: "hidden", borderRadius: 8, ...spotStyle(spot.state) }}>
+        <OutroCard scale={w / 1920} transparent={d.transparent} playKey={playKey} />
+      </div>
+      {!cleanShot && !nav.film && (
+        <div className={ELEM_TOOLBAR} style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}>
+          <button className={ELEM_BTN} style={{ color: d.transparent ? NEON.yellow : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); update({ transparent: !d.transparent }); }} title="Transparent background for OBS keying (else navy)">{d.transparent ? "keyed" : "navy"}</button>
+          <button className={ELEM_BTN} style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); bump(); }} title="Replay the entrance animation">▶</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const CORNERS: { v: NonNullable<CornerBoltElement["corner"]>; t: string }[] = [{ v: "tl", t: "↖" }, { v: "tr", t: "↗" }, { v: "bl", t: "↙" }, { v: "br", t: "↘" }];
+export function CornerBoltNode({ id, data, selected }: NodeProps) {
+  const d = data as unknown as CornerBoltElement;
+  const { update, toFront } = useCardActions(id);
+  const nav = useFrameNav();
+  const spot = useSpotTarget(id, "self");
+  const cleanShot = spot.state === "spot";
+  const w = d.w ?? 800, h = d.h ?? 450;
+  const corner = d.corner ?? "tr";
+  return (
+    <div onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150" style={{ width: w, minHeight: h }}>
+      <ConnectionDots />
+      {!cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
+      <ElementResizer id={id} selected={selected && !cleanShot} minWidth={240} minHeight={135} keepAspect />
+      <div {...spot.props} style={{ width: w, height: h, overflow: "hidden", borderRadius: 8, ...spotStyle(spot.state) }}>
+        <CornerBolt corner={corner} scale={w / 1920} transparent={d.transparent ?? true} opacity={d.boltOpacity ?? 0.7} />
+      </div>
+      {!cleanShot && !nav.film && (
+        <div className={ELEM_TOOLBAR} style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}>
+          {CORNERS.map((c) => (
+            <button key={c.v} className="nodrag h-5 w-5 rounded text-[10px]" style={{ color: corner === c.v ? "#0B0F1E" : NEON.muted, background: corner === c.v ? NEON.yellow : "transparent", border: `1px solid ${corner === c.v ? NEON.yellow : NEON.borderSoft}` }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); update({ corner: c.v }); }} title={`Watermark corner: ${c.v}`}>{c.t}</button>
+          ))}
+          <button className={ELEM_BTN} style={{ color: d.transparent === false ? NEON.muted : NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); update({ transparent: d.transparent === false }); }} title="Transparent background (watermark overlay) vs navy">{d.transparent === false ? "navy" : "keyed"}</button>
         </div>
       )}
     </div>
