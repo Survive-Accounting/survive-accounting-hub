@@ -140,8 +140,8 @@ const PV_CSS = `
 /* SPOTLIGHT GUARDRAILS (Lee) — cap the FLAME super-scale inside the previewer so a
    flamed choice/memo can't blow outside the CEQ box / frame on a take (beats
    FLAME_CSS's scale(1.4) !important by specificity; origin stays left-center). */
-.sa-ceq-choice[data-flame="on"] { transform: scale(1.08) !important; }
-.sa-pv-node[data-flame="on"] { transform: scale(1.08) !important; }
+.sa-ceq-choice[data-flame="on"] { transform: scale(1.25) !important; border-radius: 10px; }
+.sa-pv-node[data-flame="on"] { transform: scale(1.6) !important; border-radius: 12px; }
 /* MEMO ARROWS (Lee) — a spotlit arrow's dash flows choice→memo (left→right), like a
    reading eye; loops so re-reading feels natural. The path is drawn choice→memo, so a
    NEGATIVE stroke-dashoffset advances the dashes in that (reading) direction. */
@@ -158,9 +158,16 @@ const PV_CSS = `
  *  the CEQ box / frame (spotStyle uses scale(1.2), which spilled a full-width choice
  *  ~100px past the card). The gold pill + glow carry the emphasis; the CEQ card also
  *  clips its content so the residual growth/glow can never leave the box on camera. */
-function containSpot(state: "spot" | null): React.CSSProperties {
+function containSpot(state: "spot" | null, big = false): React.CSSProperties {
   const s = spotStyle(state);
-  return state === "spot" ? { ...s, transform: "scale(1.06)" } : s;
+  if (state !== "spot") return s;
+  // ENLARGE MUCH MORE (Lee) — the spotlight has to make an impact. A MEMO (the teaching
+  // surface, free-floating) grows big with a thick amber rail + strong glow + lift and
+  // rides above its neighbours; a CHOICE (inside the paper card, clipped) grows moderately
+  // so it still reads without spilling into the frame. Radius matches the memo/choice box.
+  return big
+    ? { ...s, transform: "scale(1.4)", borderRadius: 12, zIndex: 30, boxShadow: "inset 5px 0 0 #FCA311, 0 0 36px rgba(252,163,17,0.8), 0 18px 36px -8px rgba(0,0,0,0.62)" }
+    : { ...s, transform: "scale(1.18)", borderRadius: 10 };
 }
 const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
 const mmss = (ms: number) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
@@ -398,7 +405,7 @@ function MemoPreviewNode({ id, data, selected }: NodeProps) {
       // but a memo isn't inside a card, so it fell back to a translucent gold wash and read
       // see-through over the CEQ card. Give the memo its own lifted navy here so a spotlit
       // memo stays OPAQUE and pops out above the paper card (gold rail + glow + lift do the rest).
-      style={{ ["--spot-bg" as string]: "#1B2B49", boxShadow: selected ? (film ? "0 0 0 1.5px rgba(79,163,227,0.35)" : "0 0 0 2px rgba(79,163,227,0.8)") : undefined, position: "relative", width: 210 * s, borderRadius: 12 * s, background: slotOff ? "transparent" : NEON.panelSolid, border: `${1.5 * s}px ${slotOff ? "dashed" : "solid"} ${slotOff ? NEON.borderSoft : walked ? NEON.yellow : NEON.borderSoft}`, opacity: (slotOff ? 0.3 : walked ? 1 : film ? 0 : 0.4) * (spot.any() && !spState ? 0.5 : 1), filter: slotOff || walked || film ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "default", ...containSpot(spState) }}
+      style={{ ["--spot-bg" as string]: "#382B0C", boxShadow: selected ? (film ? "0 0 0 1.5px rgba(79,163,227,0.35)" : "0 0 0 2px rgba(79,163,227,0.8)") : undefined, position: "relative", width: 210 * s, borderRadius: 12 * s, background: slotOff ? "transparent" : NEON.panelSolid, border: `${1.5 * s}px ${slotOff ? "dashed" : "solid"} ${slotOff ? NEON.borderSoft : walked ? NEON.yellow : NEON.borderSoft}`, opacity: (slotOff ? 0.3 : walked ? 1 : film ? 0 : 0.4) * (spot.any() && !spState ? 0.5 : 1), filter: slotOff || walked || film ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "default", ...containSpot(spState, true) }}
     >
       {/* chain-order badge — useful IN the previewer, never on camera (hidden in film). */}
       {!film && (slotToggle ? (
