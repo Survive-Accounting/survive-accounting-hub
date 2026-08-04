@@ -131,6 +131,23 @@ describe("render worker stage planner", () => {
     expect(() => validateSpec({ ...base, stages: [{ kind: "warp_intro", input: "c0", bed: "ghost" }] })).toThrow(/unknown bed "ghost"/);
   });
 
+  // ---- LOOP BUILDER stage wiring (the filtergraph itself is guarded in loop-builder.test.ts)
+  test("planStage loop_builder delegates to the loop planner (rotated bed + 1080x1920)", () => {
+    const g = graphOf(planStage({ kind: "loop_builder", input: "s", bed: "m", bpm: 120, bars: 8, rotationPointSec: 4.25 } as never, [clip(20), bed(30)], "/tmp/o.mp4"));
+    expect(g).toContain("[mA]atrim=start=4.25:end=16,asetpts=PTS-STARTPTS[bedA]");
+    expect(g).toContain("scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920");
+  });
+
+  test("planStage loop_builder needs both the short and the bed", () => {
+    expect(() => planStage({ kind: "loop_builder", input: "s", bed: "m", bpm: 120, bars: 8, rotationPointSec: 4.25 } as never, [clip(20)], "/tmp/o.mp4")).toThrow(/needs the short and the music bed/);
+  });
+
+  test("validateSpec accepts loop_builder naming a known short + bed, rejects unknown", () => {
+    const base = { v: 1, inputs: [{ id: "s", url: "https://x/s.mp4" }, { id: "m", url: "https://x/m.mp3" }], output: { putUrl: "https://x/put" } };
+    expect(() => validateSpec({ ...base, stages: [{ kind: "loop_builder", input: "s", bed: "m", bpm: 120, bars: 8, rotationPointSec: 4.25 }] })).not.toThrow();
+    expect(() => validateSpec({ ...base, stages: [{ kind: "loop_builder", input: "ghost", bed: "m", bpm: 120, bars: 8, rotationPointSec: 4.25 }] })).toThrow(/unknown input "ghost"/);
+  });
+
   test("validateSpec refuses bad jobs with specifics", () => {
     const ok = { v: 1, inputs: [{ id: "a", url: "https://x/a.mp4" }], stages: [{ kind: "concat", inputs: ["a"] }], output: { putUrl: "https://x/put" } };
     expect(() => validateSpec(ok)).not.toThrow();
