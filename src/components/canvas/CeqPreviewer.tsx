@@ -30,7 +30,7 @@ import { Component, createContext, useCallback, useContext, useEffect, useMemo, 
 import { Background, BackgroundVariant, BaseEdge, ConnectionMode, getSmoothStepPath, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodesState, useStore, ViewportPortal, type Connection, type Edge, type EdgeProps, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
 import { Clapperboard, ChevronLeft, ChevronRight, Grid3x3, LayoutGrid, Maximize2, Pause, Play, Plus, RotateCcw, Rows3, Save, Spline, Timer, X } from "lucide-react";
 
-import { Bolt, BOLT_PRESETS, BOLT_RATIO, boltColorById } from "./brand";
+import { Bolt, BOLT_PRESETS, BOLT_RATIO, boltColorById, BRAND_DISPLAY } from "./brand";
 import { frameCompositionGuides, SAFE_INSET_FRAC, type Guide } from "./frames";
 
 import { BrandWatermark } from "./BrandBar";
@@ -321,7 +321,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
           return (
             <div
               key={c.id ?? i}
-              className={`sa-ceq-choice${st === "right" ? " sa-ceq-correct" : ""}${spState === "spot" ? " sa-spot-read" : ""}`}
+              className={`sa-ceq-choice${st === "right" ? " sa-ceq-correct" : ""}`}
               onAnimationEnd={(ev) => { if (ev.animationName === "sa-ceq-correct") (ev.currentTarget as HTMLElement).style.willChange = "auto"; }}
               data-flame={flamed ? "on" : undefined}
               data-flame-tone={flamed ? spot.tone(key) : undefined}
@@ -379,7 +379,7 @@ function MemoPreviewNode({ id, data, selected }: NodeProps) {
   const flamed = spot.flamed(key);
   return (
     <div
-      className={`sa-pv-node${film && walked ? " sa-memo-in" : ""}${selected ? " sa-msel" : ""}${spState === "spot" ? " sa-spot-read" : ""}`}
+      className={`sa-pv-node${film && walked ? " sa-memo-in" : ""}${selected ? " sa-msel" : ""}`}
       onAnimationEnd={(ev) => { if (ev.animationName === "sa-memo-in") (ev.currentTarget as HTMLElement).style.willChange = "auto"; }}
       data-flame={flamed ? "on" : undefined}
       data-flame-tone={flamed ? spot.tone(key) : undefined}
@@ -405,11 +405,13 @@ function MemoPreviewNode({ id, data, selected }: NodeProps) {
           <button className="nodrag" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); chainToggle(id, { sound: vinyl ? undefined : "vinylScratch" }); }} title={vinyl ? "Vinyl scratch on entry (film) — click to remove" : "Play the vinyl scratch when this memo enters (film)"} style={{ display: "grid", placeItems: "center", width: 18, height: 18, borderRadius: 5, fontSize: 10, cursor: "pointer", opacity: vinyl ? 1 : 0.5, background: vinyl ? "rgba(252,163,17,0.22)" : "transparent", border: `1px solid ${vinyl ? NEON.yellow : NEON.borderSoft}` }}>💿</button>
         </div>
       )}
-      {!d.hideChoiceLabel && <div style={{ fontSize: 9 * s, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: NEON.muted, marginBottom: 3 * s }}>choice {d.choice}</div>}
-      <div style={{ fontSize: 14 * s, color: NEON.text, lineHeight: 1.25 }}>{d.label}</div>
+      {!d.hideChoiceLabel && <div style={{ fontFamily: BRAND_DISPLAY, fontSize: 9 * s, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: NEON.muted, marginBottom: 3 * s }}>choice {d.choice}</div>}
+      <div style={{ fontFamily: BRAND_DISPLAY, fontWeight: 500, fontSize: 14 * s, color: NEON.text, lineHeight: 1.28 }}>{d.label}</div>
       <Handle id="l" type="source" position={Position.Left} style={HANDLE} />
       <Handle id="r" type="target" position={Position.Right} style={HANDLE} />
-      {!film && <ScaleGrip id={id} scale={s} color={NEON.cyan} film={film} />}
+      {/* RESIZE — grip now shows in film too (hover-only via sa-grip-film, so it's
+          invisible on camera but there when Lee reaches in to resize a memo). */}
+      <ScaleGrip id={id} scale={s} color={NEON.cyan} film={film} />
     </div>
   );
 }
@@ -707,7 +709,15 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, activeYOff, layoutMode, walk, viewChoice, guidesOn, showProgress, topicName]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
-  useEffect(() => { setNodes(build() as unknown as Node[]); }, [build, setNodes]);
+  // A drag/resize writeback (commitGeom → onSaveInstance) bumps mainSig, which would
+  // re-seed and REPLACE every node — a visible flash on drop. The local nodes already
+  // hold the dropped position/scale, so skip exactly that self-triggered re-seed; the
+  // next genuine change (question switch, baseline edit, walk) seeds normally.
+  const skipSeedRef = useRef(false);
+  useEffect(() => {
+    if (skipSeedRef.current) { skipSeedRef.current = false; return; }
+    setNodes(build() as unknown as Node[]);
+  }, [build, setNodes]);
 
   const fitRef = useRef<ReactFlowInstance | null>(null);
   // Fit to the ACTIVE frame; in overview that's the frame at its stack index, so a
@@ -842,7 +852,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // Before the split this wrote the shared template either way — which is exactly why
   // one move moved the whole set.
   const commitGeom = () => {
-    if (layoutMode) { if (onSaveBaseline) saveBaseline(); return; }
+    if (layoutMode) { if (onSaveBaseline) { skipSeedRef.current = true; saveBaseline(); } return; }
     if (!onSaveInstance) return;
     let g: CeqInstanceGeom | undefined = cd?.geom;
     const card = nodes.find((n) => n.id === ceqId);
@@ -851,7 +861,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       const m = nodes.find((nn) => nn.id === w.memoNodeId); if (!m) return;
       g = withInstanceSpot(g, i, { x: m.position.x, y: m.position.y - activeYOff, scale: (m.data as { scale?: number }).scale ?? 1 });
     });
-    if (g) onSaveInstance(g);
+    if (g) { skipSeedRef.current = true; onSaveInstance(g); }
   };
   // commitGeom closes over `nodes`; a ref keeps snap-on-drop pointed at the
   // latest one so it persists the SNAPPED position, not the pre-snap state.
