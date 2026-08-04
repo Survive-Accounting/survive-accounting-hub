@@ -514,7 +514,7 @@ function FreeArrowEdge({ sourceX, sourceY, targetX, targetY, style, data }: Edge
   const dx = hx - tx, dy = hy - ty;
   const len = Math.hypot(dx, dy) || 1;
   const ux = dx / len, uy = dy / len;                       // unit vector toward the head
-  const HEAD = 26, HALF = 11;                               // long + broad = thick but pointy
+  const HEAD = 30, HALF = 14;                               // long + broad = thick but pointy (meatier, Lee)
   const bx = hx - ux * HEAD, by = hy - uy * HEAD;           // base of the head triangle
   const px = -uy, py = ux;                                  // perpendicular
   const color = (style?.stroke as string) ?? "#E0284A";
@@ -544,6 +544,73 @@ function ArrowEndNode({ data }: NodeProps) {
 const edgeTypes = { chainBundle: ChainBundleEdge, chainArrow: ChainArrowEdge, freeArrow: FreeArrowEdge };
 const nodeTypes = { frameBg: FrameBgNode, ceqPreview: CeqPreviewNode, memoPreview: MemoPreviewNode, ovCeq: OverviewCeqNode, ovMemo: OvMemoNode, arrowEnd: ArrowEndNode };
 const EMPTY_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "focus" };
+
+/** PERFORMANCE ARROWS (Lee) — a freehand pointer layer OVER the pane, for live use on
+ *  camera (never authored/persisted to the scene). ALT+drag pulls a meaty arrow from the
+ *  press point to the cursor and vanishes on release; SHIFT+ALT+drag PERSISTS it. A
+ *  persisted arrow is click-to-select + Delete, and ` clears them all. Coords are stored
+ *  as FRACTIONS of the pane, so the same arrow renders in both the inline + film panes.
+ *  It's a plain SVG driven by explicit state — clearing the state leaves ZERO remnants
+ *  (no lingering React Flow nodes). The layer only intercepts pointers while ALT (no Ctrl,
+ *  so it never fights the Ctrl-spotlight) is held; otherwise it's click-through. */
+type PerfArrow = { id: string; x1: number; y1: number; x2: number; y2: number };
+function PerfArrowLayer({ arrows, add, sel, setSel }: { arrows: PerfArrow[]; add: (a: Omit<PerfArrow, "id">) => void; sel: string | null; setSel: (id: string | null) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [size, setSize] = useState({ w: 0, h: 0 });
+  const [armed, setArmed] = useState(false);
+  const [draw, setDraw] = useState<{ x1: number; y1: number; x2: number; y2: number; persist: boolean } | null>(null);
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const measure = () => { const r = el.getBoundingClientRect(); setSize({ w: r.width, h: r.height }); };
+    const ro = new ResizeObserver(measure); ro.observe(el); measure();
+    return () => ro.disconnect();
+  }, []);
+  useEffect(() => {
+    const doc = ref.current?.ownerDocument ?? document;
+    const win = doc.defaultView ?? window;
+    const kd = (e: KeyboardEvent) => setArmed(e.altKey && !e.ctrlKey && !e.metaKey);
+    const ku = (e: KeyboardEvent) => { if (!e.altKey) setArmed(false); }; // stay armed if a non-Alt key lifts while Alt is still down
+    const blur = () => setArmed(false);
+    doc.addEventListener("keydown", kd); doc.addEventListener("keyup", ku); win.addEventListener("blur", blur);
+    return () => { doc.removeEventListener("keydown", kd); doc.removeEventListener("keyup", ku); win.removeEventListener("blur", blur); };
+  }, []);
+  const frac = (cx: number, cy: number) => { const r = ref.current?.getBoundingClientRect(); return r ? { x: (cx - r.left) / (r.width || 1), y: (cy - r.top) / (r.height || 1) } : { x: 0, y: 0 }; };
+  const onDown = (e: React.PointerEvent) => {
+    if (!e.altKey || e.ctrlKey || e.metaKey) return;
+    e.preventDefault(); e.stopPropagation();
+    const p = frac(e.clientX, e.clientY); const persist = e.shiftKey;
+    setDraw({ x1: p.x, y1: p.y, x2: p.x, y2: p.y, persist });
+    const move = (ev: PointerEvent) => { const q = frac(ev.clientX, ev.clientY); setDraw((d) => (d ? { ...d, x2: q.x, y2: q.y } : d)); };
+    const up = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
+      const q = frac(ev.clientX, ev.clientY);
+      setDraw((d) => { if (d && d.persist && Math.hypot(q.x - d.x1, q.y - d.y1) > 0.015) add({ x1: d.x1, y1: d.y1, x2: q.x, y2: q.y }); return null; });
+    };
+    window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+  };
+  const { w, h } = size;
+  const geom = (a: { x1: number; y1: number; x2: number; y2: number }) => {
+    const x1 = a.x1 * w, y1 = a.y1 * h, x2 = a.x2 * w, y2 = a.y2 * h;
+    const dx = x2 - x1, dy = y2 - y1, len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
+    const HEAD = 30, HALF = 15, bx = x2 - ux * HEAD, by = y2 - uy * HEAD, px = -uy, py = ux;
+    return { line: `M ${x1} ${y1} L ${bx} ${by}`, head: `M ${x2} ${y2} L ${bx + px * HALF} ${by + py * HALF} L ${bx - px * HALF} ${by - py * HALF} Z`, mx: (x1 + x2) / 2, my: (y1 + y2) / 2 };
+  };
+  const COL = "#FCA311";
+  return (
+    <div ref={ref} onPointerDown={onDown} style={{ position: "absolute", inset: 0, zIndex: 40, pointerEvents: armed ? "auto" : "none", cursor: armed ? "crosshair" : "default" }}>
+      <svg width="100%" height="100%" style={{ position: "absolute", inset: 0, overflow: "visible" }}>
+        {arrows.map((a) => { const g = geom(a); const on = sel === a.id; return (
+          <g key={a.id}>
+            <path d={g.line} stroke={COL} strokeWidth={on ? 10 : 8} strokeLinecap="round" fill="none" style={{ pointerEvents: armed ? "none" : "stroke", cursor: "pointer", filter: on ? "drop-shadow(0 0 6px rgba(252,163,17,0.8))" : undefined }} onPointerDown={(ev) => { if (armed) return; ev.stopPropagation(); setSel(on ? null : a.id); }} />
+            <path d={g.head} fill={COL} stroke={COL} strokeWidth={2} strokeLinejoin="round" style={{ pointerEvents: "none" }} />
+            {on && <circle cx={g.mx} cy={g.my} r={5} fill="#fff" stroke={COL} strokeWidth={2} style={{ pointerEvents: "none" }} />}
+          </g>
+        ); })}
+        {draw && (() => { const g = geom(draw); return (<g><path d={g.line} stroke={COL} strokeWidth={8} strokeLinecap="round" fill="none" opacity={0.92} /><path d={g.head} fill={COL} /></g>); })()}
+      </svg>
+    </div>
+  );
+}
 
 
 function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, world, worldIntensity, worldMotion, deckCeqIds, layoutMode, onSaveBaseline, onSaveInstance, onReorderChainMemo, layoutOn, onSetLayoutMode, onApplyLayoutToAll, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onAddMemoAtChoice, onAddMemoAt, onRenameMemo, onDuplicateMemo, onSetMemoCategory, onDeleteMemo, onSetMisconception, misconceptionSlugs, onNextQuestion, onPrevQuestion, showProgress, onSetShowProgress, onOpenMemoLib, topicName }: { ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number; chainEdges: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; layoutMode?: boolean; onSaveBaseline?: (l: DeckLayout) => void; onSaveInstance?: (g: CeqInstanceGeom) => void; onReorderChainMemo?: (memoNodeId: string, dir: -1 | 1) => void; layoutOn?: boolean; onSetLayoutMode?: (on: boolean) => void; onApplyLayoutToAll?: () => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onAddMemoAtChoice?: (choiceId: string, text: string, category: string) => void; onAddMemoAt?: (pos: { x: number; y: number }, text: string, category: string) => void; onRenameMemo?: (memoNodeId: string, label: string) => void; onDuplicateMemo?: (memoNodeId: string) => void; onSetMemoCategory?: (memoNodeIds: string[], category: string) => void; onSetMisconception?: (memoNodeIds: string[], slug: string | null) => void; misconceptionSlugs?: string[]; onDeleteMemo?: (memoNodeIds: string[]) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void; showProgress?: boolean; onSetShowProgress?: (b: boolean) => void; onOpenMemoLib?: (id: string) => void; topicName?: string }) {
@@ -576,6 +643,10 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   const [shown, setShown] = useState<Map<number, number>>(new Map());
   // ---- REHEARSAL SPOTLIGHT (local; never touches the real global spotlight) --
   const [spots, setSpots] = useState<SpotSets>(EMPTY_SPOTS);
+  // PERFORMANCE ARROWS (Lee) — freehand live-pointer arrows, session-only (never saved).
+  const [perfArrows, setPerfArrows] = useState<PerfArrow[]>([]);
+  const [selPerf, setSelPerf] = useState<string | null>(null);
+  const addPerfArrow = (a: Omit<PerfArrow, "id">) => setPerfArrows((p) => [...p, { ...a, id: `pa${p.length}_${Math.round(a.x2 * 99991)}_${Math.round(a.y2 * 9973)}` }]);
   const [selEdgeIds, setSelEdgeIds] = useState<Set<string>>(new Set());
   // VERTICAL OVERVIEW (Lee) — render every question as its own frame stacked vertically
   // so you can zoom out to see them all + click to navigate. The ACTIVE question keeps
@@ -1110,7 +1181,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       type: "freeArrow",
       zIndex: EDGE_Z,
       data: { headAtSource: true },
-      style: { stroke: "#E0284A", strokeWidth: 6 },
+      style: { stroke: "#E0284A", strokeWidth: 8.5 },
     } as Edge];
   });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1164,6 +1235,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
       // MEMO SELECTION keys (authoring): Delete removes (in-app confirm upstream),
       // Esc clears, arrows nudge the INSTANCE geometry only (never the template).
+      if ((e.key === "Delete" || e.key === "Backspace") && selPerf) { e.preventDefault(); e.stopImmediatePropagation(); setPerfArrows((p) => p.filter((x) => x.id !== selPerf)); setSelPerf(null); return; }
       if ((e.key === "Delete" || e.key === "Backspace") && selMemoIds.size > 0 && !layoutMode) { e.preventDefault(); e.stopImmediatePropagation(); onDeleteMemo?.([...selMemoIds]); return; }
       if (e.key === "Escape" && selMemoIds.size > 0) { e.stopImmediatePropagation(); setNodes((nds) => nds.map((n) => (n.selected ? { ...n, selected: false } : n))); setSelMemoIds(new Set()); return; }
       if ((e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight") && selMemoIds.size > 0 && !layoutMode) {
@@ -1182,7 +1254,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       // ` = full reset (choices + memos). SHIFT+` = MEMO SWEEP: clear the memos off
       // the board but KEEP every choice's resolution, so a wrong answer stays struck
       // and the correct one stays green. Nothing re-resolves, so no sound re-fires.
-      if (e.key === "`" || e.code === "Backquote" || (e.shiftKey && e.key === "~")) { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) sweepMemos(); else { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); } return; }
+      if (e.key === "`" || e.code === "Backquote" || (e.shiftKey && e.key === "~")) { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) sweepMemos(); else { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); setPerfArrows([]); setSelPerf(null); } return; }
     };
     const onOwnerKey = (e: KeyboardEvent) => handle(e, ownerWin, false);
     ownerWin.addEventListener("keydown", onOwnerKey, true);
@@ -1194,7 +1266,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     }
     return () => { ownerWin.removeEventListener("keydown", onOwnerKey, true); filmCleanup?.(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [emph, resolved, shown, cd, onNextQuestion, onPrevQuestion, filmWin]);
+  }, [emph, resolved, shown, cd, onNextQuestion, onPrevQuestion, filmWin, selPerf]);
 
   if ((!layoutMode && !ceq) || !cd) return <div className="grid h-full place-items-center text-[11px]" style={{ color: NEON.muted }}>Select a question to preview.</div>;
 
@@ -1216,7 +1288,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                 popped out to a 2nd window (the global copy lives on the main canvas). */}
             <style>{FLAME_CSS}{PV_CSS}</style>
             <div ref={rootRef} className="flex h-full min-h-0 flex-col" onMouseEnter={() => { engagedRef.current = true; }} onMouseLeave={() => { engagedRef.current = false; }}>
-              <div className="min-h-0 flex-1" style={{ background: "rgba(4,7,14,0.6)" }}>
+              <div className="min-h-0 flex-1" style={{ background: "rgba(4,7,14,0.6)", position: "relative" }}>
                 <ReactFlow
                   nodes={nodes}
                   edges={edges}
@@ -1448,6 +1520,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                       />
                     </ReactFlowProvider>
                     <BrandWatermark />
+                    <PerfArrowLayer arrows={perfArrows} add={addPerfArrow} sel={selPerf} setSel={setSelPerf} />
                   </div>
                 </FilmContext.Provider>
                 </RevealContext.Provider>
