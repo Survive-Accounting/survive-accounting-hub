@@ -30,35 +30,23 @@ export const BRAND_RED = "#C62828";
 export const BRAND_BLUE = "#1565C0";
 export const BRAND_WHITE = "#FFFFFF";
 
-// ---- bolt geometry — hand-traced 13-point Grateful Dead bolt --------------------
-// NOT a formula. Two hand-tuned flanks (_RIGHT + _LEFT, each top→bottom, left always
-// left of right so the body never pinches) trace an irregular, leaning lightning
-// bolt: a top flag, sharp teeth of VARYING sizes (biggest = the upper-right
-// shoulder, decaying downward), and a clean taper to the bottom tip. To reshape it,
-// nudge these coordinates. The red/blue split runs down an internal lightning SEAM
-// — red left, blue right, meeting directly (NO white between); the white keyline is
-// only on the OUTSIDE of the silhouette.
-type Pt = [number, number];
+// ---- bolt geometry — Lee's FINAL hand-edited bolt (Logo Lab preset) --------------
+// The single source of truth for the logo EVERYWHERE (film watermark, wordmark,
+// cards). Lee traced this vertex-by-vertex in the Logo Lab and it is baked here as
+// literal paths so it can never drift or depend on browser storage. The silhouette
+// (c1 fill + white OUTER keyline) and the internal seam region (c2 overlay) share
+// the top tip and both reach the bottom tip, meeting along the seam with NO white
+// between them; the white keyline is only on the OUTSIDE. To reshape: rebuild it in
+// /logo-lab, then paste the new BOLT_OUTER / BOLT_RIGHT / viewBox here.
 const OUTLINE = 8; // white keyline stroke width (half shows outside the fill)
-const _RIGHT: Pt[] = [[62, 4], [62, 16], [74, 22], [58, 34], [72, 45], [52, 56], [62, 66], [47, 77], [53, 87], [42, 98], [45, 106], [37, 116], [32, 130]];
-const _LEFT: Pt[] = [[62, 4], [48, 14], [54, 24], [37, 34], [49, 45], [33, 56], [44, 66], [31, 77], [39, 87], [30, 98], [35, 106], [32, 130]];
-const _SEAM: Pt[] = [[62, 4], [55, 16], [59, 34], [45, 56], [48, 77], [35, 98], [38, 116], [32, 130]];
-const _rev = (a: Pt[]) => [...a].reverse();
-const toPath = (pts: Pt[]) => pts.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x} ${y}`).join(" ") + " Z";
-/** Full silhouette (c1 fill + the white outer keyline): down the right flank, up
- *  the left flank. */
-export const BOLT_OUTER = toPath([..._RIGHT, ..._rev(_LEFT).slice(1, -1)]);
-/** BLUE (right) region: down the internal seam, up the right flank. Overlaid on the
- *  red base so red = left, blue = right, meeting along the seam with NO gap. */
-export const BOLT_RIGHT = toPath([..._SEAM, ..._rev(_RIGHT).slice(1, -1)]);
-// viewBox from the actual point bounds (+ keyline padding).
-const _all = [..._RIGHT, ..._LEFT, ..._SEAM];
-const _xs = _all.map((p) => p[0]), _ys = _all.map((p) => p[1]);
-const _pad = OUTLINE / 2 + 2;
-const _x0 = Math.min(..._xs) - _pad, _y0 = Math.min(..._ys) - _pad;
-const _w = Math.max(..._xs) - _x0 + _pad, _h = Math.max(..._ys) - _y0 + _pad;
-export const BOLT_VIEWBOX = `${_x0} ${_y0} ${_w} ${_h}`;
-export const BOLT_RATIO = _w / _h;
+/** Full silhouette (c1 fill + the white outer keyline). */
+export const BOLT_OUTER = "M76.02 3.9 L66.89 32.29 L85.06 31.98 L54.88 51.08 L77.05 50.77 L43.48 73.57 L76.74 73.57 L49.77 92.03 L63.19 94.82 L28.39 111.14 L42.56 112.07 L18.22 120.69 L22.53 128.7 L-8.27 137.63 L15.14 108.99 L-10.73 108.06 L26.85 92.35 L-11.54 90.51 L34.22 62.78 L3.83 64.94 L41.41 44 L21.39 38.45 L57.55 18.89 L42.46 15.29 Z";
+/** BLUE (right) seam region, overlaid on the red base so red = left, blue = right,
+ *  meeting along the seam with NO gap. */
+export const BOLT_RIGHT = "M75.53 3.74 L43.85 14.01 L56.41 19.96 L21.36 38.79 L42.92 44.46 L2.88 65.4 L34.3 61.71 L-10.67 90.66 L28.14 91.89 L-12.21 106.98 L14.99 110.04 L-10.11 138.7 L24.54 129.73 L19.03 121.61 L20.48 114.36 L23.38 107.69 L9.17 105.37 L46.87 95.8 L37.59 91.74 L61.08 78.4 L8.3 85.94 L59.34 56.36 L40.77 54.14 L70.06 35.77 L44.26 35.77 L69.77 22.72 Z";
+// viewBox + aspect straight from the Logo Lab export (dry bounds + keyline padding).
+export const BOLT_VIEWBOX = "-18.21 -2.26 109.27 146.96";
+export const BOLT_RATIO = 109.27 / 146.96;
 
 export interface BoltColors { c1: string; c2: string; keyline?: string }
 export interface ColorOption { id: string; name: string; c1: string; c2: string }

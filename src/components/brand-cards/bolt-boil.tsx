@@ -9,22 +9,39 @@
 // cards can render Lee's saved Logo Lab preset (e.g. "FINAL") instead of the built-in default.
 import { createContext, useContext, type CSSProperties, type ReactNode } from "react";
 
-export const BRAND_RED = "#D8443F";
-export const BRAND_BLUE = "#2E6FB0";
+export const BRAND_RED = "#C62828";
+export const BRAND_BLUE = "#1565C0";
 export const BRAND_CREAM = "#F5EFE6";
 export const BRAND_NAVY = "#111A32";
 
 export type BoilFrame = { outer: string; seam: string; sw: number };
 export type BoltSpec = { frames: BoilFrame[]; viewBox: string; ratio: number; red: string; blue: string; cream: string };
 
-// Built-in default = the canonical brand bolt (also the fallback when no preset is loaded).
-const DEFAULT_FRAMES: BoilFrame[] = [
-  { outer: "M62.00 4.00 L63.25 16.81 L74.67 21.70 L57.11 32.82 L70.85 43.83 L52.28 55.73 L63.30 66.83 L47.41 78.30 L51.92 87.79 L41.01 97.68 L45.55 104.82 L38.28 114.84 L32.00 130.00 L35.55 104.82 L29.01 97.68 L37.92 87.79 L31.41 78.30 L45.30 66.83 L33.28 55.73 L47.85 43.83 L36.11 32.82 L54.67 23.70 L49.25 14.81 Z", seam: "M62.00 4.00 L56.25 16.81 L59.67 33.70 L44.11 54.82 L46.85 75.83 L35.28 97.73 L39.30 116.83 L32.00 130.00 L38.28 114.84 L45.55 104.82 L41.01 97.68 L51.92 87.79 L47.41 78.30 L63.30 66.83 L52.28 55.73 L70.85 43.83 L57.11 32.82 L74.67 21.70 L63.25 16.81 Z", sw: 2.0 },
-  { outer: "M62.00 4.00 L62.18 14.71 L72.81 21.06 L57.18 34.11 L72.75 46.09 L53.22 57.24 L61.90 66.45 L45.72 76.32 L52.42 85.71 L42.96 97.07 L46.10 106.14 L36.63 117.10 L32.00 130.00 L36.10 106.14 L30.96 97.07 L38.42 85.71 L29.72 76.32 L43.90 66.45 L34.22 57.24 L49.75 46.09 L36.18 34.11 L52.81 23.06 L48.18 12.71 Z", seam: "M62.00 4.00 L55.18 14.71 L57.81 33.06 L44.18 56.11 L48.75 78.09 L36.22 99.24 L37.90 116.45 L32.00 130.00 L36.63 117.10 L46.10 106.14 L42.96 97.07 L52.42 85.71 L45.72 76.32 L61.90 66.45 L53.22 57.24 L72.75 46.09 L57.18 34.11 L72.81 21.06 L62.18 14.71 Z", sw: 2.4 },
-  { outer: "M62.00 4.00 L60.70 16.49 L73.64 23.25 L59.11 35.06 L72.95 45.07 L51.41 55.03 L60.73 64.72 L46.91 76.38 L54.23 87.51 L42.74 99.25 L44.17 107.05 L35.81 116.05 L32.00 130.00 L34.17 107.05 L30.74 99.25 L40.23 87.51 L30.91 76.38 L42.73 64.72 L32.41 55.03 L49.95 45.07 L38.11 35.06 L53.64 25.25 L46.70 14.49 Z", seam: "M62.00 4.00 L53.70 16.49 L58.64 35.25 L46.11 57.06 L48.95 77.07 L34.41 97.03 L36.73 114.72 L32.00 130.00 L35.81 116.05 L44.17 107.05 L42.74 99.25 L54.23 87.51 L46.91 76.38 L60.73 64.72 L51.41 55.03 L72.95 45.07 L59.11 35.06 L73.64 23.25 L60.70 16.49 Z", sw: 1.8 },
-  { outer: "M62.00 4.00 L62.15 16.79 L75.28 21.68 L58.54 32.82 L71.00 43.84 L50.93 55.75 L62.43 66.84 L48.30 78.30 L53.27 87.77 L40.85 97.66 L44.11 104.81 L37.68 114.85 L32.00 130.00 L34.11 104.81 L28.85 97.66 L39.27 87.77 L32.30 78.30 L44.43 66.84 L31.93 55.75 L48.00 43.84 L37.54 32.82 L55.28 23.68 L48.15 14.79 Z", seam: "M62.00 4.00 L55.15 16.79 L60.28 33.68 L45.54 54.82 L47.00 75.84 L33.93 97.75 L38.43 116.84 L32.00 130.00 L37.68 114.85 L44.11 104.81 L40.85 97.66 L53.27 87.77 L48.30 78.30 L62.43 66.84 L50.93 55.75 L71.00 43.84 L58.54 32.82 L75.28 21.68 L62.15 16.79 Z", sw: 2.2 },
-];
-export const DEFAULT_BOLT_SPEC: BoltSpec = { frames: DEFAULT_FRAMES, viewBox: "24 -2 56 138", ratio: 56 / 138, red: BRAND_RED, blue: BRAND_BLUE, cream: BRAND_CREAM };
+// Lee's FINAL hand-edited bolt (baked from his Logo Lab preset — the canonical logo). These
+// are the exact dry rings; the boil wobbles their interiors. Keep in sync with brand.tsx
+// BOLT_OUTER / BOLT_RIGHT (same shape, decomposed into points so the boil can perturb them).
+const FINAL_OUTER: [number, number][] = [[76.02, 3.9], [66.89, 32.29], [85.06, 31.98], [54.88, 51.08], [77.05, 50.77], [43.48, 73.57], [76.74, 73.57], [49.77, 92.03], [63.19, 94.82], [28.39, 111.14], [42.56, 112.07], [18.22, 120.69], [22.53, 128.7], [-8.27, 137.63], [15.14, 108.99], [-10.73, 108.06], [26.85, 92.35], [-11.54, 90.51], [34.22, 62.78], [3.83, 64.94], [41.41, 44], [21.39, 38.45], [57.55, 18.89], [42.46, 15.29]];
+const FINAL_SEAM: [number, number][] = [[75.53, 3.74], [43.85, 14.01], [56.41, 19.96], [21.36, 38.79], [42.92, 44.46], [2.88, 65.4], [34.3, 61.71], [-10.67, 90.66], [28.14, 91.89], [-12.21, 106.98], [14.99, 110.04], [-10.11, 138.7], [24.54, 129.73], [19.03, 121.61], [20.48, 114.36], [23.38, 107.69], [9.17, 105.37], [46.87, 95.8], [37.59, 91.74], [61.08, 78.4], [8.3, 85.94], [59.34, 56.36], [40.77, 54.14], [70.06, 35.77], [44.26, 35.77], [69.77, 22.72]];
+
+/** A FIXED 4-frame boil for arbitrary rings: interior vertices wobble on a deterministic
+ *  field (<=1.3px), each ring's top-most + bottom-most vertex PINNED so tip/base never drift,
+ *  and the stroke breathes around the outline width. Deterministic → capture-safe. */
+export function makeBoil(outer: [number, number][], seam: [number, number][], outline: number): BoilFrame[] {
+  const A = 1.3;
+  const ext = (pts: [number, number][]) => { let mn = Infinity, mx = -Infinity; for (const [, y] of pts) { if (y < mn) mn = y; if (y > mx) mx = y; } return { mn, mx }; };
+  const path = (pts: [number, number][]) => pts.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(2)} ${y.toFixed(2)}`).join(" ") + " Z";
+  const wob = (pts: [number, number][], f: number, e: { mn: number; mx: number }) =>
+    path(pts.map(([x, y], i) => (y <= e.mn + 0.01 || y >= e.mx - 0.01)
+      ? [x, y] as [number, number]
+      : [x + A * Math.sin(i * 1.3 + f * 1.7), y + A * Math.cos(i * 0.9 + f * 2.1)] as [number, number]));
+  const eo = ext(outer), es = ext(seam);
+  const sw = [0.92, 1.1, 0.84, 1.04].map((k) => +(outline * k).toFixed(2));
+  return [0, 1, 2, 3].map((f) => ({ outer: wob(outer, f, eo), seam: wob(seam, f, es), sw: sw[f] }));
+}
+
+// Built-in default = Lee's FINAL bolt (also the fallback when no preset is loaded). White
+// keyline per his config; red/blue are the brand primaries.
+export const DEFAULT_BOLT_SPEC: BoltSpec = { frames: makeBoil(FINAL_OUTER, FINAL_SEAM, 8), viewBox: "-18.21 -2.26 109.27 146.96", ratio: 109.27 / 146.96, red: BRAND_RED, blue: BRAND_BLUE, cream: "#FFFFFF" };
 
 export const BoltContext = createContext<BoltSpec>(DEFAULT_BOLT_SPEC);
 

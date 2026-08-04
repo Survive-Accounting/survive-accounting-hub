@@ -25,7 +25,10 @@ function IntroOutroPreview() {
   // Bolt comes from a saved Logo Lab preset (default: "FINAL"), read from THIS browser's
   // localStorage at runtime — presets are per-browser, so they can't be baked at build time.
   const [presetNames, setPresetNames] = useState<string[]>([]);
-  const [presetName, setPresetName] = useState<string>("FINAL");
+  // Default to the BAKED bolt (Lee's FINAL, canonical in brand.tsx / bolt-boil.tsx) so the
+  // cards never depend on browser storage. The picker still lets you preview a live Logo Lab
+  // preset from this browser if you want to iterate.
+  const [presetName, setPresetName] = useState<string>(DEFAULT_OPT);
   const [spec, setSpec] = useState<BoltSpec>(DEFAULT_BOLT_SPEC);
   const [note, setNote] = useState<string>("");
 
@@ -72,7 +75,7 @@ function IntroOutroPreview() {
       </div>
       {note && <p style={{ fontSize: 12.5, color: "#F0B24A", margin: "8px 0 0", maxWidth: 900, lineHeight: 1.5 }}>{note}</p>}
       <p style={{ fontSize: 12.5, color: "#8b96a6", margin: "0 0 24px", maxWidth: 900, lineHeight: 1.5 }}>
-        Previewed at {Math.round(PREVIEW_SCALE * 100)}% &mdash; each is exactly 1920&times;1080 at full size. The bolt boils continuously (~8fps); Play/Replay re-runs the entrance animations. Screen-capture each full-size card in OBS. The checkerboard shows through where a card is transparent.
+        Previewed at {Math.round(PREVIEW_SCALE * 100)}% &mdash; each is exactly 1920&times;1080 at full size. The built-in bolt is your FINAL logo, baked into the code (canonical everywhere, incl. the film watermark). The bolt boils continuously (~8fps); Play/Replay re-runs the entrance animations. Screen-capture each full-size card in OBS. The checkerboard shows through where a card is transparent.
       </p>
       <BoltContext.Provider value={spec}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 32, alignItems: "flex-start" }}>

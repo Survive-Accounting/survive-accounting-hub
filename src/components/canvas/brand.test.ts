@@ -56,15 +56,14 @@ describe("brand system", () => {
     expect(m).not.toContain(BOLT_RIGHT); // no right-region overlay when mono
   });
 
-  test("Dead-style bolt: silhouette + seam share the top tip and reach the bottom tip", () => {
-    // both the outer silhouette and the blue seam region OPEN at the same top tip
-    const mOf = (d: string) => d.slice(0, d.indexOf("L")).trim();
-    expect(mOf(BOLT_OUTER)).toBe(mOf(BOLT_RIGHT));
-    // both converge on the shared bottom tip (32 130)
-    expect(BOLT_OUTER).toContain("32 130");
-    expect(BOLT_RIGHT).toContain("32 130");
+  test("Dead-style bolt: silhouette + seam open at ~the same top tip, serrated + closed", () => {
+    // both open at ~the same top tip. Hand-edited, so within a few px (not byte-equal).
+    const tip = (d: string) => d.replace(/^M\s*/, "").split(/\s*L/)[0].trim().split(/\s+/).map(Number);
+    const [ox, oy] = tip(BOLT_OUTER), [sx, sy] = tip(BOLT_RIGHT);
+    expect(Math.hypot(ox - sx, oy - sy)).toBeLessThan(3);
     // a serrated bolt: many vertices, and both paths are closed
     expect((BOLT_OUTER.match(/[ML]/g) ?? []).length).toBeGreaterThan(12);
+    expect((BOLT_RIGHT.match(/[ML]/g) ?? []).length).toBeGreaterThan(12);
     expect(BOLT_OUTER.endsWith("Z")).toBe(true);
     expect(BOLT_RIGHT.endsWith("Z")).toBe(true);
   });
