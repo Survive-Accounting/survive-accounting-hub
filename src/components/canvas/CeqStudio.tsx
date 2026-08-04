@@ -2119,7 +2119,17 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
                       {chachingOff && <span className="mt-0.5 shrink-0 text-[9px] leading-none" title="Chaching-on-correct silenced for this question">🔇</span>}
                       {isShort && <span className="mt-0.5 shrink-0 text-[9px] leading-none" title={`Shorts-worthy${qdata?.shortNote ? ` — ${qdata.shortNote}` : ""}`}>🎬</span>}
                       <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center text-[11px] leading-none" style={{ color: starred ? "#FFD23F" : NEON.muted }} onClick={() => patchQ(q.id, { starred: !starred })} title={starred ? "Starred — a performer's note (affects nothing). Click to unstar." : "Star this question — a performer's note; NO effect on spacewalk / stitch / publish"}>{starred ? "★" : "☆"}</button>
-                      {qdata?.free && <span className="mt-0.5 shrink-0 rounded text-[8px] font-black" style={{ color: "#3BF5A0" }} title="In the FREE cut">F</span>}
+                      {/* PAID / FREE — every question is PAID by default; one click flips it
+                          to the FREE cut. Free stands out (bright green 🆓 pill) so the free
+                          set is easy to scan; paid is a quiet $ that only lights on hover. */}
+                      <button
+                        className="mt-0.5 grid h-4 shrink-0 place-items-center rounded px-1 text-[8px] font-black leading-none transition-colors"
+                        style={qdata?.free
+                          ? { color: "#04120B", background: "#3BF5A0", border: "1px solid #3BF5A0" }
+                          : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }}
+                        onClick={() => patchQ(q.id, { free: !qdata?.free })}
+                        title={qdata?.free ? "FREE — in the free cut. Click to make it paid." : "Paid (default). Click to move it into the FREE cut."}
+                      >{qdata?.free ? "🆓 FREE" : "$"}</button>
                       <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" onClick={() => setTakePreview((k) => (k === q.id ? null : q.id))} title={clips.length ? `${clips.length} clip${clips.length === 1 ? "" : "s"} — click to manage the stack · drop a video to append a lookback` : "Drop a video clip here to add this question's base take"}>{takeBusy === q.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: NEON.cyan }} /> : clips.length ? <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "#3BF5A0" }} /> : <Circle className="h-3.5 w-3.5" style={{ color: NEON.muted }} />}</button>
                       {clips.length > 1 && <span className="mt-0.5 shrink-0 text-[8px] font-bold tabular-nums" style={{ color: "#3BF5A0" }} title={`${clips.length} clips (base + ${clips.length - 1} lookback)`}>{clips.length}</span>}
                       <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded text-[12px] font-black leading-none" style={{ color: qMenu === q.id ? NEON.yellow : NEON.muted, background: qMenu === q.id ? "rgba(252,163,17,0.14)" : "transparent" }} onClick={() => setQMenu((k) => (k === q.id ? null : q.id))} title="More — free · duplicate · delete">⋯</button>
