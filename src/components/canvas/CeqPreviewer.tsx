@@ -166,7 +166,9 @@ function containSpot(state: "spot" | null, big = false): React.CSSProperties {
   // rides above its neighbours; a CHOICE (inside the paper card, clipped) grows moderately
   // so it still reads without spilling into the frame. Radius matches the memo/choice box.
   return big
-    ? { ...s, transform: "scale(1.4)", borderRadius: 12, zIndex: 30, boxShadow: "inset 5px 0 0 #FCA311, 0 0 36px rgba(252,163,17,0.8), 0 18px 36px -8px rgba(0,0,0,0.62)" }
+    // grow from the CENTRE (not spotStyle's left-center) so a big memo expands evenly and
+    // is far less likely to spill off a frame edge on a take.
+    ? { ...s, transform: "scale(1.4)", transformOrigin: "center center", borderRadius: 12, zIndex: 30, boxShadow: "inset 5px 0 0 #FCA311, 0 0 36px rgba(252,163,17,0.8), 0 18px 36px -8px rgba(0,0,0,0.62)" }
     : { ...s, transform: "scale(1.18)", borderRadius: 10 };
 }
 const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
