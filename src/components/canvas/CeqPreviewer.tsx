@@ -307,7 +307,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
   // (preset/SEC id); default = house red/blue. Not on the Q0 layout stage.
   const boltCol = d.brandBolt === false ? null : d.layoutBadge ? null : typeof d.brandBolt === "string" ? boltColorById(d.brandBolt) : BOLT_PRESETS[0];
   return (
-    <div className="sa-pv-node sa-ceq-in" onAnimationEnd={(ev) => { if (ev.animationName === "sa-ceq-in") (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: "sa-ceq-in 300ms cubic-bezier(0.2,0.7,0.3,1) both" }}>
+    <div data-ceq-card="" className="sa-pv-node sa-ceq-in" onAnimationEnd={(ev) => { if (ev.animationName === "sa-ceq-in") (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: "sa-ceq-in 300ms cubic-bezier(0.2,0.7,0.3,1) both" }}>
       {/* QUESTION 0 ribbon — unmistakably the LAYOUT stage, never content. */}
       {d.layoutBadge && !film && <span style={{ position: "absolute", top: -12, left: 12, borderRadius: 6, padding: "1px 8px", fontSize: 10, fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase", color: "#0B0F1E", background: NEON.yellow, zIndex: 21 }}>Layout</span>}
       {/* STUDENT PROGRESS — "X of Y" top-right + a slim fill bar along the top edge;
@@ -375,7 +375,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
 /** A chain memo chip; grayed until revealed by the practice walk. The arrow leaves
  *  its LEFT source ("l") — matching the real memo card — and a right target ("r")
  *  receives drops. Ctrl+click = rehearsal spotlight (local). Scales with data.scale. */
-function MemoPreviewNode({ id, data, selected }: NodeProps) {
+function MemoPreviewNode({ id, data, selected, dragging }: NodeProps) {
   const revealed = useContext(RevealContext);
   const spot = useContext(PreviewSpotContext);
   const film = useContext(FilmContext);
@@ -395,19 +395,48 @@ function MemoPreviewNode({ id, data, selected }: NodeProps) {
   const key = spotKey(id, "self");
   const spState = spot.state(key);
   const flamed = spot.flamed(key);
+  // TWO-FACED DRAG (Lee) — while DRAGGING a memo across the CEQ card's edge, the part OVER
+  // the card stays opaque (pops out) and the OVERHANG fades to transparent with a soft
+  // blurred seam, so the memo "melts into" the card. On drop it clears (fully opaque =
+  // "persist as the background version"). A cross-window `[data-ceq-card]` rect drives it.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [twoFace, setTwoFace] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    if (!dragging || slotOff) { setTwoFace(undefined); return; }
+    let raf = 0, alive = true;
+    const F = 7; // feather (%) → the blurred seam
+    const measure = () => {
+      const el = wrapRef.current; const card = el?.ownerDocument.querySelector("[data-ceq-card]") as HTMLElement | null;
+      if (!el || !card) { setTwoFace((m) => (m ? undefined : m)); return; }
+      const m = el.getBoundingClientRect(), c = card.getBoundingClientRect();
+      if (!(m.left < c.right && m.right > c.left && m.top < c.bottom && m.bottom > c.top)) { setTwoFace((x) => (x ? undefined : x)); return; }
+      const oR = m.right - c.right, oL = c.left - m.left, oB = m.bottom - c.bottom, oT = c.top - m.top, mx = Math.max(oR, oL, oB, oT);
+      if (mx <= 1 || m.width < 1 || m.height < 1) { setTwoFace((x) => (x ? undefined : x)); return; } // fully inside → fully opaque
+      let g: string;
+      if (mx === oR) { const p = ((c.right - m.left) / m.width) * 100; g = `linear-gradient(to right, #000 0%, #000 ${(p - F).toFixed(1)}%, transparent ${(p + F).toFixed(1)}%, transparent 100%)`; }
+      else if (mx === oL) { const p = ((c.left - m.left) / m.width) * 100; g = `linear-gradient(to right, transparent 0%, transparent ${(p - F).toFixed(1)}%, #000 ${(p + F).toFixed(1)}%, #000 100%)`; }
+      else if (mx === oB) { const p = ((c.bottom - m.top) / m.height) * 100; g = `linear-gradient(to bottom, #000 0%, #000 ${(p - F).toFixed(1)}%, transparent ${(p + F).toFixed(1)}%, transparent 100%)`; }
+      else { const p = ((c.top - m.top) / m.height) * 100; g = `linear-gradient(to bottom, transparent 0%, transparent ${(p - F).toFixed(1)}%, #000 ${(p + F).toFixed(1)}%, #000 100%)`; }
+      setTwoFace((x) => (x === g ? x : g));
+    };
+    const loop = () => { if (!alive) return; measure(); raf = requestAnimationFrame(loop); };
+    raf = requestAnimationFrame(loop);
+    return () => { alive = false; if (raf) cancelAnimationFrame(raf); setTwoFace(undefined); };
+  }, [dragging, slotOff]);
   return (
     <div
       className={`sa-pv-node${film && walked ? " sa-memo-in" : ""}${selected ? " sa-msel" : ""}`}
       onAnimationEnd={(ev) => { if (ev.animationName === "sa-memo-in") (ev.currentTarget as HTMLElement).style.willChange = "auto"; }}
       data-flame={flamed ? "on" : undefined}
       data-flame-tone={flamed ? spot.tone(key) : undefined}
+      ref={wrapRef}
       onPointerDownCapture={(e) => spot.onClick(key, e)}
       // SPOTLIT MEMO POPS IN ITS OWN NAVY (Lee) — spotStyle paints a spotlit target with
       // var(--spot-bg): a choice inherits the card's PAPER so it pops in the card material,
       // but a memo isn't inside a card, so it fell back to a translucent gold wash and read
       // see-through over the CEQ card. Give the memo its own lifted navy here so a spotlit
       // memo stays OPAQUE and pops out above the paper card (gold rail + glow + lift do the rest).
-      style={{ ["--spot-bg" as string]: "#382B0C", boxShadow: selected ? (film ? "0 0 0 1.5px rgba(79,163,227,0.35)" : "0 0 0 2px rgba(79,163,227,0.8)") : undefined, position: "relative", width: 210 * s, borderRadius: 12 * s, background: slotOff ? "transparent" : NEON.panelSolid, border: `${1.5 * s}px ${slotOff ? "dashed" : "solid"} ${slotOff ? NEON.borderSoft : walked ? NEON.yellow : NEON.borderSoft}`, opacity: (slotOff ? 0.3 : walked ? 1 : film ? 0 : 0.4) * (spot.any() && !spState ? 0.5 : 1), filter: slotOff || walked || film ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "default", ...containSpot(spState, true) }}
+      style={{ ["--spot-bg" as string]: "#382B0C", boxShadow: selected ? (film ? "0 0 0 1.5px rgba(79,163,227,0.35)" : "0 0 0 2px rgba(79,163,227,0.8)") : undefined, position: "relative", width: 210 * s, borderRadius: 12 * s, background: slotOff ? "transparent" : NEON.panelSolid, border: `${1.5 * s}px ${slotOff ? "dashed" : "solid"} ${slotOff ? NEON.borderSoft : walked ? NEON.yellow : NEON.borderSoft}`, opacity: (slotOff ? 0.3 : walked ? 1 : film ? 0 : 0.4) * (spot.any() && !spState ? 0.5 : 1), filter: slotOff || walked || film ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "default", maskImage: twoFace, WebkitMaskImage: twoFace, ...containSpot(spState, true) }}
     >
       {/* chain-order badge — useful IN the previewer, never on camera (hidden in film). */}
       {!film && (slotToggle ? (
