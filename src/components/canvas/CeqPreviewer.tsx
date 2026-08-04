@@ -95,11 +95,9 @@ const LAYOUT_CARD = { prompt: "**LAYOUT** — the question card deals here", cho
 const PV_CSS = `
 .sa-pv-node .sa-grip-film { opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
 .sa-pv-node:hover .sa-grip-film { opacity: 1; pointer-events: auto; }
-/* MOVE STRIPS (Lee) — the memo moves only by its top/bottom edge; a faint amber handle
-   hints where to grab on hover (invisible at rest, so it never reads on camera). */
-.sa-memo-move { border-radius: 4px; transition: background 120ms ease; }
-.sa-pv-node:hover .sa-memo-move { background: rgba(252,163,17,0.12); }
-.sa-memo-move:hover { background: rgba(252,163,17,0.3) !important; }
+/* MOVE STRIPS (Lee) — the memo moves only by its top/bottom edge, but the strips are
+   INVISIBLE (Lee knows they're there); the move cursor on hover is the only hint. */
+.sa-memo-move { background: transparent; }
 /* TEXT SELECTION inside a memo reads in the brand's amber instead of the OS blue. */
 .sa-pv-node ::selection { background: rgba(252,163,17,0.9); color: #0B0F1E; }
 .sa-pv-node ::-moz-selection { background: rgba(252,163,17,0.9); color: #0B0F1E; }
@@ -316,7 +314,6 @@ function CeqPreviewNode({ id, data }: NodeProps) {
           viewer landing mid-clip knows the topic. */}
       {d.topic && <div style={{ fontSize: 12 * s, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: PAPER.inkMuted, marginBottom: 6 * s, maxWidth: "58%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.topic}</div>}
       <div style={{ fontSize: 24 * s, fontWeight: 800, lineHeight: 1.25, color: PAPER.ink, marginBottom: 12 * s }}>
-        {boltCol && <span style={{ float: "left", height: 42 * s, width: 42 * s * BOLT_RATIO, marginRight: 12 * s, marginTop: 2 * s }}><Bolt c1={boltCol.c1} c2={boltCol.c2} keyline={PAPER.card} /></span>}
         {renderInline(d.stem || "Question")}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 * s }}>
