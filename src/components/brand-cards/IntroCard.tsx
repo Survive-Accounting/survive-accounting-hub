@@ -17,7 +17,7 @@ const INTRO_CSS = `
   .sa-intro-flash { display: none; }
 }`;
 
-export function IntroCard({ chapter = "1", title = "Chapter Title", scale = 1, transparent = false, playKey = 0 }:
+export function IntroCard({ title = "Chapter Title", scale = 1, transparent = false, playKey = 0 }:
   { chapter?: string; title?: string; scale?: number; transparent?: boolean; playKey?: number }) {
   return (
     <Stage scale={scale} transparent={transparent}>
@@ -28,7 +28,7 @@ export function IntroCard({ chapter = "1", title = "Chapter Title", scale = 1, t
           <div className="sa-intro-flash" />
         </div>
         <div className="sa-intro-plate" style={{ marginTop: 32, padding: "10px 24px", border: "2px solid rgba(245,239,230,0.28)", borderRadius: 6, color: "#B9C3D8", fontFamily: "'Space Grotesk', ui-monospace, monospace", fontWeight: 700, fontSize: Math.round(WORD * 0.2), letterSpacing: "0.18em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
-          CH. {chapter} &mdash; {title.toUpperCase()}
+          {title.toUpperCase()}
         </div>
       </div>
     </Stage>

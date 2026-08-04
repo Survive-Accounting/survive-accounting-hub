@@ -76,10 +76,13 @@ export function BoltBoil({ height = 130, opacity = 1, red, blue, cream, classNam
  *  the cap-height in px; the bolt tracks it and drops slightly to sit on the baseline.
  *  Colours default to the active BoltSpec (so a loaded preset carries through). */
 export function SurviveWordmark({ size, cream = BRAND_CREAM, style }: { size: number; cream?: string; style?: CSSProperties }) {
+  // Bolt-as-"i" placement baked from Lee's FINAL Logo Lab wordmark params so the cards match
+  // /logo-lab exactly (previously the bolt was oversized): boltScale 0.8, baseline drop 0.13,
+  // kerning 0.005 + overlap L -0.02 / R 0.025, offX -1px@wordSize96, rotate 2°, pivot 100%/51%.
   return (
-    <span style={{ display: "inline-flex", alignItems: "baseline", fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 900, fontSize: size, lineHeight: 1, letterSpacing: "-0.015em", color: cream, whiteSpace: "nowrap", ...style }}>
+    <span style={{ display: "inline-flex", alignItems: "baseline", fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 900, fontSize: size, lineHeight: 1, letterSpacing: "-0.01em", color: cream, whiteSpace: "nowrap", ...style }}>
       surv
-      <BoltBoil height={size * 1.14} style={{ margin: `0 ${(size * -0.008).toFixed(1)}px`, transform: `translateY(${(size * 0.155).toFixed(1)}px)` }} />
+      <BoltBoil height={size * 0.8} style={{ marginLeft: size * -0.015, marginRight: size * 0.03, transform: `translate(${size * (-1 / 96)}px, ${size * 0.13}px) rotate(2deg)`, transformOrigin: "100% 51%" }} />
       ve
     </span>
   );

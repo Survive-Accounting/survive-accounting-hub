@@ -19,7 +19,6 @@ const DEFAULT_OPT = "— built-in default —";
 
 function IntroOutroPreview() {
   const [playKey, setPlayKey] = useState(0);
-  const [chapter, setChapter] = useState("8");
   const [title, setTitle] = useState("Trial Balance");
   const [transparent, setTransparent] = useState(false);
   // Bolt comes from a saved Logo Lab preset (default: "FINAL"), read from THIS browser's
@@ -65,7 +64,6 @@ function IntroOutroPreview() {
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>
           <input type="checkbox" checked={transparent} onChange={(e) => setTransparent(e.target.checked)} /> transparent (keying)
         </label>
-        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>Ch <input value={chapter} onChange={(e) => setChapter(e.target.value)} style={{ ...inp, width: 52 }} /></label>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>Title <input value={title} onChange={(e) => setTitle(e.target.value)} style={{ ...inp, width: 220 }} /></label>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13 }}>Bolt preset
           <select value={presetName} onChange={(e) => setPresetName(e.target.value)} style={{ ...inp, cursor: "pointer" }}>
@@ -88,7 +86,7 @@ function IntroOutroPreview() {
         <div>
           <div style={cap}>Intro (~1.2s)</div>
           <div style={{ borderRadius: 10, overflow: "hidden", background: transparent ? "conic-gradient(#1b2330 90deg, #10151d 0 180deg, #1b2330 0 270deg, #10151d 0) 0 0 / 24px 24px" : BRAND_NAVY }}>
-            <IntroCard chapter={chapter} title={title} scale={PREVIEW_SCALE} transparent={transparent} playKey={playKey} />
+            <IntroCard title={title} scale={PREVIEW_SCALE} transparent={transparent} playKey={playKey} />
           </div>
         </div>
         <div>

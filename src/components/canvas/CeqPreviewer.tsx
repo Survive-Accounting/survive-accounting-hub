@@ -33,7 +33,6 @@ import { Clapperboard, ChevronLeft, ChevronRight, Grid3x3, LayoutGrid, Maximize2
 import { Bolt, BOLT_PRESETS, BOLT_RATIO, boltColorById, BRAND_DISPLAY } from "./brand";
 import { frameCompositionGuides, SAFE_INSET_FRAC, type Guide } from "./frames";
 
-import { BrandWatermark } from "./BrandBar";
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { FLAME_CSS } from "./FilmOverlays";
 import { openPopoutWindow, PanelPopout } from "./PanelPopout";
@@ -1677,7 +1676,8 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                         style={{ width: "100%", height: "100%", background: "#05070d" }}
                       />
                     </ReactFlowProvider>
-                    <BrandWatermark />
+                    {/* No in-app film watermark for now (Lee) — the brand watermark will be
+                        added later in the actual HTML player, not baked into the take. */}
                     <PerfArrowLayer arrows={perfArrows} add={addPerfArrow} sel={selPerf} setSel={setSelPerf} />
                   </div>
                 </FilmContext.Provider>
