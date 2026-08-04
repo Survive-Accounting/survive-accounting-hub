@@ -75,6 +75,13 @@ type State = {
   assist: GeometryAssist;
   manual: Record<number, [number, number]>;
   baseFrozen: [number, number][] | null;
+  // EXPLICIT RINGS (Lee) — the vertex tool edits EITHER the border (outer) or the seam.
+  // Once a ring is hand-edited it becomes an explicit point list here (supports add /
+  // remove vertices → variable count); null = still derived from the procedural pipeline
+  // (outer: assist + manual; seam: assist). editRing = which ring the tool is aimed at.
+  editRing: "outer" | "seam";
+  outerEdit: [number, number][] | null;
+  seamEdit: [number, number][] | null;
   // reference overlay + distance test
   refImg: string; refOn: boolean; refOpacity: number; refScale: number; refX: number; refY: number; refSide: boolean; refOutline: boolean;
   dist: string; // "full" | "25" | "10" | "64" | "32" | "16"
@@ -98,6 +105,7 @@ const DEFAULTS: State = {
   plain: "Cram videos by Lee Ingram", line1: "Not boring lecture videos.", pre: "More like ", cycle: "TikTok, Reels, Shorts", suf: " for cramming.", cycleMs: 1400,
   entrance: "none", animMs: 900,
   assist: { ...DEFAULT_ASSIST }, manual: {}, baseFrozen: null,
+  editRing: "outer", outerEdit: null, seamEdit: null,
   refImg: "", refOn: false, refOpacity: 0.5, refScale: 1, refX: 0, refY: 0, refSide: false, refOutline: false,
   dist: "full",
 };
@@ -313,10 +321,10 @@ function LogoLab() {
   const [toast, setToast] = useState("");
 
   // ---- GEOMETRY EDITOR state (undo/redo + vertex editing) ---------------------
-  type GSnap = { bolt: BoltParams; assist: GeometryAssist; manual: Record<number, [number, number]>; baseFrozen: [number, number][] | null };
+  type GSnap = { bolt: BoltParams; assist: GeometryAssist; manual: Record<number, [number, number]>; baseFrozen: [number, number][] | null; outerEdit: [number, number][] | null; seamEdit: [number, number][] | null };
   const [undoStack, setUndoStack] = useState<GSnap[]>([]);
   const [redoStack, setRedoStack] = useState<GSnap[]>([]);
-  const takeSnap = (): GSnap => ({ bolt: s.bolt, assist: s.assist, manual: s.manual, baseFrozen: s.baseFrozen });
+  const takeSnap = (): GSnap => ({ bolt: s.bolt, assist: s.assist, manual: s.manual, baseFrozen: s.baseFrozen, outerEdit: s.outerEdit, seamEdit: s.seamEdit });
   const pushUndo = () => { setUndoStack((u) => [...u.slice(-49), takeSnap()]); setRedoStack([]); };
   const undo = () => { if (!undoStack.length) return; const prev = undoStack[undoStack.length - 1]; setRedoStack((r) => [...r, takeSnap()]); setUndoStack((u) => u.slice(0, -1)); setS((st) => ({ ...st, ...prev })); };
   const redo = () => { if (!redoStack.length) return; const nxt = redoStack[redoStack.length - 1]; setUndoStack((u) => [...u, takeSnap()]); setRedoStack((r) => r.slice(0, -1)); setS((st) => ({ ...st, ...nxt })); };
@@ -325,8 +333,6 @@ function LogoLab() {
   const [refEdge, setRefEdge] = useState<number | null>(null);
   const [cleanupStr, setCleanupStr] = useState(0.5);
   const [angleFams, setAngleFams] = useState<{ angle: number; count: number }[] | null>(null);
-  const [preserveIn, setPreserveIn] = useState(false);
-  const [preserveOut, setPreserveOut] = useState(false);
   const editSvgRef = useRef<SVGSVGElement | null>(null);
   const dragRef = useRef<{ i: number; raf: number } | null>(null);
 
@@ -348,69 +354,96 @@ function LogoLab() {
     }
   }, []);
 
-  useEffect(() => { if (loaded) { try { localStorage.setItem(LS, JSON.stringify(s)); } catch { /* noop */ } } }, [s, loaded]);
+  // AUTOSAVE — debounced so a vertex drag (setS ~60/s) coalesces into one write, and
+  // quota-safe: if a large trace-reference dataURL overflows localStorage, retry WITHOUT
+  // refImg so geometry edits still persist (the image is just re-loaded next session).
+  useEffect(() => {
+    if (!loaded) return;
+    const id = setTimeout(() => {
+      try { localStorage.setItem(LS, JSON.stringify(s)); }
+      catch { try { localStorage.setItem(LS, JSON.stringify({ ...s, refImg: "" })); } catch { /* noop */ } }
+    }, 150);
+    return () => clearTimeout(id);
+  }, [s, loaded]);
 
-  // GEOMETRY PIPELINE (Lee's editor): base procedural (or a baked frozen ring) →
-  // geometry-assist transform → manual per-vertex offsets → path. Manual offsets key
-  // by outer-vertex index; the seam follows the assist transform only.
+  // GEOMETRY PIPELINE (Lee's editor). Each ring is either PROCEDURAL (base → assist,
+  // plus legacy manual offsets for the outer) or EXPLICIT (a hand-edited point list in
+  // outerEdit / seamEdit that wins outright — this is what add / remove vertices and free
+  // seam editing write to). null override ⇒ the procedural path, so saved logos + the
+  // default bolt are byte-identical (outerEdit / seamEdit both null).
   const base = useMemo(() => forgeBolt(s.bolt), [s.bolt]);
   const baseOuter = useMemo(() => (s.baseFrozen ?? base.outerPts).map(toV), [s.baseFrozen, base]);
   const assistedOuter = useMemo(() => applyAssist(baseOuter, s.assist), [baseOuter, s.assist]);
+  const assistedSeam = useMemo(() => applyAssist(base.seamPts.map(toV), s.assist), [base, s.assist]);
   const geom = useMemo(() => {
-    const finalOuter = assistedOuter.map((v, i) => { const m = s.manual[i]; return m ? { x: v.x + m[0], y: v.y + m[1] } : v; });
-    const seam = applyAssist(base.seamPts.map(toV), s.assist);
-    const b = bounds([...finalOuter, ...seam]);
+    const finalOuter = s.outerEdit ? s.outerEdit.map(toV) : assistedOuter.map((v, i) => { const m = s.manual[i]; return m ? { x: v.x + m[0], y: v.y + m[1] } : v; });
+    const finalSeam = s.seamEdit ? s.seamEdit.map(toV) : assistedSeam;
+    const b = bounds([...finalOuter, ...finalSeam]);
     const pad = s.bolt.outline / 2 + 2;
     const vx = b.minX - pad, vy = b.minY - pad, w = b.maxX - b.minX + 2 * pad, h = b.maxY - b.minY + 2 * pad;
-    return { outer: ptsToPath(finalOuter), seam: ptsToPath(seam), viewBox: `${vx.toFixed(2)} ${vy.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)}`, ratio: w / h, outerPts: finalOuter.map(toPt) as [number, number][], seamPts: seam.map(toPt) as [number, number][], finalOuter };
-  }, [assistedOuter, base, s.assist, s.manual, s.bolt.outline]);
+    return { outer: ptsToPath(finalOuter), seam: ptsToPath(finalSeam), viewBox: `${vx.toFixed(2)} ${vy.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)}`, ratio: w / h, outerPts: finalOuter.map(toPt) as [number, number][], seamPts: finalSeam.map(toPt) as [number, number][], finalOuter, finalSeam };
+  }, [assistedOuter, assistedSeam, s.outerEdit, s.seamEdit, s.manual, s.bolt.outline]);
   const col = effColors(s);
 
-  // ---- geometry operations (undoable; each writes MANUAL offsets over the assisted
-  //      base, so ops + the assist sliders + manual drags all compose cleanly) ----
-  const applyGeomOp = (fn: (pts: V[]) => V[]) => {
-    pushUndo();
-    const cur = assistedOuter.map((v, i) => { const m = s.manual[i]; return m ? { x: v.x + m[0], y: v.y + m[1] } : v; });
-    const next = fn(cur);
-    const man: Record<number, [number, number]> = {};
-    next.forEach((v, i) => { const dx = v.x - assistedOuter[i].x, dy = v.y - assistedOuter[i].y; if (Math.abs(dx) > 0.02 || Math.abs(dy) > 0.02) man[i] = [Math.round(dx * 100) / 100, Math.round(dy * 100) / 100]; });
-    setS((st) => ({ ...st, manual: man }));
-  };
-  const resetManual = () => { pushUndo(); setS((st) => ({ ...st, manual: {} })); setSelVert(null); };
-  const bakeManual = () => { pushUndo(); setS((st) => ({ ...st, baseFrozen: geom.outerPts, manual: {} })); setToast("Baked into base"); setTimeout(() => setToast(""), 1400); };
-  const unbake = () => { pushUndo(); setS((st) => ({ ...st, baseFrozen: null })); };
-  // set the manual offset so vertex i lands at absolute (x,y).
-  const setVertexAbs = (i: number, x: number, y: number, record = true) => {
+  // ---- geometry operations (undoable). All edits act on the ACTIVE ring (border/outer
+  //      OR seam) as an EXPLICIT point list: reading the current ring, writing the whole
+  //      list back to outerEdit / seamEdit. Touching a still-procedural ring materialises
+  //      it (its current computed points become the explicit list — nothing is lost). ----
+  const activeRingPts = (): V[] => (s.editRing === "seam" ? geom.finalSeam : geom.finalOuter);
+  const writeActive = (pts: V[], record = true) => {
     if (record) pushUndo();
-    const dx = x - assistedOuter[i].x, dy = y - assistedOuter[i].y;
-    setS((st) => ({ ...st, manual: { ...st.manual, [i]: [Math.round(dx * 100) / 100, Math.round(dy * 100) / 100] } }));
+    const arr = pts.map((v) => [Math.round(v.x * 100) / 100, Math.round(v.y * 100) / 100] as [number, number]);
+    setS((st) => (st.editRing === "seam" ? { ...st, seamEdit: arr } : { ...st, outerEdit: arr }));
   };
-  const nudgeVert = (i: number, dx: number, dy: number) => { const v = geom.finalOuter[i]; setVertexAbs(i, v.x + dx, v.y + dy); };
-  const nn = () => geom.finalOuter.length;
+  const setEditRing = (r: "outer" | "seam") => { setS((st) => ({ ...st, editRing: r })); setSelVert(null); setRefEdge(null); };
+  // symmetry / cleanup ops now run on whichever ring is active (so the seam can be
+  // squared up independently of the border).
+  const applyGeomOp = (fn: (pts: V[]) => V[]) => { pushUndo(); writeActive(fn(activeRingPts()), false); };
+  // resets: clear hand-edits on the ACTIVE ring back to generated, or wipe everything.
+  const resetRing = () => { pushUndo(); setS((st) => (st.editRing === "seam" ? { ...st, seamEdit: null } : { ...st, outerEdit: null, manual: {} })); setSelVert(null); setRefEdge(null); };
+  const resetManual = () => { pushUndo(); setS((st) => ({ ...st, manual: {}, outerEdit: null, seamEdit: null, baseFrozen: null })); setSelVert(null); setRefEdge(null); };
+  // BAKE — freeze the CURRENT appearance of BOTH rings and neutralise assist, so the
+  // frozen (already-assist-transformed) points aren't re-assisted on the next render
+  // (which used to double-apply a non-neutral assist and distort the shape).
+  const bakeManual = () => { pushUndo(); setS((st) => ({ ...st, baseFrozen: geom.outerPts, seamEdit: geom.seamPts, manual: {}, outerEdit: null, assist: { ...DEFAULT_ASSIST } })); setToast("Baked current shape"); setTimeout(() => setToast(""), 1400); };
+  const unbake = () => { pushUndo(); setS((st) => ({ ...st, baseFrozen: null })); };
+  // move vertex i of the active ring to absolute (x,y).
+  const setVertexAbs = (i: number, x: number, y: number, record = true) => { const pts = activeRingPts().slice(); if (i < 0 || i >= pts.length) return; pts[i] = { x, y }; writeActive(pts, record); };
+  const nudgeVert = (i: number, dx: number, dy: number) => { const v = activeRingPts()[i]; if (v) setVertexAbs(i, v.x + dx, v.y + dy); };
+  const nn = () => activeRingPts().length;
+  // ADD / REMOVE (Lee) — insert a vertex on an edge (splice) or delete the selected one.
+  const insertVertexOnEdge = (i: number, at?: V) => {
+    const pts = activeRingPts(); const n = pts.length; if (i < 0 || i >= n) return; const a = pts[i], b = pts[(i + 1) % n];
+    let p: V;
+    if (at) { const dx = b.x - a.x, dy = b.y - a.y; const t = Math.max(0, Math.min(1, ((at.x - a.x) * dx + (at.y - a.y) * dy) / (dx * dx + dy * dy || 1))); p = { x: a.x + dx * t, y: a.y + dy * t }; }
+    else p = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const next = pts.slice(); next.splice(i + 1, 0, p); writeActive(next); setSelVert(i + 1); setRefEdge(null);
+  };
+  const addVertex = () => { const i = selVert != null ? selVert : refEdge != null ? refEdge : 0; insertVertexOnEdge(i); };
+  const removeVertex = (i: number) => { const pts = activeRingPts(); if (pts.length <= 3) { setToast("Need at least 3 points"); setTimeout(() => setToast(""), 1200); return; } writeActive(pts.filter((_, k) => k !== i)); setSelVert(null); setRefEdge(null); };
   const alignVert = (i: number, mode: "hp" | "hn" | "vp" | "vn") => {
-    const n = nn(), v = geom.finalOuter[i], prev = geom.finalOuter[(i - 1 + n) % n], next = geom.finalOuter[(i + 1) % n];
+    const p = activeRingPts(); const n = p.length, v = p[i], prev = p[(i - 1 + n) % n], next = p[(i + 1) % n];
     if (mode === "hp") setVertexAbs(i, v.x, prev.y); else if (mode === "hn") setVertexAbs(i, v.x, next.y);
     else if (mode === "vp") setVertexAbs(i, prev.x, v.y); else setVertexAbs(i, next.x, v.y);
   };
   const makeParallel = (i: number, which: "in" | "out") => {
-    if (refEdge == null) return; const n = nn();
-    const ra = geom.finalOuter[refEdge], rb = geom.finalOuter[(refEdge + 1) % n];
-    const ang = Math.atan2(rb.y - ra.y, rb.x - ra.x), v = geom.finalOuter[i];
-    if (which === "out") { const b = geom.finalOuter[(i + 1) % n]; const len = Math.hypot(b.x - v.x, b.y - v.y); setVertexAbs((i + 1) % n, v.x + Math.cos(ang) * len, v.y + Math.sin(ang) * len); }
-    else { const a = geom.finalOuter[(i - 1 + n) % n]; const len = Math.hypot(v.x - a.x, v.y - a.y); setVertexAbs(i, a.x + Math.cos(ang) * len, a.y + Math.sin(ang) * len); }
+    if (refEdge == null) return; const p = activeRingPts(); const n = p.length; if (refEdge >= n || i >= n) return;
+    const ra = p[refEdge], rb = p[(refEdge + 1) % n];
+    const ang = Math.atan2(rb.y - ra.y, rb.x - ra.x), v = p[i];
+    if (which === "out") { const b = p[(i + 1) % n]; const len = Math.hypot(b.x - v.x, b.y - v.y); setVertexAbs((i + 1) % n, v.x + Math.cos(ang) * len, v.y + Math.sin(ang) * len); }
+    else { const a = p[(i - 1 + n) % n]; const len = Math.hypot(v.x - a.x, v.y - a.y); setVertexAbs(i, a.x + Math.cos(ang) * len, a.y + Math.sin(ang) * len); }
   };
-  const mirrorVert = (i: number, mode: "v" | "h") => { const b = bounds(geom.finalOuter), v = geom.finalOuter[i]; setVertexAbs(i, mode === "h" ? 2 * b.cx - v.x : v.x, mode === "v" ? 2 * b.cy - v.y : v.y); };
-  const resetVert = (i: number) => { pushUndo(); setS((st) => { const m = { ...st.manual }; delete m[i]; return { ...st, manual: m }; }); };
+  const mirrorVert = (i: number, mode: "v" | "h") => { const p = activeRingPts(); const b = bounds(p), v = p[i]; setVertexAbs(i, mode === "h" ? 2 * b.cx - v.x : v.x, mode === "v" ? 2 * b.cy - v.y : v.y); };
   // numeric edge angle/length editing — rotate/scale the connected edge around vertex i.
   const setEdge = (i: number, which: "in" | "out", kind: "angle" | "len", val: number) => {
-    pushUndo(); const n = nn(), v = geom.finalOuter[i];
+    pushUndo(); const p = activeRingPts(); const n = p.length, v = p[i];
     if (which === "out") {
-      const b = geom.finalOuter[(i + 1) % n]; const cur = Math.hypot(b.x - v.x, b.y - v.y), curA = Math.atan2(b.y - v.y, b.x - v.x);
-      const ang = kind === "angle" ? val * Math.PI / 180 : curA, len = kind === "len" ? val : (preserveOut ? cur : cur);
+      const b = p[(i + 1) % n]; const cur = Math.hypot(b.x - v.x, b.y - v.y), curA = Math.atan2(b.y - v.y, b.x - v.x);
+      const ang = kind === "angle" ? val * Math.PI / 180 : curA, len = kind === "len" ? val : cur;
       setVertexAbs((i + 1) % n, v.x + Math.cos(ang) * len, v.y + Math.sin(ang) * len, false);
     } else {
-      const a = geom.finalOuter[(i - 1 + n) % n]; const cur = Math.hypot(v.x - a.x, v.y - a.y), curA = Math.atan2(v.y - a.y, v.x - a.x);
-      const ang = kind === "angle" ? val * Math.PI / 180 : curA, len = kind === "len" ? val : (preserveIn ? cur : cur);
+      const a = p[(i - 1 + n) % n]; const cur = Math.hypot(v.x - a.x, v.y - a.y), curA = Math.atan2(v.y - a.y, v.x - a.x);
+      const ang = kind === "angle" ? val * Math.PI / 180 : curA, len = kind === "len" ? val : cur;
       setVertexAbs(i, a.x + Math.cos(ang) * len, a.y + Math.sin(ang) * len, false);
     }
   };
@@ -423,9 +456,11 @@ function LogoLab() {
   };
   const startVertexDrag = (i: number, ev: React.PointerEvent) => {
     ev.stopPropagation(); ev.preventDefault();
-    setSelVert(i); pushUndo();
+    setSelVert(i);
     (ev.target as Element).setPointerCapture?.(ev.pointerId);
+    let pushed = false; // a pure select-click (no move) must NOT push an undo / wipe the redo stack
     const move = (e: PointerEvent) => {
+      if (!pushed) { pushUndo(); pushed = true; }
       if (dragRef.current?.raf) cancelAnimationFrame(dragRef.current.raf);
       const raf = requestAnimationFrame(() => { const loc = clientToSvg(e.clientX, e.clientY); if (loc) setVertexAbs(i, loc.x, loc.y, false); });
       dragRef.current = { i, raf };
@@ -433,12 +468,20 @@ function LogoLab() {
     const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); if (dragRef.current?.raf) cancelAnimationFrame(dragRef.current.raf); dragRef.current = null; };
     window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
   };
+  // Keep the selection VALID: after an undo (or any op that shrinks the active ring), a
+  // stale-high selVert / refEdge would crash add-vertex / make-parallel — clamp both.
+  const activeLen = s.editRing === "seam" ? geom.finalSeam.length : geom.finalOuter.length;
+  useEffect(() => {
+    setSelVert((v) => (v != null && v >= activeLen ? null : v));
+    setRefEdge((e) => (e != null && e >= activeLen ? null : e));
+  }, [activeLen]);
   // keyboard nudging of the selected vertex while editing.
   useEffect(() => {
     if (!editMode || selVert == null) return;
     const onKey = (e: KeyboardEvent) => {
+      if (dragRef.current) return; // a vertex drag is in progress — don't mutate the ring from the keyboard
       if (e.key === "Escape") { setSelVert(null); return; }
-      if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); return; } // never delete vertices
+      if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); removeVertex(selVert); return; } // remove the selected vertex
       const step = e.shiftKey ? 5 : e.altKey ? 0.25 : 1;
       const d: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
       if (d[e.key]) { e.preventDefault(); nudgeVert(selVert, d[e.key][0], d[e.key][1]); }
@@ -446,7 +489,7 @@ function LogoLab() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editMode, selVert, geom.finalOuter]);
+  }, [editMode, selVert, s.editRing, geom.finalOuter, geom.finalSeam]);
 
   const copy = (text: string, msg: string) => { navigator.clipboard?.writeText(text).then(() => { setToast(msg); setTimeout(() => setToast(""), 1600); }); };
   const boltSvg = `<svg viewBox="${geom.viewBox}" xmlns="http://www.w3.org/2000/svg"><path d="${geom.outer}" fill="${col.c1}"${col.key !== "none" ? ` stroke="${col.key}" stroke-width="${s.bolt.outline}" stroke-linejoin="round" stroke-linecap="round" paint-order="stroke"` : ""}/>${col.c1.toLowerCase() !== col.c2.toLowerCase() ? `<path d="${geom.seam}" fill="${col.c2}"/>` : ""}</svg>`;
@@ -533,41 +576,55 @@ function LogoLab() {
           <Sel label="Snap" value={s.assist.snap} options={[{ v: "off", t: "Off" }, { v: "5", t: "5°" }, { v: "7.5", t: "7.5°" }, { v: "10", t: "10°" }, { v: "15", t: "15°" }, { v: "22.5", t: "22.5°" }, { v: "30", t: "30°" }, { v: "custom", t: "Custom" }]} onChange={(v) => setAssist({ snap: v })} />
           <Slider label="Strength" value={s.assist.snapStrength} min={0} max={1} step={0.02} onChange={(v) => setAssist({ snapStrength: v })} fmt={(v) => `${Math.round(v * 100)}%`} />
           {s.assist.snap === "custom" && <Text label="Families°" value={s.assist.customFamilies.join(", ")} onChange={(v) => setAssist({ customFamilies: v.split(",").map((x) => parseFloat(x.trim())).filter((x) => !Number.isNaN(x)) })} />}
-          <Row label=""><button onClick={() => setAngleFams(analyzeAngles(geom.finalOuter))} style={{ ...inp, cursor: "pointer" }}>Analyze current angles</button></Row>
+          <Row label=""><button onClick={() => setAngleFams(analyzeAngles(activeRingPts()))} style={{ ...inp, cursor: "pointer" }}>Analyze current angles</button></Row>
           {angleFams && <div style={{ fontSize: 11, color: "#8b96a6", margin: "4px 0", lineHeight: 1.5 }}>{angleFams.slice(0, 8).map((f) => `${f.angle}°×${f.count}`).join("  ")}<button onClick={() => setAssist({ snap: "custom", customFamilies: angleFams.map((f) => f.angle) })} style={{ ...inp, width: "auto", cursor: "pointer", marginLeft: 8, color: "#FCA311" }}>Adopt</button></div>}
         </Section>
 
         <Section title="Vertex edit" open={false}>
           <Toggle label="Edit vertices" value={editMode} onChange={(v) => { setEditMode(v); if (!v) { setSelVert(null); setRefEdge(null); } }} />
-          {editMode && <div style={{ fontSize: 10.5, color: "#67707e", margin: "2px 0 6px" }}>Click a vertex to select · drag to move · arrows nudge (Shift 5 · Alt .25) · Esc deselect. Click an edge to set the reference for parallel.</div>}
-          {editMode && selVert != null && (() => {
-            const n = geom.finalOuter.length, v = geom.finalOuter[selVert], prev = geom.finalOuter[(selVert - 1 + n) % n], next = geom.finalOuter[(selVert + 1) % n];
-            const r1n = (x: number) => Math.round(x * 10) / 10;
-            const inA = r1n(Math.atan2(v.y - prev.y, v.x - prev.x) * 180 / Math.PI), outA = r1n(Math.atan2(next.y - v.y, next.x - v.x) * 180 / Math.PI);
-            const inL = r1n(Math.hypot(v.x - prev.x, v.y - prev.y)), outL = r1n(Math.hypot(next.x - v.x, next.y - v.y));
-            return (<>
-              <Row label={`Vertex ${selVert + 1}/${n}`}><span style={{ fontSize: 11, color: refEdge != null ? "#3BF5A0" : "#8b96a6" }}>{refEdge != null ? `ref edge ${refEdge + 1}` : "no ref edge"}</span></Row>
-              <Num label="X" value={r1n(v.x)} onChange={(x) => setVertexAbs(selVert, x, v.y)} />
-              <Num label="Y" value={r1n(v.y)} onChange={(y) => setVertexAbs(selVert, v.x, y)} />
-              <Num label="In angle°" value={inA} onChange={(a) => setEdge(selVert, "in", "angle", a)} />
-              <Num label="Out angle°" value={outA} onChange={(a) => setEdge(selVert, "out", "angle", a)} />
-              <Num label="In length" value={inL} onChange={(l) => setEdge(selVert, "in", "len", l)} />
-              <Num label="Out length" value={outL} onChange={(l) => setEdge(selVert, "out", "len", l)} />
-              <Toggle label="Preserve in len" value={preserveIn} onChange={setPreserveIn} />
-              <Toggle label="Preserve out len" value={preserveOut} onChange={setPreserveOut} />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginTop: 6 }}>
-                <button onClick={() => alignVert(selVert, "hp")} style={{ ...inp, cursor: "pointer" }}>Align H ‹prev</button>
-                <button onClick={() => alignVert(selVert, "hn")} style={{ ...inp, cursor: "pointer" }}>Align H next›</button>
-                <button onClick={() => alignVert(selVert, "vp")} style={{ ...inp, cursor: "pointer" }}>Align V ‹prev</button>
-                <button onClick={() => alignVert(selVert, "vn")} style={{ ...inp, cursor: "pointer" }}>Align V next›</button>
-                <button onClick={() => makeParallel(selVert, "in")} disabled={refEdge == null} style={{ ...inp, cursor: "pointer", opacity: refEdge == null ? 0.4 : 1 }}>‖ in edge</button>
-                <button onClick={() => makeParallel(selVert, "out")} disabled={refEdge == null} style={{ ...inp, cursor: "pointer", opacity: refEdge == null ? 0.4 : 1 }}>‖ out edge</button>
-                <button onClick={() => mirrorVert(selVert, "v")} style={{ ...inp, cursor: "pointer" }}>Mirror V</button>
-                <button onClick={() => mirrorVert(selVert, "h")} style={{ ...inp, cursor: "pointer" }}>Mirror H</button>
-                <button onClick={() => resetVert(selVert)} style={{ ...inp, cursor: "pointer", gridColumn: "1 / 3" }}>Reset vertex</button>
+          {editMode && (<>
+            {/* WHICH RING the vertex tool edits — border (red outer) or seam (blue). Each
+                is independently editable so the seam stops drifting out of the border. */}
+            <Row label="Editing">
+              <div style={{ display: "flex", gap: 5, width: "100%" }}>
+                {(["outer", "seam"] as const).map((r) => (
+                  <button key={r} onClick={() => setEditRing(r)} style={{ ...inp, cursor: "pointer", flex: 1, background: s.editRing === r ? "#FCA31122" : "#0e131b", borderColor: s.editRing === r ? "#FCA311" : "#2a3342", color: s.editRing === r ? "#FCA311" : "#8b96a6", fontWeight: 700 }}>{r === "outer" ? "Border" : "Seam"}</button>
+                ))}
               </div>
-            </>);
-          })()}
+            </Row>
+            <div style={{ fontSize: 10.5, color: "#67707e", margin: "2px 0 6px" }}>Editing the <b style={{ color: s.editRing === "outer" ? "#E0284A" : "#4FA3E3" }}>{s.editRing === "outer" ? "red border" : "blue seam"}</b> ({nn()} pts). Click a vertex to select · drag to move · arrows nudge (Shift 5 · Alt .25) · double-click an edge to add a point · Delete removes · Esc deselects. Click an edge to set the parallel reference.</div>
+            <div style={{ display: "flex", gap: 5, marginBottom: 4 }}>
+              <button onClick={addVertex} style={{ ...inp, cursor: "pointer", flex: 1 }}>＋ Add vertex</button>
+              <button onClick={() => selVert != null && removeVertex(selVert)} disabled={selVert == null} style={{ ...inp, cursor: "pointer", flex: 1, opacity: selVert == null ? 0.4 : 1 }}>－ Remove</button>
+              <button onClick={resetRing} style={{ ...inp, cursor: "pointer", flex: 1 }}>Reset ring</button>
+            </div>
+            {selVert != null && (() => {
+              const p = activeRingPts(); const n = p.length; if (selVert >= n) return null;
+              const v = p[selVert], prev = p[(selVert - 1 + n) % n], next = p[(selVert + 1) % n];
+              const r1n = (x: number) => Math.round(x * 10) / 10;
+              const inA = r1n(Math.atan2(v.y - prev.y, v.x - prev.x) * 180 / Math.PI), outA = r1n(Math.atan2(next.y - v.y, next.x - v.x) * 180 / Math.PI);
+              const inL = r1n(Math.hypot(v.x - prev.x, v.y - prev.y)), outL = r1n(Math.hypot(next.x - v.x, next.y - v.y));
+              return (<>
+                <Row label={`Vertex ${selVert + 1}/${n}`}><span style={{ fontSize: 11, color: refEdge != null ? "#3BF5A0" : "#8b96a6" }}>{refEdge != null ? `ref edge ${refEdge + 1}` : "no ref edge"}</span></Row>
+                <Num label="X" value={r1n(v.x)} onChange={(x) => setVertexAbs(selVert, x, v.y)} />
+                <Num label="Y" value={r1n(v.y)} onChange={(y) => setVertexAbs(selVert, v.x, y)} />
+                <Num label="In angle°" value={inA} onChange={(a) => setEdge(selVert, "in", "angle", a)} />
+                <Num label="Out angle°" value={outA} onChange={(a) => setEdge(selVert, "out", "angle", a)} />
+                <Num label="In length" value={inL} onChange={(l) => setEdge(selVert, "in", "len", l)} />
+                <Num label="Out length" value={outL} onChange={(l) => setEdge(selVert, "out", "len", l)} />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 5, marginTop: 6 }}>
+                  <button onClick={() => alignVert(selVert, "hp")} style={{ ...inp, cursor: "pointer" }}>Align H ‹prev</button>
+                  <button onClick={() => alignVert(selVert, "hn")} style={{ ...inp, cursor: "pointer" }}>Align H next›</button>
+                  <button onClick={() => alignVert(selVert, "vp")} style={{ ...inp, cursor: "pointer" }}>Align V ‹prev</button>
+                  <button onClick={() => alignVert(selVert, "vn")} style={{ ...inp, cursor: "pointer" }}>Align V next›</button>
+                  <button onClick={() => makeParallel(selVert, "in")} disabled={refEdge == null} style={{ ...inp, cursor: "pointer", opacity: refEdge == null ? 0.4 : 1 }}>‖ in edge</button>
+                  <button onClick={() => makeParallel(selVert, "out")} disabled={refEdge == null} style={{ ...inp, cursor: "pointer", opacity: refEdge == null ? 0.4 : 1 }}>‖ out edge</button>
+                  <button onClick={() => mirrorVert(selVert, "v")} style={{ ...inp, cursor: "pointer" }}>Mirror V</button>
+                  <button onClick={() => mirrorVert(selVert, "h")} style={{ ...inp, cursor: "pointer" }}>Mirror H</button>
+                </div>
+              </>);
+            })()}
+          </>)}
         </Section>
 
         <Section title="Geometry ops" open={false}>
@@ -588,8 +645,8 @@ function LogoLab() {
           <Slider label="Strength" value={cleanupStr} min={0} max={1} step={0.05} onChange={setCleanupStr} fmt={(v) => `${Math.round(v * 100)}%`} />
           <Row label=""><button onClick={() => applyGeomOp((p) => cleanupGeometry(p, cleanupStr))} style={{ ...inp, cursor: "pointer", background: "#FCA31122", borderColor: "#FCA311", color: "#FCA311", fontWeight: 800 }}>Clean up geometry</button></Row>
           <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-            <button onClick={resetManual} style={{ ...inp, cursor: "pointer", flex: 1 }}>Reset manual</button>
-            {s.baseFrozen ? <button onClick={unbake} style={{ ...inp, cursor: "pointer", flex: 1 }}>Unbake</button> : <button onClick={bakeManual} style={{ ...inp, cursor: "pointer", flex: 1 }}>Bake to base</button>}
+            <button onClick={resetManual} style={{ ...inp, cursor: "pointer", flex: 1 }}>Reset all edits</button>
+            {s.baseFrozen ? <button onClick={unbake} style={{ ...inp, cursor: "pointer", flex: 1 }}>Unbake</button> : <button onClick={bakeManual} style={{ ...inp, cursor: "pointer", flex: 1 }}>Bake border</button>}
           </div>
         </Section>
 
@@ -728,29 +785,52 @@ function LogoLab() {
             </div>
             {s.refOn && s.refImg && s.refSide && <img src={s.refImg} alt="reference" style={{ maxHeight: "56vh", opacity: s.refOpacity, transform: `scale(${s.refScale})`, filter: s.refOutline ? "grayscale(1) contrast(2.6) brightness(1.4)" : undefined }} />}
           </div>
-          {/* VERTEX EDIT — a dedicated large canvas with draggable handles on every
-              outer vertex; edits write manual offsets that flow to the live preview. */}
-          {editMode && (
+          {/* VERTEX EDIT — a dedicated large canvas. The ACTIVE ring (border OR seam) is
+              editable: draggable handles, click an edge to set the parallel reference,
+              double-click an edge to ADD a point, Delete removes. The INACTIVE ring shows
+              faint (path + dots) so the seam can be aligned to the border by eye. */}
+          {editMode && (() => {
+            const activePts = s.editRing === "seam" ? geom.finalSeam : geom.finalOuter;
+            const inactivePts = s.editRing === "seam" ? geom.finalOuter : geom.finalSeam;
+            const activeColor = s.editRing === "seam" ? "#4FA3E3" : "#E0284A";
+            const inactiveColor = s.editRing === "seam" ? "#E0284A" : "#4FA3E3";
+            const an = activePts.length;
+            return (
             <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", background: "rgba(8,11,17,0.9)", zIndex: 8 }} onClick={() => setSelVert(null)}>
               <div style={{ position: "relative", width: "min(72vh,60vw)", height: "72vh", background: "#0e131b", borderRadius: 12, padding: 22, boxSizing: "border-box" }} onClick={(e) => e.stopPropagation()}>
-                <svg ref={editSvgRef} viewBox={geom.viewBox} width="100%" height="100%" style={{ overflow: "visible" }}>
-                  <path d={geom.outer} fill="rgba(224,40,74,0.06)" stroke="#3a4560" strokeWidth={1.2} />
-                  <path d={geom.seam} fill="none" stroke="#26304a" strokeWidth={0.8} />
+                {/* TRACE REFERENCE (Lee) — the reference image, shown behind the vertices so
+                    they can be traced over it. Toggle on/off here; position / scale / opacity
+                    live in the left "Reference & distance" panel (reachable while editing). */}
+                {s.refOn && s.refImg && <img src={s.refImg} alt="trace reference" style={{ position: "absolute", left: 22, top: 22, right: 22, bottom: 22, margin: "auto", maxWidth: "calc(100% - 44px)", maxHeight: "calc(100% - 44px)", objectFit: "contain", transform: `translate(${s.refX}px,${s.refY}px) scale(${s.refScale})`, opacity: s.refOpacity, pointerEvents: "none", zIndex: 0, filter: s.refOutline ? "grayscale(1) contrast(2.6) brightness(1.4)" : undefined }} />}
+                {/* ring switch + reference toggle, in-canvas for reach */}
+                <div style={{ position: "absolute", top: 8, left: 14, display: "flex", gap: 5, zIndex: 2 }}>
+                  {(["outer", "seam"] as const).map((r) => (
+                    <button key={r} onClick={() => setEditRing(r)} style={{ ...inp, width: "auto", cursor: "pointer", padding: "3px 10px", background: s.editRing === r ? "#FCA31122" : "#0e131b", borderColor: s.editRing === r ? "#FCA311" : "#2a3342", color: s.editRing === r ? "#FCA311" : "#8b96a6", fontWeight: 700 }}>{r === "outer" ? "Border" : "Seam"}</button>
+                  ))}
+                  {s.refImg && <button onClick={() => set({ refOn: !s.refOn })} title="Show the reference image behind the vertices to trace it (position / opacity in the left Reference panel)" style={{ ...inp, width: "auto", cursor: "pointer", padding: "3px 10px", background: s.refOn ? "#FCA31122" : "#0e131b", borderColor: s.refOn ? "#FCA311" : "#2a3342", color: s.refOn ? "#FCA311" : "#8b96a6", fontWeight: 700 }}>Ref</button>}
+                </div>
+                <svg ref={editSvgRef} viewBox={geom.viewBox} width="100%" height="100%" style={{ overflow: "visible", position: "relative", zIndex: 1 }}>
+                  {/* both rings for context; active brighter, inactive faint */}
+                  <path d={geom.outer} fill={s.editRing === "outer" ? "rgba(224,40,74,0.07)" : "none"} stroke="#E0284A" strokeWidth={s.editRing === "outer" ? 1.1 : 0.7} opacity={s.editRing === "outer" ? 0.7 : 0.3} />
+                  <path d={geom.seam} fill={s.editRing === "seam" ? "rgba(79,163,227,0.09)" : "none"} stroke="#4FA3E3" strokeWidth={s.editRing === "seam" ? 1.1 : 0.7} opacity={s.editRing === "seam" ? 0.8 : 0.35} />
                   {/* selected vertex's two edges (incoming amber, outgoing blue) */}
-                  {selVert != null && (() => { const n = geom.finalOuter.length, v = geom.finalOuter[selVert], p = geom.finalOuter[(selVert - 1 + n) % n], q = geom.finalOuter[(selVert + 1) % n]; return (<><line x1={p.x} y1={p.y} x2={v.x} y2={v.y} stroke="#FCA311" strokeWidth={2.5} /><line x1={v.x} y1={v.y} x2={q.x} y2={q.y} stroke="#4FA3E3" strokeWidth={2.5} /></>); })()}
-                  {refEdge != null && (() => { const n = geom.finalOuter.length, a = geom.finalOuter[refEdge], b = geom.finalOuter[(refEdge + 1) % n]; return <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#3BF5A0" strokeWidth={2} strokeDasharray="4 3" />; })()}
-                  {/* invisible edge hit-targets → click to set the reference edge */}
-                  {geom.finalOuter.map((v, i) => { const n = geom.finalOuter.length, b = geom.finalOuter[(i + 1) % n]; return <line key={"e" + i} x1={v.x} y1={v.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={7} style={{ cursor: "pointer" }} onClick={(e) => { e.stopPropagation(); setRefEdge((r) => (r === i ? null : i)); }} />; })}
-                  {/* draggable vertex handles */}
-                  {geom.finalOuter.map((v, i) => (
-                    <circle key={i} cx={v.x} cy={v.y} r={selVert === i ? 4.2 : 3} fill={selVert === i ? "#FCA311" : "#e7ecf3"} stroke="#0e131b" strokeWidth={1} style={{ cursor: "grab" }} onPointerDown={(e) => startVertexDrag(i, e)} onClick={(e) => { e.stopPropagation(); setSelVert(i); }} />
+                  {selVert != null && selVert < an && (() => { const v = activePts[selVert], p = activePts[(selVert - 1 + an) % an], q = activePts[(selVert + 1) % an]; return (<><line x1={p.x} y1={p.y} x2={v.x} y2={v.y} stroke="#FCA311" strokeWidth={2.5} /><line x1={v.x} y1={v.y} x2={q.x} y2={q.y} stroke="#4FA3E3" strokeWidth={2.5} /></>); })()}
+                  {refEdge != null && refEdge < an && (() => { const a = activePts[refEdge], b = activePts[(refEdge + 1) % an]; return <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#3BF5A0" strokeWidth={2} strokeDasharray="4 3" />; })()}
+                  {/* invisible edge hit-targets → click sets the reference edge, double-click adds a point */}
+                  {activePts.map((v, i) => { const b = activePts[(i + 1) % an]; return <line key={"e" + i} x1={v.x} y1={v.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth={8} style={{ cursor: "copy" }} onClick={(e) => { e.stopPropagation(); setRefEdge((r) => (r === i ? null : i)); }} onDoubleClick={(e) => { e.stopPropagation(); const loc = clientToSvg(e.clientX, e.clientY); insertVertexOnEdge(i, loc ?? undefined); }} />; })}
+                  {/* inactive ring vertices — faint reference dots (non-interactive) */}
+                  {inactivePts.map((v, i) => <circle key={"iv" + i} cx={v.x} cy={v.y} r={1.6} fill={inactiveColor} opacity={0.4} style={{ pointerEvents: "none" }} />)}
+                  {/* active ring draggable vertex handles */}
+                  {activePts.map((v, i) => (
+                    <circle key={i} cx={v.x} cy={v.y} r={selVert === i ? 4.2 : 3} fill={selVert === i ? "#FCA311" : "#fff"} stroke={activeColor} strokeWidth={1.2} style={{ cursor: "grab" }} onPointerDown={(e) => startVertexDrag(i, e)} onClick={(e) => { e.stopPropagation(); setSelVert(i); }} />
                   ))}
                 </svg>
-                <div style={{ position: "absolute", top: 10, left: 14, fontSize: 11, color: "#67707e" }}>{selVert != null ? `vertex ${selVert + 1}/${geom.finalOuter.length}` : "click a vertex"}{refEdge != null ? ` · ref edge ${refEdge + 1}` : ""}</div>
+                <div style={{ position: "absolute", bottom: 10, left: 14, fontSize: 11, color: "#67707e" }}>Editing <b style={{ color: activeColor }}>{s.editRing === "outer" ? "border" : "seam"}</b> — {selVert != null ? `vertex ${selVert + 1}/${an}` : `${an} pts · click one`}{refEdge != null ? ` · ref edge ${refEdge + 1}` : ""} · double-click an edge to add</div>
                 <button onClick={() => { setEditMode(false); setSelVert(null); }} style={{ position: "absolute", top: 8, right: 10, ...inp, width: "auto", cursor: "pointer" }}>Done</button>
               </div>
             </div>
-          )}
+            );
+          })()}
         </div>
         {/* PREVIEW EXTRAS (Lee) — favicon sizes + small logo cards to judge legibility. */}
         <div style={{ display: "flex", alignItems: "center", gap: 18, padding: "10px 16px", borderTop: "1px solid #1c2330", background: "#0b0e14", overflowX: "auto", flex: "0 0 auto" }}>
