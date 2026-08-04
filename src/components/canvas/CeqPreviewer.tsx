@@ -67,6 +67,11 @@ const FilmContext = createContext(false);
  *  arrow / vinyl-on-entry). Keyed by memoNodeId; writes back through the main store
  *  (undoable) via CeqStudio's onPatchChainItem. Noop when not authoring. */
 const ChainToggleContext = createContext<(memoNodeId: string, patch: Partial<CeqChainItem>) => void>(() => {});
+/** INLINE-EDIT a memo's text from the previewer (authoring only). Commits the new text as
+ *  the memo LABEL everywhere it's chained (node title + every question's chain[].label) via
+ *  CeqStudio's renameMemoEverywhere, so an edit ripples to the library + all CEQ sets. null
+ *  ⇒ editing disabled (film / layout stage). */
+const MemoEditContext = createContext<((memoNodeId: string, text: string) => void) | null>(null);
 /** QUESTION 0 — switch a palette slot on/off from its number badge. Non-null ONLY on
  *  the layout stage, so a real question's memo chips keep their normal badge. */
 const SlotToggleContext = createContext<((slotIdx: number) => void) | null>(null);
@@ -433,7 +438,11 @@ function MemoPreviewNode({ id, data, selected, dragging }: NodeProps) {
   // label as [before][<b>selected</b>][after] — no manual DOM mutation of the teaching text.
   const labelRef = useRef<HTMLDivElement>(null);
   const [selEmph, setSelEmph] = useState<{ a: number; b: number } | null>(null);
+  // The highlight-to-bold tool is a FILM-ONLY teaching gesture. In authoring, drag-
+  // selecting text on a memo must NOT emphasise it (Lee is trying to edit) — so this is
+  // gated to film. Authoring gets inline editing instead (double-click, below).
   const readSelection = () => {
+    if (!film) return;
     const el = labelRef.current; const win = el?.ownerDocument.defaultView; const sel = win?.getSelection();
     if (!el || !sel || sel.rangeCount === 0 || sel.isCollapsed) return;
     const r = sel.getRangeAt(0);
@@ -442,6 +451,15 @@ function MemoPreviewNode({ id, data, selected, dragging }: NodeProps) {
     const a = pre.toString().length, b = a + r.toString().length;
     if (b > a) setSelEmph({ a, b });
   };
+  // INLINE MEMO EDIT (authoring) — double-click the text to edit it; the commit ripples
+  // to the library + every CEQ that chains this memo (MemoEditContext → renameMemoEverywhere).
+  // Shift+Enter inserts a line break; plain Enter commits; Escape cancels.
+  const editMemo = useContext(MemoEditContext);
+  const canEdit = !film && !slotOff && !!editMemo;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const startEdit = () => { if (!canEdit) return; setDraft(d.label ?? ""); setEditing(true); };
+  const commitEdit = () => { editMemo?.(id, draft); setEditing(false); };
   const lbl = d.label ?? "";
   return (
     <div
@@ -450,7 +468,7 @@ function MemoPreviewNode({ id, data, selected, dragging }: NodeProps) {
       data-flame={flamed ? "on" : undefined}
       data-flame-tone={flamed ? spot.tone(key) : undefined}
       ref={wrapRef}
-      onPointerDownCapture={(e) => spot.onClick(key, e)}
+      onPointerDownCapture={(e) => { if (!editing) spot.onClick(key, e); }}
       // SPOTLIT MEMO POPS IN ITS OWN NAVY (Lee) — spotStyle paints a spotlit target with
       // var(--spot-bg): a choice inherits the card's PAPER so it pops in the card material,
       // but a memo isn't inside a card, so it fell back to a translucent gold wash and read
@@ -485,9 +503,29 @@ function MemoPreviewNode({ id, data, selected, dragging }: NodeProps) {
       {/* CONTENT — nodrag + selectable (branded orange ::selection via PV_CSS). */}
       <div className="nodrag" style={{ padding: `${10 * s}px ${12 * s}px`, userSelect: "text", WebkitUserSelect: "text", cursor: "text", position: "relative", zIndex: 1 }}>
         {!d.hideChoiceLabel && <div style={{ fontFamily: BRAND_DISPLAY, fontSize: 9 * s, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: NEON.muted, marginBottom: 3 * s }}>choice {d.choice}</div>}
-        <div ref={labelRef} onMouseDown={() => setSelEmph(null)} onMouseUp={readSelection} style={{ fontFamily: BRAND_DISPLAY, fontWeight: 500, fontSize: 14 * s, color: NEON.text, lineHeight: 1.28 }}>
-          {selEmph && selEmph.a < lbl.length ? (<>{lbl.slice(0, selEmph.a)}<span className={`sa-sel-emph${spState ? " sa-sel-emph-spot" : ""}`}>{lbl.slice(selEmph.a, selEmph.b)}</span>{lbl.slice(selEmph.b)}</>) : lbl}
-        </div>
+        {editing ? (
+          <textarea
+            autoFocus
+            className="nodrag"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onPointerDown={(e) => e.stopPropagation()}
+            onBlur={commitEdit}
+            onFocus={(e) => e.currentTarget.select()}
+            onKeyDown={(e) => {
+              e.stopPropagation(); // never let memo-edit keys reach the canvas hotkeys
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitEdit(); }
+              else if (e.key === "Escape") { e.preventDefault(); setEditing(false); }
+              // Shift+Enter falls through → the textarea inserts a newline.
+            }}
+            rows={Math.max(2, draft.split("\n").length)}
+            style={{ width: "100%", boxSizing: "border-box", resize: "none", fontFamily: BRAND_DISPLAY, fontWeight: 500, fontSize: 14 * s, color: NEON.text, lineHeight: 1.28, background: "rgba(0,0,0,0.35)", border: `1px solid ${NEON.cyan}`, borderRadius: 6 * s, padding: `${4 * s}px ${6 * s}px`, outline: "none" }}
+          />
+        ) : (
+          <div ref={labelRef} onMouseDown={film ? () => setSelEmph(null) : undefined} onMouseUp={film ? readSelection : undefined} onDoubleClick={canEdit ? (e) => { e.stopPropagation(); startEdit(); } : undefined} title={canEdit ? "Double-click to edit — updates this memo everywhere it's used (Shift+Enter for a line break)" : undefined} style={{ fontFamily: BRAND_DISPLAY, fontWeight: 500, fontSize: 14 * s, color: NEON.text, lineHeight: 1.28, whiteSpace: "pre-wrap" }}>
+            {selEmph && selEmph.a < lbl.length ? (<>{lbl.slice(0, selEmph.a)}<span className={`sa-sel-emph${spState ? " sa-sel-emph-spot" : ""}`}>{lbl.slice(selEmph.a, selEmph.b)}</span>{lbl.slice(selEmph.b)}</>) : lbl}
+          </div>
+        )}
       </div>
       <Handle id="l" type="source" position={Position.Left} style={HANDLE} />
       <Handle id="r" type="target" position={Position.Right} style={HANDLE} />
@@ -954,13 +992,29 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   }, [filmWin, frameW, frameH, activeYOff]);
   useEffect(() => {
     if (!filmWin) return;
-    // Double-fire (40ms + 240ms) so a maximize/resize that ANIMATES its layout still
-    // lands filled; also refit when the film window regains focus (post-maximize).
-    const refit = () => { window.setTimeout(fitFilm, 40); window.setTimeout(fitFilm, 240); };
-    refit();
-    filmWin.addEventListener("resize", refit);
-    filmWin.addEventListener("focus", refit);
-    return () => { filmWin.removeEventListener("resize", refit); filmWin.removeEventListener("focus", refit); };
+    // Refit the 16:9 cover on EVERY way the popout can change size. Going FULLSCREEN
+    // (F11 / OS maximize) animates its layout and doesn't reliably emit a well-timed
+    // `resize` — so without a fullscreenchange hook the viewport stays stale and the
+    // window paints near-black (the frame is off-screen). Multi-fire over ~1s to ride
+    // out the animation, plus a ResizeObserver as the reliable catch-all.
+    const settle = () => { [0, 40, 240, 500, 900].forEach((ms) => window.setTimeout(fitFilm, ms)); };
+    settle();
+    filmWin.addEventListener("resize", settle);
+    filmWin.addEventListener("focus", settle);
+    const doc = filmWin.document;
+    doc.addEventListener("fullscreenchange", settle);
+    let ro: ResizeObserver | undefined;
+    try {
+      const RO = (filmWin as unknown as { ResizeObserver?: typeof ResizeObserver }).ResizeObserver;
+      const target = doc.documentElement ?? doc.body;
+      if (RO && target) { ro = new RO(() => fitFilm()); ro.observe(target); }
+    } catch { /* ResizeObserver unavailable in the popout — the listeners above still cover it */ }
+    return () => {
+      filmWin.removeEventListener("resize", settle);
+      filmWin.removeEventListener("focus", settle);
+      doc.removeEventListener("fullscreenchange", settle);
+      ro?.disconnect();
+    };
   }, [filmWin, ceqId, frameW, frameH, fitFilm]);
   const toggleFilm = () => { if (filmWin) { try { filmWin.close(); } catch { /* ignore */ } setFilmWin(null); return; } const w = openPopoutWindow("ceqfilm", 1000, 600); if (w) setFilmWin(w); };
   // Q0 / LAYOUT NEVER FILMS — it's the authoring stage (already excluded from
@@ -1330,6 +1384,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
          <ScaleCommitContext.Provider value={commitGeom}>
           <PreviewSpotContext.Provider value={spotApi}>
            <ChainToggleContext.Provider value={onPatchChainItem ?? (() => {})}>
+           <MemoEditContext.Provider value={layoutMode ? null : (onRenameMemo ?? null)}>
            {/* Q0 only — the number badge becomes the slot on/off switch. */}
            <SlotToggleContext.Provider value={layoutMode && onSaveBaseline ? toggleSlot : null}>
            <ViewChoiceContext.Provider value={layoutMode ? null : { view: viewChoice, set: (i) => setViewChoice((p) => (p === i ? null : i)) }}>
@@ -1585,6 +1640,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
            </ChainReorderContext.Provider>
            </ViewChoiceContext.Provider>
            </SlotToggleContext.Provider>
+           </MemoEditContext.Provider>
            </ChainToggleContext.Provider>
           </PreviewSpotContext.Provider>
          </ScaleCommitContext.Provider>

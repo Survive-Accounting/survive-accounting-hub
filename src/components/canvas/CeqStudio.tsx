@@ -1638,12 +1638,14 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
     touchRecent(memoId);
     setNote(`Duplicated memo → "${clip(label, 24)}" (linked to the original).`);
   };
-  /** Commit an inline rename of a LIBRARY memo (title + label on the node). */
+  /** Commit an inline rename of a LIBRARY memo. Must ripple to EVERY chaining question's
+   *  `chain[].label` (the previewer + film render that copy), not just the node — otherwise
+   *  the library row changes and the CEQ sets keep the old name. Routes through
+   *  renameMemoEverywhere (includeCurrent=false: a library rename isn't scoped to the open
+   *  question, so we only touch questions that actually chain this memo). */
   const commitEditMemo = (id: string, next: string) => {
-    const label = next.trim() || "Memo";
-    const p = patchDataCmd(rfl, id, { title: label, label }, "rename memo"); if (p) bus.dispatch(p);
+    renameMemoEverywhere(id, next, false);
     setEditMemo(null); setEditMemoVal("");
-    touchRecent(id);
   };
   /** QUICK-ADD (Lee, speed pass) — Enter in the pinned library input creates a memo
    *  instantly: category = LAST-USED, label = the text. No modal on this path. */
@@ -1674,10 +1676,12 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
    *  rename must patch every chaining question's `chain[].label` AND the node's own
    *  title — otherwise the library row changes and the card on camera doesn't. One
    *  undo step. */
-  const renameMemoEverywhere = (memoNodeId: string, next: string) => {
+  const renameMemoEverywhere = (memoNodeId: string, next: string, includeCurrent = true) => {
     const label = next.trim() || "Memo";
     const ceqIds = new Set((memoUsage.get(memoNodeId) ?? []).map((u) => u.ceqId));
-    if (qId && qId !== LAYOUT_Q0) ceqIds.add(qId);
+    // includeCurrent=false for a LIBRARY rename (not scoped to the open question); the
+    // previewer/right-click paths keep true so the just-attached memo's own question is hit.
+    if (includeCurrent && qId && qId !== LAYOUT_Q0) ceqIds.add(qId);
     const cmds: NonNullable<ReturnType<typeof patchDataCmd>>[] = [];
     for (const cid of ceqIds) {
       const p = patchDataFnCmd(rfl, cid, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => ({ ...c, chain: (c.chain ?? []).map((it) => (it.memoNodeId === memoNodeId ? { ...it, label } : it)) })) }), "rename chain label");
