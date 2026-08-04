@@ -58,8 +58,8 @@ const ScaleContext = createContext<(id: string, s: number) => void>(() => {});
 /** Called once when a resize DRAG ends (pointer-up), so the new size can be persisted. */
 const ScaleCommitContext = createContext<() => void>(() => {});
 /** LOCAL rehearsal-spotlight layer (never the global controller). Keyed spotKey. */
-interface PreviewSpotApi { state: (key: string) => "spot" | null; flamed: (key: string) => boolean; tone: (key: string) => SuperTone; onClick: (key: string, e: React.PointerEvent) => void }
-const PreviewSpotContext = createContext<PreviewSpotApi>({ state: () => null, flamed: () => false, tone: () => "focus", onClick: () => {} });
+interface PreviewSpotApi { state: (key: string) => "spot" | null; flamed: (key: string) => boolean; tone: (key: string) => SuperTone; onClick: (key: string, e: React.PointerEvent) => void; any: () => boolean }
+const PreviewSpotContext = createContext<PreviewSpotApi>({ state: () => null, flamed: () => false, tone: () => "focus", onClick: () => {}, any: () => false });
 /** FILM view (the popout mirror): true ⇒ nodes render CLEAN — no scale grips, no
  *  frame outline/label, no chain-number badges — just the composition the camera sees. */
 const FilmContext = createContext(false);
@@ -132,6 +132,17 @@ const PV_CSS = `
    FLAME_CSS's scale(1.4) !important by specificity; origin stays left-center). */
 .sa-ceq-choice[data-flame="on"] { transform: scale(1.08) !important; }
 .sa-pv-node[data-flame="on"] { transform: scale(1.08) !important; }
+/* MEMO ARROWS (Lee) — a spotlit arrow's dash flows choice→memo (left→right), like a
+   reading eye; loops so re-reading feels natural. The path is drawn choice→memo, so a
+   NEGATIVE stroke-dashoffset advances the dashes in that (reading) direction. */
+@keyframes sa-arrow-read { to { stroke-dashoffset: -19; } }
+/* READING SPOTLIGHT (Lee) — a soft highlight sweeps left→right across a spotlit
+   choice/memo, so emphasis mimics reading. ::after is inset (no glow clipping). */
+.sa-spot-read::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 2;
+  background-image: linear-gradient(100deg, transparent 34%, rgba(255,255,255,0.34) 50%, transparent 66%);
+  background-size: 230% 100%; background-repeat: no-repeat; animation: sa-read-sweep 1.7s ease-in-out infinite; }
+@keyframes sa-read-sweep { from { background-position: 130% 0; } to { background-position: -30% 0; } }
+@media (prefers-reduced-motion: reduce) { .sa-spot-read::after { animation: none; opacity: 0; } }
 `;
 /** SPOTLIGHT GUARDRAIL — tame spotStyle's size bump so a spotlit choice/memo stays in
  *  the CEQ box / frame (spotStyle uses scale(1.2), which spilled a full-width choice
@@ -310,7 +321,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
           return (
             <div
               key={c.id ?? i}
-              className={`sa-ceq-choice${st === "right" ? " sa-ceq-correct" : ""}`}
+              className={`sa-ceq-choice${st === "right" ? " sa-ceq-correct" : ""}${spState === "spot" ? " sa-spot-read" : ""}`}
               onAnimationEnd={(ev) => { if (ev.animationName === "sa-ceq-correct") (ev.currentTarget as HTMLElement).style.willChange = "auto"; }}
               data-flame={flamed ? "on" : undefined}
               data-flame-tone={flamed ? spot.tone(key) : undefined}
@@ -322,7 +333,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
               onDragOver={film ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; if (dropChoice !== c.id) setDropChoice(c.id); } }}
               onDragLeave={film ? undefined : () => setDropChoice((p) => (p === c.id ? null : p))}
               onDrop={film ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); setDropChoice(null); if (mid) { e.preventDefault(); attachMemo(c.id, mid); } }}
-              style={{ display: "flex", alignItems: "center", gap: 10 * s, borderRadius: 10 * s, border: `${1.5 * s}px solid ${!film && viewChoice === i ? NEON.cyan : dropChoice === c.id ? "#FCA311" : border}`, outline: !film && viewChoice === i ? `${2 * s}px solid rgba(79,163,227,0.35)` : undefined, outlineOffset: 2, background: dropChoice === c.id ? "rgba(252,163,17,0.16)" : bg, padding: `${9 * s}px ${12 * s}px`, position: "relative", boxShadow: dropChoice === c.id ? `0 0 0 ${2 * s}px rgba(252,163,17,0.6)` : emph ? `0 0 0 ${2 * s}px rgba(184,134,11,0.7)` : undefined, filter: st === "wrong" ? "grayscale(0.3)" : undefined, ...containSpot(spState) }}
+              style={{ display: "flex", alignItems: "center", gap: 10 * s, borderRadius: 10 * s, border: `${1.5 * s}px solid ${!film && viewChoice === i ? NEON.cyan : dropChoice === c.id ? "#FCA311" : border}`, outline: !film && viewChoice === i ? `${2 * s}px solid rgba(79,163,227,0.35)` : undefined, outlineOffset: 2, background: dropChoice === c.id ? "rgba(252,163,17,0.16)" : bg, padding: `${9 * s}px ${12 * s}px`, position: "relative", boxShadow: dropChoice === c.id ? `0 0 0 ${2 * s}px rgba(252,163,17,0.6)` : emph ? `0 0 0 ${2 * s}px rgba(184,134,11,0.7)` : undefined, filter: st === "wrong" ? "grayscale(0.3)" : undefined, opacity: spot.any() && !spState ? 0.55 : undefined, ...containSpot(spState) }}
             >
               <span title={(c.chain?.length ?? 0) > 0 ? `${c.chain!.length} explanation memo(s) behind this choice` : undefined} style={{ display: "grid", placeItems: "center", width: 28 * s, height: 28 * s, borderRadius: 8 * s, fontWeight: 900, fontSize: 15 * s, color: st ? "#fff" : chipC, background: st === "right" ? PAPER.green : st === "wrong" ? PAPER.red : "transparent", border: `${2 * s}px solid ${chipC}`, ...((c.chain?.length ?? 0) > 0 ? { boxShadow: film ? CHAINED_MARKER.ringFilm : CHAINED_MARKER.ring } : {}) }}>{LETTER(i)}</span>
               {/* TextAnchor drops the anc:<choiceId> handle ~7px past the choice TEXT
@@ -368,12 +379,12 @@ function MemoPreviewNode({ id, data, selected }: NodeProps) {
   const flamed = spot.flamed(key);
   return (
     <div
-      className={`sa-pv-node${film && walked ? " sa-memo-in" : ""}${selected ? " sa-msel" : ""}`}
+      className={`sa-pv-node${film && walked ? " sa-memo-in" : ""}${selected ? " sa-msel" : ""}${spState === "spot" ? " sa-spot-read" : ""}`}
       onAnimationEnd={(ev) => { if (ev.animationName === "sa-memo-in") (ev.currentTarget as HTMLElement).style.willChange = "auto"; }}
       data-flame={flamed ? "on" : undefined}
       data-flame-tone={flamed ? spot.tone(key) : undefined}
       onPointerDownCapture={(e) => spot.onClick(key, e)}
-      style={{ boxShadow: selected ? (film ? "0 0 0 1.5px rgba(79,163,227,0.35)" : "0 0 0 2px rgba(79,163,227,0.8)") : undefined, position: "relative", width: 210 * s, borderRadius: 12 * s, background: slotOff ? "transparent" : NEON.panelSolid, border: `${1.5 * s}px ${slotOff ? "dashed" : "solid"} ${slotOff ? NEON.borderSoft : walked ? NEON.yellow : NEON.borderSoft}`, padding: `${10 * s}px ${12 * s}px`, opacity: slotOff ? 0.3 : walked ? 1 : film ? 0 : 0.4, filter: slotOff || walked || film ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "grab", ...containSpot(spState) }}
+      style={{ boxShadow: selected ? (film ? "0 0 0 1.5px rgba(79,163,227,0.35)" : "0 0 0 2px rgba(79,163,227,0.8)") : undefined, position: "relative", width: 210 * s, borderRadius: 12 * s, background: slotOff ? "transparent" : NEON.panelSolid, border: `${1.5 * s}px ${slotOff ? "dashed" : "solid"} ${slotOff ? NEON.borderSoft : walked ? NEON.yellow : NEON.borderSoft}`, padding: `${10 * s}px ${12 * s}px`, opacity: (slotOff ? 0.3 : walked ? 1 : film ? 0 : 0.4) * (spot.any() && !spState ? 0.5 : 1), filter: slotOff || walked || film ? undefined : "grayscale(1)", transition: "opacity 200ms, filter 200ms, border-color 200ms", cursor: "grab", ...containSpot(spState) }}
     >
       {/* chain-order badge — useful IN the previewer, never on camera (hidden in film). */}
       {!film && (slotToggle ? (
@@ -451,7 +462,16 @@ function OvMemoNode({ data }: NodeProps) {
   const sc = d.scale ?? 1;
   return <div style={{ pointerEvents: "none", width: 210 * sc, borderRadius: 12 * sc, background: NEON.panelSolid, border: `${1.5 * sc}px solid ${NEON.borderSoft}`, padding: `${10 * sc}px ${12 * sc}px`, opacity: 0.55, fontSize: 13 * sc, color: NEON.text }}>{d.label}</div>;
 }
-const edgeTypes = { chainBundle: ChainBundleEdge };
+/** MEMO reading arrow (Lee) — the CHOICE points AT the memo. RF still stores the edge
+ *  memo(source)→choice(target), but we DRAW it reversed: a STRAIGHT line from the
+ *  choice's right-text anchor (targetX/Y) to the memo (sourceX/Y), arrowhead on the
+ *  memo. No snake; reads left→right. All look (width/dash/reading-sweep/glow) rides in
+ *  `style` from buildEdges. */
+function ChainArrowEdge({ sourceX, sourceY, targetX, targetY, style, markerEnd }: EdgeProps) {
+  const path = `M ${targetX} ${targetY} L ${sourceX} ${sourceY}`;
+  return <BaseEdge path={path} style={style} markerEnd={markerEnd} interactionWidth={22} />;
+}
+const edgeTypes = { chainBundle: ChainBundleEdge, chainArrow: ChainArrowEdge };
 const nodeTypes = { frameBg: FrameBgNode, ceqPreview: CeqPreviewNode, memoPreview: MemoPreviewNode, ovCeq: OverviewCeqNode, ovMemo: OvMemoNode };
 const EMPTY_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "focus" };
 
@@ -592,6 +612,8 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     flamed: (key) => spots.superKey === key,
     tone: () => spots.superTone ?? "focus",
     onClick: spotClick,
+    // Anything spotlit? → dim everything else, so the spotlight commands attention.
+    any: () => spots.regular.size > 0 || spots.superKey !== null,
   }), [spots, spotClick]);
   // Ctrl+click an ARROW spotlights it too (same local layer, keyed on the edge id).
   // SPOTLIGHT AN ARROW (Lee): Ctrl+Shift+click → super/flame (🔥, +Alt = 🚨); Ctrl OR
@@ -981,26 +1003,30 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       const spotE = spots.regular.has(sk) || flamedE;
       const selectedE = selEdgeIds.has(e.id);
       const hidden = hideArrowSources.has(e.source);
-      const stroke = flamedE ? "#FCA311" : spotE ? "#FFD36A" : selectedE ? NEON.cyan : revealed ? "#E0284A" : "rgba(147,160,180,0.45)";
-      const width = flamedE ? 4 : spotE || selectedE ? 3.5 : 2.5;
+      const stroke = flamedE ? "#FCA311" : spotE ? "#FFD36A" : selectedE ? NEON.cyan : revealed ? "#E0284A" : "rgba(147,160,180,0.5)";
+      // WIDER variance (Lee): subtle at rest, boldly prominent when spotlit.
+      const width = flamedE ? 7 : spotE ? 6 : selectedE ? 4 : revealed ? 3 : 2.5;
       const lit = revealed || spotE || selectedE;
-      // Spotlit/flamed → RF's flowing-dash `animated` + a glow (Lee's "show animation
-      // of it"). markerEnd sized up so the ← arrowhead reads at the choice.
-      const bundle = e.target === ceqId && e.targetHandle ? bundles.get(e.targetHandle) : undefined;
-      const marker = { type: MarkerType.ArrowClosed, color: stroke, width: 18, height: 18 };
+      // Every memo draws its OWN straight arrow (no bundling): the choice fans out to
+      // its explanation memos. markerEnd sized up when lit so the arrowhead reads.
+      const markerSize = flamedE || spotE ? 26 : selectedE ? 20 : 15;
+      const marker = { type: MarkerType.ArrowClosed, color: stroke, width: markerSize, height: markerSize };
       return {
         id: e.id, source: e.source, target: e.target, sourceHandle: e.sourceHandle ?? "l", targetHandle: e.targetHandle ?? undefined,
-        type: bundle ? "chainBundle" : "smoothstep",
-        // Only the trunk carrier draws the junction→choice leg + its arrowhead; the
-        // other members stop at the junction, so one arrowhead lands on the choice.
-        ...(bundle ? { data: { jx: bundle.jx, jy: bundle.jy, trunk: bundle.carrier === e.source } } : {}),
-        animated: spotE && !hidden,
-        // ABOVE the card (zIndex 1) and the memos (5) — the anchor sits just past the
-        // choice TEXT, i.e. inside the card body, so a default-z edge buried its own
-        // arrowhead. EDGE_Z is the same constant the real scene arrows use.
+        // Custom straight edge draws choice→memo with the arrowhead ON the memo.
+        type: "chainArrow",
+        // ABOVE the card (zIndex 1) and the memos (5). EDGE_Z is the scene-arrow z.
         zIndex: EDGE_Z,
-        style: { stroke, strokeWidth: width, opacity: hidden ? 0.14 : lit ? 1 : 0.4, strokeDasharray: hidden ? "3 5" : spotE ? undefined : lit ? undefined : "5 4", filter: hidden ? undefined : flamedE ? "drop-shadow(0 0 6px rgba(252,163,17,0.95))" : spotE ? "drop-shadow(0 0 4px rgba(255,211,106,0.8))" : undefined },
-        markerEnd: bundle && bundle.carrier !== e.source ? undefined : marker,
+        style: {
+          stroke, strokeWidth: width, strokeLinecap: "round",
+          opacity: hidden ? 0.12 : spotE ? 1 : lit ? 0.82 : 0.42,
+          // No dash when lit (a clean solid line); a reading SWEEP flows choice→memo
+          // (left→right) only when spotlit, looping so re-reading feels natural.
+          strokeDasharray: hidden ? "3 5" : spotE ? "11 8" : lit ? undefined : "6 5",
+          animation: spotE && !hidden ? "sa-arrow-read 640ms linear infinite" : undefined,
+          filter: hidden ? undefined : flamedE ? "drop-shadow(0 0 9px rgba(252,163,17,0.95))" : spotE ? "drop-shadow(0 0 7px rgba(255,211,106,0.9))" : undefined,
+        },
+        markerEnd: marker,
       } as Edge;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
