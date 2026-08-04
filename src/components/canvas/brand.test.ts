@@ -1,19 +1,27 @@
-// Guards the brand module: colour catalogue, mono detection, and that the bolt
-// markup is well-formed + recolours (no skull/stealie/circle — a plain bolt).
+// Guards the brand module against the supplied kit: primary red/blue, the
+// internal-seam split (red meets blue directly — NO white line between; white
+// only on the outside), mono single-colour, and the colour catalogue. No
+// skull/circle (a plain bolt).
 import { describe, expect, test } from "bun:test";
 
-import { BOLT_D, BOLT_PRESETS, boltColorById, boltSvgMarkup, LOGO_MODES, SEC_SCHOOLS } from "./brand";
+import { BOLT_OUTER, BOLT_PRESETS, BOLT_RIGHT, boltColorById, boltSvgMarkup, BRAND_BLUE, BRAND_RED, LOGO_MODES, SEC_SCHOOLS } from "./brand";
 
 describe("brand system", () => {
-  test("house presets + the current 16-team SEC, all with two hex colours", () => {
-    expect(BOLT_PRESETS.map((p) => p.id)).toEqual(["red-blue", "purple-gold", "crimson-gray", "white", "black"]);
+  test("primary is the kit's red/blue; white + black are single-colour house options", () => {
+    expect(BOLT_PRESETS.map((p) => p.id)).toEqual(["red-blue", "white", "black"]);
+    expect(BOLT_PRESETS[0].c1).toBe(BRAND_RED);
+    expect(BRAND_RED).toBe("#C62828");
+    expect(BOLT_PRESETS[0].c2).toBe(BRAND_BLUE);
+    expect(BRAND_BLUE).toBe("#1565C0");
+  });
+
+  test("the current 16-team SEC, all with two hex colours", () => {
     expect(SEC_SCHOOLS.length).toBe(16);
     for (const o of [...BOLT_PRESETS, ...SEC_SCHOOLS]) {
       expect(o.c1).toMatch(/^#[0-9A-Fa-f]{6}$/);
       expect(o.c2).toMatch(/^#[0-9A-Fa-f]{6}$/);
-      expect(o.name.length).toBeGreaterThan(0);
     }
-    expect(new Set([...BOLT_PRESETS, ...SEC_SCHOOLS].map((o) => o.id)).size).toBe(21);
+    expect(new Set([...BOLT_PRESETS, ...SEC_SCHOOLS].map((o) => o.id)).size).toBe(19);
   });
 
   test("four logo modes", () => {
@@ -22,34 +30,37 @@ describe("brand system", () => {
 
   test("boltColorById resolves presets + SEC, falls back to red/blue", () => {
     expect(boltColorById("lsu").name).toBe("LSU");
-    expect(boltColorById("white").c1).toBe("#FFFFFF");
     expect(boltColorById("nope").id).toBe("red-blue");
     expect(boltColorById(undefined).id).toBe("red-blue");
   });
 
-  test("two-tone markup carries a hard-split gradient with both colours + a keyline", () => {
-    const m = boltSvgMarkup({ c1: "#E0284A", c2: "#2C6FE0" }, "t1");
-    expect(m).toContain(BOLT_D);
-    expect(m).toContain("linearGradient");
-    expect((m.match(/offset="0.5"/g) ?? []).length).toBe(2); // hard split
-    expect(m).toContain("#E0284A");
-    expect(m).toContain("#2C6FE0");
+  test("two-colour bolt: c1 base + c2 right region (seam split, NO gradient, NO white between)", () => {
+    const m = boltSvgMarkup({ c1: BRAND_RED, c2: BRAND_BLUE });
+    // the full silhouette filled red, plus the right region filled blue overlaid
+    expect(m).toContain(`d="${BOLT_OUTER}" fill="${BRAND_RED}"`);
+    expect(m).toContain(`d="${BOLT_RIGHT}" fill="${BRAND_BLUE}"`);
+    // white keyline is a STROKE (outer only), and there is NO gradient / no white
+    // fill dividing the two colours
     expect(m).toContain('stroke="#FFFFFF"');
-    // legally distinct: no skull / circle-composite
+    expect(m).toContain("paint-order=\"stroke\"");
+    expect(m).not.toContain("linearGradient");
+    expect(m).not.toContain('fill="#FFFFFF"'); // white is never a FILL (would be a seam gap)
+    // legally distinct — a plain bolt, no skull / circle composite
     expect(m).not.toContain("<circle");
     expect(/skull|stealie/i.test(m)).toBe(false);
   });
 
-  test("mono (single colour) markup uses a flat fill, no gradient", () => {
-    const m = boltSvgMarkup({ c1: "#FFFFFF", c2: "#FFFFFF" }, "t2");
-    expect(m).not.toContain("linearGradient");
-    expect(m).toContain('fill="#FFFFFF"');
+  test("mono bolt: single flat fill, no seam overlay", () => {
+    const m = boltSvgMarkup({ c1: "#161616", c2: "#161616" });
+    expect(m).toContain(`d="${BOLT_OUTER}" fill="#161616"`);
+    expect(m).not.toContain(BOLT_RIGHT); // no right-region overlay when mono
   });
 
-  test("unique uid → unique gradient id (no collisions when many render)", () => {
-    const a = boltSvgMarkup({ c1: "#111111", c2: "#222222" }, "aa");
-    const b = boltSvgMarkup({ c1: "#111111", c2: "#222222" }, "bb");
-    expect(a).toContain("sa-bolt-aa");
-    expect(b).toContain("sa-bolt-bb");
+  test("the seam and outer share the top + bottom points (a mini-bolt dividing the bolt)", () => {
+    // both paths start at the top point 'M60 6' and pass through the bottom '44 144'
+    expect(BOLT_OUTER.startsWith("M60 6")).toBe(true);
+    expect(BOLT_RIGHT.startsWith("M60 6")).toBe(true);
+    expect(BOLT_OUTER).toContain("L44 144");
+    expect(BOLT_RIGHT).toContain("L44 144");
   });
 });

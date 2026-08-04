@@ -1,39 +1,63 @@
-// BRAND SYSTEM (Survive Accounting) — the ONE source for the lightning-bolt mark
-// and the "Surv[bolt]ve" logo, used everywhere: the Logo Lab, the film watermark,
-// the CEQ box, and the logo design-element card.
+// BRAND SYSTEM (Survive Accounting) — implements the supplied brand kit (the
+// single source of truth). NOT a redesign.
 //
-// The bolt is a single angular lightning letterform (it doubles as the "i" in the
-// wordmark). It is TWO-TONE by default (a diagonal hard split — brand red / blue)
-// with a white keyline, but every colour is data: swap the two fills for mono,
-// white, black, or any SEC school's colours. NO skull, no circle — a plain bolt,
-// legally distinct.
+// THE BOLT is the signature. It is ONE lightning silhouette, split into red
+// (left) and blue (right) by an INTERNAL SEAM that is itself a small lightning
+// bolt: red and blue meet DIRECTLY along that jagged seam — there is NO white
+// line between them. The WHITE outline is only on the OUTSIDE of the silhouette.
+// (Implementation: fill the whole bolt with c1, overlay the right region in c2 —
+// their shared edge is the seam, so no gap can appear; the white keyline is a
+// stroke on the outer path only.)
+//
+// COLOURS are data: primary red #C62828 / blue #1565C0, white/black mono, and
+// any SEC school's two colours. The seam split is identical across every use
+// (wordmark, lockup, emblem, favicon, school colours).
 import { useId } from "react";
 
-import { BIG_FONT } from "./theme";
+/** Warm vintage display serif for the wordmark (closest available to the kit's
+ *  heavy warm serif — high contrast, soft, NOT geometric). DM Serif Display is
+ *  the loaded fallback. A clean sans is the companion for ACCOUNTING + slogan. */
+export const BRAND_SERIF = "'Fraunces', 'DM Serif Display', Georgia, 'Times New Roman', serif";
+export const BRAND_SANS = "'Inter', system-ui, -apple-system, sans-serif";
+/** Soft, heavy optical settings so Fraunces reads warm + vintage, not sharp. */
+export const BRAND_SERIF_VARIATION = "'opsz' 144, 'SOFT' 60, 'WONK' 0";
 
-/** The canonical bolt silhouette (viewBox space). One shape, recoloured per use. */
-export const BOLT_D = "M 64 4 L 26 72 L 48 72 L 36 136 L 82 60 L 58 60 L 76 4 Z";
-export const BOLT_VIEWBOX = "-6 -6 112 152";
-export const BOLT_RATIO = 100 / 140; // w/h — narrow + tall, so it works as the "i"
+export const BRAND_RED = "#C62828";
+export const BRAND_BLUE = "#1565C0";
+export const BRAND_WHITE = "#FFFFFF";
 
-export interface BoltColors {
-  /** left/upper fill (diagonal split). */ c1: string;
-  /** right/lower fill. */ c2: string;
-  /** outer keyline; "" for none. */ keyline?: string;
-}
+// ---- bolt geometry — one silhouette + an internal lightning seam --------------
+// LEFT_EDGE goes top→bottom down the outer left flank; RIGHT_EDGE goes bottom→top
+// up the outer right flank; SEAM is the internal mini-bolt (top→bottom). The two
+// colour regions are built from these so red+blue tile the whole bolt exactly.
+type Pt = [number, number];
+const T: Pt = [60, 6];   // top point
+const B: Pt = [44, 144]; // bottom point
+const LEFT_EDGE: Pt[] = [T, [30, 66], [46, 66], [26, 112], [40, 112], B];
+const RIGHT_EDGE: Pt[] = [B, [84, 78], [64, 78], [86, 32], [66, 32], T];
+const SEAM: Pt[] = [T, [41, 62], [55, 62], [37, 110], [49, 110], B];
+const toPath = (pts: Pt[]) => pts.map(([x, y], i) => `${i === 0 ? "M" : "L"}${x} ${y}`).join(" ") + " Z";
+/** Full silhouette (used for the c1 fill + the white keyline stroke). */
+export const BOLT_OUTER = toPath([T, ...LEFT_EDGE.slice(1), ...RIGHT_EDGE.slice(1)]);
+/** The BLUE (right) region: down the seam, up the right edge — overlaid on the
+ *  red base so red shows left, blue right, meeting exactly at the seam. */
+export const BOLT_RIGHT = toPath([T, ...SEAM.slice(1), ...RIGHT_EDGE.slice(1)]);
+export const BOLT_VIEWBOX = "18 -2 76 154";
+export const BOLT_RATIO = 76 / 154; // w/h — narrow + tall, works as the "i"
+const OUTLINE = 9; // white keyline stroke width (half shows outside the fill)
+
+export interface BoltColors { c1: string; c2: string; keyline?: string }
 export interface ColorOption { id: string; name: string; c1: string; c2: string }
 
-/** House presets — the kit's colour variants. white/black are mono (c1===c2). */
+/** House colourways — red/blue is primary; white + black are single-colour. */
 export const BOLT_PRESETS: ColorOption[] = [
-  { id: "red-blue", name: "Red / Blue", c1: "#E0284A", c2: "#2C6FE0" },
-  { id: "purple-gold", name: "Purple / Gold", c1: "#6A2FB5", c2: "#FFC72C" },
-  { id: "crimson-gray", name: "Crimson / Gray", c1: "#9E1B32", c2: "#6B7280" },
-  { id: "white", name: "White", c1: "#FFFFFF", c2: "#FFFFFF" },
-  { id: "black", name: "Black", c1: "#141414", c2: "#141414" },
+  { id: "red-blue", name: "Red / Blue", c1: BRAND_RED, c2: BRAND_BLUE },
+  { id: "white", name: "White", c1: BRAND_WHITE, c2: BRAND_WHITE },
+  { id: "black", name: "Black", c1: "#161616", c2: "#161616" },
 ];
 
-/** SEC conference school colours (primary / secondary). Extend freely — the bolt
- *  reads any two-colour pair. Current 16-team SEC. */
+/** SEC conference school colours (primary / secondary) — the two colours fill
+ *  the two halves of the same bolt seam. Extend freely. Current 16-team SEC. */
 export const SEC_SCHOOLS: ColorOption[] = [
   { id: "alabama", name: "Alabama", c1: "#9E1B32", c2: "#F1F2F3" },
   { id: "arkansas", name: "Arkansas", c1: "#9D2235", c2: "#FFFFFF" },
@@ -53,41 +77,29 @@ export const SEC_SCHOOLS: ColorOption[] = [
   { id: "vanderbilt", name: "Vanderbilt", c1: "#1B1B1B", c2: "#C9A227" },
 ];
 
-/** Resolve a colour option by id (preset first, then SEC). Falls back to red/blue. */
 export function boltColorById(id: string | undefined): ColorOption {
   return [...BOLT_PRESETS, ...SEC_SCHOOLS].find((o) => o.id === id) ?? BOLT_PRESETS[0];
 }
 
-/** Raw SVG markup for the bolt — for the canvas/img contexts that need a string
- *  (dangerouslySetInnerHTML) rather than a React node. `uid` MUST be unique per
- *  instance so gradient ids don't collide when many render on one page. */
-export function boltSvgMarkup(c: BoltColors, uid: string): string {
-  const key = c.keyline ?? "#FFFFFF";
-  const gid = `sa-bolt-${uid}`;
+/** Raw SVG markup for the bolt (string form, for img/dangerouslySetInnerHTML). */
+export function boltSvgMarkup(c: BoltColors, _uid?: string): string {
+  const key = c.keyline ?? BRAND_WHITE;
   const mono = c.c1.toLowerCase() === c.c2.toLowerCase();
-  const fill = mono ? c.c1 : `url(#${gid})`;
-  const defs = mono ? "" : `<defs><linearGradient id="${gid}" x1="0" y1="0" x2="1" y2="1"><stop offset="0.5" stop-color="${c.c1}"/><stop offset="0.5" stop-color="${c.c2}"/></linearGradient></defs>`;
-  const keyline = key ? ` stroke="${key}" stroke-width="6" stroke-linejoin="round" paint-order="stroke"` : "";
-  return `<svg viewBox="${BOLT_VIEWBOX}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">${defs}<path d="${BOLT_D}" fill="${fill}"${keyline}/></svg>`;
+  const outline = key ? ` stroke="${key}" stroke-width="${OUTLINE}" stroke-linejoin="round" stroke-linecap="round" paint-order="stroke"` : "";
+  const blue = mono ? "" : `<path d="${BOLT_RIGHT}" fill="${c.c2}"/>`;
+  return `<svg viewBox="${BOLT_VIEWBOX}" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg"><path d="${BOLT_OUTER}" fill="${c.c1}"${outline}/>${blue}</svg>`;
 }
 
-/** The bolt as a React node (own useId → collision-free gradient). Fills its box;
- *  size it via the parent's width/height. */
-export function Bolt({ c1, c2, keyline = "#FFFFFF", title, style, className }: BoltColors & { title?: string; style?: React.CSSProperties; className?: string }) {
-  const uid = useId().replace(/[:]/g, "");
-  const gid = `sa-bolt-${uid}`;
+/** The bolt as a React node. Fills its box; size via the parent's width/height. */
+export function Bolt({ c1, c2, keyline = BRAND_WHITE, title, style, className }: BoltColors & { title?: string; style?: React.CSSProperties; className?: string }) {
   const mono = c1.toLowerCase() === c2.toLowerCase();
   return (
     <svg viewBox={BOLT_VIEWBOX} width="100%" height="100%" className={className} style={style} role="img" aria-label={title ?? "Survive lightning bolt"}>
-      {!mono && (
-        <defs>
-          <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0.5" stopColor={c1} />
-            <stop offset="0.5" stopColor={c2} />
-          </linearGradient>
-        </defs>
-      )}
-      <path d={BOLT_D} fill={mono ? c1 : `url(#${gid})`} stroke={keyline || undefined} strokeWidth={keyline ? 6 : undefined} strokeLinejoin="round" paintOrder="stroke" />
+      {/* red (or mono) base + the white OUTER keyline (paint-order:stroke → the
+          white sits outside the fill; the fill covers its inner half) */}
+      <path d={BOLT_OUTER} fill={c1} stroke={keyline || undefined} strokeWidth={keyline ? OUTLINE : undefined} strokeLinejoin="round" strokeLinecap="round" paintOrder="stroke" />
+      {/* blue right region overlaid — shares the seam with red, so NO white gap */}
+      {!mono && <path d={BOLT_RIGHT} fill={c2} />}
     </svg>
   );
 }
@@ -100,32 +112,36 @@ export const LOGO_MODES: { id: LogoMode; name: string }[] = [
   { id: "slogan", name: "Slogan" },
 ];
 
-/** The full logo in any mode. `ink` colours the letters (kit rule: white/cream or
- *  near-black); the bolt carries its own colours. `size` is the cap height (px). */
+/** The full logo in any mode. `ink` colours the letters (kit rule: cream/white
+ *  or near-black); the bolt carries its own colours. `size` = cap height (px). */
 export function BrandLogo({ mode, c1, c2, keyline, ink = "#141414", size = 48, slogan = "Cram videos by Lee Ingram", style }: {
   mode: LogoMode; c1: string; c2: string; keyline?: string; ink?: string; size?: number; slogan?: string; style?: React.CSSProperties;
 }) {
-  const boltH = Math.round(size * 1.16); // the bolt sits a touch proud of the caps
-  const boltEl = <span style={{ display: "inline-block", height: boltH, width: Math.round(boltH * BOLT_RATIO), verticalAlign: "middle", margin: `0 ${Math.round(size * 0.02)}px` }}><Bolt c1={c1} c2={c2} keyline={keyline} /></span>;
+  // The bolt reads as the "i": a touch taller than the caps, tight kerning so it
+  // sits where the lowercase i would, not a hole.
+  const boltH = Math.round(size * 1.14);
+  const gap = Math.max(1, Math.round(size * -0.02)); // slight negative → no hole
+  const boltEl = <span style={{ display: "inline-block", height: boltH, width: Math.round(boltH * BOLT_RATIO), verticalAlign: "baseline", margin: `0 ${gap}px`, transform: `translateY(${Math.round(size * 0.14)}px)` }}><Bolt c1={c1} c2={c2} keyline={keyline} /></span>;
   const word = (
-    <span style={{ display: "inline-flex", alignItems: "center", fontFamily: BIG_FONT, fontWeight: 800, fontSize: size, lineHeight: 1, letterSpacing: "-0.01em", color: ink }}>
+    <span style={{ display: "inline-flex", alignItems: "baseline", fontFamily: BRAND_SERIF, fontVariationSettings: BRAND_SERIF_VARIATION, fontWeight: 900, fontSize: size, lineHeight: 1, letterSpacing: "-0.005em", color: ink }}>
       Surv{boltEl}ve
     </span>
   );
   if (mode === "bolt") return <span style={{ display: "inline-block", height: size, width: Math.round(size * BOLT_RATIO), ...style }}><Bolt c1={c1} c2={c2} keyline={keyline} /></span>;
   if (mode === "wordmark") return <span style={{ display: "inline-flex", ...style }}>{word}</span>;
   if (mode === "lockup") return (
-    <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: Math.round(size * 0.12), ...style }}>
+    <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: Math.round(size * 0.14), ...style }}>
       {word}
-      <span style={{ height: Math.max(2, Math.round(size * 0.06)), width: "88%", borderRadius: 999, background: `linear-gradient(90deg, ${c1}, ${c2})` }} />
-      <span style={{ fontFamily: BIG_FONT, fontWeight: 700, fontSize: Math.round(size * 0.32), letterSpacing: "0.36em", textTransform: "uppercase", color: ink, paddingLeft: "0.36em" }}>Accounting</span>
+      {/* thin amber→red underline, ~ACCOUNTING width (not full wordmark width) */}
+      <span style={{ height: Math.max(2, Math.round(size * 0.045)), width: "72%", borderRadius: 999, background: "linear-gradient(90deg, #F4A020, #C62828)" }} />
+      <span style={{ fontFamily: BRAND_SANS, fontWeight: 600, fontSize: Math.round(size * 0.28), letterSpacing: "0.42em", textTransform: "uppercase", color: ink, paddingLeft: "0.42em" }}>Accounting</span>
     </span>
   );
-  // slogan
+  // slogan — clean sans companion, always secondary
   return (
-    <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: Math.round(size * 0.1), ...style }}>
+    <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: Math.round(size * 0.08), ...style }}>
       {word}
-      <span style={{ fontFamily: BIG_FONT, fontWeight: 600, fontSize: Math.round(size * 0.28), letterSpacing: "0.04em", color: ink, opacity: 0.85 }}>{slogan}</span>
+      <span style={{ fontFamily: BRAND_SANS, fontWeight: 500, fontSize: Math.round(size * 0.26), letterSpacing: "0.01em", color: ink, opacity: 0.9 }}>{slogan}</span>
     </span>
   );
 }
