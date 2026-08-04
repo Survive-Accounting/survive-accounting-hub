@@ -1673,7 +1673,15 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                         maxZoom={4}
                         proOptions={{ hideAttribution: true }}
                         connectionMode={ConnectionMode.Loose}
-                        onlyRenderVisibleElements={overviewOn}
+                        // NEVER cull in the FILM popout. onlyRenderVisibleElements drops
+                        // nodes outside ReactFlow's MEASURED viewport — and that measurement
+                        // lags a programmatic setViewport. Going fullscreen (F11 resizes the
+                        // window) then Space (re-seeds nodes + pans by activeYOff) lands the
+                        // camera on a frame ReactFlow hasn't re-measured yet, so it culls the
+                        // whole frame → black take. A deck is a handful of frames; render them
+                        // all so the recording surface can never blank out. (Authoring keeps
+                        // culling for big overview stacks — it's not fullscreened.)
+                        onlyRenderVisibleElements={false}
                         nodesDraggable
                         nodesConnectable
                         elementsSelectable
