@@ -4762,27 +4762,38 @@ function PresentCanvas() {
       setSnaps([]);
     }
   }, [snapsFor]);
-  /** Replace the canvas with a snapshot's content — ONE undoable bus command. */
+  /** Replace the canvas with a snapshot's content — ONE undoable bus command. Restores
+   *  nodes + edges AND the scene-level state a snapshot carries: `decks` + `ceqSets`
+   *  (the CEQ SET definitions) and the CEQ global clips. Without decks/ceqSets a restore
+   *  brought back the question/memo nodes but NOT the sets in the Studio — so recovering
+   *  from a snapshot (e.g. after a reset) left the sets missing. Now it's a full restore. */
   const restoreSnapshot = useCallback(
     async (snapId: string) => {
       const snap = await loadSnapshot({ data: { id: snapId } });
-      let nj: { nodes?: CardNode[]; edges?: unknown[]; sceneSettings?: { jeCardWidth?: number; jePreset?: string } } = {};
+      let nj: { nodes?: CardNode[]; edges?: unknown[]; decks?: DeckDef[]; ceqSets?: unknown[]; sceneSettings?: { jeCardWidth?: number; jePreset?: string; jeIndent?: number; globalClips?: GlobalClips; coaOrder?: string[] } } = {};
       try { nj = JSON.parse(snap.nodes_json || "{}"); } catch { return; }
       const nodesAfter = migrateIntroCards(migrateZTiers(migrateFrameLocks(migrateScriptLayers(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(migrateLessonFields(migrateLessonCategory(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])))), isElementKind))))))));
       const edgesAfter = migrateEdges((nj.edges ?? []) as never[]);
+      const decksAfter = Array.isArray(nj.decks) ? (nj.decks as DeckDef[]) : [];
+      const ceqSetsAfter = Array.isArray(nj.ceqSets) ? nj.ceqSets : [];
       const nodesBefore = structuredClone(rf.getNodes());
       const edgesBefore = structuredClone(rf.getEdges());
+      const decksBefore = decks;
+      const ceqSetsBefore = ceqSets;
       bus.dispatch({
         label: "restore snapshot",
-        do: () => { rf.setNodes(structuredClone(nodesAfter)); rf.setEdges(structuredClone(edgesAfter)); },
-        undo: () => { rf.setNodes(structuredClone(nodesBefore)); rf.setEdges(structuredClone(edgesBefore)); },
+        do: () => { rf.setNodes(structuredClone(nodesAfter)); rf.setEdges(structuredClone(edgesAfter)); setDecks(decksAfter); setCeqSets(ceqSetsAfter as never); },
+        undo: () => { rf.setNodes(structuredClone(nodesBefore)); rf.setEdges(structuredClone(edgesBefore)); setDecks(decksBefore); setCeqSets(ceqSetsBefore); },
       });
       if (typeof nj.sceneSettings?.jeCardWidth === "number") setJeCardWidth(nj.sceneSettings.jeCardWidth);
-      if (typeof (nj.sceneSettings as { jeIndent?: number } | undefined)?.jeIndent === "number") setJeIndent((nj.sceneSettings as { jeIndent: number }).jeIndent);
+      if (typeof nj.sceneSettings?.jeIndent === "number") setJeIndent(nj.sceneSettings.jeIndent);
+      // CEQ global intro/outro/transition + custom CoA order also live in the snapshot.
+      if (nj.sceneSettings?.globalClips && typeof nj.sceneSettings.globalClips === "object") setGlobalClipsState(nj.sceneSettings.globalClips);
+      if (Array.isArray(nj.sceneSettings?.coaOrder)) setCoaOrder(nj.sceneSettings.coaOrder);
       const cfg = decodeBg(snap.bg);
       if (cfg) setBgCfg(cfg);
     },
-    [rf],
+    [rf, decks, ceqSets],
   );
 
   // ---- auto-snapshot when film mode turns ON (keeps the 10 newest per scene) ----
