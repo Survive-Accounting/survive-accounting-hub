@@ -41,6 +41,8 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
       return { kind: "examcue", label: "Your exam", emoji: "📄", w: 300, h: 230 };
     case "ceqtease":
       return { kind: "ceqtease", text: "What type of account is ___?", emoji: "📝", w: 720, h: 150 };
+    case "ceqhook":
+      return { kind: "ceqhook", beats: [""], orient: "landscape", w: 1180, h: 380 };
     case "logo":
       return { kind: "logo", mode: "wordmark", colorId: "red-blue", ink: "light", w: 360, h: 120 };
     case "intro":
@@ -254,6 +256,7 @@ export const CARD_KIND_LABEL: Record<CardData["kind"], string> = {
   text: "Text",
   examcue: "Exam Cue",
   ceqtease: "CEQ Tease",
+  ceqhook: "CEQ Hook",
   logo: "Logo",
   intro: "Intro card",
   outro: "Outro card",

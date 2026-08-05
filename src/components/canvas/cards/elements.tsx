@@ -18,11 +18,12 @@ import { useCanvasSettings } from "../CanvasSettingsContext";
 import { BIG_FONT, DISPLAY_FONT, NEON, NOTE_COLORS, PAPER } from "../theme";
 import { useEditSignal } from "../ui";
 import { renderTokens, TokenMenu } from "../variables";
-import { BOLT_PRESETS, BrandLogo, boltColorById, LOGO_MODES, SEC_SCHOOLS, type LogoMode } from "../brand";
+import { BOLT_PRESETS, BrandLogo, boltColorById, BRAND_DISPLAY, LOGO_MODES, SEC_SCHOOLS, type LogoMode } from "../brand";
 import { AnimatedIntro } from "@/components/brand-cards/AnimatedIntro";
 import { OutroCard } from "@/components/brand-cards/OutroCard";
 import { CornerBolt } from "@/components/brand-cards/CornerBolt";
-import type { BridgeCard, CeqTeaseElement, CornerBoltElement, ExamCueElement, GateElement, IntroCardElement, LogoElement, OutroCardElement, TextElement } from "../types";
+import { BoltBoil } from "@/components/brand-cards/bolt-boil";
+import type { BridgeCard, CeqHookElement, CeqTeaseElement, CornerBoltElement, ExamCueElement, GateElement, IntroCardElement, LogoElement, OutroCardElement, TextElement } from "../types";
 
 // ---- shared element chrome: clone · × · pos-lock (hover only) ---------------
 export function ElementChrome({ id, posLock, selected, align = "right" }: { id: string; posLock?: boolean; selected?: boolean; align?: "left" | "right" }) {
@@ -445,6 +446,123 @@ export function ExamCueNode({ id, data, selected }: NodeProps) {
 //      plate that covers the baked-in SURVIVE watermark. The text shrinks to fit
 //      the plate — the container wins, never the text. ----
 const CEQ_TEASE_EMOJIS = ["📝", "📄", "🧾", "✍️", "🎯", "❓", "📋"];
+
+const HOOK_BLANK = "________________";
+
+/** CEQ HOOK (#5) — the frame template that opens every CEQ video: a large boiling brand bolt
+ *  (the only moving thing) beside the fixed "Common Exam Question" label and a DOMINANT,
+ *  editable variable line. A hook can tease several exam questions as N "beats"; while
+ *  filming, Enter walks to the next beat (accumulating) and Shift+` sweeps back to the first —
+ *  the same reveal FEEL as memo chains, self-contained on this element. Landscape and vertical
+ *  are SEPARATE layouts (orient). Nothing here is chrome, so it films exactly as authored. */
+export function CeqHookNode({ id, data, selected }: NodeProps) {
+  const d = data as unknown as CeqHookElement;
+  const { update, toFront } = useCardActions(id);
+  const rf = useReactFlow();
+  const nav = useFrameNav();
+  const spot = useSpotTarget(id, "self");
+  const cleanShot = spot.state === "spot" || nav.film; // performance context: film or spotlit rehearsal
+  const inCurrentFrame = nav.currentFrameId != null && rf.getNode(id)?.parentId === nav.currentFrameId;
+  const w = d.w ?? 1180;
+  const h = d.h ?? 380;
+  const portrait = d.orient === "portrait";
+  const beats = d.beats && d.beats.length ? d.beats : [""];
+  const [editIdx, setEditIdx] = useState<number | null>(null);
+  // MULTI-BEAT ENTER-WALK (film only) — start on beat 1, Enter accumulates the next, Shift+`
+  // sweeps back to the first. Self-contained on this element (canvas frames are a Space-walk
+  // world; this reuses the memo-chain FEEL without a shared mechanic). Only active while the
+  // hook's own frame is the one on camera, so Enter can't leak between frames.
+  const [revealed, setRevealed] = useState(1);
+  useEffect(() => {
+    if (!(nav.film && inCurrentFrame)) return;
+    setRevealed(1);
+    const onKey = (e: KeyboardEvent) => {
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.stopPropagation(); setRevealed((r) => Math.min(r + 1, beats.length)); }
+      else if (e.shiftKey && (e.code === "Backquote" || e.key === "`" || e.key === "~")) { e.preventDefault(); e.stopPropagation(); setRevealed(1); }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [nav.film, inCurrentFrame, beats.length]);
+  const shown = nav.film && inCurrentFrame ? revealed : beats.length; // authoring shows every beat
+
+  const setBeat = (i: number, v: string) => { const next = beats.slice(); next[i] = v; update({ beats: next }); };
+  const addBeat = () => update({ beats: [...beats, ""] });
+  const removeBeat = (i: number) => { const next = beats.filter((_, x) => x !== i); update({ beats: next.length ? next : [""] }); };
+  const moveBeat = (i: number, dir: -1 | 1) => { const j = i + dir; if (j < 0 || j >= beats.length) return; const next = beats.slice(); [next[i], next[j]] = [next[j], next[i]]; update({ beats: next }); };
+
+  const labelSize = portrait ? Math.round(h * 0.04) : Math.round(h * 0.075);
+  const beatSize = portrait ? Math.round(h * 0.055) : Math.round(h * 0.135);
+
+  const beatsCol = (
+    <div className="flex min-w-0 flex-col justify-center gap-2.5" style={{ flex: portrait ? undefined : 1, width: portrait ? "100%" : undefined }}>
+      {/* LABEL — the survive wordmark face (Rubik), MODEST: it repeats on every hook and is
+          wallpaper by the third video, so it never competes with the variable line. */}
+      <div style={{ fontFamily: BRAND_DISPLAY, fontWeight: 600, letterSpacing: "0.01em", color: "rgba(226,232,240,0.72)", fontSize: labelSize, lineHeight: 1.1 }}>Common Exam Question</div>
+      {beats.map((b, i) => {
+        const on = i < shown;
+        const blank = !b.trim();
+        if (editIdx === i && !cleanShot) {
+          return (
+            <textarea key={i} autoFocus rows={1}
+              className="nodrag nowheel w-full resize-none rounded bg-black/25 px-2 py-1 outline-none"
+              style={{ color: "#F6F1E7", fontFamily: BIG_FONT, fontWeight: 800, fontSize: beatSize, letterSpacing: "-0.01em", lineHeight: 1.05 }}
+              defaultValue={b}
+              placeholder="Type the exam question…"
+              onBlur={(e) => { setBeat(i, e.target.value); setEditIdx(null); }}
+              onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); setBeat(i, (e.target as HTMLTextAreaElement).value); setEditIdx(null); } if (e.key === "Escape") setEditIdx(null); }}
+            />
+          );
+        }
+        return (
+          <div key={i} className="group/beat relative flex items-start gap-1.5" style={{ opacity: on ? 1 : 0, transform: on ? "translateY(0)" : "translateY(10px)", transition: "opacity 220ms cubic-bezier(0.2,0.7,0.3,1), transform 220ms cubic-bezier(0.2,0.7,0.3,1)" }}>
+            <div
+              className={cleanShot ? "min-w-0 flex-1" : "min-w-0 flex-1 cursor-text"}
+              style={{ fontFamily: BIG_FONT, fontWeight: 800, fontSize: beatSize, letterSpacing: "-0.01em", lineHeight: 1.05, color: blank ? "rgba(226,232,240,0.5)" : "#F6F1E7", textShadow: "0 2px 14px rgba(0,0,0,0.55)", whiteSpace: "pre-wrap" }}
+              title={cleanShot ? undefined : "Double-click to edit this beat"}
+              onDoubleClick={() => { if (!cleanShot) setEditIdx(i); }}
+            >{blank ? HOOK_BLANK : b}</div>
+            {/* AUTHORING-ONLY per-beat controls (film-hidden — nothing here is chrome on camera) */}
+            {!cleanShot && beats.length > 1 && (
+              <div className="nodrag flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/beat:opacity-100" onPointerDown={(e) => e.stopPropagation()}>
+                <button className="grid h-5 w-5 place-items-center rounded text-[13px]" style={{ color: NEON.muted }} title="Move up" onClick={() => moveBeat(i, -1)}>↑</button>
+                <button className="grid h-5 w-5 place-items-center rounded text-[13px]" style={{ color: NEON.muted }} title="Move down" onClick={() => moveBeat(i, 1)}>↓</button>
+                <button className="grid h-5 w-5 place-items-center rounded" style={{ color: "#FF8B9E" }} title="Remove beat" onClick={() => removeBeat(i)}><X className="h-3.5 w-3.5" /></button>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {!cleanShot && (
+        <div className="nodrag mt-1 flex items-center gap-2" onPointerDown={(e) => e.stopPropagation()}>
+          <button className="rounded px-2 py-0.5 text-[11px] font-bold" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={addBeat} title="Add another exam-question beat — Enter walks between them while filming">＋ beat</button>
+          <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>{beats.length} beat{beats.length === 1 ? "" : "s"}</span>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div onPointerDownCapture={toFront} className="group/el relative" style={{ width: w, height: h }}>
+      <ConnectionDots />
+      {!cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
+      <ElementResizer id={id} selected={selected && !cleanShot} minWidth={520} minHeight={220} />
+      {!cleanShot && (
+        <div className={`sa-move-grip absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`} title="Drag to move" style={{ color: NEON.muted }}>
+          <GripVertical className="h-4 w-4" />
+        </div>
+      )}
+      <div {...spot.props} className={`flex h-full w-full items-center ${portrait ? "flex-col justify-center gap-5 px-8 py-6" : "gap-8 px-10"}`} style={{ ...spotStyle(spot.state) }}>
+        {/* LEFT THIRD (landscape) / TOP (portrait): the boiling bolt — the only moving element. */}
+        <div className="grid shrink-0 place-items-center" style={{ width: portrait ? "100%" : "32%", height: portrait ? undefined : "100%" }}>
+          <BoltBoil height={portrait ? Math.round(w * 0.24) : Math.round(h * 0.62)} />
+        </div>
+        {beatsCol}
+      </div>
+    </div>
+  );
+}
 
 export function CeqTeaseNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as CeqTeaseElement;

@@ -21,6 +21,7 @@ export type CardKind =
   | "text"
   | "examcue"
   | "ceqtease"
+  | "ceqhook"
   | "cycle"
   | "logo"
   | "intro"
@@ -61,6 +62,7 @@ export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
   text: "element",
   examcue: "element",
   ceqtease: "element",
+  ceqhook: "element",
   cycle: "element",
   logo: "element",
   intro: "element",
@@ -632,6 +634,21 @@ export interface CeqTeaseElement extends CardBase {
   h?: number;
 }
 
+// ---- CEQ Hook (Lee, #5): the frame template that opens every CEQ video — a large boiling
+//      brand bolt beside the fixed "Common Exam Question" label and a DOMINANT editable
+//      variable line. Teases N exam questions as "beats"; Enter walks them while filming.
+//      Landscape and vertical are SEPARATE layouts (orient). Nothing here is chrome. ----
+export interface CeqHookElement extends CardBase {
+  kind: "ceqhook";
+  /** The variable exam-question line(s). Each beat is one editable line; Enter walks them
+   *  (accumulating) while filming. Empty ⇒ renders as a blank "________________". */
+  beats?: string[];
+  /** Separate layout configs — never derived one from the other. Default landscape. */
+  orient?: "landscape" | "portrait";
+  w?: number;
+  h?: number;
+}
+
 // ---- Logo (Lee): the Survive brand mark as a design element. `mode` picks the
 //      form (bolt / wordmark / lockup / slogan); `colorId` picks the bolt colours
 //      (a preset or SEC-school id — see brand.tsx). `ink` overrides the letter
@@ -811,6 +828,7 @@ export type CardData =
   | TextElement
   | ExamCueElement
   | CeqTeaseElement
+  | CeqHookElement
   | CycleElement
   | LogoElement
   | IntroCardElement

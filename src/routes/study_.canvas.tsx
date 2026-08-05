@@ -58,7 +58,7 @@ import { SpotlightCtx, useSpotlightController, type FocusDimMode } from "@/compo
 import { revealedTargetId } from "@/components/canvas/spotlight";
 import { ambientViewport, fillViewport, spotlightPushViewport } from "@/components/canvas/camera-push";
 import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, BEAT_LABEL, blankFrameData, columnX, frameCellLabel, frameCompositionGuides, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type GuideWeight } from "@/components/canvas/frames";
-import { BridgeCardNode, CeqTeaseNode, CornerBoltNode, ExamCueNode, GateNode, IntroCardNode, LogoCardNode, OutroCardNode, TextElementNode } from "@/components/canvas/cards/elements";
+import { BridgeCardNode, CeqHookNode, CeqTeaseNode, CornerBoltNode, ExamCueNode, GateNode, IntroCardNode, LogoCardNode, OutroCardNode, TextElementNode } from "@/components/canvas/cards/elements";
 import { CycleNode } from "@/components/canvas/cards/CycleNode";
 import { configureSfx, playSfx, preloadSfx, SFX_DEFAULT, type SfxConfig, type SfxEvent } from "@/components/canvas/sfx";
 import { framePartIds, framePartLabels, materializeFrame, REST_TARGET, WHOLE_TARGET } from "@/components/canvas/choreo";
@@ -830,6 +830,7 @@ const nodeTypes = {
   text: TextElementNode,
   examcue: ExamCueNode,
   ceqtease: CeqTeaseNode,
+  ceqhook: CeqHookNode,
   logo: LogoCardNode,
   intro: IntroCardNode,
   outro: OutroCardNode,
@@ -3175,12 +3176,12 @@ function PresentCanvas() {
       frameAt(2, "CEQ Portal", { portal: true }),
       frameAt(3, "Outro"),
       { id: cardId("intro"), type: "intro", parentId: fIds[0], position: { x: 0, y: 0 }, data: { kind: "intro", slogan: "Cram videos by Lee Ingram", soundOn: false, transparent: false, w: 800, h: 450 } } as unknown as CardNode,
-      { id: cardId("heading"), type: "heading", parentId: fIds[1], position: { x: 60, y: 150 }, data: { kind: "heading", text: 'Common Exam Question "________"', level: 1, scrim: true } } as unknown as CardNode,
+      { id: cardId("ceqhook"), type: "ceqhook", parentId: fIds[1], position: { x: 60, y: 210 }, data: { kind: "ceqhook", beats: [""], orient: "landscape", w: 1180, h: 380 } } as unknown as CardNode,
       { id: cardId("outro"), type: "outro", parentId: fIds[3], position: { x: 0, y: 0 }, data: { kind: "outro", transparent: false, w: 800, h: 450 } } as unknown as CardNode,
     ];
   }, []);
   const BRAND_TITLES = useMemo(() => new Set(["Intro", "CEQ Hook", "CEQ Portal", "Outro"]), []);
-  const BRAND_DESIGN = useMemo(() => new Set(["heading", "text", "examcue", "ceqtease", "logo", "intro", "outro", "corner", "paygate", "signupgate"]), []);
+  const BRAND_DESIGN = useMemo(() => new Set(["heading", "text", "examcue", "ceqtease", "ceqhook", "logo", "intro", "outro", "corner", "paygate", "signupgate"]), []);
 
   /** SCOPED RESET (Lee). NON-destructive to CEQ data in every scope — sets, questions,
    *  chains and memos are ALWAYS preserved.

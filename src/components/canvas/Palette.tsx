@@ -84,6 +84,7 @@ const ELEMENT_BLANKS: BlankSpec[] = [
   { kind: "list", label: "Bulleted List", special: "bullets" },
   { kind: "examcue", label: "Exam Cue" },
   { kind: "ceqtease", label: "CEQ Tease" },
+  { kind: "ceqhook", label: "CEQ Hook" },
   { kind: "logo", label: "Logo" },
   { kind: "intro", label: "Intro card" },
   { kind: "outro", label: "Outro card" },
