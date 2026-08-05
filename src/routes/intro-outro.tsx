@@ -27,8 +27,8 @@ function IntroOutroPreview() {
   const [transparent, setTransparent] = useState(false);
   // ANIMATED INTRO controls — sound + the two timing anchors + the editable slogan/tagline.
   const [sound, setSound] = useState(true);
-  const [beatMs, setBeatMs] = useState(1820); // beat drop in intro-music.mp3 (warp reference)
-  const [sloganMs, setSloganMs] = useState(640); // gap after the drop before the slogan
+  const [beatMs, setBeatMs] = useState(1200); // bolt→wordmark moment (whole intro ~2.5s)
+  const [sloganMs, setSloganMs] = useState(800); // gap after that before the slogan
   const [slogan, setSlogan] = useState("Cram videos by Lee Ingram");
   const [tagline, setTagline] = useState("Only what’s on your exam.");
   // Bolt comes from a saved Logo Lab preset (default: "FINAL"), read from THIS browser's

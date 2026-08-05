@@ -46,10 +46,7 @@ import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { playSfx } from "./sfx";
 import { spotStyle } from "./SpotlightContext";
 import { applyRegularClick, applySuperClick, spotKey, type SpotSets, type SuperTone } from "./spotlight";
-import { createPortal } from "react-dom";
-
 import { CHAINED_MARKER, NEON, PAPER } from "./theme";
-import { Z } from "./z-layers";
 import { clampScale, type CeqCard, type CeqChainItem, type CeqInstanceGeom, type DeckLayout, type DeckSlotLayout } from "./types";
 
 /** Practice state read by the CEQ mock (emphasis + which choices are resolved). */
@@ -1386,63 +1383,16 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // window boundary, so one listener can't cover both.
   const engagedRef = useRef(false);
   const rootRef = useRef<HTMLDivElement>(null);
-  // ---- RECORDING MODE (Lee) — a film-safe, chrome-free surface for OBS. One opaque
-  // full-window layer showing ONLY the active card on brand navy, so no studio/canvas
-  // chrome can leak into a take (leak-proof by construction). Toggle with "\", walk
-  // with Space/PageDn·Up/Enter, sweep with Shift+"`"; every other key is swallowed. ----
-  const [recording, setRecording] = useState(false);
-  const recordingRef = useRef(false);
-  recordingRef.current = recording;
-  const recFitRef = useRef<ReactFlowInstance | null>(null);
-  const [cursorHidden, setCursorHidden] = useState(false);
-  // COVER the fitted frame to the WINDOW (recording is inline, full-viewport — same
-  // "cover, no letterbox" math as the film popout but against window dims).
-  const fitRec = useCallback(() => {
-    const inst = recFitRef.current;
-    if (!inst) return;
-    const w = window.innerWidth, h = window.innerHeight;
-    if (!w || !h) return;
-    const zoom = Math.max(w / frameW, h / frameH);
-    inst.setViewport({ x: (w - frameW * zoom) / 2, y: (h - frameH * zoom) / 2 - activeYOff * zoom, zoom }, { duration: 0 });
-  }, [frameW, frameH, activeYOff]);
-  // Re-fit on entering recording, on resize, and when the active question / stack offset
-  // changes — multi-fire to ride out layout settle (same guard the popout uses).
-  useEffect(() => {
-    if (!recording) return;
-    const settle = () => [0, 40, 240, 500].forEach((ms) => window.setTimeout(fitRec, ms));
-    settle();
-    window.addEventListener("resize", settle);
-    return () => window.removeEventListener("resize", settle);
-  }, [recording, ceqId, activeYOff, fitRec]);
-  // CURSOR AUTO-HIDE — a cursor in frame ruins the shot. Hide after 1s of no movement
-  // while recording; any move brings it back and restarts the timer.
-  useEffect(() => {
-    if (!recording) { setCursorHidden(false); return; }
-    let t = 0;
-    const bump = () => { setCursorHidden(false); window.clearTimeout(t); t = window.setTimeout(() => setCursorHidden(true), 1000); };
-    bump();
-    window.addEventListener("mousemove", bump);
-    return () => { window.removeEventListener("mousemove", bump); window.clearTimeout(t); };
-  }, [recording]);
   useEffect(() => {
     const ownerWin = rootRef.current?.ownerDocument?.defaultView ?? window;
     const handle = (e: KeyboardEvent, win: Window, forceEngaged: boolean) => {
       const el = (win.document.activeElement ?? document.activeElement) as HTMLElement | null;
       const typing = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
-      // RECORDING MODE toggle — "\" (backslash), works with NO mouse (before the hover
-      // gate); ignored only while typing in a field so it never hijacks a keystroke.
-      if (!typing && (e.key === "\\" || e.code === "Backslash")) { e.preventDefault(); e.stopImmediatePropagation(); setRecording((r) => !r); return; }
-      // RECORDING MODE swallow — a HARD allowlist. While recording, only the walk keys
-      // pass; EVERYTHING else is blocked at capture (before the canvas keymap + this
-      // handler's own authoring keys) so a stray press can't alter a take. Plain "`"
-      // (full reset), Esc, arrows, Delete, Tab, Ctrl+* are all swallowed; only Shift+"`"
-      // (sweep) is allowed. This runs before the engagement gate, so it's always active.
-      if (recordingRef.current) {
-        const allow = e.key === " " || e.code === "Space" || e.key === "PageDown" || e.key === "PageUp" || e.key === "Enter" || (e.shiftKey && (e.key === "~" || e.code === "Backquote"));
-        if (!allow) { e.preventDefault(); e.stopImmediatePropagation(); return; }
-        // allowed → fall through to the normal walk handling below.
-      }
-      if (!forceEngaged && !engagedRef.current && !recordingRef.current) return;
+      // RECORDING MODE = the FILM POP-OUT. "\" toggles it open/closed — a real 2nd-monitor
+      // window you can fullscreen (F11) for OBS while the Studio stays on the other screen.
+      // Works with NO mouse (before the hover gate); ignored only while typing in a field.
+      if (!typing && (e.key === "\\" || e.code === "Backslash")) { e.preventDefault(); e.stopImmediatePropagation(); toggleFilm(); return; }
+      if (!forceEngaged && !engagedRef.current) return;
       if (typing) return;
       // MEMO SELECTION keys (authoring): Delete removes (in-app confirm upstream),
       // Esc clears, arrows nudge the INSTANCE geometry only (never the template).
@@ -1757,50 +1707,6 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                 </RevealContext.Provider>
               </PanelPopout>
             )}
-            {/* RECORDING MODE — ONE opaque full-window layer (fixed inset-0, above every
-                other z-tier) showing ONLY the active card's film render on brand navy.
-                Because it's opaque and covers the whole viewport, NO studio/canvas chrome
-                can leak into the take — leak-safe by construction, not by hiding N elements.
-                Pan/zoom locked to the fit; view-only (no on-camera edits); cursor auto-hides.
-                prefers-reduced-motion is intentionally IGNORED here — this is a filming
-                surface, not a reading surface, so entrance motion must always play.
-                PORTALED to <body> — the overlay must escape the Studio's z-[overlay]
-                stacking context, or root-level toasts/dock (z 85–200) would paint OVER it. */}
-            {recording && createPortal((
-              <div className="fixed inset-0" style={{ zIndex: Z.recording, background: "#05070d", cursor: cursorHidden ? "none" : "default" }}>
-                <RevealContext.Provider value={walkRevealedIds}>
-                <FilmContext.Provider value={true}>
-                  <style>{FLAME_CSS}{PV_CSS}</style>
-                  <div className="film-mode" style={{ position: "absolute", inset: 0 }}>
-                    {world && <div className="pointer-events-none absolute inset-0">{world}</div>}
-                    <ReactFlowProvider>
-                      <ReactFlow
-                        nodes={filmNodes}
-                        edges={filmEdges}
-                        nodeTypes={nodeTypes} edgeTypes={edgeTypes}
-                        onInit={(inst) => { recFitRef.current = inst; window.setTimeout(fitRec, 60); }}
-                        minZoom={0.02}
-                        maxZoom={4}
-                        proOptions={{ hideAttribution: true }}
-                        connectionMode={ConnectionMode.Loose}
-                        onlyRenderVisibleElements={false}
-                        nodesDraggable={false}
-                        nodesConnectable={false}
-                        elementsSelectable={false}
-                        deleteKeyCode={null}
-                        panOnDrag={false}
-                        zoomOnScroll={false}
-                        zoomOnPinch={false}
-                        zoomOnDoubleClick={false}
-                        preventScrolling={false}
-                        style={{ width: "100%", height: "100%", background: "transparent" }}
-                      />
-                    </ReactFlowProvider>
-                  </div>
-                </FilmContext.Provider>
-                </RevealContext.Provider>
-              </div>
-            ), (rootRef.current?.ownerDocument ?? document).body)}
            </ChoiceMenuContext.Provider>
            </SelectQuestionContext.Provider>
            </AttachMemoContext.Provider>

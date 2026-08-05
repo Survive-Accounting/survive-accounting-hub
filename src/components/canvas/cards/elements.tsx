@@ -702,7 +702,7 @@ export function IntroCardNode({ id, data, selected }: NodeProps) {
       {!cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
       <ElementResizer id={id} selected={selected && !cleanShot} minWidth={240} minHeight={135} keepAspect />
       <div {...spot.props} style={{ width: w, height: h, overflow: "hidden", borderRadius: 8, ...spotStyle(spot.state) }}>
-        <AnimatedIntro slogan={d.slogan ?? "Cram videos by Lee Ingram"} beatMs={d.beatMs ?? 1820} sloganMs={d.sloganMs ?? 640} audioSrc="/audio/intro-music.mp3" soundOn={!!d.soundOn} scale={w / 1920} transparent={d.transparent} playKey={playKey} />
+        <AnimatedIntro slogan={d.slogan ?? "Cram videos by Lee Ingram"} beatMs={d.beatMs} sloganMs={d.sloganMs} audioSrc="/audio/intro-music.mp3" soundOn={!!d.soundOn} scale={w / 1920} transparent={d.transparent} playKey={playKey} />
       </div>
       {!cleanShot && !nav.film && (
         <div className={ELEM_TOOLBAR} style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}>

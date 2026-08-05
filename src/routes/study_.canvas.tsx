@@ -1408,6 +1408,9 @@ function PresentCanvas() {
   // original chrome, untouched, for tweaking old settings. Persisted per browser.
   const [chromeV1, setChromeV1] = useState<boolean>(() => { try { return localStorage.getItem("sa-canvas-chrome") === "v1"; } catch { return false; } });
   const setChromeVersion = useCallback((v1: boolean) => { setChromeV1(v1); try { localStorage.setItem("sa-canvas-chrome", v1 ? "v1" : "v2"); } catch { /* ignore */ } }, []);
+  // Collapse the v2 left outline sidebar to a thin rail (persisted per browser).
+  const [outlineCollapsed, setOutlineCollapsed] = useState<boolean>(() => { try { return localStorage.getItem("sa-outline-collapsed") === "1"; } catch { return false; } });
+  const toggleOutline = useCallback((collapsed: boolean) => { setOutlineCollapsed(collapsed); try { localStorage.setItem("sa-outline-collapsed", collapsed ? "1" : "0"); } catch { /* ignore */ } }, []);
   const [frameHeaderOpen, setFrameHeaderOpen] = useState(false); // Frame Header panel (header toggle + lesson media)
   const [rearrangeOpen, setRearrangeOpen] = useState(false); // "r": full-grid frame rearrange overlay
   const [copiedFrameId, setCopiedFrameId] = useState<string | null>(null); // frame on the clipboard (rearrange copy/paste)
@@ -5410,15 +5413,24 @@ function PresentCanvas() {
           both chrome versions. */}
       {chrome && <input ref={importRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => void onImportFile(e)} />}
       <div className="flex min-h-0 min-w-0 flex-1">
-        {chrome && !chromeV1 && (
+        {chrome && !chromeV1 && (outlineCollapsed ? (
+          // COLLAPSED — a thin rail; click to bring the outline back.
+          <button className="sa-dock flex w-7 shrink-0 flex-col items-center gap-2 py-2" style={{ background: "rgba(9,14,26,0.92)", borderRight: `1px solid ${NEON.borderSoft}`, color: NEON.cyan }} onClick={() => toggleOutline(false)} title="Show the outline">
+            <span className="text-[13px] font-bold leading-none">»</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider" style={{ writingMode: "vertical-rl", color: NEON.muted }}>Sets</span>
+          </button>
+        ) : (
           <aside className="sa-dock flex w-[280px] shrink-0 flex-col overflow-hidden" style={{ background: "rgba(9,14,26,0.92)", borderRight: `1px solid ${NEON.borderSoft}` }}>
-            <div className="min-h-0 flex-1 p-1.5">
+            <div className="flex items-center justify-end px-1.5 pt-1">
+              <button className="grid h-5 w-5 place-items-center rounded hover:bg-white/10" style={{ color: NEON.muted }} onClick={() => toggleOutline(true)} title="Collapse the outline">«</button>
+            </div>
+            <div className="min-h-0 flex-1 px-1.5 pb-1.5">
               {!isPopped("outline")
                 ? <OutlinePanel />
                 : <PopoutPlaceholder title="Outline" onReturn={() => returnPop("outline")} style={{ position: "relative", inset: "auto", margin: 8 }} />}
             </div>
           </aside>
-        )}
+        ))}
         <div className="relative min-h-0 min-w-0 flex-1">
       {/* TAKE BOARD: loud banner when Mux env vars / frame_takes table are missing */}
       {chrome && <MuxBanner />}
