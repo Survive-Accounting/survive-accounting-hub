@@ -125,9 +125,9 @@ export function OutlinePanel() {
                             className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left hover:bg-white/5"
                             style={{ background: active ? "rgba(252,163,17,0.10)" : "transparent" }}
                             onClick={() => openSet(d.id)}
-                            title={`Open "${setName(d)}" in CEQ Studio${pub ? " · published" : " · not published"}`}
+                            title={`Open "${setName(d)}" in CEQ Studio · ${d.status === "live" ? "LIVE on student side" : "draft (author-only)"}${pub ? " · video published" : ""}`}
                           >
-                            <Circle className="h-2.5 w-2.5 shrink-0" style={{ color: pub ? "#3BF5A0" : "rgba(147,160,180,0.45)", fill: pub ? "#3BF5A0" : "transparent" }} />
+                            <Circle className="h-2.5 w-2.5 shrink-0" style={{ color: d.status === "live" ? "#3BF5A0" : "#F0B24A", fill: d.status === "live" ? "#3BF5A0" : "transparent" }} />
                             <span className="min-w-0 flex-1 truncate" style={{ color: active ? NEON.yellow : NEON.text }}>{setName(d)}</span>
                           </button>
                         );
@@ -149,8 +149,8 @@ export function OutlinePanel() {
             const pub = isPublished(d);
             const active = d.id === lastSetId;
             return (
-              <button key={d.id} className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left hover:bg-white/5" style={{ background: active ? "rgba(252,163,17,0.10)" : "transparent" }} onClick={() => openSet(d.id)} title={`Open "${setName(d)}" in CEQ Studio`}>
-                <Circle className="h-2.5 w-2.5 shrink-0" style={{ color: pub ? "#3BF5A0" : "rgba(147,160,180,0.45)", fill: pub ? "#3BF5A0" : "transparent" }} />
+              <button key={d.id} className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left hover:bg-white/5" style={{ background: active ? "rgba(252,163,17,0.10)" : "transparent" }} onClick={() => openSet(d.id)} title={`Open "${setName(d)}" in CEQ Studio · ${d.status === "live" ? "LIVE on student side" : "draft (author-only)"}${pub ? " · video published" : ""}`}>
+                <Circle className="h-2.5 w-2.5 shrink-0" style={{ color: d.status === "live" ? "#3BF5A0" : "#F0B24A", fill: d.status === "live" ? "#3BF5A0" : "transparent" }} />
                 <span className="min-w-0 flex-1 truncate" style={{ color: active ? NEON.yellow : NEON.text }}>{setName(d)}</span>
               </button>
             );

@@ -1223,6 +1223,11 @@ export interface DeckDef {
   filter?: string | null;
   runMode: DeckRunMode;
   lessonId?: string | null;
+  /** STUDENT VISIBILITY (Lee, #6): 'live' = the set is visible on the student side; 'draft'
+   *  (the default when absent) = author-only, never served to students. Toggled instantly in
+   *  the Studio ("Live on student side"), no publish flow. Student-side queries MUST filter
+   *  status='live' SERVER-SIDE — draft content must never reach the client at all. */
+  status?: "draft" | "live";
   /** DECK ↔ FRAME (F3): a deck attached to a FRAME lays its skeleton grid INSIDE
    *  that frame's bounds — a lesson's Check frame holds its CEQ deck + grid. */
   frameId?: string | null;

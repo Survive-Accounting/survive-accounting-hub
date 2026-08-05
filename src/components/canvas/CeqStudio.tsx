@@ -2111,6 +2111,18 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
           <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>
             <span className="truncate">CEQs {deck && <span style={{ color: NEON.muted }}>· {setDisplayName(deck.name)}</span>}</span>
             {deck && <span className="shrink-0 text-[8.5px] font-bold tabular-nums" style={{ color: NEON.muted }} title="Free-flagged CEQs · all CEQs">Free {freeCount} · Full {questions.length}</span>}
+            {/* LIVE ON STUDENT SIDE (#6) — instant draft⇄live toggle, no publish flow. Student
+                queries filter status='live' server-side; draft never reaches the client. */}
+            {deck && (
+              <button
+                className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                style={deck.status === "live" ? { color: "#0B1322", background: "#3BF5A0", border: "1px solid #3BF5A0" } : { color: "#F0B24A", background: "transparent", border: "1px solid rgba(240,178,74,0.5)" }}
+                onClick={() => setDecks((prev) => updateDeck(prev, deck.id, { status: deck.status === "live" ? "draft" : "live" }))}
+                title={deck.status === "live" ? "Live on student side — students can see this set. Click to pull it back to draft (author-only)." : "Draft — author-only, students never see it. Click to go Live on the student side."}
+              >
+                <Globe className="h-3 w-3" /> {deck.status === "live" ? "Live" : "Draft"}
+              </button>
+            )}
             {deck && <span className="shrink-0 text-[8.5px] tabular-nums" style={{ color: NEON.cyan }} title="Estimated runtime = summed durations of the stitch clips (intro + set intro + takes + wrap + outro)">~{fmtDur(stitchRuntime(stitchFree.items))}/{fmtDur(stitchRuntime(stitchFull.items))}</span>}
             <div className="ml-auto flex shrink-0 items-center gap-1">
               {deck && (starOnly || starCount > 0) && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: starOnly ? "#0B1322" : "#FFD23F", background: starOnly ? "#FFD23F" : "transparent", border: `1px solid ${starOnly ? "#FFD23F" : NEON.borderSoft}` }} onClick={() => setStarOnly((v) => !v)} title="Show only STARRED questions (performer's notes)">★ {starCount}</button>}
