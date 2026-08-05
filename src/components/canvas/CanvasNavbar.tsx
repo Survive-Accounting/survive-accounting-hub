@@ -89,7 +89,7 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
             {item(<Upload className="h-3.5 w-3.5" />, "Import from file", onImport)}
             {item(<Plus className="h-3.5 w-3.5" />, "New tab", onNewTab)}
             <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
-            {item(<RotateCcw className="h-3.5 w-3.5" />, "Reset canvas…", onReset, true)}
+            {item(<RotateCcw className="h-3.5 w-3.5" />, "Reset… (canvas · CEQs · both)", onReset, true)}
             <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
             {item(<Archive className="h-3.5 w-3.5" />, "View archive: Dashboard v1", onViewV1)}
           </div>

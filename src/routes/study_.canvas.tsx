@@ -1411,6 +1411,7 @@ function PresentCanvas() {
   // Collapse the v2 left outline sidebar to a thin rail (persisted per browser).
   const [outlineCollapsed, setOutlineCollapsed] = useState<boolean>(() => { try { return localStorage.getItem("sa-outline-collapsed") === "1"; } catch { return false; } });
   const toggleOutline = useCallback((collapsed: boolean) => { setOutlineCollapsed(collapsed); try { localStorage.setItem("sa-outline-collapsed", collapsed ? "1" : "0"); } catch { /* ignore */ } }, []);
+  const [resetScopeOpen, setResetScopeOpen] = useState(false); // File → Reset… scope picker
   const [frameHeaderOpen, setFrameHeaderOpen] = useState(false); // Frame Header panel (header toggle + lesson media)
   const [rearrangeOpen, setRearrangeOpen] = useState(false); // "r": full-grid frame rearrange overlay
   const [copiedFrameId, setCopiedFrameId] = useState<string | null>(null); // frame on the clipboard (rearrange copy/paste)
@@ -3162,66 +3163,71 @@ function PresentCanvas() {
    *  - only containers (lesson/frame/zone) and pure design furniture (headings,
    *    text, logos, gates, …) are removed — recreatable UI, not data.
    *  ONE bus command — Ctrl+Z restores the entire previous canvas. */
-  const resetCanvasToStarter = useCallback(() => {
-    if (!window.confirm(
-      "Reset this canvas to the fresh one-column starter?\n\n"
-      + "KEEPS all CEQ data — sets, questions + chains, memos (questions tuck back into their sets; memos and content cards park on an archive shelf to the left).\n"
-      + "REMOVES the current lessons, frames and design furniture (headings, text, logos).\n\n"
-      + "Ctrl+Z undoes the whole reset.")) return;
-    const prevNodes = rf.getNodes() as CardNode[];
-    const prevEdges = rf.getEdges();
-    const prevActive = activeLessonId;
-    // Partition: containers + design furniture go; content survives.
-    const CONTAINERS = new Set(["lesson", "frame", "zone"]);
-    const DESIGN = new Set(["heading", "text", "examcue", "ceqtease", "logo", "intro", "outro", "corner", "paygate", "signupgate"]);
-    let shelfI = 0;
-    const shelfPos = () => { const i = shelfI++; return { x: -3400 + (i % 6) * 380, y: 80 + Math.floor(i / 6) * 320 }; };
-    const kept: CardNode[] = [];
-    for (const n of prevNodes) {
-      const t = n.type ?? "";
-      if (CONTAINERS.has(t) || DESIGN.has(t)) continue;
-      const d = n.data as unknown as { deckMember?: boolean };
-      if (t === "ceq" && d.deckMember) {
-        // tucked members are offCanvas-hidden and re-deal from the Studio exactly as before
-        kept.push({ ...n, parentId: undefined, position: { x: -3000, y: -1200 }, data: { ...n.data, tucked: true } } as CardNode);
-      } else {
-        kept.push({ ...n, parentId: undefined, position: shelfPos() } as CardNode);
-      }
-    }
-    // Starter column: one lesson + 4 hook frames (subIndex 0..3) + their cards.
-    const lessonId = cardId("lesson");
-    const cell = lessonCellSize();
+  /** Build the 4 brand starter frames (Intro · CEQ Hook · CEQ Portal · Outro) + their
+   *  brand cards for a lesson. Fresh node ids each call; parents (frames) precede children. */
+  const buildBrandFrames = useCallback((lessonId: string): CardNode[] => {
     const fIds = [cardId("frame"), cardId("frame"), cardId("frame"), cardId("frame")];
     const frameAt = (s: number, title: string, extra: Record<string, unknown> = {}) =>
       ({ id: fIds[s], type: "frame", parentId: lessonId, position: { x: columnX(0), y: rowY(s) }, width: FRAME_W, height: FRAME_H, data: { ...blankFrameData("hook", s), title, ...extra } }) as unknown as CardNode;
-    const starters: CardNode[] = [
-      { id: lessonId, type: "lesson", position: { x: 160, y: 120 }, data: { label: "Start Here", w: cell.w, h: cell.h, pathOrder: 0 } } as unknown as CardNode,
-      // Intro — the music-synced AnimatedIntro (big bolt → beat-drop fly-in → slogan).
-      // ▶ play (with 🔊 music) + editable slogan live on the element's hover toolbar.
+    return [
       frameAt(0, "Intro"),
       frameAt(1, "CEQ Hook"),
       frameAt(2, "CEQ Portal", { portal: true }),
       frameAt(3, "Outro"),
       { id: cardId("intro"), type: "intro", parentId: fIds[0], position: { x: 0, y: 0 }, data: { kind: "intro", slogan: "Cram videos by Lee Ingram", soundOn: false, transparent: false, w: 800, h: 450 } } as unknown as CardNode,
       { id: cardId("heading"), type: "heading", parentId: fIds[1], position: { x: 60, y: 150 }, data: { kind: "heading", text: 'Common Exam Question "________"', level: 1, scrim: true } } as unknown as CardNode,
-      // Outro brand card — tagline "Only what's on your exam." + url are baked into the element
       { id: cardId("outro"), type: "outro", parentId: fIds[3], position: { x: 0, y: 0 }, data: { kind: "outro", transparent: false, w: 800, h: 450 } } as unknown as CardNode,
     ];
-    // Parents first (lesson → frames → cards → loose shelf) so RF v12 never hydrates
-    // a child before its parent (MEMBERSHIP FIX 5).
-    const nextNodes = [...starters, ...kept];
-    const ids = new Set(nextNodes.map((n) => n.id));
+  }, []);
+  const BRAND_TITLES = useMemo(() => new Set(["Intro", "CEQ Hook", "CEQ Portal", "Outro"]), []);
+  const BRAND_DESIGN = useMemo(() => new Set(["heading", "text", "examcue", "ceqtease", "logo", "intro", "outro", "corner", "paygate", "signupgate"]), []);
+
+  /** SCOPED RESET (Lee). NON-destructive to CEQ data in every scope — sets, questions,
+   *  chains and memos are ALWAYS preserved.
+   *  - "canvas": rebuild ONLY the 4 brand frames in "Start Here" (found or created);
+   *    every other frame/lesson/content is left exactly as-is. Brand furniture in those
+   *    four frames is recreated; any non-brand content inside them is kept, just un-parented.
+   *  - "ceq": un-deal every dealt CEQ card back into its set (tucked → re-deal cleanly).
+   *  - "both": both.
+   *  ONE undoable bus command (Ctrl+Z restores the whole prior canvas). */
+  const runReset = useCallback((scope: "canvas" | "ceq" | "both") => {
+    const prevNodes = rf.getNodes() as CardNode[];
+    const prevEdges = rf.getEdges();
+    const prevActive = activeLessonId;
+    let nodes: CardNode[] = prevNodes.slice();
+    let focusLessonId = activeLessonId;
+    if (scope === "canvas" || scope === "both") {
+      const start = nodes.find((n) => n.type === "lesson" && !n.parentId && (n.data as { label?: string }).label === "Start Here");
+      const lessonId = start?.id ?? cardId("lesson");
+      focusLessonId = lessonId;
+      const brandFrameIds = new Set(nodes.filter((n) => n.type === "frame" && n.parentId === lessonId && BRAND_TITLES.has((n.data as { title?: string }).title ?? "")).map((n) => n.id));
+      nodes = nodes.flatMap((n) => {
+        if (brandFrameIds.has(n.id)) return []; // remove the old brand frame (rebuilt below)
+        if (n.parentId && brandFrameIds.has(n.parentId)) {
+          if (BRAND_DESIGN.has(n.type ?? "")) return []; // brand furniture → recreated
+          return [{ ...n, parentId: undefined } as CardNode]; // other content → keep, un-parent (never deleted)
+        }
+        return [n];
+      });
+      if (!start) { const cell = lessonCellSize(); nodes.unshift({ id: lessonId, type: "lesson", position: { x: 160, y: 120 }, data: { label: "Start Here", w: cell.w, h: cell.h, pathOrder: 0 } } as unknown as CardNode); }
+      nodes = [...nodes, ...buildBrandFrames(lessonId)];
+    }
+    if (scope === "ceq" || scope === "both") {
+      nodes = nodes.map((n) => (n.type === "ceq" && (n.data as { deckMember?: boolean }).deckMember && !(n.data as { tucked?: boolean }).tucked)
+        ? { ...n, parentId: undefined, position: { x: -3000, y: -1200 }, data: { ...n.data, tucked: true } } as CardNode
+        : n);
+    }
+    const ordered = orderParentsFirst(nodes as never) as unknown as CardNode[];
+    const ids = new Set(ordered.map((n) => n.id));
     const nextEdges = prevEdges.filter((e) => ids.has(e.source) && ids.has(e.target));
     if (currentFrameRef.current) exitFrame();
     bus.dispatch({
-      label: "reset canvas (starter frames)",
-      do: () => { rf.setNodes(nextNodes as never); rf.setEdges(nextEdges); setActiveLesson(lessonId); },
+      label: `reset (${scope})`,
+      do: () => { rf.setNodes(ordered as never); rf.setEdges(nextEdges); if (focusLessonId) setActiveLesson(focusLessonId); },
       undo: () => { rf.setNodes(prevNodes as never); rf.setEdges(prevEdges); setActiveLesson(prevActive); },
     });
-    // Frame the STARTER lesson cell, not fitView — the archive shelf (x≈-3400) is
-    // visible-by-design and would drag a fitView far off the fresh column.
-    window.setTimeout(() => { const c2 = lessonCellSize(); void rf.fitBounds({ x: 160, y: 120, width: c2.w, height: c2.h }, { duration: 500, padding: 0.08 }); }, 60);
-  }, [rf, activeLessonId, setActiveLesson, exitFrame]);
+    if (scope !== "ceq") window.setTimeout(() => { const c2 = lessonCellSize(); const l = focusLessonId ? rf.getNode(focusLessonId) : undefined; const p = l?.position ?? { x: 160, y: 120 }; void rf.fitBounds({ x: p.x, y: p.y, width: c2.w, height: c2.h }, { duration: 500, padding: 0.08 }); }, 60);
+  }, [rf, activeLessonId, setActiveLesson, exitFrame, buildBrandFrames, BRAND_TITLES, BRAND_DESIGN]);
 
   // ---- DUPLICATION (PROMPT 1 — the swap-many foundation) ---------------------
   // Deep-copy a frame or a whole lesson: cards + per-element state, script +
@@ -5403,7 +5409,7 @@ function PresentCanvas() {
           onExport={exportScene}
           onImport={() => importRef.current?.click()}
           onNewTab={newTab}
-          onReset={resetCanvasToStarter}
+          onReset={() => setResetScopeOpen(true)}
           onHotkeys={() => setHelpOpen(true)}
           onOpenStudio={() => setCeqStudioOpen(true)}
           onViewV1={() => setChromeVersion(true)}
@@ -6833,6 +6839,33 @@ function PresentCanvas() {
       {dbDown && chrome && (
         <div className="absolute left-1/2 top-16 -translate-x-1/2 rounded-lg px-3 py-1.5 text-[12px] font-semibold" style={{ background: "rgba(255,92,122,0.15)", border: `1px solid ${NEON.red}`, color: NEON.red, zIndex: Z.toast }}>
           Scene DB unavailable — {dbDown}. Falling back to localStorage.
+        </div>
+      )}
+
+      {/* Reset… scope picker — Canvas (rebuild the 4 brand frames) · CEQ (un-deal cards) ·
+          Both. All NON-destructive to CEQ data; Ctrl+Z undoes any of them. */}
+      {resetScopeOpen && (
+        <div className="absolute inset-0 grid place-items-center" style={{ background: "rgba(0,0,0,0.6)", zIndex: Z.modal }} onClick={() => setResetScopeOpen(false)}>
+          <div className="w-[440px] rounded-xl p-4" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 44px -16px rgba(0,0,0,0.75)" }} onClick={(e) => e.stopPropagation()}>
+            <div className="mb-1 text-[13px] font-black" style={{ color: NEON.text }}>Reset…</div>
+            <p className="mb-3 text-[11px] leading-snug" style={{ color: NEON.muted }}>Pick what to reset. Your CEQ sets, questions, chains and memos are <b style={{ color: NEON.text }}>always kept</b>. Ctrl+Z undoes any reset.</p>
+            {[
+              { scope: "canvas" as const, title: "Just the canvas", desc: "Rebuild the 4 brand frames (Intro · CEQ Hook · CEQ Portal · Outro) in “Start Here”. Every other frame and all content is left untouched." },
+              { scope: "ceq" as const, title: "Just the CEQs", desc: "Un-deal all CEQ cards from the canvas back into their sets. Keeps every set/question/chain/memo — re-deal any time from CEQ Studio." },
+              { scope: "both" as const, title: "Both", desc: "Rebuild the 4 brand frames AND un-deal all CEQ cards." },
+            ].map((o) => (
+              <button key={o.scope} className="mb-1.5 flex w-full flex-col rounded-lg px-3 py-2 text-left transition-colors" style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(255,255,255,0.02)" }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(252,163,17,0.10)")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")}
+                onClick={() => { setResetScopeOpen(false); runReset(o.scope); }}>
+                <span className="text-[12px] font-bold" style={{ color: NEON.yellow }}>{o.title}</span>
+                <span className="text-[10.5px] leading-snug" style={{ color: NEON.muted }}>{o.desc}</span>
+              </button>
+            ))}
+            <div className="mt-1 flex justify-end">
+              <button className="rounded px-2.5 py-1 text-[11.5px] font-semibold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setResetScopeOpen(false)}>Cancel</button>
+            </div>
+          </div>
         </div>
       )}
 
