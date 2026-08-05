@@ -753,7 +753,7 @@ function PerfArrowLayer({ arrows, add, sel, setSel }: { arrows: PerfArrow[]; add
 }
 
 
-function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, world, worldIntensity, worldMotion, deckCeqIds, layoutMode, onSaveBaseline, onSaveInstance, onReorderChainMemo, layoutOn, onSetLayoutMode, onApplyLayoutToAll, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onAddMemoAtChoice, onAddMemoAt, onRenameMemo, onEditStem, onDuplicateMemo, onSetMemoCategory, onDeleteMemo, onSetMisconception, misconceptionSlugs, onNextQuestion, onPrevQuestion, showProgress, onSetShowProgress, onOpenMemoLib, topicName }: { ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number; chainEdges: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; layoutMode?: boolean; onSaveBaseline?: (l: DeckLayout) => void; onSaveInstance?: (g: CeqInstanceGeom) => void; onReorderChainMemo?: (memoNodeId: string, dir: -1 | 1) => void; layoutOn?: boolean; onSetLayoutMode?: (on: boolean) => void; onApplyLayoutToAll?: () => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onAddMemoAtChoice?: (choiceId: string, text: string, category: string) => void; onAddMemoAt?: (pos: { x: number; y: number }, text: string, category: string) => void; onRenameMemo?: (memoNodeId: string, label: string) => void; onEditStem?: (ceqId: string, text: string) => void; onDuplicateMemo?: (memoNodeId: string) => void; onSetMemoCategory?: (memoNodeIds: string[], category: string) => void; onSetMisconception?: (memoNodeIds: string[], slug: string | null) => void; misconceptionSlugs?: string[]; onDeleteMemo?: (memoNodeIds: string[]) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void; showProgress?: boolean; onSetShowProgress?: (b: boolean) => void; onOpenMemoLib?: (id: string) => void; topicName?: string }) {
+function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, world, worldIntensity, worldMotion, deckCeqIds, layoutMode, onSaveBaseline, onSaveInstance, onReorderChainMemo, layoutOn, onSetLayoutMode, onApplyLayoutToAll, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onAddMemoAtChoice, onAddMemoAt, onRenameMemo, onEditStem, onDuplicateMemo, onSetMemoCategory, onDeleteMemo, onSetMisconception, misconceptionSlugs, onNextQuestion, onPrevQuestion, showProgress, onSetShowProgress, onOpenMemoLib, topicName, recording, onEnterRecording, onExitRecording }: { ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number; chainEdges: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; layoutMode?: boolean; onSaveBaseline?: (l: DeckLayout) => void; onSaveInstance?: (g: CeqInstanceGeom) => void; onReorderChainMemo?: (memoNodeId: string, dir: -1 | 1) => void; layoutOn?: boolean; onSetLayoutMode?: (on: boolean) => void; onApplyLayoutToAll?: () => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onAddMemoAtChoice?: (choiceId: string, text: string, category: string) => void; onAddMemoAt?: (pos: { x: number; y: number }, text: string, category: string) => void; onRenameMemo?: (memoNodeId: string, label: string) => void; onEditStem?: (ceqId: string, text: string) => void; onDuplicateMemo?: (memoNodeId: string) => void; onSetMemoCategory?: (memoNodeIds: string[], category: string) => void; onSetMisconception?: (memoNodeIds: string[], slug: string | null) => void; misconceptionSlugs?: string[]; onDeleteMemo?: (memoNodeIds: string[]) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void; showProgress?: boolean; onSetShowProgress?: (b: boolean) => void; onOpenMemoLib?: (id: string) => void; topicName?: string; recording?: boolean; onEnterRecording?: () => void; onExitRecording?: () => void }) {
   const ceq = mainRf.getNode(ceqId);
   // QUESTION 0 (layoutMode): the stage edits the SET BASELINE directly — a placeholder
   // LAYOUT card + "Slot N" placeholders stand in for a real question. Same nodes, same
@@ -932,7 +932,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     // qNum = this question's DECK position (what the Studio rows and take filenames
     // use). Q0/layout is not in deckCeqIds → 0 → the overlay doesn't render.
     const qNum = layoutMode ? 0 : Math.max(0, (deckCeqIds?.indexOf(ceqId) ?? -1) + 1);
-    const frameNode = { id: "__frame__", type: "frameBg", position: { x: 0, y: yOff }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum, guides: guidesOn }, draggable: false, selectable: false, zIndex: -10 };
+    const frameNode = { id: "__frame__", type: "frameBg", position: { x: 0, y: yOff }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum, guides: recording ? false : guidesOn }, draggable: false, selectable: false, zIndex: -10 };
     // STUDENT OVERLAY (Lee) — filmed on the card, one toggle (showProgress):
     //   "X of Y" over the deck order + a fill bar, and the TOPIC name kicker
     //   (name only, no chapter number — Lee's call). Never on the Q0 stage.
@@ -1000,7 +1000,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     });
     return [...active, ...others] as typeof active;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, activeYOff, layoutMode, walk, viewChoice, guidesOn, showProgress, topicName]);
+  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, activeYOff, layoutMode, walk, viewChoice, guidesOn, showProgress, topicName, recording]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   // A drag/resize writeback (commitGeom → onSaveInstance) bumps mainSig, which would
@@ -1182,7 +1182,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // Only while the guides overlay is ON and not in overview (single-question
   // authoring); alt-drag keeps the lines but places freely.
   const snapOf = (node: Node, altBypass: boolean) => {
-    if (!guidesOn || overviewOn) return null;
+    if (!guidesOn || overviewOn || recording) return null;
     if (node.type !== "memoPreview" && node.id !== ceqId) return null;
     const dim = (n: Node) => { const m = (n as { measured?: { width?: number; height?: number } }).measured; return { w: m?.width ?? 210, h: m?.height ?? 130 }; };
     const nd = dim(node);
@@ -1388,10 +1388,30 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     const handle = (e: KeyboardEvent, win: Window, forceEngaged: boolean) => {
       const el = (win.document.activeElement ?? document.activeElement) as HTMLElement | null;
       const typing = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
+      // RECORDING MODE (#3) — the film-safe filming surface. While recording, the ONLY live
+      // keys are the deal / walk / sweep allowlist + the exit key (R); EVERYTHING else is
+      // swallowed so a stray press can never alter state mid-take. This branch runs before
+      // every other one (incl. the engage gate and "\"), so it fully owns the keyboard.
+      // NOTE: prefers-reduced-motion is deliberately IGNORED here — this is a filming
+      // surface, not a reading surface, so transitions always play.
+      if (recording) {
+        if (typing) return;
+        e.preventDefault(); e.stopImmediatePropagation();
+        const isSpace = e.key === " " || e.code === "Space";
+        if ((e.key === "r" || e.key === "R") && !e.ctrlKey && !e.metaKey && !e.altKey) { onExitRecording?.(); return; }
+        if (isSpace || e.key === "PageDown" || e.key === "PageUp") { const back = e.key === "PageUp" || (isSpace && e.shiftKey); if (back) onPrevQuestion?.(); else onNextQuestion?.(); return; }
+        if (e.key === "Enter") { if (e.shiftKey) retreat(); else advance(); return; }
+        if (e.shiftKey && (e.code === "Backquote" || e.key === "~" || e.key === "`")) { sweepMemos(); return; }
+        return; // any other key: swallowed, no-op — protects the take
+      }
       // RECORDING MODE = the FILM POP-OUT. "\" toggles it open/closed — a real 2nd-monitor
       // window you can fullscreen (F11) for OBS while the Studio stays on the other screen.
       // Works with NO mouse (before the hover gate); ignored only while typing in a field.
       if (!typing && (e.key === "\\" || e.code === "Backslash")) { e.preventDefault(); e.stopImmediatePropagation(); toggleFilm(); return; }
+      // ENTER RECORDING MODE (#3) — R (no modifiers). Mouse-free (before the hover gate) and
+      // capture-phase + stopImmediatePropagation, so the canvas 'r' (Rearrange) underneath
+      // the Studio can never also fire on the same press.
+      if (!typing && onEnterRecording && (e.key === "r" || e.key === "R") && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); e.stopImmediatePropagation(); onEnterRecording(); return; }
       if (!forceEngaged && !engagedRef.current) return;
       if (typing) return;
       // MEMO SELECTION keys (authoring): Delete removes (in-app confirm upstream),
@@ -1435,7 +1455,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     }
     return () => { ownerWin.removeEventListener("keydown", onOwnerKey, true); filmCleanup?.(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [emph, resolved, shown, cd, onNextQuestion, onPrevQuestion, filmWin, selPerf]);
+  }, [emph, resolved, shown, cd, onNextQuestion, onPrevQuestion, filmWin, selPerf, recording]);
 
   if ((!layoutMode && !ceq) || !cd) return <div className="grid h-full place-items-center text-[11px]" style={{ color: NEON.muted }}>Select a question to preview.</div>;
 
@@ -1494,14 +1514,18 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                   onInit={(inst) => { fitRef.current = inst; }}
                   nodeTypes={nodeTypes} edgeTypes={edgeTypes}
                   fitView
-                  fitViewOptions={{ padding: 0.14 }}
+                  fitViewOptions={{ padding: recording ? 0.03 : 0.14 }}
                   minZoom={0.04}
                   maxZoom={2}
                   proOptions={{ hideAttribution: true }}
                   connectionMode={ConnectionMode.Loose}
                   selectionKeyCode="Control"
-                  nodesConnectable
-                  elementsSelectable
+                  nodesConnectable={!recording}
+                  elementsSelectable={!recording}
+                  nodesDraggable={!recording}
+                  panOnDrag={!recording}
+                  zoomOnScroll={!recording}
+                  panOnScroll={false}
                   deleteKeyCode={null}
                   zoomOnDoubleClick={false}
                   onlyRenderVisibleElements={overviewOn}
@@ -1520,7 +1544,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
               {/* PRACTICE BAR — hover the preview, then Tab/Enter/Space/` (mouse-free;
                   Page Down / Page Up also deal next / previous — presenter-remote friendly).
                   Ctrl+click a choice/memo/arrow = spotlight · +Shift = 🔥 · +Alt+Shift = 🚨. */}
-              <div className="flex shrink-0 items-center gap-1.5 border-t px-2 py-1.5" style={{ borderColor: NEON.borderSoft, background: "rgba(11,19,34,0.9)" }}>
+              <div className="flex shrink-0 items-center gap-1.5 border-t px-2 py-1.5" style={{ borderColor: NEON.borderSoft, background: "rgba(11,19,34,0.9)", display: recording ? "none" : undefined }}>
                 <button className="grid h-6 w-6 place-items-center rounded" style={{ color: running ? "#FF8B9E" : "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={toggleRun} title={running ? "Pause timer" : "Start practice timer"}>{running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}</button>
                 <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={resetAll} title="Reset the CEQ to blank + clear spotlights + timer (`) — Shift+` instead SWEEPS just the memos and keeps the choice states"><RotateCcw className="h-3.5 w-3.5" /></button>
                 <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: filmWin ? "#0B0F1E" : "#FF8B9E", background: filmWin ? "#FF8B9E" : "transparent", border: `1px solid ${filmWin ? "#FF8B9E" : "rgba(255,139,158,0.5)"}` }} onClick={toggleFilm} title={filmWin ? "Close the film window" : "FILM MODE — pops a clean 16:9 canvas frame (world background + watermark) onto your 2nd monitor. TWO-WAY: drag / resize / spotlight / Space-Tab-Enter (Page Down / Page Up deal between CEQs) work in EITHER window and stay in sync. Maximize it for OBS."}><Clapperboard className="h-3.5 w-3.5" /> {filmWin ? "Filming" : "Film"}</button>
@@ -1761,12 +1785,12 @@ class PreviewErrorBoundary extends Component<{ children: ReactNode; resetKey: st
   }
 }
 
-export function CeqPreviewer({ ceqId, mainRf, mainSig, frameW = 1600, frameH = 900, chainEdges = [], baseline, world, worldIntensity, worldMotion, deckCeqIds, layoutMode, onSaveBaseline, onSaveInstance, onReorderChainMemo, layoutOn, onSetLayoutMode, onApplyLayoutToAll, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onAddMemoAtChoice, onAddMemoAt, onRenameMemo, onEditStem, onDuplicateMemo, onSetMemoCategory, onDeleteMemo, onSetMisconception, misconceptionSlugs, onNextQuestion, onPrevQuestion, showProgress, onSetShowProgress, onOpenMemoLib, topicName }: { ceqId: string | null; mainRf: MainRf; mainSig: string; frameW?: number; frameH?: number; chainEdges?: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; layoutMode?: boolean; onSaveBaseline?: (l: DeckLayout) => void; onSaveInstance?: (g: CeqInstanceGeom) => void; onReorderChainMemo?: (memoNodeId: string, dir: -1 | 1) => void; layoutOn?: boolean; onSetLayoutMode?: (on: boolean) => void; onApplyLayoutToAll?: () => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onAddMemoAtChoice?: (choiceId: string, text: string, category: string) => void; onAddMemoAt?: (pos: { x: number; y: number }, text: string, category: string) => void; onRenameMemo?: (memoNodeId: string, label: string) => void; onEditStem?: (ceqId: string, text: string) => void; onDuplicateMemo?: (memoNodeId: string) => void; onSetMemoCategory?: (memoNodeIds: string[], category: string) => void; onSetMisconception?: (memoNodeIds: string[], slug: string | null) => void; misconceptionSlugs?: string[]; onDeleteMemo?: (memoNodeIds: string[]) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void; showProgress?: boolean; onSetShowProgress?: (b: boolean) => void; onOpenMemoLib?: (id: string) => void; topicName?: string }) {
+export function CeqPreviewer({ ceqId, mainRf, mainSig, frameW = 1600, frameH = 900, chainEdges = [], baseline, world, worldIntensity, worldMotion, deckCeqIds, layoutMode, onSaveBaseline, onSaveInstance, onReorderChainMemo, layoutOn, onSetLayoutMode, onApplyLayoutToAll, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onAddMemoAtChoice, onAddMemoAt, onRenameMemo, onEditStem, onDuplicateMemo, onSetMemoCategory, onDeleteMemo, onSetMisconception, misconceptionSlugs, onNextQuestion, onPrevQuestion, showProgress, onSetShowProgress, onOpenMemoLib, topicName, recording, onEnterRecording, onExitRecording }: { ceqId: string | null; mainRf: MainRf; mainSig: string; frameW?: number; frameH?: number; chainEdges?: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; layoutMode?: boolean; onSaveBaseline?: (l: DeckLayout) => void; onSaveInstance?: (g: CeqInstanceGeom) => void; onReorderChainMemo?: (memoNodeId: string, dir: -1 | 1) => void; layoutOn?: boolean; onSetLayoutMode?: (on: boolean) => void; onApplyLayoutToAll?: () => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onAddMemoAtChoice?: (choiceId: string, text: string, category: string) => void; onAddMemoAt?: (pos: { x: number; y: number }, text: string, category: string) => void; onRenameMemo?: (memoNodeId: string, label: string) => void; onEditStem?: (ceqId: string, text: string) => void; onDuplicateMemo?: (memoNodeId: string) => void; onSetMemoCategory?: (memoNodeIds: string[], category: string) => void; onSetMisconception?: (memoNodeIds: string[], slug: string | null) => void; misconceptionSlugs?: string[]; onDeleteMemo?: (memoNodeIds: string[]) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void; showProgress?: boolean; onSetShowProgress?: (b: boolean) => void; onOpenMemoLib?: (id: string) => void; topicName?: string; recording?: boolean; onEnterRecording?: () => void; onExitRecording?: () => void }) {
   if (!ceqId) return <div className="grid h-full place-items-center text-[11px]" style={{ color: NEON.muted }}>Select a question to preview.</div>;
   return (
     <PreviewErrorBoundary resetKey={ceqId}>
       <ReactFlowProvider>
-        <Inner ceqId={ceqId} mainRf={mainRf} mainSig={mainSig} frameW={frameW} frameH={frameH} chainEdges={chainEdges} baseline={baseline} world={world} worldIntensity={worldIntensity} worldMotion={worldMotion} deckCeqIds={deckCeqIds} layoutMode={layoutMode} onSaveBaseline={onSaveBaseline} onSaveInstance={onSaveInstance} onReorderChainMemo={onReorderChainMemo} layoutOn={layoutOn} onSetLayoutMode={onSetLayoutMode} onApplyLayoutToAll={onApplyLayoutToAll} onSetWorld={onSetWorld} onPatchChainItem={onPatchChainItem} onAttachMemo={onAttachMemo} onSelectMemo={onSelectMemo} onSelectQuestion={onSelectQuestion} onCopyItems={onCopyItems} onPasteItems={onPasteItems} hasItemsClip={hasItemsClip} onSendToStarred={onSendToStarred} onCopyStyleToSet={onCopyStyleToSet} starredCount={starredCount} onAddMemoAtChoice={onAddMemoAtChoice} onAddMemoAt={onAddMemoAt} onRenameMemo={onRenameMemo} onEditStem={onEditStem} onDuplicateMemo={onDuplicateMemo} onSetMemoCategory={onSetMemoCategory} onDeleteMemo={onDeleteMemo} onSetMisconception={onSetMisconception} misconceptionSlugs={misconceptionSlugs} onNextQuestion={onNextQuestion} onPrevQuestion={onPrevQuestion} showProgress={showProgress} onSetShowProgress={onSetShowProgress} onOpenMemoLib={onOpenMemoLib} topicName={topicName} />
+        <Inner ceqId={ceqId} mainRf={mainRf} mainSig={mainSig} frameW={frameW} frameH={frameH} chainEdges={chainEdges} baseline={baseline} world={world} worldIntensity={worldIntensity} worldMotion={worldMotion} deckCeqIds={deckCeqIds} layoutMode={layoutMode} onSaveBaseline={onSaveBaseline} onSaveInstance={onSaveInstance} onReorderChainMemo={onReorderChainMemo} layoutOn={layoutOn} onSetLayoutMode={onSetLayoutMode} onApplyLayoutToAll={onApplyLayoutToAll} onSetWorld={onSetWorld} onPatchChainItem={onPatchChainItem} onAttachMemo={onAttachMemo} onSelectMemo={onSelectMemo} onSelectQuestion={onSelectQuestion} onCopyItems={onCopyItems} onPasteItems={onPasteItems} hasItemsClip={hasItemsClip} onSendToStarred={onSendToStarred} onCopyStyleToSet={onCopyStyleToSet} starredCount={starredCount} onAddMemoAtChoice={onAddMemoAtChoice} onAddMemoAt={onAddMemoAt} onRenameMemo={onRenameMemo} onEditStem={onEditStem} onDuplicateMemo={onDuplicateMemo} onSetMemoCategory={onSetMemoCategory} onDeleteMemo={onDeleteMemo} onSetMisconception={onSetMisconception} misconceptionSlugs={misconceptionSlugs} onNextQuestion={onNextQuestion} onPrevQuestion={onPrevQuestion} showProgress={showProgress} onSetShowProgress={onSetShowProgress} onOpenMemoLib={onOpenMemoLib} topicName={topicName} recording={recording} onEnterRecording={onEnterRecording} onExitRecording={onExitRecording} />
       </ReactFlowProvider>
     </PreviewErrorBoundary>
   );

@@ -6,6 +6,7 @@
 // ELEMENT), search/filter, bulk triage for the unfiled pile, and drag-onto-a-choice
 // to attach to a chain. No new storage beyond panel prefs.
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEdges, useNodes, useReactFlow } from "@xyflow/react";
 import { CheckCircle2, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Circle, ClipboardPaste, Copy, ExternalLink, FolderInput, Globe, LayoutGrid, Library, Lightbulb, ListChecks, Loader2, Play, Plus, Search, Square, Trash2, WrapText, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
@@ -149,10 +150,29 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const [newSetForm, setNewSetForm] = useState<{ name: string; courseId: string; topicId: string } | null>(null); // inline New Set form ("" = Library)
   const [previewSelMemo, setPreviewSelMemo] = useState<string | null>(null); // memo selected in the previewer
   const [shortsQueueOpen, setShortsQueueOpen] = useState(false); // shorts-worthy worklist overlay
+  // RECORDING MODE (#3) — a film-safe filming surface: an opaque navy full-window layer (at
+  // the reserved Z.recording tier) that covers ALL Studio chrome and shows only the live CEQ
+  // card + reveal state. Toggled by R (enter) / R (exit); the ONLY live keys are the deal /
+  // walk / sweep allowlist. The `\` film pop-out is unchanged and separate. Authoring is
+  // untouched — this is a second render branch on the same previewer + data.
+  const [recording, setRecording] = useState(false);
+  const [cursorHidden, setCursorHidden] = useState(false); // pointer auto-hides after 1s idle while recording
+  const studioRootRef = useRef<HTMLDivElement>(null); // Recording Mode portals to THIS window's body (works popped too)
   const [prefs, setPrefsState] = useState<CeqStudioPrefs>(() => loadPrefs()); // panel prefs (wrap toggle + shared transition)
   const setPrefs = (p: Partial<CeqStudioPrefs>) => setPrefsState((cur) => { const n = { ...cur, ...p }; savePrefs(n); return n; });
   const wrapStems = !!prefs.wrapStems;
   const [takeBusy, setTakeBusy] = useState<string | null>(null); // slot key currently uploading
+  // Cursor auto-hide while recording — a parked pointer must never sit in the OBS shot; any
+  // movement brings it back for another second.
+  useEffect(() => {
+    if (!recording) { setCursorHidden(false); return; }
+    let t: number | undefined;
+    const bump = () => { setCursorHidden(false); if (t) window.clearTimeout(t); t = window.setTimeout(() => setCursorHidden(true), 1000); };
+    bump();
+    const doc = studioRootRef.current?.ownerDocument ?? document;
+    doc.addEventListener("mousemove", bump);
+    return () => { doc.removeEventListener("mousemove", bump); if (t) window.clearTimeout(t); };
+  }, [recording]);
   // BATCH TAKE INGEST (Lee) — drop N clips → match → CONFIRM table → bulk upload.
   const [ingest, setIngest] = useState<{ file: File; name: string; duration: number; qId: string | null; lookback: boolean; include: boolean; status: "pending" | "uploading" | "done" | "error"; error?: string }[] | null>(null);
   const [ingestBusy, setIngestBusy] = useState(false);
@@ -1854,8 +1874,29 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
 
   const COL = "flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg";
   const HEAD = "flex shrink-0 items-center gap-1.5 border-b px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider";
+  // ONE previewer prop set, rendered in EITHER the authoring pane (recMode=false) or the
+  // Recording Mode portal (recMode=true). recMode drives the previewer's chrome/key/interaction
+  // suppression; the enter/exit callbacks flip the studio-level `recording` flag.
+  const renderPreviewer = (recMode: boolean) => (
+    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSaveInstance={(g) => { if (qId && qId !== LAYOUT_Q0) saveInstanceGeom(qId, g); }} layoutOn={deck?.layoutMode !== false} onSetLayoutMode={setLayoutMode} onApplyLayoutToAll={() => { const n = questions.length; if (n > 0 && window.confirm(`Re-stamp all ${n} question${n === 1 ? "" : "s"} from the layout?
+
+This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undoes all of it.`)) applyLayoutToAll(); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onReorderChainMemo={reorderChainByMemo} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onEditStem={(cid, text) => patchQ(cid, { prompt: text }, `q:${cid}:prompt`)} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSetMisconception={setMemoMisconception} misconceptionSlugs={misconceptionDefs.map((d) => d.slug)} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} showProgress={deck?.showProgress} onSetShowProgress={(b) => { if (deck) setDecks((prev) => updateDeck(prev, deck.id, { showProgress: b })); }} onOpenMemoLib={(id) => { setLibOpen(true); setPreviewSelMemo(id); }} topicName={(() => { const rows = spineRows(deck); return rows ? topicLabel(rows.topic).replace(/^ch\s*\d+\s*[·.\-:]\s*/i, "").replace(/\s*\(archived\)\s*$/i, "").trim() : undefined; })()} recording={recMode} onEnterRecording={() => setRecording(true)} onExitRecording={() => setRecording(false)} />
+  );
   return (
-    <div className={popped ? "flex h-full w-full flex-col" : "absolute inset-0 flex flex-col"} style={{ background: "rgba(6,10,20,0.98)", color: NEON.text, zIndex: popped ? undefined : Z.overlay }}>
+    <div ref={studioRootRef} className={popped ? "flex h-full w-full flex-col" : "absolute inset-0 flex flex-col"} style={{ background: "rgba(6,10,20,0.98)", color: NEON.text, zIndex: popped ? undefined : Z.overlay }}>
+      {/* RECORDING MODE (#3) — an opaque navy full-window layer at Z.recording (above ALL
+          Studio chrome AND the canvas navbar/sidebar), portaled to THIS window's <body> so
+          it also works when the Studio is popped out. Shows ONLY the live CEQ card + reveal
+          state; the previewer itself hides its chrome + swallows non-allowlisted keys. */}
+      {recording && studioRootRef.current && createPortal(
+        <div className="sa-rec-surface fixed inset-0" style={{ zIndex: Z.recording, background: "#080D18", cursor: cursorHidden ? "none" : undefined }}>
+          {/* Force the cursor hidden across EVERYTHING in the shot — ReactFlow sets its own
+              pane cursor, which would otherwise sit in-frame after the 1s idle. */}
+          {cursorHidden && <style>{`.sa-rec-surface, .sa-rec-surface * { cursor: none !important; }`}</style>}
+          <div className="h-full w-full">{renderPreviewer(true)}</div>
+        </div>,
+        studioRootRef.current.ownerDocument.body,
+      )}
       <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
         <div className="flex items-center gap-2 text-[14px] font-bold uppercase tracking-[0.18em]" style={{ color: NEON.yellow }}><ListChecks className="h-4 w-4" /> CEQ Studio</div>
         <div className="flex items-center gap-2">
@@ -2350,11 +2391,9 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
               {/* WYSIWYG previewer (top) + collapsible stem/choices editor (bottom) */}
               <div className="flex min-h-0 flex-1 flex-col">
                 <div className="min-h-0 flex-1">
-                  {(
-                    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSaveInstance={(g) => { if (qId && qId !== LAYOUT_Q0) saveInstanceGeom(qId, g); }} layoutOn={deck?.layoutMode !== false} onSetLayoutMode={setLayoutMode} onApplyLayoutToAll={() => { const n = questions.length; if (n > 0 && window.confirm(`Re-stamp all ${n} question${n === 1 ? "" : "s"} from the layout?
-
-This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undoes all of it.`)) applyLayoutToAll(); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onReorderChainMemo={reorderChainByMemo} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onEditStem={(cid, text) => patchQ(cid, { prompt: text }, `q:${cid}:prompt`)} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSetMisconception={setMemoMisconception} misconceptionSlugs={misconceptionDefs.map((d) => d.slug)} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} showProgress={deck?.showProgress} onSetShowProgress={(b) => { if (deck) setDecks((prev) => updateDeck(prev, deck.id, { showProgress: b })); }} onOpenMemoLib={(id) => { setLibOpen(true); setPreviewSelMemo(id); }} topicName={(() => { const rows = spineRows(deck); return rows ? topicLabel(rows.topic).replace(/^ch\s*\d+\s*[·.\-:]\s*/i, "").replace(/\s*\(archived\)\s*$/i, "").trim() : undefined; })()} />
-                  )}
+                  {/* Authoring pane shows the previewer only when NOT recording — Recording
+                      Mode renders the SAME previewer in a full-window portal (below). */}
+                  {!recording && renderPreviewer(false)}
                 </div>
                 {qd && (
                   <div className="shrink-0 border-t" style={{ borderColor: NEON.borderSoft }}>
