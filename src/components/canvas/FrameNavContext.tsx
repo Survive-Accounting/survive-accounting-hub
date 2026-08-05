@@ -54,14 +54,13 @@ export interface FrameNav {
   /** Make a lesson the ACTIVE one (mounts its subtree, collapses the rest) and fly
    *  the camera to it. Used by the outline navigator. */
   activateLesson: (lessonId: string) => void;
-  /** OUTLINE v2 (prompt 4) — activate a lesson AND open its video slot (the Video
-   *  node in the outline tree). */
-  openVideoSlot: (lessonId: string) => void;
   /** OUTLINE v2 (prompt 4) — navigate to a CEQ card: activate its lesson, enter its
    *  frame, select the card so it opens for editing. */
   focusCeq: (ceqNodeId: string) => void;
   /** Open the CEQ Studio, optionally focused on a specific CEQ node (its set + question). */
   openStudio: (ceqNodeId?: string) => void;
+  /** Open the CEQ Studio with a specific SET (DeckDef id) active — the outline launcher. */
+  openStudioSet: (setId: string) => void;
 }
 
 const noop = () => {};
@@ -87,9 +86,9 @@ export const FrameNavContext = createContext<FrameNav>({
   hasScaffoldClip: false,
   cramMode: false,
   activateLesson: noop,
-  openVideoSlot: noop,
   focusCeq: noop,
   openStudio: noop,
+  openStudioSet: noop,
 });
 
 export const useFrameNav = () => useContext(FrameNavContext);

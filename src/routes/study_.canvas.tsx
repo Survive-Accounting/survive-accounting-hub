@@ -68,7 +68,6 @@ import { LegendHud } from "@/components/canvas/LegendHud";
 import { OutlinePanel } from "@/components/canvas/OutlinePanel";
 import { MemoLibraryPanel } from "@/components/canvas/MemoLibraryPanel";
 import { PipelineTestPanel } from "@/components/canvas/PipelineTestPanel";
-import { LessonVideoSlot } from "@/components/canvas/LessonVideoSlot";
 import { LessonGridView } from "@/components/canvas/LessonGridView";
 import { CeqStudio } from "@/components/canvas/CeqStudio";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
@@ -93,6 +92,7 @@ import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
 import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
 import { migrateCheckToCram, migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateFrameGrid, migrateFrameLocks, migrateIntroCards, migrateJeMemos, migrateLegendSlips, migrateLessonCategory, migrateLessonFields, sanitizeSceneNodes, migrateScriptLayers } from "@/components/canvas/scene-io";
 import { migrateZTiers, nextZ, Z_SPOTLIGHT } from "@/components/canvas/zorder";
+import { Z } from "@/components/canvas/z-layers";
 import { addEdgeCmd, lineIdOfHandle, memoOfHandle, resolveConnection, type EdgeLike } from "@/components/canvas/arrows";
 import { ArrowEdge, ARROW_EDGE_CSS } from "@/components/canvas/ArrowEdge";
 import { ConnectionDots, CONNECTION_DOTS_CSS } from "@/components/canvas/ConnectionDots";
@@ -1319,6 +1319,7 @@ function PresentCanvas() {
   const [decks, setDecks] = useState<DeckDef[]>([]); // named decks (P3) — persisted in the scene payload
   const [ceqStudioOpen, setCeqStudioOpen] = useState(false); // CEQ STUDIO (prompt 5) — 3-pane authoring overlay
   const [studioFocusCeq, setStudioFocusCeq] = useState<string | null>(null); // open Studio focused on this CEQ
+  const [studioFocusSet, setStudioFocusSet] = useState<string | null>(null); // open Studio with this SET active (outline launcher)
   const [ceqSets, setCeqSets] = useState<CeqSetDef[]>([]); // CEQ set factories — persisted in the scene payload
   // CEQ Studio GLOBAL clips (intro/outro/transition). PERSISTED IN THE SCENE (below)
   // so they survive across sessions/deploys — they used to live only in localStorage
@@ -1407,7 +1408,6 @@ function PresentCanvas() {
   // original chrome, untouched, for tweaking old settings. Persisted per browser.
   const [chromeV1, setChromeV1] = useState<boolean>(() => { try { return localStorage.getItem("sa-canvas-chrome") === "v1"; } catch { return false; } });
   const setChromeVersion = useCallback((v1: boolean) => { setChromeV1(v1); try { localStorage.setItem("sa-canvas-chrome", v1 ? "v1" : "v2"); } catch { /* ignore */ } }, []);
-  const [videoSlotSeq, setVideoSlotSeq] = useState(0); // OUTLINE v2: bump to force-open the active lesson's video slot
   const [frameHeaderOpen, setFrameHeaderOpen] = useState(false); // Frame Header panel (header toggle + lesson media)
   const [rearrangeOpen, setRearrangeOpen] = useState(false); // "r": full-grid frame rearrange overlay
   const [copiedFrameId, setCopiedFrameId] = useState<string | null>(null); // frame on the clipboard (rearrange copy/paste)
@@ -3601,8 +3601,6 @@ function PresentCanvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentFrameId]);
 
-  // OUTLINE v2 (prompt 4) — activate a lesson AND force its video slot open.
-  const openVideoSlot = useCallback((lessonId: string) => { setActiveLesson(lessonId); setVideoSlotSeq((s) => s + 1); }, [setActiveLesson]);
   // OUTLINE v2 (prompt 4) — navigate to a CEQ: activate its lesson, enter its frame,
   // select the card (opens it for editing). Waits a tick so the lesson mounts first.
   const focusCeq = useCallback((ceqId: string) => {
@@ -3618,8 +3616,9 @@ function PresentCanvas() {
   }, [rf, setActiveLesson, enterFrame]);
 
   const openStudio = useCallback((ceqId?: string) => { setStudioFocusCeq(ceqId ?? null); setCeqStudioOpen(true); }, []);
+  const openStudioSet = useCallback((setId: string) => { setStudioFocusSet(setId); setStudioFocusCeq(null); setCeqStudioOpen(true); }, []);
 
-  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, film, enter: (fid: string) => enterFrame(fid, { smooth: true }), exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId?: string; beat?: Beat; onCreated?: (newFrameId: string) => void } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson, copyFrame, pasteFrameBelow, hasFrameClip: clip?.kind === "frame", copyScaffold, pasteScaffold, hasScaffoldClip: clip?.kind === "scaffold", cramMode, activateLesson: setActiveLesson, openVideoSlot, focusCeq, openStudio }), [currentFrameId, film, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson, copyFrame, pasteFrameBelow, copyScaffold, pasteScaffold, clip, cramMode, setActiveLesson, openVideoSlot, focusCeq, openStudio]);
+  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, film, enter: (fid: string) => enterFrame(fid, { smooth: true }), exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId?: string; beat?: Beat; onCreated?: (newFrameId: string) => void } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson, copyFrame, pasteFrameBelow, hasFrameClip: clip?.kind === "frame", copyScaffold, pasteScaffold, hasScaffoldClip: clip?.kind === "scaffold", cramMode, activateLesson: setActiveLesson, focusCeq, openStudio, openStudioSet }), [currentFrameId, film, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson, copyFrame, pasteFrameBelow, copyScaffold, pasteScaffold, clip, cramMode, setActiveLesson, focusCeq, openStudio, openStudioSet]);
 
   /** Row ×: remove MEMBERSHIP only — a tucked card re-deals to its remembered
    *  spot as a loose card first. Cards never vanish. */
@@ -5768,10 +5767,6 @@ function PresentCanvas() {
         );
       })()}
 
-      {/* LESSON VIDEO SLOT (prompt 2) — one lesson becomes one video. Sits above the
-          active lesson's frames (grid view; the frame HUD owns the top while inside a
-          frame). Drop raw files → stage in Supabase → Publish → Auphonic → Mux. */}
-      {chrome && activeLessonId && !currentFrameId && <LessonVideoSlot lessonId={activeLessonId} cramMode={cramMode} openSignal={videoSlotSeq} />}
 
       {/* FRAME HUD — while inside a frame: the LESSON's whole layout as a strip of
           draggable THUMBNAILS (drag one onto another to SWAP; click to jump). The
@@ -6587,7 +6582,7 @@ function PresentCanvas() {
 
       {/* snapshot restore confirm */}
       {confirmSnap && (
-        <div className="absolute inset-0 z-[60] grid place-items-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setConfirmSnap(null)}>
+        <div className="absolute inset-0 grid place-items-center" style={{ background: "rgba(0,0,0,0.6)", zIndex: Z.modal }} onClick={() => setConfirmSnap(null)}>
           <div className="w-80 rounded-xl p-4" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
             <p className="text-[12.5px]">
               Replace the current canvas with the snapshot from{" "}
@@ -6622,7 +6617,7 @@ function PresentCanvas() {
 
       {/* import diff preview */}
       {importPreview && (
-        <div className="absolute inset-0 z-50 grid place-items-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setImportPreview(null)}>
+        <div className="absolute inset-0 grid place-items-center" style={{ background: "rgba(0,0,0,0.6)", zIndex: Z.modal }} onClick={() => setImportPreview(null)}>
           <div className="w-96 rounded-xl p-4" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
             <div className="mb-2 text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>Import preview</div>
             {importPreview.error ? (
@@ -6741,16 +6736,16 @@ function PresentCanvas() {
       {chrome && gridByType && <LessonGridView onClose={() => setGridByType(false)} onActivateLesson={setActiveLesson} />}
       {/* CEQ STUDIO (prompt 5) — three-pane authoring overlay (sets · questions +
           chains · memo library). Reuses named decks + CEQ cards + prompt-1 chains. */}
-      {chrome && ceqStudioOpen && !isPopped("ceqstudio") && <CeqStudio decks={decks} setDecks={setDecks} globalClips={globalClips} setGlobalClips={setGlobalClips} initialCeqId={studioFocusCeq} onPopOut={() => openPop("ceqstudio", 1180, 800)} onClose={() => { setCeqStudioOpen(false); setStudioFocusCeq(null); }} />}
+      {chrome && ceqStudioOpen && !isPopped("ceqstudio") && <CeqStudio decks={decks} setDecks={setDecks} globalClips={globalClips} setGlobalClips={setGlobalClips} initialCeqId={studioFocusCeq} initialSetId={studioFocusSet} onPopOut={() => openPop("ceqstudio", 1180, 800)} onClose={() => { setCeqStudioOpen(false); setStudioFocusCeq(null); setStudioFocusSet(null); }} />}
       {isPopped("ceqstudio") && (
         <PanelPopout win={popWins.ceqstudio!} title="CEQ Studio" onReturn={() => returnPop("ceqstudio")}>
-          <CeqStudio decks={decks} setDecks={setDecks} globalClips={globalClips} setGlobalClips={setGlobalClips} initialCeqId={studioFocusCeq} popped onClose={() => { returnPop("ceqstudio"); setCeqStudioOpen(false); setStudioFocusCeq(null); }} />
+          <CeqStudio decks={decks} setDecks={setDecks} globalClips={globalClips} setGlobalClips={setGlobalClips} initialCeqId={studioFocusCeq} initialSetId={studioFocusSet} popped onClose={() => { returnPop("ceqstudio"); setCeqStudioOpen(false); setStudioFocusCeq(null); setStudioFocusSet(null); }} />
         </PanelPopout>
       )}
 
       {/* NEW LESSON (ITEM 3) — pick type + topic, then scaffold ordinary frames. */}
       {newLessonOpen && (
-        <div className="absolute inset-0 z-50 grid place-items-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setNewLessonOpen(false)}>
+        <div className="absolute inset-0 grid place-items-center" style={{ background: "rgba(0,0,0,0.6)", zIndex: Z.modal }} onClick={() => setNewLessonOpen(false)}>
           <div className="w-96 max-w-[92vw] rounded-xl p-4" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
             <div className="mb-2 text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>New lesson</div>
             <div className="text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>category</div>
@@ -6817,21 +6812,21 @@ function PresentCanvas() {
 
       {/* fail-loud banner: content-reset migration not applied */}
       {contentResetMissing && chrome && (
-        <div className="absolute left-1/2 top-16 z-50 -translate-x-1/2 rounded-lg px-3 py-1.5 text-[12px] font-semibold" style={{ background: "rgba(255,92,122,0.15)", border: `1px solid ${NEON.red}`, color: NEON.red }}>
+        <div className="absolute left-1/2 top-16 -translate-x-1/2 rounded-lg px-3 py-1.5 text-[12px] font-semibold" style={{ background: "rgba(255,92,122,0.15)", border: `1px solid ${NEON.red}`, color: NEON.red, zIndex: Z.toast }}>
           Scenario lifecycle columns missing — run migration/supabase-migrations/0087_content_reset.sql in the Supabase SQL editor.
         </div>
       )}
 
       {/* fail-loud banner: scenes table missing / server down */}
       {dbDown && chrome && (
-        <div className="absolute left-1/2 top-16 z-50 -translate-x-1/2 rounded-lg px-3 py-1.5 text-[12px] font-semibold" style={{ background: "rgba(255,92,122,0.15)", border: `1px solid ${NEON.red}`, color: NEON.red }}>
+        <div className="absolute left-1/2 top-16 -translate-x-1/2 rounded-lg px-3 py-1.5 text-[12px] font-semibold" style={{ background: "rgba(255,92,122,0.15)", border: `1px solid ${NEON.red}`, color: NEON.red, zIndex: Z.toast }}>
           Scene DB unavailable — {dbDown}. Falling back to localStorage.
         </div>
       )}
 
       {/* Load dialog — scenes grouped by FOLDER (= course groups, 0088) */}
       {loadOpen && (
-        <div className="absolute inset-0 z-50 grid place-items-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setLoadOpen(false)}>
+        <div className="absolute inset-0 grid place-items-center" style={{ background: "rgba(0,0,0,0.6)", zIndex: Z.modal }} onClick={() => setLoadOpen(false)}>
           <div className="max-h-[75vh] w-[430px] overflow-y-auto rounded-xl p-3" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
             <div className="mb-2 flex items-center gap-2">
               <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.pink }}>Load scene</span>

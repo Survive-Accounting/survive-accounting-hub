@@ -38,6 +38,7 @@ import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { useFrameNav } from "./FrameNavContext";
 import { cardId, type CeqCard, type ChainSound, type CeqChainItem, type CeqChoice, type CeqInstanceGeom, type DeckDef, type DeckLayout, type DeckSlotLayout, type GlobalClips, type TakeRef, type TakeRole } from "./types";
 import { NEON } from "./theme";
+import { Z } from "./z-layers";
 import { BufferedInput, BufferedTextarea } from "./ui";
 
 const memoText = (title?: string, body?: string) => ((title && title.trim()) || (body || "").replace(/[*_=~`#>]/g, "").trim() || "memo");
@@ -66,7 +67,7 @@ function NewMisconceptionRow({ onAdd }: { onAdd: (slug: string, description: str
   );
 }
 
-export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initialCeqId, onPopOut, popped, onClose }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void; globalClips?: GlobalClips; setGlobalClips?: (patch: Partial<GlobalClips>) => void; initialCeqId?: string | null; onPopOut?: () => void; popped?: boolean; onClose: () => void }) {
+export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initialCeqId, initialSetId, onPopOut, popped, onClose }: { decks: DeckDef[]; setDecks: (fn: (prev: DeckDef[]) => DeckDef[]) => void; globalClips?: GlobalClips; setGlobalClips?: (patch: Partial<GlobalClips>) => void; initialCeqId?: string | null; initialSetId?: string | null; onPopOut?: () => void; popped?: boolean; onClose: () => void }) {
   const gc = globalClips ?? {};
   const rf = useReactFlow();
   const rfl = rf as unknown as RfLike;
@@ -118,6 +119,13 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     setQId(initialCeqId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialCeqId]);
+  // OPEN FROM A SET (Lee — the study-canvas outline launcher) — activate that set,
+  // no question preselected. Runs even before any CEQ node is mounted on the canvas.
+  useEffect(() => {
+    if (!initialSetId) return;
+    if (cardDecks.some((d) => d.id === initialSetId)) openSetTab(initialSetId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSetId]);
   const [chainFor, setChainFor] = useState<string | null>(null); // CEQ node whose chain editor is open
   const [note, setNote] = useState<string | null>(null);
   const [memoQuery, setMemoQuery] = useState("");
@@ -1847,7 +1855,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
   const COL = "flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg";
   const HEAD = "flex shrink-0 items-center gap-1.5 border-b px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider";
   return (
-    <div className={popped ? "flex h-full w-full flex-col" : "absolute inset-0 z-[60] flex flex-col"} style={{ background: "rgba(6,10,20,0.98)", color: NEON.text }}>
+    <div className={popped ? "flex h-full w-full flex-col" : "absolute inset-0 flex flex-col"} style={{ background: "rgba(6,10,20,0.98)", color: NEON.text, zIndex: popped ? undefined : Z.overlay }}>
       <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
         <div className="flex items-center gap-2 text-[14px] font-bold uppercase tracking-[0.18em]" style={{ color: NEON.yellow }}><ListChecks className="h-4 w-4" /> CEQ Studio</div>
         <div className="flex items-center gap-2">
