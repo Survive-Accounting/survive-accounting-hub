@@ -124,6 +124,11 @@ const PV_CSS = `
    card node remounts on ceqId change), and a chain memo POPS in when it's revealed
    in film — a touch more emphatic than a plain fade. */
 @keyframes sa-ceq-in { from { opacity: 0; transform: translateY(12px) scale(0.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+/* HARD PUSH (Lee, #4) — PageDown / PageUp are a DISTINCT, faster deal than the Space walk:
+   a pure vertical push, NO fade / blur / scale. PageDown (next) enters from BELOW, PageUp
+   (prev) from ABOVE, 180ms sharp ease-out. Held, it rips a whole set in ~1s for the tease. */
+@keyframes sa-ceq-push-down { from { transform: translateY(64px); } to { transform: translateY(0); } }
+@keyframes sa-ceq-push-up { from { transform: translateY(-64px); } to { transform: translateY(0); } }
 @keyframes sa-memo-pop { 0% { opacity: 0; transform: scale(0.84) translateY(9px); } 55% { opacity: 1; transform: scale(1.05) translateY(0); } 100% { opacity: 1; transform: scale(1); } }
 /* Anchor the entrance to the element's TOP-LEFT — the node's authored position.
    With the default 50% 50% origin the keyframes' scale() pulls the card off its
@@ -343,7 +348,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
   const startStemEdit = () => { if (!canEditStem) return; setStemDraft(d.stem || ""); setStemEditing(true); };
   const commitStemEdit = () => { editStem?.(id, stemDraft); setStemEditing(false); };
   return (
-    <div data-ceq-card="" className="sa-pv-node sa-ceq-in" onAnimationEnd={(ev) => { if (ev.animationName === "sa-ceq-in") (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: "sa-ceq-in 300ms cubic-bezier(0.2,0.7,0.3,1) both" }}>
+    <div data-ceq-card="" className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.2,0.7,0.3,1) both" }}>
       {/* QUESTION 0 ribbon — unmistakably the LAYOUT stage, never content. */}
       {d.layoutBadge && !film && <span style={{ position: "absolute", top: -12, left: 12, borderRadius: 6, padding: "1px 8px", fontSize: 10, fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase", color: "#0B0F1E", background: NEON.yellow, zIndex: 21 }}>Layout</span>}
       {/* STUDENT PROGRESS — "X of Y" top-right + a slim fill bar along the top edge;
@@ -815,12 +820,50 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   const activeYOff = useMemo(() => (overviewOn ? activeIdx * (frameH + Math.round(frameH * 0.16)) : 0), [overviewOn, activeIdx, frameH]);
   // BOSS test cue (Lee): hear the cram-launch when you ADVANCE to a boss-flagged CEQ
   // in the previewer (not on the first open). Read the flag fresh from the main store.
+  // HARD PUSH (#4) — PageDown/PageUp deal with a DISTINCT fast vertical push (vs the Space
+  // walk's slide-fade) and support hold-to-repeat. `dealAnim` picks the card entrance;
+  // `repeatFiringRef` silences per-card sounds during a HELD repeat (single presses still
+  // sound); `holdRef` owns the timers; `navRef` keeps the deal callbacks fresh so a held
+  // interval always advances from the CURRENT question (the key effect re-binds every render).
+  const [dealAnim, setDealAnim] = useState<"in" | "pushDown" | "pushUp">("in");
+  const repeatFiringRef = useRef(false);
+  const holdRef = useRef<{ delay?: number; interval?: number; win: Window } | null>(null);
+  const navRef = useRef<{ next?: () => void; prev?: () => void }>({ next: onNextQuestion, prev: onPrevQuestion });
+  navRef.current.next = onNextQuestion; navRef.current.prev = onPrevQuestion;
+  const pushDeal = (dir: 1 | -1, silent: boolean) => {
+    setDealAnim(dir === 1 ? "pushDown" : "pushUp");
+    repeatFiringRef.current = silent; // silent = a held auto-repeat fire → no per-card sound
+    if (dir === 1) navRef.current.next?.(); else navRef.current.prev?.();
+  };
+  const clearHold = () => {
+    const h = holdRef.current; if (!h) return;
+    if (h.delay) h.win.clearTimeout(h.delay);
+    if (h.interval) h.win.clearInterval(h.interval);
+    holdRef.current = null;
+    repeatFiringRef.current = false;
+  };
+  // First press deals once WITH sound; hold 400ms, then repeat every 90ms (SILENT) so a held
+  // Page key rips the set in ~1s for the tease shot. gotoQuestion clamps at both ends (no
+  // wrap), so at a boundary the repeats simply no-op — it stops, never loops.
+  const startHold = (dir: 1 | -1, win: Window) => {
+    clearHold();
+    pushDeal(dir, false);
+    holdRef.current = { win };
+    holdRef.current.delay = win.setTimeout(() => {
+      if (!holdRef.current) return;
+      holdRef.current.interval = win.setInterval(() => pushDeal(dir, true), 90);
+    }, 400);
+  };
   const bossArmed = useRef(false);
   useEffect(() => {
     setEmph(null); setResolved(new Set()); setShown(new Map()); setSpots(EMPTY_SPOTS); // BLANK on open / question change
-    if (bossArmed.current && !!(mainRf.getNode(ceqId)?.data as { boss?: boolean } | undefined)?.boss) playSfx("cramLaunch");
+    // Suppress the boss cram-launch cue during a HELD repeat (single discrete deals still sound).
+    if (bossArmed.current && !repeatFiringRef.current && !!(mainRf.getNode(ceqId)?.data as { boss?: boolean } | undefined)?.boss) playSfx("cramLaunch");
     bossArmed.current = true;
   }, [ceqId, mainRf]);
+  // Stop any hold-to-repeat on UNMOUNT only — the main key effect re-runs every render, so it
+  // must NOT clear these timers; only a true unmount and keyup do.
+  useEffect(() => () => clearHold(), []); // eslint-disable-line react-hooks/exhaustive-deps
   const nChoices = cd?.choices.length ?? 0;
   const chainLenOf = (ci: number) => cd?.choices[ci]?.chain?.length ?? 0;
   const resetPractice = () => { setEmph(null); setResolved(new Set()); setShown(new Map()); };
@@ -941,7 +984,15 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     const pTot = deckCeqIds?.length ?? 0;
     const progress = student && pIdx >= 0 && pTot > 1 ? { x: pIdx + 1, y: pTot } : null;
     const topic = student && topicName ? topicName : null;
-    const ceqNode = { id: ceqId, type: "ceqPreview", position: { x: cs.x, y: yOff + cs.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cs.scale, layoutBadge: layoutMode, progress, topic }, draggable: true, zIndex: 1 };
+    // Card entrance: Space walk = slide-fade (sa-ceq-in); PageDown/PageUp = the HARD PUSH.
+    // Reduced-motion → instant (no animation) EXCEPT while recording — a filming surface must
+    // always move (#3), so the reduced-motion check is skipped when recording.
+    const reduceMotion = !recording && typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    const enterAnimName = dealAnim === "pushDown" ? "sa-ceq-push-down" : dealAnim === "pushUp" ? "sa-ceq-push-up" : "sa-ceq-in";
+    const enterAnim = reduceMotion ? "none"
+      : dealAnim === "pushDown" || dealAnim === "pushUp" ? `${enterAnimName} 180ms cubic-bezier(0.16,1,0.3,1) both`
+      : "sa-ceq-in 300ms cubic-bezier(0.2,0.7,0.3,1) both";
+    const ceqNode = { id: ceqId, type: "ceqPreview", position: { x: cs.x, y: yOff + cs.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cs.scale, layoutBadge: layoutMode, progress, topic, enterAnim, enterAnimName }, draggable: true, zIndex: 1 };
     // PLACEMENT: in Question 0 each stage chip IS its slot (whole rack, so inactive
     // ones stay visible to switch on). In a real question memos fill the ACTIVE slots
     // in order — inactive slots simply don't exist here. Past the last active slot,
@@ -1000,7 +1051,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     });
     return [...active, ...others] as typeof active;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, activeYOff, layoutMode, walk, viewChoice, guidesOn, showProgress, topicName, recording]);
+  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, activeYOff, layoutMode, walk, viewChoice, guidesOn, showProgress, topicName, recording, dealAnim]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   // A drag/resize writeback (commitGeom → onSaveInstance) bumps mainSig, which would
@@ -1399,7 +1450,8 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
         e.preventDefault(); e.stopImmediatePropagation();
         const isSpace = e.key === " " || e.code === "Space";
         if ((e.key === "r" || e.key === "R") && !e.ctrlKey && !e.metaKey && !e.altKey) { onExitRecording?.(); return; }
-        if (isSpace || e.key === "PageDown" || e.key === "PageUp") { const back = e.key === "PageUp" || (isSpace && e.shiftKey); if (back) onPrevQuestion?.(); else onNextQuestion?.(); return; }
+        if (isSpace) { setDealAnim("in"); repeatFiringRef.current = false; if (e.shiftKey) onPrevQuestion?.(); else onNextQuestion?.(); return; }
+        if (e.key === "PageDown" || e.key === "PageUp") { if (!e.repeat) startHold(e.key === "PageDown" ? 1 : -1, win); return; } // hard push + hold-to-repeat (tease shot)
         if (e.key === "Enter") { if (e.shiftKey) retreat(); else advance(); return; }
         if (e.shiftKey && (e.code === "Backquote" || e.key === "~" || e.key === "`")) { sweepMemos(); return; }
         return; // any other key: swallowed, no-op — protects the take
@@ -1434,10 +1486,17 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       // DEAL-ADVANCE between CEQs — Space / Shift+Space, plus Page Down / Page Up as a
       // presenter-remote-friendly pair (SAME handlers, no new walk logic). Page Down = deal
       // next (like Space), Page Up = reverse (like Shift+Space); Space still respects Shift.
-      if (e.key === " " || e.code === "Space" || e.key === "PageDown" || e.key === "PageUp") {
+      if (e.key === " " || e.code === "Space") {
         e.preventDefault(); e.stopImmediatePropagation();
-        const back = e.key === "PageUp" || ((e.key === " " || e.code === "Space") && e.shiftKey);
-        if (back) onPrevQuestion?.(); else onNextQuestion?.();
+        setDealAnim("in"); repeatFiringRef.current = false; // Space = the slide-fade walk (unchanged)
+        if (e.shiftKey) onPrevQuestion?.(); else onNextQuestion?.();
+        return;
+      }
+      // PAGE DOWN / PAGE UP (#4) — the HARD PUSH: a distinct, faster vertical deal + hold-to-
+      // repeat. Ignore the OS auto-repeat (e.repeat); startHold runs our own 400ms→90ms cadence.
+      if (e.key === "PageDown" || e.key === "PageUp") {
+        e.preventDefault(); e.stopImmediatePropagation();
+        if (!e.repeat) startHold(e.key === "PageDown" ? 1 : -1, win);
         return;
       }
       // ` = full reset (choices + memos). SHIFT+` = MEMO SWEEP: clear the memos off
@@ -1446,14 +1505,20 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
       if (e.key === "`" || e.code === "Backquote" || (e.shiftKey && e.key === "~")) { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) sweepMemos(); else { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); setPerfArrows([]); setSelPerf(null); } return; }
     };
     const onOwnerKey = (e: KeyboardEvent) => handle(e, ownerWin, false);
+    // Releasing Page Down / Page Up ends the hold-to-repeat (#4). clearHold is intentionally
+    // NOT called in this effect's cleanup — the effect re-binds every render; only keyup and
+    // the dedicated unmount effect stop the timers.
+    const onKeyUp = (e: KeyboardEvent) => { if (e.key === "PageDown" || e.key === "PageUp") clearHold(); };
     ownerWin.addEventListener("keydown", onOwnerKey, true);
+    ownerWin.addEventListener("keyup", onKeyUp, true);
     let filmCleanup: (() => void) | undefined;
     if (filmWin && filmWin !== ownerWin) {
       const onFilmKey = (e: KeyboardEvent) => handle(e, filmWin, true);
       filmWin.addEventListener("keydown", onFilmKey, true);
-      filmCleanup = () => filmWin.removeEventListener("keydown", onFilmKey, true);
+      filmWin.addEventListener("keyup", onKeyUp, true);
+      filmCleanup = () => { filmWin.removeEventListener("keydown", onFilmKey, true); filmWin.removeEventListener("keyup", onKeyUp, true); };
     }
-    return () => { ownerWin.removeEventListener("keydown", onOwnerKey, true); filmCleanup?.(); };
+    return () => { ownerWin.removeEventListener("keydown", onOwnerKey, true); ownerWin.removeEventListener("keyup", onKeyUp, true); filmCleanup?.(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emph, resolved, shown, cd, onNextQuestion, onPrevQuestion, filmWin, selPerf, recording]);
 
