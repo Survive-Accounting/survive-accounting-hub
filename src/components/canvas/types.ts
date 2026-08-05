@@ -297,11 +297,18 @@ export interface CeqChainItem {
 /** A staged raw video clip (in the Supabase canvas-media bucket) attached to a CEQ
  *  take slot / a set's intro-outro / the shared transition. Additive, scene JSON —
  *  no SQL. `prev` keeps ONE prior version when a slot is re-dropped. */
+/** What a clip IS, chosen on upload — drives the Type column + the auto-name. Content
+ *  roles (hook/explain/echo) tag a CEQ's clips; frontBumper/backBumper are the global
+ *  bumper clips stitched after the intro / before the outro. */
+export type TakeRole = "hook" | "explain" | "echo" | "frontBumper" | "backBumper";
+
 export interface TakeRef {
   url: string;   // durable public URL (Supabase)
   path: string;  // storage path in canvas-media
-  name?: string; // original filename
+  name?: string; // original filename (auto-set from the role on upload)
   duration?: number; // seconds, read at attach
+  /** The clip's designated type (chosen on upload). */
+  role?: TakeRole;
   prev?: { url: string; path: string; name?: string; duration?: number };
   /** REFERENCE PICKER (Lee, lookback) — for a lookback clip in a CEQ's stack: the
    *  ceqIds of EARLIER questions this clip reviews. Base clips usually have none.

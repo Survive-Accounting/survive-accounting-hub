@@ -2,7 +2,7 @@
 // order only, Free filters to free-flagged, clip-less CEQs are skipped → missing.
 import { expect, test } from "bun:test";
 
-import { buildStitch, stitchManifest, stitchRuntime } from "./ceq-takes";
+import { autoClipName, buildStitch, stitchManifest, stitchRuntime } from "./ceq-takes";
 import type { TakeRef } from "./types";
 
 const t = (dur: number): TakeRef => ({ url: `u${dur}`, path: `p${dur}`, duration: dur });
@@ -94,4 +94,25 @@ test("manifest tags the SET INTRO as kind 'intro' — not a ceqId entry; boilerp
   expect(intro.clip).toBe(0);
   expect(intro.start).toBe(3); // after the 3s boilerplate
   expect(intro.end).toBe(11);
+});
+
+test("BUMPERS: front after intro/before hook, back after wrap/before outro", () => {
+  const { items } = buildStitch("full", {
+    intro: t(3), hook: t(8), outro: t(4), wrap: [t(6)],
+    frontBumpers: [t(1), t(2)], backBumpers: [t(5)],
+    ceqs: [{ id: "a", prompt: "A", take: t(10), free: true }],
+  });
+  expect(items.map((i) => i.kind)).toEqual(["intro", "frontBumper", "frontBumper", "hook", "ceq", "wrap", "backBumper", "outro"]);
+  expect(items.filter((i) => i.kind === "frontBumper").map((i) => i.clip)).toEqual([0, 1]);
+  expect(items.filter((i) => i.kind === "backBumper").map((i) => i.clip)).toEqual([0]);
+  expect(stitchRuntime(items)).toBe(3 + 1 + 2 + 8 + 10 + 6 + 5 + 4);
+});
+
+test("autoClipName: front 01,02… · back 1001,1002… · content role-NN", () => {
+  expect(autoClipName("frontBumper", 1, "mp4")).toBe("front-bumper-01.mp4");
+  expect(autoClipName("frontBumper", 12, "mov")).toBe("front-bumper-12.mov");
+  expect(autoClipName("backBumper", 1)).toBe("back-bumper-1001.mp4");
+  expect(autoClipName("backBumper", 3)).toBe("back-bumper-1003.mp4");
+  expect(autoClipName("hook", 2, "mp4")).toBe("hook-02.mp4");
+  expect(autoClipName(undefined, 1, "mp4")).toBe("clip-01.mp4");
 });

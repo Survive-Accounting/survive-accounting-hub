@@ -24,7 +24,7 @@ import { MemoPickerModal } from "./MemoPickerModal";
 import { activeSlots, CeqPreviewer, dealCentre, defaultMemoPos, paletteSlots, rackOf } from "./CeqPreviewer";
 import { resolveCardSpot, resolveMemoSpot, stampFromTemplate, withInstanceSpot, type Spot } from "./ceq-geom";
 import { seedCeqSets } from "./ceq-seed";
-import { buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, stageTake, stitchManifest, stitchRuntime, videoFromDrop, videosFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
+import { autoClipName, buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, stageTake, stitchManifest, stitchRuntime, videoFromDrop, videosFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
 import { buildSetExport } from "./ceq-export";
 import { MISCONCEPTION_SEEDS, questionMisconceptions, toSlug } from "./ceq-misconceptions";
 import { ingestNumOf } from "./ceq-walk";
@@ -36,7 +36,7 @@ import { renderStitchViaWorker, wakeRenderWorker } from "./render-worker-client"
 import type { LessonBox } from "./types";
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { useFrameNav } from "./FrameNavContext";
-import { cardId, type CeqCard, type ChainSound, type CeqChainItem, type CeqChoice, type CeqInstanceGeom, type DeckDef, type DeckLayout, type DeckSlotLayout, type GlobalClips, type TakeRef } from "./types";
+import { cardId, type CeqCard, type ChainSound, type CeqChainItem, type CeqChoice, type CeqInstanceGeom, type DeckDef, type DeckLayout, type DeckSlotLayout, type GlobalClips, type TakeRef, type TakeRole } from "./types";
 import { NEON } from "./theme";
 import { BufferedInput, BufferedTextarea } from "./ui";
 
@@ -385,16 +385,22 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   // stitch lists and publish all read these, so what you preview is what publishes.
   const resolvedIntro = deck?.intro ?? gc.intro;
   const resolvedOutro = deck?.outro ?? gc.outro;
-  const stitchFree = useMemo(() => buildStitch("free", { intro: resolvedIntro, hook: deck?.hookTake, outro: resolvedOutro, wrap: deck?.wrap, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, gc.transition, deck?.wrap, deck?.hookTake]);
-  const stitchFull = useMemo(() => buildStitch("full", { intro: resolvedIntro, hook: deck?.hookTake, outro: resolvedOutro, wrap: deck?.wrap, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, gc.transition, deck?.wrap, deck?.hookTake]);
+  const frontBumpers = prefs.frontBumpers ?? [];
+  const backBumpers = prefs.backBumpers ?? [];
+  const stitchFree = useMemo(() => buildStitch("free", { intro: resolvedIntro, hook: deck?.hookTake, outro: resolvedOutro, wrap: deck?.wrap, frontBumpers, backBumpers, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, gc.transition, deck?.wrap, deck?.hookTake, frontBumpers, backBumpers]);
+  const stitchFull = useMemo(() => buildStitch("full", { intro: resolvedIntro, hook: deck?.hookTake, outro: resolvedOutro, wrap: deck?.wrap, frontBumpers, backBumpers, ceqs: stitchCeqs }), [stitchCeqs, resolvedIntro, resolvedOutro, gc.transition, deck?.wrap, deck?.hookTake, frontBumpers, backBumpers]);
   const freeCount = stitchCeqs.filter((c) => c.free).length;
   /** PREVIEW ROWS — the cut's FULL order including clip-less CEQs (greyed 1..N
-   *  in the Preview tab's list), interleaved at their deck positions: leading
-   *  intro/hook items, then every cut CEQ (clips or placeholder), then wrap/outro. */
+   *  in the Preview tab's list), interleaved at their deck positions: intro/front
+   *  bumpers/hook, then every cut CEQ (clips or placeholder), then wrap/back bumpers/outro.
+   *  Bumper + wrap rows carry their INDEX (it.clip) so the table's ✕/＋ hit the right clip. */
   const stitchRowsFor = (mode: "free" | "full"): StitchRow[] => {
     const stitch = mode === "free" ? stitchFree : stitchFull;
     const rows: Omit<StitchRow, "num">[] = [];
-    for (const it of stitch.items) { if (it.kind === "ceq" || it.kind === "wrap" || it.kind === "outro") break; rows.push({ key: it.kind, kind: it.kind, label: it.label, take: it.take }); }
+    for (const it of stitch.items) {
+      if (it.kind === "ceq" || it.kind === "wrap" || it.kind === "backBumper" || it.kind === "outro") break;
+      rows.push({ key: it.kind === "frontBumper" ? `frontBumper:${it.clip}` : it.kind, kind: it.kind, label: it.label, take: it.take, clip: it.kind === "frontBumper" ? it.clip : undefined });
+    }
     const ceqItems = stitch.items.filter((i) => i.kind === "ceq");
     for (const c of stitchCeqs) {
       if (mode === "free" && !c.free) continue;
@@ -402,9 +408,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       if (its.length) its.forEach((it, k) => rows.push({ key: `${c.id}:${k}`, kind: "ceq", label: it.label, take: it.take, ceqId: c.id, clip: k }));
       else rows.push({ key: `${c.id}:missing`, kind: "ceq", label: c.prompt || "Question", ceqId: c.id, clip: 0 });
     }
-    // wrap rows carry their INDEX in deck.wrap (it.clip) so the table's ✕/＋ hit the
-    // right clip; outro has no per-clip actions.
-    stitch.items.forEach((it, i) => { if (it.kind === "wrap" || it.kind === "outro") rows.push({ key: `${it.kind}:${i}`, kind: it.kind, label: it.label, take: it.take, clip: it.kind === "wrap" ? it.clip : undefined }); });
+    stitch.items.forEach((it, i) => { if (it.kind === "wrap" || it.kind === "backBumper" || it.kind === "outro") rows.push({ key: `${it.kind}:${i}`, kind: it.kind, label: it.label, take: it.take, clip: (it.kind === "wrap" || it.kind === "backBumper") ? it.clip : undefined }); });
     return rows.map((r, i) => ({ ...r, num: i + 1 }));
   };
   const stitchRows = useMemo(() => ({ free: stitchRowsFor("free"), full: stitchRowsFor("full") }), [stitchFree, stitchFull, stitchCeqs]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -421,11 +425,14 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     patchQ(ceqId, { takes: next, take: undefined });
     setNote(`${clips.length ? `Clip ${clip + 1} replaced` : "Take attached"} (${fmtDur(fresh.duration)}).`);
   };
-  const addClipAfter = async (ceqId: string, clip: number, file: File) => {
+  const addClipAfter = async (ceqId: string, clip: number, file: File, role?: TakeRole) => {
     if (!rf.getNode(ceqId)) throw new Error("That question no longer exists in this set.");
-    const fresh = await stageTake(file);
+    const staged = await stageTake(file);
     const clips = cardClips(rf.getNode(ceqId)?.data as unknown as CeqCard | undefined);
     const at = Math.min(Math.max(clip + 1, 0), clips.length);
+    // Stamp the chosen type + an auto filename (role-NN) so the Type column + exports read it.
+    const ext = file.name.includes(".") ? file.name.split(".").pop()! : "mp4";
+    const fresh: TakeRef = role ? { ...staged, role, name: autoClipName(role, at + 1, ext) } : staged;
     const next = [...clips.slice(0, at), fresh, ...clips.slice(at)];
     patchQ(ceqId, { takes: next, take: undefined });
     setNote(`Clip added (${fmtDur(fresh.duration)}) — ${next.length} on this question.`);
@@ -436,6 +443,28 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     const next = clips.filter((_, i) => i !== clip);
     patchQ(ceqId, { takes: next, take: undefined });
     setNote(next.length ? `Clip removed — ${next.length} left (Ctrl+Z to undo).` : "Last clip removed — this question has no clip now (Ctrl+Z to undo).");
+  };
+  /** Change an existing CEQ clip's TYPE (Type-column dropdown). */
+  const setClipRole = (ceqId: string, clip: number, role: TakeRole) => {
+    const clips = cardClips(rf.getNode(ceqId)?.data as unknown as CeqCard | undefined);
+    if (!clips[clip]) return;
+    patchQ(ceqId, { takes: clips.map((c, i) => (i === clip ? { ...c, role } : c)), take: undefined });
+  };
+  /** FRONT / BACK BUMPERS — global clips (prefs) stitched after the intro / before the
+   *  outro. Add appends (auto-named 01,02,03… / 1001,1002…); delete removes by index. */
+  const addBumper = async (kind: "frontBumper" | "backBumper", file: File) => {
+    const staged = await stageTake(file);
+    const list = (kind === "frontBumper" ? prefs.frontBumpers : prefs.backBumpers) ?? [];
+    const ext = file.name.includes(".") ? file.name.split(".").pop()! : "mp4";
+    const fresh: TakeRef = { ...staged, role: kind, name: autoClipName(kind, list.length + 1, ext) };
+    setPrefs(kind === "frontBumper" ? { frontBumpers: [...list, fresh] } : { backBumpers: [...list, fresh] });
+    setNote(`${kind === "frontBumper" ? "Front" : "Back"} bumper added (${fmtDur(fresh.duration)}) — ${list.length + 1} total.`);
+  };
+  const deleteBumper = (kind: "frontBumper" | "backBumper", idx: number) => {
+    const list = (kind === "frontBumper" ? prefs.frontBumpers : prefs.backBumpers) ?? [];
+    const next = list.filter((_, i) => i !== idx);
+    setPrefs(kind === "frontBumper" ? { frontBumpers: next } : { backBumpers: next });
+    setNote(`${kind === "frontBumper" ? "Front" : "Back"} bumper removed — ${next.length} left.`);
   };
   // SHORTS QUEUE (Lee) — every shorts-flagged CEQ across ALL sets, with its set +
   // question number, stem and angle note. Lee's batch-filming worklist.
@@ -2025,7 +2054,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
               /* key: switching sets REMOUNTS the preview — a rendered file, seek
                  offsets and re-render flags from set A must never survive into
                  set B (review: seeks used B's offsets against A's video). */
-              <CeqStitch key={deck.id} freeRows={stitchRows.free} fullRows={stitchRows.full} initialMode="full" onExit={() => setPrefs({ topTab: "topics" })} onJumpCeq={(id) => setQId(id)} onReplaceClip={replaceClipAt} onAddClipAfter={addClipAfter} onDeleteClip={deleteClipAt} onAddWrap={(f) => dropSlot("wrap", f)} onDeleteWrap={removeWrapClip} />
+              <CeqStitch key={deck.id} freeRows={stitchRows.free} fullRows={stitchRows.full} initialMode="full" onExit={() => setPrefs({ topTab: "topics" })} onJumpCeq={(id) => setQId(id)} onReplaceClip={replaceClipAt} onAddClipAfter={addClipAfter} onDeleteClip={deleteClipAt} onSetClipRole={setClipRole} onAddWrap={(f) => dropSlot("wrap", f)} onDeleteWrap={removeWrapClip} onAddBumper={addBumper} onDeleteBumper={deleteBumper} />
             ) : (
               <div className="grid flex-1 place-items-center text-[11px]" style={{ color: NEON.muted }}>Open a set (pick one in the outline) to preview its stitch.</div>
             )

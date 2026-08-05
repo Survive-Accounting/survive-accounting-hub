@@ -13,8 +13,8 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, Loader2, Pause, Play, Plus, Upload, X, Zap } from "lucide-react";
 
-import { fmtDur, type StitchItem } from "./ceq-takes";
-import type { TakeRef } from "./types";
+import { CLIP_ROLES, fmtDur, ROLE_LABEL, type StitchItem } from "./ceq-takes";
+import type { TakeRef, TakeRole } from "./types";
 import { renderStitchViaWorker } from "./render-worker-client";
 import { DEFAULT_CROSSFADE_MS } from "./segment-assembly";
 import { NEON } from "./theme";
@@ -35,15 +35,19 @@ export interface StitchRow {
   clip?: number;
 }
 
-export function CeqStitch({ freeRows, fullRows, initialMode, onExit, onJumpCeq, onReplaceClip, onAddClipAfter, onDeleteClip, onAddWrap, onDeleteWrap }: {
+export function CeqStitch({ freeRows, fullRows, initialMode, onExit, onJumpCeq, onReplaceClip, onAddClipAfter, onDeleteClip, onSetClipRole, onAddWrap, onDeleteWrap, onAddBumper, onDeleteBumper }: {
   freeRows: StitchRow[]; fullRows: StitchRow[];
   initialMode: "free" | "full"; onExit: () => void; onJumpCeq?: (ceqId: string) => void;
-  /** All parent-owned + undoable. CEQ clips write the node's takes[]; wrap writes deck.wrap. */
+  /** All parent-owned + undoable. CEQ clips write the node's takes[]; wrap writes deck.wrap;
+   *  bumpers write the global prefs.frontBumpers/backBumpers. */
   onReplaceClip?: (ceqId: string, clip: number, file: File) => Promise<void>;
-  onAddClipAfter?: (ceqId: string, clip: number, file: File) => Promise<void>;
+  onAddClipAfter?: (ceqId: string, clip: number, file: File, role?: TakeRole) => Promise<void>;
   onDeleteClip?: (ceqId: string, clip: number) => void;
+  onSetClipRole?: (ceqId: string, clip: number, role: TakeRole) => void;
   onAddWrap?: (file: File) => Promise<void>;
   onDeleteWrap?: (idx: number) => void;
+  onAddBumper?: (kind: "frontBumper" | "backBumper", file: File) => Promise<void>;
+  onDeleteBumper?: (kind: "frontBumper" | "backBumper", idx: number) => void;
 }) {
   const [mode, setMode] = useState<"free" | "full">(initialMode);
   const rows = mode === "free" ? freeRows : fullRows;
@@ -60,9 +64,15 @@ export function CeqStitch({ freeRows, fullRows, initialMode, onExit, onJumpCeq, 
   const vidRef = useRef<HTMLVideoElement>(null);
   const renderedRef = useRef<HTMLVideoElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  // Which clip a pending file pick targets: the row + whether we're REPLACING that
-  // clip or ADDING a new one after it (one hidden <input> serves both).
-  const pendingPick = useRef<{ row: StitchRow; mode: "replace" | "add" } | null>(null);
+  // What the pending file pick targets: a CEQ/wrap clip (replace or add, with an
+  // optional role) or a global bumper. One hidden <input> serves all of them.
+  const pendingPick = useRef<
+    | { t: "clip"; row: StitchRow; mode: "replace" | "add"; role?: TakeRole }
+    | { t: "bumper"; kind: "frontBumper" | "backBumper" }
+    | null
+  >(null);
+  // Which CEQ row's ＋ type-picker menu is open (choose Hook/Explain/Echo before upload).
+  const [addMenu, setAddMenu] = useState<string | null>(null);
   // set when an upload should re-render once the parent's rows recompute — the
   // render must use the NEW take, so it waits for the rows prop to change.
   const reRenderOnRows = useRef(false);
@@ -120,17 +130,21 @@ export function CeqStitch({ freeRows, fullRows, initialMode, onExit, onJumpCeq, 
   // A shown render is now stale after any clip edit — drop it and re-render off the
   // recomputed rows. (Uploads + renders cross-disable, so no in-flight render races.)
   const invalidateRender = () => { if (rendered || renderNote) { renderEpoch.current++; setRendered(null); setRenderNote(null); reRenderOnRows.current = true; } };
-  const pick = (row: StitchRow, mode: "replace" | "add") => { pendingPick.current = { row, mode }; fileRef.current?.click(); };
+  const pick = (row: StitchRow, mode: "replace" | "add", role?: TakeRole) => { pendingPick.current = { t: "clip", row, mode, role }; setAddMenu(null); fileRef.current?.click(); };
+  const pickBumper = (kind: "frontBumper" | "backBumper") => { pendingPick.current = { t: "bumper", kind }; fileRef.current?.click(); };
   const onFile = async (f: File | null) => {
     const p = pendingPick.current; pendingPick.current = null;
     if (!f || !p) return;
-    const { row, mode } = p;
-    setUploadBusy(row.key); setRenderErr(null);
+    setUploadBusy(p.t === "clip" ? p.row.key : `add:${p.kind}`); setRenderErr(null);
     try {
-      if (row.kind === "ceq" && row.ceqId != null) {
-        if (mode === "replace") await onReplaceClip?.(row.ceqId, row.clip ?? 0, f);
-        else await onAddClipAfter?.(row.ceqId, row.clip ?? 0, f);
-      } else if (row.kind === "wrap" && mode === "add") await onAddWrap?.(f);
+      if (p.t === "bumper") await onAddBumper?.(p.kind, f);
+      else {
+        const { row, mode, role } = p;
+        if (row.kind === "ceq" && row.ceqId != null) {
+          if (mode === "replace") await onReplaceClip?.(row.ceqId, row.clip ?? 0, f);
+          else await onAddClipAfter?.(row.ceqId, row.clip ?? 0, f, role);
+        } else if (row.kind === "wrap" && mode === "add") await onAddWrap?.(f);
+      }
       invalidateRender();
     } catch (e) { setRenderErr(`Upload failed: ${e instanceof Error ? e.message : String(e)}`); }
     finally { setUploadBusy(null); }
@@ -139,6 +153,7 @@ export function CeqStitch({ freeRows, fullRows, initialMode, onExit, onJumpCeq, 
   const del = (row: StitchRow) => {
     if (row.kind === "ceq" && row.ceqId != null && row.take) onDeleteClip?.(row.ceqId, row.clip ?? 0);
     else if (row.kind === "wrap" && row.clip != null) onDeleteWrap?.(row.clip);
+    else if ((row.kind === "frontBumper" || row.kind === "backBumper") && row.clip != null) onDeleteBumper?.(row.kind, row.clip);
     else return;
     invalidateRender();
   };
@@ -192,47 +207,69 @@ export function CeqStitch({ freeRows, fullRows, initialMode, onExit, onJumpCeq, 
           get Replace / ＋ add / ✕ delete (all undoable via the editor's Ctrl+Z). */}
       <div className="min-h-0 overflow-y-auto border-t" style={{ flex: "1 1 45%", borderColor: NEON.borderSoft }}>
         {/* column header — sticky so it stays put while the list scrolls */}
-        <div className="sticky top-0 z-[1] flex items-center gap-1.5 border-b px-1.5 py-1 text-[7.5px] font-bold uppercase tracking-wide" style={{ background: "rgba(6,10,20,0.96)", borderColor: NEON.borderSoft, color: NEON.muted }}>
+        <div className="sticky top-0 z-[2] flex items-center gap-1.5 border-b px-1.5 py-1 text-[7.5px] font-bold uppercase tracking-wide" style={{ background: "rgba(6,10,20,0.96)", borderColor: NEON.borderSoft, color: NEON.muted }}>
           <span className="w-6 shrink-0 text-right">#</span>
-          <span className="w-16 shrink-0">Type</span>
+          <span className="w-[76px] shrink-0">Type</span>
           <span className="min-w-0 flex-1">CEQ</span>
           <span className="w-10 shrink-0 text-right">Length</span>
           <span className="w-[52px] shrink-0 text-center">·</span>
+        </div>
+        {/* GLOBAL BUMPERS — add clips after the intro / before the outro (any number). */}
+        <div className="flex items-center gap-1.5 border-b px-1.5 py-1 text-[8px] font-bold uppercase tracking-wide" style={{ borderColor: NEON.borderSoft, color: NEON.muted }}>
+          <span>Global bumpers</span>
+          <button className="rounded px-1.5 py-0.5 disabled:opacity-40" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} disabled={!!uploadBusy || rendering} onClick={() => pickBumper("frontBumper")} title="Add a FRONT bumper — a clip stitched right after the intro (01, 02, 03…)">＋ front</button>
+          <button className="rounded px-1.5 py-0.5 disabled:opacity-40" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} disabled={!!uploadBusy || rendering} onClick={() => pickBumper("backBumper")} title="Add a BACK bumper — a clip stitched right before the outro (1001, 1002…)">＋ back</button>
+          {uploadBusy?.startsWith("add:") && <Loader2 className="h-3 w-3 animate-spin" style={{ color: NEON.cyan }} />}
         </div>
         {rows.map((r) => {
           const isCur = !rendered && cur && r.key === cur.key;
           const has = !!r.take;
           const isCeq = r.kind === "ceq";
           const isWrap = r.kind === "wrap";
-          // Type cell: a CEQ clip reads base / look N; other positions read their kind.
-          const typeLabel = isCeq ? (has ? ((r.clip ?? 0) === 0 ? "base" : `look ${r.clip}`) : "base") : r.kind;
-          // CEQ cell: the question stem (or the position label for intro/wrap/outro),
-          // with the "— lookback N" suffix dropped (Type already says which clip).
+          const isBumper = r.kind === "frontBumper" || r.kind === "backBumper";
+          // Type badge for non-editable rows: bumpers read their label; other positions their kind.
+          const badge = isBumper ? ROLE_LABEL[r.kind as TakeRole] : isCeq ? "base" : r.kind;
+          // CEQ cell: the question stem (or the position label), with "— lookback N" dropped.
           const ceqLabel = r.label.replace(/ — lookback \d+$/, "");
           const busy = uploadBusy === r.key;
           const acting = !!uploadBusy || rendering;
           return (
-            <div key={r.key} className="flex w-full items-center gap-1.5 px-1.5 py-0.5 text-[10px]" style={{ background: isCur ? "rgba(252,163,17,0.14)" : "transparent" }}>
+            <div key={r.key} className="relative flex w-full items-center gap-1.5 px-1.5 py-0.5 text-[10px]" style={{ background: isCur ? "rgba(252,163,17,0.14)" : "transparent" }}>
+              <span className="w-6 shrink-0 text-right font-bold tabular-nums" style={{ color: has ? (isCur ? NEON.yellow : NEON.text) : "rgba(147,160,180,0.35)" }}>{r.num}</span>
+              {/* Type cell — an editable role dropdown for a CEQ clip (Hook/Explain/Echo),
+                  else a static badge (base / bumper / intro / wrap / outro). */}
+              {isCeq && has ? (
+                <select className="nodrag h-4.5 w-[76px] shrink-0 rounded px-0.5 text-[8.5px] font-bold" style={{ color: r.take!.role ? NEON.yellow : NEON.cyan, background: "transparent", border: `1px solid ${NEON.borderSoft}` }} value={r.take!.role ?? ""} onChange={(e) => { const v = e.target.value; if (v) onSetClipRole?.(r.ceqId!, r.clip ?? 0, v as TakeRole); }} title="Clip type — Hook / Explain / Echo">
+                  <option value="">{(r.clip ?? 0) === 0 ? "base" : `look ${r.clip}`}</option>
+                  {CLIP_ROLES.map((role) => <option key={role} value={role}>{ROLE_LABEL[role]}</option>)}
+                </select>
+              ) : (
+                <span className="w-[76px] shrink-0 truncate rounded px-1 text-[7.5px] font-bold uppercase" style={{ color: has ? (isBumper ? "#3BF5A0" : NEON.muted) : "rgba(147,160,180,0.35)", border: `1px solid ${NEON.borderSoft}` }}>{badge}</span>
+              )}
               <button className="flex min-w-0 flex-1 items-center gap-1.5 text-left disabled:cursor-default" onClick={() => clickRow(r)} title={has ? (rendered ? "Seek the rendered file to this clip" : "Play from this clip") : "No clip yet — nothing to play"}>
-                <span className="w-6 shrink-0 text-right font-bold tabular-nums" style={{ color: has ? (isCur ? NEON.yellow : NEON.text) : "rgba(147,160,180,0.35)" }}>{r.num}</span>
-                <span className="w-16 shrink-0 truncate rounded px-1 text-[7.5px] font-bold uppercase" style={{ color: has ? (isCeq ? NEON.cyan : NEON.muted) : "rgba(147,160,180,0.35)", border: `1px solid ${NEON.borderSoft}` }}>{typeLabel}</span>
                 <span className="min-w-0 flex-1 truncate" style={{ color: has ? (isCur ? NEON.yellow : NEON.text) : "rgba(147,160,180,0.45)", fontStyle: has ? undefined : "italic" }}>{ceqLabel}</span>
                 <span className="w-10 shrink-0 text-right tabular-nums" style={{ color: has ? NEON.muted : "rgba(147,160,180,0.35)" }}>{has ? fmtDur(r.take!.duration) : "—"}</span>
               </button>
-              {/* actions — CEQ rows: replace · add-below · delete. Wrap rows: add · delete.
-                  intro/hook/outro have no per-clip actions here (set once in the Videos panel). */}
+              {/* actions — CEQ: replace · add(+type) · delete · Wrap/Bumper: add · delete. */}
               <div className="flex w-[52px] shrink-0 items-center justify-end gap-0.5">
                 {busy ? (
                   <Loader2 className="h-3 w-3 animate-spin" style={{ color: NEON.cyan }} />
                 ) : isCeq ? (<>
                   <button className="grid h-4.5 w-4.5 place-items-center rounded disabled:opacity-40" style={{ color: has ? NEON.muted : NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} disabled={acting} onClick={() => pick(r, "replace")} title={has ? "Replace this clip (keeps one prior version)" : "Upload this question's first clip"}><Upload className="h-3 w-3" /></button>
-                  {has && <button className="grid h-4.5 w-4.5 place-items-center rounded disabled:opacity-40" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} disabled={acting} onClick={() => pick(r, "add")} title="Add a clip right after this one (lookback)"><Plus className="h-3 w-3" /></button>}
+                  {has && <button className="grid h-4.5 w-4.5 place-items-center rounded disabled:opacity-40" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} disabled={acting} onClick={() => setAddMenu((k) => (k === r.key ? null : r.key))} title="Add a clip after this one — pick its type"><Plus className="h-3 w-3" /></button>}
                   {has && <button className="grid h-4.5 w-4.5 place-items-center rounded disabled:opacity-40" style={{ color: NEON.red, border: `1px solid ${NEON.borderSoft}` }} disabled={acting} onClick={() => del(r)} title="Remove this clip (Ctrl+Z to undo)"><X className="h-3 w-3" /></button>}
-                </>) : isWrap ? (<>
-                  <button className="grid h-4.5 w-4.5 place-items-center rounded disabled:opacity-40" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} disabled={acting} onClick={() => pick(r, "add")} title="Add a wrap clip"><Plus className="h-3 w-3" /></button>
-                  <button className="grid h-4.5 w-4.5 place-items-center rounded disabled:opacity-40" style={{ color: NEON.red, border: `1px solid ${NEON.borderSoft}` }} disabled={acting} onClick={() => del(r)} title="Remove this wrap clip"><X className="h-3 w-3" /></button>
+                </>) : (isWrap || isBumper) ? (<>
+                  <button className="grid h-4.5 w-4.5 place-items-center rounded disabled:opacity-40" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} disabled={acting} onClick={() => (isBumper ? pickBumper(r.kind as "frontBumper" | "backBumper") : pick(r, "add"))} title={isBumper ? "Add another bumper of this kind" : "Add a wrap clip"}><Plus className="h-3 w-3" /></button>
+                  <button className="grid h-4.5 w-4.5 place-items-center rounded disabled:opacity-40" style={{ color: NEON.red, border: `1px solid ${NEON.borderSoft}` }} disabled={acting} onClick={() => del(r)} title={isBumper ? "Remove this bumper" : "Remove this wrap clip"}><X className="h-3 w-3" /></button>
                 </>) : null}
               </div>
+              {/* type picker for ＋ add on a CEQ row — choose the new clip's role, then upload. */}
+              {addMenu === r.key && (
+                <div className="absolute right-1 top-6 z-[3] flex flex-col gap-0.5 rounded-lg p-1" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 12px 30px -12px rgba(0,0,0,0.7)" }} onMouseLeave={() => setAddMenu(null)}>
+                  {CLIP_ROLES.map((role) => <button key={role} className="rounded px-2 py-0.5 text-left text-[9px] font-bold" style={{ color: NEON.text }} onClick={() => pick(r, "add", role)}>{ROLE_LABEL[role]}</button>)}
+                  <button className="rounded px-2 py-0.5 text-left text-[9px]" style={{ color: NEON.muted }} onClick={() => pick(r, "add")}>No type</button>
+                </div>
+              )}
             </div>
           );
         })}

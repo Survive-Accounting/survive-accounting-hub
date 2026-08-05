@@ -5,9 +5,21 @@
 // transition) — no SQL. Staging path: canvas-media/ceq-takes/raw-<uid>.<ext>.
 import { supabase } from "@/integrations/supabase/client";
 import { createPipelineTestStagingUpload } from "@/lib/publish.functions";
-import type { TakeRef } from "./types";
+import type { TakeRef, TakeRole } from "./types";
 
 export const CEQ_TAKES_FOLDER = "ceq-takes";
+
+/** Human labels for the clip roles (Type column + the type picker). */
+export const ROLE_LABEL: Record<TakeRole, string> = { hook: "Hook", explain: "Explain", echo: "Echo", frontBumper: "Front bumper", backBumper: "Back bumper" };
+/** The CONTENT roles a CEQ clip can carry (picked on upload); bumpers are their own lists. */
+export const CLIP_ROLES: TakeRole[] = ["hook", "explain", "echo"];
+/** Auto filename for a staged clip: role + zero-padded index. Lee's scheme — front
+ *  bumpers 01,02,03…; back (out) bumpers 1001,1002,1003…; content clips role-NN. */
+export function autoClipName(role: TakeRole | undefined, index1: number, ext = "mp4"): string {
+  if (role === "backBumper") return `back-bumper-${String(1000 + index1).padStart(4, "0")}.${ext}`;
+  if (role === "frontBumper") return `front-bumper-${String(index1).padStart(2, "0")}.${ext}`;
+  return `${role ?? "clip"}-${String(index1).padStart(2, "0")}.${ext}`;
+}
 
 /** Read a video file's duration (seconds) from its metadata; 0 on failure/timeout. */
 export function readDuration(file: File): Promise<number> {
@@ -55,15 +67,18 @@ export function videosFromDrop(e: React.DragEvent): File[] {
 export const fmtDur = (s?: number) => { const t = Math.max(0, Math.round(s ?? 0)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`; };
 
 // ---- DERIVED stitch lists (never stored independently) -----------------------
-export type StitchItem = { kind: "intro" | "hook" | "ceq" | "wrap" | "outro"; ceqId?: string; clip?: number; take: TakeRef; label: string };
+export type StitchItem = { kind: "intro" | "frontBumper" | "hook" | "ceq" | "wrap" | "backBumper" | "outro"; ceqId?: string; clip?: number; take: TakeRef; label: string };
 /** FULL = intro → transition → all clip-bearing CEQs in DECK ORDER (each CEQ's CLIP
  *  STACK plays base→lookbacks) → WRAP clips → outro. FREE = same but only free-flagged
  *  CEQs. A CEQ with NO clips is skipped and returned in `missing`. Order is derived
  *  from the passed ceqs (deck order) only. */
-export function buildStitch(mode: "free" | "full", opts: { intro?: TakeRef; hook?: TakeRef; outro?: TakeRef; wrap?: TakeRef[]; ceqs: { id: string; prompt: string; take?: TakeRef; takes?: TakeRef[]; free?: boolean }[] }): { items: StitchItem[]; missing: { id: string; prompt: string }[] } {
+export function buildStitch(mode: "free" | "full", opts: { intro?: TakeRef; hook?: TakeRef; outro?: TakeRef; wrap?: TakeRef[]; frontBumpers?: TakeRef[]; backBumpers?: TakeRef[]; ceqs: { id: string; prompt: string; take?: TakeRef; takes?: TakeRef[]; free?: boolean }[] }): { items: StitchItem[]; missing: { id: string; prompt: string }[] } {
   const items: StitchItem[] = [];
   const missing: { id: string; prompt: string }[] = [];
   if (opts.intro) items.push({ kind: "intro", take: opts.intro, label: "Intro" });
+  // FRONT BUMPERS (0..n) — global clips stitched right after the intro (extra hooks,
+  // sponsor tags, etc). Numbered 01,02,03… in the order given.
+  (opts.frontBumpers ?? []).forEach((t, i) => items.push({ kind: "frontBumper", clip: i, take: t, label: `Front bumper ${i + 1}` }));
   // SET INTRO (the filmed hook frame): boilerplate intro → THIS → the CEQ takes
   // (hard cut, no transition). Both cuts include it; absent ⇒ skipped silently.
   if (opts.hook) items.push({ kind: "hook", take: opts.hook, label: "Set intro" });
@@ -77,6 +92,9 @@ export function buildStitch(mode: "free" | "full", opts: { intro?: TakeRef; hook
   }
   // WRAP clips (0..n) — end-of-video lookback/summary, after the last question clip.
   (opts.wrap ?? []).forEach((t, i) => items.push({ kind: "wrap", clip: i, take: t, label: `Wrap ${i + 1}` }));
+  // BACK (OUT) BUMPERS (0..n) — global clips stitched right before the outro. Numbered
+  // 1001,1002,1003… (Lee's scheme) so they sort after everything else.
+  (opts.backBumpers ?? []).forEach((t, i) => items.push({ kind: "backBumper", clip: i, take: t, label: `Back bumper ${i + 1}` }));
   if (opts.outro) items.push({ kind: "outro", take: opts.outro, label: "Outro" });
   return { items, missing };
 }
@@ -109,7 +127,7 @@ export function stitchManifest(items: StitchItem[], crossfadeMs: number): { ceqI
 //      GLOBAL intro/outro clips). transition has always been shared (one file for
 //      every set); globalIntro/globalOutro extend that to intro & outro as a FALLBACK
 //      a set inherits when it has no local drop of its own (resolved = local ?? global). ----
-export interface CeqStudioPrefs { wrapStems?: boolean; wrapMemos?: boolean; transition?: TakeRef; videoLibOpen?: boolean; costOn?: boolean; globalIntro?: TakeRef; globalOutro?: TakeRef; memoScope?: "question" | "set" | "all"; setsOutline?: Record<string, boolean>; topTab?: "videos" | "topics" | "preview" | "student" | "sets" | "tools"; misconceptions?: Record<string, string>; warpIntro?: boolean }
+export interface CeqStudioPrefs { wrapStems?: boolean; wrapMemos?: boolean; transition?: TakeRef; videoLibOpen?: boolean; costOn?: boolean; globalIntro?: TakeRef; globalOutro?: TakeRef; frontBumpers?: TakeRef[]; backBumpers?: TakeRef[]; memoScope?: "question" | "set" | "all"; setsOutline?: Record<string, boolean>; topTab?: "videos" | "topics" | "preview" | "student" | "sets" | "tools"; misconceptions?: Record<string, string>; warpIntro?: boolean }
 const PREFS_KEY = "sa-ceq-studio-prefs";
 export function loadPrefs(): CeqStudioPrefs {
   try { return JSON.parse(localStorage.getItem(PREFS_KEY) || "{}") as CeqStudioPrefs; } catch { return {}; }
