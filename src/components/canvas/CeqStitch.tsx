@@ -33,9 +33,11 @@ export interface StitchRow {
    *  (0 = base, 1+ = lookbacks), or the wrap clip's index in deck.wrap. Lets the
    *  table's ✕ / ＋ / replace hit exactly this clip, not just the base take. */
   clip?: number;
+  /** ceq rows only — whether this question is in the FREE cut (recording-mode $/🆓 toggle). */
+  free?: boolean;
 }
 
-export function CeqStitch({ freeRows, fullRows, initialMode, onExit, onJumpCeq, onReplaceClip, onAddClipAfter, onDeleteClip, onSetClipRole, onAddWrap, onDeleteWrap, onAddBumper, onDeleteBumper }: {
+export function CeqStitch({ freeRows, fullRows, initialMode, onExit, onJumpCeq, onReplaceClip, onAddClipAfter, onDeleteClip, onSetClipRole, onToggleFree, onAddWrap, onDeleteWrap, onAddBumper, onDeleteBumper }: {
   freeRows: StitchRow[]; fullRows: StitchRow[];
   initialMode: "free" | "full"; onExit: () => void; onJumpCeq?: (ceqId: string) => void;
   /** All parent-owned + undoable. CEQ clips write the node's takes[]; wrap writes deck.wrap;
@@ -44,12 +46,16 @@ export function CeqStitch({ freeRows, fullRows, initialMode, onExit, onJumpCeq, 
   onAddClipAfter?: (ceqId: string, clip: number, file: File, role?: TakeRole) => Promise<void>;
   onDeleteClip?: (ceqId: string, clip: number) => void;
   onSetClipRole?: (ceqId: string, clip: number, role: TakeRole) => void;
+  /** Toggle a question's FREE flag from the recording cockpit. */
+  onToggleFree?: (ceqId: string) => void;
   onAddWrap?: (file: File) => Promise<void>;
   onDeleteWrap?: (idx: number) => void;
   onAddBumper?: (kind: "frontBumper" | "backBumper", file: File) => Promise<void>;
   onDeleteBumper?: (kind: "frontBumper" | "backBumper", idx: number) => void;
 }) {
   const [mode, setMode] = useState<"free" | "full">(initialMode);
+  // RECORDING-MODE planning: a target seconds/clip → projected runtime vs the actual cut.
+  const [targetAvg, setTargetAvg] = useState(20);
   const rows = mode === "free" ? freeRows : fullRows;
   const playable = rows.filter((r) => r.take);
   const missingCount = rows.length - playable.length;
@@ -180,7 +186,15 @@ export function CeqStitch({ freeRows, fullRows, initialMode, onExit, onJumpCeq, 
         >
           {rendering ? <Loader2 className="h-3 w-3 animate-spin" /> : <Zap className="h-3 w-3" />} {rendered ? "clips" : "true render"}
         </button>
-        <span className="ml-auto text-[10px] tabular-nums" style={{ color: NEON.cyan }}>~{fmtDur(total)} total{missingCount ? ` · ${missingCount} missing` : ""}</span>
+        <span className="ml-auto text-[10px] tabular-nums" style={{ color: NEON.cyan }}>~{fmtDur(total)} total</span>
+      </div>
+      {/* PLANNING STRIP (recording mode) — dial a target seconds/clip; see the projected
+          runtime (target × positions) against the actual cut, and how many are still to go. */}
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-2 py-1 text-[9px]" style={{ borderColor: NEON.borderSoft, color: NEON.muted }}>
+        <span className="font-bold uppercase tracking-wide" style={{ color: NEON.cyan }}>Plan</span>
+        <input className="nodrag h-1 w-24 cursor-pointer" type="range" min={5} max={90} step={1} value={targetAvg} onChange={(e) => setTargetAvg(+e.target.value)} title="Target seconds per clip — plan the pace" />
+        <span className="tabular-nums" style={{ color: NEON.text }}>{targetAvg}s/clip × {rows.length} = ~{fmtDur(targetAvg * rows.length)}</span>
+        <span className="ml-auto tabular-nums">actual ~{fmtDur(total)} · {playable.length}/{rows.length} filmed{missingCount ? ` · ${missingCount} to go` : " · all in ✓"}</span>
       </div>
       {/* render status / error strip */}
       {(renderNote || renderErr) && (
@@ -246,6 +260,10 @@ export function CeqStitch({ freeRows, fullRows, initialMode, onExit, onJumpCeq, 
               ) : (
                 <span className="w-[76px] shrink-0 truncate rounded px-1 text-[7.5px] font-bold uppercase" style={{ color: has ? (isBumper ? "#3BF5A0" : NEON.muted) : "rgba(147,160,180,0.35)", border: `1px solid ${NEON.borderSoft}` }}>{badge}</span>
               )}
+              {/* PAID / FREE — recording-mode toggle, once per question (base row). */}
+              {isCeq && (r.clip ?? 0) === 0 && onToggleFree ? (
+                <button className="nodrag grid h-4 shrink-0 place-items-center rounded px-1 text-[8px] font-black leading-none" style={r.free ? { color: "#04120B", background: "#3BF5A0", border: "1px solid #3BF5A0" } : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={(e) => { e.stopPropagation(); onToggleFree(r.ceqId!); }} title={r.free ? "FREE — in the free cut. Click to make it paid." : "Paid (default). Click to move it into the FREE cut."}>{r.free ? "🆓" : "$"}</button>
+              ) : <span className="w-4 shrink-0" />}
               <button className="flex min-w-0 flex-1 items-center gap-1.5 text-left disabled:cursor-default" onClick={() => clickRow(r)} title={has ? (rendered ? "Seek the rendered file to this clip" : "Play from this clip") : "No clip yet — nothing to play"}>
                 <span className="min-w-0 flex-1 truncate" style={{ color: has ? (isCur ? NEON.yellow : NEON.text) : "rgba(147,160,180,0.45)", fontStyle: has ? undefined : "italic" }}>{ceqLabel}</span>
                 <span className="w-10 shrink-0 text-right tabular-nums" style={{ color: has ? NEON.muted : "rgba(147,160,180,0.35)" }}>{has ? fmtDur(r.take!.duration) : "—"}</span>

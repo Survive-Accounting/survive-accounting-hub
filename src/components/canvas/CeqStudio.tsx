@@ -405,8 +405,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     for (const c of stitchCeqs) {
       if (mode === "free" && !c.free) continue;
       const its = ceqItems.filter((i) => i.ceqId === c.id);
-      if (its.length) its.forEach((it, k) => rows.push({ key: `${c.id}:${k}`, kind: "ceq", label: it.label, take: it.take, ceqId: c.id, clip: k }));
-      else rows.push({ key: `${c.id}:missing`, kind: "ceq", label: c.prompt || "Question", ceqId: c.id, clip: 0 });
+      if (its.length) its.forEach((it, k) => rows.push({ key: `${c.id}:${k}`, kind: "ceq", label: it.label, take: it.take, ceqId: c.id, clip: k, free: c.free }));
+      else rows.push({ key: `${c.id}:missing`, kind: "ceq", label: c.prompt || "Question", ceqId: c.id, clip: 0, free: c.free });
     }
     stitch.items.forEach((it, i) => { if (it.kind === "wrap" || it.kind === "backBumper" || it.kind === "outro") rows.push({ key: `${it.kind}:${i}`, kind: it.kind, label: it.label, take: it.take, clip: (it.kind === "wrap" || it.kind === "backBumper") ? it.clip : undefined }); });
     return rows.map((r, i) => ({ ...r, num: i + 1 }));
@@ -2054,7 +2054,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
               /* key: switching sets REMOUNTS the preview — a rendered file, seek
                  offsets and re-render flags from set A must never survive into
                  set B (review: seeks used B's offsets against A's video). */
-              <CeqStitch key={deck.id} freeRows={stitchRows.free} fullRows={stitchRows.full} initialMode="full" onExit={() => setPrefs({ topTab: "topics" })} onJumpCeq={(id) => setQId(id)} onReplaceClip={replaceClipAt} onAddClipAfter={addClipAfter} onDeleteClip={deleteClipAt} onSetClipRole={setClipRole} onAddWrap={(f) => dropSlot("wrap", f)} onDeleteWrap={removeWrapClip} onAddBumper={addBumper} onDeleteBumper={deleteBumper} />
+              <CeqStitch key={deck.id} freeRows={stitchRows.free} fullRows={stitchRows.full} initialMode="full" onExit={() => setPrefs({ topTab: "topics" })} onJumpCeq={(id) => setQId(id)} onReplaceClip={replaceClipAt} onAddClipAfter={addClipAfter} onDeleteClip={deleteClipAt} onSetClipRole={setClipRole} onToggleFree={(id) => patchQ(id, { free: !(rf.getNode(id)?.data as unknown as CeqCard | undefined)?.free })} onAddWrap={(f) => dropSlot("wrap", f)} onDeleteWrap={removeWrapClip} onAddBumper={addBumper} onDeleteBumper={deleteBumper} />
             ) : (
               <div className="grid flex-1 place-items-center text-[11px]" style={{ color: NEON.muted }}>Open a set (pick one in the outline) to preview its stitch.</div>
             )
@@ -2405,8 +2405,9 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
           </>)}
         </div>
 
-        {/* PANE 3 — MEMO LIBRARY (collapsible to a thin rail to give the previewer room) */}
-        {!libOpen ? (
+        {/* PANE 3 — MEMO LIBRARY (collapsible to a thin rail). HIDDEN in Preview: that
+            view is Recording mode — a filming cockpit, no memo library. */}
+        {topTab === "preview" ? null : !libOpen ? (
           <button className="flex w-8 shrink-0 flex-col items-center gap-2 rounded-lg py-2" style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)", color: NEON.cyan }} onClick={() => setLibOpen(true)} title="Show the memo library">
             <Library className="h-4 w-4" />
             <span className="text-[9px] font-bold uppercase tracking-wider" style={{ writingMode: "vertical-rl" }}>Memos ({memos.length})</span>
