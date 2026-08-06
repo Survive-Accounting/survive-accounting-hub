@@ -1228,6 +1228,10 @@ export interface DeckDef {
    *  the Studio ("Live on student side"), no publish flow. Student-side queries MUST filter
    *  status='live' SERVER-SIDE — draft content must never reach the client at all. */
   status?: "draft" | "live";
+  /** PAYWALL (Lee, #7): per-set access — 'paid' locks the set behind checkout, 'free' (the
+   *  default when absent) is playable signed-out. NEVER a hardcoded chapter/position — the
+   *  line moves and the product is textbook-agnostic. */
+  access?: "free" | "paid";
   /** DECK ↔ FRAME (F3): a deck attached to a FRAME lays its skeleton grid INSIDE
    *  that frame's bounds — a lesson's Check frame holds its CEQ deck + grid. */
   frameId?: string | null;
