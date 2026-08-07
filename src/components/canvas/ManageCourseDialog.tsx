@@ -16,6 +16,7 @@ import { Archive, ArchiveRestore, GripVertical, Pencil, Plus, X } from "lucide-r
 
 import { createChapter, listChaptersAdmin, renameChapter, renameCourse, reorderChapters, setChapterStatus, type ChapterRow } from "@/lib/canvas.functions";
 import { createExamUnit, listExamUnits, renameExamUnit, reorderExamUnits, setExamUnitStatus, setUnitChapters, type ExamUnitRow } from "@/lib/exam-units.functions";
+import { listCampusChapterOverrides, reorderCampusChapters, searchCampuses, setCampusChapterOverride, type CampusOverrideRow } from "@/lib/campus-overrides.functions";
 import { retryUnlessMigrationHint } from "@/lib/pg-errors";
 import { NEON } from "./theme";
 
@@ -35,6 +36,10 @@ export function ManageCourseDialog({ courseId, courseName, onClose }: {
   const [unitEditing, setUnitEditing] = useState<{ id: string; name: string } | null>(null);
   const [unitDragId, setUnitDragId] = useState<string | null>(null);
   const [expandedUnit, setExpandedUnit] = useState<string | null>(null);
+  // Campus overrides (Prompt 3) — pick a campus to edit its own chapter numbers + order.
+  const [campusSel, setCampusSel] = useState<{ id: string; name: string } | null>(null);
+  const [campusSearch, setCampusSearch] = useState("");
+  const [campusDragId, setCampusDragId] = useState<string | null>(null);
 
   const chaptersQuery = useQuery({
     queryKey: ["chapters-admin", courseId],
@@ -117,6 +122,49 @@ export function ManageCourseDialog({ courseId, courseName, onClose }: {
   const toggleUnitChapter = (u: ExamUnitRow, chapterId: string) => {
     const next = u.chapter_ids.includes(chapterId) ? u.chapter_ids.filter((x) => x !== chapterId) : [...u.chapter_ids, chapterId];
     setChaptersMut.mutate({ exam_unit_id: u.id, chapter_ids: next });
+  };
+
+  // ---- CAMPUS OVERRIDES (Prompt 3) ----
+  const activeIds = useMemo(() => active.map((c) => c.id), [active]);
+  const campusSearchQ = useQuery({ queryKey: ["campus-search", campusSearch], queryFn: () => searchCampuses({ data: { q: campusSearch } }), enabled: campusSearch.trim().length >= 2, networkMode: "always" });
+  const overridesQ = useQuery({ queryKey: ["campus-overrides", campusSel?.id, activeIds], queryFn: () => listCampusChapterOverrides({ data: { campus_id: campusSel!.id, chapter_ids: activeIds } }), enabled: !!campusSel && activeIds.length > 0, networkMode: "always", retry: retryUnlessMigrationHint });
+  const overrideByChapter = useMemo(() => { const m = new Map<string, CampusOverrideRow>(); for (const r of overridesQ.data ?? []) m.set(r.chapter_id, r); return m; }, [overridesQ.data]);
+  const invalidateOverrides = () => void qc.invalidateQueries({ queryKey: ["campus-overrides", campusSel?.id] });
+  const setOverrideMut = useMutation({ mutationFn: (v: { chapter_id: string; local_number: number | null; local_order: number | null }) => setCampusChapterOverride({ data: { campus_id: campusSel!.id, chapter_id: v.chapter_id, local_number: v.local_number, local_order: v.local_order } }), onSuccess: invalidateOverrides, onError: onErr });
+  const reorderCampusMut = useMutation({ mutationFn: (ids: string[]) => reorderCampusChapters({ data: { campus_id: campusSel!.id, ordered_chapter_ids: ids } }), onSuccess: invalidateOverrides, onError: onErr });
+  const campusChapters = useMemo(() => (campusSel ? [...active].sort((a, b) => (overrideByChapter.get(a.id)?.local_order ?? a.chapter_number) - (overrideByChapter.get(b.id)?.local_order ?? b.chapter_number)) : []), [campusSel, active, overrideByChapter]);
+  const onCampusDrop = (targetId: string) => {
+    if (!campusDragId || campusDragId === targetId) return;
+    const ids = campusChapters.map((c) => c.id);
+    const from = ids.indexOf(campusDragId), to = ids.indexOf(targetId);
+    if (from === -1 || to === -1) return;
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    setCampusDragId(null);
+    reorderCampusMut.mutate(ids);
+  };
+  const campusChapterRow = (ch: ChapterRow) => {
+    const o = overrideByChapter.get(ch.id);
+    const effNumber = o?.local_number ?? ch.chapter_number;
+    return (
+      <div key={ch.id} draggable onDragStart={() => setCampusDragId(ch.id)} onDragOver={(ev) => ev.preventDefault()} onDrop={() => onCampusDrop(ch.id)} className="flex items-center gap-2 rounded px-1.5 py-1" style={{ border: `1px solid ${NEON.borderSoft}`, opacity: campusDragId === ch.id ? 0.4 : 1 }}>
+        <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab" style={{ color: NEON.muted }} />
+        <input
+          type="number"
+          className="w-12 shrink-0 rounded bg-black/30 px-1 py-0.5 text-center text-[11px] outline-none"
+          style={{ border: `1px solid ${o ? NEON.cyan : NEON.borderSoft}`, color: NEON.text }}
+          value={effNumber ?? ""}
+          title="This campus's chapter number"
+          onKeyDown={(ev) => ev.stopPropagation()}
+          onChange={(ev) => { const n = ev.target.value === "" ? null : Number(ev.target.value); if (n !== null && Number.isNaN(n)) return; setOverrideMut.mutate({ chapter_id: ch.id, local_number: n, local_order: o?.local_order ?? null }); }}
+        />
+        <span className="min-w-0 flex-1 truncate text-[11.5px]" style={{ color: NEON.text }}>{ch.chapter_name}</span>
+        {o ? (
+          <button className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: "1px solid rgba(79,163,227,0.45)" }} title="Reset to the course default (clears this campus's override)" onClick={() => setOverrideMut.mutate({ chapter_id: ch.id, local_number: null, local_order: null })}>reset</button>
+        ) : (
+          <span className="shrink-0 text-[9px] uppercase tracking-wide" style={{ color: NEON.muted }}>default</span>
+        )}
+      </div>
+    );
   };
 
   const chapterRow = (ch: ChapterRow, kind: "active" | "archived") => (
@@ -230,10 +278,38 @@ export function ManageCourseDialog({ courseId, courseName, onClose }: {
           </div>
         </label>
 
+        {/* CAMPUS OVERRIDES (Prompt 3) — edit numbers + order for a specific campus (sparse). */}
+        <div className="mb-2 flex items-center gap-2 rounded px-1.5 py-1" style={{ border: `1px solid ${NEON.borderSoft}` }}>
+          <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Editing</span>
+          {campusSel ? (
+            <>
+              <span className="min-w-0 flex-1 truncate text-[11.5px] font-bold" style={{ color: NEON.cyan }}>{campusSel.name}</span>
+              <button className="shrink-0 rounded px-1.5 py-0.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setCampusSel(null); setCampusSearch(""); }}>← course default</button>
+            </>
+          ) : (
+            <div className="relative min-w-0 flex-1">
+              <input className="w-full rounded bg-black/30 px-2 py-1 text-[11px] outline-none" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} placeholder="Course default — search a campus to customize its numbers/order…" value={campusSearch} onChange={(e) => setCampusSearch(e.target.value)} onKeyDown={(e) => e.stopPropagation()} />
+              {campusSearch.trim().length >= 2 && (
+                <div className="absolute left-0 right-0 top-8 z-10 max-h-40 overflow-y-auto rounded" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}` }}>
+                  {campusSearchQ.isLoading && <div className="px-2 py-1 text-[10.5px] italic" style={{ color: NEON.muted }}>Searching…</div>}
+                  {(campusSearchQ.data ?? []).map((c) => <button key={c.id} className="block w-full truncate px-2 py-1 text-left text-[11px] hover:bg-white/5" style={{ color: NEON.text }} onClick={() => { setCampusSel(c); setCampusSearch(""); }}>{c.name}</button>)}
+                  {campusSearchQ.data && campusSearchQ.data.length === 0 && !campusSearchQ.isLoading && <div className="px-2 py-1 text-[10.5px] italic" style={{ color: NEON.muted }}>No campuses match.</div>}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="mb-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>
-          Topics ({active.length}) <span className="normal-case opacity-60">— drag the grip to reorder</span>
+          Topics ({active.length}) <span className="normal-case opacity-60">— {campusSel ? `set ${campusSel.name}'s chapter number + drag to reorder` : "drag the grip to reorder"}</span>
         </div>
         <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+          {campusSel && (<>
+            {overridesQ.isError && <p className="text-[10px]" style={{ color: NEON.red }}>{(overridesQ.error as Error).message}</p>}
+            {campusChapters.map(campusChapterRow)}
+            {campusChapters.length === 0 && <p className="py-2 text-[11px] italic" style={{ color: NEON.muted }}>No active topics to customize.</p>}
+          </>)}
+          {!campusSel && (<>
           {active.map((ch) => chapterRow(ch, "active"))}
           {active.length === 0 && !chaptersQuery.isLoading && (
             <p className="py-2 text-[11px] italic" style={{ color: NEON.muted }}>No topics yet — add one below.</p>
@@ -318,9 +394,10 @@ export function ManageCourseDialog({ courseId, courseName, onClose }: {
               </button>
             </div>
           </div>
+          </>)}
         </div>
 
-        <div className="mt-3 flex items-center gap-2 border-t pt-2" style={{ borderColor: NEON.borderSoft }}>
+        {!campusSel && (<div className="mt-3 flex items-center gap-2 border-t pt-2" style={{ borderColor: NEON.borderSoft }}>
           <input
             className="min-w-0 flex-1 rounded bg-black/30 px-2 py-1 text-[11.5px] outline-none"
             style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
@@ -337,7 +414,7 @@ export function ManageCourseDialog({ courseId, courseName, onClose }: {
           >
             <Plus className="mr-1 inline h-3 w-3" />add
           </button>
-        </div>
+        </div>)}
       </div>
     </div>
   );

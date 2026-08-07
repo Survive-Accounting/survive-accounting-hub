@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Circle, CircleCheck, CircleDot, Lock, LogOut, Mail, Play, X, Loader2 } from "lucide-react";
 
 import { fetchStudentTree, type StudentCourse, type StudentSet, type StudentTopic } from "@/lib/student.functions";
+import { listOverrideCampuses, type CampusOpt } from "@/lib/campus-overrides.functions";
 import { NEON } from "@/components/canvas/theme";
 import { BrandLogo, Bolt } from "@/components/canvas/brand";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
@@ -185,7 +186,14 @@ function Paywall({ topic, onClose }: { topic: StudentTopic; onClose: () => void 
 }
 
 function LearnShell() {
-  const q = useQuery({ queryKey: ["student-tree"], queryFn: () => fetchStudentTree(), staleTime: 120_000, networkMode: "always" });
+  // CAMPUS CONTEXT (Prompt 3) — pick a campus to see its chapter numbers + order. Only campuses
+  // that actually have overrides are offered (others = the course default, so picking changes
+  // nothing). Persisted; passed to the tree so numbering/order resolve server-side.
+  const [campusId, setCampusId] = useState<string | null>(() => { try { return localStorage.getItem("sa-learn-campus"); } catch { return null; } });
+  useEffect(() => { try { if (campusId) localStorage.setItem("sa-learn-campus", campusId); else localStorage.removeItem("sa-learn-campus"); } catch { /* ignore */ } }, [campusId]);
+  const campusesQ = useQuery({ queryKey: ["override-campuses"], queryFn: () => listOverrideCampuses(), staleTime: 300_000, networkMode: "always" });
+  const campuses: CampusOpt[] = campusesQ.data ?? [];
+  const q = useQuery({ queryKey: ["student-tree", campusId], queryFn: () => fetchStudentTree({ data: { campusId: campusId ?? undefined } }), staleTime: 120_000, networkMode: "always" });
   const courses: StudentCourse[] = q.data ?? [];
   const [openCourse, setOpenCourse] = useState<string | null>(null);
   const [topicId, setTopicId] = useState<string | null>(() => { try { return localStorage.getItem(LAST_TOPIC_KEY); } catch { return null; } });
@@ -238,7 +246,7 @@ function LearnShell() {
     return (
       <button key={t.id} className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left hover:bg-white/5" style={{ background: active ? "rgba(252,163,17,0.10)" : "transparent" }} onClick={() => setTopicId(t.id)} title={`${t.name} · ${t.sets.length} video${t.sets.length === 1 ? "" : "s"}`}>
         {locked ? <Lock className="h-3 w-3 shrink-0" style={{ color: "#F0B24A" }} /> : allDone ? <CircleCheck className="h-3 w-3 shrink-0" style={{ color: "#3BF5A0" }} /> : done > 0 ? <CircleDot className="h-3 w-3 shrink-0" style={{ color: NEON.cyan }} /> : <Circle className="h-2.5 w-2.5 shrink-0" style={{ color: "rgba(147,160,180,0.5)" }} />}
-        <span className="min-w-0 flex-1 truncate text-[12px]" style={{ color: active ? NEON.yellow : NEON.text }}>{t.name}</span>
+        <span className="min-w-0 flex-1 truncate text-[12px]" style={{ color: active ? NEON.yellow : NEON.text }}>{campusId && t.number != null ? `Ch ${t.number} · ${t.name}` : t.name}</span>
         <span className="shrink-0 text-[9px] tabular-nums" style={{ color: done > 0 ? "#3BF5A0" : NEON.muted }}>{done > 0 ? `${done}/${t.sets.length}` : t.sets.length}</span>
       </button>
     );
@@ -252,6 +260,18 @@ function LearnShell() {
         <span className="inline-block h-5 w-4"><BrandLogo mode="bolt" c1="#C62828" c2="#1565C0" size={20} /></span>
         <span className="text-[12px] font-black uppercase tracking-[0.12em]" style={{ color: NEON.text }}>Survive · Learn</span>
         <div className="min-w-0 flex-1" />
+        {campuses.length > 0 && (
+          <select
+            className="max-w-[190px] truncate rounded-lg px-1.5 py-1 text-[11px] font-bold outline-none"
+            style={{ background: "transparent", color: campusId ? NEON.cyan : NEON.muted, border: `1px solid ${NEON.borderSoft}` }}
+            value={campusId ?? ""}
+            onChange={(e) => setCampusId(e.target.value || null)}
+            title="View chapter numbering + order as a specific campus's textbook"
+          >
+            <option value="">Default view</option>
+            {campuses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        )}
         {userId ? (
           <div className="flex items-center gap-2">
             <span className="hidden max-w-[180px] truncate text-[11px] sm:inline" style={{ color: NEON.muted }} title={email ?? undefined}>{email}</span>

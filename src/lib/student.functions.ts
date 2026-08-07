@@ -7,6 +7,7 @@
 // Sets live in canvas_scenes.nodes_json (SceneDoc.decks[]), not a table, so this scans scenes
 // and flattens their live card-decks. Fine at current scale; revisit if scenes balloon.
 import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
 
 export interface StudentSet {
   id: string; // DeckDef.id
@@ -25,7 +26,10 @@ const setName = (n?: string) => (n ?? "Set").replace(/^\s*ch\s*\d+\s*·\s*/i, ""
 
 type RawDeck = { id: string; name?: string; payloadType?: string; status?: string; access?: string; lessonId?: string | null; topicId?: string | null; courseId?: string | null };
 
-export const fetchStudentTree = createServerFn({ method: "GET" }).handler(async (): Promise<StudentCourse[]> => {
+export const fetchStudentTree = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => z.object({ campusId: z.string().uuid().optional() }).parse(d ?? {}))
+  .handler(async ({ data: input }): Promise<StudentCourse[]> => {
+  const campusId = input?.campusId;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const admin = supabaseAdmin as unknown as { from: (t: string) => any };
 
@@ -81,7 +85,30 @@ export const fetchStudentTree = createServerFn({ method: "GET" }).handler(async 
   }
 
   const ordered = [...courses.values()].sort((a, b) => courseRank(a.name) - courseRank(b.name) || a.name.localeCompare(b.name));
-  for (const c of ordered) c.topics.sort((a, b) => (a.number ?? 9999) - (b.number ?? 9999) || a.name.localeCompare(b.name));
+
+  // CAMPUS OVERRIDES (Prompt 3, sparse) — when a campus context is given, a topic's chapter
+  // NUMBER and display ORDER come from campus_chapter_overrides where a row exists, else the
+  // course default (chapters.chapter_number). Textbook-agnostic by default; a campus's local
+  // "Ch N" surfaces only when that campus is selected. Degrades to default if 0103 unapplied.
+  const orderKey = new Map<string, number>(); // topic.id → effective display order
+  for (const t of topics.values()) orderKey.set(t.id, t.number ?? 9999);
+  if (campusId) {
+    try {
+      const tids = [...topics.keys()];
+      if (tids.length) {
+        const { data: ov, error: ovErr } = await admin.from("campus_chapter_overrides").select("chapter_id,local_number,local_order").eq("campus_id", campusId).in("chapter_id", tids);
+        if (ovErr) throw ovErr;
+        for (const r of (ov ?? []) as { chapter_id: string; local_number: number | null; local_order: number | null }[]) {
+          const t = topics.get(r.chapter_id);
+          if (!t) continue;
+          if (r.local_number != null) t.number = r.local_number;
+          if (r.local_order != null) orderKey.set(t.id, r.local_order);
+          else if (r.local_number != null) orderKey.set(t.id, r.local_number);
+        }
+      }
+    } catch { /* 0103 not applied — keep course-default numbers/order */ }
+  }
+  for (const c of ordered) c.topics.sort((a, b) => (orderKey.get(a.id) ?? 9999) - (orderKey.get(b.id) ?? 9999) || a.name.localeCompare(b.name));
 
   // 5) EXAM-UNIT grouping (Prompt 2, many-to-many): nest topics under their active exam units;
   //    a topic can appear under several (cumulative exams); topics in no unit stay loose in
