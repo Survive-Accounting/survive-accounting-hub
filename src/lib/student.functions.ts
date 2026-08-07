@@ -16,7 +16,8 @@ export interface StudentSet {
   playbackId: string | null; // null = live set with no published video yet ("coming soon")
 }
 export interface StudentTopic { id: string; name: string; shortLabel: string | null; number: number | null; sets: StudentSet[] }
-export interface StudentCourse { id: string; name: string; family: string | null; topics: StudentTopic[] }
+export interface StudentUnit { id: string; name: string; topics: StudentTopic[] }
+export interface StudentCourse { id: string; name: string; family: string | null; units: StudentUnit[]; topics: StudentTopic[] }
 
 const COURSE_ORDER = ["Start Here", "Intro 1", "Intro 2", "IA1", "IA2"];
 const courseRank = (n: string) => { const i = COURSE_ORDER.findIndex((o) => o.toLowerCase() === n.trim().toLowerCase()); return i < 0 ? COURSE_ORDER.length + 1 : i; };
@@ -65,7 +66,7 @@ export const fetchStudentTree = createServerFn({ method: "GET" }).handler(async 
   // 4) Build course → topic → sets. A set with no resolvable course is dropped (unplaceable).
   const courses = new Map<string, StudentCourse>();
   const topics = new Map<string, StudentTopic>();
-  const ensureCourse = (id: string, name: string, family: string | null): StudentCourse => { let c = courses.get(id); if (!c) { c = { id, name, family, topics: [] }; courses.set(id, c); } return c; };
+  const ensureCourse = (id: string, name: string, family: string | null): StudentCourse => { let c = courses.get(id); if (!c) { c = { id, name, family, units: [], topics: [] }; courses.set(id, c); } return c; };
   const ensureTopic = (course: StudentCourse, t: { id: string; name: string | null; short: string | null; number: number | null }): StudentTopic => {
     let top = topics.get(t.id); if (!top) { top = { id: t.id, name: t.name ?? "Topic", shortLabel: t.short, number: t.number, sets: [] }; topics.set(t.id, top); course.topics.push(top); } return top;
   };
@@ -81,5 +82,35 @@ export const fetchStudentTree = createServerFn({ method: "GET" }).handler(async 
 
   const ordered = [...courses.values()].sort((a, b) => courseRank(a.name) - courseRank(b.name) || a.name.localeCompare(b.name));
   for (const c of ordered) c.topics.sort((a, b) => (a.number ?? 9999) - (b.number ?? 9999) || a.name.localeCompare(b.name));
+
+  // 5) EXAM-UNIT grouping (Prompt 2, many-to-many): nest topics under their active exam units;
+  //    a topic can appear under several (cumulative exams); topics in no unit stay loose in
+  //    course.topics. Degrades to flat (no units) if 0102 isn't applied yet.
+  try {
+    const courseIds = ordered.map((c) => c.id);
+    if (courseIds.length) {
+      const { data: units, error: uErr } = await admin.from("exam_units").select("id,course_id,name,position").in("course_id", courseIds).eq("status", "active");
+      if (uErr) throw uErr;
+      const unitIds = (units ?? []).map((u: { id: string }) => u.id);
+      const memByUnit = new Map<string, Set<string>>();
+      if (unitIds.length) {
+        const { data: mem } = await admin.from("exam_unit_chapters").select("exam_unit_id,chapter_id").in("exam_unit_id", unitIds);
+        for (const m of (mem ?? []) as { exam_unit_id: string; chapter_id: string }[]) { const s = memByUnit.get(m.exam_unit_id) ?? new Set<string>(); s.add(m.chapter_id); memByUnit.set(m.exam_unit_id, s); }
+      }
+      const unitsByCourse = new Map<string, { id: string; name: string; position: number | null }[]>();
+      for (const u of (units ?? []) as { id: string; course_id: string; name: string; position: number | null }[]) { const l = unitsByCourse.get(u.course_id) ?? []; l.push(u); unitsByCourse.set(u.course_id, l); }
+      for (const c of ordered) {
+        const cUnits = (unitsByCourse.get(c.id) ?? []).sort((a, b) => (a.position ?? 9999) - (b.position ?? 9999) || a.name.localeCompare(b.name));
+        const grouped = new Set<string>();
+        for (const u of cUnits) {
+          const members = memByUnit.get(u.id) ?? new Set<string>();
+          const uTopics = c.topics.filter((t) => members.has(t.id)); // preserves the sorted order
+          if (uTopics.length) { c.units.push({ id: u.id, name: u.name, topics: uTopics }); uTopics.forEach((t) => grouped.add(t.id)); }
+        }
+        c.topics = c.topics.filter((t) => !grouped.has(t.id)); // loose = in no unit
+      }
+    }
+  } catch { /* exam_units not applied yet — leave every topic flat (today's behavior) */ }
+
   return ordered;
 });

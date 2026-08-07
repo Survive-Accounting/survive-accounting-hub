@@ -15,6 +15,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, ArchiveRestore, GripVertical, Pencil, Plus, X } from "lucide-react";
 
 import { createChapter, listChaptersAdmin, renameChapter, renameCourse, reorderChapters, setChapterStatus, type ChapterRow } from "@/lib/canvas.functions";
+import { createExamUnit, listExamUnits, renameExamUnit, reorderExamUnits, setExamUnitStatus, setUnitChapters, type ExamUnitRow } from "@/lib/exam-units.functions";
 import { retryUnlessMigrationHint } from "@/lib/pg-errors";
 import { NEON } from "./theme";
 
@@ -29,6 +30,11 @@ export function ManageCourseDialog({ courseId, courseName, onClose }: {
   const [dragId, setDragId] = useState<string | null>(null);
   const [newChapterName, setNewChapterName] = useState("");
   const [editing, setEditing] = useState<{ id: string; name: string; subtitle: string } | null>(null);
+  // Exam units (Prompt 2)
+  const [newUnitName, setNewUnitName] = useState("");
+  const [unitEditing, setUnitEditing] = useState<{ id: string; name: string } | null>(null);
+  const [unitDragId, setUnitDragId] = useState<string | null>(null);
+  const [expandedUnit, setExpandedUnit] = useState<string | null>(null);
 
   const chaptersQuery = useQuery({
     queryKey: ["chapters-admin", courseId],
@@ -82,6 +88,35 @@ export function ManageCourseDialog({ courseId, courseName, onClose }: {
     ids.splice(to, 0, ids.splice(from, 1)[0]);
     setDragId(null);
     reorderMut.mutate(ids);
+  };
+
+  // ---- EXAM UNITS (Prompt 2) ----
+  const onErr = (e: unknown) => setErr(e instanceof Error ? e.message : String(e));
+  const unitsQuery = useQuery({
+    queryKey: ["exam-units", courseId],
+    queryFn: () => listExamUnits({ data: { course_id: courseId } }),
+    networkMode: "always",
+    retry: retryUnlessMigrationHint,
+  });
+  const invalidateUnits = () => void qc.invalidateQueries({ queryKey: ["exam-units", courseId] });
+  const activeUnits = useMemo(() => (unitsQuery.data ?? []).filter((u) => u.status === "active").sort((a, b) => (a.position ?? 9999) - (b.position ?? 9999)), [unitsQuery.data]);
+  const createUnitMut = useMutation({ mutationFn: () => createExamUnit({ data: { course_id: courseId, name: newUnitName.trim() } }), onSuccess: () => { setNewUnitName(""); invalidateUnits(); }, onError: onErr });
+  const renameUnitMut = useMutation({ mutationFn: (v: { id: string; name: string }) => renameExamUnit({ data: v }), onSuccess: () => { setUnitEditing(null); invalidateUnits(); }, onError: onErr });
+  const unitStatusMut = useMutation({ mutationFn: (v: { id: string; status: "active" | "archived" }) => setExamUnitStatus({ data: v }), onSuccess: invalidateUnits, onError: onErr });
+  const reorderUnitsMut = useMutation({ mutationFn: (ids: string[]) => reorderExamUnits({ data: { course_id: courseId, ordered_ids: ids } }), onSuccess: invalidateUnits, onError: onErr });
+  const setChaptersMut = useMutation({ mutationFn: (v: { exam_unit_id: string; chapter_ids: string[] }) => setUnitChapters({ data: v }), onSuccess: invalidateUnits, onError: onErr });
+  const onUnitDrop = (targetId: string) => {
+    if (!unitDragId || unitDragId === targetId) return;
+    const ids = activeUnits.map((u) => u.id);
+    const from = ids.indexOf(unitDragId), to = ids.indexOf(targetId);
+    if (from === -1 || to === -1) return;
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    setUnitDragId(null);
+    reorderUnitsMut.mutate(ids);
+  };
+  const toggleUnitChapter = (u: ExamUnitRow, chapterId: string) => {
+    const next = u.chapter_ids.includes(chapterId) ? u.chapter_ids.filter((x) => x !== chapterId) : [...u.chapter_ids, chapterId];
+    setChaptersMut.mutate({ exam_unit_id: u.id, chapter_ids: next });
   };
 
   const chapterRow = (ch: ChapterRow, kind: "active" | "archived") => (
@@ -213,6 +248,76 @@ export function ManageCourseDialog({ courseId, courseName, onClose }: {
               {archived.map((ch) => chapterRow(ch, "archived"))}
             </>
           )}
+
+          {/* EXAM UNITS (Prompt 2) — group topics into exam sections; a topic may sit in several. */}
+          <div className="mt-3 border-t pt-2" style={{ borderColor: NEON.borderSoft }}>
+            <div className="mb-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>
+              Exam units ({activeUnits.length}) <span className="normal-case opacity-60">— drag to reorder · click a unit to assign topics</span>
+            </div>
+            {unitsQuery.isError && <p className="mb-1 text-[10px]" style={{ color: NEON.red }}>{(unitsQuery.error as Error).message}</p>}
+            {activeUnits.map((u) => (
+              <div
+                key={u.id}
+                draggable
+                onDragStart={() => setUnitDragId(u.id)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => onUnitDrop(u.id)}
+                className="mb-1 rounded"
+                style={{ border: `1px solid ${NEON.borderSoft}`, opacity: unitDragId === u.id ? 0.4 : 1 }}
+              >
+                <div className="flex items-center gap-2 px-1.5 py-1">
+                  <GripVertical className="h-3.5 w-3.5 shrink-0 cursor-grab" style={{ color: NEON.muted }} />
+                  {unitEditing?.id === u.id ? (
+                    <input
+                      autoFocus
+                      className="min-w-0 flex-1 rounded bg-black/30 px-1.5 py-0.5 text-[11.5px] outline-none"
+                      style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+                      value={unitEditing.name}
+                      onChange={(e) => setUnitEditing({ id: u.id, name: e.target.value })}
+                      onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter" && unitEditing.name.trim()) renameUnitMut.mutate({ id: u.id, name: unitEditing.name.trim() }); if (e.key === "Escape") setUnitEditing(null); }}
+                    />
+                  ) : (
+                    <button className="min-w-0 flex-1 truncate text-left text-[11.5px]" style={{ color: expandedUnit === u.id ? NEON.cyan : NEON.text }} onClick={() => setExpandedUnit((x) => (x === u.id ? null : u.id))} title="Assign topics">{u.name}</button>
+                  )}
+                  <span className="shrink-0 text-[9px] tabular-nums" style={{ color: NEON.muted }}>{u.chapter_ids.length} topic{u.chapter_ids.length === 1 ? "" : "s"}</span>
+                  {unitEditing?.id === u.id ? (
+                    <button className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold" style={{ color: NEON.green, border: `1px solid ${NEON.borderSoft}` }} disabled={!unitEditing.name.trim() || renameUnitMut.isPending} onClick={() => renameUnitMut.mutate({ id: u.id, name: unitEditing.name.trim() })}>save</button>
+                  ) : (
+                    <button className="shrink-0 rounded p-0.5" style={{ color: NEON.muted }} title="Rename unit" onClick={() => setUnitEditing({ id: u.id, name: u.name })}><Pencil className="h-3 w-3" /></button>
+                  )}
+                  <button className="shrink-0 rounded p-0.5" style={{ color: NEON.red }} title="Archive unit (topics keep their videos)" onClick={() => unitStatusMut.mutate({ id: u.id, status: "archived" })}><Archive className="h-3.5 w-3.5" /></button>
+                </div>
+                {expandedUnit === u.id && (
+                  <div className="border-t px-2 py-1.5" style={{ borderColor: NEON.borderSoft }}>
+                    <div className="mb-1 text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Topics in this unit</div>
+                    <div className="flex flex-wrap gap-1">
+                      {active.map((ch) => {
+                        const on = u.chapter_ids.includes(ch.id);
+                        return (
+                          <button key={ch.id} className="rounded px-1.5 py-0.5 text-[10.5px]" style={on ? { color: "#0B1322", background: NEON.cyan } : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => toggleUnitChapter(u, ch.id)}>{ch.chapter_name}</button>
+                        );
+                      })}
+                      {active.length === 0 && <span className="text-[10px] italic" style={{ color: NEON.muted }}>No topics to assign yet.</span>}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+            {activeUnits.length === 0 && !unitsQuery.isLoading && <p className="py-1 text-[11px] italic" style={{ color: NEON.muted }}>No exam units yet.</p>}
+            <div className="mt-1 flex items-center gap-2">
+              <input
+                className="min-w-0 flex-1 rounded bg-black/30 px-2 py-1 text-[11.5px] outline-none"
+                style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+                placeholder="New exam unit (e.g. Exam 1)…"
+                value={newUnitName}
+                onChange={(e) => setNewUnitName(e.target.value)}
+                onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter" && newUnitName.trim()) createUnitMut.mutate(); }}
+              />
+              <button className="shrink-0 rounded px-2.5 py-1 text-[10.5px] font-bold uppercase disabled:opacity-40" style={{ color: NEON.yellow, border: "1px solid rgba(252,163,17,0.45)" }} disabled={newUnitName.trim().length === 0 || createUnitMut.isPending} onClick={() => createUnitMut.mutate()}>
+                <Plus className="mr-1 inline h-3 w-3" />add unit
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="mt-3 flex items-center gap-2 border-t pt-2" style={{ borderColor: NEON.borderSoft }}>

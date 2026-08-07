@@ -216,7 +216,7 @@ function LearnShell() {
     if (userId) void (supabase.from("student_set_progress" as never) as any).upsert({ user_id: userId, set_id: setId, state: next }, { onConflict: "user_id,set_id" });
   };
 
-  const allTopics = useMemo(() => courses.flatMap((c) => c.topics.map((t) => ({ c, t }))), [courses]);
+  const allTopics = useMemo(() => courses.flatMap((c) => [...c.units.flatMap((u) => u.topics), ...c.topics].map((t) => ({ c, t }))), [courses]);
   // Restore last topic (or first) once data arrives.
   useEffect(() => {
     if (!courses.length || (topicId && allTopics.some((x) => x.t.id === topicId))) { if (courses.length && !openCourse) { const owner = allTopics.find((x) => x.t.id === topicId)?.c ?? courses[0]; setOpenCourse(owner.id); } return; }
@@ -228,6 +228,21 @@ function LearnShell() {
   const accent = NEON.yellow;
 
   const openSet = (t: StudentTopic, s: StudentSet) => { if (s.access === "paid") { setPaywallTopic(t); return; } if (!s.playbackId) return; setPlaying({ set: s, topic: t }); };
+
+  // One outline topic row — shared between exam-unit groups and the loose (un-grouped) topics.
+  const topicRow = (t: StudentTopic) => {
+    const active = t.id === topicId;
+    const locked = t.sets.length > 0 && t.sets.every((s) => s.access === "paid");
+    const done = t.sets.filter((s) => progress[s.id] === "complete").length;
+    const allDone = done > 0 && done === t.sets.length;
+    return (
+      <button key={t.id} className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left hover:bg-white/5" style={{ background: active ? "rgba(252,163,17,0.10)" : "transparent" }} onClick={() => setTopicId(t.id)} title={`${t.name} · ${t.sets.length} video${t.sets.length === 1 ? "" : "s"}`}>
+        {locked ? <Lock className="h-3 w-3 shrink-0" style={{ color: "#F0B24A" }} /> : allDone ? <CircleCheck className="h-3 w-3 shrink-0" style={{ color: "#3BF5A0" }} /> : done > 0 ? <CircleDot className="h-3 w-3 shrink-0" style={{ color: NEON.cyan }} /> : <Circle className="h-2.5 w-2.5 shrink-0" style={{ color: "rgba(147,160,180,0.5)" }} />}
+        <span className="min-w-0 flex-1 truncate text-[12px]" style={{ color: active ? NEON.yellow : NEON.text }}>{t.name}</span>
+        <span className="shrink-0 text-[9px] tabular-nums" style={{ color: done > 0 ? "#3BF5A0" : NEON.muted }}>{done > 0 ? `${done}/${t.sets.length}` : t.sets.length}</span>
+      </button>
+    );
+  };
   useEffect(() => { const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setPlaying(null); setPaywallTopic(null); } }; window.addEventListener("keydown", onKey); return () => window.removeEventListener("keydown", onKey); }, []);
 
   return (
@@ -264,18 +279,15 @@ function LearnShell() {
                 </button>
                 {cOpen && (
                   <div className="ml-2 border-l pl-2" style={{ borderColor: NEON.borderSoft }}>
-                    {c.topics.map((t) => {
-                      const active = t.id === topicId;
-                      const locked = t.sets.length > 0 && t.sets.every((s) => s.access === "paid");
-                      return (
-                        <button key={t.id} className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left hover:bg-white/5" style={{ background: active ? "rgba(252,163,17,0.10)" : "transparent" }} onClick={() => setTopicId(t.id)} title={`${t.name} · ${t.sets.length} video${t.sets.length === 1 ? "" : "s"}`}>
-                          {(() => { const done = t.sets.filter((s) => progress[s.id] === "complete").length; const allDone = done > 0 && done === t.sets.length; return locked ? <Lock className="h-3 w-3 shrink-0" style={{ color: "#F0B24A" }} /> : allDone ? <CircleCheck className="h-3 w-3 shrink-0" style={{ color: "#3BF5A0" }} /> : done > 0 ? <CircleDot className="h-3 w-3 shrink-0" style={{ color: NEON.cyan }} /> : <Circle className="h-2.5 w-2.5 shrink-0" style={{ color: "rgba(147,160,180,0.5)" }} />; })()}
-                          <span className="min-w-0 flex-1 truncate text-[12px]" style={{ color: active ? NEON.yellow : NEON.text }}>{t.name}</span>
-                          {(() => { const done = t.sets.filter((s) => progress[s.id] === "complete").length; return <span className="shrink-0 text-[9px] tabular-nums" style={{ color: done > 0 ? "#3BF5A0" : NEON.muted }}>{done > 0 ? `${done}/${t.sets.length}` : t.sets.length}</span>; })()}
-                        </button>
-                      );
-                    })}
-                    {c.topics.length === 0 && <div className="px-1.5 py-1 text-[10px] italic" style={{ color: NEON.muted }}>No topics yet</div>}
+                    {/* Exam-unit groups first, then any topics not in a unit (loose). */}
+                    {c.units.map((u) => (
+                      <div key={u.id} className="mb-1">
+                        <div className="px-1 pt-1 text-[9px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>{u.name}</div>
+                        {u.topics.map(topicRow)}
+                      </div>
+                    ))}
+                    {c.topics.map(topicRow)}
+                    {c.units.length === 0 && c.topics.length === 0 && <div className="px-1.5 py-1 text-[10px] italic" style={{ color: NEON.muted }}>No topics yet</div>}
                   </div>
                 )}
               </div>
