@@ -22,6 +22,7 @@ export type CardKind =
   | "examcue"
   | "ceqtease"
   | "ceqhook"
+  | "framebolt"
   | "cycle"
   | "logo"
   | "intro"
@@ -63,6 +64,7 @@ export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
   examcue: "element",
   ceqtease: "element",
   ceqhook: "element",
+  framebolt: "element",
   cycle: "element",
   logo: "element",
   intro: "element",
@@ -640,11 +642,23 @@ export interface CeqTeaseElement extends CardBase {
 //      Landscape and vertical are SEPARATE layouts (orient). Nothing here is chrome. ----
 export interface CeqHookElement extends CardBase {
   kind: "ceqhook";
-  /** The variable exam-question line(s). Each beat is one editable line; Enter walks them
-   *  (accumulating) while filming. Empty ⇒ renders as a blank "________________". */
+  /** The exam-question BEATS. Each beat is one editable line ("Common Exam Questions" is a
+   *  fixed muted label, not stored). Enter walks them (accumulating) while filming; beats scale
+   *  to fit their box. Empty ⇒ renders as a blank "________________". (B split the bolt out into
+   *  a separate `framebolt` element — this is the tease alone now.) */
   beats?: string[];
   /** Separate layout configs — never derived one from the other. Default landscape. */
   orient?: "landscape" | "portrait";
+  w?: number;
+  h?: number;
+}
+
+// ---- Frame Bolt (Lee, B): the boiling brand bolt as its OWN independently placed/resized
+//      element, so the CEQ Hook's bolt and question tease move apart. Film-safe. ----
+export interface FrameBoltElement extends CardBase {
+  kind: "framebolt";
+  /** Bolt opacity (default 1). Colours come from the frame theme's CSS vars. */
+  opacity?: number;
   w?: number;
   h?: number;
 }
@@ -829,6 +843,7 @@ export type CardData =
   | ExamCueElement
   | CeqTeaseElement
   | CeqHookElement
+  | FrameBoltElement
   | CycleElement
   | LogoElement
   | IntroCardElement
