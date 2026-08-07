@@ -702,7 +702,9 @@ export interface IntroCardElement extends CardBase {
 }
 export interface OutroCardElement extends CardBase {
   kind: "outro";
-  /** Tagline under the wordmark (editable on canvas). */
+  /** Tagline line variant (D): 'exam' (student) vs 'retake' (parent). Picks the default tagline. */
+  line?: "exam" | "retake";
+  /** Explicit tagline override (editable on canvas); falls back to the `line` variant's default. */
   tagline?: string;
   transparent?: boolean;
   w?: number;

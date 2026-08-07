@@ -882,11 +882,12 @@ export function OutroCardNode({ id, data, selected }: NodeProps) {
       {!cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
       <ElementResizer id={id} selected={selected && !cleanShot} minWidth={240} minHeight={135} keepAspect />
       <div {...spot.props} style={{ width: w, height: h, overflow: "hidden", borderRadius: 8, ...spotStyle(spot.state) }}>
-        <OutroFrame background="none" scale={w / 1920} tagline={d.tagline ?? "Only what’s on your exam."} transparent={d.transparent} playKey={playKey} />
+        <OutroFrame background="none" scale={w / 1920} line={d.line ?? "exam"} tagline={d.tagline} transparent={d.transparent} playKey={playKey} />
       </div>
       {!cleanShot && !nav.film && (
         <div className={ELEM_TOOLBAR} style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}>
-          <input className="nodrag h-5 rounded px-1 text-[9px]" style={{ color: NEON.text, background: "transparent", border: `1px solid ${NEON.borderSoft}`, width: 150 }} value={d.tagline ?? ""} placeholder="Tagline (e.g. Only what’s on your exam.)" onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ tagline: e.target.value })} title="Tagline under the wordmark" />
+          <button className={ELEM_BTN} style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); update({ line: (d.line ?? "exam") === "exam" ? "retake" : "exam" }); }} title="Audience line — exam (student) ↔ retake (parent)">{(d.line ?? "exam") === "exam" ? "exam" : "retake"}</button>
+          <input className="nodrag h-5 rounded px-1 text-[9px]" style={{ color: NEON.text, background: "transparent", border: `1px solid ${NEON.borderSoft}`, width: 160 }} value={d.tagline ?? ""} placeholder={(d.line ?? "exam") === "exam" ? "Only what’s on your exam." : "Because retaking isn’t an option."} onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ tagline: e.target.value })} title="Tagline override (blank = the line variant's default)" />
           <button className={ELEM_BTN} style={{ color: d.transparent ? NEON.yellow : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); update({ transparent: !d.transparent }); }} title="Transparent background for OBS keying (else navy)">{d.transparent ? "keyed" : "navy"}</button>
           <button className={ELEM_BTN} style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); bump(); }} title="Replay the entrance animation">▶</button>
         </div>

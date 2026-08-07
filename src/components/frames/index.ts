@@ -11,4 +11,5 @@ export { frameThemeVars, schoolFrameTheme, DEFAULT_FRAME_THEME, type FrameTheme 
 export { IntroFrame } from "./IntroFrame";
 export { IntroSting } from "./IntroSting";
 export { OutroFrame } from "./OutroFrame";
+export { OutroSting, type OutroLine } from "./OutroSting";
 export { CornerFrame } from "./CornerFrame";
