@@ -13,7 +13,7 @@ import { fetchStudentTree, type StudentCourse, type StudentSet, type StudentTopi
 import { listOverrideCampuses, type CampusOpt } from "@/lib/campus-overrides.functions";
 import { claimMyOrders, fetchMyUnlockedTopics, getSetPlayback } from "@/lib/entitlements.functions";
 import { NEON } from "@/components/canvas/theme";
-import { BrandLogo, Bolt } from "@/components/canvas/brand";
+import { BrandLogo, Bolt, BRAND_RED, BRAND_BLUE } from "@/components/canvas/brand";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -76,7 +76,7 @@ function VideoPlayer({ set, chipText, onClose, onStarted, onComplete }: { set: S
           // DOM watermark (bolt only) overlays the video — burned-in stays out of the file.
           <div className="relative overflow-hidden rounded-xl" style={{ background: "#000", aspectRatio: portrait ? "9 / 16" : "16 / 9" }}>
             <video ref={ref} controls playsInline className="h-full w-full" style={{ objectFit: "contain", background: "#000" }} onPlay={onStarted} onEnded={onComplete} />
-            <span className="pointer-events-none absolute right-3 top-3 inline-block h-6 w-4 opacity-80"><Bolt c1="#C62828" c2="#1565C0" /></span>
+            <span className="pointer-events-none absolute right-3 top-3 inline-block h-6 w-4 opacity-80"><Bolt c1={BRAND_RED} c2={BRAND_BLUE} /></span>
             {preroll && <PreRoll chipText={chipText} onDone={() => setPreroll(false)} />}
           </div>
         )}

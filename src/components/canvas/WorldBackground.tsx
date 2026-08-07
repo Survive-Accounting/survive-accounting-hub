@@ -30,6 +30,10 @@ const WORLD_CSS = `
    many frames on screen at once don't each animate/repaint (instant, no lag). */
 .film-mode .sa-world-glow-el { animation-name: sa-world-glow; }
 .film-mode .sa-world-drift-el { animation-name: sa-world-drift; }
+/* animate={true} opts INTO motion without a .film-mode ancestor — for the frames library
+   used outside the canvas (e.g. the Mux player), where there is no film-mode wrapper. */
+.sa-world-animate .sa-world-glow-el { animation-name: sa-world-glow; }
+.sa-world-animate .sa-world-drift-el { animation-name: sa-world-drift; }
 `;
 
 function Wireframe({ w, stroke, opacity }: { w: WorldPreset; stroke: string; opacity: number }) {
@@ -103,11 +107,13 @@ function scrimStyle(w: WorldPreset, intensity: number): React.CSSProperties | nu
 
 /** The world layer for a frame. Fills its (relative) parent; renders nothing for
  *  an unknown id. */
-export function WorldBackground({ worldId, intensity, motion, seed }: {
+export function WorldBackground({ worldId, intensity, motion, seed, animate }: {
   worldId: string;
   intensity?: number;
   motion?: number;
   seed?: number;
+  /** Opt into drift/glow motion without a `.film-mode` ancestor (frames outside the canvas). */
+  animate?: boolean;
 }) {
   const w = worldById(worldId);
   const reduced = usePrefersReducedMotion();
@@ -123,7 +129,7 @@ export function WorldBackground({ worldId, intensity, motion, seed }: {
   const driftDur = mot > 0 ? `${Math.round(60 - mot * 30)}s` : "0s";
 
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden" style={{ opacity: 0.55 + inten * 0.75, zIndex: 0 }} aria-hidden>
+    <div className={`pointer-events-none absolute inset-0 overflow-hidden${animate && mot > 0 ? " sa-world-animate" : ""}`} style={{ opacity: 0.55 + inten * 0.75, zIndex: 0 }} aria-hidden>
       <style>{WORLD_CSS}</style>
       {/* base graded navy + an OFF-center soft glow that slowly breathes/drifts —
           THE moving gradient (the only motion now the stars are gone). */}

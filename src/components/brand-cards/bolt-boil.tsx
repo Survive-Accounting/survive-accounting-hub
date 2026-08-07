@@ -56,7 +56,10 @@ const BOIL_CSS = `
 export function BoltBoil({ height = 130, opacity = 1, red, blue, cream, className, style }:
   { height?: number; opacity?: number; red?: string; blue?: string; cream?: string; className?: string; style?: CSSProperties }) {
   const spec = useContext(BoltContext);
-  const R = red ?? spec.red, B = blue ?? spec.blue, C = cream ?? spec.cream;
+  // Colours fall back through CSS variables so a themed FrameStage (frames/) can recolour any
+  // bolt inside it for a school variant — with the brand/spec colour as the var fallback, so
+  // every bolt OUTSIDE a FrameStage renders exactly as before. An explicit prop still wins.
+  const R = red ?? `var(--bolt-primary, ${spec.red})`, B = blue ?? `var(--bolt-secondary, ${spec.blue})`, C = cream ?? spec.cream;
   return (
     <span className={className} style={{ display: "inline-block", width: height * spec.ratio, height, opacity, ...style }}>
       <style>{BOIL_CSS}</style>

@@ -19,10 +19,8 @@ import { BIG_FONT, DISPLAY_FONT, NEON, NOTE_COLORS, PAPER } from "../theme";
 import { useEditSignal } from "../ui";
 import { renderTokens, TokenMenu } from "../variables";
 import { BOLT_PRESETS, BrandLogo, boltColorById, BRAND_DISPLAY, LOGO_MODES, SEC_SCHOOLS, type LogoMode } from "../brand";
-import { AnimatedIntro } from "@/components/brand-cards/AnimatedIntro";
-import { OutroCard } from "@/components/brand-cards/OutroCard";
-import { CornerBolt } from "@/components/brand-cards/CornerBolt";
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
+import { IntroFrame, OutroFrame, CornerFrame } from "@/components/frames";
 import type { BridgeCard, CeqHookElement, CeqTeaseElement, CornerBoltElement, ExamCueElement, GateElement, IntroCardElement, LogoElement, OutroCardElement, TextElement } from "../types";
 
 // ---- shared element chrome: clone · × · pos-lock (hover only) ---------------
@@ -820,7 +818,7 @@ export function IntroCardNode({ id, data, selected }: NodeProps) {
       {!cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
       <ElementResizer id={id} selected={selected && !cleanShot} minWidth={240} minHeight={135} keepAspect />
       <div {...spot.props} style={{ width: w, height: h, overflow: "hidden", borderRadius: 8, ...spotStyle(spot.state) }}>
-        <AnimatedIntro slogan={d.slogan ?? "Cram videos by Lee Ingram"} beatMs={d.beatMs} sloganMs={d.sloganMs} audioSrc="/audio/intro-music.mp3" soundOn={!!d.soundOn} scale={w / 1920} transparent={d.transparent} playKey={playKey} />
+        <IntroFrame background="none" scale={w / 1920} slogan={d.slogan ?? "Cram videos by Lee Ingram"} beatMs={d.beatMs} sloganMs={d.sloganMs} audioSrc="/audio/intro-music.mp3" soundOn={!!d.soundOn} transparent={d.transparent} playKey={playKey} />
       </div>
       {!cleanShot && !nav.film && (
         <div className={ELEM_TOOLBAR} style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}>
@@ -847,7 +845,7 @@ export function OutroCardNode({ id, data, selected }: NodeProps) {
       {!cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
       <ElementResizer id={id} selected={selected && !cleanShot} minWidth={240} minHeight={135} keepAspect />
       <div {...spot.props} style={{ width: w, height: h, overflow: "hidden", borderRadius: 8, ...spotStyle(spot.state) }}>
-        <OutroCard tagline={d.tagline ?? "Only what’s on your exam."} scale={w / 1920} transparent={d.transparent} playKey={playKey} />
+        <OutroFrame background="none" scale={w / 1920} tagline={d.tagline ?? "Only what’s on your exam."} transparent={d.transparent} playKey={playKey} />
       </div>
       {!cleanShot && !nav.film && (
         <div className={ELEM_TOOLBAR} style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}>
@@ -875,7 +873,7 @@ export function CornerBoltNode({ id, data, selected }: NodeProps) {
       {!cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
       <ElementResizer id={id} selected={selected && !cleanShot} minWidth={240} minHeight={135} keepAspect />
       <div {...spot.props} style={{ width: w, height: h, overflow: "hidden", borderRadius: 8, ...spotStyle(spot.state) }}>
-        <CornerBolt corner={corner} scale={w / 1920} transparent={d.transparent ?? true} opacity={d.boltOpacity ?? 0.7} />
+        <CornerFrame background="none" corner={corner} scale={w / 1920} transparent={d.transparent ?? true} opacity={d.boltOpacity ?? 0.7} />
       </div>
       {!cleanShot && !nav.film && (
         <div className={ELEM_TOOLBAR} style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}>
