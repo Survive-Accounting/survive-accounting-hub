@@ -6,7 +6,7 @@
 // data model + shell + player + paywall are here, with empty / loading / error on every screen.
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Circle, CircleCheck, CircleDot, Lock, LogOut, Mail, Play, X, Loader2 } from "lucide-react";
 
 import { fetchStudentTree, type StudentCourse, type StudentSet, type StudentTopic } from "@/lib/student.functions";
@@ -14,7 +14,8 @@ import { listOverrideCampuses, type CampusOpt } from "@/lib/campus-overrides.fun
 import { claimMyOrders, fetchMyUnlockedTopics, getSetPlayback } from "@/lib/entitlements.functions";
 import { NEON } from "@/components/canvas/theme";
 import { BrandLogo, Bolt, BRAND_RED, BRAND_BLUE } from "@/components/canvas/brand";
-import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
+import { BoltBoil } from "@/components/brand-cards/bolt-boil";
+import { IntroSting } from "@/components/frames";
 import { supabase } from "@/integrations/supabase/client";
 
 type ProgressState = "unstarted" | "in_progress" | "complete";
@@ -30,15 +31,14 @@ const chip = (t: StudentTopic) => (t.shortLabel?.trim() || t.name || "Topic").sl
 // ---- SILENT DOM PRE-ROLL (#7) — bolt boils, wordmark snaps in, topic chip; ~1.5s, NO audio.
 //      A player component, NOT stitched into the video file. onDone reveals the player. --------
 function PreRoll({ chipText, onDone }: { chipText: string; onDone: () => void }) {
+  // The SHARED intro sting (frames/), scaled to fill the player box — no bespoke pre-roll markup.
+  const ref = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(0.24);
+  useLayoutEffect(() => { const el = ref.current; if (el && el.clientWidth) setScale(el.clientWidth / 1920); }, []);
   useEffect(() => { const t = window.setTimeout(onDone, 1500); return () => window.clearTimeout(t); }, [onDone]);
   return (
-    <div className="absolute inset-0 z-10 grid place-items-center overflow-hidden" style={{ background: "#0A1220" }}>
-      <style>{`@keyframes sa-pr-word{from{opacity:0;transform:translateY(8px) scale(0.96)}to{opacity:1;transform:none}}@keyframes sa-pr-chip{from{opacity:0}to{opacity:1}}`}</style>
-      <div className="flex flex-col items-center gap-3">
-        <BoltBoil height={92} />
-        <div style={{ animation: "sa-pr-word 200ms cubic-bezier(0.2,0.7,0.3,1) 640ms both" }}><SurviveWordmark size={40} /></div>
-        {chipText && <div className="max-w-[80%] truncate rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider" style={{ color: "#0B1322", background: NEON.yellow, animation: "sa-pr-chip 220ms ease 1040ms both" }}>{chipText}</div>}
-      </div>
+    <div ref={ref} className="absolute inset-0 z-10 grid place-items-center overflow-hidden" style={{ background: "#0A1220" }}>
+      <IntroSting topicChip={chipText || undefined} scale={scale} />
     </div>
   );
 }

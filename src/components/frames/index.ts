@@ -9,5 +9,6 @@ export { FrameStage } from "./FrameStage";
 export { FrameBackground, type FrameBgVariant } from "./FrameBackground";
 export { frameThemeVars, schoolFrameTheme, DEFAULT_FRAME_THEME, type FrameTheme } from "./frame-theme";
 export { IntroFrame } from "./IntroFrame";
+export { IntroSting } from "./IntroSting";
 export { OutroFrame } from "./OutroFrame";
 export { CornerFrame } from "./CornerFrame";

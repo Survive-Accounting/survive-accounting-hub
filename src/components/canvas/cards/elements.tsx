@@ -856,14 +856,13 @@ export function IntroCardNode({ id, data, selected }: NodeProps) {
       {!cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
       <ElementResizer id={id} selected={selected && !cleanShot} minWidth={240} minHeight={135} keepAspect />
       <div {...spot.props} style={{ width: w, height: h, overflow: "hidden", borderRadius: 8, ...spotStyle(spot.state) }}>
-        <IntroFrame background="none" scale={w / 1920} slogan={d.slogan ?? "Cram videos by Lee Ingram"} beatMs={d.beatMs} sloganMs={d.sloganMs} audioSrc="/audio/intro-music.mp3" soundOn={!!d.soundOn} transparent={d.transparent} playKey={playKey} />
+        <IntroFrame background="none" scale={w / 1920} byline={d.slogan ?? "Cram videos by Lee Ingram"} transparent={d.transparent} playKey={playKey} />
       </div>
       {!cleanShot && !nav.film && (
         <div className={ELEM_TOOLBAR} style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}>
-          <input className="nodrag h-5 rounded px-1 text-[9px]" style={{ color: NEON.text, background: "transparent", border: `1px solid ${NEON.borderSoft}`, width: 150 }} value={d.slogan ?? ""} placeholder="Slogan (e.g. Cram videos by Lee Ingram)" onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ slogan: e.target.value })} title="Slogan under the wordmark" />
-          <button className={ELEM_BTN} style={{ color: d.soundOn ? NEON.yellow : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); update({ soundOn: !d.soundOn }); }} title="Play the intro music when you hit ▶ (so you can see AND hear it)">{d.soundOn ? "🔊 music" : "🔇 music"}</button>
+          <input className="nodrag h-5 rounded px-1 text-[9px]" style={{ color: NEON.text, background: "transparent", border: `1px solid ${NEON.borderSoft}`, width: 170 }} value={d.slogan ?? ""} placeholder="Byline (e.g. Cram videos by Lee Ingram)" onPointerDown={(e) => e.stopPropagation()} onChange={(e) => update({ slogan: e.target.value })} title="Byline under the wordmark (per tutor)" />
           <button className={ELEM_BTN} style={{ color: d.transparent ? NEON.yellow : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); update({ transparent: !d.transparent }); }} title="Transparent background for OBS keying (else navy)">{d.transparent ? "keyed" : "navy"}</button>
-          <button className={ELEM_BTN} style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}`, fontSize: 11 }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); bump(); }} title="Play / replay the intro animation (with music if 🔊 is on)">▶ play</button>
+          <button className={ELEM_BTN} style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}`, fontSize: 11 }} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); bump(); }} title="Replay the intro sting (silent)">▶ play</button>
         </div>
       )}
     </div>
