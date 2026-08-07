@@ -11,6 +11,7 @@ import { ChevronDown, ChevronRight, Circle, CircleCheck, CircleDot, Lock, LogOut
 
 import { fetchStudentTree, type StudentCourse, type StudentSet, type StudentTopic } from "@/lib/student.functions";
 import { listOverrideCampuses, type CampusOpt } from "@/lib/campus-overrides.functions";
+import { claimMyOrders, fetchMyUnlockedTopics, getSetPlayback } from "@/lib/entitlements.functions";
 import { NEON } from "@/components/canvas/theme";
 import { BrandLogo, Bolt } from "@/components/canvas/brand";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
@@ -138,11 +139,12 @@ function SignInDialog({ onClose }: { onClose: () => void }) {
 }
 
 // ---- one set poster: navy, static bolt (boils on hover), topic chip. No thumbnail art ------
-function SetPoster({ set, topicChip, accent, state, onOpen }: { set: StudentSet; topicChip: string; accent: string; state: ProgressState; onOpen: () => void }) {
+function SetPoster({ set, topicChip, accent, state, unlocked, onOpen }: { set: StudentSet; topicChip: string; accent: string; state: ProgressState; unlocked: boolean; onOpen: () => void }) {
   const [hover, setHover] = useState(false);
-  const locked = set.access === "paid";
-  const comingSoon = !set.playbackId;
-  const footLabel = locked ? "Paid" : comingSoon ? "Soon" : state === "complete" ? "Done ✓" : state === "in_progress" ? "Resume" : "Free";
+  const locked = set.access === "paid" && !unlocked;
+  // Paid sets have their playbackId WITHHELD from the tree, so "coming soon" applies to free only.
+  const comingSoon = set.access !== "paid" && !set.playbackId;
+  const footLabel = locked ? "Paid" : comingSoon ? "Soon" : state === "complete" ? "Done ✓" : state === "in_progress" ? "Resume" : set.access === "paid" ? "Unlocked" : "Free";
   const footColor = locked ? "#F0B24A" : comingSoon ? NEON.muted : state === "complete" ? "#3BF5A0" : state === "in_progress" ? NEON.cyan : "#3BF5A0";
   return (
     <button
@@ -168,7 +170,7 @@ function SetPoster({ set, topicChip, accent, state, onOpen }: { set: StudentSet;
   );
 }
 
-function Paywall({ topic, onClose }: { topic: StudentTopic; onClose: () => void }) {
+function Paywall({ topic, onClose, onRestore, restoring }: { topic: StudentTopic; onClose: () => void; onRestore?: () => void; restoring?: boolean }) {
   const n = topic.sets.length;
   return (
     <div className="fixed inset-0 z-[100] grid place-items-center p-4" style={{ background: "rgba(4,7,14,0.9)" }} onClick={onClose}>
@@ -179,6 +181,7 @@ function Paywall({ topic, onClose }: { topic: StudentTopic; onClose: () => void 
           {n} cram {n === 1 ? "video" : "videos"} in <b style={{ color: NEON.text }}>{topic.name}</b>{topic.sets.slice(0, 3).length > 0 && <> — including {topic.sets.slice(0, 3).map((s) => s.name).join(", ")}{n > 3 ? `, +${n - 3} more` : ""}</>}.
         </p>
         <button className="mt-4 w-full rounded-xl px-3 py-2.5 text-[12.5px] font-black uppercase tracking-wide" style={{ color: "#0B1322", background: NEON.yellow }} onClick={() => { window.location.assign("/order"); }}>Get access →</button>
+        {onRestore && <button className="mt-2 w-full rounded-xl px-3 py-2 text-[11px] font-bold disabled:opacity-50" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} disabled={restoring} onClick={onRestore}>{restoring ? "Checking…" : "Already purchased? Restore access"}</button>}
         <button className="mt-2 w-full rounded-xl px-3 py-2 text-[11px] font-bold" style={{ color: NEON.muted }} onClick={onClose}>Keep browsing</button>
       </div>
     </div>
@@ -224,6 +227,13 @@ function LearnShell() {
     if (userId) void (supabase.from("student_set_progress" as never) as any).upsert({ user_id: userId, set_id: setId, state: next }, { onConflict: "user_id,set_id" });
   };
 
+  // ENTITLEMENTS (Prompt 4) — topics the signed-in student has unlocked. A paid set in an
+  // unlocked topic becomes playable; its withheld playback id is fetched securely on click.
+  const unlockedQ = useQuery({ queryKey: ["my-unlocked-topics", userId], queryFn: () => fetchMyUnlockedTopics(), enabled: !!userId, networkMode: "always" });
+  const unlockedTopics = useMemo(() => new Set(unlockedQ.data ?? []), [unlockedQ.data]);
+  const [restoring, setRestoring] = useState(false);
+  const restore = async () => { setRestoring(true); try { await claimMyOrders(); await unlockedQ.refetch(); } finally { setRestoring(false); } };
+
   const allTopics = useMemo(() => courses.flatMap((c) => [...c.units.flatMap((u) => u.topics), ...c.topics].map((t) => ({ c, t }))), [courses]);
   // Restore last topic (or first) once data arrives.
   useEffect(() => {
@@ -235,12 +245,22 @@ function LearnShell() {
   const current = allTopics.find((x) => x.t.id === topicId);
   const accent = NEON.yellow;
 
-  const openSet = (t: StudentTopic, s: StudentSet) => { if (s.access === "paid") { setPaywallTopic(t); return; } if (!s.playbackId) return; setPlaying({ set: s, topic: t }); };
+  const openSet = async (t: StudentTopic, s: StudentSet) => {
+    if (s.access === "paid") {
+      if (!unlockedTopics.has(t.id)) { setPaywallTopic(t); return; }
+      // Unlocked paid set — fetch the withheld playback id securely (server re-checks the grant).
+      try { const { playbackId } = await getSetPlayback({ data: { setId: s.id } }); if (!playbackId) return; setPlaying({ set: { ...s, playbackId }, topic: t }); }
+      catch { setPaywallTopic(t); }
+      return;
+    }
+    if (!s.playbackId) return;
+    setPlaying({ set: s, topic: t });
+  };
 
   // One outline topic row — shared between exam-unit groups and the loose (un-grouped) topics.
   const topicRow = (t: StudentTopic) => {
     const active = t.id === topicId;
-    const locked = t.sets.length > 0 && t.sets.every((s) => s.access === "paid");
+    const locked = t.sets.length > 0 && t.sets.every((s) => s.access === "paid") && !unlockedTopics.has(t.id);
     const done = t.sets.filter((s) => progress[s.id] === "complete").length;
     const allDone = done > 0 && done === t.sets.length;
     return (
@@ -335,7 +355,7 @@ function LearnShell() {
                 <div className="grid place-items-center rounded-2xl py-16 text-center text-[12px]" style={{ border: `1px dashed ${NEON.borderSoft}`, color: NEON.muted }}>No videos in this topic yet.</div>
               ) : (
                 <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}>
-                  {current.t.sets.map((s) => <SetPoster key={s.id} set={s} topicChip={chip(current.t)} accent={accent} state={progress[s.id] ?? "unstarted"} onOpen={() => openSet(current.t, s)} />)}
+                  {current.t.sets.map((s) => <SetPoster key={s.id} set={s} topicChip={chip(current.t)} accent={accent} state={progress[s.id] ?? "unstarted"} unlocked={unlockedTopics.has(current.t.id)} onOpen={() => openSet(current.t, s)} />)}
                 </div>
               )}
             </>
@@ -344,7 +364,7 @@ function LearnShell() {
       </div>
 
       {playing && <VideoPlayer set={playing.set} chipText={chip(playing.topic)} onClose={() => setPlaying(null)} onStarted={() => markProgress(playing.set.id, "in_progress")} onComplete={() => markProgress(playing.set.id, "complete")} />}
-      {paywallTopic && <Paywall topic={paywallTopic} onClose={() => setPaywallTopic(null)} />}
+      {paywallTopic && <Paywall topic={paywallTopic} onClose={() => setPaywallTopic(null)} onRestore={userId ? restore : undefined} restoring={restoring} />}
       {signInOpen && <SignInDialog onClose={() => setSignInOpen(false)} />}
     </div>
   );

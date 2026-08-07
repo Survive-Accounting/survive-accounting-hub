@@ -81,7 +81,10 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
     const co = coById.get(courseId);
     const course = ensureCourse(courseId, co?.name ?? "Course", co?.family ?? null);
     const topic = ch ? ensureTopic(course, ch) : ensureTopic(course, { id: `__more_${courseId}`, name: "More", short: null, number: 9999 });
-    topic.sets.push({ id: d.id, name: setName(d.name), access: d.access === "paid" ? "paid" : "free", orientation: "landscape", playbackId: (d.lessonId && pb.get(d.lessonId)) || null });
+    // WITHHOLD the playback id for PAID sets (#Prompt 4) — the tree never carries a locked
+    // video's id. The client fetches it via getSetPlayback, which re-checks the entitlement.
+    const paid = d.access === "paid";
+    topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: "landscape", playbackId: paid ? null : ((d.lessonId && pb.get(d.lessonId)) || null) });
   }
 
   const ordered = [...courses.values()].sort((a, b) => courseRank(a.name) - courseRank(b.name) || a.name.localeCompare(b.name));
