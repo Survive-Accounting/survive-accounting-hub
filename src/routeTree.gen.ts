@@ -21,6 +21,7 @@ import { Route as OrderRouteImport } from './routes/order'
 import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as LogoLabRouteImport } from './routes/logo-lab'
 import { Route as LearnRouteImport } from './routes/learn'
+import { Route as LandingRouteImport } from './routes/landing'
 import { Route as JeRouteImport } from './routes/je'
 import { Route as IntroOutroRouteImport } from './routes/intro-outro'
 import { Route as CeqRouteImport } from './routes/ceq'
@@ -124,6 +125,11 @@ const LogoLabRoute = LogoLabRouteImport.update({
 const LearnRoute = LearnRouteImport.update({
   id: '/learn',
   path: '/learn',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LandingRoute = LandingRouteImport.update({
+  id: '/landing',
+  path: '/landing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const JeRoute = JeRouteImport.update({
@@ -360,6 +366,7 @@ export interface FileRoutesByFullPath {
   '/ceq': typeof CeqRouteWithChildren
   '/intro-outro': typeof IntroOutroRoute
   '/je': typeof JeRouteWithChildren
+  '/landing': typeof LandingRoute
   '/learn': typeof LearnRoute
   '/logo-lab': typeof LogoLabRoute
   '/onboard': typeof OnboardRoute
@@ -418,6 +425,7 @@ export interface FileRoutesByTo {
   '/ceq': typeof CeqRouteWithChildren
   '/intro-outro': typeof IntroOutroRoute
   '/je': typeof JeRouteWithChildren
+  '/landing': typeof LandingRoute
   '/learn': typeof LearnRoute
   '/logo-lab': typeof LogoLabRoute
   '/onboard': typeof OnboardRoute
@@ -476,6 +484,7 @@ export interface FileRoutesById {
   '/ceq': typeof CeqRouteWithChildren
   '/intro-outro': typeof IntroOutroRoute
   '/je': typeof JeRouteWithChildren
+  '/landing': typeof LandingRoute
   '/learn': typeof LearnRoute
   '/logo-lab': typeof LogoLabRoute
   '/onboard': typeof OnboardRoute
@@ -536,6 +545,7 @@ export interface FileRouteTypes {
     | '/ceq'
     | '/intro-outro'
     | '/je'
+    | '/landing'
     | '/learn'
     | '/logo-lab'
     | '/onboard'
@@ -594,6 +604,7 @@ export interface FileRouteTypes {
     | '/ceq'
     | '/intro-outro'
     | '/je'
+    | '/landing'
     | '/learn'
     | '/logo-lab'
     | '/onboard'
@@ -651,6 +662,7 @@ export interface FileRouteTypes {
     | '/ceq'
     | '/intro-outro'
     | '/je'
+    | '/landing'
     | '/learn'
     | '/logo-lab'
     | '/onboard'
@@ -710,6 +722,7 @@ export interface RootRouteChildren {
   CeqRoute: typeof CeqRouteWithChildren
   IntroOutroRoute: typeof IntroOutroRoute
   JeRoute: typeof JeRouteWithChildren
+  LandingRoute: typeof LandingRoute
   LearnRoute: typeof LearnRoute
   LogoLabRoute: typeof LogoLabRoute
   OnboardRoute: typeof OnboardRoute
@@ -817,6 +830,13 @@ declare module '@tanstack/react-router' {
       path: '/learn'
       fullPath: '/learn'
       preLoaderRoute: typeof LearnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/landing': {
+      id: '/landing'
+      path: '/landing'
+      fullPath: '/landing'
+      preLoaderRoute: typeof LandingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/je': {
@@ -1230,6 +1250,7 @@ const rootRouteChildren: RootRouteChildren = {
   CeqRoute: CeqRouteWithChildren,
   IntroOutroRoute: IntroOutroRoute,
   JeRoute: JeRouteWithChildren,
+  LandingRoute: LandingRoute,
   LearnRoute: LearnRoute,
   LogoLabRoute: LogoLabRoute,
   OnboardRoute: OnboardRoute,
