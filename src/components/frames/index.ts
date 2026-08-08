@@ -6,7 +6,7 @@
 // school variants). Frames: IntroFrame / OutroFrame / CornerFrame (A wraps the existing cards;
 // B/C/D rebuild the intro/outro/CEQ-hook internals directly on FrameStage).
 export { FrameStage } from "./FrameStage";
-export { FrameBackground, type FrameBgVariant } from "./FrameBackground";
+export { FrameBackground, FRAME_BG_VARIANTS, type FrameBgVariant } from "./FrameBackground";
 export { frameThemeVars, schoolFrameTheme, DEFAULT_FRAME_THEME, type FrameTheme } from "./frame-theme";
 export { IntroFrame } from "./IntroFrame";
 export { IntroSting } from "./IntroSting";

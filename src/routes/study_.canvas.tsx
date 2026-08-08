@@ -70,6 +70,7 @@ import { MemoLibraryPanel } from "@/components/canvas/MemoLibraryPanel";
 import { PipelineTestPanel } from "@/components/canvas/PipelineTestPanel";
 import { LessonGridView } from "@/components/canvas/LessonGridView";
 import { CeqStudio } from "@/components/canvas/CeqStudio";
+import { BrandingStudio } from "@/components/canvas/BrandingStudio";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
 import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, LESSON_STATUSES, LESSON_CATEGORIES, LESSON_CATEGORY_LABEL, type Beat, type CardBase, type CardData, type CardNode, type CeqChoice, type CeqChainItem, type CeqChainTemplate, type DeckDef, type FilmRun, type GlobalClips, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonAccess, type LessonBox, type LessonCategory, type LessonPathing, type LessonStatus, type ListCard, type RecCue, type RunEvent, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText, toggleWrapInField } from "@/components/canvas/ui";
@@ -1320,6 +1321,7 @@ function PresentCanvas() {
   const [sceneName, setSceneName] = useState("Untitled scene");
   const [decks, setDecks] = useState<DeckDef[]>([]); // named decks (P3) — persisted in the scene payload
   const [ceqStudioOpen, setCeqStudioOpen] = useState(false); // CEQ STUDIO (prompt 5) — 3-pane authoring overlay
+  const [brandingOpen, setBrandingOpen] = useState(false); // BRANDING STUDIO — reusable brand-frame gallery
   const [studioFocusCeq, setStudioFocusCeq] = useState<string | null>(null); // open Studio focused on this CEQ
   const [studioFocusSet, setStudioFocusSet] = useState<string | null>(null); // open Studio with this SET active (outline launcher)
   const [ceqSets, setCeqSets] = useState<CeqSetDef[]>([]); // CEQ set factories — persisted in the scene payload
@@ -3165,24 +3167,22 @@ function PresentCanvas() {
    *  - only containers (lesson/frame/zone) and pure design furniture (headings,
    *    text, logos, gates, …) are removed — recreatable UI, not data.
    *  ONE bus command — Ctrl+Z restores the entire previous canvas. */
-  /** Build the 4 brand starter frames (Intro · CEQ Hook · CEQ Portal · Outro) + their
-   *  brand cards for a lesson. Fresh node ids each call; parents (frames) precede children. */
+  /** Build the 2 PORTAL starter frames for a lesson: a CEQ Portal (→ CEQ Studio) and a
+   *  Branding Portal (→ Branding Studio, the reusable intro/outro/CEQ-hook/tease gallery).
+   *  Both are folders — the actual brand frames live inside their studio, not on the canvas.
+   *  Fresh node ids each call; parents (frames) precede children. */
   const buildBrandFrames = useCallback((lessonId: string): CardNode[] => {
-    const fIds = [cardId("frame"), cardId("frame"), cardId("frame"), cardId("frame")];
+    const fIds = [cardId("frame"), cardId("frame")];
     const frameAt = (s: number, title: string, extra: Record<string, unknown> = {}) =>
       ({ id: fIds[s], type: "frame", parentId: lessonId, position: { x: columnX(0), y: rowY(s) }, width: FRAME_W, height: FRAME_H, data: { ...blankFrameData("hook", s), title, ...extra } }) as unknown as CardNode;
     return [
-      frameAt(0, "Intro"),
-      frameAt(1, "CEQ Hook"),
-      frameAt(2, "CEQ Portal", { portal: true }),
-      frameAt(3, "Outro"),
-      { id: cardId("intro"), type: "intro", parentId: fIds[0], position: { x: 0, y: 0 }, data: { kind: "intro", slogan: "Cram videos by Lee Ingram", soundOn: false, transparent: false, w: 800, h: 450 } } as unknown as CardNode,
-      { id: cardId("framebolt"), type: "framebolt", parentId: fIds[1], position: { x: 150, y: 250 }, data: { kind: "framebolt", w: 340, h: 420 } } as unknown as CardNode,
-      { id: cardId("ceqhook"), type: "ceqhook", parentId: fIds[1], position: { x: 560, y: 250 }, data: { kind: "ceqhook", beats: [""], orient: "landscape", w: 900, h: 420 } } as unknown as CardNode,
-      { id: cardId("outro"), type: "outro", parentId: fIds[3], position: { x: 0, y: 0 }, data: { kind: "outro", transparent: false, w: 800, h: 450 } } as unknown as CardNode,
+      frameAt(0, "CEQ Portal", { portal: true, portalKind: "ceq" }),
+      frameAt(1, "Branding Portal", { portal: true, portalKind: "branding" }),
     ];
   }, []);
-  const BRAND_TITLES = useMemo(() => new Set(["Intro", "CEQ Hook", "CEQ Portal", "Outro"]), []);
+  // Titles considered "brand furniture" and rebuilt on reset. Legacy titles (Intro/CEQ Hook/Outro)
+  // stay listed so an old canvas migrates cleanly to the two-portal layout on the next reset.
+  const BRAND_TITLES = useMemo(() => new Set(["CEQ Portal", "Branding Portal", "Intro", "CEQ Hook", "Outro"]), []);
   const BRAND_DESIGN = useMemo(() => new Set(["heading", "text", "examcue", "ceqtease", "ceqhook", "framebolt", "logo", "intro", "outro", "corner", "paygate", "signupgate"]), []);
 
   /** SCOPED RESET (Lee). NON-destructive to CEQ data in every scope — sets, questions,
@@ -3629,8 +3629,9 @@ function PresentCanvas() {
 
   const openStudio = useCallback((ceqId?: string) => { setStudioFocusCeq(ceqId ?? null); setCeqStudioOpen(true); }, []);
   const openStudioSet = useCallback((setId: string) => { setStudioFocusSet(setId); setStudioFocusCeq(null); setCeqStudioOpen(true); }, []);
+  const openBranding = useCallback(() => setBrandingOpen(true), []);
 
-  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, film, enter: (fid: string) => enterFrame(fid, { smooth: true }), exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId?: string; beat?: Beat; onCreated?: (newFrameId: string) => void } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson, copyFrame, pasteFrameBelow, hasFrameClip: clip?.kind === "frame", copyScaffold, pasteScaffold, hasScaffoldClip: clip?.kind === "scaffold", cramMode, activateLesson: setActiveLesson, focusCeq, openStudio, openStudioSet }), [currentFrameId, film, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson, copyFrame, pasteFrameBelow, copyScaffold, pasteScaffold, clip, cramMode, setActiveLesson, focusCeq, openStudio, openStudioSet]);
+  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, film, enter: (fid: string) => enterFrame(fid, { smooth: true }), exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId?: string; beat?: Beat; onCreated?: (newFrameId: string) => void } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson, copyFrame, pasteFrameBelow, hasFrameClip: clip?.kind === "frame", copyScaffold, pasteScaffold, hasScaffoldClip: clip?.kind === "scaffold", cramMode, activateLesson: setActiveLesson, focusCeq, openStudio, openStudioSet, openBranding }), [currentFrameId, film, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson, copyFrame, pasteFrameBelow, copyScaffold, pasteScaffold, clip, cramMode, setActiveLesson, focusCeq, openStudio, openStudioSet, openBranding]);
 
   /** Row ×: remove MEMBERSHIP only — a tucked card re-deals to its remembered
    *  spot as a loose card first. Cards never vanish. */
@@ -6763,6 +6764,9 @@ function PresentCanvas() {
           <CeqStudio decks={decks} setDecks={setDecks} globalClips={globalClips} setGlobalClips={setGlobalClips} initialCeqId={studioFocusCeq} initialSetId={studioFocusSet} popped onClose={() => { returnPop("ceqstudio"); setCeqStudioOpen(false); setStudioFocusCeq(null); setStudioFocusSet(null); }} />
         </PanelPopout>
       )}
+
+      {/* BRANDING STUDIO — the reusable brand-frame gallery behind the Branding Portal. */}
+      {chrome && brandingOpen && <BrandingStudio onClose={() => setBrandingOpen(false)} />}
 
       {/* NEW LESSON (ITEM 3) — pick type + topic, then scaffold ordinary frames. */}
       {newLessonOpen && (

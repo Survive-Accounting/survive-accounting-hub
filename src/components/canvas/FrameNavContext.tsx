@@ -61,6 +61,8 @@ export interface FrameNav {
   openStudio: (ceqNodeId?: string) => void;
   /** Open the CEQ Studio with a specific SET (DeckDef id) active — the outline launcher. */
   openStudioSet: (setId: string) => void;
+  /** Open the BRANDING STUDIO — the reusable intro/outro/CEQ-hook/tease frame gallery. */
+  openBranding: () => void;
 }
 
 const noop = () => {};
@@ -89,6 +91,7 @@ export const FrameNavContext = createContext<FrameNav>({
   focusCeq: noop,
   openStudio: noop,
   openStudioSet: noop,
+  openBranding: noop,
 });
 
 export const useFrameNav = () => useContext(FrameNavContext);

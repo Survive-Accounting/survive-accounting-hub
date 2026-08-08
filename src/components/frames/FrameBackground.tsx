@@ -5,13 +5,23 @@
 // prefers-reduced-motion is honoured by WorldBackground (motion → 0 → static).
 import { WorldBackground } from "@/components/canvas/WorldBackground";
 
-export type FrameBgVariant = "orbital" | "dark-dotted" | "plain";
+// Three brand gradients (+ plain), each drawing attention differently — mapped onto existing
+// world presets (worlds.ts). 'plain' skips the world for a flat navy.
+export type FrameBgVariant = "orbital" | "nebula" | "deep" | "plain";
 
-// Map the frame variants onto existing world presets (worlds.ts). 'plain' skips the world.
 const WORLD_BY_VARIANT: Record<Exclude<FrameBgVariant, "plain">, string> = {
-  orbital: "orbital-grid",
-  "dark-dotted": "deep-space",
+  orbital: "orbital-grid",  // a structured grid receding into the dark — depth + motion downward
+  nebula: "distant-nebula", // a soft violet cloud off to a corner — colour + a wandering eye
+  deep: "deep-space",       // vignette darkens the EDGES → attention pulled to the CENTER
 };
+
+/** The pickable brand backgrounds (for the Branding Studio). */
+export const FRAME_BG_VARIANTS: { id: FrameBgVariant; name: string }[] = [
+  { id: "deep", name: "Deep (center)" },
+  { id: "orbital", name: "Orbital" },
+  { id: "nebula", name: "Nebula" },
+  { id: "plain", name: "Plain" },
+];
 
 export function FrameBackground({ variant = "orbital", intensity = 0.3, animate = true }: {
   variant?: FrameBgVariant;

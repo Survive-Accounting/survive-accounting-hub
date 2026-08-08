@@ -521,20 +521,36 @@ export function FrameNode({ id, data, selected }: NodeProps) {
         </div>
       )}
 
-      {/* CEQ PORTAL (v2 starter frame) — a big centered door into the CEQ Studio.
+      {/* PORTAL (v2 starter frame) — a big centered door into a workspace. Two kinds:
+          CEQ Portal → CEQ Studio; Branding Portal → Branding Studio (reusable frame
+          gallery). Like a folder: clicking reveals its contents.
           data-frame-chrome ⇒ film hides it (never on camera); authoring-only nav. */}
       {d.portal && (
-        <div data-frame-chrome className="absolute inset-0 z-[6] grid place-items-center">
-          <button
-            className="nodrag rounded-2xl px-10 py-6 text-[26px] font-black tracking-[0.14em] transition-transform hover:scale-[1.03]"
-            style={{ color: "#0B0F1E", background: NEON.yellow, border: `2px solid ${NEON.yellow}`, boxShadow: "0 18px 50px -12px rgba(252,163,17,0.55)" }}
-            onPointerDown={stop}
-            onClick={(e) => { e.stopPropagation(); nav.openStudio(); }}
-            title="Open the CEQ Studio — sets · questions + chains · memo library"
-          >
-            [ ENTER CEQ PORTAL ]
-          </button>
-        </div>
+        d.portalKind === "branding" ? (
+          <div data-frame-chrome className="absolute inset-0 z-[6] grid place-items-center">
+            <button
+              className="nodrag rounded-2xl px-10 py-6 text-[26px] font-black tracking-[0.14em] transition-transform hover:scale-[1.03]"
+              style={{ color: "#06121A", background: NEON.cyan, border: `2px solid ${NEON.cyan}`, boxShadow: "0 18px 50px -12px rgba(56,189,248,0.55)" }}
+              onPointerDown={stop}
+              onClick={(e) => { e.stopPropagation(); nav.openBranding(); }}
+              title="Open the Branding Studio — reusable intro · outro · CEQ hook · tease frames"
+            >
+              [ ENTER BRANDING STUDIO ]
+            </button>
+          </div>
+        ) : (
+          <div data-frame-chrome className="absolute inset-0 z-[6] grid place-items-center">
+            <button
+              className="nodrag rounded-2xl px-10 py-6 text-[26px] font-black tracking-[0.14em] transition-transform hover:scale-[1.03]"
+              style={{ color: "#0B0F1E", background: NEON.yellow, border: `2px solid ${NEON.yellow}`, boxShadow: "0 18px 50px -12px rgba(252,163,17,0.55)" }}
+              onPointerDown={stop}
+              onClick={(e) => { e.stopPropagation(); nav.openStudio(); }}
+              title="Open the CEQ Studio — sets · questions + chains · memo library"
+            >
+              [ ENTER CEQ PORTAL ]
+            </button>
+          </div>
+        )
       )}
 
       {/* BACKGROUND PICKER — loop chooser + opacity slider (author-facing). nodrag/

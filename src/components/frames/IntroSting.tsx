@@ -1,22 +1,19 @@
 // INTRO STING (frames/, C) — the SILENT 1.5s opener. No music, no warp, no reversed audio (the
-// video's music/warp is added later by the render worker). Layers, back→front: [orbital bg is the
-// frame's job] · GHOSTED "ACCOUNTING" behind the wordmark · the "survive" wordmark with the
-// boiling bolt as the "i" (dominant, cream) · the byline. Colours read the frame theme CSS vars.
+// video's music/warp is added later by the render worker). Clean like the outro: the "survive"
+// wordmark with the boiling bolt as the "i" (dominant, cream) + the byline. Colours read the
+// frame theme CSS vars.
 //
-// Timeline: 0-0.8s bolt alone boiling + ACCOUNTING fades up behind it · 0.8s the wordmark LETTERS
-// SNAP in around the bolt (hard cut, no fade) · 1.0-1.5s the byline fades up. Re-mounts on playKey.
-// The byline is a PROP ("Cram videos by [tutor]"); topicChip is optional (the player pre-roll).
+// Timeline: 0-0.8s the bolt alone boils · 0.8s the wordmark LETTERS SNAP in around the bolt (hard
+// cut, no fade) · 1.0-1.5s the byline fades up. Re-mounts on playKey. The byline is a PROP ("Cram
+// videos by [tutor]"); topicChip is optional (the player pre-roll).
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { BRAND_DISPLAY } from "@/components/canvas/brand";
 
 const STING_CSS = `
-@keyframes sa-sting-acct { from { opacity: 0; transform: translateY(16px); } to { opacity: 0.1; transform: none; } }
 @keyframes sa-sting-snap { from { opacity: 0; } to { opacity: 1; } }
 @keyframes sa-sting-byline { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
-  .sa-sting-acct, .sa-sting-letters, .sa-sting-byline { animation: none !important; transform: none !important; }
-  .sa-sting-letters, .sa-sting-byline { opacity: 1 !important; }
-  .sa-sting-acct { opacity: 0.1 !important; }
+  .sa-sting-letters, .sa-sting-byline { animation: none !important; transform: none !important; opacity: 1 !important; }
 }`;
 
 export function IntroSting({ byline = "Cram videos by Lee Ingram", topicChip, playKey, scale = 1 }: {
@@ -32,11 +29,8 @@ export function IntroSting({ byline = "Cram videos by Lee Ingram", topicChip, pl
     <div style={{ width: 1920 * scale, height: 1080 * scale, overflow: "hidden", position: "relative", flex: "0 0 auto" }}>
       <div key={playKey} style={{ width: 1920, height: 1080, transform: `scale(${scale})`, transformOrigin: "top left", position: "absolute", inset: 0 }}>
         <style>{STING_CSS}</style>
-        {/* GHOSTED "ACCOUNTING" — behind the wordmark, roughly centred on it; fades up 0-0.8s. */}
-        <div className="sa-sting-acct absolute inset-0 grid place-items-center" style={{ zIndex: 1, opacity: 0.1, animation: "sa-sting-acct 800ms ease both" }} aria-hidden>
-          <div style={{ fontFamily: BRAND_DISPLAY, fontWeight: 800, fontSize: 300, letterSpacing: "0.14em", textTransform: "uppercase", color: "var(--brand-cream, #F5EFE6)", whiteSpace: "nowrap" }}>Accounting</div>
-        </div>
-        {/* WORDMARK (bolt always boiling; letters snap in at 0.8s) + byline. */}
+        {/* WORDMARK (bolt always boiling; letters snap in at 0.8s) + byline. Clean like the outro —
+            no ghosted word behind it; the wordmark + byline carry the frame. */}
         <div className="absolute inset-0 flex flex-col items-center justify-center" style={{ zIndex: 2, gap: 34 }}>
           <span style={{ display: "inline-flex", alignItems: "baseline", fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: size, lineHeight: 1, letterSpacing: "-0.01em", color: "var(--brand-cream, #F5EFE6)", whiteSpace: "nowrap" }}>
             <span className="sa-sting-letters" style={{ animation: snap }}>surv</span>
