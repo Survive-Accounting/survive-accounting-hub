@@ -18,7 +18,7 @@ import { useDecks } from "./DecksContext";
 import type { CardNode, DeckDef, LessonBox } from "./types";
 import { courseLabel, fetchCourseOptions, topicLabel, type CourseOption } from "@/lib/je-api";
 import { createChapter, renameChapter, reorderChapters } from "@/lib/canvas.functions";
-import { searchCampuses, type CampusOpt } from "@/lib/campus-overrides.functions";
+import { listCampusChapterOverrides, searchCampuses, setCampusChapterOverride, type CampusOpt } from "@/lib/campus-overrides.functions";
 import {
   createCampusExam, listCampusExams, listCourseCampuses, renameCampusExam,
   reorderCampusExams, setCampusExamStatus, setCampusExamTopics,
@@ -261,6 +261,21 @@ function CampusRow({ campus, course, topics }: { campus: CourseCampusRow; course
   const exams = (examsQ.data ?? []).filter((e) => e.status === "active");
   const refresh = () => { qc.invalidateQueries({ queryKey: ["campus-exams", campus.campus_id, course.id] }); qc.invalidateQueries({ queryKey: ["course-campuses", course.id] }); };
 
+  // Per-campus LOCAL chapter #s (campus_chapter_overrides, 0103) — a property of (campus, topic),
+  // shared across that campus's exams. Loaded once for all Intro-1 topics.
+  const topicIds = useMemo(() => topics.map((t) => t.id), [topics]);
+  const ovQ = useQuery({ queryKey: ["campus-overrides", campus.campus_id], queryFn: () => listCampusChapterOverrides({ data: { campus_id: campus.campus_id, chapter_ids: topicIds } }), enabled: open && topicIds.length > 0, networkMode: "always" });
+  const localOv = useMemo(() => {
+    const m = new Map<string, { local_number: number | null; local_order: number | null }>();
+    for (const r of ovQ.data ?? []) m.set(r.chapter_id, { local_number: r.local_number, local_order: r.local_order });
+    return m;
+  }, [ovQ.data]);
+  const setLocalNum = async (chapter_id: string, n: number | null) => {
+    const order = localOv.get(chapter_id)?.local_order ?? null;
+    await setCampusChapterOverride({ data: { campus_id: campus.campus_id, chapter_id, local_number: n, local_order: order } });
+    qc.invalidateQueries({ queryKey: ["campus-overrides", campus.campus_id] });
+  };
+
   return (
     <div className="mb-0.5">
       <button className="flex w-full items-center gap-1 px-0.5 py-1 text-left hover:bg-white/5" onClick={() => setOpen((v) => !v)}>
@@ -272,7 +287,7 @@ function CampusRow({ campus, course, topics }: { campus: CourseCampusRow; course
       {open && (
         <div className="ml-4 border-l pl-1.5" style={{ borderColor: NEON.borderSoft }}>
           {examsQ.isLoading && <div className="px-1 py-0.5 text-[10px] italic" style={{ color: NEON.muted }}>Loading…</div>}
-          {exams.map((ex) => <ExamRow key={ex.id} exam={ex} topics={topics} onChange={refresh} />)}
+          {exams.map((ex) => <ExamRow key={ex.id} exam={ex} topics={topics} onChange={refresh} localOv={localOv} setLocalNum={setLocalNum} />)}
           {adding ? (
             <div className="px-0.5 py-1"><InlineInput initial={`Exam ${exams.length + 1}`} placeholder="Exam name…" onCommit={async (v) => { setAdding(false); await createCampusExam({ data: { campus_id: campus.campus_id, course_id: course.id, name: v } }); refresh(); }} onCancel={() => setAdding(false)} /></div>
           ) : (
@@ -284,11 +299,12 @@ function CampusRow({ campus, course, topics }: { campus: CourseCampusRow; course
   );
 }
 
-function ExamRow({ exam, topics, onChange }: { exam: CampusExamRow; topics: Topic[]; onChange: () => void }) {
+function ExamRow({ exam, topics, onChange, localOv, setLocalNum }: { exam: CampusExamRow; topics: Topic[]; onChange: () => void; localOv: Map<string, { local_number: number | null; local_order: number | null }>; setLocalNum: (chapter_id: string, n: number | null) => void }) {
   const [pick, setPick] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const selected = new Set(exam.chapter_ids);
   const selectedTopics = topics.filter((t) => selected.has(t.id));
+  const numOf = (id: string) => localOv.get(id)?.local_number ?? null;
 
   const toggle = async (id: string) => {
     const next = new Set(selected);
@@ -311,21 +327,24 @@ function ExamRow({ exam, topics, onChange }: { exam: CampusExamRow; topics: Topi
         <button className="shrink-0 rounded px-1 py-0.5 text-[10px] opacity-70 hover:bg-white/10 hover:opacity-100" onClick={() => setPick((v) => !v)} title="Choose the topics on this exam">{selected.size} topics ▾</button>
         <button className="shrink-0 rounded px-1 py-0.5 text-[10px] opacity-0 hover:bg-white/10 group-hover:opacity-60" onClick={async () => { await setCampusExamStatus({ data: { id: exam.id, status: "archived" } }); onChange(); }} title="Archive this exam"><X className="h-3 w-3" /></button>
       </div>
-      {/* selected topic chips */}
+      {/* selected topic chips — with the campus's LOCAL chapter # when set */}
       {selectedTopics.length > 0 && !pick && (
         <div className="ml-3 flex flex-wrap gap-1 pb-1">
-          {selectedTopics.map((t) => <span key={t.id} className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: "rgba(79,163,227,0.14)", color: NEON.cyan }}>{topicLabel(t)}</span>)}
+          {selectedTopics.map((t) => { const n = numOf(t.id); return <span key={t.id} className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: "rgba(79,163,227,0.14)", color: NEON.cyan }}>{n != null ? `#${n} · ` : ""}{topicLabel(t)}</span>; })}
         </div>
       )}
-      {/* topic multi-select checklist */}
+      {/* topic multi-select checklist — click the name to toggle; type the campus's local chapter # */}
       {pick && (
         <div className="ml-3 mb-1 max-h-52 overflow-y-auto rounded" style={{ border: `1px solid ${NEON.border}`, background: "rgba(0,0,0,0.25)" }}>
           {topics.length === 0 && <div className="px-2 py-1 text-[10px] italic" style={{ color: NEON.muted }}>No topics yet — add some above.</div>}
           {topics.map((t) => (
-            <button key={t.id} className="flex w-full items-center gap-2 px-2 py-1 text-left text-[11px] hover:bg-white/5" onClick={() => toggle(t.id)}>
-              <span className="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-sm text-[9px]" style={{ border: `1px solid ${selected.has(t.id) ? NEON.cyan : NEON.border}`, background: selected.has(t.id) ? NEON.cyan : "transparent", color: "#06121A" }}>{selected.has(t.id) ? "✓" : ""}</span>
-              <span className="min-w-0 flex-1 truncate">{topicLabel(t)}</span>
-            </button>
+            <div key={t.id} className="flex items-center gap-2 px-2 py-1 text-[11px] hover:bg-white/5">
+              <button className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => toggle(t.id)}>
+                <span className="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-sm text-[9px]" style={{ border: `1px solid ${selected.has(t.id) ? NEON.cyan : NEON.border}`, background: selected.has(t.id) ? NEON.cyan : "transparent", color: "#06121A" }}>{selected.has(t.id) ? "✓" : ""}</span>
+                <span className="min-w-0 flex-1 truncate">{topicLabel(t)}</span>
+              </button>
+              <LocalNumInput value={numOf(t.id)} onCommit={(n) => setLocalNum(t.id, n)} />
+            </div>
           ))}
         </div>
       )}
@@ -375,6 +394,24 @@ function FolderHeader({ open, onToggle, icon, label, count, color }: { open: boo
       <span className="min-w-0 flex-1 text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color }}>{label}</span>
       <span className="shrink-0 text-[9px] tabular-nums opacity-45">{count}</span>
     </button>
+  );
+}
+
+// The campus's local chapter # for one topic — commits on blur / Enter, clears on empty.
+function LocalNumInput({ value, onCommit }: { value: number | null; onCommit: (n: number | null) => void }) {
+  const [v, setV] = useState(value == null ? "" : String(value));
+  useEffect(() => { setV(value == null ? "" : String(value)); }, [value]);
+  const commit = () => { const t = v.trim(); if (t === "") { if (value != null) onCommit(null); return; } const n = Number(t); if (Number.isFinite(n) && n >= 0) { if (n !== value) onCommit(n); } else setV(value == null ? "" : String(value)); };
+  return (
+    <input
+      value={v} inputMode="numeric" placeholder="#" title="This campus's local chapter # for this topic"
+      className="w-8 shrink-0 rounded px-1 py-0.5 text-center text-[10px] tabular-nums outline-none"
+      style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${NEON.border}`, color: NEON.text }}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === "Enter") { commit(); (e.target as HTMLInputElement).blur(); } else if (e.key === "Escape") { setV(value == null ? "" : String(value)); (e.target as HTMLInputElement).blur(); } }}
+    />
   );
 }
 
