@@ -55,6 +55,31 @@ type School = (typeof SCHOOLS)[number];
 const COLOR_BY_ID = new Map(SEC_SCHOOLS.map((s: { id: string; c1: string; c2: string }) => [s.id, s]));
 const schoolColors = (id: string) => COLOR_BY_ID.get(id) ?? { c1: BRAND_RED, c2: BRAND_BLUE };
 
+// Bolt colors must READ on the navy page. Dark school primaries (Ole Miss navy #14213D, Auburn,
+// Georgia) blend into the background and the bolt looks half-erased — so lift any low-contrast
+// color toward white until it's visible, preserving hue (navy → steel-blue, still "their color").
+const PAGE_NAVY = "#111A32";
+function hx(hex: string): [number, number, number] { const h = hex.replace("#", ""); const s = h.length === 3 ? h.split("").map((c) => c + c).join("") : h; const n = parseInt(s, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
+function toHex(r: number, g: number, b: number) { const t = (x: number) => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, "0"); return `#${t(r)}${t(g)}${t(b)}`; }
+function lum([r, g, b]: [number, number, number]) { const f = (c: number) => { const x = c / 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); }
+function contrast(a: [number, number, number], b: [number, number, number]) { const la = lum(a) + 0.05, lb = lum(b) + 0.05; return la > lb ? la / lb : lb / la; }
+function readable(hex: string, min = 2.6): string {
+  const bg = hx(PAGE_NAVY), rgb = hx(hex);
+  if (contrast(rgb, bg) >= min) return hex;
+  for (let t = 0.18; t <= 1.0001; t += 0.18) {
+    const m: [number, number, number] = [rgb[0] + (255 - rgb[0]) * t, rgb[1] + (255 - rgb[1]) * t, rgb[2] + (255 - rgb[2]) * t];
+    if (contrast(m, bg) >= min) return toHex(m[0], m[1], m[2]);
+  }
+  return "#E8ECF5";
+}
+// School bolt colors, contrast-guaranteed on navy. brighter of the two leads (primary), so the
+// bolt's dominant tone is always the one that reads.
+const boltFor = (id: string) => {
+  const c = schoolColors(id);
+  const a = readable(c.c1), b = readable(c.c2);
+  return lum(hx(b)) > lum(hx(a)) ? { c1: b, c2: a } : { c1: a, c2: b };
+};
+
 // Static fallbacks for the topic lists when live data isn't published yet (the menu IS the marketing,
 // so we never show an empty page — real sets replace these as they go live).
 const STATIC_EXAM1 = ["Types of Accounts", "A = L + E", "Debits & Credits", "Journal Entries", "Adjusting Entries", "Closing Entries"];
@@ -70,8 +95,8 @@ export function LandingPage() {
 
   const theme = useMemo(() => {
     if (!school) return DEFAULT_FRAME_THEME;
-    const c = schoolColors(school.id);
-    return { ...DEFAULT_FRAME_THEME, boltPrimary: c.c1, boltSecondary: c.c2 }; // recolor bolt; keep the gold accent
+    const c = boltFor(school.id);
+    return { ...DEFAULT_FRAME_THEME, boltPrimary: c.c1, boltSecondary: c.c2 }; // recolor bolt (contrast-safe); keep the gold accent
   }, [school]);
 
   const treeQ = useQuery({ queryKey: ["landing-tree", school?.campusId ?? null], queryFn: () => fetchStudentTree({ data: school ? { campusId: school.campusId } : {} }), networkMode: "always", staleTime: 300_000 });
@@ -174,7 +199,7 @@ function CampusSelector({ school, onPick }: { school: School | null; onPick: (s:
           </div>
           <div className="max-h-72 overflow-y-auto py-1">
             {results.length === 0 && <div className="px-4 py-3 text-[13px] italic" style={{ color: "var(--text-muted)" }}>No SEC school by that name.</div>}
-            {results.map((s) => { const c = schoolColors(s.id); return (
+            {results.map((s) => { const c = boltFor(s.id); return (
               <button key={s.id} onClick={() => { onPick(s); setOpen(false); setQ(""); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-white/5">
                 <span className="grid h-6 w-4 shrink-0 place-items-center"><Bolt c1={c.c1} c2={c.c2} /></span>
                 <span className="text-[14.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>{s.name}</span>
@@ -189,7 +214,7 @@ function CampusSelector({ school, onPick }: { school: School | null; onPick: (s:
 
 // ---- THEATER (State 2): navy floods, the bolt recolors center-screen, one beat, skippable -----
 function Theater({ school, onDone }: { school: School; onDone: () => void }) {
-  const c = schoolColors(school.id);
+  const c = boltFor(school.id);
   useEffect(() => {
     const t = window.setTimeout(onDone, 1150);
     const cut = () => onDone();
