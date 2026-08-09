@@ -402,35 +402,37 @@ function LeeSection() {
 
           <p style={{ opacity: 0.92 }}>
             I've watched students study hard, understand the material, and still fail — and retaking
-            this course costs thousands. I'd rather see you spend that money enjoying college. Helping
-            students beat this class is my full-time job, and I love it.
+            this course costs thousands. I'd rather see you spend that money enjoying college.
           </p>
 
           <p style={{ opacity: 0.92 }}>
             I release cram videos one topic at a time, as fast as I can film them. If what you need
             isn't up yet, tell me — that's how I pick what's next.
           </p>
+
+          {/* letter-style sign-off */}
+          <div className="pt-1">
+            <p className="text-[18px] font-black" style={{ color: "var(--brand-cream)" }}>Lee Ingram</p>
+            <p className="text-[13px]" style={{ color: "var(--text-muted)" }}>Tutor since 2015 · Founder, Survive Accounting</p>
+          </div>
         </div>
       </div>
     </section>
   );
 }
 
-// Lee's portrait (public/lee-portrait.svg — a single currentColor path). An <img> can't inherit
-// our cream, so we paint it as a CSS mask over a cream fill. Heavy path stays a cached static asset.
+// Lee's real photo — a 4:5 crop centered on the face, rounded + cream border + a slight tilt, with
+// a small caption. No cutout / edge blur / filters. (The old cream SVG portrait is retired here and
+// reserved for the video intro/outro frames.)
 function LeePortrait() {
   return (
-    <div
-      role="img" aria-label="Portrait of Lee Ingram"
-      className="mx-auto sm:mx-0"
-      style={{
-        width: 184, height: 260, background: "var(--brand-cream)",
-        WebkitMaskImage: "url(/lee-portrait.svg)", maskImage: "url(/lee-portrait.svg)",
-        WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat",
-        WebkitMaskPosition: "center", maskPosition: "center",
-        WebkitMaskSize: "contain", maskSize: "contain",
-      }}
-    />
+    <figure className="mx-auto sm:mx-0" style={{ width: 200, transform: "rotate(1.5deg)" }}>
+      <img
+        src="/lee-sunrise.jpg" alt="Lee Ingram" loading="lazy"
+        style={{ width: 200, aspectRatio: "4 / 5", objectFit: "cover", objectPosition: "38% 40%", borderRadius: 16, border: "3px solid var(--brand-cream)", display: "block" }}
+      />
+      <figcaption className="mt-2 text-center text-[11.5px] italic" style={{ color: "var(--text-muted)" }}>Morning in Oxford, Mississippi</figcaption>
+    </figure>
   );
 }
 
