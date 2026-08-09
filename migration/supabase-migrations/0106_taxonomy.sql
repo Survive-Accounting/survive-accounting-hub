@@ -51,6 +51,23 @@ create policy "auth read topics" on public.topics for select to authenticated us
 -- ── CAMPUS UNIT LABEL: text chapter_label replaces numeric local_number ───────────────────────
 -- Campus chapter numbers become free text ("Ch 3", "Chapter 13", "Unit 2"). local_number is kept
 -- (no data loss) but DEPRECATED — do not write new values. Backfill labels from existing numbers.
+-- Self-sufficient: create campus_chapter_overrides if 0103 was never applied (matching 0103's
+-- shape), so 0106 stands alone, then add the text label.
+create table if not exists public.campus_chapter_overrides (
+  campus_id    uuid not null references public.campuses(id) on delete cascade,
+  chapter_id   uuid not null references public.chapters(id) on delete cascade,
+  local_number numeric,
+  local_order  numeric,
+  updated_at   timestamptz not null default now(),
+  primary key (campus_id, chapter_id)
+);
+create index if not exists cco_chapter_idx on public.campus_chapter_overrides(chapter_id);
+alter table public.campus_chapter_overrides enable row level security;
+drop policy if exists "anon read cco" on public.campus_chapter_overrides;
+create policy "anon read cco" on public.campus_chapter_overrides for select to anon using (true);
+drop policy if exists "auth read cco" on public.campus_chapter_overrides;
+create policy "auth read cco" on public.campus_chapter_overrides for select to authenticated using (true);
+
 alter table public.campus_chapter_overrides add column if not exists chapter_label text;
 comment on column public.campus_chapter_overrides.local_number is
   'DEPRECATED 0106 — superseded by chapter_label (text). Retained for back-compat / no data loss; do not write new values.';
