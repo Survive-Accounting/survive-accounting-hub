@@ -5,7 +5,7 @@
 // Dashboard v1 chrome (old toolbar + drawer) — nothing was deleted, only gated.
 // Authoring-only: the route renders it when `chrome && v2`; film mode never sees it.
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Archive, ChevronDown, Download, Eye, FilePlus2, FolderOpen, Keyboard, ListOrdered, Plus, RotateCcw, Save, Upload } from "lucide-react";
+import { Archive, ChevronDown, Download, Eraser, Eye, FilePlus2, FolderOpen, Keyboard, ListOrdered, Plus, RotateCcw, Save, Sprout, Upload } from "lucide-react";
 
 import { BrandLogo } from "./brand";
 import { NEON } from "./theme";
@@ -24,7 +24,7 @@ function NavMenuRow({ icon, label, danger, onClick }: { icon: ReactNode; label: 
   );
 }
 
-export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSaveAs, onLoad, onExport, onImport, onNewTab, onReset, onHotkeys, onOpenStudio, onViewV1 }: {
+export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSaveAs, onLoad, onExport, onImport, onNewTab, onReset, onSeedSets, onCleanNames, onHotkeys, onOpenStudio, onViewV1 }: {
   sceneName: string;
   setSceneName: (v: string) => void;
   savedNote?: string | null;
@@ -35,6 +35,8 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
   onImport: () => void;
   onNewTab: () => void;
   onReset: () => void;
+  onSeedSets: () => void;
+  onCleanNames: () => void;
   onHotkeys: () => void;
   onOpenStudio: () => void;
   onViewV1: () => void;
@@ -89,6 +91,9 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
             {item(<Upload className="h-3.5 w-3.5" />, "Import from file", onImport)}
             {item(<Plus className="h-3.5 w-3.5" />, "New tab", onNewTab)}
             <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
+            {item(<Sprout className="h-3.5 w-3.5" />, "Seed starter sets", onSeedSets)}
+            {item(<Eraser className="h-3.5 w-3.5" />, "Clean set names", onCleanNames)}
+            <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
             {item(<RotateCcw className="h-3.5 w-3.5" />, "Reset… (canvas · CEQs · both)", onReset, true)}
             <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
             {item(<Archive className="h-3.5 w-3.5" />, "View archive: Dashboard v1", onViewV1)}
@@ -106,14 +111,14 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
         <Keyboard className="h-3.5 w-3.5" /> Hotkeys
       </button>
 
-      {/* CEQ STUDIO — the portal door also lives in the navbar */}
+      {/* STUDIO — the portal door also lives in the navbar */}
       <button
-        className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[12px] font-bold"
+        className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[12px] font-black uppercase tracking-wide"
         style={{ color: NEON.yellow, border: "1px solid rgba(252,163,17,0.5)" }}
         onClick={onOpenStudio}
-        title="Open the CEQ Studio — sets · questions + chains · memo library"
+        title="Open the Studio — sets · questions + chains · memo library"
       >
-        <ListOrdered className="h-3.5 w-3.5" /> CEQ Studio
+        <ListOrdered className="h-3.5 w-3.5" /> Studio
       </button>
 
       <div className="min-w-0 flex-1" />

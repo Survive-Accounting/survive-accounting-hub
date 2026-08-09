@@ -71,6 +71,7 @@ import { PipelineTestPanel } from "@/components/canvas/PipelineTestPanel";
 import { LessonGridView } from "@/components/canvas/LessonGridView";
 import { CeqStudio } from "@/components/canvas/CeqStudio";
 import { BrandingStudio } from "@/components/canvas/BrandingStudio";
+import { seedCeqSets } from "@/components/canvas/ceq-seed";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
 import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, LESSON_STATUSES, LESSON_CATEGORIES, LESSON_CATEGORY_LABEL, type Beat, type CardBase, type CardData, type CardNode, type CeqChoice, type CeqChainItem, type CeqChainTemplate, type DeckDef, type FilmRun, type GlobalClips, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonAccess, type LessonBox, type LessonCategory, type LessonPathing, type LessonStatus, type ListCard, type RecCue, type RunEvent, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText, toggleWrapInField } from "@/components/canvas/ui";
@@ -1322,6 +1323,7 @@ function PresentCanvas() {
   const [decks, setDecks] = useState<DeckDef[]>([]); // named decks (P3) — persisted in the scene payload
   const [ceqStudioOpen, setCeqStudioOpen] = useState(false); // CEQ STUDIO (prompt 5) — 3-pane authoring overlay
   const [brandingOpen, setBrandingOpen] = useState(false); // BRANDING STUDIO — reusable brand-frame gallery
+  const [memosOpen, setMemosOpen] = useState(false); // MEMO LIBRARY — right drawer, opened from the outline (not default)
   const [studioFocusCeq, setStudioFocusCeq] = useState<string | null>(null); // open Studio focused on this CEQ
   const [studioFocusSet, setStudioFocusSet] = useState<string | null>(null); // open Studio with this SET active (outline launcher)
   const [ceqSets, setCeqSets] = useState<CeqSetDef[]>([]); // CEQ set factories — persisted in the scene payload
@@ -3630,8 +3632,20 @@ function PresentCanvas() {
   const openStudio = useCallback((ceqId?: string) => { setStudioFocusCeq(ceqId ?? null); setCeqStudioOpen(true); }, []);
   const openStudioSet = useCallback((setId: string) => { setStudioFocusSet(setId); setStudioFocusCeq(null); setCeqStudioOpen(true); }, []);
   const openBranding = useCallback(() => setBrandingOpen(true), []);
+  const openMemos = useCallback(() => setMemosOpen(true), []);
+  // One-time utilities, moved out of the Studio footer into File. Use the route's rf + decks.
+  const runSeedSets = useCallback(() => {
+    if (!window.confirm("Seed the starter CEQ sets for the first five topics? Re-seeding replaces each seeded set's cards (idempotent) — your other sets are untouched.")) return;
+    seedCeqSets(rf, setDecks);
+  }, [rf]);
+  const runCleanNames = useCallback(() => {
+    const hit = decks.filter((d) => d.payloadType === "cards" && /^ch\s*\d+\s*[·.-]\s*/i.test(d.name));
+    if (!hit.length) { window.alert("Set names are already clean — nothing to strip."); return; }
+    if (!window.confirm(`Strip the "Ch N ·" prefix from ${hit.length} set name${hit.length === 1 ? "" : "s"}? Names only — ids and chapter tags stay. Idempotent.`)) return;
+    setDecks((prev) => prev.map((d) => ({ ...d, name: d.name.replace(/^ch\s*\d+\s*[·.-]\s*/i, "") })));
+  }, [decks]);
 
-  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, film, enter: (fid: string) => enterFrame(fid, { smooth: true }), exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId?: string; beat?: Beat; onCreated?: (newFrameId: string) => void } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson, copyFrame, pasteFrameBelow, hasFrameClip: clip?.kind === "frame", copyScaffold, pasteScaffold, hasScaffoldClip: clip?.kind === "scaffold", cramMode, activateLesson: setActiveLesson, focusCeq, openStudio, openStudioSet, openBranding }), [currentFrameId, film, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson, copyFrame, pasteFrameBelow, copyScaffold, pasteScaffold, clip, cramMode, setActiveLesson, focusCeq, openStudio, openStudioSet, openBranding]);
+  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, film, enter: (fid: string) => enterFrame(fid, { smooth: true }), exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId?: string; beat?: Beat; onCreated?: (newFrameId: string) => void } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson, copyFrame, pasteFrameBelow, hasFrameClip: clip?.kind === "frame", copyScaffold, pasteScaffold, hasScaffoldClip: clip?.kind === "scaffold", cramMode, activateLesson: setActiveLesson, focusCeq, openStudio, openStudioSet, openBranding, openMemos }), [currentFrameId, film, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson, copyFrame, pasteFrameBelow, copyScaffold, pasteScaffold, clip, cramMode, setActiveLesson, focusCeq, openStudio, openStudioSet, openBranding, openMemos]);
 
   /** Row ×: remove MEMBERSHIP only — a tucked card re-deals to its remembered
    *  spot as a loose card first. Cards never vanish. */
@@ -5414,6 +5428,8 @@ function PresentCanvas() {
           onImport={() => importRef.current?.click()}
           onNewTab={newTab}
           onReset={() => setResetScopeOpen(true)}
+          onSeedSets={runSeedSets}
+          onCleanNames={runCleanNames}
           onHotkeys={() => setHelpOpen(true)}
           onOpenStudio={() => setCeqStudioOpen(true)}
           onViewV1={() => setChromeVersion(true)}
@@ -6076,7 +6092,7 @@ function PresentCanvas() {
           {/* DECK — the run-of-show roster (replaces the top-right badge) */}
           <MenuButton icon={<Layers className="h-3.5 w-3.5" />} label="Deck" open={deckOpen} onClick={() => { setDeckOpen((v) => !v); setFileMenuOpen(false); setAddCardOpen(false); setAddElemOpen(false); }} />
           {/* CEQ STUDIO (prompt 5) — day-to-day CEQ authoring in one 3-pane panel. */}
-          <TB title={ceqStudioOpen ? "Close CEQ Studio" : "CEQ Studio — sets · questions + chains · memo library"} active={ceqStudioOpen} onClick={() => setCeqStudioOpen((v) => !v)}><ListOrdered className="h-3.5 w-3.5" /></TB>
+          <TB title={ceqStudioOpen ? "Close Studio" : "Studio — sets · questions + chains · memo library"} active={ceqStudioOpen} onClick={() => setCeqStudioOpen((v) => !v)}><ListOrdered className="h-3.5 w-3.5" /></TB>
           {/* FILE — save / load / export / import (floppy icon; moved onto the old
               region-scaffold slot, which Lee no longer uses) */}
           <div className="relative">
@@ -6760,13 +6776,24 @@ function PresentCanvas() {
           chains · memo library). Reuses named decks + CEQ cards + prompt-1 chains. */}
       {chrome && ceqStudioOpen && !isPopped("ceqstudio") && <CeqStudio decks={decks} setDecks={setDecks} globalClips={globalClips} setGlobalClips={setGlobalClips} initialCeqId={studioFocusCeq} initialSetId={studioFocusSet} onPopOut={() => openPop("ceqstudio", 1180, 800)} onClose={() => { setCeqStudioOpen(false); setStudioFocusCeq(null); setStudioFocusSet(null); }} />}
       {isPopped("ceqstudio") && (
-        <PanelPopout win={popWins.ceqstudio!} title="CEQ Studio" onReturn={() => returnPop("ceqstudio")}>
+        <PanelPopout win={popWins.ceqstudio!} title="Studio" onReturn={() => returnPop("ceqstudio")}>
           <CeqStudio decks={decks} setDecks={setDecks} globalClips={globalClips} setGlobalClips={setGlobalClips} initialCeqId={studioFocusCeq} initialSetId={studioFocusSet} popped onClose={() => { returnPop("ceqstudio"); setCeqStudioOpen(false); setStudioFocusCeq(null); setStudioFocusSet(null); }} />
         </PanelPopout>
       )}
 
       {/* BRANDING STUDIO — the reusable brand-frame gallery behind the Branding Portal. */}
       {chrome && brandingOpen && <BrandingStudio onClose={() => setBrandingOpen(false)} />}
+
+      {/* MEMO LIBRARY — right drawer, opened from the outline's MEMOS entry (not default). */}
+      {chrome && !chromeV1 && memosOpen && (
+        <div className="fixed bottom-0 right-0 top-11 z-[75] flex w-[320px] flex-col" style={{ background: "rgba(9,14,26,0.97)", borderLeft: `1px solid ${NEON.borderSoft}` }}>
+          <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
+            <span className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: "#F0B24A" }}>Memo Library</span>
+            <button onClick={() => setMemosOpen(false)} className="grid h-6 w-6 place-items-center rounded hover:bg-white/10" style={{ color: NEON.muted }} title="Close"><X className="h-4 w-4" /></button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden"><MemoLibraryPanel /></div>
+        </div>
+      )}
 
       {/* NEW LESSON (ITEM 3) — pick type + topic, then scaffold ordinary frames. */}
       {newLessonOpen && (
@@ -6858,7 +6885,7 @@ function PresentCanvas() {
             <p className="mb-3 text-[11px] leading-snug" style={{ color: NEON.muted }}>Pick what to reset. Your CEQ sets, questions, chains and memos are <b style={{ color: NEON.text }}>always kept</b>. Ctrl+Z undoes any reset.</p>
             {[
               { scope: "canvas" as const, title: "Just the canvas", desc: "Rebuild the 4 brand frames (Intro · CEQ Hook · CEQ Portal · Outro) in “Start Here”. Every other frame and all content is left untouched." },
-              { scope: "ceq" as const, title: "Just the CEQs", desc: "Un-deal all CEQ cards from the canvas back into their sets. Keeps every set/question/chain/memo — re-deal any time from CEQ Studio." },
+              { scope: "ceq" as const, title: "Just the CEQs", desc: "Un-deal all CEQ cards from the canvas back into their sets. Keeps every set/question/chain/memo — re-deal any time from the Studio." },
               { scope: "both" as const, title: "Both", desc: "Rebuild the 4 brand frames AND un-deal all CEQ cards." },
             ].map((o) => (
               <button key={o.scope} className="mb-1.5 flex w-full flex-col rounded-lg px-3 py-2 text-left transition-colors" style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(255,255,255,0.02)" }}

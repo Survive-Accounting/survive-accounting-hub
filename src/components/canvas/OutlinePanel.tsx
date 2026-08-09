@@ -1,16 +1,12 @@
-// OUTLINE = the Study Canvas launcher AND the course/campus/exam manager for INTRO 1.
-// Intro 1 is the whole product right now (Intro 2 / IA1 / IA2 / Start Here are not shown).
-// Two folders under it:
-//   • Topics    — the course topics (= chapters). Each opens its CEQ Sets (click a set → CEQ
-//                 Studio). Add / rename / drag-reorder topics inline.
-//   • Campuses  — the "exam topics per campus" secret sauce. Add a campus, give it exams
-//                 (Exam 1 / 2 / Final), and map which TOPICS each exam covers. A muted SEC target
-//                 queue (Ole Miss · LSU · … by business-school size) shows what to build next.
-// "Topic" IS a `chapters` row (topicId → chapters.id); chapter numbering never shows.
+// OUTLINE = the Studio's left navigation. Four sections, accordion (one open at a time, the open
+// one persisted): VIDEOS (finished/published) · TOPICS · CAMPUSES · MEMOS (opens the memo library
+// on the right; it no longer renders by default). Navigation only — all editing happens in the
+// canvas / Studio. Intro 1 is the focus course (full-color, editable topics); Intro 2 / IA1 / IA2
+// render muted (view-only) beneath it. "Topic" IS a `chapters` row.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNodes } from "@xyflow/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, ChevronDown, ChevronRight, Circle, GraduationCap, GripVertical, Layers, Plus, Search, X } from "lucide-react";
+import { Building2, ChevronDown, ChevronRight, Circle, GraduationCap, GripVertical, Layers, MessageSquare, Plus, Search, Video, X } from "lucide-react";
 
 import { NEON } from "./theme";
 import { useFrameNav } from "./FrameNavContext";
@@ -21,20 +17,23 @@ import { createChapter, renameChapter, reorderChapters } from "@/lib/canvas.func
 import { listCampusChapterOverrides, searchCampuses, setCampusChapterOverride, type CampusOpt } from "@/lib/campus-overrides.functions";
 import {
   createCampusExam, listCampusExams, listCourseCampuses, renameCampusExam,
-  reorderCampusExams, setCampusExamStatus, setCampusExamTopics,
-  type CampusExamRow, type CourseCampusRow,
+  setCampusExamStatus, setCampusExamTopics, type CampusExamRow, type CourseCampusRow,
 } from "@/lib/campus-exams.functions";
 
 type Topic = CourseOption["chapters"][number];
 
-// SEC target queue in build priority (business-school size). Ole Miss (Lee) + LSU (KING) first,
-// then Alabama · Tennessee, then the rest. These seed the campus search — a to-do list, not links.
+// Course display order — Intro 1 (the focus) first; the rest render muted after it.
+const COURSE_ORDER = ["Intro 1", "Intro 2", "IA1", "IA2"];
+const courseRank = (name: string) => { const i = COURSE_ORDER.findIndex((o) => o.toLowerCase() === name.trim().toLowerCase()); return i < 0 ? COURSE_ORDER.length + 1 : i; };
+const isFocusCourse = (c: CourseOption) => c.course_family === "intro_1" || courseLabel(c).trim().toLowerCase() === "intro 1";
+
 const SEC_TARGETS = ["Ole Miss", "LSU", "Alabama", "Tennessee", "Arkansas", "South Carolina", "Georgia", "Kentucky", "Auburn", "Mississippi State", "Missouri", "Oklahoma", "Texas A&M", "Florida", "Texas", "Vanderbilt"];
-// A few targets whose campus row is filed under the formal institution name — search that instead.
 const TARGET_SEARCH: Record<string, string> = { "Ole Miss": "University of Mississippi", LSU: "Louisiana State", Alabama: "University of Alabama" };
 
 const setName = (d: DeckDef) => (d.name ?? "Set").replace(/^\s*ch\s*\d+\s*·\s*/i, "").trim() || "Set";
 const LAST_SET_KEY = "sa-study-last-set";
+const OPEN_SECTION_KEY = "sa-outline-open"; // persist which section is open (accordion)
+type SectionId = "videos" | "topics" | "campuses";
 
 // ---- inline text editor (add / rename), Enter commits · Esc / blur cancels -------------------
 function InlineInput({ initial = "", placeholder, onCommit, onCancel }: { initial?: string; placeholder?: string; onCommit: (v: string) => void; onCancel: () => void }) {
@@ -61,9 +60,8 @@ export function OutlinePanel() {
   const courseOptionsQ = useQuery({ queryKey: ["course-options"], queryFn: () => fetchCourseOptions(), staleTime: 600_000, networkMode: "always" });
   const courseOptions = useMemo<CourseOption[]>(() => courseOptionsQ.data ?? [], [courseOptionsQ.data]);
 
-  // Intro 1 is the whole product — pick it by course_family, else by name.
-  const course = useMemo(() => courseOptions.find((c) => c.course_family === "intro_1") ?? courseOptions.find((c) => courseLabel(c).trim().toLowerCase() === "intro 1") ?? null, [courseOptions]);
-  const topics = useMemo<Topic[]>(() => (course?.chapters ?? []).filter((ch) => ch.status !== "archived").sort((a, b) => (a.number ?? 1e9) - (b.number ?? 1e9)), [course]);
+  const courses = useMemo(() => courseOptions.slice().sort((a, b) => courseRank(courseLabel(a)) - courseRank(courseLabel(b)) || courseLabel(a).localeCompare(courseLabel(b))), [courseOptions]);
+  const focus = useMemo(() => courses.find(isFocusCourse) ?? null, [courses]);
 
   const cardDecks = useMemo(() => decks.filter((d) => d.payloadType === "cards"), [decks]);
   const decksByTopic = useMemo(() => {
@@ -71,92 +69,121 @@ export function OutlinePanel() {
     for (const d of cardDecks) if (d.topicId) { const l = m.get(d.topicId) ?? []; l.push(d); m.set(d.topicId, l); }
     return m;
   }, [cardDecks]);
-  const libraryDecks = useMemo(() => cardDecks.filter((d) => !d.topicId), [cardDecks]);
 
   const publishedLessonIds = useMemo(() => {
     const s = new Set<string>();
-    for (const n of nodes) {
-      if (n.type !== "lesson") continue;
-      const d = n.data as unknown as LessonBox & { muxPlaybackId?: string };
-      if (d.status === "PUBLISHED" || d.muxPlaybackId) s.add(n.id);
-    }
+    for (const n of nodes) { if (n.type !== "lesson") continue; const d = n.data as unknown as LessonBox & { muxPlaybackId?: string }; if (d.status === "PUBLISHED" || d.muxPlaybackId) s.add(n.id); }
     return s;
   }, [nodes]);
   const isPublished = (d: DeckDef) => !!d.lessonId && publishedLessonIds.has(d.lessonId);
 
+  // Published videos = lesson nodes with a Mux playback id (finished/published).
+  const videos = useMemo(() => nodes
+    .filter((n) => n.type === "lesson" && !!(n.data as { muxPlaybackId?: string }).muxPlaybackId)
+    .map((n) => { const d = n.data as unknown as LessonBox & { label?: string; videoChapter?: string; topic?: string }; return { id: n.id, title: (d.label ?? "Video").trim() || "Video", topic: (d.videoChapter ?? d.topic ?? "").trim() }; })
+    .sort((a, b) => a.title.localeCompare(b.title)), [nodes]);
+
   const lastSetId = useMemo(() => { try { return localStorage.getItem(LAST_SET_KEY); } catch { return null; } }, []);
   const openSet = (setId: string) => { try { localStorage.setItem(LAST_SET_KEY, setId); } catch { /* ignore */ } nav.openStudioSet(setId); };
 
+  // Accordion — one section open at a time; the open section is persisted.
+  const [open, setOpen] = useState<SectionId | null>(() => { try { return (localStorage.getItem(OPEN_SECTION_KEY) as SectionId | null) ?? null; } catch { return null; } });
+  const toggle = (id: SectionId) => setOpen((cur) => { const next = cur === id ? null : id; try { next ? localStorage.setItem(OPEN_SECTION_KEY, next) : localStorage.removeItem(OPEN_SECTION_KEY); } catch { /* ignore */ } return next; });
+
   return (
     <div className="nodrag nowheel h-full max-h-[74vh] w-full overflow-y-auto px-1 py-1 text-[12px] [.sa-dock_&]:max-h-full" style={{ color: NEON.text }}>
-      <div className="flex items-center gap-1.5 px-1 pb-1.5">
-        <span className="text-[13px] font-black uppercase tracking-wide" style={{ color: NEON.yellow }}>Intro 1</span>
-      </div>
-
       {courseOptionsQ.isLoading && <p className="px-1.5 py-2 text-[11px] italic" style={{ color: NEON.muted }}>Loading…</p>}
-      {!courseOptionsQ.isLoading && !course && (
-        <p className="px-1.5 py-2 text-[11px] italic leading-snug" style={{ color: NEON.muted }}>Intro 1 course not found. Check that a course with family <code>intro_1</code> exists.</p>
+
+      <SectionHeader open={open === "videos"} onToggle={() => toggle("videos")} icon={<Video className="h-3.5 w-3.5" />} label="Videos" count={videos.length} color={NEON.yellow} />
+      {open === "videos" && (
+        <div className="ml-2 border-l pl-1.5" style={{ borderColor: NEON.borderSoft }}>
+          {videos.length === 0 && <div className="px-1 py-1 text-[10px] italic" style={{ color: NEON.muted }}>No published videos yet.</div>}
+          {videos.map((v) => (
+            <div key={v.id} className="flex items-center gap-1.5 px-1.5 py-1" title={v.title}>
+              <Circle className="h-2.5 w-2.5 shrink-0" style={{ color: "#3BF5A0", fill: "#3BF5A0" }} />
+              <span className="min-w-0 flex-1 truncate text-[12px]" style={{ color: NEON.text }}>{v.title}</span>
+              {v.topic && <span className="shrink-0 truncate text-[9px]" style={{ color: NEON.muted, maxWidth: 90 }}>{v.topic}</span>}
+            </div>
+          ))}
+        </div>
       )}
 
-      {course && (
-        <>
-          <TopicsFolder course={course} topics={topics} decksByTopic={decksByTopic} isPublished={isPublished} openSet={openSet} lastSetId={lastSetId} libraryDecks={libraryDecks} />
-          <CampusesFolder course={course} topics={topics} />
-        </>
+      <SectionHeader open={open === "topics"} onToggle={() => toggle("topics")} icon={<Layers className="h-3.5 w-3.5" />} label="Topics" count={courses.length} color={NEON.cyan} />
+      {open === "topics" && (
+        <div className="ml-2 border-l pl-1.5" style={{ borderColor: NEON.borderSoft }}>
+          {courses.length === 0 && <div className="px-1 py-1 text-[10px] italic" style={{ color: NEON.muted }}>No courses.</div>}
+          {courses.map((c) => <CourseTopics key={c.id} course={c} focus={isFocusCourse(c)} decksByTopic={decksByTopic} isPublished={isPublished} openSet={openSet} lastSetId={lastSetId} />)}
+        </div>
       )}
+
+      <SectionHeader open={open === "campuses"} onToggle={() => toggle("campuses")} icon={<Building2 className="h-3.5 w-3.5" />} label="Campuses" count={0} color="#C9A9F5" hideCount />
+      {open === "campuses" && (
+        <div className="ml-2 border-l pl-1.5" style={{ borderColor: NEON.borderSoft }}>
+          {focus ? <CampusesBody course={focus} topics={(focus.chapters ?? []).filter((ch) => ch.status !== "archived").sort((a, b) => (a.number ?? 1e9) - (b.number ?? 1e9))} /> : <div className="px-1 py-1 text-[10px] italic" style={{ color: NEON.muted }}>Intro 1 course not found.</div>}
+        </div>
+      )}
+
+      {/* MEMOS — opens the memo library on the right (no longer rendered by default). */}
+      <button className="mt-0.5 flex w-full items-center gap-1.5 rounded px-1 py-1.5 text-left hover:bg-white/5" onClick={() => nav.openMemos()}>
+        <span className="h-3.5 w-3.5" />
+        <MessageSquare className="h-3.5 w-3.5 shrink-0" style={{ color: "#F0B24A" }} />
+        <span className="min-w-0 flex-1 text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: "#F0B24A" }}>Memos</span>
+      </button>
     </div>
   );
 }
 
-// ---- TOPICS ----------------------------------------------------------------------------------
-function TopicsFolder({ course, topics, decksByTopic, isPublished, openSet, lastSetId, libraryDecks }: {
-  course: CourseOption; topics: Topic[]; decksByTopic: Map<string, DeckDef[]>;
-  isPublished: (d: DeckDef) => boolean; openSet: (id: string) => void; lastSetId: string | null; libraryDecks: DeckDef[];
+// ---- TOPICS (per course; focus course editable, others muted view-only) ----------------------
+function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastSetId }: {
+  course: CourseOption; focus: boolean; decksByTopic: Map<string, DeckDef[]>;
+  isPublished: (d: DeckDef) => boolean; openSet: (id: string) => void; lastSetId: string | null;
 }) {
   const qc = useQueryClient();
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(focus);
   const [openTopics, setOpenTopics] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
   const refresh = () => qc.invalidateQueries({ queryKey: ["course-options"] });
-
+  const topics = useMemo(() => (course.chapters ?? []).filter((ch) => ch.status !== "archived").sort((a, b) => (a.number ?? 1e9) - (b.number ?? 1e9)), [course]);
   const toggleTopic = (id: string) => setOpenTopics((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-  // drag reorder
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
   const commitOrder = async (targetId: string) => {
     if (!dragId || dragId === targetId) return;
-    const ids = topics.map((t) => t.id);
-    const from = ids.indexOf(dragId), to = ids.indexOf(targetId);
+    const ids = topics.map((t) => t.id); const from = ids.indexOf(dragId), to = ids.indexOf(targetId);
     if (from < 0 || to < 0) return;
     ids.splice(from, 1); ids.splice(to, 0, dragId);
-    await reorderChapters({ data: { course_id: course.id, ordered_ids: ids } });
-    refresh();
+    await reorderChapters({ data: { course_id: course.id, ordered_ids: ids } }); refresh();
   };
 
+  const dim = focus ? 1 : 0.5; // muted non-focus courses
   return (
-    <div className="mb-1">
-      <FolderHeader open={open} onToggle={() => setOpen((v) => !v)} icon={<Layers className="h-3.5 w-3.5" />} label="Topics" count={topics.length} color={NEON.cyan} />
+    <div className="mb-0.5" style={{ opacity: dim }}>
+      <button className="flex w-full items-center gap-1 px-0.5 py-1 text-left hover:bg-white/5" onClick={() => setOpen((v) => !v)}>
+        {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-80" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-80" />}
+        <span className="min-w-0 flex-1 truncate uppercase tracking-wide" style={{ color: focus ? NEON.yellow : NEON.muted, fontSize: focus ? 12 : 11, fontWeight: focus ? 900 : 700 }}>{courseLabel(course)}</span>
+        {!focus && <span className="shrink-0 text-[8px] uppercase tracking-wider opacity-70" style={{ color: NEON.muted }}>ref</span>}
+      </button>
       {open && (
         <div className="ml-2 border-l pl-1.5" style={{ borderColor: NEON.borderSoft }}>
+          {topics.length === 0 && <div className="px-1 py-0.5 text-[10px] italic" style={{ color: NEON.muted }}>No topics.</div>}
           {topics.map((ch) => {
             const tDecks = (decksByTopic.get(ch.id) ?? []).slice().sort((a, b) => setName(a).localeCompare(setName(b)));
             const tOpen = openTopics.has(ch.id);
             return (
-              <div key={ch.id}
-                className="rounded" style={{ background: overId === ch.id && dragId ? "rgba(79,163,227,0.12)" : "transparent", opacity: dragId === ch.id ? 0.4 : 1 }}
-                onDragOver={(e) => { if (dragId) { e.preventDefault(); if (overId !== ch.id) setOverId(ch.id); } }}
-                onDrop={(e) => { if (dragId) { e.preventDefault(); void commitOrder(ch.id); setDragId(null); setOverId(null); } }}
-              >
+              <div key={ch.id} className="rounded"
+                style={{ background: overId === ch.id && dragId ? "rgba(79,163,227,0.12)" : "transparent", opacity: dragId === ch.id ? 0.4 : 1 }}
+                onDragOver={focus ? (e) => { if (dragId) { e.preventDefault(); if (overId !== ch.id) setOverId(ch.id); } } : undefined}
+                onDrop={focus ? (e) => { if (dragId) { e.preventDefault(); void commitOrder(ch.id); setDragId(null); setOverId(null); } } : undefined}>
                 <div className="group flex items-center gap-1 px-0.5 py-0.5">
-                  <span className="cursor-grab opacity-0 group-hover:opacity-60" draggable onDragStart={() => setDragId(ch.id)} onDragEnd={() => { setDragId(null); setOverId(null); }} title="Drag to reorder"><GripVertical className="h-3 w-3" /></span>
+                  {focus && <span className="cursor-grab opacity-0 group-hover:opacity-60" draggable onDragStart={() => setDragId(ch.id)} onDragEnd={() => { setDragId(null); setOverId(null); }} title="Drag to reorder"><GripVertical className="h-3 w-3" /></span>}
                   <button className="flex min-w-0 flex-1 items-center gap-1 text-left" onClick={() => toggleTopic(ch.id)}>
                     {tOpen ? <ChevronDown className="h-3 w-3 shrink-0 opacity-70" /> : <ChevronRight className="h-3 w-3 shrink-0 opacity-70" />}
-                    {renaming === ch.id ? (
+                    {focus && renaming === ch.id ? (
                       <InlineInput initial={topicLabel(ch)} onCommit={async (v) => { setRenaming(null); await renameChapter({ data: { id: ch.id, chapter_name: v } }); refresh(); }} onCancel={() => setRenaming(null)} />
                     ) : (
-                      <span className="min-w-0 flex-1 truncate text-[11.5px] font-semibold uppercase tracking-wider" style={{ color: NEON.cyan }} onDoubleClick={(e) => { e.stopPropagation(); setRenaming(ch.id); }} title="Double-click to rename">{topicLabel(ch)}</span>
+                      <span className="min-w-0 flex-1 truncate text-[11.5px] font-semibold uppercase tracking-wider" style={{ color: focus ? NEON.cyan : NEON.muted }} onDoubleClick={focus ? (e) => { e.stopPropagation(); setRenaming(ch.id); } : undefined} title={focus ? "Double-click to rename" : undefined}>{topicLabel(ch)}</span>
                     )}
                     {tDecks.length > 0 && <span className="shrink-0 text-[9px] tabular-nums opacity-45">{tDecks.length}</span>}
                   </button>
@@ -165,10 +192,9 @@ function TopicsFolder({ course, topics, decksByTopic, isPublished, openSet, last
                   <div className="ml-4 pb-0.5">
                     {tDecks.length === 0 && <div className="px-1 py-0.5 text-[10px] italic" style={{ color: NEON.muted }}>No sets yet</div>}
                     {tDecks.map((d) => {
-                      const active = d.id === lastSetId;
-                      const pub = isPublished(d);
+                      const active = d.id === lastSetId; const pub = isPublished(d);
                       return (
-                        <button key={d.id} className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left hover:bg-white/5" style={{ background: active ? "rgba(252,163,17,0.10)" : "transparent" }} onClick={() => openSet(d.id)} title={`Open "${setName(d)}" in CEQ Studio · ${d.status === "live" ? "LIVE" : "draft"}${pub ? " · video published" : ""}`}>
+                        <button key={d.id} className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left hover:bg-white/5" style={{ background: active ? "rgba(252,163,17,0.10)" : "transparent" }} onClick={() => openSet(d.id)} title={`Open "${setName(d)}" in the Studio · ${d.status === "live" ? "LIVE" : "draft"}${pub ? " · video published" : ""}`}>
                           <Circle className="h-2.5 w-2.5 shrink-0" style={{ color: d.status === "live" ? "#3BF5A0" : "#F0B24A", fill: d.status === "live" ? "#3BF5A0" : "transparent" }} />
                           <span className="min-w-0 flex-1 truncate" style={{ color: active ? NEON.yellow : NEON.text }}>{setName(d)}</span>
                         </button>
@@ -179,77 +205,53 @@ function TopicsFolder({ course, topics, decksByTopic, isPublished, openSet, last
               </div>
             );
           })}
-
-          {adding ? (
+          {focus && (adding ? (
             <div className="px-0.5 py-1"><InlineInput placeholder="New topic name…" onCommit={async (v) => { setAdding(false); await createChapter({ data: { course_id: course.id, chapter_name: v } }); refresh(); }} onCancel={() => setAdding(false)} /></div>
           ) : (
             <AddRow label="Add topic" onClick={() => setAdding(true)} />
-          )}
-
-          {libraryDecks.length > 0 && (
-            <div className="mt-1 border-t pt-1" style={{ borderColor: NEON.borderSoft }}>
-              <div className="px-1 pb-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Unassigned</div>
-              {libraryDecks.slice().sort((a, b) => setName(a).localeCompare(setName(b))).map((d) => (
-                <button key={d.id} className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left hover:bg-white/5" onClick={() => openSet(d.id)} title={`Open "${setName(d)}" in CEQ Studio`}>
-                  <Circle className="h-2.5 w-2.5 shrink-0" style={{ color: d.status === "live" ? "#3BF5A0" : "#F0B24A", fill: d.status === "live" ? "#3BF5A0" : "transparent" }} />
-                  <span className="min-w-0 flex-1 truncate">{setName(d)}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-// ---- CAMPUSES --------------------------------------------------------------------------------
-function CampusesFolder({ course, topics }: { course: CourseOption; topics: Topic[] }) {
-  const [open, setOpen] = useState(true);
+// ---- CAMPUSES (Intro-1 scoped) ---------------------------------------------------------------
+function CampusesBody({ course, topics }: { course: CourseOption; topics: Topic[] }) {
   const [adding, setAdding] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
   const qc = useQueryClient();
   const campusesQ = useQuery({ queryKey: ["course-campuses", course.id], queryFn: () => listCourseCampuses({ data: { course_id: course.id } }), networkMode: "always" });
   const campuses = campusesQ.data ?? [];
   const missing = campusesQ.isError ? String((campusesQ.error as Error)?.message ?? "") : "";
-
   return (
-    <div className="mb-1">
-      <FolderHeader open={open} onToggle={() => setOpen((v) => !v)} icon={<Building2 className="h-3.5 w-3.5" />} label="Campuses" count={campuses.length} color="#C9A9F5" />
-      {open && (
-        <div className="ml-2 border-l pl-1.5" style={{ borderColor: NEON.borderSoft }}>
-          {missing && <p className="px-1 py-1 text-[10px] italic leading-snug" style={{ color: "#F0A0A0" }}>{missing}</p>}
-          {!missing && campuses.length === 0 && <div className="px-1 py-0.5 text-[10px] italic" style={{ color: NEON.muted }}>No campuses mapped yet.</div>}
-
-          {campuses.map((c) => <CampusRow key={c.campus_id} campus={c} course={course} topics={topics} />)}
-
-          {adding ? (
-            <AddCampus course={course} onDone={() => { setAdding(false); qc.invalidateQueries({ queryKey: ["course-campuses", course.id] }); }} onCancel={() => setAdding(false)} />
-          ) : (
-            <AddRow label="Add campus" onClick={() => setAdding(true)} />
-          )}
-
-          {/* SEC target queue — a muted priority checklist of what to build next. */}
-          <button className="mt-1 flex w-full items-center gap-1 px-1 py-1 text-left text-[9px] font-bold uppercase tracking-wider hover:bg-white/5" style={{ color: NEON.muted }} onClick={() => setShowQueue((v) => !v)}>
-            {showQueue ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />} SEC target queue
-          </button>
-          {showQueue && (
-            <ol className="ml-3 pb-1">
-              {SEC_TARGETS.map((name, i) => {
-                const mapped = campuses.some((c) => c.name.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(c.name.toLowerCase()));
-                return (
-                  <li key={name} className="flex items-center gap-1.5 px-1 py-0.5 text-[10.5px]" style={{ color: mapped ? "#3BF5A0" : NEON.muted, opacity: mapped ? 1 : 0.8 }}>
-                    <span className="w-3 shrink-0 text-right tabular-nums opacity-60">{i + 1}</span>
-                    <span className="min-w-0 flex-1 truncate">{name}{i === 0 ? " · you" : i === 1 ? " · KING" : ""}</span>
-                    {mapped && <span className="shrink-0 text-[9px]">✓</span>}
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-        </div>
+    <>
+      {missing && <p className="px-1 py-1 text-[10px] italic leading-snug" style={{ color: "#F0A0A0" }}>{missing}</p>}
+      {!missing && campuses.length === 0 && <div className="px-1 py-0.5 text-[10px] italic" style={{ color: NEON.muted }}>No campuses mapped yet.</div>}
+      {campuses.map((c) => <CampusRow key={c.campus_id} campus={c} course={course} topics={topics} />)}
+      {adding ? (
+        <AddCampus course={course} onDone={() => { setAdding(false); qc.invalidateQueries({ queryKey: ["course-campuses", course.id] }); }} onCancel={() => setAdding(false)} />
+      ) : (
+        <AddRow label="Add campus" onClick={() => setAdding(true)} />
       )}
-    </div>
+      <button className="mt-1 flex w-full items-center gap-1 px-1 py-1 text-left text-[9px] font-bold uppercase tracking-wider hover:bg-white/5" style={{ color: NEON.muted }} onClick={() => setShowQueue((v) => !v)}>
+        {showQueue ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />} SEC target queue
+      </button>
+      {showQueue && (
+        <ol className="ml-3 pb-1">
+          {SEC_TARGETS.map((name, i) => {
+            const mapped = campuses.some((c) => c.name.toLowerCase().includes(name.toLowerCase()) || name.toLowerCase().includes(c.name.toLowerCase()));
+            return (
+              <li key={name} className="flex items-center gap-1.5 px-1 py-0.5 text-[10.5px]" style={{ color: mapped ? "#3BF5A0" : NEON.muted, opacity: mapped ? 1 : 0.8 }}>
+                <span className="w-3 shrink-0 text-right tabular-nums opacity-60">{i + 1}</span>
+                <span className="min-w-0 flex-1 truncate">{name}{i === 0 ? " · you" : i === 1 ? " · KING" : ""}</span>
+                {mapped && <span className="shrink-0 text-[9px]">✓</span>}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+    </>
   );
 }
 
@@ -261,20 +263,10 @@ function CampusRow({ campus, course, topics }: { campus: CourseCampusRow; course
   const exams = (examsQ.data ?? []).filter((e) => e.status === "active");
   const refresh = () => { qc.invalidateQueries({ queryKey: ["campus-exams", campus.campus_id, course.id] }); qc.invalidateQueries({ queryKey: ["course-campuses", course.id] }); };
 
-  // Per-campus LOCAL chapter #s (campus_chapter_overrides, 0103) — a property of (campus, topic),
-  // shared across that campus's exams. Loaded once for all Intro-1 topics.
   const topicIds = useMemo(() => topics.map((t) => t.id), [topics]);
   const ovQ = useQuery({ queryKey: ["campus-overrides", campus.campus_id], queryFn: () => listCampusChapterOverrides({ data: { campus_id: campus.campus_id, chapter_ids: topicIds } }), enabled: open && topicIds.length > 0, networkMode: "always" });
-  const localOv = useMemo(() => {
-    const m = new Map<string, { local_number: number | null; local_order: number | null }>();
-    for (const r of ovQ.data ?? []) m.set(r.chapter_id, { local_number: r.local_number, local_order: r.local_order });
-    return m;
-  }, [ovQ.data]);
-  const setLocalNum = async (chapter_id: string, n: number | null) => {
-    const order = localOv.get(chapter_id)?.local_order ?? null;
-    await setCampusChapterOverride({ data: { campus_id: campus.campus_id, chapter_id, local_number: n, local_order: order } });
-    qc.invalidateQueries({ queryKey: ["campus-overrides", campus.campus_id] });
-  };
+  const localOv = useMemo(() => { const m = new Map<string, { local_number: number | null; local_order: number | null }>(); for (const r of ovQ.data ?? []) m.set(r.chapter_id, { local_number: r.local_number, local_order: r.local_order }); return m; }, [ovQ.data]);
+  const setLocalNum = async (chapter_id: string, n: number | null) => { const order = localOv.get(chapter_id)?.local_order ?? null; await setCampusChapterOverride({ data: { campus_id: campus.campus_id, chapter_id, local_number: n, local_order: order } }); qc.invalidateQueries({ queryKey: ["campus-overrides", campus.campus_id] }); };
 
   return (
     <div className="mb-0.5">
@@ -305,16 +297,7 @@ function ExamRow({ exam, topics, onChange, localOv, setLocalNum }: { exam: Campu
   const selected = new Set(exam.chapter_ids);
   const selectedTopics = topics.filter((t) => selected.has(t.id));
   const numOf = (id: string) => localOv.get(id)?.local_number ?? null;
-
-  const toggle = async (id: string) => {
-    const next = new Set(selected);
-    next.has(id) ? next.delete(id) : next.add(id);
-    // keep course topic order
-    const ordered = topics.filter((t) => next.has(t.id)).map((t) => t.id);
-    await setCampusExamTopics({ data: { campus_exam_id: exam.id, chapter_ids: ordered } });
-    onChange();
-  };
-
+  const toggle = async (id: string) => { const next = new Set(selected); next.has(id) ? next.delete(id) : next.add(id); const ordered = topics.filter((t) => next.has(t.id)).map((t) => t.id); await setCampusExamTopics({ data: { campus_exam_id: exam.id, chapter_ids: ordered } }); onChange(); };
   return (
     <div className="mb-0.5 rounded">
       <div className="group flex items-center gap-1 px-0.5 py-0.5">
@@ -327,13 +310,11 @@ function ExamRow({ exam, topics, onChange, localOv, setLocalNum }: { exam: Campu
         <button className="shrink-0 rounded px-1 py-0.5 text-[10px] opacity-70 hover:bg-white/10 hover:opacity-100" onClick={() => setPick((v) => !v)} title="Choose the topics on this exam">{selected.size} topics ▾</button>
         <button className="shrink-0 rounded px-1 py-0.5 text-[10px] opacity-0 hover:bg-white/10 group-hover:opacity-60" onClick={async () => { await setCampusExamStatus({ data: { id: exam.id, status: "archived" } }); onChange(); }} title="Archive this exam"><X className="h-3 w-3" /></button>
       </div>
-      {/* selected topic chips — with the campus's LOCAL chapter # when set */}
       {selectedTopics.length > 0 && !pick && (
         <div className="ml-3 flex flex-wrap gap-1 pb-1">
           {selectedTopics.map((t) => { const n = numOf(t.id); return <span key={t.id} className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: "rgba(79,163,227,0.14)", color: NEON.cyan }}>{n != null ? `#${n} · ` : ""}{topicLabel(t)}</span>; })}
         </div>
       )}
-      {/* topic multi-select checklist — click the name to toggle; type the campus's local chapter # */}
       {pick && (
         <div className="ml-3 mb-1 max-h-52 overflow-y-auto rounded" style={{ border: `1px solid ${NEON.border}`, background: "rgba(0,0,0,0.25)" }}>
           {topics.length === 0 && <div className="px-2 py-1 text-[10px] italic" style={{ color: NEON.muted }}>No topics yet — add some above.</div>}
@@ -358,7 +339,6 @@ function AddCampus({ course, onDone, onCancel }: { course: CourseOption; onDone:
   const resultsQ = useQuery({ queryKey: ["campus-search", q], queryFn: () => searchCampuses({ data: { q } }), enabled: q.trim().length >= 2, networkMode: "always" });
   const results = resultsQ.data ?? [];
   const add = async (c: CampusOpt) => { await createCampusExam({ data: { campus_id: c.id, course_id: course.id, name: "Exam 1" } }); onDone(); };
-
   return (
     <div className="rounded p-1" style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${NEON.borderSoft}` }}>
       <div className="flex items-center gap-1 rounded px-1.5 py-1" style={{ background: "rgba(0,0,0,0.3)" }}>
@@ -366,7 +346,6 @@ function AddCampus({ course, onDone, onCancel }: { course: CourseOption; onDone:
         <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search campuses…" className="w-full bg-transparent text-[12px] outline-none" style={{ color: NEON.text }} onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }} />
         <button onClick={onCancel} className="shrink-0 opacity-60 hover:opacity-100"><X className="h-3 w-3" /></button>
       </div>
-      {/* SEC target quick-picks prefill the search */}
       <div className="flex flex-wrap gap-1 px-0.5 py-1">
         {SEC_TARGETS.slice(0, 4).map((n) => <button key={n} className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: "rgba(201,169,245,0.14)", color: "#C9A9F5" }} onClick={() => setQ(TARGET_SEARCH[n] ?? n)}>{n}</button>)}
       </div>
@@ -386,30 +365,26 @@ function AddCampus({ course, onDone, onCancel }: { course: CourseOption; onDone:
 }
 
 // ---- little shared bits ----------------------------------------------------------------------
-function FolderHeader({ open, onToggle, icon, label, count, color }: { open: boolean; onToggle: () => void; icon: React.ReactNode; label: string; count: number; color: string }) {
+function SectionHeader({ open, onToggle, icon, label, count, color, hideCount }: { open: boolean; onToggle: () => void; icon: ReactNode; label: string; count: number; color: string; hideCount?: boolean }) {
   return (
-    <button className="flex w-full items-center gap-1.5 rounded px-1 py-1 text-left hover:bg-white/5" onClick={onToggle}>
+    <button className="flex w-full items-center gap-1.5 rounded px-1 py-1.5 text-left hover:bg-white/5" onClick={onToggle}>
       {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-80" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-80" />}
       <span className="shrink-0" style={{ color }}>{icon}</span>
       <span className="min-w-0 flex-1 text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color }}>{label}</span>
-      <span className="shrink-0 text-[9px] tabular-nums opacity-45">{count}</span>
+      {!hideCount && <span className="shrink-0 text-[9px] tabular-nums opacity-45">{count}</span>}
     </button>
   );
 }
 
-// The campus's local chapter # for one topic — commits on blur / Enter, clears on empty.
 function LocalNumInput({ value, onCommit }: { value: number | null; onCommit: (n: number | null) => void }) {
   const [v, setV] = useState(value == null ? "" : String(value));
   useEffect(() => { setV(value == null ? "" : String(value)); }, [value]);
   const commit = () => { const t = v.trim(); if (t === "") { if (value != null) onCommit(null); return; } const n = Number(t); if (Number.isFinite(n) && n >= 0) { if (n !== value) onCommit(n); } else setV(value == null ? "" : String(value)); };
   return (
-    <input
-      value={v} inputMode="numeric" placeholder="#" title="This campus's local chapter # for this topic"
+    <input value={v} inputMode="numeric" placeholder="#" title="This campus's local chapter # for this topic"
       className="w-8 shrink-0 rounded px-1 py-0.5 text-center text-[10px] tabular-nums outline-none"
       style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${NEON.border}`, color: NEON.text }}
-      onClick={(e) => e.stopPropagation()}
-      onChange={(e) => setV(e.target.value)}
-      onBlur={commit}
+      onClick={(e) => e.stopPropagation()} onChange={(e) => setV(e.target.value)} onBlur={commit}
       onKeyDown={(e) => { if (e.key === "Enter") { commit(); (e.target as HTMLInputElement).blur(); } else if (e.key === "Escape") { setV(value == null ? "" : String(value)); (e.target as HTMLInputElement).blur(); } }}
     />
   );

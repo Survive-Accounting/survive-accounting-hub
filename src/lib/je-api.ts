@@ -355,13 +355,23 @@ export async function fetchCourseOptions(): Promise<CourseOption[]> {
     list.push({ id: c.id, number: c.chapter_number ?? null, name: c.chapter_name ?? null, status: c.status, subtitle: c.subtitle ?? null });
     chaptersByCourse.set(c.course_id, list);
   }
-  return ((coursesRes.data ?? []) as any[]).map((c) => ({
+  const built: CourseOption[] = ((coursesRes.data ?? []) as any[]).map((c) => ({
     id: c.id,
     code: c.code ?? null,
     course_name: c.course_name ?? null,
     course_family: c.course_family ?? null,
     chapters: chaptersByCourse.get(c.id) ?? [],
   }));
+  // DE-DUPE: a legacy duplicate courses row otherwise renders as TWO "Intro 1" sections in the
+  // Studio Topics pane. Key on the DISPLAY NAME (that's the visible collision) — a family-less
+  // "Intro 1" and a family="intro_1" "Intro 1" both collapse. Keep the richer row (more chapters).
+  const byKey = new Map<string, CourseOption>();
+  for (const c of built) {
+    const key = (c.course_name ?? c.code ?? "").trim().toLowerCase() || c.course_family || c.id;
+    const prev = byKey.get(key);
+    if (!prev || c.chapters.length > prev.chapters.length) byKey.set(key, c);
+  }
+  return [...byKey.values()];
 }
 
 // ---- Principles (reference table) ----

@@ -24,7 +24,6 @@ import { listChainTemplates } from "./ceq-chain-templates";
 import { MemoPickerModal } from "./MemoPickerModal";
 import { activeSlots, CeqPreviewer, dealCentre, defaultMemoPos, paletteSlots, rackOf } from "./CeqPreviewer";
 import { resolveCardSpot, resolveMemoSpot, stampFromTemplate, withInstanceSpot, type Spot } from "./ceq-geom";
-import { seedCeqSets } from "./ceq-seed";
 import { autoClipName, buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, stageTake, stitchManifest, stitchRuntime, videoFromDrop, videosFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
 import { buildSetExport } from "./ceq-export";
 import { MISCONCEPTION_SEEDS, questionMisconceptions, toSlug } from "./ceq-misconceptions";
@@ -39,6 +38,7 @@ import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { useFrameNav } from "./FrameNavContext";
 import { cardId, type CeqCard, type ChainSound, type CeqChainItem, type CeqChoice, type CeqInstanceGeom, type DeckDef, type DeckLayout, type DeckSlotLayout, type GlobalClips, type TakeRef, type TakeRole } from "./types";
 import { NEON } from "./theme";
+import { Bolt } from "./brand";
 import { Z } from "./z-layers";
 import { BufferedInput, BufferedTextarea } from "./ui";
 
@@ -527,26 +527,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     setSetId(def.id); setQId(null); setNewSetForm(null);
     setNote(topic && course ? `Created "${def.name}" under ${courseLabel(course)} / ${topicLabel(topic)}.` : `Created "${def.name}" in the Library (unassigned).`);
   };
-  const runSeed = () => {
-    if (!window.confirm("Seed the starter CEQ sets for the first five topics? Re-seeding replaces each seeded set's cards (idempotent) — your other sets are untouched.")) return;
-    const rep = seedCeqSets(rf, setDecks);
-    const total = rep.reduce((s, r) => s + r.count, 0);
-    setNote(`Seeded ${rep.length} sets · ${total} questions${rep.some((r) => r.replaced) ? " (replaced existing)" : ""}. Chains/memos empty — add your voice.`);
-  };
   /** Open the existing New Set form pre-filled for a course/topic ("" = Library). */
   const openNewSet = (courseId: string, topicId: string) => { setAddMenu(false); setNewTopicFor(null); setNewSetForm({ name: `Set ${cardDecks.length + 1}`, courseId, topicId }); };
-  /** ONE-TIME NAME MIGRATION (manual, never auto-run) — strip the legacy "Ch N ·"
-   *  prefix from set NAMES. Names only: ids, deck keys and the parsed deck.chapter
-   *  tag are untouched, so nothing that matches on "Ch N" ever sees a difference.
-   *  Idempotent: the regex no-ops on names without the prefix. Scene data, so this
-   *  is a Studio action rather than SQL — there is no table to run SQL against. */
-  const cleanSetNames = () => {
-    const hit = cardDecks.filter((d) => /^chs*d+s*[·.-]s*/i.test(d.name));
-    if (hit.length === 0) { setNote("Set names are already clean — nothing to strip."); return; }
-    if (!window.confirm(`Strip the "Ch N ·" prefix from ${hit.length} set name${hit.length === 1 ? "" : "s"}? Names only — ids and chapter tags stay. Idempotent.`)) return;
-    setDecks((prev) => prev.map((d) => ({ ...d, name: d.name.replace(/^chs*d+s*[·.-]s*/i, "") })));
-    setNote(`Cleaned ${hit.length} set name${hit.length === 1 ? "" : "s"} — position is the outline's job now.`);
-  };
   const renameSet = (d: DeckDef) => { const n = window.prompt("Rename set", d.name); if (n) setDecks((prev) => updateDeck(prev, d.id, { name: n.trim() })); };
   const deleteSet = (d: DeckDef) => {
     const members = deckMembersOf(rf.getNodes() as { id: string; data?: { deckId?: string; stageOrder?: number } }[], d.id);
@@ -1898,7 +1880,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
         studioRootRef.current.ownerDocument.body,
       )}
       <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
-        <div className="flex items-center gap-2 text-[14px] font-bold uppercase tracking-[0.18em]" style={{ color: NEON.yellow }}><ListChecks className="h-4 w-4" /> CEQ Studio</div>
+        <div className="flex items-center gap-2 text-[14px] font-black uppercase tracking-[0.2em]" style={{ color: NEON.yellow }}><span className="inline-block h-4 w-3"><Bolt c1={NEON.yellow} c2={NEON.yellow} /></span> Studio</div>
         <div className="flex items-center gap-2">
           {note && <span className="text-[10px]" style={{ color: NEON.muted }}>{note}</span>}
           <button className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: shortsList.length ? "#0B0F1E" : NEON.muted, background: shortsList.length ? "#FF8B9E" : "transparent", border: `1px solid ${shortsList.length ? "#FF8B9E" : NEON.borderSoft}` }} title="Shorts queue — every shorts-flagged CEQ across all sets (batch-filming worklist)" onClick={() => setShortsQueueOpen(true)}>🎬 Shorts {shortsList.length > 0 && `(${shortsList.length})`}</button>
@@ -2085,10 +2067,6 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
               )}
             </div>
             {renderOutlineFooter()}
-            <div className="mx-1 mb-1 flex gap-1">
-              <button className="flex flex-1 items-center justify-center gap-1 rounded px-1 py-1 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} onClick={runSeed} title="DEV/TEST — create the starter CEQ sets for the first five topics (Free + Full each): mechanical stems/choices, empty chains. Idempotent.">seed starter sets</button>
-              <button className="flex flex-1 items-center justify-center gap-1 rounded px-1 py-1 text-[9px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px dashed ${NEON.borderSoft}` }} onClick={cleanSetNames} title="ONE-TIME MIGRATION — strip the legacy 'Ch N ·' prefix from set NAMES (names only; ids, keys and the parsed chapter tags are untouched). Idempotent: running again changes nothing. Never runs on its own.">clean set names</button>
-            </div>
           </>)}
         </div>
         )}

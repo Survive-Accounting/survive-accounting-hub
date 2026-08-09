@@ -395,7 +395,7 @@ export function CeqCardNode({ id, data, selected }: NodeProps) {
             </button>
             <button
               className="nodrag inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold"
-              title="Open this question in CEQ Studio"
+              title="Open this question in the Studio"
               onPointerDown={(e) => e.stopPropagation()}
               onClick={() => nav.openStudio(id)}
               style={{ color: PAPER.navy, border: `1px solid ${PAPER.line}` }}

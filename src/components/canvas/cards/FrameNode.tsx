@@ -545,7 +545,7 @@ export function FrameNode({ id, data, selected }: NodeProps) {
               style={{ color: "#0B0F1E", background: NEON.yellow, border: `2px solid ${NEON.yellow}`, boxShadow: "0 18px 50px -12px rgba(252,163,17,0.55)" }}
               onPointerDown={stop}
               onClick={(e) => { e.stopPropagation(); nav.openStudio(); }}
-              title="Open the CEQ Studio — sets · questions + chains · memo library"
+              title="Open the Studio — sets · questions + chains · memo library"
             >
               [ ENTER CEQ PORTAL ]
             </button>

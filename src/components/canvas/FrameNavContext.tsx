@@ -63,6 +63,8 @@ export interface FrameNav {
   openStudioSet: (setId: string) => void;
   /** Open the BRANDING STUDIO — the reusable intro/outro/CEQ-hook/tease frame gallery. */
   openBranding: () => void;
+  /** Open the MEMO LIBRARY panel (right side). It no longer renders by default. */
+  openMemos: () => void;
 }
 
 const noop = () => {};
@@ -92,6 +94,7 @@ export const FrameNavContext = createContext<FrameNav>({
   openStudio: noop,
   openStudioSet: noop,
   openBranding: noop,
+  openMemos: noop,
 });
 
 export const useFrameNav = () => useContext(FrameNavContext);
