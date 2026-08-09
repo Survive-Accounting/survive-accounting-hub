@@ -371,24 +371,22 @@ function LeeSection() {
   );
 }
 
-// Cream line-art PLACEHOLDER portrait — swap for the real hand-drawn Lee SVG.
+// Lee's real portrait (public/lee-portrait.svg — a single currentColor path). An <img> can't
+// inherit our cream, so we paint it as a CSS mask: the SVG shape masks a cream fill. Keeps the
+// heavy path data out of the JS bundle (cached static asset) and stays on-brand cream.
 function LeePortrait() {
-  const cream = "var(--brand-cream)";
   return (
-    <svg width="120" height="150" viewBox="0 0 120 150" fill="none" aria-label="Portrait of Lee (placeholder)" role="img">
-      <g stroke={cream} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.9">
-        <path d="M30 150c0-22 13-34 30-34s30 12 30 34" />
-        <ellipse cx="60" cy="66" rx="26" ry="30" />
-        <path d="M36 56c2-20 12-30 24-30s22 10 24 30" />
-        <path d="M34 62c-5-1-7 6-3 9" />
-        <path d="M86 62c5-1 7 6 3 9" />
-        <circle cx="50" cy="66" r="3" fill={cream} stroke="none" />
-        <circle cx="70" cy="66" r="3" fill={cream} stroke="none" />
-        <path d="M44 64h12M64 64h12" opacity="0.7" />
-        <path d="M54 78c3 3 9 3 12 0" />
-        <path d="M46 92c8 5 20 5 28 0" opacity="0.6" />
-      </g>
-    </svg>
+    <div
+      role="img" aria-label="Portrait of Lee Ingram"
+      className="mx-auto sm:mx-0"
+      style={{
+        width: 132, height: 187, background: "var(--brand-cream)",
+        WebkitMaskImage: "url(/lee-portrait.svg)", maskImage: "url(/lee-portrait.svg)",
+        WebkitMaskRepeat: "no-repeat", maskRepeat: "no-repeat",
+        WebkitMaskPosition: "center", maskPosition: "center",
+        WebkitMaskSize: "contain", maskSize: "contain",
+      }}
+    />
   );
 }
 
