@@ -14,6 +14,7 @@ import { ChevronDown, GraduationCap, MessageCircle, Play, Search, X } from "luci
 
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
 import { listCampusExams } from "@/lib/campus-exams.functions";
+import { fetchCourseOptions } from "@/lib/je-api";
 import { DEFAULT_FRAME_THEME, FrameBackground, IntroSting, frameThemeVars } from "@/components/frames";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { Bolt, BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, SEC_SCHOOLS } from "@/components/canvas/brand";
@@ -101,10 +102,19 @@ export function LandingPage() {
   const treeQ = useQuery({ queryKey: ["landing-tree", school?.campusId ?? null], queryFn: () => fetchStudentTree({ data: school ? { campusId: school.campusId } : {} }), networkMode: "always", staleTime: 300_000 });
   const intro1 = useMemo(() => (treeQ.data ?? []).find((c) => c.family === "intro_1" || c.name.trim().toLowerCase() === "intro 1") ?? null, [treeQ.data]);
 
+  // Intro-1 course id from the canonical `courses` table — the SAME source the campus map was
+  // created under (the outline). Decoupled from fetchStudentTree, which only returns courses that
+  // have LIVE sets, so mapped-detection works even before any Intro-1 video is published.
+  const courseOptQ = useQuery({ queryKey: ["landing-courses"], queryFn: () => fetchCourseOptions(), staleTime: 600_000, networkMode: "always" });
+  const intro1CourseId = useMemo(() => {
+    const cs = courseOptQ.data ?? [];
+    return (cs.find((c) => c.course_family === "intro_1") ?? cs.find((c) => (c.course_name ?? "").trim().toLowerCase() === "intro 1"))?.id ?? null;
+  }, [courseOptQ.data]);
+
   const mappedQ = useQuery({
-    queryKey: ["landing-mapped", school?.campusId ?? null, intro1?.id ?? null],
-    queryFn: async () => { try { return await listCampusExams({ data: { campus_id: school!.campusId, course_id: intro1!.id } }); } catch { return []; } },
-    enabled: !!school && !!intro1, networkMode: "always",
+    queryKey: ["landing-mapped", school?.campusId ?? null, intro1CourseId],
+    queryFn: async () => { try { return await listCampusExams({ data: { campus_id: school!.campusId, course_id: intro1CourseId! } }); } catch { return []; } },
+    enabled: !!school && !!intro1CourseId, networkMode: "always",
   });
   const mapped = (mappedQ.data ?? []).some((e) => e.status === "active");
 
