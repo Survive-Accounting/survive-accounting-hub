@@ -13,6 +13,13 @@ const admin = async (): Promise<DB> => {
   return supabaseAdmin as unknown as DB;
 };
 
+// TODO (taxonomy reconciliation — future pass): there are TWO exam concepts in the schema and they
+// overlap: course-level `exam_units` (0102; entitlement scope 'exam_unit' resolves through
+// exam_unit_chapters below) and campus-level `campus_exams` (0105, the per-campus map). They should
+// be reconciled into one model. Until then, under the taxonomy lock (0106, Option A) entitlements
+// resolve at chapter(=unit) granularity and `campus_exams` is authoring/mapping only — it does NOT
+// gate access. Do NOT wire campus_exams (or the new atomic `topics` table) into unlock logic without
+// a deliberate migration that also updates order_chapters + this resolver together.
 /** Expand a user's non-expired entitlements → the set of unlocked topic (chapter) ids.
  *  Degrades to EMPTY (everything paid stays locked — the safe default) if 0104 isn't applied. */
 async function unlockedTopicIds(db: DB, userId: string): Promise<Set<string>> {
