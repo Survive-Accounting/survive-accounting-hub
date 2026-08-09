@@ -124,6 +124,57 @@ export function LandingPage() {
   const exam3Topics = useMemo(() => unitByName(/exam\s*3|test\s*3/i)?.topics ?? [], [intro1]);
   const finalTopics = useMemo(() => unitByName(/final|review/i)?.topics ?? [], [intro1]);
 
+  // Real-map plumbing: chapter(id→name/number) from the canonical courses table, live sets by
+  // chapter id from the student tree, and the campus's exams (num + ordered chapter ids).
+  const chapterById = useMemo(() => {
+    const cs = courseOptQ.data ?? [];
+    const c = cs.find((x) => x.course_family === "intro_1") ?? cs.find((x) => (x.course_name ?? "").trim().toLowerCase() === "intro 1");
+    const m = new Map<string, { name: string; number: number | null }>();
+    for (const ch of c?.chapters ?? []) m.set(ch.id, { name: ch.name ?? "Topic", number: ch.number ?? null });
+    return m;
+  }, [courseOptQ.data]);
+  const treeTopicById = useMemo(() => {
+    const m = new Map<string, StudentTopic>();
+    if (intro1) { for (const t of intro1.topics) m.set(t.id, t); for (const u of intro1.units) for (const t of u.topics) m.set(t.id, t); }
+    return m;
+  }, [intro1]);
+  const mappedExams = useMemo(() => (mappedQ.data ?? []).filter((e) => e.status === "active").map((e) => {
+    const d = e.name.replace(/\D/g, "");
+    return { num: d ? parseInt(d, 10) : (/final|review/i.test(e.name) ? 99 : 999), chapterIds: e.chapter_ids };
+  }), [mappedQ.data]);
+
+  // Build the four cards. When the campus's exam is mapped → real topics (names + order from the
+  // map; play button where a live free set exists). Otherwise → the tree/static fallback.
+  const examCards = useMemo(() => {
+    const unmapped = !!school && !mapped;
+    const priceLine = unmapped ? "opens when your course is mapped" : "$50";
+    const byNum = new Map(mappedExams.map((e) => [e.num, e] as const));
+    const itemsFromMap = (chapterIds: string[], free: boolean): ExamItem[] => chapterIds.map((cid) => {
+      const ch = chapterById.get(cid), st = treeTopicById.get(cid);
+      const label = ch?.name ?? st?.name ?? "Topic", num = ch?.number ?? st?.number ?? null;
+      if (free) {
+        const live = st?.sets.find((s) => s.access !== "paid" && s.playbackId);
+        if (live) return { key: live.id, label, num, play: () => setPlaying({ set: live, chip: st!.shortLabel || label }) };
+        return { key: cid, label, num, coming: comingFree(label) };
+      }
+      return { key: cid, label, num, coming: comingPaid(label) };
+    });
+    const freeFallback: ExamItem[] = exam1Topics.length
+      ? exam1Topics.flatMap((t): ExamItem[] => t.sets.length
+          ? t.sets.map((s): ExamItem => { const label = setName(s.name) || t.name; const playable = s.access !== "paid" && !!s.playbackId; return { key: s.id, label, num: t.number, play: playable ? () => setPlaying({ set: s, chip: t.shortLabel || t.name }) : undefined, coming: playable ? undefined : comingFree(label) }; })
+          : [{ key: t.id, label: t.name, num: t.number, coming: comingFree(t.name) }])
+      : STATIC_EXAM1.map((n): ExamItem => ({ key: n, label: n, coming: comingFree(n) }));
+    const paidFallback = (topics: StudentTopic[], statics: string[]): ExamItem[] =>
+      (topics.length ? topics.map((t) => t.name) : statics).map((n) => ({ key: n, label: n, coming: comingPaid(n) }));
+    const finalMap = byNum.get(99) ?? byNum.get(4);
+    return [
+      { title: "Exam 1", free: true, items: byNum.get(1) ? itemsFromMap(byNum.get(1)!.chapterIds, true) : freeFallback },
+      { title: "Exam 2", priceLine, items: byNum.get(2) ? itemsFromMap(byNum.get(2)!.chapterIds, false) : paidFallback(exam2Topics, STATIC_EXAM2) },
+      { title: "Exam 3", priceLine, items: byNum.get(3) ? itemsFromMap(byNum.get(3)!.chapterIds, false) : paidFallback(exam3Topics, STATIC_EXAM3) },
+      { title: "Final Review", priceLine, items: finalMap ? itemsFromMap(finalMap.chapterIds, false) : paidFallback(finalTopics, STATIC_FINAL) },
+    ] as { title: string; free?: boolean; priceLine?: string; items: ExamItem[] }[];
+  }, [school, mapped, mappedExams, chapterById, treeTopicById, exam1Topics, exam2Topics, exam3Topics, finalTopics]);
+
   const pickSchool = (s: School) => {
     const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     setSchool(s);
@@ -140,7 +191,7 @@ export function LandingPage() {
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px" }}>
         <Hero school={school} onPick={pickSchool} />
         {school && <StatusStrip school={school} mapped={mapped} />}
-        <ExamSection exam1={exam1Topics} exam2={exam2Topics} exam3={exam3Topics} final={finalTopics} school={school} mapped={mapped} onPlay={(set, chip) => setPlaying({ set, chip })} />
+        <ExamSection cards={examCards} />
         <LeeSection />
         <TestimonialStrip />
         <GreekStrip />
@@ -262,36 +313,16 @@ function Theater({ school, mode, onDone }: { school: School; mode: "full" | "sho
   );
 }
 
-// ---- EXAM SECTION: four cards in a row + Semester Pass bar ------------------------------------
-function ExamSection({ exam1, exam2, exam3, final, school, mapped, onPlay }: {
-  exam1: StudentTopic[]; exam2: StudentTopic[]; exam3: StudentTopic[]; final: StudentTopic[];
-  school: School | null; mapped: boolean; onPlay: (set: StudentSet, chip: string) => void;
-}) {
-  const unmapped = !!school && !mapped;
-  const priceLine = unmapped ? "opens when your course is mapped" : "$50";
-
-  const freeItems: ExamItem[] = exam1.length
-    ? exam1.flatMap((t): ExamItem[] => t.sets.length
-        ? t.sets.map((s): ExamItem => {
-            const label = setName(s.name) || t.name;
-            const playable = s.access !== "paid" && !!s.playbackId;
-            return { key: s.id, label, num: t.number, play: playable ? () => onPlay(s, t.shortLabel || t.name) : undefined, coming: playable ? undefined : comingFree(label) };
-          })
-        : [{ key: t.id, label: t.name, num: t.number, coming: comingFree(t.name) }])
-    : STATIC_EXAM1.map((n): ExamItem => ({ key: n, label: n, coming: comingFree(n) }));
-
-  const paidItems = (topics: StudentTopic[], statics: string[]): ExamItem[] =>
-    (topics.length ? topics.map((t) => t.name) : statics).map((n) => ({ key: n, label: n, coming: comingPaid(n) }));
-
+// ---- EXAM SECTION: four cards in a row + Semester Pass bar (cards prebuilt by the parent) ------
+function ExamSection({ cards }: { cards: { title: string; free?: boolean; priceLine?: string; items: ExamItem[] }[] }) {
   return (
     <section id="exam1" className="mb-8 scroll-mt-6">
       <p className="mb-4 text-center text-[14px]" style={{ color: "var(--brand-cream)", opacity: 0.8 }}>Watch in order or jump around.</p>
       {/* Desktop: 4 across. Mobile: horizontal scroll, next card peeking (~18%). No dots, no concealing. */}
       <div className="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:grid-cols-4 sm:overflow-visible" style={{ scrollSnapType: "x mandatory" }}>
-        <div className="min-w-[82%] sm:min-w-0" style={{ scrollSnapAlign: "start" }}><ExamCard title="Exam 1" free items={freeItems} /></div>
-        <div className="min-w-[82%] sm:min-w-0" style={{ scrollSnapAlign: "start" }}><ExamCard title="Exam 2" priceLine={priceLine} items={paidItems(exam2, STATIC_EXAM2)} /></div>
-        <div className="min-w-[82%] sm:min-w-0" style={{ scrollSnapAlign: "start" }}><ExamCard title="Exam 3" priceLine={priceLine} items={paidItems(exam3, STATIC_EXAM3)} /></div>
-        <div className="min-w-[82%] sm:min-w-0" style={{ scrollSnapAlign: "start" }}><ExamCard title="Final Review" priceLine={priceLine} items={paidItems(final, STATIC_FINAL)} /></div>
+        {cards.map((c) => (
+          <div key={c.title} className="min-w-[82%] sm:min-w-0" style={{ scrollSnapAlign: "start" }}><ExamCard title={c.title} free={c.free} priceLine={c.priceLine} items={c.items} /></div>
+        ))}
       </div>
       {/* Semester Pass — full-width bar beneath */}
       <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-2xl px-5 py-4" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)" }}>
