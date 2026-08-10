@@ -18,7 +18,7 @@ import { getChapterNames, listDefaultExamUnits } from "@/lib/default-map.functio
 import { fetchCourseOptions } from "@/lib/je-api";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
-import { Bolt, BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, SEC_SCHOOLS } from "@/components/canvas/brand";
+import { Bolt, BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS, SEC_SCHOOLS } from "@/components/canvas/brand";
 
 export const Route = createFileRoute("/landing")({
   head: () => ({ meta: [{ title: "⚡ Survive Accounting — Only what's on your exam" }, { name: "robots", content: "noindex" }] }),
@@ -440,32 +440,40 @@ function LeeSection() {
     <section className="mx-auto mb-12 max-w-3xl rounded-3xl p-7 sm:p-10" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
       <div className="flex flex-col gap-7 sm:flex-row sm:items-start">
         <div className="shrink-0"><LeePortrait /></div>
-        <div className="min-w-0 space-y-5 text-[15.5px] leading-relaxed" style={{ color: "var(--brand-cream)" }}>
-          <div>
-            <p className="text-[20px] font-black leading-snug sm:text-[23px]">“It was nothing like what we did in class.”</p>
-            <p className="mt-1 text-[14px]" style={{ color: "var(--text-muted)" }}>My students tell me this every semester.</p>
+        {/* Body uses the UI/text face (Rubik is a display face — headlines only). */}
+        <div className="min-w-0" style={{ fontFamily: BRAND_SANS, color: "var(--brand-cream)", maxWidth: "60ch" }}>
+          {/* three student voices — italic, regular, muted, staggered indents, generous spacing */}
+          <div className="space-y-2.5">
+            <p className="italic" style={{ fontWeight: 400, fontSize: 14.5, opacity: 0.7, lineHeight: 1.5, marginLeft: 0 }}>“I studied for weeks and still failed.”</p>
+            <p className="italic" style={{ fontWeight: 400, fontSize: 14.5, opacity: 0.7, lineHeight: 1.5, marginLeft: 16 }}>“Nothing from lecture was on it.”</p>
+            <p className="italic" style={{ fontWeight: 400, fontSize: 14.5, opacity: 0.7, lineHeight: 1.5, marginLeft: 32 }}>“It looked nothing like the homework.”</p>
           </div>
 
-          {/* the about/do couplet — own lines, bold on the two words */}
-          <p className="text-[16.5px] leading-snug">
-            Lectures teach you <b>about</b> accounting.<br />
-            Exams test whether you can <b>do</b> accounting.
+          {/* the one headline moment */}
+          <p style={{ marginTop: 22, fontWeight: 600, fontSize: 18.5, color: "var(--brand-cream)" }}>Sound familiar?</p>
+
+          <p style={{ marginTop: 20, fontWeight: 400, fontSize: 15.5, lineHeight: 1.65, opacity: 0.88 }}>Here's the truth:</p>
+
+          {/* the thesis couplet — own two lines, air above/below, bold on "about" and "do" only */}
+          <p style={{ marginTop: 16, marginBottom: 20, fontWeight: 400, fontSize: 16.5, lineHeight: 1.55, color: "var(--brand-cream)" }}>
+            Lectures teach you <b style={{ fontWeight: 700 }}>about</b> accounting.<br />
+            The exam tests whether you can <b style={{ fontWeight: 700 }}>do</b> accounting, completely on your own and from memory.
           </p>
 
-          <p style={{ opacity: 0.92 }}>
-            I've watched students study hard, understand the material, and still fail — and retaking
-            this course costs thousands. I'd rather see you spend that money enjoying college.
+          <p style={{ fontWeight: 400, fontSize: 15.5, lineHeight: 1.65, opacity: 0.88 }}>
+            So that's what my videos are: reps. Real exam-style questions, worked start to finish, so
+            you're always ready. Walk in confident. Walk out knowing you crushed it.
           </p>
 
-          <p style={{ opacity: 0.92 }}>
-            I release cram videos one topic at a time, as fast as I can film them. If what you need
-            isn't up yet, tell me — that's how I pick what's next.
+          <p style={{ marginTop: 16, fontWeight: 400, fontSize: 15.5, lineHeight: 1.65, opacity: 0.88 }}>
+            I love helping students discover confidence they didn't realize they had. This course is
+            tough—but so are you.
           </p>
 
-          {/* letter-style sign-off */}
-          <div className="pt-1">
-            <p className="text-[18px] font-black" style={{ color: "var(--brand-cream)" }}>Lee Ingram</p>
-            <p className="text-[13px]" style={{ color: "var(--text-muted)" }}>Tutor since 2015 · Founder, Survive Accounting</p>
+          {/* signature */}
+          <div style={{ marginTop: 26 }}>
+            <p style={{ fontWeight: 600, fontSize: 19, color: "var(--brand-cream)" }}>Lee Ingram</p>
+            <p style={{ marginTop: 2, fontWeight: 400, fontSize: 12.5, opacity: 0.6 }}>Ole Miss accounting grad · Tutor since 2015 · Founder, Survive Accounting</p>
           </div>
         </div>
       </div>
@@ -480,10 +488,10 @@ function LeePortrait() {
   return (
     <figure className="mx-auto sm:mx-0" style={{ width: 200, transform: "rotate(1.5deg)" }}>
       <img
-        src="/lee-sunrise.jpg" alt="Lee Ingram" loading="lazy"
-        style={{ width: 200, aspectRatio: "4 / 5", objectFit: "cover", objectPosition: "38% 40%", borderRadius: 16, border: "3px solid var(--brand-cream)", display: "block" }}
+        src="/lee-beach.webp" alt="Lee Ingram" loading="lazy"
+        style={{ width: 200, aspectRatio: "4 / 5", objectFit: "cover", objectPosition: "center 28%", borderRadius: 16, border: "3px solid var(--brand-cream)", display: "block" }}
       />
-      <figcaption className="mt-2 text-center text-[11.5px] italic" style={{ color: "var(--text-muted)" }}>Morning in Oxford, Mississippi</figcaption>
+      <figcaption className="mt-2 text-center text-[11.5px] italic" style={{ color: "var(--text-muted)" }}>Off the clock, somewhere warmer than the library</figcaption>
     </figure>
   );
 }
