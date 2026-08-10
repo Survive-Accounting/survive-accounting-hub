@@ -34,19 +34,20 @@ begin
        and id <> keep_id
        and lower(trim(coalesce(course_name, code, ''))) = 'intro 1'
   loop
-    -- Is any of this duplicate's chapters referenced by a campus exam map, the default map, an
-    -- order, or a topic entitlement? If so it is NOT an unused stray — halt for manual review.
+    -- Is any of this duplicate's chapters referenced by a campus exam map, the default map, or a
+    -- topic entitlement? If so it is NOT an unused stray — halt for manual review. (order_chapters
+    -- is intentionally NOT checked: it stores a free-text chapter_label, not a chapters.id FK, so
+    -- an order can never pin a specific chapter row.)
     select count(*) into ref_cnt
       from public.chapters ch
      where ch.course_id = dup.id
        and (
             exists (select 1 from public.campus_exam_topics t where t.chapter_id = ch.id)
          or exists (select 1 from public.default_exam_units d where d.unit_id  = ch.id)
-         or exists (select 1 from public.order_chapters   oc where oc.chapter_id = ch.id)
          or exists (select 1 from public.entitlements     e  where e.scope = 'topic' and e.scope_id = ch.id)
        );
     if ref_cnt > 0 then
-      raise exception 'HALT (0107): duplicate "Intro 1" course % has % chapter(s) referenced by maps/orders/entitlements — not safe to auto-archive. Review manually. Nothing changed.', dup.id, ref_cnt;
+      raise exception 'HALT (0107): duplicate "Intro 1" course % has % chapter(s) referenced by maps/entitlements — not safe to auto-archive. Review manually. Nothing changed.', dup.id, ref_cnt;
     end if;
 
     update public.courses set status = 'archived' where id = dup.id;
