@@ -9,13 +9,14 @@
 // 0105). No checkout exists yet — paid exams show topics + a mapping-gated line, not purchasable.
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, GraduationCap, MessageCircle, Play, Search, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, GraduationCap, MessageCircle, Plus, Search, X } from "lucide-react";
 
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
 import { listCampusExams } from "@/lib/campus-exams.functions";
+import { getChapterNames, listDefaultExamUnits } from "@/lib/default-map.functions";
 import { fetchCourseOptions } from "@/lib/je-api";
-import { DEFAULT_FRAME_THEME, FrameBackground, IntroSting, frameThemeVars } from "@/components/frames";
+import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { Bolt, BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, SEC_SCHOOLS } from "@/components/canvas/brand";
 import Reviews from "@/components/landing/Reviews";
@@ -77,20 +78,12 @@ const STATIC_EXAM2 = ["Merchandising", "Inventory (FIFO / LIFO)", "Multi-step In
 const STATIC_EXAM3 = ["Long-Term Assets", "Current Liabilities", "Long-Term Liabilities", "Equity", "Statement of Cash Flows"];
 const STATIC_FINAL = ["Full Accounting Cycle", "Financial Statements", "Ratios & Analysis", "Comprehensive Problems"];
 
-// Coming-soon / month labels — Lee sets these; rendered VERBATIM (e.g. "Coming October"). Absent →
-// free-exam unbuilt topics default to "(queued)"; paid topics show no label unless set here.
-const COMING_LABELS: Record<string, string> = {};
-const comingFree = (name: string): string => COMING_LABELS[name] ?? "(queued)";
-const comingPaid = (name: string): string | undefined => COMING_LABELS[name];
-
-const setName = (n?: string) => (n ?? "Set").replace(/^\s*ch\s*\d+\s*·\s*/i, "").trim() || "Set";
-
-type ExamItem = { key: string; label: string; num?: number | null; play?: () => void; coming?: string };
+// A resolved Exam topic: its display name/number + its live free set (if any).
+type ResolvedTopic = { key: string; name: string; num: number | null; set: StudentSet | null };
 
 export function LandingPage() {
   const [school, setSchool] = useState<School | null>(null);
   const [theater, setTheater] = useState<{ school: School; mode: "full" | "short" } | null>(null);
-  const [playing, setPlaying] = useState<{ set: StudentSet; chip: string } | null>(null);
   const firstPick = useRef(false);
 
   const theme = useMemo(() => {
@@ -143,37 +136,31 @@ export function LandingPage() {
     return { num: d ? parseInt(d, 10) : (/final|review/i.test(e.name) ? 99 : 999), chapterIds: e.chapter_ids };
   }), [mappedQ.data]);
 
-  // Build the four cards. When the campus's exam is mapped → real topics (names + order from the
-  // map; play button where a live free set exists). Otherwise → the tree/static fallback.
-  const examCards = useMemo(() => {
-    const unmapped = !!school && !mapped;
-    const priceLine = unmapped ? "opens when your course is mapped" : "$50";
-    const byNum = new Map(mappedExams.map((e) => [e.num, e] as const));
-    const itemsFromMap = (chapterIds: string[], free: boolean): ExamItem[] => chapterIds.map((cid) => {
-      const ch = chapterById.get(cid), st = treeTopicById.get(cid);
-      const label = ch?.name ?? st?.name ?? "Topic", num = ch?.number ?? st?.number ?? null;
-      if (free) {
-        const live = st?.sets.find((s) => s.access !== "paid" && s.playbackId);
-        if (live) return { key: live.id, label, num, play: () => setPlaying({ set: live, chip: st!.shortLabel || label }) };
-        return { key: cid, label, num, coming: comingFree(label) };
-      }
-      return { key: cid, label, num, coming: comingPaid(label) };
-    });
-    const freeFallback: ExamItem[] = exam1Topics.length
-      ? exam1Topics.flatMap((t): ExamItem[] => t.sets.length
-          ? t.sets.map((s): ExamItem => { const label = setName(s.name) || t.name; const playable = s.access !== "paid" && !!s.playbackId; return { key: s.id, label, num: t.number, play: playable ? () => setPlaying({ set: s, chip: t.shortLabel || t.name }) : undefined, coming: playable ? undefined : comingFree(label) }; })
-          : [{ key: t.id, label: t.name, num: t.number, coming: comingFree(t.name) }])
-      : STATIC_EXAM1.map((n): ExamItem => ({ key: n, label: n, coming: comingFree(n) }));
-    const paidFallback = (topics: StudentTopic[], statics: string[]): ExamItem[] =>
-      (topics.length ? topics.map((t) => t.name) : statics).map((n) => ({ key: n, label: n, coming: comingPaid(n) }));
-    const finalMap = byNum.get(99) ?? byNum.get(4);
-    return [
-      { title: "Exam 1", free: true, items: byNum.get(1) ? itemsFromMap(byNum.get(1)!.chapterIds, true) : freeFallback },
-      { title: "Exam 2", priceLine, items: byNum.get(2) ? itemsFromMap(byNum.get(2)!.chapterIds, false) : paidFallback(exam2Topics, STATIC_EXAM2) },
-      { title: "Exam 3", priceLine, items: byNum.get(3) ? itemsFromMap(byNum.get(3)!.chapterIds, false) : paidFallback(exam3Topics, STATIC_EXAM3) },
-      { title: "Final Review", priceLine, items: finalMap ? itemsFromMap(finalMap.chapterIds, false) : paidFallback(finalTopics, STATIC_FINAL) },
-    ] as { title: string; free?: boolean; priceLine?: string; items: ExamItem[] }[];
-  }, [school, mapped, mappedExams, chapterById, treeTopicById, exam1Topics, exam2Topics, exam3Topics, finalTopics]);
+  // Default map (0106) — used for the Exam-1 player when a campus is unmapped (Foundations order).
+  const defaultMapQ = useQuery({ queryKey: ["landing-default-map"], queryFn: () => listDefaultExamUnits(), staleTime: 600_000, networkMode: "always" });
+  const defaultUnits = defaultMapQ.data ?? [];
+
+  // Every chapter id any exam references (map + default), resolved to names DIRECTLY from the
+  // chapters table — immune to course de-dup, so a mapped topic never shows a bare "Topic".
+  const allTopicIds = useMemo(() => { const s = new Set<string>(); mappedExams.forEach((e) => e.chapterIds.forEach((id) => s.add(id))); defaultUnits.forEach((u) => s.add(u.unit_id)); return [...s]; }, [mappedExams, defaultUnits]);
+  const namesQ = useQuery({ queryKey: ["landing-chapter-names", allTopicIds], queryFn: () => getChapterNames({ data: { ids: allTopicIds } }), enabled: allTopicIds.length > 0, networkMode: "always", staleTime: 600_000 });
+  const nameById = useMemo(() => { const m = new Map<string, { name: string; number: number | null }>(); for (const r of namesQ.data ?? []) m.set(r.id, { name: r.name, number: r.number }); return m; }, [namesQ.data]);
+
+  // Resolve an exam's topics: campus map (if mapped) → default map → student tree → static. Each
+  // topic carries its live free set (if any). Free content is never gated by mapping status.
+  const liveSetOf = (st: StudentTopic | undefined) => st?.sets.find((s) => s.access !== "paid" && s.playbackId) ?? null;
+  const resolveExam = (num: number, treeTopics: StudentTopic[], statics: string[]): ResolvedTopic[] => {
+    const m = mappedExams.find((e) => e.num === num);
+    const ids = m ? m.chapterIds : defaultUnits.filter((u) => u.exam_number === num).map((u) => u.unit_id);
+    if (ids.length) return ids.map((cid) => { const nm = nameById.get(cid), ch = chapterById.get(cid), st = treeTopicById.get(cid); return { key: cid, name: nm?.name ?? ch?.name ?? st?.name ?? "Topic", num: nm?.number ?? ch?.number ?? st?.number ?? null, set: liveSetOf(st) }; });
+    if (treeTopics.length) return treeTopics.map((t) => ({ key: t.id, name: t.name, num: t.number, set: liveSetOf(t) }));
+    return statics.map((n) => ({ key: n, name: n, num: null, set: null }));
+  };
+  const exam1R = useMemo(() => resolveExam(1, exam1Topics, STATIC_EXAM1), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById, exam1Topics]);
+  const exam2R = useMemo(() => resolveExam(2, exam2Topics, STATIC_EXAM2), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById, exam2Topics]);
+  const exam3R = useMemo(() => resolveExam(3, exam3Topics, STATIC_EXAM3), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById, exam3Topics]);
+  const finalR = useMemo(() => resolveExam(99, finalTopics, STATIC_FINAL), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById, finalTopics]);
+  const anyExam1Live = useMemo(() => exam1R.some((t) => !!t.set?.playbackId), [exam1R]);
 
   const pickSchool = (s: School) => {
     const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -189,9 +176,9 @@ export function LandingPage() {
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
 
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px" }}>
-        <Hero school={school} onPick={pickSchool} />
+        <Hero school={school} onPick={pickSchool} livePromise={anyExam1Live} />
         {school && <StatusStrip school={school} mapped={mapped} />}
-        <ExamSection cards={examCards} />
+        <ExamSection exam1={exam1R} exam2={exam2R} exam3={exam3R} final={finalR} school={school} />
         <LeeSection />
         <TestimonialStrip />
         <GreekStrip />
@@ -199,14 +186,13 @@ export function LandingPage() {
       </main>
 
       {theater && <Theater school={theater.school} mode={theater.mode} onDone={() => setTheater(null)} />}
-      {playing && <VideoModal set={playing.set} chipText={playing.chip} onClose={() => setPlaying(null)} />}
       <FloatingPill />
     </div>
   );
 }
 
 // ---- HERO -------------------------------------------------------------------------------------
-function Hero({ school, onPick }: { school: School | null; onPick: (s: School) => void }) {
+function Hero({ school, onPick, livePromise }: { school: School | null; onPick: (s: School) => void; livePromise: boolean }) {
   return (
     <section className="flex flex-col items-center pt-16 pb-8 text-center sm:pt-24">
       <SurviveWordmark size={92} />
@@ -217,7 +203,7 @@ function Hero({ school, onPick }: { school: School | null; onPick: (s: School) =
       </p>
       <div className="mt-8 w-full max-w-md"><CampusSelector school={school} onPick={onPick} /></div>
       <p className="mt-3 text-[12.5px]" style={{ color: "var(--text-muted)" }}>Ole Miss · LSU · Alabama · +13 SEC schools</p>
-      <p className="mt-6 text-[13.5px] font-semibold" style={{ color: "var(--accent)" }}>Exam 1 is free. No account, no email — just press play and start studying.</p>
+      <p className="mt-6 text-[13.5px] font-semibold" style={{ color: "var(--accent)" }}>{livePromise ? "Exam 1 is free. Just press play and start studying." : "Exam 1 is free. First videos land this week."}</p>
     </section>
   );
 }
@@ -313,19 +299,18 @@ function Theater({ school, mode, onDone }: { school: School; mode: "full" | "sho
   );
 }
 
-// ---- EXAM SECTION: four cards in a row + Semester Pass bar (cards prebuilt by the parent) ------
-function ExamSection({ cards }: { cards: { title: string; free?: boolean; priceLine?: string; items: ExamItem[] }[] }) {
+// ---- EXAM SECTION: Exam-1 hero + player · muted 2/3/Final row · Semester bar ------------------
+function ExamSection({ exam1, exam2, exam3, final, school }: { exam1: ResolvedTopic[]; exam2: ResolvedTopic[]; exam3: ResolvedTopic[]; final: ResolvedTopic[]; school: School | null }) {
+  const [openMuted, setOpenMuted] = useState<number | null>(null);
+  const muted: [string, ResolvedTopic[]][] = [["Exam 2", exam2], ["Exam 3", exam3], ["Final", final]];
   return (
     <section id="exam1" className="mb-8 scroll-mt-6">
-      <p className="mb-4 text-center text-[14px]" style={{ color: "var(--brand-cream)", opacity: 0.8 }}>Watch in order or jump around.</p>
-      {/* Desktop: 4 across. Mobile: horizontal scroll, next card peeking (~18%). No dots, no concealing. */}
-      <div className="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:grid-cols-4 sm:overflow-visible" style={{ scrollSnapType: "x mandatory" }}>
-        {cards.map((c) => (
-          <div key={c.title} className="min-w-[82%] sm:min-w-0" style={{ scrollSnapAlign: "start" }}><ExamCard title={c.title} free={c.free} priceLine={c.priceLine} items={c.items} /></div>
-        ))}
+      <Exam1Hero topics={exam1} school={school} />
+      {/* muted paid row — three small cards in one row (mobile too); [+] expands in place */}
+      <div className="mt-4 grid grid-cols-3 gap-2.5 sm:gap-3">
+        {muted.map(([title, tp], i) => <MutedExamCard key={title} title={title} topics={tp} expanded={openMuted === i} onToggle={() => setOpenMuted((cur) => (cur === i ? null : i))} />)}
       </div>
-      {/* Semester Pass — full-width bar beneath */}
-      <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-2xl px-5 py-4" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)" }}>
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-2xl px-5 py-4" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)" }}>
         <span className="text-[15px] font-black" style={{ color: "var(--brand-cream)" }}>Semester Pass</span>
         <span className="text-[15px] font-black" style={{ color: "var(--accent)" }}>$150</span>
         <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>— every exam, all semester</span>
@@ -334,51 +319,119 @@ function ExamSection({ cards }: { cards: { title: string; free?: boolean; priceL
   );
 }
 
-function ExamCard({ title, free, priceLine, items }: { title: string; free?: boolean; priceLine?: string; items: ExamItem[] }) {
-  const [expanded, setExpanded] = useState(false);
-  const shown = expanded ? items : items.slice(0, 5);
+function Exam1Hero({ topics, school }: { topics: ResolvedTopic[]; school: School | null }) {
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: `1px solid ${free ? "rgba(252,163,17,0.45)" : "rgba(245,239,230,0.12)"}` }}>
-      <div className="flex items-baseline justify-between gap-2 px-4 pt-4 pb-2">
-        <span className="text-[14px] font-black uppercase tracking-wide" style={{ color: "var(--brand-cream)" }}>{title}</span>
-        {free ? (
-          <span className="text-[11px] font-black uppercase tracking-wide" style={{ color: "var(--accent)" }}>Free</span>
-        ) : (
-          <span className="text-right text-[11px] font-bold" style={{ color: priceLine && priceLine.startsWith("$") ? "var(--accent)" : "var(--text-muted)" }}>{priceLine}</span>
-        )}
+    <div className="overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(252,163,17,0.45)" }}>
+      <div className="flex items-baseline justify-between px-4 pt-3.5 pb-1">
+        <span className="text-[15px] font-black uppercase tracking-wide" style={{ color: "var(--brand-cream)" }}>⚡ Exam 1</span>
+        <span className="text-[11px] font-black uppercase tracking-wide" style={{ color: "var(--accent)" }}>Free</span>
       </div>
-      <div className="flex-1">
-        {shown.map((it) => <ExamItemRow key={it.key} item={it} />)}
-      </div>
-      {items.length > 5 && (
-        <button onClick={() => setExpanded((v) => !v)} className="border-t px-4 py-2 text-left text-[11.5px] font-semibold" style={{ borderColor: "rgba(245,239,230,0.08)", color: "var(--text-muted)" }}>
-          {expanded ? "Show less" : `Show all ${items.length}`}
-        </button>
-      )}
+      <Exam1Player topics={topics} school={school} />
     </div>
   );
 }
 
-function ExamItemRow({ item }: { item: ExamItem }) {
-  const playable = !!item.play;
+const PLAYER_TABS = [["video", "Video"], ["questions", "Questions"], ["practice", "Practice"]] as const;
+type PlayerTab = (typeof PLAYER_TABS)[number][0];
+
+function Exam1Player({ topics, school }: { topics: ResolvedTopic[]; school: School | null }) {
+  const [idx, setIdx] = useState(0);
+  const [tab, setTab] = useState<PlayerTab>("video");
+  const [menu, setMenu] = useState(false);
+  const safeIdx = Math.min(idx, Math.max(0, topics.length - 1));
+  const cur = topics[safeIdx] ?? null;
+  const step = (d: -1 | 1) => { setMenu(false); setIdx(() => Math.max(0, Math.min(topics.length - 1, safeIdx + d))); };
   return (
-    <button
-      disabled={!playable}
-      onClick={item.play}
-      className="flex w-full items-center gap-2.5 border-b px-4 py-2.5 text-left last:border-b-0"
-      style={{ borderColor: "rgba(245,239,230,0.06)", cursor: playable ? "pointer" : "default", opacity: item.coming ? 0.66 : 1 }}
-      title={item.label}
-    >
-      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-[10px]" style={{ background: playable ? "var(--accent)" : "transparent", border: playable ? "none" : "1px solid rgba(245,239,230,0.3)", color: "#0B1220" }}>
-        {playable ? <Play className="h-2.5 w-2.5" style={{ fill: "#0B1220" }} /> : <span style={{ color: "var(--brand-cream)", opacity: 0.55 }}>○</span>}
-      </span>
-      <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>{item.label}</span>
-      {playable ? (
-        <span className="shrink-0 text-[10.5px] font-bold uppercase tracking-wide" style={{ color: "var(--accent)" }}>▶</span>
-      ) : item.coming ? (
-        <span className="shrink-0 text-[10.5px]" style={{ color: "var(--text-muted)" }}>{item.coming}</span>
-      ) : null}
-    </button>
+    <div>
+      {/* TOPIC STRIP */}
+      <div className="relative flex items-center gap-2 border-y px-3 py-2" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.2)" }}>
+        <button onClick={() => step(-1)} disabled={safeIdx <= 0} className="grid h-6 w-6 place-items-center rounded text-[16px] disabled:opacity-30" style={{ color: "var(--brand-cream)" }} title="Previous topic">‹</button>
+        <div className="min-w-0 flex-1 text-center">
+          <span className="text-[13.5px] font-bold" style={{ color: "var(--brand-cream)" }}>{cur?.name ?? "—"}</span>
+          {cur && !cur.set && <span className="ml-2 text-[10.5px]" style={{ color: "var(--text-muted)" }}>(coming)</span>}
+        </div>
+        <button onClick={() => step(1)} disabled={safeIdx >= topics.length - 1} className="grid h-6 w-6 place-items-center rounded text-[16px] disabled:opacity-30" style={{ color: "var(--brand-cream)" }} title="Next topic">›</button>
+        <button onClick={() => setMenu((v) => !v)} className="grid h-6 w-6 place-items-center rounded hover:bg-white/10" style={{ color: "var(--accent)" }} title="All Exam 1 topics"><ChevronDown className="h-4 w-4" /></button>
+        {menu && (
+          <div className="absolute right-2 top-full z-20 mt-1 max-h-64 w-64 overflow-y-auto rounded-lg" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 20px 50px -16px rgba(0,0,0,0.85)" }}>
+            {topics.map((t, i) => (
+              <button key={t.key} onClick={() => { setIdx(i); setMenu(false); setTab("video"); }} className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] hover:bg-white/5" style={{ opacity: t.set ? 1 : 0.55, color: i === safeIdx ? "var(--accent)" : "var(--brand-cream)" }}>
+                <span className="min-w-0 flex-1 truncate">{t.name}</span>
+                {!t.set && <span className="shrink-0 text-[10px]" style={{ color: "var(--text-muted)" }}>coming</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* MAIN AREA (16:9) — active tab content */}
+      <div className="relative w-full" style={{ aspectRatio: "16 / 9", background: "#000" }}>
+        {tab === "video" && (cur?.set?.playbackId
+          ? <HeroVideo key={cur.set.playbackId} playbackId={cur.set.playbackId} />
+          : <Poster school={school} topicName={cur?.name ?? "Exam 1"} queued={!!cur} />)}
+        {tab === "questions" && <PlayerPlaceholder text="Practice questions land with the video." />}
+        {tab === "practice" && <PlayerPlaceholder text="Interactive practice coming." />}
+      </div>
+
+      {/* TABS */}
+      <div className="flex items-stretch border-t" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
+        {PLAYER_TABS.map(([k, label]) => (
+          <button key={k} onClick={() => setTab(k)} className="flex-1 py-2.5 text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: tab === k ? "var(--accent)" : "var(--text-muted)", borderBottom: `2px solid ${tab === k ? "var(--accent)" : "transparent"}` }}>{label}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Muted autoplay per browser rules; the user unmutes via the native controls. 16:9 only.
+function HeroVideo({ playbackId }: { playbackId: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const [err, setErr] = useState(false);
+  useEffect(() => {
+    const v = ref.current; if (!v) return;
+    const src = `https://stream.mux.com/${playbackId}.m3u8`;
+    let hls: { destroy: () => void } | null = null, cancelled = false;
+    if (v.canPlayType("application/vnd.apple.mpegurl")) { v.src = src; }
+    else void import("hls.js").then(({ default: Hls }) => { if (cancelled || !ref.current) return; if (Hls.isSupported()) { const h = new Hls(); h.on(Hls.Events.ERROR, (_e, d) => { if (d.fatal) setErr(true); }); h.loadSource(src); h.attachMedia(ref.current); hls = h; } else ref.current.src = src; }).catch(() => setErr(true));
+    v.muted = true; void v.play().catch(() => { /* user can press play */ });
+    return () => { cancelled = true; hls?.destroy(); };
+  }, [playbackId]);
+  if (err) return <div className="grid h-full w-full place-items-center text-[12px]" style={{ color: "#F3C6CC" }}>Couldn't load this video. Try again shortly.</div>;
+  return <video ref={ref} controls playsInline muted className="h-full w-full" style={{ objectFit: "contain", background: "#000" }} />;
+}
+
+function Poster({ school, topicName, queued }: { school: School | null; topicName: string; queued: boolean }) {
+  const c = school ? boltFor(school.id) : { c1: BRAND_RED, c2: BRAND_BLUE };
+  return (
+    <div className="grid h-full w-full place-items-center" style={{ background: "var(--brand-navy)" }}>
+      <div className="flex flex-col items-center gap-3 px-6 text-center">
+        <span className="inline-block h-16 w-11"><Bolt c1={c.c1} c2={c.c2} /></span>
+        <span className="rounded-full px-3 py-1 text-[12px] font-bold uppercase tracking-wide" style={{ background: "var(--accent)", color: "#0B1220" }}>{topicName}</span>
+        {queued && <a href="/order" className="text-[12.5px] font-semibold" style={{ color: "var(--brand-cream)", opacity: 0.9 }}>This one's queued — want it sooner? <span style={{ color: "var(--accent)" }}>Tell me →</span></a>}
+      </div>
+    </div>
+  );
+}
+
+function PlayerPlaceholder({ text }: { text: string }) {
+  return <div className="grid h-full w-full place-items-center px-6 text-center text-[13px]" style={{ background: "var(--brand-navy)", color: "var(--text-muted)" }}>{text}</div>;
+}
+
+// Muted paid cards (Exam 2 / Exam 3 / Final) — name · $50 · [+]; expand-in-place, one open at a time.
+function MutedExamCard({ title, topics, expanded, onToggle }: { title: string; topics: ResolvedTopic[]; expanded: boolean; onToggle: () => void }) {
+  return (
+    <div className="overflow-hidden rounded-xl" style={{ background: "rgba(245,239,230,0.035)", border: "1px solid rgba(245,239,230,0.1)", opacity: expanded ? 1 : 0.7 }}>
+      <button onClick={onToggle} className="flex w-full items-center gap-1.5 px-2.5 py-2.5 text-left">
+        <span className="min-w-0 flex-1 truncate text-[12px] font-black uppercase tracking-wide" style={{ color: "var(--brand-cream)" }}>{title}</span>
+        <span className="shrink-0 text-[11px] font-bold" style={{ color: "var(--accent)" }}>$50</span>
+        <span className="grid h-4 w-4 shrink-0 place-items-center rounded" style={{ color: "var(--text-muted)" }}>{expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}</span>
+      </button>
+      {expanded && (
+        <ul className="px-3 pb-2.5" style={{ borderTop: "1px solid rgba(245,239,230,0.08)" }}>
+          {topics.map((t) => <li key={t.key} className="truncate py-0.5 text-[12px]" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>· {t.name}</li>)}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -494,58 +547,3 @@ function FloatingPill() {
   );
 }
 
-// ---- ON-PAGE PLAYER (silent IntroSting pre-roll → HLS video), lifted from /learn -------------
-function VideoModal({ set, chipText, onClose }: { set: StudentSet; chipText: string; onClose: () => void }) {
-  const ref = useRef<HTMLVideoElement>(null);
-  const [err, setErr] = useState(false);
-  const [preroll, setPreroll] = useState(true);
-  const portrait = set.orientation === "portrait";
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  useEffect(() => {
-    const v = ref.current, pid = set.playbackId;
-    if (!v || !pid) return;
-    const src = `https://stream.mux.com/${pid}.m3u8`;
-    if (v.canPlayType("application/vnd.apple.mpegurl")) { v.src = src; return; }
-    let hls: { destroy: () => void } | null = null, cancelled = false;
-    void import("hls.js").then(({ default: Hls }) => {
-      if (cancelled || !ref.current) return;
-      if (Hls.isSupported()) { const h = new Hls(); h.on(Hls.Events.ERROR, (_e, d) => { if (d.fatal) setErr(true); }); h.loadSource(src); h.attachMedia(ref.current); hls = h; }
-      else ref.current.src = src;
-    }).catch(() => setErr(true));
-    return () => { cancelled = true; hls?.destroy(); };
-  }, [set.playbackId]);
-  useEffect(() => { if (!preroll) void ref.current?.play().catch(() => { /* user can hit play */ }); }, [preroll]);
-  return (
-    <div className="fixed inset-0 z-[100] grid place-items-center p-4" style={{ background: "rgba(4,7,14,0.92)" }} onClick={onClose}>
-      <div className="relative w-full" style={{ maxWidth: portrait ? 460 : 1100 }} onClick={(e) => e.stopPropagation()}>
-        <button className="absolute -top-9 right-0 grid h-8 w-8 place-items-center rounded-full" style={{ color: "#e8ecf5", border: "1px solid rgba(255,255,255,0.2)" }} onClick={onClose} title="Close (Esc)"><X className="h-4 w-4" /></button>
-        <div className="mb-2 text-[13px] font-bold" style={{ color: "#e8ecf5" }}>{setName(set.name)}</div>
-        {err ? (
-          <div className="grid place-items-center rounded-xl text-[12px]" style={{ aspectRatio: portrait ? "9 / 16" : "16 / 9", background: "#0b1020", border: "1px solid rgba(255,92,110,0.4)", color: "#F3C6CC" }}>Couldn't load this video. Try again shortly.</div>
-        ) : (
-          <div className="relative overflow-hidden rounded-xl" style={{ background: "#000", aspectRatio: portrait ? "9 / 16" : "16 / 9" }}>
-            <video ref={ref} controls playsInline className="h-full w-full" style={{ objectFit: "contain", background: "#000" }} />
-            <span className="pointer-events-none absolute right-3 top-3 inline-block h-6 w-4 opacity-80"><Bolt c1={BRAND_RED} c2={BRAND_BLUE} /></span>
-            {preroll && <PreRoll chipText={chipText} onDone={() => setPreroll(false)} />}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function PreRoll({ chipText, onDone }: { chipText: string; onDone: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.24);
-  useLayoutEffect(() => { const el = ref.current; if (el && el.clientWidth) setScale(el.clientWidth / 1920); }, []);
-  useEffect(() => { const t = window.setTimeout(onDone, 1500); return () => window.clearTimeout(t); }, [onDone]);
-  return (
-    <div ref={ref} className="absolute inset-0 z-10 grid place-items-center overflow-hidden" style={{ background: "#0A1220" }}>
-      <IntroSting topicChip={chipText || undefined} scale={scale} />
-    </div>
-  );
-}

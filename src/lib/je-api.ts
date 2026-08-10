@@ -363,13 +363,15 @@ export async function fetchCourseOptions(): Promise<CourseOption[]> {
     chapters: chaptersByCourse.get(c.id) ?? [],
   }));
   // DE-DUPE: a legacy duplicate courses row otherwise renders as TWO "Intro 1" sections in the
-  // Studio Topics pane. Key on the DISPLAY NAME (that's the visible collision) — a family-less
-  // "Intro 1" and a family="intro_1" "Intro 1" both collapse. Keep the richer row (more chapters).
+  // Studio Topics pane. Key on the DISPLAY NAME (the visible collision). Keep the CANONICAL row:
+  // prefer one WITH a course_family (the real intro_1/etc.), then non-empty chapters, then more
+  // chapters — so a family-less legacy "Intro 1" never wins over the row the maps were built on.
+  const score = (c: CourseOption) => (c.course_family ? 4 : 0) + (c.chapters.length > 0 ? 2 : 0) + Math.min(1, c.chapters.length / 1000);
   const byKey = new Map<string, CourseOption>();
   for (const c of built) {
     const key = (c.course_name ?? c.code ?? "").trim().toLowerCase() || c.course_family || c.id;
     const prev = byKey.get(key);
-    if (!prev || c.chapters.length > prev.chapters.length) byKey.set(key, c);
+    if (!prev || score(c) > score(prev)) byKey.set(key, c);
   }
   return [...byKey.values()];
 }
