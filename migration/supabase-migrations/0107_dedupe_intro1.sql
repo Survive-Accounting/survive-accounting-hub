@@ -45,13 +45,13 @@ begin
     -- chapters.id FK, so an order can never pin a specific chapter row.)
     clauses := array[]::text[];
     if to_regclass('public.campus_exam_topics') is not null then
-      clauses := clauses || 'exists (select 1 from public.campus_exam_topics t where t.chapter_id = ch.id)';
+      clauses := array_append(clauses, 'exists (select 1 from public.campus_exam_topics t where t.chapter_id = ch.id)');
     end if;
     if to_regclass('public.default_exam_units') is not null then
-      clauses := clauses || 'exists (select 1 from public.default_exam_units d where d.unit_id = ch.id)';
+      clauses := array_append(clauses, 'exists (select 1 from public.default_exam_units d where d.unit_id = ch.id)');
     end if;
     if to_regclass('public.entitlements') is not null then
-      clauses := clauses || 'exists (select 1 from public.entitlements e where e.scope = ''topic'' and e.scope_id = ch.id)';
+      clauses := array_append(clauses, 'exists (select 1 from public.entitlements e where e.scope = ''topic'' and e.scope_id = ch.id)');
     end if;
 
     if array_length(clauses, 1) is null then
