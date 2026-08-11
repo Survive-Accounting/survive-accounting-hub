@@ -24,6 +24,33 @@ export const getChapterNames = createServerFn({ method: "POST" })
     } catch { return []; }
   });
 
+// Intro-1 course code per campus, for a batch of campus ids — so the landing dropdown can render a
+// VERIFIED code on every school row in its FIRST payload (not lazily per selection). Reads
+// campuses.course_family_codes_json.intro_1 (the same field onboarding/orders use), tolerating the
+// double-encoded-string form. Only campuses whose intro_1 code is a non-empty string are returned;
+// a missing/blank code yields no row, so the caller renders nothing (never a guessed placeholder).
+export interface CampusIntroCode { campusId: string; code: string }
+export const listCampusIntroCodes = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ ids: z.array(z.string().uuid()) }).parse(d))
+  .handler(async ({ data }): Promise<CampusIntroCode[]> => {
+    if (!data.ids.length) return [];
+    try {
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const db = supabaseAdmin as unknown as { from: (t: string) => any };
+      const { data: rows, error } = await db.from("campuses").select("id,course_family_codes_json").in("id", data.ids);
+      if (error) return [];
+      const out: CampusIntroCode[] = [];
+      for (const r of (rows ?? []) as { id: string; course_family_codes_json: unknown }[]) {
+        let raw: unknown = r.course_family_codes_json;
+        if (typeof raw === "string") { try { raw = JSON.parse(raw); } catch { raw = {}; } }
+        const codes = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+        const code = typeof codes.intro_1 === "string" ? codes.intro_1.trim() : "";
+        if (code) out.push({ campusId: r.id, code });
+      }
+      return out;
+    } catch { return []; }
+  });
+
 export const listDefaultExamUnits = createServerFn({ method: "GET" }).handler(async (): Promise<DefaultUnitRow[]> => {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

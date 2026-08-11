@@ -14,7 +14,7 @@ import { ChevronDown, GraduationCap, MessageCircle, Plus, Search, X } from "luci
 
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
 import { listCampusExams } from "@/lib/campus-exams.functions";
-import { getChapterNames, listDefaultExamUnits } from "@/lib/default-map.functions";
+import { getChapterNames, listCampusIntroCodes, listDefaultExamUnits } from "@/lib/default-map.functions";
 import { fetchCourseOptions } from "@/lib/je-api";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
@@ -32,7 +32,7 @@ const TEL = "+16625658818";
 // SEC_SCHOOLS by slug. `code` renders ONLY when `codeVerified` — never guess a course code.
 type School = { campusId: string; id: string; name: string; code?: string; codeVerified?: boolean };
 const SCHOOLS: School[] = [
-  { campusId: "7b92a320-b196-43f2-a241-77a0805816fe", id: "ole-miss", name: "Ole Miss", code: "ACCY 201", codeVerified: true },
+  { campusId: "7b92a320-b196-43f2-a241-77a0805816fe", id: "ole-miss", name: "Ole Miss" },
   { campusId: "698dd98f-dd92-46c1-8f28-e930568cb15d", id: "lsu", name: "LSU" },
   { campusId: "b3af67c6-99a5-4677-83d5-aa7d11a89c17", id: "alabama", name: "Alabama" },
   { campusId: "9c4775be-7d82-4a3e-840c-349c5e15d8e8", id: "tennessee", name: "Tennessee" },
@@ -94,6 +94,15 @@ export function LandingPage() {
     const c = boltFor(school.id);
     return { ...DEFAULT_FRAME_THEME, boltPrimary: c.c1, boltSecondary: c.c2 }; // recolor bolt (contrast-safe); keep the gold accent
   }, [school]);
+
+  // Course codes for ALL schools up front (one call on mount), so every dropdown row can show its
+  // VERIFIED code without a per-selection round-trip. Codes come only from the DB — a school with no
+  // code in campuses.course_family_codes_json.intro_1 simply renders no code (never a guess).
+  const codesQ = useQuery({ queryKey: ["landing-campus-codes"], queryFn: () => listCampusIntroCodes({ data: { ids: SCHOOLS.map((s) => s.campusId) } }), staleTime: 600_000, networkMode: "always" });
+  const schoolsWithCodes = useMemo<School[]>(() => {
+    const m = new Map((codesQ.data ?? []).map((r) => [r.campusId, r.code]));
+    return SCHOOLS.map((s) => { const code = m.get(s.campusId); return code ? { ...s, code, codeVerified: true } : { ...s, code: undefined, codeVerified: false }; });
+  }, [codesQ.data]);
 
   const treeQ = useQuery({ queryKey: ["landing-tree", school?.campusId ?? null], queryFn: () => fetchStudentTree({ data: school ? { campusId: school.campusId } : {} }), networkMode: "always", staleTime: 300_000 });
   const intro1 = useMemo(() => (treeQ.data ?? []).find((c) => c.family === "intro_1" || c.name.trim().toLowerCase() === "intro 1") ?? null, [treeQ.data]);
@@ -181,9 +190,9 @@ export function LandingPage() {
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
 
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px" }}>
-        <Hero school={school} onPick={pickSchool} livePromise={anyExam1Live} onTryFree={onTryFree} />
+        <Hero school={school} onPick={pickSchool} livePromise={anyExam1Live} onTryFree={onTryFree} schools={schoolsWithCodes} />
         {school && <StatusStrip school={school} mapped={mapped} />}
-        <ExamSection exam1={exam1R} exam2={exam2R} exam3={exam3R} final={finalR} school={school} onPick={pickSchool} pickerPulse={pickerPulse} />
+        <ExamSection exam1={exam1R} exam2={exam2R} exam3={exam3R} final={finalR} school={school} onPick={pickSchool} pickerPulse={pickerPulse} schools={schoolsWithCodes} />
         <TestimonialsSlider />
         <LeeSection />
         <GreekStrip />
@@ -197,7 +206,7 @@ export function LandingPage() {
 }
 
 // ---- HERO -------------------------------------------------------------------------------------
-function Hero({ school, onPick, livePromise, onTryFree }: { school: School | null; onPick: (s: School) => void; livePromise: boolean; onTryFree: () => void }) {
+function Hero({ school, onPick, livePromise, onTryFree, schools }: { school: School | null; onPick: (s: School) => void; livePromise: boolean; onTryFree: () => void; schools: School[] }) {
   return (
     <section className="flex flex-col items-center pt-16 pb-8 text-center sm:pt-24">
       <SurviveWordmark size={92} />
@@ -208,7 +217,7 @@ function Hero({ school, onPick, livePromise, onTryFree }: { school: School | nul
       <button onClick={onTryFree} className="mt-8 inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-[15.5px] font-black transition-transform hover:scale-[1.03]" style={{ background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.6)" }}>
         Try Exam 1 Free ⚡
       </button>
-      <div className="mt-6 w-full max-w-md"><CampusSelector school={school} onPick={onPick} /></div>
+      <div className="mt-6 w-full max-w-md"><CampusSelector school={school} onPick={onPick} schools={schools} /></div>
       <SchoolTicker />
       <p className="mt-6 text-[13.5px] font-semibold" style={{ color: "var(--accent)" }}>{livePromise ? "Exam 1 is free. Just press play and start studying." : "Exam 1 is free. First videos land this week."}</p>
     </section>
@@ -337,12 +346,12 @@ function Theater({ school, mode, onDone }: { school: School; mode: "full" | "sho
 }
 
 // ---- EXAM SECTION: Exam-1 hero + player · muted 2/3/Final row · Semester bar ------------------
-function ExamSection({ exam1, exam2, exam3, final, school, onPick, pickerPulse }: { exam1: ResolvedTopic[]; exam2: ResolvedTopic[]; exam3: ResolvedTopic[]; final: ResolvedTopic[]; school: School | null; onPick: (s: School) => void; pickerPulse: number }) {
+function ExamSection({ exam1, exam2, exam3, final, school, onPick, pickerPulse, schools }: { exam1: ResolvedTopic[]; exam2: ResolvedTopic[]; exam3: ResolvedTopic[]; final: ResolvedTopic[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; schools: School[] }) {
   const [openMuted, setOpenMuted] = useState<number | null>(null);
   const muted: [string, ResolvedTopic[]][] = [["Exam 2", exam2], ["Exam 3", exam3], ["Final", final]];
   return (
     <section id="exam1" className="mb-8 scroll-mt-6">
-      <Exam1Hero topics={exam1} school={school} onPick={onPick} pickerPulse={pickerPulse} />
+      <Exam1Hero topics={exam1} school={school} onPick={onPick} pickerPulse={pickerPulse} schools={schools} />
       {/* muted paid row — three small cards in one row (mobile too); [+] expands in place */}
       <div className="mt-4 grid grid-cols-3 gap-2.5 sm:gap-3">
         {muted.map(([title, tp], i) => <MutedExamCard key={title} title={title} topics={tp} expanded={openMuted === i} onToggle={() => setOpenMuted((cur) => (cur === i ? null : i))} />)}
@@ -356,14 +365,14 @@ function ExamSection({ exam1, exam2, exam3, final, school, onPick, pickerPulse }
   );
 }
 
-function Exam1Hero({ topics, school, onPick, pickerPulse }: { topics: ResolvedTopic[]; school: School | null; onPick: (s: School) => void; pickerPulse: number }) {
+function Exam1Hero({ topics, school, onPick, pickerPulse, schools }: { topics: ResolvedTopic[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; schools: School[] }) {
   return (
     <div className="overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(252,163,17,0.45)" }}>
       <div className="flex items-baseline justify-between px-4 pt-3.5 pb-1">
         <span className="text-[15px] font-black uppercase tracking-wide" style={{ color: "var(--brand-cream)" }}>⚡ Exam 1</span>
         <span className="text-[11px] font-black uppercase tracking-wide" style={{ color: "var(--accent)" }}>Free</span>
       </div>
-      <Exam1Player topics={topics} school={school} onPick={onPick} pickerPulse={pickerPulse} />
+      <Exam1Player topics={topics} school={school} onPick={onPick} pickerPulse={pickerPulse} schools={schools} />
     </div>
   );
 }
@@ -371,7 +380,7 @@ function Exam1Hero({ topics, school, onPick, pickerPulse }: { topics: ResolvedTo
 const PLAYER_TABS = [["video", "Video"], ["questions", "Questions"], ["practice", "Practice"]] as const;
 type PlayerTab = (typeof PLAYER_TABS)[number][0];
 
-function Exam1Player({ topics, school, onPick, pickerPulse }: { topics: ResolvedTopic[]; school: School | null; onPick: (s: School) => void; pickerPulse: number }) {
+function Exam1Player({ topics, school, onPick, pickerPulse, schools }: { topics: ResolvedTopic[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; schools: School[] }) {
   const [idx, setIdx] = useState(0);
   const [tab, setTab] = useState<PlayerTab>("video");
   const [menu, setMenu] = useState(false);
@@ -422,7 +431,7 @@ function Exam1Player({ topics, school, onPick, pickerPulse }: { topics: Resolved
             <div className="absolute inset-0 grid place-items-center px-5" style={{ background: "rgba(11,18,32,0.6)" }}>
               <div className="flex w-full max-w-sm flex-col items-center gap-3">
                 <p className="text-center text-[16px] font-black sm:text-[18px]" style={{ color: "var(--brand-cream)" }}>Pick your school to start</p>
-                <div className="w-full"><CampusSelector school={null} onPick={onPick} pulse={pickerPulse} openOnPulse /></div>
+                <div className="w-full"><CampusSelector school={null} onPick={onPick} schools={schools} pulse={pickerPulse} openOnPulse /></div>
                 <p className="text-center text-[12px]" style={{ color: "var(--text-muted)" }}>Exam 1 is free. No account required.</p>
               </div>
             </div>
