@@ -642,34 +642,30 @@ function LeeSection() {
       <div className="flex flex-col gap-7 sm:flex-row sm:items-start">
         <div className="shrink-0"><LeePortrait /></div>
         {/* Body uses the UI/text face (Rubik is a display face — headlines only). */}
-        <div className="min-w-0" style={{ fontFamily: BRAND_SANS, color: "var(--brand-cream)", maxWidth: "60ch" }}>
-          <h2 style={{ fontFamily: BRAND_DISPLAY, fontWeight: 800, fontSize: 21, letterSpacing: "-0.01em", color: "var(--brand-cream)", marginBottom: 18 }}>Why I built Survive Accounting</h2>
-
-          {/* two student voices — italic, regular, muted, staggered indents */}
-          <div className="space-y-2.5">
-            <p className="italic" style={{ fontWeight: 400, fontSize: 14.5, opacity: 0.7, lineHeight: 1.5, marginLeft: 0 }}>“My exam looked nothing like my notes.”</p>
-            <p className="italic" style={{ fontWeight: 400, fontSize: 14.5, opacity: 0.7, lineHeight: 1.5, marginLeft: 20 }}>“I studied for weeks and still failed.”</p>
+        <div className="min-w-0" style={{ fontFamily: BRAND_SANS, color: "var(--brand-cream)", maxWidth: "54ch" }}>
+          {/* two student voices — heavier, H3-scale */}
+          <div className="space-y-1.5">
+            <h3 style={{ fontWeight: 700, fontSize: 17.5, lineHeight: 1.3, color: "var(--brand-cream)" }}>“My exam looked nothing like my notes.”</h3>
+            <h3 style={{ fontWeight: 700, fontSize: 17.5, lineHeight: 1.3, color: "var(--brand-cream)" }}>“I studied for weeks and still failed.”</h3>
           </div>
 
           {/* the one headline moment */}
-          <p style={{ marginTop: 20, fontWeight: 600, fontSize: 18.5, color: "var(--brand-cream)" }}>Sound familiar?</p>
+          <p style={{ marginTop: 16, fontWeight: 600, fontSize: 18, color: "var(--brand-cream)" }}>Sound familiar?</p>
 
-          <p style={{ marginTop: 20, fontWeight: 400, fontSize: 15.5, lineHeight: 1.65, opacity: 0.88 }}>Here's what I tell my students:</p>
-
-          {/* the thesis couplet — own two lines, air above/below, bold on "about" and "do" only */}
-          <p style={{ marginTop: 16, marginBottom: 20, fontWeight: 400, fontSize: 16.5, lineHeight: 1.55, color: "var(--brand-cream)" }}>
+          {/* the thesis couplet — own two lines, bold on "about" and "DO" only */}
+          <p style={{ marginTop: 14, marginBottom: 16, fontWeight: 400, fontSize: 16, lineHeight: 1.5, color: "var(--brand-cream)" }}>
             Lectures teach you <b style={{ fontWeight: 700 }}>about</b> accounting.<br />
-            The exam tests whether you can <b style={{ fontWeight: 700 }}>do</b> accounting.
+            The exam tests whether you can <b style={{ fontWeight: 700 }}>DO</b> accounting.
           </p>
 
-          <p style={{ fontWeight: 400, fontSize: 15.5, lineHeight: 1.65, opacity: 0.88 }}>
-            So that's what my cram videos are: reps. Real exam-style questions, worked start to
-            finish, so you're always walking into exams ready.
+          <p style={{ fontWeight: 400, fontSize: 15, lineHeight: 1.6, opacity: 0.88 }}>
+            This is how my cram videos help. Real exam-style questions, worked start to finish, so
+            you're always walking into exams ready to DO the problems, not just understand them.
           </p>
 
-          <p style={{ marginTop: 16, fontWeight: 400, fontSize: 15.5, lineHeight: 1.65, opacity: 0.88 }}>
-            This course is tough — but so are you. Give my videos a try (Exam 1 is free). I know
-            you'll love them.
+          <p style={{ marginTop: 14, fontWeight: 400, fontSize: 15, lineHeight: 1.6, opacity: 0.88 }}>
+            This course is tough, but so are you. Give my Exam 1 videos a try — they're completely
+            free.
           </p>
         </div>
       </div>
@@ -683,10 +679,13 @@ function LeeSection() {
 function LeePortrait() {
   return (
     <figure className="mx-auto sm:mx-0" style={{ width: 200, transform: "rotate(1.5deg)" }}>
-      <img
-        src="/lee-beach.webp" alt="Lee Ingram" loading="lazy"
-        style={{ width: 200, aspectRatio: "4 / 5", objectFit: "cover", objectPosition: "center 28%", borderRadius: 16, border: "3px solid var(--brand-cream)", display: "block" }}
-      />
+      {/* Clip frame + scaled image = zoom into the face (crops the long arm + thighs). */}
+      <div style={{ width: 200, aspectRatio: "4 / 5", borderRadius: 16, border: "3px solid var(--brand-cream)", overflow: "hidden" }}>
+        <img
+          src="/lee-beach.webp" alt="Lee Ingram"
+          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 20%", transform: "scale(1.42)", transformOrigin: "50% 22%", display: "block" }}
+        />
+      </div>
       <figcaption className="mt-3 text-center" style={{ fontFamily: BRAND_SANS }}>
         <span className="block" style={{ fontWeight: 600, fontSize: 16, color: "var(--brand-cream)" }}>Lee Ingram</span>
         <span className="mt-0.5 block text-[12px]" style={{ fontWeight: 400, opacity: 0.6, color: "var(--brand-cream)" }}>Ole Miss accounting grad · Tutor since 2015</span>
