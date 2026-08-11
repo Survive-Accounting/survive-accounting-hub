@@ -10,7 +10,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from "react";
-import { ChevronDown, GraduationCap, MessageCircle, Plus, Search, X } from "lucide-react";
+import { ChevronDown, GraduationCap, MessageCircle, Search, X } from "lucide-react";
 
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
 import { listCampusExams } from "@/lib/campus-exams.functions";
@@ -438,20 +438,19 @@ function Theater({ school, mode, onDone }: { school: School; mode: "full" | "sho
 
 // ---- EXAM SECTION: Exam-1 hero + player · muted 2/3/Final row · Semester bar ------------------
 function ExamSection({ exam1, exam2, exam3, final, school, onPick, pickerPulse, schools, mapped, onSyllabus }: { exam1: ResolvedTopic[]; exam2: ResolvedTopic[]; exam3: ResolvedTopic[]; final: ResolvedTopic[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; schools: School[]; mapped: boolean; onSyllabus: () => void }) {
-  const [openMuted, setOpenMuted] = useState<number | null>(null);
-  const muted: [string, ResolvedTopic[]][] = [["Exam 2", exam2], ["Exam 3", exam3], ["Final", final]];
+  const [paidOpen, setPaidOpen] = useState(false);
   return (
     <section id="exam1" className="mb-8 scroll-mt-6">
       <Exam1Hero topics={exam1} school={school} onPick={onPick} pickerPulse={pickerPulse} schools={schools} mapped={mapped} onSyllabus={onSyllabus} />
-      {/* muted paid row — three small cards in one row (mobile too); [+] expands in place */}
-      <div className="mt-4 grid grid-cols-3 gap-2.5 sm:gap-3">
-        {muted.map(([title, tp], i) => <MutedExamCard key={title} title={title} topics={tp} expanded={openMuted === i} onToggle={() => setOpenMuted((cur) => (cur === i ? null : i))} />)}
+      {/* One compact line replaces the three paid cards. Prices live ON the page (not hidden in the
+          popup); "See what's inside" opens a display-only preview of Exams 2/3/Final. */}
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 rounded-2xl px-5 py-3.5 text-center" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)" }}>
+        <span className="text-[13px]" style={{ color: "var(--text-muted)" }}>
+          Exams 2, 3 &amp; Final — <b style={{ color: "var(--brand-cream)" }}>$50 each</b> · Semester Pass <b style={{ color: "var(--accent)" }}>$150</b>
+        </span>
+        <button onClick={() => setPaidOpen(true)} className="text-[12.5px] font-bold" style={{ color: "var(--accent)" }}>See what's inside →</button>
       </div>
-      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-2xl px-5 py-4" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)" }}>
-        <span className="text-[15px] font-black" style={{ color: "var(--brand-cream)" }}>Semester Pass</span>
-        <span className="text-[15px] font-black" style={{ color: "var(--accent)" }}>$150</span>
-        <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>— every exam, all semester</span>
-      </div>
+      {paidOpen && <PaidExamsModal exam2={exam2} exam3={exam3} final={final} onClose={() => setPaidOpen(false)} />}
     </section>
   );
 }
@@ -591,20 +590,47 @@ function PlayerPlaceholder({ text }: { text: string }) {
   return <div className="grid h-full w-full place-items-center px-6 text-center text-[13px]" style={{ background: "var(--brand-navy)", color: "var(--text-muted)" }}>{text}</div>;
 }
 
-// Muted paid cards (Exam 2 / Exam 3 / Final) — name · $50 · [+]; expand-in-place, one open at a time.
-function MutedExamCard({ title, topics, expanded, onToggle }: { title: string; topics: ResolvedTopic[]; expanded: boolean; onToggle: () => void }) {
+// Preview popup for the paid exams (display-only — no checkout in this pass). Three columns with a
+// topic list + a loose release window + price each, and a Semester Pass bar with the credit line.
+// NOTE: there is no release-window field in the data yet, so RELEASE is a hardcoded placeholder Lee
+// can edit here; wire it to a real column when one exists.
+const RELEASE: Record<string, string> = { "Exam 2": "Coming soon", "Exam 3": "Coming soon", Final: "Coming soon" };
+function PaidExamsModal({ exam2, exam3, final, onClose }: { exam2: ResolvedTopic[]; exam3: ResolvedTopic[]; final: ResolvedTopic[]; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const cols: [string, ResolvedTopic[]][] = [["Exam 2", exam2], ["Exam 3", exam3], ["Final", final]];
   return (
-    <div className="overflow-hidden rounded-xl" style={{ background: "rgba(245,239,230,0.035)", border: "1px solid rgba(245,239,230,0.1)", opacity: expanded ? 1 : 0.7 }}>
-      <button onClick={onToggle} className="flex w-full items-center gap-1.5 px-2.5 py-2.5 text-left">
-        <span className="min-w-0 flex-1 truncate text-[12px] font-black uppercase tracking-wide" style={{ color: "var(--brand-cream)" }}>{title}</span>
-        <span className="shrink-0 text-[11px] font-bold" style={{ color: "var(--accent)" }}>$50</span>
-        <span className="grid h-4 w-4 shrink-0 place-items-center rounded" style={{ color: "var(--text-muted)" }}>{expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}</span>
-      </button>
-      {expanded && (
-        <ul className="px-3 pb-2.5" style={{ borderTop: "1px solid rgba(245,239,230,0.08)" }}>
-          {topics.map((t) => <li key={t.key} className="truncate py-0.5 text-[12px]" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>· {t.name}</li>)}
-        </ul>
-      )}
+    <div className="fixed inset-0 z-[210] grid place-items-center p-4" style={{ background: "rgba(6,10,20,0.72)" }} onClick={onClose}>
+      <div className="w-full max-w-3xl rounded-2xl p-6" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 40px 90px -30px rgba(0,0,0,0.9)", fontFamily: BRAND_SANS }} onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <h3 className="text-[18px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>What's inside Exams 2, 3 &amp; Final</h3>
+          <button onClick={onClose} className="grid h-7 w-7 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--brand-cream)" }} aria-label="Close"><X className="h-4 w-4" /></button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          {cols.map(([title, topics]) => (
+            <div key={title} className="flex flex-col rounded-xl p-4" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
+              <div className="flex items-baseline justify-between">
+                <span className="text-[13px] font-black uppercase tracking-wide" style={{ color: "var(--brand-cream)" }}>{title}</span>
+                <span className="text-[13px] font-black" style={{ color: "var(--accent)" }}>$50</span>
+              </div>
+              <span className="mt-0.5 text-[11px]" style={{ color: "var(--text-muted)" }}>{RELEASE[title] ?? "Coming soon"}</span>
+              <ul className="mt-3 space-y-1">
+                {topics.map((t) => <li key={t.key} className="text-[12.5px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>· {t.name}</li>)}
+              </ul>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-xl px-5 py-3.5 text-center" style={{ background: "rgba(252,163,17,0.08)", border: "1px solid rgba(252,163,17,0.3)" }}>
+          <span className="text-[15px] font-black" style={{ color: "var(--brand-cream)" }}>Semester Pass</span>
+          <span className="text-[15px] font-black" style={{ color: "var(--accent)" }}>$150</span>
+          <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>— every exam, all semester ($150 minus whatever you've already spent)</span>
+        </div>
+      </div>
     </div>
   );
 }
