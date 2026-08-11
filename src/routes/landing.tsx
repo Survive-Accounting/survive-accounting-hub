@@ -114,12 +114,6 @@ export function LandingPage() {
   });
   const mapped = (mappedQ.data ?? []).some((e) => e.status === "active");
 
-  const unitByName = (re: RegExp) => intro1?.units.find((x) => re.test(x.name));
-  const exam1Topics = useMemo<StudentTopic[]>(() => { if (!intro1) return []; return (unitByName(/exam\s*1|test\s*1/i) ?? intro1.units[0])?.topics ?? intro1.topics ?? []; }, [intro1]);
-  const exam2Topics = useMemo(() => unitByName(/exam\s*2|test\s*2/i)?.topics ?? [], [intro1]);
-  const exam3Topics = useMemo(() => unitByName(/exam\s*3|test\s*3/i)?.topics ?? [], [intro1]);
-  const finalTopics = useMemo(() => unitByName(/final|review/i)?.topics ?? [], [intro1]);
-
   // Real-map plumbing: chapter(id→name/number) from the canonical courses table, live sets by
   // chapter id from the student tree, and the campus's exams (num + ordered chapter ids).
   const chapterById = useMemo(() => {
@@ -149,20 +143,22 @@ export function LandingPage() {
   const namesQ = useQuery({ queryKey: ["landing-chapter-names", allTopicIds], queryFn: () => getChapterNames({ data: { ids: allTopicIds } }), enabled: allTopicIds.length > 0, networkMode: "always", staleTime: 600_000 });
   const nameById = useMemo(() => { const m = new Map<string, { name: string; number: number | null }>(); for (const r of namesQ.data ?? []) m.set(r.id, { name: r.name, number: r.number }); return m; }, [namesQ.data]);
 
-  // Resolve an exam's topics: campus map (if mapped) → default map → student tree → static. Each
-  // topic carries its live free set (if any). Free content is never gated by mapping status.
+  // Resolve an exam's topic LIST strictly from the MAP: campus exam map (if mapped) → default map →
+  // static. It must NEVER list the whole course — the old fallback pulled intro1.units[0]/intro1.topics
+  // (every chapter, incl. Exam-2/3 topics like "Long Term Liabilities") whenever a map wasn't found,
+  // which is exactly the bug. Live free sets still attach per chapter id via the student tree
+  // (treeTopicById), so free content is never gated by mapping — only the LIST comes from the map.
   const liveSetOf = (st: StudentTopic | undefined) => st?.sets.find((s) => s.access !== "paid" && s.playbackId) ?? null;
-  const resolveExam = (num: number, treeTopics: StudentTopic[], statics: string[]): ResolvedTopic[] => {
+  const resolveExam = (num: number, statics: string[]): ResolvedTopic[] => {
     const m = mappedExams.find((e) => e.num === num);
     const ids = m ? m.chapterIds : defaultUnits.filter((u) => u.exam_number === num).map((u) => u.unit_id);
     if (ids.length) return ids.map((cid) => { const nm = nameById.get(cid), ch = chapterById.get(cid), st = treeTopicById.get(cid); return { key: cid, name: nm?.name ?? ch?.name ?? st?.name ?? "Topic", num: nm?.number ?? ch?.number ?? st?.number ?? null, set: liveSetOf(st) }; });
-    if (treeTopics.length) return treeTopics.map((t) => ({ key: t.id, name: t.name, num: t.number, set: liveSetOf(t) }));
     return statics.map((n) => ({ key: n, name: n, num: null, set: null }));
   };
-  const exam1R = useMemo(() => resolveExam(1, exam1Topics, STATIC_EXAM1), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById, exam1Topics]);
-  const exam2R = useMemo(() => resolveExam(2, exam2Topics, STATIC_EXAM2), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById, exam2Topics]);
-  const exam3R = useMemo(() => resolveExam(3, exam3Topics, STATIC_EXAM3), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById, exam3Topics]);
-  const finalR = useMemo(() => resolveExam(99, finalTopics, STATIC_FINAL), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById, finalTopics]);
+  const exam1R = useMemo(() => resolveExam(1, STATIC_EXAM1), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
+  const exam2R = useMemo(() => resolveExam(2, STATIC_EXAM2), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
+  const exam3R = useMemo(() => resolveExam(3, STATIC_EXAM3), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
+  const finalR = useMemo(() => resolveExam(99, STATIC_FINAL), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
   const anyExam1Live = useMemo(() => exam1R.some((t) => !!t.set?.playbackId), [exam1R]);
 
   const pickSchool = (s: School) => {
