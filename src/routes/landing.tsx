@@ -15,7 +15,8 @@ import { ChevronDown, GraduationCap, MessageCircle, Search, X } from "lucide-rea
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
 import { listCampusExams } from "@/lib/campus-exams.functions";
 import { getChapterNames, listCampusIntroCodes, listDefaultExamUnits } from "@/lib/default-map.functions";
-import { submitSyllabus } from "@/lib/syllabus.functions";
+import { submitExamAsk, submitSyllabus } from "@/lib/syllabus.functions";
+import { searchOrderProfessors, type ProfessorLite } from "@/lib/orders.functions";
 import { fetchCourseOptions } from "@/lib/je-api";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
@@ -94,6 +95,9 @@ export function LandingPage() {
   const [focusSignal, setFocusSignal] = useState(0);
   const onTryFree = () => { document.getElementById("exam1")?.scrollIntoView({ behavior: "smooth" }); setPickerPulse((p) => p + 1); setFocusSignal((f) => f + 1); };
   const [syllabusOpen, setSyllabusOpen] = useState(false);
+  // Professor rung (confidence ladder step 2) — session-persisted; personalizes labels only, never gates.
+  const [professor, setProfessor] = useState<ProfessorLite | null>(() => { try { const s = sessionStorage.getItem("sa-landing-prof"); return s ? (JSON.parse(s) as ProfessorLite) : null; } catch { return null; } });
+  const pickProfessor = (p: ProfessorLite | null) => { setProfessor(p); try { if (p) sessionStorage.setItem("sa-landing-prof", JSON.stringify(p)); else sessionStorage.removeItem("sa-landing-prof"); } catch { /* ignore */ } };
 
   const theme = useMemo(() => {
     if (!school) return DEFAULT_FRAME_THEME;
@@ -145,8 +149,9 @@ export function LandingPage() {
   }, [intro1]);
   const mappedExams = useMemo(() => (mappedQ.data ?? []).filter((e) => e.status === "active").map((e) => {
     const d = e.name.replace(/\D/g, "");
-    return { num: d ? parseInt(d, 10) : (/final|review/i.test(e.name) ? 99 : 999), chapterIds: e.chapter_ids };
+    return { num: d ? parseInt(d, 10) : (/final|review/i.test(e.name) ? 99 : 999), chapterIds: e.chapter_ids, coverage: e.coverage_pct ?? 80 };
   }), [mappedQ.data]);
+  const coverageByNum = useMemo(() => new Map(mappedExams.map((e) => [e.num, e.coverage])), [mappedExams]);
 
   // Default map (0106) — used for the Exam-1 player when a campus is unmapped (Foundations order).
   const defaultMapQ = useQuery({ queryKey: ["landing-default-map"], queryFn: () => listDefaultExamUnits(), staleTime: 600_000, networkMode: "always" });
@@ -174,11 +179,11 @@ export function LandingPage() {
   const exam3R = useMemo(() => resolveExam(3, STATIC_EXAM3), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
   const finalR = useMemo(() => resolveExam(99, STATIC_FINAL), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
   const exams = useMemo<ExamTab[]>(() => [
-    { num: 1, label: "Exam 1", price: null, topics: exam1R },
-    { num: 2, label: "Exam 2", price: 50, topics: exam2R },
-    { num: 3, label: "Exam 3", price: 50, topics: exam3R },
-    { num: 99, label: "Final", price: 50, topics: finalR },
-  ], [exam1R, exam2R, exam3R, finalR]);
+    { num: 1, label: "Exam 1", price: null, topics: exam1R, coveragePct: coverageByNum.get(1) ?? 80 },
+    { num: 2, label: "Exam 2", price: 50, topics: exam2R, coveragePct: coverageByNum.get(2) ?? 80 },
+    { num: 3, label: "Exam 3", price: 50, topics: exam3R, coveragePct: coverageByNum.get(3) ?? 80 },
+    { num: 99, label: "Final", price: 50, topics: finalR, coveragePct: coverageByNum.get(99) ?? 80 },
+  ], [exam1R, exam2R, exam3R, finalR, coverageByNum]);
 
   const pickSchool = (s: School) => {
     const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -201,7 +206,7 @@ export function LandingPage() {
 
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px" }}>
         <Hero onTryFree={onTryFree} />
-        <ExamPlayer exams={exams} school={school} onPick={pickSchool} pickerPulse={pickerPulse} focusSignal={focusSignal} schools={schoolsWithCodes} mapped={mapped} onSyllabus={() => setSyllabusOpen(true)} />
+        <ExamPlayer exams={exams} school={school} onPick={pickSchool} pickerPulse={pickerPulse} focusSignal={focusSignal} schools={schoolsWithCodes} mapped={mapped} onSyllabus={() => setSyllabusOpen(true)} professor={professor} onPickProfessor={pickProfessor} />
         <TestimonialsSlider />
         <LeeSection />
         <GreekStrip />
@@ -446,7 +451,7 @@ function Theater({ school, mode, onDone }: { school: School; mode: "full" | "sho
 // ---- EXAM PLAYER — ONE player, FOUR exam tabs (Exam 1 free · 2/3/Final paid). The left outline
 // lists each tab's topics → sets; the stage plays the selected free set or shows a poster. The ONLY
 // school picker lives in this player's blurred gate. Replaces the old Exam-1 hero + paid row/popup.
-type ExamTab = { num: number; label: string; price: number | null; topics: ResolvedTopic[] };
+type ExamTab = { num: number; label: string; price: number | null; topics: ResolvedTopic[]; coveragePct: number };
 const RELEASE_LABEL = "Opens soon"; // no release-date field in the data yet — placeholder for paid tabs
 type Sel = { topicKey: string; setId: string | null };
 const fmtRuntime = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
@@ -471,7 +476,7 @@ const examStats = (tab: ExamTab): string => {
   return parts.join(" · ");
 };
 
-function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, mapped, onSyllabus }: { exams: ExamTab[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; focusSignal: number; schools: School[]; mapped: boolean; onSyllabus: () => void }) {
+function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, mapped, onSyllabus, professor, onPickProfessor }: { exams: ExamTab[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; focusSignal: number; schools: School[]; mapped: boolean; onSyllabus: () => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void }) {
   const [activeNum, setActiveNum] = useState(1);
   const [selById, setSelById] = useState<Record<number, Sel>>({});
   const [openTopics, setOpenTopics] = useState<Set<string>>(() => new Set());
@@ -479,6 +484,14 @@ function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, 
   const active = exams.find((e) => e.num === activeNum) ?? exams[0];
   const isPaid = active.price != null;
   const gated = !school;
+
+  // TWO-SET EMAIL ASK — a set counts as completed at >=90% watched. After the 2nd distinct set, show
+  // one quiet inline card (persist dismissal). The ONLY proactive email ask in the free flow.
+  const [completedSets, setCompletedSets] = useState<Set<string>>(() => new Set());
+  const [askDone, setAskDone] = useState(() => { try { return localStorage.getItem("sa-two-set-ask") === "done"; } catch { return false; } });
+  const markComplete = (id: string) => setCompletedSets((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
+  const finishAsk = () => { setAskDone(true); try { localStorage.setItem("sa-two-set-ask", "done"); } catch { /* ignore */ } };
+  const showAsk = !!school && completedSets.size >= 2 && !askDone;
 
   // Default selection for a tab: first topic with a LIVE set → first topic with any set → first
   // topic (poster) → null.
@@ -524,6 +537,16 @@ function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, 
         {/* stats line — computed from data, updates as sets go live */}
         <div className="border-b px-3 py-1.5 text-center text-[11px] font-semibold tracking-wide" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--text-muted)", background: "rgba(0,0,0,0.12)" }}>{examStats(active)}</div>
 
+        {/* gap meter — per exam (mapped or unmapped); % is a manual mapper field (default 80), never computed */}
+        {school && (
+          <button onClick={onSyllabus} className="w-full border-b px-3 py-1.5 text-center text-[11.5px] hover:bg-white/5" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--brand-cream)" }}>
+            Covering <b>~{active.coveragePct}%</b> of {professor ? `Prof. ${professor.last || professor.name}'s` : "a typical"} {active.label} — <span className="font-bold" style={{ color: "var(--accent)" }}>help me get the rest →</span>
+          </button>
+        )}
+
+        {/* professor rung (skippable) — appears after school selection; personalizes labels only */}
+        {school && <ProfessorRung campusId={school.campusId} code={school.codeVerified && school.code ? school.code : null} professor={professor} onPick={onPickProfessor} />}
+
         {/* mobile-only drawer toggle for the outline */}
         <button onClick={() => setDrawerOpen((v) => !v)} className="flex w-full items-center justify-between border-b px-3 py-2 text-[12px] font-bold uppercase tracking-wide sm:hidden" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--brand-cream)", background: "rgba(0,0,0,0.2)" }}>
           <span>Common Exam Questions</span><span style={{ color: "var(--accent)" }}>{drawerOpen ? "Hide ▴" : "Browse ▾"}</span>
@@ -548,11 +571,14 @@ function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, 
                   </div>
                 </>
               ) : curSet?.playbackId ? (
-                <HeroVideo key={curSet.playbackId} playbackId={curSet.playbackId} />
+                <HeroVideo key={curSet.playbackId} playbackId={curSet.playbackId} onComplete={() => markComplete(curSet!.id)} />
               ) : (
                 <Poster school={school} topicName={curTopic?.name ?? active.label} queued={!isPaid && !!curTopic} />
               )}
             </div>
+
+            {/* Two sets down — the ONLY proactive email ask in the free flow (quiet inline card). */}
+            {showAsk && <TwoSetAsk school={school} professor={professor} onDone={finishAsk} />}
 
             {/* Unmapped campus: Exam 1 still plays (default map); offer to tailor. Mapped → nothing. */}
             {school && !mapped && (
@@ -655,10 +681,84 @@ function SetRow({ set, isPaid, price, active, activeRef, onPick }: { set: Studen
   );
 }
 
+// Professor rung (confidence ladder step 2) — a small skippable picker after school selection. On
+// select, "Prof. [name] · [code]" locks top-left. Never gates content — labels + gap meter only.
+function ProfessorRung({ campusId, code, professor, onPick }: { campusId: string; code: string | null; professor: ProfessorLite | null; onPick: (p: ProfessorLite | null) => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const [skipped, setSkipped] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const profQ = useQuery({ queryKey: ["landing-profs", campusId, q], queryFn: () => searchOrderProfessors({ data: { campusId, q } }), enabled: open, networkMode: "always", staleTime: 120_000 });
+  useEffect(() => { if (!open) return; const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }; document.addEventListener("mousedown", onDoc); return () => document.removeEventListener("mousedown", onDoc); }, [open]);
+
+  if (professor) {
+    return (
+      <div className="flex items-center gap-2 border-b px-3 py-1.5" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.12)" }}>
+        <span className="text-[11.5px] font-bold" style={{ color: "var(--brand-cream)" }}>Prof. {professor.last || professor.name}{code ? ` · ${code}` : ""}</span>
+        <button onClick={() => onPick(null)} className="text-[10.5px]" style={{ color: "var(--text-muted)" }}>change</button>
+      </div>
+    );
+  }
+  if (skipped) return null;
+  const results = profQ.data ?? [];
+  return (
+    <div ref={ref} className="relative border-b px-3 py-1.5" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.12)" }}>
+      <div className="flex items-center gap-2">
+        <span className="text-[11.5px]" style={{ color: "var(--text-muted)" }}>Who's your professor?</span>
+        <button onClick={() => setOpen((v) => !v)} className="text-[11.5px] font-bold" style={{ color: "var(--accent)" }}>{open ? "close" : "pick →"}</button>
+        <button onClick={() => setSkipped(true)} className="ml-auto text-[10.5px]" style={{ color: "var(--text-muted)" }}>skip</button>
+      </div>
+      {open && (
+        <div className="absolute left-2 right-2 top-full z-30 mt-1 overflow-hidden rounded-lg" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 20px 50px -16px rgba(0,0,0,0.85)" }}>
+          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search your professor…" className="w-full border-b bg-transparent px-3 py-2 text-[13px] outline-none" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--brand-cream)" }} />
+          <div className="max-h-52 overflow-y-auto py-1">
+            {profQ.isLoading && <div className="px-3 py-2 text-[12px] italic" style={{ color: "var(--text-muted)" }}>Loading…</div>}
+            {!profQ.isLoading && results.length === 0 && <div className="px-3 py-2 text-[12px] italic" style={{ color: "var(--text-muted)" }}>No professors listed — you can skip.</div>}
+            {results.map((p) => (
+              <button key={p.id} onClick={() => { onPick(p); setOpen(false); }} className="block w-full px-3 py-1.5 text-left text-[13px] hover:bg-white/5" style={{ color: "var(--brand-cream)" }}>{p.name}</button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// "Two sets down" — a quiet inline email ask (NOT a modal). Stores email + campus + professor to the
+// submissions table via submitExamAsk. Shown once, dismissal persisted by ExamPlayer.
+function TwoSetAsk({ school, professor, onDone }: { school: School; professor: ProfessorLite | null; onDone: () => void }) {
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const ok = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
+  const send = async () => {
+    if (!ok || busy) return;
+    setBusy(true);
+    try { await submitExamAsk({ data: { email: email.trim(), campusId: school.campusId, campusName: school.name, professorName: professor ? professor.name : null, source: "two_set_ask" } }); setSent(true); window.setTimeout(onDone, 1400); }
+    catch { setBusy(false); }
+  };
+  return (
+    <div className="flex flex-col gap-2 border-t px-3 py-3 sm:flex-row sm:items-center" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(252,163,17,0.06)" }}>
+      {sent ? (
+        <span className="text-[12.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>Got it — I'll be in touch. — Lee</span>
+      ) : (
+        <>
+          <span className="min-w-0 flex-1 text-[12.5px]" style={{ color: "var(--brand-cream)" }}>Two sets down. Tell me what your exam covers and I'll make sure you're set.</span>
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" className="rounded-lg px-3 py-1.5 text-[12.5px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)", minWidth: 0 }} />
+          <button onClick={send} disabled={!ok || busy} className="shrink-0 rounded-lg px-3 py-1.5 text-[12.5px] font-black disabled:opacity-40" style={{ background: "var(--accent)", color: "#0B1220" }}>{busy ? "…" : "Send"}</button>
+          <button onClick={onDone} className="grid h-6 w-6 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--text-muted)" }} aria-label="Dismiss"><X className="h-3.5 w-3.5" /></button>
+        </>
+      )}
+    </div>
+  );
+}
+
 // Muted autoplay per browser rules; the user unmutes via the native controls. 16:9 only.
-function HeroVideo({ playbackId }: { playbackId: string }) {
+// onComplete fires once when the viewer has watched >=90% (the "set completed" signal, Prompt 3).
+function HeroVideo({ playbackId, onComplete }: { playbackId: string; onComplete?: () => void }) {
   const ref = useRef<HTMLVideoElement>(null);
   const [err, setErr] = useState(false);
+  const fired = useRef(false);
   useEffect(() => {
     const v = ref.current; if (!v) return;
     const src = `https://stream.mux.com/${playbackId}.m3u8`;
@@ -666,8 +766,10 @@ function HeroVideo({ playbackId }: { playbackId: string }) {
     if (v.canPlayType("application/vnd.apple.mpegurl")) { v.src = src; }
     else void import("hls.js").then(({ default: Hls }) => { if (cancelled || !ref.current) return; if (Hls.isSupported()) { const h = new Hls(); h.on(Hls.Events.ERROR, (_e, d) => { if (d.fatal) setErr(true); }); h.loadSource(src); h.attachMedia(ref.current); hls = h; } else ref.current.src = src; }).catch(() => setErr(true));
     v.muted = true; void v.play().catch(() => { /* user can press play */ });
-    return () => { cancelled = true; hls?.destroy(); };
-  }, [playbackId]);
+    const onTime = () => { if (!fired.current && v.duration > 0 && v.currentTime / v.duration >= 0.9) { fired.current = true; onComplete?.(); } };
+    v.addEventListener("timeupdate", onTime);
+    return () => { cancelled = true; v.removeEventListener("timeupdate", onTime); hls?.destroy(); };
+  }, [playbackId, onComplete]);
   if (err) return <div className="grid h-full w-full place-items-center text-[12px]" style={{ color: "#F3C6CC" }}>Couldn't load this video. Try again shortly.</div>;
   return <video ref={ref} controls playsInline muted className="h-full w-full" style={{ objectFit: "contain", background: "#000" }} />;
 }

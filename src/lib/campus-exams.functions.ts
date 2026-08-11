@@ -14,7 +14,7 @@ function rethrow(e: { code?: string; message: string }): never {
   throw new Error(e.message);
 }
 
-export interface CampusExamRow { id: string; name: string; position: number | null; status: "active" | "archived"; chapter_ids: string[] }
+export interface CampusExamRow { id: string; name: string; position: number | null; status: "active" | "archived"; chapter_ids: string[]; coverage_pct: number }
 export interface CourseCampusRow { campus_id: string; name: string; exam_count: number; topic_count: number }
 
 const admin = async () => {
@@ -70,7 +70,12 @@ export const listCampusExams = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ campus_id: z.string().uuid(), course_id: z.string().uuid() }).parse(d))
   .handler(async ({ data }): Promise<CampusExamRow[]> => {
     const db = await admin();
-    const { data: exams, error } = await db.from("campus_exams").select("id,name,position,status").eq("campus_id", data.campus_id).eq("course_id", data.course_id).order("status", { ascending: true }).order("position", { ascending: true });
+    // coverage_pct ships in 0109 (manual-apply) — degrade to the 80 default until it's applied.
+    let r = await db.from("campus_exams").select("id,name,position,status,coverage_pct").eq("campus_id", data.campus_id).eq("course_id", data.course_id).order("status", { ascending: true }).order("position", { ascending: true });
+    if (r.error && /coverage_pct|column/i.test(String(r.error.message ?? ""))) {
+      r = await db.from("campus_exams").select("id,name,position,status").eq("campus_id", data.campus_id).eq("course_id", data.course_id).order("status", { ascending: true }).order("position", { ascending: true });
+    }
+    const { data: exams, error } = r;
     if (error) rethrow(error);
     const ids = (exams ?? []).map((u: { id: string }) => u.id);
     const byExam = new Map<string, string[]>();
@@ -79,7 +84,17 @@ export const listCampusExams = createServerFn({ method: "POST" })
       if (e2) rethrow(e2);
       for (const m of (mem ?? []) as { campus_exam_id: string; chapter_id: string }[]) { const l = byExam.get(m.campus_exam_id) ?? []; l.push(m.chapter_id); byExam.set(m.campus_exam_id, l); }
     }
-    return (exams ?? []).map((u: { id: string; name: string; position: number | null; status: "active" | "archived" }) => ({ id: u.id, name: u.name, position: u.position ?? null, status: u.status, chapter_ids: byExam.get(u.id) ?? [] }));
+    return (exams ?? []).map((u: { id: string; name: string; position: number | null; status: "active" | "archived"; coverage_pct?: number | null }) => ({ id: u.id, name: u.name, position: u.position ?? null, status: u.status, chapter_ids: byExam.get(u.id) ?? [], coverage_pct: u.coverage_pct ?? 80 }));
+  });
+
+// Mapper: set the gap-meter coverage % for a campus exam (0-100). Degrades silently if 0109 isn't
+// applied yet (the column is missing) so the mapper never hard-errors.
+export const setCampusExamCoverage = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ campus_exam_id: z.string().uuid(), coverage_pct: z.number().int().min(0).max(100) }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const db = await admin();
+    await db.from("campus_exams").update({ coverage_pct: data.coverage_pct }).eq("id", data.campus_exam_id);
+    return { ok: true };
   });
 
 /** Create an exam for a campus+course (appended after the last active one). Adding a campus to the
@@ -93,7 +108,7 @@ export const createCampusExam = createServerFn({ method: "POST" })
     const next = (typeof (top?.[0] as { position: number } | undefined)?.position === "number" ? (top[0] as { position: number }).position : 0) + 1;
     const { data: ins, error } = await db.from("campus_exams").insert({ campus_id: data.campus_id, course_id: data.course_id, name: data.name.trim(), position: next, status: "active" }).select("id,name,position,status").single();
     if (error) rethrow(error);
-    return { ...(ins as { id: string; name: string; position: number | null; status: "active" | "archived" }), chapter_ids: [] };
+    return { ...(ins as { id: string; name: string; position: number | null; status: "active" | "archived" }), chapter_ids: [], coverage_pct: 80 };
   });
 
 export const renameCampusExam = createServerFn({ method: "POST" })

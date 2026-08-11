@@ -13,6 +13,34 @@ const fileSchema = z.object({
   dataUrl: z.string().min(1).max(15_000_000), // base64 data URL (bounded so a giant paste can't OOM)
 });
 
+// EXAM ASK (no files) — the "two sets down" inline card + any file-less email ask. Stores email +
+// campus + professor into syllabus_submissions with a source tag. Same private table; deny-by-default.
+export const submitExamAsk = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({
+      email: z.string().trim().email().max(200),
+      campusId: z.string().uuid().nullable().optional(),
+      campusName: z.string().trim().max(120).nullable().optional(),
+      professorName: z.string().trim().max(120).nullable().optional(),
+      source: z.string().trim().max(40).default("two_set_ask"),
+    }).parse(d),
+  )
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as unknown as { from: (t: string) => { insert: (row: unknown) => Promise<{ error: { message: string } | null }> } };
+    const { error } = await db.from("syllabus_submissions").insert({
+      email: data.email,
+      campus_id: data.campusId ?? null,
+      campus_name: data.campusName ?? null,
+      professor_name: data.professorName ?? null,
+      source: data.source,
+      file_paths: [],
+      file_names: [],
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 export const submitSyllabus = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z.object({

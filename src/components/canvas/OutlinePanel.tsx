@@ -17,7 +17,7 @@ import { createChapter, renameChapter, reorderChapters } from "@/lib/canvas.func
 import { listCampusChapterOverrides, searchCampuses, setCampusChapterOverride, type CampusOpt } from "@/lib/campus-overrides.functions";
 import {
   createCampusExam, listCampusExams, listCourseCampuses, renameCampusExam,
-  setCampusExamStatus, setCampusExamTopics, type CampusExamRow, type CourseCampusRow,
+  setCampusExamCoverage, setCampusExamStatus, setCampusExamTopics, type CampusExamRow, type CourseCampusRow,
 } from "@/lib/campus-exams.functions";
 
 type Topic = CourseOption["chapters"][number];
@@ -294,6 +294,7 @@ function CampusRow({ campus, course, topics }: { campus: CourseCampusRow; course
 function ExamRow({ exam, topics, onChange, localOv, setLocalNum }: { exam: CampusExamRow; topics: Topic[]; onChange: () => void; localOv: Map<string, { local_number: number | null; local_order: number | null }>; setLocalNum: (chapter_id: string, n: number | null) => void }) {
   const [pick, setPick] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const [cov, setCov] = useState<number>(exam.coverage_pct ?? 80); // gap-meter % (landing)
   const selected = new Set(exam.chapter_ids);
   const selectedTopics = topics.filter((t) => selected.has(t.id));
   const numOf = (id: string) => localOv.get(id)?.local_number ?? null;
@@ -307,6 +308,13 @@ function ExamRow({ exam, topics, onChange, localOv, setLocalNum }: { exam: Campu
         ) : (
           <span className="min-w-0 flex-1 truncate text-[11.5px] font-semibold" style={{ color: NEON.text }} onDoubleClick={() => setRenaming(true)} title="Double-click to rename">{exam.name}</span>
         )}
+        <span className="flex shrink-0 items-center gap-0.5" title="Gap-meter coverage % on the landing (default 80)">
+          <input type="number" min={0} max={100} value={cov}
+            onChange={(e) => setCov(Math.max(0, Math.min(100, Number(e.target.value) || 0)))}
+            onBlur={() => { void setCampusExamCoverage({ data: { campus_exam_id: exam.id, coverage_pct: cov } }); }}
+            className="w-8 rounded bg-transparent px-0.5 text-right text-[10px] outline-none" style={{ border: `1px solid ${NEON.border}`, color: NEON.muted }} />
+          <span className="text-[9px]" style={{ color: NEON.muted }}>%</span>
+        </span>
         <button className="shrink-0 rounded px-1 py-0.5 text-[10px] opacity-70 hover:bg-white/10 hover:opacity-100" onClick={() => setPick((v) => !v)} title="Choose the topics on this exam">{selected.size} topics ▾</button>
         <button className="shrink-0 rounded px-1 py-0.5 text-[10px] opacity-0 hover:bg-white/10 group-hover:opacity-60" onClick={async () => { await setCampusExamStatus({ data: { id: exam.id, status: "archived" } }); onChange(); }} title="Archive this exam"><X className="h-3 w-3" /></button>
       </div>
