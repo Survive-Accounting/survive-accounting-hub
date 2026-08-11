@@ -11,7 +11,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, GraduationCap, MessageCircle, Search, X } from "lucide-react";
+import { ChevronDown, GraduationCap, Instagram, MessageCircle, Plus, Search, X, Youtube } from "lucide-react";
 
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
 import { listCampusExams } from "@/lib/campus-exams.functions";
@@ -217,10 +217,12 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
         {chapterBanner && <ChapterBanner name={chapterBanner} slug={chapterSlug} />}
         <Hero onTryFree={onTryFree} />
         <ExamPlayer exams={exams} school={school} onPick={pickSchool} pickerPulse={pickerPulse} focusSignal={focusSignal} schools={schoolsWithCodes} mapped={mapped} onSyllabus={() => setSyllabusOpen(true)} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => setNotListed(true)} theater={theater} onTheaterDone={() => setTheater(null)} />
+        <SectionDivider />
         <TestimonialsSlider />
+        <SectionDivider />
         <LeeSection />
-        <GreekStrip />
-        <Footer />
+        <SectionDivider />
+        <Footer onSyllabus={() => setSyllabusOpen(true)} />
       </main>
 
       {syllabusOpen && <SyllabusModal school={school} onClose={() => setSyllabusOpen(false)} />}
@@ -310,7 +312,9 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
         <ChevronDown className="h-5 w-5 shrink-0 opacity-70" />
       </button>
       {open && rect && typeof document !== "undefined" && createPortal(
-        <div ref={menuRef} className="fixed z-[220] overflow-hidden rounded-xl" style={{ left: rect.left, top: rect.top, width: rect.width, background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)" }}>
+        // The portal renders at document.body, OUTSIDE the themed landing root — so re-declare the
+        // theme CSS vars here, or every var(--brand-cream)/accent inside would be undefined (dark text).
+        <div ref={menuRef} className="fixed z-[220] overflow-hidden rounded-xl" style={{ ...frameThemeVars(DEFAULT_FRAME_THEME), left: rect.left, top: rect.top, width: rect.width, background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)" }}>
           <div className="flex items-center gap-2 border-b px-3 py-2.5" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
             <Search className="h-4 w-4 opacity-50" />
             <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search 16 SEC schools…" className="w-full bg-transparent text-[14px] outline-none" style={{ color: "var(--brand-cream)" }} />
@@ -318,14 +322,14 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
           <div className="max-h-72 overflow-y-auto py-1">
             {results.length === 0 && <div className="px-4 py-3 text-[13px] italic" style={{ color: "var(--text-muted)" }}>No SEC school by that name.</div>}
             {results.map((s) => { const c = boltFor(s.id); return (
-              <button key={s.id} onClick={() => { onPick(s); setOpen(false); setQ(""); }} className="flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-white/5">
+              <button key={s.id} onClick={() => { onPick(s); setOpen(false); setQ(""); }} className="group flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-white/10">
                 <span className="grid h-6 w-4 shrink-0 place-items-center"><Bolt c1={c.c1} c2={c.c2} /></span>
-                <span className="flex-1 text-[14.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>{s.name}</span>
-                {s.codeVerified && s.code && <span className="shrink-0 text-[11.5px] tabular-nums" style={{ color: "var(--text-muted)" }}>{s.code}</span>}
+                <span className="flex-1 text-[14.5px] font-semibold group-hover:text-[var(--accent)]" style={{ color: "#F5EFE6" }}>{s.name}</span>
+                {s.codeVerified && s.code && <span className="shrink-0 text-[11.5px] tabular-nums" style={{ color: "rgba(245,239,230,0.65)" }}>{s.code}</span>}
               </button>
             ); })}
             {onNotListed && (
-              <button onClick={() => { onNotListed(); setOpen(false); setQ(""); }} className="flex w-full items-center gap-3 border-t px-4 py-2.5 text-left hover:bg-white/5" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
+              <button onClick={() => { onNotListed(); setOpen(false); setQ(""); }} className="flex w-full items-center gap-3 border-t px-4 py-2.5 text-left hover:bg-white/10" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
                 <span className="flex-1 text-[13.5px] font-semibold" style={{ color: "var(--accent)" }}>My school isn't listed →</span>
               </button>
             )}
@@ -553,7 +557,7 @@ function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, 
   const toggleTopic = (k: string) => setOpenTopics((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
   return (
-    <section id="exam1" className="mb-8 scroll-mt-6">
+    <section id="exam1" className="scroll-mt-6">
       <div className="relative overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(252,163,17,0.45)" }}>
         <ExamTabs exams={exams} activeNum={activeNum} onSelect={(n) => { setActiveNum(n); setDrawerOpen(false); }} />
 
@@ -829,37 +833,70 @@ function Poster({ school, topicName, queued }: { school: School | null; topicNam
 }
 
 // ---- THE LEE SECTION (the one section allowed to run warm) ------------------------------------
+// Collapsed by default: photo + "Why I built Survive Accounting" + the two student quotes stay
+// visible; a "Read more" toggle expands the rest in place. Expanded state persists for the browser
+// session; prefers-reduced-motion gets an instant (un-animated) expand.
 function LeeSection() {
+  const [open, setOpen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.sessionStorage.getItem("lee-bio-open") === "1";
+  });
+  const [reduce, setReduce] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setReduce(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
+  }, []);
+  const toggle = () => setOpen((v) => { const next = !v; try { window.sessionStorage.setItem("lee-bio-open", next ? "1" : "0"); } catch { /* private mode */ } return next; });
+
   return (
-    <section className="mx-auto mb-12 max-w-3xl rounded-3xl p-7 sm:p-10" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
+    <section className="mx-auto max-w-3xl rounded-3xl p-7 sm:p-10" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
       <div className="flex flex-col gap-7 sm:flex-row sm:items-start">
         <div className="shrink-0"><LeePortrait /></div>
         {/* Body uses the UI/text face (Rubik is a display face — headlines only). */}
         <div className="min-w-0" style={{ fontFamily: BRAND_SANS, color: "var(--brand-cream)", maxWidth: "54ch" }}>
-          {/* two student voices — heavier, H3-scale */}
+          <h2 style={{ fontFamily: BRAND_DISPLAY, fontWeight: 800, fontSize: 20, lineHeight: 1.15, color: "var(--brand-cream)", marginBottom: 16 }}>Why I built Survive Accounting</h2>
+
+          {/* two student voices — heavier, H3-scale (always visible) */}
           <div className="space-y-1.5">
             <h3 style={{ fontWeight: 700, fontSize: 17.5, lineHeight: 1.3, color: "var(--brand-cream)" }}>“My exam looked nothing like my notes.”</h3>
             <h3 style={{ fontWeight: 700, fontSize: 17.5, lineHeight: 1.3, color: "var(--brand-cream)" }}>“I studied for weeks and still failed.”</h3>
           </div>
 
-          {/* the one headline moment */}
-          <p style={{ marginTop: 16, fontWeight: 600, fontSize: 18, color: "var(--brand-cream)" }}>Sound familiar?</p>
+          {/* collapsible remainder — max-height clip animates height (grid-rows fr transitions are
+              unreliable in some engines); reduced-motion skips the animation. 640px comfortably
+              clears the content; it's only a ceiling, so the box still sits at its natural height. */}
+          <div style={{ overflow: "hidden", maxHeight: open ? 640 : 0, opacity: open ? 1 : 0, transition: reduce ? "none" : "max-height 340ms ease, opacity 260ms ease" }}>
+            <div>
+              {/* the one headline moment */}
+              <p style={{ marginTop: 16, fontWeight: 600, fontSize: 18, color: "var(--brand-cream)" }}>Sound familiar?</p>
 
-          {/* the thesis couplet — own two lines, bold on "about" and "DO" only */}
-          <p style={{ marginTop: 14, marginBottom: 16, fontWeight: 400, fontSize: 16, lineHeight: 1.5, color: "var(--brand-cream)" }}>
-            Lectures teach you <b style={{ fontWeight: 700 }}>about</b> accounting.<br />
-            The exam tests whether you can <b style={{ fontWeight: 700 }}>DO</b> accounting.
-          </p>
+              {/* the thesis couplet — own two lines, bold on "about" and "DO" only */}
+              <p style={{ marginTop: 14, marginBottom: 16, fontWeight: 400, fontSize: 16, lineHeight: 1.5, color: "var(--brand-cream)" }}>
+                Lectures teach you <b style={{ fontWeight: 700 }}>about</b> accounting.<br />
+                The exam tests whether you can <b style={{ fontWeight: 700 }}>DO</b> accounting.
+              </p>
 
-          <p style={{ fontWeight: 400, fontSize: 15, lineHeight: 1.6, opacity: 0.88 }}>
-            This is how my cram videos help. Real exam-style questions, worked start to finish, so
-            you're always walking into exams ready to DO the problems, not just understand them.
-          </p>
+              <p style={{ fontWeight: 400, fontSize: 15, lineHeight: 1.6, opacity: 0.88 }}>
+                This is how my cram videos help. Real exam-style questions, worked start to finish, so
+                you're always walking into exams ready to DO the problems, not just understand them.
+              </p>
 
-          <p style={{ marginTop: 14, fontWeight: 400, fontSize: 15, lineHeight: 1.6, opacity: 0.88 }}>
-            This course is tough, but so are you. Give my Exam 1 videos a try — they're completely
-            free.
-          </p>
+              <p style={{ marginTop: 14, fontWeight: 400, fontSize: 15, lineHeight: 1.6, opacity: 0.88 }}>
+                This course is tough, but so are you. Give my Exam 1 videos a try — they're completely
+                free.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={toggle}
+            aria-expanded={open}
+            className="mt-4 inline-flex items-center gap-1.5 text-[13.5px] font-bold transition-colors hover:text-[var(--accent)]"
+            style={{ color: "var(--accent)" }}
+          >
+            <Plus className="h-3.5 w-3.5 transition-transform" style={{ transform: open ? "rotate(45deg)" : "none" }} />
+            {open ? "Show less" : "Read more"}
+          </button>
         </div>
       </div>
     </section>
@@ -1037,25 +1074,53 @@ function ClaimModal({ slug, chapter, onClose }: { slug: string; chapter: string;
   );
 }
 
-// ---- GREEK + FOOTER (bolt + text only, no illustration) --------------------------------------
-function GreekStrip() {
-  return (
-    <section className="mx-auto mb-10 flex max-w-2xl flex-col items-center gap-2.5 rounded-xl px-5 py-4 text-center" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
-      <p className="text-[14px] font-bold" style={{ color: "var(--brand-cream)" }}>Run a fraternity or sorority? Exam 1 is free for your whole chapter.</p>
-      <a href="/chapters" className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>Set up your chapter →</a>
-    </section>
-  );
+// ---- SECTION RHYTHM — a quiet 1px breath between major sections (my-12 → ~96px gap) --------------
+function SectionDivider() {
+  return <div aria-hidden className="mx-auto my-12 h-px w-full max-w-[200px]" style={{ background: "rgba(245,239,230,0.08)" }} />;
 }
 
-function Footer() {
+// Four stacked layers, each on its own row so they collapse cleanly at 360px:
+//  1) the text-me moment (a ghost boiling bolt sits behind it), 2) a quiet link row,
+//  3) monochrome social icons (placeholders — TODO real hrefs), 4) the baseline + memorial line.
+function Footer({ onSyllabus }: { onSyllabus: () => void }) {
   return (
-    <footer id="site-footer" className="flex flex-col items-center gap-4 border-t py-12 text-center" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
-      <span className="inline-block h-9 w-6"><Bolt c1="var(--bolt-primary)" c2="var(--bolt-secondary)" /></span>
-      <p className="text-[15px] font-bold" style={{ color: "var(--brand-cream)" }}>Questions? Text me — I read every message myself.</p>
-      <a href={`sms:${TEL}`} className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-[14px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>
-        <MessageCircle className="h-4 w-4" /> Text Lee {PHONE}
-      </a>
-      <p className="mt-2 text-[12px]" style={{ color: "var(--text-muted)" }}>surviveaccounting.com · Only what's on your exam.</p>
+    <footer id="site-footer" className="border-t pt-14 pb-10" style={{ borderColor: "rgba(245,239,230,0.1)", fontFamily: BRAND_SANS }}>
+      {/* Layer 1 — the text-me moment, ghost bolt boiling behind the words */}
+      <div className="relative mx-auto flex max-w-md flex-col items-center gap-4 px-5 text-center">
+        <div aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.06]" style={{ zIndex: 0 }}>
+          <BoltBoil height={150} red="var(--bolt-primary)" blue="var(--bolt-secondary)" />
+        </div>
+        <p className="relative text-[15px] font-bold" style={{ zIndex: 1, color: "var(--brand-cream)" }}>Questions? Text me — I read every message myself.</p>
+        <a href={`sms:${TEL}`} className="relative inline-flex items-center gap-2 rounded-xl px-5 py-3 text-[14px] font-black" style={{ zIndex: 1, background: "var(--accent)", color: "#0B1220" }}>
+          <MessageCircle className="h-4 w-4" /> Text Lee {PHONE}
+        </a>
+      </div>
+
+      {/* Layer 2 — link row */}
+      <nav className="mt-10 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[13px]">
+        <a href="/chapters" className="px-1.5 py-0.5 font-semibold transition-colors hover:text-[var(--accent)]" style={{ color: "var(--brand-cream)" }}>For Greek orgs</a>
+        <span aria-hidden style={{ color: "rgba(245,239,230,0.28)" }}>·</span>
+        <button onClick={onSyllabus} className="px-1.5 py-0.5 font-semibold transition-colors hover:text-[var(--accent)]" style={{ color: "var(--brand-cream)" }}>Send your syllabus</button>
+        <span aria-hidden style={{ color: "rgba(245,239,230,0.28)" }}>·</span>
+        <a href={`sms:${TEL}`} className="px-1.5 py-0.5 font-semibold transition-colors hover:text-[var(--accent)]" style={{ color: "var(--brand-cream)" }}>Text Lee</a>
+      </nav>
+
+      {/* Layer 3 — social (monochrome cream ~50%, placeholders) */}
+      <div className="mt-6 flex items-center justify-center gap-5">
+        <a href="#" aria-label="YouTube (coming soon)" className="transition-opacity hover:opacity-90" style={{ color: "var(--brand-cream)", opacity: 0.5 }}>
+          <Youtube className="h-[22px] w-[22px]" strokeWidth={1.75} />
+        </a>
+        <a href="#" aria-label="Instagram (coming soon)" className="transition-opacity hover:opacity-90" style={{ color: "var(--brand-cream)", opacity: 0.5 }}>
+          <Instagram className="h-[22px] w-[22px]" strokeWidth={1.75} />
+        </a>
+      </div>
+
+      {/* Layer 4 — baseline + memorial (its own quiet line) */}
+      <div className="mt-8 flex flex-col items-center gap-2 px-5 text-center">
+        <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>surviveaccounting.com · Only what's on your exam.</p>
+        <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>© 2026 Earned Wisdom LLC</p>
+        <p className="text-[11.5px] italic" style={{ color: "rgba(245,239,230,0.42)", letterSpacing: "0.01em" }}>In memory of Ben Ingram, 1993–2017</p>
+      </div>
     </footer>
   );
 }
