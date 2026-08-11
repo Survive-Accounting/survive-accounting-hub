@@ -84,6 +84,10 @@ export function LandingPage() {
   const [school, setSchool] = useState<School | null>(null);
   const [theater, setTheater] = useState<{ school: School; mode: "full" | "short" } | null>(null);
   const firstPick = useRef(false);
+  // A single monotonic "pulse" the Try-Exam-1 CTA bumps: scrolls to the player and rings the gate
+  // picker once (no loop). The gated CampusSelector reacts to the change; nothing else does.
+  const [pickerPulse, setPickerPulse] = useState(0);
+  const onTryFree = () => { document.getElementById("exam1")?.scrollIntoView({ behavior: "smooth" }); setPickerPulse((p) => p + 1); };
 
   const theme = useMemo(() => {
     if (!school) return DEFAULT_FRAME_THEME;
@@ -172,12 +176,18 @@ export function LandingPage() {
 
   return (
     <div style={{ ...frameThemeVars(theme), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "hidden" }}>
+      <style>{`
+        @keyframes sa-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        .sa-marquee-track { animation: sa-marquee 42s linear infinite; }
+        .sa-marquee:hover .sa-marquee-track { animation-play-state: paused; }
+        @keyframes sa-picker-pulse { 0% { box-shadow: 0 0 0 0 rgba(252,163,17,0.55); } 70% { box-shadow: 0 0 0 16px rgba(252,163,17,0); } 100% { box-shadow: 0 0 0 0 rgba(252,163,17,0); } }
+      `}</style>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
 
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px" }}>
-        <Hero school={school} onPick={pickSchool} livePromise={anyExam1Live} />
+        <Hero school={school} onPick={pickSchool} livePromise={anyExam1Live} onTryFree={onTryFree} />
         {school && <StatusStrip school={school} mapped={mapped} />}
-        <ExamSection exam1={exam1R} exam2={exam2R} exam3={exam3R} final={finalR} school={school} />
+        <ExamSection exam1={exam1R} exam2={exam2R} exam3={exam3R} final={finalR} school={school} onPick={pickSchool} pickerPulse={pickerPulse} />
         <TestimonialsSlider />
         <LeeSection />
         <GreekStrip />
@@ -191,40 +201,72 @@ export function LandingPage() {
 }
 
 // ---- HERO -------------------------------------------------------------------------------------
-function Hero({ school, onPick, livePromise }: { school: School | null; onPick: (s: School) => void; livePromise: boolean }) {
+function Hero({ school, onPick, livePromise, onTryFree }: { school: School | null; onPick: (s: School) => void; livePromise: boolean; onTryFree: () => void }) {
   return (
     <section className="flex flex-col items-center pt-16 pb-8 text-center sm:pt-24">
       <SurviveWordmark size={92} />
-      <p className="mt-3 text-[14px] font-medium" style={{ color: "var(--brand-cream)", opacity: 0.7, letterSpacing: "0.01em" }}>Cram videos by Lee Ingram</p>
-      <h1 className="mt-5 text-[26px] font-black sm:text-[34px]" style={{ letterSpacing: "-0.01em" }}>Only what's on your exam.</h1>
+      <h1 className="mt-6 text-[26px] font-black sm:text-[34px]" style={{ letterSpacing: "-0.01em" }}>Only what's on your exam.</h1>
       <p className="mt-4 max-w-xl text-[15px] leading-relaxed sm:text-[17px]" style={{ color: "var(--brand-cream)", opacity: 0.86 }}>
-        Free cram videos for Intro Financial Accounting — built around your school's exams.
+        Get cram videos for Intro Financial Accounting — built for your school's exams.
       </p>
-      <div className="mt-8 w-full max-w-md"><CampusSelector school={school} onPick={onPick} /></div>
-      <p className="mt-3 text-[12.5px]" style={{ color: "var(--text-muted)" }}>Ole Miss · LSU · Alabama · +13 SEC schools</p>
+      <button onClick={onTryFree} className="mt-8 inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-[15.5px] font-black transition-transform hover:scale-[1.03]" style={{ background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.6)" }}>
+        Try Exam 1 Free ⚡
+      </button>
+      <div className="mt-6 w-full max-w-md"><CampusSelector school={school} onPick={onPick} /></div>
+      <SchoolTicker />
       <p className="mt-6 text-[13.5px] font-semibold" style={{ color: "var(--accent)" }}>{livePromise ? "Exam 1 is free. Just press play and start studying." : "Exam 1 is free. First videos land this week."}</p>
     </section>
   );
 }
 
+// Slow marquee of SEC school names in build-priority order. Muted, pausable on hover; reduced-motion
+// collapses to a static first-three line. Track duplicates the row and slides -50% for a seamless loop.
+function SchoolTicker() {
+  const reduce = useMemo(() => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches, []);
+  if (reduce) {
+    return <p className="mt-3 text-[12.5px]" style={{ color: "var(--text-muted)" }}>Ole Miss · LSU · Alabama · +13 SEC schools</p>;
+  }
+  const row = SCHOOLS.map((s) => s.name).join(" · ");
+  return (
+    <div className="sa-marquee mt-3 w-full max-w-md overflow-hidden" style={{ WebkitMaskImage: "linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent)", maskImage: "linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent)" }}>
+      <div className="sa-marquee-track whitespace-nowrap text-[12.5px]" style={{ display: "inline-block", color: "var(--text-muted)" }}>
+        <span>{row}</span>
+        <span aria-hidden>{" · " + row + " · "}</span>
+      </div>
+    </div>
+  );
+}
+
 // ---- CAMPUS SELECTOR -------------------------------------------------------------------------
-function CampusSelector({ school, onPick }: { school: School | null; onPick: (s: School) => void }) {
+// `schools` overrides the static list (so a code-enriched list from the dropdown payload can be
+// passed in). `pulse` bumps → a one-shot attention ring; with `openOnPulse` it also opens.
+function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openOnPulse }: { school: School | null; onPick: (s: School) => void; schools?: School[]; pulse?: number; openOnPulse?: boolean }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [ring, setRing] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const firstPulse = useRef(true);
   useEffect(() => {
     if (!open) return;
     const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
-  const results = SCHOOLS.filter((s) => s.name.toLowerCase().includes(q.trim().toLowerCase()));
+  useEffect(() => {
+    if (pulse == null) return;
+    if (firstPulse.current) { firstPulse.current = false; return; } // ignore initial mount
+    setRing(true);
+    if (openOnPulse) setOpen(true);
+    const t = window.setTimeout(() => setRing(false), 950);
+    return () => window.clearTimeout(t);
+  }, [pulse, openOnPulse]);
+  const results = schools.filter((s) => s.name.toLowerCase().includes(q.trim().toLowerCase()));
   return (
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-3 rounded-2xl px-5 py-4 text-left transition-transform hover:scale-[1.01]"
-        style={{ background: "rgba(245,239,230,0.06)", border: `2px solid ${school ? "var(--bolt-primary)" : "var(--accent)"}`, boxShadow: "0 20px 55px -22px rgba(0,0,0,0.7)" }}
+        style={{ background: "rgba(245,239,230,0.06)", border: `2px solid ${school ? "var(--bolt-primary)" : "var(--accent)"}`, boxShadow: "0 20px 55px -22px rgba(0,0,0,0.7)", animation: ring ? "sa-picker-pulse 0.9s ease" : undefined, borderRadius: 16 }}
       >
         <GraduationCap className="h-6 w-6 shrink-0" style={{ color: "var(--accent)" }} />
         <span className="min-w-0 flex-1 text-[17px] font-bold" style={{ color: "var(--brand-cream)" }}>{school ? school.name : "Pick your school"}</span>
@@ -299,12 +341,12 @@ function Theater({ school, mode, onDone }: { school: School; mode: "full" | "sho
 }
 
 // ---- EXAM SECTION: Exam-1 hero + player · muted 2/3/Final row · Semester bar ------------------
-function ExamSection({ exam1, exam2, exam3, final, school }: { exam1: ResolvedTopic[]; exam2: ResolvedTopic[]; exam3: ResolvedTopic[]; final: ResolvedTopic[]; school: School | null }) {
+function ExamSection({ exam1, exam2, exam3, final, school, onPick, pickerPulse }: { exam1: ResolvedTopic[]; exam2: ResolvedTopic[]; exam3: ResolvedTopic[]; final: ResolvedTopic[]; school: School | null; onPick: (s: School) => void; pickerPulse: number }) {
   const [openMuted, setOpenMuted] = useState<number | null>(null);
   const muted: [string, ResolvedTopic[]][] = [["Exam 2", exam2], ["Exam 3", exam3], ["Final", final]];
   return (
     <section id="exam1" className="mb-8 scroll-mt-6">
-      <Exam1Hero topics={exam1} school={school} />
+      <Exam1Hero topics={exam1} school={school} onPick={onPick} pickerPulse={pickerPulse} />
       {/* muted paid row — three small cards in one row (mobile too); [+] expands in place */}
       <div className="mt-4 grid grid-cols-3 gap-2.5 sm:gap-3">
         {muted.map(([title, tp], i) => <MutedExamCard key={title} title={title} topics={tp} expanded={openMuted === i} onToggle={() => setOpenMuted((cur) => (cur === i ? null : i))} />)}
@@ -318,14 +360,14 @@ function ExamSection({ exam1, exam2, exam3, final, school }: { exam1: ResolvedTo
   );
 }
 
-function Exam1Hero({ topics, school }: { topics: ResolvedTopic[]; school: School | null }) {
+function Exam1Hero({ topics, school, onPick, pickerPulse }: { topics: ResolvedTopic[]; school: School | null; onPick: (s: School) => void; pickerPulse: number }) {
   return (
     <div className="overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(252,163,17,0.45)" }}>
       <div className="flex items-baseline justify-between px-4 pt-3.5 pb-1">
         <span className="text-[15px] font-black uppercase tracking-wide" style={{ color: "var(--brand-cream)" }}>⚡ Exam 1</span>
         <span className="text-[11px] font-black uppercase tracking-wide" style={{ color: "var(--accent)" }}>Free</span>
       </div>
-      <Exam1Player topics={topics} school={school} />
+      <Exam1Player topics={topics} school={school} onPick={onPick} pickerPulse={pickerPulse} />
     </div>
   );
 }
@@ -333,10 +375,20 @@ function Exam1Hero({ topics, school }: { topics: ResolvedTopic[]; school: School
 const PLAYER_TABS = [["video", "Video"], ["questions", "Questions"], ["practice", "Practice"]] as const;
 type PlayerTab = (typeof PLAYER_TABS)[number][0];
 
-function Exam1Player({ topics, school }: { topics: ResolvedTopic[]; school: School | null }) {
+function Exam1Player({ topics, school, onPick, pickerPulse }: { topics: ResolvedTopic[]; school: School | null; onPick: (s: School) => void; pickerPulse: number }) {
   const [idx, setIdx] = useState(0);
   const [tab, setTab] = useState<PlayerTab>("video");
   const [menu, setMenu] = useState(false);
+  const gated = !school;
+  // On school pick, land on the FIRST live Exam-1 topic (autoplays); if none is live yet, land on
+  // the first topic's poster — never a blank frame. Keyed on the school id so it runs once per pick.
+  useEffect(() => {
+    if (!school) return;
+    const firstLive = topics.findIndex((t) => !!t.set?.playbackId);
+    setIdx(firstLive >= 0 ? firstLive : 0);
+    setTab("video");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [school?.id]);
   const safeIdx = Math.min(idx, Math.max(0, topics.length - 1));
   const cur = topics[safeIdx] ?? null;
   const step = (d: -1 | 1) => { setMenu(false); setIdx(() => Math.max(0, Math.min(topics.length - 1, safeIdx + d))); };
@@ -363,13 +415,31 @@ function Exam1Player({ topics, school }: { topics: ResolvedTopic[]; school: Scho
         )}
       </div>
 
-      {/* MAIN AREA (16:9) — active tab content */}
+      {/* MAIN AREA (16:9) — active tab content. Until a school is picked the poster shows BLURRED
+          under a centered "pick your school to start" gate; selecting a school unblurs + autoplays. */}
       <div className="relative w-full" style={{ aspectRatio: "16 / 9", background: "#000" }}>
-        {tab === "video" && (cur?.set?.playbackId
-          ? <HeroVideo key={cur.set.playbackId} playbackId={cur.set.playbackId} />
-          : <Poster school={school} topicName={cur?.name ?? "Exam 1"} queued={!!cur} />)}
-        {tab === "questions" && <PlayerPlaceholder text="Practice questions land with the video." />}
-        {tab === "practice" && <PlayerPlaceholder text="Interactive practice coming." />}
+        {gated ? (
+          <>
+            <div className="absolute inset-0" style={{ filter: "blur(9px)", transform: "scale(1.06)", opacity: 0.65 }} aria-hidden>
+              <Poster school={null} topicName="Exam 1" queued={false} />
+            </div>
+            <div className="absolute inset-0 grid place-items-center px-5" style={{ background: "rgba(11,18,32,0.6)" }}>
+              <div className="flex w-full max-w-sm flex-col items-center gap-3">
+                <p className="text-center text-[16px] font-black sm:text-[18px]" style={{ color: "var(--brand-cream)" }}>Pick your school to start</p>
+                <div className="w-full"><CampusSelector school={null} onPick={onPick} pulse={pickerPulse} openOnPulse /></div>
+                <p className="text-center text-[12px]" style={{ color: "var(--text-muted)" }}>Exam 1 is free. No account required.</p>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            {tab === "video" && (cur?.set?.playbackId
+              ? <HeroVideo key={cur.set.playbackId} playbackId={cur.set.playbackId} />
+              : <Poster school={school} topicName={cur?.name ?? "Exam 1"} queued={!!cur} />)}
+            {tab === "questions" && <PlayerPlaceholder text="Practice questions land with the video." />}
+            {tab === "practice" && <PlayerPlaceholder text="Interactive practice coming." />}
+          </>
+        )}
       </div>
 
       {/* TABS */}
@@ -442,39 +512,34 @@ function LeeSection() {
         <div className="shrink-0"><LeePortrait /></div>
         {/* Body uses the UI/text face (Rubik is a display face — headlines only). */}
         <div className="min-w-0" style={{ fontFamily: BRAND_SANS, color: "var(--brand-cream)", maxWidth: "60ch" }}>
-          {/* three student voices — italic, regular, muted, staggered indents, generous spacing */}
+          <h2 style={{ fontFamily: BRAND_DISPLAY, fontWeight: 800, fontSize: 21, letterSpacing: "-0.01em", color: "var(--brand-cream)", marginBottom: 18 }}>Why I built Survive Accounting</h2>
+
+          {/* two student voices — italic, regular, muted, staggered indents */}
           <div className="space-y-2.5">
-            <p className="italic" style={{ fontWeight: 400, fontSize: 14.5, opacity: 0.7, lineHeight: 1.5, marginLeft: 0 }}>“I studied for weeks and still failed.”</p>
-            <p className="italic" style={{ fontWeight: 400, fontSize: 14.5, opacity: 0.7, lineHeight: 1.5, marginLeft: 16 }}>“Nothing from lecture was on it.”</p>
-            <p className="italic" style={{ fontWeight: 400, fontSize: 14.5, opacity: 0.7, lineHeight: 1.5, marginLeft: 32 }}>“It looked nothing like the homework.”</p>
+            <p className="italic" style={{ fontWeight: 400, fontSize: 14.5, opacity: 0.7, lineHeight: 1.5, marginLeft: 0 }}>“My exam looked nothing like my notes.”</p>
+            <p className="italic" style={{ fontWeight: 400, fontSize: 14.5, opacity: 0.7, lineHeight: 1.5, marginLeft: 20 }}>“I studied for weeks and still failed.”</p>
           </div>
 
           {/* the one headline moment */}
-          <p style={{ marginTop: 22, fontWeight: 600, fontSize: 18.5, color: "var(--brand-cream)" }}>Sound familiar?</p>
+          <p style={{ marginTop: 20, fontWeight: 600, fontSize: 18.5, color: "var(--brand-cream)" }}>Sound familiar?</p>
 
-          <p style={{ marginTop: 20, fontWeight: 400, fontSize: 15.5, lineHeight: 1.65, opacity: 0.88 }}>Here's the truth:</p>
+          <p style={{ marginTop: 20, fontWeight: 400, fontSize: 15.5, lineHeight: 1.65, opacity: 0.88 }}>Here's what I tell my students:</p>
 
           {/* the thesis couplet — own two lines, air above/below, bold on "about" and "do" only */}
           <p style={{ marginTop: 16, marginBottom: 20, fontWeight: 400, fontSize: 16.5, lineHeight: 1.55, color: "var(--brand-cream)" }}>
             Lectures teach you <b style={{ fontWeight: 700 }}>about</b> accounting.<br />
-            The exam tests whether you can <b style={{ fontWeight: 700 }}>do</b> accounting, completely on your own and from memory.
+            The exam tests whether you can <b style={{ fontWeight: 700 }}>do</b> accounting.
           </p>
 
           <p style={{ fontWeight: 400, fontSize: 15.5, lineHeight: 1.65, opacity: 0.88 }}>
-            So that's what my videos are: reps. Real exam-style questions, worked start to finish, so
-            you're always ready. Walk in confident. Walk out knowing you crushed it.
+            So that's what my cram videos are: reps. Real exam-style questions, worked start to
+            finish, so you're always walking into exams ready.
           </p>
 
           <p style={{ marginTop: 16, fontWeight: 400, fontSize: 15.5, lineHeight: 1.65, opacity: 0.88 }}>
-            I love helping students discover confidence they didn't realize they had. This course is
-            tough—but so are you.
+            This course is tough — but so are you. Give my videos a try (Exam 1 is free). I know
+            you'll love them.
           </p>
-
-          {/* signature */}
-          <div style={{ marginTop: 26 }}>
-            <p style={{ fontWeight: 600, fontSize: 19, color: "var(--brand-cream)" }}>Lee Ingram</p>
-            <p style={{ marginTop: 2, fontWeight: 400, fontSize: 12.5, opacity: 0.6 }}>Ole Miss accounting grad · Tutor since 2015 · Founder, Survive Accounting</p>
-          </div>
         </div>
       </div>
     </section>
@@ -491,7 +556,10 @@ function LeePortrait() {
         src="/lee-beach.webp" alt="Lee Ingram" loading="lazy"
         style={{ width: 200, aspectRatio: "4 / 5", objectFit: "cover", objectPosition: "center 28%", borderRadius: 16, border: "3px solid var(--brand-cream)", display: "block" }}
       />
-      <figcaption className="mt-2 text-center text-[11.5px] italic" style={{ color: "var(--text-muted)" }}>Off the clock, somewhere warmer than the library</figcaption>
+      <figcaption className="mt-3 text-center" style={{ fontFamily: BRAND_SANS }}>
+        <span className="block" style={{ fontWeight: 600, fontSize: 16, color: "var(--brand-cream)" }}>Lee Ingram</span>
+        <span className="mt-0.5 block text-[12px]" style={{ fontWeight: 400, opacity: 0.6, color: "var(--brand-cream)" }}>Ole Miss accounting grad · Tutor since 2015</span>
+      </figcaption>
     </figure>
   );
 }
