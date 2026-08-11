@@ -13,6 +13,19 @@ const fileSchema = z.object({
   dataUrl: z.string().min(1).max(15_000_000), // base64 data URL (bounded so a giant paste can't OOM)
 });
 
+// SCHOOL DEMAND (no PII required) — the "My school isn't listed" free-text field. Logs the school
+// name + timestamp so Lee can see where to expand next (0110). Skippable/empty text is a no-op.
+export const logSchoolDemand = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ text: z.string().trim().max(200) }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    if (!data.text) return { ok: true };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as unknown as { from: (t: string) => { insert: (row: unknown) => Promise<{ error: { message: string } | null }> } };
+    const { error } = await db.from("school_demand_log").insert({ raw_text: data.text });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 // EXAM ASK (no files) — the "two sets down" inline card + any file-less email ask. Stores email +
 // campus + professor into syllabus_submissions with a source tag. Same private table; deny-by-default.
 export const submitExamAsk = createServerFn({ method: "POST" })

@@ -15,7 +15,7 @@ import { ChevronDown, GraduationCap, MessageCircle, Search, X } from "lucide-rea
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
 import { listCampusExams } from "@/lib/campus-exams.functions";
 import { getChapterNames, listCampusIntroCodes, listDefaultExamUnits } from "@/lib/default-map.functions";
-import { submitExamAsk, submitSyllabus } from "@/lib/syllabus.functions";
+import { logSchoolDemand, submitExamAsk, submitSyllabus } from "@/lib/syllabus.functions";
 import { searchOrderProfessors, type ProfessorLite } from "@/lib/orders.functions";
 import { fetchCourseOptions } from "@/lib/je-api";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
@@ -85,6 +85,9 @@ type ResolvedTopic = { key: string; name: string; num: number | null; sets: Stud
 
 export function LandingPage() {
   const [school, setSchool] = useState<School | null>(null);
+  // "My school isn't listed" — unblur with the DEFAULT map + brand navy (no school colors), plus an
+  // optional "what school?" demand field. Everything else behaves like an unmapped-campus session.
+  const [notListed, setNotListed] = useState(false);
   const [theater, setTheater] = useState<{ school: School; mode: "full" | "short" } | null>(null);
   const firstPick = useRef(false);
   // A single monotonic "pulse" the Try-Exam-1 CTA bumps: scrolls to the player and rings the gate
@@ -187,6 +190,7 @@ export function LandingPage() {
 
   const pickSchool = (s: School) => {
     const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    setNotListed(false);
     setSchool(s);
     if (reduce) return; // instant swap, no takeover
     const mode = firstPick.current ? "short" : "full";
@@ -206,7 +210,7 @@ export function LandingPage() {
 
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px" }}>
         <Hero onTryFree={onTryFree} />
-        <ExamPlayer exams={exams} school={school} onPick={pickSchool} pickerPulse={pickerPulse} focusSignal={focusSignal} schools={schoolsWithCodes} mapped={mapped} onSyllabus={() => setSyllabusOpen(true)} professor={professor} onPickProfessor={pickProfessor} />
+        <ExamPlayer exams={exams} school={school} onPick={pickSchool} pickerPulse={pickerPulse} focusSignal={focusSignal} schools={schoolsWithCodes} mapped={mapped} onSyllabus={() => setSyllabusOpen(true)} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => setNotListed(true)} />
         <TestimonialsSlider />
         <LeeSection />
         <GreekStrip />
@@ -243,9 +247,9 @@ function Hero({ onTryFree }: { onTryFree: () => void }) {
 function SchoolTicker() {
   const reduce = useMemo(() => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches, []);
   if (reduce) {
-    return <p className="mt-3 text-[12.5px]" style={{ color: "var(--text-muted)" }}>Ole Miss · LSU · Alabama · +13 SEC schools</p>;
+    return <p className="mt-3 text-[12.5px]" style={{ color: "var(--text-muted)" }}>Ole Miss · LSU · Alabama · +13 SEC schools · + your school</p>;
   }
-  const row = SCHOOLS.map((s) => s.name).join(" · ");
+  const row = SCHOOLS.map((s) => s.name).join(" · ") + " · + your school";
   return (
     <div className="sa-marquee mt-3 w-full max-w-md overflow-hidden" style={{ WebkitMaskImage: "linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent)", maskImage: "linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent)" }}>
       <div className="sa-marquee-track whitespace-nowrap text-[12.5px]" style={{ display: "inline-block", color: "var(--text-muted)" }}>
@@ -259,7 +263,7 @@ function SchoolTicker() {
 // ---- CAMPUS SELECTOR -------------------------------------------------------------------------
 // `schools` overrides the static list (so a code-enriched list from the dropdown payload can be
 // passed in). `pulse` bumps → a one-shot attention ring; with `openOnPulse` it also opens.
-function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openOnPulse }: { school: School | null; onPick: (s: School) => void; schools?: School[]; pulse?: number; openOnPulse?: boolean }) {
+function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openOnPulse, onNotListed }: { school: School | null; onPick: (s: School) => void; schools?: School[]; pulse?: number; openOnPulse?: boolean; onNotListed?: () => void }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [ring, setRing] = useState(false);
@@ -306,6 +310,11 @@ function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openOnPulse 
                 {s.codeVerified && s.code && <span className="shrink-0 text-[11.5px] tabular-nums" style={{ color: "var(--text-muted)" }}>{s.code}</span>}
               </button>
             ); })}
+            {onNotListed && (
+              <button onClick={() => { onNotListed(); setOpen(false); setQ(""); }} className="flex w-full items-center gap-3 border-t px-4 py-2.5 text-left hover:bg-white/5" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
+                <span className="flex-1 text-[13.5px] font-semibold" style={{ color: "var(--accent)" }}>My school isn't listed →</span>
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -476,14 +485,15 @@ const examStats = (tab: ExamTab): string => {
   return parts.join(" · ");
 };
 
-function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, mapped, onSyllabus, professor, onPickProfessor }: { exams: ExamTab[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; focusSignal: number; schools: School[]; mapped: boolean; onSyllabus: () => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void }) {
+function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, mapped, onSyllabus, professor, onPickProfessor, notListed, onNotListed }: { exams: ExamTab[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; focusSignal: number; schools: School[]; mapped: boolean; onSyllabus: () => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; notListed: boolean; onNotListed: () => void }) {
   const [activeNum, setActiveNum] = useState(1);
   const [selById, setSelById] = useState<Record<number, Sel>>({});
   const [openTopics, setOpenTopics] = useState<Set<string>>(() => new Set());
   const [drawerOpen, setDrawerOpen] = useState(false);
   const active = exams.find((e) => e.num === activeNum) ?? exams[0];
   const isPaid = active.price != null;
-  const gated = !school;
+  const gated = !school && !notListed; // "not listed" unblurs with the default map + brand navy
+  const live = !!school || notListed; // school-like session (mapped campus OR "not listed")
 
   // TWO-SET EMAIL ASK — a set counts as completed at >=90% watched. After the 2nd distinct set, show
   // one quiet inline card (persist dismissal). The ONLY proactive email ask in the free flow.
@@ -537,14 +547,17 @@ function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, 
         {/* stats line — computed from data, updates as sets go live */}
         <div className="border-b px-3 py-1.5 text-center text-[11px] font-semibold tracking-wide" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--text-muted)", background: "rgba(0,0,0,0.12)" }}>{examStats(active)}</div>
 
-        {/* gap meter — per exam (mapped or unmapped); % is a manual mapper field (default 80), never computed */}
-        {school && (
+        {/* gap meter — per exam (mapped, unmapped, or "not listed"); % is a manual mapper field (default 80) */}
+        {live && (
           <button onClick={onSyllabus} className="w-full border-b px-3 py-1.5 text-center text-[11.5px] hover:bg-white/5" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--brand-cream)" }}>
             Covering <b>~{active.coveragePct}%</b> of {professor ? `Prof. ${professor.last || professor.name}'s` : "a typical"} {active.label} — <span className="font-bold" style={{ color: "var(--accent)" }}>help me get the rest →</span>
           </button>
         )}
 
-        {/* professor rung (skippable) — appears after school selection; personalizes labels only */}
+        {/* "My school isn't listed" — one optional demand field (skippable), logged with a timestamp */}
+        {notListed && <SchoolDemandField />}
+
+        {/* professor rung (skippable) — school sessions only (needs a campusId for the picker) */}
         {school && <ProfessorRung campusId={school.campusId} code={school.codeVerified && school.code ? school.code : null} professor={professor} onPick={onPickProfessor} />}
 
         {/* mobile-only drawer toggle for the outline */}
@@ -565,7 +578,7 @@ function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, 
                   <div className="absolute inset-0 grid place-items-center px-5" style={{ background: "rgba(11,18,32,0.6)" }}>
                     <div className="flex w-full max-w-sm flex-col items-center gap-3">
                       <p className="text-center text-[16px] font-black sm:text-[18px]" style={{ color: "var(--brand-cream)" }}>Pick your school to start</p>
-                      <div className="w-full"><CampusSelector school={null} onPick={onPick} schools={schools} pulse={pickerPulse} openOnPulse /></div>
+                      <div className="w-full"><CampusSelector school={null} onPick={onPick} schools={schools} pulse={pickerPulse} openOnPulse onNotListed={onNotListed} /></div>
                       <p className="text-center text-[12px]" style={{ color: "var(--text-muted)" }}>Exam 1 is free. No account required.</p>
                     </div>
                   </div>
@@ -580,8 +593,8 @@ function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, 
             {/* Two sets down — the ONLY proactive email ask in the free flow (quiet inline card). */}
             {showAsk && <TwoSetAsk school={school} professor={professor} onDone={finishAsk} />}
 
-            {/* Unmapped campus: Exam 1 still plays (default map); offer to tailor. Mapped → nothing. */}
-            {school && !mapped && (
+            {/* Unmapped campus / "not listed": Exam 1 still plays (default map); offer to tailor. */}
+            {((school && !mapped) || notListed) && (
               <div className="border-t px-3 py-2 text-center" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
                 <button onClick={onSyllabus} className="text-[12px]" style={{ color: "var(--text-muted)" }}>
                   Help me tailor this to your exact course — <span className="font-bold" style={{ color: "var(--accent)" }}>Send your syllabus</span>
@@ -678,6 +691,23 @@ function SetRow({ set, isPaid, price, active, activeRef, onPick }: { set: Studen
       {live && !isPaid && <span className="shrink-0 text-[11px]" style={{ color: "var(--accent)" }}>▶</span>}
       {isPaid && tip && <span className="absolute right-2 top-full z-20 mt-1 whitespace-nowrap rounded px-2 py-1 text-[10.5px] font-bold" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.2)", color: "var(--brand-cream)" }}>Opens soon — ${price}</span>}
     </button>
+  );
+}
+
+// "My school isn't listed" demand field — one optional free-text input, skippable, logged with a
+// timestamp so Lee sees where to expand next. Never blocks the session.
+function SchoolDemandField() {
+  const [text, setText] = useState("");
+  const [done, setDone] = useState(false);
+  const submit = async () => { const t = text.trim(); if (t) { try { await logSchoolDemand({ data: { text: t } }); } catch { /* ignore */ } } setDone(true); };
+  if (done) return <div className="border-b px-3 py-1.5 text-center text-[11px]" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--text-muted)" }}>Thanks — noted. Enjoy Exam 1, free.</div>;
+  return (
+    <div className="flex flex-col gap-1.5 border-b px-3 py-2 sm:flex-row sm:items-center" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.12)" }}>
+      <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>What school? <span className="opacity-70">(helps me decide where to expand next)</span></span>
+      <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void submit(); }} placeholder="Your school…" className="min-w-0 flex-1 rounded-lg px-3 py-1 text-[12.5px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }} />
+      <button onClick={() => void submit()} className="shrink-0 rounded-lg px-3 py-1 text-[12px] font-bold" style={{ background: "var(--accent)", color: "#0B1220" }}>Send</button>
+      <button onClick={() => setDone(true)} className="shrink-0 text-[10.5px]" style={{ color: "var(--text-muted)" }}>skip</button>
+    </div>
   );
 }
 
