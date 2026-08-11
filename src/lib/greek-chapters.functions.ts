@@ -1,0 +1,173 @@
+// GREEK CHAPTERS (server) — self-serve onboarding: sign up a chapter, SMS-verify the admin phone,
+// mint a shareable /c/<slug> free-Exam-1 link, redeem it (member join), and read a magic-link
+// dashboard. Deny-by-default: every write is service-role here; the dashboard verifies the caller's
+// Supabase JWT (magic-link) and matches it to the chapter's admin_email. Tables: 0111 (manual-apply).
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+
+type DB = { from: (t: string) => any; auth: { getUser: (jwt: string) => Promise<{ data: { user: { email?: string | null } | null }; error: unknown }> } };
+const admin = async () => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin as unknown as DB;
+};
+
+// Send an SMS via Twilio (same Messages API as onboarding.notifyLee). No-op if env is missing.
+async function sendSms(to: string, body: string) {
+  const sid = process.env.TWILIO_ACCOUNT_SID ?? "", token = process.env.TWILIO_AUTH_TOKEN ?? "", msid = process.env.TWILIO_MESSAGING_SERVICE_SID ?? "";
+  const dest = to.replace(/[^+\d]/g, "");
+  if (!sid || !token || !msid || !dest) { console.warn("sendSms: missing Twilio env or phone, skipping"); return; }
+  try {
+    const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+      method: "POST",
+      headers: { Authorization: "Basic " + Buffer.from(`${sid}:${token}`).toString("base64"), "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ MessagingServiceSid: msid, To: dest, Body: body }),
+    });
+    if (!res.ok) console.warn("sendSms twilio error", res.status, await res.text());
+  } catch (e) { console.warn("sendSms failed", (e as Error).message); }
+}
+
+const slugify = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "-").replace(/-+/g, "-").slice(0, 40);
+const code6 = () => String(Math.floor(100000 + Math.random() * 900000));
+
+export interface ChapterOrg { id: string; name: string }
+// Chapter picker source — the SAME GreekIntel data as elsewhere: campus_greek_chapters → greek_orgs
+// names for the selected campus. Degrades to [] (free-text fallback in the UI) if the tables differ.
+export const searchChapterOrgs = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ campusId: z.string().uuid(), q: z.string().trim().max(80).optional() }).parse(d))
+  .handler(async ({ data }): Promise<ChapterOrg[]> => {
+    try {
+      const db = await admin();
+      const { data: rows } = await db.from("campus_greek_chapters").select("greek_org_id").eq("campus_id", data.campusId).limit(600);
+      const ids = [...new Set((rows ?? []).map((r: { greek_org_id: string | null }) => r.greek_org_id).filter(Boolean))] as string[];
+      if (!ids.length) return [];
+      const { data: orgs } = await db.from("greek_orgs").select("id,name").in("id", ids);
+      const q = (data.q ?? "").toLowerCase();
+      const out = (orgs ?? []).map((o: { id: string; name: string | null }) => ({ id: o.id, name: (o.name ?? "").trim() })).filter((o: ChapterOrg) => o.name && (!q || o.name.toLowerCase().includes(q)));
+      out.sort((a: ChapterOrg, b: ChapterOrg) => a.name.localeCompare(b.name));
+      return out.slice(0, 60);
+    } catch { return []; }
+  });
+
+export const createGreekChapter = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    campusId: z.string().uuid().nullable().optional(),
+    schoolName: z.string().trim().min(1).max(120),
+    chapterName: z.string().trim().min(1).max(120),
+    greekOrgId: z.string().uuid().nullable().optional(),
+    adminNameRole: z.string().trim().min(1).max(160),
+    adminEmail: z.string().trim().email().max(200),
+    adminPhone: z.string().trim().min(7).max(20),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ chapterId: string }> => {
+    const db = await admin();
+    // needs_review = we couldn't match the chapter to GreekIntel (no org id chosen) — Lee's manual check.
+    const needsReview = !data.greekOrgId;
+    // Unique slug: school-chapter, then -2/-3… on conflict.
+    const base = slugify(`${data.schoolName}-${data.chapterName}`) || "chapter";
+    let slug = base;
+    for (let i = 2; i < 40; i++) { const { data: hit } = await db.from("greek_chapters").select("id").eq("slug", slug).maybeSingle(); if (!hit) break; slug = `${base}-${i}`; }
+    const code = code6();
+    const { data: ins, error } = await db.from("greek_chapters").insert({
+      slug, campus_id: data.campusId ?? null, school_name: data.schoolName, chapter_name: data.chapterName,
+      greek_org_id: data.greekOrgId ?? null, admin_name_role: data.adminNameRole, admin_email: data.adminEmail,
+      admin_phone: data.adminPhone, verify_code: code, verify_expires_at: new Date(Date.now() + 10 * 60_000).toISOString(),
+      needs_review: needsReview,
+    }).select("id").single();
+    if (error) throw new Error(error.message);
+    await sendSms(data.adminPhone, `Survive Accounting: your chapter verification code is ${code}. It expires in 10 minutes.`);
+    return { chapterId: ins.id as string };
+  });
+
+export const verifyChapterPhone = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ chapterId: z.string().uuid(), code: z.string().trim().min(4).max(8) }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; slug?: string; url?: string; error?: string }> => {
+    const db = await admin();
+    const { data: row } = await db.from("greek_chapters").select("id,slug,verify_code,verify_expires_at,phone_verified_at").eq("id", data.chapterId).maybeSingle();
+    if (!row) return { ok: false, error: "Chapter not found." };
+    if (row.phone_verified_at) return { ok: true, slug: row.slug, url: `/c/${row.slug}` };
+    if (!row.verify_code || row.verify_code !== data.code) return { ok: false, error: "That code isn't right." };
+    if (row.verify_expires_at && new Date(row.verify_expires_at).getTime() < Date.now()) return { ok: false, error: "That code expired — resend it." };
+    await db.from("greek_chapters").update({ phone_verified_at: new Date().toISOString(), verify_code: null }).eq("id", data.chapterId);
+    return { ok: true, slug: row.slug, url: `/c/${row.slug}` };
+  });
+
+export interface ChapterPublic { slug: string; chapterName: string; schoolName: string; campusId: string | null }
+// Public info for a /c/<slug> landing — pre-select + banner. Only active, verified, non-expired links.
+export const getChapterBySlug = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ slug: z.string().trim().min(1).max(60) }).parse(d))
+  .handler(async ({ data }): Promise<ChapterPublic | null> => {
+    const db = await admin();
+    const { data: row } = await db.from("greek_chapters").select("slug,chapter_name,school_name,campus_id,status,phone_verified_at,link_expires_at").eq("slug", data.slug).maybeSingle();
+    if (!row || row.status !== "active" || !row.phone_verified_at) return null;
+    if (row.link_expires_at && new Date(row.link_expires_at).getTime() < Date.now()) return null;
+    return { slug: row.slug, chapterName: row.chapter_name, schoolName: row.school_name, campusId: row.campus_id ?? null };
+  });
+
+// Claim free access — collects name + phone, creates a member row (uncapped, logged). Never gates the
+// student: the player works with or without claiming. (SMS-verify-on-claim can reuse sendSms later.)
+export const claimChapterAccess = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ slug: z.string().trim().min(1).max(60), name: z.string().trim().min(1).max(120), phone: z.string().trim().min(7).max(20) }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const db = await admin();
+    const { data: ch } = await db.from("greek_chapters").select("id,status").eq("slug", data.slug).maybeSingle();
+    if (ch?.id && ch.status === "active") await db.from("greek_chapter_members").insert({ chapter_id: ch.id, name: data.name, phone: data.phone });
+    return { ok: true };
+  });
+
+// ---- DASHBOARD (magic-link) — the caller's Supabase JWT is verified and matched to admin_email ----
+async function chapterForToken(db: DB, accessToken: string) {
+  const { data } = await db.auth.getUser(accessToken);
+  const email = (data.user?.email ?? "").trim().toLowerCase();
+  if (!email) return null;
+  const { data: row } = await (db as any).from("greek_chapters").select("*").ilike("admin_email", email).eq("status", "active").order("created_at", { ascending: false }).maybeSingle();
+  return row ?? null;
+}
+
+export interface ChapterDashboard {
+  chapterName: string; schoolName: string; campusId: string | null; slug: string; url: string;
+  digestEnabled: boolean; membersJoined: number; setsCompleted: number; activeThisWeek: number;
+  roster: Array<{ name: string; joinedAt: string; setsCompleted: number }>;
+}
+export const getChapterDashboard = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ accessToken: z.string().min(10) }).parse(d))
+  .handler(async ({ data }): Promise<ChapterDashboard | null> => {
+    const db = await admin();
+    const ch = await chapterForToken(db, data.accessToken);
+    if (!ch) return null;
+    const { data: mem } = await db.from("greek_chapter_members").select("name,joined_at,sets_completed").eq("chapter_id", ch.id).order("joined_at", { ascending: false });
+    const rows = (mem ?? []) as Array<{ name: string; joined_at: string; sets_completed: number }>;
+    const weekAgo = Date.now() - 7 * 864e5;
+    return {
+      chapterName: ch.chapter_name, schoolName: ch.school_name, campusId: ch.campus_id ?? null, slug: ch.slug, url: `/c/${ch.slug}`,
+      digestEnabled: !!ch.digest_enabled,
+      membersJoined: rows.length,
+      setsCompleted: rows.reduce((a, r) => a + (r.sets_completed ?? 0), 0),
+      activeThisWeek: rows.filter((r) => new Date(r.joined_at).getTime() >= weekAgo).length,
+      roster: rows.map((r) => ({ name: r.name, joinedAt: r.joined_at, setsCompleted: r.sets_completed ?? 0 })),
+    };
+  });
+
+export const setChapterDigest = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ accessToken: z.string().min(10), enabled: z.boolean() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean }> => {
+    const db = await admin();
+    const ch = await chapterForToken(db, data.accessToken);
+    if (!ch) return { ok: false };
+    await db.from("greek_chapters").update({ digest_enabled: data.enabled }).eq("id", ch.id);
+    return { ok: true };
+  });
+
+// ---- ADMIN (Lee's side) — a flat internal list. Surface behind an AdminGate route. Service-role. ----
+export interface AdminChapterRow { id: string; slug: string; schoolName: string; chapterName: string; contact: string; email: string; createdAt: string; members: number; needsReview: boolean; status: string }
+export const listGreekChaptersAdmin = createServerFn({ method: "GET" }).handler(async (): Promise<AdminChapterRow[]> => {
+  const db = await admin();
+  const { data: chs } = await db.from("greek_chapters").select("id,slug,school_name,chapter_name,admin_name_role,admin_email,created_at,needs_review,status").order("created_at", { ascending: false }).limit(500);
+  const list = (chs ?? []) as Array<Record<string, unknown>>;
+  const ids = list.map((c) => c.id as string);
+  const counts = new Map<string, number>();
+  if (ids.length) {
+    const { data: mem } = await db.from("greek_chapter_members").select("chapter_id").in("chapter_id", ids);
+    for (const m of (mem ?? []) as { chapter_id: string }[]) counts.set(m.chapter_id, (counts.get(m.chapter_id) ?? 0) + 1);
+  }
+  return list.map((c) => ({ id: c.id as string, slug: c.slug as string, schoolName: c.school_name as string, chapterName: c.chapter_name as string, contact: c.admin_name_role as string, email: c.admin_email as string, createdAt: c.created_at as string, members: counts.get(c.id as string) ?? 0, needsReview: !!c.needs_review, status: c.status as string }));
+});

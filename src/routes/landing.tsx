@@ -18,6 +18,7 @@ import { listCampusExams } from "@/lib/campus-exams.functions";
 import { getChapterNames, listCampusIntroCodes, listDefaultExamUnits } from "@/lib/default-map.functions";
 import { logSchoolDemand, submitExamAsk, submitSyllabus } from "@/lib/syllabus.functions";
 import { searchOrderProfessors, type ProfessorLite } from "@/lib/orders.functions";
+import { claimChapterAccess } from "@/lib/greek-chapters.functions";
 import { fetchCourseOptions } from "@/lib/je-api";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
@@ -33,8 +34,8 @@ const TEL = "+16625658818";
 
 // SEC-16 in build priority (Ole Miss · LSU first). campusId = the real campus row; colors come from
 // SEC_SCHOOLS by slug. `code` renders ONLY when `codeVerified` — never guess a course code.
-type School = { campusId: string; id: string; name: string; code?: string; codeVerified?: boolean };
-const SCHOOLS: School[] = [
+export type School = { campusId: string; id: string; name: string; code?: string; codeVerified?: boolean };
+export const SCHOOLS: School[] = [
   { campusId: "7b92a320-b196-43f2-a241-77a0805816fe", id: "ole-miss", name: "Ole Miss" },
   { campusId: "698dd98f-dd92-46c1-8f28-e930568cb15d", id: "lsu", name: "LSU" },
   { campusId: "b3af67c6-99a5-4677-83d5-aa7d11a89c17", id: "alabama", name: "Alabama" },
@@ -84,11 +85,14 @@ const STATIC_FINAL = ["Full Accounting Cycle", "Financial Statements", "Ratios &
 // set per topic, but the shape supports more). A topic with no sets is "coming" (poster).
 type ResolvedTopic = { key: string; name: string; num: number | null; sets: StudentSet[] };
 
-export function LandingPage() {
-  const [school, setSchool] = useState<School | null>(null);
+export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { initialCampusId?: string; chapterBanner?: string; chapterSlug?: string } = {}) {
+  // /c/<slug> pre-selects the chapter's school. If it's one of the 16 SEC schools we pre-pick it;
+  // otherwise we drop into "not listed" (default map) so the player still unblurs and plays.
+  const preSchool = useMemo(() => (initialCampusId ? SCHOOLS.find((s) => s.campusId === initialCampusId) ?? null : null), [initialCampusId]);
+  const [school, setSchool] = useState<School | null>(preSchool);
   // "My school isn't listed" — unblur with the DEFAULT map + brand navy (no school colors), plus an
   // optional "what school?" demand field. Everything else behaves like an unmapped-campus session.
-  const [notListed, setNotListed] = useState(false);
+  const [notListed, setNotListed] = useState(!!initialCampusId && !preSchool);
   const [theater, setTheater] = useState<{ school: School; mode: "full" | "short" } | null>(null);
   const firstPick = useRef(false);
   // A single monotonic "pulse" the Try-Exam-1 CTA bumps: scrolls to the player and rings the gate
@@ -210,6 +214,7 @@ export function LandingPage() {
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
 
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px" }}>
+        {chapterBanner && <ChapterBanner name={chapterBanner} slug={chapterSlug} />}
         <Hero onTryFree={onTryFree} />
         <ExamPlayer exams={exams} school={school} onPick={pickSchool} pickerPulse={pickerPulse} focusSignal={focusSignal} schools={schoolsWithCodes} mapped={mapped} onSyllabus={() => setSyllabusOpen(true)} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => setNotListed(true)} theater={theater} onTheaterDone={() => setTheater(null)} />
         <TestimonialsSlider />
@@ -262,7 +267,7 @@ function SchoolTicker() {
 // ---- CAMPUS SELECTOR -------------------------------------------------------------------------
 // `schools` overrides the static list (so a code-enriched list from the dropdown payload can be
 // passed in). `pulse` bumps → a one-shot attention ring; with `openOnPulse` it also opens.
-function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openOnPulse, onNotListed }: { school: School | null; onPick: (s: School) => void; schools?: School[]; pulse?: number; openOnPulse?: boolean; onNotListed?: () => void }) {
+export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openOnPulse, onNotListed }: { school: School | null; onPick: (s: School) => void; schools?: School[]; pulse?: number; openOnPulse?: boolean; onNotListed?: () => void }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [ring, setRing] = useState(false);
@@ -980,12 +985,64 @@ function TestimonialsSlider() {
   );
 }
 
+// ---- CHAPTER BANNER + CLAIM (on /c/<slug> links) ---------------------------------------------
+// "Free Exam 1, courtesy of [Chapter]" + an optional claim (name + phone → member row). Never gates:
+// the player already works; claiming just registers the member so the chapter dashboard counts them.
+function ChapterBanner({ name, slug }: { name: string; slug?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-xl px-4 py-2 text-center text-[13px] font-bold" style={{ background: "rgba(252,163,17,0.12)", border: "1px solid rgba(252,163,17,0.4)", color: "var(--brand-cream)" }}>
+        <span>⚡ Free Exam 1, courtesy of {name}</span>
+        {slug && <button onClick={() => setOpen(true)} className="rounded-lg px-2.5 py-1 text-[12px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>Claim your free access →</button>}
+      </div>
+      {open && slug && <ClaimModal slug={slug} chapter={name} onClose={() => setOpen(false)} />}
+    </>
+  );
+}
+
+function ClaimModal({ slug, chapter, onClose }: { slug: string; chapter: string; onClose: () => void }) {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const ok = name.trim().length > 1 && phone.replace(/\D/g, "").length >= 10;
+  const submit = async () => {
+    if (!ok || busy) return;
+    setBusy(true);
+    try { await claimChapterAccess({ data: { slug, name: name.trim(), phone: phone.trim() } }); setDone(true); } catch { setBusy(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-[210] grid place-items-center p-4" style={{ background: "rgba(6,10,20,0.72)" }} onClick={onClose}>
+      <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", fontFamily: BRAND_SANS }} onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <h3 className="text-[17px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Claim your free Exam 1</h3>
+          <button onClick={onClose} className="grid h-7 w-7 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--brand-cream)" }} aria-label="Close"><X className="h-4 w-4" /></button>
+        </div>
+        {done ? (
+          <div className="py-4 text-center">
+            <p className="text-[14.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>You're in — courtesy of {chapter}. Enjoy Exam 1, free.</p>
+            <button onClick={onClose} className="mt-4 rounded-xl px-5 py-2.5 text-[13.5px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>Start studying ⚡</button>
+          </div>
+        ) : (
+          <>
+            <p className="mb-3 text-[12.5px]" style={{ color: "var(--text-muted)" }}>Just your name and mobile — no cost, no account.</p>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="mb-2 w-full rounded-xl px-4 py-2.5 text-[14px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }} />
+            <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="Mobile number" className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }} />
+            <button onClick={submit} disabled={!ok || busy} className="mt-4 w-full rounded-xl py-3 text-[15px] font-black transition-opacity disabled:opacity-40" style={{ background: "var(--accent)", color: "#0B1220" }}>{busy ? "…" : "Get free access"}</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ---- GREEK + FOOTER (bolt + text only, no illustration) --------------------------------------
 function GreekStrip() {
   return (
-    <section className="mx-auto mb-10 max-w-2xl rounded-xl px-5 py-4 text-center" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
-      <p className="text-[14px] font-bold" style={{ color: "var(--brand-cream)" }}>Chapters: Exam 1 is free for your whole house.</p>
-      <p className="mt-1 text-[13px]" style={{ color: "var(--text-muted)" }}>One link, every member. <a href={`sms:${TEL}`} style={{ color: "var(--accent)", fontWeight: 700 }}>Text me</a> and I'll set it up.</p>
+    <section className="mx-auto mb-10 flex max-w-2xl flex-col items-center gap-2.5 rounded-xl px-5 py-4 text-center" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
+      <p className="text-[14px] font-bold" style={{ color: "var(--brand-cream)" }}>Run a fraternity or sorority? Exam 1 is free for your whole chapter.</p>
+      <a href="/chapters" className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-[13px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>Set up your chapter →</a>
     </section>
   );
 }

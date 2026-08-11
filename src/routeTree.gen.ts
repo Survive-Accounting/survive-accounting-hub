@@ -24,6 +24,7 @@ import { Route as LearnRouteImport } from './routes/learn'
 import { Route as LandingRouteImport } from './routes/landing'
 import { Route as JeRouteImport } from './routes/je'
 import { Route as IntroOutroRouteImport } from './routes/intro-outro'
+import { Route as ChaptersRouteImport } from './routes/chapters'
 import { Route as CeqRouteImport } from './routes/ceq'
 import { Route as BeyondRouteImport } from './routes/beyond'
 import { Route as IndexRouteImport } from './routes/index'
@@ -53,7 +54,9 @@ import { Route as OutreachActiveRosterRouteImport } from './routes/outreach.acti
 import { Route as OrderShortRefRouteImport } from './routes/order.$shortRef'
 import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
 import { Route as JeSplatRouteImport } from './routes/je.$'
+import { Route as ChaptersDashboardRouteImport } from './routes/chapters_.dashboard'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
+import { Route as CSlugRouteImport } from './routes/c.$slug'
 import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.leadfinder.index'
 import { Route as StudyScenariosSlugRouteImport } from './routes/study_.scenarios.$slug'
 import { Route as OutreachSchoolSlugRouteImport } from './routes/outreach_.school.$slug'
@@ -140,6 +143,11 @@ const JeRoute = JeRouteImport.update({
 const IntroOutroRoute = IntroOutroRouteImport.update({
   id: '/intro-outro',
   path: '/intro-outro',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChaptersRoute = ChaptersRouteImport.update({
+  id: '/chapters',
+  path: '/chapters',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CeqRoute = CeqRouteImport.update({
@@ -290,10 +298,20 @@ const JeSplatRoute = JeSplatRouteImport.update({
   path: '/$',
   getParentRoute: () => JeRoute,
 } as any)
+const ChaptersDashboardRoute = ChaptersDashboardRouteImport.update({
+  id: '/chapters_/dashboard',
+  path: '/chapters/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CeqCreateRoute = CeqCreateRouteImport.update({
   id: '/create',
   path: '/create',
   getParentRoute: () => CeqRoute,
+} as any)
+const CSlugRoute = CSlugRouteImport.update({
+  id: '/c/$slug',
+  path: '/c/$slug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const OutreachLeadfinderIndexRoute = OutreachLeadfinderIndexRouteImport.update({
   id: '/leadfinder/',
@@ -364,6 +382,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/beyond': typeof BeyondRoute
   '/ceq': typeof CeqRouteWithChildren
+  '/chapters': typeof ChaptersRoute
   '/intro-outro': typeof IntroOutroRoute
   '/je': typeof JeRouteWithChildren
   '/landing': typeof LandingRoute
@@ -379,7 +398,9 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
   '/welcome': typeof WelcomeRoute
+  '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
+  '/chapters/dashboard': typeof ChaptersDashboardRoute
   '/je/$': typeof JeSplatRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/order/$shortRef': typeof OrderShortRefRoute
@@ -423,6 +444,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/beyond': typeof BeyondRoute
   '/ceq': typeof CeqRouteWithChildren
+  '/chapters': typeof ChaptersRoute
   '/intro-outro': typeof IntroOutroRoute
   '/je': typeof JeRouteWithChildren
   '/landing': typeof LandingRoute
@@ -437,7 +459,9 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
   '/welcome': typeof WelcomeRoute
+  '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
+  '/chapters/dashboard': typeof ChaptersDashboardRoute
   '/je/$': typeof JeSplatRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/order/$shortRef': typeof OrderShortRefRoute
@@ -482,6 +506,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/beyond': typeof BeyondRoute
   '/ceq': typeof CeqRouteWithChildren
+  '/chapters': typeof ChaptersRoute
   '/intro-outro': typeof IntroOutroRoute
   '/je': typeof JeRouteWithChildren
   '/landing': typeof LandingRoute
@@ -497,7 +522,9 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
   '/welcome': typeof WelcomeRoute
+  '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
+  '/chapters_/dashboard': typeof ChaptersDashboardRoute
   '/je/$': typeof JeSplatRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/order/$shortRef': typeof OrderShortRefRoute
@@ -543,6 +570,7 @@ export interface FileRouteTypes {
     | '/'
     | '/beyond'
     | '/ceq'
+    | '/chapters'
     | '/intro-outro'
     | '/je'
     | '/landing'
@@ -558,7 +586,9 @@ export interface FileRouteTypes {
     | '/terms'
     | '/thankyou'
     | '/welcome'
+    | '/c/$slug'
     | '/ceq/create'
+    | '/chapters/dashboard'
     | '/je/$'
     | '/o/$shortRef'
     | '/order/$shortRef'
@@ -602,6 +632,7 @@ export interface FileRouteTypes {
     | '/'
     | '/beyond'
     | '/ceq'
+    | '/chapters'
     | '/intro-outro'
     | '/je'
     | '/landing'
@@ -616,7 +647,9 @@ export interface FileRouteTypes {
     | '/terms'
     | '/thankyou'
     | '/welcome'
+    | '/c/$slug'
     | '/ceq/create'
+    | '/chapters/dashboard'
     | '/je/$'
     | '/o/$shortRef'
     | '/order/$shortRef'
@@ -660,6 +693,7 @@ export interface FileRouteTypes {
     | '/'
     | '/beyond'
     | '/ceq'
+    | '/chapters'
     | '/intro-outro'
     | '/je'
     | '/landing'
@@ -675,7 +709,9 @@ export interface FileRouteTypes {
     | '/terms'
     | '/thankyou'
     | '/welcome'
+    | '/c/$slug'
     | '/ceq/create'
+    | '/chapters_/dashboard'
     | '/je/$'
     | '/o/$shortRef'
     | '/order/$shortRef'
@@ -720,6 +756,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BeyondRoute: typeof BeyondRoute
   CeqRoute: typeof CeqRouteWithChildren
+  ChaptersRoute: typeof ChaptersRoute
   IntroOutroRoute: typeof IntroOutroRoute
   JeRoute: typeof JeRouteWithChildren
   LandingRoute: typeof LandingRoute
@@ -735,6 +772,8 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   ThankyouRoute: typeof ThankyouRoute
   WelcomeRoute: typeof WelcomeRoute
+  CSlugRoute: typeof CSlugRoute
+  ChaptersDashboardRoute: typeof ChaptersDashboardRoute
   OShortRefRoute: typeof OShortRefRoute
   StudyCanvasRoute: typeof StudyCanvasRoute
   StudyDashboardRoute: typeof StudyDashboardRoute
@@ -851,6 +890,13 @@ declare module '@tanstack/react-router' {
       path: '/intro-outro'
       fullPath: '/intro-outro'
       preLoaderRoute: typeof IntroOutroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chapters': {
+      id: '/chapters'
+      path: '/chapters'
+      fullPath: '/chapters'
+      preLoaderRoute: typeof ChaptersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ceq': {
@@ -1056,12 +1102,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof JeSplatRouteImport
       parentRoute: typeof JeRoute
     }
+    '/chapters_/dashboard': {
+      id: '/chapters_/dashboard'
+      path: '/chapters/dashboard'
+      fullPath: '/chapters/dashboard'
+      preLoaderRoute: typeof ChaptersDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/ceq/create': {
       id: '/ceq/create'
       path: '/create'
       fullPath: '/ceq/create'
       preLoaderRoute: typeof CeqCreateRouteImport
       parentRoute: typeof CeqRoute
+    }
+    '/c/$slug': {
+      id: '/c/$slug'
+      path: '/c/$slug'
+      fullPath: '/c/$slug'
+      preLoaderRoute: typeof CSlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/outreach/leadfinder/': {
       id: '/outreach/leadfinder/'
@@ -1248,6 +1308,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BeyondRoute: BeyondRoute,
   CeqRoute: CeqRouteWithChildren,
+  ChaptersRoute: ChaptersRoute,
   IntroOutroRoute: IntroOutroRoute,
   JeRoute: JeRouteWithChildren,
   LandingRoute: LandingRoute,
@@ -1263,6 +1324,8 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   ThankyouRoute: ThankyouRoute,
   WelcomeRoute: WelcomeRoute,
+  CSlugRoute: CSlugRoute,
+  ChaptersDashboardRoute: ChaptersDashboardRoute,
   OShortRefRoute: OShortRefRoute,
   StudyCanvasRoute: StudyCanvasRoute,
   StudyDashboardRoute: StudyDashboardRoute,
