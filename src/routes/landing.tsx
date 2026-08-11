@@ -9,7 +9,7 @@
 // 0105). No checkout exists yet — paid exams show topics + a mapping-gated line, not purchasable.
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type RefObject } from "react";
 import { ChevronDown, GraduationCap, MessageCircle, Search, X } from "lucide-react";
 
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
@@ -78,8 +78,9 @@ const STATIC_EXAM2 = ["Merchandising", "Inventory (FIFO / LIFO)", "Multi-step In
 const STATIC_EXAM3 = ["Long-Term Assets", "Current Liabilities", "Long-Term Liabilities", "Equity", "Statement of Cash Flows"];
 const STATIC_FINAL = ["Full Accounting Cycle", "Financial Statements", "Ratios & Analysis", "Comprehensive Problems"];
 
-// A resolved Exam topic: its display name/number + its live free set (if any).
-type ResolvedTopic = { key: string; name: string; num: number | null; set: StudentSet | null };
+// A resolved Exam topic: its display name/number + ALL its sets (the outline lists them; today one
+// set per topic, but the shape supports more). A topic with no sets is "coming" (poster).
+type ResolvedTopic = { key: string; name: string; num: number | null; sets: StudentSet[] };
 
 export function LandingPage() {
   const [school, setSchool] = useState<School | null>(null);
@@ -88,7 +89,10 @@ export function LandingPage() {
   // A single monotonic "pulse" the Try-Exam-1 CTA bumps: scrolls to the player and rings the gate
   // picker once (no loop). The gated CampusSelector reacts to the change; nothing else does.
   const [pickerPulse, setPickerPulse] = useState(0);
-  const onTryFree = () => { document.getElementById("exam1")?.scrollIntoView({ behavior: "smooth" }); setPickerPulse((p) => p + 1); };
+  // Try-Exam-1: scroll to the player, ring the gate picker (if no school), and bump focusSignal so
+  // the player opens the first topic + starts playback when a school IS already picked.
+  const [focusSignal, setFocusSignal] = useState(0);
+  const onTryFree = () => { document.getElementById("exam1")?.scrollIntoView({ behavior: "smooth" }); setPickerPulse((p) => p + 1); setFocusSignal((f) => f + 1); };
   const [syllabusOpen, setSyllabusOpen] = useState(false);
 
   const theme = useMemo(() => {
@@ -159,18 +163,22 @@ export function LandingPage() {
   // (every chapter, incl. Exam-2/3 topics like "Long Term Liabilities") whenever a map wasn't found,
   // which is exactly the bug. Live free sets still attach per chapter id via the student tree
   // (treeTopicById), so free content is never gated by mapping — only the LIST comes from the map.
-  const liveSetOf = (st: StudentTopic | undefined) => st?.sets.find((s) => s.access !== "paid" && s.playbackId) ?? null;
   const resolveExam = (num: number, statics: string[]): ResolvedTopic[] => {
     const m = mappedExams.find((e) => e.num === num);
     const ids = m ? m.chapterIds : defaultUnits.filter((u) => u.exam_number === num).map((u) => u.unit_id);
-    if (ids.length) return ids.map((cid) => { const nm = nameById.get(cid), ch = chapterById.get(cid), st = treeTopicById.get(cid); return { key: cid, name: nm?.name ?? ch?.name ?? st?.name ?? "Topic", num: nm?.number ?? ch?.number ?? st?.number ?? null, set: liveSetOf(st) }; });
-    return statics.map((n) => ({ key: n, name: n, num: null, set: null }));
+    if (ids.length) return ids.map((cid) => { const nm = nameById.get(cid), ch = chapterById.get(cid), st = treeTopicById.get(cid); return { key: cid, name: nm?.name ?? ch?.name ?? st?.name ?? "Topic", num: nm?.number ?? ch?.number ?? st?.number ?? null, sets: (st?.sets ?? []).filter((s) => s.access !== "paid") }; });
+    return statics.map((n) => ({ key: n, name: n, num: null, sets: [] }));
   };
   const exam1R = useMemo(() => resolveExam(1, STATIC_EXAM1), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
   const exam2R = useMemo(() => resolveExam(2, STATIC_EXAM2), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
   const exam3R = useMemo(() => resolveExam(3, STATIC_EXAM3), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
   const finalR = useMemo(() => resolveExam(99, STATIC_FINAL), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
-  const anyExam1Live = useMemo(() => exam1R.some((t) => !!t.set?.playbackId), [exam1R]);
+  const exams = useMemo<ExamTab[]>(() => [
+    { num: 1, label: "Exam 1", price: null, topics: exam1R },
+    { num: 2, label: "Exam 2", price: 50, topics: exam2R },
+    { num: 3, label: "Exam 3", price: 50, topics: exam3R },
+    { num: 99, label: "Final", price: 50, topics: finalR },
+  ], [exam1R, exam2R, exam3R, finalR]);
 
   const pickSchool = (s: School) => {
     const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -192,8 +200,8 @@ export function LandingPage() {
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
 
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px" }}>
-        <Hero school={school} onPick={pickSchool} livePromise={anyExam1Live} onTryFree={onTryFree} schools={schoolsWithCodes} />
-        <ExamSection exam1={exam1R} exam2={exam2R} exam3={exam3R} final={finalR} school={school} onPick={pickSchool} pickerPulse={pickerPulse} schools={schoolsWithCodes} mapped={mapped} onSyllabus={() => setSyllabusOpen(true)} />
+        <Hero onTryFree={onTryFree} />
+        <ExamPlayer exams={exams} school={school} onPick={pickSchool} pickerPulse={pickerPulse} focusSignal={focusSignal} schools={schoolsWithCodes} mapped={mapped} onSyllabus={() => setSyllabusOpen(true)} />
         <TestimonialsSlider />
         <LeeSection />
         <GreekStrip />
@@ -207,21 +215,20 @@ export function LandingPage() {
   );
 }
 
-// ---- HERO -------------------------------------------------------------------------------------
-function Hero({ school, onPick, livePromise, onTryFree, schools }: { school: School | null; onPick: (s: School) => void; livePromise: boolean; onTryFree: () => void; schools: School[] }) {
+// ---- HERO — wordmark, tagline, CTA, subhead, school ticker. No picker (the ONE picker lives in the
+// player gate); the marquee answers "is this for my school?", the gate converts it.
+function Hero({ onTryFree }: { onTryFree: () => void }) {
   return (
     <section className="flex flex-col items-center pt-16 pb-8 text-center sm:pt-24">
       <SurviveWordmark size={92} />
       <h1 className="mt-6 text-[26px] font-black sm:text-[34px]" style={{ letterSpacing: "-0.01em" }}>Only what's on your exam.</h1>
-      <p className="mt-4 max-w-xl text-[15px] leading-relaxed sm:text-[17px]" style={{ color: "var(--brand-cream)", opacity: 0.86 }}>
-        Get cram videos for Intro Financial Accounting — built for your school's exams.
-      </p>
-      <button onClick={onTryFree} className="mt-8 inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-[15.5px] font-black transition-transform hover:scale-[1.03]" style={{ background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.6)" }}>
+      <button onClick={onTryFree} className="mt-7 inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-[15.5px] font-black transition-transform hover:scale-[1.03]" style={{ background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.6)" }}>
         Try Exam 1 Free ⚡
       </button>
-      <div className="mt-6 w-full max-w-md"><CampusSelector school={school} onPick={onPick} schools={schools} /></div>
+      <p className="mt-5 max-w-xl text-[15px] leading-relaxed sm:text-[17px]" style={{ color: "var(--brand-cream)", opacity: 0.86 }}>
+        Get cram videos for Intro Financial Accounting — built for your school's exams.
+      </p>
       <SchoolTicker />
-      <p className="mt-6 text-[13.5px] font-semibold" style={{ color: "var(--accent)" }}>{livePromise ? "Exam 1 is free. Just press play and start studying." : "Exam 1 is free. First videos land this week."}</p>
     </section>
   );
 }
@@ -436,123 +443,192 @@ function Theater({ school, mode, onDone }: { school: School; mode: "full" | "sho
   );
 }
 
-// ---- EXAM SECTION: Exam-1 hero + player · muted 2/3/Final row · Semester bar ------------------
-function ExamSection({ exam1, exam2, exam3, final, school, onPick, pickerPulse, schools, mapped, onSyllabus }: { exam1: ResolvedTopic[]; exam2: ResolvedTopic[]; exam3: ResolvedTopic[]; final: ResolvedTopic[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; schools: School[]; mapped: boolean; onSyllabus: () => void }) {
-  const [paidOpen, setPaidOpen] = useState(false);
+// ---- EXAM PLAYER — ONE player, FOUR exam tabs (Exam 1 free · 2/3/Final paid). The left outline
+// lists each tab's topics → sets; the stage plays the selected free set or shows a poster. The ONLY
+// school picker lives in this player's blurred gate. Replaces the old Exam-1 hero + paid row/popup.
+type ExamTab = { num: number; label: string; price: number | null; topics: ResolvedTopic[] };
+const RELEASE_LABEL = "Opens soon"; // no release-date field in the data yet — placeholder for paid tabs
+type Sel = { topicKey: string; setId: string | null };
+const fmtRuntime = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
+
+function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, mapped, onSyllabus }: { exams: ExamTab[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; focusSignal: number; schools: School[]; mapped: boolean; onSyllabus: () => void }) {
+  const [activeNum, setActiveNum] = useState(1);
+  const [selById, setSelById] = useState<Record<number, Sel>>({});
+  const [openTopics, setOpenTopics] = useState<Set<string>>(() => new Set());
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const active = exams.find((e) => e.num === activeNum) ?? exams[0];
+  const isPaid = active.price != null;
+  const gated = !school;
+
+  // Default selection for a tab: first topic with a LIVE set → first topic with any set → first
+  // topic (poster) → null.
+  const firstLiveSel = (tab: ExamTab): Sel | null => {
+    for (const t of tab.topics) { const live = t.sets.find((s) => s.playbackId); if (live) return { topicKey: t.key, setId: live.id }; }
+    return null;
+  };
+  // Fresh default (NOT persisted): first live set → first topic with any set → first topic (poster).
+  // Recomputed each render so it always tracks the current topic order (the campus map loads async).
+  const defaultSel = (tab: ExamTab): Sel | null => {
+    const live = firstLiveSel(tab); if (live) return live;
+    for (const t of tab.topics) if (t.sets[0]) return { topicKey: t.key, setId: t.sets[0].id };
+    return tab.topics[0] ? { topicKey: tab.topics[0].key, setId: null } : null;
+  };
+  const cur: Sel | null = selById[active.num] ?? defaultSel(active);
+  const curTopic = cur ? active.topics.find((t) => t.key === cur.topicKey) ?? null : null;
+  const curSet = cur?.setId ? curTopic?.sets.find((s) => s.id === cur.setId) ?? null : null;
+
+  // On school pick / Try-Exam-1 (focusSignal): jump to Exam 1 and, ONLY if a live set exists,
+  // persist it (autoplay) + open its topic. Never persist a poster default — that would freeze a
+  // stale first topic before the campus map reorders; the fresh defaultSel handles display instead.
+  useEffect(() => {
+    if (!school) return;
+    setActiveNum(1);
+    const live = firstLiveSel(exams[0]);
+    if (live) { setSelById((p) => ({ ...p, 1: live })); setOpenTopics((p) => new Set(p).add(live.topicKey)); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [school?.id, focusSignal]);
+  // Keep the active selection's topic open when the tab changes.
+  useEffect(() => {
+    if (cur) setOpenTopics((p) => (p.has(cur.topicKey) ? p : new Set(p).add(cur.topicKey)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active.num]);
+
+  const pickSet = (topicKey: string, setId: string | null) => { setSelById((p) => ({ ...p, [active.num]: { topicKey, setId } })); setDrawerOpen(false); };
+  const toggleTopic = (k: string) => setOpenTopics((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+
   return (
     <section id="exam1" className="mb-8 scroll-mt-6">
-      <Exam1Hero topics={exam1} school={school} onPick={onPick} pickerPulse={pickerPulse} schools={schools} mapped={mapped} onSyllabus={onSyllabus} />
-      {/* One compact line replaces the three paid cards. Prices live ON the page (not hidden in the
-          popup); "See what's inside" opens a display-only preview of Exams 2/3/Final. */}
-      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 rounded-2xl px-5 py-3.5 text-center" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)" }}>
-        <span className="text-[13px]" style={{ color: "var(--text-muted)" }}>
-          Exams 2, 3 &amp; Final — <b style={{ color: "var(--brand-cream)" }}>$50 each</b> · Semester Pass <b style={{ color: "var(--accent)" }}>$150</b>
-        </span>
-        <button onClick={() => setPaidOpen(true)} className="text-[12.5px] font-bold" style={{ color: "var(--accent)" }}>See what's inside →</button>
+      <div className="overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(252,163,17,0.45)" }}>
+        <ExamTabs exams={exams} activeNum={activeNum} onSelect={(n) => { setActiveNum(n); setDrawerOpen(false); }} />
+
+        {/* mobile-only drawer toggle for the outline */}
+        <button onClick={() => setDrawerOpen((v) => !v)} className="flex w-full items-center justify-between border-b px-3 py-2 text-[12px] font-bold uppercase tracking-wide sm:hidden" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--brand-cream)", background: "rgba(0,0,0,0.2)" }}>
+          <span>Common Exam Questions</span><span style={{ color: "var(--accent)" }}>{drawerOpen ? "Hide ▴" : "Browse ▾"}</span>
+        </button>
+
+        <div className="sm:flex">
+          <div className={`${drawerOpen ? "block" : "hidden"} border-b sm:block sm:w-[42%] sm:max-w-[360px] sm:border-b-0 sm:border-r`} style={{ borderColor: "rgba(245,239,230,0.1)" }}>
+            <ExamOutline tab={active} isPaid={isPaid} curSetId={curSet?.id ?? null} curTopicKey={cur?.topicKey ?? null} openTopics={openTopics} onToggleTopic={toggleTopic} onPickSet={pickSet} />
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <div className="relative w-full" style={{ aspectRatio: "16 / 9", background: "#000" }}>
+              {gated ? (
+                <>
+                  <div className="absolute inset-0" style={{ filter: "blur(9px)", transform: "scale(1.06)", opacity: 0.65 }} aria-hidden><Poster school={null} topicName="Exam 1" queued={false} /></div>
+                  <div className="absolute inset-0 grid place-items-center px-5" style={{ background: "rgba(11,18,32,0.6)" }}>
+                    <div className="flex w-full max-w-sm flex-col items-center gap-3">
+                      <p className="text-center text-[16px] font-black sm:text-[18px]" style={{ color: "var(--brand-cream)" }}>Pick your school to start</p>
+                      <div className="w-full"><CampusSelector school={null} onPick={onPick} schools={schools} pulse={pickerPulse} openOnPulse /></div>
+                      <p className="text-center text-[12px]" style={{ color: "var(--text-muted)" }}>Exam 1 is free. No account required.</p>
+                    </div>
+                  </div>
+                </>
+              ) : curSet?.playbackId ? (
+                <HeroVideo key={curSet.playbackId} playbackId={curSet.playbackId} />
+              ) : (
+                <Poster school={school} topicName={curTopic?.name ?? active.label} queued={!isPaid && !!curTopic} />
+              )}
+            </div>
+
+            {/* Unmapped campus: Exam 1 still plays (default map); offer to tailor. Mapped → nothing. */}
+            {school && !mapped && (
+              <div className="border-t px-3 py-2 text-center" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
+                <button onClick={onSyllabus} className="text-[12px]" style={{ color: "var(--text-muted)" }}>
+                  Help me tailor this to your exact course — <span className="font-bold" style={{ color: "var(--accent)" }}>Send your syllabus</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-      {paidOpen && <PaidExamsModal exam2={exam2} exam3={exam3} final={final} onClose={() => setPaidOpen(false)} />}
+
+      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-2xl px-5 py-4" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)" }}>
+        <span className="text-[15px] font-black" style={{ color: "var(--brand-cream)" }}>Semester Pass</span>
+        <span className="text-[15px] font-black" style={{ color: "var(--accent)" }}>$150</span>
+        <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>— every exam, all semester</span>
+      </div>
     </section>
   );
 }
 
-function Exam1Hero({ topics, school, onPick, pickerPulse, schools, mapped, onSyllabus }: { topics: ResolvedTopic[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; schools: School[]; mapped: boolean; onSyllabus: () => void }) {
+function ExamTabs({ exams, activeNum, onSelect }: { exams: ExamTab[]; activeNum: number; onSelect: (n: number) => void }) {
   return (
-    <div className="overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(252,163,17,0.45)" }}>
-      <div className="flex items-baseline justify-between px-4 pt-3.5 pb-1">
-        <span className="text-[15px] font-black uppercase tracking-wide" style={{ color: "var(--brand-cream)" }}>⚡ Exam 1</span>
-        <span className="text-[11px] font-black uppercase tracking-wide" style={{ color: "var(--accent)" }}>Free</span>
-      </div>
-      <Exam1Player topics={topics} school={school} onPick={onPick} pickerPulse={pickerPulse} schools={schools} mapped={mapped} onSyllabus={onSyllabus} />
+    <div className="flex items-stretch" style={{ background: "rgba(0,0,0,0.22)" }}>
+      {exams.map((e) => {
+        const on = e.num === activeNum; const paid = e.price != null;
+        return (
+          <button key={e.num} onClick={() => onSelect(e.num)} className="flex-1 px-1 py-2.5 text-center transition-opacity" style={{ borderBottom: `2px solid ${on ? "var(--accent)" : "transparent"}`, opacity: on ? 1 : paid ? 0.5 : 0.8 }}>
+            <span className="block text-[11.5px] font-black uppercase tracking-wide" style={{ color: on ? "var(--accent)" : "var(--brand-cream)" }}>{e.label}</span>
+            <span className="block text-[9.5px] font-bold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>{paid ? `$${e.price}` : "Free"}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-const PLAYER_TABS = [["video", "Video"], ["questions", "Questions"], ["practice", "Practice"]] as const;
-type PlayerTab = (typeof PLAYER_TABS)[number][0];
-
-function Exam1Player({ topics, school, onPick, pickerPulse, schools, mapped, onSyllabus }: { topics: ResolvedTopic[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; schools: School[]; mapped: boolean; onSyllabus: () => void }) {
-  const [idx, setIdx] = useState(0);
-  const [tab, setTab] = useState<PlayerTab>("video");
-  const [menu, setMenu] = useState(false);
-  const gated = !school;
-  // On school pick, land on the FIRST live Exam-1 topic (autoplays); if none is live yet, land on
-  // the first topic's poster — never a blank frame. Keyed on the school id so it runs once per pick.
-  useEffect(() => {
-    if (!school) return;
-    const firstLive = topics.findIndex((t) => !!t.set?.playbackId);
-    setIdx(firstLive >= 0 ? firstLive : 0);
-    setTab("video");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [school?.id]);
-  const safeIdx = Math.min(idx, Math.max(0, topics.length - 1));
-  const cur = topics[safeIdx] ?? null;
-  const step = (d: -1 | 1) => { setMenu(false); setIdx(() => Math.max(0, Math.min(topics.length - 1, safeIdx + d))); };
+function ExamOutline({ tab, isPaid, curSetId, curTopicKey, openTopics, onToggleTopic, onPickSet }: { tab: ExamTab; isPaid: boolean; curSetId: string | null; curTopicKey: string | null; openTopics: Set<string>; onToggleTopic: (k: string) => void; onPickSet: (topicKey: string, setId: string | null) => void }) {
+  const activeRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => { activeRef.current?.scrollIntoView({ block: "nearest" }); }, [curSetId, curTopicKey]);
   return (
-    <div>
-      {/* TOPIC STRIP */}
-      <div className="relative flex items-center gap-2 border-y px-3 py-2" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.2)" }}>
-        <button onClick={() => step(-1)} disabled={safeIdx <= 0} className="grid h-6 w-6 place-items-center rounded text-[16px] disabled:opacity-30" style={{ color: "var(--brand-cream)" }} title="Previous topic">‹</button>
-        <div className="min-w-0 flex-1 text-center">
-          <span className="text-[13.5px] font-bold" style={{ color: "var(--brand-cream)" }}>{cur?.name ?? "—"}</span>
-          {cur && !cur.set && <span className="ml-2 text-[10.5px]" style={{ color: "var(--text-muted)" }}>(coming)</span>}
-        </div>
-        <button onClick={() => step(1)} disabled={safeIdx >= topics.length - 1} className="grid h-6 w-6 place-items-center rounded text-[16px] disabled:opacity-30" style={{ color: "var(--brand-cream)" }} title="Next topic">›</button>
-        <button onClick={() => setMenu((v) => !v)} className="grid h-6 w-6 place-items-center rounded hover:bg-white/10" style={{ color: "var(--accent)" }} title="All Exam 1 topics"><ChevronDown className="h-4 w-4" /></button>
-        {menu && (
-          <div className="absolute right-2 top-full z-20 mt-1 max-h-64 w-64 overflow-y-auto rounded-lg" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 20px 50px -16px rgba(0,0,0,0.85)" }}>
-            {topics.map((t, i) => (
-              <button key={t.key} onClick={() => { setIdx(i); setMenu(false); setTab("video"); }} className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12.5px] hover:bg-white/5" style={{ opacity: t.set ? 1 : 0.55, color: i === safeIdx ? "var(--accent)" : "var(--brand-cream)" }}>
-                <span className="min-w-0 flex-1 truncate">{t.name}</span>
-                {!t.set && <span className="shrink-0 text-[10px]" style={{ color: "var(--text-muted)" }}>coming</span>}
-              </button>
-            ))}
-          </div>
-        )}
+    <div className="max-h-[300px] overflow-y-auto p-3 sm:max-h-[380px]">
+      <div className="mb-2 flex items-center justify-between px-1">
+        <span className="text-[11px] font-black uppercase tracking-wide" style={{ color: "var(--brand-cream)" }}>Common Exam Questions</span>
+        {isPaid && <span className="text-[10px] font-bold" style={{ color: "var(--accent)" }}>{RELEASE_LABEL}</span>}
       </div>
+      {tab.topics.map((t) => (
+        <TopicRow key={t.key} topic={t} isPaid={isPaid} price={tab.price} open={openTopics.has(t.key)} onToggle={() => onToggleTopic(t.key)} curSetId={curSetId} curTopicKey={curTopicKey} activeRef={activeRef} onPickSet={onPickSet} />
+      ))}
+    </div>
+  );
+}
 
-      {/* MAIN AREA (16:9) — active tab content. Until a school is picked the poster shows BLURRED
-          under a centered "pick your school to start" gate; selecting a school unblurs + autoplays. */}
-      <div className="relative w-full" style={{ aspectRatio: "16 / 9", background: "#000" }}>
-        {gated ? (
-          <>
-            <div className="absolute inset-0" style={{ filter: "blur(9px)", transform: "scale(1.06)", opacity: 0.65 }} aria-hidden>
-              <Poster school={null} topicName="Exam 1" queued={false} />
-            </div>
-            <div className="absolute inset-0 grid place-items-center px-5" style={{ background: "rgba(11,18,32,0.6)" }}>
-              <div className="flex w-full max-w-sm flex-col items-center gap-3">
-                <p className="text-center text-[16px] font-black sm:text-[18px]" style={{ color: "var(--brand-cream)" }}>Pick your school to start</p>
-                <div className="w-full"><CampusSelector school={null} onPick={onPick} schools={schools} pulse={pickerPulse} openOnPulse /></div>
-                <p className="text-center text-[12px]" style={{ color: "var(--text-muted)" }}>Exam 1 is free. No account required.</p>
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            {tab === "video" && (cur?.set?.playbackId
-              ? <HeroVideo key={cur.set.playbackId} playbackId={cur.set.playbackId} />
-              : <Poster school={school} topicName={cur?.name ?? "Exam 1"} queued={!!cur} />)}
-            {tab === "questions" && <PlayerPlaceholder text="Practice questions land with the video." />}
-            {tab === "practice" && <PlayerPlaceholder text="Interactive practice coming." />}
-          </>
-        )}
-      </div>
-
-      {/* TABS */}
-      <div className="flex items-stretch border-t" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
-        {PLAYER_TABS.map(([k, label]) => (
-          <button key={k} onClick={() => setTab(k)} className="flex-1 py-2.5 text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: tab === k ? "var(--accent)" : "var(--text-muted)", borderBottom: `2px solid ${tab === k ? "var(--accent)" : "transparent"}` }}>{label}</button>
-        ))}
-      </div>
-
-      {/* Unmapped campus: Exam 1 still plays (default map), but offer to tailor it. Mapped → nothing. */}
-      {school && !mapped && (
-        <div className="border-t px-3 py-2 text-center" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
-          <button onClick={onSyllabus} className="text-[12px]" style={{ color: "var(--text-muted)" }}>
-            Help me tailor this to your exact course — <span className="font-bold" style={{ color: "var(--accent)" }}>Send your syllabus</span>
-          </button>
+function TopicRow({ topic, isPaid, price, open, onToggle, curSetId, curTopicKey, activeRef, onPickSet }: { topic: ResolvedTopic; isPaid: boolean; price: number | null; open: boolean; onToggle: () => void; curSetId: string | null; curTopicKey: string | null; activeRef: RefObject<HTMLButtonElement | null>; onPickSet: (topicKey: string, setId: string | null) => void }) {
+  const built = topic.sets.length > 0;
+  const totalCeq = topic.sets.reduce((a, s) => a + s.ceqCount, 0);
+  const posterActive = curTopicKey === topic.key && !curSetId;
+  if (!built) {
+    // Unbuilt topic — muted, "(coming)", selectable → poster state.
+    return (
+      <button ref={posterActive ? activeRef : undefined} onClick={() => onPickSet(topic.key, null)} className="mb-0.5 flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left hover:bg-white/5" style={{ opacity: 0.55, background: posterActive ? "rgba(252,163,17,0.12)" : "transparent" }}>
+        <span className="h-3.5 w-3.5 shrink-0" />
+        <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: posterActive ? "var(--accent)" : "var(--brand-cream)" }}>{topic.name}</span>
+        <span className="shrink-0 text-[11px]" style={{ color: "var(--text-muted)" }}>coming</span>
+      </button>
+    );
+  }
+  return (
+    <div className="mb-1">
+      <button onClick={onToggle} className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left hover:bg-white/5">
+        <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "" : "-rotate-90"}`} style={{ color: "var(--text-muted)" }} />
+        <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>{topic.name}</span>
+        <span className="shrink-0 text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }}>{totalCeq} question{totalCeq === 1 ? "" : "s"}</span>
+      </button>
+      {open && (
+        <div className="ml-5 mt-0.5 space-y-0.5">
+          {topic.sets.map((s) => <SetRow key={s.id} set={s} isPaid={isPaid} price={price} active={s.id === curSetId} activeRef={activeRef} onPick={() => onPickSet(topic.key, s.id)} />)}
         </div>
       )}
     </div>
+  );
+}
+
+// The set row is the product shelf: name written like a menu item + "N CEQs" (+ runtime when known).
+function SetRow({ set, isPaid, price, active, activeRef, onPick }: { set: StudentSet; isPaid: boolean; price: number | null; active: boolean; activeRef: RefObject<HTMLButtonElement | null>; onPick: () => void }) {
+  const [tip, setTip] = useState(false);
+  const live = !!set.playbackId;
+  const meta = `${set.ceqCount} CEQ${set.ceqCount === 1 ? "" : "s"}${set.runtimeSec ? ` · ${fmtRuntime(set.runtimeSec)}` : ""}`;
+  const onClick = () => { if (isPaid) { setTip(true); window.setTimeout(() => setTip(false), 1800); return; } onPick(); };
+  return (
+    <button ref={active ? activeRef : undefined} onClick={onClick} className="relative flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/5" style={{ background: active ? "rgba(252,163,17,0.12)" : "transparent", opacity: isPaid ? 0.6 : live ? 1 : 0.7 }}>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[12.5px] font-semibold" style={{ color: active ? "var(--accent)" : "var(--brand-cream)" }}>{set.name}</span>
+        <span className="block text-[10.5px]" style={{ color: "var(--text-muted)" }}>{meta}{!live && !isPaid ? " · coming" : ""}</span>
+      </span>
+      {live && !isPaid && <span className="shrink-0 text-[11px]" style={{ color: "var(--accent)" }}>▶</span>}
+      {isPaid && tip && <span className="absolute right-2 top-full z-20 mt-1 whitespace-nowrap rounded px-2 py-1 text-[10.5px] font-bold" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.2)", color: "var(--brand-cream)" }}>Opens soon — ${price}</span>}
+    </button>
   );
 }
 
@@ -581,55 +657,6 @@ function Poster({ school, topicName, queued }: { school: School | null; topicNam
         <span className="inline-block h-16 w-11"><Bolt c1={c.c1} c2={c.c2} /></span>
         <span className="rounded-full px-3 py-1 text-[12px] font-bold uppercase tracking-wide" style={{ background: "var(--accent)", color: "#0B1220" }}>{topicName}</span>
         {queued && <a href="/order" className="text-[12.5px] font-semibold" style={{ color: "var(--brand-cream)", opacity: 0.9 }}>This one's queued — want it sooner? <span style={{ color: "var(--accent)" }}>Tell me →</span></a>}
-      </div>
-    </div>
-  );
-}
-
-function PlayerPlaceholder({ text }: { text: string }) {
-  return <div className="grid h-full w-full place-items-center px-6 text-center text-[13px]" style={{ background: "var(--brand-navy)", color: "var(--text-muted)" }}>{text}</div>;
-}
-
-// Preview popup for the paid exams (display-only — no checkout in this pass). Three columns with a
-// topic list + a loose release window + price each, and a Semester Pass bar with the credit line.
-// NOTE: there is no release-window field in the data yet, so RELEASE is a hardcoded placeholder Lee
-// can edit here; wire it to a real column when one exists.
-const RELEASE: Record<string, string> = { "Exam 2": "Coming soon", "Exam 3": "Coming soon", Final: "Coming soon" };
-function PaidExamsModal({ exam2, exam3, final, onClose }: { exam2: ResolvedTopic[]; exam3: ResolvedTopic[]; final: ResolvedTopic[]; onClose: () => void }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  const cols: [string, ResolvedTopic[]][] = [["Exam 2", exam2], ["Exam 3", exam3], ["Final", final]];
-  return (
-    <div className="fixed inset-0 z-[210] grid place-items-center p-4" style={{ background: "rgba(6,10,20,0.72)" }} onClick={onClose}>
-      <div className="w-full max-w-3xl rounded-2xl p-6" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 40px 90px -30px rgba(0,0,0,0.9)", fontFamily: BRAND_SANS }} onClick={(e) => e.stopPropagation()}>
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <h3 className="text-[18px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>What's inside Exams 2, 3 &amp; Final</h3>
-          <button onClick={onClose} className="grid h-7 w-7 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--brand-cream)" }} aria-label="Close"><X className="h-4 w-4" /></button>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          {cols.map(([title, topics]) => (
-            <div key={title} className="flex flex-col rounded-xl p-4" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
-              <div className="flex items-baseline justify-between">
-                <span className="text-[13px] font-black uppercase tracking-wide" style={{ color: "var(--brand-cream)" }}>{title}</span>
-                <span className="text-[13px] font-black" style={{ color: "var(--accent)" }}>$50</span>
-              </div>
-              <span className="mt-0.5 text-[11px]" style={{ color: "var(--text-muted)" }}>{RELEASE[title] ?? "Coming soon"}</span>
-              <ul className="mt-3 space-y-1">
-                {topics.map((t) => <li key={t.key} className="text-[12.5px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>· {t.name}</li>)}
-              </ul>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-xl px-5 py-3.5 text-center" style={{ background: "rgba(252,163,17,0.08)", border: "1px solid rgba(252,163,17,0.3)" }}>
-          <span className="text-[15px] font-black" style={{ color: "var(--brand-cream)" }}>Semester Pass</span>
-          <span className="text-[15px] font-black" style={{ color: "var(--accent)" }}>$150</span>
-          <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>— every exam, all semester ($150 minus whatever you've already spent)</span>
-        </div>
       </div>
     </div>
   );

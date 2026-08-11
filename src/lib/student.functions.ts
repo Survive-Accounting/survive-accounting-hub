@@ -15,6 +15,8 @@ export interface StudentSet {
   access: "free" | "paid";
   orientation: "landscape" | "portrait"; // 16:9 lesson vs 9:16 lookback — player switches aspect
   playbackId: string | null; // null = live set with no published video yet ("coming soon")
+  ceqCount: number; // # of CEQ question cards in the set (the "12 CEQs" enticement on the outline row)
+  runtimeSec: number | null; // set runtime in seconds when known — null today (no duration source wired yet)
 }
 export interface StudentTopic { id: string; name: string; shortLabel: string | null; number: number | null; sets: StudentSet[] }
 export interface StudentUnit { id: string; name: string; topics: StudentTopic[] }
@@ -37,8 +39,12 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
   const { data: scenes, error: sErr } = await admin.from("canvas_scenes").select("nodes_json");
   if (sErr) throw new Error(sErr.message);
   const live: RawDeck[] = [];
-  for (const s of (scenes ?? []) as { nodes_json?: { decks?: RawDeck[] } }[]) {
+  // CEQ count per deck: a set's question count = nodes of type "ceq" whose data.deckId is the deck
+  // (the same membership the Studio uses). Powers the "N CEQs" enticement on each outline set row.
+  const ceqCountByDeck = new Map<string, number>();
+  for (const s of (scenes ?? []) as { nodes_json?: { decks?: RawDeck[]; nodes?: { type?: string; data?: { deckId?: string } }[] } }[]) {
     for (const d of s.nodes_json?.decks ?? []) if (d.status === "live" && d.payloadType === "cards") live.push(d);
+    for (const n of s.nodes_json?.nodes ?? []) { const did = n?.type === "ceq" ? n.data?.deckId : undefined; if (did) ceqCountByDeck.set(did, (ceqCountByDeck.get(did) ?? 0) + 1); }
   }
   if (!live.length) return [];
 
@@ -84,7 +90,7 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
     // WITHHOLD the playback id for PAID sets (#Prompt 4) — the tree never carries a locked
     // video's id. The client fetches it via getSetPlayback, which re-checks the entitlement.
     const paid = d.access === "paid";
-    topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: "landscape", playbackId: paid ? null : ((d.lessonId && pb.get(d.lessonId)) || null) });
+    topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: "landscape", playbackId: paid ? null : ((d.lessonId && pb.get(d.lessonId)) || null), ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: null });
   }
 
   const ordered = [...courses.values()].sort((a, b) => courseRank(a.name) - courseRank(b.name) || a.name.localeCompare(b.name));
