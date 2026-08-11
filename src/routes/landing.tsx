@@ -15,6 +15,7 @@ import { ChevronDown, GraduationCap, MessageCircle, Plus, Search, X } from "luci
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
 import { listCampusExams } from "@/lib/campus-exams.functions";
 import { getChapterNames, listCampusIntroCodes, listDefaultExamUnits } from "@/lib/default-map.functions";
+import { submitSyllabus } from "@/lib/syllabus.functions";
 import { fetchCourseOptions } from "@/lib/je-api";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
@@ -88,6 +89,7 @@ export function LandingPage() {
   // picker once (no loop). The gated CampusSelector reacts to the change; nothing else does.
   const [pickerPulse, setPickerPulse] = useState(0);
   const onTryFree = () => { document.getElementById("exam1")?.scrollIntoView({ behavior: "smooth" }); setPickerPulse((p) => p + 1); };
+  const [syllabusOpen, setSyllabusOpen] = useState(false);
 
   const theme = useMemo(() => {
     if (!school) return DEFAULT_FRAME_THEME;
@@ -191,8 +193,7 @@ export function LandingPage() {
 
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px" }}>
         <Hero school={school} onPick={pickSchool} livePromise={anyExam1Live} onTryFree={onTryFree} schools={schoolsWithCodes} />
-        {school && <StatusStrip school={school} mapped={mapped} />}
-        <ExamSection exam1={exam1R} exam2={exam2R} exam3={exam3R} final={finalR} school={school} onPick={pickSchool} pickerPulse={pickerPulse} schools={schoolsWithCodes} />
+        <ExamSection exam1={exam1R} exam2={exam2R} exam3={exam3R} final={finalR} school={school} onPick={pickSchool} pickerPulse={pickerPulse} schools={schoolsWithCodes} mapped={mapped} onSyllabus={() => setSyllabusOpen(true)} />
         <TestimonialsSlider />
         <LeeSection />
         <GreekStrip />
@@ -200,6 +201,7 @@ export function LandingPage() {
       </main>
 
       {theater && <Theater school={theater.school} mode={theater.mode} onDone={() => setTheater(null)} />}
+      {syllabusOpen && <SyllabusModal school={school} onClose={() => setSyllabusOpen(false)} />}
       <FloatingPill />
     </div>
   );
@@ -299,20 +301,109 @@ function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openOnPulse 
   );
 }
 
-// ---- CAMPUS STATUS STRIP (directly under the selector) ---------------------------------------
-function StatusStrip({ school, mapped }: { school: School; mapped: boolean }) {
-  if (mapped) {
-    const code = school.codeVerified && school.code ? `${school.code}, ` : "";
-    return (
-      <div className="mx-auto mb-6 max-w-3xl rounded-xl px-4 py-2.5 text-center text-[13px] font-semibold" style={{ background: "rgba(59,245,160,0.10)", border: "1px solid rgba(59,245,160,0.3)", color: "#8DF5C4" }}>
-        Your course is mapped — {code}exams organized below.
-      </div>
-    );
-  }
+// ---- SYLLABUS MODAL — drag/drop file(s) + email → Supabase (bucket + table). Two inputs, no
+// redirect. All "Send your syllabus" CTAs open this. Files post as base64 to the submitSyllabus fn.
+type PendingFile = { name: string; type: string; dataUrl: string; size: number };
+const ACCEPT = ".pdf,.doc,.docx,image/*";
+function SyllabusModal({ school, onClose }: { school: School | null; onClose: () => void }) {
+  const [files, setFiles] = useState<PendingFile[]>([]);
+  const [email, setEmail] = useState("");
+  const [drag, setDrag] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const readFile = (f: File) => new Promise<PendingFile>((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res({ name: f.name, type: f.type, dataUrl: String(r.result), size: f.size });
+    r.onerror = () => rej(new Error("Couldn't read that file."));
+    r.readAsDataURL(f);
+  });
+  const addFiles = async (list: FileList | null) => {
+    if (!list?.length) return;
+    setErr(null);
+    try {
+      const read = await Promise.all([...list].slice(0, 5).map(readFile));
+      setFiles((cur) => [...cur, ...read].slice(0, 5));
+    } catch (e) { setErr(e instanceof Error ? e.message : "Couldn't read that file."); }
+  };
+  const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
+  const canSend = emailOk && files.length > 0 && !busy;
+
+  const send = async () => {
+    if (!canSend) return;
+    setBusy(true); setErr(null);
+    try {
+      await submitSyllabus({ data: { email: email.trim(), campusId: school?.campusId ?? null, campusName: school?.name ?? null, files: files.map((f) => ({ name: f.name, type: f.type, dataUrl: f.dataUrl })) } });
+      setDone(true);
+    } catch (e) { setErr(e instanceof Error ? e.message : "Something went wrong — try again."); }
+    finally { setBusy(false); }
+  };
+
   return (
-    <div className="mx-auto mb-6 flex max-w-3xl flex-wrap items-center justify-center gap-x-2 gap-y-1.5 rounded-xl px-4 py-2.5 text-center text-[13px]" style={{ background: "rgba(252,163,17,0.08)", border: "1px solid rgba(252,163,17,0.32)", color: "var(--brand-cream)" }}>
-      <span>Paid exams open once your course is mapped. Exam 1 stays free.</span>
-      <a href="/order" className="rounded-lg px-3 py-1 text-[12.5px] font-bold" style={{ background: "var(--accent)", color: "#0B1220" }}>Send my syllabus</a>
+    <div className="fixed inset-0 z-[210] grid place-items-center p-4" style={{ background: "rgba(6,10,20,0.72)" }} onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl p-6" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 40px 90px -30px rgba(0,0,0,0.9)", fontFamily: BRAND_SANS }} onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <h3 className="text-[18px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Send your syllabus</h3>
+          <button onClick={onClose} className="grid h-7 w-7 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--brand-cream)" }} aria-label="Close"><X className="h-4 w-4" /></button>
+        </div>
+
+        {done ? (
+          <div className="py-6 text-center">
+            <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full text-[24px]" style={{ background: "rgba(59,245,160,0.14)" }}>⚡</div>
+            <p className="text-[15px] font-semibold" style={{ color: "var(--brand-cream)" }}>Got it. I'll be in touch soon with your tailored materials.</p>
+            <button onClick={onClose} className="mt-5 rounded-xl px-5 py-2.5 text-[13.5px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>Done</button>
+          </div>
+        ) : (
+          <>
+            <p className="mb-3 text-[13px]" style={{ color: "var(--text-muted)" }}>Drop your syllabus or study guide and I'll tailor the exams to your exact course.</p>
+
+            <div
+              onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+              onDragLeave={() => setDrag(false)}
+              onDrop={(e) => { e.preventDefault(); setDrag(false); void addFiles(e.dataTransfer.files); }}
+              onClick={() => inputRef.current?.click()}
+              className="cursor-pointer rounded-xl px-4 py-6 text-center transition-colors"
+              style={{ border: `2px dashed ${drag ? "var(--accent)" : "rgba(245,239,230,0.25)"}`, background: drag ? "rgba(252,163,17,0.08)" : "rgba(245,239,230,0.03)" }}
+            >
+              <p className="text-[13.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>Drag files here, or click to browse</p>
+              <p className="mt-1 text-[11.5px]" style={{ color: "var(--text-muted)" }}>Syllabus or study guide · PDF, Word, or a photo</p>
+              <input ref={inputRef} type="file" multiple accept={ACCEPT} className="hidden" onChange={(e) => void addFiles(e.target.files)} />
+            </div>
+
+            {files.length > 0 && (
+              <ul className="mt-3 space-y-1.5">
+                {files.map((f, i) => (
+                  <li key={`${f.name}-${i}`} className="flex items-center gap-2 rounded-lg px-3 py-2 text-[12.5px]" style={{ background: "rgba(245,239,230,0.05)", color: "var(--brand-cream)" }}>
+                    <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                    <span className="shrink-0 text-[11px]" style={{ color: "var(--text-muted)" }}>{(f.size / 1024 / 1024).toFixed(1)}MB</span>
+                    <button onClick={() => setFiles((cur) => cur.filter((_, j) => j !== i))} className="grid h-5 w-5 shrink-0 place-items-center rounded-full hover:bg-white/10" aria-label={`Remove ${f.name}`}><X className="h-3 w-3" /></button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <input
+              type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com"
+              className="mt-3 w-full rounded-xl px-4 py-3 text-[14px] outline-none"
+              style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }}
+            />
+
+            {err && <p className="mt-2 text-[12.5px]" style={{ color: "#F3C6CC" }}>{err}</p>}
+
+            <button onClick={send} disabled={!canSend} className="mt-4 w-full rounded-xl py-3 text-[15px] font-black transition-opacity disabled:opacity-40" style={{ background: "var(--accent)", color: "#0B1220" }}>
+              {busy ? "Sending…" : "Send it"}
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -346,12 +437,12 @@ function Theater({ school, mode, onDone }: { school: School; mode: "full" | "sho
 }
 
 // ---- EXAM SECTION: Exam-1 hero + player · muted 2/3/Final row · Semester bar ------------------
-function ExamSection({ exam1, exam2, exam3, final, school, onPick, pickerPulse, schools }: { exam1: ResolvedTopic[]; exam2: ResolvedTopic[]; exam3: ResolvedTopic[]; final: ResolvedTopic[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; schools: School[] }) {
+function ExamSection({ exam1, exam2, exam3, final, school, onPick, pickerPulse, schools, mapped, onSyllabus }: { exam1: ResolvedTopic[]; exam2: ResolvedTopic[]; exam3: ResolvedTopic[]; final: ResolvedTopic[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; schools: School[]; mapped: boolean; onSyllabus: () => void }) {
   const [openMuted, setOpenMuted] = useState<number | null>(null);
   const muted: [string, ResolvedTopic[]][] = [["Exam 2", exam2], ["Exam 3", exam3], ["Final", final]];
   return (
     <section id="exam1" className="mb-8 scroll-mt-6">
-      <Exam1Hero topics={exam1} school={school} onPick={onPick} pickerPulse={pickerPulse} schools={schools} />
+      <Exam1Hero topics={exam1} school={school} onPick={onPick} pickerPulse={pickerPulse} schools={schools} mapped={mapped} onSyllabus={onSyllabus} />
       {/* muted paid row — three small cards in one row (mobile too); [+] expands in place */}
       <div className="mt-4 grid grid-cols-3 gap-2.5 sm:gap-3">
         {muted.map(([title, tp], i) => <MutedExamCard key={title} title={title} topics={tp} expanded={openMuted === i} onToggle={() => setOpenMuted((cur) => (cur === i ? null : i))} />)}
@@ -365,14 +456,14 @@ function ExamSection({ exam1, exam2, exam3, final, school, onPick, pickerPulse, 
   );
 }
 
-function Exam1Hero({ topics, school, onPick, pickerPulse, schools }: { topics: ResolvedTopic[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; schools: School[] }) {
+function Exam1Hero({ topics, school, onPick, pickerPulse, schools, mapped, onSyllabus }: { topics: ResolvedTopic[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; schools: School[]; mapped: boolean; onSyllabus: () => void }) {
   return (
     <div className="overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(252,163,17,0.45)" }}>
       <div className="flex items-baseline justify-between px-4 pt-3.5 pb-1">
         <span className="text-[15px] font-black uppercase tracking-wide" style={{ color: "var(--brand-cream)" }}>⚡ Exam 1</span>
         <span className="text-[11px] font-black uppercase tracking-wide" style={{ color: "var(--accent)" }}>Free</span>
       </div>
-      <Exam1Player topics={topics} school={school} onPick={onPick} pickerPulse={pickerPulse} schools={schools} />
+      <Exam1Player topics={topics} school={school} onPick={onPick} pickerPulse={pickerPulse} schools={schools} mapped={mapped} onSyllabus={onSyllabus} />
     </div>
   );
 }
@@ -380,7 +471,7 @@ function Exam1Hero({ topics, school, onPick, pickerPulse, schools }: { topics: R
 const PLAYER_TABS = [["video", "Video"], ["questions", "Questions"], ["practice", "Practice"]] as const;
 type PlayerTab = (typeof PLAYER_TABS)[number][0];
 
-function Exam1Player({ topics, school, onPick, pickerPulse, schools }: { topics: ResolvedTopic[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; schools: School[] }) {
+function Exam1Player({ topics, school, onPick, pickerPulse, schools, mapped, onSyllabus }: { topics: ResolvedTopic[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; schools: School[]; mapped: boolean; onSyllabus: () => void }) {
   const [idx, setIdx] = useState(0);
   const [tab, setTab] = useState<PlayerTab>("video");
   const [menu, setMenu] = useState(false);
@@ -453,6 +544,15 @@ function Exam1Player({ topics, school, onPick, pickerPulse, schools }: { topics:
           <button key={k} onClick={() => setTab(k)} className="flex-1 py-2.5 text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: tab === k ? "var(--accent)" : "var(--text-muted)", borderBottom: `2px solid ${tab === k ? "var(--accent)" : "transparent"}` }}>{label}</button>
         ))}
       </div>
+
+      {/* Unmapped campus: Exam 1 still plays (default map), but offer to tailor it. Mapped → nothing. */}
+      {school && !mapped && (
+        <div className="border-t px-3 py-2 text-center" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
+          <button onClick={onSyllabus} className="text-[12px]" style={{ color: "var(--text-muted)" }}>
+            Help me tailor this to your exact course — <span className="font-bold" style={{ color: "var(--accent)" }}>Send your syllabus</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
