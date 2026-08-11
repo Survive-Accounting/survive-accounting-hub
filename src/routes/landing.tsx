@@ -358,19 +358,19 @@ function SyllabusModal({ school, onClose }: { school: School | null; onClose: ()
     <div className="fixed inset-0 z-[210] grid place-items-center p-4" style={{ background: "rgba(6,10,20,0.72)" }} onClick={onClose}>
       <div className="w-full max-w-md rounded-2xl p-6" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 40px 90px -30px rgba(0,0,0,0.9)", fontFamily: BRAND_SANS }} onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-start justify-between gap-3">
-          <h3 className="text-[18px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Send your syllabus</h3>
+          <h3 className="text-[18px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Send everything you've got.</h3>
           <button onClick={onClose} className="grid h-7 w-7 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--brand-cream)" }} aria-label="Close"><X className="h-4 w-4" /></button>
         </div>
 
         {done ? (
           <div className="py-6 text-center">
             <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full text-[24px]" style={{ background: "rgba(59,245,160,0.14)" }}>⚡</div>
-            <p className="text-[15px] font-semibold" style={{ color: "var(--brand-cream)" }}>Got it. I'll be in touch soon with your tailored materials.</p>
+            <p className="text-[15px] font-semibold" style={{ color: "var(--brand-cream)" }}>Got it. You'll hear from me soon — Lee.</p>
             <button onClick={onClose} className="mt-5 rounded-xl px-5 py-2.5 text-[13.5px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>Done</button>
           </div>
         ) : (
           <>
-            <p className="mb-3 text-[13px]" style={{ color: "var(--text-muted)" }}>Drop your syllabus or study guide and I'll tailor the exams to your exact course.</p>
+            <p className="mb-3 text-[13px] leading-relaxed" style={{ color: "var(--text-muted)" }}>Syllabus, study guides, old homework, notes — the more you send, the tighter I can match your exam. I review every submission myself.</p>
 
             <div
               onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
@@ -451,6 +451,26 @@ const RELEASE_LABEL = "Opens soon"; // no release-date field in the data yet —
 type Sel = { topicKey: string; setId: string | null };
 const fmtRuntime = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
 
+// Student outline shows CURATED TOPICS ONLY, in teaching-flow order — never the textbook unit/chapter
+// names (those are internal crosswalk metadata, not rendered anywhere student-facing). Capability,
+// default OFF: on a MAPPED course a topic may show a muted "(Ch. N)" from the campus crosswalk. Flip
+// this one flag to enable it. (Ships disabled; meaningful crosswalk numbers need the campus override.)
+const SHOW_CHAPTER_NUM = false;
+
+// Stats line under each exam tab, computed from data (never hardcoded): topics mapped to the exam ·
+// CEQ questions summed across its LIVE sets · summed video runtime (omitted while zero — no durations
+// wired yet). Updates automatically as sets go live.
+const examStats = (tab: ExamTab): string => {
+  const topics = tab.topics.length;
+  const questions = tab.topics.reduce((a, t) => a + t.sets.reduce((b, s) => b + s.ceqCount, 0), 0);
+  const secs = tab.topics.reduce((a, t) => a + t.sets.reduce((b, s) => b + (s.runtimeSec ?? 0), 0), 0);
+  const hrs = secs / 3600;
+  const parts = [`${topics} topic${topics === 1 ? "" : "s"}`];
+  if (questions > 0) parts.push(`${questions} questions`);
+  if (hrs > 0) parts.push(`${hrs.toFixed(1)} hrs of video`);
+  return parts.join(" · ");
+};
+
 function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, mapped, onSyllabus }: { exams: ExamTab[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; focusSignal: number; schools: School[]; mapped: boolean; onSyllabus: () => void }) {
   const [activeNum, setActiveNum] = useState(1);
   const [selById, setSelById] = useState<Record<number, Sel>>({});
@@ -500,6 +520,9 @@ function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, 
     <section id="exam1" className="mb-8 scroll-mt-6">
       <div className="overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(252,163,17,0.45)" }}>
         <ExamTabs exams={exams} activeNum={activeNum} onSelect={(n) => { setActiveNum(n); setDrawerOpen(false); }} />
+
+        {/* stats line — computed from data, updates as sets go live */}
+        <div className="border-b px-3 py-1.5 text-center text-[11px] font-semibold tracking-wide" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--text-muted)", background: "rgba(0,0,0,0.12)" }}>{examStats(active)}</div>
 
         {/* mobile-only drawer toggle for the outline */}
         <button onClick={() => setDrawerOpen((v) => !v)} className="flex w-full items-center justify-between border-b px-3 py-2 text-[12px] font-bold uppercase tracking-wide sm:hidden" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--brand-cream)", background: "rgba(0,0,0,0.2)" }}>
@@ -602,7 +625,7 @@ function TopicRow({ topic, isPaid, price, open, onToggle, curSetId, curTopicKey,
     <div className="mb-1">
       <button onClick={onToggle} className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left hover:bg-white/5">
         <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "" : "-rotate-90"}`} style={{ color: "var(--text-muted)" }} />
-        <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>{topic.name}</span>
+        <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>{topic.name}{SHOW_CHAPTER_NUM && topic.num != null && <span className="ml-1 font-normal opacity-60">(Ch. {topic.num})</span>}</span>
         <span className="shrink-0 text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }}>{totalCeq} question{totalCeq === 1 ? "" : "s"}</span>
       </button>
       {open && (
