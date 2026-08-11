@@ -10,6 +10,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown, GraduationCap, MessageCircle, Search, X } from "lucide-react";
 
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
@@ -210,14 +211,13 @@ export function LandingPage() {
 
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px" }}>
         <Hero onTryFree={onTryFree} />
-        <ExamPlayer exams={exams} school={school} onPick={pickSchool} pickerPulse={pickerPulse} focusSignal={focusSignal} schools={schoolsWithCodes} mapped={mapped} onSyllabus={() => setSyllabusOpen(true)} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => setNotListed(true)} />
+        <ExamPlayer exams={exams} school={school} onPick={pickSchool} pickerPulse={pickerPulse} focusSignal={focusSignal} schools={schoolsWithCodes} mapped={mapped} onSyllabus={() => setSyllabusOpen(true)} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => setNotListed(true)} theater={theater} onTheaterDone={() => setTheater(null)} />
         <TestimonialsSlider />
         <LeeSection />
         <GreekStrip />
         <Footer />
       </main>
 
-      {theater && <Theater school={theater.school} mode={theater.mode} onDone={() => setTheater(null)} />}
       {syllabusOpen && <SyllabusModal school={school} onClose={() => setSyllabusOpen(false)} />}
       <FloatingPill />
     </div>
@@ -237,7 +237,6 @@ function Hero({ onTryFree }: { onTryFree: () => void }) {
       <p className="mt-5 max-w-xl text-[15px] leading-relaxed sm:text-[17px]" style={{ color: "var(--brand-cream)", opacity: 0.86 }}>
         Get cram videos for Intro Financial Accounting — built for your school's exams.
       </p>
-      <SchoolTicker />
     </section>
   );
 }
@@ -267,13 +266,22 @@ function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openOnPulse,
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [ring, setRing] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [rect, setRect] = useState<{ left: number; top: number; width: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const firstPulse = useRef(true);
+  // The dropdown renders in a PORTAL (position: fixed) so it can't be clipped by the player's
+  // overflow-hidden — the full school list must be scannable. Anchored to the button's rect.
+  const place = () => { const r = btnRef.current?.getBoundingClientRect(); if (r) setRect({ left: r.left, top: r.bottom + 8, width: r.width }); };
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    place();
+    const onDoc = (e: MouseEvent) => { const t = e.target as Node; if (!btnRef.current?.contains(t) && !menuRef.current?.contains(t)) setOpen(false); };
+    const reflow = () => place();
     document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
+    window.addEventListener("scroll", reflow, true);
+    window.addEventListener("resize", reflow);
+    return () => { document.removeEventListener("mousedown", onDoc); window.removeEventListener("scroll", reflow, true); window.removeEventListener("resize", reflow); };
   }, [open]);
   useEffect(() => {
     if (pulse == null) return;
@@ -285,8 +293,9 @@ function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openOnPulse,
   }, [pulse, openOnPulse]);
   const results = schools.filter((s) => s.name.toLowerCase().includes(q.trim().toLowerCase()));
   return (
-    <div ref={ref} className="relative">
+    <div className="relative">
       <button
+        ref={btnRef}
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-3 rounded-2xl px-5 py-4 text-left transition-transform hover:scale-[1.01]"
         style={{ background: "rgba(245,239,230,0.06)", border: `2px solid ${school ? "var(--bolt-primary)" : "var(--accent)"}`, boxShadow: "0 20px 55px -22px rgba(0,0,0,0.7)", animation: ring ? "sa-picker-pulse 0.9s ease" : undefined, borderRadius: 16 }}
@@ -295,8 +304,8 @@ function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openOnPulse,
         <span className="min-w-0 flex-1 text-[17px] font-bold" style={{ color: "var(--brand-cream)" }}>{school ? school.name : "Pick your school"}</span>
         <ChevronDown className="h-5 w-5 shrink-0 opacity-70" />
       </button>
-      {open && (
-        <div className="absolute left-0 right-0 top-full z-30 mt-2 overflow-hidden rounded-xl" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)" }}>
+      {open && rect && typeof document !== "undefined" && createPortal(
+        <div ref={menuRef} className="fixed z-[220] overflow-hidden rounded-xl" style={{ left: rect.left, top: rect.top, width: rect.width, background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)" }}>
           <div className="flex items-center gap-2 border-b px-3 py-2.5" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
             <Search className="h-4 w-4 opacity-50" />
             <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search 16 SEC schools…" className="w-full bg-transparent text-[14px] outline-none" style={{ color: "var(--brand-cream)" }} />
@@ -316,8 +325,7 @@ function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openOnPulse,
               </button>
             )}
           </div>
-        </div>
-      )}
+        </div>, document.body)}
     </div>
   );
 }
@@ -442,10 +450,10 @@ function Theater({ school, mode, onDone }: { school: School; mode: "full" | "sho
   }, [onDone, dur]);
   const loading = school.codeVerified && school.code ? `Loading ${school.code}…` : "Loading…";
   return (
-    <div className="fixed inset-0 z-[200] grid place-items-center" style={{ background: full ? "var(--brand-navy)" : "rgba(17,26,50,0.82)", animation: `sa-land-fade ${dur}ms ease forwards` }} onClick={onDone}>
+    <div className="absolute inset-0 z-40 grid place-items-center" style={{ background: full ? "var(--brand-navy)" : "rgba(17,26,50,0.82)", animation: `sa-land-fade ${dur}ms ease forwards` }} onClick={onDone}>
       <style>{`@keyframes sa-land-fade{0%{opacity:0}18%{opacity:1}72%{opacity:1}100%{opacity:0}}`}</style>
-      <div className="flex flex-col items-center gap-4">
-        <BoltBoil height={full ? 280 : 170} red={c.c1} blue={c.c2} />
+      <div className="flex flex-col items-center gap-3">
+        <BoltBoil height={full ? 190 : 130} red={c.c1} blue={c.c2} />
         {full && (
           <>
             <div className="text-[17px] font-semibold tracking-wide" style={{ color: "var(--brand-cream)", opacity: 0.95 }}>{loading}</div>
@@ -485,7 +493,7 @@ const examStats = (tab: ExamTab): string => {
   return parts.join(" · ");
 };
 
-function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, mapped, onSyllabus, professor, onPickProfessor, notListed, onNotListed }: { exams: ExamTab[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; focusSignal: number; schools: School[]; mapped: boolean; onSyllabus: () => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; notListed: boolean; onNotListed: () => void }) {
+function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, mapped, onSyllabus, professor, onPickProfessor, notListed, onNotListed, theater, onTheaterDone }: { exams: ExamTab[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; focusSignal: number; schools: School[]; mapped: boolean; onSyllabus: () => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; notListed: boolean; onNotListed: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void }) {
   const [activeNum, setActiveNum] = useState(1);
   const [selById, setSelById] = useState<Record<number, Sel>>({});
   const [openTopics, setOpenTopics] = useState<Set<string>>(() => new Set());
@@ -541,7 +549,7 @@ function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, 
 
   return (
     <section id="exam1" className="mb-8 scroll-mt-6">
-      <div className="overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(252,163,17,0.45)" }}>
+      <div className="relative overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(252,163,17,0.45)" }}>
         <ExamTabs exams={exams} activeNum={activeNum} onSelect={(n) => { setActiveNum(n); setDrawerOpen(false); }} />
 
         {/* stats line — computed from data, updates as sets go live */}
@@ -579,7 +587,8 @@ function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, 
                     <div className="flex w-full max-w-sm flex-col items-center gap-3">
                       <p className="text-center text-[16px] font-black sm:text-[18px]" style={{ color: "var(--brand-cream)" }}>Pick your school to start</p>
                       <div className="w-full"><CampusSelector school={null} onPick={onPick} schools={schools} pulse={pickerPulse} openOnPulse onNotListed={onNotListed} /></div>
-                      <p className="text-center text-[12px]" style={{ color: "var(--text-muted)" }}>Exam 1 is free. No account required.</p>
+                      {/* ticker answers "is my school here?" right at the moment of the question */}
+                      <SchoolTicker />
                     </div>
                   </div>
                 </>
@@ -603,12 +612,9 @@ function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, 
             )}
           </div>
         </div>
-      </div>
 
-      <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-2xl px-5 py-4" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)" }}>
-        <span className="text-[15px] font-black" style={{ color: "var(--brand-cream)" }}>Semester Pass</span>
-        <span className="text-[15px] font-black" style={{ color: "var(--accent)" }}>$150</span>
-        <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>— every exam, all semester</span>
+        {/* school-select takeover — SCOPED to the player frame (absolute, clipped by the card) */}
+        {theater && <Theater school={theater.school} mode={theater.mode} onDone={onTheaterDone} />}
       </div>
     </section>
   );
@@ -934,7 +940,7 @@ function TestimonialsSlider() {
 
   return (
     <section className="mx-auto mb-12 max-w-2xl" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-      <h2 className="mb-6 text-center text-[22px] font-black sm:text-[26px]" style={{ color: "var(--brand-cream)", letterSpacing: "-0.01em" }}>Real students. Real exams.</h2>
+      <h2 className="mb-6 text-center text-[22px] font-black sm:text-[26px]" style={{ color: "var(--brand-cream)", letterSpacing: "-0.01em" }}>What students are saying</h2>
 
       <div className="relative select-none overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)", touchAction: "pan-y" }}
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={end} onPointerLeave={() => { if (start.current != null) { start.current = null; setDx(0); } }}>

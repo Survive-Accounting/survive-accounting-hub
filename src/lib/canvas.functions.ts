@@ -1029,6 +1029,26 @@ export const resolveFrameTake = createServerFn({ method: "POST" })
     return upd as FrameTakeRow;
   });
 
+/** ALL card decks across EVERY scene (not only the loaded one) — so the Studio Topics panel shows a
+ *  set under its topic regardless of which scene it physically lives in. Read-only snapshot; the
+ *  loaded scene's live decks still win in the panel (this only ADDS the others). DeckDef-shaped
+ *  enough for the outline (id/name/status/access/topicId/lessonId). */
+export interface AllDeckRow { id: string; name: string; payloadType: "cards"; topicId: string | null; courseId: string | null; status: "draft" | "live"; access: "free" | "paid"; lessonId: string | null }
+export const listAllCardDecks = createServerFn({ method: "GET" }).handler(async (): Promise<AllDeckRow[]> => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const db = supabaseAdmin as unknown as { from: (t: string) => { select: (c: string) => Promise<{ data: { nodes_json?: { decks?: Array<Record<string, unknown>> } }[] | null; error: unknown }> } };
+  const { data: scenes, error } = await db.from("canvas_scenes").select("nodes_json");
+  if (error) return [];
+  const out: AllDeckRow[] = [];
+  for (const s of scenes ?? []) {
+    for (const d of s.nodes_json?.decks ?? []) {
+      if (d?.payloadType !== "cards") continue;
+      out.push({ id: String(d.id), name: (d.name as string) ?? "Set", payloadType: "cards", topicId: (d.topicId as string) ?? null, courseId: (d.courseId as string) ?? null, status: d.status === "live" ? "live" : "draft", access: d.access === "paid" ? "paid" : "free", lessonId: (d.lessonId as string) ?? null });
+    }
+  }
+  return out;
+});
+
 /** All takes for the given frames (the scene's frame ids), newest take first. */
 export const listFrameTakes = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ frameIds: z.array(z.string().min(1)).max(500) }).parse(d))

@@ -13,7 +13,7 @@ import { useFrameNav } from "./FrameNavContext";
 import { useDecks } from "./DecksContext";
 import type { CardNode, DeckDef, LessonBox } from "./types";
 import { courseLabel, fetchCourseOptions, topicLabel, type CourseOption } from "@/lib/je-api";
-import { createChapter, renameChapter, reorderChapters } from "@/lib/canvas.functions";
+import { createChapter, listAllCardDecks, renameChapter, reorderChapters } from "@/lib/canvas.functions";
 import { listCampusChapterOverrides, searchCampuses, setCampusChapterOverride, type CampusOpt } from "@/lib/campus-overrides.functions";
 import {
   createCampusExam, listCampusExams, listCourseCampuses, renameCampusExam,
@@ -64,11 +64,18 @@ export function OutlinePanel() {
   const focus = useMemo(() => courses.find(isFocusCourse) ?? null, [courses]);
 
   const cardDecks = useMemo(() => decks.filter((d) => d.payloadType === "cards"), [decks]);
+  // Show sets under their topic regardless of which scene they live in: merge the loaded scene's
+  // LIVE decks (they win — unsaved edits stay fresh) with a read-only snapshot of every OTHER scene's
+  // card decks. Purely additive — never drops the loaded scene's decks. (Lee: keep it all visible.)
+  const allDecksQ = useQuery({ queryKey: ["all-card-decks"], queryFn: () => listAllCardDecks(), staleTime: 60_000, networkMode: "always" });
   const decksByTopic = useMemo(() => {
     const m = new Map<string, DeckDef[]>();
-    for (const d of cardDecks) if (d.topicId) { const l = m.get(d.topicId) ?? []; l.push(d); m.set(d.topicId, l); }
+    const seen = new Set<string>();
+    const push = (d: DeckDef) => { if (!d.topicId) return; const l = m.get(d.topicId) ?? []; l.push(d); m.set(d.topicId, l); seen.add(d.id); };
+    for (const d of cardDecks) push(d);
+    for (const d of allDecksQ.data ?? []) if (!seen.has(d.id)) push(d as unknown as DeckDef);
     return m;
-  }, [cardDecks]);
+  }, [cardDecks, allDecksQ.data]);
 
   const publishedLessonIds = useMemo(() => {
     const s = new Set<string>();
