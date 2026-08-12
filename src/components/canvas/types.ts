@@ -1284,6 +1284,11 @@ export interface DeckDef {
   /** OUTLINE FLOW ORDER (Lee) — a set's position WITHIN its topic, set by drag-reorder in the
    *  leftmost outline. Absent = fall back to name order. Additive; scene-JSON only (no migration). */
   sortOrder?: number;
+  /** PARKED (Lee) — the SET-level twin of chapters.parked: an authoring-only flag that collapses
+   *  this set into its topic's muted "Parked" group (eye toggle in the leftmost outline). A parked
+   *  set is NEVER served to students regardless of `status` — fetchStudentTree drops it server-side.
+   *  Additive scene JSON; no migration. */
+  parked?: boolean;
   /** CEQ Studio special slots (per set): INTRO + OUTRO staged clips. The shared
    *  TRANSITION lives in panel prefs (one file across all sets). Additive. */
   intro?: TakeRef;

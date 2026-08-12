@@ -25,10 +25,13 @@ export interface DecksCtx {
   /** OUTLINE AUTHORING — set the flow order of sets within a topic (drag-reorder). Assigns each id
    *  its index as `sortOrder`; ids not in the list keep their order. Loaded-scene decks only. */
   reorderDecksInTopic: (orderedDeckIds: string[]) => void;
+  /** OUTLINE AUTHORING — park/un-park a set (the eye toggle). Authoring-only: a parked set drops
+   *  into its topic's muted "Parked" group and is NEVER served to students (server-side gate). */
+  setDeckParked: (deckId: string, parked: boolean) => void;
 }
 
 const noop = () => {};
-export const DecksContext = createContext<DecksCtx>({ decks: [], highlightId: null, flashDeck: noop, createDeck: () => "", setDeckTopic: noop, renameDeck: noop, reorderDecksInTopic: noop });
+export const DecksContext = createContext<DecksCtx>({ decks: [], highlightId: null, flashDeck: noop, createDeck: () => "", setDeckTopic: noop, renameDeck: noop, reorderDecksInTopic: noop, setDeckParked: noop });
 export const useDecks = () => useContext(DecksContext);
 
 /** DnD payload key for dragging a canvas node onto a named-deck row. */

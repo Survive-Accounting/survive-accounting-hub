@@ -9,6 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, Building2, ChevronDown, ChevronRight, Circle, Eye, EyeOff, GraduationCap, GripVertical, Layers, MessageSquare, Plus, Search, Video, X } from "lucide-react";
 
 import { NEON } from "./theme";
+import { CeqVideoLibrary } from "./CeqVideoLibrary";
 import { useFrameNav } from "./FrameNavContext";
 import { useDecks } from "./DecksContext";
 import type { CardNode, DeckDef, LessonBox } from "./types";
@@ -43,6 +44,7 @@ const TARGET_SEARCH: Record<string, string> = { "Ole Miss": "University of Missi
 const setName = (d: DeckDef) => (d.name ?? "Set").replace(/^\s*ch\s*\d+\s*·\s*/i, "").trim() || "Set";
 const LAST_SET_KEY = "sa-study-last-set";
 const OPEN_SECTION_KEY = "sa-outline-open"; // persist which section is open (accordion)
+const COST_KEY = "sa-outline-cost"; // Videos library $ toggle (moved here from the Studio)
 type SectionId = "videos" | "topics" | "campuses";
 
 // ---- inline text editor (add / rename) -------------------------------------------------------
@@ -130,6 +132,8 @@ export function OutlinePanel() {
     toastTimer.current = setTimeout(() => setToast(null), 6000);
   }, []);
 
+  const [costOn, setCostOn] = useState(() => { try { return localStorage.getItem(COST_KEY) === "1"; } catch { return false; } });
+
   // Accordion — one section open at a time; the open section is persisted.
   const [open, setOpen] = useState<SectionId | null>(() => { try { return (localStorage.getItem(OPEN_SECTION_KEY) as SectionId | null) ?? null; } catch { return null; } });
   const toggle = (id: SectionId) => setOpen((cur) => { const next = cur === id ? null : id; try { next ? localStorage.setItem(OPEN_SECTION_KEY, next) : localStorage.removeItem(OPEN_SECTION_KEY); } catch { /* ignore */ } return next; });
@@ -140,15 +144,10 @@ export function OutlinePanel() {
 
       <SectionHeader open={open === "videos"} onToggle={() => toggle("videos")} icon={<Video className="h-3.5 w-3.5" />} label="Videos" count={videos.length} color={NEON.yellow} />
       {open === "videos" && (
-        <div className="ml-2 border-l pl-1.5" style={{ borderColor: NEON.borderSoft }}>
-          {videos.length === 0 && <div className="px-1 py-1 text-[10px] italic" style={{ color: NEON.muted }}>No published videos yet.</div>}
-          {videos.map((v) => (
-            <div key={v.id} className="flex items-center gap-1.5 px-1.5 py-1" title={v.title}>
-              <Circle className="h-2.5 w-2.5 shrink-0" style={{ color: "#3BF5A0", fill: "#3BF5A0" }} />
-              <span className="min-w-0 flex-1 truncate text-[12px]" style={{ color: NEON.text }}>{v.title}</span>
-              {v.topic && <span className="shrink-0 truncate text-[9px]" style={{ color: NEON.muted, maxWidth: 90 }}>{v.topic}</span>}
-            </div>
-          ))}
+        /* The FULL video library (moved out of the Studio — the Studio has no Videos tab):
+           published videos on the course→topic spine, play-in-place, cost estimates behind $. */
+        <div className="ml-2 flex h-[46vh] min-h-[220px] flex-col overflow-hidden border-l pl-1.5" style={{ borderColor: NEON.borderSoft }}>
+          <CeqVideoLibrary courses={courseOptions} costOn={costOn} onToggleCost={() => { const n = !costOn; setCostOn(n); try { localStorage.setItem(COST_KEY, n ? "1" : "0"); } catch { /* ignore */ } }} />
         </div>
       )}
 
@@ -195,7 +194,7 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
   showToast: (msg: string, undo?: () => void) => void; libraryDecks: DeckDef[];
 }) {
   const qc = useQueryClient();
-  const { decks: loadedDecks, createDeck, setDeckTopic, renameDeck, reorderDecksInTopic } = useDecks();
+  const { decks: loadedDecks, createDeck, setDeckTopic, renameDeck, reorderDecksInTopic, setDeckParked } = useDecks();
   const [open, setOpen] = useState(focus);
   const [openTopics, setOpenTopics] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState(false);
@@ -342,7 +341,9 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
         <div className="ml-2 border-l pl-1.5" style={{ borderColor: NEON.borderSoft }}>
           {topics.length === 0 && <div className="px-1 py-0.5 text-[10px] italic" style={{ color: NEON.muted }}>No topics.</div>}
           {topics.map((ch) => {
-            const tDecks = (decksByTopic.get(ch.id) ?? []).slice().sort(bySort);
+            const allDecks = (decksByTopic.get(ch.id) ?? []).slice().sort(bySort);
+            const tDecks = allDecks.filter((d) => !d.parked);        // production view
+            const parkedDecks = allDecks.filter((d) => !!d.parked);  // muted "Parked" group
             const tOpen = openTopics.has(ch.id);
             const setTarget = setDrag && setOver?.topic === ch.id; // a set is hovering this topic
             return (
@@ -357,7 +358,9 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
                 } : undefined}>
                 <div className="group flex items-center gap-1 px-0.5 py-0.5">
                   {focus && <span className="cursor-grab opacity-0 group-hover:opacity-60" draggable onDragStart={() => setDragId(ch.id)} onDragEnd={() => { setDragId(null); setOverId(null); }} title="Drag to reorder"><GripVertical className="h-3 w-3" /></span>}
-                  <button className="flex min-w-0 flex-1 items-center gap-1 text-left" onClick={() => toggleTopic(ch.id)}>
+                  {/* Clicking a TOPIC expands it AND opens it in the Studio (its first set) — one
+                      navigation, no second tree in the Studio. */}
+                  <button className="flex min-w-0 flex-1 items-center gap-1 text-left" onClick={() => { toggleTopic(ch.id); const first = tDecks[0]; if (first) openSet(first.id); }}>
                     {tOpen ? <ChevronDown className="h-3 w-3 shrink-0 opacity-70" /> : <ChevronRight className="h-3 w-3 shrink-0 opacity-70" />}
                     {focus && renaming === ch.id ? (
                       <InlineInput initial={topicLabel(ch)} onCommit={async (v) => { setRenaming(null); await renameChapter({ data: { id: ch.id, chapter_name: v } }); refresh(); }} onCancel={() => setRenaming(null)} />
@@ -400,6 +403,9 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
                               </button>
                             )}
                             {focus && editable && renamingSet !== d.id && (
+                              <button className="shrink-0 rounded p-0.5 opacity-0 hover:bg-white/10 group-hover:opacity-60" title="Park set (hide from the production view; never served to students)" onClick={(e) => { e.stopPropagation(); setDeckParked(d.id, true); showToast(`Parked "${setName(d)}".`, () => setDeckParked(d.id, false)); }}><Eye className="h-3 w-3" /></button>
+                            )}
+                            {focus && editable && renamingSet !== d.id && (
                               <button className="shrink-0 rounded p-0.5 opacity-0 hover:bg-white/10 group-hover:opacity-60" title="Move set to the Library" onClick={(e) => { e.stopPropagation(); delSet(d); }}><X className="h-3 w-3" /></button>
                             )}
                           </div>
@@ -407,6 +413,26 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
                         </div>
                       );
                     })}
+
+                    {/* PARKED SETS — same eye grammar as parked topics: muted, collapsed at the
+                        bottom of the topic, un-park with the eye. Never served to students. */}
+                    {parkedDecks.length > 0 && (
+                      <div className="mt-0.5">
+                        <div className="flex items-center gap-1 px-1 py-0.5">
+                          <EyeOff className="h-3 w-3 shrink-0" style={{ color: NEON.muted }} />
+                          <span className="text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Parked</span>
+                          <span className="text-[9px] tabular-nums opacity-60">{parkedDecks.length}</span>
+                        </div>
+                        {parkedDecks.map((d) => (
+                          <div key={d.id} className="group flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-white/5">
+                            <span className="min-w-0 flex-1 truncate text-[11px] italic" style={{ color: NEON.muted }}>{setName(d)}</span>
+                            {focus && canEditSet(d.id) && (
+                              <button className="shrink-0 rounded p-0.5 opacity-0 hover:bg-white/10 group-hover:opacity-70" title="Un-park (return to the production view)" onClick={() => { setDeckParked(d.id, false); showToast(`Un-parked "${setName(d)}".`, () => setDeckParked(d.id, true)); }}><Eye className="h-3 w-3" style={{ color: NEON.cyan }} /></button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {focus && (addingSetFor === ch.id ? (
                       <div className="px-0.5 py-1"><InlineInput rapid placeholder="New set name… (Enter for another)" onCommit={(v) => { createDeck(v, ch.id, course.id); }} onCancel={() => setAddingSetFor(null)} /></div>
                     ) : (

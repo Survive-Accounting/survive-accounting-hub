@@ -29,7 +29,7 @@ import { buildSetExport } from "./ceq-export";
 import { MISCONCEPTION_SEEDS, questionMisconceptions, toSlug } from "./ceq-misconceptions";
 import { ingestNumOf } from "./ceq-walk";
 import { CeqStitch, type StitchRow } from "./CeqStitch";
-import { CeqVideoLibrary, vidCourseMatch, vidTopicMatch } from "./CeqVideoLibrary";
+import { vidCourseMatch, vidTopicMatch } from "./CeqVideoLibrary";
 import { DEFAULT_CROSSFADE_MS, WARP_REVERSED_TAIL_S } from "./segment-assembly";
 import { detectAuphonicSlots, resolveCeqConcat, resolvePipelineTestAuphonic, startCeqConcat, startPipelineTestAuphonic } from "@/lib/publish.functions";
 import { renderStitchViaWorker, wakeRenderWorker } from "./render-worker-client";
@@ -1915,7 +1915,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
           (student-facing previews). Preview is a FIRST-CLASS tab so the editor
           and the video preview stop competing for the same center pane. */}
       <div className="flex shrink-0 items-center gap-1 border-b px-3 py-1" style={{ borderColor: NEON.borderSoft }}>
-        {([["videos", "Videos"], ["preview", "Preview"], ["student", "Student"]] as const).map(([k, l]) => (
+        {([["videos", "CEQs"], ["preview", "Publish"], ["student", "Student"]] as const).map(([k, l]) => (
           <button key={k} className="rounded px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: topTab === k ? "#0B1322" : NEON.muted, background: topTab === k ? NEON.yellow : "transparent", border: `1px solid ${topTab === k ? NEON.yellow : NEON.borderSoft}` }} onClick={() => { setPrefs({ topTab: k }); if (!setsOpen) setSetsOpen(true); }}>{l}</button>
         ))}
       </div>
@@ -1958,16 +1958,17 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
       )}
 
       <div className="flex min-h-0 flex-1 gap-2 p-2">
-        {/* LEFT RAIL — the active top-bar tab (Videos / Topics / Sets / Tools), all on
-            the same Obsidian outline grammar. Collapsible to a slim strip. */}
-        {!setsOpen ? (
+        {/* LEFT RAIL — STUDENT tab only. The Studio has NO topic/set tree and no video
+            library of its own: the leftmost DASHBOARD outline is the ONE navigation
+            (Videos lives there too; clicking a topic or set there opens it here), and open
+            sets switch via the SET TAB STRIP above. CEQs + Publish render full width. */}
+        {topTab === "student" && (!setsOpen ? (
           <button className="flex w-8 shrink-0 flex-col items-center gap-2 rounded-lg py-2" style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)", color: NEON.cyan }} onClick={() => setSetsOpen(true)} title="Show the left rail">
             <ListChecks className="h-4 w-4" />
             <span className="text-[9px] font-bold uppercase tracking-wider" style={{ writingMode: "vertical-rl" }}>{topTab}</span>
           </button>
         ) : (
         <div className={COL} style={{ maxWidth: 240, border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)" }}>
-          {topTab === "videos" && <CeqVideoLibrary courses={courseOptions} costOn={!!prefs.costOn} onToggleCost={() => setPrefs({ costOn: !prefs.costOn })} />}
           {topTab === "student" && (<>
             {/* STUDENT (Lee) — this tab is for student-facing previews of CEQ
                 sets/cards as they'll ship. Those views land here; the authoring
@@ -1997,102 +1998,8 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
             <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Tools</div>
             <div className="grid flex-1 place-items-center p-3 text-center text-[10.5px] leading-relaxed" style={{ color: NEON.muted }}>🛠 Coming soon —<br />batch take ingest · publish queue ·<br />shorts factory.</div>
           </>)}
-          {topTab === "preview" && (<>
-            {/* TOPICS — ONE outline for everything the old Topics + Sets tabs did:
-                Course → Topic (readiness chips + drop-to-assign) → sets → published
-                videos, then LIBRARY (unassigned). Chips are the four signals only:
-                ✂ missing clips (hidden at 0) · ⏱ runtime · ▶ published · 🎬 short. */}
-            <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Topics <span style={{ color: NEON.muted }}>({cardDecks.length} sets)</span>
-              <button className="ml-auto grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => setSetsOpen(false)} title="Collapse the left rail"><ChevronLeft className="h-3.5 w-3.5" /></button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-1">
-              {courseOptionsQ.isLoading && <div className="px-1.5 py-2 text-[10px] italic" style={{ color: NEON.muted }}>Loading courses…</div>}
-              {courseOptionsQ.isError && (
-                <>
-                  <div className="px-1.5 py-1 text-[9.5px]" style={{ color: NEON.red }}>Couldn&apos;t load Course → Topic rows — flat list:</div>
-                  {cardDecks.map((d) => renderSetRow(d))}
-                </>
-              )}
-              {!courseOptionsQ.isError && courseOptions.map((c) => {
-                const cTopics = c.chapters.filter((ch) => ch.status !== "archived" || decksByTopic.has(ch.id));
-                const cHas = cardDecks.some((d) => d.courseId === c.id && !!d.topicId) || cTopics.some((ch) => pubVidsByTopic.has(ch.id));
-                const cKey = `topc:${c.id}`;
-                const cOpen = isExp(cKey, cHas);
-                return (
-                  <div key={c.id}>
-                    <button className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10.5px] font-bold uppercase tracking-wide" style={{ color: cHas ? NEON.cyan : NEON.muted, background: outlineSel?.courseId === c.id && !outlineSel.topicId ? "rgba(79,163,227,0.14)" : "transparent" }} onClick={() => { toggleExp(cKey, cHas); setOutlineSel({ courseId: c.id, topicId: null }); setAddMenu(false); }}>
-                      {cOpen ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
-                      <span className="min-w-0 flex-1 truncate">{courseLabel(c)}</span>
-                    </button>
-                    {cOpen && cTopics.map((ch) => {
-                      const tDecks = decksByTopic.get(ch.id) ?? [];
-                      const vids = pubVidsByTopic.get(ch.id) ?? [];
-                      let missFull = 0, missFree = 0, runtimeS = 0;
-                      let shortReady = false;
-                      for (const d of tDecks) { const r = deckReadiness.get(d.id); if (!r) continue; missFull += r.missFull; missFree += r.missFree; runtimeS += r.runtimeS; shortReady = shortReady || !!r.shortReady; }
-                      const firstGap = tDecks.find((d) => (deckReadiness.get(d.id)?.missFull ?? 0) > 0) ?? tDecks[0];
-                      const tKey = `topt:${ch.id}`;
-                      const tOpen = isExp(tKey, tDecks.length > 0);
-                      const dropOn = dragKey === `sett:${ch.id}`;
-                      return (
-                        <div key={ch.id} className="ml-1.5">
-                          <button className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10px]" style={{ color: tDecks.length || vids.length ? NEON.text : NEON.muted, background: dropOn ? "rgba(252,163,17,0.16)" : outlineSel?.topicId === ch.id ? "rgba(79,163,227,0.14)" : "transparent", outline: dropOn ? `1px dashed ${NEON.yellow}` : "none" }}
-                            onClick={() => { toggleExp(tKey, tDecks.length > 0); setOutlineSel({ courseId: c.id, topicId: ch.id }); setAddMenu(false); }}
-                            onDragOver={(e) => { if (e.dataTransfer.types.includes(SET_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dragKey !== `sett:${ch.id}`) setDragKey(`sett:${ch.id}`); } }}
-                            onDragLeave={() => setDragKey((k) => (k === `sett:${ch.id}` ? null : k))}
-                            onDrop={(e) => { const id = e.dataTransfer.getData(SET_DND); if (id) { e.preventDefault(); setDragKey(null); assignSet(id, c, ch); } }}
-                            title={`${topicLabel(ch)} — drop a set here to assign it`}>
-                            {tOpen ? <ChevronDown className="h-2.5 w-2.5 shrink-0" /> : <ChevronRight className="h-2.5 w-2.5 shrink-0" />}
-                            <span className="min-w-0 flex-1 truncate">{topicLabel(ch)}</span>
-                            {tDecks.length > 0 && <span className="shrink-0 text-[8px] font-bold tabular-nums" style={{ color: NEON.muted }}>{tDecks.length}</span>}
-                          </button>
-                          {(tDecks.length > 0 || vids.length > 0) && (
-                            <div className="ml-4 flex flex-wrap items-center gap-1 pb-0.5">
-                              {missFull > 0 && <button className="rounded px-1 text-[7.5px] font-bold tabular-nums" style={{ color: "#FF8B9E", border: "1px solid rgba(255,92,108,0.5)" }} onClick={() => firstGap && openSetTab(firstGap.id)} title={`${missFull} question(s) missing clips${missFree > 0 ? ` (${missFree} in the free cut)` : ""} — click to open the gap`}>✂ {missFull}{missFree > 0 ? ` (${missFree}F)` : ""}</button>}
-                              {runtimeS > 0 && <span className="rounded px-1 text-[7.5px] font-bold tabular-nums" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} title="Estimated FULL runtime (summed clips)">⏱ {fmtDur(runtimeS)}</span>}
-                              {vids.length > 0 && <button className="rounded px-1 text-[7.5px] font-bold tabular-nums" style={{ color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.4)" }} onClick={() => setPrefs({ topTab: "videos" })} title={`${vids.length} published video(s) — click for the Videos tab`}>▶ {vids.length}</button>}
-                              {shortReady && <span className="rounded px-1 text-[7.5px]" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} title="A short-flagged question here has its clip uploaded">🎬</span>}
-                            </div>
-                          )}
-                          {tOpen && tDecks.map((d) => renderSetRow(d))}
-                          {tOpen && tDecks.length === 0 && ch.status !== "archived" && (
-                            <button className="ml-4 flex items-center gap-1 px-1 py-0.5 text-[9px] font-bold" style={{ color: NEON.yellow }} onClick={() => openNewSet(c.id, ch.id)} title={`Create the first CEQ set under ${topicLabel(ch)}`}><Plus className="h-2.5 w-2.5" /> Add CEQ set</button>
-                          )}
-                          {tOpen && vids.map((v) => (
-                            <div key={v.id} className="ml-4 flex items-center gap-1 px-1 py-0.5 text-[9px]" style={{ color: NEON.muted }}>
-                              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: "#3BF5A0" }} />
-                              <span className="min-w-0 flex-1 truncate">{v.name}</span>
-                              <span className="shrink-0 text-[7px] font-bold uppercase" style={{ color: v.paid ? "#FF8B9E" : "#3BF5A0" }}>{v.paid ? "Paid" : "Free"}</span>
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-              {/* LIBRARY (unassigned) — untied sets; also a drop target to unassign. */}
-              {!courseOptionsQ.isError && (
-                <div className="mt-1 border-t pt-1" style={{ borderColor: NEON.borderSoft }}>
-                  <button className="flex w-full items-center gap-1 rounded px-1 py-0.5 text-left text-[10.5px] font-bold uppercase tracking-wide" style={{ color: libraryDecks.length ? NEON.yellow : NEON.muted, background: dragKey === "sett:lib" ? "rgba(252,163,17,0.16)" : "transparent", outline: dragKey === "sett:lib" ? `1px dashed ${NEON.yellow}` : "none" }}
-                    onClick={() => toggleExp("lib", true)}
-                    onDragOver={(e) => { if (e.dataTransfer.types.includes(SET_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "move"; if (dragKey !== "sett:lib") setDragKey("sett:lib"); } }}
-                    onDragLeave={() => setDragKey((k) => (k === "sett:lib" ? null : k))}
-                    onDrop={(e) => { const id = e.dataTransfer.getData(SET_DND); if (id) { e.preventDefault(); setDragKey(null); assignSet(id, null, null); } }}
-                    title="Unassigned sets — drop a set here to return it to the Library">
-                    {isExp("lib", true) ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
-                    <span className="min-w-0 flex-1 truncate">Library (unassigned)</span>
-                    <span className="shrink-0 text-[8px] font-bold tabular-nums" style={{ color: NEON.muted }}>{libraryDecks.length}</span>
-                  </button>
-                  {isExp("lib", true) && libraryDecks.map((d) => renderSetRow(d))}
-                  {isExp("lib", true) && libraryDecks.length === 0 && <div className="ml-4 px-1 py-0.5 text-[9px] italic" style={{ color: NEON.muted }}>Empty — every set has a topic.</div>}
-                </div>
-              )}
-            </div>
-            {renderOutlineFooter()}
-          </>)}
         </div>
-        )}
+        ))}
 
         {/* PANE 2 — QUESTIONS + editor */}
         <div className={COL} style={{ flex: 1.4, border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)" }}>

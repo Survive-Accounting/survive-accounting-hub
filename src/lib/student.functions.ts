@@ -30,7 +30,7 @@ const COURSE_ORDER = ["Start Here", "Intro 1", "Intro 2", "IA1", "IA2"];
 const courseRank = (n: string) => { const i = COURSE_ORDER.findIndex((o) => o.toLowerCase() === n.trim().toLowerCase()); return i < 0 ? COURSE_ORDER.length + 1 : i; };
 const setName = (n?: string) => (n ?? "Set").replace(/^\s*ch\s*\d+\s*·\s*/i, "").trim() || "Set";
 
-type RawDeck = { id: string; name?: string; payloadType?: string; status?: string; access?: string; lessonId?: string | null; topicId?: string | null; courseId?: string | null };
+type RawDeck = { id: string; name?: string; payloadType?: string; status?: string; access?: string; lessonId?: string | null; topicId?: string | null; courseId?: string | null; parked?: boolean };
 
 export const fetchStudentTree = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => z.object({ campusId: z.string().uuid().optional() }).parse(d ?? {}))
@@ -50,7 +50,8 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
   const firstCeqByDeck = new Map<string, { order: number; prompt: string; blur: { s: number; e: number }[] }>();
   type RawCeqData = { deckId?: string; stageOrder?: number; prompt?: string; blurRanges?: { s: number; e: number }[] };
   for (const s of (scenes ?? []) as { nodes_json?: { decks?: RawDeck[]; nodes?: { type?: string; data?: RawCeqData }[] } }[]) {
-    for (const d of s.nodes_json?.decks ?? []) if (d.status === "live" && d.payloadType === "cards") live.push(d);
+    // PARKED sets are authoring-only — never served, regardless of status (same law as parked topics).
+    for (const d of s.nodes_json?.decks ?? []) if (d.status === "live" && d.payloadType === "cards" && d.parked !== true) live.push(d);
     for (const n of s.nodes_json?.nodes ?? []) {
       if (n?.type !== "ceq") continue;
       const did = n.data?.deckId;
