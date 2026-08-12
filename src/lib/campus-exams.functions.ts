@@ -31,8 +31,16 @@ export const listCourseCampuses = createServerFn({ method: "POST" })
     const db = await admin();
     const { data: exams, error } = await db.from("campus_exams").select("id,campus_id,status").eq("course_id", data.course_id);
     if (error) rethrow(error);
-    const rows = (exams ?? []) as { id: string; campus_id: string; status: "active" | "archived" }[];
-    if (!rows.length) return [];
+    // Starter rows (campus_id NULL, 0113) are NOT campuses — the mapper pins the Starter Map itself.
+    const rows = ((exams ?? []) as { id: string; campus_id: string | null; status: "active" | "archived" }[]).filter((r): r is { id: string; campus_id: string; status: "active" | "archived" } => !!r.campus_id);
+    // COPY-ON-WRITE: campuses can be REGISTERED (map_meta row) with no exam rows yet — they list as
+    // inherited (0 exams). Union them in; pre-0113 (no map_meta) this contributes nothing.
+    const metaCampusIds = new Set<string>();
+    try {
+      const { data: metas } = await db.from("map_meta").select("campus_id,professor_id").eq("course_id", data.course_id);
+      for (const m of (metas ?? []) as { campus_id: string | null; professor_id: string | null }[]) if (m.campus_id && !m.professor_id) metaCampusIds.add(m.campus_id);
+    } catch { /* 0113 not applied */ }
+    if (!rows.length && !metaCampusIds.size) return [];
     const activeByCampus = new Map<string, string[]>(); // campus_id → active exam ids
     const examCampus = new Map<string, string>();        // exam id → campus id
     const examCount = new Map<string, number>();
@@ -56,7 +64,7 @@ export const listCourseCampuses = createServerFn({ method: "POST" })
         topicsByCampus.set(campus, set);
       }
     }
-    const campusIds = [...new Set(rows.map((r) => r.campus_id))];
+    const campusIds = [...new Set([...rows.map((r) => r.campus_id), ...metaCampusIds])];
     const { data: cs } = await db.from("campuses").select("id,name,institution_name").in("id", campusIds);
     const nameById = new Map<string, string>();
     for (const c of (cs ?? []) as { id: string; name: string | null; institution_name: string | null }[]) nameById.set(c.id, campusName(c));
@@ -67,13 +75,15 @@ export const listCourseCampuses = createServerFn({ method: "POST" })
 
 /** Active + archived exams for a campus+course, each with its topic (chapter) ids. */
 export const listCampusExams = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ campus_id: z.string().uuid(), course_id: z.string().uuid() }).parse(d))
+  // campus_id NULL = the STARTER MAP (0113) — same rows, same mapper, campus_id IS NULL.
+  .inputValidator((d: unknown) => z.object({ campus_id: z.string().uuid().nullable(), course_id: z.string().uuid() }).parse(d))
   .handler(async ({ data }): Promise<CampusExamRow[]> => {
     const db = await admin();
+    const byCampus = (q: any) => (data.campus_id ? q.eq("campus_id", data.campus_id) : q.is("campus_id", null));
     // coverage_pct ships in 0109 (manual-apply) — degrade to the 80 default until it's applied.
-    let r = await db.from("campus_exams").select("id,name,position,status,coverage_pct").eq("campus_id", data.campus_id).eq("course_id", data.course_id).order("status", { ascending: true }).order("position", { ascending: true });
+    let r = await byCampus(db.from("campus_exams").select("id,name,position,status,coverage_pct")).eq("course_id", data.course_id).order("status", { ascending: true }).order("position", { ascending: true });
     if (r.error && /coverage_pct|column/i.test(String(r.error.message ?? ""))) {
-      r = await db.from("campus_exams").select("id,name,position,status").eq("campus_id", data.campus_id).eq("course_id", data.course_id).order("status", { ascending: true }).order("position", { ascending: true });
+      r = await byCampus(db.from("campus_exams").select("id,name,position,status")).eq("course_id", data.course_id).order("status", { ascending: true }).order("position", { ascending: true });
     }
     const { data: exams, error } = r;
     if (error) rethrow(error);
@@ -100,10 +110,12 @@ export const setCampusExamCoverage = createServerFn({ method: "POST" })
 /** Create an exam for a campus+course (appended after the last active one). Adding a campus to the
  *  Campuses folder = creating its first exam, so the campus then appears in listCourseCampuses. */
 export const createCampusExam = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ campus_id: z.string().uuid(), course_id: z.string().uuid(), name: z.string().min(1).max(80) }).parse(d))
+  // campus_id NULL = add an exam to the STARTER MAP (0113).
+  .inputValidator((d: unknown) => z.object({ campus_id: z.string().uuid().nullable(), course_id: z.string().uuid(), name: z.string().min(1).max(80) }).parse(d))
   .handler(async ({ data }): Promise<CampusExamRow> => {
     const db = await admin();
-    const { data: top, error: tErr } = await db.from("campus_exams").select("position").eq("campus_id", data.campus_id).eq("course_id", data.course_id).eq("status", "active").order("position", { ascending: false }).limit(1);
+    const byCampus = (q: any) => (data.campus_id ? q.eq("campus_id", data.campus_id) : q.is("campus_id", null));
+    const { data: top, error: tErr } = await byCampus(db.from("campus_exams").select("position")).eq("course_id", data.course_id).eq("status", "active").order("position", { ascending: false }).limit(1);
     if (tErr) rethrow(tErr);
     const next = (typeof (top?.[0] as { position: number } | undefined)?.position === "number" ? (top[0] as { position: number }).position : 0) + 1;
     const { data: ins, error } = await db.from("campus_exams").insert({ campus_id: data.campus_id, course_id: data.course_id, name: data.name.trim(), position: next, status: "active" }).select("id,name,position,status").single();

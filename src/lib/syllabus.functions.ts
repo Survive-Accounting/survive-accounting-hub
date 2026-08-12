@@ -98,5 +98,19 @@ export const submitSyllabus = createServerFn({ method: "POST" })
       file_names: names,
     });
     if (error) throw new Error(error.message);
+    // PROVENANCE LEDGER (0113) — dual-write into inbound_files so map edits can link "this map was
+    // verified from this PDF". Best-effort: pre-0113 (table absent) the submission still succeeds.
+    try {
+      const { error: ifErr } = await db.from("inbound_files").insert({
+        campus_id: data.campusId ?? null,
+        campus_name: data.campusName ?? null,
+        professor_name: null,
+        student_email: data.email,
+        files: paths.map((p, i) => ({ name: names[i] ?? p, path: p, bucket: "syllabus-submissions" })),
+        notes: data.note ?? null,
+        source: "syllabus_modal",
+      });
+      if (ifErr) throw ifErr;
+    } catch { /* 0113 not applied yet */ }
     return { ok: true };
   });

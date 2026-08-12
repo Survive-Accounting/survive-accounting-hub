@@ -15,6 +15,7 @@ import type { CardNode, DeckDef, LessonBox } from "./types";
 import { courseLabel, fetchCourseOptions, topicLabel, type CourseOption } from "@/lib/je-api";
 import { createChapter, listAllCardDecks, renameChapter, reorderChapters, setChapterParked, setChapterStatus } from "@/lib/canvas.functions";
 import { snapshotDefaultFromOleMiss, type SnapshotDiff } from "@/lib/default-map.functions";
+import { copyResolvedIntoLevel, getMapMeta, listTextbooks, registerMapLevel, revertMapToInherited, saveTextbook, setChapterLabelsOn, setMapStatus, type RevertDiff } from "@/lib/map-system.functions";
 import { listCampusChapterOverrides, searchCampuses, setCampusChapterOverride, type CampusOpt } from "@/lib/campus-overrides.functions";
 import {
   createCampusExam, listCampusExams, listCourseCampuses, renameCampusExam,
@@ -472,23 +473,47 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
 }
 
 // ---- CAMPUSES (Intro-1 scoped) ---------------------------------------------------------------
+// The STARTER MAP is pinned first (same mapper UI, campus_id IS NULL). Campus rows carry a STATUS
+// badge (inherited muted / edited cream / verified green ✓) and the status filter is King's queue.
 function CampusesBody({ course, topics }: { course: CourseOption; topics: Topic[] }) {
   const [adding, setAdding] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"all" | "inherited" | "edited" | "verified">("all");
+  const [statusByCampus, setStatusByCampus] = useState<Record<string, string>>({});
+  const [booksOpen, setBooksOpen] = useState(false);
   const qc = useQueryClient();
   const campusesQ = useQuery({ queryKey: ["course-campuses", course.id], queryFn: () => listCourseCampuses({ data: { course_id: course.id } }), networkMode: "always" });
   const campuses = campusesQ.data ?? [];
   const missing = campusesQ.isError ? String((campusesQ.error as Error)?.message ?? "") : "";
+  const reportStatus = useCallback((campusId: string, s: string) => setStatusByCampus((p) => (p[campusId] === s ? p : { ...p, [campusId]: s })), []);
+  const shown = statusFilter === "all" ? campuses : campuses.filter((c) => (statusByCampus[c.campus_id] ?? "inherited") === statusFilter);
   return (
     <>
       {missing && <p className="px-1 py-1 text-[10px] italic leading-snug" style={{ color: "#F0A0A0" }}>{missing}</p>}
+
+      {/* King's queue — filter the campus worklist by map status */}
+      <div className="flex items-center gap-1 px-0.5 pb-1">
+        {(["all", "inherited", "edited", "verified"] as const).map((s) => (
+          <button key={s} onClick={() => setStatusFilter(s)} className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide" style={{ color: statusFilter === s ? "#0B1322" : NEON.muted, background: statusFilter === s ? NEON.yellow : "transparent", border: `1px solid ${statusFilter === s ? NEON.yellow : NEON.borderSoft}` }}>{s}</button>
+        ))}
+      </div>
+
+      {/* STARTER MAP — pinned first, edited with the exact same mapper UI (campus_id IS NULL) */}
+      <CampusRow campus={{ campus_id: "__starter__", name: "Starter Map", exam_count: 0, topic_count: 0 }} course={course} topics={topics} starter onStatus={reportStatus} />
+
       {!missing && campuses.length === 0 && <div className="px-1 py-0.5 text-[10px] italic" style={{ color: NEON.muted }}>No campuses mapped yet.</div>}
-      {campuses.map((c) => <CampusRow key={c.campus_id} campus={c} course={course} topics={topics} />)}
+      {shown.map((c) => <CampusRow key={c.campus_id} campus={c} course={course} topics={topics} onStatus={reportStatus} />)}
       {adding ? (
         <AddCampus course={course} onDone={() => { setAdding(false); qc.invalidateQueries({ queryKey: ["course-campuses", course.id] }); }} onCancel={() => setAdding(false)} />
       ) : (
         <AddRow label="Add campus" onClick={() => setAdding(true)} />
       )}
+
+      {/* TEXTBOOKS — manager modal (title/edition + ordered chapter list keyed on chapter_key) */}
+      <button className="mt-1 flex w-full items-center gap-1 px-1 py-1 text-left text-[9px] font-bold uppercase tracking-wider hover:bg-white/5" style={{ color: "#C9A9F5" }} onClick={() => setBooksOpen(true)}>
+        <ChevronRight className="h-3 w-3" /> Textbooks
+      </button>
+      {booksOpen && <TextbooksModal onClose={() => setBooksOpen(false)} />}
       <button className="mt-1 flex w-full items-center gap-1 px-1 py-1 text-left text-[9px] font-bold uppercase tracking-wider hover:bg-white/5" style={{ color: NEON.muted }} onClick={() => setShowQueue((v) => !v)}>
         {showQueue ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />} SEC target queue
       </button>
@@ -510,38 +535,190 @@ function CampusesBody({ course, topics }: { course: CourseOption; topics: Topic[
   );
 }
 
-function CampusRow({ campus, course, topics }: { campus: CourseCampusRow; course: CourseOption; topics: Topic[] }) {
+// One MAP row — a campus, or (starter) the pinned Starter Map (campus_id IS NULL, same UI).
+// Status badge: inherited (muted) / edited (cream) / verified (green ✓ — click shows source files).
+// INHERITED campuses render the resolved Starter Map read-only + muted; the first edit runs the
+// copy-on-write confirm, copies the resolved rows in, then editing proceeds on the campus's own map.
+function CampusRow({ campus, course, topics, starter, onStatus }: { campus: CourseCampusRow; course: CourseOption; topics: Topic[]; starter?: boolean; onStatus?: (campusId: string, s: string) => void }) {
   const [open, setOpen] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [cowConfirm, setCowConfirm] = useState(false); // the copy-on-write moment, made visible once
+  const [revertDiff, setRevertDiff] = useState<RevertDiff | null>(null);
   const qc = useQueryClient();
-  const examsQ = useQuery({ queryKey: ["campus-exams", campus.campus_id, course.id], queryFn: () => listCampusExams({ data: { campus_id: campus.campus_id, course_id: course.id } }), enabled: open, networkMode: "always" });
+  const campusId = starter ? null : campus.campus_id;
+  const scope = { courseId: course.id, campusId, professorId: null as string | null };
+
+  const metaQ = useQuery({ queryKey: ["map-meta", course.id, campusId], queryFn: () => getMapMeta({ data: scope }), networkMode: "always", staleTime: 60_000 });
+  const meta = metaQ.data ?? null;
+  const status = starter ? (meta?.hasOwnRows ? meta.status : "edited") : (meta?.status ?? "inherited");
+  useEffect(() => { if (!starter && meta && onStatus) onStatus(campus.campus_id, meta.status); }, [meta, starter, campus.campus_id, onStatus]);
+
+  const examsQ = useQuery({ queryKey: ["campus-exams", campusId, course.id], queryFn: () => listCampusExams({ data: { campus_id: campusId, course_id: course.id } }), enabled: open, networkMode: "always" });
   const exams = (examsQ.data ?? []).filter((e) => e.status === "active");
-  const refresh = () => { qc.invalidateQueries({ queryKey: ["campus-exams", campus.campus_id, course.id] }); qc.invalidateQueries({ queryKey: ["course-campuses", course.id] }); };
+  // inherited display = the RESOLVED starter map, read-only + muted
+  const inherited = !starter && !!meta && !meta.hasOwnRows;
+  const starterQ = useQuery({ queryKey: ["campus-exams", null, course.id], queryFn: () => listCampusExams({ data: { campus_id: null, course_id: course.id } }), enabled: open && inherited, networkMode: "always" });
+  const starterExams = (starterQ.data ?? []).filter((e) => e.status === "active");
+
+  const refresh = () => { qc.invalidateQueries({ queryKey: ["campus-exams", campusId, course.id] }); qc.invalidateQueries({ queryKey: ["course-campuses", course.id] }); qc.invalidateQueries({ queryKey: ["map-meta", course.id, campusId] }); };
 
   const topicIds = useMemo(() => topics.map((t) => t.id), [topics]);
-  const ovQ = useQuery({ queryKey: ["campus-overrides", campus.campus_id], queryFn: () => listCampusChapterOverrides({ data: { campus_id: campus.campus_id, chapter_ids: topicIds } }), enabled: open && topicIds.length > 0, networkMode: "always" });
+  const ovQ = useQuery({ queryKey: ["campus-overrides", campusId], queryFn: () => listCampusChapterOverrides({ data: { campus_id: campusId!, chapter_ids: topicIds } }), enabled: open && !!campusId && topicIds.length > 0, networkMode: "always" });
   const localOv = useMemo(() => { const m = new Map<string, { local_number: number | null; local_order: number | null }>(); for (const r of ovQ.data ?? []) m.set(r.chapter_id, { local_number: r.local_number, local_order: r.local_order }); return m; }, [ovQ.data]);
-  const setLocalNum = async (chapter_id: string, n: number | null) => { const order = localOv.get(chapter_id)?.local_order ?? null; await setCampusChapterOverride({ data: { campus_id: campus.campus_id, chapter_id, local_number: n, local_order: order } }); qc.invalidateQueries({ queryKey: ["campus-overrides", campus.campus_id] }); };
+  const setLocalNum = async (chapter_id: string, n: number | null) => { if (!campusId) return; const order = localOv.get(chapter_id)?.local_order ?? null; await setCampusChapterOverride({ data: { campus_id: campusId, chapter_id, local_number: n, local_order: order } }); qc.invalidateQueries({ queryKey: ["campus-overrides", campusId] }); };
 
+  const doCow = async () => { setCowConfirm(false); try { await copyResolvedIntoLevel({ data: scope }); refresh(); } catch (e) { alert(e instanceof Error ? e.message : "Copy failed."); } };
+  const openRevert = async () => { try { setRevertDiff(await revertMapToInherited({ data: { ...scope, apply: false } })); } catch { /* ignore */ } };
+  const doRevert = async () => { if (!revertDiff) return; try { await revertMapToInherited({ data: { ...scope, apply: true } }); setRevertDiff(null); refresh(); } catch (e) { alert(e instanceof Error ? e.message : "Revert failed."); } };
+  const markVerified = async () => { try { await setMapStatus({ data: { ...scope, status: "verified" } }); refresh(); } catch (e) { alert(e instanceof Error ? e.message : "Couldn't verify."); } };
+
+  const badgeColor = status === "verified" ? "#3BF5A0" : status === "edited" ? NEON.text : NEON.muted;
   return (
-    <div className="mb-0.5">
+    <div className="mb-0.5" style={starter ? { borderBottom: `1px solid ${NEON.borderSoft}`, paddingBottom: 2, marginBottom: 4 } : undefined}>
       <button className="flex w-full items-center gap-1 px-0.5 py-1 text-left hover:bg-white/5" onClick={() => setOpen((v) => !v)}>
         {open ? <ChevronDown className="h-3 w-3 shrink-0 opacity-70" /> : <ChevronRight className="h-3 w-3 shrink-0 opacity-70" />}
-        <GraduationCap className="h-3.5 w-3.5 shrink-0" style={{ color: "#C9A9F5" }} />
-        <span className="min-w-0 flex-1 truncate text-[12px] font-semibold" style={{ color: NEON.text }}>{campus.name}</span>
-        <span className="shrink-0 text-[9px] tabular-nums opacity-50">{campus.exam_count}ex · {campus.topic_count}t</span>
+        {starter ? <Layers className="h-3.5 w-3.5 shrink-0" style={{ color: NEON.yellow }} /> : <GraduationCap className="h-3.5 w-3.5 shrink-0" style={{ color: "#C9A9F5" }} />}
+        <span className="min-w-0 flex-1 truncate text-[12px] font-semibold" style={{ color: starter ? NEON.yellow : NEON.text }}>{campus.name}</span>
+        <span className="shrink-0 rounded px-1 text-[8.5px] font-bold uppercase tracking-wide" title={status === "verified" ? `Verified from: ${(meta?.verifiedFiles ?? []).map((f) => f.name).join(", ") || "linked file"}` : status} style={{ color: badgeColor, border: `1px solid ${badgeColor}55` }}>{status === "verified" ? "✓ verified" : status}</span>
+        {!starter && <span className="shrink-0 text-[9px] tabular-nums opacity-50">{campus.exam_count}ex · {campus.topic_count}t</span>}
       </button>
       {open && (
         <div className="ml-4 border-l pl-1.5" style={{ borderColor: NEON.borderSoft }}>
-          {examsQ.isLoading && <div className="px-1 py-0.5 text-[10px] italic" style={{ color: NEON.muted }}>Loading…</div>}
-          {exams.map((ex) => <ExamRow key={ex.id} exam={ex} topics={topics} onChange={refresh} localOv={localOv} setLocalNum={setLocalNum} />)}
-          {adding ? (
-            <div className="px-0.5 py-1"><InlineInput initial={`Exam ${exams.length + 1}`} placeholder="Exam name…" onCommit={async (v) => { setAdding(false); await createCampusExam({ data: { campus_id: campus.campus_id, course_id: course.id, name: v } }); refresh(); }} onCancel={() => setAdding(false)} /></div>
+          {(examsQ.isLoading || (inherited && starterQ.isLoading)) && <div className="px-1 py-0.5 text-[10px] italic" style={{ color: NEON.muted }}>Loading…</div>}
+
+          {inherited ? (
+            <>
+              <div className="px-1 py-0.5 text-[9.5px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>inherited from Starter Map</div>
+              <div style={{ opacity: 0.55 }}>
+                {starterExams.map((ex) => (
+                  <div key={ex.id} className="px-1 py-0.5">
+                    <span className="text-[11.5px] font-semibold" style={{ color: NEON.text }}>▸ {ex.name}</span>
+                    <span className="ml-1 text-[9px] tabular-nums" style={{ color: NEON.muted }}>{ex.chapter_ids.length} topics</span>
+                  </div>
+                ))}
+                {!starterQ.isLoading && starterExams.length === 0 && <div className="px-1 py-0.5 text-[10px] italic" style={{ color: NEON.muted }}>Starter Map is empty (apply 0113 + snapshot).</div>}
+              </div>
+              <button className="mt-0.5 rounded px-1.5 py-1 text-[10.5px] font-bold" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setCowConfirm(true)}>Edit this campus's map…</button>
+            </>
           ) : (
-            <AddRow label="Add exam" onClick={() => setAdding(true)} />
+            <>
+              {exams.map((ex) => <ExamRow key={ex.id} exam={ex} topics={topics} onChange={refresh} localOv={localOv} setLocalNum={setLocalNum} />)}
+              {adding ? (
+                <div className="px-0.5 py-1"><InlineInput initial={`Exam ${exams.length + 1}`} placeholder="Exam name…" onCommit={async (v) => { setAdding(false); await createCampusExam({ data: { campus_id: campusId, course_id: course.id, name: v } }); refresh(); }} onCancel={() => setAdding(false)} /></div>
+              ) : (
+                <AddRow label="Add exam" onClick={() => setAdding(true)} />
+              )}
+              {/* status controls — verified is manual + requires a linked inbound file (0113) */}
+              {!starter && meta?.hasOwnRows && (
+                <div className="mt-0.5 flex flex-wrap items-center gap-1.5 px-0.5 pb-1">
+                  {status !== "verified" ? (
+                    <button className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={() => void markVerified()} title="Requires >=1 linked inbound file (Prompt 2 links them from the Inbound Files dashboard)">mark verified</button>
+                  ) : (
+                    <>
+                      <button className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={async () => { await setMapStatus({ data: { ...scope, status: "edited" } }); refresh(); }}>back to edited</button>
+                      <button className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide" style={{ color: meta?.chapterLabelsOn ? NEON.cyan : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={async () => { await setChapterLabelsOn({ data: { ...scope, on: !meta?.chapterLabelsOn } }); refresh(); }} title="Chapter labels render student-side ONLY on verified maps with this on">ch labels {meta?.chapterLabelsOn ? "on" : "off"}</button>
+                    </>
+                  )}
+                  <button className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide" style={{ color: "#F0785A", border: `1px solid ${NEON.borderSoft}` }} onClick={() => void openRevert()}>revert to inherited</button>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
+
+      {/* copy-on-write confirm — shown ONCE, the moment inheritance becomes a real map */}
+      {cowConfirm && (
+        <div className="fixed inset-0 z-[1000] grid place-items-center" style={{ background: "rgba(0,0,0,0.55)" }} onClick={() => setCowConfirm(false)}>
+          <div className="w-[300px] rounded-xl p-4" style={{ background: "#0F1720", border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
+            <p className="text-[13px] font-bold">Create {campus.name}'s own map?</p>
+            <p className="mt-1.5 text-[11.5px] leading-snug" style={{ color: NEON.muted }}>This copies the current Starter Map into {campus.name}'s own rows; edits then apply only to {campus.name}.</p>
+            <div className="mt-3 flex justify-end gap-2">
+              <button className="rounded px-3 py-1.5 text-[12px]" style={{ border: `1px solid ${NEON.border}`, color: NEON.muted }} onClick={() => setCowConfirm(false)}>Cancel</button>
+              <button className="rounded px-3 py-1.5 text-[12px] font-bold" style={{ background: NEON.yellow, color: "#0B1322" }} onClick={() => void doCow()}>Continue</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* revert-to-inherited confirm — with the student-side diff */}
+      {revertDiff && (
+        <div className="fixed inset-0 z-[1000] grid place-items-center" style={{ background: "rgba(0,0,0,0.55)" }} onClick={() => setRevertDiff(null)}>
+          <div className="w-[320px] rounded-xl p-4" style={{ background: "#0F1720", border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
+            <p className="text-[13px] font-bold">Revert {campus.name} to inherited?</p>
+            <p className="mt-1.5 text-[11.5px]" style={{ color: NEON.muted }}>Drops this map; students fall back to the {revertDiff.afterLevel === "campus" ? "campus map" : "Starter Map"}:</p>
+            <div className="mt-2 grid grid-cols-2 gap-2 text-[10.5px]">
+              <div><p className="font-bold uppercase" style={{ color: "#F0785A" }}>Now</p>{revertDiff.before.map((e, i) => <p key={i} style={{ color: NEON.muted }}>{e.label} · {e.topics}t</p>)}</div>
+              <div><p className="font-bold uppercase" style={{ color: "#3BF5A0" }}>After</p>{revertDiff.after.map((e, i) => <p key={i} style={{ color: NEON.muted }}>{e.label} · {e.topics}t</p>)}</div>
+            </div>
+            <div className="mt-3 flex justify-end gap-2">
+              <button className="rounded px-3 py-1.5 text-[12px]" style={{ border: `1px solid ${NEON.border}`, color: NEON.muted }} onClick={() => setRevertDiff(null)}>Cancel</button>
+              <button className="rounded px-3 py-1.5 text-[12px] font-bold" style={{ background: "#F0785A", color: "#1A0B08" }} onClick={() => void doRevert()}>Revert</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---- TEXTBOOKS MANAGER — title/edition + ordered chapter list, keyed on chapter_key ----------
+// One line per chapter: "key | number | title". Renumbering an edition = edit the number field
+// only; unit links stay keyed on the chapter identity.
+function TextbooksModal({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const booksQ = useQuery({ queryKey: ["textbooks"], queryFn: () => listTextbooks(), networkMode: "always" });
+  const books = booksQ.data ?? [];
+  const [sel, setSel] = useState<string | "new" | null>(null);
+  const cur = sel && sel !== "new" ? books.find((b) => b.id === sel) ?? null : null;
+  const [title, setTitle] = useState("");
+  const [edition, setEdition] = useState("");
+  const [chapterText, setChapterText] = useState("");
+  useEffect(() => {
+    if (cur) { setTitle(cur.title); setEdition(cur.edition ?? ""); setChapterText(cur.chapters.map((c) => `${c.chapter_key} | ${c.number} | ${c.title}`).join("\n")); }
+    else if (sel === "new") { setTitle(""); setEdition(""); setChapterText(""); }
+  }, [sel, cur]);
+  const save = async () => {
+    const chapters = chapterText.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => {
+      const [key, num, ...rest] = l.split("|").map((x) => x.trim());
+      return { chapter_key: key || "", number: parseInt(num ?? "0", 10) || 0, title: rest.join(" | ") };
+    }).filter((c) => c.chapter_key);
+    try {
+      await saveTextbook({ data: { id: cur?.id ?? null, title: title.trim(), edition: edition.trim() || null, chapters } });
+      qc.invalidateQueries({ queryKey: ["textbooks"] });
+      setSel(null);
+    } catch (e) { alert(e instanceof Error ? e.message : "Save failed."); }
+  };
+  return (
+    <div className="fixed inset-0 z-[1000] grid place-items-center" style={{ background: "rgba(0,0,0,0.55)" }} onClick={onClose}>
+      <div className="w-[380px] max-h-[80vh] overflow-y-auto rounded-xl p-4" style={{ background: "#0F1720", border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <p className="text-[13px] font-bold">Textbooks</p>
+          <button className="opacity-60 hover:opacity-100" onClick={onClose}><X className="h-3.5 w-3.5" /></button>
+        </div>
+        {sel === null ? (
+          <>
+            {books.length === 0 && <p className="mt-2 text-[11px] italic" style={{ color: NEON.muted }}>No textbooks yet (needs 0113).</p>}
+            {books.map((b) => (
+              <button key={b.id} className="mt-1 flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[12px] hover:bg-white/5" onClick={() => setSel(b.id)}>
+                <span className="min-w-0 flex-1 truncate">{b.title}{b.edition ? ` · ${b.edition}` : ""}</span>
+                <span className="shrink-0 text-[9px] tabular-nums" style={{ color: NEON.muted }}>{b.chapters.length} ch</span>
+              </button>
+            ))}
+            <AddRow label="Add textbook" onClick={() => setSel("new")} />
+          </>
+        ) : (
+          <div className="mt-2 flex flex-col gap-2">
+            <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title…" className="rounded px-2 py-1.5 text-[12px] outline-none" style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${NEON.border}`, color: NEON.text }} />
+            <input value={edition} onChange={(e) => setEdition(e.target.value)} placeholder="Edition (optional)…" className="rounded px-2 py-1.5 text-[12px] outline-none" style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${NEON.border}`, color: NEON.text }} />
+            <textarea value={chapterText} onChange={(e) => setChapterText(e.target.value)} rows={10} placeholder={"One chapter per line:\nkey | number | title\ne.g. accounting-cycle | 3 | The Accounting Cycle"} className="rounded px-2 py-1.5 font-mono text-[11px] outline-none" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${NEON.border}`, color: NEON.text }} />
+            <div className="flex justify-end gap-2">
+              <button className="rounded px-3 py-1.5 text-[12px]" style={{ border: `1px solid ${NEON.border}`, color: NEON.muted }} onClick={() => setSel(null)}>Back</button>
+              <button className="rounded px-3 py-1.5 text-[12px] font-bold disabled:opacity-40" style={{ background: NEON.yellow, color: "#0B1322" }} disabled={!title.trim()} onClick={() => void save()}>Save</button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -601,7 +778,13 @@ function AddCampus({ course, onDone, onCancel }: { course: CourseOption; onDone:
   const [q, setQ] = useState("");
   const resultsQ = useQuery({ queryKey: ["campus-search", q], queryFn: () => searchCampuses({ data: { q } }), enabled: q.trim().length >= 2, networkMode: "always" });
   const results = resultsQ.data ?? [];
-  const add = async (c: CampusOpt) => { await createCampusExam({ data: { campus_id: c.id, course_id: course.id, name: "Exam 1" } }); onDone(); };
+  // COPY-ON-WRITE: adding a campus REGISTERS it as inherited (no exam rows — it resolves to the
+  // Starter Map until first edited). Pre-0113 (map_meta absent) falls back to the old create-Exam-1.
+  const add = async (c: CampusOpt) => {
+    try { await registerMapLevel({ data: { courseId: course.id, campusId: c.id, professorId: null } }); }
+    catch { await createCampusExam({ data: { campus_id: c.id, course_id: course.id, name: "Exam 1" } }); }
+    onDone();
+  };
   return (
     <div className="rounded p-1" style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${NEON.borderSoft}` }}>
       <div className="flex items-center gap-1 rounded px-1.5 py-1" style={{ background: "rgba(0,0,0,0.3)" }}>
