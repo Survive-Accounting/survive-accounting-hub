@@ -426,7 +426,7 @@ function SyllabusModal({ school, onClose }: { school: School | null; onClose: ()
               className="cursor-pointer rounded-xl px-4 py-6 text-center transition-colors"
               style={{ border: `2px dashed ${drag ? "var(--accent)" : "rgba(245,239,230,0.25)"}`, background: drag ? "rgba(252,163,17,0.08)" : "rgba(245,239,230,0.03)" }}
             >
-              <p className="text-[13.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>Drag files here, or click to browse</p>
+              <p className="text-[13.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>Add files from your class</p>
               <p className="mt-1 text-[11.5px]" style={{ color: "var(--text-muted)" }}>Syllabus or study guide · PDF, Word, or a photo</p>
               <input ref={inputRef} type="file" multiple accept={ACCEPT} className="hidden" onChange={(e) => void addFiles(e.target.files)} />
             </div>
@@ -575,10 +575,10 @@ function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusS
       <div className="relative overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(252,163,17,0.45)" }}>
         <ExamTabs exams={exams} activeNum={activeNum} onSelect={(n) => { setActiveNum(n); setDrawerOpen(false); }} />
 
-        {/* identity ladder — ONE quiet block top-left (school line + professor rung) and its meter
-            slot. The gap meter exists only once a professor is picked; skippers keep the syllabus
-            door in the same slot. Ambient personalization — no counters, no toasts, no explainers. */}
-        {school && <IdentityBlock school={school} exam={active} professor={professor} skipped={profSkipped} onChangeSchool={onChangeSchool} onPick={onPickProfessor} onSkip={onSkipProfessor} onSyllabus={onSyllabus} />}
+        {/* course masthead — ONE centered cluster (identity line + resolving second line). The gap
+            meter exists only once a professor is picked; skippers get the "pick yours →" re-entry.
+            Ambient personalization — no counters, no toasts, no explainers. */}
+        {school && <CourseMasthead school={school} exam={active} professor={professor} skipped={profSkipped} onChangeSchool={onChangeSchool} onPick={onPickProfessor} onSkip={onSkipProfessor} onSyllabus={onSyllabus} />}
 
         {/* "My school isn't listed" — one optional demand field (skippable), logged with a timestamp */}
         {notListed && <SchoolDemandField />}
@@ -617,9 +617,8 @@ function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusS
             {/* Two sets down — the ONLY proactive email ask in the free flow (quiet inline card). */}
             {showAsk && <TwoSetAsk school={school} professor={professor} onDone={finishAsk} />}
 
-            {/* Unmapped campus / "not listed": Exam 1 still plays (default map); offer to tailor.
-                Suppressed when the professor-skip line already shows this exact ask in the meter slot. */}
-            {((school && !mapped && !profSkipped) || notListed) && (
+            {/* Unmapped campus / "not listed": Exam 1 still plays (default map); offer to tailor. */}
+            {((school && !mapped) || notListed) && (
               <div className="border-t px-3 py-2 text-center" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
                 <button onClick={onSyllabus} className="text-[12px]" style={{ color: "var(--text-muted)" }}>
                   Help me tailor this to your exact course — <span className="font-bold" style={{ color: "var(--accent)" }}>Send your syllabus</span>
@@ -636,15 +635,17 @@ function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusS
   );
 }
 
+// Exam 1 (the current exam) takes ~1/3 of the bar with type one step up; the paid tabs share the
+// rest. Same component, same underline — the asymmetry reads as emphasis, not a different control.
 function ExamTabs({ exams, activeNum, onSelect }: { exams: ExamTab[]; activeNum: number; onSelect: (n: number) => void }) {
   return (
     <div className="flex items-stretch" style={{ background: "rgba(0,0,0,0.22)" }}>
       {exams.map((e) => {
-        const on = e.num === activeNum; const paid = e.price != null;
+        const on = e.num === activeNum; const paid = e.price != null; const hero = e.num === 1;
         return (
-          <button key={e.num} onClick={() => onSelect(e.num)} className="flex-1 px-1 py-2.5 text-center transition-opacity" style={{ borderBottom: `2px solid ${on ? "var(--accent)" : "transparent"}`, opacity: on ? 1 : paid ? 0.5 : 0.8 }}>
-            <span className="block text-[11.5px] font-black uppercase tracking-wide" style={{ color: on ? "var(--accent)" : "var(--brand-cream)" }}>{e.label}</span>
-            <span className="block text-[9.5px] font-bold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>{paid ? `$${e.price}` : "Free"}</span>
+          <button key={e.num} onClick={() => onSelect(e.num)} className="px-1 py-2.5 text-center transition-opacity" style={{ flex: hero ? "0 0 33.333%" : "1 1 0", borderBottom: `2px solid ${on ? "var(--accent)" : "transparent"}`, opacity: on ? 1 : paid ? 0.5 : 0.8 }}>
+            <span className={`block font-black uppercase tracking-wide ${hero ? "text-[13px]" : "text-[11.5px]"}`} style={{ color: on ? "var(--accent)" : "var(--brand-cream)" }}>{e.label}</span>
+            <span className={`block font-bold uppercase tracking-wide ${hero ? "text-[10.5px]" : "text-[9.5px]"}`} style={{ color: "var(--text-muted)" }}>{paid ? `$${e.price}` : "Free"}</span>
           </button>
         );
       })}
@@ -658,7 +659,11 @@ function ExamOutline({ tab, stats, isPaid, curSetId, curTopicKey, openTopics, on
   return (
     <div className="max-h-[300px] overflow-y-auto p-3 sm:max-h-[380px]">
       <div className="mb-2 flex items-center justify-between px-1">
-        <span className="text-[11px] font-black uppercase tracking-wide" style={{ color: "var(--brand-cream)" }}>Common Exam Questions</span>
+        <span className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide" style={{ color: "var(--brand-cream)" }}>
+          {/* STATIC bolt — the poster bolt stays the player's one animated element; no wordmark here */}
+          <span className="inline-block h-3.5 w-2.5 shrink-0"><Bolt c1="var(--bolt-primary)" c2="var(--bolt-secondary)" /></span>
+          Common Exam Questions
+        </span>
         {isPaid && <span className="text-[10px] font-bold" style={{ color: "var(--accent)" }}>{RELEASE_LABEL}</span>}
       </div>
       {tab.topics.map((t) => (
@@ -719,64 +724,65 @@ function SetRow({ set, isPaid, price, active, activeRef, onPick }: { set: Studen
 }
 
 // "My school isn't listed" demand field — one optional free-text input, skippable, logged with a
-// timestamp so Lee sees where to expand next. Never blocks the session.
+// timestamp so Lee sees where to expand next. Never blocks the session. SKIP (or empty send) leaves
+// nothing behind; a real submission gets one quiet thanks line.
 function SchoolDemandField() {
   const [text, setText] = useState("");
-  const [done, setDone] = useState(false);
-  const submit = async () => { const t = text.trim(); if (t) { try { await logSchoolDemand({ data: { text: t } }); } catch { /* ignore */ } } setDone(true); };
-  if (done) return <div className="border-b px-3 py-1.5 text-center text-[11px]" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--text-muted)" }}>Thanks — noted. Enjoy Exam 1, free.</div>;
+  const [state, setState] = useState<"open" | "sent" | "skipped">("open");
+  const submit = async () => {
+    const t = text.trim();
+    if (!t) { setState("skipped"); return; } // empty send = skip: show nothing
+    try { await logSchoolDemand({ data: { text: t } }); } catch { /* best-effort */ }
+    setState("sent");
+  };
+  if (state === "skipped") return null;
+  if (state === "sent") return <div className="border-b px-3 py-1.5 text-center text-[11px]" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--text-muted)" }}>Got it, thanks. Enjoy Exam 1 for free.</div>;
   return (
     <div className="flex flex-col gap-1.5 border-b px-3 py-2 sm:flex-row sm:items-center" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.12)" }}>
       <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>What school? <span className="opacity-70">(helps me decide where to expand next)</span></span>
       <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void submit(); }} placeholder="Your school…" className="min-w-0 flex-1 rounded-lg px-3 py-1 text-[12.5px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }} />
       <button onClick={() => void submit()} className="shrink-0 rounded-lg px-3 py-1 text-[12px] font-bold" style={{ background: "var(--accent)", color: "#0B1220" }}>Send</button>
-      <button onClick={() => setDone(true)} className="shrink-0 text-[10.5px]" style={{ color: "var(--text-muted)" }}>skip</button>
+      <button onClick={() => setState("skipped")} className="shrink-0 text-[10.5px]" style={{ color: "var(--text-muted)" }}>skip</button>
     </div>
   );
 }
 
-// IDENTITY LADDER (player top-left) — school line + professor rung as ONE quiet stacked block, plus
-// the meter slot beneath it. One optional step visible at a time; each rung RESOLVES in place (the
-// prompt line becomes the professor, or collapses on skip — the ladder never grows). The gap meter is
-// the payoff: it exists only once a professor is picked, sliding in once; skippers keep the syllabus
-// door in the same slot. No counters, no toasts, no explainer copy — ambient personalization only.
-function IdentityBlock({ school, exam, professor, skipped, onChangeSchool, onPick, onSkip, onSyllabus }: { school: School; exam: ExamTab; professor: ProfessorLite | null; skipped: boolean; onChangeSchool: () => void; onPick: (p: ProfessorLite | null) => void; onSkip: () => void; onSyllabus: () => void }) {
+// COURSE MASTHEAD — one CENTERED cluster under the exam tabs (replaces the top-left identity block +
+// separate meter strip). Line 1 = the identity ("Ole Miss · ACCY 201[ · Prof. Burney]") with one
+// hover-reveal "change" (→ back to the gate; the next pick re-runs the short recolor beat). Line 2
+// RESOLVES, the cluster never grows: professor prompt → "Likely covers N% …" meter (slides in once)
+// → or, on skip, "Built for your professor's exams — pick yours →" reopening the picker.
+function CourseMasthead({ school, exam, professor, skipped, onChangeSchool, onPick, onSkip, onSyllabus }: { school: School; exam: ExamTab; professor: ProfessorLite | null; skipped: boolean; onChangeSchool: () => void; onPick: (p: ProfessorLite | null) => void; onSkip: () => void; onSyllabus: () => void }) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLDivElement>(null);
   const code = school.codeVerified && school.code ? school.code : null;
+  const profLabel = professor ? `Prof. ${professor.last || professor.name}` : null;
   return (
     <>
-      <div ref={anchorRef} className="border-b px-3 py-1.5" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.12)" }}>
-        <div className="sa-idrow flex items-baseline gap-2">
-          <span className="text-[12.5px] font-bold" style={{ color: "var(--brand-cream)" }}>{school.name}{code ? ` · ${code}` : ""}</span>
+      <div ref={anchorRef} className="border-b px-3 py-2 text-center" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.12)" }}>
+        <div className="sa-idrow flex items-baseline justify-center gap-2">
+          <span className="text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>{school.name}{code ? ` · ${code}` : ""}{profLabel ? ` · ${profLabel}` : ""}</span>
           <button onClick={onChangeSchool} className="sa-chg text-[10.5px]" style={{ color: "var(--text-muted)" }}>change</button>
         </div>
         {professor ? (
-          <div className="sa-idrow mt-0.5 flex items-baseline gap-2">
-            <span className="text-[11.5px] font-bold" style={{ color: "var(--brand-cream)" }}>Prof. {professor.last || professor.name}</span>
-            <button onClick={() => onPick(null)} className="sa-chg text-[10.5px]" style={{ color: "var(--text-muted)" }}>change</button>
-          </div>
+          /* the payoff line — slides in once per pick; "Likely" carries the hedge, so no tilde */
+          <button key={professor.id} onClick={onSyllabus} className="sa-meter-in mt-0.5 text-[11.5px] hover:opacity-90" style={{ color: "var(--brand-cream)" }}>
+            Likely covers <b>{exam.coveragePct}%</b> of {profLabel}'s {exam.label} — <span className="font-bold" style={{ color: "var(--accent)" }}>help me get the rest →</span>
+          </button>
         ) : !skipped ? (
-          <div className="mt-0.5 flex items-baseline gap-2">
+          <div className="mt-0.5 flex items-baseline justify-center gap-2">
             <span className="text-[11.5px]" style={{ color: "var(--text-muted)" }}>Who's your professor?</span>
             <button onClick={() => setOpen((v) => !v)} className="text-[11.5px] font-bold" style={{ color: "var(--accent)" }}>{open ? "close" : "pick →"}</button>
-            <button onClick={() => { setOpen(false); onSkip(); }} className="ml-auto text-[10.5px]" style={{ color: "var(--text-muted)" }}>skip</button>
+            <button onClick={() => { setOpen(false); onSkip(); }} className="text-[10.5px]" style={{ color: "var(--text-muted)" }}>skip</button>
           </div>
-        ) : null}
+        ) : (
+          <button onClick={() => setOpen(true)} className="mt-0.5 text-[11.5px] hover:opacity-90" style={{ color: "var(--text-muted)" }}>
+            Built for your professor's exams — <span className="font-bold" style={{ color: "var(--accent)" }}>pick yours →</span>
+          </button>
+        )}
       </div>
 
       {open && <ProfessorPicker campusId={school.campusId} schoolName={school.name} anchorRef={anchorRef} onPick={(p) => { onPick(p); setOpen(false); }} onNotListedDone={() => { setOpen(false); onSkip(); }} onClose={() => setOpen(false)} />}
-
-      {/* meter slot — earned by the professor pick (slides in once); skippers keep the syllabus door */}
-      {professor ? (
-        <button key={professor.id} onClick={onSyllabus} className="sa-meter-in w-full border-b px-3 py-1.5 text-center text-[11.5px] hover:bg-white/5" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--brand-cream)" }}>
-          Covering <b>~{exam.coveragePct}%</b> of Prof. {professor.last || professor.name}'s {exam.label} — <span className="font-bold" style={{ color: "var(--accent)" }}>help me get the rest →</span>
-        </button>
-      ) : skipped ? (
-        <button onClick={onSyllabus} className="w-full border-b px-3 py-1.5 text-center text-[11.5px] hover:bg-white/5" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--text-muted)" }}>
-          Help me tailor this to your exact course — <span className="font-bold" style={{ color: "var(--accent)" }}>Send your syllabus</span>
-        </button>
-      ) : null}
     </>
   );
 }
@@ -888,12 +894,17 @@ function TwoSetAsk({ school, professor, onDone }: { school: School; professor: P
   );
 }
 
-// Muted autoplay per browser rules; the user unmutes via the native controls. 16:9 only.
+// Muted autoplay per browser rules, with a clearly visible "Tap for sound" chip — the chip unmutes
+// on tap and fades after the FIRST interaction of any kind (chip, native controls, or unmuting).
+// No intro/branding card before content: the baked-in 1.5s pre-roll IS the intro. 16:9 only.
 // onComplete fires once when the viewer has watched >=90% (the "set completed" signal, Prompt 3).
 function HeroVideo({ playbackId, onComplete }: { playbackId: string; onComplete?: () => void }) {
   const ref = useRef<HTMLVideoElement>(null);
   const [err, setErr] = useState(false);
+  const [chip, setChip] = useState(true); // fades (then unmounts) on first interaction
+  const [chipFading, setChipFading] = useState(false);
   const fired = useRef(false);
+  const dismissChip = () => { setChipFading(true); window.setTimeout(() => setChip(false), 350); };
   useEffect(() => {
     const v = ref.current; if (!v) return;
     const src = `https://stream.mux.com/${playbackId}.m3u8`;
@@ -906,7 +917,20 @@ function HeroVideo({ playbackId, onComplete }: { playbackId: string; onComplete?
     return () => { cancelled = true; v.removeEventListener("timeupdate", onTime); hls?.destroy(); };
   }, [playbackId, onComplete]);
   if (err) return <div className="grid h-full w-full place-items-center text-[12px]" style={{ color: "#F3C6CC" }}>Couldn't load this video. Try again shortly.</div>;
-  return <video ref={ref} controls playsInline muted className="h-full w-full" style={{ objectFit: "contain", background: "#000" }} />;
+  return (
+    <div className="relative h-full w-full" onPointerDownCapture={() => { if (chip && !chipFading) dismissChip(); }}>
+      <video ref={ref} controls playsInline muted onVolumeChange={() => { if (chip && !chipFading && ref.current && !ref.current.muted) dismissChip(); }} className="h-full w-full" style={{ objectFit: "contain", background: "#000" }} />
+      {chip && (
+        <button
+          onClick={() => { const v = ref.current; if (v) { v.muted = false; void v.play().catch(() => { /* keep state */ }); } dismissChip(); }}
+          className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-bold"
+          style={{ background: "rgba(11,18,32,0.82)", border: "1px solid rgba(245,239,230,0.28)", color: "var(--brand-cream)", opacity: chipFading ? 0 : 1, transition: "opacity 320ms ease", pointerEvents: chipFading ? "none" : "auto" }}
+        >
+          <span aria-hidden>🔊</span> Tap for sound
+        </button>
+      )}
+    </div>
+  );
 }
 
 function Poster({ school, topicName, queued }: { school: School | null; topicName: string; queued: boolean }) {
