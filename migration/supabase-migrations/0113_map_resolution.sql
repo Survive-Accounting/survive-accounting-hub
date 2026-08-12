@@ -141,7 +141,8 @@ end $$;
 commit;
 
 -- Verify: starter exams + topic counts, and map_meta rows.
-select coalesce(ce.name,'?') as exam, count(t.id) as topics
+-- (campus_exam_topics has no `id` column — count chapter_id.)
+select coalesce(ce.name,'?') as exam, count(t.chapter_id) as topics
 from public.campus_exams ce left join public.campus_exam_topics t on t.campus_exam_id = ce.id
 where ce.campus_id is null and ce.professor_id is null
 group by ce.name order by ce.name;
