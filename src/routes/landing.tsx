@@ -862,14 +862,14 @@ function LeeSection() {
             <h3 style={{ fontWeight: 700, fontSize: 17.5, lineHeight: 1.3, color: "var(--brand-cream)" }}>“I studied for weeks and still failed.”</h3>
           </div>
 
+          {/* the one headline moment — stays visible in the collapsed state, right above Read more */}
+          <p style={{ marginTop: 16, fontWeight: 600, fontSize: 18, color: "var(--brand-cream)" }}>Sound familiar?</p>
+
           {/* collapsible remainder — max-height clip animates height (grid-rows fr transitions are
               unreliable in some engines); reduced-motion skips the animation. 640px comfortably
               clears the content; it's only a ceiling, so the box still sits at its natural height. */}
           <div style={{ overflow: "hidden", maxHeight: open ? 640 : 0, opacity: open ? 1 : 0, transition: reduce ? "none" : "max-height 340ms ease, opacity 260ms ease" }}>
             <div>
-              {/* the one headline moment */}
-              <p style={{ marginTop: 16, fontWeight: 600, fontSize: 18, color: "var(--brand-cream)" }}>Sound familiar?</p>
-
               {/* the thesis couplet — own two lines, bold on "about" and "DO" only */}
               <p style={{ marginTop: 14, marginBottom: 16, fontWeight: 400, fontSize: 16, lineHeight: 1.5, color: "var(--brand-cream)" }}>
                 Lectures teach you <b style={{ fontWeight: 700 }}>about</b> accounting.<br />
