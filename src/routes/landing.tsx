@@ -106,6 +106,14 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
   // Professor rung (confidence ladder step 2) — session-persisted; personalizes labels only, never gates.
   const [professor, setProfessor] = useState<ProfessorLite | null>(() => { try { const s = sessionStorage.getItem("sa-landing-prof"); return s ? (JSON.parse(s) as ProfessorLite) : null; } catch { return null; } });
   const pickProfessor = (p: ProfessorLite | null) => { setProfessor(p); try { if (p) sessionStorage.setItem("sa-landing-prof", JSON.stringify(p)); else sessionStorage.removeItem("sa-landing-prof"); } catch { /* ignore */ } };
+  // Skip is session-persisted too — the prompt line collapses and stays collapsed; the syllabus door
+  // (meter slot) remains the skipper's path. Both reset when the school changes.
+  const [profSkipped, setProfSkippedState] = useState(() => { try { return sessionStorage.getItem("sa-landing-prof-skip") === "1"; } catch { return false; } });
+  const skipProfessor = () => { setProfSkippedState(true); try { sessionStorage.setItem("sa-landing-prof-skip", "1"); } catch { /* ignore */ } };
+  const resetProfessor = () => { setProfSkippedState(false); pickProfessor(null); try { sessionStorage.removeItem("sa-landing-prof-skip"); } catch { /* ignore */ } };
+  // "change" on the school line — back to the gate (picker rings open); the next pick re-runs the
+  // short recolor beat via the normal pickSchool path and the professor line resets.
+  const changeSchool = () => { setSchool(null); resetProfessor(); setPickerPulse((p) => p + 1); };
 
   const theme = useMemo(() => {
     if (!school) return DEFAULT_FRAME_THEME;
@@ -196,6 +204,7 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
   const pickSchool = (s: School) => {
     const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
     setNotListed(false);
+    if (school?.id !== s.id) resetProfessor(); // new school → professor line resets (spec: ladder resets with school)
     setSchool(s);
     if (reduce) return; // instant swap, no takeover
     const mode = firstPick.current ? "short" : "full";
@@ -210,13 +219,19 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
         .sa-marquee-track { animation: sa-marquee 42s linear infinite; }
         .sa-marquee:hover .sa-marquee-track { animation-play-state: paused; }
         @keyframes sa-picker-pulse { 0% { box-shadow: 0 0 0 0 rgba(252,163,17,0.55); } 70% { box-shadow: 0 0 0 16px rgba(252,163,17,0); } 100% { box-shadow: 0 0 0 0 rgba(252,163,17,0); } }
+        .sa-chg { opacity: 0; transition: opacity 120ms; }
+        .sa-idrow:hover .sa-chg, .sa-chg:focus-visible { opacity: 1; }
+        @media (hover: none) { .sa-chg { opacity: 1; } }
+        @keyframes sa-meter-in { from { transform: translateY(-6px); opacity: 0; } to { transform: none; opacity: 1; } }
+        .sa-meter-in { animation: sa-meter-in 200ms ease; }
+        @media (prefers-reduced-motion: reduce) { .sa-meter-in { animation: none; } }
       `}</style>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
 
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px" }}>
         {chapterBanner && <ChapterBanner name={chapterBanner} slug={chapterSlug} />}
         <Hero onTryFree={onTryFree} />
-        <ExamPlayer exams={exams} school={school} onPick={pickSchool} pickerPulse={pickerPulse} focusSignal={focusSignal} schools={schoolsWithCodes} mapped={mapped} onSyllabus={() => setSyllabusOpen(true)} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => setNotListed(true)} theater={theater} onTheaterDone={() => setTheater(null)} />
+        <ExamPlayer exams={exams} school={school} onPick={pickSchool} onChangeSchool={changeSchool} pickerPulse={pickerPulse} focusSignal={focusSignal} schools={schoolsWithCodes} mapped={mapped} onSyllabus={() => setSyllabusOpen(true)} professor={professor} onPickProfessor={pickProfessor} profSkipped={profSkipped} onSkipProfessor={skipProfessor} notListed={notListed} onNotListed={() => setNotListed(true)} theater={theater} onTheaterDone={() => setTheater(null)} />
         <SectionDivider />
         <TestimonialsSlider />
         <SectionDivider />
@@ -242,7 +257,7 @@ function Hero({ onTryFree }: { onTryFree: () => void }) {
         Try Exam 1 Free ⚡
       </button>
       <p className="mt-5 max-w-xl text-[15px] leading-relaxed sm:text-[17px]" style={{ color: "var(--brand-cream)", opacity: 0.86 }}>
-        Get cram videos for Intro Financial Accounting — built for your school's exams.
+        Cram videos for Intro Financial Accounting — built for your professor's exams.
       </p>
     </section>
   );
@@ -502,7 +517,7 @@ const examStats = (tab: ExamTab): string => {
   return parts.join(" · ");
 };
 
-function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, mapped, onSyllabus, professor, onPickProfessor, notListed, onNotListed, theater, onTheaterDone }: { exams: ExamTab[]; school: School | null; onPick: (s: School) => void; pickerPulse: number; focusSignal: number; schools: School[]; mapped: boolean; onSyllabus: () => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; notListed: boolean; onNotListed: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void }) {
+function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusSignal, schools, mapped, onSyllabus, professor, onPickProfessor, profSkipped, onSkipProfessor, notListed, onNotListed, theater, onTheaterDone }: { exams: ExamTab[]; school: School | null; onPick: (s: School) => void; onChangeSchool: () => void; pickerPulse: number; focusSignal: number; schools: School[]; mapped: boolean; onSyllabus: () => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; profSkipped: boolean; onSkipProfessor: () => void; notListed: boolean; onNotListed: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void }) {
   const [activeNum, setActiveNum] = useState(1);
   const [selById, setSelById] = useState<Record<number, Sel>>({});
   const [openTopics, setOpenTopics] = useState<Set<string>>(() => new Set());
@@ -510,7 +525,6 @@ function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, 
   const active = exams.find((e) => e.num === activeNum) ?? exams[0];
   const isPaid = active.price != null;
   const gated = !school && !notListed; // "not listed" unblurs with the default map + brand navy
-  const live = !!school || notListed; // school-like session (mapped campus OR "not listed")
 
   // TWO-SET EMAIL ASK — a set counts as completed at >=90% watched. After the 2nd distinct set, show
   // one quiet inline card (persist dismissal). The ONLY proactive email ask in the free flow.
@@ -561,21 +575,13 @@ function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, 
       <div className="relative overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(252,163,17,0.45)" }}>
         <ExamTabs exams={exams} activeNum={activeNum} onSelect={(n) => { setActiveNum(n); setDrawerOpen(false); }} />
 
-        {/* stats line — computed from data, updates as sets go live */}
-        <div className="border-b px-3 py-1.5 text-center text-[11px] font-semibold tracking-wide" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--text-muted)", background: "rgba(0,0,0,0.12)" }}>{examStats(active)}</div>
-
-        {/* gap meter — per exam (mapped, unmapped, or "not listed"); % is a manual mapper field (default 80) */}
-        {live && (
-          <button onClick={onSyllabus} className="w-full border-b px-3 py-1.5 text-center text-[11.5px] hover:bg-white/5" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--brand-cream)" }}>
-            Covering <b>~{active.coveragePct}%</b> of {professor ? `Prof. ${professor.last || professor.name}'s` : "a typical"} {active.label} — <span className="font-bold" style={{ color: "var(--accent)" }}>help me get the rest →</span>
-          </button>
-        )}
+        {/* identity ladder — ONE quiet block top-left (school line + professor rung) and its meter
+            slot. The gap meter exists only once a professor is picked; skippers keep the syllabus
+            door in the same slot. Ambient personalization — no counters, no toasts, no explainers. */}
+        {school && <IdentityBlock school={school} exam={active} professor={professor} skipped={profSkipped} onChangeSchool={onChangeSchool} onPick={onPickProfessor} onSkip={onSkipProfessor} onSyllabus={onSyllabus} />}
 
         {/* "My school isn't listed" — one optional demand field (skippable), logged with a timestamp */}
         {notListed && <SchoolDemandField />}
-
-        {/* professor rung (skippable) — school sessions only (needs a campusId for the picker) */}
-        {school && <ProfessorRung campusId={school.campusId} code={school.codeVerified && school.code ? school.code : null} professor={professor} onPick={onPickProfessor} />}
 
         {/* mobile-only drawer toggle for the outline */}
         <button onClick={() => setDrawerOpen((v) => !v)} className="flex w-full items-center justify-between border-b px-3 py-2 text-[12px] font-bold uppercase tracking-wide sm:hidden" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--brand-cream)", background: "rgba(0,0,0,0.2)" }}>
@@ -584,7 +590,7 @@ function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, 
 
         <div className="sm:flex">
           <div className={`${drawerOpen ? "block" : "hidden"} border-b sm:block sm:w-[42%] sm:max-w-[360px] sm:border-b-0 sm:border-r`} style={{ borderColor: "rgba(245,239,230,0.1)" }}>
-            <ExamOutline tab={active} isPaid={isPaid} curSetId={curSet?.id ?? null} curTopicKey={cur?.topicKey ?? null} openTopics={openTopics} onToggleTopic={toggleTopic} onPickSet={pickSet} />
+            <ExamOutline tab={active} stats={examStats(active)} isPaid={isPaid} curSetId={curSet?.id ?? null} curTopicKey={cur?.topicKey ?? null} openTopics={openTopics} onToggleTopic={toggleTopic} onPickSet={pickSet} />
           </div>
 
           <div className="min-w-0 flex-1">
@@ -611,8 +617,9 @@ function ExamPlayer({ exams, school, onPick, pickerPulse, focusSignal, schools, 
             {/* Two sets down — the ONLY proactive email ask in the free flow (quiet inline card). */}
             {showAsk && <TwoSetAsk school={school} professor={professor} onDone={finishAsk} />}
 
-            {/* Unmapped campus / "not listed": Exam 1 still plays (default map); offer to tailor. */}
-            {((school && !mapped) || notListed) && (
+            {/* Unmapped campus / "not listed": Exam 1 still plays (default map); offer to tailor.
+                Suppressed when the professor-skip line already shows this exact ask in the meter slot. */}
+            {((school && !mapped && !profSkipped) || notListed) && (
               <div className="border-t px-3 py-2 text-center" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
                 <button onClick={onSyllabus} className="text-[12px]" style={{ color: "var(--text-muted)" }}>
                   Help me tailor this to your exact course — <span className="font-bold" style={{ color: "var(--accent)" }}>Send your syllabus</span>
@@ -645,7 +652,7 @@ function ExamTabs({ exams, activeNum, onSelect }: { exams: ExamTab[]; activeNum:
   );
 }
 
-function ExamOutline({ tab, isPaid, curSetId, curTopicKey, openTopics, onToggleTopic, onPickSet }: { tab: ExamTab; isPaid: boolean; curSetId: string | null; curTopicKey: string | null; openTopics: Set<string>; onToggleTopic: (k: string) => void; onPickSet: (topicKey: string, setId: string | null) => void }) {
+function ExamOutline({ tab, stats, isPaid, curSetId, curTopicKey, openTopics, onToggleTopic, onPickSet }: { tab: ExamTab; stats: string; isPaid: boolean; curSetId: string | null; curTopicKey: string | null; openTopics: Set<string>; onToggleTopic: (k: string) => void; onPickSet: (topicKey: string, setId: string | null) => void }) {
   const activeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => { activeRef.current?.scrollIntoView({ block: "nearest" }); }, [curSetId, curTopicKey]);
   return (
@@ -657,6 +664,8 @@ function ExamOutline({ tab, isPaid, curSetId, curTopicKey, openTopics, onToggleT
       {tab.topics.map((t) => (
         <TopicRow key={t.key} topic={t} isPaid={isPaid} price={tab.price} open={openTopics.has(t.key)} onToggle={() => onToggleTopic(t.key)} curSetId={curSetId} curTopicKey={curTopicKey} activeRef={activeRef} onPickSet={onPickSet} />
       ))}
+      {/* the quiet sum — where the eye lands after scanning the list, not a headline */}
+      <div className="mt-2 border-t px-1 pt-2 text-[10.5px]" style={{ borderColor: "rgba(245,239,230,0.08)", color: "var(--text-muted)" }}>{stats}</div>
     </div>
   );
 }
@@ -726,46 +735,127 @@ function SchoolDemandField() {
   );
 }
 
-// Professor rung (confidence ladder step 2) — a small skippable picker after school selection. On
-// select, "Prof. [name] · [code]" locks top-left. Never gates content — labels + gap meter only.
-function ProfessorRung({ campusId, code, professor, onPick }: { campusId: string; code: string | null; professor: ProfessorLite | null; onPick: (p: ProfessorLite | null) => void }) {
+// IDENTITY LADDER (player top-left) — school line + professor rung as ONE quiet stacked block, plus
+// the meter slot beneath it. One optional step visible at a time; each rung RESOLVES in place (the
+// prompt line becomes the professor, or collapses on skip — the ladder never grows). The gap meter is
+// the payoff: it exists only once a professor is picked, sliding in once; skippers keep the syllabus
+// door in the same slot. No counters, no toasts, no explainer copy — ambient personalization only.
+function IdentityBlock({ school, exam, professor, skipped, onChangeSchool, onPick, onSkip, onSyllabus }: { school: School; exam: ExamTab; professor: ProfessorLite | null; skipped: boolean; onChangeSchool: () => void; onPick: (p: ProfessorLite | null) => void; onSkip: () => void; onSyllabus: () => void }) {
   const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
-  const [skipped, setSkipped] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const profQ = useQuery({ queryKey: ["landing-profs", campusId, q], queryFn: () => searchOrderProfessors({ data: { campusId, q } }), enabled: open, networkMode: "always", staleTime: 120_000 });
-  useEffect(() => { if (!open) return; const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }; document.addEventListener("mousedown", onDoc); return () => document.removeEventListener("mousedown", onDoc); }, [open]);
-
-  if (professor) {
-    return (
-      <div className="flex items-center gap-2 border-b px-3 py-1.5" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.12)" }}>
-        <span className="text-[11.5px] font-bold" style={{ color: "var(--brand-cream)" }}>Prof. {professor.last || professor.name}{code ? ` · ${code}` : ""}</span>
-        <button onClick={() => onPick(null)} className="text-[10.5px]" style={{ color: "var(--text-muted)" }}>change</button>
-      </div>
-    );
-  }
-  if (skipped) return null;
-  const results = profQ.data ?? [];
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const code = school.codeVerified && school.code ? school.code : null;
   return (
-    <div ref={ref} className="relative border-b px-3 py-1.5" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.12)" }}>
-      <div className="flex items-center gap-2">
-        <span className="text-[11.5px]" style={{ color: "var(--text-muted)" }}>Who's your professor?</span>
-        <button onClick={() => setOpen((v) => !v)} className="text-[11.5px] font-bold" style={{ color: "var(--accent)" }}>{open ? "close" : "pick →"}</button>
-        <button onClick={() => setSkipped(true)} className="ml-auto text-[10.5px]" style={{ color: "var(--text-muted)" }}>skip</button>
+    <>
+      <div ref={anchorRef} className="border-b px-3 py-1.5" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.12)" }}>
+        <div className="sa-idrow flex items-baseline gap-2">
+          <span className="text-[12.5px] font-bold" style={{ color: "var(--brand-cream)" }}>{school.name}{code ? ` · ${code}` : ""}</span>
+          <button onClick={onChangeSchool} className="sa-chg text-[10.5px]" style={{ color: "var(--text-muted)" }}>change</button>
+        </div>
+        {professor ? (
+          <div className="sa-idrow mt-0.5 flex items-baseline gap-2">
+            <span className="text-[11.5px] font-bold" style={{ color: "var(--brand-cream)" }}>Prof. {professor.last || professor.name}</span>
+            <button onClick={() => onPick(null)} className="sa-chg text-[10.5px]" style={{ color: "var(--text-muted)" }}>change</button>
+          </div>
+        ) : !skipped ? (
+          <div className="mt-0.5 flex items-baseline gap-2">
+            <span className="text-[11.5px]" style={{ color: "var(--text-muted)" }}>Who's your professor?</span>
+            <button onClick={() => setOpen((v) => !v)} className="text-[11.5px] font-bold" style={{ color: "var(--accent)" }}>{open ? "close" : "pick →"}</button>
+            <button onClick={() => { setOpen(false); onSkip(); }} className="ml-auto text-[10.5px]" style={{ color: "var(--text-muted)" }}>skip</button>
+          </div>
+        ) : null}
       </div>
-      {open && (
-        <div className="absolute left-2 right-2 top-full z-30 mt-1 overflow-hidden rounded-lg" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 20px 50px -16px rgba(0,0,0,0.85)" }}>
-          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search your professor…" className="w-full border-b bg-transparent px-3 py-2 text-[13px] outline-none" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--brand-cream)" }} />
-          <div className="max-h-52 overflow-y-auto py-1">
-            {profQ.isLoading && <div className="px-3 py-2 text-[12px] italic" style={{ color: "var(--text-muted)" }}>Loading…</div>}
-            {!profQ.isLoading && results.length === 0 && <div className="px-3 py-2 text-[12px] italic" style={{ color: "var(--text-muted)" }}>No professors listed — you can skip.</div>}
-            {results.map((p) => (
-              <button key={p.id} onClick={() => { onPick(p); setOpen(false); }} className="block w-full px-3 py-1.5 text-left text-[13px] hover:bg-white/5" style={{ color: "var(--brand-cream)" }}>{p.name}</button>
-            ))}
+
+      {open && <ProfessorPicker campusId={school.campusId} schoolName={school.name} anchorRef={anchorRef} onPick={(p) => { onPick(p); setOpen(false); }} onNotListedDone={() => { setOpen(false); onSkip(); }} onClose={() => setOpen(false)} />}
+
+      {/* meter slot — earned by the professor pick (slides in once); skippers keep the syllabus door */}
+      {professor ? (
+        <button key={professor.id} onClick={onSyllabus} className="sa-meter-in w-full border-b px-3 py-1.5 text-center text-[11.5px] hover:bg-white/5" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--brand-cream)" }}>
+          Covering <b>~{exam.coveragePct}%</b> of Prof. {professor.last || professor.name}'s {exam.label} — <span className="font-bold" style={{ color: "var(--accent)" }}>help me get the rest →</span>
+        </button>
+      ) : skipped ? (
+        <button onClick={onSyllabus} className="w-full border-b px-3 py-1.5 text-center text-[11.5px] hover:bg-white/5" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--text-muted)" }}>
+          Help me tailor this to your exact course — <span className="font-bold" style={{ color: "var(--accent)" }}>Send your syllabus</span>
+        </button>
+      ) : null}
+    </>
+  );
+}
+
+// "Last, First" display — students know last names; falls back to the full name when last is absent.
+const profDisplay = (p: ProfessorLite): string => (p.last ? `${p.last}${p.first ? `, ${p.first}` : ""}` : p.name);
+
+// Professor picker — PORTALED to document.body (same stacking + theme-vars fix as the school picker:
+// CSS custom properties don't cross portals, so the panel re-applies frameThemeVars). Fetches the
+// campus roster once and filters client-side so search matches EITHER name order. Always ends with
+// "My professor isn't listed →" (optional last-name field → demand log, campus included in the text);
+// a campus with no roster shows ONLY that path — never an empty list.
+function ProfessorPicker({ campusId, schoolName, anchorRef, onPick, onNotListedDone, onClose }: { campusId: string; schoolName: string; anchorRef: RefObject<HTMLDivElement | null>; onPick: (p: ProfessorLite) => void; onNotListedDone: () => void; onClose: () => void }) {
+  const [q, setQ] = useState("");
+  const [notListed, setNotListed] = useState(false);
+  const [profName, setProfName] = useState("");
+  const [rect, setRect] = useState<{ left: number; top: number; width: number } | null>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const profQ = useQuery({ queryKey: ["landing-profs", campusId], queryFn: () => searchOrderProfessors({ data: { campusId } }), networkMode: "always", staleTime: 300_000 });
+  const all = profQ.data ?? [];
+  const empty = !profQ.isLoading && all.length === 0; // no roster → only the isn't-listed path
+
+  useEffect(() => {
+    const measure = () => { const r = anchorRef.current?.getBoundingClientRect(); if (r) setRect({ left: r.left + 8, top: r.bottom + 4, width: Math.min(r.width - 16, 380) }); };
+    measure();
+    window.addEventListener("resize", measure);
+    window.addEventListener("scroll", measure, true);
+    return () => { window.removeEventListener("resize", measure); window.removeEventListener("scroll", measure, true); };
+  }, [anchorRef]);
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => { if (panelRef.current && !panelRef.current.contains(e.target as Node) && !anchorRef.current?.contains(e.target as Node)) onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("mousedown", onDoc); document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
+  }, [onClose, anchorRef]);
+
+  const needle = q.trim().toLowerCase();
+  const results = useMemo(() => {
+    const sorted = all.slice().sort((a, b) => (a.last || a.name).localeCompare(b.last || b.name) || (a.first || "").localeCompare(b.first || ""));
+    if (!needle) return sorted;
+    return sorted.filter((p) => {
+      const first = (p.first || "").toLowerCase(), last = (p.last || "").toLowerCase(), full = p.name.toLowerCase();
+      return full.includes(needle) || `${last}, ${first}`.includes(needle) || `${last} ${first}`.includes(needle);
+    });
+  }, [all, needle]);
+
+  const finishNotListed = async (send: boolean) => {
+    const t = profName.trim();
+    if (send && t) { try { await logSchoolDemand({ data: { text: `prof not listed · ${schoolName}: ${t}` } }); } catch { /* best-effort */ } }
+    onNotListedDone(); // default flow continues either way; the rung resolves as skipped
+  };
+
+  if (typeof document === "undefined" || !rect) return null;
+  return createPortal(
+    <div ref={panelRef} className="fixed z-[220] overflow-hidden rounded-xl" style={{ ...frameThemeVars(DEFAULT_FRAME_THEME), left: rect.left, top: rect.top, width: rect.width, background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)" }}>
+      {notListed || empty ? (
+        <div className="p-3">
+          <p className="text-[12.5px] font-bold" style={{ color: "#F5EFE6" }}>My professor isn't listed</p>
+          <input autoFocus value={profName} onChange={(e) => setProfName(e.target.value)} placeholder="Professor's last name (helps me map your course)" onKeyDown={(e) => { if (e.key === "Enter") void finishNotListed(true); }} className="mt-2 w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "#F5EFE6" }} />
+          <div className="mt-2 flex items-center justify-end gap-3">
+            <button onClick={() => void finishNotListed(false)} className="text-[11.5px]" style={{ color: "rgba(245,239,230,0.55)" }}>skip</button>
+            <button onClick={() => void finishNotListed(true)} className="rounded-lg px-3 py-1.5 text-[12px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>Continue</button>
           </div>
         </div>
+      ) : (
+        <>
+          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search your professor…" className="w-full border-b bg-transparent px-3 py-2 text-[13px] outline-none" style={{ borderColor: "rgba(245,239,230,0.1)", color: "#F5EFE6" }} />
+          <div className="max-h-52 overflow-y-auto py-1">
+            {profQ.isLoading && <div className="px-3 py-2 text-[12px] italic" style={{ color: "rgba(245,239,230,0.55)" }}>Loading…</div>}
+            {results.map((p) => (
+              <button key={p.id} onClick={() => onPick(p)} className="block w-full px-3 py-1.5 text-left text-[13px] hover:bg-white/10" style={{ color: "#F5EFE6" }}>{profDisplay(p)}</button>
+            ))}
+            {!profQ.isLoading && results.length === 0 && <div className="px-3 py-2 text-[12px] italic" style={{ color: "rgba(245,239,230,0.55)" }}>No matches.</div>}
+          </div>
+          <button onClick={() => setNotListed(true)} className="block w-full border-t px-3 py-2 text-left text-[12.5px] font-bold hover:bg-white/10" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--accent)" }}>My professor isn't listed →</button>
+        </>
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
