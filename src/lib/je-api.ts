@@ -33,7 +33,7 @@ const MISSING_COLUMN = Symbol("missing-column");
 // (see src/lib/pg-errors.ts). Every tolerant-fallback select in this file goes
 // through this one function so that fix applies everywhere, not just canvas.
 function isMissingColumn(error: any): boolean {
-  return isMissingSchema(error ?? {}, /chapter_id|status|source|sort_order|subtitle/i);
+  return isMissingSchema(error ?? {}, /chapter_id|status|source|sort_order|subtitle|parked/i);
 }
 
 /** List all scenarios (lightweight — full doc included; the prototype set is small).
@@ -296,7 +296,7 @@ export interface CourseOption {
   code: string | null;
   course_name: string | null;
   course_family: string | null;
-  chapters: { id: string; number: number | null; name: string | null; status?: "active" | "archived"; subtitle?: string | null }[];
+  chapters: { id: string; number: number | null; name: string | null; status?: "active" | "archived"; subtitle?: string | null; parked?: boolean }[];
 }
 
 /** Course dropdowns show the clean course_name; code is now a legacy fallback
@@ -339,10 +339,14 @@ export async function fetchCourseOptions(): Promise<CourseOption[]> {
   }
   if (coursesRes.error) throw coursesRes.error;
 
+  // `parked` (0112, manual-apply) degrades gracefully: drop it, then status/subtitle, if a column is missing.
   let chaptersRes = await supabase
     .from("chapters")
-    .select("id,chapter_number,chapter_name,course_id,status,subtitle" as never)
+    .select("id,chapter_number,chapter_name,course_id,status,subtitle,parked" as never)
     .order("chapter_number", { ascending: true });
+  if (chaptersRes.error && isMissingColumn(chaptersRes.error)) {
+    chaptersRes = await supabase.from("chapters").select("id,chapter_number,chapter_name,course_id,status,subtitle" as never).order("chapter_number", { ascending: true });
+  }
   if (chaptersRes.error && isMissingColumn(chaptersRes.error)) {
     chaptersRes = await supabase.from("chapters").select("id,chapter_number,chapter_name,course_id" as never).order("chapter_number", { ascending: true });
   }
@@ -352,7 +356,7 @@ export async function fetchCourseOptions(): Promise<CourseOption[]> {
   for (const c of (chaptersRes.data ?? []) as any[]) {
     if (!c.course_id) continue;
     const list = chaptersByCourse.get(c.course_id) ?? [];
-    list.push({ id: c.id, number: c.chapter_number ?? null, name: c.chapter_name ?? null, status: c.status, subtitle: c.subtitle ?? null });
+    list.push({ id: c.id, number: c.chapter_number ?? null, name: c.chapter_name ?? null, status: c.status, subtitle: c.subtitle ?? null, parked: !!c.parked });
     chaptersByCourse.set(c.course_id, list);
   }
   const built: CourseOption[] = ((coursesRes.data ?? []) as any[]).map((c) => ({

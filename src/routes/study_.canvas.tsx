@@ -1358,7 +1358,11 @@ function PresentCanvas() {
   const renameDeckFromOutline = useCallback((deckId: string, name: string) => {
     setDecks((prev) => prev.map((d) => (d.id === deckId ? { ...d, name: name.trim() || d.name, updatedAt: new Date().toISOString() } : d)));
   }, []);
-  const decksCtx = useMemo(() => ({ decks, highlightId: deckHighlightId, flashDeck, createDeck: createDeckFromOutline, setDeckTopic: setDeckTopicFromOutline, renameDeck: renameDeckFromOutline }), [decks, deckHighlightId, flashDeck, createDeckFromOutline, setDeckTopicFromOutline, renameDeckFromOutline]);
+  const reorderDecksFromOutline = useCallback((orderedDeckIds: string[]) => {
+    const rank = new Map(orderedDeckIds.map((id, i) => [id, i]));
+    setDecks((prev) => prev.map((d) => (rank.has(d.id) ? { ...d, sortOrder: rank.get(d.id)!, updatedAt: new Date().toISOString() } : d)));
+  }, []);
+  const decksCtx = useMemo(() => ({ decks, highlightId: deckHighlightId, flashDeck, createDeck: createDeckFromOutline, setDeckTopic: setDeckTopicFromOutline, renameDeck: renameDeckFromOutline, reorderDecksInTopic: reorderDecksFromOutline }), [decks, deckHighlightId, flashDeck, createDeckFromOutline, setDeckTopicFromOutline, renameDeckFromOutline, reorderDecksFromOutline]);
   const [currentFrameId, setCurrentFrameId] = useState<string | null>(null); // FRAMES: the frame the camera is fitted to
   // ACTIVE-LESSON GATING (Lee — lag fix): the one lesson whose frames/cards are
   // mounted. Others render as collapsed chips (hidden descendants). Persisted in

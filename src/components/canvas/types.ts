@@ -1276,6 +1276,9 @@ export interface DeckDef {
    *  topic is a library set — not publishable until assigned. Additive. */
   courseId?: string | null;
   topicId?: string | null;
+  /** OUTLINE FLOW ORDER (Lee) — a set's position WITHIN its topic, set by drag-reorder in the
+   *  leftmost outline. Absent = fall back to name order. Additive; scene-JSON only (no migration). */
+  sortOrder?: number;
   /** CEQ Studio special slots (per set): INTRO + OUTRO staged clips. The shared
    *  TRANSITION lives in panel prefs (one file across all sets). Additive. */
   intro?: TakeRef;

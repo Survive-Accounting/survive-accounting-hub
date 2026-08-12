@@ -22,10 +22,13 @@ export interface DecksCtx {
   setDeckTopic: (deckId: string, topicId: string | null, courseId: string | null) => void;
   /** OUTLINE AUTHORING — rename a loaded-scene set. */
   renameDeck: (deckId: string, name: string) => void;
+  /** OUTLINE AUTHORING — set the flow order of sets within a topic (drag-reorder). Assigns each id
+   *  its index as `sortOrder`; ids not in the list keep their order. Loaded-scene decks only. */
+  reorderDecksInTopic: (orderedDeckIds: string[]) => void;
 }
 
 const noop = () => {};
-export const DecksContext = createContext<DecksCtx>({ decks: [], highlightId: null, flashDeck: noop, createDeck: () => "", setDeckTopic: noop, renameDeck: noop });
+export const DecksContext = createContext<DecksCtx>({ decks: [], highlightId: null, flashDeck: noop, createDeck: () => "", setDeckTopic: noop, renameDeck: noop, reorderDecksInTopic: noop });
 export const useDecks = () => useContext(DecksContext);
 
 /** DnD payload key for dragging a canvas node onto a named-deck row. */

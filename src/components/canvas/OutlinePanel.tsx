@@ -6,14 +6,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNodes } from "@xyflow/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Archive, Building2, ChevronDown, ChevronRight, Circle, GraduationCap, GripVertical, Layers, MessageSquare, Plus, Search, Video, X } from "lucide-react";
+import { Archive, Building2, ChevronDown, ChevronRight, Circle, Eye, EyeOff, GraduationCap, GripVertical, Layers, MessageSquare, Plus, Search, Video, X } from "lucide-react";
 
 import { NEON } from "./theme";
 import { useFrameNav } from "./FrameNavContext";
 import { useDecks } from "./DecksContext";
 import type { CardNode, DeckDef, LessonBox } from "./types";
 import { courseLabel, fetchCourseOptions, topicLabel, type CourseOption } from "@/lib/je-api";
-import { createChapter, listAllCardDecks, renameChapter, reorderChapters, setChapterStatus } from "@/lib/canvas.functions";
+import { createChapter, listAllCardDecks, renameChapter, reorderChapters, setChapterParked, setChapterStatus } from "@/lib/canvas.functions";
+import { snapshotDefaultFromOleMiss, type SnapshotDiff } from "@/lib/default-map.functions";
 import { listCampusChapterOverrides, searchCampuses, setCampusChapterOverride, type CampusOpt } from "@/lib/campus-overrides.functions";
 import {
   createCampusExam, listCampusExams, listCourseCampuses, renameCampusExam,
@@ -185,7 +186,7 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
   showToast: (msg: string, undo?: () => void) => void; libraryDecks: DeckDef[];
 }) {
   const qc = useQueryClient();
-  const { decks: loadedDecks, createDeck, setDeckTopic, renameDeck } = useDecks();
+  const { decks: loadedDecks, createDeck, setDeckTopic, renameDeck, reorderDecksInTopic } = useDecks();
   const [open, setOpen] = useState(focus);
   const [openTopics, setOpenTopics] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState(false);
@@ -194,10 +195,36 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
   const [addingSetFor, setAddingSetFor] = useState<string | null>(null); // topic id whose "+ set" input is open
   const [confirmDel, setConfirmDel] = useState<{ ch: Topic; count: number } | null>(null);
   const [libOpen, setLibOpen] = useState(false);
+  const [parkOpen, setParkOpen] = useState(false); // "Parked ideas" group collapsed by default
   const refresh = () => qc.invalidateQueries({ queryKey: ["course-options"] });
-  const topics = useMemo(() => (course.chapters ?? []).filter((ch) => ch.status !== "archived").sort((a, b) => (a.number ?? 1e9) - (b.number ?? 1e9)), [course]);
+  const allTopics = useMemo(() => (course.chapters ?? []).filter((ch) => ch.status !== "archived").sort((a, b) => (a.number ?? 1e9) - (b.number ?? 1e9)), [course]);
+  const topics = useMemo(() => allTopics.filter((ch) => !ch.parked), [allTopics]);      // production view
+  const parkedTopics = useMemo(() => allTopics.filter((ch) => ch.parked), [allTopics]);   // braindump
   const toggleTopic = (id: string) => setOpenTopics((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const canEditSet = (id: string) => loadedDecks.some((d) => d.id === id); // only loaded-scene sets are mutable here
+  const togglePark = async (ch: Topic, parked: boolean) => {
+    try {
+      await setChapterParked({ data: { id: ch.id, parked } }); refresh();
+      showToast(parked ? `Parked "${topicLabel(ch)}".` : `Unparked "${topicLabel(ch)}".`, async () => { await setChapterParked({ data: { id: ch.id, parked: !parked } }); refresh(); });
+    } catch (e) { showToast(e instanceof Error ? e.message : "Couldn't park that topic."); }
+  };
+
+  // SNAPSHOT FLOW → DEFAULT MAP — preview the diff, then apply (mirrors Ole Miss's exam layout into
+  // the campus-agnostic default map; replaces the hand-run util SQL).
+  const [snap, setSnap] = useState<SnapshotDiff | null>(null);
+  const [snapBusy, setSnapBusy] = useState(false);
+  const openSnapshot = async () => {
+    setSnapBusy(true);
+    try { setSnap(await snapshotDefaultFromOleMiss({ data: { apply: false } })); }
+    catch (e) { showToast(e instanceof Error ? e.message : "Couldn't compute the snapshot."); }
+    finally { setSnapBusy(false); }
+  };
+  const applySnapshot = async () => {
+    setSnapBusy(true);
+    try { await snapshotDefaultFromOleMiss({ data: { apply: true } }); setSnap(null); qc.invalidateQueries({ queryKey: ["default-exam-units"] }); showToast("Default map updated from the Ole Miss flow."); }
+    catch (e) { showToast(e instanceof Error ? e.message : "Snapshot failed."); }
+    finally { setSnapBusy(false); }
+  };
 
   // create a topic; Shift+Enter → also open its "+ set" input (commit-then-child)
   const addTopic = async (name: string, shift: boolean) => {
@@ -243,6 +270,21 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
     await reorderChapters({ data: { course_id: course.id, ordered_ids: ids } }); refresh();
   };
 
+  // SET drag-and-drop — move a set between topics and reorder within a topic (flow order). Only
+  // loaded-scene sets are draggable; drop computes the target topic's full id order and persists it.
+  const bySort = (a: DeckDef, b: DeckDef) => (a.sortOrder ?? 1e9) - (b.sortOrder ?? 1e9) || setName(a).localeCompare(setName(b));
+  const [setDrag, setSetDrag] = useState<{ id: string; from: string } | null>(null);
+  const [setOver, setSetOver] = useState<{ topic: string; index: number } | null>(null);
+  const performSetDrop = (targetTopic: string, index: number) => {
+    const drag = setDrag; setSetDrag(null); setSetOver(null);
+    if (!drag || !canEditSet(drag.id)) return;
+    const ids = (decksByTopic.get(targetTopic) ?? []).slice().sort(bySort).map((d) => d.id).filter((x) => x !== drag.id);
+    const at = Math.max(0, Math.min(index, ids.length));
+    ids.splice(at, 0, drag.id);
+    if (drag.from !== targetTopic) setDeckTopic(drag.id, targetTopic, course.id);
+    reorderDecksInTopic(ids);
+  };
+
   const dim = focus ? 1 : 0.5; // muted non-focus courses
   return (
     <div className="mb-0.5" style={{ opacity: dim }}>
@@ -255,13 +297,19 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
         <div className="ml-2 border-l pl-1.5" style={{ borderColor: NEON.borderSoft }}>
           {topics.length === 0 && <div className="px-1 py-0.5 text-[10px] italic" style={{ color: NEON.muted }}>No topics.</div>}
           {topics.map((ch) => {
-            const tDecks = (decksByTopic.get(ch.id) ?? []).slice().sort((a, b) => setName(a).localeCompare(setName(b)));
+            const tDecks = (decksByTopic.get(ch.id) ?? []).slice().sort(bySort);
             const tOpen = openTopics.has(ch.id);
+            const setTarget = setDrag && setOver?.topic === ch.id; // a set is hovering this topic
             return (
-              <div key={ch.id} className="rounded"
-                style={{ background: overId === ch.id && dragId ? "rgba(79,163,227,0.12)" : "transparent", opacity: dragId === ch.id ? 0.4 : 1 }}
-                onDragOver={focus ? (e) => { if (dragId) { e.preventDefault(); if (overId !== ch.id) setOverId(ch.id); } } : undefined}
-                onDrop={focus ? (e) => { if (dragId) { e.preventDefault(); void commitOrder(ch.id); setDragId(null); setOverId(null); } } : undefined}>
+              <div key={ch.id} className="rounded" style={{ transition: "background 120ms", background: (overId === ch.id && dragId) || setTarget ? "rgba(79,163,227,0.12)" : "transparent", opacity: dragId === ch.id ? 0.4 : 1 }}
+                onDragOver={focus ? (e) => {
+                  if (dragId) { e.preventDefault(); if (overId !== ch.id) setOverId(ch.id); }
+                  else if (setDrag) { e.preventDefault(); if (setOver?.topic !== ch.id) setSetOver({ topic: ch.id, index: tDecks.filter((d) => d.id !== setDrag.id).length }); } // default: append (rows refine)
+                } : undefined}
+                onDrop={focus ? (e) => {
+                  if (dragId) { e.preventDefault(); void commitOrder(ch.id); setDragId(null); setOverId(null); }
+                  else if (setDrag) { e.preventDefault(); performSetDrop(ch.id, setOver?.topic === ch.id ? setOver.index : tDecks.length); }
+                } : undefined}>
                 <div className="group flex items-center gap-1 px-0.5 py-0.5">
                   {focus && <span className="cursor-grab opacity-0 group-hover:opacity-60" draggable onDragStart={() => setDragId(ch.id)} onDragEnd={() => { setDragId(null); setOverId(null); }} title="Drag to reorder"><GripVertical className="h-3 w-3" /></span>}
                   <button className="flex min-w-0 flex-1 items-center gap-1 text-left" onClick={() => toggleTopic(ch.id)}>
@@ -274,27 +322,43 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
                     {tDecks.length > 0 && <span className="shrink-0 text-[9px] tabular-nums opacity-45">{tDecks.length}</span>}
                   </button>
                   {focus && renaming !== ch.id && (
+                    <button className="shrink-0 rounded p-0.5 opacity-0 hover:bg-white/10 group-hover:opacity-60" title="Park topic (hide from the production view)" onClick={(e) => { e.stopPropagation(); void togglePark(ch, true); }}><Eye className="h-3 w-3" /></button>
+                  )}
+                  {focus && renaming !== ch.id && (
                     <button className="shrink-0 rounded p-0.5 opacity-0 hover:bg-white/10 group-hover:opacity-60" title="Delete topic" onClick={(e) => { e.stopPropagation(); void delTopic(ch, tDecks); }}><X className="h-3 w-3" /></button>
                   )}
                 </div>
                 {tOpen && (
                   <div className="ml-4 pb-0.5">
                     {tDecks.length === 0 && !addingSetFor && <div className="px-1 py-0.5 text-[10px] italic" style={{ color: NEON.muted }}>No sets yet</div>}
-                    {tDecks.map((d) => {
+                    {tDecks.map((d, i) => {
                       const active = d.id === lastSetId; const pub = isPublished(d); const editable = canEditSet(d.id);
+                      const dragging = setDrag?.id === d.id;
+                      const dropLine = setTarget && setOver?.index === i && setDrag?.id !== d.id;
                       return (
-                        <div key={d.id} className="group flex items-center gap-1 rounded pr-0.5 hover:bg-white/5" style={{ background: active ? "rgba(252,163,17,0.10)" : "transparent" }}>
-                          {focus && renamingSet === d.id ? (
-                            <div className="flex-1 px-1.5 py-0.5"><InlineInput initial={setName(d)} onCommit={(v) => { setRenamingSet(null); renameDeck(d.id, v); }} onCancel={() => setRenamingSet(null)} /></div>
-                          ) : (
-                            <button className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-left" onClick={() => openSet(d.id)} onDoubleClick={focus && editable ? (e) => { e.stopPropagation(); setRenamingSet(d.id); } : undefined} title={`Open "${setName(d)}" in the Studio · ${d.status === "live" ? "LIVE" : "draft"}${pub ? " · video published" : ""}${focus && editable ? " · double-click to rename" : ""}`}>
-                              <Circle className="h-2.5 w-2.5 shrink-0" style={{ color: d.status === "live" ? "#3BF5A0" : "#F0B24A", fill: d.status === "live" ? "#3BF5A0" : "transparent" }} />
-                              <span className="min-w-0 flex-1 truncate" style={{ color: active ? NEON.yellow : NEON.text }}>{setName(d)}</span>
-                            </button>
-                          )}
-                          {focus && editable && renamingSet !== d.id && (
-                            <button className="shrink-0 rounded p-0.5 opacity-0 hover:bg-white/10 group-hover:opacity-60" title="Move set to the Library" onClick={(e) => { e.stopPropagation(); delSet(d); }}><X className="h-3 w-3" /></button>
-                          )}
+                        <div key={d.id}>
+                          {dropLine && <div className="mx-1 my-0.5 h-0.5 rounded-full" style={{ background: NEON.cyan }} />}
+                          <div
+                            className="group flex items-center gap-1 rounded pr-0.5 hover:bg-white/5"
+                            style={{ background: active ? "rgba(252,163,17,0.10)" : "transparent", opacity: dragging ? 0.4 : 1, transform: dragging ? "scale(0.98)" : "none", transition: "transform 120ms, opacity 120ms" }}
+                            draggable={focus && editable && renamingSet !== d.id}
+                            onDragStart={focus && editable ? (e) => { e.dataTransfer.effectAllowed = "move"; setSetDrag({ id: d.id, from: ch.id }); } : undefined}
+                            onDragEnd={() => { setSetDrag(null); setSetOver(null); }}
+                            onDragOver={focus && setDrag ? (e) => { e.preventDefault(); e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); const below = e.clientY > r.top + r.height / 2; const base = tDecks.filter((x) => x.id !== setDrag.id).findIndex((x) => x.id === d.id); const idx = base < 0 ? tDecks.length : base + (below ? 1 : 0); if (setOver?.topic !== ch.id || setOver?.index !== idx) setSetOver({ topic: ch.id, index: idx }); } : undefined}
+                            onDrop={focus && setDrag ? (e) => { e.preventDefault(); e.stopPropagation(); performSetDrop(ch.id, setOver?.topic === ch.id ? setOver.index : tDecks.length); } : undefined}>
+                            {focus && renamingSet === d.id ? (
+                              <div className="flex-1 px-1.5 py-0.5"><InlineInput initial={setName(d)} onCommit={(v) => { setRenamingSet(null); renameDeck(d.id, v); }} onCancel={() => setRenamingSet(null)} /></div>
+                            ) : (
+                              <button className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-left" onClick={() => openSet(d.id)} onDoubleClick={focus && editable ? (e) => { e.stopPropagation(); setRenamingSet(d.id); } : undefined} title={`Open "${setName(d)}" in the Studio · ${d.status === "live" ? "LIVE" : "draft"}${pub ? " · video published" : ""}${focus && editable ? " · drag to move/reorder · double-click to rename" : ""}`}>
+                                <Circle className="h-2.5 w-2.5 shrink-0" style={{ color: d.status === "live" ? "#3BF5A0" : "#F0B24A", fill: d.status === "live" ? "#3BF5A0" : "transparent" }} />
+                                <span className="min-w-0 flex-1 truncate" style={{ color: active ? NEON.yellow : NEON.text }}>{setName(d)}</span>
+                              </button>
+                            )}
+                            {focus && editable && renamingSet !== d.id && (
+                              <button className="shrink-0 rounded p-0.5 opacity-0 hover:bg-white/10 group-hover:opacity-60" title="Move set to the Library" onClick={(e) => { e.stopPropagation(); delSet(d); }}><X className="h-3 w-3" /></button>
+                            )}
+                          </div>
+                          {setTarget && setOver?.index === i + 1 && i === tDecks.length - 1 && setDrag?.id !== d.id && <div className="mx-1 my-0.5 h-0.5 rounded-full" style={{ background: NEON.cyan }} />}
                         </div>
                       );
                     })}
@@ -313,6 +377,28 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
           ) : (
             <AddRow label="Add topic" onClick={() => setAdding(true)} />
           ))}
+
+          {/* PARKED IDEAS — authoring-only braindump; collapsed, muted, un-park with the eye */}
+          {focus && parkedTopics.length > 0 && (
+            <div className="mt-1">
+              <button className="flex w-full items-center gap-1 px-0.5 py-1 text-left opacity-70 hover:bg-white/5 hover:opacity-100" onClick={() => setParkOpen((v) => !v)}>
+                {parkOpen ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+                <EyeOff className="h-3 w-3 shrink-0" style={{ color: NEON.muted }} />
+                <span className="min-w-0 flex-1 truncate text-[10.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Parked ideas</span>
+                <span className="shrink-0 text-[9px] tabular-nums opacity-60">{parkedTopics.length}</span>
+              </button>
+              {parkOpen && (
+                <div className="ml-4 pb-0.5">
+                  {parkedTopics.map((ch) => (
+                    <div key={ch.id} className="group flex items-center gap-1 rounded px-0.5 py-0.5 hover:bg-white/5">
+                      <span className="min-w-0 flex-1 truncate text-[11px] italic" style={{ color: NEON.muted }}>{topicLabel(ch)}</span>
+                      <button className="shrink-0 rounded p-0.5 opacity-0 hover:bg-white/10 group-hover:opacity-70" title="Un-park (return to the production view)" onClick={() => void togglePark(ch, false)}><Eye className="h-3 w-3" style={{ color: NEON.cyan }} /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* LIBRARY (Unassigned) — recoverable soft-deleted / never-assigned sets */}
           {focus && libraryDecks.length > 0 && (
@@ -335,6 +421,37 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
               )}
             </div>
           )}
+
+          {/* SNAPSHOT FLOW → DEFAULT MAP — course-level; replaces the hand-run util SQL */}
+          {focus && (
+            <button className="mt-2 flex w-full items-center gap-1.5 rounded px-1.5 py-1.5 text-left text-[10.5px] font-bold uppercase tracking-wider disabled:opacity-40 hover:bg-white/5" style={{ color: "#C9A9F5", border: `1px solid ${NEON.borderSoft}` }} disabled={snapBusy} onClick={() => void openSnapshot()} title="Copy Ole Miss's exam flow into the campus-agnostic default map (unmapped schools read this)">
+              <Layers className="h-3 w-3 shrink-0" /> {snapBusy && !snap ? "Computing…" : "Snapshot flow → default map"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {snap && (
+        <div className="fixed inset-0 z-[1000] grid place-items-center" style={{ background: "rgba(0,0,0,0.55)" }} onClick={() => setSnap(null)}>
+          <div className="w-[340px] rounded-xl p-4" style={{ background: "#0F1720", border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
+            <p className="text-[13px] font-bold" style={{ color: NEON.text }}>Snapshot flow → default map</p>
+            <p className="mt-1.5 text-[11.5px] leading-snug" style={{ color: NEON.muted }}>Rebuild the default map (what unmapped schools show) to mirror Ole Miss's current exam layout.</p>
+            <div className="mt-2.5 flex gap-3 text-[11px]">
+              <span style={{ color: "#3BF5A0" }}>+{snap.added} added</span>
+              <span style={{ color: NEON.yellow }}>{snap.changed} moved</span>
+              <span style={{ color: "#F0785A" }}>−{snap.removed} removed</span>
+              <span style={{ color: NEON.muted }}>{snap.unchanged} same</span>
+            </div>
+            <div className="mt-2 rounded p-2 text-[11px]" style={{ background: "rgba(0,0,0,0.25)", border: `1px solid ${NEON.borderSoft}` }}>
+              {snap.perExam.length === 0 ? <span style={{ color: NEON.muted }}>Nothing to snapshot (Ole Miss has no active exams mapped).</span> : snap.perExam.map((e) => (
+                <div key={e.exam_number} className="flex justify-between"><span style={{ color: NEON.text }}>{e.exam_number === 99 ? "Final" : e.exam_number === 999 ? "Unsorted" : `Exam ${e.exam_number}`}</span><span className="tabular-nums" style={{ color: NEON.muted }}>{e.topics} topic{e.topics === 1 ? "" : "s"}</span></div>
+              ))}
+            </div>
+            <div className="mt-3 flex justify-end gap-2">
+              <button className="rounded px-3 py-1.5 text-[12px]" style={{ border: `1px solid ${NEON.border}`, color: NEON.muted }} onClick={() => setSnap(null)}>Cancel</button>
+              <button className="rounded px-3 py-1.5 text-[12px] font-bold disabled:opacity-40" style={{ background: "#C9A9F5", color: "#160B22" }} disabled={snapBusy || snap.perExam.length === 0} onClick={() => void applySnapshot()}>{snapBusy ? "Applying…" : "Apply to default map"}</button>
+            </div>
+          </div>
         </div>
       )}
 

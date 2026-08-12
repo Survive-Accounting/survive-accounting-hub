@@ -51,6 +51,66 @@ export const listCampusIntroCodes = createServerFn({ method: "POST" })
     } catch { return []; }
   });
 
+// SNAPSHOT FLOW → DEFAULT MAP (Lee) — replaces the hand-run util SQL. Rebuilds the campus-agnostic
+// default map (default_exam_units) to mirror Ole Miss's CURRENT active exam layout (the reference
+// campus Lee curates). `apply:false` returns a DIFF preview for the confirm dialog; `apply:true`
+// performs a full replace with a manual rollback (re-insert the prior rows) if the insert fails, so
+// the default map is never left empty. Requires 0106 (default_exam_units) + Ole Miss mapped.
+const OLE_MISS_CAMPUS = "7b92a320-b196-43f2-a241-77a0805816fe";
+const examNumberOf = (name: string): number => {
+  const digits = (name.match(/\d+/) ?? [])[0];
+  if (digits) return parseInt(digits, 10);
+  return /final|review/i.test(name) ? 99 : 999;
+};
+export interface SnapshotDiff {
+  after: DefaultUnitRow[];
+  added: number; removed: number; changed: number; unchanged: number;
+  perExam: { exam_number: number; topics: number }[];
+  applied: boolean;
+}
+export const snapshotDefaultFromOleMiss = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ apply: z.boolean() }).parse(d))
+  .handler(async ({ data }): Promise<SnapshotDiff> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as unknown as { from: (t: string) => any };
+    // 1) Ole Miss active exams + their topics
+    const { data: exams, error: exErr } = await db.from("campus_exams").select("id,name,status").eq("campus_id", OLE_MISS_CAMPUS).eq("status", "active");
+    if (exErr) throw new Error(exErr.message);
+    const examIds = (exams ?? []).map((e: { id: string }) => e.id);
+    const nameById = new Map<string, string>((exams ?? []).map((e: { id: string; name: string }) => [e.id, e.name]));
+    const cet = examIds.length ? await db.from("campus_exam_topics").select("campus_exam_id,chapter_id,position").in("campus_exam_id", examIds) : { data: [] };
+    // 2) collapse to one row per topic — earliest exam (then position) wins
+    const best = new Map<string, { exam_number: number; sort_order: number }>();
+    for (const r of (cet.data ?? []) as { campus_exam_id: string; chapter_id: string; position: number | null }[]) {
+      const en = examNumberOf(nameById.get(r.campus_exam_id) ?? "");
+      const so = r.position ?? 0;
+      const cur = best.get(r.chapter_id);
+      if (!cur || en < cur.exam_number || (en === cur.exam_number && so < cur.sort_order)) best.set(r.chapter_id, { exam_number: en, sort_order: so });
+    }
+    const after: DefaultUnitRow[] = [...best.entries()].map(([unit_id, v]) => ({ unit_id, exam_number: v.exam_number, sort_order: v.sort_order, is_foundations: false }))
+      .sort((a, b) => a.exam_number - b.exam_number || (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    // 3) diff against the current default map
+    const { data: beforeRows, error: bErr } = await db.from("default_exam_units").select("unit_id,exam_number,sort_order,is_foundations");
+    if (bErr) throw new Error(bErr.message);
+    const before = (beforeRows ?? []) as DefaultUnitRow[];
+    const beforeById = new Map(before.map((r) => [r.unit_id, r]));
+    const afterById = new Map(after.map((r) => [r.unit_id, r]));
+    let added = 0, removed = 0, changed = 0, unchanged = 0;
+    for (const r of after) { const b = beforeById.get(r.unit_id); if (!b) added++; else if (b.exam_number !== r.exam_number || (b.sort_order ?? 0) !== (r.sort_order ?? 0)) changed++; else unchanged++; }
+    for (const r of before) if (!afterById.has(r.unit_id)) removed++;
+    const perExam = [...new Set(after.map((r) => r.exam_number))].sort((a, b) => a - b).map((n) => ({ exam_number: n, topics: after.filter((r) => r.exam_number === n).length }));
+    // 4) apply — full replace with rollback on failure (never leave the map empty)
+    let applied = false;
+    if (data.apply && after.length > 0) {
+      const del = await db.from("default_exam_units").delete().neq("unit_id", "00000000-0000-0000-0000-000000000000");
+      if (del.error) throw new Error(del.error.message);
+      const ins = await db.from("default_exam_units").insert(after);
+      if (ins.error) { if (before.length) await db.from("default_exam_units").insert(before); throw new Error(`Snapshot failed, rolled back: ${ins.error.message}`); }
+      applied = true;
+    }
+    return { after, added, removed, changed, unchanged, perExam, applied };
+  });
+
 export const listDefaultExamUnits = createServerFn({ method: "GET" }).handler(async (): Promise<DefaultUnitRow[]> => {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

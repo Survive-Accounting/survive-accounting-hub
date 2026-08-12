@@ -881,6 +881,23 @@ export const setChapterStatus = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+/** PARKED (Lee, outline authoring) — an AUTHORING-only flag: parked topics collapse into a muted
+ *  "Parked ideas" group so Lee can braindump future-exam topics without cluttering production. Never
+ *  student-facing. Requires 0112_chapter_parked.sql; a clear error asks Lee to apply it if missing. */
+export const setChapterParked = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), parked: z.boolean() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { error } = await (supabaseAdmin.from("chapters" as never) as any).update({ parked: data.parked }).eq("id", data.id);
+    if (error) {
+      if (/column .*parked.* does not exist/i.test(error.message ?? "")) {
+        throw new Error("Parking needs migration 0112_chapter_parked.sql — paste it into the Supabase SQL editor, then try again.");
+      }
+      rethrow0089(error);
+    }
+    return { ok: true };
+  });
+
 /** Drag-to-reorder: renumbers the given ACTIVE chapters 1..N in the given
  *  order. Collision-safe without a real transaction — every id is bumped to a
  *  distinct negative temp number FIRST (phase 1), then to its final 1..N
