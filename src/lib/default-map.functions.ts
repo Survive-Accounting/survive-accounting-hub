@@ -51,11 +51,12 @@ export const listCampusIntroCodes = createServerFn({ method: "POST" })
     } catch { return []; }
   });
 
-// SNAPSHOT FLOW → DEFAULT MAP (Lee) — replaces the hand-run util SQL. Rebuilds the campus-agnostic
-// default map (default_exam_units) to mirror Ole Miss's CURRENT active exam layout (the reference
-// campus Lee curates). `apply:false` returns a DIFF preview for the confirm dialog; `apply:true`
-// performs a full replace with a manual rollback (re-insert the prior rows) if the insert fails, so
-// the default map is never left empty. Requires 0106 (default_exam_units) + Ole Miss mapped.
+// SNAPSHOT FLOW → STARTER MAP (Lee) — replaces the hand-run util SQL. Rebuilds the campus-agnostic
+// STARTER MAP to mirror Ole Miss's CURRENT active exam layout (the reference campus Lee curates).
+// Post-0113 the starter map IS campus_exams rows with campus_id IS NULL (edited with the same mapper
+// UI as any campus); pre-0113 it falls back to rewriting default_exam_units (the legacy shape).
+// `apply:false` returns a DIFF preview for the confirm dialog; `apply:true` performs a full replace
+// with a manual rollback if the insert fails, so the starter map is never left empty.
 const OLE_MISS_CAMPUS = "7b92a320-b196-43f2-a241-77a0805816fe";
 const examNumberOf = (name: string): number => {
   const digits = (name.match(/\d+/) ?? [])[0];
@@ -107,6 +108,31 @@ export const snapshotDefaultFromOleMiss = createServerFn({ method: "POST" })
       const ins = await db.from("default_exam_units").insert(after);
       if (ins.error) { if (before.length) await db.from("default_exam_units").insert(before); throw new Error(`Snapshot failed, rolled back: ${ins.error.message}`); }
       applied = true;
+
+      // 4b) POST-0113: the Starter Map is real campus_exams rows (campus_id IS NULL) — rewrite them
+      // to the same layout so the resolver serves the snapshot. Skipped silently pre-0113 (the
+      // legacy default_exam_units rewrite above already covers the resolver's fallback path).
+      try {
+        const { data: courseRows } = await db.from("campus_exams").select("course_id").eq("campus_id", OLE_MISS_CAMPUS).limit(1);
+        const courseId = (courseRows?.[0] as { course_id: string } | undefined)?.course_id ?? null;
+        if (courseId) {
+          const { data: oldStarter, error: osErr } = await db.from("campus_exams").select("id").is("campus_id", null).is("professor_id", null);
+          if (osErr) throw osErr; // professor_id missing → pre-0113 → skip
+          const oldIds = (oldStarter ?? []).map((r: { id: string }) => r.id);
+          if (oldIds.length) {
+            await db.from("campus_exam_topics").delete().in("campus_exam_id", oldIds);
+            await db.from("campus_exams").delete().in("id", oldIds);
+          }
+          const nums = [...new Set(after.map((r) => r.exam_number))].sort((a, b) => a - b);
+          for (const n of nums) {
+            const { data: insEx, error: exIns } = await db.from("campus_exams").insert({ campus_id: null, professor_id: null, course_id: courseId, name: n === 99 ? "Final" : `Exam ${n}`, status: "active" }).select("id").single();
+            if (exIns) throw exIns;
+            const rows = after.filter((r) => r.exam_number === n).map((r, i) => ({ campus_exam_id: (insEx as { id: string }).id, chapter_id: r.unit_id, position: r.sort_order ?? i + 1 }));
+            const { error: tIns } = await db.from("campus_exam_topics").insert(rows);
+            if (tIns) throw tIns;
+          }
+        }
+      } catch { /* 0113 not applied yet — starter lives in default_exam_units only */ }
     }
     return { after, added, removed, changed, unchanged, perExam, applied };
   });

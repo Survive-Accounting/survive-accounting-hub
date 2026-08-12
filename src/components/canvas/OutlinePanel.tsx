@@ -221,7 +221,7 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
   };
   const applySnapshot = async () => {
     setSnapBusy(true);
-    try { await snapshotDefaultFromOleMiss({ data: { apply: true } }); setSnap(null); qc.invalidateQueries({ queryKey: ["default-exam-units"] }); showToast("Default map updated from the Ole Miss flow."); }
+    try { await snapshotDefaultFromOleMiss({ data: { apply: true } }); setSnap(null); qc.invalidateQueries({ queryKey: ["default-exam-units"] }); showToast("Starter Map updated from the Ole Miss flow."); }
     catch (e) { showToast(e instanceof Error ? e.message : "Snapshot failed."); }
     finally { setSnapBusy(false); }
   };
@@ -424,8 +424,8 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
 
           {/* SNAPSHOT FLOW → DEFAULT MAP — course-level; replaces the hand-run util SQL */}
           {focus && (
-            <button className="mt-2 flex w-full items-center gap-1.5 rounded px-1.5 py-1.5 text-left text-[10.5px] font-bold uppercase tracking-wider disabled:opacity-40 hover:bg-white/5" style={{ color: "#C9A9F5", border: `1px solid ${NEON.borderSoft}` }} disabled={snapBusy} onClick={() => void openSnapshot()} title="Copy Ole Miss's exam flow into the campus-agnostic default map (unmapped schools read this)">
-              <Layers className="h-3 w-3 shrink-0" /> {snapBusy && !snap ? "Computing…" : "Snapshot flow → default map"}
+            <button className="mt-2 flex w-full items-center gap-1.5 rounded px-1.5 py-1.5 text-left text-[10.5px] font-bold uppercase tracking-wider disabled:opacity-40 hover:bg-white/5" style={{ color: "#C9A9F5", border: `1px solid ${NEON.borderSoft}` }} disabled={snapBusy} onClick={() => void openSnapshot()} title="Copy Ole Miss's exam flow into the campus-agnostic Starter Map (unmapped schools read this)">
+              <Layers className="h-3 w-3 shrink-0" /> {snapBusy && !snap ? "Computing…" : "Snapshot flow → starter map"}
             </button>
           )}
         </div>
@@ -434,8 +434,8 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
       {snap && (
         <div className="fixed inset-0 z-[1000] grid place-items-center" style={{ background: "rgba(0,0,0,0.55)" }} onClick={() => setSnap(null)}>
           <div className="w-[340px] rounded-xl p-4" style={{ background: "#0F1720", border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
-            <p className="text-[13px] font-bold" style={{ color: NEON.text }}>Snapshot flow → default map</p>
-            <p className="mt-1.5 text-[11.5px] leading-snug" style={{ color: NEON.muted }}>Rebuild the default map (what unmapped schools show) to mirror Ole Miss's current exam layout.</p>
+            <p className="text-[13px] font-bold" style={{ color: NEON.text }}>Snapshot flow → starter map</p>
+            <p className="mt-1.5 text-[11.5px] leading-snug" style={{ color: NEON.muted }}>Rebuild the Starter Map (what unmapped schools show) to mirror Ole Miss's current exam layout.</p>
             <div className="mt-2.5 flex gap-3 text-[11px]">
               <span style={{ color: "#3BF5A0" }}>+{snap.added} added</span>
               <span style={{ color: NEON.yellow }}>{snap.changed} moved</span>
@@ -449,7 +449,7 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
             </div>
             <div className="mt-3 flex justify-end gap-2">
               <button className="rounded px-3 py-1.5 text-[12px]" style={{ border: `1px solid ${NEON.border}`, color: NEON.muted }} onClick={() => setSnap(null)}>Cancel</button>
-              <button className="rounded px-3 py-1.5 text-[12px] font-bold disabled:opacity-40" style={{ background: "#C9A9F5", color: "#160B22" }} disabled={snapBusy || snap.perExam.length === 0} onClick={() => void applySnapshot()}>{snapBusy ? "Applying…" : "Apply to default map"}</button>
+              <button className="rounded px-3 py-1.5 text-[12px] font-bold disabled:opacity-40" style={{ background: "#C9A9F5", color: "#160B22" }} disabled={snapBusy || snap.perExam.length === 0} onClick={() => void applySnapshot()}>{snapBusy ? "Applying…" : "Apply to Starter Map"}</button>
             </div>
           </div>
         </div>

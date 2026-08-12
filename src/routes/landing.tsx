@@ -14,8 +14,8 @@ import { createPortal } from "react-dom";
 import { ChevronDown, GraduationCap, Instagram, MessageCircle, Plus, Search, X, Youtube } from "lucide-react";
 
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
-import { listCampusExams } from "@/lib/campus-exams.functions";
-import { getChapterNames, listCampusIntroCodes, listDefaultExamUnits } from "@/lib/default-map.functions";
+import { resolveStudentMap } from "@/lib/map-resolver.functions";
+import { getChapterNames, listCampusIntroCodes } from "@/lib/default-map.functions";
 import { logSchoolDemand, submitExamAsk, submitSyllabus } from "@/lib/syllabus.functions";
 import { searchOrderProfessors, type ProfessorLite } from "@/lib/orders.functions";
 import { claimChapterAccess } from "@/lib/greek-chapters.functions";
@@ -157,20 +157,23 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
   // created under (the outline). Decoupled from fetchStudentTree, which only returns courses that
   // have LIVE sets, so mapped-detection works even before any Intro-1 video is published.
   const courseOptQ = useQuery({ queryKey: ["landing-courses"], queryFn: () => fetchCourseOptions(), staleTime: 600_000, networkMode: "always" });
-  const intro1CourseId = useMemo(() => {
-    const cs = courseOptQ.data ?? [];
-    return (cs.find((c) => c.course_family === "intro_1") ?? cs.find((c) => (c.course_name ?? "").trim().toLowerCase() === "intro 1"))?.id ?? null;
-  }, [courseOptQ.data]);
 
-  const mappedQ = useQuery({
-    queryKey: ["landing-mapped", school?.campusId ?? null, intro1CourseId],
-    queryFn: async () => { try { return await listCampusExams({ data: { campus_id: school!.campusId, course_id: intro1CourseId! } }); } catch { return []; } },
-    enabled: !!school && !!intro1CourseId, networkMode: "always",
+  // THE RESOLVER (map system) — the ONE path that answers "what are this student's exams/topics":
+  // professor map → campus map → Starter Map, resolved server-side. No landing code queries
+  // campus_exams / default_exam_units directly anymore.
+  const mapQ = useQuery({
+    queryKey: ["landing-map", school?.campusId ?? null, professor?.id ?? null],
+    queryFn: () => resolveStudentMap({ data: { campusId: school?.campusId ?? null, professorId: professor?.id ?? null } }),
+    networkMode: "always", staleTime: 120_000,
   });
-  const mapped = (mappedQ.data ?? []).some((e) => e.status === "active");
+  const resolvedMap = mapQ.data ?? null;
+  const mapped = resolvedMap ? resolvedMap.level === "campus" || resolvedMap.level === "professor" : false;
+  const mapStatus = resolvedMap?.status ?? "inherited";
+  const resolvedExams = useMemo(() => resolvedMap?.exams ?? [], [resolvedMap]);
+  const coverageByNum = useMemo(() => new Map(resolvedExams.map((e) => [e.num, e.coveragePct])), [resolvedExams]);
 
   // Real-map plumbing: chapter(id→name/number) from the canonical courses table, live sets by
-  // chapter id from the student tree, and the campus's exams (num + ordered chapter ids).
+  // chapter id from the student tree, and the resolved exams (num + ordered chapter ids).
   const chapterById = useMemo(() => {
     const cs = courseOptQ.data ?? [];
     const c = cs.find((x) => x.course_family === "intro_1") ?? cs.find((x) => (x.course_name ?? "").trim().toLowerCase() === "intro 1");
@@ -183,19 +186,10 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
     if (intro1) { for (const t of intro1.topics) m.set(t.id, t); for (const u of intro1.units) for (const t of u.topics) m.set(t.id, t); }
     return m;
   }, [intro1]);
-  const mappedExams = useMemo(() => (mappedQ.data ?? []).filter((e) => e.status === "active").map((e) => {
-    const d = e.name.replace(/\D/g, "");
-    return { num: d ? parseInt(d, 10) : (/final|review/i.test(e.name) ? 99 : 999), chapterIds: e.chapter_ids, coverage: e.coverage_pct ?? 80 };
-  }), [mappedQ.data]);
-  const coverageByNum = useMemo(() => new Map(mappedExams.map((e) => [e.num, e.coverage])), [mappedExams]);
 
-  // Default map (0106) — used for the Exam-1 player when a campus is unmapped (Foundations order).
-  const defaultMapQ = useQuery({ queryKey: ["landing-default-map"], queryFn: () => listDefaultExamUnits(), staleTime: 600_000, networkMode: "always" });
-  const defaultUnits = defaultMapQ.data ?? [];
-
-  // Every chapter id any exam references (map + default), resolved to names DIRECTLY from the
-  // chapters table — immune to course de-dup, so a mapped topic never shows a bare "Topic".
-  const allTopicIds = useMemo(() => { const s = new Set<string>(); mappedExams.forEach((e) => e.chapterIds.forEach((id) => s.add(id))); defaultUnits.forEach((u) => s.add(u.unit_id)); return [...s]; }, [mappedExams, defaultUnits]);
+  // Every chapter id any resolved exam references, named DIRECTLY from the chapters table —
+  // immune to course de-dup, so a mapped topic never shows a bare "Topic".
+  const allTopicIds = useMemo(() => { const s = new Set<string>(); resolvedExams.forEach((e) => e.chapterIds.forEach((id) => s.add(id))); return [...s]; }, [resolvedExams]);
   const namesQ = useQuery({ queryKey: ["landing-chapter-names", allTopicIds], queryFn: () => getChapterNames({ data: { ids: allTopicIds } }), enabled: allTopicIds.length > 0, networkMode: "always", staleTime: 600_000 });
   const nameById = useMemo(() => { const m = new Map<string, { name: string; number: number | null }>(); for (const r of namesQ.data ?? []) m.set(r.id, { name: r.name, number: r.number }); return m; }, [namesQ.data]);
 
@@ -207,15 +201,14 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
   // `paidTab`: the FREE tab never lists a paid set; PAID tabs keep them — their stems arrive from the
   // server already ░-redacted (fetchStudentTree), so the locked tease is the shape, never the words.
   const resolveExam = (num: number, statics: string[], paidTab: boolean): ResolvedTopic[] => {
-    const m = mappedExams.find((e) => e.num === num);
-    const ids = m ? m.chapterIds : defaultUnits.filter((u) => u.exam_number === num).map((u) => u.unit_id);
+    const ids = resolvedExams.find((e) => e.num === num)?.chapterIds ?? [];
     if (ids.length) return ids.map((cid) => { const nm = nameById.get(cid), ch = chapterById.get(cid), st = treeTopicById.get(cid); return { key: cid, name: nm?.name ?? ch?.name ?? st?.name ?? "Topic", num: nm?.number ?? ch?.number ?? st?.number ?? null, sets: (st?.sets ?? []).filter((s) => paidTab || s.access !== "paid") }; });
     return statics.map((n) => ({ key: n, name: n, num: null, sets: [] }));
   };
-  const exam1R = useMemo(() => resolveExam(1, STATIC_EXAM1, false), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
-  const exam2R = useMemo(() => resolveExam(2, STATIC_EXAM2, true), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
-  const exam3R = useMemo(() => resolveExam(3, STATIC_EXAM3, true), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
-  const finalR = useMemo(() => resolveExam(99, STATIC_FINAL, true), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
+  const exam1R = useMemo(() => resolveExam(1, STATIC_EXAM1, false), [resolvedExams, nameById, chapterById, treeTopicById]);
+  const exam2R = useMemo(() => resolveExam(2, STATIC_EXAM2, true), [resolvedExams, nameById, chapterById, treeTopicById]);
+  const exam3R = useMemo(() => resolveExam(3, STATIC_EXAM3, true), [resolvedExams, nameById, chapterById, treeTopicById]);
+  const finalR = useMemo(() => resolveExam(99, STATIC_FINAL, true), [resolvedExams, nameById, chapterById, treeTopicById]);
   const exams = useMemo<ExamTab[]>(() => [
     { num: 1, label: "Exam 1", price: null, topics: exam1R, coveragePct: coverageByNum.get(1) ?? 80 },
     { num: 2, label: "Exam 2", price: 50, topics: exam2R, coveragePct: coverageByNum.get(2) ?? 80 },
@@ -254,7 +247,7 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px" }}>
         {chapterBanner && <ChapterBanner name={chapterBanner} slug={chapterSlug} />}
         <Hero onTryFree={onTryFree} />
-        <ExamPlayer exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} onChangeSchool={changeSchool} pickerPulse={pickerPulse} focusSignal={focusSignal} schools={schoolsWithCodes} mapped={mapped} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} profSkipped={profSkipped} onSkipProfessor={skipProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); try { localStorage.setItem("sa-landing-school", "__notlisted__"); } catch { /* ignore */ } }} theater={theater} onTheaterDone={() => setTheater(null)} />
+        <ExamPlayer exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} onChangeSchool={changeSchool} pickerPulse={pickerPulse} focusSignal={focusSignal} schools={schoolsWithCodes} mapped={mapped} mapStatus={mapStatus} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} profSkipped={profSkipped} onSkipProfessor={skipProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); try { localStorage.setItem("sa-landing-school", "__notlisted__"); } catch { /* ignore */ } }} theater={theater} onTheaterDone={() => setTheater(null)} />
         <SectionDivider />
         <TestimonialsSlider />
         <SectionDivider />
@@ -540,7 +533,7 @@ const examStats = (tab: ExamTab): string => {
   return parts.join(" · ");
 };
 
-function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusSignal, schools, mapped, onSyllabus, professor, onPickProfessor, profSkipped, onSkipProfessor, notListed, onNotListed, theater, onTheaterDone }: { exams: ExamTab[]; school: School | null; onPick: (s: School) => void; onChangeSchool: () => void; pickerPulse: number; focusSignal: number; schools: School[]; mapped: boolean; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; profSkipped: boolean; onSkipProfessor: () => void; notListed: boolean; onNotListed: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void }) {
+function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusSignal, schools, mapped, mapStatus, onSyllabus, professor, onPickProfessor, profSkipped, onSkipProfessor, notListed, onNotListed, theater, onTheaterDone }: { exams: ExamTab[]; school: School | null; onPick: (s: School) => void; onChangeSchool: () => void; pickerPulse: number; focusSignal: number; schools: School[]; mapped: boolean; mapStatus: "inherited" | "edited" | "verified"; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; profSkipped: boolean; onSkipProfessor: () => void; notListed: boolean; onNotListed: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void }) {
   const [activeNum, setActiveNum] = useState(1);
   const [selById, setSelById] = useState<Record<number, Sel>>({});
   const [openTopics, setOpenTopics] = useState<Set<string>>(() => new Set());
@@ -605,7 +598,7 @@ function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusS
         {/* course masthead — ONE centered cluster (identity line + resolving second line). The gap
             meter exists only once a professor is picked; skippers get the "pick yours →" re-entry.
             Ambient personalization — no counters, no toasts, no explainers. */}
-        {school && <CourseMasthead school={school} exam={active} professor={professor} skipped={profSkipped} onChangeSchool={onChangeSchool} onPick={onPickProfessor} onSkip={onSkipProfessor} onSyllabus={onSyllabus} />}
+        {school && <CourseMasthead school={school} exam={active} professor={professor} skipped={profSkipped} mapStatus={mapStatus} onChangeSchool={onChangeSchool} onPick={onPickProfessor} onSkip={onSkipProfessor} onSyllabus={onSyllabus} />}
 
         {/* unlisted-school masthead — same cluster shape, brand navy; line 2 is the syllabus door */}
         {!school && notListed && (
@@ -796,7 +789,7 @@ function SchoolDemandField() {
 // hover-reveal "change" (→ back to the gate; the next pick re-runs the short recolor beat). Line 2
 // RESOLVES, the cluster never grows: professor prompt → "Likely covers N% …" meter (slides in once)
 // → or, on skip, "Built for your professor's exams — pick yours →" reopening the picker.
-function CourseMasthead({ school, exam, professor, skipped, onChangeSchool, onPick, onSkip, onSyllabus }: { school: School; exam: ExamTab; professor: ProfessorLite | null; skipped: boolean; onChangeSchool: () => void; onPick: (p: ProfessorLite | null) => void; onSkip: () => void; onSyllabus: (framing?: string) => void }) {
+function CourseMasthead({ school, exam, professor, skipped, mapStatus, onChangeSchool, onPick, onSkip, onSyllabus }: { school: School; exam: ExamTab; professor: ProfessorLite | null; skipped: boolean; mapStatus: "inherited" | "edited" | "verified"; onChangeSchool: () => void; onPick: (p: ProfessorLite | null) => void; onSkip: () => void; onSyllabus: (framing?: string) => void }) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLDivElement>(null);
   const code = school.codeVerified && school.code ? school.code : null;
@@ -809,10 +802,17 @@ function CourseMasthead({ school, exam, professor, skipped, onChangeSchool, onPi
           <button onClick={onChangeSchool} className="sa-chg text-[10.5px]" style={{ color: "var(--text-muted)" }}>change</button>
         </div>
         {professor ? (
-          /* the payoff line — slides in once per pick; "Likely" carries the hedge, so no tilde */
-          <button key={professor.id} onClick={() => onSyllabus()} className="sa-meter-in mt-0.5 text-[11.5px] hover:opacity-90" style={{ color: "var(--brand-cream)" }}>
-            Likely covers <b>{exam.coveragePct}%</b> of {profLabel}'s {exam.label} — <span className="font-bold" style={{ color: "var(--accent)" }}>help me get the rest →</span>
-          </button>
+          mapStatus === "verified" ? (
+            /* TRUST LINE — the map was built/confirmed from an actual syllabus (map_meta.verified) */
+            <p key={`${professor.id}-v`} className="sa-meter-in mt-0.5 text-[11.5px] font-semibold" style={{ color: "#3BF5A0" }}>
+              ✓ Mapped to {profLabel}'s syllabus
+            </p>
+          ) : (
+            /* the payoff line — slides in once per pick; "Likely" carries the hedge, so no tilde */
+            <button key={professor.id} onClick={() => onSyllabus()} className="sa-meter-in mt-0.5 text-[11.5px] hover:opacity-90" style={{ color: "var(--brand-cream)" }}>
+              Likely covers <b>{exam.coveragePct}%</b> of {profLabel}'s {exam.label} — <span className="font-bold" style={{ color: "var(--accent)" }}>help me get the rest →</span>
+            </button>
+          )
         ) : !skipped ? (
           <div className="mt-0.5 flex items-baseline justify-center gap-2">
             <span className="text-[11.5px]" style={{ color: "var(--text-muted)" }}>Who's your professor?</span>
