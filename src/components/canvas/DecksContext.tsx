@@ -14,11 +14,18 @@ export interface DecksCtx {
   highlightId: string | null;
   /** Briefly highlight a deck's member cards on the canvas (auto-clears). */
   flashDeck: (deckId: string) => void;
-  /** MIME type used to drag a card/memo node onto a deck row (item 4a). */
+  /** OUTLINE AUTHORING (Lee) — create a new empty CEQ set under a topic in the LOADED scene,
+   *  returning its new id (open it with nav.openStudioSet). null topic = Library/unassigned. */
+  createDeck: (name: string, topicId: string | null, courseId: string | null) => string;
+  /** OUTLINE AUTHORING — reassign a loaded-scene set's topic (move / delete-to-Library when null).
+   *  Only affects decks in the loaded scene; the outline gates the affordance via `decks`. */
+  setDeckTopic: (deckId: string, topicId: string | null, courseId: string | null) => void;
+  /** OUTLINE AUTHORING — rename a loaded-scene set. */
+  renameDeck: (deckId: string, name: string) => void;
 }
 
 const noop = () => {};
-export const DecksContext = createContext<DecksCtx>({ decks: [], highlightId: null, flashDeck: noop });
+export const DecksContext = createContext<DecksCtx>({ decks: [], highlightId: null, flashDeck: noop, createDeck: () => "", setDeckTopic: noop, renameDeck: noop });
 export const useDecks = () => useContext(DecksContext);
 
 /** DnD payload key for dragging a canvas node onto a named-deck row. */

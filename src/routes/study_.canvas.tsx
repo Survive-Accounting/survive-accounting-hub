@@ -1343,7 +1343,22 @@ function PresentCanvas() {
     if (deckFlashTimer.current) clearTimeout(deckFlashTimer.current);
     deckFlashTimer.current = setTimeout(() => setDeckHighlightId(null), 1200);
   }, []);
-  const decksCtx = useMemo(() => ({ decks, highlightId: deckHighlightId, flashDeck }), [decks, deckHighlightId, flashDeck]);
+  // OUTLINE AUTHORING (Lee) — create/reassign CEQ sets from the leftmost outline. These operate on
+  // the LOADED scene's decks (setDecks), the same path the Studio uses; the outline only exposes the
+  // affordance for sets that live in this scene, so there's no cross-scene clobber.
+  const createDeckFromOutline = useCallback((name: string, topicId: string | null, courseId: string | null): string => {
+    const now = new Date().toISOString();
+    const def: DeckDef = { id: cardId("deck"), name: name.trim() || "New set", payloadType: "cards", filter: null, runMode: "sequence", lessonId: null, slots: [], showSkeletons: true, status: "draft", access: "free", topicId, courseId, createdAt: now, updatedAt: now };
+    setDecks((prev) => [...prev, def]);
+    return def.id;
+  }, []);
+  const setDeckTopicFromOutline = useCallback((deckId: string, topicId: string | null, courseId: string | null) => {
+    setDecks((prev) => prev.map((d) => (d.id === deckId ? { ...d, topicId, courseId: courseId ?? d.courseId ?? null, updatedAt: new Date().toISOString() } : d)));
+  }, []);
+  const renameDeckFromOutline = useCallback((deckId: string, name: string) => {
+    setDecks((prev) => prev.map((d) => (d.id === deckId ? { ...d, name: name.trim() || d.name, updatedAt: new Date().toISOString() } : d)));
+  }, []);
+  const decksCtx = useMemo(() => ({ decks, highlightId: deckHighlightId, flashDeck, createDeck: createDeckFromOutline, setDeckTopic: setDeckTopicFromOutline, renameDeck: renameDeckFromOutline }), [decks, deckHighlightId, flashDeck, createDeckFromOutline, setDeckTopicFromOutline, renameDeckFromOutline]);
   const [currentFrameId, setCurrentFrameId] = useState<string | null>(null); // FRAMES: the frame the camera is fitted to
   // ACTIVE-LESSON GATING (Lee — lag fix): the one lesson whose frames/cards are
   // mounted. Others render as collapsed chips (hidden descendants). Persisted in

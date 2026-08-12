@@ -3,17 +3,17 @@
 // on the right; it no longer renders by default). Navigation only — all editing happens in the
 // canvas / Studio. Intro 1 is the focus course (full-color, editable topics); Intro 2 / IA1 / IA2
 // render muted (view-only) beneath it. "Topic" IS a `chapters` row.
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNodes } from "@xyflow/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, ChevronDown, ChevronRight, Circle, GraduationCap, GripVertical, Layers, MessageSquare, Plus, Search, Video, X } from "lucide-react";
+import { Archive, Building2, ChevronDown, ChevronRight, Circle, GraduationCap, GripVertical, Layers, MessageSquare, Plus, Search, Video, X } from "lucide-react";
 
 import { NEON } from "./theme";
 import { useFrameNav } from "./FrameNavContext";
 import { useDecks } from "./DecksContext";
 import type { CardNode, DeckDef, LessonBox } from "./types";
 import { courseLabel, fetchCourseOptions, topicLabel, type CourseOption } from "@/lib/je-api";
-import { createChapter, listAllCardDecks, renameChapter, reorderChapters } from "@/lib/canvas.functions";
+import { createChapter, listAllCardDecks, renameChapter, reorderChapters, setChapterStatus } from "@/lib/canvas.functions";
 import { listCampusChapterOverrides, searchCampuses, setCampusChapterOverride, type CampusOpt } from "@/lib/campus-overrides.functions";
 import {
   createCampusExam, listCampusExams, listCourseCampuses, renameCampusExam,
@@ -35,19 +35,28 @@ const LAST_SET_KEY = "sa-study-last-set";
 const OPEN_SECTION_KEY = "sa-outline-open"; // persist which section is open (accordion)
 type SectionId = "videos" | "topics" | "campuses";
 
-// ---- inline text editor (add / rename), Enter commits · Esc / blur cancels -------------------
-function InlineInput({ initial = "", placeholder, onCommit, onCancel }: { initial?: string; placeholder?: string; onCommit: (v: string) => void; onCancel: () => void }) {
+// ---- inline text editor (add / rename) -------------------------------------------------------
+// Enter commits; Esc / blur cancels. `rapid` = rapid-fire entry: after Enter the field clears and
+// stays focused for the next sibling (used by "+ topic" / "+ set"). onCommit gets {shift} so a
+// caller can treat Shift+Enter specially (commit-topic-then-add-child-set).
+function InlineInput({ initial = "", placeholder, rapid, onCommit, onCancel }: { initial?: string; placeholder?: string; rapid?: boolean; onCommit: (v: string, opts: { shift: boolean }) => void; onCancel: () => void }) {
   const [v, setV] = useState(initial);
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => { ref.current?.focus(); ref.current?.select(); }, []);
+  const commit = (shift: boolean) => {
+    const t = v.trim();
+    if (!t) { onCancel(); return; }
+    onCommit(t, { shift });
+    if (rapid && !shift) { setV(""); requestAnimationFrame(() => ref.current?.focus()); } // keep open for next sibling
+  };
   return (
     <input
       ref={ref} value={v} placeholder={placeholder}
       className="w-full rounded px-1.5 py-1 text-[12px] outline-none"
       style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${NEON.border}`, color: NEON.text }}
       onChange={(e) => setV(e.target.value)}
-      onKeyDown={(e) => { if (e.key === "Enter") { const t = v.trim(); if (t) onCommit(t); else onCancel(); } else if (e.key === "Escape") onCancel(); }}
-      onBlur={() => { const t = v.trim(); if (t && t !== initial) onCommit(t); else onCancel(); }}
+      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commit(e.shiftKey); } else if (e.key === "Escape") onCancel(); }}
+      onBlur={() => { const t = v.trim(); if (t && t !== initial) onCommit(t, { shift: false }); onCancel(); }}
       onClick={(e) => e.stopPropagation()}
     />
   );
@@ -93,6 +102,24 @@ export function OutlinePanel() {
   const lastSetId = useMemo(() => { try { return localStorage.getItem(LAST_SET_KEY); } catch { return null; } }, []);
   const openSet = (setId: string) => { try { localStorage.setItem(LAST_SET_KEY, setId); } catch { /* ignore */ } nav.openStudioSet(setId); };
 
+  // LIBRARY (Unassigned) — sets whose topic was cleared (soft-deleted) or never assigned. Recoverable,
+  // never destroyed. Shown as a muted bucket under the focus course.
+  const libraryDecks = useMemo(() => {
+    const seen = new Set<string>(); const out: DeckDef[] = [];
+    for (const d of cardDecks) if (!d.topicId) { out.push(d); seen.add(d.id); }
+    for (const d of allDecksQ.data ?? []) if (!(d as unknown as DeckDef).topicId && !seen.has(d.id)) { out.push(d as unknown as DeckDef); seen.add(d.id); }
+    return out;
+  }, [cardDecks, allDecksQ.data]);
+
+  // UNDO TOAST — destructive outline actions (delete topic / delete set) leave a brief undo affordance.
+  const [toast, setToast] = useState<{ msg: string; undo?: () => void } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToast = useCallback((msg: string, undo?: () => void) => {
+    setToast({ msg, undo });
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 6000);
+  }, []);
+
   // Accordion — one section open at a time; the open section is persisted.
   const [open, setOpen] = useState<SectionId | null>(() => { try { return (localStorage.getItem(OPEN_SECTION_KEY) as SectionId | null) ?? null; } catch { return null; } });
   const toggle = (id: SectionId) => setOpen((cur) => { const next = cur === id ? null : id; try { next ? localStorage.setItem(OPEN_SECTION_KEY, next) : localStorage.removeItem(OPEN_SECTION_KEY); } catch { /* ignore */ } return next; });
@@ -119,7 +146,7 @@ export function OutlinePanel() {
       {open === "topics" && (
         <div className="ml-2 border-l pl-1.5" style={{ borderColor: NEON.borderSoft }}>
           {courses.length === 0 && <div className="px-1 py-1 text-[10px] italic" style={{ color: NEON.muted }}>No courses.</div>}
-          {courses.map((c) => <CourseTopics key={c.id} course={c} focus={isFocusCourse(c)} decksByTopic={decksByTopic} isPublished={isPublished} openSet={openSet} lastSetId={lastSetId} />)}
+          {courses.map((c) => <CourseTopics key={c.id} course={c} focus={isFocusCourse(c)} decksByTopic={decksByTopic} isPublished={isPublished} openSet={openSet} lastSetId={lastSetId} showToast={showToast} libraryDecks={isFocusCourse(c) ? libraryDecks : []} />)}
         </div>
       )}
 
@@ -136,23 +163,75 @@ export function OutlinePanel() {
         <MessageSquare className="h-3.5 w-3.5 shrink-0" style={{ color: "#F0B24A" }} />
         <span className="min-w-0 flex-1 text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: "#F0B24A" }}>Memos</span>
       </button>
+
+      {toast && (
+        <div className="sticky bottom-1 z-10 mx-1 mt-2 flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] shadow-lg" style={{ background: "#111A24", border: `1px solid ${NEON.border}`, color: NEON.text }}>
+          <span className="min-w-0 flex-1 truncate">{toast.msg}</span>
+          {toast.undo && <button className="shrink-0 rounded px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-wide hover:bg-white/10" style={{ color: NEON.yellow }} onClick={() => { toast.undo?.(); setToast(null); }}>Undo</button>}
+          <button className="shrink-0 opacity-50 hover:opacity-100" onClick={() => setToast(null)}><X className="h-3 w-3" /></button>
+        </div>
+      )}
     </div>
   );
 }
 
 // ---- TOPICS (per course; focus course editable, others muted view-only) ----------------------
-function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastSetId }: {
+// The focus course (Intro 1) is the full authoring surface: rapid-fire add (Enter = another sibling,
+// Shift+Enter on a topic = commit + add a child set), double-click rename, hover-✕ delete (empty topic
+// instant; with-sets confirmed; sets soft-delete to the Library), drag-reorder = the teaching flow.
+function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastSetId, showToast, libraryDecks }: {
   course: CourseOption; focus: boolean; decksByTopic: Map<string, DeckDef[]>;
   isPublished: (d: DeckDef) => boolean; openSet: (id: string) => void; lastSetId: string | null;
+  showToast: (msg: string, undo?: () => void) => void; libraryDecks: DeckDef[];
 }) {
   const qc = useQueryClient();
+  const { decks: loadedDecks, createDeck, setDeckTopic, renameDeck } = useDecks();
   const [open, setOpen] = useState(focus);
   const [openTopics, setOpenTopics] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState(false);
-  const [renaming, setRenaming] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);        // topic id being renamed
+  const [renamingSet, setRenamingSet] = useState<string | null>(null);  // deck id being renamed
+  const [addingSetFor, setAddingSetFor] = useState<string | null>(null); // topic id whose "+ set" input is open
+  const [confirmDel, setConfirmDel] = useState<{ ch: Topic; count: number } | null>(null);
+  const [libOpen, setLibOpen] = useState(false);
   const refresh = () => qc.invalidateQueries({ queryKey: ["course-options"] });
   const topics = useMemo(() => (course.chapters ?? []).filter((ch) => ch.status !== "archived").sort((a, b) => (a.number ?? 1e9) - (b.number ?? 1e9)), [course]);
   const toggleTopic = (id: string) => setOpenTopics((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const canEditSet = (id: string) => loadedDecks.some((d) => d.id === id); // only loaded-scene sets are mutable here
+
+  // create a topic; Shift+Enter → also open its "+ set" input (commit-then-child)
+  const addTopic = async (name: string, shift: boolean) => {
+    const row = await createChapter({ data: { course_id: course.id, chapter_name: name } });
+    refresh();
+    if (shift && row?.id) { setAdding(false); setOpenTopics((s) => new Set(s).add(row.id)); setAddingSetFor(row.id); }
+  };
+  const delTopic = async (ch: Topic, tDecks: DeckDef[]) => {
+    if (tDecks.length > 0) {
+      if (!tDecks.every((d) => canEditSet(d.id))) { showToast("Some of this topic's sets live in another scene — open it first."); return; }
+      setConfirmDel({ ch, count: tDecks.length }); return;
+    }
+    await setChapterStatus({ data: { id: ch.id, status: "archived" } }); refresh();
+    showToast(`Deleted topic "${topicLabel(ch)}".`, async () => { await setChapterStatus({ data: { id: ch.id, status: "active" } }); refresh(); });
+  };
+  const confirmDeleteTopic = async () => {
+    if (!confirmDel) return;
+    const { ch } = confirmDel;
+    const moved = (decksByTopic.get(ch.id) ?? []).filter((d) => canEditSet(d.id)).map((d) => ({ id: d.id, topicId: d.topicId ?? null, courseId: d.courseId ?? null }));
+    for (const m of moved) setDeckTopic(m.id, null, m.courseId ?? course.id);
+    await setChapterStatus({ data: { id: ch.id, status: "archived" } }); refresh();
+    setConfirmDel(null);
+    showToast(`Deleted "${topicLabel(ch)}" · ${moved.length} set(s) → Library.`, async () => {
+      await setChapterStatus({ data: { id: ch.id, status: "active" } });
+      for (const m of moved) setDeckTopic(m.id, ch.id, m.courseId ?? course.id);
+      refresh();
+    });
+  };
+  const delSet = (d: DeckDef) => {
+    if (!canEditSet(d.id)) { showToast("This set lives in another scene — open it to remove."); return; }
+    const prev = d.topicId ?? null;
+    setDeckTopic(d.id, null, d.courseId ?? course.id);
+    showToast(`Moved "${setName(d)}" to the Library.`, () => setDeckTopic(d.id, prev, d.courseId ?? course.id));
+  };
 
   const [dragId, setDragId] = useState<string | null>(null);
   const [overId, setOverId] = useState<string | null>(null);
@@ -194,29 +273,81 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
                     )}
                     {tDecks.length > 0 && <span className="shrink-0 text-[9px] tabular-nums opacity-45">{tDecks.length}</span>}
                   </button>
+                  {focus && renaming !== ch.id && (
+                    <button className="shrink-0 rounded p-0.5 opacity-0 hover:bg-white/10 group-hover:opacity-60" title="Delete topic" onClick={(e) => { e.stopPropagation(); void delTopic(ch, tDecks); }}><X className="h-3 w-3" /></button>
+                  )}
                 </div>
                 {tOpen && (
                   <div className="ml-4 pb-0.5">
-                    {tDecks.length === 0 && <div className="px-1 py-0.5 text-[10px] italic" style={{ color: NEON.muted }}>No sets yet</div>}
+                    {tDecks.length === 0 && !addingSetFor && <div className="px-1 py-0.5 text-[10px] italic" style={{ color: NEON.muted }}>No sets yet</div>}
                     {tDecks.map((d) => {
-                      const active = d.id === lastSetId; const pub = isPublished(d);
+                      const active = d.id === lastSetId; const pub = isPublished(d); const editable = canEditSet(d.id);
                       return (
-                        <button key={d.id} className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left hover:bg-white/5" style={{ background: active ? "rgba(252,163,17,0.10)" : "transparent" }} onClick={() => openSet(d.id)} title={`Open "${setName(d)}" in the Studio · ${d.status === "live" ? "LIVE" : "draft"}${pub ? " · video published" : ""}`}>
-                          <Circle className="h-2.5 w-2.5 shrink-0" style={{ color: d.status === "live" ? "#3BF5A0" : "#F0B24A", fill: d.status === "live" ? "#3BF5A0" : "transparent" }} />
-                          <span className="min-w-0 flex-1 truncate" style={{ color: active ? NEON.yellow : NEON.text }}>{setName(d)}</span>
-                        </button>
+                        <div key={d.id} className="group flex items-center gap-1 rounded pr-0.5 hover:bg-white/5" style={{ background: active ? "rgba(252,163,17,0.10)" : "transparent" }}>
+                          {focus && renamingSet === d.id ? (
+                            <div className="flex-1 px-1.5 py-0.5"><InlineInput initial={setName(d)} onCommit={(v) => { setRenamingSet(null); renameDeck(d.id, v); }} onCancel={() => setRenamingSet(null)} /></div>
+                          ) : (
+                            <button className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-left" onClick={() => openSet(d.id)} onDoubleClick={focus && editable ? (e) => { e.stopPropagation(); setRenamingSet(d.id); } : undefined} title={`Open "${setName(d)}" in the Studio · ${d.status === "live" ? "LIVE" : "draft"}${pub ? " · video published" : ""}${focus && editable ? " · double-click to rename" : ""}`}>
+                              <Circle className="h-2.5 w-2.5 shrink-0" style={{ color: d.status === "live" ? "#3BF5A0" : "#F0B24A", fill: d.status === "live" ? "#3BF5A0" : "transparent" }} />
+                              <span className="min-w-0 flex-1 truncate" style={{ color: active ? NEON.yellow : NEON.text }}>{setName(d)}</span>
+                            </button>
+                          )}
+                          {focus && editable && renamingSet !== d.id && (
+                            <button className="shrink-0 rounded p-0.5 opacity-0 hover:bg-white/10 group-hover:opacity-60" title="Move set to the Library" onClick={(e) => { e.stopPropagation(); delSet(d); }}><X className="h-3 w-3" /></button>
+                          )}
+                        </div>
                       );
                     })}
+                    {focus && (addingSetFor === ch.id ? (
+                      <div className="px-0.5 py-1"><InlineInput rapid placeholder="New set name… (Enter for another)" onCommit={(v) => { createDeck(v, ch.id, course.id); }} onCancel={() => setAddingSetFor(null)} /></div>
+                    ) : (
+                      <AddRow label="Add set" onClick={() => setAddingSetFor(ch.id)} />
+                    ))}
                   </div>
                 )}
               </div>
             );
           })}
           {focus && (adding ? (
-            <div className="px-0.5 py-1"><InlineInput placeholder="New topic name…" onCommit={async (v) => { setAdding(false); await createChapter({ data: { course_id: course.id, chapter_name: v } }); refresh(); }} onCancel={() => setAdding(false)} /></div>
+            <div className="px-0.5 py-1"><InlineInput rapid placeholder="New topic… (Enter = another · Shift+Enter = add a set)" onCommit={(v, o) => { void addTopic(v, o.shift); }} onCancel={() => setAdding(false)} /></div>
           ) : (
             <AddRow label="Add topic" onClick={() => setAdding(true)} />
           ))}
+
+          {/* LIBRARY (Unassigned) — recoverable soft-deleted / never-assigned sets */}
+          {focus && libraryDecks.length > 0 && (
+            <div className="mt-1">
+              <button className="flex w-full items-center gap-1 px-0.5 py-1 text-left opacity-70 hover:bg-white/5 hover:opacity-100" onClick={() => setLibOpen((v) => !v)}>
+                {libOpen ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+                <Archive className="h-3 w-3 shrink-0" style={{ color: NEON.muted }} />
+                <span className="min-w-0 flex-1 truncate text-[10.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Library (Unassigned)</span>
+                <span className="shrink-0 text-[9px] tabular-nums opacity-60">{libraryDecks.length}</span>
+              </button>
+              {libOpen && (
+                <div className="ml-4 pb-0.5">
+                  {libraryDecks.slice().sort((a, b) => setName(a).localeCompare(setName(b))).map((d) => (
+                    <button key={d.id} className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left hover:bg-white/5" onClick={() => openSet(d.id)} title={`Open "${setName(d)}" · unassigned`}>
+                      <Circle className="h-2.5 w-2.5 shrink-0" style={{ color: NEON.muted, fill: "transparent" }} />
+                      <span className="min-w-0 flex-1 truncate" style={{ color: NEON.muted }}>{setName(d)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {confirmDel && (
+        <div className="fixed inset-0 z-[1000] grid place-items-center" style={{ background: "rgba(0,0,0,0.55)" }} onClick={() => setConfirmDel(null)}>
+          <div className="w-[300px] rounded-xl p-4" style={{ background: "#0F1720", border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
+            <p className="text-[13px] font-bold" style={{ color: NEON.text }}>Delete “{topicLabel(confirmDel.ch)}”?</p>
+            <p className="mt-1.5 text-[11.5px] leading-snug" style={{ color: NEON.muted }}>It has <b style={{ color: NEON.yellow }}>{confirmDel.count}</b> set{confirmDel.count === 1 ? "" : "s"}. They'll move to the Library (not deleted). You can undo.</p>
+            <div className="mt-3 flex justify-end gap-2">
+              <button className="rounded px-3 py-1.5 text-[12px]" style={{ border: `1px solid ${NEON.border}`, color: NEON.muted }} onClick={() => setConfirmDel(null)}>Cancel</button>
+              <button className="rounded px-3 py-1.5 text-[12px] font-bold" style={{ background: "#F0785A", color: "#1A0B08" }} onClick={() => void confirmDeleteTopic()}>Delete topic</button>
+            </div>
+          </div>
         </div>
       )}
     </div>
