@@ -223,8 +223,11 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   // prefs type so old localStorage blobs keep parsing.
   // Legacy pref values map forward: "sets" folded into Topics long ago; "tools"
   // became STUDENT (Lee: that tab is for student-facing previews, not authoring).
-  const topTab: "videos" | "topics" | "preview" | "student" =
-    prefs.topTab === "sets" || !prefs.topTab ? "topics" : prefs.topTab === "tools" ? "student" : prefs.topTab;
+  // The Studio's Topics tab was retired — the leftmost dashboard OutlinePanel is the ONE topic/set
+  // navigation now. Legacy stored prefs ("sets"/"topics"/undefined) fold forward to Videos (the CEQ
+  // editor), "tools" → Student. Preview keeps its own left-rail set switcher (see 1977 block).
+  const topTab: "videos" | "preview" | "student" =
+    prefs.topTab === "preview" || prefs.topTab === "student" ? prefs.topTab : prefs.topTab === "tools" ? "student" : "videos";
   const wrapMemos = !!prefs.wrapMemos;
 
   // TOPICS SPINE (Lee) — the real Course → Topic rows (Manage Course order), same
@@ -1892,7 +1895,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
           (student-facing previews). Preview is a FIRST-CLASS tab so the editor
           and the video preview stop competing for the same center pane. */}
       <div className="flex shrink-0 items-center gap-1 border-b px-3 py-1" style={{ borderColor: NEON.borderSoft }}>
-        {([["videos", "Videos"], ["topics", "Topics"], ["preview", "Preview"], ["student", "Student"]] as const).map(([k, l]) => (
+        {([["videos", "Videos"], ["preview", "Preview"], ["student", "Student"]] as const).map(([k, l]) => (
           <button key={k} className="rounded px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: topTab === k ? "#0B1322" : NEON.muted, background: topTab === k ? NEON.yellow : "transparent", border: `1px solid ${topTab === k ? NEON.yellow : NEON.borderSoft}` }} onClick={() => { setPrefs({ topTab: k }); if (!setsOpen) setSetsOpen(true); }}>{l}</button>
         ))}
       </div>
@@ -1974,7 +1977,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
             <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Tools</div>
             <div className="grid flex-1 place-items-center p-3 text-center text-[10.5px] leading-relaxed" style={{ color: NEON.muted }}>🛠 Coming soon —<br />batch take ingest · publish queue ·<br />shorts factory.</div>
           </>)}
-          {(topTab === "topics" || topTab === "preview") && (<>
+          {topTab === "preview" && (<>
             {/* TOPICS — ONE outline for everything the old Topics + Sets tabs did:
                 Course → Topic (readiness chips + drop-to-assign) → sets → published
                 videos, then LIBRARY (unassigned). Chips are the four signals only:
@@ -2081,7 +2084,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
               /* key: switching sets REMOUNTS the preview — a rendered file, seek
                  offsets and re-render flags from set A must never survive into
                  set B (review: seeks used B's offsets against A's video). */
-              <CeqStitch key={deck.id} freeRows={stitchRows.free} fullRows={stitchRows.full} initialMode="full" onExit={() => setPrefs({ topTab: "topics" })} onJumpCeq={(id) => setQId(id)} onReplaceClip={replaceClipAt} onAddClipAfter={addClipAfter} onDeleteClip={deleteClipAt} onSetClipRole={setClipRole} onToggleFree={(id) => patchQ(id, { free: !(rf.getNode(id)?.data as unknown as CeqCard | undefined)?.free })} onAddWrap={(f) => dropSlot("wrap", f)} onDeleteWrap={removeWrapClip} onAddBumper={addBumper} onDeleteBumper={deleteBumper} />
+              <CeqStitch key={deck.id} freeRows={stitchRows.free} fullRows={stitchRows.full} initialMode="full" onExit={() => setPrefs({ topTab: "videos" })} onJumpCeq={(id) => setQId(id)} onReplaceClip={replaceClipAt} onAddClipAfter={addClipAfter} onDeleteClip={deleteClipAt} onSetClipRole={setClipRole} onToggleFree={(id) => patchQ(id, { free: !(rf.getNode(id)?.data as unknown as CeqCard | undefined)?.free })} onAddWrap={(f) => dropSlot("wrap", f)} onDeleteWrap={removeWrapClip} onAddBumper={addBumper} onDeleteBumper={deleteBumper} />
             ) : (
               <div className="grid flex-1 place-items-center text-[11px]" style={{ color: NEON.muted }}>Open a set (pick one in the outline) to preview its stitch.</div>
             )
