@@ -16,6 +16,14 @@ import { courseLabel, fetchCourseOptions, topicLabel, type CourseOption } from "
 import { createChapter, listAllCardDecks, renameChapter, reorderChapters, setChapterParked, setChapterStatus } from "@/lib/canvas.functions";
 import { snapshotDefaultFromOleMiss, type SnapshotDiff } from "@/lib/default-map.functions";
 import { copyResolvedIntoLevel, getMapMeta, listTextbooks, registerMapLevel, revertMapToInherited, saveTextbook, setChapterLabelsOn, setMapStatus, type RevertDiff } from "@/lib/map-system.functions";
+import { exportCurriculumCsv, importCurriculumCsv, type CsvImportDiff } from "@/lib/curriculum-csv.functions";
+import { getInboundFileUrl, listInboundFiles, seedInboundDummies, updateInboundFile, type InboundFileRow } from "@/lib/inbound-files.functions";
+
+// PROVENANCE ARMING (Prompt 2C) — while an inbound file is "armed" (from the Inbound Files
+// dashboard's "Open in mapper"), map edits + topic creations stamp its id as source_file_id.
+// Module-level so scattered call sites read it at call time; the chip renders from React state.
+let armedSourceFile: { id: string; label: string } | null = null;
+export const getArmedSourceFileId = (): string | null => armedSourceFile?.id ?? null;
 import { listCampusChapterOverrides, searchCampuses, setCampusChapterOverride, type CampusOpt } from "@/lib/campus-overrides.functions";
 import {
   createCampusExam, listCampusExams, listCourseCampuses, renameCampusExam,
@@ -227,6 +235,42 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
     finally { setSnapBusy(false); }
   };
 
+  // CSV ROUND-TRIP (Prompt 2B) — export downloads the curriculum; import is a DIFFED DRY-RUN first
+  // (the approved screen), then one confirmed Apply. Import never deletes.
+  const csvFileRef = useRef<HTMLInputElement>(null);
+  const [csvBusy, setCsvBusy] = useState(false);
+  const [csvDiff, setCsvDiff] = useState<CsvImportDiff | null>(null);
+  const csvTextRef = useRef<string>("");
+  const doCsvExport = async () => {
+    try {
+      const { csv } = await exportCurriculumCsv();
+      const blob = new Blob([csv], { type: "text/csv" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = "curriculum.csv"; a.click();
+      URL.revokeObjectURL(a.href);
+    } catch (e) { showToast(e instanceof Error ? e.message : "Export failed."); }
+  };
+  const doCsvDryRun = async (file: File) => {
+    setCsvBusy(true);
+    try {
+      const text = await file.text();
+      csvTextRef.current = text;
+      setCsvDiff(await importCurriculumCsv({ data: { csv: text, apply: false } }));
+    } catch (e) { showToast(e instanceof Error ? e.message : "Couldn't read that CSV."); }
+    finally { setCsvBusy(false); }
+  };
+  const doCsvApply = async () => {
+    setCsvBusy(true);
+    try {
+      const res = await importCurriculumCsv({ data: { csv: csvTextRef.current, apply: true } });
+      setCsvDiff(null);
+      qc.invalidateQueries({ queryKey: ["course-options"] });
+      qc.invalidateQueries({ queryKey: ["all-card-decks"] });
+      showToast(`Imported: ${res.newTopics} topics · ${res.newSets} sets · ${res.newCeqs} questions.`);
+    } catch (e) { showToast(e instanceof Error ? e.message : "Import failed."); }
+    finally { setCsvBusy(false); }
+  };
+
   // create a topic; Shift+Enter → also open its "+ set" input (commit-then-child)
   const addTopic = async (name: string, shift: boolean) => {
     const row = await createChapter({ data: { course_id: course.id, chapter_name: name } });
@@ -429,6 +473,16 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
               <Layers className="h-3 w-3 shrink-0" /> {snapBusy && !snap ? "Computing…" : "Snapshot flow → starter map"}
             </button>
           )}
+
+          {/* CSV ROUND-TRIP (Prompt 2B) — draft topics/stems externally, land them in ONE confirmed
+              import. Rows with ids UPDATE, blank ids CREATE, absent rows are UNTOUCHED (never deletes). */}
+          {focus && (
+            <div className="mt-1 flex gap-1.5">
+              <button className="flex-1 rounded px-1.5 py-1 text-[10px] font-bold uppercase tracking-wider hover:bg-white/5" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => void doCsvExport()}>Export CSV</button>
+              <button className="flex-1 rounded px-1.5 py-1 text-[10px] font-bold uppercase tracking-wider disabled:opacity-40 hover:bg-white/5" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} disabled={csvBusy} onClick={() => csvFileRef.current?.click()}>{csvBusy ? "Reading…" : "Import CSV…"}</button>
+              <input ref={csvFileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void doCsvDryRun(f); e.target.value = ""; }} />
+            </div>
+          )}
         </div>
       )}
 
@@ -451,6 +505,39 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
             <div className="mt-3 flex justify-end gap-2">
               <button className="rounded px-3 py-1.5 text-[12px]" style={{ border: `1px solid ${NEON.border}`, color: NEON.muted }} onClick={() => setSnap(null)}>Cancel</button>
               <button className="rounded px-3 py-1.5 text-[12px] font-bold disabled:opacity-40" style={{ background: "#C9A9F5", color: "#160B22" }} disabled={snapBusy || snap.perExam.length === 0} onClick={() => void applySnapshot()}>{snapBusy ? "Applying…" : "Apply to Starter Map"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CSV IMPORT DRY-RUN — the approved screen: diff counts, sample changes, flags with row
+          numbers, hard-rejects block Apply. Import never deletes. */}
+      {csvDiff && (
+        <div className="fixed inset-0 z-[1000] grid place-items-center" style={{ background: "rgba(0,0,0,0.55)" }} onClick={() => setCsvDiff(null)}>
+          <div className="w-[360px] max-h-[80vh] overflow-y-auto rounded-xl p-4" style={{ background: "#0F1720", border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
+            <p className="text-[13px] font-bold">Import preview</p>
+            <p className="mt-1.5 text-[12px]">
+              <span style={{ color: "#3BF5A0" }}>{csvDiff.newTopics} new topics</span> · <span style={{ color: NEON.yellow }}>{csvDiff.renamedTopics} renamed</span> · <span style={{ color: "#3BF5A0" }}>{csvDiff.newSets} new sets</span> · <span style={{ color: "#3BF5A0" }}>{csvDiff.newCeqs} new questions</span> · <span style={{ color: NEON.yellow }}>{csvDiff.changedStems} stems changed</span> · <span style={{ color: NEON.muted }}>0 deleted</span>
+            </p>
+            {csvDiff.samples.length > 0 && (
+              <div className="mt-2 rounded p-2 text-[10.5px]" style={{ background: "rgba(0,0,0,0.25)", border: `1px solid ${NEON.borderSoft}` }}>
+                {csvDiff.samples.map((s, i) => <p key={i} style={{ color: s.startsWith("+") ? "#3BF5A0" : NEON.yellow }}>{s}</p>)}
+              </div>
+            )}
+            {csvDiff.flags.length > 0 && (
+              <div className="mt-2 text-[10.5px]" style={{ color: "#F0785A" }}>{csvDiff.flags.map((f, i) => <p key={i}>⚠ {f}</p>)}</div>
+            )}
+            {csvDiff.rejected.length > 0 && (
+              <div className="mt-2 text-[10.5px]" style={{ color: "#E24B4A" }}>
+                <p className="font-bold uppercase">Rejected — fix these rows first</p>
+                {csvDiff.rejected.slice(0, 8).map((f, i) => <p key={i}>✗ {f}</p>)}
+              </div>
+            )}
+            <div className="mt-3 flex justify-end gap-2">
+              <button className="rounded px-3 py-1.5 text-[12px]" style={{ border: `1px solid ${NEON.border}`, color: NEON.muted }} onClick={() => setCsvDiff(null)}>Cancel</button>
+              <button className="rounded px-3 py-1.5 text-[12px] font-bold disabled:opacity-40" style={{ background: NEON.yellow, color: "#0B1322" }} disabled={csvBusy || csvDiff.rejected.length > 0} onClick={() => void doCsvApply()}>
+                {csvBusy ? "Applying…" : `Apply ${csvDiff.newTopics + csvDiff.renamedTopics + csvDiff.newSets + csvDiff.renamedSets + csvDiff.newCeqs + csvDiff.changedStems} changes`}
+              </button>
             </div>
           </div>
         </div>
@@ -481,6 +568,8 @@ function CampusesBody({ course, topics }: { course: CourseOption; topics: Topic[
   const [statusFilter, setStatusFilter] = useState<"all" | "inherited" | "edited" | "verified">("all");
   const [statusByCampus, setStatusByCampus] = useState<Record<string, string>>({});
   const [booksOpen, setBooksOpen] = useState(false);
+  const [inboundOpen, setInboundOpen] = useState(false);
+  const [armed, setArmed] = useState<{ id: string; label: string } | null>(armedSourceFile);
   const qc = useQueryClient();
   const campusesQ = useQuery({ queryKey: ["course-campuses", course.id], queryFn: () => listCourseCampuses({ data: { course_id: course.id } }), networkMode: "always" });
   const campuses = campusesQ.data ?? [];
@@ -514,6 +603,19 @@ function CampusesBody({ course, topics }: { course: CourseOption; topics: Topic[
         <ChevronRight className="h-3 w-3" /> Textbooks
       </button>
       {booksOpen && <TextbooksModal onClose={() => setBooksOpen(false)} />}
+
+      {/* INBOUND FILES — the provenance worklist; "Open in mapper" ARMS the file so edits link it */}
+      <button className="flex w-full items-center gap-1 px-1 py-1 text-left text-[9px] font-bold uppercase tracking-wider hover:bg-white/5" style={{ color: "#C9A9F5" }} onClick={() => setInboundOpen(true)}>
+        <ChevronRight className="h-3 w-3" /> Inbound Files
+      </button>
+      {inboundOpen && <InboundFilesModal onClose={() => setInboundOpen(false)} onArm={(f) => { armedSourceFile = f; setArmed(f); setInboundOpen(false); }} />}
+      {armed && (
+        <div className="mt-1 flex items-center gap-1.5 rounded px-1.5 py-1 text-[10px]" style={{ background: "rgba(201,169,245,0.12)", color: "#C9A9F5", border: "1px solid rgba(201,169,245,0.3)" }}>
+          <span className="min-w-0 flex-1 truncate" title="Map edits + topic creations made now record this file as their source (provenance)">📎 {armed.label} — edits link this file</span>
+          <button className="shrink-0 opacity-70 hover:opacity-100" onClick={() => { armedSourceFile = null; setArmed(null); }}><X className="h-3 w-3" /></button>
+        </div>
+      )}
+
       <button className="mt-1 flex w-full items-center gap-1 px-1 py-1 text-left text-[9px] font-bold uppercase tracking-wider hover:bg-white/5" style={{ color: NEON.muted }} onClick={() => setShowQueue((v) => !v)}>
         {showQueue ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />} SEC target queue
       </button>
@@ -567,6 +669,69 @@ function CampusRow({ campus, course, topics, starter, onStatus }: { campus: Cour
   const localOv = useMemo(() => { const m = new Map<string, { local_number: number | null; local_order: number | null }>(); for (const r of ovQ.data ?? []) m.set(r.chapter_id, { local_number: r.local_number, local_order: r.local_order }); return m; }, [ovQ.data]);
   const setLocalNum = async (chapter_id: string, n: number | null) => { if (!campusId) return; const order = localOv.get(chapter_id)?.local_order ?? null; await setCampusChapterOverride({ data: { campus_id: campusId, chapter_id, local_number: n, local_order: order } }); qc.invalidateQueries({ queryKey: ["campus-overrides", campusId] }); };
 
+  // TOPIC-ROW SELECTION + DRAG (Prompt 2A) — rows select with click / Shift+click (range within an
+  // exam) / Ctrl+click (toggle); Esc clears. Dragging a selected row moves the WHOLE same-exam
+  // selection as a stack (count badge); an unselected row drags alone. Drops show an insertion LINE.
+  const [topicSel, setTopicSel] = useState<Set<string>>(() => new Set()); // keys `${examId}|${chapterId}`
+  const selAnchor = useRef<{ examId: string; chapterId: string } | null>(null);
+  const [tDrag, setTDrag] = useState<{ fromExam: string; ids: string[] } | null>(null);
+  const [tOver, setTOver] = useState<{ examId: string; index: number } | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setTopicSel(new Set()); selAnchor.current = null; } };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+  const clickTopicRow = (examId: string, chapterId: string, ev: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) => {
+    const key = `${examId}|${chapterId}`;
+    setTopicSel((prev) => {
+      const next = new Set(prev);
+      if (ev.shiftKey && selAnchor.current?.examId === examId) {
+        const order = exams.find((e) => e.id === examId)?.chapter_ids ?? [];
+        const a = order.indexOf(selAnchor.current.chapterId), b = order.indexOf(chapterId);
+        if (a >= 0 && b >= 0) { for (const cid of order.slice(Math.min(a, b), Math.max(a, b) + 1)) next.add(`${examId}|${cid}`); return next; }
+      }
+      if (ev.ctrlKey || ev.metaKey) { next.has(key) ? next.delete(key) : next.add(key); }
+      else { next.clear(); next.add(key); }
+      selAnchor.current = { examId, chapterId };
+      return next;
+    });
+  };
+  const startTopicDrag = (examId: string, chapterId: string) => {
+    const key = `${examId}|${chapterId}`;
+    const order = exams.find((e) => e.id === examId)?.chapter_ids ?? [];
+    const ids = topicSel.has(key)
+      ? order.filter((cid) => topicSel.has(`${examId}|${cid}`)) // the whole same-exam selection, in exam order
+      : [chapterId];
+    if (!topicSel.has(key)) { setTopicSel(new Set([key])); selAnchor.current = { examId, chapterId }; }
+    setTDrag({ fromExam: examId, ids });
+  };
+  const dropTopics = async (targetExamId: string, index: number) => {
+    const drag = tDrag; setTDrag(null); setTOver(null);
+    if (!drag) return;
+    const src = exams.find((e) => e.id === drag.fromExam), tgt = exams.find((e) => e.id === targetExamId);
+    if (!src || !tgt) return;
+    const moved = drag.ids;
+    try {
+      if (drag.fromExam === targetExamId) {
+        const rest = src.chapter_ids.filter((cid) => !moved.includes(cid));
+        const at = Math.max(0, Math.min(index, rest.length));
+        rest.splice(at, 0, ...moved);
+        await setCampusExamTopics({ data: { campus_exam_id: targetExamId, chapter_ids: rest, source_file_id: getArmedSourceFileId() } });
+      } else {
+        const srcRest = src.chapter_ids.filter((cid) => !moved.includes(cid));
+        const tgtRest = tgt.chapter_ids.filter((cid) => !moved.includes(cid));
+        const at = Math.max(0, Math.min(index, tgtRest.length));
+        tgtRest.splice(at, 0, ...moved);
+        await setCampusExamTopics({ data: { campus_exam_id: drag.fromExam, chapter_ids: srcRest, source_file_id: getArmedSourceFileId() } });
+        await setCampusExamTopics({ data: { campus_exam_id: targetExamId, chapter_ids: tgtRest, source_file_id: getArmedSourceFileId() } });
+      }
+      setTopicSel(new Set()); selAnchor.current = null;
+      refresh();
+    } catch (e) { alert(e instanceof Error ? e.message : "Move failed."); }
+  };
+  const topicDnd = { sel: topicSel, drag: tDrag, over: tOver, onRowClick: clickTopicRow, onDragStart: startTopicDrag, onDragEnd: () => { setTDrag(null); setTOver(null); }, setOver: setTOver, onDrop: dropTopics };
+
   const doCow = async () => { setCowConfirm(false); try { await copyResolvedIntoLevel({ data: scope }); refresh(); } catch (e) { alert(e instanceof Error ? e.message : "Copy failed."); } };
   const openRevert = async () => { try { setRevertDiff(await revertMapToInherited({ data: { ...scope, apply: false } })); } catch { /* ignore */ } };
   const doRevert = async () => { if (!revertDiff) return; try { await revertMapToInherited({ data: { ...scope, apply: true } }); setRevertDiff(null); refresh(); } catch (e) { alert(e instanceof Error ? e.message : "Revert failed."); } };
@@ -602,7 +767,7 @@ function CampusRow({ campus, course, topics, starter, onStatus }: { campus: Cour
             </>
           ) : (
             <>
-              {exams.map((ex) => <ExamRow key={ex.id} exam={ex} topics={topics} onChange={refresh} localOv={localOv} setLocalNum={setLocalNum} />)}
+              {exams.map((ex) => <ExamRow key={ex.id} exam={ex} topics={topics} onChange={refresh} localOv={localOv} setLocalNum={setLocalNum} dnd={topicDnd} />)}
               {adding ? (
                 <div className="px-0.5 py-1"><InlineInput initial={`Exam ${exams.length + 1}`} placeholder="Exam name…" onCommit={async (v) => { setAdding(false); await createCampusExam({ data: { campus_id: campusId, course_id: course.id, name: v } }); refresh(); }} onCancel={() => setAdding(false)} /></div>
               ) : (
@@ -723,14 +888,25 @@ function TextbooksModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function ExamRow({ exam, topics, onChange, localOv, setLocalNum }: { exam: CampusExamRow; topics: Topic[]; onChange: () => void; localOv: Map<string, { local_number: number | null; local_order: number | null }>; setLocalNum: (chapter_id: string, n: number | null) => void }) {
+interface TopicDnd {
+  sel: Set<string>;
+  drag: { fromExam: string; ids: string[] } | null;
+  over: { examId: string; index: number } | null;
+  onRowClick: (examId: string, chapterId: string, ev: { shiftKey: boolean; ctrlKey: boolean; metaKey: boolean }) => void;
+  onDragStart: (examId: string, chapterId: string) => void;
+  onDragEnd: () => void;
+  setOver: (o: { examId: string; index: number } | null) => void;
+  onDrop: (targetExamId: string, index: number) => void;
+}
+
+function ExamRow({ exam, topics, onChange, localOv, setLocalNum, dnd }: { exam: CampusExamRow; topics: Topic[]; onChange: () => void; localOv: Map<string, { local_number: number | null; local_order: number | null }>; setLocalNum: (chapter_id: string, n: number | null) => void; dnd: TopicDnd }) {
   const [pick, setPick] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [cov, setCov] = useState<number>(exam.coverage_pct ?? 80); // gap-meter % (landing)
   const selected = new Set(exam.chapter_ids);
-  const selectedTopics = topics.filter((t) => selected.has(t.id));
+  const topicById = useMemo(() => new Map(topics.map((t) => [t.id, t])), [topics]);
   const numOf = (id: string) => localOv.get(id)?.local_number ?? null;
-  const toggle = async (id: string) => { const next = new Set(selected); next.has(id) ? next.delete(id) : next.add(id); const ordered = topics.filter((t) => next.has(t.id)).map((t) => t.id); await setCampusExamTopics({ data: { campus_exam_id: exam.id, chapter_ids: ordered } }); onChange(); };
+  const toggle = async (id: string) => { const next = new Set(selected); next.has(id) ? next.delete(id) : next.add(id); const ordered = topics.filter((t) => next.has(t.id)).map((t) => t.id); await setCampusExamTopics({ data: { campus_exam_id: exam.id, chapter_ids: ordered, source_file_id: getArmedSourceFileId() } }); onChange(); };
   return (
     <div className="mb-0.5 rounded">
       <div className="group flex items-center gap-1 px-0.5 py-0.5">
@@ -750,9 +926,59 @@ function ExamRow({ exam, topics, onChange, localOv, setLocalNum }: { exam: Campu
         <button className="shrink-0 rounded px-1 py-0.5 text-[10px] opacity-70 hover:bg-white/10 hover:opacity-100" onClick={() => setPick((v) => !v)} title="Choose the topics on this exam">{selected.size} topics ▾</button>
         <button className="shrink-0 rounded px-1 py-0.5 text-[10px] opacity-0 hover:bg-white/10 group-hover:opacity-60" onClick={async () => { await setCampusExamStatus({ data: { id: exam.id, status: "archived" } }); onChange(); }} title="Archive this exam"><X className="h-3 w-3" /></button>
       </div>
-      {selectedTopics.length > 0 && !pick && (
-        <div className="ml-3 flex flex-wrap gap-1 pb-1">
-          {selectedTopics.map((t) => { const n = numOf(t.id); return <span key={t.id} className="rounded px-1.5 py-0.5 text-[10px]" style={{ background: "rgba(79,163,227,0.14)", color: NEON.cyan }}>{n != null ? `#${n} · ` : ""}{topicLabel(t)}</span>; })}
+      {/* TOPIC ROWS (Prompt 2A) — the exam's topics in MAP order. Click selects (accent left-border
+          + tint); Shift+click range · Ctrl+click toggle · Esc clears. Drag reorders within the exam
+          or moves between exams under this campus; an insertion LINE shows exactly where the drop
+          lands; a selected stack drags together with a count badge. */}
+      {exam.chapter_ids.length > 0 && !pick && (
+        <div className="ml-3 pb-1"
+          onDragOver={(e) => { if (dnd.drag) { e.preventDefault(); if (dnd.over?.examId !== exam.id) dnd.setOver({ examId: exam.id, index: exam.chapter_ids.length }); } }}
+          onDrop={(e) => { if (dnd.drag) { e.preventDefault(); dnd.onDrop(exam.id, dnd.over?.examId === exam.id ? dnd.over.index : exam.chapter_ids.length); } }}>
+          {exam.chapter_ids.map((cid, i) => {
+            const t = topicById.get(cid);
+            const key = `${exam.id}|${cid}`;
+            const isSel = dnd.sel.has(key);
+            const dragging = !!dnd.drag && dnd.drag.fromExam === exam.id && dnd.drag.ids.includes(cid);
+            const dragLead = dragging && dnd.drag!.ids[0] === cid;
+            const dropLine = dnd.over?.examId === exam.id && dnd.over.index === i;
+            const n = numOf(cid);
+            return (
+              <div key={cid}>
+                {dropLine && <div className="mx-1 my-0.5 h-0.5 rounded-full" style={{ background: NEON.cyan }} />}
+                <div
+                  className="group/tr flex items-center gap-1 rounded pr-0.5 text-[10.5px]"
+                  draggable
+                  style={{
+                    borderLeft: isSel ? `3px solid ${NEON.yellow}` : "3px solid transparent",
+                    background: isSel ? "rgba(252,163,17,0.10)" : "transparent",
+                    color: NEON.cyan,
+                    opacity: dragging ? 0.35 : 1,
+                    transform: dragging ? "scale(0.98)" : "none",
+                    transition: "transform 120ms, opacity 120ms, background 120ms",
+                    cursor: "grab",
+                  }}
+                  onClick={(e) => dnd.onRowClick(exam.id, cid, e)}
+                  onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; dnd.onDragStart(exam.id, cid); }}
+                  onDragEnd={dnd.onDragEnd}
+                  onDragOver={(e) => {
+                    if (!dnd.drag) return;
+                    e.preventDefault(); e.stopPropagation();
+                    const r = e.currentTarget.getBoundingClientRect();
+                    const below = e.clientY > r.top + r.height / 2;
+                    const base = exam.chapter_ids.filter((x) => !(dnd.drag!.fromExam === exam.id && dnd.drag!.ids.includes(x))).indexOf(cid);
+                    const idx = base < 0 ? i + (below ? 1 : 0) : base + (below ? 1 : 0);
+                    if (dnd.over?.examId !== exam.id || dnd.over?.index !== idx) dnd.setOver({ examId: exam.id, index: idx });
+                  }}
+                  onDrop={(e) => { if (dnd.drag) { e.preventDefault(); e.stopPropagation(); dnd.onDrop(exam.id, dnd.over?.examId === exam.id ? dnd.over.index : i); } }}
+                >
+                  <GripVertical className="h-2.5 w-2.5 shrink-0 opacity-0 group-hover/tr:opacity-50" />
+                  <span className="min-w-0 flex-1 truncate py-0.5">{n != null ? `#${n} · ` : ""}{t ? topicLabel(t) : cid.slice(0, 8)}</span>
+                  {dragLead && dnd.drag!.ids.length > 1 && <span className="shrink-0 rounded-full px-1.5 text-[9px] font-bold" style={{ background: NEON.yellow, color: "#0B1322" }}>{dnd.drag!.ids.length}</span>}
+                </div>
+                {dnd.over?.examId === exam.id && dnd.over.index === i + 1 && i === exam.chapter_ids.length - 1 && <div className="mx-1 my-0.5 h-0.5 rounded-full" style={{ background: NEON.cyan }} />}
+              </div>
+            );
+          })}
         </div>
       )}
       {pick && (
@@ -841,5 +1067,74 @@ function AddRow({ label, onClick }: { label: string; onClick: () => void }) {
     <button className="flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left text-[11px] opacity-60 hover:bg-white/5 hover:opacity-100" style={{ color: NEON.muted }} onClick={onClick}>
       <Plus className="h-3 w-3 shrink-0" /> {label}
     </button>
+  );
+}
+
+// ---- INBOUND FILES DASHBOARD (Prompt 2C) -----------------------------------------------------
+// The provenance worklist: date · campus · professor · student email · files (signed-URL open) ·
+// reviewed ☐ · notes (inline) · reviewer. Filters: unreviewed-only + campus text. "Open in mapper"
+// ARMS the file — subsequent map edits/topic creations stamp source_file_id automatically. Emails
+// appear ONLY here (authoring), never student-facing.
+function InboundFilesModal({ onClose, onArm }: { onClose: () => void; onArm: (f: { id: string; label: string }) => void }) {
+  const qc = useQueryClient();
+  const [unreviewedOnly, setUnreviewedOnly] = useState(false);
+  const [campusFilter, setCampusFilter] = useState("");
+  const rowsQ = useQuery({ queryKey: ["inbound-files", unreviewedOnly, campusFilter], queryFn: () => listInboundFiles({ data: { unreviewedOnly, campus: campusFilter || undefined } }), networkMode: "always" });
+  const rows = rowsQ.data ?? [];
+  const refresh = () => qc.invalidateQueries({ queryKey: ["inbound-files"] });
+  const openFile = async (f: { name: string; path: string; bucket?: string }) => {
+    const { url } = await getInboundFileUrl({ data: { path: f.path, bucket: f.bucket ?? "syllabus-submissions" } });
+    if (url) window.open(url, "_blank"); else alert("Couldn't sign a URL for that file (dummy rows have no real file).");
+  };
+  const fmt = (s: string) => { try { return new Date(s).toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch { return "—"; } };
+  return (
+    <div className="fixed inset-0 z-[1000] grid place-items-center" style={{ background: "rgba(0,0,0,0.55)" }} onClick={onClose}>
+      <div className="w-[520px] max-h-[82vh] overflow-y-auto rounded-xl p-4" style={{ background: "#0F1720", border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <p className="text-[13px] font-bold">Inbound Files</p>
+          <button className="opacity-60 hover:opacity-100" onClick={onClose}><X className="h-3.5 w-3.5" /></button>
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <button onClick={() => setUnreviewedOnly((v) => !v)} className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide" style={{ color: unreviewedOnly ? "#0B1322" : NEON.muted, background: unreviewedOnly ? NEON.yellow : "transparent", border: `1px solid ${unreviewedOnly ? NEON.yellow : NEON.borderSoft}` }}>unreviewed only</button>
+          <input value={campusFilter} onChange={(e) => setCampusFilter(e.target.value)} placeholder="Filter by campus…" className="min-w-0 flex-1 rounded px-2 py-1 text-[11px] outline-none" style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${NEON.border}`, color: NEON.text }} />
+          <button className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={async () => { const r = await seedInboundDummies(); refresh(); alert(r.seeded ? `Seeded ${r.seeded} test rows.` : "Test rows already exist."); }}>seed test rows</button>
+        </div>
+        {rowsQ.isLoading && <p className="mt-3 text-[11px] italic" style={{ color: NEON.muted }}>Loading…</p>}
+        {!rowsQ.isLoading && rows.length === 0 && <p className="mt-3 text-[11px] italic" style={{ color: NEON.muted }}>No inbound files{unreviewedOnly || campusFilter ? " match the filters" : " yet"} (needs 0113 + submissions).</p>}
+        {rows.map((r) => <InboundRow key={r.id} row={r} onOpenFile={openFile} onArm={onArm} onChange={refresh} fmt={fmt} />)}
+      </div>
+    </div>
+  );
+}
+
+function InboundRow({ row, onOpenFile, onArm, onChange, fmt }: { row: InboundFileRow; onOpenFile: (f: { name: string; path: string; bucket?: string }) => void; onArm: (f: { id: string; label: string }) => void; onChange: () => void; fmt: (s: string) => string }) {
+  const [notes, setNotes] = useState(row.notes ?? "");
+  const label = row.files?.[0]?.name ?? row.campus_name ?? "file";
+  return (
+    <div className="mt-2 rounded-lg p-2.5" style={{ background: "rgba(245,239,230,0.04)", border: `1px solid ${NEON.borderSoft}` }}>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+        <span className="shrink-0 tabular-nums" style={{ color: NEON.muted }}>{fmt(row.submitted_at)}</span>
+        <span className="min-w-0 font-semibold" style={{ color: NEON.text }}>{row.campus_name ?? "—"}</span>
+        {row.professor_name && <span style={{ color: NEON.cyan }}>Prof. {row.professor_name}</span>}
+        {row.student_email && <span style={{ color: NEON.muted }}>{row.student_email}</span>}
+        <span className="ml-auto flex shrink-0 items-center gap-2">
+          <label className="flex cursor-pointer items-center gap-1 text-[10px]" style={{ color: row.reviewed ? "#3BF5A0" : NEON.muted }}>
+            <input type="checkbox" checked={row.reviewed} onChange={async (e) => { await updateInboundFile({ data: { id: row.id, reviewed: e.target.checked, reviewer: e.target.checked ? "Lee" : null } }); onChange(); }} />
+            reviewed{row.reviewer && row.reviewed ? ` · ${row.reviewer}` : ""}
+          </label>
+        </span>
+      </div>
+      {(row.files ?? []).length > 0 && (
+        <div className="mt-1 flex flex-wrap gap-1.5">
+          {row.files.map((f, i) => (
+            <button key={i} className="rounded px-1.5 py-0.5 text-[10px] hover:bg-white/10" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => void onOpenFile(f)}>📄 {f.name}</button>
+          ))}
+        </div>
+      )}
+      <div className="mt-1.5 flex items-center gap-2">
+        <input value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={async () => { if ((row.notes ?? "") !== notes) { await updateInboundFile({ data: { id: row.id, notes: notes || null } }); onChange(); } }} placeholder="Notes…" className="min-w-0 flex-1 rounded px-2 py-1 text-[10.5px] outline-none" style={{ background: "rgba(0,0,0,0.25)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} />
+        <button className="shrink-0 rounded px-2 py-1 text-[10px] font-bold" style={{ color: "#C9A9F5", border: `1px solid ${NEON.borderSoft}` }} onClick={() => onArm({ id: row.id, label })} title="Arm this file — map edits made while reviewing link it as their source automatically">Open in mapper</button>
+      </div>
+    </div>
   );
 }

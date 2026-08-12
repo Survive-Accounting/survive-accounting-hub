@@ -829,7 +829,7 @@ export const renameCourse = createServerFn({ method: "POST" })
 
 export const createChapter = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
-    z.object({ course_id: z.string().uuid(), chapter_name: z.string().min(1).max(120), subtitle: z.string().max(80).nullable().optional() }).parse(d),
+    z.object({ course_id: z.string().uuid(), chapter_name: z.string().min(1).max(120), subtitle: z.string().max(80).nullable().optional(), source_file_id: z.string().uuid().nullable().optional() }).parse(d),
   )
   .handler(async ({ data }): Promise<ChapterRow> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -842,19 +842,23 @@ export const createChapter = createServerFn({ method: "POST" })
       .limit(1);
     if (topErr) rethrow0089(topErr);
     const next = (typeof (top?.[0] as { chapter_number: number } | undefined)?.chapter_number === "number" ? (top![0] as { chapter_number: number }).chapter_number : 0) + 1;
-    const { data: ins, error } = await tbl()
-      .insert({
-        course_id: data.course_id,
-        chapter_number: next,
-        chapter_name: data.chapter_name.trim(),
-        subtitle: data.subtitle ?? null,
-        status: "active",
-        je_only_mode: false,
-        target_lessons: 0,
-        topics_locked: false,
-      })
-      .select("id,chapter_number,chapter_name,subtitle,status")
-      .single();
+    const row = {
+      course_id: data.course_id,
+      chapter_number: next,
+      chapter_name: data.chapter_name.trim(),
+      subtitle: data.subtitle ?? null,
+      status: "active",
+      je_only_mode: false,
+      target_lessons: 0,
+      topics_locked: false,
+      // provenance (0113) — stamped when the mapper has an inbound file armed
+      ...(data.source_file_id ? { source_file_id: data.source_file_id } : {}),
+    };
+    let { data: ins, error } = await tbl().insert(row).select("id,chapter_number,chapter_name,subtitle,status").single();
+    if (error && data.source_file_id && /source_file_id|column/i.test(String(error.message ?? ""))) {
+      const { source_file_id: _drop, ...bare } = row as Record<string, unknown>;
+      ({ data: ins, error } = await tbl().insert(bare).select("id,chapter_number,chapter_name,subtitle,status").single());
+    }
     if (error) rethrow0089(error);
     return ins as ChapterRow;
   });

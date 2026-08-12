@@ -157,16 +157,22 @@ export const reorderCampusExams = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-/** Replace an exam's topic (chapter) membership with the given ordered set (delete-all then insert). */
+/** Replace an exam's topic (chapter) membership with the given ordered set (delete-all then insert).
+ *  `source_file_id` (0113 provenance) is stamped on the rows when the mapper has a file armed —
+ *  the "this map was edited while reviewing this PDF" trail. */
 export const setCampusExamTopics = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ campus_exam_id: z.string().uuid(), chapter_ids: z.array(z.string().uuid()) }).parse(d))
+  .inputValidator((d: unknown) => z.object({ campus_exam_id: z.string().uuid(), chapter_ids: z.array(z.string().uuid()), source_file_id: z.string().uuid().nullable().optional() }).parse(d))
   .handler(async ({ data }): Promise<{ ok: true }> => {
     const db = await admin();
     const { error: dErr } = await db.from("campus_exam_topics").delete().eq("campus_exam_id", data.campus_exam_id);
     if (dErr) rethrow(dErr);
     if (data.chapter_ids.length) {
-      const rows = data.chapter_ids.map((cid, i) => ({ campus_exam_id: data.campus_exam_id, chapter_id: cid, position: i + 1 }));
-      const { error: iErr } = await db.from("campus_exam_topics").insert(rows);
+      const rows = data.chapter_ids.map((cid, i) => ({ campus_exam_id: data.campus_exam_id, chapter_id: cid, position: i + 1, ...(data.source_file_id ? { source_file_id: data.source_file_id } : {}) }));
+      let { error: iErr } = await db.from("campus_exam_topics").insert(rows);
+      if (iErr && data.source_file_id && /source_file_id|column/i.test(String(iErr.message ?? ""))) {
+        // pre-0113 tolerance: retry without the provenance column
+        ({ error: iErr } = await db.from("campus_exam_topics").insert(data.chapter_ids.map((cid, i) => ({ campus_exam_id: data.campus_exam_id, chapter_id: cid, position: i + 1 }))));
+      }
       if (iErr) rethrow(iErr);
     }
     return { ok: true };
