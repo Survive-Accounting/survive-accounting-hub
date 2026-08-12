@@ -103,17 +103,37 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
   const [focusSignal, setFocusSignal] = useState(0);
   const onTryFree = () => { document.getElementById("exam1")?.scrollIntoView({ behavior: "smooth" }); setPickerPulse((p) => p + 1); setFocusSignal((f) => f + 1); };
   const [syllabusOpen, setSyllabusOpen] = useState(false);
-  // Professor rung (confidence ladder step 2) — session-persisted; personalizes labels only, never gates.
-  const [professor, setProfessor] = useState<ProfessorLite | null>(() => { try { const s = sessionStorage.getItem("sa-landing-prof"); return s ? (JSON.parse(s) as ProfessorLite) : null; } catch { return null; } });
-  const pickProfessor = (p: ProfessorLite | null) => { setProfessor(p); try { if (p) sessionStorage.setItem("sa-landing-prof", JSON.stringify(p)); else sessionStorage.removeItem("sa-landing-prof"); } catch { /* ignore */ } };
-  // Skip is session-persisted too — the prompt line collapses and stays collapsed; the syllabus door
-  // (meter slot) remains the skipper's path. Both reset when the school changes.
-  const [profSkipped, setProfSkippedState] = useState(() => { try { return sessionStorage.getItem("sa-landing-prof-skip") === "1"; } catch { return false; } });
-  const skipProfessor = () => { setProfSkippedState(true); try { sessionStorage.setItem("sa-landing-prof-skip", "1"); } catch { /* ignore */ } };
-  const resetProfessor = () => { setProfSkippedState(false); pickProfessor(null); try { sessionStorage.removeItem("sa-landing-prof-skip"); } catch { /* ignore */ } };
-  // "change" on the school line — back to the gate (picker rings open); the next pick re-runs the
+  // Optional custom lead line for the syllabus modal (e.g. the unlisted-professor follow-up:
+  // "Don't see Prof. X yet — send me anything from the class and I'll map it."). Null = default copy.
+  const [syllabusFraming, setSyllabusFraming] = useState<string | null>(null);
+  const openSyllabus = (framing?: string) => { setSyllabusFraming(framing ?? null); setSyllabusOpen(true); };
+  // Professor rung (confidence ladder step 2) — persisted ACROSS visits (localStorage; the earlier
+  // session-only rule was for in-chat artifacts). Personalizes labels only, never gates.
+  const [professor, setProfessor] = useState<ProfessorLite | null>(null);
+  const pickProfessor = (p: ProfessorLite | null) => { setProfessor(p); try { if (p) localStorage.setItem("sa-landing-prof", JSON.stringify(p)); else localStorage.removeItem("sa-landing-prof"); } catch { /* ignore */ } };
+  // Skip persists too — the prompt line collapses and stays collapsed; the "pick yours →" door
+  // remains the skipper's re-entry. Both reset when the school changes.
+  const [profSkipped, setProfSkippedState] = useState(false);
+  const skipProfessor = () => { setProfSkippedState(true); try { localStorage.setItem("sa-landing-prof-skip", "1"); } catch { /* ignore */ } };
+  const resetProfessor = () => { setProfSkippedState(false); setProfessor(null); try { localStorage.removeItem("sa-landing-prof"); localStorage.removeItem("sa-landing-prof-skip"); } catch { /* ignore */ } };
+  // RETURNING VISITOR — restore school (or "not listed") + professor + skip AFTER mount (never in an
+  // initializer: this route SSRs, and a server/client mismatch there breaks hydration). A /c/<slug>
+  // link's pre-selection wins over storage. Legacy sessionStorage values migrate forward once.
+  useEffect(() => {
+    if (initialCampusId) return; // chapter-link sessions keep their own preselection
+    try {
+      const id = localStorage.getItem("sa-landing-school");
+      if (id === "__notlisted__") setNotListed(true);
+      else if (id) { const s = SCHOOLS.find((x) => x.id === id); if (s) { setSchool(s); firstPick.current = true; } } // change → short beat
+      const rawProf = localStorage.getItem("sa-landing-prof") ?? sessionStorage.getItem("sa-landing-prof");
+      if (rawProf) setProfessor(JSON.parse(rawProf) as ProfessorLite);
+      if ((localStorage.getItem("sa-landing-prof-skip") ?? sessionStorage.getItem("sa-landing-prof-skip")) === "1") setProfSkippedState(true);
+    } catch { /* private mode */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // "change" on the identity line — back to the gate (picker rings open); the next pick re-runs the
   // short recolor beat via the normal pickSchool path and the professor line resets.
-  const changeSchool = () => { setSchool(null); resetProfessor(); setPickerPulse((p) => p + 1); };
+  const changeSchool = () => { setSchool(null); setNotListed(false); resetProfessor(); try { localStorage.removeItem("sa-landing-school"); } catch { /* ignore */ } setPickerPulse((p) => p + 1); };
 
   const theme = useMemo(() => {
     if (!school) return DEFAULT_FRAME_THEME;
@@ -184,16 +204,18 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
   // (every chapter, incl. Exam-2/3 topics like "Long Term Liabilities") whenever a map wasn't found,
   // which is exactly the bug. Live free sets still attach per chapter id via the student tree
   // (treeTopicById), so free content is never gated by mapping — only the LIST comes from the map.
-  const resolveExam = (num: number, statics: string[]): ResolvedTopic[] => {
+  // `paidTab`: the FREE tab never lists a paid set; PAID tabs keep them — their stems arrive from the
+  // server already ░-redacted (fetchStudentTree), so the locked tease is the shape, never the words.
+  const resolveExam = (num: number, statics: string[], paidTab: boolean): ResolvedTopic[] => {
     const m = mappedExams.find((e) => e.num === num);
     const ids = m ? m.chapterIds : defaultUnits.filter((u) => u.exam_number === num).map((u) => u.unit_id);
-    if (ids.length) return ids.map((cid) => { const nm = nameById.get(cid), ch = chapterById.get(cid), st = treeTopicById.get(cid); return { key: cid, name: nm?.name ?? ch?.name ?? st?.name ?? "Topic", num: nm?.number ?? ch?.number ?? st?.number ?? null, sets: (st?.sets ?? []).filter((s) => s.access !== "paid") }; });
+    if (ids.length) return ids.map((cid) => { const nm = nameById.get(cid), ch = chapterById.get(cid), st = treeTopicById.get(cid); return { key: cid, name: nm?.name ?? ch?.name ?? st?.name ?? "Topic", num: nm?.number ?? ch?.number ?? st?.number ?? null, sets: (st?.sets ?? []).filter((s) => paidTab || s.access !== "paid") }; });
     return statics.map((n) => ({ key: n, name: n, num: null, sets: [] }));
   };
-  const exam1R = useMemo(() => resolveExam(1, STATIC_EXAM1), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
-  const exam2R = useMemo(() => resolveExam(2, STATIC_EXAM2), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
-  const exam3R = useMemo(() => resolveExam(3, STATIC_EXAM3), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
-  const finalR = useMemo(() => resolveExam(99, STATIC_FINAL), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
+  const exam1R = useMemo(() => resolveExam(1, STATIC_EXAM1, false), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
+  const exam2R = useMemo(() => resolveExam(2, STATIC_EXAM2, true), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
+  const exam3R = useMemo(() => resolveExam(3, STATIC_EXAM3, true), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
+  const finalR = useMemo(() => resolveExam(99, STATIC_FINAL, true), [mappedExams, defaultUnits, nameById, chapterById, treeTopicById]);
   const exams = useMemo<ExamTab[]>(() => [
     { num: 1, label: "Exam 1", price: null, topics: exam1R, coveragePct: coverageByNum.get(1) ?? 80 },
     { num: 2, label: "Exam 2", price: 50, topics: exam2R, coveragePct: coverageByNum.get(2) ?? 80 },
@@ -206,6 +228,7 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
     setNotListed(false);
     if (school?.id !== s.id) resetProfessor(); // new school → professor line resets (spec: ladder resets with school)
     setSchool(s);
+    try { localStorage.setItem("sa-landing-school", s.id); } catch { /* ignore */ } // persists across visits
     if (reduce) return; // instant swap, no takeover
     const mode = firstPick.current ? "short" : "full";
     firstPick.current = true;
@@ -231,7 +254,7 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px" }}>
         {chapterBanner && <ChapterBanner name={chapterBanner} slug={chapterSlug} />}
         <Hero onTryFree={onTryFree} />
-        <ExamPlayer exams={exams} school={school} onPick={pickSchool} onChangeSchool={changeSchool} pickerPulse={pickerPulse} focusSignal={focusSignal} schools={schoolsWithCodes} mapped={mapped} onSyllabus={() => setSyllabusOpen(true)} professor={professor} onPickProfessor={pickProfessor} profSkipped={profSkipped} onSkipProfessor={skipProfessor} notListed={notListed} onNotListed={() => setNotListed(true)} theater={theater} onTheaterDone={() => setTheater(null)} />
+        <ExamPlayer exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} onChangeSchool={changeSchool} pickerPulse={pickerPulse} focusSignal={focusSignal} schools={schoolsWithCodes} mapped={mapped} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} profSkipped={profSkipped} onSkipProfessor={skipProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); try { localStorage.setItem("sa-landing-school", "__notlisted__"); } catch { /* ignore */ } }} theater={theater} onTheaterDone={() => setTheater(null)} />
         <SectionDivider />
         <TestimonialsSlider />
         <SectionDivider />
@@ -240,7 +263,7 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
         <Footer onSyllabus={() => setSyllabusOpen(true)} />
       </main>
 
-      {syllabusOpen && <SyllabusModal school={school} onClose={() => setSyllabusOpen(false)} />}
+      {syllabusOpen && <SyllabusModal school={school} framing={syllabusFraming} onClose={() => { setSyllabusOpen(false); setSyllabusFraming(null); }} />}
       <FloatingPill />
     </div>
   );
@@ -358,7 +381,7 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
 // redirect. All "Send your syllabus" CTAs open this. Files post as base64 to the submitSyllabus fn.
 type PendingFile = { name: string; type: string; dataUrl: string; size: number };
 const ACCEPT = ".pdf,.doc,.docx,image/*";
-function SyllabusModal({ school, onClose }: { school: School | null; onClose: () => void }) {
+function SyllabusModal({ school, framing, onClose }: { school: School | null; framing?: string | null; onClose: () => void }) {
   const [files, setFiles] = useState<PendingFile[]>([]);
   const [email, setEmail] = useState("");
   const [drag, setDrag] = useState(false);
@@ -416,7 +439,7 @@ function SyllabusModal({ school, onClose }: { school: School | null; onClose: ()
           </div>
         ) : (
           <>
-            <p className="mb-3 text-[13px] leading-relaxed" style={{ color: "var(--text-muted)" }}>Syllabus, study guides, old homework, notes — the more you send, the tighter I can match your exam. I review every submission myself.</p>
+            <p className="mb-3 text-[13px] leading-relaxed" style={{ color: framing ? "var(--brand-cream)" : "var(--text-muted)" }}>{framing ?? "Syllabus, study guides, old homework, notes — the more you send, the tighter I can match your exam. I review every submission myself."}</p>
 
             <div
               onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
@@ -517,7 +540,7 @@ const examStats = (tab: ExamTab): string => {
   return parts.join(" · ");
 };
 
-function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusSignal, schools, mapped, onSyllabus, professor, onPickProfessor, profSkipped, onSkipProfessor, notListed, onNotListed, theater, onTheaterDone }: { exams: ExamTab[]; school: School | null; onPick: (s: School) => void; onChangeSchool: () => void; pickerPulse: number; focusSignal: number; schools: School[]; mapped: boolean; onSyllabus: () => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; profSkipped: boolean; onSkipProfessor: () => void; notListed: boolean; onNotListed: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void }) {
+function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusSignal, schools, mapped, onSyllabus, professor, onPickProfessor, profSkipped, onSkipProfessor, notListed, onNotListed, theater, onTheaterDone }: { exams: ExamTab[]; school: School | null; onPick: (s: School) => void; onChangeSchool: () => void; pickerPulse: number; focusSignal: number; schools: School[]; mapped: boolean; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; profSkipped: boolean; onSkipProfessor: () => void; notListed: boolean; onNotListed: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void }) {
   const [activeNum, setActiveNum] = useState(1);
   const [selById, setSelById] = useState<Record<number, Sel>>({});
   const [openTopics, setOpenTopics] = useState<Set<string>>(() => new Set());
@@ -561,11 +584,15 @@ function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusS
     if (live) { setSelById((p) => ({ ...p, 1: live })); setOpenTopics((p) => new Set(p).add(live.topicKey)); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [school?.id, focusSignal]);
-  // Keep the active selection's topic open when the tab changes.
+  // FIRST TOPIC OPEN — the navigation teaches itself: whenever the active tab's topic list
+  // (re)arrives, expand the current selection's topic (default = the first). Keyed on the first
+  // topic's key so the async map load (static keys → chapter ids) re-opens with the REAL key.
+  const firstTopicKey = active.topics[0]?.key ?? null;
   useEffect(() => {
-    if (cur) setOpenTopics((p) => (p.has(cur.topicKey) ? p : new Set(p).add(cur.topicKey)));
+    const k = cur?.topicKey ?? firstTopicKey;
+    if (k) setOpenTopics((p) => (p.has(k) ? p : new Set(p).add(k)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active.num]);
+  }, [active.num, firstTopicKey]);
 
   const pickSet = (topicKey: string, setId: string | null) => { setSelById((p) => ({ ...p, [active.num]: { topicKey, setId } })); setDrawerOpen(false); };
   const toggleTopic = (k: string) => setOpenTopics((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
@@ -579,6 +606,19 @@ function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusS
             meter exists only once a professor is picked; skippers get the "pick yours →" re-entry.
             Ambient personalization — no counters, no toasts, no explainers. */}
         {school && <CourseMasthead school={school} exam={active} professor={professor} skipped={profSkipped} onChangeSchool={onChangeSchool} onPick={onPickProfessor} onSkip={onSkipProfessor} onSyllabus={onSyllabus} />}
+
+        {/* unlisted-school masthead — same cluster shape, brand navy; line 2 is the syllabus door */}
+        {!school && notListed && (
+          <div className="border-b px-3 py-2 text-center" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.12)" }}>
+            <div className="sa-idrow flex items-baseline justify-center gap-2">
+              <span className="text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>Your school · Intro Accounting</span>
+              <button onClick={onChangeSchool} className="sa-chg text-[10.5px]" style={{ color: "var(--text-muted)" }}>change</button>
+            </div>
+            <button onClick={() => onSyllabus()} className="mt-0.5 text-[11.5px] hover:opacity-90" style={{ color: "var(--text-muted)" }}>
+              Help me tailor this to your exact course — <span className="font-bold" style={{ color: "var(--accent)" }}>send your syllabus →</span>
+            </button>
+          </div>
+        )}
 
         {/* "My school isn't listed" — one optional demand field (skippable), logged with a timestamp */}
         {notListed && <SchoolDemandField />}
@@ -610,7 +650,7 @@ function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusS
               ) : curSet?.playbackId ? (
                 <HeroVideo key={curSet.playbackId} playbackId={curSet.playbackId} onComplete={() => markComplete(curSet!.id)} />
               ) : (
-                <Poster school={school} topicName={curTopic?.name ?? active.label} queued={!isPaid && !!curTopic} />
+                <Poster school={school} topicName={curTopic?.name ?? active.label} queued={!isPaid && !!curTopic} stem={curSet?.firstStem ?? null} />
               )}
             </div>
 
@@ -620,7 +660,7 @@ function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusS
             {/* Unmapped campus / "not listed": Exam 1 still plays (default map); offer to tailor. */}
             {((school && !mapped) || notListed) && (
               <div className="border-t px-3 py-2 text-center" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
-                <button onClick={onSyllabus} className="text-[12px]" style={{ color: "var(--text-muted)" }}>
+                <button onClick={() => onSyllabus()} className="text-[12px]" style={{ color: "var(--text-muted)" }}>
                   Help me tailor this to your exact course — <span className="font-bold" style={{ color: "var(--accent)" }}>Send your syllabus</span>
                 </button>
               </div>
@@ -705,16 +745,20 @@ function TopicRow({ topic, isPaid, price, open, onToggle, curSetId, curTopicKey,
   );
 }
 
-// The set row is the product shelf: name written like a menu item + "N CEQs" (+ runtime when known).
+// The set row is the product shelf: the first question's STEM, truncated at ~40ch — the truncation
+// is the tease; the full stem shows in the player when selected. Paid-tab stems arrive from the
+// server already ░-redacted. Counts language: topics · questions · video time (never "sets"/"stems").
 function SetRow({ set, isPaid, price, active, activeRef, onPick }: { set: StudentSet; isPaid: boolean; price: number | null; active: boolean; activeRef: RefObject<HTMLButtonElement | null>; onPick: () => void }) {
   const [tip, setTip] = useState(false);
   const live = !!set.playbackId;
-  const meta = `${set.ceqCount} CEQ${set.ceqCount === 1 ? "" : "s"}${set.runtimeSec ? ` · ${fmtRuntime(set.runtimeSec)}` : ""}`;
+  const stem = set.firstStem?.trim() || set.name;
+  const tease = stem.length > 40 ? `${stem.slice(0, 40).trimEnd()}…` : stem;
+  const meta = `${set.ceqCount} question${set.ceqCount === 1 ? "" : "s"}${set.runtimeSec ? ` · ${fmtRuntime(set.runtimeSec)}` : ""}`;
   const onClick = () => { if (isPaid) { setTip(true); window.setTimeout(() => setTip(false), 1800); return; } onPick(); };
   return (
     <button ref={active ? activeRef : undefined} onClick={onClick} className="relative flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/5" style={{ background: active ? "rgba(252,163,17,0.12)" : "transparent", opacity: isPaid ? 0.6 : live ? 1 : 0.7 }}>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[12.5px] font-semibold" style={{ color: active ? "var(--accent)" : "var(--brand-cream)" }}>{set.name}</span>
+        <span className="block truncate text-[12.5px] font-semibold" style={{ color: active ? "var(--accent)" : "var(--brand-cream)" }}>{tease}</span>
         <span className="block text-[10.5px]" style={{ color: "var(--text-muted)" }}>{meta}{!live && !isPaid ? " · coming" : ""}</span>
       </span>
       {live && !isPaid && <span className="shrink-0 text-[11px]" style={{ color: "var(--accent)" }}>▶</span>}
@@ -752,7 +796,7 @@ function SchoolDemandField() {
 // hover-reveal "change" (→ back to the gate; the next pick re-runs the short recolor beat). Line 2
 // RESOLVES, the cluster never grows: professor prompt → "Likely covers N% …" meter (slides in once)
 // → or, on skip, "Built for your professor's exams — pick yours →" reopening the picker.
-function CourseMasthead({ school, exam, professor, skipped, onChangeSchool, onPick, onSkip, onSyllabus }: { school: School; exam: ExamTab; professor: ProfessorLite | null; skipped: boolean; onChangeSchool: () => void; onPick: (p: ProfessorLite | null) => void; onSkip: () => void; onSyllabus: () => void }) {
+function CourseMasthead({ school, exam, professor, skipped, onChangeSchool, onPick, onSkip, onSyllabus }: { school: School; exam: ExamTab; professor: ProfessorLite | null; skipped: boolean; onChangeSchool: () => void; onPick: (p: ProfessorLite | null) => void; onSkip: () => void; onSyllabus: (framing?: string) => void }) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLDivElement>(null);
   const code = school.codeVerified && school.code ? school.code : null;
@@ -766,7 +810,7 @@ function CourseMasthead({ school, exam, professor, skipped, onChangeSchool, onPi
         </div>
         {professor ? (
           /* the payoff line — slides in once per pick; "Likely" carries the hedge, so no tilde */
-          <button key={professor.id} onClick={onSyllabus} className="sa-meter-in mt-0.5 text-[11.5px] hover:opacity-90" style={{ color: "var(--brand-cream)" }}>
+          <button key={professor.id} onClick={() => onSyllabus()} className="sa-meter-in mt-0.5 text-[11.5px] hover:opacity-90" style={{ color: "var(--brand-cream)" }}>
             Likely covers <b>{exam.coveragePct}%</b> of {profLabel}'s {exam.label} — <span className="font-bold" style={{ color: "var(--accent)" }}>help me get the rest →</span>
           </button>
         ) : !skipped ? (
@@ -782,7 +826,7 @@ function CourseMasthead({ school, exam, professor, skipped, onChangeSchool, onPi
         )}
       </div>
 
-      {open && <ProfessorPicker campusId={school.campusId} schoolName={school.name} anchorRef={anchorRef} onPick={(p) => { onPick(p); setOpen(false); }} onNotListedDone={() => { setOpen(false); onSkip(); }} onClose={() => setOpen(false)} />}
+      {open && <ProfessorPicker campusId={school.campusId} schoolName={school.name} anchorRef={anchorRef} onPick={(p) => { onPick(p); setOpen(false); }} onNotListedDone={(name) => { setOpen(false); onSkip(); if (name) onSyllabus(`Don't see Prof. ${name} yet — send me anything from the class and I'll map it.`); }} onClose={() => setOpen(false)} />}
     </>
   );
 }
@@ -795,7 +839,7 @@ const profDisplay = (p: ProfessorLite): string => (p.last ? `${p.last}${p.first 
 // campus roster once and filters client-side so search matches EITHER name order. Always ends with
 // "My professor isn't listed →" (optional last-name field → demand log, campus included in the text);
 // a campus with no roster shows ONLY that path — never an empty list.
-function ProfessorPicker({ campusId, schoolName, anchorRef, onPick, onNotListedDone, onClose }: { campusId: string; schoolName: string; anchorRef: RefObject<HTMLDivElement | null>; onPick: (p: ProfessorLite) => void; onNotListedDone: () => void; onClose: () => void }) {
+function ProfessorPicker({ campusId, schoolName, anchorRef, onPick, onNotListedDone, onClose }: { campusId: string; schoolName: string; anchorRef: RefObject<HTMLDivElement | null>; onPick: (p: ProfessorLite) => void; onNotListedDone: (name?: string) => void; onClose: () => void }) {
   const [q, setQ] = useState("");
   const [notListed, setNotListed] = useState(false);
   const [profName, setProfName] = useState("");
@@ -831,8 +875,9 @@ function ProfessorPicker({ campusId, schoolName, anchorRef, onPick, onNotListedD
 
   const finishNotListed = async (send: boolean) => {
     const t = profName.trim();
+    // Name + campus log to the demand table REGARDLESS of what happens to the follow-up modal.
     if (send && t) { try { await logSchoolDemand({ data: { text: `prof not listed · ${schoolName}: ${t}` } }); } catch { /* best-effort */ } }
-    onNotListedDone(); // default flow continues either way; the rung resolves as skipped
+    onNotListedDone(send && t ? t : undefined); // a real name → the framed syllabus ask follows (skippable)
   };
 
   if (typeof document === "undefined" || !rect) return null;
@@ -884,7 +929,7 @@ function TwoSetAsk({ school, professor, onDone }: { school: School; professor: P
         <span className="text-[12.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>Got it — I'll be in touch. — Lee</span>
       ) : (
         <>
-          <span className="min-w-0 flex-1 text-[12.5px]" style={{ color: "var(--brand-cream)" }}>Two sets down. Tell me what your exam covers and I'll make sure you're set.</span>
+          <span className="min-w-0 flex-1 text-[12.5px]" style={{ color: "var(--brand-cream)" }}>Two videos down. Tell me what your exam covers and I'll make sure you're set.</span>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" className="rounded-lg px-3 py-1.5 text-[12.5px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)", minWidth: 0 }} />
           <button onClick={send} disabled={!ok || busy} className="shrink-0 rounded-lg px-3 py-1.5 text-[12.5px] font-black disabled:opacity-40" style={{ background: "var(--accent)", color: "#0B1220" }}>{busy ? "…" : "Send"}</button>
           <button onClick={onDone} className="grid h-6 w-6 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--text-muted)" }} aria-label="Dismiss"><X className="h-3.5 w-3.5" /></button>
@@ -933,13 +978,15 @@ function HeroVideo({ playbackId, onComplete }: { playbackId: string; onComplete?
   );
 }
 
-function Poster({ school, topicName, queued }: { school: School | null; topicName: string; queued: boolean }) {
+function Poster({ school, topicName, queued, stem }: { school: School | null; topicName: string; queued: boolean; stem?: string | null }) {
   const c = school ? boltFor(school.id) : { c1: BRAND_RED, c2: BRAND_BLUE };
   return (
     <div className="grid h-full w-full place-items-center" style={{ background: "var(--brand-navy)" }}>
       <div className="flex flex-col items-center gap-3 px-6 text-center">
         <span className="inline-block h-16 w-11"><Bolt c1={c.c1} c2={c.c2} /></span>
         <span className="rounded-full px-3 py-1 text-[12px] font-bold uppercase tracking-wide" style={{ background: "var(--accent)", color: "#0B1220" }}>{topicName}</span>
+        {/* the FULL stem — the outline row's 40ch truncation is the tease, this is the payoff */}
+        {stem && <p className="max-w-md text-[13.5px] font-semibold leading-snug" style={{ color: "var(--brand-cream)" }}>{stem}</p>}
         {queued && <a href="/order" className="text-[12.5px] font-semibold" style={{ color: "var(--brand-cream)", opacity: 0.9 }}>This one's queued — want it sooner? <span style={{ color: "var(--accent)" }}>Tell me →</span></a>}
       </div>
     </div>

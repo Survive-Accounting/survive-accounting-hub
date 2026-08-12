@@ -350,6 +350,11 @@ export interface CeqChainTemplate {
 export interface CeqCard extends CardBase {
   kind: "ceq";
   prompt: string;
+  /** PAID-DISPLAY BLUR (Lee) — author-marked [start,end) character ranges of `prompt` that render
+   *  REDACTED (░ blocks) on locked/paid display surfaces (paid-tab outline teasers). The redaction
+   *  happens SERVER-SIDE (fetchStudentTree) so the hidden text never ships to an unentitled client.
+   *  Never applied in Studio, the free tab, or for entitled users. Additive scene JSON. */
+  blurRanges?: { s: number; e: number }[];
   choices: CeqChoice[];
   revealedAnswer?: boolean;
   /** PER-CEQ SCRIPT NOTE — LEGACY field. Superseded by the SCRIPT LAYERS below:

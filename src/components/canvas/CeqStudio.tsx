@@ -52,6 +52,21 @@ const NONE = "__uncat__";
 const MEMO_DND = "text/sa-studio-memo";
 const QREORDER = "text/sa-ceq-qreorder"; // dragging a question ROW to reorder
 const SET_DND = "text/sa-ceq-set"; // dragging a SET row onto a topic / the Library
+
+/** Locked-display preview of a stem: each blur range collapses to one ░ block (mirrors the
+ *  server-side redaction in fetchStudentTree — keep the two in visual agreement). */
+function redactStem(text: string, ranges: { s: number; e: number }[]): string {
+  if (!ranges.length) return text;
+  const sorted = ranges.slice().sort((a, b) => a.s - b.s);
+  let out = "", pos = 0;
+  for (const r of sorted) {
+    const s = Math.max(0, Math.min(text.length, r.s)), e = Math.max(s, Math.min(text.length, r.e));
+    if (s > pos) out += text.slice(pos, s);
+    if (e > s) out += "░░░░";
+    pos = Math.max(pos, e);
+  }
+  return out + text.slice(pos);
+}
 const TABS_SS = "sa-ceq-studio-set-tabs"; // sessionStorage: open set tabs + active (per session)
 const LAYOUT_Q0 = "__layout0__"; // Question 0 sentinel — the set BASELINE as an editable stage (never films/stitches/counts/deals)
 
@@ -148,6 +163,11 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const [assignFor, setAssignFor] = useState<string | null>(null); // deck id whose course/topic picker is open
   const [assignCourseSel, setAssignCourseSel] = useState<string>("lib"); // picker's course selection ("lib" = Library)
   const [newSetForm, setNewSetForm] = useState<{ name: string; courseId: string; topicId: string } | null>(null); // inline New Set form ("" = Library)
+  // PAID-DISPLAY BLUR (Lee) — the last text selection inside the STEM textarea, so the "Blur on
+  // locked" button can mark it as a redaction range. Tagged with its qid so a stale selection can't
+  // mark a different question. Ranges live on CeqCard.blurRanges; they render redacted ONLY on
+  // locked/paid surfaces (server-side, fetchStudentTree) — never in Studio or the free tab.
+  const [stemSel, setStemSel] = useState<{ qid: string; s: number; e: number } | null>(null);
   const [previewSelMemo, setPreviewSelMemo] = useState<string | null>(null); // memo selected in the previewer
   const [shortsQueueOpen, setShortsQueueOpen] = useState(false); // shorts-worthy worklist overlay
   // RECORDING MODE (#3) — a film-safe filming surface: an opaque navy full-window layer (at
@@ -2420,7 +2440,28 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                               <BufferedTextarea rows={2} className="nodrag w-full resize-none rounded px-1.5 py-1 text-[11px] outline-none" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} placeholder="Transcript (Mux import lands here later)…" value={qd.transcript ?? ""} onCommit={(v) => patchQ(qId!, { transcript: v }, `q:${qId}:tr`)} onKeyDown={(e) => e.stopPropagation()} />
                             </div>
                           </details>
-                          <BufferedTextarea rows={2} className="nodrag w-full resize-none rounded px-2 py-1.5 text-[13px] outline-none" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={qd.prompt} onCommit={(v) => patchQ(qId!, { prompt: v }, `q:${qId}:prompt`)} placeholder="The question stem…" onKeyDown={(e) => e.stopPropagation()} />
+                          <BufferedTextarea rows={2} className="nodrag w-full resize-none rounded px-2 py-1.5 text-[13px] outline-none" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={qd.prompt} onCommit={(v) => patchQ(qId!, { prompt: v }, `q:${qId}:prompt`)} placeholder="The question stem…" onKeyDown={(e) => e.stopPropagation()}
+                            onSelect={(e) => { const t = e.target as HTMLTextAreaElement; if (t.selectionStart !== t.selectionEnd) setStemSel({ qid: qId!, s: t.selectionStart, e: t.selectionEnd }); }} />
+                          {/* PAID-DISPLAY BLUR — select stem text above, then mark it. Ranges redact ONLY on
+                              locked/paid surfaces (server-side); Studio + free tab always show the full stem.
+                              Ranges are character offsets: re-mark after rewording the stem. */}
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <button
+                              className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide disabled:opacity-35"
+                              style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }}
+                              disabled={!stemSel || stemSel.qid !== qId || stemSel.s === stemSel.e}
+                              onClick={() => { if (!stemSel || stemSel.qid !== qId) return; patchQ(qId!, { blurRanges: [...(qd.blurRanges ?? []), { s: stemSel.s, e: stemSel.e }] }, `q:${qId}:blur`); setStemSel(null); }}
+                              title="Mark the selected stem text to render blurred (░) on locked/paid display only"
+                            >🔒 Blur on locked</button>
+                            {(qd.blurRanges?.length ?? 0) > 0 && (
+                              <>
+                                <span className="min-w-0 flex-1 truncate text-[10px]" style={{ color: NEON.muted }} title="How the stem reads on a locked/paid surface (re-mark after rewording the stem)">
+                                  locked: {redactStem(qd.prompt, qd.blurRanges ?? [])}
+                                </span>
+                                <button className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => patchQ(qId!, { blurRanges: [] }, `q:${qId}:blur`)} title="Remove all blur marks on this stem">clear</button>
+                              </>
+                            )}
+                          </div>
                           <div className="text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Choices — click ○ to mark correct · +💡 or drop a memo to chain it</div>
                           {qd.choices.map((ch, ci) => (
                             <div key={ch.id} className="flex items-center gap-1 rounded px-1 py-0.5" style={{ border: `1px solid ${ch.correct ? "rgba(59,245,160,0.5)" : NEON.borderSoft}` }}

@@ -15,8 +15,12 @@ export interface StudentSet {
   access: "free" | "paid";
   orientation: "landscape" | "portrait"; // 16:9 lesson vs 9:16 lookback — player switches aspect
   playbackId: string | null; // null = live set with no published video yet ("coming soon")
-  ceqCount: number; // # of CEQ question cards in the set (the "12 CEQs" enticement on the outline row)
+  ceqCount: number; // # of CEQ question cards in the set (the "N questions" line on the outline row)
   runtimeSec: number | null; // set runtime in seconds when known — null today (no duration source wired yet)
+  /** First question's stem — the outline row TEASER. For PAID sets, author-marked blurRanges are
+   *  redacted SERVER-SIDE into ░ blocks before this ever leaves the server (the hidden words never
+   *  reach an unentitled client). Free sets carry the full stem. Null = set has no CEQ yet. */
+  firstStem: string | null;
 }
 export interface StudentTopic { id: string; name: string; shortLabel: string | null; number: number | null; sets: StudentSet[] }
 export interface StudentUnit { id: string; name: string; topics: StudentTopic[] }
@@ -40,13 +44,44 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
   if (sErr) throw new Error(sErr.message);
   const live: RawDeck[] = [];
   // CEQ count per deck: a set's question count = nodes of type "ceq" whose data.deckId is the deck
-  // (the same membership the Studio uses). Powers the "N CEQs" enticement on each outline set row.
+  // (the same membership the Studio uses). Powers the "N questions" line on each outline set row.
   const ceqCountByDeck = new Map<string, number>();
-  for (const s of (scenes ?? []) as { nodes_json?: { decks?: RawDeck[]; nodes?: { type?: string; data?: { deckId?: string } }[] } }[]) {
+  // FIRST STEM per deck (lowest stageOrder) — the outline teaser, with its blur ranges for paid redaction.
+  const firstCeqByDeck = new Map<string, { order: number; prompt: string; blur: { s: number; e: number }[] }>();
+  type RawCeqData = { deckId?: string; stageOrder?: number; prompt?: string; blurRanges?: { s: number; e: number }[] };
+  for (const s of (scenes ?? []) as { nodes_json?: { decks?: RawDeck[]; nodes?: { type?: string; data?: RawCeqData }[] } }[]) {
     for (const d of s.nodes_json?.decks ?? []) if (d.status === "live" && d.payloadType === "cards") live.push(d);
-    for (const n of s.nodes_json?.nodes ?? []) { const did = n?.type === "ceq" ? n.data?.deckId : undefined; if (did) ceqCountByDeck.set(did, (ceqCountByDeck.get(did) ?? 0) + 1); }
+    for (const n of s.nodes_json?.nodes ?? []) {
+      if (n?.type !== "ceq") continue;
+      const did = n.data?.deckId;
+      if (!did) continue;
+      ceqCountByDeck.set(did, (ceqCountByDeck.get(did) ?? 0) + 1);
+      const order = n.data?.stageOrder ?? 0;
+      const cur = firstCeqByDeck.get(did);
+      if (!cur || order < cur.order) firstCeqByDeck.set(did, { order, prompt: (n.data?.prompt ?? "").trim(), blur: Array.isArray(n.data?.blurRanges) ? n.data!.blurRanges! : [] });
+    }
   }
   if (!live.length) return [];
+
+  // SERVER-SIDE redaction for paid display: replace each author-marked range with a ░ block. The
+  // redacted words never leave the server for a paid set — the tease is the shape, not the specifics.
+  const redact = (text: string, ranges: { s: number; e: number }[]): string => {
+    if (!ranges.length) return text;
+    const sorted = ranges.slice().sort((a, b) => a.s - b.s);
+    let out = "", pos = 0;
+    for (const r of sorted) {
+      const s = Math.max(0, Math.min(text.length, r.s)), e = Math.max(s, Math.min(text.length, r.e));
+      if (s > pos) out += text.slice(pos, s);
+      if (e > s) out += "░░░░";
+      pos = Math.max(pos, e);
+    }
+    return out + text.slice(pos);
+  };
+  const stemFor = (deckId: string, paid: boolean): string | null => {
+    const c = firstCeqByDeck.get(deckId);
+    if (!c || !c.prompt) return null;
+    return paid ? redact(c.prompt, c.blur) : c.prompt;
+  };
 
   // 2) Published playback ids by lessonId (newest ready). A missing lesson_videos table just
   //    means "no videos yet" — degrade to null, never crash the shell.
@@ -90,7 +125,7 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
     // WITHHOLD the playback id for PAID sets (#Prompt 4) — the tree never carries a locked
     // video's id. The client fetches it via getSetPlayback, which re-checks the entitlement.
     const paid = d.access === "paid";
-    topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: "landscape", playbackId: paid ? null : ((d.lessonId && pb.get(d.lessonId)) || null), ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: null });
+    topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: "landscape", playbackId: paid ? null : ((d.lessonId && pb.get(d.lessonId)) || null), ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: null, firstStem: stemFor(d.id, paid) });
   }
 
   const ordered = [...courses.values()].sort((a, b) => courseRank(a.name) - courseRank(b.name) || a.name.localeCompare(b.name));
