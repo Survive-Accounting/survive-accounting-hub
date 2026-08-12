@@ -130,8 +130,9 @@ begin
     on conflict do nothing;
 
   -- Ole Miss has real rows → status 'edited' (NOT verified: no syllabus link yet).
+  -- (null::uuid cast required — a bare NULL in a SELECT list types as text and 42804s.)
   insert into public.map_meta (course_id, campus_id, professor_id, status)
-    select distinct course_id, campus_id, null, 'edited'
+    select distinct course_id, campus_id, null::uuid, 'edited'
     from public.campus_exams
     where campus_id = '7b92a320-b196-43f2-a241-77a0805816fe' and professor_id is null
     on conflict do nothing;
