@@ -1023,6 +1023,10 @@ function HeroVideo({ playbackId, onComplete }: { playbackId: string; onComplete?
   const [chipFading, setChipFading] = useState(false);
   const fired = useRef(false);
   const dismissChip = () => { setChipFading(true); window.setTimeout(() => setChip(false), 350); };
+  // Parent passes an inline arrow, so onComplete's identity changes every render — read it through a
+  // ref so the player effect below doesn't tear down/rebuild hls (restarting the video) on re-renders.
+  const onCompleteRef = useRef(onComplete);
+  useEffect(() => { onCompleteRef.current = onComplete; }, [onComplete]);
   useEffect(() => {
     const v = ref.current; if (!v) return;
     const src = `https://stream.mux.com/${playbackId}.m3u8`;
@@ -1030,10 +1034,10 @@ function HeroVideo({ playbackId, onComplete }: { playbackId: string; onComplete?
     if (v.canPlayType("application/vnd.apple.mpegurl")) { v.src = src; }
     else void import("hls.js").then(({ default: Hls }) => { if (cancelled || !ref.current) return; if (Hls.isSupported()) { const h = new Hls(); h.on(Hls.Events.ERROR, (_e, d) => { if (d.fatal) setErr(true); }); h.loadSource(src); h.attachMedia(ref.current); hls = h; } else ref.current.src = src; }).catch(() => setErr(true));
     v.muted = true; void v.play().catch(() => { /* user can press play */ });
-    const onTime = () => { if (!fired.current && v.duration > 0 && v.currentTime / v.duration >= 0.9) { fired.current = true; onComplete?.(); } };
+    const onTime = () => { if (!fired.current && v.duration > 0 && v.currentTime / v.duration >= 0.9) { fired.current = true; onCompleteRef.current?.(); } };
     v.addEventListener("timeupdate", onTime);
     return () => { cancelled = true; v.removeEventListener("timeupdate", onTime); hls?.destroy(); };
-  }, [playbackId, onComplete]);
+  }, [playbackId]);
   if (err) return <div className="grid h-full w-full place-items-center text-[12px]" style={{ color: "#F3C6CC" }}>Couldn't load this video. Try again shortly.</div>;
   return (
     <div className="relative h-full w-full" onPointerDownCapture={() => { if (chip && !chipFading) dismissChip(); }}>
