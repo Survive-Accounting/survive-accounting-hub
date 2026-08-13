@@ -24,6 +24,7 @@ import { Route as LearnRouteImport } from './routes/learn'
 import { Route as LandingRouteImport } from './routes/landing'
 import { Route as JeRouteImport } from './routes/je'
 import { Route as IntroOutroRouteImport } from './routes/intro-outro'
+import { Route as ExpandRouteImport } from './routes/expand'
 import { Route as ChaptersRouteImport } from './routes/chapters'
 import { Route as CeqRouteImport } from './routes/ceq'
 import { Route as BeyondRouteImport } from './routes/beyond'
@@ -143,6 +144,11 @@ const JeRoute = JeRouteImport.update({
 const IntroOutroRoute = IntroOutroRouteImport.update({
   id: '/intro-outro',
   path: '/intro-outro',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExpandRoute = ExpandRouteImport.update({
+  id: '/expand',
+  path: '/expand',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChaptersRoute = ChaptersRouteImport.update({
@@ -383,6 +389,7 @@ export interface FileRoutesByFullPath {
   '/beyond': typeof BeyondRoute
   '/ceq': typeof CeqRouteWithChildren
   '/chapters': typeof ChaptersRoute
+  '/expand': typeof ExpandRoute
   '/intro-outro': typeof IntroOutroRoute
   '/je': typeof JeRouteWithChildren
   '/landing': typeof LandingRoute
@@ -445,6 +452,7 @@ export interface FileRoutesByTo {
   '/beyond': typeof BeyondRoute
   '/ceq': typeof CeqRouteWithChildren
   '/chapters': typeof ChaptersRoute
+  '/expand': typeof ExpandRoute
   '/intro-outro': typeof IntroOutroRoute
   '/je': typeof JeRouteWithChildren
   '/landing': typeof LandingRoute
@@ -507,6 +515,7 @@ export interface FileRoutesById {
   '/beyond': typeof BeyondRoute
   '/ceq': typeof CeqRouteWithChildren
   '/chapters': typeof ChaptersRoute
+  '/expand': typeof ExpandRoute
   '/intro-outro': typeof IntroOutroRoute
   '/je': typeof JeRouteWithChildren
   '/landing': typeof LandingRoute
@@ -571,6 +580,7 @@ export interface FileRouteTypes {
     | '/beyond'
     | '/ceq'
     | '/chapters'
+    | '/expand'
     | '/intro-outro'
     | '/je'
     | '/landing'
@@ -633,6 +643,7 @@ export interface FileRouteTypes {
     | '/beyond'
     | '/ceq'
     | '/chapters'
+    | '/expand'
     | '/intro-outro'
     | '/je'
     | '/landing'
@@ -694,6 +705,7 @@ export interface FileRouteTypes {
     | '/beyond'
     | '/ceq'
     | '/chapters'
+    | '/expand'
     | '/intro-outro'
     | '/je'
     | '/landing'
@@ -757,6 +769,7 @@ export interface RootRouteChildren {
   BeyondRoute: typeof BeyondRoute
   CeqRoute: typeof CeqRouteWithChildren
   ChaptersRoute: typeof ChaptersRoute
+  ExpandRoute: typeof ExpandRoute
   IntroOutroRoute: typeof IntroOutroRoute
   JeRoute: typeof JeRouteWithChildren
   LandingRoute: typeof LandingRoute
@@ -890,6 +903,13 @@ declare module '@tanstack/react-router' {
       path: '/intro-outro'
       fullPath: '/intro-outro'
       preLoaderRoute: typeof IntroOutroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/expand': {
+      id: '/expand'
+      path: '/expand'
+      fullPath: '/expand'
+      preLoaderRoute: typeof ExpandRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/chapters': {
@@ -1309,6 +1329,7 @@ const rootRouteChildren: RootRouteChildren = {
   BeyondRoute: BeyondRoute,
   CeqRoute: CeqRouteWithChildren,
   ChaptersRoute: ChaptersRoute,
+  ExpandRoute: ExpandRoute,
   IntroOutroRoute: IntroOutroRoute,
   JeRoute: JeRouteWithChildren,
   LandingRoute: LandingRoute,

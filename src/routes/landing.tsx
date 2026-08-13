@@ -1320,7 +1320,9 @@ function SectionDivider() {
 // Four stacked layers, each on its own row so they collapse cleanly at 360px:
 //  1) the text-me moment (a ghost boiling bolt sits behind it), 2) a quiet link row,
 //  3) monochrome social icons (placeholders — TODO real hrefs), 4) the baseline + memorial line.
-function Footer({ onSyllabus }: { onSyllabus: () => void }) {
+// Shared with /expand (which passes no onSyllabus — that page must not open an email-capture modal,
+// so the syllabus item drops out and the text-me block carries the whole "reach Lee" job).
+export function Footer({ onSyllabus }: { onSyllabus?: () => void }) {
   return (
     <footer id="site-footer" className="border-t pt-14 pb-10" style={{ borderColor: "rgba(245,239,230,0.1)", fontFamily: BRAND_SANS }}>
       {/* Layer 1 — the text-me moment, ghost bolt boiling behind the words */}
@@ -1338,8 +1340,10 @@ function Footer({ onSyllabus }: { onSyllabus: () => void }) {
       <nav className="mt-10 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-[13px]">
         <a href="/chapters" className="px-1.5 py-0.5 font-semibold transition-colors hover:text-[var(--accent)]" style={{ color: "var(--brand-cream)" }}>For Greek orgs</a>
         <span aria-hidden style={{ color: "rgba(245,239,230,0.28)" }}>·</span>
-        <button onClick={onSyllabus} className="px-1.5 py-0.5 font-semibold transition-colors hover:text-[var(--accent)]" style={{ color: "var(--brand-cream)" }}>Send your syllabus</button>
-        <span aria-hidden style={{ color: "rgba(245,239,230,0.28)" }}>·</span>
+        {onSyllabus && (<>
+          <button onClick={onSyllabus} className="px-1.5 py-0.5 font-semibold transition-colors hover:text-[var(--accent)]" style={{ color: "var(--brand-cream)" }}>Send your syllabus</button>
+          <span aria-hidden style={{ color: "rgba(245,239,230,0.28)" }}>·</span>
+        </>)}
         <a href={`sms:${TEL}`} className="px-1.5 py-0.5 font-semibold transition-colors hover:text-[var(--accent)]" style={{ color: "var(--brand-cream)" }}>Text Lee</a>
       </nav>
 
