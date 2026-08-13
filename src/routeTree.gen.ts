@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WelcomeRouteImport } from './routes/welcome'
+import { Route as WaitlistRouteImport } from './routes/waitlist'
 import { Route as ThankyouRouteImport } from './routes/thankyou'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as StudyRouteImport } from './routes/study'
@@ -74,6 +75,11 @@ import { Route as ApiCronBackupRouteImport } from './routes/api.cron.backup'
 const WelcomeRoute = WelcomeRouteImport.update({
   id: '/welcome',
   path: '/welcome',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WaitlistRoute = WaitlistRouteImport.update({
+  id: '/waitlist',
+  path: '/waitlist',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ThankyouRoute = ThankyouRouteImport.update({
@@ -404,6 +410,7 @@ export interface FileRoutesByFullPath {
   '/study': typeof StudyRoute
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
+  '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
@@ -466,6 +473,7 @@ export interface FileRoutesByTo {
   '/study': typeof StudyRoute
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
+  '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
@@ -530,6 +538,7 @@ export interface FileRoutesById {
   '/study': typeof StudyRoute
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
+  '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
@@ -595,6 +604,7 @@ export interface FileRouteTypes {
     | '/study'
     | '/terms'
     | '/thankyou'
+    | '/waitlist'
     | '/welcome'
     | '/c/$slug'
     | '/ceq/create'
@@ -657,6 +667,7 @@ export interface FileRouteTypes {
     | '/study'
     | '/terms'
     | '/thankyou'
+    | '/waitlist'
     | '/welcome'
     | '/c/$slug'
     | '/ceq/create'
@@ -720,6 +731,7 @@ export interface FileRouteTypes {
     | '/study'
     | '/terms'
     | '/thankyou'
+    | '/waitlist'
     | '/welcome'
     | '/c/$slug'
     | '/ceq/create'
@@ -784,6 +796,7 @@ export interface RootRouteChildren {
   StudyRoute: typeof StudyRoute
   TermsRoute: typeof TermsRoute
   ThankyouRoute: typeof ThankyouRoute
+  WaitlistRoute: typeof WaitlistRoute
   WelcomeRoute: typeof WelcomeRoute
   CSlugRoute: typeof CSlugRoute
   ChaptersDashboardRoute: typeof ChaptersDashboardRoute
@@ -805,6 +818,13 @@ declare module '@tanstack/react-router' {
       path: '/welcome'
       fullPath: '/welcome'
       preLoaderRoute: typeof WelcomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/waitlist': {
+      id: '/waitlist'
+      path: '/waitlist'
+      fullPath: '/waitlist'
+      preLoaderRoute: typeof WaitlistRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/thankyou': {
@@ -1344,6 +1364,7 @@ const rootRouteChildren: RootRouteChildren = {
   StudyRoute: StudyRoute,
   TermsRoute: TermsRoute,
   ThankyouRoute: ThankyouRoute,
+  WaitlistRoute: WaitlistRoute,
   WelcomeRoute: WelcomeRoute,
   CSlugRoute: CSlugRoute,
   ChaptersDashboardRoute: ChaptersDashboardRoute,

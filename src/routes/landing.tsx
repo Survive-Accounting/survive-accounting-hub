@@ -7,7 +7,7 @@
 // silent IntroSting pre-roll. Picking a school recolors the bolt (full takeover on the first pick
 // this visit, a short beat after) and flips the campus status strip once a map exists (campus_exams,
 // 0105). No checkout exists yet — paid exams show topics + a mapping-gated line, not purchasable.
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
@@ -25,9 +25,12 @@ import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/componen
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { Bolt, BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS, SEC_SCHOOLS } from "@/components/canvas/brand";
 
+// PROMOTED TO "/" on 2026-08-13. This path 301s to the homepage so every link, QR and bookmark
+// already in the wild keeps working, and the two URLs never compete for the same content.
+// The PAGE still lives in this module: index.tsx imports LandingPage, and /chapters, /c/$slug and
+// /expand import CampusSelector / Footer / SCHOOLS from here.
 export const Route = createFileRoute("/landing")({
-  head: () => ({ meta: [{ title: "⚡ Survive Accounting — Only what's on your exam" }, { name: "robots", content: "noindex" }] }),
-  component: LandingPage,
+  beforeLoad: () => { throw redirect({ to: "/", statusCode: 301 }); },
 });
 
 const PHONE = "(662) 565-8818";
