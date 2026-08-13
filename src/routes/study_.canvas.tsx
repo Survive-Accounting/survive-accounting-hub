@@ -250,6 +250,10 @@ type FrameClip = { kind: "frame"; nodes: CloneNode[]; edges: CloneEdge[]; rootId
 type ScaffoldClip = { kind: "scaffold"; nodes: CloneNode[]; edges: CloneEdge[]; frameIds: string[]; label: string };
 type CanvasClip = FrameClip | ScaffoldClip;
 const CLIP_KEY = "sa-canvas-clipboard";
+// MEMO LIBRARY session flags (Studio Consolidation A) — sessionStorage, so both memo surfaces
+// restore within a session but always start CLOSED on a new one.
+const MEMOS_SS = "sa-canvas-drawer-memos-session";
+const MEMOS_RIGHT_SS = "sa-canvas-memos-right-session";
 /** Stable parity for a lesson with no pathOrder, so the two tints still alternate. */
 const lessonHash = (s: string) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h + s.charCodeAt(i)) | 0; return Math.abs(h); };
 
@@ -1308,14 +1312,24 @@ function PresentCanvas() {
   const lowZoom = useStore((s) => s.transform[2] < 0.75);
   // DECLUTTER (PROMPT B): the palette + key live in the left drawer now; the
   // open panel persists so the workspace reopens the way it was left.
+  // MEMO LIBRARY EXCEPTION (Studio Consolidation A): every other drawer panel restores from
+  // localStorage, but Memos must be CLOSED on a new session — it's a reference shelf, not a
+  // workspace, and it was reopening itself for weeks because it shared that persistence. Within a
+  // session it still restores (sessionStorage flag), so a reload mid-work doesn't lose it.
   const [drawerPanel, setDrawerPanelRaw] = useState<string | null>(() => {
-    try { return localStorage.getItem("sa-canvas-drawer-panel"); } catch { return null; }
+    try {
+      const saved = localStorage.getItem("sa-canvas-drawer-panel");
+      if (saved === "memos") return sessionStorage.getItem(MEMOS_SS) === "1" ? "memos" : null;
+      return saved;
+    } catch { return null; }
   });
   const setDrawerPanel = useCallback((key: string | null) => {
     setDrawerPanelRaw(key);
     try {
       if (key) localStorage.setItem("sa-canvas-drawer-panel", key);
       else localStorage.removeItem("sa-canvas-drawer-panel");
+      if (key === "memos") sessionStorage.setItem(MEMOS_SS, "1");
+      else sessionStorage.removeItem(MEMOS_SS);
     } catch { /* ignore */ }
   }, []);
   const [sceneId, setSceneId] = useState<string | null>(null);
@@ -1323,7 +1337,13 @@ function PresentCanvas() {
   const [decks, setDecks] = useState<DeckDef[]>([]); // named decks (P3) — persisted in the scene payload
   const [ceqStudioOpen, setCeqStudioOpen] = useState(false); // CEQ STUDIO (prompt 5) — 3-pane authoring overlay
   const [brandingOpen, setBrandingOpen] = useState(false); // BRANDING STUDIO — reusable brand-frame gallery
-  const [memosOpen, setMemosOpen] = useState(false); // MEMO LIBRARY — right drawer, opened from the outline (not default)
+  // MEMO LIBRARY right drawer — NEVER open by default, including when a set is opened from the
+  // outline. Persisted per SESSION only (sessionStorage), so a new session always starts closed.
+  const [memosOpen, setMemosOpenRaw] = useState(() => { try { return sessionStorage.getItem(MEMOS_RIGHT_SS) === "1"; } catch { return false; } });
+  const setMemosOpen = useCallback((v: boolean) => {
+    setMemosOpenRaw(v);
+    try { if (v) sessionStorage.setItem(MEMOS_RIGHT_SS, "1"); else sessionStorage.removeItem(MEMOS_RIGHT_SS); } catch { /* ignore */ }
+  }, []);
   const [studioFocusCeq, setStudioFocusCeq] = useState<string | null>(null); // open Studio focused on this CEQ
   const [studioFocusSet, setStudioFocusSet] = useState<string | null>(null); // open Studio with this SET active (outline launcher)
   const [ceqSets, setCeqSets] = useState<CeqSetDef[]>([]); // CEQ set factories — persisted in the scene payload
@@ -6805,6 +6825,19 @@ function PresentCanvas() {
 
       {/* BRANDING STUDIO — the reusable brand-frame gallery behind the Branding Portal. */}
       {chrome && brandingOpen && <BrandingStudio onClose={() => setBrandingOpen(false)} />}
+
+      {/* MEMO LIBRARY COLLAPSED EDGE TAB — the drawer defaults closed, so it needs a visible way
+          back that isn't a menu hunt. Chrome-only: film/recording never sees it. */}
+      {chrome && !chromeV1 && !memosOpen && (
+        <button
+          onClick={() => setMemosOpen(true)}
+          title="Memo Library"
+          className="fixed right-0 top-1/2 z-[74] -translate-y-1/2 rounded-l-lg px-1.5 py-3 text-[10px] font-bold uppercase tracking-[0.14em] transition-colors hover:bg-white/10"
+          style={{ writingMode: "vertical-rl", background: "rgba(9,14,26,0.97)", border: `1px solid ${NEON.borderSoft}`, borderRight: "none", color: "#F0B24A" }}
+        >
+          Memos
+        </button>
+      )}
 
       {/* MEMO LIBRARY — right drawer, opened from the outline's MEMOS entry (not default). */}
       {chrome && !chromeV1 && memosOpen && (

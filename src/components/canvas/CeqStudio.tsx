@@ -1903,7 +1903,13 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
         studioRootRef.current.ownerDocument.body,
       )}
       <div className="flex items-center justify-between px-4 py-2.5" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
-        <div className="flex items-center gap-2 text-[14px] font-black uppercase tracking-[0.2em]" style={{ color: NEON.yellow }}><span className="inline-block h-4 w-3"><Bolt c1={NEON.yellow} c2={NEON.yellow} /></span> Studio</div>
+        {/* The bolt + STUDIO lockup MOVED to the app's top-left navbar — one brand mark in the app
+            (Studio Consolidation A). It still renders HERE when popped out, because that window has
+            no canvas navbar and would otherwise carry no identity at all. Prompt C fills this slot
+            with the set name + draft/live control. */}
+        <div className="flex items-center gap-2 text-[14px] font-black uppercase tracking-[0.2em]" style={{ color: NEON.yellow }}>
+          {popped && <><span className="inline-block h-4 w-3"><Bolt c1={NEON.yellow} c2={NEON.yellow} /></span> Studio</>}
+        </div>
         <div className="flex items-center gap-2">
           {note && <span className="text-[10px]" style={{ color: NEON.muted }}>{note}</span>}
           <button className="flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: shortsList.length ? "#0B0F1E" : NEON.muted, background: shortsList.length ? "#FF8B9E" : "transparent", border: `1px solid ${shortsList.length ? "#FF8B9E" : NEON.borderSoft}` }} title="Shorts queue — every shorts-flagged CEQ across all sets (batch-filming worklist)" onClick={() => setShortsQueueOpen(true)}>🎬 Shorts {shortsList.length > 0 && `(${shortsList.length})`}</button>

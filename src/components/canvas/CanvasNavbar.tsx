@@ -60,9 +60,11 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
 
   return (
     <div className="relative z-[65] flex h-11 shrink-0 items-center gap-2 px-3" style={{ background: "rgba(9,14,26,0.97)", borderBottom: `1px solid ${NEON.borderSoft}` }}>
-      {/* brand + surface name */}
-      <span className="inline-block h-5 w-4 shrink-0"><BrandLogo mode="bolt" c1="#C62828" c2="#1565C0" size={20} /></span>
-      <span className="text-[12px] font-black uppercase tracking-[0.12em]" style={{ color: NEON.text }}>Study Canvas</span>
+      {/* THE brand mark — one in the whole app. The bolt + STUDIO lockup used to sit inside the
+          Studio panel and duplicated the old red/blue "Study Canvas" mark here; consolidated to a
+          single identity at the app's top-left (Studio Consolidation A). */}
+      <span className="inline-block h-5 w-4 shrink-0"><BrandLogo mode="bolt" c1={NEON.yellow} c2={NEON.yellow} size={20} /></span>
+      <span className="text-[12px] font-black uppercase tracking-[0.2em]" style={{ color: NEON.yellow }}>Studio</span>
       <span className="mx-1 h-4 w-px" style={{ background: NEON.borderSoft }} />
       <input
         className="w-48 bg-transparent text-[12.5px] font-semibold outline-none"
