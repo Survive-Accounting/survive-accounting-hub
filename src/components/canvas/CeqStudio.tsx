@@ -51,6 +51,9 @@ const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
 const NONE = "__uncat__";
 const MEMO_DND = "text/sa-studio-memo";
 const QREORDER = "text/sa-ceq-qreorder"; // dragging a question ROW to reorder
+/** Bulk-action-bar button. 11px floor — this bar carries every row action now, so it has to be
+ *  read at a glance rather than decoded from 8px emoji. */
+const BULK_BTN = "rounded px-1.5 py-0.5 text-[11px] font-bold";
 const SET_DND = "text/sa-ceq-set"; // dragging a SET row onto a topic / the Library
 
 /** Locked-display preview of a stem: each blur range collapses to one ░ block (mirrors the
@@ -200,7 +203,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const [takePreview, setTakePreview] = useState<string | null>(null); // slot key previewed inline (clip stack)
   const [clipRefsOpen, setClipRefsOpen] = useState<string | null>(null); // `${ceqId}:${clipIdx}` whose refs picker is open
   const [starOnly, setStarOnly] = useState(false); // Starred filter on the question list
-  const [qMenu, setQMenu] = useState<string | null>(null); // question row whose "…" action menu is open
+  // (The per-row "…" action menu is gone — its items live in the bulk bar, reached by selecting
+  //  the row. Studio Consolidation B.)
   // BULK QUESTION OPS (Lee) — multi-select question rows + one action bar.
   const [qSel, setQSel] = useState<Set<string>>(() => new Set());
   const lastQSelRef = useRef<string | null>(null);
@@ -777,15 +781,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     setExpandedQ((s) => new Set(s).add(id));
     setNote("Duplicated the question directly below (empty chains) — edit the stem.");
   };
-  /** Delete a question from the set — removes the CEQ card + its chain arrows (the
-   *  chained memos stay in the library). Undoable via the command bus. */
-  const deleteQuestion = (id: string) => {
-    const rm = removeNodesCmd(rfl, [id], "delete question");
-    if (!rm) return;
-    if (qId === id) { const i = questions.findIndex((q) => q.id === id); const next = questions[i + 1] ?? questions[i - 1] ?? null; setQId(next ? next.id : null); }
-    bus.dispatch(rm);
-    setNote("Deleted the question (Ctrl+Z to undo).");
-  };
+  /* Single-question delete retired — `bulkDelete` handles one row or many through the bulk bar,
+     with a count-bearing confirm. (Studio Consolidation B.) */
   /** Jump to the next/prev question in the set (Space / ‹ › in the previewer). */
   const gotoQuestion = (dir: 1 | -1) => {
     if (questions.length === 0) return;
@@ -1262,6 +1259,46 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
     const cmd = compositeCmd(cmds, "vinyl on last chain item"); if (cmd) bus.dispatch(cmd);
     setNote(`💿 Vinyl set on the last correct-chain item of ${cmds.length} question${cmds.length === 1 ? "" : "s"}${skipped ? ` · ${skipped} skipped (no correct-choice chain)` : ""}.`);
   };
+  /** DUPLICATE every selected question, each directly below its source. One undoable step.
+   *  Built as a single composite so N dupes are ONE Ctrl+Z, not N. */
+  const bulkDuplicate = () => {
+    if (!deck || qSel.size === 0) return;
+    // Walk the CURRENT order once and build the post-duplication order, so every clone lands
+    // directly under its source and stageOrder stays dense for everything below.
+    const order: { id: string; isNew: boolean; srcId?: string }[] = [];
+    for (const q of questions) {
+      order.push({ id: q.id, isNew: false });
+      if (qSel.has(q.id)) order.push({ id: cardId("ceq"), isNew: true, srcId: q.id });
+    }
+    const pos = { x: 520, y: 210 };
+    const nodes = order.filter((o) => o.isNew).map((o) => {
+      const sd = rf.getNode(o.srcId as string)?.data as unknown as CeqCard | undefined;
+      const idx = order.findIndex((x) => x.id === o.id);
+      return { id: o.id, type: "ceq", position: pos, selected: false, data: { kind: "ceq", title: deck.name, prompt: sd?.prompt ?? "Question", choices: (sd?.choices ?? []).map((c) => ({ id: cardId("ch"), text: c.text, correct: c.correct })), scale: sd?.scale, deckId: deck.id, deckMember: true, tucked: true, stageOrder: idx, slotIndex: idx, deckCategory: "ceq:studio", deckPos: pos } };
+    });
+    const add = addNodesCmd(rfl, nodes as never, "duplicate questions");
+    const reindex = order.map((o, idx) => (o.isNew ? null : patchDataCmd(rfl, o.id, { stageOrder: idx }, "reorder"))).filter((c): c is NonNullable<typeof c> => !!c);
+    const cmd = compositeCmd([add, ...reindex].filter((c): c is NonNullable<typeof c> => !!c), "duplicate questions");
+    if (cmd) bus.dispatch(cmd);
+    setQSel(new Set());
+    setNote(`Duplicated ${nodes.length} question${nodes.length === 1 ? "" : "s"} below each original (one undo) — edit the stems.`);
+  };
+  /** DELETE every selected question. Confirms with the count; one undoable step. */
+  const bulkDelete = () => {
+    const ids = [...qSel];
+    if (ids.length === 0) return;
+    if (!window.confirm(`Delete ${ids.length} question${ids.length === 1 ? "" : "s"}? (Ctrl+Z restores them; chained memos stay in the library.)`)) return;
+    const rm = removeNodesCmd(rfl, ids, "delete questions");
+    if (!rm) return;
+    if (qId && qSel.has(qId)) { const survivor = questions.find((q) => !qSel.has(q.id)); setQId(survivor ? survivor.id : null); }
+    bus.dispatch(rm);
+    setQSel(new Set());
+    setNote(`Deleted ${ids.length} question${ids.length === 1 ? "" : "s"} (Ctrl+Z to undo).`);
+  };
+  /** SELECT ALL / NONE for the visible question list (respects the ★-only filter). */
+  const visibleQs = () => questions.filter((q) => !starOnly || !!(rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.starred);
+  const allSelected = (() => { const v = visibleQs(); return v.length > 0 && v.every((q) => qSel.has(q.id)); })();
+  const toggleSelectAll = () => { const v = visibleQs(); setQSel(allSelected ? new Set() : new Set(v.map((q) => q.id))); };
   /** Stamp a saved chain TEMPLATE onto every selected question with NO chains yet —
    *  never overwrites; slots land at the SET BASELINE. One undoable step. */
   const applyTemplateToSelection = (tplId: string) => {
@@ -2050,8 +2087,10 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
               {deck && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={dealIntoFrame} title="Deal this set into the frame you're in (stack; Space flips, Enter-walks chains)"><Film className="h-3 w-3" /> deal into frame</button>}
             </div>
           </div>
+          {/* Empty state: the Studio has no set tree of its own — the old "on the left" copy was a
+              leftover from the retired Topics tab and pointed at nothing. */}
           {!deck ? (
-            <div className="grid flex-1 place-items-center text-[11px]" style={{ color: NEON.muted }}>Pick or create a set on the left.</div>
+            <div className="grid flex-1 place-items-center px-6 text-center text-[11px]" style={{ color: NEON.muted }}>No set open — pick one in the outline on the far left.</div>
           ) : (
             <div className="flex min-h-0 flex-1">
               {/* OUTLINE — CEQ → its chain memos. Each row is a TAKE drop target. */}
@@ -2070,23 +2109,36 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                 {/* BULK ACTION BAR — appears with a selection; every action is ONE
                     undoable composite step across the selected questions. */}
                 {qSel.size > 0 && (
-                  <div className="mb-1 flex flex-wrap items-center gap-1 rounded p-1" style={{ background: "rgba(252,163,17,0.08)", border: `1px solid ${NEON.border}` }}>
-                    <span className="px-0.5 text-[8.5px] font-bold uppercase tabular-nums" style={{ color: NEON.yellow }}>{qSel.size} sel</span>
-                    <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: "#FFD23F", border: `1px solid ${NEON.borderSoft}` }} onClick={bulkStar} title="Star / unstar all selected (one undo)">★</button>
-                    <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={bulkFree} title="Add/remove all selected from the FREE cut (one undo)">F</button>
-                    <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkBoss} title="Boss flag on/off for all selected (one undo)">👑</button>
-                    <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkChaching} title="Chaching-on-correct on/off for all selected (one undo)">🪙</button>
-                    <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: "#FF8B9E", border: `1px solid ${NEON.borderSoft}` }} onClick={bulkShort} title="Shorts flag on/off for all selected (one undo)">🎬</button>
-                    <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.red, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkClearClips} title="Clear ALL clips from the selected questions (confirm; one undo)">✂ clear</button>
-                    <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkSwapPrev} title="Swap every clip to its PREVIOUS version where one exists (one undo)">⇄ prev</button>
-                    <button className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkVinylLast} title="Vinyl scratch on the LAST chain item of each selected question's correct-choice chain (skips chainless; one undo)">💿 last</button>
-                    {(() => { const tpls = listChainTemplates(); return tpls.length > 0 ? (
-                      <select value="" onChange={(e) => { if (e.target.value) applyTemplateToSelection(e.target.value); }} className="rounded bg-black/40 px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} title="Stamp a chain template onto selected questions with NO chains yet (never overwrites; slots land at the baseline)">
-                        <option value="">template…</option>
-                        {tpls.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                      </select>
-                    ) : null; })()}
-                    <button className="ml-auto rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setQSel(new Set())} title="Clear selection (Esc)">✕</button>
+                  /* Pinned while a selection exists. Every ROW action lives here now — including
+                     single-row work (select one row, use the bar), which is why the rows
+                     themselves carry no icons. Row 1 = the everyday actions; row 2 = the filming
+                     flags that used to be unlabeled per-row emoji. 11px floor: this bar is read,
+                     not decoded. */
+                  <div className="sticky top-0 z-10 mb-1 flex flex-col gap-1 rounded p-1.5" style={{ background: "rgba(20,26,44,0.98)", border: `1px solid ${NEON.border}`, boxShadow: "0 6px 18px -8px rgba(0,0,0,0.7)" }}>
+                    <div className="flex flex-wrap items-center gap-1">
+                      <span className="px-0.5 text-[11px] font-bold tabular-nums" style={{ color: NEON.yellow }}>{qSel.size} selected</span>
+                      <button className={BULK_BTN} style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={bulkFree} title="Flip FREE ⇄ paid for every selected question (one undo). All-free selection → all paid.">Free / paid</button>
+                      <button className={BULK_BTN} style={{ color: "#FFD23F", border: `1px solid ${NEON.borderSoft}` }} onClick={bulkStar} title="Star / unstar all selected (one undo)">★ Star</button>
+                      <button className={BULK_BTN} style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkDuplicate} title="Duplicate each selected question directly below itself (one undo)">Duplicate below</button>
+                      {qSel.size === 1 && <button className={BULK_BTN} style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { const only = [...qSel][0]; setTakePreview((k) => (k === only ? null : only)); }} title="Open this question's clip stack (base take + lookbacks)">Clips…</button>}
+                      <button className={BULK_BTN} style={{ color: NEON.red, border: `1px solid ${NEON.red}66` }} onClick={bulkDelete} title="Delete every selected question (confirms with the count; one undo)">Delete</button>
+                      <button className="ml-auto rounded px-1.5 py-0.5 text-[11px] font-bold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setQSel(new Set())} title="Clear selection (Esc)">Clear</button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1 border-t pt-1" style={{ borderColor: NEON.borderSoft }}>
+                      <span className="px-0.5 text-[9.5px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Filming</span>
+                      <button className={BULK_BTN} style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkBoss} title="Boss flag on/off — cram launch fires when the question is dealt (one undo)">👑 Boss</button>
+                      <button className={BULK_BTN} style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkChaching} title="Chaching-on-correct on/off for all selected (one undo)">🪙 Chaching</button>
+                      <button className={BULK_BTN} style={{ color: "#FF8B9E", border: `1px solid ${NEON.borderSoft}` }} onClick={bulkShort} title="Shorts flag on/off for all selected (one undo)">🎬 Shorts</button>
+                      <button className={BULK_BTN} style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkSwapPrev} title="Swap every clip to its PREVIOUS version where one exists (one undo)">⇄ Prev take</button>
+                      <button className={BULK_BTN} style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkVinylLast} title="Vinyl scratch on the LAST chain item of each selected question's correct-choice chain (skips chainless; one undo)">💿 Vinyl last</button>
+                      <button className={BULK_BTN} style={{ color: NEON.red, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkClearClips} title="Clear ALL clips from the selected questions (confirm; one undo)">✂ Clear clips</button>
+                      {(() => { const tpls = listChainTemplates(); return tpls.length > 0 ? (
+                        <select value="" onChange={(e) => { if (e.target.value) applyTemplateToSelection(e.target.value); }} className="rounded bg-black/40 px-1.5 py-0.5 text-[11px] font-bold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} title="Stamp a chain template onto selected questions with NO chains yet (never overwrites; slots land at the baseline)">
+                          <option value="">Template…</option>
+                          {tpls.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                      ) : null; })()}
+                    </div>
                   </div>
                 )}
                 {/* SET INTRO — a filmable, fully editable frame (a copy of the CEQ
@@ -2108,24 +2160,35 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   <button className="min-w-0 flex-1 truncate text-left text-[10.5px] font-bold" style={{ color: qId === LAYOUT_Q0 ? NEON.yellow : NEON.text }} onClick={() => setQId(LAYOUT_Q0)} title="Question 0 — sculpt the baseline: drag the LAYOUT card + memo slots and every question deals there. Not content: never films, stitches or counts.">0 · Layout</button>
                   <span className="shrink-0 text-[8px] font-bold tabular-nums" style={{ color: NEON.muted }} title="Baseline memo slots">{deck.layout?.memoSlots?.length ?? 0} slots</span>
                 </div>
+                {/* SELECT ALL — the list's header row. Same checkbox grammar as the rows below and
+                    the same Shift+click ranges as the campus mapper. */}
+                {questions.length > 0 && (
+                  <div className="mb-0.5 flex items-center gap-1 border-b px-0.5 pb-1" style={{ borderColor: NEON.borderSoft }}>
+                    <button className="grid h-4 w-4 shrink-0 place-items-center" style={{ color: qSel.size > 0 ? NEON.yellow : NEON.muted }} onClick={toggleSelectAll} title={allSelected ? "Deselect all" : "Select all (Shift+click a row for a range)"}>
+                      {allSelected ? <CheckSquare className="h-3 w-3" /> : <Square className="h-3 w-3" />}
+                    </button>
+                    <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>{allSelected ? "Deselect all" : "Select all"}</span>
+                    <span className="ml-auto text-[10px] tabular-nums" style={{ color: NEON.muted }}>{questions.length} CEQ{questions.length === 1 ? "" : "s"}</span>
+                  </div>
+                )}
                 {questions.length === 0 && <div className="px-1 py-1 text-[9.5px] italic" style={{ color: NEON.muted }}>No CEQs — add one below.</div>}
-                {questions.map((q, i) => { const qdata = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; if (starOnly && !qdata?.starred) return null; const p = qdata?.prompt || "Question"; const expanded = expandedQ.has(q.id); const walk = expanded ? walkOf(q) : []; const clips = cardClips(qdata); const starred = !!qdata?.starred; const chained = (qdata?.choices ?? []).some((c) => (c.chain?.length ?? 0) > 0); const traps = questionMisconceptions(qdata?.choices, memoSlugOf); const boss = !!qdata?.boss; const chainSound = (qdata?.choices ?? []).some((c) => (c.chain ?? []).some((it) => !!it.sound)); const chachingOff = qdata?.confirmSfx === false; const isShort = !!qdata?.short; const dropOn = dragKey === q.id; const reOn = dragKey === `qre:${q.id}`; return (
+                {/* The per-row flags (starred / chained / traps / boss / chainSound / chachingOff /
+                    isShort) are no longer computed here — they rendered as the unlabeled glyph
+                    strip, and every one of them is now set from the bulk bar. */}
+                {questions.map((q, i) => { const qdata = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; if (starOnly && !qdata?.starred) return null; const p = qdata?.prompt || "Question"; const expanded = expandedQ.has(q.id); const walk = expanded ? walkOf(q) : []; const clips = cardClips(qdata); const dropOn = dragKey === q.id; const reOn = dragKey === `qre:${q.id}`; return (
                   <div key={q.id}>
-                    <div className="flex items-start gap-0.5 rounded py-0.5" style={{ background: dropOn ? "rgba(252,163,17,0.14)" : undefined, outline: dropOn ? `1px dashed ${NEON.yellow}` : reOn ? `1px solid ${NEON.cyan}` : undefined }} {...qRowDnd(q.id)}>
+                    {/* CEQ ROW — checkbox · number · stem · ONE status chip. Nothing else.
+                        Every action that used to live here (star, $, clip circle, the ⋯ menu, and
+                        the unlabeled 👑🪙🎬🔊🔇 glyphs) moved into the bulk bar, including
+                        single-row work: select the row, use the bar. The WHOLE row is the drag
+                        handle now, so reordering survives without a ⠿ grip taking up space. */}
+                    <div className="flex items-start gap-1 rounded py-0.5" style={{ background: dropOn ? "rgba(252,163,17,0.14)" : undefined, outline: dropOn ? `1px dashed ${NEON.yellow}` : reOn ? `1px solid ${NEON.cyan}` : undefined }}
+                      draggable onDragStart={(e) => { e.dataTransfer.setData(QREORDER, q.id); e.dataTransfer.effectAllowed = "move"; }}
+                      {...qRowDnd(q.id)}>
                       <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" style={{ color: qSel.has(q.id) ? NEON.yellow : NEON.muted }} onClick={(e) => toggleQSel(q.id, e.shiftKey)} title="Select for bulk actions (Shift+click = range · Esc clears)">{qSel.has(q.id) ? <CheckSquare className="h-3 w-3" /> : <Square className="h-3 w-3" />}</button>
-                      <span className="mt-0.5 shrink-0 cursor-grab select-none text-[11px] leading-none" style={{ color: NEON.muted }} draggable onDragStart={(e) => { e.dataTransfer.setData(QREORDER, q.id); e.dataTransfer.effectAllowed = "move"; }} title="Drag to reorder">⠿</span>
-                      <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" style={{ color: NEON.muted }} onClick={() => setExpandedQ((s) => { const n = new Set(s); n.has(q.id) ? n.delete(q.id) : n.add(q.id); return n; })} title={expanded ? "Collapse memos" : "Show memos"}>{expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}</button>
-                      <button className={`min-w-0 flex-1 rounded px-1 py-0.5 text-left text-[10.5px] ${wrapStems ? "whitespace-normal break-words" : "line-clamp-2"}`} style={{ background: qId === q.id ? "rgba(252,163,17,0.14)" : "transparent", color: qId === q.id ? NEON.yellow : NEON.text }} onClick={() => { setQId(q.id); setExpandedQ((s) => new Set(s).add(q.id)); }}><span className="tabular-nums opacity-60">{i + 1}.</span> {p}</button>
-                      {traps.length > 0 && <span className="flex shrink-0 gap-0.5">{traps.map((tr) => <span key={tr} className="rounded px-0.5 text-[6.5px] font-bold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} title={`Misconception exposure (derived from chained memos): ${tr}`}>{tr}</span>)}</span>}
-                      {chained && <span className="mt-0.5 shrink-0" title="Has ≥1 chain item"><Lightbulb className="h-3 w-3" style={{ color: "rgba(252,163,17,0.55)" }} /></span>}
-                      {boss && <span className="mt-0.5 shrink-0 text-[10px] leading-none" title="Boss card — cram launch fires when this question is dealt (film)">👑</span>}
-                      {chainSound && <span className="mt-0.5 shrink-0 text-[9px] leading-none" title="A chain item has a reveal sound">🔊</span>}
-                      {chachingOff && <span className="mt-0.5 shrink-0 text-[9px] leading-none" title="Chaching-on-correct silenced for this question">🔇</span>}
-                      {isShort && <span className="mt-0.5 shrink-0 text-[9px] leading-none" title={`Shorts-worthy${qdata?.shortNote ? ` — ${qdata.shortNote}` : ""}`}>🎬</span>}
-                      <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center text-[11px] leading-none" style={{ color: starred ? "#FFD23F" : NEON.muted }} onClick={() => patchQ(q.id, { starred: !starred })} title={starred ? "Starred — a performer's note (affects nothing). Click to unstar." : "Star this question — a performer's note; NO effect on spacewalk / stitch / publish"}>{starred ? "★" : "☆"}</button>
-                      {/* PAID / FREE — every question is PAID by default; one click flips it
-                          to the FREE cut. Free stands out (bright green 🆓 pill) so the free
-                          set is easy to scan; paid is a quiet $ that only lights on hover. */}
+                      <button className={`min-w-0 flex-1 rounded px-1 py-0.5 text-left text-[10.5px] ${wrapStems ? "whitespace-normal break-words" : "line-clamp-2"}`} style={{ background: qId === q.id ? "rgba(252,163,17,0.14)" : "transparent", color: qId === q.id ? NEON.yellow : NEON.text }} onClick={() => { setQId(q.id); setExpandedQ((s) => { const n = new Set(s); n.has(q.id) ? n.delete(q.id) : n.add(q.id); return n; }); }} title={p}><span className="tabular-nums opacity-60">{i + 1}.</span> {p}</button>
+                      {/* The ONE status chip: FREE (bright, scannable) vs paid (quiet). Still a
+                          one-click flip — the single most-used row action stays instant. */}
                       <button
                         className="mt-0.5 grid h-4 shrink-0 place-items-center rounded px-1 text-[8px] font-black leading-none transition-colors"
                         style={qdata?.free
@@ -2134,17 +2197,8 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                         onClick={() => patchQ(q.id, { free: !qdata?.free })}
                         title={qdata?.free ? "FREE — in the free cut. Click to make it paid." : "Paid (default). Click to move it into the FREE cut."}
                       >{qdata?.free ? "🆓 FREE" : "$"}</button>
-                      <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center" onClick={() => setTakePreview((k) => (k === q.id ? null : q.id))} title={clips.length ? `${clips.length} clip${clips.length === 1 ? "" : "s"} — click to manage the stack · drop a video to append a lookback` : "Drop a video clip here to add this question's base take"}>{takeBusy === q.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" style={{ color: NEON.cyan }} /> : clips.length ? <CheckCircle2 className="h-3.5 w-3.5" style={{ color: "#3BF5A0" }} /> : <Circle className="h-3.5 w-3.5" style={{ color: NEON.muted }} />}</button>
-                      {clips.length > 1 && <span className="mt-0.5 shrink-0 text-[8px] font-bold tabular-nums" style={{ color: "#3BF5A0" }} title={`${clips.length} clips (base + ${clips.length - 1} lookback)`}>{clips.length}</span>}
-                      <button className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded text-[12px] font-black leading-none" style={{ color: qMenu === q.id ? NEON.yellow : NEON.muted, background: qMenu === q.id ? "rgba(252,163,17,0.14)" : "transparent" }} onClick={() => setQMenu((k) => (k === q.id ? null : q.id))} title="More — free · duplicate · delete">⋯</button>
+                      {takeBusy === q.id && <Loader2 className="mt-0.5 h-3.5 w-3.5 shrink-0 animate-spin" style={{ color: NEON.cyan }} />}
                     </div>
-                    {qMenu === q.id && (
-                      <div className="mb-1 ml-6 flex flex-col gap-0.5 rounded p-1" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }}>
-                        <button className="rounded px-1.5 py-0.5 text-left text-[10px] font-bold" style={{ color: qdata?.free ? "#3BF5A0" : NEON.text }} onClick={() => patchQ(q.id, { free: !qdata?.free })}>{qdata?.free ? "✓ In free cut — remove" : "Add to free cut"}</button>
-                        <button className="rounded px-1.5 py-0.5 text-left text-[10px] font-bold" style={{ color: NEON.text }} onClick={() => { duplicateQuestion(q.id); setQMenu(null); }}>Duplicate below</button>
-                        <button className="rounded px-1.5 py-0.5 text-left text-[10px] font-bold" style={{ color: NEON.red }} onClick={() => { deleteQuestion(q.id); setQMenu(null); }}>Delete question</button>
-                      </div>
-                    )}
                     {takePreview === q.id && (
                       <div className="my-1 ml-4 flex flex-col gap-1">
                         {clips.length === 0 && <div className="text-[8.5px] italic" style={{ color: NEON.muted }}>No clips yet — drop a video on this row to add the base explanation.</div>}
