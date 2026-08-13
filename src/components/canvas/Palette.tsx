@@ -1,46 +1,229 @@
 // Card palette — left drawer. BLANK templates pinned on top (the improvisation deck),
 // then the LIBRARY (every entry / computation / memorize / question from the scenario
 // docs), searchable + filtered by course family, chapter, and card type. Fully collapsible.
-import { useMemo, useState } from "react";
-import { ChevronsLeft, ChevronsRight, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronRight, Layers, Pencil, Search, Trash2 } from "lucide-react";
 
 import { NEON } from "./theme";
-import { blankCard, scheduleTemplate, CARD_KIND_LABEL } from "./templates";
+import { SNIPPET_DND_MIME } from "./snippet-payload";
+import { blankCard, formulaAle, scheduleTemplate, CARD_KIND_LABEL } from "./templates";
 import type { LibraryItem } from "./library";
-import type { CardData, CardKind, SchedulePreset } from "./types";
+import { cardId, type CardData, type CardKind, type SchedulePreset } from "./types";
 
-const BLANKS: { kind: CardKind; label: string; preset?: SchedulePreset }[] = [
+/** A saved snippet as the palette needs it (id + name). */
+export interface SnippetListItem { id: string; name: string }
+
+/** MY SNIPPETS — the personal clip-bin. Click to spawn at the view center (into
+ *  the entered frame); drag onto the canvas to drop it there. Rename + delete
+ *  inline. Global across scenes/courses. */
+function SnippetSection({ snippets, onSpawn, onRename, onDelete }: {
+  snippets: SnippetListItem[];
+  onSpawn: (id: string) => void;
+  onRename: (id: string, name: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  return (
+    <div className="mb-2">
+      <button className="mb-1 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.pink }} onClick={() => setOpen((v) => !v)} title="Your reusable saved clusters">
+        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        <Layers className="h-3 w-3" /> My snippets <span style={{ color: NEON.muted }}>({snippets.length})</span>
+      </button>
+      {open && (
+        snippets.length === 0 ? (
+          <p className="px-1 py-1 text-[10px] italic leading-snug" style={{ color: NEON.muted }}>Select a card (or a group) → “Save as snippet”. They show up here, usable in any scene.</p>
+        ) : (
+          <div className="space-y-1">
+            {snippets.map((s) => (
+              <div
+                key={s.id}
+                draggable={renaming !== s.id}
+                onDragStart={(e) => { e.dataTransfer.setData(SNIPPET_DND_MIME, s.id); e.dataTransfer.effectAllowed = "copy"; }}
+                className="group flex items-center gap-1 rounded-md px-2 py-1 transition-all hover:-translate-y-px"
+                style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(214,84,138,0.06)", cursor: "grab" }}
+              >
+                {renaming === s.id ? (
+                  <input
+                    autoFocus
+                    defaultValue={s.name}
+                    className="w-full bg-transparent text-[12px] outline-none"
+                    style={{ color: NEON.text }}
+                    onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") { onRename(s.id, (e.target as HTMLInputElement).value); setRenaming(null); } if (e.key === "Escape") setRenaming(null); }}
+                    onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== s.name) onRename(s.id, v); setRenaming(null); }}
+                  />
+                ) : (
+                  <>
+                    <button className="min-w-0 flex-1 truncate text-left text-[12px] font-medium" style={{ color: NEON.text }} onClick={() => onSpawn(s.id)} title="Click to spawn (drag to place). Lands in the entered frame.">{s.name}</button>
+                    <button className="shrink-0 opacity-0 transition-opacity group-hover:opacity-70 hover:!opacity-100" style={{ color: NEON.muted }} title="Rename" onClick={() => setRenaming(s.id)}><Pencil className="h-3 w-3" /></button>
+                    <button className="shrink-0 opacity-0 transition-opacity group-hover:opacity-70 hover:!opacity-100" style={{ color: NEON.red }} title="Delete snippet (spawned copies are untouched)" onClick={() => { if (window.confirm(`Delete snippet “${s.name}”? Cards already spawned from it stay.`)) onDelete(s.id); }}><Trash2 className="h-3 w-3" /></button>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        )
+      )}
+    </div>
+  );
+}
+
+type BlankSpec = { kind: CardKind; label: string; preset?: SchedulePreset; special?: "ale" | "bigtext" | "bullets" };
+
+/** BLANK reorganized into three groups (design-elements run). */
+const CARD_BLANKS: BlankSpec[] = [
   { kind: "je", label: "Journal Entry" },
   { kind: "taccount", label: "T-Account" },
+  { kind: "note", label: "Note" },
+  { kind: "formula", label: "A = L + E", special: "ale" },
+];
+const ELEMENT_BLANKS: BlankSpec[] = [
+  { kind: "heading", label: "Heading" },
+  { kind: "heading", label: "Big Text", special: "bigtext" },
+  { kind: "text", label: "Text" },
+  { kind: "list", label: "Bulleted List", special: "bullets" },
+  { kind: "examcue", label: "Exam Cue" },
+  { kind: "ceqtease", label: "CEQ Tease" },
+  { kind: "ceqhook", label: "CEQ Hook" },
+  { kind: "framebolt", label: "Bolt (boiling)" },
+  { kind: "logo", label: "Logo" },
+  { kind: "intro", label: "Intro card" },
+  { kind: "outro", label: "Outro card" },
+  { kind: "corner", label: "Corner bolt" },
+  { kind: "memo", label: "Memo" },
+  { kind: "paygate", label: "Payment Gate" },
+  { kind: "signupgate", label: "Signup Gate" },
+];
+const BRIDGE_BLANKS: BlankSpec[] = [
+  { kind: "asklee", label: "Ask Lee" },
+  { kind: "submitproblem", label: "Submit a Problem" },
+  { kind: "shareinvite", label: "Share / Invite" },
+];
+/** Everything else stays reachable (video slots, schedules, …) — collapsed. */
+const MORE_BLANKS: BlankSpec[] = [
+  { kind: "list", label: "List (reveal)" },
   { kind: "schedule", label: "Table (generic)", preset: "generic" },
   { kind: "schedule", label: "Amortization", preset: "amortization" },
   { kind: "schedule", label: "Depreciation", preset: "depreciation" },
   { kind: "schedule", label: "FIFO/LIFO layers", preset: "fifo" },
   { kind: "schedule", label: "Bank rec", preset: "bankrec" },
+  { kind: "schedule", label: "Income stmt", preset: "incomestmt" },
+  { kind: "schedule", label: "Balance sheet", preset: "balancesheet" },
   { kind: "computation", label: "Computation" },
   { kind: "ceq", label: "Question (CEQ)" },
   { kind: "memorize", label: "Memorize" },
-  { kind: "note", label: "Note" },
   { kind: "video", label: "Video (Mux)" },
+  { kind: "image", label: "Image" },
+  { kind: "legend", label: "Legend card" },
+  { kind: "outline", label: "Course outline" },
 ];
 
 const KIND_FILTERS: (CardKind | "all")[] = ["all", "je", "schedule", "computation", "taccount", "ceq", "memorize"];
 
+/** Focus mode trims the CARDS group to the filming staples (elements/bridge untouched). */
+const FOCUS_KINDS: CardKind[] = ["je", "taccount", "note"];
+
+function spawnBlank(b: BlankSpec): CardData {
+  if (b.special === "ale") return formulaAle();
+  // BIG TEXT: a heavy League-Spartan slab (spartan heading) — no underline,
+  // seeded with "A = L + E" as the canonical on-camera example.
+  if (b.special === "bigtext") return { kind: "heading", text: "A = L + E", level: 1, spartan: true, underline: false, w: 480, h: 150 };
+  // BULLETED LIST: a plain header + bullets design element. Reuses the List card
+  // (bulleted markers, per-row space-walk reveal, per-row spotlight), chips off.
+  if (b.special === "bullets") return { kind: "list", title: "List", bulleted: true, showChips: false, rows: [{ id: cardId("r"), text: "" }, { id: cardId("r"), text: "" }, { id: cardId("r"), text: "" }], editMode: true };
+  if (b.kind === "schedule") return scheduleTemplate(b.preset ?? "generic");
+  return blankCard(b.kind);
+}
+
+function BlankGroup({ title, color, blanks, onSpawn }: { title: string; color: string; blanks: BlankSpec[]; onSpawn: (d: CardData) => void }) {
+  if (blanks.length === 0) return null;
+  return (
+    <div className="mb-2">
+      <div className="mb-1 text-[10px] font-bold uppercase tracking-wider" style={{ color }}>{title}</div>
+      <div className="grid grid-cols-2 gap-1">
+        {blanks.map((b) => (
+          <button
+            key={b.label}
+            onClick={() => onSpawn(spawnBlank(b))}
+            className="rounded-md px-2 py-1 text-left text-[11.5px] font-medium transition-all hover:-translate-y-px"
+            style={{ border: `1px dashed ${NEON.border}`, color: NEON.text, background: "rgba(252,163,17,0.05)" }}
+          >
+            {b.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MoreBlanks({ onSpawn }: { onSpawn: (d: CardData) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mb-1">
+      <button
+        className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
+        style={{ color: NEON.muted }}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        More
+      </button>
+      {open && (
+        <div className="mt-1 grid grid-cols-2 gap-1">
+          {MORE_BLANKS.map((b) => (
+            <button
+              key={b.label}
+              onClick={() => onSpawn(spawnBlank(b))}
+              className="rounded-md px-2 py-1 text-left text-[11px] font-medium transition-all hover:-translate-y-px"
+              style={{ border: `1px dashed ${NEON.borderSoft}`, color: NEON.muted, background: "rgba(0,0,0,0.2)" }}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Palette({
   library,
   onSpawn,
-  collapsed,
-  onToggle,
+  focus = false,
+  sceneCourseKey = null,
+  docked = false,
+  snippets = [],
+  onSpawnSnippet,
+  onRenameSnippet,
+  onDeleteSnippet,
 }: {
+  /** Pre-filtered by the route: ACTIVE + AUTHORED only (content reset). */
   library: LibraryItem[];
   onSpawn: (data: CardData) => void;
-  collapsed: boolean;
-  onToggle: () => void;
+  /** ON: BLANK section shows only JE / T-account / Note / Heading. */
+  focus?: boolean;
+  /** Scene course context — the library's course filter follows it. */
+  sceneCourseKey?: string | null;
+  /** DOCKED (declutter run): fills the drawer panel instead of floating
+   *  top-left — no collapse chrome, height from the parent. */
+  docked?: boolean;
+  /** MY SNIPPETS (PROMPT 2) — the personal clip-bin, global across scenes. */
+  snippets?: SnippetListItem[];
+  onSpawnSnippet?: (id: string) => void;
+  onRenameSnippet?: (id: string, name: string) => void;
+  onDeleteSnippet?: (id: string) => void;
 }) {
   const [q, setQ] = useState("");
   const [course, setCourse] = useState<string>("all");
   const [chapter, setChapter] = useState<string>("all");
   const [kind, setKind] = useState<CardKind | "all">("all");
+  const [libOpen, setLibOpen] = useState(false); // heavy section — closed by default
+
+  // one truth: the scene's course drives the library's default scope
+  useEffect(() => {
+    setCourse(sceneCourseKey ?? "all");
+    setChapter("all");
+  }, [sceneCourseKey]);
 
   const courses = useMemo(() => {
     const m = new Map<string, string>();
@@ -65,53 +248,49 @@ export function Palette({
     );
   }, [library, q, course, chapter, kind]);
 
-  if (collapsed) {
-    return (
-      <button
-        onClick={onToggle}
-        title="Open card palette"
-        className="absolute left-3 top-3 z-40 grid h-9 w-9 place-items-center rounded-lg"
-        style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.pink, boxShadow: NEON.glow }}
-      >
-        <ChevronsRight className="h-4 w-4" />
-      </button>
-    );
-  }
-
   return (
     <aside
-      className="absolute bottom-3 left-3 top-3 z-40 flex w-72 flex-col rounded-xl"
-      style={{ background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", color: NEON.text }}
+      className={
+        docked
+          ? "flex h-full min-h-0 w-full flex-col overflow-y-auto"
+          : `absolute left-3 top-14 z-40 flex w-72 flex-col rounded-xl ${libOpen ? "bottom-3" : ""}`
+      }
+      style={docked ? { color: NEON.text } : { background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", color: NEON.text }}
     >
-      <div className="flex items-center gap-2 px-3 py-2" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
-        <span className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: NEON.pink }}>Cards</span>
-        <button onClick={onToggle} title="Collapse palette" className="ml-auto" style={{ color: NEON.muted }}>
-          <ChevronsLeft className="h-4 w-4" />
-        </button>
-      </div>
-
-      {/* BLANK — the improvisation deck */}
+      {/* BLANK — three groups: CARDS · ELEMENTS · BRIDGE (+ MORE, collapsed) */}
       <div className="px-3 pt-2">
-        <div className="mb-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>Blank</div>
-        <div className="grid grid-cols-2 gap-1">
-          {BLANKS.map((b) => (
-            <button
-              key={b.label}
-              onClick={() => onSpawn(b.kind === "schedule" ? scheduleTemplate(b.preset ?? "generic") : blankCard(b.kind))}
-              className="rounded-md px-2 py-1 text-left text-[11.5px] font-medium transition-all hover:-translate-y-px"
-              style={{ border: `1px dashed ${NEON.border}`, color: NEON.text, background: "rgba(255,45,149,0.05)" }}
-            >
-              {b.label}
-            </button>
-          ))}
-        </div>
+        <BlankGroup
+          title="Cards"
+          color={NEON.yellow}
+          blanks={focus ? CARD_BLANKS.filter((b) => FOCUS_KINDS.includes(b.kind) || b.special === "ale") : CARD_BLANKS}
+          onSpawn={onSpawn}
+        />
+        <BlankGroup title="Elements" color={NEON.cyan} blanks={ELEMENT_BLANKS} onSpawn={onSpawn} />
+        <BlankGroup title="Bridge" color={NEON.pinkSoft} blanks={BRIDGE_BLANKS} onSpawn={onSpawn} />
+        <MoreBlanks onSpawn={onSpawn} />
+        {onSpawnSnippet && (
+          <SnippetSection
+            snippets={snippets}
+            onSpawn={onSpawnSnippet}
+            onRename={(id, name) => onRenameSnippet?.(id, name)}
+            onDelete={(id) => onDeleteSnippet?.(id)}
+          />
+        )}
       </div>
 
-      {/* LIBRARY */}
-      <div className="mt-3 flex min-h-0 flex-1 flex-col px-3 pb-3">
-        <div className="mb-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>
+      {/* LIBRARY — collapsible; a 1,000-item list is prep clutter mid-lesson */}
+      <div className={`mt-3 flex flex-col px-3 pb-3 ${libOpen ? "min-h-0 flex-1" : ""}`}>
+        <button
+          className="mb-1 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider"
+          style={{ color: NEON.cyan }}
+          onClick={() => setLibOpen((v) => !v)}
+          title={libOpen ? "Collapse library" : "Expand library"}
+        >
+          {libOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
           Library <span style={{ color: NEON.muted }}>({filtered.length})</span>
-        </div>
+        </button>
+        {libOpen && (
+        <>
         <div className="mb-1.5 flex items-center gap-1 rounded-md px-2 py-1" style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.3)" }}>
           <Search className="h-3.5 w-3.5 shrink-0" style={{ color: NEON.muted }} />
           <input
@@ -166,6 +345,8 @@ export function Palette({
           {filtered.length > 120 && <div className="py-1 text-center text-[10.5px]" style={{ color: NEON.muted }}>…{filtered.length - 120} more — narrow the filters</div>}
           {filtered.length === 0 && <div className="py-3 text-center text-[11px] italic" style={{ color: NEON.muted }}>No matches.</div>}
         </div>
+        </>
+        )}
       </div>
     </aside>
   );

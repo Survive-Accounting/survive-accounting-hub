@@ -1,0 +1,146 @@
+// TEMPLATE VARIABLES (design elements run) — headings and text elements accept
+// tokens; docs store the RAW token, rendering substitutes from the PREVIEW
+// STUDENT (canvas settings, localStorage). Live per-student resolution arrives
+// with auth/World v1 (roadmap). Unset token → the token itself, dimmed — an
+// authoring hint, never a blank hole.
+import type { ReactNode } from "react";
+
+import { NEON } from "./theme";
+
+export const TOKEN_KEYS = ["first_name", "university", "professor", "course_code", "exam_date"] as const;
+export type TokenKey = (typeof TOKEN_KEYS)[number];
+
+export type PreviewStudent = Record<TokenKey, string>;
+
+const LS_KEY = "sa-canvas-preview-student";
+
+/** Sensible defaults — Max at Ole Miss, near-date exam. */
+export function defaultPreviewStudent(): PreviewStudent {
+  const exam = new Date(Date.now() + 12 * 86400_000);
+  return {
+    first_name: "Max",
+    university: "Ole Miss",
+    professor: "Prof. Gochnauer",
+    course_code: "ACCY 201",
+    exam_date: exam.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+  };
+}
+
+export function loadPreviewStudent(): PreviewStudent {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (raw) return { ...defaultPreviewStudent(), ...(JSON.parse(raw) as Partial<PreviewStudent>) };
+  } catch { /* fall through */ }
+  return defaultPreviewStudent();
+}
+
+export function savePreviewStudent(s: PreviewStudent): void {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(s)); } catch { /* ignore */ }
+}
+
+/** first_name renders CLEANED: trimmed, first letter capitalized. */
+function cleanValue(key: TokenKey, v: string): string {
+  const t = v.trim();
+  if (key === "first_name" && t) return t.charAt(0).toUpperCase() + t.slice(1);
+  return t;
+}
+
+const TOKEN_RE = /\{(first_name|university|professor|course_code|exam_date)\}/g;
+
+/** Substitute tokens → React nodes. A token ALWAYS resolves to a real value: the
+ *  preview student's, else the built-in EXAMPLE (so a raw `{first_name}` never
+ *  renders on camera during a take — this is a filming tool). */
+export function renderTokens(text: string, student: PreviewStudent): ReactNode[] {
+  const out: ReactNode[] = [];
+  const ex = defaultPreviewStudent();
+  let last = 0;
+  let m: RegExpExecArray | null;
+  const re = new RegExp(TOKEN_RE.source, "g");
+  let i = 0;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    const key = m[1] as TokenKey;
+    const val = cleanValue(key, (student[key] || ex[key]) ?? "");
+    out.push(<span key={`t${i++}`}>{val || m[0]}</span>);
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+
+// STRIKETHROUGH (Lee): `~~struck~~` renders line-through, everywhere text is
+// editable. Alt+Shift+5 wraps the selection in the field (see ui.tsx). Shared so
+// headings, text blocks and list rows all honor the same marker.
+const STRIKE_RE = /~~([^~]+)~~/g;
+export function splitStrike(text: string): { t: string; strike: boolean }[] {
+  const out: { t: string; strike: boolean }[] = [];
+  const re = new RegExp(STRIKE_RE.source, "g");
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push({ t: text.slice(last, m.index), strike: false });
+    out.push({ t: m[1], strike: true });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push({ t: text.slice(last), strike: false });
+  return out.length ? out : [{ t: text, strike: false }];
+}
+
+// Inline runs — `**bold**` (Ctrl+B) + `~~strike~~` (Alt+Shift+5). One level, one
+// marker per run (good enough for headings/lists); MarkdownLite still does *italic*.
+const INLINE_RE = /(\*\*[^*]+\*\*|~~[^~]+~~)/g;
+export interface InlineSeg { t: string; bold: boolean; strike: boolean }
+export function parseInline(text: string): InlineSeg[] {
+  const out: InlineSeg[] = [];
+  const re = new RegExp(INLINE_RE.source, "g");
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push({ t: text.slice(last, m.index), bold: false, strike: false });
+    const seg = m[0];
+    if (seg.startsWith("**")) out.push({ t: seg.slice(2, -2), bold: true, strike: false });
+    else out.push({ t: seg.slice(2, -2), bold: false, strike: true });
+    last = m.index + seg.length;
+  }
+  if (last < text.length) out.push({ t: text.slice(last), bold: false, strike: false });
+  return out.length ? out : [{ t: text, bold: false, strike: false }];
+}
+
+/** Tokens + `**bold**` + `~~strike~~` → nodes. The rich renderer for headings/Big Text. */
+export function renderRich(text: string, student: PreviewStudent): ReactNode[] {
+  return parseInline(text).map((s, i) => {
+    const inner = renderTokens(s.t, student);
+    if (s.strike) return <s key={`s${i}`} style={{ textDecoration: "line-through" }}>{inner}</s>;
+    if (s.bold) return <b key={`b${i}`}>{inner}</b>;
+    return <span key={`n${i}`}>{inner}</span>;
+  });
+}
+
+/** Plain-string substitution (title attributes, measurements). Unset → EXAMPLE. */
+export function substituteTokens(text: string, student: PreviewStudent): string {
+  const ex = defaultPreviewStudent();
+  return text.replace(TOKEN_RE, (tok, key: TokenKey) => cleanValue(key, student[key] || ex[key]) || tok);
+}
+
+/** The {x} insert menu — token list with example values. */
+export function TokenMenu({ student, onInsert }: { student: PreviewStudent; onInsert: (token: string) => void }) {
+  return (
+    <div
+      className="nodrag w-52 rounded-lg p-1.5 shadow-xl"
+      style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <div className="mb-1 px-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Insert variable</div>
+      {TOKEN_KEYS.map((k) => (
+        <button
+          key={k}
+          className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left hover:bg-white/5"
+          onClick={() => onInsert(`{${k}}`)}
+        >
+          <span className="text-[11px] font-semibold" style={{ color: NEON.cyan }}>{`{${k}}`}</span>
+          <span className="ml-auto truncate text-[10px]" style={{ color: NEON.muted }}>{cleanValue(k, student[k] ?? "") || "—"}</span>
+        </button>
+      ))}
+    </div>
+  );
+}

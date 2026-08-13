@@ -109,12 +109,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:image", content: "https://surviveaccounting.com/lee-stadium.webp" },
     ],
     links: [
+      // Favicon — Lee's FINAL bolt (the canonical brand bolt, baked in brand.tsx).
+      { rel: "icon", type: "image/svg+xml", href: "/favicon.svg" },
       { rel: "stylesheet", href: appCss },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@400;500;600;700;800&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Fraunces:opsz,wght,SOFT@9..144,300..900,0..100&family=Inter:wght@400;500;600;700;800&family=League+Spartan:wght@600;700;800;900&family=Poppins:wght@500;600;700&family=Rubik:wght@500;600;700;900&family=Sora:wght@500;600;700;800&display=swap",
       },
     ],
   }),

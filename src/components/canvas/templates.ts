@@ -2,14 +2,15 @@
 // state, spawned at viewport center by the palette/toolbar.
 import { cardId, type CardData, type SchedulePreset } from "./types";
 
-function line() {
-  return { id: cardId("l"), account: "", dr: null, cr: null, label: "" };
+function line(side: "dr" | "cr") {
+  return { id: cardId("l"), account: "", dr: null, cr: null, side, label: "" };
 }
 
 export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): CardData {
   switch (kind) {
     case "je":
-      return { kind: "je", caption: "New entry", lines: [line(), line()], accountBank: [], showAmounts: true, showLabels: true, editMode: true };
+      // caption empty → header shows the "New entry" placeholder; one debit, one credit
+      return { kind: "je", caption: "", entryType: "standard", lines: [line("dr"), line("cr")], accountBank: [] };
     case "taccount":
       return { kind: "taccount", account: "Account", debits: [{ id: cardId("d"), label: "", amount: null }], credits: [{ id: cardId("c"), label: "", amount: null }], editMode: true };
     case "computation":
@@ -30,6 +31,112 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
       };
     case "video":
       return { kind: "video", playbackId: "", editMode: true };
+    case "image":
+      return { kind: "image", url: "", fit: "contain", caption: "", editMode: true };
+    case "heading":
+      return { kind: "heading", text: "", level: 1 };
+    case "text":
+      return { kind: "text", body: "", color: 0 };
+    case "examcue":
+      return { kind: "examcue", label: "Your exam", emoji: "📄", w: 300, h: 230 };
+    case "ceqtease":
+      return { kind: "ceqtease", text: "What type of account is ___?", emoji: "📝", w: 720, h: 150 };
+    case "ceqhook":
+      return { kind: "ceqhook", beats: [""], orient: "landscape", w: 900, h: 420 };
+    case "framebolt":
+      return { kind: "framebolt", w: 340, h: 420 };
+    case "logo":
+      return { kind: "logo", mode: "wordmark", colorId: "red-blue", ink: "light", w: 360, h: 120 };
+    case "intro":
+      return { kind: "intro", cardTitle: "Trial Balance", transparent: false, w: 800, h: 450 };
+    case "outro":
+      return { kind: "outro", transparent: false, w: 800, h: 450 };
+    case "corner":
+      return { kind: "corner", corner: "tr", boltOpacity: 0.7, transparent: true, w: 800, h: 450 };
+    case "cycle":
+      return {
+        kind: "cycle",
+        title: "The Accounting Cycle",
+        steps: [
+          { id: cardId("cy"), text: "Analyze transactions" },
+          { id: cardId("cy"), text: "Record JEs" },
+          { id: cardId("cy"), text: "Post to Ledger" },
+          { id: cardId("cy"), text: "Trial Balance" },
+          { id: cardId("cy"), text: "Adj Entries" },
+          { id: cardId("cy"), text: "Financial Stmts" },
+          { id: cardId("cy"), text: "Year End Closed" },
+        ],
+        w: 620,
+        h: 380,
+      };
+    case "memo":
+      return { kind: "memo", memoKind: "note", title: "", body: "" };
+    case "paygate":
+      return { kind: "paygate", label: "Members beyond this point" };
+    case "signupgate":
+      return { kind: "signupgate", label: "Sign up to continue" };
+    case "asklee":
+    case "submitproblem":
+    case "shareinvite":
+      return { kind } as CardData;
+    case "formula":
+      return {
+        kind: "formula",
+        segments: [
+          { id: cardId("fs"), label: "", value: "" },
+          { id: cardId("fs"), label: "", value: "" },
+          { id: cardId("fs"), label: "", value: "" },
+        ],
+        operators: ["+", "="],
+      };
+    case "outline":
+      return {
+        kind: "outline",
+        courseId: null, // derives from the scene's course
+        freeThrough: 8,
+        layout: "snake",
+        stepsPerRow: null, // auto-fit
+        hereOverride: null,
+        w: 900,
+        h: 506, // ~16:9
+      };
+    case "legend":
+      return {
+        kind: "legend",
+        name: "",
+        year: "",
+        imageUrl: "",
+        typeLine: "",
+        slips: [{ id: cardId("slip"), text: "" }],
+        flavor: "",
+        setLabel: "Legends · 001",
+      };
+    case "testimonial":
+      // Local, card-only values (there is no testimonials DB source). Attribution
+      // defaults to the portable "generic" option per the content-portability rule.
+      return {
+        kind: "testimonial",
+        quote: "",
+        stars: 5,
+        studentName: "",
+        showPhoto: true,
+        attrMode: "generic",
+        attrGeneric: "",
+        attrSpecific: "",
+        attrCustom: "",
+        editMode: true,
+      };
+    case "list":
+      return {
+        kind: "list",
+        rows: [
+          { id: cardId("r"), text: "" },
+          { id: cardId("r"), text: "" },
+          { id: cardId("r"), text: "" },
+        ],
+        showChips: false,
+        editMode: true,
+      };
     case "schedule":
       return scheduleTemplate(preset ?? "generic");
     default:
@@ -39,6 +146,20 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
 
 const cell = (v = "") => ({ v });
 const row = (n: number) => Array.from({ length: n }, () => cell());
+
+/** Pinned formula preset — Foundations Ch1 films on it. */
+export function formulaAle(): CardData {
+  return {
+    kind: "formula",
+    title: "The accounting equation",
+    segments: [
+      { id: cardId("fs"), label: "Assets", value: "" },
+      { id: cardId("fs"), label: "Liabilities", value: "" },
+      { id: cardId("fs"), label: "Equity", value: "" },
+    ],
+    operators: ["=", "+"],
+  };
+}
 
 export function scheduleTemplate(preset: SchedulePreset): CardData {
   switch (preset) {
@@ -78,6 +199,32 @@ export function scheduleTemplate(preset: SchedulePreset): CardData {
         headers: ["Bank side", "", "Book side", ""],
         rows: [row(4), row(4), row(4)],
         numericCols: [false, true, false, true],
+        runningTotals: true, // adjusted balances land on the green rule
+        editMode: true,
+      };
+    case "incomestmt":
+      return {
+        kind: "schedule",
+        preset,
+        headers: ["Income Statement", "Amount"],
+        rows: [
+          [cell("Revenues"), cell()],
+          [cell(), cell()],
+          [cell("Expenses"), cell()],
+          [cell(), cell()],
+          [cell("Net income"), cell()],
+        ],
+        numericCols: [false, true],
+        editMode: true,
+      };
+    case "balancesheet":
+      return {
+        kind: "schedule",
+        preset,
+        headers: ["", "Assets", "Liab + Equity"],
+        rows: [row(3), row(3), row(3), row(3)],
+        numericCols: [false, true, true],
+        footerCheck: true, // totals row + A = L + E chip
         editMode: true,
       };
     default:
@@ -101,4 +248,27 @@ export const CARD_KIND_LABEL: Record<CardData["kind"], string> = {
   memorize: "Memorize",
   note: "Note",
   video: "Video",
+  list: "List",
+  image: "Image",
+  legend: "Legend card",
+  testimonial: "Testimonial",
+  outline: "Course outline",
+  formula: "Formula",
+  heading: "Heading",
+  text: "Text",
+  examcue: "Exam Cue",
+  ceqtease: "CEQ Tease",
+  ceqhook: "CEQ Hook",
+  framebolt: "Bolt (boiling)",
+  logo: "Logo",
+  intro: "Intro card",
+  outro: "Outro card",
+  corner: "Corner bolt",
+  cycle: "Accounting Cycle",
+  memo: "Memo",
+  paygate: "Payment Gate",
+  signupgate: "Signup Gate",
+  asklee: "Ask Lee",
+  submitproblem: "Submit a Problem",
+  shareinvite: "Share / Invite",
 };

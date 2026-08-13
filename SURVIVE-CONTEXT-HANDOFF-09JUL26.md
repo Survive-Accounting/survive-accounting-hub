@@ -70,8 +70,8 @@ library is **209**. Numbers below are verified, not copied.)
   scenario accounts). Engine matches accounts by canonical_name; table has NO inbound
   FKs. Keep PLURAL "Buildings"/"Accumulated Depreciation—Buildings" (engine hardcodes).
 - Migration records (manual-apply dir): je-stream records were renumbered to
-  **0063–0066** (courses.course_family / foundations course / retire accy-201 / COA
-  repair — all already applied live). **0067_canvas_scenes.sql: APPLIED live 10 Jul** (was run
+  **0080–0083** (courses.course_family / foundations course / retire accy-201 / COA
+  repair — all already applied live). **0084_canvas_scenes.sql: APPLIED live 10 Jul** (was run
   by Lee in the SQL editor; scene persistence is DB-backed).
 
 ### Orders / made-to-order funnel
@@ -118,7 +118,7 @@ input, edit/duplicate/minimize/delete, NodeResizer, z-front, `useCardActions`),
 (T-account/Computation/CEQ/Memorize/Note/Video). Persistence:
 `src/lib/canvas.functions.ts` (server fns; JSON blobs cross the boundary as STRINGS
 because TanStack's serializable check rejects open records) +
-`migration/supabase-migrations/0067_canvas_scenes.sql`.
+`migration/supabase-migrations/0084_canvas_scenes.sql`.
 
 **The card contract**: spawn prepared (deep-cloned COPY of doc content — edits never
 write back) or blank (edit-ready); inline-edit everything; resize; duplicate (⧉);
@@ -151,7 +151,7 @@ selection. Spawning exclusive-selects the new card.
 **Scenes**: toolbar Save / Save-as / Load / New + name input; autosave every 30s once
 a scene id exists. Serialized: full node array (cards + zones + reveal/edit state) +
 viewport + bg mode. Table `canvas_scenes` (RLS deny-all; service-role server fns).
-**If canvas_scenes is ever missing** (0067): red banner + saves land in
+**If canvas_scenes is ever missing** (0084): red banner + saves land in
 localStorage (`sa-canvas-fallback-scene`) — verified round-trip: 13 cards + reveal
 state restored identically after refresh. `waypoints_json` column reserved for v1.1
 student map (unused).
@@ -181,7 +181,7 @@ arrows (RF edges are wired as `defaultEdges={[]}` — nothing renders).
   carry `amountSlotKey`, not literals) — fill by hand or use a schedule card.
 
 ## OPEN FLAGS
-1. ~~Apply 0067~~ DONE 10 Jul — scene persistence is DB-backed (fallback
+1. ~~Apply 0084~~ DONE 10 Jul — scene persistence is DB-backed (fallback
    banner disappears). 30 seconds.
 2. **Merge je-engine-v2 → main** (PR link above) → /study + SEO + analytics go live;
    then enable Analytics + Speed Insights in Vercel; submit sitemap in GSC; PageSpeed

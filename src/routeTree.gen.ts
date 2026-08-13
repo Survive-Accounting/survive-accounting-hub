@@ -19,13 +19,20 @@ import { Route as PreviewRouteImport } from './routes/preview'
 import { Route as OutreachRouteImport } from './routes/outreach'
 import { Route as OrderRouteImport } from './routes/order'
 import { Route as OnboardRouteImport } from './routes/onboard'
+import { Route as LogoLabRouteImport } from './routes/logo-lab'
+import { Route as LearnRouteImport } from './routes/learn'
+import { Route as LandingRouteImport } from './routes/landing'
 import { Route as JeRouteImport } from './routes/je'
+import { Route as IntroOutroRouteImport } from './routes/intro-outro'
+import { Route as ExpandRouteImport } from './routes/expand'
+import { Route as ChaptersRouteImport } from './routes/chapters'
 import { Route as CeqRouteImport } from './routes/ceq'
 import { Route as BeyondRouteImport } from './routes/beyond'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OutreachIndexRouteImport } from './routes/outreach.index'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as StudyFoundationsRouteImport } from './routes/study_.foundations'
+import { Route as StudyDashboardRouteImport } from './routes/study_.dashboard'
 import { Route as StudyCanvasRouteImport } from './routes/study_.canvas'
 import { Route as OutreachVideoArchiveRouteImport } from './routes/outreach.video-archive'
 import { Route as OutreachStudentsRouteImport } from './routes/outreach.students'
@@ -48,7 +55,9 @@ import { Route as OutreachActiveRosterRouteImport } from './routes/outreach.acti
 import { Route as OrderShortRefRouteImport } from './routes/order.$shortRef'
 import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
 import { Route as JeSplatRouteImport } from './routes/je.$'
+import { Route as ChaptersDashboardRouteImport } from './routes/chapters_.dashboard'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
+import { Route as CSlugRouteImport } from './routes/c.$slug'
 import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.leadfinder.index'
 import { Route as StudyScenariosSlugRouteImport } from './routes/study_.scenarios.$slug'
 import { Route as OutreachSchoolSlugRouteImport } from './routes/outreach_.school.$slug'
@@ -112,9 +121,39 @@ const OnboardRoute = OnboardRouteImport.update({
   path: '/onboard',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LogoLabRoute = LogoLabRouteImport.update({
+  id: '/logo-lab',
+  path: '/logo-lab',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LearnRoute = LearnRouteImport.update({
+  id: '/learn',
+  path: '/learn',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LandingRoute = LandingRouteImport.update({
+  id: '/landing',
+  path: '/landing',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const JeRoute = JeRouteImport.update({
   id: '/je',
   path: '/je',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IntroOutroRoute = IntroOutroRouteImport.update({
+  id: '/intro-outro',
+  path: '/intro-outro',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExpandRoute = ExpandRouteImport.update({
+  id: '/expand',
+  path: '/expand',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ChaptersRoute = ChaptersRouteImport.update({
+  id: '/chapters',
+  path: '/chapters',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CeqRoute = CeqRouteImport.update({
@@ -145,6 +184,11 @@ const TSlugRoute = TSlugRouteImport.update({
 const StudyFoundationsRoute = StudyFoundationsRouteImport.update({
   id: '/study_/foundations',
   path: '/study/foundations',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StudyDashboardRoute = StudyDashboardRouteImport.update({
+  id: '/study_/dashboard',
+  path: '/study/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StudyCanvasRoute = StudyCanvasRouteImport.update({
@@ -260,10 +304,20 @@ const JeSplatRoute = JeSplatRouteImport.update({
   path: '/$',
   getParentRoute: () => JeRoute,
 } as any)
+const ChaptersDashboardRoute = ChaptersDashboardRouteImport.update({
+  id: '/chapters_/dashboard',
+  path: '/chapters/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CeqCreateRoute = CeqCreateRouteImport.update({
   id: '/create',
   path: '/create',
   getParentRoute: () => CeqRoute,
+} as any)
+const CSlugRoute = CSlugRouteImport.update({
+  id: '/c/$slug',
+  path: '/c/$slug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const OutreachLeadfinderIndexRoute = OutreachLeadfinderIndexRouteImport.update({
   id: '/leadfinder/',
@@ -334,7 +388,13 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/beyond': typeof BeyondRoute
   '/ceq': typeof CeqRouteWithChildren
+  '/chapters': typeof ChaptersRoute
+  '/expand': typeof ExpandRoute
+  '/intro-outro': typeof IntroOutroRoute
   '/je': typeof JeRouteWithChildren
+  '/landing': typeof LandingRoute
+  '/learn': typeof LearnRoute
+  '/logo-lab': typeof LogoLabRoute
   '/onboard': typeof OnboardRoute
   '/order': typeof OrderRouteWithChildren
   '/outreach': typeof OutreachRouteWithChildren
@@ -345,7 +405,9 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
   '/welcome': typeof WelcomeRoute
+  '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
+  '/chapters/dashboard': typeof ChaptersDashboardRoute
   '/je/$': typeof JeSplatRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/order/$shortRef': typeof OrderShortRefRoute
@@ -368,6 +430,7 @@ export interface FileRoutesByFullPath {
   '/outreach/students': typeof OutreachStudentsRoute
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/study/canvas': typeof StudyCanvasRoute
+  '/study/dashboard': typeof StudyDashboardRoute
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/outreach/': typeof OutreachIndexRoute
@@ -388,7 +451,13 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/beyond': typeof BeyondRoute
   '/ceq': typeof CeqRouteWithChildren
+  '/chapters': typeof ChaptersRoute
+  '/expand': typeof ExpandRoute
+  '/intro-outro': typeof IntroOutroRoute
   '/je': typeof JeRouteWithChildren
+  '/landing': typeof LandingRoute
+  '/learn': typeof LearnRoute
+  '/logo-lab': typeof LogoLabRoute
   '/onboard': typeof OnboardRoute
   '/order': typeof OrderRouteWithChildren
   '/preview': typeof PreviewRoute
@@ -398,7 +467,9 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
   '/welcome': typeof WelcomeRoute
+  '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
+  '/chapters/dashboard': typeof ChaptersDashboardRoute
   '/je/$': typeof JeSplatRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/order/$shortRef': typeof OrderShortRefRoute
@@ -421,6 +492,7 @@ export interface FileRoutesByTo {
   '/outreach/students': typeof OutreachStudentsRoute
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/study/canvas': typeof StudyCanvasRoute
+  '/study/dashboard': typeof StudyDashboardRoute
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/outreach': typeof OutreachIndexRoute
@@ -442,7 +514,13 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/beyond': typeof BeyondRoute
   '/ceq': typeof CeqRouteWithChildren
+  '/chapters': typeof ChaptersRoute
+  '/expand': typeof ExpandRoute
+  '/intro-outro': typeof IntroOutroRoute
   '/je': typeof JeRouteWithChildren
+  '/landing': typeof LandingRoute
+  '/learn': typeof LearnRoute
+  '/logo-lab': typeof LogoLabRoute
   '/onboard': typeof OnboardRoute
   '/order': typeof OrderRouteWithChildren
   '/outreach': typeof OutreachRouteWithChildren
@@ -453,7 +531,9 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
   '/welcome': typeof WelcomeRoute
+  '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
+  '/chapters_/dashboard': typeof ChaptersDashboardRoute
   '/je/$': typeof JeSplatRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/order/$shortRef': typeof OrderShortRefRoute
@@ -476,6 +556,7 @@ export interface FileRoutesById {
   '/outreach/students': typeof OutreachStudentsRoute
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/study_/canvas': typeof StudyCanvasRoute
+  '/study_/dashboard': typeof StudyDashboardRoute
   '/study_/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/outreach/': typeof OutreachIndexRoute
@@ -498,7 +579,13 @@ export interface FileRouteTypes {
     | '/'
     | '/beyond'
     | '/ceq'
+    | '/chapters'
+    | '/expand'
+    | '/intro-outro'
     | '/je'
+    | '/landing'
+    | '/learn'
+    | '/logo-lab'
     | '/onboard'
     | '/order'
     | '/outreach'
@@ -509,7 +596,9 @@ export interface FileRouteTypes {
     | '/terms'
     | '/thankyou'
     | '/welcome'
+    | '/c/$slug'
     | '/ceq/create'
+    | '/chapters/dashboard'
     | '/je/$'
     | '/o/$shortRef'
     | '/order/$shortRef'
@@ -532,6 +621,7 @@ export interface FileRouteTypes {
     | '/outreach/students'
     | '/outreach/video-archive'
     | '/study/canvas'
+    | '/study/dashboard'
     | '/study/foundations'
     | '/t/$slug'
     | '/outreach/'
@@ -552,7 +642,13 @@ export interface FileRouteTypes {
     | '/'
     | '/beyond'
     | '/ceq'
+    | '/chapters'
+    | '/expand'
+    | '/intro-outro'
     | '/je'
+    | '/landing'
+    | '/learn'
+    | '/logo-lab'
     | '/onboard'
     | '/order'
     | '/preview'
@@ -562,7 +658,9 @@ export interface FileRouteTypes {
     | '/terms'
     | '/thankyou'
     | '/welcome'
+    | '/c/$slug'
     | '/ceq/create'
+    | '/chapters/dashboard'
     | '/je/$'
     | '/o/$shortRef'
     | '/order/$shortRef'
@@ -585,6 +683,7 @@ export interface FileRouteTypes {
     | '/outreach/students'
     | '/outreach/video-archive'
     | '/study/canvas'
+    | '/study/dashboard'
     | '/study/foundations'
     | '/t/$slug'
     | '/outreach'
@@ -605,7 +704,13 @@ export interface FileRouteTypes {
     | '/'
     | '/beyond'
     | '/ceq'
+    | '/chapters'
+    | '/expand'
+    | '/intro-outro'
     | '/je'
+    | '/landing'
+    | '/learn'
+    | '/logo-lab'
     | '/onboard'
     | '/order'
     | '/outreach'
@@ -616,7 +721,9 @@ export interface FileRouteTypes {
     | '/terms'
     | '/thankyou'
     | '/welcome'
+    | '/c/$slug'
     | '/ceq/create'
+    | '/chapters_/dashboard'
     | '/je/$'
     | '/o/$shortRef'
     | '/order/$shortRef'
@@ -639,6 +746,7 @@ export interface FileRouteTypes {
     | '/outreach/students'
     | '/outreach/video-archive'
     | '/study_/canvas'
+    | '/study_/dashboard'
     | '/study_/foundations'
     | '/t/$slug'
     | '/outreach/'
@@ -660,7 +768,13 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BeyondRoute: typeof BeyondRoute
   CeqRoute: typeof CeqRouteWithChildren
+  ChaptersRoute: typeof ChaptersRoute
+  ExpandRoute: typeof ExpandRoute
+  IntroOutroRoute: typeof IntroOutroRoute
   JeRoute: typeof JeRouteWithChildren
+  LandingRoute: typeof LandingRoute
+  LearnRoute: typeof LearnRoute
+  LogoLabRoute: typeof LogoLabRoute
   OnboardRoute: typeof OnboardRoute
   OrderRoute: typeof OrderRouteWithChildren
   OutreachRoute: typeof OutreachRouteWithChildren
@@ -671,8 +785,11 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   ThankyouRoute: typeof ThankyouRoute
   WelcomeRoute: typeof WelcomeRoute
+  CSlugRoute: typeof CSlugRoute
+  ChaptersDashboardRoute: typeof ChaptersDashboardRoute
   OShortRefRoute: typeof OShortRefRoute
   StudyCanvasRoute: typeof StudyCanvasRoute
+  StudyDashboardRoute: typeof StudyDashboardRoute
   StudyFoundationsRoute: typeof StudyFoundationsRoute
   TSlugRoute: typeof TSlugRoute
   ApiCronBackupRoute: typeof ApiCronBackupRoute
@@ -753,11 +870,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OnboardRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/logo-lab': {
+      id: '/logo-lab'
+      path: '/logo-lab'
+      fullPath: '/logo-lab'
+      preLoaderRoute: typeof LogoLabRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/learn': {
+      id: '/learn'
+      path: '/learn'
+      fullPath: '/learn'
+      preLoaderRoute: typeof LearnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/landing': {
+      id: '/landing'
+      path: '/landing'
+      fullPath: '/landing'
+      preLoaderRoute: typeof LandingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/je': {
       id: '/je'
       path: '/je'
       fullPath: '/je'
       preLoaderRoute: typeof JeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/intro-outro': {
+      id: '/intro-outro'
+      path: '/intro-outro'
+      fullPath: '/intro-outro'
+      preLoaderRoute: typeof IntroOutroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/expand': {
+      id: '/expand'
+      path: '/expand'
+      fullPath: '/expand'
+      preLoaderRoute: typeof ExpandRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/chapters': {
+      id: '/chapters'
+      path: '/chapters'
+      fullPath: '/chapters'
+      preLoaderRoute: typeof ChaptersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ceq': {
@@ -800,6 +959,13 @@ declare module '@tanstack/react-router' {
       path: '/study/foundations'
       fullPath: '/study/foundations'
       preLoaderRoute: typeof StudyFoundationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/study_/dashboard': {
+      id: '/study_/dashboard'
+      path: '/study/dashboard'
+      fullPath: '/study/dashboard'
+      preLoaderRoute: typeof StudyDashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/study_/canvas': {
@@ -956,12 +1122,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof JeSplatRouteImport
       parentRoute: typeof JeRoute
     }
+    '/chapters_/dashboard': {
+      id: '/chapters_/dashboard'
+      path: '/chapters/dashboard'
+      fullPath: '/chapters/dashboard'
+      preLoaderRoute: typeof ChaptersDashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/ceq/create': {
       id: '/ceq/create'
       path: '/create'
       fullPath: '/ceq/create'
       preLoaderRoute: typeof CeqCreateRouteImport
       parentRoute: typeof CeqRoute
+    }
+    '/c/$slug': {
+      id: '/c/$slug'
+      path: '/c/$slug'
+      fullPath: '/c/$slug'
+      preLoaderRoute: typeof CSlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/outreach/leadfinder/': {
       id: '/outreach/leadfinder/'
@@ -1148,7 +1328,13 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BeyondRoute: BeyondRoute,
   CeqRoute: CeqRouteWithChildren,
+  ChaptersRoute: ChaptersRoute,
+  ExpandRoute: ExpandRoute,
+  IntroOutroRoute: IntroOutroRoute,
   JeRoute: JeRouteWithChildren,
+  LandingRoute: LandingRoute,
+  LearnRoute: LearnRoute,
+  LogoLabRoute: LogoLabRoute,
   OnboardRoute: OnboardRoute,
   OrderRoute: OrderRouteWithChildren,
   OutreachRoute: OutreachRouteWithChildren,
@@ -1159,8 +1345,11 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   ThankyouRoute: ThankyouRoute,
   WelcomeRoute: WelcomeRoute,
+  CSlugRoute: CSlugRoute,
+  ChaptersDashboardRoute: ChaptersDashboardRoute,
   OShortRefRoute: OShortRefRoute,
   StudyCanvasRoute: StudyCanvasRoute,
+  StudyDashboardRoute: StudyDashboardRoute,
   StudyFoundationsRoute: StudyFoundationsRoute,
   TSlugRoute: TSlugRoute,
   ApiCronBackupRoute: ApiCronBackupRoute,

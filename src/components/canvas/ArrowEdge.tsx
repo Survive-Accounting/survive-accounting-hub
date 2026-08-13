@@ -1,0 +1,158 @@
+// ArrowEdge (PROMPT A) — the one edge renderer, registered under the type name
+// "smoothstep" so every existing scene's edges upgrade without migration.
+//
+//  - real directional arrowhead (markerEnd rides in from the edge object)
+//  - selected → a small × floats at the midpoint (delete via bus = undoable);
+//    Delete/Backspace still works through RF's native path + onDelete recording
+//  - click → one-shot PULSE along the length (route toggles data._pulse)
+//  - DRAG PERF: while either endpoint node is mid-drag the route stamps
+//    data._drag — we render a plain straight path (no smoothstep corner
+//    math per frame) and restore the smoothstep on drop.
+import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, getStraightPath, Position, useInternalNode, useReactFlow, type EdgeProps } from "@xyflow/react";
+import { Magnet } from "lucide-react";
+
+import { removeEdgeCmd } from "./arrows";
+import { bus, type RfLike } from "./commands";
+import { floatingGeometry, type Rect, type Side } from "./floating-anchor";
+import { useSpotlight } from "./SpotlightContext";
+
+const SIDE_TO_POS: Record<Side, Position> = {
+  top: Position.Top,
+  bottom: Position.Bottom,
+  left: Position.Left,
+  right: Position.Right,
+};
+
+export function ArrowEdge(props: EdgeProps) {
+  const { id, source, target, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, selected, style, markerEnd, data } = props;
+  const rf = useReactFlow();
+  const dragging = !!data?._drag;
+  const floatingOn = !!data?.floating;
+  // SPOTLIGHT AN ARROW (Lee): Ctrl+click pills the edge, Ctrl+Shift+click flames it.
+  const sp = useSpotlight();
+  const spotlit = sp?.targetState(id, "self") === "spot";
+  const flamed = sp?.isFlamed(id, "self") ?? false;
+  const spotStyle: React.CSSProperties = spotlit
+    ? { stroke: flamed ? "#FF7A00" : "#FCA311", strokeWidth: flamed ? 4.5 : 3, filter: `drop-shadow(0 0 ${flamed ? 9 : 5}px rgba(252,163,17,0.9))` }
+    : {};
+
+  // FLOATING ANCHOR (Lee): a plain card→card arrow (data.floating) attaches to
+  // the exact border point facing the other node, sliding along the full
+  // perimeter as nodes move — not snapped to a fixed t/b/l/r dot. Hooks run
+  // unconditionally (rules-of-hooks); the rects are only used when floating.
+  const srcInternal = useInternalNode(source);
+  const tgtInternal = useInternalNode(target);
+  const rectOf = (n: typeof srcInternal): Rect | null =>
+    n && n.measured.width != null && n.measured.height != null
+      ? { x: n.internals.positionAbsolute.x, y: n.internals.positionAbsolute.y, width: n.measured.width, height: n.measured.height }
+      : null;
+  const sRect = rectOf(srcInternal);
+  const tRect = rectOf(tgtInternal);
+  const floatG = data?.floating && sRect && tRect ? floatingGeometry(sRect, tRect) : null;
+
+  const sX = floatG ? floatG.sx : sourceX;
+  const sY = floatG ? floatG.sy : sourceY;
+  const tX = floatG ? floatG.tx : targetX;
+  const tY = floatG ? floatG.ty : targetY;
+  const sPos = floatG ? SIDE_TO_POS[floatG.sourceSide] : sourcePosition;
+  const tPos = floatG ? SIDE_TO_POS[floatG.targetSide] : targetPosition;
+
+  const [path, labelX, labelY] = dragging
+    ? getStraightPath({ sourceX: sX, sourceY: sY, targetX: tX, targetY: tY })
+    : getSmoothStepPath({ sourceX: sX, sourceY: sY, targetX: tX, targetY: tY, sourcePosition: sPos, targetPosition: tPos, borderRadius: 8 });
+
+  return (
+    <>
+      <BaseEdge
+        id={id}
+        path={path}
+        markerEnd={markerEnd}
+        style={{ ...style, ...spotStyle }}
+        className={data?._pulse ? "sa-edge-pulse" : undefined}
+        interactionWidth={16}
+      />
+      {selected && !dragging && (
+        <EdgeLabelRenderer>
+          <div
+            className="nodrag nopan"
+            style={{ position: "absolute", transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`, pointerEvents: "all", display: "flex", gap: 4 }}
+          >
+            {/* FLOAT TOGGLE — pinned (default) leaves/enters the exact dots you drew
+                from; floating auto-attaches to the border facing the other node. */}
+            <button
+              className="grid h-5 w-5 place-items-center rounded-full"
+              style={{
+                color: floatingOn ? "#0B1322" : "#8FB7FF",
+                background: floatingOn ? "#4FA3E3" : "#101B31",
+                border: "1px solid rgba(79,163,227,0.6)",
+                boxShadow: "0 4px 12px -4px rgba(0,0,0,0.6)",
+              }}
+              title={floatingOn ? "Floating: sticks to the nearest border — click to PIN to the dots" : "Pinned to the dots — click to FLOAT (auto-face the nearest border)"}
+              onClick={(e) => {
+                e.stopPropagation();
+                const next = !floatingOn;
+                bus.dispatch({
+                  label: next ? "arrow: float" : "arrow: pin to dots",
+                  do: () => rf.setEdges((eds) => eds.map((e2) => (e2.id === id ? { ...e2, data: { ...e2.data, floating: next || undefined } } : e2))),
+                  undo: () => rf.setEdges((eds) => eds.map((e2) => (e2.id === id ? { ...e2, data: { ...e2.data, floating: floatingOn || undefined } } : e2))),
+                });
+              }}
+            >
+              <Magnet className="h-3 w-3" />
+            </button>
+            <button
+              className="grid h-5 w-5 place-items-center rounded-full text-[11px] font-black leading-none"
+              style={{
+                color: "#FF5C6C",
+                background: "#101B31",
+                border: "1px solid rgba(255,92,122,0.6)",
+                boxShadow: "0 4px 12px -4px rgba(0,0,0,0.6)",
+              }}
+              title="Delete arrow"
+              onClick={(e) => {
+                e.stopPropagation();
+                const cmd = removeEdgeCmd(rf as unknown as RfLike, id);
+                if (cmd) bus.dispatch(cmd);
+              }}
+            >
+              ×
+            </button>
+          </div>
+        </EdgeLabelRenderer>
+      )}
+    </>
+  );
+}
+
+/** Injected once by the canvas route. The pulse: a dash train sweeping the
+ *  path once — reads as energy travelling source → target. LINE dots show on
+ *  their own block's hover (not whole-node hover — per-line precision), plus
+ *  whenever a connection drag is looking for targets. */
+export const ARROW_EDGE_CSS = `
+@keyframes sa-edge-dash { from { stroke-dashoffset: 120; } to { stroke-dashoffset: 0; } }
+.sa-edge-pulse { stroke-dasharray: 14 10; animation: sa-edge-dash 700ms linear 1; }
+/* SELECTED EDGE (#6): a SLOW, LOOPING dash march (source → target) that
+   persists while selected — silver, matching the block-selection language —
+   and returns to a static solid line on deselect. */
+@keyframes sa-edge-march { to { stroke-dashoffset: -34; } }
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke-width: 3px;
+  stroke-dasharray: 10 7;
+  animation: sa-edge-march 1.6s linear infinite;
+  filter: drop-shadow(0 0 4px rgba(174,185,201,0.75));
+}
+/* SPOTLIT edge (SL7): a spotlit memo glows its pointer arrow warm, with the box. */
+.react-flow__edge.spotlit-edge .react-flow__edge-path {
+  stroke: #FCA311 !important;
+  stroke-width: 3px;
+  filter: drop-shadow(0 0 5px rgba(252,163,17,0.85));
+  transition: stroke 150ms ease, filter 150ms ease;
+}
+.react-flow__node:hover .line-dot { opacity: 0; }
+.je-row:hover .line-dot, .sa-connecting .line-dot { opacity: 1 !important; }
+.line-dot.connectingto, .line-dot.valid { opacity: 1 !important; transform: scale(1.35); }
+/* Ctrl held (multi-select): container boxes go transparent to the pointer so
+   a Ctrl+drag STARTED INSIDE a lesson/region draws the marquee on the pane
+   instead of dragging the box. Cards stay interactive (Ctrl+click toggles). */
+body.sa-ctrl .react-flow__node-zone, body.sa-ctrl .react-flow__node-lesson { pointer-events: none !important; }
+`;

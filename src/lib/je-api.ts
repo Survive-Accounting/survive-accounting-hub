@@ -4,6 +4,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchChartOfAccounts } from "@/lib/ceq-api";
 import type { AccountMeta, AccountType, ScenarioDoc } from "@/lib/je-engine";
+import { isMissingSchema } from "@/lib/pg-errors";
+import { reportMissingMigration } from "@/lib/missing-migration";
 
 // ---- Scenarios ----
 
@@ -13,6 +15,11 @@ export interface ScenarioRow {
   title: string;
   doc: ScenarioDoc;
   chapter_id: string | null; // v2: links a scenario to an existing chapters row (migration 0025)
+  /** Content-reset lifecycle (migration 0087). undefined = 0087 not applied yet —
+   *  the canvas fails loud on that; /je keeps working treating rows as active. */
+  status?: "active" | "archived";
+  source?: "authored" | "imported";
+  sort_order?: number | null;
 }
 
 // chapter_id may not exist yet (before 0025 is applied). We try the chapter-aware select
@@ -20,16 +27,22 @@ export interface ScenarioRow {
 // hasn't had 0025 run — every scenario simply shows up "unassigned" until then.
 const MISSING_COLUMN = Symbol("missing-column");
 
+// isMissingSchema also catches PGRST204/205 (PostgREST's own "column/table not
+// in the schema cache" codes) — a plain 42703/message-regex check misses those,
+// which is exactly the bug that made the canvas fail-loud banners fail silent
+// (see src/lib/pg-errors.ts). Every tolerant-fallback select in this file goes
+// through this one function so that fix applies everywhere, not just canvas.
 function isMissingColumn(error: any): boolean {
-  return (
-    error?.code === "42703" || // undefined_column
-    /column .*chapter_id.* does not exist/i.test(error?.message ?? "")
-  );
+  return isMissingSchema(error ?? {}, /chapter_id|status|source|sort_order|subtitle|parked/i);
 }
 
-/** List all scenarios (lightweight — full doc included; the prototype set is small). */
+/** List all scenarios (lightweight — full doc included; the prototype set is small).
+ *  Tries the content-reset shape (0087) first and steps down so /je keeps working
+ *  on an un-migrated DB; rows then carry status/source = undefined, which the
+ *  CANVAS treats as "apply 0087" (fail loud there, tolerant here). */
 export async function fetchScenarios(): Promise<ScenarioRow[]> {
-  let res = await runScenarioSelect("id,slug,title,doc,chapter_id", (q) => q.order("title"));
+  let res = await runScenarioSelect("id,slug,title,doc,chapter_id,status,source,sort_order", (q) => q.order("title"));
+  if (res === MISSING_COLUMN) res = await runScenarioSelect("id,slug,title,doc,chapter_id", (q) => q.order("title"));
   if (res === MISSING_COLUMN) res = await runScenarioSelect("id,slug,title,doc", (q) => q.order("title"));
   return ((res as any[]) ?? []).map(toScenarioRow);
 }
@@ -62,6 +75,9 @@ function toScenarioRow(r: any): ScenarioRow {
     title: r.title,
     doc: (r.doc ?? {}) as ScenarioDoc,
     chapter_id: r.chapter_id ?? null,
+    status: r.status,
+    source: r.source,
+    sort_order: r.sort_order,
   };
 }
 
@@ -76,12 +92,19 @@ export interface BrowserScenario {
   title: string;
   doc: ScenarioDoc;
   chapter_id: string | null;
+  status?: "active" | "archived";
+  source?: "authored" | "imported";
+  sort_order?: number | null;
 }
 
 export interface BrowserChapter {
   id: string; // "__unassigned__" for scenarios with no chapter
   chapter_number: number | null;
   chapter_name: string | null;
+  /** Course-structure-cleanup lifecycle (migration 0089). undefined = not
+   *  applied yet — callers treat that as active (no archived chapters exist
+   *  pre-migration anyway). */
+  status?: "active" | "archived";
   scenarios: BrowserScenario[];
 }
 
@@ -99,6 +122,53 @@ export interface JeBrowserTree {
 
 const UNASSIGNED_CHAPTER = "__unassigned__";
 
+export interface PrincipleTag {
+  id: string;
+  name: string;
+  kind: "assumption" | "principle";
+  slug: string;
+}
+
+/** The taggable principles vocabulary (0093 `principles` table — distinct from
+ *  the /je `je_principles` reference read by fetchPrinciples). 4 assumptions + 4
+ *  principles. Returns [] when the table isn't there yet (pre-0093) so tag
+ *  pickers render an empty, non-crashing state. */
+export async function fetchPrincipleTags(): Promise<PrincipleTag[]> {
+  const { data, error } = await (supabase.from("principles" as never) as any)
+    .select("id,name,kind,slug").order("sort", { ascending: true });
+  if (error) {
+    if (isMissingSchema(error, /principles/i)) { reportMissingMigration("0093_principles_and_tags.sql"); return []; }
+    throw error;
+  }
+  return ((data ?? []) as any[]).map((r) => ({ id: r.id, name: r.name, kind: r.kind, slug: r.slug }));
+}
+
+export interface Placement {
+  scenario_id: string;
+  course_id: string | null;
+  chapter_id: string;
+  sort_order: number;
+}
+
+/** scenario_placements (0091) — a scenario may appear in MANY course-chapters.
+ *  Returns null when the table isn't there yet (pre-0091): callers fall back to
+ *  the legacy je_scenarios.chapter_id single-placement path so the tool keeps
+ *  working on an un-migrated DB. */
+export async function fetchScenarioPlacements(): Promise<Placement[] | null> {
+  const { data, error } = await (supabase.from("scenario_placements" as never) as any)
+    .select("scenario_id,course_id,chapter_id,sort_order");
+  if (error) {
+    if (isMissingSchema(error, /scenario_placements/i)) { reportMissingMigration("0091_scenario_placements.sql"); return null; }
+    throw error;
+  }
+  return ((data ?? []) as any[]).map((r) => ({
+    scenario_id: r.scenario_id,
+    course_id: r.course_id ?? null,
+    chapter_id: r.chapter_id,
+    sort_order: typeof r.sort_order === "number" ? r.sort_order : 0,
+  }));
+}
+
 /**
  * One call that returns the whole browse tree AND the flat scenario list. Empty sibling
  * chapters (a chapter in a course that has scenarios, but none of its own yet) are included
@@ -110,15 +180,29 @@ const UNASSIGNED_CHAPTER = "__unassigned__";
  * of sequential round-trips to every cold load for nothing.
  */
 export async function fetchJeBrowserTree(): Promise<JeBrowserTree> {
-  const [scenarios, chaptersRes] = await Promise.all([
+  const [scenarios, chaptersRes, placements] = await Promise.all([
     fetchScenarios(),
     supabase
       .from("chapters")
-      .select("id,chapter_number,chapter_name,course_id,courses(id,code,course_name)")
+      .select("id,chapter_number,chapter_name,course_id,status,courses(id,code,course_name)" as never)
       .order("chapter_number", { ascending: true }),
+    fetchScenarioPlacements(),
   ]);
-  if (chaptersRes.error) throw chaptersRes.error;
-  const allChapters = (chaptersRes.data ?? []) as any[];
+  let allChapters: any[];
+  if (chaptersRes.error) {
+    if (isMissingColumn(chaptersRes.error)) {
+      const fallback = await supabase
+        .from("chapters")
+        .select("id,chapter_number,chapter_name,course_id,courses(id,code,course_name)")
+        .order("chapter_number", { ascending: true });
+      if (fallback.error) throw fallback.error;
+      allChapters = (fallback.data ?? []) as any[];
+    } else {
+      throw chaptersRes.error;
+    }
+  } else {
+    allChapters = (chaptersRes.data ?? []) as any[];
+  }
 
   const flat: BrowserScenario[] = scenarios.map((s) => ({
     id: s.id,
@@ -126,15 +210,32 @@ export async function fetchJeBrowserTree(): Promise<JeBrowserTree> {
     title: s.title,
     doc: s.doc,
     chapter_id: s.chapter_id,
+    status: s.status,
+    source: s.source,
+    sort_order: s.sort_order,
   }));
 
-  // scenarios per chapter
+  // scenarios per chapter. With placements (0091) a scenario appears in MANY
+  // chapters — one BrowserScenario COPY per placement, carrying that placement's
+  // sort_order so the picker orders each chapter independently. Pre-0091 (null),
+  // fall back to the legacy je_scenarios.chapter_id single-placement path.
+  const byId = new Map(flat.map((s) => [s.id, s]));
   const scenariosByChapter = new Map<string, BrowserScenario[]>();
-  for (const s of flat) {
-    if (!s.chapter_id) continue;
-    const list = scenariosByChapter.get(s.chapter_id) ?? [];
-    list.push(s);
-    scenariosByChapter.set(s.chapter_id, list);
+  if (placements) {
+    for (const p of placements) {
+      const s = byId.get(p.scenario_id);
+      if (!s) continue;
+      const list = scenariosByChapter.get(p.chapter_id) ?? [];
+      list.push({ ...s, chapter_id: p.chapter_id, sort_order: p.sort_order });
+      scenariosByChapter.set(p.chapter_id, list);
+    }
+  } else {
+    for (const s of flat) {
+      if (!s.chapter_id) continue;
+      const list = scenariosByChapter.get(s.chapter_id) ?? [];
+      list.push(s);
+      scenariosByChapter.set(s.chapter_id, list);
+    }
   }
 
   // Courses that have at least one chapter with scenarios; keep ALL chapters of those courses.
@@ -159,6 +260,7 @@ export async function fetchJeBrowserTree(): Promise<JeBrowserTree> {
       id: c.id,
       chapter_number: c.chapter_number ?? null,
       chapter_name: c.chapter_name ?? null,
+      status: c.status,
       scenarios: scenariosByChapter.get(c.id) ?? [],
     });
   }
@@ -183,6 +285,99 @@ function unassignedCourse(scenarios: BrowserScenario[]): BrowserCourse {
     course_name: "Unassigned",
     chapters: [{ id: UNASSIGNED_CHAPTER, chapter_number: null, chapter_name: "Not yet tagged to a chapter", scenarios }],
   };
+}
+
+// ---- Course options (scene course context — content reset) -------------------
+// Every course with its chapters, whether or not it has scenarios yet — the
+// canvas course dropdown must show empty courses (Foundations starts empty).
+
+export interface CourseOption {
+  id: string;
+  code: string | null;
+  course_name: string | null;
+  course_family: string | null;
+  chapters: { id: string; number: number | null; name: string | null; status?: "active" | "archived"; subtitle?: string | null; parked?: boolean }[];
+}
+
+/** Course dropdowns show the clean course_name; code is now a legacy fallback
+ *  only (migration 0089 renamed both to the same clean string anyway). */
+export function courseLabel(c: { code: string | null; course_name: string | null }): string {
+  return c.course_name ?? c.code ?? "Course";
+}
+
+/** Chapter dropdown label — ONE format everywhere it appears (chapter
+ *  dropdowns, scenario picker, Manage course): "Ch N · Name". Archived
+ *  chapters stay selectable (existing refs keep working) but are marked so
+ *  Lee doesn't file NEW content under one. */
+export function chapterLabel(ch: { number: number | null; name: string | null; status?: "active" | "archived" }): string {
+  const base = ch.number != null ? `Ch ${ch.number} · ${ch.name ?? ""}` : (ch.name ?? "");
+  return ch.status === "archived" ? `${base} (archived)` : base;
+}
+
+/** TOPIC label — the topic's NAME only, no "Ch N" prefix: position is conveyed by
+ *  the outline's order, so the number is noise on screen. Use this for anything a
+ *  user reads (Studio outlines, pickers, notes, Manage course).
+ *
+ *  Deliberately a SIBLING of chapterLabel rather than a replacement: the "Ch N · "
+ *  prefix is load-bearing elsewhere (lessonLabelOf does regex surgery on it, the
+ *  library sorts on it, and the stored deck.chapter / videoChapter strings that
+ *  vidTopicMatch parses use the same shape). Nothing that parses may switch to
+ *  this one. */
+export function topicLabel(ch: { number: number | null; name: string | null; status?: "active" | "archived" }): string {
+  const base = (ch.name ?? "").trim() || "Untitled topic";
+  return ch.status === "archived" ? `${base} (archived)` : base;
+}
+
+export async function fetchCourseOptions(): Promise<CourseOption[]> {
+  let coursesRes = await supabase
+    .from("courses")
+    .select("id,code,course_name,course_family,status" as never)
+    .eq("status" as never, "active")
+    .order("course_name");
+  if (coursesRes.error && isMissingColumn(coursesRes.error)) {
+    coursesRes = await supabase.from("courses").select("id,code,course_name,course_family" as never).order("course_name");
+  }
+  if (coursesRes.error) throw coursesRes.error;
+
+  // `parked` (0112, manual-apply) degrades gracefully: drop it, then status/subtitle, if a column is missing.
+  let chaptersRes = await supabase
+    .from("chapters")
+    .select("id,chapter_number,chapter_name,course_id,status,subtitle,parked" as never)
+    .order("chapter_number", { ascending: true });
+  if (chaptersRes.error && isMissingColumn(chaptersRes.error)) {
+    chaptersRes = await supabase.from("chapters").select("id,chapter_number,chapter_name,course_id,status,subtitle" as never).order("chapter_number", { ascending: true });
+  }
+  if (chaptersRes.error && isMissingColumn(chaptersRes.error)) {
+    chaptersRes = await supabase.from("chapters").select("id,chapter_number,chapter_name,course_id" as never).order("chapter_number", { ascending: true });
+  }
+  if (chaptersRes.error) throw chaptersRes.error;
+
+  const chaptersByCourse = new Map<string, CourseOption["chapters"]>();
+  for (const c of (chaptersRes.data ?? []) as any[]) {
+    if (!c.course_id) continue;
+    const list = chaptersByCourse.get(c.course_id) ?? [];
+    list.push({ id: c.id, number: c.chapter_number ?? null, name: c.chapter_name ?? null, status: c.status, subtitle: c.subtitle ?? null, parked: !!c.parked });
+    chaptersByCourse.set(c.course_id, list);
+  }
+  const built: CourseOption[] = ((coursesRes.data ?? []) as any[]).map((c) => ({
+    id: c.id,
+    code: c.code ?? null,
+    course_name: c.course_name ?? null,
+    course_family: c.course_family ?? null,
+    chapters: chaptersByCourse.get(c.id) ?? [],
+  }));
+  // DE-DUPE: a legacy duplicate courses row otherwise renders as TWO "Intro 1" sections in the
+  // Studio Topics pane. Key on the DISPLAY NAME (the visible collision). Keep the CANONICAL row:
+  // prefer one WITH a course_family (the real intro_1/etc.), then non-empty chapters, then more
+  // chapters — so a family-less legacy "Intro 1" never wins over the row the maps were built on.
+  const score = (c: CourseOption) => (c.course_family ? 4 : 0) + (c.chapters.length > 0 ? 2 : 0) + Math.min(1, c.chapters.length / 1000);
+  const byKey = new Map<string, CourseOption>();
+  for (const c of built) {
+    const key = (c.course_name ?? c.code ?? "").trim().toLowerCase() || c.course_family || c.id;
+    const prev = byKey.get(key);
+    if (!prev || score(c) > score(prev)) byKey.set(key, c);
+  }
+  return [...byKey.values()];
 }
 
 // ---- Principles (reference table) ----
@@ -261,12 +456,16 @@ export async function fetchFoundationsIndex(): Promise<FoundationsIndex | null> 
   if (!course) return null;
   const courseId = (course as { id: string }).id;
 
-  const { data: chs } = await supabase
+  let chsRes: { data: unknown; error: any } = await supabase
     .from("chapters")
-    .select("id,chapter_number,chapter_name")
+    .select("id,chapter_number,chapter_name,status" as never)
     .eq("course_id", courseId)
+    .eq("status" as never, "active")
     .order("chapter_number", { ascending: true });
-  const chapters = (chs ?? []) as { id: string; chapter_number: number | null; chapter_name: string | null }[];
+  if (chsRes.error && isMissingColumn(chsRes.error)) {
+    chsRes = await supabase.from("chapters").select("id,chapter_number,chapter_name" as never).eq("course_id", courseId).order("chapter_number", { ascending: true });
+  }
+  const chapters = (chsRes.data ?? []) as { id: string; chapter_number: number | null; chapter_name: string | null }[];
   const chapterIds = chapters.map((c) => c.id);
 
   const scRes = chapterIds.length

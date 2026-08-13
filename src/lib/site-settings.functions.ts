@@ -15,6 +15,11 @@ export type SectionKey = (typeof SECTION_KEYS)[number];
 export type SiteSettings = {
   sections: Record<SectionKey, boolean>;
   introVideo: { url: string; show: boolean };
+  /** /expand referral page — the unlisted YouTube video, swappable WITHOUT a deploy (this row is
+   *  data, not code: update site_settings.settings->>'expandVideoUrl' in Supabase and the page picks
+   *  it up on next load). Empty = the branded bolt placeholder renders instead. Accepts any YouTube
+   *  form (watch?v= / youtu.be / embed) — the page normalizes it. */
+  expandVideoUrl: string;
 };
 
 export const DEFAULT_SITE_SETTINGS: SiteSettings = {
@@ -24,6 +29,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
     freeExplainers: false, beyondExam: false,
   },
   introVideo: { url: "", show: false },
+  expandVideoUrl: "",
 };
 
 /** Merge a stored (possibly partial) settings blob over the code defaults so new
@@ -43,6 +49,7 @@ export function mergeSettings(raw: unknown): SiteSettings {
       url: typeof iv.url === "string" ? iv.url : DEFAULT_SITE_SETTINGS.introVideo.url,
       show: typeof iv.show === "boolean" ? iv.show : DEFAULT_SITE_SETTINGS.introVideo.show,
     },
+    expandVideoUrl: typeof r.expandVideoUrl === "string" ? r.expandVideoUrl : DEFAULT_SITE_SETTINGS.expandVideoUrl,
   };
 }
 
@@ -61,13 +68,22 @@ export const getSiteSettings = createServerFn({ method: "GET" })
 const settingsSchema = z.object({
   sections: z.record(z.string(), z.boolean()),
   introVideo: z.object({ url: z.string().trim().max(500), show: z.boolean() }),
+  // Optional so the landing editor (which doesn't render this field) can save without it — the
+  // handler preserves the stored value rather than blanking Lee's /expand video URL.
+  expandVideoUrl: z.string().trim().max(500).optional(),
 });
 
 export const updateSiteSettings = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => settingsSchema.parse(data))
   .handler(async ({ data }): Promise<SiteSettings> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const clean = mergeSettings(data);
+    let incoming: Record<string, unknown> = { ...data };
+    if (data.expandVideoUrl === undefined) {
+      // Preserve any key this payload didn't carry (a partial save must never wipe a stored value).
+      const { data: cur } = await (supabaseAdmin.from("site_settings" as never) as any).select("settings").eq("id", 1).maybeSingle();
+      incoming = { ...incoming, expandVideoUrl: mergeSettings(cur?.settings).expandVideoUrl };
+    }
+    const clean = mergeSettings(incoming);
     const { error } = await (supabaseAdmin.from("site_settings" as never) as any)
       .upsert({ id: 1, settings: clean, updated_at: new Date().toISOString() }, { onConflict: "id" });
     if (error) throw new Error(error.message);

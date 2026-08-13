@@ -2,42 +2,134 @@
 // tutoring. Cards spawn PREPARED (from the scenario-doc library) or BLANK (improvisation
 // deck); everything is editable inline and scene-local. See docs in the handoff.
 //
-// Hotkeys: c = clean screen · space = reveal next hidden element on the selected card ·
+// Hotkeys: c = choreograph the current frame (click reveals in order) · space = reveal next hidden element on the selected card ·
 // f / double-click = focus-zoom a card · Esc = back to full view · Delete = remove selection.
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import {
   Background,
   BackgroundVariant,
-  MiniMap,
+  ConnectionLineType,
+  ConnectionMode,
+  NodeResizer,
   ReactFlow,
   ReactFlowProvider,
   useNodes,
   useReactFlow,
+  useStore,
+  useStoreApi,
+  useUpdateNodeInternals,
+  type Connection,
   type NodeProps,
   type Viewport,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useQuery } from "@tanstack/react-query";
-import { Film, Grid3x3, Layers, Map as MapIcon, Plus, Save, FolderOpen, FilePlus2, Video as VideoIcon } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, ClipboardCopy, ClipboardPaste, Copy, Download, ExternalLink, Eye, Flag, FileText, Frame, Gauge, Grid3x3, Layers, LayoutGrid, LayoutTemplate, ListOrdered, Lock, Map as MapIcon, Milestone, PanelTop, Palette as PaletteIcon, Pause, Play, Plus, Projector, Save, ScrollText, FolderOpen, FilePlus2, Settings2, Shrink, Timer, Trash2, Upload, Video as VideoIcon, X } from "lucide-react";
 
-import { fetchJeBrowserTree } from "@/lib/je-api";
-import { deleteScene, listScenes, loadScene, saveScene, type SceneListRow } from "@/lib/canvas.functions";
+import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
+import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
+import { retryUnlessMigrationHint } from "@/lib/pg-errors";
+import { ManageAccountsDialog } from "@/components/canvas/ManageAccountsDialog";
+import { ManageCourseDialog } from "@/components/canvas/ManageCourseDialog";
 import { NEON } from "@/components/canvas/theme";
+import { blankCard, formulaAle } from "@/components/canvas/templates";
 import { buildLibrary } from "@/components/canvas/library";
 import { Palette } from "@/components/canvas/Palette";
 import { JeCardNode } from "@/components/canvas/cards/JeCardNode";
 import { ScheduleCardNode } from "@/components/canvas/cards/ScheduleCardNode";
 import {
-  CeqCardNode, ComputationCardNode, MemorizeCardNode, NoteCardNode, TAccountCardNode, VideoCardNode,
+  CeqCardNode, ComputationCardNode, MemorizeCardNode, TAccountCardNode,
 } from "@/components/canvas/cards/OtherCards";
-import { cardId, type BgMode, type CardData, type CardNode, type JeCard, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
-import { EditableText } from "@/components/canvas/ui";
-import { useCardActions } from "@/components/canvas/BaseCard";
+import { VideoCardNode } from "@/components/canvas/cards/VideoCardNode";
+import { ListCardNode } from "@/components/canvas/cards/ListCardNode";
+import { ImageCardNode, uploadImageFile } from "@/components/canvas/cards/ImageCardNode";
+import { LegendCardNode } from "@/components/canvas/cards/LegendCardNode";
+import { TestimonialCardNode } from "@/components/canvas/cards/TestimonialCardNode";
+import { OutlineCardNode } from "@/components/canvas/cards/OutlineCardNode";
+import { FormulaCardNode } from "@/components/canvas/cards/FormulaCardNode";
+import { NoteCardNode } from "@/components/canvas/cards/NoteCardNode";
+import { HeadingCardNode } from "@/components/canvas/cards/HeadingCardNode";
+import { MemoCardNode } from "@/components/canvas/cards/MemoCardNode";
+import { BEAT_META, FrameNode } from "@/components/canvas/cards/FrameNode";
+import { FrameNavContext, useFrameNav, type FrameNav } from "@/components/canvas/FrameNavContext";
+import { DecksContext } from "@/components/canvas/DecksContext";
+import { SpotlightCtx, useSpotlightController, type FocusDimMode } from "@/components/canvas/SpotlightContext";
+import { revealedTargetId } from "@/components/canvas/spotlight";
+import { ambientViewport, fillViewport, spotlightPushViewport } from "@/components/canvas/camera-push";
+import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, BEAT_LABEL, blankFrameData, columnX, frameCellLabel, frameCompositionGuides, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type GuideWeight } from "@/components/canvas/frames";
+import { BridgeCardNode, CeqHookNode, CeqTeaseNode, CornerBoltNode, ExamCueNode, FrameBoltNode, GateNode, IntroCardNode, LogoCardNode, OutroCardNode, TextElementNode } from "@/components/canvas/cards/elements";
+import { CycleNode } from "@/components/canvas/cards/CycleNode";
+import { configureSfx, playSfx, preloadSfx, SFX_DEFAULT, type SfxConfig, type SfxEvent } from "@/components/canvas/sfx";
+import { framePartIds, framePartLabels, materializeFrame, REST_TARGET, WHOLE_TARGET } from "@/components/canvas/choreo";
+import { ChoreoScrubber } from "@/components/canvas/ChoreoScrubber";
+import { type CeqSetDef } from "@/components/canvas/ceq-set";
+import { LegendHud } from "@/components/canvas/LegendHud";
+import { OutlinePanel } from "@/components/canvas/OutlinePanel";
+import { MemoLibraryPanel } from "@/components/canvas/MemoLibraryPanel";
+import { PipelineTestPanel } from "@/components/canvas/PipelineTestPanel";
+import { LessonGridView } from "@/components/canvas/LessonGridView";
+import { CeqStudio } from "@/components/canvas/CeqStudio";
+import { BrandingStudio } from "@/components/canvas/BrandingStudio";
+import { seedCeqSets } from "@/components/canvas/ceq-seed";
+import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
+import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, LESSON_STATUSES, LESSON_CATEGORIES, LESSON_CATEGORY_LABEL, type Beat, type CardBase, type CardData, type CardNode, type CeqChoice, type CeqChainItem, type CeqChainTemplate, type DeckDef, type FilmRun, type GlobalClips, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonAccess, type LessonBox, type LessonCategory, type LessonPathing, type LessonStatus, type ListCard, type RecCue, type RunEvent, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
+import { EditableText, toggleWrapInField } from "@/components/canvas/ui";
+import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
+import { withFaceDown } from "@/components/canvas/CardBack";
+import { Deck, categoryOf, isTucked, nextTucked } from "@/components/canvas/Deck";
+import { LessonNavigator } from "@/components/canvas/LessonNavigator";
+import { PanelPopout, PopoutPlaceholder, TeleprompterPopout, openPopoutWindow } from "@/components/canvas/PanelPopout";
+import { VisualMixPanel } from "@/components/canvas/VisualMixPanel";
+import { Storyboard } from "@/components/canvas/StoryboardPanel";
+import { DEFAULT_RIFF, DEFAULT_READTIME_THRESHOLD_S, estimateFrameSeconds } from "@/components/canvas/script-timing";
+import { deckMembers, lastDealtCross, lastDealtInFrame, lessonIdOf, nextTuckedCross, nextTuckedInFrame } from "@/components/canvas/deck-logic";
+import { addNodesAndEdgesCmd, addNodesCmd, bus, compositeCmd, moveNodesCmd, patchDataCmd, patchDataFnCmd, removeNodesCmd, type Command, type RfLike } from "@/components/canvas/commands";
+import { cloneNodeSet, orderParentsFirst, type CloneEdge, type CloneNode } from "@/components/canvas/duplicate-frame";
+import { walkTransition } from "@/components/canvas/ceq-walk";
+import { decksOfLesson, duplicateLessonDecks, mintDeckIds, nextRegionCell } from "@/components/canvas/duplicate-lesson";
+import { buildSnippetPayload, spawnSnippet, SNIPPET_DND_MIME, type SnippetPayload } from "@/components/canvas/snippet-payload";
+import { deleteSnippet as deleteSnippetFn, listSnippets, renameSnippet as renameSnippetFn, saveSnippet as saveSnippetFn, type SnippetRow } from "@/lib/snippet.functions";
+import { isExplicitGroupDrag } from "@/components/canvas/drag-select";
+import { useKeymap, type KeyBinding } from "@/components/canvas/keymap";
+import { migrateCheckToCram, migrateDeckFields, migrateEdges, migrateElementDeckFields, migrateFrameGrid, migrateFrameLocks, migrateIntroCards, migrateJeMemos, migrateLegendSlips, migrateLessonCategory, migrateLessonFields, sanitizeSceneNodes, migrateScriptLayers } from "@/components/canvas/scene-io";
+import { migrateZTiers, nextZ, Z_SPOTLIGHT } from "@/components/canvas/zorder";
+import { Z } from "@/components/canvas/z-layers";
+import { addEdgeCmd, lineIdOfHandle, memoOfHandle, resolveConnection, type EdgeLike } from "@/components/canvas/arrows";
+import { ArrowEdge, ARROW_EDGE_CSS } from "@/components/canvas/ArrowEdge";
+import { ConnectionDots, CONNECTION_DOTS_CSS } from "@/components/canvas/ConnectionDots";
+import { SkeletonLayer } from "@/components/canvas/SkeletonLayer";
+import { FrameGridOverlay } from "@/components/canvas/FrameGridOverlay";
+import { BackstageStage } from "@/components/canvas/BackstageStage";
+import { CueSheet } from "@/components/canvas/CueSheet";
+import { ScriptEditor } from "@/components/canvas/ScriptEditor";
+import { FrameScriptDock, FrameScriptDockBody } from "@/components/canvas/FrameScriptDock";
+import { RunTimerBody, RunReadout, mmss } from "@/components/canvas/RunTimer";
+import { FrameTakesProvider, LessonMediaBar, MuxBanner, RetrimAllIntrosButton, TakeBoardCell } from "@/components/canvas/frame-takes";
+import { TeleprompterOverlay, type PrompterCorner } from "@/components/canvas/Teleprompter";
+import { LessonPublishControl } from "@/components/canvas/lesson-publish";
+import { cueIsDone, currentRevealCount, deriveFrameCues, nextCueIndex, orderedCues, revealPatchForCount, type CueState } from "@/components/canvas/cue-sheet";
+import { onMissingMigration } from "@/lib/missing-migration";
+import { CanvasSettingsContext, JE_INDENT_DEFAULT, JE_WIDTH_DEFAULT, type CanvasSettings } from "@/components/canvas/CanvasSettingsContext";
+import { JE_PRESETS, groupCoa, hopToEnd, memosOf, normalizePreset, type JePreset } from "@/components/canvas/je-logic";
+import { listSnapshots, loadSnapshot, snapshotScene, type SnapshotListRow } from "@/lib/canvas.functions";
+import { getCanvasSfx, saveCanvasSfx, uploadCanvasSfxFile, type CanvasSfxFiles } from "@/lib/canvas.functions";
+import { downloadText, parseImport, sceneToOutline, type ImportPreview } from "@/components/canvas/export";
+import { KeymapOverlay } from "@/components/canvas/KeymapOverlay";
+import { CardTapPulse, CARD_CURSOR_CSS, ClickRipples, CursorSpotlight, FILM_MODE_CSS, FLAME_CSS, FrameArmCue, type ArmState } from "@/components/canvas/FilmOverlays";
+import { FilmPerfProbe } from "@/components/canvas/FilmPerfProbe";
+import { CameraBubble } from "@/components/canvas/CameraBubble";
+import { FrameRearrangeGrid } from "@/components/canvas/FrameRearrangeGrid";
+import { BrandBar, BrandWatermark } from "@/components/canvas/BrandBar";
+import { CanvasNavbar } from "@/components/canvas/CanvasNavbar";
+
+// Panels that can be popped out to the director's second-monitor window.
+type PopKey = "teleprompter" | "cuesheet" | "deck" | "script" | "runtimer" | "outline" | "ceqstudio";
+const POP_KEYS: PopKey[] = ["teleprompter", "cuesheet", "deck", "script", "runtimer", "outline", "ceqstudio"];
 
 export const Route = createFileRoute("/study_/canvas")({
   ssr: false, // React Flow is client-only; nothing here needs SSR (unlinked playground)
-  head: () => ({ meta: [{ title: "Present Canvas — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({ meta: [{ title: "⚡ Study Canvas — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
   component: () => (
     <ReactFlowProvider>
       <PresentCanvas />
@@ -52,19 +144,74 @@ export const Route = createFileRoute("/study_/canvas")({
 function ZoneNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as ZoneBox & { editMode?: boolean };
   const { update, remove } = useCardActions(id);
+  const rf = useReactFlow();
+
+  /** Grid-align this zone's children with even gaps — ONE undoable bus command. */
+  const tidyZone = (zoneId: string) => {
+    const zone = rf.getNode(zoneId);
+    if (!zone) return;
+    const children = rf.getNodes().filter((n) => n.parentId === zoneId && !n.hidden);
+    if (children.length === 0) return;
+    const GAP = 24;
+    const PAD_TOP = 44; // clears the zone label row
+    const zw = (zone.data as unknown as ZoneBox).w ?? zone.width ?? 520;
+    const wOf = (n: CardNode) => n.measured?.width ?? ((n.data as unknown as CardBase).w as number | undefined) ?? 300;
+    const hOf = (n: CardNode) => n.measured?.height ?? ((n.data as unknown as CardBase).h as number | undefined) ?? 170;
+    let x = GAP;
+    let y = PAD_TOP;
+    let rowH = 0;
+    const moves: { id: string; from: { x: number; y: number }; to: { x: number; y: number } }[] = [];
+    for (const n of [...children].sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x)) {
+      const w = wOf(n as CardNode);
+      const h = hOf(n as CardNode);
+      if (x > GAP && x + w > zw - GAP) { x = GAP; y += rowH + GAP; rowH = 0; }
+      moves.push({ id: n.id, from: { ...n.position }, to: { x, y } });
+      x += w + GAP;
+      rowH = Math.max(rowH, h);
+    }
+    const c = moveNodesCmd(rf as unknown as RfLike, moves, "tidy zone");
+    if (c) bus.dispatch(c);
+  };
   return (
     <div
       className="h-full w-full rounded-2xl"
       style={{
         width: d.w, height: d.h,
-        background: "rgba(255,45,149,0.045)",
-        border: `1.5px solid ${selected ? NEON.pink : "rgba(255,45,149,0.28)"}`,
-        boxShadow: selected ? `0 0 24px -8px ${NEON.pink}` : "none",
+        background: "rgba(79,163,227,0.05)",
+        border: `1.5px solid ${selected ? NEON.cyan : "rgba(79,163,227,0.30)"}`,
+        boxShadow: selected ? `0 0 24px -8px ${NEON.cyan}` : "none",
       }}
     >
-      <div className="px-3 py-1.5 text-[12px] font-bold uppercase tracking-[0.16em]" style={{ color: NEON.pinkSoft }}>
+      <div className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-bold uppercase tracking-[0.16em]" style={{ color: NEON.cyan }}>
         <EditableText value={d.label} onChange={(v) => update({ label: v })} placeholder="Zone" />
-        <button className="nodrag ml-2 text-[10px] normal-case opacity-50 hover:opacity-100" onPointerDown={(e) => e.stopPropagation()} onClick={remove}>
+        {/* teaching-path position: deck deal order + the space-walk follow it when set */}
+        <span
+          className="zone-actions rounded px-1 text-[9px] font-bold normal-case tabular-nums"
+          style={{
+            border: `1px solid ${typeof d.pathOrder === "number" ? "rgba(252,163,17,0.55)" : NEON.borderSoft}`,
+            color: typeof d.pathOrder === "number" ? NEON.yellow : NEON.muted,
+          }}
+          title="Teaching path position — deck deals this zone's cards in this order"
+        >
+          path{" "}
+          <EditableText
+            value={typeof d.pathOrder === "number" ? String(d.pathOrder) : ""}
+            onChange={(v) => {
+              const n = parseInt(v, 10);
+              update({ pathOrder: Number.isFinite(n) ? n : null });
+            }}
+            placeholder="–"
+          />
+        </span>
+        <button
+          className="nodrag zone-actions text-[10px] normal-case opacity-50 hover:opacity-100"
+          title="Tidy: grid-align this zone's cards with even gaps (one undo step)"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={() => tidyZone(id)}
+        >
+          tidy
+        </button>
+        <button className="nodrag zone-actions text-[10px] normal-case opacity-50 hover:opacity-100" onPointerDown={(e) => e.stopPropagation()} onClick={remove}>
           ✕
         </button>
       </div>
@@ -72,17 +219,648 @@ function ZoneNode({ id, data, selected }: NodeProps) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Lesson node — the finer grouping tier (WORLD → REGION(zone) → LESSON → CARD).
+// A LESSON IS A CALM BAND AT REST (L1): a labeled colored strip — title + a
+// subtle brand tint — and nothing else, so a filmed board stays clean. ALL
+// chrome (path badge, resize handles, ×, fit, beat/check toggles) reveals only
+// on hover during authoring. Consecutive lessons alternate two brand tints
+// (warm / navy) so the path segments read distinctly; a CHECK lesson wears a
+// red gate tint — "this is where I get tested." Interior cards flow LEFT→RIGHT
+// through four OPTIONAL beat guides (Hook · Teach · Model-Practice · Check),
+// soft guides not hard containers. Cards inside ride parentId, so dragging the
+// lesson moves them natively. (Campus-color theming is a World-v1 skin on top
+// of this alternating-tint system — see docs/CANVAS-ROADMAP.md.)
+// ---------------------------------------------------------------------------
+const LESSON_TINTS = {
+  warm: { fill: "rgba(252,163,17,0.09)", edge: "rgba(252,163,17,0.32)", edgeOn: NEON.yellow, glow: NEON.yellow, ink: "#E8B84B" },
+  navy: { fill: "rgba(79,163,227,0.08)", edge: "rgba(79,163,227,0.30)", edgeOn: NEON.cyan, glow: NEON.cyan, ink: "#8CC0EE" },
+  check: { fill: "rgba(206,17,38,0.10)", edge: "rgba(206,17,38,0.45)", edgeOn: "#E0284A", glow: "#E0284A", ink: "#FF8B9E" },
+} as const;
+
+// CANVAS VOCABULARY — Lee calls these "Lessons", never "Chapters" (2026-07). The
+// DB rows are still `chapters`; only the on-canvas LABEL flips "Ch N ·" → "Lesson N ·".
+const lessonLabelOf = (ch: Parameters<typeof chapterLabel>[0]) => chapterLabel(ch).replace(/^Ch\s+/i, "Lesson ");
+
+// COPY / PASTE clipboard (Lee) — in-memory + localStorage. A frame clip is one
+// frame + its contents; a scaffold clip is a lesson's frames + contents (NO
+// lesson-level fields). Stored as CloneNode[] so paste reuses cloneNodeSet and
+// survives reload / source deletion.
+type FrameClip = { kind: "frame"; nodes: CloneNode[]; edges: CloneEdge[]; rootId: string; label: string };
+type ScaffoldClip = { kind: "scaffold"; nodes: CloneNode[]; edges: CloneEdge[]; frameIds: string[]; label: string };
+type CanvasClip = FrameClip | ScaffoldClip;
+const CLIP_KEY = "sa-canvas-clipboard";
+/** Stable parity for a lesson with no pathOrder, so the two tints still alternate. */
+const lessonHash = (s: string) => { let h = 0; for (let i = 0; i < s.length; i++) h = (h + s.charCodeAt(i)) | 0; return Math.abs(h); };
+
+// ACTIVE-LESSON GATING (Lee — the lag fix): exactly ONE lesson is "active"
+// canvas-wide; only its frames/cards/elements mount. Every other lesson renders
+// as a collapsed chip with ZERO descendant nodes mounted (they stay in the store
+// but carry hidden:true, so React Flow doesn't render them — no data is deleted).
+// Switching active toggles hidden flags; nothing is added or removed.
+const ActiveLessonContext = createContext<{ activeLessonId: string | null; setActiveLesson: (id: string) => void }>({
+  activeLessonId: null,
+  setActiveLesson: () => {},
+});
+
+/** Which lesson owns a node — direct child of a lesson, or a child of one of the
+ *  lesson's frames (the same 2-tier membership the duplicate paths use). Lesson
+ *  nodes, orphans, and top-level furniture return null (never gated). */
+function lessonOwnerOf(n: { type?: string; parentId?: string }, lessonIds: Set<string>, frameToLesson: Map<string, string>): string | null {
+  if (!n.parentId || n.type === "lesson") return null;
+  if (lessonIds.has(n.parentId)) return n.parentId; // direct lesson child (loose card / lesson heading)
+  return frameToLesson.get(n.parentId) ?? null; // child of one of the lesson's frames
+}
+
+/** Compute hidden flags for gating: every gated descendant of a NON-active lesson
+ *  is hidden; the active lesson's descendants are shown. activeId===null ⇒ show
+ *  all (no gating). Returns a Map(nodeId → hidden) covering only gated nodes. */
+function computeLessonHidden(nodes: { id: string; type?: string; parentId?: string }[], activeId: string | null): Map<string, boolean> {
+  const lessonIds = new Set(nodes.filter((n) => n.type === "lesson" && !n.parentId).map((n) => n.id));
+  const frameToLesson = new Map<string, string>();
+  for (const n of nodes) if (n.type === "frame" && n.parentId && lessonIds.has(n.parentId)) frameToLesson.set(n.id, n.parentId);
+  const out = new Map<string, boolean>();
+  for (const n of nodes) {
+    const owner = lessonOwnerOf(n, lessonIds, frameToLesson);
+    if (owner != null) out.set(n.id, activeId == null ? false : owner !== activeId);
+  }
+  return out;
+}
+
+/** Pure: return a node array with gating hidden flags applied (for LOAD time, so
+ *  non-active descendants never mount at all — the actual lag fix). */
+function markLessonHidden<T extends { id: string; type?: string; parentId?: string; hidden?: boolean }>(nodes: T[], activeId: string | null): T[] {
+  const hidden = computeLessonHidden(nodes, activeId);
+  return nodes.map((n) => (hidden.has(n.id) ? { ...n, hidden: hidden.get(n.id)! } : n));
+}
+
+function LessonNode({ id, data, selected }: NodeProps) {
+  const d = data as unknown as LessonBox;
+  const { update, remove } = useCardActions(id);
+  const rf = useReactFlow();
+  const nodes = useNodes(); // subscribe: the display label follows a contained heading live
+  const frameNav = useFrameNav();
+  const [hover, setHover] = useState(false);
+  const showChrome = hover || selected; // chrome (incl. resize handles) is hover-only
+  // manual resize (V2): NodeResizer writes live; the end commits ONE bus command
+  const resizeStart = useRef<{ pos: { x: number; y: number }; w: number; h: number } | null>(null);
+
+  const headingText = (() => {
+    const h = nodes.find((n) => n.parentId === id && n.type === "heading");
+    if (!h) return null;
+    const raw = ((h.data as Record<string, unknown>).text as string) ?? "";
+    const m = /^(.*?)\s*\[[^\]]+\]\s*$/s.exec(raw); // strip the "[sub]" tail
+    return (m ? m[1] : raw).trim() || null;
+  })();
+
+  // ALTERNATING TINT (L1): pathOrder parity picks warm/navy; a CHECK lesson is
+  // always the red gate. pathOrder-less lessons fall back to a stable id hash.
+  const parity = (typeof d.pathOrder === "number" ? d.pathOrder : lessonHash(id)) % 2;
+  const tint = d.check ? LESSON_TINTS.check : parity === 0 ? LESSON_TINTS.warm : LESSON_TINTS.navy;
+
+  // LESSON FIELDS (topic-grouping batch) — effective values with read-time
+  // defaults (migrateLessonFields fills persisted lessons; these `??` keep a
+  // brand-new node safe). Badges below are BOTH display + click-to-edit.
+  const category: LessonCategory = d.category ?? "TEACH";
+  const access: LessonAccess = d.access ?? "FREE";
+  const pathing: LessonPathing = d.pathing ?? "RECOMMENDED";
+  const status: LessonStatus = d.status ?? "UNFILMED";
+  const statusTone = status === "PUBLISHED" ? "#3BF5A0" : status === "FILMED" ? "#FCA311" : "#FF5C6C";
+  const cycleCategory = () => { const i = LESSON_CATEGORIES.indexOf(category); update({ category: LESSON_CATEGORIES[(i + 1) % LESSON_CATEGORIES.length] }); };
+  const cycleStatus = () => { const i = LESSON_STATUSES.indexOf(status); update({ status: LESSON_STATUSES[(i + 1) % LESSON_STATUSES.length] }); };
+  const toggleAccess = () => update({ access: access === "PAID" ? "FREE" : "PAID" });
+  const togglePathing = () => update({ pathing: pathing === "OPTIONAL" ? "RECOMMENDED" : "OPTIONAL" });
+  const typeTone = category === "CEQ" ? "#FF8B9E" : category === "TEACH" ? NEON.cyan : category === "PRACTICE" ? "#7EF3C0" : NEON.muted;
+
+  /** FIT TO CONTENTS (optional button — never automatic): shrink-wrap the box
+   *  around its children (+padding) in ONE undo step. Children keep their
+   *  absolute spots: the box moves, their rel coords shift. */
+  const hug = () => {
+    const me = rf.getNode(id);
+    if (!me) return;
+    const children = rf.getNodes().filter((n) => n.parentId === id && !n.hidden);
+    if (children.length === 0) return;
+    const PAD = 24;
+    const PAD_TOP = 48; // clears the label row
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const c of children) {
+      const w = c.measured?.width ?? ((c.data as unknown as CardBase).w as number | undefined) ?? 300;
+      const h = c.measured?.height ?? ((c.data as unknown as CardBase).h as number | undefined) ?? 170;
+      minX = Math.min(minX, c.position.x);
+      minY = Math.min(minY, c.position.y);
+      maxX = Math.max(maxX, c.position.x + w);
+      maxY = Math.max(maxY, c.position.y + h);
+    }
+    const dx = minX - PAD;
+    const dy = minY - PAD_TOP;
+    const after = { pos: { x: me.position.x + dx, y: me.position.y + dy }, w: Math.round(maxX - minX + PAD * 2), h: Math.round(maxY - minY + PAD_TOP + PAD) };
+    const before = { pos: { ...me.position }, w: d.w, h: d.h, kids: children.map((c) => ({ id: c.id, pos: { ...c.position } })) };
+    const apply = (pos: { x: number; y: number }, w: number, h: number, kidPos: (n: { id: string; position: { x: number; y: number } }) => { x: number; y: number }) =>
+      rf.setNodes((nds) =>
+        nds.map((n) => {
+          if (n.id === id) return { ...n, position: { ...pos }, width: w, height: h, data: { ...n.data, w, h } };
+          if (n.parentId === id) return { ...n, position: kidPos(n) };
+          return n;
+        }),
+      );
+    bus.dispatch({
+      label: "fit lesson to contents",
+      do: () => apply(after.pos, after.w, after.h, (n) => ({ x: n.position.x - dx, y: n.position.y - dy })),
+      undo: () => apply(before.pos, before.w, before.h, (n) => before.kids.find((k) => k.id === n.id)?.pos ?? n.position),
+    });
+  };
+
+  const stop = (e: React.PointerEvent) => e.stopPropagation();
+  const chromeBtn = "nodrag zone-actions grid h-4 w-4 place-items-center rounded opacity-60 hover:opacity-100";
+
+  // ACTIVE-LESSON GATING — when this lesson isn't the active one, render a compact
+  // chip (title · badges · frame count) with ZERO frames/cards mounted (they carry
+  // hidden:true). Click to make it active (mounts it, unmounts the others).
+  const { activeLessonId, setActiveLesson } = useContext(ActiveLessonContext);
+  const collapsed = activeLessonId != null && id !== activeLessonId;
+  const frameCount = nodes.filter((n) => n.type === "frame" && n.parentId === id).length;
+  if (collapsed) {
+    return (
+      <div className="relative h-full w-full">
+        <ConnectionDots color={tint.edgeOn} />
+        <button
+          className="absolute left-0 top-0 flex max-w-[260px] flex-col items-start gap-1 rounded-xl px-3 py-2 text-left transition-transform hover:-translate-y-px"
+          style={{ background: "rgba(16,24,44,0.92)", border: `1.5px solid ${selected ? tint.edgeOn : NEON.borderSoft}`, boxShadow: "0 6px 18px -10px rgba(0,0,0,0.8)" }}
+          title="Collapsed lesson — click to make it active (loads its frames)"
+          onClick={() => setActiveLesson(id)}
+        >
+          <div className="flex w-full items-center gap-1.5">
+            {d.check && <Flag className="h-3 w-3 shrink-0" style={{ color: "#FF8B9E" }} />}
+            <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: NEON.text }}>{headingText || d.label || "Lesson"}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="rounded px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider" style={{ color: "#0B0F1E", background: typeTone }}>{LESSON_CATEGORY_LABEL[category]}</span>
+            <span className="rounded px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider" style={access === "PAID" ? { color: "#FF8B9E", border: "1px solid rgba(255,92,108,0.55)" } : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }}>{access === "PAID" ? "Paid" : "Free"}</span>
+            {pathing === "OPTIONAL" && <span className="rounded px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider italic" style={{ color: NEON.muted, border: `1px dashed ${NEON.borderSoft}` }}>Optional</span>}
+            <span className="rounded px-1.5 py-0.5 text-[8px] font-bold tabular-nums" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} title={`${frameCount} frame${frameCount === 1 ? "" : "s"}`}>{frameCount}f</span>
+          </div>
+          {d.topic && d.topic !== (headingText || d.label) ? <div className="max-w-full truncate text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>{d.topic}</div> : null}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="group/lesson relative h-full w-full rounded-2xl"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        // FRAMES-ONLY AUTHORING (Lee's call): the lesson draws NOTHING at rest —
+        // no box, no tint, no header, no beat-column labels. Only the frames show.
+        // The node stays a hit-testable container so hovering reveals its chrome
+        // (the bottom lesson navigator already tells Lee which lesson he's in).
+        minWidth: 180,
+        minHeight: 56,
+        background: "transparent",
+        border: `1.5px solid ${selected ? tint.edgeOn : "transparent"}`,
+        boxShadow: selected ? `0 0 24px -8px ${tint.glow}` : "none",
+      }}
+    >
+      {/* lessons connect too: card↔lesson, lesson↔lesson (V2) */}
+      <ConnectionDots color={tint.edgeOn} />
+
+      {/* LESSON BADGES (topic-grouping batch) — ALWAYS visible; a compact tab above
+          the lesson. Each badge is display + a click-to-edit affordance. Category
+          cycles CEQ→Teach→Practice→Nerd Out; access toggles FREE↔PAID (on CEQ this
+          IS the Free/Paid variant; PAID uses the gate B&W + lock language); the
+          OPTIONAL badge shows only when off-path. Pathing toggles from hover chrome. */}
+      <div className="nodrag absolute -top-6 left-0 z-[3] flex items-center gap-1" onPointerDown={stop}>
+        <button
+          className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+          style={{ color: "#0B0F1E", background: typeTone, border: `1px solid ${typeTone}` }}
+          title={`Lesson category: ${category} — click to cycle`}
+          onClick={cycleCategory}
+        >
+          {LESSON_CATEGORY_LABEL[category]}
+        </button>
+        {/* PUBLISH STATUS (cram-mode batch) — click to cycle UNFILMED → FILMED →
+            PUBLISHED; the outline colour-codes rows by it. */}
+        <button
+          className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+          style={{ color: statusTone, background: `${statusTone}22`, border: `1px solid ${statusTone}` }}
+          title={`Publish status: ${status} — click to cycle`}
+          onClick={cycleStatus}
+        >
+          {status}
+        </button>
+        <button
+          className="flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+          style={access === "PAID"
+            ? { color: "#FF8B9E", background: "rgba(255,92,108,0.12)", border: "1px solid rgba(255,92,108,0.55)", filter: "grayscale(0.2)" }
+            : { color: NEON.muted, background: "transparent", border: `1px solid ${NEON.borderSoft}` }}
+          title={access === "PAID" ? "PAID — behind the study-pass gate (visual language). Click → FREE" : "FREE — click → PAID"}
+          onClick={toggleAccess}
+        >
+          {access === "PAID" ? <><Lock className="h-2.5 w-2.5" /> Paid</> : "Free"}
+        </button>
+        {pathing === "OPTIONAL" && (
+          <button
+            className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider italic"
+            style={{ color: NEON.muted, background: "transparent", border: `1px dashed ${NEON.borderSoft}`, opacity: 0.7, transform: "rotate(-3deg)" }}
+            title="OPTIONAL (satellite) — off the recommended path. Click → RECOMMENDED"
+            onClick={togglePathing}
+          >
+            Optional
+          </button>
+        )}
+      </div>
+      {/* the lesson is a DESIGNED SPACE: resize it by hand (handles on hover) */}
+      <NodeResizer
+        isVisible={showChrome}
+        minWidth={180}
+        minHeight={56}
+        lineStyle={{ borderColor: tint.edgeOn }}
+        handleStyle={{ width: 8, height: 8, borderRadius: 2, background: tint.edgeOn, border: "none" }}
+        onResizeStart={() => {
+          const me = rf.getNode(id);
+          if (me) resizeStart.current = { pos: { ...me.position }, w: d.w, h: d.h };
+        }}
+        onResizeEnd={(_, p) => {
+          const before = resizeStart.current;
+          resizeStart.current = null;
+          if (!before) return;
+          const apply = (pos: { x: number; y: number }, w: number, h: number) =>
+            rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, position: { ...pos }, width: w, height: h, data: { ...n.data, w, h } } : n)));
+          bus.dispatch({
+            label: "resize lesson",
+            // floor at the min even if the resizer reports garbage — a lesson
+            // below header size is unrecoverable by hand
+            do: () => apply({ x: p.x, y: p.y }, Math.max(180, Math.round(p.width)), Math.max(56, Math.round(p.height))),
+            undo: () => apply(before.pos, before.w, before.h),
+          });
+        }}
+      />
+
+
+      {/* Grid column headers + empty-beat placeholders removed (frames-only). */}
+
+      {/* HOVER CHROME BAND — nothing at rest; on hover/selected it fades in the
+          lesson label + actions. (Was always-on before; now hidden by default.) */}
+      <div className={`relative z-[1] flex items-center gap-1.5 px-3 py-1.5 text-[11.5px] font-bold uppercase tracking-[0.14em] transition-opacity ${showChrome ? "opacity-100" : "pointer-events-none opacity-0"}`} style={{ color: tint.ink }}>
+        {d.check && <Flag className="h-3 w-3 shrink-0" style={{ color: tint.ink }} />}
+        {headingText ? (
+          <span title="Label follows the heading inside this lesson">{headingText}</span>
+        ) : (
+          <EditableText value={d.label} onChange={(v) => update({ label: v })} placeholder="Lesson" />
+        )}
+        {/* LESSON MEDIA (intro/outro upload + preview) now lives in the Frame Header
+            panel (toolbar) — reachable while locked into frames. */}
+        {/* CHROME — hover/selected only (L1); pointer-events off while hidden so
+            invisible controls can't be clicked. */}
+        <span className={`flex items-center gap-1 transition-opacity ${showChrome ? "opacity-100" : "pointer-events-none opacity-0"}`}>
+          <span
+            className="zone-actions rounded px-1 text-[9px] font-bold normal-case tabular-nums"
+            style={{ border: `1px solid ${typeof d.pathOrder === "number" ? tint.edgeOn : NEON.borderSoft}`, color: typeof d.pathOrder === "number" ? tint.ink : NEON.muted }}
+            title="Lesson path position within its region"
+          >
+            path{" "}
+            <EditableText
+              value={typeof d.pathOrder === "number" ? String(d.pathOrder) : ""}
+              onChange={(v) => { const n = parseInt(v, 10); update({ pathOrder: Number.isFinite(n) ? n : null }); }}
+              placeholder="–"
+            />
+          </span>
+          {/* TOPIC (topic-grouping batch) — groups sibling lessons into a row in
+              the grid-by-type view. Defaults to the lesson label. */}
+          <span
+            className="zone-actions rounded px-1 text-[9px] font-bold normal-case"
+            style={{ border: `1px solid ${d.topic ? tint.edgeOn : NEON.borderSoft}`, color: d.topic ? tint.ink : NEON.muted }}
+            title="Topic — groups sibling lessons into one row in the grid-by-type view"
+          >
+            topic{" "}
+            <EditableText value={d.topic ?? ""} onChange={(v) => update({ topic: v })} placeholder={d.label || "…"} />
+          </span>
+          {/* PATHING toggle — RECOMMENDED (main path) ↔ OPTIONAL (satellite). */}
+          <button
+            className={chromeBtn}
+            title={pathing === "OPTIONAL" ? "OPTIONAL (satellite) — click to make RECOMMENDED" : "RECOMMENDED — click to make OPTIONAL (satellite)"}
+            onPointerDown={stop}
+            onClick={togglePathing}
+          >
+            <Milestone className="h-3 w-3" style={{ color: pathing === "OPTIONAL" ? NEON.muted : tint.ink, opacity: pathing === "OPTIONAL" ? 0.6 : 1 }} />
+          </button>
+          <button
+            className={chromeBtn}
+            title={d.check ? "Not a Check gate" : "Mark as a Check gate — red, where students get tested"}
+            onPointerDown={stop}
+            onClick={() => update({ check: !d.check })}
+          >
+            <Flag className="h-3 w-3" style={{ color: d.check ? "#FF8B9E" : NEON.muted }} />
+          </button>
+          <button className={chromeBtn} title="Add a frame (a 16:9 shot) to this lesson" onPointerDown={stop} onClick={() => frameNav.addFrame(id)}>
+            <Plus className="h-3 w-3" style={{ color: NEON.cyan }} />
+          </button>
+          {/* DUPLICATE (PROMPT 1): deep-copy the whole lesson — frames, cards,
+              scripts, and its named decks — into the next empty region cell. */}
+          <button className={chromeBtn} title="Duplicate lesson (frames, cards, scripts, decks) into the next empty cell" onPointerDown={stop} onClick={() => frameNav.duplicateLesson(id)}>
+            <Copy className="h-3 w-3" />
+          </button>
+          {/* COPY / PASTE SCAFFOLD (Lee) — copy this lesson's frame buildout; paste
+              APPENDS it into another lesson (target keeps its own type/topic/access). */}
+          <button className={chromeBtn} title="Copy this lesson's frame scaffold (frames + contents, not its type/topic/access)" onPointerDown={stop} onClick={() => frameNav.copyScaffold(id)}>
+            <ClipboardCopy className="h-3 w-3" />
+          </button>
+          {frameNav.hasScaffoldClip && (
+            <button className={chromeBtn} title="Paste the copied scaffold here — appends its frames (never overwrites)" onPointerDown={stop} onClick={() => frameNav.pasteScaffold(id)}>
+              <ClipboardPaste className="h-3 w-3" style={{ color: NEON.cyan }} />
+            </button>
+          )}
+          <button className={chromeBtn} title="Fit to contents (one undo step)" onPointerDown={stop} onClick={hug}>
+            <Shrink className="h-3 w-3" />
+          </button>
+          <button className={chromeBtn} title="Delete lesson" onPointerDown={stop} onClick={remove}>
+            <X className="h-3 w-3" />
+          </button>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** DUPLICATE FRAME dialog (PROMPT 1) — pick a target lesson + beat for the copy.
+ *  Read-only picker; the actual deep copy is duplicateFrame in the route. Reads
+ *  live nodes so the "N left" per-beat counts respect the 5-cap. */
+function DuplicateFrameDialog({ frameId, onClose, onDuplicate }: {
+  frameId: string;
+  onClose: () => void;
+  onDuplicate: (frameId: string, dest: { lessonId: string; beat: Beat }) => void;
+}) {
+  const rf = useReactFlow();
+  const nodes = rf.getNodes();
+  const frame = nodes.find((n) => n.id === frameId);
+  const lessons = nodes.filter((n) => n.type === "lesson" && !n.parentId);
+  const labelOf = (l: { id: string; data: unknown }) => {
+    const h = nodes.find((n) => n.parentId === l.id && n.type === "heading");
+    const raw = h ? (((h.data as { text?: string }).text) ?? "") : "";
+    const stripped = /^(.*?)\s*\[[^\]]+\]\s*$/s.exec(raw)?.[1] ?? raw;
+    return (stripped || (l.data as { label?: string }).label || "Lesson").trim();
+  };
+  const [lessonId, setLessonId] = useState(frame?.parentId ?? lessons[0]?.id ?? "");
+  const [beat, setBeat] = useState<Beat>(frame ? beatColOf(frame as never) : "hook");
+  if (!frame) return null;
+  const roomLeft = (b: Beat) => RESERVED_ROWS - framesInBeat(rf.getNodes() as never, lessonId, b).length;
+  const full = roomLeft(beat) <= 0 || !lessonId;
+  return (
+    <div className="absolute inset-0 z-[70] grid place-items-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={onClose}>
+      <div className="w-80 max-w-[92vw] rounded-xl p-4" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
+        <div className="mb-2 flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}><Copy className="h-3.5 w-3.5" /> Duplicate frame to…</div>
+        <label className="block text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>
+          lesson
+          <select className="mt-0.5 w-full rounded bg-black/40 px-1 py-1 text-[11px] font-normal normal-case outline-none" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={lessonId} onChange={(e) => setLessonId(e.target.value)}>
+            {lessons.map((l) => <option key={l.id} value={l.id}>{labelOf(l)}</option>)}
+          </select>
+        </label>
+        <div className="mt-2 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>beat</div>
+        <div className="mt-0.5 grid grid-cols-2 gap-1">
+          {BEAT_COLUMNS.map((b) => {
+            const left = roomLeft(b);
+            return (
+              <button key={b} disabled={left <= 0} onClick={() => setBeat(b)} className="rounded px-1.5 py-1 text-[11px] font-semibold disabled:opacity-40"
+                style={{ border: `1px solid ${beat === b ? NEON.yellow : NEON.borderSoft}`, color: beat === b ? NEON.yellow : NEON.text }}>
+                {BEAT_LABEL[b]} <span className="tabular-nums" style={{ color: NEON.muted }}>({left})</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-3 flex justify-end gap-2">
+          <button className="rounded px-2.5 py-1 text-[11px] font-semibold" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.muted }} onClick={onClose}>Cancel</button>
+          <button className="rounded px-2.5 py-1 text-[11px] font-bold disabled:opacity-40" disabled={full} style={{ background: NEON.yellow, color: "#0B1322" }} onClick={() => onDuplicate(frameId, { lessonId, beat })}>Duplicate</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** REHEARSAL HUD (PROMPT 3 item 4) — bottom-center stopwatch overlay. Tap to
+ *  start; space walks cues via the normal handler (no recording). Finish shows
+ *  actual vs estimate; Save stores it on the frame. Esc exits (handled by the
+ *  route's ladder). */
+/** FRAME THUMB — a tiny zoomed-out schematic of a frame for the in-frame layout
+ *  strip: the frame's cards as pale blocks (scaled from frame space), the current
+ *  one glowing. DRAGGABLE — drop it onto another thumb to SWAP their slots. Click
+ *  enters the frame. Hover shows the title. */
+function FrameThumb({ frame, nodes, active, color, code, onEnter, onDropFrame }: {
+  frame: { id: string; data: Record<string, unknown> };
+  nodes: { id: string; parentId?: string; type?: string; position: { x: number; y: number }; measured?: { width?: number; height?: number }; data: Record<string, unknown> }[];
+  active: boolean; color: string; code: string;
+  onEnter: () => void; onDropFrame: (srcId: string) => void;
+}) {
+  const [over, setOver] = useState(false);
+  const W = 66, H = 37;
+  const sx = W / FRAME_W, sy = H / FRAME_H;
+  const kids = nodes.filter((n) => n.parentId === frame.id && !isContainerType(n.type));
+  const title = (frame.data.title as string) || "";
+  return (
+    <div
+      draggable
+      onDragStart={(e) => { e.dataTransfer.setData("text/sa-frame", frame.id); e.dataTransfer.effectAllowed = "move"; }}
+      onDragOver={(e) => { if (e.dataTransfer.types.includes("text/sa-frame")) { e.preventDefault(); setOver(true); } }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => { setOver(false); const src = e.dataTransfer.getData("text/sa-frame"); if (src) { e.preventDefault(); onDropFrame(src); } }}
+      onClick={onEnter}
+      title={title ? `${code} · ${title}` : `${code} — drag to swap`}
+      className="relative shrink-0 cursor-grab overflow-hidden rounded active:cursor-grabbing"
+      style={{ width: W, height: H, border: `1.5px solid ${active ? color : over ? NEON.cyan : NEON.borderSoft}`, background: active ? `${color}22` : "rgba(255,255,255,0.03)", boxShadow: active ? `0 0 12px -3px ${color}` : over ? `0 0 10px -3px ${NEON.cyan}` : "none" }}
+    >
+      {kids.map((n) => {
+        const w = Math.max(3, ((n.measured?.width ?? (n.data.w as number) ?? 220)) * sx);
+        const h = Math.max(2, ((n.measured?.height ?? (n.data.h as number) ?? 120)) * sy);
+        return <div key={n.id} className="pointer-events-none absolute rounded-[1px]" style={{ left: n.position.x * sx, top: n.position.y * sy, width: w, height: h, background: "rgba(232,240,252,0.5)", border: "0.5px solid rgba(232,240,252,0.28)" }} />;
+      })}
+      {kids.length === 0 && <span className="pointer-events-none absolute inset-0 grid place-items-center text-[7.5px] italic" style={{ color: NEON.muted }}>empty</span>}
+      <span className="pointer-events-none absolute bottom-0 left-0 rounded-tr px-0.5 text-[7px] font-bold tabular-nums" style={{ color: active ? "#0B1322" : NEON.text, background: active ? color : "rgba(8,12,24,0.7)" }}>{code}</span>
+    </div>
+  );
+}
+
+/** The placeholder for an EMPTY beat column. It's BOTH a CREATE button (click → a
+ *  fresh frame in this beat, entered — so a beat whose only frame was deleted can
+ *  be restarted) AND a DROP TARGET (drag a frame from another beat straight in;
+ *  Lee: dragging Teach → empty Model did nothing). Highlights while a frame hovers. */
+function EmptyBeatCell({ color, onCreate, onDropFrame }: { color: string; onCreate: () => void; onDropFrame: (srcId: string) => void }) {
+  const [over, setOver] = useState(false);
+  return (
+    <button
+      type="button"
+      className="grid h-[37px] w-[66px] place-items-center rounded transition-colors"
+      style={{ border: `1px dashed ${over ? color : NEON.borderSoft}`, background: over ? `${color}1f` : "transparent", color: over ? color : NEON.muted }}
+      title="Click to add a frame here — or drag a frame from another beat into this one"
+      onClick={onCreate}
+      onDragOver={(e) => { if (e.dataTransfer.types.includes("text/sa-frame")) { e.preventDefault(); setOver(true); } }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => { setOver(false); const src = e.dataTransfer.getData("text/sa-frame"); if (src) { e.preventDefault(); onDropFrame(src); } }}
+    >
+      {over ? <span className="text-[8px] italic">drop</span> : <Plus className="h-3.5 w-3.5" />}
+    </button>
+  );
+}
+
+/** A rehearsal RUN — one stopwatch that accumulates per-frame across a whole pass.
+ *  `perFrame` banks completed time (ms); the live segment (running && segStart) is
+ *  added on the fly. Switching frames banks + pauses; Finish freezes finishedAt. */
+interface RehearseRun {
+  frameId: string;                  // the frame currently being timed
+  running: boolean;                 // stopwatch counting right now
+  segStart: number | null;          // epoch ms the live segment began (null when paused)
+  perFrame: Record<string, number>; // banked ms per frame (excludes the live segment)
+  order: string[];                  // frames in first-entered order (report order)
+  finishedAt: number | null;        // set on Finish → the report is frozen
+}
+
+/** Bank the live segment into perFrame (leaves running as-is unless caller flips it). */
+function bankRehearseSegment(r: RehearseRun): RehearseRun {
+  if (!r.running || r.segStart == null) return r;
+  const add = Date.now() - r.segStart;
+  return { ...r, perFrame: { ...r.perFrame, [r.frameId]: (r.perFrame[r.frameId] ?? 0) + add }, segStart: r.running ? Date.now() : null };
+}
+
+const fmtClock = (s: number) => `${Math.floor(s / 60)}:${String(Math.max(0, Math.round(s)) % 60).padStart(2, "0")}`;
+
+function RehearsalHud({ run, estSeconds, frameLabel, reportRows, onToggle, onFinish, onExit }: {
+  run: RehearseRun;
+  estSeconds: number;
+  frameLabel: string;
+  reportRows: { id: string; label: string; secs: number }[];
+  onToggle: () => void;
+  onFinish: () => void;
+  onExit: () => void;
+}) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    if (run.running && !run.finishedAt) { const id = window.setInterval(() => setNow(Date.now()), 200); return () => window.clearInterval(id); }
+  }, [run.running, run.finishedAt]);
+  const liveSeg = run.running && run.segStart != null ? (now - run.segStart) / 1000 : 0;
+  const curSecs = (run.perFrame[run.frameId] ?? 0) / 1000 + liveSeg;
+  const totalSecs = Object.values(run.perFrame).reduce((a, b) => a + b, 0) / 1000 + liveSeg;
+
+  // FINISHED → the per-frame report (a small card above the pill).
+  if (run.finishedAt) {
+    const total = reportRows.reduce((a, r) => a + r.secs, 0);
+    return (
+      <div className="fixed bottom-6 left-1/2 z-[85] -translate-x-1/2">
+        <div className="w-[320px] rounded-xl p-3" style={{ background: "rgba(8,12,24,0.96)", border: "1px solid rgba(126,243,192,0.5)", boxShadow: "0 18px 44px -14px rgba(0,0,0,0.85)", color: "#EAF2FF" }}>
+          <div className="mb-2 flex items-center gap-2">
+            <Timer className="h-4 w-4" style={{ color: "#7EF3C0" }} />
+            <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: "#7EF3C0" }}>Rehearsal report</span>
+            <span className="ml-auto text-[15px] font-bold tabular-nums">{fmtClock(total)}</span>
+          </div>
+          <div className="max-h-[40vh] space-y-0.5 overflow-y-auto">
+            {reportRows.map((r) => (
+              <div key={r.id} className="flex items-center gap-2 text-[11.5px]">
+                <span className="min-w-0 flex-1 truncate">{r.label}</span>
+                <span className="tabular-nums" style={{ color: "rgba(255,255,255,0.75)" }}>{fmtClock(r.secs)}</span>
+              </div>
+            ))}
+          </div>
+          <button className="mt-2 w-full rounded-full py-1 text-[11px] font-bold" style={{ background: "#7EF3C0", color: "#06210F" }} onClick={onExit}>Done</button>
+        </div>
+      </div>
+    );
+  }
+
+  // RUNNING / PAUSED → the stopwatch pill (current frame + running total).
+  return (
+    <div className="pointer-events-none fixed bottom-6 left-1/2 z-[85] -translate-x-1/2">
+      <div className="pointer-events-auto flex items-center gap-2 rounded-full px-3 py-1.5" style={{ background: "rgba(8,12,24,0.92)", border: "1px solid rgba(126,243,192,0.5)", boxShadow: "0 12px 30px -12px rgba(0,0,0,0.8)", color: "#EAF2FF" }}>
+        <button className="grid h-6 w-6 place-items-center rounded-full" title={run.running ? "Pause" : "Start / resume"} style={{ background: run.running ? "#F5D48F" : "#7EF3C0", color: "#06210F" }} onClick={onToggle}>
+          {run.running ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+        </button>
+        <div className="flex flex-col leading-tight">
+          <span className="max-w-[150px] truncate text-[9px] font-bold uppercase tracking-wider" style={{ color: run.running ? "#7EF3C0" : "#F5D48F" }}>{run.running ? frameLabel : "paused — click ▶"}</span>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[16px] font-bold tabular-nums">{fmtClock(curSecs)}</span>
+            {estSeconds > 0 && <span className="text-[9.5px]" style={{ color: "rgba(255,255,255,0.5)" }}>/ est {fmtClock(estSeconds)}</span>}
+          </div>
+        </div>
+        <span className="ml-1 rounded-md px-1.5 py-0.5 text-[10px] font-bold tabular-nums" style={{ background: "rgba(126,243,192,0.14)", color: "#7EF3C0" }} title="Running total across all frames">Σ {fmtClock(totalSecs)}</span>
+        <button className="rounded-full px-2.5 py-0.5 text-[11px] font-bold" style={{ background: "#FF8B9E", color: "#2A0710" }} onClick={onFinish}>Finish</button>
+        <button className="grid h-5 w-5 place-items-center rounded-full" title="Exit (Esc)" style={{ color: "rgba(255,255,255,0.5)" }} onClick={onExit}><X className="h-3.5 w-3.5" /></button>
+      </div>
+    </div>
+  );
+}
+
+/** CAMERA-SAFE GUIDES (PROMPT 3 item 5) — advisory overlay on the current frame's
+ *  16:9 letterbox rect: phone-safe bounds, camera-bubble corner, watermark
+ *  corner, and the YouTube end-screen region (last-frame guidance). Lines only;
+ *  never persisted, never shown in film. */
+function SafeGuidesOverlay({ rect }: { rect: { left: number; top: number; width: number; height: number } }) {
+  const { left, top, width: w, height: h } = rect;
+  const box = (x: number, y: number, bw: number, bh: number, color: string, label: string): React.ReactNode => (
+    <div className="absolute" style={{ left: left + x, top: top + y, width: bw, height: bh, border: `1.5px dashed ${color}` }}>
+      <span className="absolute left-0.5 top-0.5 text-[9px] font-bold uppercase tracking-wider" style={{ color }}>{label}</span>
+    </div>
+  );
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[55]">
+      {/* phone-safe / title-safe inset (~5%) */}
+      {box(w * 0.05, h * 0.05, w * 0.9, h * 0.9, "rgba(126,243,192,0.6)", "title-safe")}
+      {/* camera bubble — bottom-right corner (~26% × 26%) */}
+      {box(w * 0.72, h * 0.7, w * 0.26, h * 0.28, "rgba(140,192,238,0.7)", "camera")}
+      {/* watermark — top-right corner */}
+      {box(w * 0.78, h * 0.03, w * 0.2, h * 0.12, "rgba(245,212,143,0.7)", "watermark")}
+      {/* YouTube end-screen region — right half + lower band (last-frame guidance) */}
+      {box(w * 0.62, h * 0.12, w * 0.34, h * 0.76, "rgba(255,139,158,0.55)", "end-screen")}
+    </div>
+  );
+}
+
+// Every card kind rides the face-down gate (zone/lesson boxes can't be decked).
 const nodeTypes = {
-  je: JeCardNode,
-  schedule: ScheduleCardNode,
-  computation: ComputationCardNode,
-  taccount: TAccountCardNode,
-  ceq: CeqCardNode,
-  memorize: MemorizeCardNode,
-  note: NoteCardNode,
-  video: VideoCardNode,
+  je: withFaceDown(JeCardNode),
+  schedule: withFaceDown(ScheduleCardNode),
+  computation: withFaceDown(ComputationCardNode),
+  taccount: withFaceDown(TAccountCardNode),
+  ceq: withFaceDown(CeqCardNode),
+  memorize: withFaceDown(MemorizeCardNode),
+  note: withFaceDown(NoteCardNode),
+  video: withFaceDown(VideoCardNode),
+  list: withFaceDown(ListCardNode),
+  image: withFaceDown(ImageCardNode),
+  legend: withFaceDown(LegendCardNode),
+  testimonial: withFaceDown(TestimonialCardNode),
+  formula: withFaceDown(FormulaCardNode),
+  outline: withFaceDown(OutlineCardNode),
+  // ELEMENTS: plain — never face-down (elements don't deck)
+  heading: HeadingCardNode,
+  text: TextElementNode,
+  examcue: ExamCueNode,
+  ceqtease: CeqTeaseNode,
+  ceqhook: CeqHookNode,
+  framebolt: FrameBoltNode,
+  logo: LogoCardNode,
+  intro: IntroCardNode,
+  outro: OutroCardNode,
+  corner: CornerBoltNode,
+  cycle: CycleNode,
+  memo: MemoCardNode,
+  paygate: GateNode,
+  signupgate: GateNode,
+  // BRIDGE placeholders: deckable cards
+  asklee: withFaceDown(BridgeCardNode),
+  submitproblem: withFaceDown(BridgeCardNode),
+  shareinvite: withFaceDown(BridgeCardNode),
   zone: ZoneNode,
+  lesson: LessonNode,
+  frame: FrameNode,
 };
+
+// ONE edge renderer, registered under "smoothstep" so existing scenes' edges
+// upgrade in place: arrowhead, ×-on-select, pulse, straight-while-dragging.
+const edgeTypes = { smoothstep: ArrowEdge };
+
+// PERF: hoist the stable <ReactFlow> prop objects to module scope so they don't
+// get a fresh identity every render (a new object each render can defeat RF's
+// internal prop memoization). These never change, so a module constant is safe.
+const RF_CONNECTION_LINE_STYLE = { stroke: NEON.cyan, strokeWidth: 2 };
+const RF_PRO_OPTIONS = { hideAttribution: true };
+const RF_STYLE = { background: "transparent" };
 
 // ---------------------------------------------------------------------------
 // Spacebar stepper — reveal the NEXT hidden element on a card, reading order.
@@ -113,6 +891,83 @@ function stepReveal(data: CardData): Partial<CardData> | null {
     }
     return null;
   }
+  if (data.kind === "list") {
+    const d = data as ListCard;
+    // PROGRESSIVE REVEAL (Lee): one row at a time via a counter (covers COA/outline
+    // rows too). revealTotal is synced by the render so the walk knows when it's done.
+    if (d.progressiveReveal) {
+      const n = d.revealN ?? 0;
+      return n < (d.revealTotal ?? 0) ? ({ revealN: n + 1 } as Partial<CardData>) : null;
+    }
+    if (d.descHidden) return { descHidden: false } as Partial<CardData>; // description reveals first (it's above the rows)
+    const i = d.rows.findIndex((r) => r.hidden);
+    if (i === -1) return null;
+    return { rows: d.rows.map((r, j) => (j === i ? { ...r, hidden: false } : r)) } as Partial<CardData>;
+  }
+  if (data.kind === "formula") {
+    const d = data as FormulaCard;
+    const i = d.segments.findIndex((s) => s.hidden);
+    if (i === -1) return null;
+    return { segments: d.segments.map((s, j) => (j === i ? { ...s, hidden: false } : s)) } as Partial<CardData>;
+  }
+  if (data.kind === "legend") {
+    // STORY SLIPS reveal one at a time; the flavor line lands LAST (item 3).
+    const d = data as LegendCard;
+    const i = (d.slips ?? []).findIndex((s) => s.hidden);
+    if (i !== -1) return { slips: d.slips.map((s, j) => (j === i ? { ...s, hidden: false } : s)) } as Partial<CardData>;
+    if (d.flavorHidden) return { flavorHidden: false } as Partial<CardData>;
+    return null;
+  }
+  return null;
+}
+
+/** SPACE-WALK REVERSE (item 3): re-hide the LAST reveal — the structural inverse
+ *  of stepReveal. Hides the last currently-VISIBLE hideable item (list rows undo
+ *  bottom→top, then the description last, mirroring the forward order). Returns
+ *  null when nothing is visible-and-hideable, so Shift+Space falls through to
+ *  untuck / step-back. (An un-prepped card that has never been hidden will hide
+ *  its last item here — the honest inverse; forward Space restores it.) */
+function stepRevealBack(data: CardData): Partial<CardData> | null {
+  if (data.kind === "je") {
+    const d = data as JeCard;
+    for (let i = d.lines.length - 1; i >= 0; i--) if (!d.lines[i].hidden) return { lines: d.lines.map((l, j) => (j === i ? { ...l, hidden: true } : l)) } as Partial<CardData>;
+    return null;
+  }
+  if (data.kind === "computation") {
+    const d = data as ComputationCard;
+    for (let i = d.steps.length - 1; i >= 0; i--) if (!d.steps[i].hidden) return { steps: d.steps.map((s, j) => (j === i ? { ...s, hidden: true } : s)) } as Partial<CardData>;
+    return null;
+  }
+  if (data.kind === "schedule") {
+    const d = data as ScheduleCard;
+    for (let r = d.rows.length - 1; r >= 0; r--)
+      for (let c = d.rows[r].length - 1; c >= 0; c--)
+        if (d.rows[r][c].v !== "" && !d.rows[r][c].hidden)
+          return { rows: d.rows.map((row, ri) => row.map((cl, ci) => (ri === r && ci === c ? { ...cl, hidden: true } : cl))) } as Partial<CardData>;
+    return null;
+  }
+  if (data.kind === "list") {
+    const d = data as ListCard;
+    if (d.progressiveReveal) {
+      const n = d.revealN ?? 0;
+      return n > 0 ? ({ revealN: n - 1 } as Partial<CardData>) : null;
+    }
+    for (let i = d.rows.length - 1; i >= 0; i--) if (!d.rows[i].hidden) return { rows: d.rows.map((r, j) => (j === i ? { ...r, hidden: true } : r)) } as Partial<CardData>;
+    if (d.description && !d.descHidden) return { descHidden: true } as Partial<CardData>; // description hides LAST (it revealed first)
+    return null;
+  }
+  if (data.kind === "formula") {
+    const d = data as FormulaCard;
+    for (let i = d.segments.length - 1; i >= 0; i--) if (!d.segments[i].hidden) return { segments: d.segments.map((s, j) => (j === i ? { ...s, hidden: true } : s)) } as Partial<CardData>;
+    return null;
+  }
+  if (data.kind === "legend") {
+    // reverse of the reveal: hide the flavor FIRST (it revealed last), then slips bottom→top
+    const d = data as LegendCard;
+    if (d.flavor && !d.flavorHidden) return { flavorHidden: true } as Partial<CardData>;
+    for (let i = (d.slips ?? []).length - 1; i >= 0; i--) if (!d.slips[i].hidden) return { slips: d.slips.map((s, j) => (j === i ? { ...s, hidden: true } : s)) } as Partial<CardData>;
+    return null;
+  }
   return null;
 }
 
@@ -120,6 +975,12 @@ function stepReveal(data: CardData): Partial<CardData> | null {
 function hideAll(data: CardData): Partial<CardData> | null {
   if (data.kind === "je") return { lines: (data as JeCard).lines.map((l) => ({ ...l, hidden: true })) } as Partial<CardData>;
   if (data.kind === "computation") return { steps: (data as ComputationCard).steps.map((s) => ({ ...s, hidden: true })) } as Partial<CardData>;
+  if (data.kind === "list") { const d = data as ListCard; return (d.progressiveReveal ? { revealN: 0 } : { descHidden: !!d.description, rows: d.rows.map((r) => ({ ...r, hidden: true })) }) as Partial<CardData>; }
+  if (data.kind === "formula") return { segments: (data as FormulaCard).segments.map((s) => ({ ...s, hidden: true })) } as Partial<CardData>;
+  if (data.kind === "legend") {
+    const d = data as LegendCard;
+    return { slips: (d.slips ?? []).map((s) => ({ ...s, hidden: true })), flavorHidden: !!d.flavor } as Partial<CardData>;
+  }
   if (data.kind === "schedule") {
     const d = data as ScheduleCard;
     return { rows: d.rows.map((row) => row.map((cl) => ({ ...cl, hidden: cl.v !== "" ? true : cl.hidden }))) } as Partial<CardData>;
@@ -128,119 +989,3322 @@ function hideAll(data: CardData): Partial<CardData> | null {
 }
 
 // ---------------------------------------------------------------------------
+// Background config — flat navy, dot grid, or one of the /anim loop videos with
+// adjustable opacity. Encoded into the scene's existing `bg` text column as
+// "flat" | "grid" | "video|<file>|<opacity 0-100>" so old scenes keep loading.
+const BG_VIDEOS = [
+  { file: "car-intro.mp4", label: "Car" },
+  { file: "dream-intro.mp4", label: "Dream" },
+  { file: "space-intro.mp4", label: "Space" },
+] as const;
+
+interface BgConfig {
+  mode: "flat" | "grid" | "video";
+  video: string; // file inside /anim
+  opacity: number; // 0..1
+}
+const BG_DEFAULT: BgConfig = { mode: "grid", video: BG_VIDEOS[2].file, opacity: 0.16 };
+
+// ADD CARD menu — the card kinds Lee spawns while filming (Palette still has the
+// full library in the drawer). "formula" routes through formulaAle() for A=L+E.
+const ADD_CARD_KINDS: { kind: Parameters<typeof blankCard>[0]; label: string; preset?: Parameters<typeof blankCard>[1] }[] = [
+  { kind: "heading", label: "Heading" },
+  { kind: "text", label: "Text" },
+  { kind: "list", label: "List" },
+  { kind: "je", label: "Journal Entry" },
+  { kind: "taccount", label: "T-Account" },
+  { kind: "note", label: "Note" },
+  { kind: "computation", label: "Computation" },
+  { kind: "formula", label: "A = L + E" },
+  { kind: "legend", label: "Legend" },
+  { kind: "testimonial", label: "Testimonial" },
+  { kind: "schedule", label: "Table", preset: "generic" },
+  { kind: "ceq", label: "Question" },
+  { kind: "memorize", label: "Memorize" },
+  { kind: "image", label: "Image" },
+  { kind: "video", label: "Video" },
+];
+
+// ADD ELEMENTS menu (the "Palette" toolbar button) — design furniture Lee reaches
+// for a lot: headings, Big Text, bullets, the Exam Cue hook, memos. Spawns the
+// same blanks the drawer Palette does, one click from the toolbar.
+const ADD_ELEMENT_BLANKS: { label: string; make: () => CardData }[] = [
+  { label: "Heading", make: () => blankCard("heading") },
+  { label: "Big Text", make: () => ({ kind: "heading", text: "A = L + E", level: 1, spartan: true, underline: false, w: 480, h: 150 }) },
+  { label: "Text", make: () => blankCard("text") },
+  { label: "Bulleted List", make: () => ({ kind: "list", title: "List", bulleted: true, showChips: false, rows: [{ id: cardId("r"), text: "" }, { id: cardId("r"), text: "" }, { id: cardId("r"), text: "" }], editMode: true }) },
+  { label: "Outline List", make: () => ({ kind: "list", title: "Course outline", bulleted: false, showChips: false, outlineBind: true, rows: [] }) },
+  { label: "Exam Cue", make: () => blankCard("examcue") },
+  { label: "CEQ Tease", make: () => blankCard("ceqtease") },
+  { label: "Accounting Cycle", make: () => blankCard("cycle") },
+  { label: "Logo", make: () => blankCard("logo") },
+  { label: "Intro card", make: () => blankCard("intro") },
+  { label: "Outro card", make: () => blankCard("outro") },
+  { label: "Corner bolt", make: () => blankCard("corner") },
+  { label: "Memo", make: () => blankCard("memo") },
+];
+
+const encodeBg = (c: BgConfig) => (c.mode === "video" ? `video|${c.video}|${Math.round(c.opacity * 100)}` : c.mode);
+function decodeBg(s: string | null | undefined): BgConfig | null {
+  if (!s) return null;
+  if (s === "flat" || s === "grid") return { ...BG_DEFAULT, mode: s };
+  if (s.startsWith("video")) {
+    const [, video, op] = s.split("|");
+    const opacity = op ? Math.min(1, Math.max(0.02, Number(op) / 100)) : BG_DEFAULT.opacity;
+    return { mode: "video", video: video || BG_DEFAULT.video, opacity: Number.isNaN(opacity) ? BG_DEFAULT.opacity : opacity };
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// SCENE TABS: one RF instance; a tab is a full snapshot swapped on switch.
+interface TabSnap {
+  nodes: CardNode[];
+  edges: unknown[];
+  viewport: Viewport | null;
+  settings: {
+    jeCardWidth: number;
+    jeIndent: number;
+    jePreset: JePreset;
+    dealFaceDown: boolean;
+    hideFdLabels: boolean;
+    focusPalette: boolean;
+    courseId: string | null;
+    chapterId: string | null;
+    activeLessonId?: string | null; // ACTIVE-LESSON GATING — which lesson is mounted
+  };
+  bg: BgConfig;
+  film: boolean;
+  savedAt: string | null;
+}
+interface TabEntry {
+  key: string;
+  sceneId: string | null; // null = unsaved untitled
+  name: string;
+  snap?: TabSnap; // present once visited-and-switched-away
+  dirty: boolean;
+}
+
+// ---------------------------------------------------------------------------
 const LS_KEY = "sa-canvas-fallback-scene";
+
+// GROUP CHROME (PROMPT B), isolated (hardening run): a floating action bar
+// above a 2+ card selection. Its OWN component so the transform + nodes
+// subscriptions it needs to track pan/zoom + drags live HERE — not on the
+// 2500-line route, which previously re-rendered on every pan/zoom frame just
+// to reposition this bar. Behavior identical; only the render scope shrank.
+function GroupChromeBar({ onSaveSnippet }: { onSaveSnippet: (ids: string[]) => void }) {
+  const rf = useReactFlow();
+  const nodes = useNodes();
+  useStore((s) => s.transform); // re-render the BAR (not the route) on pan/zoom
+  const selectedCards = nodes.filter((n) => n.selected && !isContainerType(n.type) && !(n.data as unknown as CardBase).tucked);
+  if (selectedCards.length < 2) return null;
+
+  const nds = rf.getNodes();
+  let minX = Infinity, minY = Infinity, maxX = -Infinity;
+  for (const n of selectedCards) {
+    const p = n.parentId ? nds.find((x) => x.id === n.parentId) : null;
+    const ax = (p?.position.x ?? 0) + n.position.x;
+    const ay = (p?.position.y ?? 0) + n.position.y;
+    minX = Math.min(minX, ax); minY = Math.min(minY, ay);
+    maxX = Math.max(maxX, ax + (n.measured?.width ?? 280));
+  }
+  const pos = rf.flowToScreenPosition({ x: (minX + maxX) / 2, y: minY });
+
+  const cloneAll = () => {
+    const cur = rf.getNodes();
+    const sel = cur.filter((n) => n.selected && !isContainerType(n.type));
+    if (sel.length < 2) return;
+    const absOf = (n: CardNode) => {
+      const p = n.parentId ? cur.find((x) => x.id === n.parentId) : null;
+      return { x: (p?.position.x ?? 0) + n.position.x, y: (p?.position.y ?? 0) + n.position.y };
+    };
+    let maxY = -Infinity, top = Infinity;
+    for (const n of sel) { maxY = Math.max(maxY, absOf(n as CardNode).y + (n.measured?.height ?? 170)); top = Math.min(top, absOf(n as CardNode).y); }
+    const dy = maxY - top + 48;
+    const clones = sel.map((n) => {
+      const abs = absOf(n as CardNode);
+      const data = structuredClone(n.data) as Record<string, unknown>;
+      delete data.deckMember; delete data.tucked; delete data.stageOrder; delete data.deckPos; delete data.deckCategory; delete data.faceDown;
+      return { ...n, id: cardId((data.kind as string) ?? "card"), selected: false, parentId: undefined, position: { x: abs.x, y: abs.y + dy }, data };
+    });
+    bus.dispatch(addNodesCmd(rf as unknown as RfLike, clones, "clone group"));
+  };
+  const deleteAll = () => {
+    const ids = rf.getNodes().filter((n) => n.selected && !isContainerType(n.type)).map((n) => n.id);
+    if (ids.length < 2) return;
+    if (ids.length > 3 && !window.confirm(`Delete ${ids.length} selected cards? (Ctrl+Z restores)`)) return;
+    const c = removeNodesCmd(rf as unknown as RfLike, ids, "delete group");
+    if (c) bus.dispatch(c);
+  };
+  const deckAll = () => {
+    const cur = rf.getNodes();
+    const sel = cur.filter((n) => n.selected && !isContainerType(n.type) && !isElementKind((n.data as unknown as CardBase).kind));
+    if (sel.length === 0) return;
+    const base = nextStageOrder(cur);
+    const cmds = sel.map((n, i) => {
+      const kind = (n.data as unknown as CardBase).kind;
+      const entryType = (n.data as Record<string, unknown>).entryType as string | undefined;
+      return patchDataCmd(rf as unknown as RfLike, n.id, { deckMember: true, tucked: false, stageOrder: base + i, deckCategory: kind === "je" ? `je:${entryType ?? "standard"}` : kind, deckLessonId: deckLessonFor(rf, n.parentId) }, "add to deck");
+    });
+    const c = compositeCmd(cmds, "add group to deck");
+    if (c) bus.dispatch(c);
+  };
+  const tuckAll = () => {
+    const cur = rf.getNodes();
+    const sel = cur.filter((n) => n.selected && !isContainerType(n.type) && !isElementKind((n.data as unknown as CardBase).kind));
+    if (sel.length === 0) return;
+    const base = nextStageOrder(cur);
+    const cmds = sel.map((n, i) => {
+      const d = n.data as unknown as CardBase;
+      const entryType = (n.data as Record<string, unknown>).entryType as string | undefined;
+      return patchDataCmd(rf as unknown as RfLike, n.id, { deckMember: true, tucked: true, stageOrder: d.deckMember ? d.stageOrder : base + i, deckPos: { x: n.position.x, y: n.position.y }, deckCategory: d.kind === "je" ? `je:${entryType ?? "standard"}` : d.kind, deckLessonId: d.deckMember ? (d.deckLessonId ?? deckLessonFor(rf, n.parentId)) : deckLessonFor(rf, n.parentId) }, "tuck into deck");
+    });
+    const c = compositeCmd(cmds, "tuck group into deck");
+    if (c) bus.dispatch(c);
+  };
+
+  return (
+    // FIXED, not absolute: pos comes from flowToScreenPosition (CLIENT coords) — in
+    // v2 chrome the stage wrapper's client origin is (aside width, navbar height),
+    // so absolute-in-stage would drift by exactly that. Fixed == client everywhere.
+    <div
+      className="fixed z-[45] flex items-center gap-1 rounded-lg px-1.5 py-1"
+      style={{ left: pos.x, top: pos.y - 12, transform: "translate(-50%, -100%)", background: NEON.panelSolid, border: `1px solid ${NEON.border}`, boxShadow: "0 10px 28px -12px rgba(0,0,0,0.7)" }}
+    >
+      <span className="px-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>{selectedCards.length} cards</span>
+      <button className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} title="Clone all — preserved layout, offset below (one undo step)" onClick={cloneAll}>clone</button>
+      <button className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ color: NEON.pink, border: "1px solid rgba(214,84,138,0.5)" }} title="Save this selection as a reusable snippet (My snippets)" onClick={() => onSaveSnippet(selectedCards.map((n) => n.id))}>snippet</button>
+      <button className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ color: NEON.cyan, border: `1px solid rgba(79,163,227,0.45)` }} title="Add all to the deck (one undo step)" onClick={deckAll}>deck</button>
+      <button className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ color: NEON.cyan, border: `1px solid rgba(79,163,227,0.45)` }} title="Tuck all into the deck (one undo step)" onClick={tuckAll}>tuck</button>
+      <button className="rounded px-1.5 py-0.5 text-[10px] font-semibold" style={{ color: NEON.red, border: "1px solid rgba(255,92,122,0.45)" }} title="Delete all (confirms past 3; one undo step)" onClick={deleteAll}>delete</button>
+    </div>
+  );
+}
+
+// BACKSTAGE (AC1) — the authoring-only pane background. Film + frame interiors
+// keep the dark stage; this only dresses the area OUTSIDE frames while composing.
+// "dark" reproduces the current dotted navy; "light" is the calmer new default.
+type BackstageMode = "cinema" | "dark" | "light" | "gray";
+const BACKSTAGE_BG: Record<BackstageMode, string> = {
+  // CINEMA: a deep dark-red base; BackstageStage paints the animated studio over it.
+  cinema: "radial-gradient(130% 120% at 50% 38%, #45101c 0%, #2a0910 48%, #150406 100%)",
+  dark: `${NEON.bg} radial-gradient(rgba(147,160,180,0.16) 1px, transparent 1px) 0 0 / 28px 28px`,
+  light: "linear-gradient(160deg, #EEF1F6 0%, #E4E8F0 55%, #DADFEA 100%)",
+  gray: "#9AA1AD",
+};
+const BACKSTAGE_LABEL: Record<BackstageMode, string> = { cinema: "Cinema", dark: "Dark dotted", light: "Light gradient", gray: "Plain gray" };
+
+// Composition-guide render treatment by weight — brand gold, strongest at the
+// frame center, faintest at the fifths; the title-safe margin renders dashed.
+function guideStyle(weight: GuideWeight): { thick: number; solid: string; dash: string; opacity: number } {
+  const G = "252,163,17";
+  switch (weight) {
+    case "center": return { thick: 2, solid: `rgba(${G},0.95)`, dash: "none", opacity: 1 };
+    case "card": return { thick: 1, solid: `rgba(${G},0.85)`, dash: "none", opacity: 1 };
+    case "third": return { thick: 1, solid: `rgba(${G},0.6)`, dash: "none", opacity: 1 };
+    case "safe": return { thick: 0, solid: "transparent", dash: `1px dashed rgba(${G},0.5)`, opacity: 1 };
+    case "fifth": return { thick: 1, solid: `rgba(${G},0.38)`, dash: "none", opacity: 1 };
+  }
+}
 
 function PresentCanvas() {
   const rf = useReactFlow();
+  const updateNodeInternals = useUpdateNodeInternals();
   // UNCONTROLLED React Flow (defaultNodes + store mutations via rf.*): cards edit their own
   // node data with rf.updateNodeData — a controlled useState copy would race those writes
   // and clobber edits (observed: JE amounts lost). useNodes() subscribes where the shell
   // needs to react (tray, minimize sync).
   const liveNodes = useNodes();
-  const [bg, setBg] = useState<BgMode>("flat");
-  const [minimap, setMinimap] = useState(true);
-  const [clean, setClean] = useState(false);
-  const [paletteCollapsed, setPaletteCollapsed] = useState(false);
+  const [bgCfg, setBgCfg] = useState<BgConfig>(BG_DEFAULT);
+  const [bgOpen, setBgOpen] = useState(false); // background picker popover (removed from toolbar; dot grid forced)
+  const [fileMenuOpen, setFileMenuOpen] = useState(false); // File menu (Save/Load/Export/…) upward dropdown
+  const [addCardOpen, setAddCardOpen] = useState(false);   // Add Card menu — card-kind picker upward dropdown
+  const [addElemOpen, setAddElemOpen] = useState(false);   // Palette menu — design-element picker upward dropdown
+  const [deckOpen, setDeckOpen] = useState(false); // Deck panel (toolbar-controlled; no top-right badge)
+  const [visualMixOpen, setVisualMixOpen] = useState(false); // Phase 8: read-only lesson visual-mix summary
+  const [storyboardOpen, setStoryboardOpen] = useState(false); // Phase 4: bird's-eye board of frames in film order
+  // PANEL POPOUTS — the director's monitor. A popped panel renders into a
+  // separate browser window (off-stage for OBS Window Capture) via createPortal,
+  // same React tree so the bus / frame-nav / deck all keep working live.
+  const [popWins, setPopWins] = useState<Partial<Record<PopKey, Window>>>({});
+  const popWinsRef = useRef<Partial<Record<PopKey, Window>>>({});
+  popWinsRef.current = popWins;
+  const [popRestore] = useState<PopKey[]>(() => { try { return (JSON.parse(localStorage.getItem("sa-canvas-popouts") || "[]") as PopKey[]).filter((k) => POP_KEYS.includes(k)); } catch { return []; } });
+  const [popRestoreDismissed, setPopRestoreDismissed] = useState(false);
+  const savePopMemory = (wins: Partial<Record<PopKey, Window>>) => { try { localStorage.setItem("sa-canvas-popouts", JSON.stringify(Object.keys(wins))); } catch { /* ignore */ } };
+  const isPopped = (key: PopKey) => !!popWins[key];
+  const [film, setFilm] = useState(false); // "v": chrome off (at-rest card chrome) + spotlight/ripple — the sole chrome-off mode
+  const filmRef = useRef(film);
+  filmRef.current = film;
+  // CHOREOGRAPH MODE ("c") — click the current frame's elements in the order they
+  // should reveal; rebuilds the frame's space-walk queue. null = off. The click-to-
+  // build behaviour lands in a later item; this item just owns the mode + rebind.
+  const [choreographFrameId, setChoreographFrameId] = useState<string | null>(null);
+  const choreographRef = useRef<string | null>(null);
+  choreographRef.current = choreographFrameId;
+  // Entry popover (Start fresh / Append) for the frame about to be choreographed;
+  // choreoTick forces the ghost effect to re-read the queue after each edit;
+  // choreoExploded = the card whose PARTS are clickable via G (Item 3).
+  const [choreoEntry, setChoreoEntry] = useState<string | null>(null);
+  const choreoEntryRef = useRef<string | null>(null);
+  choreoEntryRef.current = choreoEntry;
+  const [choreoTick, setChoreoTick] = useState(0);
+  const [playheadTick, setPlayheadTick] = useState(0); // bumps when the scrubber playhead moves, so the bar re-renders
+  const [choreoExploded, setChoreoExploded] = useState<string | null>(null);
+  const choreoExplodedRef = useRef<string | null>(null);
+  choreoExplodedRef.current = choreoExploded;
+  const hoveredNodeRef = useRef<string | null>(null); // last card the pointer entered (for G-explode)
+  const [camera, setCamera] = useState(false); // "b": screen-fixed webcam bubble
+  const [chromaBlack, setChromaBlack] = useState(false); // "k": solid-black world bg in film (chroma-key testing)
+  // SPOTLIGHT (performance cursor) — transient, never saved. focusDim: auto=ON in
+  // film / OFF outside. The controller reads it live.
+  const [spotFocusDim, setSpotFocusDim] = useState<FocusDimMode>("auto");
+  // CUE RECORDER (Lee): record mode captures spotlights + reveals + deals into the
+  // frame's recordedCues; a frame WITH a recording plays it back on Space.
+  const [cueRecording, setCueRecording] = useState(false);
+  const cueRecordingRef = useRef(false);
+  cueRecordingRef.current = cueRecording;
+  const recPlayIdxRef = useRef<Map<string, number>>(new Map()); // per-frame recorded-playback cursor
+  const spot = useSpotlightController({
+    film, focusDimMode: spotFocusDim,
+    // record spotlight / super clicks (only while recording, inside a frame)
+    onAction: (cid, targetId, tier) => {
+      if (!cueRecordingRef.current) return;
+      const fid = currentFrameRef.current;
+      if (!fid) return;
+      const nd = rf.getNode(cid)?.data as { title?: string; kind?: string } | undefined;
+      const name = nd?.title || nd?.kind || "card";
+      const tgt = targetId && targetId !== "self" ? `${name} · ${targetId}` : name;
+      const cmd = patchDataFnCmd(rf as unknown as RfLike, fid, (prev) => ({ recordedCues: [...((prev.recordedCues as RecCue[]) ?? []), { id: cardId("rc"), kind: tier === "super" ? "super" : "spot", cardId: cid, targetId, label: tier === "super" ? "Super" : "Spot", target: tgt }] }), "record spotlight");
+      if (cmd) bus.dispatch(cmd);
+    },
+  });
+  const spotRef = useRef(spot);
+  spotRef.current = spot;
+  // SPOTLIGHT ON TOP (Lee): lift the currently-emphasised node above every other
+  // node + edge so its enlarged spotlight/flame sits on the top layer, fully
+  // viewable over arrows and neighbouring elements. Transient zIndex; reset when
+  // the emphasis moves or clears.
+  // Remember the lifted node + its ORIGINAL zIndex so un-spotlighting restores its
+  // real tiered z (resetting to `undefined` used to drop it to 0 — a second sink).
+  const spotZRef = useRef<{ id: string; prevZ: number | undefined } | null>(null);
+  useEffect(() => {
+    const fid = spot.focusTarget?.cardId ?? null;
+    const cur = spotZRef.current;
+    if (fid === (cur?.id ?? null)) return;
+    rf.setNodes((nds) => {
+      let out = cur ? nds.map((n) => (n.id === cur.id ? { ...n, zIndex: cur.prevZ } : n)) : nds;
+      if (fid) {
+        spotZRef.current = { id: fid, prevZ: out.find((n) => n.id === fid)?.zIndex };
+        out = out.map((n) => (n.id === fid ? { ...n, zIndex: Z_SPOTLIGHT } : n));
+      } else {
+        spotZRef.current = null;
+      }
+      return out;
+    });
+  }, [spot.focusTarget, rf]);
+  // Type floor: warn when zoomed out enough that card text goes illegible on a 1080p recording.
+  const lowZoom = useStore((s) => s.transform[2] < 0.75);
+  // DECLUTTER (PROMPT B): the palette + key live in the left drawer now; the
+  // open panel persists so the workspace reopens the way it was left.
+  const [drawerPanel, setDrawerPanelRaw] = useState<string | null>(() => {
+    try { return localStorage.getItem("sa-canvas-drawer-panel"); } catch { return null; }
+  });
+  const setDrawerPanel = useCallback((key: string | null) => {
+    setDrawerPanelRaw(key);
+    try {
+      if (key) localStorage.setItem("sa-canvas-drawer-panel", key);
+      else localStorage.removeItem("sa-canvas-drawer-panel");
+    } catch { /* ignore */ }
+  }, []);
   const [sceneId, setSceneId] = useState<string | null>(null);
   const [sceneName, setSceneName] = useState("Untitled scene");
+  const [decks, setDecks] = useState<DeckDef[]>([]); // named decks (P3) — persisted in the scene payload
+  const [ceqStudioOpen, setCeqStudioOpen] = useState(false); // CEQ STUDIO (prompt 5) — 3-pane authoring overlay
+  const [brandingOpen, setBrandingOpen] = useState(false); // BRANDING STUDIO — reusable brand-frame gallery
+  const [memosOpen, setMemosOpen] = useState(false); // MEMO LIBRARY — right drawer, opened from the outline (not default)
+  const [studioFocusCeq, setStudioFocusCeq] = useState<string | null>(null); // open Studio focused on this CEQ
+  const [studioFocusSet, setStudioFocusSet] = useState<string | null>(null); // open Studio with this SET active (outline launcher)
+  const [ceqSets, setCeqSets] = useState<CeqSetDef[]>([]); // CEQ set factories — persisted in the scene payload
+  // CEQ Studio GLOBAL clips (intro/outro/transition). PERSISTED IN THE SCENE (below)
+  // so they survive across sessions/deploys — they used to live only in localStorage
+  // (per-origin) and vanished on a new preview URL. Migrate the old localStorage value
+  // as the initial seed so an already-set global outro carries over.
+  const [globalClips, setGlobalClipsState] = useState<GlobalClips>(() => {
+    try { const p = JSON.parse(localStorage.getItem("sa-ceq-studio-prefs") || "{}") as { globalIntro?: GlobalClips["intro"]; globalOutro?: GlobalClips["outro"]; transition?: GlobalClips["transition"] }; return { intro: p.globalIntro, outro: p.globalOutro, transition: p.transition }; } catch { return {}; }
+  });
+  const setGlobalClips = useCallback((patch: Partial<GlobalClips>) => setGlobalClipsState((prev) => ({ ...prev, ...patch })), []);
+  // ITEM 4e — a transient "flash this deck's member cards" pulse (auto-clears).
+  const [deckHighlightId, setDeckHighlightId] = useState<string | null>(null);
+  const deckFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flashDeck = useCallback((deckId: string) => {
+    setDeckHighlightId(deckId);
+    if (deckFlashTimer.current) clearTimeout(deckFlashTimer.current);
+    deckFlashTimer.current = setTimeout(() => setDeckHighlightId(null), 1200);
+  }, []);
+  // OUTLINE AUTHORING (Lee) — create/reassign CEQ sets from the leftmost outline. These operate on
+  // the LOADED scene's decks (setDecks), the same path the Studio uses; the outline only exposes the
+  // affordance for sets that live in this scene, so there's no cross-scene clobber.
+  const createDeckFromOutline = useCallback((name: string, topicId: string | null, courseId: string | null): string => {
+    const now = new Date().toISOString();
+    const def: DeckDef = { id: cardId("deck"), name: name.trim() || "New set", payloadType: "cards", filter: null, runMode: "sequence", lessonId: null, slots: [], showSkeletons: true, status: "draft", access: "free", topicId, courseId, createdAt: now, updatedAt: now };
+    setDecks((prev) => [...prev, def]);
+    return def.id;
+  }, []);
+  const setDeckTopicFromOutline = useCallback((deckId: string, topicId: string | null, courseId: string | null) => {
+    setDecks((prev) => prev.map((d) => (d.id === deckId ? { ...d, topicId, courseId: courseId ?? d.courseId ?? null, updatedAt: new Date().toISOString() } : d)));
+  }, []);
+  const renameDeckFromOutline = useCallback((deckId: string, name: string) => {
+    setDecks((prev) => prev.map((d) => (d.id === deckId ? { ...d, name: name.trim() || d.name, updatedAt: new Date().toISOString() } : d)));
+  }, []);
+  const reorderDecksFromOutline = useCallback((orderedDeckIds: string[]) => {
+    const rank = new Map(orderedDeckIds.map((id, i) => [id, i]));
+    setDecks((prev) => prev.map((d) => (rank.has(d.id) ? { ...d, sortOrder: rank.get(d.id)!, updatedAt: new Date().toISOString() } : d)));
+  }, []);
+  const setDeckParkedFromOutline = useCallback((deckId: string, parked: boolean) => {
+    setDecks((prev) => prev.map((d) => (d.id === deckId ? { ...d, parked, updatedAt: new Date().toISOString() } : d)));
+  }, []);
+  const decksCtx = useMemo(() => ({ decks, highlightId: deckHighlightId, flashDeck, createDeck: createDeckFromOutline, setDeckTopic: setDeckTopicFromOutline, renameDeck: renameDeckFromOutline, reorderDecksInTopic: reorderDecksFromOutline, setDeckParked: setDeckParkedFromOutline }), [decks, deckHighlightId, flashDeck, createDeckFromOutline, setDeckTopicFromOutline, renameDeckFromOutline, reorderDecksFromOutline, setDeckParkedFromOutline]);
+  const [currentFrameId, setCurrentFrameId] = useState<string | null>(null); // FRAMES: the frame the camera is fitted to
+  // ACTIVE-LESSON GATING (Lee — lag fix): the one lesson whose frames/cards are
+  // mounted. Others render as collapsed chips (hidden descendants). Persisted in
+  // sceneSettings.activeLessonId; ref mirrors state for serialize + callbacks.
+  const [activeLessonId, setActiveLessonIdState] = useState<string | null>(null);
+  const activeLessonRef = useRef<string | null>(null);
+  const currentFrameRef = useRef<string | null>(null);
+  currentFrameRef.current = currentFrameId;
+  const [frameTransitions, setFrameTransitions] = useState(true); // F3: animate enter/step (off = instant cut)
+  const frameTransitionsRef = useRef(true);
+  frameTransitionsRef.current = frameTransitions;
+  // SPACE-WALK ACROSS FRAMES: space advances to the next frame once the current
+  // one is exhausted, but only after ARMING (a guard press) so a mid-take space
+  // never jumps the camera. armState is transient (never persisted).
+  // Lee: spacebar runs the frame's space-walk ONLY and NEVER moves between frames
+  // (arrows do that). Default OFF; when a frame's walk is exhausted, space shows
+  // the "move on" indicator instead of advancing. The toggle stays as an opt-in
+  // escape hatch for the old arm-then-advance-on-space behavior.
+  const [spaceAdvancesFrames, setSpaceAdvancesFrames] = useState(false);
+  const spaceAdvancesFramesRef = useRef(false);
+  spaceAdvancesFramesRef.current = spaceAdvancesFrames;
+  const [rehearsalHud, setRehearsalHud] = useState(false); // next-up "next: Teach 2" pill (rehearsal only)
+  const [armState, setArmState] = useState<null | ArmState>(null);
+  const armStateRef = useRef<null | ArmState>(null);
+  armStateRef.current = armState;
+  const disarm = useCallback(() => setArmState(null), []);
+  // Armed transitions DISARM on any input other than the advancing space: a
+  // click anywhere, or any non-space key (arrow nav, Esc, mode keys). Capture
+  // phase so it runs BEFORE the keymap's own space handler advances the frame.
+  useEffect(() => {
+    if (!armState) return;
+    const onPointer = () => setArmState(null);
+    const onKey = (e: KeyboardEvent) => { if (e.key !== " " && e.key !== "Spacebar") setArmState(null); };
+    window.addEventListener("pointerdown", onPointer, true);
+    window.addEventListener("keydown", onKey, true);
+    return () => { window.removeEventListener("pointerdown", onPointer, true); window.removeEventListener("keydown", onKey, true); };
+  }, [armState]);
+  // ARROW-KEY FRAME NAV — DOUBLE-TAP ARM: the arrow keys move between frames only
+  // when nothing is selected (frameFreeNav). A first press ARMS the direction
+  // (a glowing edge light below/right/etc.); a second press in the same direction
+  // actually navigates. Any other input disarms. Spotlight movement always wins.
+  const [arrowArm, setArrowArm] = useState<null | "up" | "down" | "left" | "right">(null);
+  const arrowArmRef = useRef<null | "up" | "down" | "left" | "right">(null);
+  arrowArmRef.current = arrowArm;
+  const armOrStep = useCallback((dir: "up" | "down" | "left" | "right", step: () => void) => {
+    if (arrowArmRef.current !== dir) { setArrowArm(dir); return; }
+    setArrowArm(null); step();
+  }, []);
+  // disarm the arrow nav on anything but a matching arrow re-press
+  useEffect(() => {
+    if (!arrowArm) return;
+    const KEY: Record<string, string> = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" };
+    const onPointer = () => setArrowArm(null);
+    const onKey = (e: KeyboardEvent) => { if (KEY[e.key] !== arrowArm) setArrowArm(null); };
+    window.addEventListener("pointerdown", onPointer, true);
+    window.addEventListener("keydown", onKey, true);
+    return () => { window.removeEventListener("pointerdown", onPointer, true); window.removeEventListener("keydown", onKey, true); };
+  }, [arrowArm]);
+  const [showFrameHeader, setShowFrameHeader] = useState(true); // FF-6: in-frame header HUD (settings toggle)
+  // CRAM MODE (Lee) — a chrome-FILTERING mode on the same canvas, tuned for
+  // CEQ (Free/Paid) authoring: hides frame-by-frame furniture (rearrange,
+  // storyboard, visual mix, cue sheet, safe guides, frame-header, grid-by-type,
+  // teleprompter, frame-visuals) and trims the palette to CEQ/memo/heading/note.
+  // Persisted in scene settings; additive.
+  const [cramMode, setCramMode] = useState(false);
+  // DASHBOARD VERSION (Lee's v2 simplification) — v2 (default): top navbar + persistent
+  // outline sidebar, bottom toolbar/drawer/pager HIDDEN. v1 ("View archive"): the full
+  // original chrome, untouched, for tweaking old settings. Persisted per browser.
+  const [chromeV1, setChromeV1] = useState<boolean>(() => { try { return localStorage.getItem("sa-canvas-chrome") === "v1"; } catch { return false; } });
+  const setChromeVersion = useCallback((v1: boolean) => { setChromeV1(v1); try { localStorage.setItem("sa-canvas-chrome", v1 ? "v1" : "v2"); } catch { /* ignore */ } }, []);
+  // Collapse the v2 left outline sidebar to a thin rail (persisted per browser).
+  const [outlineCollapsed, setOutlineCollapsed] = useState<boolean>(() => { try { return localStorage.getItem("sa-outline-collapsed") === "1"; } catch { return false; } });
+  const toggleOutline = useCallback((collapsed: boolean) => { setOutlineCollapsed(collapsed); try { localStorage.setItem("sa-outline-collapsed", collapsed ? "1" : "0"); } catch { /* ignore */ } }, []);
+  const [resetScopeOpen, setResetScopeOpen] = useState(false); // File → Reset… scope picker
+  const [frameHeaderOpen, setFrameHeaderOpen] = useState(false); // Frame Header panel (header toggle + lesson media)
+  const [rearrangeOpen, setRearrangeOpen] = useState(false); // "r": full-grid frame rearrange overlay
+  const [copiedFrameId, setCopiedFrameId] = useState<string | null>(null); // frame on the clipboard (rearrange copy/paste)
+  const [framePickerOpen, setFramePickerOpen] = useState(false); // FG5: grid mini-map jump
+  const [toast, setToast] = useState<string | null>(null); // brief transient notice (frame cap, soft warns)
+  const toastTimer = useRef(0);
+  const flashToast = useCallback((msg: string) => {
+    setToast(msg);
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 1800);
+  }, []);
+  // Pop a panel out to its own window (must run from the click gesture so the
+  // browser doesn't block window.open). returnPop drops it from state — the
+  // PanelPopout cleanup closes the actual window.
+  const openPop = useCallback((key: PopKey, w = 640, h = 900) => {
+    const win = openPopoutWindow(key, w, h);
+    if (!win) { flashToast("Popup blocked — allow popups for this site to pop out a panel"); return; }
+    setPopWins((p) => { const n = { ...p, [key]: win }; savePopMemory(n); return n; });
+  }, [flashToast]);
+  const returnPop = useCallback((key: PopKey) => {
+    setPopWins((p) => { const n = { ...p }; delete n[key]; savePopMemory(n); return n; });
+  }, []);
+
+  // RUN LOGGING (Lee) — F9 starts/ends a timed "run" of a whole cram take. Events
+  // (CEQ resolve, deal, frame advance) are stamped in ms from t=0 and stored on
+  // the ACTIVE LESSON node (last 3 runs) — additive scene JSON, no SQL. The live
+  // clock drives a 2nd-monitor popout ("runtimer", off OBS Window Capture of the
+  // main window) and a readout panel that lists a finished run as mm:ss + label.
+  const [runActive, setRunActive] = useState(false);
+  const runActiveRef = useRef(false);
+  runActiveRef.current = runActive;
+  const runStartRef = useRef<number | null>(null);
+  const [runEvents, setRunEvents] = useState<RunEvent[]>([]);
+  const runEventsRef = useRef<RunEvent[]>([]);
+  runEventsRef.current = runEvents;
+  const [runElapsed, setRunElapsed] = useState(0);
+  const [runCeqTotal, setRunCeqTotal] = useState(0);
+  const [lastRun, setLastRun] = useState<FilmRun | null>(null);
+  const [runReadoutOpen, setRunReadoutOpen] = useState(false);
+  /** Append an event to the live run (no-op unless a run is active). Stable. */
+  const logRunEvent = useCallback((kind: RunEvent["kind"], label: string, correct?: boolean) => {
+    if (!runActiveRef.current || runStartRef.current == null) return;
+    const ms = Date.now() - runStartRef.current;
+    setRunEvents((prev) => [...prev, { ms, kind, label, correct }]);
+  }, []);
+  /** Tick the elapsed clock ~4×/s while a run is active (drives the popout timer). */
+  useEffect(() => {
+    if (!runActive) return;
+    const iv = window.setInterval(() => { if (runStartRef.current != null) setRunElapsed(Date.now() - runStartRef.current); }, 250);
+    return () => window.clearInterval(iv);
+  }, [runActive]);
+  /** F9 — start a run (t=0, opens the timer popout) or end it (commit to the
+   *  active lesson, keeping the last 3, and surface the readout). */
+  const toggleRun = useCallback(() => {
+    if (runActiveRef.current) {
+      const started = runStartRef.current ?? Date.now();
+      const ended = Date.now();
+      const run: FilmRun = { id: `run-${started}`, startedAt: started, endedAt: ended, events: runEventsRef.current };
+      runActiveRef.current = false;
+      runStartRef.current = null;
+      setRunActive(false);
+      setLastRun(run);
+      if (run.events.length) setRunReadoutOpen(true);
+      const lid = activeLessonRef.current;
+      if (lid && run.events.length && rf.getNode(lid)) {
+        const prevRuns = (rf.getNode(lid)?.data as { runs?: FilmRun[] } | undefined)?.runs ?? [];
+        const c = patchDataFnCmd(rf as unknown as RfLike, lid, () => ({ runs: [...prevRuns, run].slice(-3) }), "log film run", `d:${lid}:runs`);
+        if (c) bus.dispatch(c);
+      }
+      flashToast(`Run logged — ${mmss(ended - started)} · ${run.events.length} events`);
+    } else {
+      runStartRef.current = Date.now();
+      runActiveRef.current = true;
+      setRunActive(true);
+      setRunEvents([]);
+      runEventsRef.current = [];
+      setRunElapsed(0);
+      const all = rf.getNodes();
+      const lid = activeLessonRef.current;
+      setRunCeqTotal(lid ? all.filter((n) => n.type === "ceq" && lessonIdOf(n as never, all as never) === lid).length : all.filter((n) => n.type === "ceq").length);
+      openPop("runtimer", 480, 360);
+    }
+  }, [rf, flashToast, openPop]);
+  // FAIL-LOUD: a dark feature's table missing → a visible toast naming the
+  // migration (the data layer also console.errors). Held longer than a flash.
+  useEffect(() => onMissingMigration((m) => {
+    setToast(`Missing migration — run ${m} in Supabase`);
+    window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 6000);
+  }), []);
+  const [vpTick, setVpTick] = useState(0); // bump on resize → re-fit + re-letterbox the frame
+  // Track real fullscreen — the 16:9 letterbox bars only make sense filling an
+  // exact-aspect fullscreen shot. Windowed (incl. after EXITING fullscreen) they
+  // just leave ugly black sides, so we drop them when not fullscreen (Lee's call).
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  useEffect(() => {
+    // Fullscreen EXIT resizes the window but the letterbox reads window.inner*
+    // at render — so re-tick on resize AND fullscreenchange, plus a delayed tick
+    // to catch the settled dimensions after the browser's fullscreen transition.
+    const bump = () => setVpTick((t) => t + 1);
+    const syncFs = () => setIsFullscreen(!!document.fullscreenElement);
+    const onFs = () => { syncFs(); bump(); window.setTimeout(bump, 120); window.setTimeout(bump, 320); };
+    syncFs();
+    window.addEventListener("resize", bump);
+    document.addEventListener("fullscreenchange", onFs);
+    return () => { window.removeEventListener("resize", bump); document.removeEventListener("fullscreenchange", onFs); };
+  }, []);
+  // INLINE MARKUP (Lee): Ctrl+B toggles `**bold**`, Alt+Shift+5 toggles `~~strike~~`
+  // around the selection in ANY editable field (capture phase — runs before the
+  // field's own key handler stops propagation). Physical Digit5 so layout-agnostic.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = document.activeElement as HTMLElement | null;
+      const editable = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA");
+      if (!editable) return;
+      const field = el as HTMLInputElement | HTMLTextAreaElement;
+      // Ctrl/Cmd+B → bold
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === "b" || e.key === "B")) {
+        if (toggleWrapInField(field, "**")) { e.preventDefault(); e.stopPropagation(); }
+        return;
+      }
+      // Alt+Shift+5 → strikethrough
+      if (e.altKey && e.shiftKey && (e.code === "Digit5" || e.key === "5" || e.key === "%")) {
+        if (toggleWrapInField(field, "~~")) { e.preventDefault(); e.stopPropagation(); }
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, []);
+  const [hideFrameChrome, setHideFrameChrome] = useState(false); // FF-6: hide frame headers outside film too
+  const [compositionGuides, setCompositionGuides] = useState(true); // GUIDES item 1: center/thirds/fifths while dragging in a frame
+  const [watermarkOn, setWatermarkOn] = useState(true); // brand watermark on the recording (toggle) — Lee's call
+  const [trashOver, setTrashOver] = useState(false); // frame-navigator trash drop target hover
+  const [backstage, setBackstage] = useState<BackstageMode>("dark"); // dots-only matrix by default (no SURVIVE backdrop) — Lee's call; cinema still selectable
+  const [filmEntrancePop, setFilmEntrancePop] = useState(true); // AC5a: dealt-card scale-pop in film
+  const [filmCheckGlow, setFilmCheckGlow] = useState(true); // AC5b: hotter Check-gate red in film
+  const [sfx, setSfx] = useState<SfxConfig>(() => ({ muted: SFX_DEFAULT.muted, volume: { ...SFX_DEFAULT.volume }, file: { ...SFX_DEFAULT.file } })); // volume + mute (per scene); FILES come from the GLOBAL config below
+  // GLOBAL SFX FILES (Lee uploads them himself) — one source across every scene +
+  // machine. Fetched once; overrides the bundled /sfx/* names. Empty until Lee
+  // uploads (or the 0099 migration is unapplied) ⇒ bundled defaults play.
+  const [globalSfxFiles, setGlobalSfxFiles] = useState<CanvasSfxFiles>({});
+  const [sfxUploading, setSfxUploading] = useState<SfxEvent | null>(null);
+  useEffect(() => { getCanvasSfx({} as never).then((r) => setGlobalSfxFiles(r.files ?? {})).catch(() => {}); }, []);
+  // Files = global upload (if any) over the bundled default; volume/mute = scene.
+  useEffect(() => { configureSfx({ muted: sfx.muted, volume: sfx.volume, file: { ...SFX_DEFAULT.file, ...globalSfxFiles } }); }, [sfx, globalSfxFiles]);
+  useEffect(() => { if (film) preloadSfx(); }, [film, globalSfxFiles]);
+  /** Upload a sound file for one event → storage → save the URL globally. */
+  const uploadSfx = useCallback(async (event: SfxEvent, file: File) => {
+    const okTypes = ["audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4", "audio/x-m4a", "audio/webm"];
+    const ct = (okTypes.includes(file.type) ? file.type : "audio/mpeg") as "audio/mpeg";
+    if (file.size > 6_500_000) { flashToast("sound file too big (max ~6MB)"); return; }
+    setSfxUploading(event);
+    try {
+      const buf = await file.arrayBuffer();
+      let bin = ""; const bytes = new Uint8Array(buf);
+      for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      const b64 = btoa(bin);
+      const { url } = await uploadCanvasSfxFile({ data: { event, b64, contentType: ct } });
+      const nextFiles = { ...globalSfxFiles, [event]: url };
+      await saveCanvasSfx({ data: { files: nextFiles } });
+      setGlobalSfxFiles(nextFiles);
+      flashToast(`${event} sound updated`);
+    } catch (e) {
+      flashToast(`upload failed: ${e instanceof Error ? e.message : "error"}`);
+    } finally {
+      setSfxUploading(null);
+    }
+  }, [globalSfxFiles, flashToast]);
+  const [framePath, setFramePath] = useState(false); // AC3: numbered film-order path overlay (authoring)
+  const [cueSheetOpen, setCueSheetOpen] = useState(false); // AC4: per-frame cue sheet panel
+  const [scriptOpen, setScriptOpen] = useState(false); // SCRIPT EDITOR: the course-script modal
+  const [scriptDock, setScriptDock] = useState(false); // SCRIPT-IN-PLACE: dock the current frame's script beside its visual
+  const [prompter, setPrompter] = useState(false); // TELEPROMPTER: hidden by default (incl. film); `p` toggles
+  const [prompterCorner, setPrompterCorner] = useState<PrompterCorner>("tc"); // camera eyeline corner (persisted)
+  // PROMPT 3 — read-time knobs (scene settings) + transient safe-guides + rehearsal
+  const [riffMultiplier, setRiffMultiplier] = useState(DEFAULT_RIFF); // talking-point time multiplier
+  const [readTimeThreshold, setReadTimeThreshold] = useState(DEFAULT_READTIME_THRESHOLD_S); // flag frames over this many seconds
+  const [safeGuides, setSafeGuides] = useState(false); // camera-safe overlay — OFF, never persisted, never in film
+  // REHEARSAL RUN (Lee's call): one stopwatch that accumulates PER FRAME across a
+  // whole run. Timing the current frame; switching frames auto-banks + PAUSES; a
+  // click resumes on the new frame. Finish freezes a per-frame report + total.
+  const [rehearse, setRehearse] = useState<RehearseRun | null>(null);
+  const [lastRehearsalTotalS, setLastRehearsalTotalS] = useState<number | null>(null); // persisted; shown top-center
+  const [introClipLength, setIntroClipLength] = useState(6.0); // AUTO-TRIM: intro clip length (s)
+  const [autoTrimIntros, setAutoTrimIntros] = useState(true); // AUTO-TRIM: on by default
   const [dbDown, setDbDown] = useState<string | null>(null); // canvas_scenes missing → banner
   const [scenes, setScenes] = useState<SceneListRow[]>([]);
   const [loadOpen, setLoadOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false); // "?" cheat sheet
+  const [settingsOpen, setSettingsOpen] = useState(false); // toolbar canvas-settings gear
+  const [coaOrderOpen, setCoaOrderOpen] = useState(false); // "Account order" section in settings (Lee)
+  const [soundsOpen, setSoundsOpen] = useState(false); // per-frame Sounds popover in the frame header (Lee)
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  // SCENE TABS — the open set + which one drives the live canvas
+  const [tabState, setTabState] = useState<{ tabs: TabEntry[]; active: string }>(() => {
+    const key = Math.random().toString(36).slice(2);
+    return { tabs: [{ key, sceneId: null, name: "Untitled scene", dirty: false }], active: key };
+  });
+
+  // SCENE FOLDERS (0088) — course groups in the Load dialog
+  const qc = useQueryClient();
+  // networkMode "always" everywhere here: these hit our own server fns. The
+  // default "online" mode PAUSES a failed query's retry whenever the browser
+  // thinks it's offline (embedded panes latch this spuriously), leaving the
+  // query pending forever — the fail-loud banner never fires. "always" lets a
+  // real network failure reject, which IS the loud path we want.
+  const foldersQuery = useQuery({ queryKey: ["canvas-folders"], queryFn: () => listFolders(), retry: retryUnlessMigrationHint, staleTime: 60_000, networkMode: "always" });
+  const folders = foldersQuery.data;
+  const [foldersError, setFoldersError] = useState<string | null>(null);
+  useEffect(() => {
+    setFoldersError(foldersQuery.error ? (foldersQuery.error as Error).message : null);
+  }, [foldersQuery.error]);
+  const qcFolders = useCallback(() => qc.invalidateQueries({ queryKey: ["canvas-folders"] }), [qc]);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
+  const [renamingFolder, setRenamingFolder] = useState<{ id: string } | null>(null);
+
+  /** Move a scene between folders. A COURSE folder also sets the scene's course
+   *  context when unset (one gesture, one truth); a different existing course
+   *  asks before forcing. */
+  const moveScene = useCallback(
+    async (s: SceneListRow, folderId: string | null) => {
+      try {
+        let res = await moveSceneToFolder({ data: { scene_id: s.id, folder_id: folderId } });
+        if ("conflict" in res) {
+          if (!window.confirm("This scene already has a DIFFERENT course set. Overwrite it with the folder's course?")) return;
+          res = await moveSceneToFolder({ data: { scene_id: s.id, folder_id: folderId, force_course: true } });
+        }
+        if ("courseSet" in res && res.courseSet && s.id === sceneId) setSceneCourseId(res.courseSet);
+        setScenes((xs) => xs.map((x) => (x.id === s.id ? { ...x, folder_id: folderId } : x)));
+      } catch (e) {
+        setFoldersError(e instanceof Error ? e.message : String(e));
+      }
+    },
+    [sceneId],
+  );
 
   // Scenario library for the palette (same query key as /study — shared cache).
-  const treeQuery = useQuery({ queryKey: ["je-tree"], queryFn: fetchJeBrowserTree, staleTime: 300_000, retry: 1 });
+  const treeQuery = useQuery({ queryKey: ["je-tree"], queryFn: fetchJeBrowserTree, staleTime: 300_000, retry: 1, networkMode: "always" });
   const library = useMemo(() => (treeQuery.data ? buildLibrary(treeQuery.data) : []), [treeQuery.data]);
+  // FAIL LOUD until 0087 is applied: rows come back without lifecycle flags.
+  const contentResetMissing = useMemo(() => library.length > 0 && library.every((i) => i.status === undefined), [library]);
 
-  // Minimized cards → hidden on canvas, listed in the bottom tray.
-  const trayCards = liveNodes.filter((n) => (n.data as unknown as CardData).minimized);
+  // SCENE COURSE CONTEXT (content reset): pickers scope to this course.
+  const [sceneCourseId, setSceneCourseId] = useState<string | null>(null);
+  const [sceneChapterId, setSceneChapterId] = useState<string | null>(null);
+  const [manageAccountsOpen, setManageAccountsOpen] = useState(false);
+  const [manageCourseOpen, setManageCourseOpen] = useState(false);
+  const coursesQuery = useQuery({ queryKey: ["course-options"], queryFn: fetchCourseOptions, staleTime: 600_000, retry: 1, networkMode: "always" });
+  const sceneCourse = (coursesQuery.data ?? []).find((c) => c.id === sceneCourseId) ?? null;
+
+  // COURSE COA SET (0087): the JE picker shows ONLY the scene-course's curated
+  // set (master chart_of_accounts stays reference-only, edited via Manage
+  // accounts). No course → empty groups → picker renders its set-course state.
+  const courseCoaQuery = useQuery({
+    queryKey: ["course-coa", sceneCourseId],
+    queryFn: () => listCourseAccounts({ data: { course_id: sceneCourseId! } }),
+    enabled: !!sceneCourseId,
+    staleTime: 60_000,
+    retry: retryUnlessMigrationHint,
+    networkMode: "always",
+  });
+  // CUSTOM CHART-OF-ACCOUNTS ORDER (Lee): account names in preferred order; applied
+  // within each group so accounts appear how Lee wants across every list + picker.
+  // Persisted in the scene payload; empty = alphabetical.
+  const [coaOrder, setCoaOrder] = useState<string[]>([]);
+  const coaGroups = useMemo(() => groupCoa(sceneCourseId ? (courseCoaQuery.data ?? []) : [], coaOrder), [sceneCourseId, courseCoaQuery.data, coaOrder]);
+  const coaNames = useMemo(() => (sceneCourseId ? (courseCoaQuery.data ?? []) : []).map((r) => r.canonical_name), [sceneCourseId, courseCoaQuery.data]);
+  /** Move an account up/down WITHIN ITS GROUP in the custom order. Seeds from the
+   *  current grouped order so the first nudge is intuitive, then persists. */
+  const moveCoaAccount = useCallback((name: string, dir: -1 | 1) => {
+    const group = coaGroups.find((g) => g.accounts.some((a) => a.name === name));
+    if (!group) return;
+    const gi = group.accounts.findIndex((a) => a.name === name);
+    const neighbor = group.accounts[gi + dir];
+    if (!neighbor) return; // at the group edge
+    setCoaOrder((prev) => {
+      const base = prev.length ? prev.slice() : coaGroups.flatMap((g) => g.accounts.map((a) => a.name));
+      const ia = base.indexOf(name), ib = base.indexOf(neighbor.name);
+      if (ia < 0 || ib < 0) return prev;
+      [base[ia], base[ib]] = [base[ib], base[ia]];
+      return base;
+    });
+  }, [coaGroups]);
+
+  // Scene-level card settings (persisted in the scene payload)
+  const [jeCardWidth, setJeCardWidth] = useState(JE_WIDTH_DEFAULT);
+  const [jeIndent, setJeIndent] = useState(JE_INDENT_DEFAULT); // tetris credit-block stagger
+  const [jePreset, setJePreset] = useState<JePreset>("guided");
+  const [dealFaceDown, setDealFaceDown] = useState(false); // deck toggle: deals arrive as card backs
+  const [hideFdLabels, setHideFdLabels] = useState(false); // quiz mode: banners show "???"
+  const [focusPalette, setFocusPalette] = useState(true); // blanks trimmed to JE/T-account/Note/Heading
+  // PREVIEW STUDENT (template variables) — persisted in localStorage
+  const [previewStudent, setPreviewStudent] = useState<PreviewStudent>(() => loadPreviewStudent());
+  const patchPreview = useCallback((k: keyof PreviewStudent, v: string) => {
+    setPreviewStudent((prev) => {
+      const next = { ...prev, [k]: v };
+      savePreviewStudent(next);
+      return next;
+    });
+  }, []);
+  const jeLibrary = useMemo(() => library.filter((it) => it.kind === "je"), [library]); // description picker (A12)
+  // palette LIBRARY default: active + authored only (archived stays queryable via the picker toggle)
+  const activeLibrary = useMemo(() => library.filter((i) => i.status === "active" && i.source === "authored"), [library]);
+  // GLOBAL DIRECTOR NOTES (per beat) — set once, shown on that beat's frame in
+  // every lesson. localStorage is the source of truth (truly global across
+  // scenes); also saved into the scene payload so it travels on export/import.
+  const [beatNotes, setBeatNotes] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem("sa-canvas-beat-notes") || "{}"); } catch { return {}; }
+  });
+  const setBeatNote = useCallback((beat: string, text: string) => {
+    setBeatNotes((prev) => {
+      const next = { ...prev };
+      if (text) next[beat] = text; else delete next[beat];
+      try { localStorage.setItem("sa-canvas-beat-notes", JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  }, []);
+  const canvasSettings = useMemo<CanvasSettings>(
+    () => ({
+      jeCardWidth,
+      jeIndent,
+      jePreset,
+      coa: coaGroups,
+      coaNames,
+      hideFdLabels,
+      jeLibrary,
+      courseId: sceneCourseId,
+      chapterId: sceneChapterId,
+      courseName: sceneCourse ? courseLabel(sceneCourse) : null,
+      contentResetMissing,
+      onManageAccounts: () => setManageAccountsOpen(true),
+      previewStudent,
+      beatNotes,
+      setBeatNote,
+      setJeCardWidth,
+      setJeIndent,
+      setJePreset,
+    }),
+    [jeCardWidth, jeIndent, jePreset, coaGroups, coaNames, hideFdLabels, jeLibrary, sceneCourseId, sceneChapterId, sceneCourse, contentResetMissing, previewStudent, beatNotes, setBeatNote],
+  );
+
+  // Off-canvas = TUCKED deck members (dealt members are visible like loose cards);
+  // legacy staged/minimized read as tucked until the load-time migration clears
+  // them. ELEMENTS are never off-canvas — self-heals any stray membership.
+  // cueHidden (Cue Sheet Phase 2): a memo in a cue-driven frame is hidden until
+  // its memo cue fires; RF hides the node AND its pointer arrow (hidden endpoint).
+  // cueHidden hides cards/memos in both modes (unchanged), but SCENERY (heading /
+  // text / gate / exam cue) only in FILM: the choreograph materialiser writes
+  // cueHidden on scenery to reveal it on cue, and that must NEVER strand a scenery
+  // element invisible while AUTHORING (bug: Start-Here frame #1.6 — the #1/#2 text
+  // lines vanished in authoring after a choreograph/scrub pass, since offCanvas hid
+  // cueHidden regardless of mode). Authoring always shows scenery for editing.
+  const offCanvas = (d: CardData) =>
+    (!isElementKind(d.kind) && isTucked(d)) ||
+    (!!(d as { cueHidden?: boolean }).cueHidden && (!isElementKind(d.kind) || filmRef.current));
+  // LOCKS: posLock (B2, any card — position frozen, edits fine) and the JE
+  // reviewLock (A3 — superset: also freezes edits inside the card face) both
+  // pin the node by syncing React Flow's draggable flag off.
+  const dragFrozen = (d: CardData) => !!(d as CardBase).posLock || !!(d as { reviewLock?: boolean }).reviewLock;
+  // FRAMES ARE STATIC: never draggable (cards move WITHIN a frame, not the frame).
+  const nodeFrozen = (n: { type?: string; data: unknown }) => n.type === "frame" || dragFrozen(n.data as CardData);
+    // CEQ per-choice memos (Item 6): in FILM a memo anchored to a CEQ choice stays
+    // hidden until that choice is Enter-resolved. DERIVED (never persisted) so it
+    // recomputes on every film-toggle / resolve, and authoring always shows the memo
+    // for editing — the safe alternative to a persisted cueHidden that could strand it.
   useEffect(() => {
-    if (liveNodes.some((n) => !!n.hidden !== !!(n.data as unknown as CardData).minimized)) {
+    const filmHiddenMemos = new Set<string>();
+    if (film) {
+      const byId = new Map(liveNodes.map((n) => [n.id, n]));
+      // CHAIN memos (prompt 1) — a memo listed in a choice.chain is hidden until its
+      // index < the choice's chainShown (only >0 once resolved, walked with Enter).
+      // Chains REPLACE memo-on-resolve; the memo node is referenced by memoNodeId, so
+      // revealing accumulates them one Enter at a time (their arrows hide with them).
+      const chainMemoIds = new Set<string>();
+      for (const n of liveNodes) {
+        if ((n.data as { kind?: string }).kind !== "ceq") continue;
+        for (const c of ((n.data as unknown as { choices?: CeqChoice[] }).choices ?? [])) {
+          const shown = c.chainShown ?? 0;
+          (c.chain ?? []).forEach((it, i) => {
+            if (it.kind === "memo" && it.memoNodeId) {
+              chainMemoIds.add(it.memoNodeId);
+              if (i >= shown) filmHiddenMemos.add(it.memoNodeId);
+            }
+          });
+        }
+      }
+      // LEGACY edge-anchored memos (NOT chain members) — hidden until the choice
+      // resolves (the pre-chain behaviour, kept for scenes that used it).
+      for (const e of rf.getEdges()) {
+        const th = e.targetHandle;
+        if (!th || !th.startsWith("anc:")) continue;
+        if (chainMemoIds.has(e.source)) continue; // chain memos handled above
+        const tgt = byId.get(e.target);
+        if (!tgt || (tgt.data as { kind?: string }).kind !== "ceq") continue;
+        const choice = (tgt.data as unknown as { choices?: { id: string; resolved?: boolean }[] }).choices?.find((c) => c.id === th.slice(4));
+        if (choice && !choice.resolved) filmHiddenMemos.add(e.source);
+      }
+    }
+    // ACTIVE-LESSON GATING (Lee — lag fix): descendants of a NON-active lesson are
+    // hidden here. This effect is the SINGLE owner of node.hidden, so gating must
+    // live inside hiddenOf or it gets reverted on the next reconcile. Lesson nodes
+    // themselves are never gated (they render as collapsed chips).
+    const gateHidden = activeLessonId != null ? computeLessonHidden(liveNodes, activeLessonId) : null;
+    const hiddenOf = (n: (typeof liveNodes)[number]) => offCanvas(n.data as unknown as CardData) || filmHiddenMemos.has(n.id) || gateHidden?.get(n.id) === true;
+    const stale = liveNodes.some((n) => !!n.hidden !== hiddenOf(n) || (n.hidden && n.selected) || (n.draggable === false) !== nodeFrozen(n));
+    if (stale) {
       rf.setNodes((nds) =>
         nds.map((n) => {
-          const min = !!(n.data as unknown as CardData).minimized;
-          return !!n.hidden !== min ? { ...n, hidden: min } : n;
+          const off = hiddenOf(n as (typeof liveNodes)[number]);
+          const frozen = nodeFrozen(n);
+          // off-canvas cards are also DESELECTED — otherwise the show key would step the
+          // reveals of an invisible staged card instead of summoning the next one.
+          if (!!n.hidden !== off || (off && n.selected) || (n.draggable === false) !== frozen) {
+            return { ...n, hidden: off, selected: off ? false : n.selected, draggable: frozen ? false : undefined };
+          }
+          return n;
         }),
       );
     }
+  }, [liveNodes, rf, film, activeLessonId]);
+
+  // Z-ORDER: any node that lacks a zIndex is BRAND NEW (spawned, cloned, dealt,
+  // generated, pasted, or a fresh memo) — give it the top of its tier so it lands
+  // ON TOP of its peers and is grabbable, never buried. nextZ is monotonic +
+  // tiered (container < frame < element < card < memo), so this also keeps memos
+  // above their host cards. One assignment per node, then it's no longer
+  // undefined — self-terminating.
+  useEffect(() => {
+    const fresh = liveNodes.filter((n) => n.zIndex === undefined);
+    if (fresh.length === 0) return;
+    const ids = new Set(fresh.map((n) => n.id));
+    rf.setNodes((nds) => nds.map((n) => (ids.has(n.id) ? { ...n, zIndex: nextZ(n.type, (n.data as { kind?: string })?.kind) } : n)));
   }, [liveNodes, rf]);
 
-  // ---- spawn at viewport center ----
-  const spawn = useCallback(
-    (data: CardData) => {
+  // FILM = STRUCTURE INERT: when film mode turns on, drop any lingering
+  // selection on a structure/design node (frame, lesson, zone, heading, text,
+  // gate) so no stray selection ring sits on the composed stage. Cards keep
+  // their selection. The CSS gate (pointer-events:none in .film-mode) blocks NEW
+  // structure selection/drag; this just cleans what was already selected. Purely
+  // a mode gate — nothing here persists, and exiting film restores everything.
+  const isStructureType = (t: string | undefined): boolean =>
+    isContainerType(t) || t === "heading" || t === "text" || t === "paygate" || t === "signupgate";
+  useEffect(() => {
+    if (!film) return;
+    if (rf.getNodes().some((n) => n.selected && isStructureType(n.type))) {
+      rf.setNodes((nds) => nds.map((n) => (n.selected && isStructureType(n.type) ? { ...n, selected: false } : n)));
+    }
+  }, [film, rf]);
+
+  // ---- CONNECTIONS (V2 + PROMPT A): hover dots on every card/lesson, plus
+  // per-LINE dots on JE blocks (ln:<lineId>:l|r handles — edges anchored to a
+  // line travel with its block through hops/reorders). Drag dot → live line →
+  // drop on any dot; loose mode so every dot both starts and receives.
+  //
+  // THE UNDO FIX (PROMPT A item 4, root cause in arrows.ts): React Flow in
+  // uncontrolled mode auto-adds its OWN plain edge before this callback runs —
+  // the old dupe-guard saw it and bailed, so the bus never recorded arrows
+  // (Ctrl+Z ignored them) and the visible edge was RF's unstyled bezier (no
+  // arrowhead). Now: strip the auto edge raw (it was never a user action) and
+  // dispatch the styled replacement through the bus.
+  const onConnect = useCallback(
+    (c: Connection) => {
+      const { autoIds, edge } = resolveConnection(rf.getEdges() as EdgeLike[], c, () => cardId("edge"));
+      if (autoIds.length) {
+        const drop = new Set(autoIds);
+        rf.setEdges((eds) => eds.filter((e) => !drop.has(e.id)));
+      }
+      // MEMO RE-TARGET (J3): a memo dot dropped on a block IN THE SAME card
+      // (source === target, so no edge is made) re-points that memo's default
+      // in-card leader at the dropped line — one undoable data patch. Cross-card
+      // memo arrows fall through to the ordinary edge path below.
+      const memoSrc = memoOfHandle(c.sourceHandle);
+      if (memoSrc && c.source && c.source === c.target) {
+        const targetLine = lineIdOfHandle(c.targetHandle);
+        if (targetLine && targetLine !== memoSrc.lineId) {
+          const node = rf.getNode(c.source);
+          if (node) {
+            const nextLines = ((node.data as unknown as JeCard).lines ?? []).map((l) =>
+              l.id === memoSrc.lineId ? { ...l, memos: memosOf(l).map((m) => (m.kind === memoSrc.kind ? { ...m, point: targetLine } : m)) } : l,
+            ) as JeLine[];
+            const cmd = patchDataCmd(rf as unknown as RfLike, c.source, { lines: nextLines }, "re-target memo");
+            if (cmd) bus.dispatch(cmd);
+          }
+        }
+        return;
+      }
+      if (edge) bus.dispatch(addEdgeCmd(rf as unknown as RfLike, edge));
+    },
+    [rf],
+  );
+
+  // ---- edge click (#6): RF selects the edge (slow looping silver march + ×);
+  // we additionally light BOTH endpoint blocks SILVER (same language as block
+  // selection) via transient _glowLine. Cleared on pane click / Esc / next edge.
+  const glowedNodes = useRef<string[]>([]);
+  const clearEdgeGlow = useCallback(() => {
+    for (const nid of glowedNodes.current) rf.updateNodeData(nid, { _glowLine: undefined });
+    glowedNodes.current = [];
+  }, [rf]);
+  const onEdgeClick = useCallback(
+    (_e: React.MouseEvent, edge: { id: string; source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null }) => {
+      // SPOTLIGHT AN ARROW (Lee): Ctrl+click pills the edge, Ctrl+Shift+click flames
+      // it — same emphasis model as cards, keyed on the edge id.
+      if (_e.ctrlKey || _e.metaKey) {
+        _e.stopPropagation();
+        if (_e.shiftKey) spotRef.current?.toggleFlame(edge.id, "self");
+        else spotRef.current?.start(edge.id, "self");
+        return;
+      }
+      clearEdgeGlow();
+      const ends: [string, string | null][] = [
+        [edge.source, lineIdOfHandle(edge.sourceHandle)],
+        [edge.target, lineIdOfHandle(edge.targetHandle)],
+      ];
+      for (const [nid, lineId] of ends) {
+        if (!lineId) continue;
+        rf.updateNodeData(nid, { _glowLine: lineId });
+        glowedNodes.current.push(nid);
+      }
+    },
+    [rf, clearEdgeGlow],
+  );
+  const onPaneClick = useCallback(() => clearEdgeGlow(), [clearEdgeGlow]);
+
+  // ---- CTRL PASS-THROUGH: while Ctrl is held, a body class (`sa-ctrl`) turns
+  // lesson/region CONTAINER pointer-events OFF (see the `body.sa-ctrl` rule in
+  // ArrowEdge.tsx) so a Ctrl+CLICK falls THROUGH a container to the card / target
+  // under it — that click is SPOTLIGHT (SpotlightContext). This body-class effect
+  // is LIVE and required by that CSS; do not remove without removing the rule.
+  // NOTE (correcting an old comment): the marquee is SHIFT+drag and multi-select
+  // is SHIFT+click (selectionKeyCode / multiSelectionKeyCode = ["Shift"]); Ctrl is
+  // NOT the marquee key. It used to be Ctrl+drag, before Ctrl became spotlight.
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => { if (e.key === "Control") document.body.classList.add("sa-ctrl"); };
+    const up = (e: KeyboardEvent) => { if (e.key === "Control") document.body.classList.remove("sa-ctrl"); };
+    const blur = () => document.body.classList.remove("sa-ctrl");
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", blur);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", blur);
+      document.body.classList.remove("sa-ctrl");
+    };
+  }, []);
+
+  // GROUP CHROME (PROMPT B) is now its own <GroupChromeBar/> component (see
+  // module scope) so its pan/zoom + node subscriptions don't re-render this
+  // whole route. Rendered below in the JSX, gated on `chrome`.
+
+  // while a connection drag is live, EVERY node's dots show (drop targets)
+  const connecting = useStore((s) => !!s.connection.inProgress);
+
+  // User pan/zoom timestamp — auto-fit never fights a hand on the wheel.
+  const lastUserView = useRef(0);
+  const onMoveStart = useCallback((event: unknown) => {
+    if (event) lastUserView.current = Date.now();
+  }, []);
+
+  /** No remembered spot → next free cell in a flowing grid from viewport center
+   *  (cell = footprint + 40px gutter, max 5 columns, wrapping down). */
+  const nextFreeGridSlot = useCallback(
+    (w: number, h: number) => {
       const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
       const center = rf.screenToFlowPosition({
         x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2,
         y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2,
       });
-      // exclusive-select the new card so the stepper/focus hotkeys target it
-      rf.setNodes((nds) => nds.map((n) => (n.selected ? { ...n, selected: false } : n)));
-      rf.addNodes([
-        {
-          id: cardId(data.kind),
-          type: data.kind,
-          position: { x: center.x - 140 + (Math.random() * 40 - 20), y: center.y - 80 + (Math.random() * 40 - 20) },
-          data: data as unknown as CardData & Record<string, unknown>,
-          selected: true,
-        },
-      ]);
+      const GUTTER = 40;
+      const COLS = 5;
+      const cellW = w + GUTTER;
+      const cellH = h + GUTTER;
+      const originX = center.x - (cellW * COLS) / 2 + GUTTER / 2;
+      const originY = center.y - cellH / 2;
+      const others = rf.getNodes().filter((n) => !n.hidden && !isContainerType(n.type));
+      const overlaps = (x: number, y: number) =>
+        others.some((o) => {
+          const ow = o.measured?.width ?? 300;
+          const oh = o.measured?.height ?? 170;
+          return x < o.position.x + ow && x + w > o.position.x && y < o.position.y + oh && y + h > o.position.y;
+        });
+      for (let i = 0; i < 60; i++) {
+        const x = originX + (i % COLS) * cellW;
+        const y = originY + Math.floor(i / COLS) * cellH;
+        if (!overlaps(x, y)) return { x, y };
+      }
+      return { x: center.x, y: center.y };
     },
     [rf],
   );
 
+  /** Post-deal: if visible cards spill past the viewport, zoom-to-fit (~250ms) —
+   *  unless the user panned/zoomed within the last few seconds. */
+  const maybeAutoFit = useCallback(() => {
+    if (Date.now() - lastUserView.current < 4000) return;
+    const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+    if (!rect) return;
+    const vp = rf.getViewport();
+    const view = { x: -vp.x / vp.zoom, y: -vp.y / vp.zoom, w: rect.width / vp.zoom, h: rect.height / vp.zoom };
+    const visible = rf.getNodes().filter((n) => !n.hidden && !isContainerType(n.type));
+    if (visible.length === 0) return;
+    const outside = visible.some((n) => {
+      const w = n.measured?.width ?? 300;
+      const h = n.measured?.height ?? 170;
+      return n.position.x < view.x || n.position.y < view.y || n.position.x + w > view.x + view.w || n.position.y + h > view.y + view.h;
+    });
+    if (outside) void rf.fitView({ duration: 250, padding: 0.12 });
+  }, [rf]);
+
+  // SPACE-WALK cursor (PROMPT C): the lesson whose deck the show key is
+  // currently walking — follows the last deal; a selected card's lesson wins.
+  const walkLessonRef = useRef<string | null | undefined>(undefined);
+  // MOST-RECENT LESSON (for on-load start): set on every frame enter; persisted in
+  // sceneSettings.lastLessonId so a reload lands on the lesson Lee was working in.
+  const lastLessonRef = useRef<string | null>(null);
+
+  // Make `lessonId` the active lesson: the hiddenOf reconciler (which OWNS node
+  // .hidden) folds gating in and unmounts the rest; here we just record the choice
+  // and fly the camera to its grid (never deletes; nothing structural changes).
+  const setActiveLesson = useCallback((lessonId: string | null) => {
+    activeLessonRef.current = lessonId;
+    lastLessonRef.current = lessonId; // keep on-load camera + save consistent
+    setActiveLessonIdState(lessonId);
+    const l = lessonId ? rf.getNode(lessonId) : undefined;
+    // Point the run readout at the newly-active lesson's stored runs (unless a run
+    // is live — that one owns the readout until F9 ends it).
+    if (!runActiveRef.current) { const ar = (l?.data as { runs?: FilmRun[] } | undefined)?.runs ?? []; setLastRun(ar.length ? ar[ar.length - 1] : null); setRunReadoutOpen(false); }
+    if (l) { const d = l.data as { w?: number; h?: number }; void rf.fitBounds({ x: l.position.x, y: l.position.y, width: d.w ?? lessonCellSize().w, height: d.h ?? lessonCellSize().h }, { duration: 300, padding: 0.08 }); }
+  }, [rf]);
+
+  // NEW-LESSON PROMPT (topic-grouping batch, ITEM 3) — creating a lesson asks for
+  // its category + topic, then scaffolds frames by category. Default CEQ.
+  const [newLessonOpen, setNewLessonOpen] = useState(false);
+  const [newLessonCategory, setNewLessonCategory] = useState<LessonCategory>("CEQ");
+  const [newLessonTopic, setNewLessonTopic] = useState("");
+  // GRID-BY-TYPE VIEW (ITEM 4) — read-only projection overlay; toggling is lossless.
+  const [gridByType, setGridByType] = useState(false);
+  // ONE lesson cell = a lesson node + its 4 beat frames (Hook · Teach · M/P ·
+  // Check, one sub-frame each at row 0). Reused by the scaffold and by the
+  // ghost-cell "+ add lesson" click, so every cell is stamped identically.
+  const buildLessonCell = useCallback((pos: { x: number; y: number }, label: string, pathOrder: number, check: boolean, allLabels: string[] = []): CardNode[] => {
+    const cell = lessonCellSize();
+    const lid = cardId("lesson");
+    const lesson = {
+      id: lid, type: "lesson", position: { x: pos.x, y: pos.y },
+      data: { label, w: cell.w, h: cell.h, pathOrder, check } as unknown as CardNode["data"],
+    };
+    // Teach · Model · Cram beat openers (one each). The HOOK opener is built
+    // separately below as the fixed 3-frame intro run.
+    const frames = SCAFFOLD_BEATS.filter((b) => b.beat !== "hook").map((b) => ({
+      id: cardId("frame"), type: "frame", parentId: lid,
+      position: { x: columnX(BEAT_COLUMNS.indexOf(b.beat)), y: rowY(0) }, width: FRAME_W, height: FRAME_H,
+      data: { ...blankFrameData(b.beat, 0) } as unknown as CardNode["data"],
+    }));
+    // HOOK is ALWAYS three fixed frames (Lee's call): Intro → CEQ → Outline. The
+    // lesson always opens the same way; the teaching starts from Teach.
+    const introFrameId = cardId("frame");
+    // CONSISTENT INTRO LOOK (Lee's call): every Intro frame opens on the Dream
+    // loop, playing, full-bleed — Fill · 100% opacity · 110% zoom · anchored
+    // bottom-middle — so the branded header lands the same way every lesson.
+    const introFrame = { id: introFrameId, type: "frame", parentId: lid, position: { x: columnX(0), y: rowY(0) }, width: FRAME_W, height: FRAME_H, data: { ...blankFrameData("hook", 0), title: "Intro", bgSrc: "dream", bgPlaying: true, bgOpacity: 1, bgFit: "cover", bgZoom: 110, bgAnchor: "bottom" } as unknown as CardNode["data"] };
+    // INTRO — the lesson TITLE heading, prefilled. Left-aligned (aligns with the S)
+    // and scrimmed so it reads over the bright loop.
+    const titleCard = {
+      id: cardId("heading"), type: "heading", parentId: introFrameId,
+      position: { x: 60, y: 150 },
+      data: { kind: "heading", text: label, level: 1, scrim: true } as unknown as CardNode["data"],
+    };
+    // CEQ — a blank question the intro can pose as a hook ("try one first").
+    const ceqFrameId = cardId("frame");
+    const ceqFrame = { id: ceqFrameId, type: "frame", parentId: lid, position: { x: columnX(0), y: rowY(1) }, width: FRAME_W, height: FRAME_H, data: { ...blankFrameData("hook", 1), title: "CEQ" } as unknown as CardNode["data"] };
+    const ceqCard = {
+      id: cardId("ceq"), type: "ceq", parentId: ceqFrameId,
+      position: { x: 130, y: 90 },
+      data: blankCard("ceq") as unknown as CardNode["data"],
+    };
+    // OUTLINE — an EMPTY frame (Lee's call: no auto-generated lesson list; build
+    // your own outline list here and bind it to the course outline if you want).
+    void allLabels;
+    const outlineFrameId = cardId("frame");
+    const outlineFrame = { id: outlineFrameId, type: "frame", parentId: lid, position: { x: columnX(0), y: rowY(2) }, width: FRAME_W, height: FRAME_H, data: { ...blankFrameData("hook", 2), title: "Outline" } as unknown as CardNode["data"] };
+    return [lesson, introFrame, ceqFrame, outlineFrame, ...frames, titleCard, ceqCard] as CardNode[];
+  }, []);
+
+  // CATEGORY SCAFFOLD (prompt 3) — per-category frame arcs. Ordinary frames
+  // (blankFrameData), deletable/retaggable, no special behavior. Column = beat,
+  // row = subIndex. TEACH reuses the 4-beat arc (buildLessonCell); CEQ = four named
+  // frames (Hook Intro · CEQ Hook · CEQ Run · Outro); PRACTICE / NERD_OUT = a single
+  // placeholder frame each.
+  const CATEGORY_FRAME_SPECS: Record<Exclude<LessonCategory, "TEACH">, { beat: Beat; sub: number; title: string }[]> = useMemo(() => ({
+    CEQ: [
+      { beat: "hook", sub: 0, title: "Hook Intro" },
+      { beat: "cram", sub: 0, title: "CEQ Hook" },
+      { beat: "cram", sub: 1, title: "CEQ Run" },
+      { beat: "cram", sub: 2, title: "Outro" },
+    ],
+    PRACTICE: [
+      { beat: "hook", sub: 0, title: "Practice" },
+    ],
+    NERD_OUT: [
+      { beat: "hook", sub: 0, title: "Nerd Out" },
+    ],
+  }), []);
+
+  /** Build a lesson cell of a given CATEGORY at pos. TEACH → the existing 4-beat
+   *  arc (stamped with category/topic); others → their frame run. */
+  const buildTypedLessonCell = useCallback((pos: { x: number; y: number }, opts: { label: string; pathOrder: number; check: boolean; category: LessonCategory; topic: string }): CardNode[] => {
+    if (opts.category === "TEACH") {
+      return buildLessonCell(pos, opts.label, opts.pathOrder, opts.check).map((n) =>
+        n.type === "lesson" ? ({ ...n, data: { ...n.data, category: "TEACH", topic: opts.topic } } as CardNode) : n,
+      );
+    }
+    const cell = lessonCellSize();
+    const lid = cardId("lesson");
+    const lesson = {
+      id: lid, type: "lesson", position: { x: pos.x, y: pos.y }, width: cell.w, height: cell.h,
+      data: { label: opts.label, w: cell.w, h: cell.h, pathOrder: opts.pathOrder, check: opts.check, category: opts.category, topic: opts.topic } as unknown as CardNode["data"],
+    };
+    const frames = CATEGORY_FRAME_SPECS[opts.category].map((sp) => ({
+      id: cardId("frame"), type: "frame", parentId: lid,
+      position: { x: columnX(BEAT_COLUMNS.indexOf(sp.beat)), y: rowY(sp.sub) }, width: FRAME_W, height: FRAME_H,
+      data: { ...blankFrameData(sp.beat, sp.sub), title: sp.title } as unknown as CardNode["data"],
+    }));
+    return [lesson, ...frames] as CardNode[];
+  }, [buildLessonCell, CATEGORY_FRAME_SPECS]);
+
+  /** Create a NEW typed lesson at viewport center from the new-lesson prompt. */
+  const createTypedLesson = useCallback(() => {
+    const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+    const center = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
+    const cell = lessonCellSize();
+    const topic = newLessonTopic.trim();
+    const label = topic || "New lesson";
+    const nodes = buildTypedLessonCell({ x: Math.round(center.x - cell.w / 2), y: Math.round(center.y - cell.h / 2) }, { label, pathOrder: 0, check: false, category: newLessonCategory, topic: topic || label });
+    bus.dispatch(addNodesCmd(rf as unknown as RfLike, nodes, `new ${newLessonCategory} lesson`));
+    setNewLessonOpen(false);
+    setNewLessonTopic("");
+    // ACTIVE-LESSON GATING — a brand-new lesson becomes the active one (mounts it,
+    // collapses the rest) and the camera flies to it.
+    const newLid = nodes.find((n) => n.type === "lesson")?.id;
+    if (newLid) window.setTimeout(() => setActiveLesson(newLid), 60);
+  }, [rf, buildTypedLessonCell, newLessonCategory, newLessonTopic, setActiveLesson]);
+
+
+  // REFLOW / TIDY (path nav #4): re-run the snaking layout on the region's
+  // lessons (ordered by pathOrder, then reading order) — even spacing, clean
+  // turns, no overlap — as ONE undoable command. Never automatic: manual
+  // placement (and manual resize) is preserved until Lee presses this.
+  const reflowPath = useCallback(() => {
+    const all = rf.getNodes() as CardNode[];
+    const lessons = all.filter((n) => n.type === "lesson" && !n.parentId);
+    // Each entry can carry a position AND a footprint normalize (w/h) — a Tidy
+    // migrates pre-grid regions to the reserved-footprint cells too.
+    type Slot = { x: number; y: number; w?: number; h?: number };
+    const before = new Map<string, Slot>();
+    const after = new Map<string, Slot>();
+    const snap = (n: CardNode): Slot => ({ x: n.position.x, y: n.position.y, w: (n.data as Record<string, unknown>).w as number, h: (n.data as Record<string, unknown>).h as number });
+    // 1) re-lay the region's lessons into the reserved 5-wide GRID by pathOrder,
+    //    wrap-up centered below. Anchored at the region's current top-left.
+    if (lessons.length >= 1) {
+      const po = (n: CardNode) => { const v = (n.data as Record<string, unknown>).pathOrder; return typeof v === "number" ? v : Number.POSITIVE_INFINITY; };
+      const labelOf = (n: CardNode) => (n.data as Record<string, unknown>).label as string | undefined;
+      const ordered = [...lessons].sort((a, b) => po(a) - po(b) || a.position.y - b.position.y || a.position.x - b.position.x);
+      const gridLessons = ordered.filter((n) => !isWrapUpName(labelOf(n)));
+      const wrapLesson = ordered.find((n) => isWrapUpName(labelOf(n))) ?? null;
+      const cell = lessonCellSize();
+      const minX = Math.min(...lessons.map((n) => n.position.x));
+      const minY = Math.min(...lessons.map((n) => n.position.y));
+      const rl = regionLayout(gridLessons.length, minX, minY, !!wrapLesson, cell);
+      gridLessons.forEach((n, i) => { before.set(n.id, snap(n)); after.set(n.id, { ...rl.cells[i], w: cell.w, h: cell.h }); });
+      if (wrapLesson && rl.wrapUp) { before.set(wrapLesson.id, snap(wrapLesson)); after.set(wrapLesson.id, { ...rl.wrapUp, w: cell.w, h: cell.h }); }
+    }
+    // 2) re-lay each lesson's FRAMES as the beat GRID (lesson-relative — they
+    //    ride along with the lesson's new spot).
+    const byId = new Map(all.map((n) => [n.id, n]));
+    for (const l of lessons) {
+      const gl = gridLayout(lessonGrid(all as never, l.id), FRAME_W, FRAME_H);
+      gl.positions.forEach((pos, fid) => { const f = byId.get(fid); if (f) { before.set(fid, snap(f)); after.set(fid, pos); } });
+    }
+    if (after.size === 0) return;
+    const apply = (m: Map<string, Slot>) =>
+      rf.setNodes((nds) => nds.map((n) => {
+        const s = m.get(n.id); if (!s) return n;
+        if (s.w == null || s.h == null) return { ...n, position: { x: s.x, y: s.y } };
+        return { ...n, position: { x: s.x, y: s.y }, width: s.w, height: s.h, data: { ...(n.data as Record<string, unknown>), w: s.w, h: s.h } } as CardNode;
+      }));
+    bus.dispatch({ label: "tidy layout", do: () => apply(after), undo: () => apply(before) });
+    window.setTimeout(() => void rf.fitView({ duration: 300, padding: 0.15 }), 60);
+  }, [rf]);
+
+  // ---- PREP FOR FILMING (PROMPT C): hide every card's reveals + tuck every
+  // deck member — ONE undoable command. Run it on a duplicated scene and the
+  // master stays pristine while the copy is show-ready.
+  const prepForFilming = useCallback(() => {
+    const nds = rf.getNodes();
+    const cmds: (ReturnType<typeof patchDataCmd>)[] = [];
+    for (const n of nds) {
+      if (isContainerType(n.type)) continue;
+      const d = n.data as unknown as CardData;
+      const hide = hideAll(d);
+      if (hide) cmds.push(patchDataCmd(rf as unknown as RfLike, n.id, hide as Record<string, unknown>, "hide reveals"));
+      // Cue Sheet Phase 2: a memo inside a CUE-DRIVEN frame hides until its cue
+      // fires (derived-order frames leave memos visible — unchanged behavior).
+      if (d.kind === "memo" && !(d as { cueHidden?: boolean }).cueHidden) {
+        const co = (n.parentId ? (rf.getNode(n.parentId)?.data as { cueOrder?: string[] }) : undefined)?.cueOrder;
+        if (co && co.length) cmds.push(patchDataCmd(rf as unknown as RfLike, n.id, { cueHidden: true }, "hide memo (cue)"));
+      }
+      if (!isElementKind(d.kind) && (d.deckMember || d.staged || d.minimized) && !isTucked(d)) {
+        cmds.push(
+          patchDataCmd(
+            rf as unknown as RfLike,
+            n.id,
+            {
+              deckMember: true,
+              tucked: true,
+              staged: undefined,
+              minimized: undefined,
+              deckPos: { x: n.position.x, y: n.position.y },
+              deckCategory: categoryOf(d),
+            },
+            "tuck",
+          ),
+        );
+      }
+    }
+    const c = compositeCmd(cmds, "prep for filming");
+    if (c) bus.dispatch(c);
+  }, [rf]);
+
+  // ---- DEAL: card leaves the deck for its REMEMBERED canvas spot (else the next
+  // free grid slot), selected on arrival; mount animation = the entrance. One
+  // dispatcher command — undo returns it to the deck at its old order.
+  /** SWEEP (prompt 1) — reset resolutions + revealed chain on the given CEQ cards
+   *  (the board sweep when advancing to the next question). Returns a plan folded
+   *  into the caller's undoable command so undo restores the swept teaching state.
+   *  Snapshots NOW (pre-advance); only dirty CEQ cards are touched. Shared by deal +
+   *  stackStep so BOTH advance paths sweep — the Space dispatcher is untouched. */
+  const ceqSweepPlan = useCallback((candidateIds: string[]) => {
+    const snap = candidateIds
+      .map((cid) => ({ id: cid, data: rf.getNode(cid)?.data as { kind?: string; choices?: CeqChoice[] } | undefined }))
+      .filter((s): s is { id: string; data: { kind?: string; choices: CeqChoice[] } } => s.data?.kind === "ceq" && Array.isArray(s.data.choices) && s.data.choices.some((c) => c.resolved || (c.chainShown ?? 0) > 0))
+      .map((s) => ({ id: s.id, choices: structuredClone(s.data.choices) }));
+    return {
+      any: snap.length > 0,
+      reset: () => { for (const s of snap) rf.updateNodeData(s.id, { choices: s.choices.map((c) => ({ ...c, resolved: false, chainShown: 0 })) }); },
+      restore: () => { for (const s of snap) rf.updateNodeData(s.id, { choices: structuredClone(s.choices) }); },
+    };
+  }, [rf]);
+
+  const deal = useCallback(
+    (id: string) => {
+      const node = rf.getNode(id);
+      if (!node) return;
+      walkLessonRef.current = lessonIdOf(node as never, rf.getNodes() as never);
+      const d = node.data as unknown as CardData;
+      const fw = node.measured?.width ?? (d.kind === "je" ? jeCardWidth : ((d as CardData & { w?: number }).w ?? 300));
+      const fh = node.measured?.height ?? 190;
+      // DEAL-IN-PLACE for CEQ (Lee, item 2): the next card lands ON the currently-
+      // dealt card of the same deck (drag that card anywhere and the next deal
+      // follows). Falls back to the remembered deckPos, then a free grid slot, when
+      // nothing of this deck is out yet. Non-CEQ decks keep the grid-slot behaviour.
+      const deckId = (d as { deckId?: string }).deckId;
+      const ceqSibling = d.kind === "ceq" && deckId
+        ? rf.getNodes()
+            .filter((n) => n.id !== id && (n.data as { deckId?: string }).deckId === deckId && (n.data as { deckMember?: boolean }).deckMember && !(n.data as { tucked?: boolean }).tucked && !n.hidden)
+            .sort((a, b) => ((a.data as { stageOrder?: number }).stageOrder ?? 0) - ((b.data as { stageOrder?: number }).stageOrder ?? 0))
+            .pop()
+        : null;
+      const target = ceqSibling ? { x: ceqSibling.position.x, y: ceqSibling.position.y } : (d.deckPos ?? nextFreeGridSlot(fw, fh));
+      const before = {
+        deckMember: d.deckMember,
+        tucked: d.tucked,
+        staged: d.staged,
+        minimized: d.minimized,
+        faceDown: d.faceDown,
+        position: { ...node.position },
+      };
+      const fd = dealFaceDown;
+      // SWEEP (prompt 1): dealing the next CEQ clears the OUTGOING card's + its deck
+      // siblings' resolutions + revealed chain items; the incoming card also starts
+      // NEUTRAL. Folded into this one undoable deal command (undo restores the board).
+      const sweep = d.kind === "ceq" && deckId
+        ? ceqSweepPlan(rf.getNodes().filter((n) => n.id !== id && (n.data as { deckId?: string }).deckId === deckId && (n.data as { kind?: string }).kind === "ceq").map((n) => n.id))
+        : { any: false, reset: () => {}, restore: () => {} };
+      const dealtChoices = d.kind === "ceq" ? structuredClone((d as unknown as { choices?: CeqChoice[] }).choices ?? []) : null;
+      bus.dispatch({
+        label: "deal card",
+        do: () => {
+          // dealt member: stays IN the deck roster, just visible again. A dealt CEQ
+          // starts NEUTRAL — no emphasis pointer AND no resolved/revealed state (so a
+          // re-deal after Shift+Space re-walks fresh). NO auto-focus (Lee, item 4):
+          // dealing never selects the card; emphasis comes from CLICKING a choice.
+          rf.updateNodeData(id, { deckMember: true, tucked: false, staged: undefined, minimized: undefined, faceDown: fd, ...(dealtChoices ? { emphasis: undefined, choices: dealtChoices.map((c) => ({ ...c, resolved: false, chainShown: 0 })) } : {}) });
+          rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, position: { ...target }, hidden: false } : n)));
+          sweep.reset();
+        },
+        undo: () => {
+          sweep.restore();
+          rf.updateNodeData(id, { deckMember: before.deckMember, tucked: before.tucked, staged: before.staged, minimized: before.minimized, faceDown: before.faceDown, ...(dealtChoices ? { choices: dealtChoices } : {}) });
+          rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, position: { ...before.position }, selected: false } : n)));
+        },
+      });
+      // DEAL WITHIN A FRAME (hook shot): a frame-child card fills its in-frame slot
+      // in place — never auto-fit (that would zoom out to the whole canvas). Only
+      // free-canvas decks re-fit to keep the newly dealt card on screen.
+      const inFrame = !!node.parentId && rf.getNode(node.parentId)?.type === "frame";
+      if (!inFrame) setTimeout(maybeAutoFit, 40); // after the store settles
+      // RUN LOG — dealing a CEQ marks a new question on screen ("next card").
+      if (d.kind === "ceq") {
+        logRunEvent("deal", `dealt: ${(d as { prompt?: string }).prompt?.trim().slice(0, 44) || "CEQ"}`);
+        // BOSS CARD (sound pass): a boss-flagged CEQ fires the cram-launch one-shot on
+        // deal (film only; respects the global mute via playSfx).
+        if (filmRef.current && (d as { boss?: boolean }).boss) playSfx("cramLaunch");
+      }
+    },
+    [rf, dealFaceDown, jeCardWidth, nextFreeGridSlot, maybeAutoFit, logRunEvent, ceqSweepPlan],
+  );
+
+  /** STACK DEAL (Lee) — flashcard mode: one of the frame's deck cards at a time in
+   *  the SAME spot (the frame centre), each step re-tucking the one underneath.
+   *  dir=1 forward, dir=-1 back. Returns true when it moved (caller returns), false
+   *  at a boundary (caller flags the frame move). The cards must be the frame's
+   *  children (lay the grid inside the frame first) so the centre is frame-local.
+   *  One undoable command. */
+  const stackStep = useCallback((frameId: string, dir: 1 | -1): boolean => {
+    const nodes = rf.getNodes();
+    const frame = rf.getNode(frameId);
+    if (!frame) return false;
+    const members = deckMembers(nodes as never).filter((n) => (n as { parentId?: string }).parentId === frameId);
+    if (members.length === 0) return false;
+    const shownIdx = members.findIndex((n) => !isTucked(n.data as never));
+    let hideId: string | null = null;
+    let showIdx: number;
+    if (dir > 0) {
+      showIdx = shownIdx < 0 ? 0 : shownIdx + 1;
+      if (showIdx >= members.length) return false; // past the last → boundary
+      hideId = shownIdx >= 0 ? members[shownIdx].id : null;
+    } else {
+      if (shownIdx <= 0) return false; // at the first / none shown → boundary
+      showIdx = shownIdx - 1;
+      hideId = members[shownIdx].id;
+    }
+    const showNode = rf.getNode(members[showIdx].id);
+    if (!showNode) return false;
+    const showId = showNode.id;
+    const fw = (frame.data as { w?: number }).w ?? frame.width ?? 1600;
+    const fh = (frame.data as { h?: number }).h ?? frame.height ?? 900;
+    const cw = showNode.measured?.width ?? 260;
+    const ch = showNode.measured?.height ?? 180;
+    // FLIP-SPOT: the frame's dealSpot (the CEQ set's BASELINE card position, written by
+    // dealIntoFrame) so every question lands identically; else the frame centre (legacy).
+    // This also fixes the old first-card-at-dealSpot / rest-at-centre divergence.
+    // INSTANCE FIRST: a question that has its own geometry (it was moved, or stamped
+    // from the layout) flips to ITS OWN spot. Without this the flip re-stamped the
+    // frame's shared dealSpot over a card Lee had deliberately placed — the canvas
+    // half of the snap-back. Only this expression changed; the command below is the
+    // Space-walk core and is untouched.
+    const dealSpot = (frame.data as { dealSpot?: { x: number; y: number } }).dealSpot;
+    const own = (showNode.data as unknown as { geom?: { card?: { x: number; y: number } } }).geom?.card;
+    const pos = own ?? dealSpot ?? { x: Math.round(fw / 2 - cw / 2), y: Math.round(fh / 2 - ch / 2) };
+    const sd = showNode.data as { deckMember?: boolean; tucked?: boolean; staged?: boolean; minimized?: boolean };
+    const beforeShow = { pos: { ...showNode.position }, deckMember: sd.deckMember, tucked: sd.tucked, staged: sd.staged, minimized: sd.minimized };
+    const hideNode = hideId ? rf.getNode(hideId) : null;
+    const beforeHideTucked = hideNode ? (hideNode.data as { tucked?: boolean }).tucked : undefined;
+    // SWEEP (prompt 1): flipping to the next stacked CEQ clears the OUTGOING card's +
+    // sibling CEQs' resolutions/revealed chain; the incoming card starts NEUTRAL too.
+    // Same helper deal uses — the Space dispatcher is untouched.
+    const sweep = ceqSweepPlan(members.filter((m) => m.id !== showId).map((m) => m.id));
+    const showChoices = (showNode.data as { kind?: string; choices?: CeqChoice[] }).kind === "ceq" ? structuredClone((showNode.data as { choices?: CeqChoice[] }).choices ?? []) : null;
+    bus.dispatch({
+      label: "stack deal",
+      do: () => {
+        rf.updateNodeData(showId, { deckMember: true, tucked: false, staged: undefined, minimized: undefined, ...(showChoices ? { choices: showChoices.map((c) => ({ ...c, resolved: false, chainShown: 0 })) } : {}) });
+        if (hideId) rf.updateNodeData(hideId, { tucked: true });
+        rf.setNodes((nds) => nds.map((n) => (n.id === showId ? { ...n, position: { ...pos }, hidden: false, selected: true } : n.selected ? { ...n, selected: false } : n)));
+        sweep.reset();
+      },
+      undo: () => {
+        // restore every membership field (not just tucked) so a legacy staged/
+        // minimized member re-hides correctly, mirroring deal's undo.
+        sweep.restore();
+        rf.updateNodeData(showId, { deckMember: beforeShow.deckMember, tucked: beforeShow.tucked, staged: beforeShow.staged, minimized: beforeShow.minimized, ...(showChoices ? { choices: showChoices } : {}) });
+        if (hideId) rf.updateNodeData(hideId, { tucked: beforeHideTucked });
+        rf.setNodes((nds) => nds.map((n) => (n.id === showId ? { ...n, position: { ...beforeShow.pos }, selected: false } : n)));
+      },
+    });
+    // BOSS CARD (sound pass): flipping a boss-flagged CEQ into the stack fires the
+    // cram-launch one-shot (film only; the tucked-stack deal path — mirrors deal()).
+    if (filmRef.current && (showNode.data as { boss?: boolean }).boss) playSfx("cramLaunch");
+    return true;
+  }, [rf, ceqSweepPlan]);
+  const frameIsStack = useCallback((frameId: string) => !!(rf.getNode(frameId)?.data as { stackDeal?: boolean } | undefined)?.stackDeal, [rf]);
+
+  // ---- CEQ LIVE-TEACHING — CLICK a choice to emphasise (amber ring), Enter to
+  //      resolve. Arrows are ALWAYS frame nav now (Lee, item 4): the old
+  //      arrow-cycling ceqEmphasisMove is removed; emphasis is set by the click
+  //      handler in CeqCardNode (selects the card + sets data.emphasis).
+  /** MEMO SWEEP (Shift+`) — clear every revealed chain memo off the dealt CEQ(s)
+   *  while KEEPING each choice's resolution: a struck distractor stays struck, the
+   *  correct choice stays green, and since nothing re-resolves no sound re-fires.
+   *  Only `chainShown` is touched — memo visibility is DERIVED from it by the
+   *  hiddenOf reconciler, so the memos leave without anyone writing node.hidden.
+   *  Every chain restarts at zero, so Enter on a choice re-walks it from memo 1.
+   *  Targets the selected CEQ, else every CEQ in the frame you're in. One undo step.
+   *  Distinct from ` (full reset), which also clears the choice states. */
+  const ceqSweepMemos = useCallback(() => {
+    const sel = rf.getNodes().find((n) => n.selected && n.type === "ceq");
+    const pool = sel ? [sel] : rf.getNodes().filter((n) => n.type === "ceq" && n.parentId === currentFrameRef.current);
+    const targets = pool.filter((n) => ((n.data as unknown as { choices?: CeqChoice[] }).choices ?? []).some((c) => (c.chainShown ?? 0) > 0));
+    if (targets.length === 0) return;
+    const cmds = targets
+      .map((n) => patchDataFnCmd(rf as unknown as RfLike, n.id, (prev) => ({ choices: ((prev as unknown as { choices: CeqChoice[] }).choices ?? []).map((c) => ({ ...c, chainShown: 0 })) }), "memo sweep"))
+      .filter((c): c is NonNullable<typeof c> => !!c);
+    const cmd = compositeCmd(cmds, `memo sweep (${targets.length} CEQ${targets.length === 1 ? "" : "s"})`);
+    if (cmd) bus.dispatch(cmd);
+  }, [rf]);
+
+  /** ENTER / SHIFT+ENTER CHAIN WALK (prompt 1) on the emphasised CEQ choice.
+   *  dir=+1 (Enter): first press RESOLVES (correct → green + chaching; wrong → red +
+   *  strike; NO memo yet), each further press reveals the NEXT chain item (they
+   *  accumulate). dir=-1 (Shift+Enter): hides the most-recent revealed item, and
+   *  stepping back past item 1 UN-RESOLVES (returns the choice to NEUTRAL). Past the
+   *  end (either direction) = no-op. MULTI-SELECT: only this choice changes — other
+   *  choices keep their resolved + revealed state (distractor + correct chains
+   *  coexist). Chaching fires ONLY on the correct-resolve transition, never on chain
+   *  reveals. Chain memo visibility is DERIVED from chainShown in the hiddenOf
+   *  reconciler (film-gated). One undoable command per press. */
+  const ceqStep = useCallback((cardId: string, choiceId: string, dir: 1 | -1) => {
+    const node = rf.getNode(cardId);
+    if (!node) return;
+    const d = node.data as unknown as { choices: CeqChoice[]; confirmSfx?: boolean; prompt?: string };
+    const choice = d.choices.find((c) => c.id === choiceId);
+    if (!choice) return;
+    const chainLen = choice.chain?.length ?? 0;
+    const wasResolved = !!choice.resolved;
+    const shown = choice.chainShown ?? 0;
+    // Resolve the transition (no-op past either end).
+    // The transition itself is pure + regression-tested (ceq-walk.walkTransition).
+    const t = walkTransition(wasResolved, shown, chainLen, dir);
+    const nextResolved = t.resolved, nextShown = t.shown, action = t.action;
+    if (action === "noop") return;
+    const cmd = patchDataFnCmd(rf as unknown as RfLike, cardId, (prev) => {
+      const pd = prev as unknown as { choices: CeqChoice[]; tags?: string[] };
+      // MULTI-SELECT (prompt 1): ONLY this choice changes; others keep their state.
+      const choices = pd.choices.map((c) => (c.id === choiceId ? { ...c, resolved: nextResolved, chainShown: nextShown } : c));
+      const patch: { choices: typeof choices; tags?: string[] } = { choices };
+      // AUTO-TAG (Item 7): first WRONG resolve in FILM tags CEQ_DISTRACTOR (metadata).
+      if (action === "resolve" && !choice.correct && filmRef.current && !(pd.tags ?? []).includes("CEQ_DISTRACTOR")) patch.tags = [...(pd.tags ?? []), "CEQ_DISTRACTOR"];
+      return patch;
+    }, action === "resolve" ? "resolve CEQ" : action === "unresolve" ? "un-resolve CEQ" : action === "reveal" ? "reveal chain item" : "hide chain item");
+    if (cmd) bus.dispatch(cmd);
+    // CHACHING — ONLY on the correct-resolve transition (film, per-CEQ confirmSfx opt-out). Never on reveals.
+    if (action === "resolve" && choice.correct && filmRef.current && d.confirmSfx !== false) playSfx("chaching");
+    // PER-CHAIN-ITEM SOUND (sound pass): the revealed item's optional sound fires on
+    // its Enter reveal only (film). Shift+Enter (hide) never re-fires; Enter-forward
+    // again = a fresh "reveal" and fires again. Respects the global mute (playSfx).
+    const revealedItem = action === "reveal" ? choice.chain?.[nextShown - 1] : undefined;
+    if (revealedItem?.sound && filmRef.current) playSfx(revealedItem.sound);
+    // RUN LOG (part 6): resolve (choice + correct/wrong) and each chain reveal WITH the memo label + elapsed ms.
+    const stem = d.prompt?.trim();
+    if (action === "resolve") logRunEvent("resolve", `${stem ? stem.slice(0, 40) : "CEQ"} — ${choice.correct ? "✓ right" : "✗ wrong"}`, !!choice.correct);
+    else if (action === "reveal") logRunEvent("reveal", revealedItem?.label || "chain item");
+  }, [rf, logRunEvent]);
+
+  // ---- CHOREOGRAPH + SCRUBBER (Items 2-4) -----------------------------------
+  // A frame's space-walk queue is its recordedCues (explicit steps). Choreograph
+  // builds it by clicking; the materializer applies any step of it — the ONE
+  // apply/unapply path Space / Shift+Space / the scrubber all share.
+
+  /** Node ids that already have a step in the frame's queue (for ghost/lit + toggle). */
+  const choreoQueuedIds = useCallback((frameId: string): Set<string> => {
+    const cues = (rf.getNode(frameId)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues ?? [];
+    const s = new Set<string>();
+    for (const c of cues) { if (c.cardId) s.add(c.cardId); if (c.memoId) s.add(c.memoId); }
+    return s;
+  }, [rf]);
+
+  /** Apply the frame's queue up to step `n` — materialise absolute state (deal/tuck,
+   *  per-part reveal, scenery cueHidden, memo, spotlight) and move the transient
+   *  playhead. NOT undoable (playback is rehearsal; building the queue is the edit). */
+  const applyFrameToStep = useCallback((frameId: string, n: number) => {
+    const nodes = rf.getNodes();
+    const kids = nodes.filter((x) => x.parentId === frameId);
+    const cards = kids.filter((x) => !isContainerType(x.type) && (x.data as { kind?: string }).kind !== "memo");
+    const memos = kids.filter((x) => (x.data as { kind?: string }).kind === "memo");
+    const cues = (rf.getNode(frameId)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues ?? [];
+    const clamped = Math.max(0, Math.min(n, cues.length));
+    const { patches, spots } = materializeFrame(cards as never, memos as never, cues, clamped);
+    if (patches.size) rf.setNodes((nds) => nds.map((nd) => (patches.has(nd.id) ? { ...nd, data: { ...nd.data, ...patches.get(nd.id) } } : nd)));
+    recPlayIdxRef.current.set(frameId, clamped);
+    setPlayheadTick((t) => t + 1);
+    // Spotlight follows the queue ONLY when it actually contains spot cues (a manual
+    // spotlight on a plain reveal queue is left alone). start()/toggleFlame() are
+    // TOGGLES, so CLEAR first then replay the accumulated set — idempotent, no flicker.
+    if (cues.some((c) => c.kind === "spot" || c.kind === "super")) {
+      spotRef.current?.exit();
+      for (const key of spots.regular) { const s = key.indexOf("::"); spotRef.current?.start(key.slice(0, s), key.slice(s + 2)); }
+      if (spots.superKey) { const s = spots.superKey.indexOf("::"); spotRef.current?.toggleFlame(spots.superKey.slice(0, s), spots.superKey.slice(s + 2)); }
+    }
+  }, [rf]);
+
+  /** Toggle a whole element in the choreograph queue: not queued → append its step
+   *  (deal for a deck member, memo for a memo, else a whole-card reveal); already
+   *  queued → remove ALL its steps (re-ghost). ONE undoable command; the queue
+   *  persists with the scene. */
+  const choreoToggle = useCallback((nodeId: string) => {
+    const fid = choreographRef.current;
+    if (!fid) return;
+    const node = rf.getNode(nodeId);
+    if (!node || node.parentId !== fid || isContainerType(node.type)) return;
+    const cur = (rf.getNode(fid)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues ?? [];
+    const already = cur.some((c) => c.cardId === nodeId || c.memoId === nodeId);
+    const kind = (node.data as { kind?: string }).kind;
+    const label = (node.data as { title?: string }).title || kind || "element";
+    let next: RecCue[];
+    if (already) {
+      next = cur.filter((c) => c.cardId !== nodeId && c.memoId !== nodeId);
+    } else if (kind === "memo") {
+      next = [...cur, { id: cardId("cc"), kind: "memo", memoId: nodeId, label: "Memo", target: label }];
+    } else if ((node.data as { deckMember?: boolean }).deckMember && !isElementKind(kind)) {
+      next = [...cur, { id: cardId("cc"), kind: "deal", cardId: nodeId, label: "Deal", target: label }];
+    } else {
+      next = [...cur, { id: cardId("cc"), kind: "reveal", cardId: nodeId, targetId: WHOLE_TARGET, label: "Reveal", target: label }];
+    }
+    const c = patchDataCmd(rf as unknown as RfLike, fid, { recordedCues: next }, already ? "un-choreograph" : "choreograph step");
+    if (c) bus.dispatch(c);
+    setChoreoTick((t) => t + 1);
+  }, [rf]);
+
+  /** Enter choreograph on `fid`: "fresh" clears the queue, "append" keeps it. */
+  const startChoreo = useCallback((fid: string, mode: "fresh" | "append") => {
+    if (mode === "fresh") { const c = patchDataCmd(rf as unknown as RfLike, fid, { recordedCues: [] }, "choreograph: start fresh"); if (c) bus.dispatch(c); }
+    setChoreoEntry(null);
+    setChoreographFrameId(fid);
+    setChoreoTick((t) => t + 1);
+    flashToast(mode === "fresh" ? "Choreograph: click elements in reveal order · C / Esc to finish" : "Choreograph: appending — click to add steps");
+  }, [rf, flashToast]);
+
+  // GHOST the choreographed frame's children: queued = full opacity, un-queued = 20%,
+  // the G-exploded card gets a dashed outline. Driven by node.className + CHOREO_CSS.
+  // Re-runs on mode / queue (choreoTick) / explode changes; clears every choreo class
+  // on exit.
+  useEffect(() => {
+    const fid = choreographFrameId;
+    const queued = fid ? choreoQueuedIds(fid) : new Set<string>();
+    rf.setNodes((nds) => {
+      let changed = false;
+      const next = nds.map((n) => {
+        let cls = n.className;
+        if (fid && n.parentId === fid && !isContainerType(n.type)) {
+          const want = choreoExploded === n.id ? "choreo-explode" : queued.has(n.id) ? "choreo-lit" : "choreo-ghost";
+          if (cls !== want) { cls = want; changed = true; }
+        } else if (cls && cls.startsWith("choreo-")) { cls = undefined; changed = true; }
+        return cls === n.className ? n : { ...n, className: cls };
+      });
+      return changed ? next : nds;
+    });
+  }, [choreographFrameId, choreoTick, choreoExploded, rf, choreoQueuedIds]);
+
+  /** Toggle a single PART of a card in the queue (G-explode, Item 3): append a reveal
+   *  step targeting that part id (arbitrary order, revealed in place), or remove it. */
+  const choreoPartToggle = useCallback((cardNodeId: string, partId: string) => {
+    const fid = choreographRef.current;
+    if (!fid) return;
+    const cur = (rf.getNode(fid)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues ?? [];
+    const has = cur.some((c) => c.kind === "reveal" && c.cardId === cardNodeId && c.targetId === partId);
+    // A WHOLE reveal for this card would clobber part cues in the materializer, so
+    // parts supersede it: strip any whole-card reveal when adding a part.
+    const stripped = has ? cur : cur.filter((c) => !(c.kind === "reveal" && c.cardId === cardNodeId && c.targetId === WHOLE_TARGET));
+    const next: RecCue[] = has
+      ? cur.filter((c) => !(c.kind === "reveal" && c.cardId === cardNodeId && c.targetId === partId))
+      : [...stripped, { id: cardId("cc"), kind: "reveal", cardId: cardNodeId, targetId: partId, label: "Reveal", target: partId }];
+    const c = patchDataCmd(rf as unknown as RfLike, fid, { recordedCues: next }, has ? "un-choreograph part" : "choreograph part");
+    if (c) bus.dispatch(c);
+    setChoreoTick((t) => t + 1);
+  }, [rf]);
+
+  /** Leave the exploded card: if some parts were queued but not all (and no whole/rest
+   *  step already), append ONE "rest of <card>" step so no part is stranded (Item 3). */
+  const finishExplode = useCallback((cardNodeId: string) => {
+    const fid = choreographRef.current;
+    if (fid) {
+      const node = rf.getNode(cardNodeId);
+      const cur = (rf.getNode(fid)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues ?? [];
+      const partCues = cur.filter((c) => c.kind === "reveal" && c.cardId === cardNodeId && c.targetId && c.targetId !== WHOLE_TARGET && c.targetId !== REST_TARGET);
+      const hasWholeOrRest = cur.some((c) => c.kind === "reveal" && c.cardId === cardNodeId && (c.targetId === WHOLE_TARGET || c.targetId === REST_TARGET));
+      const allParts = node ? framePartIds(node.data as never) : [];
+      const coveredAll = allParts.length > 0 && partCues.length >= allParts.length;
+      if (partCues.length > 0 && !hasWholeOrRest && !coveredAll) {
+        const label = (node?.data as { title?: string })?.title || (node?.data as { kind?: string })?.kind || "card";
+        const next = [...cur, { id: cardId("cc"), kind: "reveal" as const, cardId: cardNodeId, targetId: REST_TARGET, label: "Reveal", target: `rest of ${label}` }];
+        const c = patchDataCmd(rf as unknown as RfLike, fid, { recordedCues: next }, "choreograph rest-of-card");
+        if (c) bus.dispatch(c);
+      }
+    }
+    setChoreoExploded(null);
+    setChoreoTick((t) => t + 1);
+  }, [rf]);
+
+  /** G in choreograph → explode the HOVERED card into part targets (or finish the
+   *  current explode). Cards with no natural parts (note / scenery / CEQ / t-account)
+   *  just toast — G never fakes granularity. */
+  const explodeHovered = useCallback(() => {
+    if (!choreographRef.current) return;
+    if (choreoExplodedRef.current) { finishExplode(choreoExplodedRef.current); return; } // G again = done
+    const id = hoveredNodeRef.current;
+    const node = id ? rf.getNode(id) : null;
+    if (!node || node.parentId !== choreographRef.current || isContainerType(node.type)) { flashToast("Hover a card, then press G to explode it into parts"); return; }
+    if (framePartIds(node.data as never).length === 0) { flashToast("No parts to explode — click the card for a single whole reveal"); return; }
+    // A deck member must DEAL as its own step before its parts can reveal — ensure a
+    // deal cue exists (part cues alone would leave it never dealt onto the stage).
+    if ((node.data as { deckMember?: boolean }).deckMember && !isElementKind((node.data as { kind?: string }).kind)) {
+      const fid = choreographRef.current;
+      const cur = (rf.getNode(fid)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues ?? [];
+      if (!cur.some((c) => c.kind === "deal" && c.cardId === id)) {
+        const lbl = (node.data as { title?: string }).title || (node.data as { kind?: string }).kind || "card";
+        const c = patchDataCmd(rf as unknown as RfLike, fid, { recordedCues: [...cur, { id: cardId("cc"), kind: "deal", cardId: id!, label: "Deal", target: lbl }] }, "choreograph deal");
+        if (c) bus.dispatch(c);
+      }
+    }
+    setChoreoExploded(id);
+    setChoreoTick((t) => t + 1);
+  }, [rf, finishExplode, flashToast]);
+
+  // In choreograph mode a click on a frame child toggles its whole-element step
+  // (Item 2). While a card is exploded, clicking ANOTHER card finishes the explode
+  // first; clicks on the exploded card itself defer to its part picker.
+  const onNodeClick = useCallback((_e: unknown, node: { id: string; parentId?: string; type?: string }) => {
+    if (!choreographRef.current) return;
+    if (node.parentId !== choreographRef.current || isContainerType(node.type)) return;
+    if (choreoExplodedRef.current) {
+      if (choreoExplodedRef.current === node.id) return; // handled by the part picker
+      finishExplode(choreoExplodedRef.current);
+    }
+    choreoToggle(node.id);
+  }, [choreoToggle, finishExplode]);
+  const onNodeMouseEnter = useCallback((_e: unknown, node: { id?: string }) => { hoveredNodeRef.current = node?.id ?? null; }, []);
+  const onNodeMouseLeave = useCallback(() => { hoveredNodeRef.current = null; }, []);
+
+  /** CUE SHEET PHASE 2 — perform the frame's NEXT (dir=1) / undo its LAST (dir=-1)
+   *  cue from the explicit cueOrder. Returns "handled" (a content cue ran → the
+   *  key handler returns), "boundary" (forward: next is Advance; reverse: at the
+   *  start → the caller runs its arm/advance or arm-back), or "none" (this frame
+   *  isn't cue-driven → fall through to the derived precedence, unchanged). */
+  const performFrameCue = useCallback((frameId: string, dir: 1 | -1): "handled" | "boundary" | "none" => {
+    const nodes = rf.getNodes();
+    const co = (rf.getNode(frameId)?.data as { cueOrder?: string[] } | undefined)?.cueOrder;
+    if (!co || co.length === 0) return "none";
+    const children = nodes.filter((n) => n.parentId === frameId);
+    const cards = children.filter((n) => !isContainerType(n.type) && (n.data as { kind?: string }).kind !== "memo");
+    const memos = children.filter((n) => (n.data as { kind?: string }).kind === "memo");
+    const hasNext = !!frameWalkNext(nodes as never, frameId);
+    const cues = orderedCues(deriveFrameCues(cards as never, memos as never, rf.getEdges() as never, hasNext), co);
+    const dataOf = (id: string) => rf.getNode(id)?.data as CardData | undefined;
+    const state: CueState = {
+      isDealt: (id) => { const d = dataOf(id); return !!d && !isTucked(d as never); },
+      revealCount: (id) => { const d = dataOf(id); return d ? currentRevealCount(d) : 0; },
+      memoVisible: (id) => { const d = dataOf(id) as { cueHidden?: boolean } | undefined; return !!d && !d.cueHidden; },
+    };
+    const rfl = rf as unknown as RfLike;
+    const select = (id?: string) => { if (id) rf.setNodes((nds) => nds.map((n) => (n.selected !== (n.id === id) ? { ...n, selected: n.id === id } : n))); };
+    const dispatch = (c: ReturnType<typeof patchDataCmd>) => { if (c) bus.dispatch(c); };
+
+    if (dir > 0) {
+      const idx = nextCueIndex(cues, state);
+      if (idx < 0) return "boundary";
+      const cue = cues[idx];
+      if (cue.kind === "advance") return "boundary";
+      if (cue.kind === "deal" && cue.cardId) { deal(cue.cardId); disarm(); return "handled"; }
+      if (cue.kind === "reveal" && cue.cardId) {
+        const d = dataOf(cue.cardId);
+        if (d) { dispatch(patchDataCmd(rfl, cue.cardId, revealPatchForCount(d, cue.revealCount ?? 0) as Record<string, unknown>, "reveal (cue)")); select(cue.cardId); }
+        disarm(); return "handled";
+      }
+      if (cue.kind === "memo" && cue.memoId) { dispatch(patchDataCmd(rfl, cue.memoId, { cueHidden: false }, "reveal memo (cue)")); disarm(); return "handled"; }
+      return "handled";
+    }
+    // reverse — undo the LAST done, non-advance cue
+    let li = -1;
+    for (let i = cues.length - 1; i >= 0; i--) { const c = cues[i]; if (c.kind !== "advance" && cueIsDone(c, state)) { li = i; break; } }
+    if (li < 0) return "boundary";
+    const cue = cues[li];
+    if (cue.kind === "deal" && cue.cardId) { dispatch(patchDataCmd(rfl, cue.cardId, { tucked: true }, "un-deal (cue)")); disarm(); return "handled"; }
+    if (cue.kind === "reveal" && cue.cardId) {
+      const d = dataOf(cue.cardId);
+      if (d) { dispatch(patchDataCmd(rfl, cue.cardId, revealPatchForCount(d, Math.max(0, (cue.revealCount ?? 1) - 1)) as Record<string, unknown>, "un-reveal (cue)")); select(cue.cardId); }
+      disarm(); return "handled";
+    }
+    if (cue.kind === "memo" && cue.memoId) { dispatch(patchDataCmd(rfl, cue.memoId, { cueHidden: true }, "hide memo (cue)")); disarm(); return "handled"; }
+    return "handled";
+  }, [rf, deal, disarm]);
+
+  // ---- CUE RECORDER (Lee) --------------------------------------------------
+  // (Recorded playback is now the shared materializer — applyFrameToStep — so Space,
+  // Shift+Space and the scrubber all replay a recording the same way; the old
+  // per-cue executeRecCue was retired.)
+  // Append a reveal/deal cue while recording (spotlights are captured via onAction).
+  const recordStepCue = useCallback((frameId: string, cue: Omit<RecCue, "id">) => {
+    const c = patchDataFnCmd(rf as unknown as RfLike, frameId, (prev) => ({ recordedCues: [...((prev.recordedCues as RecCue[]) ?? []), { ...cue, id: cardId("rc") }] }), "record step");
+    if (c) bus.dispatch(c);
+  }, [rf]);
+  // Toggle record for the current frame. Starting a take CLEARS the old recording.
+  const toggleRecord = useCallback(() => {
+    const fid = currentFrameRef.current;
+    if (!fid) { flashToast("Enter a frame to record its cues"); return; }
+    setCueRecording((on) => {
+      const next = !on;
+      const cmd = next
+        ? patchDataFnCmd(rf as unknown as RfLike, fid, () => ({ recordedCues: [] }), "start recording")
+        : (() => { const cur = (rf.getNode(fid)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues; return cur && cur.length === 0 ? patchDataFnCmd(rf as unknown as RfLike, fid, () => ({ recordedCues: undefined }), "clear empty recording") : null; })();
+      if (cmd) bus.dispatch(cmd);
+      recPlayIdxRef.current.set(fid, 0);
+      return next;
+    });
+  }, [rf, flashToast]);
+
+  // ---- FRAMES: enter/exit/step camera (the frame's bounds = the viewport) ----
+  /** Whether entering `frameId` should fire the CRAM-LAUNCH cue rather than the
+   *  normal advance swoosh: the lesson's cramSfx override (auto = first CRAM-beat
+   *  frame in column-major order; off = never; a frame id = that frame). */
+  const isCramLaunchFrame = useCallback((frameId: string): boolean => {
+    const f = rf.getNode(frameId);
+    if (!f?.parentId) return false;
+    const mode = (rf.getNode(f.parentId)?.data as { cramSfx?: string } | undefined)?.cramSfx ?? "auto";
+    if (mode === "off") return false;
+    if (mode !== "auto") return mode === frameId;
+    const cram = framesInBeat(rf.getNodes() as never, f.parentId, "cram");
+    return cram.length > 0 && cram[0].id === frameId;
+  }, [rf]);
+
+  const enterFrame = useCallback((frameId: string, opts?: { smooth?: boolean }) => {
+    const nodes = rf.getNodes();
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const f = byId.get(frameId);
+    if (!f || f.type !== "frame") return;
+    const r = absRectOf(f as never, byId as never);
+    // SFX ON ENTRY (Lee) — a FILM frame transition plays any COMBINATION of cram
+    // launch / advance swoosh / keypad, toggled per frame in the Sounds popover.
+    // Defaults: swoosh on every frame, cram-launch on the first cram frame (where
+    // swoosh defaults off), keypad off. Silent while authoring.
+    if (filmRef.current && currentFrameRef.current !== frameId) {
+      const fd = f.data as { swooshSfx?: boolean; cramLaunchSfx?: boolean; keypadOnEntry?: boolean } | undefined;
+      const cramOn = fd?.cramLaunchSfx ?? isCramLaunchFrame(frameId);
+      if (cramOn) playSfx("cramLaunch");
+      if (fd?.swooshSfx ?? !cramOn) playSfx("swoosh");
+      if (fd?.keypadOnEntry) playSfx("keypad");
+    }
+    // RUN LOG — a genuine frame change (not a re-fit of the same frame) is a beat.
+    if (currentFrameRef.current !== frameId) { const ft = (f.data as { title?: string } | undefined)?.title?.trim(); logRunEvent("frame", `frame → ${ft || frameCellLabel(f as never)}`); }
+    setCurrentFrameId(frameId);
+    recPlayIdxRef.current.set(frameId, 0); // restart recorded playback for this frame
+    // In FILM, a frame WITH a queue starts BLANK (step 0) so the visual and the
+    // scrubber agree and the first Space never pops from a persisted state (review #3).
+    if (filmRef.current && (rf.getNode(frameId)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues?.length) applyFrameToStep(frameId, 0);
+    if (f.parentId) lastLessonRef.current = f.parentId; // remember the lesson we're working in (for on-load)
+    lastUserView.current = Date.now(); // suppress auto-fit fighting the frame camera
+    // EXACT FIT (the whole point: frame bounds = the viewport). Compute the
+    // viewport directly rather than fitBounds so the shot is deterministic —
+    // "contain" the 16:9 frame, centered, clamped to the zoom range.
+    const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+    const cw = rect?.width ?? window.innerWidth;
+    const ch = rect?.height ?? window.innerHeight;
+    const zoom = Math.max(0.08, Math.min(2.5, Math.min(cw / r.w, ch / r.h)));
+    const x = cw / 2 - (r.x + r.w / 2) * zoom;
+    const y = ch / 2 - (r.y + r.h / 2) * zoom;
+    // INSTANT CUTS WHILE AUTHORING (Lee's call): the smooth camera push only runs
+    // in FILM mode; authoring/editing jumps instantly (no lag, no motion).
+    // SMOOTH ZOOM-IN (Lee): the double-click-into-a-frame gesture animates like the
+    // element focus-zoom (modern + eye-catching). Space-walk / nav stay as-is.
+    void rf.setViewport({ x, y, zoom }, { duration: opts?.smooth ? 460 : filmRef.current && frameTransitionsRef.current ? 280 : 0 });
+  }, [rf, isCramLaunchFrame, logRunEvent]);
+
+  // Keep the frame pinned to its exact 16:9 fit when the window resizes.
+  useEffect(() => {
+    if (currentFrameRef.current) enterFrame(currentFrameRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vpTick]);
+  // …and when the STAGE resizes without a window event: toggling film or switching
+  // v1↔v2 mounts/unmounts the v2 navbar + outline aside (flex siblings), so the
+  // .react-flow rect changes with NO resize event. Any camera fit computed inside
+  // the same commit measured the OLD stage — re-fit after paint so a take entered
+  // from v2 chrome is framed to the true full-window stage (pixel-identical takes).
+  useEffect(() => {
+    if (!currentFrameRef.current) return;
+    const raf = requestAnimationFrame(() => { if (currentFrameRef.current) enterFrame(currentFrameRef.current); });
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [film, chromeV1]);
+
+  const exitFrame = useCallback(() => {
+    const cur = currentFrameRef.current;
+    setCurrentFrameId(null);
+    if (!cur) return;
+    const nodes = rf.getNodes();
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const f = byId.get(cur);
+    const lesson = f?.parentId ? byId.get(f.parentId) : undefined;
+    const dur = filmRef.current && frameTransitionsRef.current ? 280 : 0; // instant while authoring
+    if (lesson) {
+      const r = absRectOf(lesson as never, byId as never);
+      void rf.fitBounds({ x: r.x, y: r.y, width: r.w, height: r.h }, { duration: dur, padding: 0.12 });
+    } else {
+      void rf.fitView({ duration: dur, padding: 0.2 });
+    }
+  }, [rf]);
+
+  // CINEMATIC ZOOM (Lee) — camera-only pushes while filming. Tunables are
+  // session-level; the per-frame ON/OFF lives on the FrameBox (ambientPush /
+  // spotlightPush). All respect prefers-reduced-motion and reset on frame exit.
+  const [cinePushMs, setCinePushMs] = useState(700); // spotlight ease duration
+  const [cinePushIntensity, setCinePushIntensity] = useState(1); // 0.5 subtle … 1.5 strong
+  const [cineAmbientMs, setCineAmbientMs] = useState(6000); // ambient Ken-Burns duration
+  const cinePushMsRef = useRef(cinePushMs); cinePushMsRef.current = cinePushMs;
+  const cinePushIntensityRef = useRef(cinePushIntensity); cinePushIntensityRef.current = cinePushIntensity;
+  const cineAmbientMsRef = useRef(cineAmbientMs); cineAmbientMsRef.current = cineAmbientMs;
+  const reducedMotionRef = useRef(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () => { reducedMotionRef.current = mq.matches; };
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  const containerSize = () => {
+    const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+    return { cw: rect?.width ?? window.innerWidth, ch: rect?.height ?? window.innerHeight };
+  };
+  // A frame is "scenery" (may push further) when it holds no teaching CARD.
+  const frameIsScenery = (frameId: string, nodes: CardNode[]) => {
+    const CARD = new Set(["je", "taccount", "list", "computation", "schedule", "ceq", "formula", "legend", "memorize"]);
+    return !nodes.some((n) => n.parentId === frameId && CARD.has((n.data as { kind?: string })?.kind ?? ""));
+  };
+
+  // SPOTLIGHT PUSH — ease toward the focused target; ease back when it clears.
+  // Film = animated; authoring = an instant static preview of the framing.
+  const spotPushedRef = useRef(false);
+  useEffect(() => {
+    const fid = currentFrameId;
+    if (!fid) { spotPushedRef.current = false; return; }
+    const nodes = rf.getNodes() as CardNode[];
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const fnode = byId.get(fid);
+    const fd = fnode?.data as FrameBox | undefined;
+    if (!fnode || !fd?.spotlightPush) return; // per-frame toggle (default off)
+    const { cw, ch } = containerSize();
+    const fr = absRectOf(fnode as never, byId as never);
+    const t = spot.focusTarget;
+    const tnode = t ? byId.get(t.cardId) : undefined;
+    const dur = film && !reducedMotionRef.current ? cinePushMsRef.current : 0;
+    if (t && tnode && tnode.parentId === fid) {
+      const tr = absRectOf(tnode as never, byId as never);
+      const vp = spotlightPushViewport({ frame: fr, target: tr, cw, ch, tier: t.tier, isScenery: frameIsScenery(fid, nodes), intensity: cinePushIntensityRef.current });
+      void rf.setViewport(vp, { duration: dur });
+      spotPushedRef.current = true;
+    } else if (spotPushedRef.current) {
+      spotPushedRef.current = false;
+      void rf.setViewport(fillViewport(fr, cw, ch), { duration: dur });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spot.focusTarget, currentFrameId, film]);
+
+  // AMBIENT PUSH — a slow Ken-Burns drift on frame entry (film only, no spotlight).
+  useEffect(() => {
+    const fid = currentFrameId;
+    if (!fid || !film || reducedMotionRef.current) return;
+    const nodes = rf.getNodes() as CardNode[];
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const fnode = byId.get(fid);
+    const fd = fnode?.data as FrameBox | undefined;
+    if (!fnode || !fd?.ambientPush) return;
+    if (spotRef.current?.focusTarget) return; // don't fight a spotlight push
+    const { cw, ch } = containerSize();
+    const fr = absRectOf(fnode as never, byId as never);
+    const vp = ambientViewport(fr, cw, ch);
+    const t = window.setTimeout(() => { if (!spotRef.current?.focusTarget) void rf.setViewport(vp, { duration: cineAmbientMsRef.current }); }, 340);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentFrameId, film]);
+
+  /** BIRDS-EYE = the CURRENT lesson only (never the whole course). Picks the
+   *  current frame's lesson → the walk lesson → the lesson nearest the viewport
+   *  center, and fits the camera to it. The Esc ladder bottoms out here. */
+  const fitCurrentLesson = useCallback(() => {
+    const nodes = rf.getNodes();
+    const byId = new Map(nodes.map((n) => [n.id, n]));
+    const lessons = nodes.filter((n) => n.type === "lesson" && !n.parentId);
+    if (lessons.length === 0) { void rf.fitView({ duration: 300, padding: 0.15 }); return; }
+    let pickId: string | null = null;
+    const cf = currentFrameRef.current;
+    if (cf) pickId = rf.getNode(cf)?.parentId ?? null;
+    if (!pickId && walkLessonRef.current) pickId = walkLessonRef.current;
+    let lesson = pickId ? byId.get(pickId) : undefined;
+    if (!lesson) {
+      const vp = rf.getViewport();
+      const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+      const cx = (-vp.x + (rect?.width ?? 1200) / 2) / vp.zoom;
+      const cy = (-vp.y + (rect?.height ?? 700) / 2) / vp.zoom;
+      lesson = lessons
+        .map((l) => ({ l, r: absRectOf(l as never, byId as never) }))
+        .sort((a, b) => Math.hypot(a.r.x + a.r.w / 2 - cx, a.r.y + a.r.h / 2 - cy) - Math.hypot(b.r.x + b.r.w / 2 - cx, b.r.y + b.r.h / 2 - cy))[0]?.l;
+    }
+    if (lesson) {
+      // Fit the lesson's true GRID footprint (data.w/h), not its collapsed measured box.
+      const d = lesson.data as { w?: number; h?: number };
+      void rf.fitBounds({ x: lesson.position.x, y: lesson.position.y, width: d.w ?? lessonCellSize().w, height: d.h ?? lessonCellSize().h }, { duration: 300, padding: 0.08 });
+    } else void rf.fitView({ duration: 300, padding: 0.15 });
+  }, [rf]);
+
+  /** Lesson-relative grid position for a (beat, subIndex) cell. */
+  const gridPos = useCallback((beat: Beat, subIndex: number) => ({ x: columnX(BEAT_COLUMNS.indexOf(beat)), y: rowY(subIndex) }), []);
+
+  /** Create a frame at a grid cell (returns its id). node.width/height MUST be
+   *  set (the FrameNode is w/h-full) or RF sizes it to min-content. */
+  const makeFrameAt = useCallback((lessonId: string, beat: Beat, subIndex: number, title = ""): string | null => {
+    // CAP (item 4): max RESERVED_ROWS frames per beat — the reserved footprint
+    // holds exactly this many, so we never grow the cell or overlap a neighbour.
+    if (subIndex >= RESERVED_ROWS) return null;
+    const fid = cardId("frame");
+    const node = { id: fid, type: "frame", parentId: lessonId, position: gridPos(beat, subIndex), width: FRAME_W, height: FRAME_H, data: { ...blankFrameData(beat, subIndex), title } } as unknown as CardNode;
+    bus.dispatch(addNodesCmd(rf as unknown as RfLike, [node], "add frame"));
+    return fid;
+  }, [rf, gridPos]);
+
+  /** ↑ / ↓ — walk sub-frames within the current beat column. Authoring: ↓ past the
+   *  last sub-frame CREATES a new one (same beat) and enters it. Film: no-op. */
+  const stepSub = useCallback((dir: -1 | 1) => {
+    const cur = currentFrameRef.current;
+    if (!cur) return;
+    // ↑/↓ move FREELY within the beat column and simply STOP at the edges — no
+    // forced frame creation (Lee's call: use the + affordance to add frames).
+    const adj = subNeighborFrame(rf.getNodes() as never, cur, dir);
+    if (adj) enterFrame(adj.id);
+  }, [rf, enterFrame]);
+
+  /** → / ← — walk beat COLUMNS (same subIndex if it exists, else the beat's first
+   *  frame); at a lesson's end, roll into the adjacent lesson (→ next Hook 1, ←
+   *  prev lesson's last beat). → alone walks the whole region on camera. */
+  const stepBeat = useCallback((dir: -1 | 1) => {
+    const cur = currentFrameRef.current;
+    if (!cur) return;
+    const t = beatNeighborFrame(rf.getNodes() as never, cur, dir) ?? lessonRollFrame(rf.getNodes() as never, cur, dir);
+    if (t) enterFrame(t.id);
+  }, [rf, enterFrame]);
+
+  const canStepBeat = useCallback((frameId: string, dir: -1 | 1) => !!(beatNeighborFrame(rf.getNodes() as never, frameId, dir) || lessonRollFrame(rf.getNodes() as never, frameId, dir)), [rf]);
+
+  /** Arrows mean frame-navigation only inside a frame AND nothing selected. */
+  const frameFreeNav = useCallback(() => {
+    if (!currentFrameRef.current) return false;
+    const nodes = rf.getNodes();
+    const sel = nodes.some((n) => n.selected || (n.data as { _selLine?: string })?._selLine) || rf.getEdges().some((e) => e.selected);
+    return !sel;
+  }, [rf]);
+
+  /** Lesson "+frame" — appends a Hook sub-frame (grid model). */
+  const addFrameToLesson = useCallback((lessonId: string) => makeFrameAt(lessonId, "hook", nextSubIndex(rf.getNodes() as never, lessonId, "hook")), [rf, makeFrameAt]);
+  // Open a gap at subIndex `at` in a lesson-beat column: every frame at subIndex
+  // >= at slides down one row (position derives from subIndex — same split as
+  // reorderFrame: position via setNodes, subIndex via bus). Returns the bus
+  // commands so the caller folds them into ONE undoable insert.
+  const openBeatGap = useCallback((lessonId: string, beat: Beat, at: number): Command[] => {
+    const below = framesInBeat(rf.getNodes() as never, lessonId, beat).filter((x) => subIndexOf(x as never) >= at);
+    if (below.length === 0) return [];
+    rf.setNodes((nds) => nds.map((m) => {
+      const sh = below.find((x) => x.id === m.id);
+      return sh ? { ...m, position: gridPos(beat, subIndexOf(sh as never) + 1) } : m;
+    }));
+    return below
+      .map((x) => patchDataCmd(rf as unknown as RfLike, x.id, { subIndex: subIndexOf(x as never) + 1 }, "shift down"))
+      .filter((c): c is Command => !!c);
+  }, [rf, gridPos]);
+
+  // + directly BELOW a frame (big-picture affordance): a blank frame lands at the
+  // clicked frame's subIndex+1 and the rest of the column slides down — one undo.
+  const addFrameBelow = useCallback((frameId: string) => {
+    const n = rf.getNode(frameId);
+    if (!n?.parentId) return;
+    const beat = beatColOf(n as never);
+    if (nextSubIndex(rf.getNodes() as never, n.parentId, beat) >= RESERVED_ROWS) { flashToast(`max ${RESERVED_ROWS} frames per beat`); return; }
+    const at = subIndexOf(n as never) + 1;
+    const shiftCmds = openBeatGap(n.parentId, beat, at);
+    const newNode = { id: cardId("frame"), type: "frame", parentId: n.parentId, position: gridPos(beat, at), width: FRAME_W, height: FRAME_H, data: { ...blankFrameData(beat, at) } } as unknown as CardNode;
+    const cmd = compositeCmd([...shiftCmds, addNodesCmd(rf as unknown as RfLike, [newNode], "add frame below")], "add frame below");
+    if (cmd) bus.dispatch(cmd);
+  }, [rf, gridPos, openBeatGap, flashToast]);
+
+  /** HUD "+ frame after" — a new sub-frame in the SAME beat, entered. */
+  const addFrameAfter = useCallback((frameId: string) => {
+    const f = rf.getNode(frameId);
+    if (!f?.parentId) return;
+    const beat = beatColOf(f as never);
+    const fid = makeFrameAt(f.parentId, beat, nextSubIndex(rf.getNodes() as never, f.parentId, beat));
+    if (!fid) { flashToast(`max ${RESERVED_ROWS} frames per beat`); return; }
+    window.setTimeout(() => enterFrame(fid), 40);
+  }, [rf, makeFrameAt, enterFrame, flashToast]);
+
+  /** Seed a FRESH frame into a beat column and enter it — the click action on the
+   *  navigator's EmptyBeatCell. Lets a beat whose only frame was deleted (or that
+   *  a scaffold skipped) be restarted from scratch, not just filled by dragging an
+   *  existing frame in. Appends (subIndex 0 when the column is empty). */
+  const createFrameInBeat = useCallback((lessonId: string, beat: Beat) => {
+    const fid = makeFrameAt(lessonId, beat, nextSubIndex(rf.getNodes() as never, lessonId, beat));
+    if (!fid) { flashToast(`max ${RESERVED_ROWS} frames per beat`); return; }
+    window.setTimeout(() => enterFrame(fid), 40);
+  }, [rf, makeFrameAt, enterFrame, flashToast]);
+
+  /** Can this frame reorder in `dir` within its beat column? (There must be a
+   *  sub-frame above/below to swap with.) Gates the ‹ › buttons — they were wrongly
+   *  gated on canStep (beat/lesson nav), so a Hook frame could never move up. */
+  const canReorderFrame = useCallback((frameId: string, dir: -1 | 1) => {
+    const f = rf.getNode(frameId);
+    if (!f?.parentId) return false;
+    const col = framesInBeat(rf.getNodes() as never, f.parentId, beatColOf(f as never));
+    const i = col.findIndex((x) => x.id === frameId);
+    return i >= 0 && i + dir >= 0 && i + dir < col.length;
+  }, [rf]);
+
+  /** ‹ › in the frame header — reorder WITHIN the beat column (swap subIndex +
+   *  grid position with the up/down neighbour), one undoable command. */
+  const reorderFrame = useCallback((frameId: string, dir: -1 | 1) => {
+    const f = rf.getNode(frameId);
+    if (!f?.parentId) return;
+    const beat = beatColOf(f as never);
+    const col = framesInBeat(rf.getNodes() as never, f.parentId, beat);
+    const i = col.findIndex((x) => x.id === frameId);
+    const j = i + dir;
+    if (i < 0 || j < 0 || j >= col.length) return;
+    const cmds = [
+      patchDataCmd(rf as unknown as RfLike, col[i].id, { subIndex: j }, "reorder"),
+      patchDataCmd(rf as unknown as RfLike, col[j].id, { subIndex: i }, "reorder"),
+    ];
+    // grid positions travel with subIndex
+    rf.setNodes((nds) => nds.map((n) => (n.id === col[i].id ? { ...n, position: gridPos(beat, j) } : n.id === col[j].id ? { ...n, position: gridPos(beat, i) } : n)));
+    const cmd = compositeCmd(cmds, "reorder frame");
+    if (cmd) bus.dispatch(cmd);
+  }, [rf, gridPos]);
+
+  /** DRAG-DROP in the frame navigator: drop frame A onto frame B → swap their
+   *  grid slots (beat + subIndex + position). Works across beats and rows. One
+   *  undoable command. */
+  const swapFrames = useCallback((aId: string, bId: string) => {
+    if (aId === bId) return;
+    const a = rf.getNode(aId), b = rf.getNode(bId);
+    if (!a?.parentId || !b?.parentId) return;
+    const aBeat = beatColOf(a as never), aSub = subIndexOf(a as never);
+    const bBeat = beatColOf(b as never), bSub = subIndexOf(b as never);
+    rf.setNodes((nds) => nds.map((n) => (n.id === aId ? { ...n, position: gridPos(bBeat, bSub) } : n.id === bId ? { ...n, position: gridPos(aBeat, aSub) } : n)));
+    const cmds = [
+      patchDataCmd(rf as unknown as RfLike, aId, { beat: bBeat, subIndex: bSub }, "swap frames"),
+      patchDataCmd(rf as unknown as RfLike, bId, { beat: aBeat, subIndex: aSub }, "swap frames"),
+    ].filter((c): c is Command => !!c);
+    const cmd = compositeCmd(cmds, "swap frames");
+    if (cmd) bus.dispatch(cmd);
+  }, [rf, gridPos]);
+
+  /** DRAG-DROP reorder: drop frame SRC onto frame DEST → SRC MOVES to DEST's slot
+   *  (DEST + everything below it slide down; SRC's old column closes up). Works
+   *  across beats. One undoable command. This is a MOVE (not a swap) so you can
+   *  drop a frame underneath another to make it sit there. */
+  const moveFrameToFrame = useCallback((srcId: string, destId: string) => {
+    if (srcId === destId) return;
+    const src = rf.getNode(srcId), dest = rf.getNode(destId);
+    if (!src?.parentId || !dest?.parentId || src.parentId !== dest.parentId) return;
+    const lessonId = src.parentId;
+    const srcBeat = beatColOf(src as never), destBeat = beatColOf(dest as never);
+    const nodes = rf.getNodes();
+    const srcCol = framesInBeat(nodes as never, lessonId, srcBeat).filter((x) => x.id !== srcId);
+    const destColBase = (srcBeat === destBeat ? srcCol : framesInBeat(nodes as never, lessonId, destBeat)).filter((x) => x.id !== srcId);
+    if (srcBeat !== destBeat && destColBase.length >= RESERVED_ROWS) { flashToast(`max ${RESERVED_ROWS} frames per beat`); return; }
+    const di = destColBase.findIndex((x) => x.id === destId);
+    const insertAt = di < 0 ? destColBase.length : di;
+    const newDest = [...destColBase.slice(0, insertAt), { id: srcId }, ...destColBase.slice(insertAt)];
+    const slot = new Map<string, { beat: Beat; sub: number }>();
+    if (srcBeat !== destBeat) srcCol.forEach((x, i) => slot.set(x.id, { beat: srcBeat, sub: i }));
+    newDest.forEach((x, i) => slot.set(x.id, { beat: destBeat, sub: i }));
+    rf.setNodes((nds) => nds.map((n) => { const p = slot.get(n.id); return p ? { ...n, position: gridPos(p.beat, p.sub) } : n; }));
+    const cmds = [...slot.entries()].map(([id, p]) => patchDataCmd(rf as unknown as RfLike, id, { beat: p.beat, subIndex: p.sub }, "move frame")).filter((c): c is Command => !!c);
+    const cmd = compositeCmd(cmds, "move frame");
+    if (cmd) bus.dispatch(cmd);
+  }, [rf, gridPos, flashToast]);
+
+  /** MOVE a frame into a whole BEAT column (Lee: dragging a frame onto an EMPTY
+   *  beat did nothing — no thumbnail to drop onto). Appends to the end of the
+   *  destination beat (subIndex 0 when it's empty) and closes up the source
+   *  column. One undoable command; a same-beat drop is a no-op. */
+  const moveFrameToBeat = useCallback((srcId: string, destBeat: Beat) => {
+    const src = rf.getNode(srcId);
+    if (!src?.parentId) return;
+    const lessonId = src.parentId;
+    const srcBeat = beatColOf(src as never);
+    if (srcBeat === destBeat) return;
+    const nodes = rf.getNodes();
+    const destCol = framesInBeat(nodes as never, lessonId, destBeat).filter((x) => x.id !== srcId);
+    if (destCol.length >= RESERVED_ROWS) { flashToast(`max ${RESERVED_ROWS} frames per beat`); return; }
+    const srcCol = framesInBeat(nodes as never, lessonId, srcBeat).filter((x) => x.id !== srcId);
+    const slot = new Map<string, { beat: Beat; sub: number }>();
+    srcCol.forEach((x, i) => slot.set(x.id, { beat: srcBeat, sub: i }));
+    [...destCol, { id: srcId }].forEach((x, i) => slot.set(x.id, { beat: destBeat, sub: i }));
+    rf.setNodes((nds) => nds.map((n) => { const p = slot.get(n.id); return p ? { ...n, position: gridPos(p.beat, p.sub) } : n; }));
+    const cmds = [...slot.entries()].map(([id, p]) => patchDataCmd(rf as unknown as RfLike, id, { beat: p.beat, subIndex: p.sub }, "move frame")).filter((c): c is Command => !!c);
+    const cmd = compositeCmd(cmds, "move frame");
+    if (cmd) bus.dispatch(cmd);
+  }, [rf, gridPos, flashToast]);
+
+  /** DELETE a frame (drag it onto the navigator's trash): the frame's cards go
+   *  loose into the lesson (absolute position kept), the beat column closes up,
+   *  and the camera exits if we deleted the frame we're in. One undoable command. */
+  const deleteFrameById = useCallback((frameId: string) => {
+    const all = rf.getNodes() as CardNode[];
+    const f = all.find((n) => n.id === frameId && n.type === "frame");
+    if (!f?.parentId) return;
+    const lessonId = f.parentId;
+    const beat = beatColOf(f as never);
+    const kidsBefore = all.filter((n) => n.parentId === frameId).map((k) => ({ id: k.id, position: { ...k.position } }));
+    const frameSnap = { ...(rf.getNode(frameId) as object) } as CardNode;
+    const remaining = framesInBeat(all as never, lessonId, beat).filter((x) => x.id !== frameId);
+    const reindexBefore = remaining.map((x) => ({ id: x.id, subIndex: subIndexOf(x as never), position: { ...x.position } }));
+    if (currentFrameRef.current === frameId) exitFrame();
+    bus.dispatch({
+      label: "delete frame",
+      do: () => rf.setNodes((nds) => (nds as CardNode[]).filter((n) => n.id !== frameId).map((n) => {
+        if (n.parentId === frameId) return { ...n, parentId: lessonId, position: { x: n.position.x + f.position.x, y: n.position.y + f.position.y } };
+        const i = remaining.findIndex((x) => x.id === n.id);
+        return i >= 0 ? { ...n, data: { ...n.data, subIndex: i }, position: gridPos(beat, i) } : n;
+      }) as never),
+      undo: () => rf.setNodes((nds) => {
+        const restored = (nds as CardNode[]).map((n) => {
+          const kb = kidsBefore.find((x) => x.id === n.id);
+          if (kb) return { ...n, parentId: frameId, position: kb.position };
+          const rb = reindexBefore.find((x) => x.id === n.id);
+          return rb ? { ...n, data: { ...n.data, subIndex: rb.subIndex }, position: rb.position } : n;
+        });
+        return [...restored, frameSnap] as never;
+      }),
+    });
+  }, [rf, gridPos, exitFrame]);
+
+  // ---- RESET CANVAS (v2) — fresh ONE-COLUMN starter, CEQ DATA PRESERVED --------
+  /** Rebuild the canvas to the 4-frame starter column (Intro CTA → CEQ Hook →
+   *  CEQ Portal → Outro) WITHOUT deleting any CEQ info/data:
+   *  - `decks` / `ceqSets` state is untouched (the Studio's sets live there);
+   *  - deck-member CEQ question nodes are TUCKED back into their sets (hidden,
+   *    re-deal cleanly — chains inside their data ride along);
+   *  - memo nodes + non-deck content cards (JE, schedules, lists, …) are parked
+   *    on an ARCHIVE SHELF left of the canvas (memos are chain targets by node id
+   *    — they must never be deleted);
+   *  - only containers (lesson/frame/zone) and pure design furniture (headings,
+   *    text, logos, gates, …) are removed — recreatable UI, not data.
+   *  ONE bus command — Ctrl+Z restores the entire previous canvas. */
+  /** Build the 2 PORTAL starter frames for a lesson: a CEQ Portal (→ CEQ Studio) and a
+   *  Branding Portal (→ Branding Studio, the reusable intro/outro/CEQ-hook/tease gallery).
+   *  Both are folders — the actual brand frames live inside their studio, not on the canvas.
+   *  Fresh node ids each call; parents (frames) precede children. */
+  const buildBrandFrames = useCallback((lessonId: string): CardNode[] => {
+    const fIds = [cardId("frame"), cardId("frame")];
+    const frameAt = (s: number, title: string, extra: Record<string, unknown> = {}) =>
+      ({ id: fIds[s], type: "frame", parentId: lessonId, position: { x: columnX(0), y: rowY(s) }, width: FRAME_W, height: FRAME_H, data: { ...blankFrameData("hook", s), title, ...extra } }) as unknown as CardNode;
+    return [
+      frameAt(0, "CEQ Portal", { portal: true, portalKind: "ceq" }),
+      frameAt(1, "Branding Portal", { portal: true, portalKind: "branding" }),
+    ];
+  }, []);
+  // Titles considered "brand furniture" and rebuilt on reset. Legacy titles (Intro/CEQ Hook/Outro)
+  // stay listed so an old canvas migrates cleanly to the two-portal layout on the next reset.
+  const BRAND_TITLES = useMemo(() => new Set(["CEQ Portal", "Branding Portal", "Intro", "CEQ Hook", "Outro"]), []);
+  const BRAND_DESIGN = useMemo(() => new Set(["heading", "text", "examcue", "ceqtease", "ceqhook", "framebolt", "logo", "intro", "outro", "corner", "paygate", "signupgate"]), []);
+
+  /** SCOPED RESET (Lee). NON-destructive to CEQ data in every scope — sets, questions,
+   *  chains and memos are ALWAYS preserved.
+   *  - "canvas": rebuild ONLY the 4 brand frames in "Start Here" (found or created);
+   *    every other frame/lesson/content is left exactly as-is. Brand furniture in those
+   *    four frames is recreated; any non-brand content inside them is kept, just un-parented.
+   *  - "ceq": un-deal every dealt CEQ card back into its set (tucked → re-deal cleanly).
+   *  - "both": both.
+   *  ONE undoable bus command (Ctrl+Z restores the whole prior canvas). */
+  const runReset = useCallback((scope: "canvas" | "ceq" | "both") => {
+    const prevNodes = rf.getNodes() as CardNode[];
+    const prevEdges = rf.getEdges();
+    const prevActive = activeLessonId;
+    let nodes: CardNode[] = prevNodes.slice();
+    let focusLessonId = activeLessonId;
+    if (scope === "canvas" || scope === "both") {
+      const start = nodes.find((n) => n.type === "lesson" && !n.parentId && (n.data as { label?: string }).label === "Start Here");
+      const lessonId = start?.id ?? cardId("lesson");
+      focusLessonId = lessonId;
+      const brandFrameIds = new Set(nodes.filter((n) => n.type === "frame" && n.parentId === lessonId && BRAND_TITLES.has((n.data as { title?: string }).title ?? "")).map((n) => n.id));
+      nodes = nodes.flatMap((n) => {
+        if (brandFrameIds.has(n.id)) return []; // remove the old brand frame (rebuilt below)
+        if (n.parentId && brandFrameIds.has(n.parentId)) {
+          if (BRAND_DESIGN.has(n.type ?? "")) return []; // brand furniture → recreated
+          return [{ ...n, parentId: undefined } as CardNode]; // other content → keep, un-parent (never deleted)
+        }
+        return [n];
+      });
+      if (!start) { const cell = lessonCellSize(); nodes.unshift({ id: lessonId, type: "lesson", position: { x: 160, y: 120 }, data: { label: "Start Here", w: cell.w, h: cell.h, pathOrder: 0 } } as unknown as CardNode); }
+      nodes = [...nodes, ...buildBrandFrames(lessonId)];
+    }
+    if (scope === "ceq" || scope === "both") {
+      nodes = nodes.map((n) => (n.type === "ceq" && (n.data as { deckMember?: boolean }).deckMember && !(n.data as { tucked?: boolean }).tucked)
+        ? { ...n, parentId: undefined, position: { x: -3000, y: -1200 }, data: { ...n.data, tucked: true } } as CardNode
+        : n);
+    }
+    const ordered = orderParentsFirst(nodes as never) as unknown as CardNode[];
+    const ids = new Set(ordered.map((n) => n.id));
+    const nextEdges = prevEdges.filter((e) => ids.has(e.source) && ids.has(e.target));
+    if (currentFrameRef.current) exitFrame();
+    bus.dispatch({
+      label: `reset (${scope})`,
+      do: () => { rf.setNodes(ordered as never); rf.setEdges(nextEdges); if (focusLessonId) setActiveLesson(focusLessonId); },
+      undo: () => { rf.setNodes(prevNodes as never); rf.setEdges(prevEdges); setActiveLesson(prevActive); },
+    });
+    if (scope !== "ceq") window.setTimeout(() => { const c2 = lessonCellSize(); const l = focusLessonId ? rf.getNode(focusLessonId) : undefined; const p = l?.position ?? { x: 160, y: 120 }; void rf.fitBounds({ x: p.x, y: p.y, width: c2.w, height: c2.h }, { duration: 500, padding: 0.08 }); }, 60);
+  }, [rf, activeLessonId, setActiveLesson, exitFrame, buildBrandFrames, BRAND_TITLES, BRAND_DESIGN]);
+
+  // ---- DUPLICATION (PROMPT 1 — the swap-many foundation) ---------------------
+  // Deep-copy a frame or a whole lesson: cards + per-element state, script +
+  // @marks (relinked to the copies), world/visual choice, and scenario BINDINGS
+  // (same ids — rebinding is how swap-many works). Fresh node ids throughout;
+  // deck membership does NOT carry on a frame copy. ONE undoable bus command.
+  const [dupFrameFor, setDupFrameFor] = useState<string | null>(null); // frame → dialog
+  // COPY/PASTE clipboard — in-memory state mirrored to localStorage (survives reload).
+  const [clip, setClipState] = useState<CanvasClip | null>(() => {
+    try { return JSON.parse(localStorage.getItem(CLIP_KEY) || "null") as CanvasClip | null; } catch { return null; }
+  });
+  const setClip = useCallback((c: CanvasClip | null) => {
+    setClipState(c);
+    try { if (c) localStorage.setItem(CLIP_KEY, JSON.stringify(c)); else localStorage.removeItem(CLIP_KEY); } catch { /* ignore */ }
+  }, []);
+
+  /** Minimal node slice the copier needs (never clone RF internals like measured). */
+  const toClone = useCallback((n: CardNode): CloneNode => ({
+    id: n.id, type: n.type, parentId: n.parentId,
+    position: { x: n.position.x, y: n.position.y },
+    width: (n as { width?: number }).width, height: (n as { height?: number }).height,
+    data: n.data as Record<string, unknown>,
+  }), []);
+
+  const duplicateFrame = useCallback((frameId: string, dest?: { lessonId?: string; beat?: Beat; onCreated?: (newFrameId: string) => void }) => {
+    const all = rf.getNodes() as CardNode[];
+    const src = all.find((n) => n.id === frameId && n.type === "frame");
+    if (!src?.parentId) return;
+    const lessonId = dest?.lessonId ?? src.parentId;
+    // pick a beat WITH ROOM (5-per-beat cap); offer another beat when the target is full
+    const roomIn = (b: Beat) => nextSubIndex(all as never, lessonId, b) < RESERVED_ROWS;
+    let beat: Beat = dest?.beat ?? beatColOf(src as never);
+    if (!roomIn(beat)) {
+      const alt = BEAT_COLUMNS.find(roomIn);
+      if (!alt) { flashToast(`lesson full — max ${RESERVED_ROWS} frames per beat`); return; }
+      flashToast(`${BEAT_LABEL[beat]} full — placed in ${BEAT_LABEL[alt]}`);
+      beat = alt;
+    }
+    // IN-PLACE duplicate lands right BELOW the source (subIndex+1, column slides
+    // down); a cross-lesson/cross-beat dialog copy appends at the end.
+    const inPlace = !dest && lessonId === src.parentId && beat === beatColOf(src as never);
+    const subIndex = inPlace ? subIndexOf(src as never) + 1 : nextSubIndex(all as never, lessonId, beat);
+    const shiftCmds = inPlace ? openBeatGap(lessonId, beat, subIndex) : [];
+
+    // the frame + everything parented to it, plus the arrows wholly inside it
+    const children = all.filter((n) => n.parentId === frameId);
+    const setNodes = [src, ...children];
+    const setIds = new Set(setNodes.map((n) => n.id));
+    const edges = (rf.getEdges() as unknown as CloneEdge[]).filter((e) => setIds.has(e.source) && setIds.has(e.target));
+
+    const { nodes: cloned, edges: clonedEdges, idMap } = cloneNodeSet(setNodes.map(toClone), edges, (k) => cardId(k), { stripDeck: true });
+    const newFrameId = idMap.get(frameId)!;
+    // place the copy: root reparented to the target lesson at the free grid cell;
+    // reset filmStatus/introTake (takes are keyed by the OLD frame id — none carry).
+    const placed = orderParentsFirst(cloned).map((n) => (n.id === newFrameId
+      ? { ...n, parentId: lessonId, position: gridPos(beat, subIndex), width: FRAME_W, height: FRAME_H, data: { ...n.data, beat, subIndex, filmStatus: undefined, introTake: undefined } }
+      : n));
+
+    const addCmd = addNodesAndEdgesCmd(rf as unknown as RfLike, placed, clonedEdges, "duplicate frame");
+    const cmd = shiftCmds.length ? compositeCmd([...shiftCmds, addCmd], "duplicate frame") : addCmd;
+    if (cmd) bus.dispatch(cmd);
+    dest?.onCreated?.(newFrameId);
+    setDupFrameFor(null);
+    // frame the copy where it landed (grid view — no film mode)
+    const lesson = rf.getNode(lessonId);
+    if (lesson) {
+      const p = gridPos(beat, subIndex);
+      window.setTimeout(() => void rf.fitBounds({ x: lesson.position.x + p.x, y: lesson.position.y + p.y, width: FRAME_W, height: FRAME_H }, { duration: 400, padding: 0.35 }), 40);
+    }
+  }, [rf, gridPos, toClone, flashToast, openBeatGap]);
+
+  const duplicateLesson = useCallback((lessonId: string) => {
+    const all = rf.getNodes() as CardNode[];
+    const lesson = all.find((n) => n.id === lessonId && n.type === "lesson");
+    if (!lesson) return;
+    const frameIds = new Set(all.filter((n) => n.type === "frame" && n.parentId === lessonId).map((n) => n.id));
+    const inSet = (n: CardNode) => n.id === lessonId || n.parentId === lessonId || (!!n.parentId && frameIds.has(n.parentId));
+    const setNodes = all.filter(inSet);
+    const setIds = new Set(setNodes.map((n) => n.id));
+    const edges = (rf.getEdges() as unknown as CloneEdge[]).filter((e) => setIds.has(e.source) && setIds.has(e.target));
+
+    // named decks of this lesson → mint new ids FIRST so members can be remapped
+    // in the same clone pass; build the deck DEFS after (they need the node idMap).
+    const srcDecks = decksOfLesson(decks, lessonId, frameIds);
+    const deckIdMap = mintDeckIds(srcDecks, () => cardId("deck"));
+
+    const { nodes: cloned, edges: clonedEdges, idMap } = cloneNodeSet(setNodes.map(toClone), edges, (k) => cardId(k), { deckIdMap });
+    const newDecks = duplicateLessonDecks(srcDecks, idMap, deckIdMap);
+    const newLessonId = idMap.get(lessonId)!;
+
+    // land at the next empty region cell; "unplaced" (pathOrder cleared) + "(copy)".
+    const cell = lessonCellSize();
+    const lessonsXY = all.filter((n) => n.type === "lesson" && !n.parentId).map((n) => ({ x: n.position.x, y: n.position.y }));
+    const dest = nextRegionCell(lessonsXY, cell);
+    const placed = orderParentsFirst(cloned).map((n) => (n.id === newLessonId
+      ? { ...n, parentId: undefined, position: dest, width: cell.w, height: cell.h, data: { ...n.data, w: cell.w, h: cell.h, pathOrder: null, label: `${(n.data.label as string) || "Lesson"} (copy)` } }
+      : n));
+
+    // ONE undoable step INCLUDING the deck state (undo removes the copies' decks too).
+    const nodeIds = new Set(placed.map((n) => n.id));
+    const edgeIds = new Set(clonedEdges.map((e) => e.id));
+    const newDeckIds = new Set(newDecks.map((d) => d.id));
+    bus.dispatch({
+      label: "duplicate lesson",
+      do: () => {
+        rf.addNodes(structuredClone(placed) as never);
+        if (clonedEdges.length) rf.setEdges((eds) => [...eds, ...structuredClone(clonedEdges)] as never);
+        if (newDecks.length) setDecks((prev) => [...prev, ...structuredClone(newDecks)]);
+      },
+      undo: () => {
+        rf.setNodes((nds) => nds.filter((n) => !nodeIds.has(n.id)));
+        rf.setEdges((eds) => eds.filter((e) => !edgeIds.has(e.id) && !nodeIds.has(e.source) && !nodeIds.has(e.target)));
+        if (newDecks.length) setDecks((prev) => prev.filter((d) => !newDeckIds.has(d.id)));
+      },
+    });
+    // ACTIVE-LESSON GATING — the duplicate becomes the active lesson (mounts it,
+    // collapses the rest, flies the camera to it).
+    window.setTimeout(() => setActiveLesson(newLessonId), 60);
+  }, [rf, decks, toClone, setActiveLesson]);
+
+  // ---- COPY / PASTE (clipboard) — reuses cloneNodeSet + the frame-grid helpers -
+  /** Copy a frame + its contents (cards/elements/memos + wholly-internal arrows). */
+  const copyFrame = useCallback((frameId: string) => {
+    const all = rf.getNodes() as CardNode[];
+    const src = all.find((n) => n.id === frameId && n.type === "frame");
+    if (!src) return;
+    const nodes = [src, ...all.filter((n) => n.parentId === frameId)].map(toClone);
+    const ids = new Set(nodes.map((n) => n.id));
+    const edges = (rf.getEdges() as unknown as CloneEdge[]).filter((e) => ids.has(e.source) && ids.has(e.target));
+    setClip({ kind: "frame", nodes, edges, rootId: frameId, label: String((src.data as { title?: string }).title ?? "frame") });
+    flashToast("Frame copied — paste below any frame");
+  }, [rf, toClone, setClip, flashToast]);
+
+  /** Paste the copied frame immediately BELOW the target frame (same beat, next
+   *  row; the column slides down). Cross-lesson OK. Fresh ids; source untouched. */
+  const pasteFrameBelow = useCallback((targetFrameId: string) => {
+    if (clip?.kind !== "frame") return;
+    const target = rf.getNode(targetFrameId) as CardNode | undefined;
+    if (!target?.parentId) return;
+    const lessonId = target.parentId;
+    const beat = beatColOf(target as never);
+    if (nextSubIndex(rf.getNodes() as never, lessonId, beat) >= RESERVED_ROWS) { flashToast(`${BEAT_LABEL[beat]} full — max ${RESERVED_ROWS} frames per beat`); return; }
+    const subIndex = subIndexOf(target as never) + 1;
+    const shiftCmds = openBeatGap(lessonId, beat, subIndex);
+    const { nodes: cloned, edges: clonedEdges, idMap } = cloneNodeSet(clip.nodes, clip.edges, (k) => cardId(k), { stripDeck: true });
+    const newFrameId = idMap.get(clip.rootId);
+    if (!newFrameId) return;
+    const placed = orderParentsFirst(cloned).map((n) => (n.id === newFrameId
+      ? { ...n, parentId: lessonId, position: gridPos(beat, subIndex), width: FRAME_W, height: FRAME_H, data: { ...n.data, beat, subIndex, filmStatus: undefined, introTake: undefined } }
+      : n));
+    const addCmd = addNodesAndEdgesCmd(rf as unknown as RfLike, placed, clonedEdges, "paste frame");
+    const cmd = shiftCmds.length ? compositeCmd([...shiftCmds, addCmd], "paste frame") : addCmd;
+    if (cmd) bus.dispatch(cmd);
+    const lesson = rf.getNode(lessonId);
+    if (lesson) { const p = gridPos(beat, subIndex); window.setTimeout(() => void rf.fitBounds({ x: lesson.position.x + p.x, y: lesson.position.y + p.y, width: FRAME_W, height: FRAME_H }, { duration: 400, padding: 0.35 }), 40); }
+  }, [clip, rf, gridPos, openBeatGap, flashToast]);
+
+  /** Copy a lesson's FRAME SCAFFOLD: all its frames + their contents (NOT the
+   *  lesson node or its type/topic/access/pathing). */
+  const copyScaffold = useCallback((lessonId: string) => {
+    const all = rf.getNodes() as CardNode[];
+    const frames = all.filter((n) => n.type === "frame" && n.parentId === lessonId);
+    if (frames.length === 0) { flashToast("No frames to copy in this lesson"); return; }
+    const frameIds = new Set(frames.map((f) => f.id));
+    const nodes = [...frames, ...all.filter((n) => n.parentId && frameIds.has(n.parentId))].map(toClone);
+    const ids = new Set(nodes.map((n) => n.id));
+    const edges = (rf.getEdges() as unknown as CloneEdge[]).filter((e) => ids.has(e.source) && ids.has(e.target));
+    setClip({ kind: "scaffold", nodes, edges, frameIds: frames.map((f) => f.id), label: String((all.find((n) => n.id === lessonId)?.data as { label?: string })?.label ?? "lesson") });
+    flashToast(`Scaffold copied (${frames.length} frame${frames.length === 1 ? "" : "s"}) — paste into a lesson`);
+  }, [rf, toClone, setClip, flashToast]);
+
+  /** Paste the copied scaffold into a lesson — APPENDS its frames (keeping each
+   *  frame's beat), never overwriting; the target keeps its own lesson fields.
+   *  A beat with no room overflows to the next beat with room; if none, that
+   *  frame is skipped (reported). */
+  const pasteScaffold = useCallback((lessonId: string) => {
+    if (clip?.kind !== "scaffold") return;
+    const target = rf.getNode(lessonId);
+    if (!target || target.type !== "lesson") return;
+    const { nodes: cloned, edges: clonedEdges, idMap } = cloneNodeSet(clip.nodes, clip.edges, (k) => cardId(k), { stripDeck: true });
+    const next: Partial<Record<Beat, number>> = {};
+    const roomBase = (b: Beat) => nextSubIndex(rf.getNodes() as never, lessonId, b);
+    const placements = new Map<string, { beat: Beat; sub: number }>();
+    let skipped = 0;
+    for (const srcFid of clip.frameIds) {
+      const srcFrame = clip.nodes.find((n) => n.id === srcFid);
+      const cloneId = idMap.get(srcFid);
+      if (!srcFrame || !cloneId) continue;
+      let beat = ((srcFrame.data as { beat?: Beat }).beat ?? "hook") as Beat;
+      if (next[beat] === undefined) next[beat] = roomBase(beat);
+      if ((next[beat] ?? 0) >= RESERVED_ROWS) {
+        const alt = BEAT_COLUMNS.find((b) => { if (next[b] === undefined) next[b] = roomBase(b); return (next[b] ?? 0) < RESERVED_ROWS; });
+        if (!alt) { skipped++; continue; }
+        beat = alt;
+      }
+      const sub = next[beat] ?? 0;
+      next[beat] = sub + 1;
+      placements.set(cloneId, { beat, sub });
+    }
+    const placed = orderParentsFirst(cloned).map((n) => {
+      const p = placements.get(n.id);
+      return p ? { ...n, parentId: lessonId, position: gridPos(p.beat, p.sub), width: FRAME_W, height: FRAME_H, data: { ...n.data, beat: p.beat, subIndex: p.sub, filmStatus: undefined, introTake: undefined } } : n;
+    });
+    const addCmd = addNodesAndEdgesCmd(rf as unknown as RfLike, placed, clonedEdges, "paste scaffold");
+    if (addCmd) bus.dispatch(addCmd);
+    flashToast(skipped ? `Pasted ${placements.size} frame(s); ${skipped} skipped (lesson full)` : `Pasted ${placements.size} frame(s)`);
+  }, [clip, rf, gridPos, flashToast]);
+
+  // ---- SNIPPET LIBRARY (PROMPT 2 — personal clip-bin) ------------------------
+  // Save a card or a multi-selection as a reusable snippet (global across
+  // scenes/courses); spawn it anywhere (click or drag from the palette), landing
+  // parented to the frame/lesson dropped into with fresh ids. Reuses the Prompt 1
+  // deep-copy core (snippet-payload.ts → cloneNodeSet).
+  const [snippets, setSnippets] = useState<SnippetRow[]>([]);
+  const [snipSaveIds, setSnipSaveIds] = useState<string[] | null>(null); // save dialog
+  const [snipName, setSnipName] = useState("");
+  const [snipMenu, setSnipMenu] = useState<{ x: number; y: number; ids: string[] } | null>(null); // right-click
+  /** LOCK (right-click) — flips posLock on the clicked selection via the bus (the
+   *  existing dragFrozen enforcement makes a locked node ignore drags; shift-click
+   *  still selects it, so right-click → Unlock always works). One undo step. */
+  const toggleLockIds = (ids: string[]) => {
+    const nodesById = new Map(rf.getNodes().map((n) => [n.id, n]));
+    const anyUnlocked = ids.some((id) => !(nodesById.get(id)?.data as { posLock?: boolean } | undefined)?.posLock);
+    const cmds = ids.map((id) => patchDataCmd(rf as unknown as RfLike, id, { posLock: anyUnlocked }, anyUnlocked ? "lock" : "unlock")).filter((c): c is NonNullable<typeof c> => !!c);
+    const cmd = compositeCmd(cmds, anyUnlocked ? "lock elements" : "unlock elements");
+    if (cmd) bus.dispatch(cmd);
+  };
+  /** LAYER NUDGE (right-click) — bring forward / send backward WITHIN the node's
+   *  z tier: ±1 on node.zIndex, bus-backed so it undoes and persists (zIndex is a
+   *  top-level node field the scene serializer already round-trips). */
+  const nudgeLayer = (ids: string[], dir: 1 | -1) => {
+    const before = new Map(rf.getNodes().filter((n) => ids.includes(n.id)).map((n) => [n.id, n.zIndex]));
+    if (before.size === 0) return;
+    bus.dispatch({
+      label: dir > 0 ? "bring forward" : "send backward",
+      do: () => rf.setNodes((nds) => nds.map((n) => (before.has(n.id) ? { ...n, zIndex: (n.zIndex ?? 0) + dir } : n))),
+      undo: () => rf.setNodes((nds) => nds.map((n) => (before.has(n.id) ? { ...n, zIndex: before.get(n.id) } : n))),
+    });
+  };
+
+
+  const refreshSnippets = useCallback(async () => {
+    try { setSnippets(await listSnippets()); } catch (e) { flashToast(e instanceof Error ? e.message : "snippets unavailable"); }
+  }, [flashToast]);
+  useEffect(() => { void refreshSnippets(); }, [refreshSnippets]);
+
+  /** The smallest frame (preferred) else lesson whose ABSOLUTE rect contains a
+   *  flow point — the parent a dropped snippet homes into. */
+  const containerAt = useCallback((pt: { x: number; y: number }): CardNode | null => {
+    const all = rf.getNodes() as CardNode[];
+    const byId = new Map(all.map((n) => [n.id, n as never]));
+    const hit = (types: string[]) => all
+      .filter((n) => types.includes(n.type ?? ""))
+      .map((n) => ({ n, r: absRectOf(n as never, byId) }))
+      .filter(({ r }) => pt.x >= r.x && pt.x <= r.x + r.w && pt.y >= r.y && pt.y <= r.y + r.h)
+      .sort((a, b) => a.r.w * a.r.h - b.r.w * b.r.h)[0]?.n ?? null;
+    return hit(["frame"]) ?? hit(["lesson"]);
+  }, [rf]);
+
+  /** Place a snippet payload: fresh ids, offset to `atLocal` (parent-local),
+   *  parented to `parentId`, landing on top. ONE undoable bus command. */
+  const placeSnippet = useCallback((payload: SnippetPayload, atLocal: { x: number; y: number }, parentId?: string) => {
+    const { nodes, edges } = spawnSnippet(payload, (k) => cardId(k), atLocal, parentId, (n) => nextZ(n.type, (n.data as { kind?: string }).kind));
+    if (nodes.length === 0) { flashToast("snippet is empty"); return; }
+    bus.dispatch(addNodesAndEdgesCmd(rf as unknown as RfLike, nodes.map((n) => ({ ...n, selected: false })), edges, "spawn snippet"));
+  }, [rf, flashToast]);
+
+  /** Spawn by id from the palette. Click (no drop point) → center of the view,
+   *  parented to the entered frame if any. Drop → the flow point + the container
+   *  under it. */
+  const spawnSnippetById = useCallback((id: string, dropFlowPt?: { x: number; y: number }) => {
+    const row = snippets.find((s) => s.id === id);
+    if (!row) return;
+    let payload: SnippetPayload;
+    try { payload = JSON.parse(row.payload_json) as SnippetPayload; } catch { flashToast("snippet payload unreadable"); return; }
+    if (dropFlowPt) {
+      const parent = containerAt(dropFlowPt);
+      if (parent) {
+        const o = absRectOf(parent as never, new Map((rf.getNodes() as CardNode[]).map((n) => [n.id, n as never])));
+        placeSnippet(payload, { x: dropFlowPt.x - o.x, y: dropFlowPt.y - o.y }, parent.id);
+      } else {
+        placeSnippet(payload, dropFlowPt);
+      }
+      return;
+    }
+    // click: center of the viewport; parent to the entered frame if we're in one
+    const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+    const center = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
+    const frameId = currentFrameRef.current;
+    if (frameId) {
+      const f = rf.getNode(frameId);
+      const o = f ? absRectOf(f as never, new Map((rf.getNodes() as CardNode[]).map((n) => [n.id, n as never]))) : null;
+      placeSnippet(payload, o ? { x: center.x - o.x, y: center.y - o.y } : center, frameId);
+    } else {
+      placeSnippet(payload, center);
+    }
+  }, [snippets, containerAt, placeSnippet, rf, flashToast]);
+
+  /** Save the given nodes (or the current selection) as a snippet — opens the
+   *  name dialog. Filters out containers (snippets are card clusters). */
+  const openSnippetSave = useCallback((ids: string[]) => {
+    const cardIds = ids.filter((id) => { const n = rf.getNode(id); return n && !isContainerType(n.type); });
+    if (cardIds.length === 0) { flashToast("select a card (or a group) to save as a snippet"); return; }
+    setSnipMenu(null);
+    setSnipName("");
+    setSnipSaveIds(cardIds);
+  }, [rf, flashToast]);
+
+  const commitSnippetSave = useCallback(async (name: string) => {
+    const ids = snipSaveIds;
+    if (!ids || ids.length === 0) return;
+    const all = rf.getNodes() as CardNode[];
+    const byId = new Map(all.map((n) => [n.id, n as never]));
+    const idSet = new Set(ids);
+    const cloneNodes: CloneNode[] = ids.map((id) => byId.get(id) as CardNode | undefined).filter(Boolean).map((n) => {
+      const node = n as CardNode;
+      const o = absRectOf(node as never, byId);
+      return { id: node.id, type: node.type, parentId: node.parentId, position: { x: o.x, y: o.y }, width: (node as { width?: number }).width, height: (node as { height?: number }).height, data: node.data as Record<string, unknown> };
+    });
+    const edges = (rf.getEdges() as unknown as CloneEdge[]).filter((e) => idSet.has(e.source) && idSet.has(e.target));
+    const payload = buildSnippetPayload(cloneNodes, edges);
+    try {
+      await saveSnippetFn({ data: { name: name.trim() || "Snippet", payload_json: JSON.stringify(payload) } });
+      setSnipSaveIds(null);
+      await refreshSnippets();
+      flashToast(`Saved snippet · ${cloneNodes.length} card${cloneNodes.length === 1 ? "" : "s"}`);
+    } catch (e) {
+      flashToast(e instanceof Error ? e.message : "snippet save failed");
+    }
+  }, [snipSaveIds, rf, refreshSnippets, flashToast]);
+
+  const renameSnippet = useCallback(async (id: string, name: string) => {
+    try { await renameSnippetFn({ data: { id, name } }); await refreshSnippets(); }
+    catch (e) { flashToast(e instanceof Error ? e.message : "rename failed"); }
+  }, [refreshSnippets, flashToast]);
+
+  const deleteSnippet = useCallback(async (id: string) => {
+    try { await deleteSnippetFn({ data: { id } }); await refreshSnippets(); }
+    catch (e) { flashToast(e instanceof Error ? e.message : "delete failed"); }
+  }, [refreshSnippets, flashToast]);
+
+  // ---- REHEARSAL MODE (PROMPT 3 item 4) -------------------------------------
+  // Enter the frame + teleprompter, tap to start a stopwatch, space walks cues
+  // exactly like normal (no recording, no take). Finish → actual vs estimate;
+  // saving stores lastRehearsalS on the frame (shown on the storyboard row).
+  const startRehearsal = useCallback((frameId: string) => {
+    enterFrame(frameId);
+    setPrompter(true);
+    setRehearse({ frameId, running: true, segStart: Date.now(), perFrame: {}, order: [frameId], finishedAt: null });
+  }, [enterFrame]);
+  const exitRehearsal = useCallback(() => setRehearse(null), []);
+  // Pause/resume the stopwatch (banking the live segment on pause).
+  const toggleRehearsal = useCallback(() => setRehearse((r) => {
+    if (!r || r.finishedAt) return r;
+    if (r.running) return { ...bankRehearseSegment(r), running: false, segStart: null };
+    return { ...r, running: true, segStart: Date.now() };
+  }), []);
+  // FINISH → bank the live segment, freeze the report, persist per-frame seconds +
+  // the run TOTAL (shown top-center; survives reload via sceneSettings).
+  const finishRehearsal = useCallback(() => setRehearse((r) => {
+    if (!r) return r;
+    const banked = { ...bankRehearseSegment(r), running: false, segStart: null };
+    const cmds = Object.entries(banked.perFrame)
+      .map(([fid, ms]) => patchDataCmd(rf as unknown as RfLike, fid, { lastRehearsalS: Math.max(1, Math.round(ms / 1000)) }, "rehearsal time"))
+      .filter((c): c is NonNullable<typeof c> => !!c);
+    const cmd = compositeCmd(cmds, "rehearsal times");
+    if (cmd) bus.dispatch(cmd);
+    setLastRehearsalTotalS(Math.round(Object.values(banked.perFrame).reduce((a, b) => a + b, 0) / 1000));
+    return { ...banked, finishedAt: Date.now() };
+  }), [rf]);
+  // AUTO-PAUSE ON TRANSITION (Lee's call): moving to a new frame banks the current
+  // frame's segment and pauses — a click resumes the stopwatch on the new frame.
+  useEffect(() => {
+    setRehearse((r) => {
+      if (!r || r.finishedAt || !currentFrameId || currentFrameId === r.frameId) return r;
+      const banked = { ...bankRehearseSegment(r), running: false, segStart: null };
+      const order = banked.order.includes(currentFrameId) ? banked.order : [...banked.order, currentFrameId];
+      return { ...banked, frameId: currentFrameId, order };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentFrameId]);
+
+  // OUTLINE v2 (prompt 4) — navigate to a CEQ: activate its lesson, enter its frame,
+  // select the card (opens it for editing). Waits a tick so the lesson mounts first.
+  const focusCeq = useCallback((ceqId: string) => {
+    const node = rf.getNode(ceqId);
+    if (!node) return;
+    const frameId = node.parentId && rf.getNode(node.parentId)?.type === "frame" ? node.parentId : null;
+    const lessonId = frameId ? (rf.getNode(frameId)?.parentId ?? null) : lessonIdOf(node as never, rf.getNodes() as never);
+    if (lessonId) setActiveLesson(lessonId);
+    window.setTimeout(() => {
+      if (frameId) enterFrame(frameId, { smooth: true });
+      rf.setNodes((nds) => nds.map((n) => (n.id === ceqId ? { ...n, selected: true } : n.selected ? { ...n, selected: false } : n)));
+    }, 90);
+  }, [rf, setActiveLesson, enterFrame]);
+
+  const openStudio = useCallback((ceqId?: string) => { setStudioFocusCeq(ceqId ?? null); setCeqStudioOpen(true); }, []);
+  const openStudioSet = useCallback((setId: string) => { setStudioFocusSet(setId); setStudioFocusCeq(null); setCeqStudioOpen(true); }, []);
+  const openBranding = useCallback(() => setBrandingOpen(true), []);
+  const openMemos = useCallback(() => setMemosOpen(true), []);
+  // One-time utilities, moved out of the Studio footer into File. Use the route's rf + decks.
+  const runSeedSets = useCallback(() => {
+    if (!window.confirm("Seed the starter CEQ sets for the first five topics? Re-seeding replaces each seeded set's cards (idempotent) — your other sets are untouched.")) return;
+    seedCeqSets(rf, setDecks);
+  }, [rf]);
+  const runCleanNames = useCallback(() => {
+    const hit = decks.filter((d) => d.payloadType === "cards" && /^ch\s*\d+\s*[·.-]\s*/i.test(d.name));
+    if (!hit.length) { window.alert("Set names are already clean — nothing to strip."); return; }
+    if (!window.confirm(`Strip the "Ch N ·" prefix from ${hit.length} set name${hit.length === 1 ? "" : "s"}? Names only — ids and chapter tags stay. Idempotent.`)) return;
+    setDecks((prev) => prev.map((d) => ({ ...d, name: d.name.replace(/^ch\s*\d+\s*[·.-]\s*/i, "") })));
+  }, [decks]);
+
+  const frameNav = useMemo<FrameNav>(() => ({ currentFrameId, film, enter: (fid: string) => enterFrame(fid, { smooth: true }), exit: exitFrame, step: stepBeat, canStep: canStepBeat, addFrame: addFrameToLesson, addBelow: addFrameBelow, reorder: reorderFrame, canReorder: canReorderFrame, duplicate: (fid, d) => duplicateFrame(fid, d as { lessonId?: string; beat?: Beat; onCreated?: (newFrameId: string) => void } | undefined), duplicateDialog: setDupFrameFor, duplicateLesson, copyFrame, pasteFrameBelow, hasFrameClip: clip?.kind === "frame", copyScaffold, pasteScaffold, hasScaffoldClip: clip?.kind === "scaffold", cramMode, activateLesson: setActiveLesson, focusCeq, openStudio, openStudioSet, openBranding, openMemos }), [currentFrameId, film, enterFrame, exitFrame, stepBeat, canStepBeat, addFrameToLesson, addFrameBelow, reorderFrame, canReorderFrame, duplicateFrame, duplicateLesson, copyFrame, pasteFrameBelow, copyScaffold, pasteScaffold, clip, cramMode, setActiveLesson, focusCeq, openStudio, openStudioSet, openBranding, openMemos]);
+
+  /** Row ×: remove MEMBERSHIP only — a tucked card re-deals to its remembered
+   *  spot as a loose card first. Cards never vanish. */
+  const removeMembership = useCallback(
+    (id: string) => {
+      const node = rf.getNode(id);
+      if (!node) return;
+      const d = node.data as unknown as CardData;
+      const wasTucked = isTucked(d);
+      const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+      const center = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
+      const target = d.deckPos ?? { x: center.x - 190, y: center.y - 120 };
+      const before = { deckMember: d.deckMember, tucked: d.tucked, staged: d.staged, minimized: d.minimized, position: { ...node.position } };
+      bus.dispatch({
+        label: "leave deck",
+        do: () => {
+          rf.updateNodeData(id, { deckMember: false, tucked: false, staged: undefined, minimized: undefined });
+          if (wasTucked) rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, position: { ...target }, hidden: false } : n)));
+        },
+        undo: () => {
+          rf.updateNodeData(id, { deckMember: before.deckMember, tucked: before.tucked, staged: before.staged, minimized: before.minimized });
+          rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, position: { ...before.position } } : n)));
+        },
+      });
+    },
+    [rf],
+  );
+
+  // Focus-zoom tracking — the Esc ladder's rung 3 exits it exactly once.
+  const zoomedRef = useRef(false);
+  // FOCUS ZOOM INSIDE FILM LOCK (item 1): double-click pushes the camera toward
+  // one card, but REMEMBERS the framed shot. In film + inside a frame we capture
+  // the exact fitted viewport; ← (the back button) and Esc snap back to it — no
+  // free panning while pushed (the film lock already disables panOnDrag).
+  const [framePushView, setFramePushView] = useState<{ x: number; y: number; zoom: number } | null>(null);
+  const framePushRef = useRef<{ x: number; y: number; zoom: number } | null>(null);
+  framePushRef.current = framePushView;
+  const returnFromPush = useCallback(() => {
+    const v = framePushRef.current;
+    if (!v) return false;
+    zoomedRef.current = false;
+    setFramePushView(null);
+    void rf.setViewport(v, { duration: 400 });
+    return true;
+  }, [rf]);
+  const focusNode = useCallback(
+    (id: string) => {
+      zoomedRef.current = true;
+      // remember the framed view to snap back to (temporary push, not a re-frame)
+      if (filmRef.current && currentFrameRef.current) setFramePushView(rf.getViewport());
+      void rf.fitView({ nodes: [{ id }], duration: 400, padding: 0.4 });
+    },
+    [rf],
+  );
+
+  // DEV probe: drive the React Flow instance from the console (import.meta.env.DEV only).
+  // __rfStore lets headless tests force node measurement synchronously — hidden tabs
+  // freeze requestAnimationFrame, which starves ResizeObserver AND the public
+  // useUpdateNodeInternals hook (both deliver on frames).
+  const storeApi = useStoreApi();
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      (window as unknown as Record<string, unknown>).__rf = rf;
+      (window as unknown as Record<string, unknown>).__rfStore = storeApi;
+    }
+  }, [rf, storeApi]);
+
+  // ARROWS ROOT CAUSE (C1, finally nailed in V2): React Flow keeps a node
+  // INVISIBLE and unconnectable until initialized — measured.width set AND
+  // handleBounds registered. Both normally arrive via ResizeObserver→rAF, and
+  // rAF can be throttled to ZERO in occluded/background windows (measured
+  // live: rAF never fired at all — even useUpdateNodeInternals defers through
+  // its own rAF, so the old hook-based rescue was dead in exactly the
+  // environments that needed it). Rescue synchronously through the store
+  // instead. Zones are exempt: no handles by design, so they'd loop forever.
+  useEffect(() => {
+    const { nodeLookup, domNode, updateNodeInternals: forceInternals } = storeApi.getState();
+    const updates = new Map<string, { id: string; nodeElement: HTMLDivElement; force: boolean }>();
+    for (const n of liveNodes) {
+      if (n.hidden || n.type === "zone") continue;
+      const initialized = n.measured && typeof n.measured.width === "number" && !!nodeLookup.get(n.id)?.internals.handleBounds;
+      if (initialized) continue;
+      const nodeElement = domNode?.querySelector<HTMLDivElement>(`.react-flow__node[data-id="${n.id}"]`);
+      if (nodeElement) updates.set(n.id, { id: n.id, nodeElement, force: true });
+    }
+    if (updates.size > 0) forceInternals(updates, { triggerFitView: false });
+  }, [liveNodes, storeApi]);
+
+  // Last known pointer position (screen coords) — quick-spawn drops cards at the cursor.
+  const lastMouse = useRef<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    const onMove = (e: PointerEvent) => { lastMouse.current = { x: e.clientX, y: e.clientY }; };
+    window.addEventListener("pointermove", onMove, { passive: true });
+    return () => window.removeEventListener("pointermove", onMove);
+  }, []);
+
+  // The innermost container (frame → lesson → zone) whose bounds contain an ABSOLUTE
+  // flow point, with that container's absolute origin. Mirrors onNodeDragStop's hit
+  // test so spawn-time and drag-time membership agree. Returns null over empty canvas.
+  const containerAtPoint = useCallback((abs: { x: number; y: number }): { id: string; abs: { x: number; y: number } } | null => {
+    const nds = rf.getNodes();
+    const byId = new Map(nds.map((n) => [n.id, n] as const));
+    const absOf = (n: CardNode): { x: number; y: number } => {
+      let x = n.position.x, y = n.position.y, p = n.parentId ? byId.get(n.parentId) : undefined, g = 0;
+      while (p && g++ < 20) { x += p.position.x; y += p.position.y; p = p.parentId ? byId.get(p.parentId) : undefined; }
+      return { x, y };
+    };
+    const containers = [...nds.filter((n) => n.type === "frame"), ...nds.filter((n) => n.type === "lesson"), ...nds.filter((n) => n.type === "zone")];
+    for (const z of containers) {
+      const w = (z.data as unknown as ZoneBox).w ?? z.width ?? 0;
+      const h = (z.data as unknown as ZoneBox).h ?? z.height ?? 0;
+      const zp = absOf(z as CardNode);
+      if (abs.x > zp.x && abs.y > zp.y && abs.x < zp.x + w && abs.y < zp.y + h) return { id: z.id, abs: zp };
+    }
+    return null;
+  }, [rf]);
+
+  // ---- spawn at viewport center (palette) or at a screen point (quick-spawn) ----
+  const spawn = useCallback(
+    (data: CardData, at?: { x: number; y: number }) => {
+      const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
+      const center = rf.screenToFlowPosition(
+        at ?? {
+          x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2,
+          y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2,
+        },
+      );
+      // exclusive-select the new card so the stepper/focus hotkeys target it
+      rf.setNodes((nds) => nds.map((n) => (n.selected ? { ...n, selected: false } : n)));
+      // newly spawned JE cards get the CURRENT canvas default mode stamped in
+      if (data.kind === "je" && !(data as JeCard).settings) {
+        data = { ...data, mode: jePreset, settings: { ...JE_PRESETS[jePreset] } } as CardData;
+      }
+      const id = cardId(data.kind);
+      const pos = at
+        ? { x: center.x, y: center.y }
+        : { x: center.x - 140 + (Math.random() * 40 - 20), y: center.y - 80 + (Math.random() * 40 - 20) };
+      // MEMBERSHIP FIX 2 — attach at birth: a card/element spawned inside a frame becomes
+      // its child NOW (explicit parentId + frame-local position) instead of floating loose
+      // on top of the frame until a later drag. Containers never auto-parent here.
+      let parentId: string | undefined;
+      let position = pos;
+      if (!isContainerType(data.kind)) {
+        const host = containerAtPoint(pos);
+        if (host) { parentId = host.id; position = { x: pos.x - host.abs.x, y: pos.y - host.abs.y }; }
+      }
+      bus.dispatch(
+        addNodesCmd(
+          rf as unknown as RfLike,
+          [{ id, type: data.kind, parentId, position, data: data as unknown as CardData & Record<string, unknown>, selected: true }],
+          `spawn ${data.kind}`,
+        ),
+      );
+      return id;
+    },
+    [rf, jePreset, containerAtPoint],
+  );
+
+  /** Quick-spawn (J/T/N/Q/L): blank at the cursor, edit mode on, first field focused. */
+  const quickSpawn = useCallback(
+    (kind: Parameters<typeof blankCard>[0]) => {
+      const id = spawn(blankCard(kind), lastMouse.current ?? undefined);
+      // focus the first editable field once the node has mounted
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          const el = document.querySelector<HTMLElement>(
+            `.react-flow__node[data-id="${id}"] input:not([placeholder="${kind}"]), .react-flow__node[data-id="${id}"] textarea`,
+          );
+          el?.focus();
+        }),
+      );
+    },
+    [spawn],
+  );
+
+  /** "D" — duplicate the single selected card, landing directly UNDERNEATH it
+   *  (the same clone-below rule the JE Copy button uses). Bus command, so one
+   *  Ctrl+Z removes the copy. No-op unless exactly one non-container card is
+   *  selected (a group is the GroupChromeBar's clone job, not this). */
+  const duplicateSelected = useCallback(() => {
+    const sel = rf.getNodes().filter((n) => n.selected && !isContainerType(n.type));
+    if (sel.length !== 1) return;
+    const node = sel[0];
+    const kind = (node.data as unknown as CardBase).kind ?? "card";
+    const below = { x: node.position.x, y: node.position.y + (node.measured?.height ?? 180) + 24 };
+    bus.dispatch(
+      addNodesCmd(
+        rf as unknown as RfLike,
+        [{ ...node, id: cardId(kind), selected: false, parentId: node.parentId, position: below, data: structuredClone(node.data) }],
+        "duplicate card",
+      ),
+    );
+  }, [rf]);
+
+  /** Canva-style fluid resize of every selected node by a FACTOR (>1 grows, <1
+   *  shrinks), one undoable command. Cards scale via `scale` (clamped 0.25–3);
+   *  ELEMENTS (heading/text/image) resize their box (w/h) so their type/photo
+   *  grows with them. Reads the EFFECTIVE scale first so a framed 60% card grows
+   *  from 0.6. Containers are skipped. */
+  const scaleSelected = useCallback((factor: number) => {
+    const sel = rf.getNodes().filter((n) => n.selected && !isContainerType(n.type));
+    if (!sel.length) return;
+    const cmds = sel.map((n) => {
+      const d = n.data as unknown as CardBase & { w?: number; h?: number };
+      if (isElementKind(d.kind)) {
+        const w = typeof d.w === "number" ? d.w : (n.measured?.width ?? 300);
+        const h = typeof d.h === "number" ? d.h : (n.measured?.height ?? 80);
+        return patchDataCmd(rf as unknown as RfLike, n.id, { w: Math.round(Math.max(60, w * factor)), h: Math.round(Math.max(28, h * factor)) }, "resize element");
+      }
+      const cur = typeof d.scale === "number" ? d.scale : (n.parentId && rf.getNode(n.parentId)?.type === "frame" ? FRAME_CARD_SCALE : 1);
+      return patchDataCmd(rf as unknown as RfLike, n.id, { scale: clampScale(cur * factor) }, "scale card");
+    }).filter((c): c is Command => !!c);
+    const cmd = compositeCmd(cmds, factor > 1 ? "scale up" : "scale down");
+    if (cmd) bus.dispatch(cmd);
+  }, [rf]);
+
+  // ---- PASTE ROUTER (cross-tab copy/paste) ----------------------------------
+  // 1. our card JSON (marker __saCanvasCards) → spawn with FRESH ids at cursor
+  // 2. image file → image card uploading in place
+  // 3. plain text → focused editor only (typing targets return early; the
+  //    canvas itself ignores loose text)
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const text = e.clipboardData?.getData("text/plain") ?? "";
+      if (text.includes("__saCanvasCards")) {
+        try {
+          const payload = JSON.parse(text) as { __saCanvasCards?: number; cards?: CardNode[] };
+          if (payload.__saCanvasCards === 1 && Array.isArray(payload.cards) && payload.cards.length) {
+            e.preventDefault();
+            const at = lastMouse.current
+              ? rf.screenToFlowPosition(lastMouse.current)
+              : rf.screenToFlowPosition({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+            // keep the copied group's relative layout, anchored at the cursor
+            const minX = Math.min(...payload.cards.map((n) => n.position.x));
+            const minY = Math.min(...payload.cards.map((n) => n.position.y));
+            const fresh = payload.cards.map((n) => ({
+              ...n,
+              id: cardId((n.data as unknown as CardData).kind),
+              position: { x: at.x + (n.position.x - minX), y: at.y + (n.position.y - minY) },
+              parentId: undefined,
+              selected: true,
+            }));
+            rf.setNodes((nds) => nds.map((n) => (n.selected ? { ...n, selected: false } : n)));
+            bus.dispatch(addNodesCmd(rf as unknown as RfLike, fresh, "paste cards"));
+            return;
+          }
+        } catch { /* not ours — fall through */ }
+      }
+      const file = [...(e.clipboardData?.files ?? [])].find((f) => f.type.startsWith("image/"));
+      if (!file) return;
+      e.preventDefault();
+      const id = spawn({ kind: "image", url: "", fit: "contain", caption: "" }, lastMouse.current ?? undefined);
+      void uploadImageFile(file)
+        .then((url) => rf.updateNodeData(id, { url }))
+        .catch((err) => rf.updateNodeData(id, { caption: `upload failed: ${err instanceof Error ? err.message : err}` }));
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [spawn, rf]);
+
+  // Ctrl+C with cards selected (and no text selection) → card JSON to the SYSTEM
+  // clipboard with our marker — works across tabs and windows.
+  useEffect(() => {
+    const onCopy = (e: ClipboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if ((window.getSelection()?.toString() ?? "") !== "") return; // real text copy wins
+      const sel = rf.getNodes().filter((n) => n.selected && !isContainerType(n.type));
+      if (sel.length === 0) return;
+      e.preventDefault();
+      e.clipboardData?.setData("text/plain", JSON.stringify({ __saCanvasCards: 1, cards: sanitizeSceneNodes(structuredClone(sel)) }));
+    };
+    window.addEventListener("copy", onCopy);
+    return () => window.removeEventListener("copy", onCopy);
+  }, [rf]);
+
   const addZone = useCallback(() => {
     const rect = document.querySelector(".react-flow")?.getBoundingClientRect();
     const center = rf.screenToFlowPosition({ x: (rect?.left ?? 0) + (rect?.width ?? 1200) / 2, y: (rect?.top ?? 0) + (rect?.height ?? 700) / 2 });
-    rf.addNodes([
-      {
-        id: cardId("zone"),
-        type: "zone",
-        position: { x: center.x - 260, y: center.y - 160 },
-        width: 520,
-        height: 320,
-        zIndex: -1,
-        data: { kind: "note", label: "New zone", w: 520, h: 320 } as unknown as CardData & Record<string, unknown>,
-      },
-    ]);
+    bus.dispatch(
+      addNodesCmd(
+        rf as unknown as RfLike,
+        [
+          {
+            id: cardId("zone"),
+            type: "zone",
+            position: { x: center.x - 260, y: center.y - 160 },
+            width: 520,
+            height: 320,
+            zIndex: -1,
+            data: { kind: "note", label: "New zone", w: 520, h: 320 } as unknown as CardData & Record<string, unknown>,
+          },
+        ],
+        "add zone",
+      ),
+    );
   }, [rf]);
 
-  // ---- zone membership: drop a card inside a zone → parent it (moves with the zone) ----
-  const onNodeDragStop = useCallback((_e: unknown, node: CardNode) => {
-    if (node.type === "zone") return;
-    rf.setNodes((nds) => {
-      const zones = nds.filter((n) => n.type === "zone");
-      const abs = node.parentId
-        ? (() => {
-            const p = nds.find((n) => n.id === node.parentId);
-            return p ? { x: p.position.x + node.position.x, y: p.position.y + node.position.y } : node.position;
-          })()
-        : node.position;
-      const hit = zones.find((z) => {
+  // ITEM 3: adding a lesson now PROMPTS for category + topic (default CEQ), then
+  // scaffolds frames by category. The bare-lesson path was replaced.
+  const addLesson = useCallback(() => {
+    setNewLessonCategory("CEQ");
+    setNewLessonTopic("");
+    setNewLessonOpen(true);
+  }, []);
+
+  // ---- drag undo: snapshot {position, parentId} at drag start; one command per drag ----
+  const dragStart = useRef<Map<string, { position: { x: number; y: number }; parentId?: string }> | null>(null);
+  const onNodeDragStart = useCallback(
+    (_e: unknown, _node: CardNode, nodes: CardNode[]) => {
+      dragStart.current = new Map(nodes.map((n) => [n.id, { position: { ...n.position }, parentId: n.parentId }]));
+      // DRAG PERF (PROMPT A): edges touching a dragged node simplify to a
+      // straight path for the duration (no smoothstep corner math per frame).
+      // Transient — raw setEdges, not the bus; onNodeDragStop restores.
+      const dragged = new Set(nodes.map((n) => n.id));
+      rf.setEdges((eds) =>
+        eds.map((e) => (dragged.has(e.source) || dragged.has(e.target) ? { ...e, data: { ...e.data, _drag: true } } : e)),
+      );
+    },
+    [rf],
+  );
+  // ---- SNAP GUIDES: edge/center matches vs nearby cards while dragging; the
+  // drop settles onto a guide within threshold (no mid-drag position fighting).
+  const SNAP_TH = 6; // flow units
+  // Guides carry a WEIGHT so composition lines render at different strengths
+  // (frame center strongest → fifths lightest); positions are in SCREEN px.
+  type ScreenGuide = { pos: number; weight: GuideWeight };
+  const [guides, setGuides] = useState<{ v: ScreenGuide[]; h: ScreenGuide[] }>({ v: [], h: [] });
+  const guideMatches = useCallback(
+    (node: CardNode) => {
+      const w = node.measured?.width ?? 300;
+      const h = node.measured?.height ?? 170;
+      const mine = { xs: [node.position.x, node.position.x + w / 2, node.position.x + w], ys: [node.position.y, node.position.y + h / 2, node.position.y + h] };
+      const vx: number[] = [];
+      const vy: number[] = [];
+      let snapX: number | null = null;
+      let snapY: number | null = null;
+      for (const o of rf.getNodes()) {
+        if (o.id === node.id || isContainerType(o.type) || o.hidden) continue;
+        const ow = o.measured?.width ?? 300;
+        const oh = o.measured?.height ?? 170;
+        for (const ox of [o.position.x, o.position.x + ow / 2, o.position.x + ow]) {
+          for (let i = 0; i < 3; i++) {
+            const d = ox - mine.xs[i];
+            if (Math.abs(d) <= SNAP_TH) { vx.push(ox); if (snapX == null) snapX = node.position.x + d; }
+          }
+        }
+        for (const oy of [o.position.y, o.position.y + oh / 2, o.position.y + oh]) {
+          for (let i = 0; i < 3; i++) {
+            const d = oy - mine.ys[i];
+            if (Math.abs(d) <= SNAP_TH) { vy.push(oy); if (snapY == null) snapY = node.position.y + d; }
+          }
+        }
+      }
+      return { vx: [...new Set(vx)].slice(0, 3), vy: [...new Set(vy)].slice(0, 3), snapX, snapY };
+    },
+    [rf],
+  );
+  // dimensions + absolute origin of a node (measured wins, then explicit, then data)
+  type RfNodeLike = { id: string; type?: string; parentId?: string; position: { x: number; y: number }; measured?: { width?: number; height?: number }; width?: number; height?: number; data?: Record<string, unknown>; hidden?: boolean };
+  const dimW = useCallback((n: RfNodeLike) => (n.measured?.width ?? n.width ?? ((n.data?.w as number | undefined)) ?? 300), []);
+  const dimH = useCallback((n: RfNodeLike) => (n.measured?.height ?? n.height ?? ((n.data?.h as number | undefined)) ?? 170), []);
+  const absOrigin = useCallback((n: RfNodeLike) => {
+    let x = n.position.x, y = n.position.y;
+    let p = n.parentId ? rf.getNode(n.parentId) : undefined;
+    let g = 0;
+    while (p && g++ < 20) { x += p.position.x; y += p.position.y; p = p.parentId ? rf.getNode(p.parentId) : undefined; }
+    return { x, y };
+  }, [rf]);
+  const frameSiblingRects = useCallback((frameId: string, exceptId: string) =>
+    rf.getNodes()
+      .filter((n) => n.parentId === frameId && n.id !== exceptId && !isContainerType(n.type) && !n.hidden)
+      .map((n) => ({ x: n.position.x, y: n.position.y, w: dimW(n), h: dimH(n) })),
+    [rf, dimW, dimH]);
+  // COMPOSITION GUIDES (item 1) — a card dragged INSIDE a frame gets the frame's
+  // center/thirds/fifths/safe lines + sibling-center matches in frame-local space.
+  const frameGuidesFor = useCallback((node: RfNodeLike, parent: RfNodeLike, altBypass: boolean) => {
+    return frameCompositionGuides(
+      { w: dimW(parent), h: dimH(parent) },
+      { x: node.position.x, y: node.position.y, w: dimW(node), h: dimH(node) },
+      frameSiblingRects(parent.id, node.id),
+      { altBypass },
+    );
+  }, [dimW, dimH, frameSiblingRects]);
+  const onNodeDrag = useCallback(
+    (e: unknown, node: CardNode) => {
+      if (isContainerType(node.type)) { setGuides({ v: [], h: [] }); return; }
+      // flowToScreenPosition returns CLIENT coords, but the guide divs are absolute
+      // children of the STAGE wrapper — whose client origin in v2 chrome is the aside
+      // width + navbar height, not (0,0). Subtract the RF container origin so the
+      // lines land stage-local in every chrome (v1 stage origin IS (0,0) — no-op).
+      const stage = document.querySelector(".react-flow")?.getBoundingClientRect();
+      const ox = stage?.left ?? 0, oy = stage?.top ?? 0;
+      const parent = node.parentId ? rf.getNode(node.parentId) : undefined;
+      if (parent?.type === "frame") {
+        if (!compositionGuides || filmRef.current) { setGuides({ v: [], h: [] }); return; }
+        const g = frameGuidesFor(node, parent, !!(e as MouseEvent | undefined)?.altKey);
+        const fo = absOrigin(parent);
+        setGuides({
+          v: g.v.map((l) => ({ pos: rf.flowToScreenPosition({ x: fo.x + l.pos, y: 0 }).x - ox, weight: l.weight })),
+          h: g.h.map((l) => ({ pos: rf.flowToScreenPosition({ x: 0, y: fo.y + l.pos }).y - oy, weight: l.weight })),
+        });
+        return;
+      }
+      if (node.parentId) { setGuides({ v: [], h: [] }); return; }
+      const m = guideMatches(node);
+      setGuides({
+        v: m.vx.map((gx) => ({ pos: rf.flowToScreenPosition({ x: gx, y: 0 }).x - ox, weight: "card" as GuideWeight })),
+        h: m.vy.map((gy) => ({ pos: rf.flowToScreenPosition({ x: 0, y: gy }).y - oy, weight: "card" as GuideWeight })),
+      });
+    },
+    [rf, guideMatches, compositionGuides, frameGuidesFor, absOrigin],
+  );
+
+  /** Runs AFTER container parenting settles: diff the snapshots, dispatch ONE move
+   *  command. do() re-applies the landing spot, so dispatching post-hoc is a visual
+   *  no-op. `settled` carries the parenting updater's OWN output — rf.getNode()
+   *  lags one setNodes call behind the store updaters see (observed live: the
+   *  after-snapshot read the pre-parenting state and stripped a just-set parentId,
+   *  which is why cards never actually rode their zones). */
+  const commitDrag = useCallback((settled?: Map<string, { position: { x: number; y: number }; parentId?: string }> | null) => {
+    const before = dragStart.current;
+    dragStart.current = null;
+    if (!before) return;
+    const after = new Map<string, { position: { x: number; y: number }; parentId?: string }>();
+    let changed = false;
+    for (const [nid, b] of before) {
+      const n = settled?.get(nid) ?? rf.getNode(nid);
+      if (!n) continue;
+      const a = { position: { ...n.position }, parentId: n.parentId };
+      after.set(nid, a);
+      if (a.position.x !== b.position.x || a.position.y !== b.position.y || a.parentId !== b.parentId) changed = true;
+    }
+    if (!changed) return;
+    const apply = (m: typeof before) =>
+      rf.setNodes((nds) => nds.map((n) => (m.has(n.id) ? { ...n, position: { ...m.get(n.id)!.position }, parentId: m.get(n.id)!.parentId } : n)));
+    bus.dispatch({ label: "move card", do: () => apply(after), undo: () => apply(before) });
+  }, [rf]);
+
+  // ---- container membership: drop a card inside a LESSON (finer tier wins)
+  // or a zone/region → parent it (it then moves with the box natively) ----
+  const onNodeDragStop = useCallback((e: unknown, node: CardNode) => {
+    setGuides({ v: [], h: [] });
+    // restore smoothstep routing on every edge the drag simplified
+    rf.setEdges((eds) => eds.map((ed) => (ed.data?._drag ? { ...ed, data: { ...ed.data, _drag: undefined } } : ed)));
+    // regions + lessons stay top-level; FRAMES fall through — they parent INTO a lesson
+    if (node.type === "zone" || node.type === "lesson") { commitDrag(); return; }
+    // COMPOSITION SNAP (item 1) — a card dropped inside a frame settles onto the
+    // nearest frame line (center/thirds/fifths/safe/sibling-center); Alt bypasses.
+    // Keeps parentId=frame so the parenting math below reads the snapped local pos.
+    if (node.parentId && compositionGuides && !filmRef.current) {
+      const parent = rf.getNode(node.parentId);
+      if (parent?.type === "frame") {
+        const g = frameGuidesFor(node, parent, !!(e as MouseEvent | undefined)?.altKey);
+        if (g.snapX != null || g.snapY != null) {
+          const np = { x: g.snapX ?? node.position.x, y: g.snapY ?? node.position.y };
+          rf.setNodes((nds) => nds.map((n) => (n.id === node.id ? { ...n, position: np } : n)));
+          node = { ...node, position: np };
+        }
+      }
+    }
+    // settle onto a matched guide (within threshold) before parenting/commit
+    if (!node.parentId) {
+      const m = guideMatches(node);
+      if (m.snapX != null || m.snapY != null) {
+        rf.setNodes((nds) =>
+          nds.map((n) => (n.id === node.id ? { ...n, position: { x: m.snapX ?? n.position.x, y: m.snapY ?? n.position.y } } : n)),
+        );
+        node = { ...node, position: { x: m.snapX ?? node.position.x, y: m.snapY ?? node.position.y } };
+      }
+    }
+    // Decide the parenting SYNCHRONOUSLY from the current store, then write.
+    // rf.setNodes defers its updater, so nothing written here can be read back
+    // in this tick (observed live: a settled-state capture inside the updater
+    // was still null when the drag command snapshotted, and the command's
+    // queued do() then stripped the just-set parentId — cards never actually
+    // rode their zones). The decision below feeds BOTH the store write and the
+    // drag command's after-snapshot, so they can't disagree.
+    //
+    // GROUP MOVE (PROMPT B): the SAME container decision runs for EVERY
+    // co-dragged card (multi-select drag), so moving a group into or out of a
+    // lesson reparents the whole group — one setNodes, one drag command.
+    const nds = rf.getNodes();
+    const byId = new Map(nds.map((n) => [n.id, n]));
+    // absolute pos walking the full parent chain (card→frame→lesson)
+    const absPos = (n: CardNode): { x: number; y: number } => {
+      let x = n.position.x, y = n.position.y;
+      let p = n.parentId ? byId.get(n.parentId) : undefined;
+      let g = 0;
+      while (p && g++ < 20) { x += p.position.x; y += p.position.y; p = p.parentId ? byId.get(p.parentId) : undefined; }
+      return { x, y };
+    };
+    // FRAMES parent to LESSONS; a CARD prefers a FRAME (innermost), then a lesson,
+    // then a zone. Frames listed first so a card dropped in a frame joins the frame.
+    const isFrameDrag = node.type === "frame";
+    const containers = isFrameDrag
+      ? nds.filter((n) => n.type === "lesson")
+      : [...nds.filter((n) => n.type === "frame"), ...nds.filter((n) => n.type === "lesson"), ...nds.filter((n) => n.type === "zone")];
+    const absOf = (n: CardNode) => absPos(n);
+    const hitFor = (abs: { x: number; y: number }) =>
+      containers.find((z) => {
         const w = (z.data as unknown as ZoneBox).w ?? z.width ?? 0;
         const h = (z.data as unknown as ZoneBox).h ?? z.height ?? 0;
-        return abs.x > z.position.x && abs.y > z.position.y && abs.x < z.position.x + w && abs.y < z.position.y + h;
+        const zp = absPos(z as CardNode);
+        return abs.x > zp.x && abs.y > zp.y && abs.x < zp.x + w && abs.y < zp.y + h;
       });
-      return nds.map((n) => {
-        if (n.id !== node.id) return n;
-        if (hit && n.parentId !== hit.id) {
-          return { ...n, parentId: hit.id, position: { x: abs.x - hit.position.x, y: abs.y - hit.position.y } };
+    // Co-dragged nodes: rf.getNode lags XYDrag's writes at drag-stop (deferred
+    // store), so their end positions derive from the PRIMARY's DELTA against
+    // the drag-start snapshot — parents can't change mid-drag, so start-abs +
+    // delta IS the true landing spot.
+    const start = dragStart.current;
+    const startAbsOf = (nid: string): { x: number; y: number } | null => {
+      const s = start?.get(nid);
+      if (!s) return null;
+      if (!s.parentId) return s.position;
+      // walk from the (unchanged) start parent up the live chain
+      let x = s.position.x, y = s.position.y;
+      let p = byId.get(s.parentId);
+      let g = 0;
+      while (p && g++ < 20) { x += p.position.x; y += p.position.y; p = p.parentId ? byId.get(p.parentId) : undefined; }
+      return { x, y };
+    };
+    const primaryStartAbs = startAbsOf(node.id);
+    const primaryEndAbs = absOf(node);
+    const delta = primaryStartAbs
+      ? { x: primaryEndAbs.x - primaryStartAbs.x, y: primaryEndAbs.y - primaryStartAbs.y }
+      : { x: 0, y: 0 };
+    const draggedIds = new Set(start?.keys() ?? []);
+    draggedIds.add(node.id);
+    // SINGLE-SELECT INVARIANT (#1): a GROUP move happens ONLY with an explicit
+    // multi-selection (≥2 cards selected, the grabbed one among them). React
+    // Flow's drag set is `selected ∪ grabbed`, so a stray still-selected card
+    // would otherwise ride along when you drag a lone card. When it's not a
+    // genuine group drag, move ONLY the primary and snap any card XYDrag
+    // already nudged back to its drag-start spot. (rule: intendedDragIds)
+    const selectedCardIds = nds.filter((n) => n.selected && !isContainerType(n.type)).map((n) => n.id);
+    const isGroupDrag = isExplicitGroupDrag(selectedCardIds, node.id);
+    if (!isGroupDrag && draggedIds.size > 1) {
+      const restores: { id: string; position: { x: number; y: number }; parentId?: string }[] = [];
+      for (const nid of draggedIds) {
+        if (nid === node.id) continue;
+        const s = start?.get(nid);
+        if (s) restores.push({ id: nid, position: { ...s.position }, parentId: s.parentId });
+      }
+      if (restores.length) {
+        rf.setNodes((cur) =>
+          cur.map((n) => {
+            const r = restores.find((x) => x.id === n.id);
+            return r ? { ...n, position: { ...r.position }, parentId: r.parentId } : n;
+          }),
+        );
+      }
+      draggedIds.clear();
+      draggedIds.add(node.id);
+    }
+    // MEMBERSHIP FIX 3+4 — membership changes ONLY as a deliberate move from the
+    // grid/arrange view (no frame entered). While you're INSIDE a frame editing
+    // (currentFrameRef set), a drag keeps the element's parent and just repositions
+    // it locally: the "soft clamp" — no accidental un-parent, so the abs↔frame-local
+    // coordinate flip that "zipped elements across the canvas" can't happen.
+    const arrangeMode = !currentFrameRef.current;
+    const decisions = new Map<string, { position: { x: number; y: number }; parentId?: string }>();
+    if (arrangeMode) {
+      for (const nid of draggedIds) {
+        const cur = nid === node.id ? node : rf.getNode(nid);
+        if (!cur || isContainerType(cur.type)) continue;
+        const sAbs = nid === node.id ? null : startAbsOf(nid);
+        const abs = nid === node.id ? primaryEndAbs : sAbs ? { x: sAbs.x + delta.x, y: sAbs.y + delta.y } : absOf(cur as CardNode);
+        const hit = hitFor(abs);
+        const startParent = start?.get(nid)?.parentId ?? cur.parentId;
+        if (hit && startParent !== hit.id) {
+          const hp = absPos(hit as CardNode); // parent-relative pos = abs − parent-abs (nesting-safe)
+          decisions.set(nid, { parentId: hit.id, position: { x: abs.x - hp.x, y: abs.y - hp.y } });
+        } else if (!hit && startParent) {
+          decisions.set(nid, { parentId: undefined, position: abs });
         }
-        if (!hit && n.parentId) return { ...n, parentId: undefined, position: abs };
-        return n;
-      });
+      }
+    }
+    if (decisions.size > 0) {
+      rf.setNodes((cur) =>
+        cur.map((n) => {
+          const d = decisions.get(n.id);
+          return d ? { ...n, parentId: d.parentId, position: { ...d.position } } : n;
+        }),
+      );
+    }
+    // after-state: decisions win; undecided dragged nodes fall back to
+    // rf.getNode inside commitDrag — XYDrag's own position writes ARE visible
+    // by drag-stop. The primary's snap-settled spot rides along explicitly.
+    const settled = new Map(decisions);
+    if (!settled.has(node.id)) settled.set(node.id, { position: { ...node.position }, parentId: node.parentId });
+    commitDrag(settled);
+    // ARROWS STAY ATTACHED (#2): after a move — especially a reparent, which
+    // changes a node's coordinate space — React Flow can hold stale handle
+    // bounds, so a line-anchored (ln:<lineId>) edge renders to the old spot and
+    // looks detached. Re-measuring the dragged nodes' internals re-pins every
+    // edge to its live handle. Runs next frame so the setNodes writes above land
+    // first.
+    requestAnimationFrame(() => {
+      for (const nid of draggedIds) updateNodeInternals(nid);
     });
-  }, [rf]);
+  }, [rf, commitDrag, guideMatches, updateNodeInternals, compositionGuides, frameGuidesFor]);
 
   // ---- scenes (JSON blobs cross the server-fn boundary as strings) ----
   const serialize = useCallback(() => {
     const vp = rf.getViewport();
     return {
       name: sceneName,
-      nodes_json: JSON.stringify({ nodes: rf.getNodes() }),
+      // sanitize: transient state (selected/dragging/_arrowPending) must not round-trip —
+      // persisted multi-selection made loaded cards drag as a group (S2.0 bug)
+      nodes_json: JSON.stringify({
+        // v2: deckMember/tucked replace staged/minimized (loader migrates v1)
+        // v3: blind retired (loader normalizes), lesson nodes, JE mode/solution/
+        //     reviewLock/helpOpen, posLock, video plannedTitle/internalNote — all
+        //     additive, so v2 scenes open unchanged.
+        // v4: FRAME nodes (16:9 shot tier) + named decks (scene.decks) + memo
+        //     nodes — all additive; v≤3 scenes load unchanged (no frames/decks).
+        schema_version: 5,
+        nodes: sanitizeSceneNodes(rf.getNodes()),
+        // edges: strip transient interaction data (_drag/_pulse) — same
+        // contract as node _-keys; selected must not round-trip either
+        edges: rf.getEdges().map(({ selected, ...e }) => {
+          void selected;
+          if (!e.data) return e;
+          const data = Object.fromEntries(Object.entries(e.data).filter(([k]) => !k.startsWith("_")));
+          return { ...e, data };
+        }),
+        sceneSettings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, watermarkOn, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, sfx, coaOrder, spotFocusDim, cinePushMs, cinePushIntensity, cineAmbientMs, showFrameHeader, cramMode, globalClips, lastLessonId: lastLessonRef.current, activeLessonId: activeLessonRef.current },
+        decks, // NAMED DECKS (P3)
+        ceqSets, // CEQ SET factories
+      }),
       viewport_json: JSON.stringify(vp),
-      bg,
+      bg: encodeBg(bgCfg),
     };
-  }, [rf, sceneName, bg]);
+  }, [rf, sceneName, bgCfg, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, decks, frameTransitions, spaceAdvancesFrames, rehearsalHud, compositionGuides, backstage, filmEntrancePop, filmCheckGlow, framePath, prompterCorner, introClipLength, autoTrimIntros, beatNotes, riffMultiplier, readTimeThreshold, lastRehearsalTotalS, watermarkOn, sfx, coaOrder, spotFocusDim, cinePushMs, cinePushIntensity, cineAmbientMs, showFrameHeader, cramMode, ceqSets, globalClips]);
 
   const doSave = useCallback(
     async (asNew?: boolean) => {
@@ -250,6 +4314,8 @@ function PresentCanvas() {
         setSceneId(res.id);
         setSavedAt(new Date().toLocaleTimeString());
         setDbDown(null);
+        // the active tab is clean now (and knows its scene row)
+        setTabState((p) => ({ ...p, tabs: p.tabs.map((t) => (t.key === p.active ? { ...t, dirty: false, sceneId: res.id, name: body.name } : t)) }));
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setDbDown(msg);
@@ -264,7 +4330,14 @@ function PresentCanvas() {
 
   const applyScene = useCallback(
     (payload: { name: string; nodes_json: string; viewport_json: string; bg?: string | null }, id: string | null) => {
-      let nj: { nodes?: CardNode[] } = {};
+      let nj: {
+        schema_version?: number;
+        nodes?: CardNode[];
+        edges?: unknown[];
+        sceneSettings?: { jeCardWidth?: number; jeIndent?: number; jePreset?: string; dealFaceDown?: boolean; hideFdLabels?: boolean; focusPalette?: boolean };
+        decks?: DeckDef[];
+        ceqSets?: CeqSetDef[];
+      } = {};
       let vp: Viewport | null = null;
       try {
         nj = JSON.parse(payload.nodes_json || "{}");
@@ -273,12 +4346,118 @@ function PresentCanvas() {
         setDbDown(`Scene payload unreadable: ${e instanceof Error ? e.message : e}`); // fail loud
         return;
       }
-      rf.setNodes((nj.nodes ?? []) as CardNode[]);
+      // schema_version 1 (loader tolerates absence — pre-versioning scenes load fine)
+      bus.clear(); // history refers to nodes that no longer exist
+      // ACTIVE-LESSON GATING (Lee — lag fix): resolve which lesson is active from
+      // the persisted setting (activeLessonId, else lastLessonId, else first by
+      // path order) BEFORE hydration, then mark non-active descendants hidden so
+      // React Flow never even mounts them. Additive read — tolerant of absence.
+      const aset = nj.sceneSettings as { activeLessonId?: string | null; lastLessonId?: string | null } | undefined;
+      const loadedLessons = (nj.nodes ?? []).filter((n) => (n as { type?: string }).type === "lesson" && !(n as { parentId?: string }).parentId) as CardNode[];
+      const poOf = (n: CardNode) => { const v = (n.data as { pathOrder?: unknown }).pathOrder; return typeof v === "number" ? v : Number.POSITIVE_INFINITY; };
+      const hasLesson = (lid: string | null | undefined): lid is string => !!lid && loadedLessons.some((l) => l.id === lid);
+      const activeId = (hasLesson(aset?.activeLessonId) ? aset!.activeLessonId! : null)
+        ?? (hasLesson(aset?.lastLessonId) ? aset!.lastLessonId! : null)
+        ?? [...loadedLessons].sort((a, b) => poOf(a) - poOf(b) || a.position.y - b.position.y || a.position.x - b.position.x)[0]?.id
+        ?? null;
+      activeLessonRef.current = activeId;
+      setActiveLessonIdState(activeId);
+      // RUN LOG — surface the active lesson's most recent stored run so the readout
+      // reopen chip survives a reload. Any live run state resets on load.
+      { const ar = activeId ? ((loadedLessons.find((l) => l.id === activeId)?.data as { runs?: FilmRun[] } | undefined)?.runs ?? []) : []; setLastRun(ar.length ? ar[ar.length - 1] : null); setRunActive(false); runActiveRef.current = false; runStartRef.current = null; setRunReadoutOpen(false); }
+      // sanitize on LOAD too (S2.0 heal) + migrate v1 staged/minimized → deckMember/tucked
+      // MEMBERSHIP FIX 5 — parents before children so RF v12 never hydrates a child
+      // detached at the origin (a stranded/teleporting element). Content-only reorder.
+      rf.setNodes(markLessonHidden(orderParentsFirst(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateScriptLayers(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(migrateLessonFields(migrateLessonCategory(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])))), isElementKind)))))))))), activeId));
+      // old Ctrl+click-era edges have no handle ids — stamp r→l + smoothstep
+      rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
       setSceneName(payload.name);
       setSceneId(id);
-      if (payload.bg) setBg(payload.bg as BgMode);
-      const vpFinal = vp;
-      if (vpFinal && typeof vpFinal.zoom === "number") setTimeout(() => rf.setViewport(vpFinal), 0);
+      setDecks(Array.isArray(nj.decks) ? nj.decks : []); // named decks (P3)
+      setCeqSets(Array.isArray(nj.ceqSets) ? nj.ceqSets : []); // CEQ set factories
+      if (typeof nj.sceneSettings?.jeCardWidth === "number") setJeCardWidth(nj.sceneSettings.jeCardWidth);
+      if (typeof nj.sceneSettings?.jeIndent === "number") setJeIndent(nj.sceneSettings.jeIndent);
+      // v≤2 scenes may say "blind" — normalize maps it to practice (blind retired)
+      if (typeof nj.sceneSettings?.jePreset === "string") setJePreset(normalizePreset(nj.sceneSettings.jePreset));
+      if (typeof nj.sceneSettings?.dealFaceDown === "boolean") setDealFaceDown(nj.sceneSettings.dealFaceDown);
+      if (typeof nj.sceneSettings?.hideFdLabels === "boolean") setHideFdLabels(nj.sceneSettings.hideFdLabels);
+      if (typeof nj.sceneSettings?.focusPalette === "boolean") setFocusPalette(nj.sceneSettings.focusPalette);
+      setFrameTransitions((nj.sceneSettings as { frameTransitions?: boolean } | undefined)?.frameTransitions !== false); // default on
+      setSpaceAdvancesFrames((nj.sceneSettings as { spaceAdvancesFrames?: boolean } | undefined)?.spaceAdvancesFrames === true); // default OFF — arrows move frames
+      setRehearsalHud((nj.sceneSettings as { rehearsalHud?: boolean } | undefined)?.rehearsalHud === true); // default off
+      setLastRehearsalTotalS((nj.sceneSettings as { lastRehearsalTotalS?: number } | undefined)?.lastRehearsalTotalS ?? null);
+      setCompositionGuides((nj.sceneSettings as { compositionGuides?: boolean } | undefined)?.compositionGuides !== false); // default on
+      setWatermarkOn((nj.sceneSettings as { watermarkOn?: boolean } | undefined)?.watermarkOn !== false); // default on
+      { const bs = (nj.sceneSettings as { backstage?: string } | undefined)?.backstage; setBackstage(bs === "cinema" || bs === "gray" || bs === "light" ? bs : "dark"); } // default dark (dots-only)
+      setFilmEntrancePop((nj.sceneSettings as { filmEntrancePop?: boolean } | undefined)?.filmEntrancePop !== false); // default on
+      setFilmCheckGlow((nj.sceneSettings as { filmCheckGlow?: boolean } | undefined)?.filmCheckGlow !== false); // default on
+      setFramePath((nj.sceneSettings as { framePath?: boolean } | undefined)?.framePath === true); // default off
+      { const pc = (nj.sceneSettings as { prompterCorner?: string } | undefined)?.prompterCorner; setPrompterCorner(pc === "tl" || pc === "tr" ? pc : "tc"); } // teleprompter corner, default top-center
+      { const cl = (nj.sceneSettings as { introClipLength?: number } | undefined)?.introClipLength; if (typeof cl === "number" && cl > 0) setIntroClipLength(cl); setAutoTrimIntros((nj.sceneSettings as { autoTrimIntros?: boolean } | undefined)?.autoTrimIntros !== false); } // auto-trim default on
+      { const bn = (nj.sceneSettings as { beatNotes?: Record<string, string> } | undefined)?.beatNotes; if (bn && typeof bn === "object") setBeatNotes((prev) => ({ ...prev, ...bn })); } // global director notes travel with the scene, merged over the local set
+      { const gc = (nj.sceneSettings as { globalClips?: GlobalClips } | undefined)?.globalClips; if (gc && typeof gc === "object") setGlobalClipsState(gc); } // CEQ Studio global intro/outro/transition — scene-persisted so they don't drop on a new deploy
+      { const rm = (nj.sceneSettings as { riffMultiplier?: number } | undefined)?.riffMultiplier; if (typeof rm === "number" && rm > 0) setRiffMultiplier(rm); } // read-time riff (PROMPT 3)
+      { const rt = (nj.sceneSettings as { readTimeThreshold?: number } | undefined)?.readTimeThreshold; if (typeof rt === "number" && rt > 0) setReadTimeThreshold(rt); }
+      { const sx = (nj.sceneSettings as { sfx?: Partial<SfxConfig> } | undefined)?.sfx; setSfx({ muted: sx?.muted ?? SFX_DEFAULT.muted, volume: { ...SFX_DEFAULT.volume, ...(sx?.volume ?? {}) }, file: { ...SFX_DEFAULT.file, ...(sx?.file ?? {}) } }); } // reveal/transition SFX config
+      setCoaOrder((nj.sceneSettings as { coaOrder?: string[] } | undefined)?.coaOrder ?? []); // custom Chart-of-Accounts order (Lee)
+      // ITEM 12 (persistence fix) — filming-feel settings that used to reset each
+      // reload now travel with the scene. Additive keys; old scenes lack them and
+      // fall back to their defaults.
+      { const fd = (nj.sceneSettings as { spotFocusDim?: string } | undefined)?.spotFocusDim; setSpotFocusDim(fd === "on" || fd === "off" ? fd : "auto"); } // default auto
+      { const cpm = (nj.sceneSettings as { cinePushMs?: number } | undefined)?.cinePushMs; if (typeof cpm === "number" && cpm > 0) setCinePushMs(cpm); } // default 700
+      { const cpi = (nj.sceneSettings as { cinePushIntensity?: number } | undefined)?.cinePushIntensity; if (typeof cpi === "number" && cpi >= 0) setCinePushIntensity(cpi); } // default 1
+      { const cam = (nj.sceneSettings as { cineAmbientMs?: number } | undefined)?.cineAmbientMs; if (typeof cam === "number" && cam > 0) setCineAmbientMs(cam); } // default 6000
+      setShowFrameHeader((nj.sceneSettings as { showFrameHeader?: boolean } | undefined)?.showFrameHeader !== false); // default on
+      setCramMode((nj.sceneSettings as { cramMode?: boolean } | undefined)?.cramMode === true); // CRAM MODE — default off
+      const ss = nj.sceneSettings as { courseId?: string | null; chapterId?: string | null } | undefined;
+      setSceneCourseId(ss?.courseId ?? null);
+      setSceneChapterId(ss?.chapterId ?? null);
+      const cfg = decodeBg(payload.bg);
+      if (cfg) setBgCfg(cfg);
+      // ON-LOAD CAMERA (Lee's call) — ONE deterministic destination: the
+      // big-picture (birds-eye) of the MOST-RECENT lesson worked on. Never restore
+      // the saved viewport, never auto-enter a frame (that was the "goes one place
+      // then another" confusion). Falls back to the first lesson by path order.
+      void vp;
+      const startLessonId = activeId; // camera targets the ACTIVE lesson (same as gating)
+      lastLessonRef.current = startLessonId;
+      setCurrentFrameId(null);
+      window.setTimeout(() => {
+        const ns = rf.getNodes();
+        const byId = new Map(ns.map((n) => [n.id, n]));
+        const lessons = ns.filter((n) => n.type === "lesson" && !n.parentId);
+        if (lessons.length === 0) { void rf.fitView({ duration: 0, padding: 0.15 }); return; }
+        const po = (n: { data: Record<string, unknown> }) => { const v = n.data.pathOrder; return typeof v === "number" ? v : Number.POSITIVE_INFINITY; };
+        const target = (startLessonId ? byId.get(startLessonId) : undefined)
+          ?? [...lessons].sort((a, b) => po(a) - po(b) || a.position.y - b.position.y || a.position.x - b.position.x)[0];
+        if (target) {
+          // Fit ONE lesson's GRID, not the world and not a corner of frame 1. React
+          // Flow measures a lesson node at its tiny label box, so absRectOf under-
+          // reports w/h and fitBounds zoomed into the top-left — the "clunky" load.
+          // Lessons are top-level, so trust their cell size (data.w/h) for the fit.
+          const d = target.data as { w?: number; h?: number };
+          const gw = d.w ?? lessonCellSize().w;
+          const gh = d.h ?? lessonCellSize().h;
+          void rf.fitBounds({ x: target.position.x, y: target.position.y, width: gw, height: gh }, { duration: 0, padding: 0.08 });
+        }
+      }, 450);
+      // HYDRATION INTEGRITY: rf.setNodes silently no-ops when the RF store
+      // isn't ready (fresh mount + restore effect races onInit). Re-apply once;
+      // if the canvas is still empty, say so loudly — autosave already refuses
+      // empty writes, so the row is safe either way.
+      const expected = (nj.nodes ?? []).length;
+      if (expected > 0) {
+        setTimeout(() => {
+          if (rf.getNodes().length === 0) {
+            // MEMBERSHIP FIX 5 — parents before children (see above). Re-mark gating.
+            rf.setNodes(markLessonHidden(orderParentsFirst(migrateIntroCards(migrateLegendSlips(migrateZTiers(migrateFrameLocks(migrateScriptLayers(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(migrateLessonFields(migrateLessonCategory(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])))), isElementKind)))))))))), activeLessonRef.current));
+            rf.setEdges(migrateEdges((nj.edges ?? []) as never[]));
+            setTimeout(() => {
+              if (rf.getNodes().length === 0) setDbDown(`Scene "${payload.name}" loaded but the canvas failed to hydrate — reload the page (autosave is holding off).`);
+            }, 600);
+          }
+        }, 250);
+      }
     },
     [rf],
   );
@@ -301,72 +4480,1243 @@ function PresentCanvas() {
     }
   }, [applyScene]);
 
-  const newScene = useCallback(() => {
+  /** Reset the CURRENT tab's canvas to a blank untitled scene. */
+  const clearCanvasState = useCallback(() => {
+    bus.clear();
     rf.setNodes([]);
+    rf.setEdges([]);
     setSceneId(null);
     setSceneName("Untitled scene");
+    setDecks([]);
+    setCeqSets([]);
     setSavedAt(null);
+    setSceneCourseId(null);
+    setSceneChapterId(null);
+    setFilm(false);
   }, [rf]);
 
-  // autosave every 30s (only once a scene exists or after first manual save attempt)
-  const saveRef = useRef(doSave);
-  saveRef.current = doSave;
-  useEffect(() => {
-    const t = setInterval(() => {
-      if (sceneId) void saveRef.current();
-    }, 30_000);
-    return () => clearInterval(t);
-  }, [sceneId]);
+  // ---- SCENE TABS (workspace chrome): ONE React Flow instance; every tab is a
+  // full snapshot (nodes, edges, viewport, settings, film) swapped in and
+  // out on switch — deck, space-walk, film mode, and selection all ride the
+  // snapshot, so they're per-tab by construction. Undo history is per-visit
+  // (the bus clears on switch: its commands reference the other tab's nodes).
+  const snapshotCurrent = useCallback(
+    (): TabSnap => ({
+      nodes: structuredClone(rf.getNodes()) as CardNode[],
+      edges: structuredClone(rf.getEdges()) as unknown[],
+      viewport: rf.getViewport(),
+      settings: { jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, courseId: sceneCourseId, chapterId: sceneChapterId, activeLessonId: activeLessonRef.current },
+      bg: bgCfg,
+      film,
+      savedAt,
+    }),
+    [rf, jeCardWidth, jeIndent, jePreset, dealFaceDown, hideFdLabels, focusPalette, sceneCourseId, sceneChapterId, bgCfg, film, savedAt],
+  );
 
-  // ---- hotkeys: c (clean screen), space (stepper), f (focus), Esc (full view) ----
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
-      if (e.key === "c" || e.key === "C") {
-        setClean((v) => !v);
-      } else if (e.key === "Escape") {
-        setLoadOpen(false);
-        rf.fitView({ duration: 500, padding: 0.15 });
-      } else if (e.key === " " ) {
-        e.preventDefault(); // don't scroll; space is the reveal trigger
-        const sel = rf.getNodes().find((n) => n.selected && n.type !== "zone");
-        if (!sel) return;
-        const patch = stepReveal(sel.data as unknown as CardData);
-        if (patch) rf.updateNodeData(sel.id, patch);
-      } else if (e.key === "f" || e.key === "F") {
-        const sel = rf.getNodes().find((n) => n.selected);
-        if (sel) rf.fitView({ nodes: [{ id: sel.id }], duration: 500, padding: 0.35 });
-      } else if (e.key === "h" || e.key === "H") {
-        const sel = rf.getNodes().find((n) => n.selected && n.type !== "zone");
-        if (!sel) return;
-        const patch = hideAll(sel.data as unknown as CardData);
-        if (patch) rf.updateNodeData(sel.id, patch);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [rf]);
-
-  // focus-zoom on double click (single click selects/edits — double is the zoom gesture)
-  const onNodeDoubleClick = useCallback(
-    (_e: unknown, node: CardNode) => {
-      if (node.type === "zone") return;
-      rf.fitView({ nodes: [{ id: node.id }], duration: 500, padding: 0.35 });
+  const applySnap = useCallback(
+    (t: TabEntry) => {
+      const s = t.snap!;
+      bus.clear();
+      rf.setNodes(structuredClone(s.nodes));
+      rf.setEdges(structuredClone(s.edges) as never[]);
+      setSceneId(t.sceneId);
+      setSceneName(t.name);
+      setSavedAt(s.savedAt);
+      setJeCardWidth(s.settings.jeCardWidth);
+      setJeIndent(s.settings.jeIndent);
+      setJePreset(s.settings.jePreset);
+      setDealFaceDown(s.settings.dealFaceDown);
+      setHideFdLabels(s.settings.hideFdLabels);
+      setFocusPalette(s.settings.focusPalette);
+      setSceneCourseId(s.settings.courseId);
+      setSceneChapterId(s.settings.chapterId);
+      // ACTIVE-LESSON GATING — snapshot nodes already carry their hidden flags;
+      // restore the active id so LessonNode renders the right one expanded.
+      activeLessonRef.current = s.settings.activeLessonId ?? null;
+      setActiveLessonIdState(s.settings.activeLessonId ?? null);
+      setBgCfg(s.bg);
+      setFilm(s.film);
+      if (s.viewport) setTimeout(() => rf.setViewport(s.viewport!), 0);
     },
     [rf],
   );
 
-  const chrome = !clean;
+  /** True while a scene row is in flight for the ACTIVE tab. While set, the
+   *  canvas content is NOT the scene's truth — autosave must not write it and
+   *  tab switches must not snapshot it. Guards the data-loss path where a tab
+   *  carried a sceneId over a blank canvas (load pending, rejected, or
+   *  rf.setNodes dropped pre-init) and autosave overwrote the real row with
+   *  zero nodes (killed "polish round-trip"/"arrows round-trip", 2026-07-14). */
+  const sceneLoadingRef = useRef(false);
+
+  /** Activate a tab whose scene was never visited this session — load from db;
+   *  missing scenes drop silently (spec) and the canvas blanks. */
+  const activateSceneTab = useCallback(
+    async (t: TabEntry) => {
+      sceneLoadingRef.current = true;
+      try {
+        const row = await loadScene({ data: { id: t.sceneId! } });
+        applyScene(row, row.id);
+      } catch {
+        setTabState((p) => {
+          const rest = p.tabs.filter((x) => x.key !== t.key);
+          return rest.length ? { tabs: rest, active: rest[0].key } : p;
+        });
+        clearCanvasState();
+      } finally {
+        sceneLoadingRef.current = false;
+      }
+    },
+    [applyScene, clearCanvasState],
+  );
+
+  const switchTab = useCallback(
+    (key: string) => {
+      if (key === tabState.active) return;
+      const target = tabState.tabs.find((t) => t.key === key);
+      if (!target) return;
+      // mid-load the live canvas is NOT this tab's content — keep its entry
+      // snap-less so the next visit reloads from db instead of a bogus snapshot
+      const snapped = tabState.tabs.map((t) =>
+        t.key === tabState.active ? (sceneLoadingRef.current ? t : { ...t, sceneId, name: sceneName, snap: snapshotCurrent() }) : t,
+      );
+      setTabState({ tabs: snapped, active: key });
+      if (target.snap) applySnap(target);
+      else if (target.sceneId) void activateSceneTab(target);
+      else clearCanvasState();
+    },
+    [tabState, sceneId, sceneName, snapshotCurrent, applySnap, activateSceneTab, clearCanvasState],
+  );
+
+  /** Toolbar "+": NEW TAB — never clears the current canvas. */
+  const newTab = useCallback(() => {
+    const key = Math.random().toString(36).slice(2);
+    setTabState((p) => ({
+      tabs: [...p.tabs.map((t) => (t.key === p.active ? (sceneLoadingRef.current ? t : { ...t, sceneId, name: sceneName, snap: snapshotCurrent() }) : t)), { key, sceneId: null, name: "Untitled scene", dirty: false }],
+      active: key,
+    }));
+    clearCanvasState();
+  }, [sceneId, sceneName, snapshotCurrent, clearCanvasState]);
+
+  const closeTab = useCallback(
+    (key: string) => {
+      const t = tabState.tabs.find((x) => x.key === key);
+      if (!t) return;
+      const isActive = key === tabState.active;
+      const dirty = isActive ? t.dirty : t.dirty; // active dirtiness tracked on the entry
+      if (dirty && !window.confirm(`"${isActive ? sceneName : t.name}" has unsaved changes — close anyway?`)) return;
+      const rest = tabState.tabs.filter((x) => x.key !== key);
+      if (rest.length === 0) {
+        const fresh = { key: Math.random().toString(36).slice(2), sceneId: null, name: "Untitled scene", dirty: false };
+        setTabState({ tabs: [fresh], active: fresh.key });
+        clearCanvasState();
+        return;
+      }
+      if (!isActive) {
+        setTabState({ tabs: rest, active: tabState.active });
+        return;
+      }
+      const idx = tabState.tabs.findIndex((x) => x.key === key);
+      const next = rest[Math.max(0, idx - 1)];
+      setTabState({ tabs: rest, active: next.key });
+      if (next.snap) applySnap(next);
+      else if (next.sceneId) void activateSceneTab(next);
+      else clearCanvasState();
+    },
+    [tabState, sceneName, applySnap, activateSceneTab, clearCanvasState],
+  );
+
+  /** Load-dialog open: focuses the existing tab when the scene is already open
+   *  (in-app duplicate prevention); otherwise a NEW tab. */
+  const openSceneInTab = useCallback(
+    (row: SceneListRow) => {
+      setLoadOpen(false);
+      const existing = tabState.tabs.find((t) => t.sceneId === row.id);
+      if (existing) {
+        switchTab(existing.key);
+        return;
+      }
+      const key = Math.random().toString(36).slice(2);
+      setTabState((p) => ({
+        tabs: [...p.tabs.map((t) => (t.key === p.active ? (sceneLoadingRef.current ? t : { ...t, sceneId, name: sceneName, snap: snapshotCurrent() }) : t)), { key, sceneId: row.id, name: row.name, dirty: false }],
+        active: key,
+      }));
+      void (async () => {
+        sceneLoadingRef.current = true;
+        try {
+          const full = await loadScene({ data: { id: row.id } });
+          applyScene(full, full.id);
+        } catch (e) {
+          setDbDown(e instanceof Error ? e.message : String(e));
+        } finally {
+          sceneLoadingRef.current = false;
+        }
+      })();
+    },
+    [tabState, sceneId, sceneName, snapshotCurrent, switchTab, applyScene],
+  );
+
+  // dirty tracking: every bus mutation marks the ACTIVE tab
+  useEffect(() => {
+    bus.onMutate = () => setTabState((p) => ({ ...p, tabs: p.tabs.map((t) => (t.key === p.active ? { ...t, dirty: true } : t)) }));
+    return () => { bus.onMutate = null; };
+  }, []);
+
+  // tab set + active persist; restore on reload (saved scenes only — untitled
+  // tabs can't be restored without a scene row)
+  const restoredTabsRef = useRef(false);
+  useEffect(() => {
+    if (!restoredTabsRef.current) return; // skip until restore ran
+    try {
+      const active = tabState.tabs.find((t) => t.key === tabState.active);
+      localStorage.setItem(
+        "sa-canvas-tabs-v1",
+        JSON.stringify({
+          tabs: tabState.tabs.filter((t) => (t.key === tabState.active ? sceneId : t.sceneId)).map((t) => (t.key === tabState.active ? { sceneId, name: sceneName } : { sceneId: t.sceneId, name: t.name })),
+          activeSceneId: active?.key === tabState.active ? sceneId : null,
+        }),
+      );
+    } catch { /* ignore */ }
+  }, [tabState, sceneId, sceneName]);
+  useEffect(() => {
+    if (restoredTabsRef.current) return;
+    restoredTabsRef.current = true;
+    try {
+      const raw = localStorage.getItem("sa-canvas-tabs-v1");
+      if (!raw) return;
+      const saved = JSON.parse(raw) as { tabs: { sceneId: string; name: string }[]; activeSceneId: string | null };
+      if (!saved.tabs?.length) return;
+      const entries: TabEntry[] = saved.tabs.map((s) => ({ key: Math.random().toString(36).slice(2), sceneId: s.sceneId, name: s.name, dirty: false }));
+      const activeEntry = entries.find((e) => e.sceneId === saved.activeSceneId) ?? entries[0];
+      setTabState({ tabs: entries, active: activeEntry.key });
+      void activateSceneTab(activeEntry);
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---- two-tab guard: first tab to open a scene owns its autosave; a second
+  // tab sees the fresh foreign lock, pauses autosave, and shows a banner.
+  // STABLE per browser TAB (sessionStorage survives a hard refresh but is unique
+  // per tab) — so reloading no longer trips the "open in another tab" lock, while
+  // a genuinely different tab still conflicts. (Was per page-load → false alarm.)
+  const TAB_ID = useRef((() => {
+    try {
+      const s = sessionStorage.getItem("sa-canvas-tab-id");
+      if (s) return s;
+      const id = Math.random().toString(36).slice(2);
+      sessionStorage.setItem("sa-canvas-tab-id", id);
+      return id;
+    } catch { return Math.random().toString(36).slice(2); }
+  })());
+  const [tabConflict, setTabConflict] = useState(false);
+  const lockKey = sceneId ? `sa-canvas-lock-${sceneId}` : null;
+  const lockOwned = useCallback(() => {
+    if (!lockKey) return true;
+    try {
+      const raw = localStorage.getItem(lockKey);
+      if (!raw) return true;
+      const l = JSON.parse(raw) as { tab: string; at: number };
+      return l.tab === TAB_ID.current || Date.now() - l.at > 12_000; // stale = takeable
+    } catch { return true; }
+  }, [lockKey]);
+  useEffect(() => {
+    if (!lockKey) { setTabConflict(false); return; }
+    const beat = () => {
+      const owned = lockOwned();
+      setTabConflict(!owned);
+      if (!owned) return; // never overwrite a live foreign lock
+      try { localStorage.setItem(lockKey, JSON.stringify({ tab: TAB_ID.current, at: Date.now() })); } catch { /* ignore */ }
+    };
+    beat();
+    const t = setInterval(beat, 5_000);
+    return () => {
+      clearInterval(t);
+      try {
+        const raw = localStorage.getItem(lockKey);
+        if (raw && (JSON.parse(raw) as { tab: string }).tab === TAB_ID.current) localStorage.removeItem(lockKey);
+      } catch { /* ignore */ }
+    };
+  }, [lockKey, lockOwned]);
+
+  // autosave every 30s: the ACTIVE scene (lock-guarded), plus any DIRTY
+  // background tabs from their snapshots — each tab autosaves independently.
+  const saveRef = useRef(doSave);
+  saveRef.current = doSave;
+  const tabStateRef = useRef(tabState);
+  tabStateRef.current = tabState;
+  useEffect(() => {
+    const saveSnapTab = async (t: TabEntry) => {
+      // never autosave a 0-node snapshot over a scene row — a blank snap here
+      // means load-order breakage, not an intentionally emptied scene (manual
+      // Save is the path for persisting a deliberate clear)
+      if (!t.sceneId || !t.snap || t.snap.nodes.length === 0) return;
+      const s = t.snap;
+      await saveScene({
+        data: {
+          id: t.sceneId,
+          name: t.name,
+          nodes_json: JSON.stringify({ schema_version: 5, nodes: sanitizeSceneNodes(s.nodes), edges: s.edges, sceneSettings: s.settings }),
+          viewport_json: JSON.stringify(s.viewport ?? {}),
+          bg: encodeBg(s.bg),
+        },
+      });
+      setTabState((p) => ({ ...p, tabs: p.tabs.map((x) => (x.key === t.key ? { ...x, dirty: false } : x)) }));
+    };
+    const t = setInterval(() => {
+      // AUTOSAVE SAFETY: skip while a scene load is in flight (canvas isn't the
+      // scene's truth yet) and never write an EMPTY canvas over a scene row —
+      // rf.setNodes can drop pre-init, leaving sceneId set over zero nodes.
+      // Deliberate empties persist via manual Save only.
+      if (sceneId && lockOwned() && !sceneLoadingRef.current && rf.getNodes().length > 0) void saveRef.current();
+      for (const tab of tabStateRef.current.tabs) {
+        if (tab.key !== tabStateRef.current.active && tab.dirty && tab.sceneId && tab.snap) {
+          void saveSnapTab(tab).catch(() => { /* next tick retries */ });
+        }
+      }
+    }, 30_000);
+    return () => clearInterval(t);
+  }, [sceneId, lockOwned]);
+
+  // ---- export / import ----
+  const importRef = useRef<HTMLInputElement>(null);
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
+  const exportScene = useCallback(() => {
+    const body = serialize();
+    const stem = (sceneName || "scene").replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-") || "scene";
+    downloadText(`${stem}.canvas.json`, JSON.stringify(body, null, 2));
+    downloadText(`${stem}.outline.md`, sceneToOutline(body), "text/markdown");
+  }, [serialize, sceneName]);
+  const onImportFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    setImportPreview(parseImport(await f.text()));
+  }, []);
+
+  // ---- snapshot restore (Load dialog) ----
+  const [snapsFor, setSnapsFor] = useState<string | null>(null); // scene id expanded
+  const [snaps, setSnaps] = useState<SnapshotListRow[]>([]);
+  const [snapErr, setSnapErr] = useState<string | null>(null);
+  const [confirmSnap, setConfirmSnap] = useState<SnapshotListRow | null>(null);
+  const openSnaps = useCallback(async (sceneRowId: string) => {
+    if (snapsFor === sceneRowId) { setSnapsFor(null); return; }
+    setSnapErr(null);
+    try {
+      setSnaps(await listSnapshots({ data: { scene_id: sceneRowId } }));
+      setSnapsFor(sceneRowId);
+    } catch (e) {
+      setSnapErr(e instanceof Error ? e.message : String(e));
+      setSnapsFor(sceneRowId);
+      setSnaps([]);
+    }
+  }, [snapsFor]);
+  /** Replace the canvas with a snapshot's content — ONE undoable bus command. Restores
+   *  nodes + edges AND the scene-level state a snapshot carries: `decks` + `ceqSets`
+   *  (the CEQ SET definitions) and the CEQ global clips. Without decks/ceqSets a restore
+   *  brought back the question/memo nodes but NOT the sets in the Studio — so recovering
+   *  from a snapshot (e.g. after a reset) left the sets missing. Now it's a full restore. */
+  const restoreSnapshot = useCallback(
+    async (snapId: string) => {
+      const snap = await loadSnapshot({ data: { id: snapId } });
+      let nj: { nodes?: CardNode[]; edges?: unknown[]; decks?: DeckDef[]; ceqSets?: unknown[]; sceneSettings?: { jeCardWidth?: number; jePreset?: string; jeIndent?: number; globalClips?: GlobalClips; coaOrder?: string[] } } = {};
+      try { nj = JSON.parse(snap.nodes_json || "{}"); } catch { return; }
+      const nodesAfter = migrateIntroCards(migrateZTiers(migrateFrameLocks(migrateScriptLayers(migrateCheckToCram(migrateFrameGrid(migrateJeMemos(migrateElementDeckFields(migrateDeckFields(migrateLessonFields(migrateLessonCategory(sanitizeSceneNodes((nj.nodes ?? []) as CardNode[])))), isElementKind))))))));
+      const edgesAfter = migrateEdges((nj.edges ?? []) as never[]);
+      const decksAfter = Array.isArray(nj.decks) ? (nj.decks as DeckDef[]) : [];
+      const ceqSetsAfter = Array.isArray(nj.ceqSets) ? nj.ceqSets : [];
+      const nodesBefore = structuredClone(rf.getNodes());
+      const edgesBefore = structuredClone(rf.getEdges());
+      const decksBefore = decks;
+      const ceqSetsBefore = ceqSets;
+      bus.dispatch({
+        label: "restore snapshot",
+        do: () => { rf.setNodes(structuredClone(nodesAfter)); rf.setEdges(structuredClone(edgesAfter)); setDecks(decksAfter); setCeqSets(ceqSetsAfter as never); },
+        undo: () => { rf.setNodes(structuredClone(nodesBefore)); rf.setEdges(structuredClone(edgesBefore)); setDecks(decksBefore); setCeqSets(ceqSetsBefore); },
+      });
+      if (typeof nj.sceneSettings?.jeCardWidth === "number") setJeCardWidth(nj.sceneSettings.jeCardWidth);
+      if (typeof nj.sceneSettings?.jeIndent === "number") setJeIndent(nj.sceneSettings.jeIndent);
+      // CEQ global intro/outro/transition + custom CoA order also live in the snapshot.
+      if (nj.sceneSettings?.globalClips && typeof nj.sceneSettings.globalClips === "object") setGlobalClipsState(nj.sceneSettings.globalClips);
+      if (Array.isArray(nj.sceneSettings?.coaOrder)) setCoaOrder(nj.sceneSettings.coaOrder);
+      const cfg = decodeBg(snap.bg);
+      if (cfg) setBgCfg(cfg);
+    },
+    [rf, decks, ceqSets],
+  );
+
+  // ---- auto-snapshot when film mode turns ON (keeps the 10 newest per scene) ----
+  const filmSnapDone = useRef(false);
+  useEffect(() => {
+    if (!film) { filmSnapDone.current = false; return; }
+    if (filmSnapDone.current || !sceneId) return;
+    filmSnapDone.current = true;
+    const body = serialize();
+    void snapshotScene({ data: { scene_id: sceneId, label: "auto (film mode)", nodes_json: body.nodes_json, viewport_json: body.viewport_json, bg: body.bg } })
+      .catch((err) => console.warn("[canvas] scene snapshot skipped:", err instanceof Error ? err.message : err));
+  }, [film, sceneId, serialize]);
+
+  // ← / → hop the SELECTED line of the selected JE card to the other column.
+  // hopToEnd moves exactly _selLine or nothing (never a neighbor) and lands it
+  // at the END of the target side's group (#1 — canonical grouped shape).
+  const hopSelectedLine = useCallback(
+    (to: "dr" | "cr") => {
+      const sel = rf.getNodes().find((n) => n.selected && n.type === "je");
+      if (!sel) return;
+      const lid = (sel.data as Record<string, unknown>)._selLine as string | undefined;
+      const next = hopToEnd((sel.data as unknown as JeCard).lines, lid, to);
+      if (!next) return;
+      const c = patchDataCmd(rf as unknown as RfLike, sel.id, { lines: next }, "hop line");
+      if (c) bus.dispatch(c);
+    },
+    [rf],
+  );
+
+  /** FILM-mode distractor flip on the SPOTLIT JE line (SL6): toggles the trap
+   *  version so it lands with the eye already on it. Returns false if the spotlit
+   *  target isn't a JE line with a trap (caller falls through to the side-hop). */
+  const spotTrapFlip = useCallback((): boolean => {
+    const sp = spotRef.current;
+    if (!sp?.active || !sp.spot) return false;
+    const cardId = sp.spot.cardId;
+    const tid = sp.focusTargetId();
+    const node = rf.getNode(cardId);
+    const lines = node?.data && (node.data as unknown as JeCard).lines;
+    const line = tid && lines ? lines.find((l) => l.id === tid) : undefined;
+    if (!node || node.type !== "je" || !line?.trap) return false;
+    const c = patchDataCmd(rf as unknown as RfLike, cardId, { lines: lines!.map((l) => (l.id === tid ? { ...l, flipped: !l.flipped } : l)) }, "flip trap (spotlight)");
+    if (c) bus.dispatch(c);
+    return true;
+  }, [rf]);
+
+  // ---- hotkeys: every binding lives in the registry; "?" renders the cheat sheet ----
+  const bindings = useMemo<KeyBinding[]>(
+    () => [
+      {
+        combo: "space",
+        group: "Show",
+        description: "Reveal / deal within the frame; when exhausted, arm then advance to the next frame",
+        handler: (e) => {
+          // THE SHOW KEY — one key performs the whole lesson. Ordered precedence:
+          //   (a) selected card has hidden reveals → reveal next (flip first)
+          //   (b) the current FRAME's deck has tucked items → deal next into slot
+          //   (c) frame exhausted → ARM the transition (no camera move) + arm cue
+          //   (d) armed + space → advance to the next COLUMN-MAJOR frame, disarmed
+          //   (e) at the lesson's last frame → arm shows "end of lesson"; never
+          //       advances past (→ is the manual roll to the next lesson).
+          // Any reveal/deal DISARMS. Not inside a frame → the old cross-lesson walk.
+          e.preventDefault();
+          // RECORDED / CHOREOGRAPHED PLAYBACK: a frame WITH a queue (recordedCues)
+          // advances its playhead by one and MATERIALISES that step (Item 4 — the same
+          // apply path the scrubber + Shift+Space use), then arms + advances when
+          // exhausted. Only while NOT recording; queueless frames fall through to the
+          // derived walk, byte-for-byte unchanged.
+          const recF = currentFrameRef.current;
+          if (recF && !cueRecordingRef.current) {
+            const rc = (rf.getNode(recF)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues;
+            if (rc && rc.length) {
+              const idx = recPlayIdxRef.current.get(recF) ?? 0;
+              if (idx < rc.length) { applyFrameToStep(recF, idx + 1); disarm(); return; }
+              if (!spaceAdvancesFramesRef.current) { setArmState(frameWalkNext(rf.getNodes() as never, recF) ? "ready" : "end"); return; } // in-frame only → just flag the move
+              const nf = frameWalkNext(rf.getNodes() as never, recF);
+              if (armStateRef.current !== "ready") { setArmState(nf ? "ready" : "end"); return; }
+              if (!nf) return;
+              enterFrame(nf.id); setArmState(null); return;
+            }
+          }
+          // CUE-DRIVEN (Phase 2): a frame with an explicit cueOrder runs its cues
+          // in that exact order; ONLY such frames take this path — every other
+          // frame keeps the derived precedence below, byte-for-byte unchanged.
+          const cueF = currentFrameRef.current;
+          if (cueF && (rf.getNode(cueF)?.data as { cueOrder?: string[] } | undefined)?.cueOrder?.length) {
+            const res = performFrameCue(cueF, 1);
+            if (res === "handled") return;
+            // "boundary" — all content done → arm, then advance (same as derived)
+            if (!spaceAdvancesFramesRef.current) { setArmState(frameWalkNext(rf.getNodes() as never, cueF) ? "ready" : "end"); return; } // in-frame only → just flag the move
+            const nf = frameWalkNext(rf.getNodes() as never, cueF);
+            if (armStateRef.current !== "ready") { setArmState(nf ? "ready" : "end"); return; }
+            if (!nf) return;
+            enterFrame(nf.id);
+            const kids2 = rf.getNodes().filter((n) => n.parentId === nf.id && !isContainerType(n.type) && !isTucked(n.data as never));
+            const firstRevealable2 = kids2.find((k) => stepReveal(k.data as unknown as CardData) !== null);
+            rf.setNodes((nds) => nds.map((n) => (n.selected !== (n.id === firstRevealable2?.id) ? { ...n, selected: n.id === firstRevealable2?.id } : n)));
+            setArmState(null);
+            return;
+          }
+          // STACK DEAL — a stack-mode frame flips its cards at centre; Space shows
+          // the next one (re-tucking the one underneath). Boundary → flag the move.
+          const stkF = currentFrameRef.current;
+          if (stkF && frameIsStack(stkF) && !cueRecordingRef.current) {
+            if (stackStep(stkF, 1)) { disarm(); return; }
+            setArmState(frameWalkNext(rf.getNodes() as never, stkF) ? "ready" : "end");
+            return;
+          }
+          const nodes = rf.getNodes();
+          const sel = nodes.find((n) => n.selected && !isContainerType(n.type));
+          // (a) flip / reveal on the selected card
+          if (sel && (sel.data as unknown as CardData).faceDown) {
+            const c = patchDataCmd(rf as unknown as RfLike, sel.id, { faceDown: false }, "flip card");
+            if (c) bus.dispatch(c);
+            disarm(); return;
+          }
+          const patch = sel ? stepReveal(sel.data as unknown as CardData) : null;
+          if (sel && patch) {
+            const c = patchDataCmd(rf as unknown as RfLike, sel.id, patch as Record<string, unknown>, "reveal step");
+            if (c) bus.dispatch(c);
+            const tid = revealedTargetId(sel.data as unknown as CardData, patch as Partial<CardData>);
+            if (cueRecordingRef.current && recF) recordStepCue(recF, { kind: "reveal", cardId: sel.id, revealCount: currentRevealCount({ ...(sel.data as unknown as CardData), ...(patch as Partial<CardData>) } as CardData), label: "Reveal", target: tid || (sel.data as { title?: string; kind?: string }).title || (sel.data as { kind?: string }).kind || "card" });
+            disarm(); return;
+          }
+          // (b) deal — the current FRAME's deck if we're in one, else cross-lesson
+          const frameId = currentFrameRef.current;
+          if (frameId) {
+            const next = nextTuckedInFrame(nodes as never, frameId);
+            if (next) {
+              // CEQ ARM-THEN-ADVANCE (Item 5): between consecutive CEQ cards in a deck,
+              // require an arm press first (reuses the frame arm indicator + "ready"
+              // state) so dealing the next question is deliberate — same muscle memory
+              // as a frame advance. Only kicks in once a CEQ is already on the board.
+              const nextIsCeq = (next.data as { kind?: string }).kind === "ceq";
+              const dealtCeqInFrame = nextIsCeq && nodes.some((n) => n.parentId === frameId && (n.data as { kind?: string }).kind === "ceq" && (n.data as { deckMember?: boolean }).deckMember && !isTucked(n.data as never));
+              if (dealtCeqInFrame && armStateRef.current !== "ready") { setArmState("ready"); return; } // ARM the next question
+              deal(next.id);
+              if (cueRecordingRef.current) recordStepCue(frameId, { kind: "deal", cardId: next.id, label: "Deal", target: (next.data as { title?: string; kind?: string }).title || (next.data as { kind?: string }).kind || "card" });
+              disarm(); return;
+            }
+          } else {
+            const current = sel ? lessonIdOf(sel as never, nodes as never) : walkLessonRef.current;
+            const next = nextTuckedCross(nodes as never, current);
+            if (next) { deal(next.id); disarm(); return; }
+            return; // no frame context + nothing to deal → no transition to arm
+          }
+          // (c/d/e) FRAME EXHAUSTED. Default (off) → space STAYS in-frame and only
+          // flags that a frame move is due; the arrow keys do the actual move.
+          if (!spaceAdvancesFramesRef.current) { setArmState(frameWalkNext(nodes as never, frameId) ? "ready" : "end"); return; }
+          const nextFrame = frameWalkNext(nodes as never, frameId);
+          if (armStateRef.current !== "ready") {
+            setArmState(nextFrame ? "ready" : "end"); // ARM forward (also re-arms if a back-arm was pending)
+            return;
+          }
+          if (!nextFrame) return; // never advance past the lesson
+          // (d) armed + space → transition, then seed the walk in the new frame
+          enterFrame(nextFrame.id);
+          const kids = rf.getNodes().filter((n) => n.parentId === nextFrame.id && !isContainerType(n.type) && !isTucked(n.data as never));
+          const firstRevealable = kids.find((k) => stepReveal(k.data as unknown as CardData) !== null);
+          rf.setNodes((nds) => nds.map((n) => (n.selected !== (n.id === firstRevealable?.id) ? { ...n, selected: n.id === firstRevealable?.id } : n)));
+          setArmState(null);
+        },
+      },
+      {
+        combo: "shift+space",
+        group: "Show",
+        description: "Step BACK: un-reveal / un-deal within the frame; at the frame's start, arm then step back a frame",
+        handler: (e) => {
+          // THE REVERSE SHOW KEY (item 3) — the exact inverse of space, precedence
+          // reversed: (a) re-hide the selected card's last reveal → (b) re-tuck the
+          // last-dealt deck item → (c/d/e) at the frame's START, arm then step BACK
+          // one column-major frame (arm-then-move, mirroring forward). Never steps
+          // before the lesson's first frame (← is the manual roll).
+          e.preventDefault();
+          // RECORDED / CHOREOGRAPHED reverse (Item 4): a frame WITH a queue steps its
+          // playhead back one and re-materialises — the exact inverse of forward, same
+          // apply path as the scrubber. At step 0 it arms the back-move (mirrors the
+          // forward end). Higher precedence than cueOrder, matching the forward key.
+          const recFB = currentFrameRef.current;
+          if (recFB && !cueRecordingRef.current) {
+            const rcb = (rf.getNode(recFB)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues;
+            if (rcb && rcb.length) {
+              const idx = recPlayIdxRef.current.get(recFB) ?? 0;
+              if (idx > 0) { applyFrameToStep(recFB, idx - 1); disarm(); return; }
+              if (!spaceAdvancesFramesRef.current) { setArmState(frameWalkPrev(rf.getNodes() as never, recFB) ? "ready-back" : "start"); return; }
+              const pf = frameWalkPrev(rf.getNodes() as never, recFB);
+              if (armStateRef.current !== "ready-back") { setArmState(pf ? "ready-back" : "start"); return; }
+              if (!pf) return;
+              enterFrame(pf.id); setArmState(null); return;
+            }
+          }
+          // CUE-DRIVEN reverse (Phase 2): a cueOrder frame un-does its cues in
+          // reverse; non-cue frames keep the derived reverse walk below.
+          const cueFB = currentFrameRef.current;
+          if (cueFB && (rf.getNode(cueFB)?.data as { cueOrder?: string[] } | undefined)?.cueOrder?.length) {
+            const res = performFrameCue(cueFB, -1);
+            if (res === "handled") return;
+            // "boundary" — at the frame's start → just flag the back-move (arrows)
+            if (!spaceAdvancesFramesRef.current) { setArmState(frameWalkPrev(rf.getNodes() as never, cueFB) ? "ready-back" : "start"); return; }
+            const pf = frameWalkPrev(rf.getNodes() as never, cueFB);
+            if (armStateRef.current !== "ready-back") { setArmState(pf ? "ready-back" : "start"); return; }
+            if (!pf) return;
+            enterFrame(pf.id);
+            const kidsB = rf.getNodes().filter((n) => n.parentId === pf.id && !isContainerType(n.type) && !isTucked(n.data as never));
+            const lastCardB = kidsB[kidsB.length - 1];
+            rf.setNodes((nds) => nds.map((n) => (n.selected !== (n.id === lastCardB?.id) ? { ...n, selected: n.id === lastCardB?.id } : n)));
+            setArmState(null);
+            return;
+          }
+          // STACK DEAL reverse — flip BACK to the previous card at centre. Boundary
+          // (already at the first / none shown) → flag the back-move.
+          const stkFB = currentFrameRef.current;
+          if (stkFB && frameIsStack(stkFB) && !cueRecordingRef.current) {
+            if (stackStep(stkFB, -1)) { disarm(); return; }
+            setArmState(frameWalkPrev(rf.getNodes() as never, stkFB) ? "ready-back" : "start");
+            return;
+          }
+          const nodes = rf.getNodes();
+          const sel = nodes.find((n) => n.selected && !isContainerType(n.type));
+          // (a) un-reveal the last-revealed item on the selected card
+          if (sel) {
+            const patch = stepRevealBack(sel.data as unknown as CardData);
+            if (patch) {
+              const c = patchDataCmd(rf as unknown as RfLike, sel.id, patch as Record<string, unknown>, "un-reveal step");
+              if (c) bus.dispatch(c);
+              disarm(); return;
+            }
+          }
+          // (b) re-tuck — the LAST-DEALT of the current FRAME's deck, else cross-lesson
+          const frameId = currentFrameRef.current;
+          const retuck = (rid: string) => { const c = patchDataCmd(rf as unknown as RfLike, rid, { tucked: true }, "un-deal card"); if (c) bus.dispatch(c); };
+          if (frameId) {
+            const last = lastDealtInFrame(nodes as never, frameId);
+            if (last) { retuck(last.id); disarm(); return; }
+          } else {
+            const last = lastDealtCross(nodes as never);
+            if (last) { retuck(last.id); disarm(); return; }
+            return; // no frame context + nothing dealt → nothing to reverse
+          }
+          // (c/d/e) FRAME AT ITS START. Default (off) → shift+space stays in-frame
+          // and only flags the back-move; the arrow keys do it.
+          if (!spaceAdvancesFramesRef.current) { setArmState(frameWalkPrev(nodes as never, frameId) ? "ready-back" : "start"); return; }
+          const prevFrame = frameWalkPrev(nodes as never, frameId);
+          if (armStateRef.current !== "ready-back") {
+            setArmState(prevFrame ? "ready-back" : "start"); // ARM back (also re-arms if a forward-arm was pending)
+            return;
+          }
+          if (!prevFrame) return; // never step before the lesson's first frame
+          // (d) armed + shift+space → step back, select the LAST card in the prev frame
+          enterFrame(prevFrame.id);
+          const kids = rf.getNodes().filter((n) => n.parentId === prevFrame.id && !isContainerType(n.type) && !isTucked(n.data as never));
+          const lastCard = kids[kids.length - 1];
+          rf.setNodes((nds) => nds.map((n) => (n.selected !== (n.id === lastCard?.id) ? { ...n, selected: n.id === lastCard?.id } : n)));
+          setArmState(null);
+        },
+      },
+      {
+        combo: "h",
+        group: "Show",
+        description: "Hide all reveals on selected card",
+        handler: () => {
+          const sel = rf.getNodes().find((n) => n.selected && !isContainerType(n.type));
+          if (!sel) return;
+          const patch = hideAll(sel.data as unknown as CardData);
+          if (patch) {
+            const c = patchDataCmd(rf as unknown as RfLike, sel.id, patch as Record<string, unknown>, "hide all");
+            if (c) bus.dispatch(c);
+          }
+        },
+      },
+      {
+        combo: "s",
+        group: "Show",
+        description: "Tuck selected card(s) into the deck (joins if loose)",
+        handler: () => {
+          // elements never deck — the show is cards only
+          const sel = rf.getNodes().filter((n) => n.selected && !isContainerType(n.type) && !isElementKind((n.data as unknown as CardBase).kind));
+          if (sel.length === 0) return;
+          let order = nextStageOrder(rf.getNodes());
+          const c = compositeCmd(
+            sel.map((n) => {
+              const d = n.data as unknown as CardData;
+              return patchDataCmd(
+                rf as unknown as RfLike,
+                n.id,
+                {
+                  deckMember: true,
+                  tucked: true,
+                  staged: undefined,
+                  minimized: undefined,
+                  stageOrder: d.deckMember ? d.stageOrder : order++,
+                  deckPos: { x: n.position.x, y: n.position.y },
+                  deckCategory: categoryOf(d),
+                  deckLessonId: d.deckMember ? (d.deckLessonId ?? deckLessonFor(rf, n.parentId)) : deckLessonFor(rf, n.parentId),
+                },
+                "tuck",
+              );
+            }),
+            "tuck into deck",
+          );
+          if (c) bus.dispatch(c);
+        },
+      },
+      {
+        combo: "f",
+        group: "Show",
+        description: "Focus-zoom the selected card",
+        handler: () => {
+          const sel = rf.getNodes().find((n) => n.selected);
+          if (sel) focusNode(sel.id);
+        },
+      },
+      {
+        combo: "escape",
+        group: "Show",
+        description: "Escape ladder: dialog → interaction → zoom → chrome → deselect",
+        handler: (e) => {
+          // THE ESCAPE LADDER — one prioritized handler; each press consumes
+          // exactly one rung. Card popovers (CardPopover) consume Esc themselves
+          // with a capture listener, so rung 1 covers them inherently.
+          e.preventDefault();
+          // RUNG 1 — close any open route-level dialog/popover/menu FIRST (Esc just
+          // dismisses what's open; it never zooms the board out from under an open
+          // menu). The bottom toolbar stays put — film is a lower rung.
+          if (rehearse) { setRehearse(null); return; }
+          if (safeGuides) { setSafeGuides(false); return; }
+          if (helpOpen || loadOpen || importPreview || confirmSnap || manageAccountsOpen || manageCourseOpen || settingsOpen || bgOpen || fileMenuOpen || addCardOpen || framePickerOpen || frameHeaderOpen || visualMixOpen || storyboardOpen || dupFrameFor || snipMenu || snipSaveIds || rearrangeOpen) {
+            setSnipMenu(null);
+            setSnipSaveIds(null);
+            setRearrangeOpen(false);
+            setHelpOpen(false);
+            setLoadOpen(false);
+            setImportPreview(null);
+            setConfirmSnap(null);
+            setManageAccountsOpen(false);
+            setManageCourseOpen(false);
+            setSettingsOpen(false);
+            setBgOpen(false);
+            setFileMenuOpen(false);
+            setAddCardOpen(false);
+            setFramePickerOpen(false);
+            setFrameHeaderOpen(false);
+            setVisualMixOpen(false);
+            setStoryboardOpen(false);
+            setDupFrameFor(null);
+            return;
+          }
+          // RUNG 2 — cancel an in-progress connection drag
+          const st = storeApi.getState() as unknown as { connection?: { inProgress?: boolean }; cancelConnection?: () => void };
+          if (st.connection?.inProgress && st.cancelConnection) {
+            st.cancelConnection();
+            return;
+          }
+          // RUNG 2.5 — SPOTLIGHT exits first (SL2), before focus-zoom/film/frame
+          if (spotRef.current?.active) { spotRef.current.exit(); return; }
+          // RUNG 3 — exit focus zoom. A film-lock PUSH snaps back to the exact
+          // framed view; a normal focus-zoom fits the CURRENT LESSON (never the
+          // whole course).
+          if (zoomedRef.current) {
+            if (returnFromPush()) return;
+            zoomedRef.current = false;
+            fitCurrentLesson();
+            return;
+          }
+          // RUNG 4 — FILM mode exits FIRST (FF-3), even inside a frame
+          if (film) { setFilm(false); return; }
+          // RUNG 5 — a selection deselects (FF-4: Esc clears selection first so the
+          // arrows switch to frame-nav); frame-exit waits for the next Esc
+          const anySel = rf.getNodes().some((n) => n.selected) || rf.getEdges().some((e) => e.selected);
+          if (anySel) {
+            clearEdgeGlow();
+            rf.setNodes((nds) => nds.map((n) => (n.selected ? { ...n, selected: false, data: { ...n.data, _selLine: undefined } } : n)));
+            rf.setEdges((eds) => eds.map((ed) => (ed.selected ? { ...ed, selected: false } : ed)));
+            return;
+          }
+          // RUNG 5.9 — choreograph: close the G-explode focus, then the entry popover,
+          // then the mode itself (each queue-edit persists with the scene).
+          if (choreoExplodedRef.current) { setChoreoExploded(null); return; }
+          if (choreoEntryRef.current) { setChoreoEntry(null); return; }
+          if (choreographRef.current) { setChoreographFrameId(null); flashToast("Choreograph off"); return; }
+          // RUNG 6 — leave the framed shot back to the lesson (FRAMES)
+          if (currentFrameRef.current) { exitFrame(); return; }
+          // RUNG 7 (TOP) — bottom out at a BIRDS-EYE of the CURRENT lesson only.
+          fitCurrentLesson();
+        },
+      },
+      {
+        combo: "c",
+        group: "Modes",
+        description: "Choreograph the current frame — click elements in the order they should reveal (Esc to finish)",
+        handler: () => {
+          if (choreographRef.current) { setChoreographFrameId(null); setChoreoExploded(null); flashToast("Choreograph off"); return; } // exit — queue persists
+          if (choreoEntryRef.current) { setChoreoEntry(null); return; } // cancel the entry popover
+          const fid = currentFrameRef.current;
+          if (!fid) { flashToast("Enter a frame to choreograph its space-walk"); return; }
+          setChoreoEntry(fid); // opens Start fresh / Append
+        },
+      },
+      { combo: "g", group: "Modes", description: "Choreograph: explode the hovered card into per-part steps (G again = done)", handler: () => explodeHovered() },
+      { combo: "v", group: "Modes", description: "Film mode (spotlight + ripple + chrome off)", handler: () => setFilm((v) => { const on = !v; if (on) { setChoreographFrameId(null); setChoreoExploded(null); setChoreoEntry(null); if (!popWinsRef.current.teleprompter) setPrompter(false); if (currentFrameRef.current) enterFrame(currentFrameRef.current); } return on; }) },
+      { combo: "b", group: "Modes", description: "Camera bubble", handler: () => setCamera((v) => !v) },
+      { combo: "k", group: "Modes", description: "Chroma test — solid-black world background in film (for keying)", handler: () => setChromaBlack((v) => !v) },
+      { combo: "p", group: "Modes", description: "Teleprompter — the current frame's script (authoring + film)", handler: () => setPrompter((v) => { const on = !v; if (on && !currentFrameRef.current) flashToast("Enter a frame — the prompter reads the current frame's script"); return on; }) },
+      { combo: "j", group: "Quick-spawn", description: "Journal entry at cursor", handler: () => quickSpawn("je") },
+      { combo: "t", group: "Quick-spawn", description: "T-account at cursor", handler: () => quickSpawn("taccount") },
+      { combo: "n", group: "Quick-spawn", description: "Note at cursor", handler: () => quickSpawn("note") },
+      { combo: "q", group: "Quick-spawn", description: "Question (CEQ) at cursor — inert in focus mode", handler: () => { if (!focusPalette) quickSpawn("ceq"); } },
+      { combo: "l", group: "Quick-spawn", description: "Reveal list at cursor — inert in focus mode", handler: () => { if (!focusPalette) quickSpawn("list"); } },
+      { combo: "d", group: "Cards", description: "Duplicate the selected card (lands underneath)", handler: () => duplicateSelected() },
+      { combo: "ctrl+d", group: "Cards", description: "Duplicate the selected card (Ctrl+D)", handler: (e) => { e.preventDefault(); duplicateSelected(); } },
+      { combo: ">", group: "Cards", description: "Grow the selected card(s) / element(s)", handler: () => scaleSelected(1.06) },
+      { combo: "<", group: "Cards", description: "Shrink the selected card(s) / element(s)", handler: () => scaleSelected(1 / 1.06) },
+      { combo: "ctrl+shift+>", group: "Cards", description: "Grow the selected card(s) — bigger step (Canva-style)", handler: (e) => { e.preventDefault(); scaleSelected(1.12); } },
+      { combo: "ctrl+shift+<", group: "Cards", description: "Shrink the selected card(s) — bigger step", handler: (e) => { e.preventDefault(); scaleSelected(1 / 1.12); } },
+      {
+        combo: "arrowleft",
+        group: "JE lines",
+        description: "Spotlight+film: flip a spotlit trap · else hop JE line debit · else prev lesson",
+        handler: (e) => {
+          if (film && spotRef.current?.active && spotTrapFlip()) { e.preventDefault(); return; }
+          if (frameFreeNav()) { e.preventDefault(); armOrStep("left", () => stepBeat(-1)); } else hopSelectedLine("dr");
+        },
+      },
+      {
+        combo: "arrowright",
+        group: "JE lines",
+        description: "Spotlight+film: flip a spotlit trap · else hop JE line credit · else next lesson",
+        handler: (e) => {
+          if (film && spotRef.current?.active && spotTrapFlip()) { e.preventDefault(); return; }
+          if (frameFreeNav()) { e.preventDefault(); armOrStep("right", () => stepBeat(1)); } else hopSelectedLine("cr");
+        },
+      },
+      {
+        combo: "arrowup",
+        group: "Frames",
+        description: "Previous sub-frame (↑)",
+        // ↑/↓ ALWAYS move between sub-frames now (Lee, item 4) — CEQ emphasis is
+        // CLICK-driven, so the arrows are never hijacked by a dealt CEQ.
+        handler: (e) => { if (frameFreeNav()) { e.preventDefault(); stepSub(-1); } },
+      },
+      {
+        combo: "arrowdown",
+        group: "Frames",
+        description: "Next sub-frame (↓)",
+        handler: (e) => { if (frameFreeNav()) { e.preventDefault(); stepSub(1); } },
+      },
+      {
+        combo: "enter",
+        group: "CEQ",
+        description: "Walk the CLICKED CEQ choice (amber ring): 1st Enter resolves (correct → chaching · wrong → strike), each further Enter reveals the next chain item",
+        handler: (e) => {
+          const sel = rf.getNodes().find((n) => n.selected && n.type === "ceq");
+          if (!sel) return; // no CEQ focused → leave Enter to its native behaviour
+          const emp = (sel.data as unknown as { emphasis?: string }).emphasis;
+          if (!emp) return;
+          e.preventDefault();
+          ceqStep(sel.id, emp, 1);
+        },
+      },
+      {
+        combo: "~",
+        group: "CEQ",
+        description: "MEMO SWEEP — clear every revealed chain memo off the dealt CEQ but KEEP the choice states (struck stays struck, green stays green, nothing re-sounds). Enter then re-walks a choice from its memo 1. Works in film.",
+        handler: (e) => { e.preventDefault(); ceqSweepMemos(); },
+      },
+      {
+        combo: "shift+enter",
+        group: "CEQ",
+        description: "Step BACK through the CLICKED CEQ choice's chain — hides the last revealed item; past item 1 un-resolves the choice (neutral)",
+        handler: (e) => {
+          const sel = rf.getNodes().find((n) => n.selected && n.type === "ceq");
+          if (!sel) return;
+          const emp = (sel.data as unknown as { emphasis?: string }).emphasis;
+          if (!emp) return;
+          e.preventDefault();
+          ceqStep(sel.id, emp, -1);
+        },
+      },
+      // F2 GLOBAL EDIT (item 4): one binding — edit the spotlit target if a
+      // spotlight is active, else stamp a transient _editSeq on the SELECTED node
+      // so its own editor opens (per-kind: heading/text/memo/list/JE line/frame
+      // title all watch it via useEditSignal / openSeq). Film mode is a no-op.
+      { combo: "f2", group: "Edit", description: "Edit the selected element (heading · text · JE line · list · memo · frame title)", handler: (e) => {
+        if (film) return;
+        const sel = rf.getNodes().find((n) => n.selected);
+        if (sel) { e.preventDefault(); rf.updateNodeData(sel.id, { _editSeq: Date.now() }); }
+      } },
+      { combo: "]", group: "Frames", description: "Next beat → (also PageDown)", handler: () => stepBeat(1) },
+      { combo: "[", group: "Frames", description: "Previous beat ← (also PageUp)", handler: () => stepBeat(-1) },
+      { combo: "r", group: "Frames", description: "Rearrange this lesson's frames — full-grid drag reorder + copy/paste", handler: () => setRearrangeOpen((v) => !v) },
+      { combo: "pagedown", group: "Frames", description: "Next beat", hidden: true, handler: (e) => { e.preventDefault(); stepBeat(1); } },
+      { combo: "pageup", group: "Frames", description: "Previous beat", hidden: true, handler: (e) => { e.preventDefault(); stepBeat(-1); } },
+      { combo: "ctrl+s", group: "File", description: "Save the scene", handler: (e) => { e.preventDefault(); void saveRef.current(); } },
+      { combo: "ctrl+z", group: "History", description: "Undo", handler: (e) => { e.preventDefault(); bus.undo(); } },
+      { combo: "ctrl+y", group: "History", description: "Redo", handler: (e) => { e.preventDefault(); bus.redo(); } },
+      { combo: "ctrl+shift+z", group: "History", description: "Redo", hidden: true, handler: (e) => { e.preventDefault(); bus.redo(); } },
+      // RUN TIMESTAMP LOGGING (F9) removed (Lee) — it got in the way of the new
+      // filming flow; time is tracked off-screen in the CEQ Studio previewer now. The
+      // run machinery (toggleRun/readout/popout) stays defined but is unreachable.
+      { combo: "?", group: "Help", description: "This cheat sheet", handler: () => setHelpOpen((v) => !v) },
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ladder reads live dialog state
+    [rf, storeApi, deal, performFrameCue, quickSpawn, duplicateSelected, scaleSelected, hopSelectedLine, spotTrapFlip, focusNode, focusPalette, film, helpOpen, loadOpen, importPreview, confirmSnap, manageAccountsOpen, manageCourseOpen, settingsOpen, bgOpen, fileMenuOpen, addCardOpen, framePickerOpen, frameHeaderOpen, visualMixOpen, storyboardOpen, dupFrameFor, rearrangeOpen, snipMenu, snipSaveIds, rehearse, safeGuides, clearEdgeGlow, stepSub, stepBeat, frameFreeNav, exitFrame, enterFrame, fitCurrentLesson, disarm, returnFromPush, armOrStep, ceqStep, applyFrameToStep, explodeHovered, toggleRun],
+  );
+  useKeymap(bindings);
+
+  // Delete-key removals happen natively inside React Flow; record them on the
+  // bus AFTER the fact so Ctrl+Z restores the exact nodes + edges. dispatch()
+  // re-runs do(), which re-filters the already-deleted ids — a safe no-op.
+  const onDelete = useCallback(
+    ({ nodes, edges }: { nodes: CardNode[]; edges: { id: string; source: string; target: string }[] }) => {
+      if (nodes.length === 0 && edges.length === 0) return;
+      const nodesSnap = structuredClone(nodes);
+      const edgesSnap = structuredClone(edges);
+      const nIds = new Set(nodesSnap.map((n) => n.id));
+      const eIds = new Set(edgesSnap.map((e) => e.id));
+      // MEMBERSHIP FIX 6 — never leave a dangling parentId. If a deleted node is a
+      // container (frame/lesson/zone), each SURVIVING child is reparented to its
+      // nearest surviving ancestor with position adjusted so it stays visually put
+      // (mirrors the frame-× "keep the cards" behaviour). Computed from the live store
+      // at dispatch time so undo/redo is deterministic.
+      const delById = new Map(nodesSnap.map((n) => [n.id, n] as const));
+      const reparent = rf
+        .getNodes()
+        .filter((n) => !nIds.has(n.id) && n.parentId && nIds.has(n.parentId))
+        .map((n) => {
+          let ox = 0, oy = 0, pid: string | undefined = n.parentId, guard = 0;
+          while (pid && nIds.has(pid) && guard++ < 40) { const d = delById.get(pid); if (!d) break; ox += d.position?.x ?? 0; oy += d.position?.y ?? 0; pid = d.parentId; }
+          const to = { parentId: pid && !nIds.has(pid) ? pid : undefined, position: { x: n.position.x + ox, y: n.position.y + oy } };
+          return { id: n.id, from: { parentId: n.parentId, position: { ...n.position } }, to };
+        });
+      const applyReparent = (which: "to" | "from") => {
+        if (!reparent.length) return;
+        rf.setNodes((nds) => nds.map((n) => { const r = reparent.find((x) => x.id === n.id); return r ? { ...n, parentId: r[which].parentId, position: { ...r[which].position } } : n; }));
+      };
+      bus.dispatch({
+        label: "delete selection",
+        do: () => {
+          rf.setNodes((nds) => nds.filter((n) => !nIds.has(n.id)));
+          rf.setEdges((eds) => eds.filter((e) => !eIds.has(e.id)));
+          applyReparent("to");
+        },
+        undo: () => {
+          if (nodesSnap.length) rf.addNodes(structuredClone(nodesSnap));
+          if (edgesSnap.length) rf.setEdges((eds) => [...eds, ...structuredClone(edgesSnap)]);
+          applyReparent("from");
+        },
+      });
+    },
+    [rf],
+  );
+
+  // focus-zoom on double click (single click selects/edits — double is the zoom gesture)
+  const onNodeDoubleClick = useCallback(
+    (_e: unknown, node: CardNode) => {
+      // While CHOREOGRAPHING, a double-click is two queue toggles + the editor — swallow
+      // it so a card doesn't start editing mid-choreograph (clicks build the queue).
+      if (choreographRef.current && node.parentId === choreographRef.current && !isContainerType(node.type)) return;
+      // DIVE INTO A FRAME — double-clicking a FRAME zooms into it. This works in
+      // FILM too (Lee wants to jump into a frame while filming); only CARD
+      // focus-zoom is suppressed in film (the camera stays pinned to the frame).
+      if (node.type === "frame") {
+        enterFrame(node.id, { smooth: true });
+        return;
+      }
+      // FILM MODE: never focus-zoom a card on double-click — an accidental
+      // dbl-click must NOT pop the camera out to the "back to frame" birds-eye.
+      if (filmRef.current) return;
+      if (isContainerType(node.type)) return;
+      focusNode(node.id);
+    },
+    [focusNode, enterFrame],
+  );
+
+  const chrome = !film;
+
+  const activeLessonCtx = useMemo(() => ({ activeLessonId, setActiveLesson }), [activeLessonId, setActiveLesson]);
 
   return (
-    <div className="fixed inset-0" style={{ background: NEON.bg }}>
-      {/* looping video background (low opacity, filming-optional) */}
-      {bg === "video" && (
+    <CanvasSettingsContext.Provider value={canvasSettings}>
+    <DecksContext.Provider value={decksCtx}>
+    <FrameNavContext.Provider value={frameNav}>
+    <SpotlightCtx.Provider value={spot}>
+    <ActiveLessonContext.Provider value={activeLessonCtx}>
+    <FrameTakesProvider courseName={sceneCourse ? courseLabel(sceneCourse) : null} introClipLength={introClipLength} autoTrimIntros={autoTrimIntros}>
+    <div
+      className={`fixed inset-0 flex flex-col ${film ? "film-mode" : ""} ${connecting ? "sa-connecting" : ""} ${film && filmEntrancePop ? "sa-entrance-pop" : ""} ${film && filmCheckGlow ? "sa-check-glow" : ""} ${chrome && backstage === "cinema" ? "sa-cinema" : ""}`}
+      style={{ background: chrome ? BACKSTAGE_BG[backstage] : chromaBlack ? "#000" : NEON.bg }}
+      onDragOver={(e) => { if (e.dataTransfer.types.includes(SNIPPET_DND_MIME)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }}
+      onDrop={(e) => { const id = e.dataTransfer.getData(SNIPPET_DND_MIME); if (!id) return; e.preventDefault(); spawnSnippetById(id, rf.screenToFlowPosition({ x: e.clientX, y: e.clientY })); }}
+    >
+      <style>{FILM_MODE_CSS}</style>
+      {/* ---- V2 CHROME (Lee's simplification): ONE top navbar + a persistent outline
+           sidebar; the old toolbar/drawer/pager live on under "View archive" (v1).
+           Film mode renders neither — the stage wrapper fills the root exactly as
+           before, so takes are pixel-identical. */}
+      {chrome && !chromeV1 && (
+        <CanvasNavbar
+          sceneName={sceneName}
+          setSceneName={setSceneName}
+          savedNote={savedAt ? `saved ${savedAt}` : null}
+          onSave={() => void doSave()}
+          onSaveAs={() => void doSave(true)}
+          onLoad={() => void openLoad()}
+          onExport={exportScene}
+          onImport={() => importRef.current?.click()}
+          onNewTab={newTab}
+          onReset={() => setResetScopeOpen(true)}
+          onSeedSets={runSeedSets}
+          onCleanNames={runCleanNames}
+          onHotkeys={() => setHelpOpen(true)}
+          onOpenStudio={() => setCeqStudioOpen(true)}
+          onViewV1={() => setChromeVersion(true)}
+        />
+      )}
+      {/* Hidden import input — lives OUTSIDE the v1 toolbar so File → Import works in
+          both chrome versions. */}
+      {chrome && <input ref={importRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => void onImportFile(e)} />}
+      <div className="flex min-h-0 min-w-0 flex-1">
+        {chrome && !chromeV1 && (outlineCollapsed ? (
+          // COLLAPSED — a thin rail; click to bring the outline back.
+          <button className="sa-dock flex w-7 shrink-0 flex-col items-center gap-2 py-2" style={{ background: "rgba(9,14,26,0.92)", borderRight: `1px solid ${NEON.borderSoft}`, color: NEON.cyan }} onClick={() => toggleOutline(false)} title="Show the outline">
+            <span className="text-[13px] font-bold leading-none">»</span>
+            <span className="text-[9px] font-bold uppercase tracking-wider" style={{ writingMode: "vertical-rl", color: NEON.muted }}>Sets</span>
+          </button>
+        ) : (
+          <aside className="sa-dock flex w-[280px] shrink-0 flex-col overflow-hidden" style={{ background: "rgba(9,14,26,0.92)", borderRight: `1px solid ${NEON.borderSoft}` }}>
+            <div className="flex items-center justify-end px-1.5 pt-1">
+              <button className="grid h-5 w-5 place-items-center rounded hover:bg-white/10" style={{ color: NEON.muted }} onClick={() => toggleOutline(true)} title="Collapse the outline">«</button>
+            </div>
+            <div className="min-h-0 flex-1 px-1.5 pb-1.5">
+              {!isPopped("outline")
+                ? <OutlinePanel />
+                : <PopoutPlaceholder title="Outline" onReturn={() => returnPop("outline")} style={{ position: "relative", inset: "auto", margin: 8 }} />}
+            </div>
+          </aside>
+        ))}
+        <div className="relative min-h-0 min-w-0 flex-1">
+      {/* TAKE BOARD: loud banner when Mux env vars / frame_takes table are missing */}
+      {chrome && <MuxBanner />}
+      {/* CINEMA BACKSTAGE (authoring only) — dark-red animated studio behind the canvas.
+          Honour the scene's chosen loop if it set one, else the colourful dream glow. */}
+      {chrome && backstage === "cinema" && <BackstageStage video={bgCfg.mode === "video" ? bgCfg.video : "dream-intro.mp4"} />}
+      <style>{CARD_CURSOR_CSS}</style>
+      <style>{CONNECTION_DOTS_CSS}</style>
+      <style>{ARROW_EDGE_CSS}</style>
+      <style>{FLAME_CSS}</style>
+      {/* card tap feedback — always on (authoring); the audience never sees it in film */}
+      {chrome && <CardTapPulse />}
+      {film && (
+        <>
+          {/* cursor glow never over a TRUE-BLACK plate frame (Disclaimer) — the
+              capture must stay pure black between line reveals */}
+          {!(currentFrameId && (rf.getNode(currentFrameId)?.data as { plate?: string } | undefined)?.plate) && <CursorSpotlight />}
+          <ClickRipples />
+        </>
+      )}
+      {/* Camera bubble — screen-fixed; deliberately OUTSIDE chrome gating (it IS filming) */}
+      {camera && <CameraBubble onClose={() => setCamera(false)} />}
+
+      {/* SPACE-WALK ARM CUE — Lee's tell that the frame is exhausted and the next
+          space will transition. Filming chrome (fixed overlay, not lesson DOM). */}
+      {armState && currentFrameId && (() => {
+        const back = armState === "ready-back" || armState === "start";
+        // CEQ arm (Item 5): a forward "ready" with a CEQ still tucked in THIS frame is
+        // teeing up the next QUESTION, not a frame move — relabel the same indicator.
+        const ceqNext = armState === "ready" && (() => {
+          // The CEQ arm-between only runs on DERIVED frames — recorded / cueOrder /
+          // stackDeal frames take higher-precedence paths, so don't relabel theirs.
+          const fd = rf.getNode(currentFrameId)?.data as { recordedCues?: RecCue[]; cueOrder?: string[]; stackDeal?: boolean } | undefined;
+          if (fd?.recordedCues?.length || fd?.cueOrder?.length || fd?.stackDeal) return false;
+          const ns = rf.getNodes();
+          const nt = nextTuckedInFrame(ns as never, currentFrameId);
+          return !!nt && (nt.data as { kind?: string }).kind === "ceq" && ns.some((n) => n.parentId === currentFrameId && (n.data as { kind?: string }).kind === "ceq" && (n.data as { deckMember?: boolean }).deckMember && !isTucked(n.data as never));
+        })();
+        const target = back ? frameWalkPrev(rf.getNodes() as never, currentFrameId) : frameWalkNext(rf.getNodes() as never, currentFrameId);
+        const label = ceqNext ? "next question" : armState === "end" ? "end of lesson" : armState === "start" ? "start of lesson" : !target ? (back ? "start of lesson" : "end of lesson") : frameCellLabel(target as never);
+        return <FrameArmCue state={armState} nextLabel={label} showHud={rehearsalHud} />;
+      })()}
+
+      {/* CHOREOGRAPH (Items 2-3) — ghost/lit opacity for the frame's elements while
+          building its reveal queue by clicking; entry offers Start fresh vs Append. */}
+      <style>{`.choreo-ghost{opacity:.2!important;cursor:pointer!important;transition:opacity 120ms}.choreo-lit{opacity:1!important;cursor:pointer!important}.choreo-explode{opacity:1!important;outline:2px dashed #f0c24b;outline-offset:3px;border-radius:8px}`}</style>
+      {choreoEntry && (
+        <div className="fixed left-1/2 top-20 z-[90] -translate-x-1/2 rounded-lg border px-3 py-2.5 shadow-2xl" style={{ background: "#0b1020", borderColor: "rgba(255,255,255,0.16)", color: "#e8ecf5" }}>
+          <div className="text-[12.5px] font-semibold">Choreograph this frame</div>
+          <div className="mb-2 mt-0.5 text-[11px]" style={{ color: "rgba(232,236,245,0.65)" }}>Click elements in the order they should reveal.</div>
+          <div className="flex gap-2">
+            <button className="nodrag rounded px-2.5 py-1 text-[12px] font-semibold" style={{ background: "#2b6cb0", color: "#fff" }} onClick={() => startChoreo(choreoEntry, "fresh")}>Start fresh</button>
+            <button className="nodrag rounded px-2.5 py-1 text-[12px]" style={{ border: "1px solid rgba(255,255,255,0.28)", color: "#e8ecf5" }} onClick={() => startChoreo(choreoEntry, "append")}>Append</button>
+          </div>
+        </div>
+      )}
+      {choreographFrameId && (
+        <div className="fixed left-1/2 top-3 z-[85] -translate-x-1/2 rounded-full px-3 py-1 text-[11px] font-semibold shadow-lg" style={{ background: "rgba(240,194,75,0.16)", border: "1px solid rgba(240,194,75,0.5)", color: "#f0c24b" }}>
+          ● Choreographing — click to add · click again to remove · G = explode the hovered card · C/Esc to finish
+        </div>
+      )}
+      {/* G-EXPLODE picker (Item 3) — the exploded card's parts as chips; click in
+          reveal order (arbitrary), each plays IN PLACE. "+ rest of card" reveals the
+          remainder as one step so no part is stranded. */}
+      {choreoExploded && choreographFrameId && (() => {
+        void choreoTick; // re-read the queue after each part toggle
+        const node = rf.getNode(choreoExploded);
+        if (!node) return null;
+        const parts = framePartLabels(node.data as never);
+        const cues = (rf.getNode(choreographFrameId)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues ?? [];
+        const isPart = (t?: string) => !!t && t !== WHOLE_TARGET && t !== REST_TARGET;
+        const orderOf = (pid: string) => { let n = 0; for (const c of cues) { if (c.kind === "reveal" && c.cardId === choreoExploded && isPart(c.targetId)) { n++; if (c.targetId === pid) return n; } } return 0; };
+        const hasRest = cues.some((c) => c.kind === "reveal" && c.cardId === choreoExploded && c.targetId === REST_TARGET);
+        const title = (node.data as { title?: string }).title || (node.data as { kind?: string }).kind || "card";
+        return (
+          <div className="fixed bottom-16 left-1/2 z-[90] max-w-[92vw] -translate-x-1/2 rounded-lg border px-3 py-2 shadow-2xl" style={{ background: "#0b1020", borderColor: "rgba(240,194,75,0.55)", color: "#e8ecf5" }}>
+            <div className="mb-1.5 flex items-center justify-between gap-4">
+              <span className="text-[12px] font-semibold" style={{ color: "#f0c24b" }}>Explode “{title}” — click parts in reveal order</span>
+              <button className="nodrag rounded px-2 py-0.5 text-[11px]" style={{ border: "1px solid rgba(255,255,255,0.25)" }} onClick={() => finishExplode(choreoExploded)}>Done</button>
+            </div>
+            <div className="flex max-w-[86vw] flex-wrap gap-1.5">
+              {parts.map((p) => { const o = orderOf(p.id); const q = o > 0; return (
+                <button key={p.id} className="nodrag rounded px-2 py-1 text-[11.5px]" style={{ background: q ? "rgba(240,194,75,0.18)" : "rgba(255,255,255,0.06)", border: `1px solid ${q ? "rgba(240,194,75,0.6)" : "rgba(255,255,255,0.15)"}`, color: q ? "#f0c24b" : "#e8ecf5" }} onClick={() => choreoPartToggle(choreoExploded, p.id)}>
+                  {o ? `${o}. ` : ""}{p.label}
+                </button>
+              ); })}
+              <button className="nodrag rounded px-2 py-1 text-[11.5px] font-semibold" style={{ background: hasRest ? "rgba(43,108,176,0.4)" : "rgba(43,108,176,0.22)", border: "1px solid rgba(43,108,176,0.6)", color: "#cfe3ff" }} onClick={() => choreoPartToggle(choreoExploded, REST_TARGET)}>
+                {hasRest ? "✓ rest of card" : "+ rest of card"}
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* SCRUBBER (Item 4) — one dot per queue step under the current frame; drag/click
+          seeks via the shared materializer. Shown when the frame has a queue. */}
+      {(() => {
+        void playheadTick; // re-render when the playhead moves
+        if (!currentFrameId) return null;
+        const cues = (rf.getNode(currentFrameId)?.data as { recordedCues?: RecCue[] } | undefined)?.recordedCues;
+        if (!cues || !cues.length || cueRecording) return null;
+        // 16:9 band from the STAGE rect (the frame is fit to .react-flow, which in v2
+        // chrome is smaller than the window) — the scrubber is viewport-fixed, so add
+        // the stage's client offset. v1/film: stage == window → identical to before.
+        const srect = document.querySelector(".react-flow")?.getBoundingClientRect();
+        const cw = srect?.width ?? window.innerWidth, chh = srect?.height ?? window.innerHeight;
+        const offX = srect?.left ?? 0, offY = srect?.top ?? 0;
+        const iw = Math.min(cw, (chh * 16) / 9), ih = (iw * 9) / 16;
+        const left = offX + (cw - iw) / 2, top = offY + (chh - ih) / 2;
+        const pos = recPlayIdxRef.current.get(currentFrameId) ?? 0;
+        return <ChoreoScrubber left={left + iw * 0.12} width={iw * 0.76} top={top + ih + 8} steps={cues.length} pos={pos} onSeek={(k) => applyFrameToStep(currentFrameId, k)} />;
+      })()}
+
+      {/* ARROW-NAV ARM LIGHT — a glowing edge on the side of the pending move
+          (↓ below = new frame · → right = new beat). Press the same arrow again
+          to go; any other input disarms. */}
+      {arrowArm && currentFrameId && (
+        <>
+        <style>{`@keyframes sa-arm-pulse { 0%,100% { opacity: 0.55; } 50% { opacity: 1; } }`}</style>
+        <div
+          className="pointer-events-none fixed z-[66]"
+          style={{
+            ...(arrowArm === "down" ? { left: 0, right: 0, bottom: 0, height: 6 }
+              : arrowArm === "up" ? { left: 0, right: 0, top: 0, height: 6 }
+              : arrowArm === "right" ? { top: 0, bottom: 0, right: 0, width: 6 }
+              : { top: 0, bottom: 0, left: 0, width: 6 }),
+            background: NEON.yellow,
+            boxShadow: `0 0 22px 4px ${NEON.yellow}`,
+            animation: "sa-arm-pulse 1s ease-in-out infinite",
+          }}
+        />
+        </>
+      )}
+
+      {/* (Removed the "zoom < 75% — text may be illegible" warning — Lee doesn't need it.) */}
+      {/* FOCUS-PUSH BACK (item 1) — while pushed into a card inside a framed
+          shot, one click snaps back to the exact framed view. */}
+      {framePushView && (
+        <button
+          onClick={returnFromPush}
+          className="absolute left-4 top-14 z-[80] flex items-center gap-1 rounded-full px-3 py-1.5 text-[12px] font-semibold"
+          style={{ background: "rgba(11,15,30,0.85)", border: `1px solid ${NEON.yellow}`, color: NEON.yellow, backdropFilter: "blur(6px)" }}
+          title="Back to the framed shot (Esc)"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" /> back to frame
+        </button>
+      )}
+      {/* TRANSIENT TOAST — frame-cap notice, soft warns (auto-clears) */}
+      {toast && (
+        <div
+          className="pointer-events-none absolute bottom-24 left-1/2 z-[80] -translate-x-1/2 rounded-full px-3.5 py-1.5 text-[12px] font-semibold"
+          style={{ background: "rgba(11,15,30,0.85)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text, backdropFilter: "blur(6px)" }}
+        >
+          {toast}
+        </div>
+      )}
+      {/* FILM PERF PROBE — opt-in long-task logger (off by default; see the file). */}
+      <FilmPerfProbe />
+      {/* RUN RECORDING INDICATOR (Lee) — a small, DARK pill, AUTHORING-ONLY. It used
+          to be capture-visible on purpose, but time is now tracked off-camera (the CEQ
+          previewer timer + the runtimer popout), so it is gated on `chrome` and never
+          lands in a film capture. Top-right, out of the teleprompter/rehearsal lanes. */}
+      {chrome && runActive && (
+        <div className="pointer-events-none fixed right-3 top-3 z-[82] flex items-center gap-1.5 rounded-full px-2 py-1 text-[10.5px] font-bold" style={{ background: "rgba(4,6,12,0.7)", border: "1px solid rgba(255,92,110,0.4)", color: "#F3C6CC" }}>
+          <span className="inline-block h-2 w-2 animate-pulse rounded-full" style={{ background: "#FF5C6E" }} />
+          <span className="uppercase tracking-wider">REC</span>
+          <span className="tabular-nums" style={{ color: "#E9EDF5" }}>{mmss(runElapsed)}</span>
+        </div>
+      )}
+      {/* RUN READOUT — last run's events as mm:ss + label, copy-to-clipboard.
+          Authoring only; auto-opens when a run ends. */}
+      {chrome && runReadoutOpen && (
+        <div className="fixed bottom-24 left-3 z-[81] w-[300px] overflow-hidden rounded-xl shadow-2xl" style={{ background: "rgba(11,19,34,0.95)", border: `1px solid ${NEON.border}`, backdropFilter: "blur(6px)" }}>
+          <header className="flex items-center gap-1.5 border-b px-2.5 py-1.5" style={{ borderColor: NEON.borderSoft }}>
+            <Timer className="h-3.5 w-3.5" style={{ color: NEON.cyan }} />
+            <span className="text-[11px] font-bold uppercase tracking-wider" style={{ color: NEON.text }}>Run readout</span>
+            <button className="ml-auto grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => setRunReadoutOpen(false)} title="Close">
+              <X className="h-4 w-4" />
+            </button>
+          </header>
+          <RunReadout run={lastRun} />
+        </div>
+      )}
+      {/* Last-run pill removed (Lee) — out of the way of the new filming flow. */}
+      {/* LAST REHEARSAL — persisted total, top-center (Lee's call). Authoring only,
+          hidden while a run is live (the HUD shows the running total then). */}
+      {chrome && !rehearse && lastRehearsalTotalS != null && (
+        <div className="pointer-events-none fixed left-1/2 top-3 z-[46] -translate-x-1/2">
+          <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: "rgba(8,12,24,0.82)", border: "1px solid rgba(126,243,192,0.4)", color: "#EAF2FF" }}>
+            <Timer className="h-3.5 w-3.5" style={{ color: "#7EF3C0" }} />
+            <span className="uppercase tracking-wider" style={{ color: "#7EF3C0" }}>Last rehearsal</span>
+            <span className="tabular-nums">{fmtClock(lastRehearsalTotalS)}</span>
+          </div>
+        </div>
+      )}
+      {/* REHEARSAL HUD (PROMPT 3 + run rework) — accumulating stopwatch across the
+          whole pass; auto-pauses on frame change; Finish shows a per-frame report. */}
+      {rehearse && (() => {
+        const labelOf = (fid: string) => {
+          const n = rf.getNode(fid);
+          const t = (n?.data as { title?: string } | undefined)?.title;
+          return (t && t.trim()) || (n ? frameCellLabel(n as never) : "frame");
+        };
+        const f = rf.getNode(rehearse.frameId);
+        const est = f ? estimateFrameSeconds((f.data as { script?: FrameScript }).script, { riff: riffMultiplier }) : 0;
+        const reportRows = rehearse.order.map((fid) => ({ id: fid, label: labelOf(fid), secs: Math.round((rehearse.perFrame[fid] ?? 0) / 1000) }));
+        return (
+          <RehearsalHud
+            run={rehearse}
+            estSeconds={est}
+            frameLabel={labelOf(rehearse.frameId)}
+            reportRows={reportRows}
+            onToggle={toggleRehearsal}
+            onFinish={finishRehearsal}
+            onExit={exitRehearsal}
+          />
+        );
+      })()}
+      {/* CAMERA-SAFE GUIDES (PROMPT 3) — advisory overlay on the current frame's
+          16:9 rect; never in film, never persisted. */}
+      {safeGuides && currentFrameId && !film && (() => {
+        // Stage rect, not window — the overlay is viewport-fixed but the frame is fit
+        // to .react-flow (smaller than the window in v2 chrome), so offset by the
+        // stage's client origin. v1: stage == window → unchanged.
+        const srect = document.querySelector(".react-flow")?.getBoundingClientRect();
+        const cw = srect?.width ?? window.innerWidth, ch = srect?.height ?? window.innerHeight;
+        const iw = Math.min(cw, (ch * 16) / 9);
+        const ih = (iw * 9) / 16;
+        return <SafeGuidesOverlay rect={{ left: (srect?.left ?? 0) + (cw - iw) / 2, top: (srect?.top ?? 0) + (ch - ih) / 2, width: iw, height: ih }} />;
+      })()}
+      {/* looping video background (low opacity, filming-optional); key remounts on swap.
+          In the cinema backstage BackstageStage owns the animation, so skip this one. */}
+      {bgCfg.mode === "video" && !(chrome && backstage === "cinema") && (
         <video
+          key={bgCfg.video}
           className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-          style={{ opacity: 0.14 }}
-          src="/anim/space intro (1).mp4"
+          style={{ opacity: bgCfg.opacity }}
+          src={`/anim/${bgCfg.video}`}
           autoPlay
           muted
           loop
@@ -377,40 +5727,346 @@ function PresentCanvas() {
       <ReactFlow
         defaultNodes={[]}
         defaultEdges={[]}
+        onNodeDragStart={onNodeDragStart}
+        onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
+        // MEMBERSHIP FIX 1 — a click that nudges under 5px is NOT a drag, so it can never
+        // fire the drag-stop reparent (the "click zips an element across the canvas"
+        // bug). Real drags (≥5px) are unaffected.
+        nodeDragThreshold={5}
+        onMoveStart={onMoveStart}
+        onDelete={onDelete}
+        onNodeClick={onNodeClick}
+        onNodeMouseEnter={onNodeMouseEnter}
+        onNodeMouseLeave={onNodeMouseLeave}
         onNodeDoubleClick={onNodeDoubleClick}
+        onConnect={onConnect}
+        onEdgeClick={onEdgeClick}
+        onPaneClick={onPaneClick}
+        onNodeContextMenu={(e, node) => {
+          if (isContainerType(node.type)) return; // frames/lessons keep the native menu
+          e.preventDefault();
+          const sel = rf.getNodes().filter((n) => n.selected && !isContainerType(n.type)).map((n) => n.id);
+          const ids = sel.includes(node.id) && sel.length > 0 ? sel : [node.id];
+          setSnipMenu({ x: e.clientX, y: e.clientY, ids });
+        }}
+        onSelectionContextMenu={(e, sel) => {
+          e.preventDefault();
+          const ids = sel.filter((n) => !isContainerType(n.type)).map((n) => n.id);
+          if (ids.length) setSnipMenu({ x: e.clientX, y: e.clientY, ids });
+        }}
+        connectionMode={ConnectionMode.Loose}
+        connectionRadius={28}
+        connectionLineType={ConnectionLineType.SmoothStep}
+        connectionLineStyle={RF_CONNECTION_LINE_STYLE}
+        multiSelectionKeyCode={["Shift"]}
         nodeTypes={nodeTypes}
-        proOptions={{ hideAttribution: true }}
+        edgeTypes={edgeTypes}
+        proOptions={RF_PRO_OPTIONS}
         minZoom={0.08}
         maxZoom={2.5}
-        panOnDrag
-        panOnScroll
-        zoomOnPinch
+        // FIGMA-STYLE NAV: wheel = zoom at the cursor; drag on empty canvas =
+        // pan; shift+drag = selection marquee; pinch zoom native. Inner
+        // scrollables opt out with `nowheel` (pickers, card bodies) so their
+        // scrolling never zooms the canvas.
+        // FILM LOCK (FF-3): film mode inside a frame PINS the stage — no
+        // scroll-zoom, no pane-drag, no dbl-click zoom; only the frame-nav keys
+        // move the camera. Kills accidental zoom-outs mid-take.
+        panOnDrag={!(film && !!currentFrameId)}
+        panOnScroll={false}
+        zoomOnScroll={!(film && !!currentFrameId)}
+        zoomOnPinch={!(film && !!currentFrameId)}
+        zoomOnDoubleClick={false}
+        selectionKeyCode={["Shift"]}
         selectionOnDrag={false}
+        // The keymap OWNS the arrow keys (CEQ emphasis / frame nav / JE line hop).
+        // Disable RF's built-in keyboard a11y so a selected node isn't ALSO nudged
+        // by the arrows (the "arrows move the whole CEQ element" bug).
+        disableKeyboardA11y
         deleteKeyCode={["Delete", "Backspace"]}
-        style={{ background: "transparent" }}
+        style={RF_STYLE}
         fitView
       >
-        {bg === "grid" && <Background variant={BackgroundVariant.Dots} gap={28} size={1.5} color="rgba(255,45,149,0.22)" />}
-        {chrome && minimap && (
-          <MiniMap
-            position="bottom-right"
-            pannable
-            zoomable
-            style={{ background: NEON.bg2, border: `1px solid ${NEON.borderSoft}`, borderRadius: 10 }}
-            maskColor="rgba(11,7,20,0.75)"
-            nodeColor={() => NEON.pink}
-          />
-        )}
+        {bgCfg.mode !== "video" && <Background variant={BackgroundVariant.Dots} gap={28} size={1.5} color="rgba(147,160,180,0.28)" />}
+        {/* SKELETON GRID (P4): ghost previews for named decks' undealt slots */}
+        <SkeletonLayer decks={decks} />
+        {/* GHOST CELLS + ghost sub-frame slots are "generated outside the frames" —
+            removed by default (Lee's call: only the frames show). Add lessons via
+            the region-scaffold button; add frames via ↓ / the lesson "+frame" /
+            duplicate. FrameGridOverlay still renders when the film-order PATH is
+            toggled on (so that feature keeps working). */}
+        {chrome && framePath && <FrameGridOverlay showPath={framePath} onAddFrame={(lessonId, beat, sub) => { makeFrameAt(lessonId, beat, sub); }} />}
+        {/* Removed the "SURVIVE ACCOUNTING / START HERE" world wordmark (Lee — outdated). */}
+        {/* Key lives in the drawer now (declutter run) — see BrandBar below */}
+        {/* Minimap removed — the bottom LessonNavigator shows one lesson at a time instead */}
       </ReactFlow>
 
-      {/* Palette */}
-      {chrome && <Palette library={library} onSpawn={spawn} collapsed={paletteCollapsed} onToggle={() => setPaletteCollapsed((v) => !v)} />}
+      {/* LETTERBOX (FF-5): inside a frame, solid bars mask the canvas outside the
+          exact 16:9 region the frame fills, so the shot is 16:9 in fullscreen.
+          Film mode → pure black. Only while FULLSCREEN — windowed (and right after
+          exiting fullscreen) the bars just leave black sides, so we drop them. */}
+      {currentFrameId && isFullscreen && (() => {
+        // STAGE dims, not window — the bars are absolute in the stage wrapper and the
+        // frame is fit to .react-flow. In film/fullscreen stage == window (no chrome),
+        // so takes are unchanged; this only corrects the rare fullscreen-in-v2 case.
+        const srect = document.querySelector(".react-flow")?.getBoundingClientRect();
+        const cw = srect?.width ?? window.innerWidth, ch = srect?.height ?? window.innerHeight;
+        const innerW = Math.min(cw, (ch * 16) / 9);
+        const innerH = innerW * 9 / 16;
+        const mx = Math.max(0, Math.round((cw - innerW) / 2));
+        const my = Math.max(0, Math.round((ch - innerH) / 2));
+        const bar = film ? "#000" : "rgba(6,10,20,0.975)";
+        const B = (s: React.CSSProperties) => <div className="pointer-events-none absolute z-[52]" style={{ background: bar, ...s }} />;
+        return (
+          <>
+            {mx > 0 && B({ left: 0, top: 0, bottom: 0, width: mx })}
+            {mx > 0 && B({ right: 0, top: 0, bottom: 0, width: mx })}
+            {my > 0 && B({ top: 0, left: 0, right: 0, height: my })}
+            {my > 0 && B({ bottom: 0, left: 0, right: 0, height: my })}
+          </>
+        );
+      })()}
 
-      {/* Toolbar */}
-      {chrome && (
+
+      {/* FRAME HUD — while inside a frame: the LESSON's whole layout as a strip of
+          draggable THUMBNAILS (drag one onto another to SWAP; click to jump). The
+          beat labels the column, so no "HOOK 1" chip; the frame is identified by
+          its #lesson.frame code. Auto-hidden in film unless toggled on. */}
+      {currentFrameId && chrome && showFrameHeader && (() => {
+        const fnode = rf.getNode(currentFrameId);
+        const fd = fnode?.data as FrameBox | undefined;
+        const lessonId = fnode?.parentId;
+        const lessonTitle = (lessonId ? (rf.getNode(lessonId)?.data as { label?: string } | undefined)?.label : "") || "Lesson";
+        const lessonNum = ((lessonId ? (rf.getNode(lessonId)?.data as { pathOrder?: number } | undefined)?.pathOrder : 1) ?? 1);
+        const order = lessonId ? framesInLesson(rf.getNodes() as never, lessonId) : [];
+        const codeOf = (fid: string) => { const i = order.findIndex((x) => x.id === fid); return `#${lessonNum}.${i < 0 ? 1 : i + 1}`; };
+        const curCode = codeOf(currentFrameId);
+        return (
+        <div data-frame-chrome className="absolute left-1/2 top-3 z-[58] flex max-w-[94vw] -translate-x-1/2 flex-col gap-1.5 rounded-2xl p-2.5" style={{ background: "linear-gradient(180deg, rgba(16,22,40,0.96), rgba(9,13,26,0.96))", border: `1px solid rgba(232,184,75,0.28)`, color: NEON.text, boxShadow: "0 18px 44px -16px rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}>
+          {/* lesson # + title · frame code · add · hide */}
+          <div className="flex items-center gap-2">
+            <span className="whitespace-nowrap text-[16px] font-black tracking-wide" style={{ color: "#FBEFD6", textShadow: "0 0 18px rgba(232,184,75,0.35)" }}>{lessonTitle}</span>
+            <span className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold tabular-nums" style={{ color: NEON.yellow, border: `1px solid rgba(232,184,75,0.5)` }}>{curCode}</span>
+            <span className="min-w-0 flex-1 truncate text-[12px] font-semibold" style={{ color: "#F4EFE6" }}>
+              <EditableText value={fd?.title ?? ""} onChange={(v) => { const c = patchDataCmd(rf as unknown as RfLike, currentFrameId, { title: v }, "rename frame"); if (c) bus.dispatch(c); }} placeholder="title (optional)" />
+            </span>
+            <button className="grid h-6 w-6 place-items-center rounded-full" title={scriptDock ? "Close the script dock" : "Script this frame — write what you'll say beside the visual"} onClick={() => setScriptDock((v) => !v)} style={{ color: scriptDock || isPopped("script") ? NEON.yellow : NEON.muted }}><ScrollText className="h-3.5 w-3.5" /></button>
+            {/* SOUNDS ON ENTRY (Lee) — one popover per frame: swoosh / cram launch /
+                keypad, any combination. Defaults: swoosh on, cram on the first cram
+                frame (swoosh off there), keypad off. */}
+            {(() => {
+              const cramOn = fd?.cramLaunchSfx ?? isCramLaunchFrame(currentFrameId);
+              const swooshOn = fd?.swooshSfx ?? !cramOn;
+              const keypadOn = fd?.keypadOnEntry ?? false;
+              const anyOn = cramOn || swooshOn || keypadOn;
+              const patch = (p: Record<string, unknown>) => { const c = patchDataCmd(rf as unknown as RfLike, currentFrameId, p, "frame sounds"); if (c) bus.dispatch(c); };
+              const soundRow = (label: string, on: boolean, toggle: () => void) => (
+                <button className="flex w-full items-center justify-between rounded px-1.5 py-1 text-[10px]" onClick={toggle} style={{ color: on ? NEON.yellow : NEON.muted }}>
+                  <span>{label}</span><span className="font-bold uppercase tracking-wide">{on ? "on" : "off"}</span>
+                </button>
+              );
+              return (
+                <span className="relative shrink-0">
+                  <button
+                    className="rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                    title="Sounds on entry for THIS frame — swoosh / cram launch / keypad (any combination)"
+                    onClick={() => setSoundsOpen((v) => !v)}
+                    style={{ color: soundsOpen ? NEON.yellow : anyOn ? "#F4EFE6" : NEON.muted, border: `1px solid ${NEON.borderSoft}` }}
+                  >
+                    🔊 Sounds
+                  </button>
+                  {soundsOpen && (
+                    <>
+                      <div className="fixed inset-0 z-[59]" onClick={() => setSoundsOpen(false)} />
+                      <div className="absolute right-0 top-8 z-[60] w-44 rounded-lg p-1" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 14px 34px -14px rgba(0,0,0,0.7)" }} onClick={(e) => e.stopPropagation()}>
+                        <div className="px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Play on entry (film)</div>
+                        {soundRow("🌀 Advance swoosh", swooshOn, () => patch({ swooshSfx: !swooshOn }))}
+                        {soundRow("🚀 Cram launch", cramOn, () => patch({ cramLaunchSfx: !cramOn }))}
+                        {soundRow("⌨️ Keypad", keypadOn, () => patch({ keypadOnEntry: !keypadOn }))}
+                      </div>
+                    </>
+                  )}
+                </span>
+              );
+            })()}
+            {/* STACK/GRID deal moved to the DECK PANEL (Lee) — deal a CEQ set into the
+                frame you're in as a grid (teaser) or a stack (cram), from its set row. */}
+            <button className="grid h-6 w-6 place-items-center rounded-full" title="Add a frame below (same beat)" onClick={() => addFrameAfter(currentFrameId)} style={{ color: NEON.cyan }}><Plus className="h-4 w-4" /></button>
+            <button className="grid h-6 w-6 place-items-center rounded-full" title="Hide the frame navigator (bring it back with the panel-top toggle in the toolbar)" onClick={() => setShowFrameHeader(false)} style={{ color: NEON.muted }}><PanelTop className="h-3.5 w-3.5" /></button>
+          </div>
+
+          {/* THE LESSON LAYOUT — thumbnails per beat column; drag one onto another
+              to drop it INTO that slot (it slides in; others shift down), click to
+              jump in, or drag onto the trash (bottom-right) to delete it. */}
+          {lessonId && (
+            <div className="flex items-stretch gap-2">
+              <div className="flex flex-1 items-start gap-2 overflow-x-auto rounded-lg p-1.5" style={{ background: "rgba(0,0,0,0.28)", border: `1px solid ${NEON.borderSoft}`, maxWidth: "84vw" }}>
+                {BEAT_COLUMNS.map((b) => {
+                  const col = framesInBeat(rf.getNodes() as never, lessonId, b);
+                  const cbm = BEAT_META[b];
+                  return (
+                    <div key={b} className="flex shrink-0 flex-col items-center gap-1">
+                      <span className="text-[8px] font-bold uppercase tracking-wide" style={{ color: cbm.color }}>{cbm.label.split(" ")[0]}</span>
+                      {col.length === 0 && <EmptyBeatCell color={cbm.color} onCreate={() => createFrameInBeat(lessonId, b)} onDropFrame={(src) => moveFrameToBeat(src, b)} />}
+                      {col.map((f) => (
+                        <FrameThumb key={f.id} frame={f as never} nodes={rf.getNodes() as never} active={f.id === currentFrameId} color={cbm.color} code={codeOf(f.id)} onEnter={() => enterFrame(f.id)} onDropFrame={(src) => moveFrameToFrame(src, f.id)} />
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+              {/* TRASH — drag a frame here to delete it (undoable) */}
+              <div
+                className="grid w-11 shrink-0 place-items-center self-stretch rounded-lg transition-colors"
+                style={{ border: `1.5px dashed ${trashOver ? "#E0284A" : NEON.borderSoft}`, background: trashOver ? "rgba(224,40,74,0.18)" : "rgba(0,0,0,0.28)", color: trashOver ? "#FF8B9E" : NEON.muted }}
+                title="Drop a frame here to delete it (Ctrl+Z to undo)"
+                onDragOver={(e) => { if (e.dataTransfer.types.includes("text/sa-frame")) { e.preventDefault(); setTrashOver(true); } }}
+                onDragLeave={() => setTrashOver(false)}
+                onDrop={(e) => { setTrashOver(false); const src = e.dataTransfer.getData("text/sa-frame"); if (src) { e.preventDefault(); deleteFrameById(src); } }}
+              >
+                <Trash2 className="h-4 w-4" />
+              </div>
+            </div>
+          )}
+        </div>
+        );
+      })()}
+
+      {/* V1 → V2 return pill (archive view only) */}
+      {chrome && chromeV1 && (
+        <button
+          className="absolute right-3 top-14 z-[59] rounded-lg px-2.5 py-1 text-[11px] font-black"
+          style={{ color: "#0B1322", background: NEON.yellow, border: `1px solid ${NEON.yellow}`, boxShadow: "0 10px 30px -10px rgba(252,163,17,0.6)" }}
+          onClick={() => setChromeVersion(false)}
+          title="Back to the simplified v2 dashboard (navbar + outline sidebar)"
+        >⚡ Dashboard v2</button>
+      )}
+      {/* BRAND BAR + DRAWER (workspace chrome) — the drawer is the menu:
+          Cards (palette) and Key (legend) open as panels inside it, keeping
+          the canvas top-left clean. Film swaps the bar for the watermark.
+          V1 ARCHIVE ONLY — v2 replaces it with the persistent outline sidebar. */}
+      {chrome && chromeV1 && (
+        <BrandBar
+          items={[{ key: "cards", label: "Cards" }, { key: "outline", label: "Outline" }, { key: "memos", label: "Memos" }, { key: "key", label: "Key" }, { key: "pipeline", label: "Pipeline" }]}
+          activeItem={drawerPanel}
+          onItem={setDrawerPanel}
+        >
+          {drawerPanel === "cards" && (
+            <Palette
+              docked
+              library={activeLibrary}
+              onSpawn={spawn}
+              focus={focusPalette}
+              sceneCourseKey={sceneCourseId}
+              snippets={snippets}
+              onSpawnSnippet={(id) => spawnSnippetById(id)}
+              onRenameSnippet={renameSnippet}
+              onDeleteSnippet={deleteSnippet}
+            />
+          )}
+          {drawerPanel === "outline" && !isPopped("outline") && (
+            <div className="relative">
+              <button className="absolute right-0.5 top-0.5 z-20 grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => openPop("outline", 1040, 720)} title="Pop out the outline to a landscape window (2nd monitor · capture-invisible)"><ExternalLink className="h-3.5 w-3.5" /></button>
+              <OutlinePanel />
+            </div>
+          )}
+          {drawerPanel === "outline" && isPopped("outline") && <PopoutPlaceholder title="Outline" onReturn={() => returnPop("outline")} style={{ position: "relative", inset: "auto", margin: 8 }} />}
+          {drawerPanel === "memos" && <MemoLibraryPanel />}
+          {drawerPanel === "key" && <LegendHud docked />}
+          {drawerPanel === "pipeline" && <PipelineTestPanel cramMode={cramMode} activeLessonId={activeLessonId} />}
+        </BrandBar>
+      )}
+      {/* Corner watermark — toggleable; NEVER over a frame's full-bleed background loop
+          (the branded loop is the mark), never over a TRUE-BLACK plate frame (the
+          Disclaimer card must capture pure black), and suppressed while a CEQ is
+          SPOTLIT since the redesigned CEQ carries its own in-card logotype (redesign
+          Item 4 — reuses the existing spotlight signal, no new mechanism built). */}
+      {!chrome && watermarkOn
+        && !(currentFrameId && (rf.getNode(currentFrameId)?.data as { bgSrc?: string } | undefined)?.bgSrc)
+        && !(currentFrameId && (rf.getNode(currentFrameId)?.data as { plate?: string } | undefined)?.plate)
+        && !(spot.focusTarget && rf.getNode(spot.focusTarget.cardId)?.type === "ceq")
+        && <BrandWatermark />}
+
+      {/* GROUP CHROME (PROMPT B) — floats above a 2+ card selection; owns its
+          own subscriptions so pan/zoom doesn't re-render the route */}
+      {chrome && <GroupChromeBar onSaveSnippet={openSnippetSave} />}
+
+      {/* RESTORE POPOUTS — browsers can't auto-reopen windows on reload, so if a
+          prior session had panels popped we offer a one-click restore (from this
+          gesture) rather than silently dropping them. */}
+      {chrome && popRestore.length > 0 && !popRestoreDismissed && Object.keys(popWins).length === 0 && (
+        <div className="absolute left-1/2 top-3 z-50 flex -translate-x-1/2 items-center gap-2 rounded-lg px-3 py-1.5 text-[12px]" style={{ background: NEON.panel, border: `1px solid ${NEON.border}`, color: NEON.text, backdropFilter: "blur(8px)" }}>
+          <ExternalLink className="h-3.5 w-3.5" style={{ color: NEON.yellow }} />
+          <span>Restore {popRestore.length} popped-out panel{popRestore.length > 1 ? "s" : ""}?</span>
+          <button
+            className="rounded px-2 py-0.5 font-semibold"
+            style={{ background: NEON.yellow, color: "#0B1322" }}
+            onClick={() => {
+              for (const key of popRestore) {
+                if (key === "teleprompter") { setPrompter(true); openPop(key, 720, 540); }
+                else if (key === "cuesheet") { setCueSheetOpen(true); openPop(key); }
+                else if (key === "deck") { setDeckOpen(true); openPop(key); }
+                else if (key === "script") { setScriptDock(true); openPop(key, 420, 640); }
+              }
+              setPopRestoreDismissed(true);
+            }}
+          >Restore</button>
+          <button className="rounded px-1.5 py-0.5" style={{ color: NEON.muted }} onClick={() => { setPopRestoreDismissed(true); try { localStorage.removeItem("sa-canvas-popouts"); } catch { /* ignore */ } }}>Dismiss</button>
+        </div>
+      )}
+
+      {/* The DECK — one holding system (opened from the toolbar; spacebar still
+          deals). Popped out it deals through the SAME command bus, so a card
+          dealt from the 2nd-monitor window lands on the canvas exactly as usual. */}
+      {chrome && !isPopped("deck") && (
+        <Deck
+          open={deckOpen}
+          onClose={() => setDeckOpen(false)}
+          onDeal={deal}
+          onFocus={focusNode}
+          onRemoveMembership={removeMembership}
+          dealFaceDown={dealFaceDown}
+          setDealFaceDown={setDealFaceDown}
+          hideFdLabels={hideFdLabels}
+          setHideFdLabels={setHideFdLabels}
+          decks={decks}
+          setDecks={setDecks}
+          ceqSets={ceqSets}
+          setCeqSets={setCeqSets}
+          onPopOut={() => openPop("deck")}
+        />
+      )}
+      {deckOpen && isPopped("deck") && (
+        <PanelPopout win={popWins.deck!} title="Deck" onReturn={() => returnPop("deck")}>
+          <Deck
+            open
+            inPopout
+            onClose={() => setDeckOpen(false)}
+            onDeal={deal}
+            onFocus={focusNode}
+            onRemoveMembership={removeMembership}
+            dealFaceDown={dealFaceDown}
+            setDealFaceDown={setDealFaceDown}
+            hideFdLabels={hideFdLabels}
+            setHideFdLabels={setHideFdLabels}
+            decks={decks}
+            setDecks={setDecks}
+            ceqSets={ceqSets}
+            setCeqSets={setCeqSets}
+          />
+        </PanelPopout>
+      )}
+      {chrome && deckOpen && isPopped("deck") && (
+        <PopoutPlaceholder title="Deck" onReturn={() => returnPop("deck")} style={{ top: 12, right: 12 }} />
+      )}
+
+      {/* LESSON NAVIGATOR — bottom pager (v1 archive only; v2 navigates via the sidebar) */}
+      {chrome && chromeV1 && <LessonNavigator />}
+
+      {/* Toolbar (v1 archive only — v2's navbar owns File/Hotkeys/Studio) */}
+      {chrome && chromeV1 && (
         <div
-          className="absolute left-1/2 top-3 z-40 flex -translate-x-1/2 items-center gap-1.5 rounded-xl px-2.5 py-1.5"
+          className="absolute bottom-3 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1.5 rounded-xl px-2.5 py-1.5"
           style={{ background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", color: NEON.text }}
         >
           <input
@@ -420,97 +6076,1049 @@ function PresentCanvas() {
             onKeyDown={(e) => e.stopPropagation()}
             title="Scene name"
           />
-          <TB title="Save" onClick={() => void doSave()}><Save className="h-3.5 w-3.5" /></TB>
-          <TB title="Save as new scene" onClick={() => void doSave(true)}><FilePlus2 className="h-3.5 w-3.5" /></TB>
-          <TB title="Load scene" onClick={() => void openLoad()}><FolderOpen className="h-3.5 w-3.5" /></TB>
-          <TB title="New (clear canvas)" onClick={newScene}><Plus className="h-3.5 w-3.5" /></TB>
+          {/* CUE SHEET — moved to the leftmost tool slot (Lee's call, swapped with File) */}
+          {!cramMode && <TB title="Cue sheet — the entered frame's space-walk sequence (enter a frame first)" active={cueSheetOpen} onClick={() => { setCueSheetOpen((v) => { const nv = !v; if (nv && !currentFrameId) flashToast("Enter a frame to see its cue sheet"); return nv; }); }}><ListOrdered className="h-3.5 w-3.5" /></TB>}
           <span className="mx-1 h-4 w-px" style={{ background: NEON.borderSoft }} />
-          <TB title="Add zone" onClick={addZone}><Layers className="h-3.5 w-3.5" /></TB>
-          <TB
-            title={`Background: ${bg} (click to cycle)`}
-            onClick={() => setBg(bg === "flat" ? "grid" : bg === "grid" ? "video" : "flat")}
-          >
-            {bg === "video" ? <VideoIcon className="h-3.5 w-3.5" /> : <Grid3x3 className="h-3.5 w-3.5" />}
-          </TB>
-          <TB title="Toggle minimap" active={minimap} onClick={() => setMinimap((v) => !v)}><MapIcon className="h-3.5 w-3.5" /></TB>
-          <TB title="Clean screen (c)" onClick={() => setClean(true)}><Film className="h-3.5 w-3.5" /></TB>
+          {/* ADD CARD — card-kind picker (upward). Replaces Add region / Add lesson. */}
+          <div className="relative">
+            <MenuButton icon={<Plus className="h-3.5 w-3.5" />} label="Card" open={addCardOpen} onClick={() => { setAddCardOpen((v) => !v); setFileMenuOpen(false); }} />
+            {addCardOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setAddCardOpen(false)} />
+                <div className="absolute bottom-9 left-0 z-50 grid w-64 grid-cols-2 gap-0.5 rounded-xl p-1.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}>
+                  {(cramMode ? ADD_CARD_KINDS.filter((c) => (["ceq", "note", "heading"] as string[]).includes(c.kind)) : ADD_CARD_KINDS).map((c) => (
+                    <BgOption key={c.label} label={c.label} active={false} onClick={() => { setAddCardOpen(false); spawn(c.kind === "formula" ? formulaAle() : blankCard(c.kind, c.preset)); }} />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+          {/* PALETTE — design ELEMENTS (heading, Big Text, Text, Bulleted List, Exam
+              Cue, Memo). Sits right next to +Card so the elements are easy to find. */}
+          <div className="relative">
+            <MenuButton icon={<PaletteIcon className="h-3.5 w-3.5" />} label="Palette" open={addElemOpen} onClick={() => { setAddElemOpen((v) => !v); setAddCardOpen(false); setFileMenuOpen(false); }} />
+            {addElemOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setAddElemOpen(false)} />
+                <div className="absolute bottom-9 left-0 z-50 grid w-64 grid-cols-2 gap-0.5 rounded-xl p-1.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}>
+                  {(cramMode ? ADD_ELEMENT_BLANKS.filter((b) => ["Heading", "Memo"].includes(b.label)) : ADD_ELEMENT_BLANKS).map((b) => (
+                    <BgOption key={b.label} label={b.label} active={false} onClick={() => { setAddElemOpen(false); spawn(b.make()); }} />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+          {/* ADD LESSON (ITEM 3) — pick type + topic, then scaffold ordinary frames
+              by type. Re-instates the lesson-add entry the +Card menu had dropped. */}
+          <TB title="Add a lesson — pick type + topic, then scaffold its frames" onClick={addLesson}><LayoutTemplate className="h-3.5 w-3.5" /></TB>
+          {/* DECK — the run-of-show roster (replaces the top-right badge) */}
+          <MenuButton icon={<Layers className="h-3.5 w-3.5" />} label="Deck" open={deckOpen} onClick={() => { setDeckOpen((v) => !v); setFileMenuOpen(false); setAddCardOpen(false); setAddElemOpen(false); }} />
+          {/* CEQ STUDIO (prompt 5) — day-to-day CEQ authoring in one 3-pane panel. */}
+          <TB title={ceqStudioOpen ? "Close Studio" : "Studio — sets · questions + chains · memo library"} active={ceqStudioOpen} onClick={() => setCeqStudioOpen((v) => !v)}><ListOrdered className="h-3.5 w-3.5" /></TB>
+          {/* FILE — save / load / export / import (floppy icon; moved onto the old
+              region-scaffold slot, which Lee no longer uses) */}
+          <div className="relative">
+            <MenuButton icon={<Save className="h-3.5 w-3.5" />} label="File" open={fileMenuOpen} onClick={() => { setFileMenuOpen((v) => !v); setAddCardOpen(false); setAddElemOpen(false); }} />
+            {fileMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setFileMenuOpen(false)} />
+                <div className="absolute bottom-9 left-1/2 z-50 w-44 -translate-x-1/2 rounded-xl p-1.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}>
+                  <MenuRow icon={<Save className="h-3.5 w-3.5" />} label="Save" onClick={() => { setFileMenuOpen(false); void doSave(); }} />
+                  <MenuRow icon={<FilePlus2 className="h-3.5 w-3.5" />} label="Save as new" onClick={() => { setFileMenuOpen(false); void doSave(true); }} />
+                  <MenuRow icon={<FolderOpen className="h-3.5 w-3.5" />} label="Load scene" onClick={() => { setFileMenuOpen(false); void openLoad(); }} />
+                  <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
+                  <MenuRow icon={<Download className="h-3.5 w-3.5" />} label="Export (.json + .md)" onClick={() => { setFileMenuOpen(false); exportScene(); }} />
+                  <MenuRow icon={<Upload className="h-3.5 w-3.5" />} label="Import from file" onClick={() => { setFileMenuOpen(false); importRef.current?.click(); }} />
+                  <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
+                  <MenuRow icon={<Plus className="h-3.5 w-3.5" />} label="New tab" onClick={() => { setFileMenuOpen(false); newTab(); }} />
+                </div>
+              </>
+            )}
+          </div>
+          <TB title="Script editor — write the whole course script (entry / beats / exit per frame)" active={scriptOpen} onClick={() => setScriptOpen((v) => !v)}><ScrollText className="h-3.5 w-3.5" /></TB>
+          {!cramMode && <TB title="Teleprompter — current frame's script near the camera eyeline (p)" active={prompter} onClick={() => setPrompter((v) => !v)}><Projector className="h-3.5 w-3.5" /></TB>}
+          {!cramMode && <TB title="Visual mix — read-only summary of this lesson's frame types + balance" active={visualMixOpen} onClick={() => setVisualMixOpen((v) => !v)}><Gauge className="h-3.5 w-3.5" /></TB>}
+          {!cramMode && <TB title="Storyboard — every frame in film order; click one to jump in" active={storyboardOpen} onClick={() => setStoryboardOpen((v) => !v)}><LayoutGrid className="h-3.5 w-3.5" /></TB>}
+          {/* GRID BY TYPE (ITEM 4) — read-only projection: type columns × topic rows. */}
+          {!cramMode && <TB title="Grid by type — lessons projected into type columns × topic rows (read-only; toggle back is lossless)" active={gridByType} onClick={() => setGridByType((v) => !v)}><MapIcon className="h-3.5 w-3.5" /></TB>}
+          {!cramMode && <TB title="Camera-safe guides — phone-safe, camera bubble, watermark + end-screen zones (enter a frame)" active={safeGuides} onClick={() => { const nv = !safeGuides; setSafeGuides(nv); if (nv && !currentFrameId) flashToast("Enter a frame to see the safe zones"); }}><Frame className="h-3.5 w-3.5" /></TB>}
+          {/* Birds-eye button removed — Esc bottoms out at the CURRENT lesson's
+              overview (fitCurrentLesson), never the whole course. */}
+          {/* FRAME HEADER panel — on-camera header toggle + THIS lesson's intro/outro/preview */}
+          {!cramMode && <TB title="Rearrange frames (r) — full-grid drag reorder + copy/paste" active={rearrangeOpen} onClick={() => setRearrangeOpen((v) => !v)}><LayoutGrid className="h-3.5 w-3.5" /></TB>}
+          {/* CRAM MODE toggle — always visible; on = chrome-filtered CEQ authoring. */}
+          <TB title={cramMode ? "Cram mode ON — chrome trimmed for CEQ authoring (click for full canvas)" : "Cram mode — trim the canvas to CEQ authoring (hides frame-by-frame tools)"} active={cramMode} onClick={() => setCramMode((v) => !v)}><Projector className="h-3.5 w-3.5" style={cramMode ? { color: NEON.yellow } : undefined} /></TB>
+          {!cramMode && (
+          <div className="relative">
+            <TB title="Frame header — header HUD + this lesson's intro / outro / preview" active={frameHeaderOpen} onClick={() => setFrameHeaderOpen((v) => !v)}><PanelTop className="h-3.5 w-3.5" /></TB>
+            {frameHeaderOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setFrameHeaderOpen(false)} />
+                <div className="absolute bottom-9 left-1/2 z-50 w-72 -translate-x-1/2 rounded-xl p-2.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}>
+                  <div className="mb-1.5 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>Frame header</div>
+                  <div className="flex items-center justify-between gap-2 py-0.5 text-[11.5px]" style={{ color: NEON.text }}>
+                    <span>On-camera header (LESSON · frame · beat)</span>
+                    <button className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase" style={{ color: showFrameHeader ? NEON.yellow : NEON.muted, border: `1px solid ${showFrameHeader ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` }} onClick={() => setShowFrameHeader((v) => !v)}>{showFrameHeader ? "on" : "off"}</button>
+                  </div>
+                  <div className="mt-2 border-t pt-2" style={{ borderColor: NEON.borderSoft }}>
+                    <div className="mb-1 text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>Lesson media · intro / outro / preview</div>
+                    {(() => { const lid = currentFrameId ? (rf.getNode(currentFrameId)?.parentId ?? null) : null; return lid
+                      ? <LessonMediaBar lessonId={lid} />
+                      : <p className="text-[10.5px] leading-snug" style={{ color: NEON.muted }}>Enter a frame first — the intro/outro attach to that frame's lesson.</p>; })()}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+          )}
+          <div className="relative">
+            <TB title="Canvas settings (JE width, default preset)" active={settingsOpen} onClick={() => setSettingsOpen((v) => !v)}>
+              <Settings2 className="h-3.5 w-3.5" />
+            </TB>
+            {settingsOpen && (
+              <div
+                className="absolute bottom-9 left-1/2 z-50 max-h-[75vh] w-52 -translate-x-1/2 overflow-y-auto rounded-xl p-2.5"
+                style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}
+              >
+                <label className="block text-[10px]" style={{ color: NEON.muted }}>
+                  JE card width · {jeCardWidth}px <span className="opacity-60">(all JE cards)</span>
+                  <input
+                    type="range"
+                    min={300}
+                    max={520}
+                    step={10}
+                    value={jeCardWidth}
+                    onChange={(e) => setJeCardWidth(Number(e.target.value))}
+                    className="mt-0.5 w-full"
+                    style={{ accentColor: NEON.yellow }}
+                  />
+                </label>
+                <label className="mt-1.5 block text-[10px]" style={{ color: NEON.muted }}>
+                  Credit indent · {jeIndent}px <span className="opacity-60">(tetris stagger)</span>
+                  <input
+                    type="range"
+                    min={16}
+                    max={64}
+                    step={4}
+                    value={jeIndent}
+                    onChange={(e) => setJeIndent(Number(e.target.value))}
+                    className="mt-0.5 w-full"
+                    style={{ accentColor: NEON.yellow }}
+                  />
+                </label>
+                <label className="mt-2 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: focusPalette ? NEON.yellow : NEON.muted }}>
+                  <input type="checkbox" checked={focusPalette} onChange={(e) => setFocusPalette(e.target.checked)} style={{ accentColor: "#FCA311" }} />
+                  Focus palette <span className="opacity-60">(trims CARDS to JE · T · Note)</span>
+                </label>
+                {/* INTRO AUTO-TRIM (publish pipeline) */}
+                <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Intro auto-trim</div>
+                <label className="mt-0.5 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: autoTrimIntros ? NEON.yellow : NEON.muted }}>
+                  <input type="checkbox" checked={autoTrimIntros} onChange={(e) => setAutoTrimIntros(e.target.checked)} style={{ accentColor: "#FCA311" }} />
+                  Auto-trim intro takes
+                </label>
+                <label className="mt-1 flex items-center justify-between text-[10px]" style={{ color: NEON.muted }}>
+                  <span>Intro clip length (s)</span>
+                  <input type="number" min={1} max={30} step={0.5} value={introClipLength} onChange={(e) => setIntroClipLength(Math.max(1, Number(e.target.value) || 6))} className="w-14 rounded px-1.5 py-0.5 text-right tabular-nums outline-none" style={{ background: "rgba(255,255,255,0.06)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} />
+                </label>
+                <RetrimAllIntrosButton />
+                {/* SPOTLIGHT (performance cursor) toggles */}
+                <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Spotlight</div>
+                <div className="mt-0.5 flex items-center justify-between text-[10px]" style={{ color: NEON.muted }}>
+                  <span>Focus-dim</span>
+                  <div className="flex gap-0.5">
+                    {(["auto", "on", "off"] as FocusDimMode[]).map((m) => (
+                      <button key={m} className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: spotFocusDim === m ? "#0B1322" : NEON.text, background: spotFocusDim === m ? NEON.yellow : "transparent", border: `1px solid ${NEON.borderSoft}` }} onClick={() => setSpotFocusDim(m)}>{m}</button>
+                    ))}
+                  </div>
+                </div>
+                {/* SPACE-WALK (film performance) toggles */}
+                <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Filming</div>
+                <label className="mt-0.5 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: spaceAdvancesFrames ? NEON.yellow : NEON.muted }}>
+                  <input type="checkbox" checked={spaceAdvancesFrames} onChange={(e) => setSpaceAdvancesFrames(e.target.checked)} style={{ accentColor: "#FCA311" }} />
+                  Spacebar also moves between frames <span className="opacity-60">(default off — arrows move frames; spacebar only runs the space-walk)</span>
+                </label>
+                <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: rehearsalHud ? NEON.yellow : NEON.muted }}>
+                  <input type="checkbox" checked={rehearsalHud} onChange={(e) => setRehearsalHud(e.target.checked)} style={{ accentColor: "#FCA311" }} />
+                  Rehearsal HUD <span className="opacity-60">(next-up when armed)</span>
+                </label>
+                <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: filmEntrancePop ? NEON.yellow : NEON.muted }}>
+                  <input type="checkbox" checked={filmEntrancePop} onChange={(e) => setFilmEntrancePop(e.target.checked)} style={{ accentColor: "#FCA311" }} />
+                  Entrance pop <span className="opacity-60">(dealt card scale-pop, film)</span>
+                </label>
+                <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: filmCheckGlow ? NEON.yellow : NEON.muted }}>
+                  <input type="checkbox" checked={filmCheckGlow} onChange={(e) => setFilmCheckGlow(e.target.checked)} style={{ accentColor: "#FCA311" }} />
+                  Check glow <span className="opacity-60">(hotter red Check gate, film)</span>
+                </label>
+                <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: compositionGuides ? NEON.yellow : NEON.muted }}>
+                  <input type="checkbox" checked={compositionGuides} onChange={(e) => setCompositionGuides(e.target.checked)} style={{ accentColor: "#FCA311" }} />
+                  Composition guides <span className="opacity-60">(center/thirds/fifths in a frame; hold Alt to bypass)</span>
+                </label>
+                <label className="mt-1 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: watermarkOn ? NEON.yellow : NEON.muted }}>
+                  <input type="checkbox" checked={watermarkOn} onChange={(e) => setWatermarkOn(e.target.checked)} style={{ accentColor: "#FCA311" }} />
+                  Watermark <span className="opacity-60">(Survive Accounting mark on the recording)</span>
+                </label>
+                {/* REVEAL & TRANSITION SOUNDS (Lee) — film-only cues: keypad (per-element),
+                    advance swoosh (every frame advance), cram launch (first CRAM frame).
+
+                    SOUND PRECEDENCE (ITEM 13 — the rule when the three sound places
+                    disagree). A cue is a chain of AND-gates in playSfx (sfx.ts): it is
+                    audible ONLY IF, in order:
+                      1. this GLOBAL "Mute all" is OFF  AND  prefers-reduced-motion is OFF
+                         → either one is a MASTER KILL: nothing plays, no matter what a
+                           per-frame 🔊 popover or a per-card 🔔/⌨ toggle says.
+                      2. this event's GLOBAL volume slider is > 0 (0 = silent everywhere
+                         for that event, again overriding any per-frame/per-card toggle).
+                      3. the firing SOURCE's own toggle is ON — the per-frame 🔊 popover
+                         (swoosh / cram-launch / keypad-on-entry) or the per-card toggle
+                         (CEQ 🔔 confirm / ⌨ keypad, Heading/Text ⌨ keypad). This only
+                         decides whether THAT source attempts the event; other sources of
+                         the same event are independent.
+                      4. we're in FILM/preview (every caller gates on film; silent while
+                         authoring).
+                    So: global mute/volume are the master switches; the per-frame and
+                    per-card toggles are per-source ENABLES, never volume overrides.
+                    "Global muted but a frame/card toggle on" → SILENT (global wins). */}
+                <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Sounds <span className="font-normal normal-case opacity-60">(film only)</span></div>
+                <label className="mt-0.5 flex cursor-pointer items-center gap-1.5 text-[10px]" style={{ color: sfx.muted ? NEON.yellow : NEON.muted }}>
+                  <input type="checkbox" checked={sfx.muted} onChange={(e) => setSfx((s) => ({ ...s, muted: e.target.checked }))} style={{ accentColor: "#FCA311" }} />
+                  Mute all <span className="opacity-60">(global)</span>
+                </label>
+                {([["keypad", "Keypad"], ["swoosh", "Advance swoosh"], ["cramLaunch", "Cram launch"], ["confirm", "Correct answer"], ["chaching", "Chaching (correct)"], ["vinylScratch", "Vinyl scratch"]] as const).map(([ev, label]) => {
+                  const custom = !!globalSfxFiles[ev];
+                  const busy = sfxUploading === ev;
+                  return (
+                    <div key={ev} className="mt-1.5 flex flex-col gap-1 rounded p-1" style={{ opacity: sfx.muted ? 0.4 : 1, border: `1px solid ${NEON.borderSoft}` }}>
+                      <div className="flex items-center gap-2 text-[10px]" style={{ color: NEON.muted }}>
+                        <span className="w-24 shrink-0">{label} <span className="tabular-nums" style={{ color: NEON.text }}>{Math.round(sfx.volume[ev] * 100)}</span></span>
+                        <input type="range" min={0} max={100} value={Math.round(sfx.volume[ev] * 100)} disabled={sfx.muted} className="flex-1 accent-current" onChange={(e) => { const v = Number(e.target.value) / 100; setSfx((s) => ({ ...s, volume: { ...s.volume, [ev]: v } })); if (v > 0 && !sfx.muted) playSfx(ev); }} title={`${label} volume (drag = preview)`} />
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[9px]" style={{ color: NEON.muted }}>
+                        <label className="cursor-pointer rounded px-1.5 py-0.5 font-bold uppercase tracking-wide" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} title="Upload your own sound file for this event — used in every scene and on every machine">
+                          {busy ? "Uploading…" : "Upload"}
+                          <input type="file" accept="audio/*" className="hidden" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadSfx(ev, f); e.target.value = ""; }} />
+                        </label>
+                        <span className="rounded px-1 py-0.5 uppercase tracking-wide" style={{ color: custom ? "#7CE7B0" : NEON.muted }}>{custom ? "custom" : "default"}</span>
+                        <button className="rounded px-1.5 py-0.5 font-bold uppercase tracking-wide" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => playSfx(ev)} title="Play this sound now">Test</button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {/* READ-TIME (PROMPT 3): riff multiplier + over-threshold seconds */}
+                <div className="mt-2 flex items-center gap-2 text-[10px]" style={{ color: NEON.muted }}>
+                  <span className="w-24 shrink-0">Riff × <span className="tabular-nums" style={{ color: NEON.text }}>{riffMultiplier.toFixed(1)}</span></span>
+                  <input type="range" min={10} max={40} value={Math.round(riffMultiplier * 10)} className="flex-1 accent-current" onChange={(e) => setRiffMultiplier(Number(e.target.value) / 10)} title="Talking-point time multiplier (money lines = 1×)" />
+                </div>
+                <div className="mt-1 flex items-center gap-2 text-[10px]" style={{ color: NEON.muted }}>
+                  <span className="w-24 shrink-0">Long frame &gt;</span>
+                  <input type="number" min={10} max={600} value={readTimeThreshold} className="w-16 rounded bg-black/30 px-1 py-0.5 text-[11px] tabular-nums outline-none" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} onChange={(e) => { const n = parseInt(e.target.value, 10); if (Number.isFinite(n) && n > 0) setReadTimeThreshold(n); }} />
+                  <span>s (storyboard flag)</span>
+                </div>
+                {/* CINEMATIC CAMERA (Lee) — speed + intensity for the per-frame pushes */}
+                <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>Cinematic camera</div>
+                <div className="mt-0.5 flex items-center gap-2 text-[10px]" style={{ color: NEON.muted }}>
+                  <span className="w-24 shrink-0">Push speed <span className="tabular-nums" style={{ color: NEON.text }}>{(cinePushMs / 1000).toFixed(1)}s</span></span>
+                  <input type="range" min={300} max={1600} step={100} value={cinePushMs} className="flex-1 accent-current" onChange={(e) => setCinePushMs(Number(e.target.value))} title="How fast the spotlight dolly eases" />
+                </div>
+                <div className="mt-1 flex items-center gap-2 text-[10px]" style={{ color: NEON.muted }}>
+                  <span className="w-24 shrink-0">Push intensity <span className="tabular-nums" style={{ color: NEON.text }}>{cinePushIntensity.toFixed(1)}×</span></span>
+                  <input type="range" min={5} max={15} value={Math.round(cinePushIntensity * 10)} className="flex-1 accent-current" onChange={(e) => setCinePushIntensity(Number(e.target.value) / 10)} title="How far the spotlight dolly pushes (capped so cards stay legible)" />
+                </div>
+                <div className="mt-1 flex items-center gap-2 text-[10px]" style={{ color: NEON.muted }}>
+                  <span className="w-24 shrink-0">Ambient drift <span className="tabular-nums" style={{ color: NEON.text }}>{(cineAmbientMs / 1000).toFixed(0)}s</span></span>
+                  <input type="range" min={4000} max={10000} step={500} value={cineAmbientMs} className="flex-1 accent-current" onChange={(e) => setCineAmbientMs(Number(e.target.value))} title="Ken-Burns push duration on frame entry" />
+                </div>
+                {/* AC1: backstage background — authoring only; film keeps the dark stage */}
+                <div className="mt-1.5 text-[10px]" style={{ color: NEON.muted }}>Backstage <span className="opacity-60">(authoring only)</span></div>
+                <div className="mt-0.5 flex gap-1">
+                  {(["cinema", "light", "dark", "gray"] as const).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setBackstage(m)}
+                      className="flex-1 rounded px-1 py-0.5 text-[9.5px] font-semibold"
+                      style={{ color: backstage === m ? NEON.yellow : NEON.muted, background: backstage === m ? "rgba(252,163,17,0.12)" : "transparent", border: `1px solid ${backstage === m ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` }}
+                    >
+                      {BACKSTAGE_LABEL[m]}
+                    </button>
+                  ))}
+                </div>
+                {/* SCENE COURSE CONTEXT (content reset): pickers scope to this */}
+                <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: sceneCourseId ? NEON.yellow : NEON.muted }}>Scene course</div>
+                <select
+                  value={sceneCourseId ?? ""}
+                  onChange={(e) => { setSceneCourseId(e.target.value || null); setSceneChapterId(null); }}
+                  className="mt-1 w-full rounded bg-black/40 px-1 py-1 text-[11px] outline-none"
+                  style={{ border: `1px solid ${sceneCourseId ? "rgba(252,163,17,0.5)" : NEON.borderSoft}`, color: NEON.text }}
+                >
+                  <option value="">— no course set —</option>
+                  {(coursesQuery.data ?? []).map((c) => (
+                    <option key={c.id} value={c.id}>{courseLabel(c)}</option>
+                  ))}
+                </select>
+                {sceneCourse && (
+                  <select
+                    value={sceneChapterId ?? ""}
+                    onChange={(e) => setSceneChapterId(e.target.value || null)}
+                    className="mt-1 w-full rounded bg-black/40 px-1 py-1 text-[11px] outline-none"
+                    style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+                  >
+                    <option value="">All lessons</option>
+                    {sceneCourse.chapters.map((ch) => (
+                      <option key={ch.id} value={ch.id}>{lessonLabelOf(ch)}</option>
+                    ))}
+                  </select>
+                )}
+                <div className="mt-1.5 flex gap-1.5">
+                  <button
+                    className="flex-1 rounded px-1 py-1 text-[10px] font-bold uppercase tracking-wide disabled:opacity-40"
+                    style={{ color: NEON.cyan, border: `1px solid rgba(79,163,227,0.45)` }}
+                    disabled={!sceneCourseId}
+                    title={sceneCourseId ? "Curate this course's account list" : "Set the scene course first"}
+                    onClick={() => { setManageAccountsOpen(true); setSettingsOpen(false); }}
+                  >
+                    Manage accounts
+                  </button>
+                  <button
+                    className="flex-1 rounded px-1 py-1 text-[10px] font-bold uppercase tracking-wide disabled:opacity-40"
+                    style={{ color: NEON.yellow, border: `1px solid rgba(252,163,17,0.45)` }}
+                    disabled={!sceneCourseId}
+                    title={sceneCourseId ? "Rename this course; add/rename/reorder/archive its lessons" : "Set the scene course first"}
+                    onClick={() => { setManageCourseOpen(true); setSettingsOpen(false); }}
+                  >
+                    Manage course
+                  </button>
+                </div>
+                {/* CUSTOM ACCOUNT ORDER (Lee) — reorder how accounts appear in
+                    COA-bound lists + pickers for this scene (within each type). */}
+                {sceneCourseId && coaGroups.length > 0 && (
+                  <div className="mt-1.5 border-t pt-1.5" style={{ borderColor: NEON.borderSoft }}>
+                    <button className="flex w-full items-center justify-between text-[10px] font-bold uppercase tracking-wide" style={{ color: coaOrderOpen ? NEON.yellow : NEON.muted }} onClick={() => setCoaOrderOpen((v) => !v)}>
+                      <span>Account order</span>
+                      {coaOrderOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                    </button>
+                    {coaOrderOpen && (
+                      <div className="mt-1 max-h-[42vh] space-y-1.5 overflow-y-auto">
+                        <p className="text-[9px] leading-snug" style={{ color: NEON.muted }}>Reorder within each type — COA-bound lists (without their own order) and the account pickers follow this.</p>
+                        {coaGroups.map((g) => (
+                          <div key={g.label}>
+                            <div className="px-0.5 text-[8.5px] font-bold uppercase tracking-wide" style={{ color: NEON.cyan }}>{g.label}</div>
+                            {g.accounts.map((a, i) => (
+                              <div key={a.name} className="flex items-center gap-1 py-px text-[10px]">
+                                <span className="min-w-0 flex-1 truncate" style={{ color: NEON.text }} title={a.name}>{a.name}</span>
+                                <button disabled={i === 0} className="grid h-4 w-4 place-items-center rounded disabled:opacity-30" style={{ color: NEON.muted }} title="Move up" onClick={() => moveCoaAccount(a.name, -1)}><ChevronUp className="h-3 w-3" /></button>
+                                <button disabled={i === g.accounts.length - 1} className="grid h-4 w-4 place-items-center rounded disabled:opacity-30" style={{ color: NEON.muted }} title="Move down" onClick={() => moveCoaAccount(a.name, 1)}><ChevronDown className="h-3 w-3" /></button>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                        {coaOrder.length > 0 && (
+                          <button className="mt-0.5 w-full rounded px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setCoaOrder([])}>Reset to alphabetical</button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* PREP FOR FILMING (PROMPT C): duplicate the master first,
+                    then run this on the copy — hide-all + tuck-all, one undo */}
+                <button
+                  className="mt-1.5 w-full rounded px-1 py-1 text-[10px] font-bold uppercase tracking-wide"
+                  style={{ color: NEON.yellow, border: "1px solid rgba(252,163,17,0.45)" }}
+                  title="Hide every card's reveals + tuck all deck members (one undo step). Duplicate the scene first to keep the master."
+                  onClick={() => { prepForFilming(); setSettingsOpen(false); }}
+                >
+                  Prep for filming
+                </button>
+                {/* CLEAR SCENE — the old "+" semantics, now explicit and guarded */}
+                <button
+                  className="mt-1.5 w-full rounded px-1 py-1 text-[10px] font-bold uppercase tracking-wide"
+                  style={{ color: NEON.red, border: "1px solid rgba(255,92,122,0.45)" }}
+                  title="Reset this tab to a blank untitled scene"
+                  onClick={() => {
+                    if (window.confirm("Clear this scene? The canvas resets to a blank untitled scene (saved scenes are untouched).")) {
+                      clearCanvasState();
+                      setSettingsOpen(false);
+                    }
+                  }}
+                >
+                  Clear scene
+                </button>
+                {/* PREVIEW STUDENT — template-variable substitution source */}
+                <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }} title="Substitutes {first_name} etc. in headings/text. Live student data arrives with World v1.">
+                  Preview student
+                </div>
+                {TOKEN_KEYS.map((k) => (
+                  <label key={k} className="mt-1 flex items-center gap-1 text-[9.5px]" style={{ color: NEON.muted }}>
+                    <span className="w-20 shrink-0 truncate">{k}</span>
+                    <input
+                      className="min-w-0 flex-1 rounded bg-black/30 px-1.5 py-0.5 text-[11px] outline-none"
+                      style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+                      value={previewStudent[k]}
+                      onChange={(e) => patchPreview(k, e.target.value)}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    />
+                  </label>
+                ))}
+                <div className="mt-2 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>New-JE mode</div>
+                <div className="mt-1 flex gap-1">
+                  {(["guided", "practice"] as const).map((p) => (
+                    <button
+                      key={p}
+                      className="flex-1 rounded px-1 py-0.5 text-[9.5px] font-bold uppercase"
+                      style={{
+                        color: jePreset === p ? NEON.yellow : NEON.muted,
+                        border: `1px solid ${jePreset === p ? "rgba(252,163,17,0.5)" : NEON.borderSoft}`,
+                        background: jePreset === p ? "rgba(252,163,17,0.12)" : "transparent",
+                      }}
+                      onClick={() => setJePreset(p)}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
           {savedAt && <span className="pl-1 text-[10px]" style={{ color: NEON.muted }}>saved {savedAt}</span>}
         </div>
       )}
 
-      {/* hotkey hint */}
+      {/* SCENE TABS — bottom-left; drag the strip to scroll when overflowing */}
       {chrome && (
-        <div className="absolute bottom-3 left-1/2 z-30 -translate-x-1/2 rounded-full px-3 py-1 text-[10.5px]" style={{ background: "rgba(0,0,0,0.45)", color: NEON.muted }}>
-          space = reveal next · h = hide all (selected card) · f = focus · dbl-click = zoom card · Esc = full view · c = clean screen
-        </div>
-      )}
-
-      {/* fail-loud banner: scenes table missing / server down */}
-      {dbDown && chrome && (
-        <div className="absolute left-1/2 top-16 z-50 -translate-x-1/2 rounded-lg px-3 py-1.5 text-[12px] font-semibold" style={{ background: "rgba(255,92,122,0.15)", border: `1px solid ${NEON.red}`, color: NEON.red }}>
-          Scene DB unavailable — {dbDown}. Falling back to localStorage.
-        </div>
-      )}
-
-      {/* Bottom tray — minimized cards */}
-      {chrome && trayCards.length > 0 && (
-        <div className="absolute bottom-3 left-3 z-40 flex max-w-[60vw] flex-wrap gap-1.5">
-          {trayCards.map((n) => {
-            const d = n.data as unknown as CardData;
+        <div
+          className="absolute bottom-3 left-3 z-40 flex max-w-[30vw] cursor-grab items-center gap-1 overflow-x-auto rounded-xl px-1.5 py-1 active:cursor-grabbing"
+          style={{ background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", scrollbarWidth: "none" }}
+          onMouseDown={(e) => {
+            const el = e.currentTarget;
+            const startX = e.clientX;
+            const startLeft = el.scrollLeft;
+            const move = (ev: MouseEvent) => { el.scrollLeft = startLeft - (ev.clientX - startX); };
+            const up = () => { window.removeEventListener("mousemove", move); window.removeEventListener("mouseup", up); };
+            window.addEventListener("mousemove", move);
+            window.addEventListener("mouseup", up);
+          }}
+        >
+          {tabState.tabs.map((t) => {
+            const active = t.key === tabState.active;
             return (
-              <button
-                key={n.id}
-                className="rounded-md px-2 py-1 text-[11px] font-semibold"
-                style={{ background: NEON.panelSolid, color: NEON.pinkSoft, border: `1px solid ${NEON.border}` }}
-                onClick={() => rf.updateNodeData(n.id, { minimized: false })}
-                title="Restore card"
+              <div
+                key={t.key}
+                className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-0.5 text-[11px]"
+                style={{
+                  background: active ? "rgba(252,163,17,0.14)" : "transparent",
+                  border: `1px solid ${active ? "rgba(252,163,17,0.5)" : "transparent"}`,
+                  color: active ? NEON.yellow : NEON.muted,
+                  cursor: "pointer",
+                }}
+                title={active ? sceneName : t.name}
+                onClick={() => switchTab(t.key)}
               >
-                ▸ {d.title || d.kind}
-              </button>
+                <span className="max-w-[110px] truncate font-semibold">{active ? sceneName : t.name}</span>
+                {t.dirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: NEON.yellow }} title="Unsaved changes" />}
+                <button className="shrink-0 opacity-60 hover:opacity-100" title="Close tab" onClick={(e) => { e.stopPropagation(); closeTab(t.key); }}>
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
             );
           })}
         </div>
       )}
 
-      {/* Load dialog */}
-      {loadOpen && (
-        <div className="absolute inset-0 z-50 grid place-items-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setLoadOpen(false)}>
-          <div className="max-h-[70vh] w-96 overflow-y-auto rounded-xl p-3" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
-            <div className="mb-2 text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.pink }}>Load scene</div>
-            {scenes.length === 0 && <p className="text-[12px] italic" style={{ color: NEON.muted }}>No saved scenes yet.</p>}
-            <div className="space-y-1">
-              {scenes.map((s) => (
-                <div key={s.id} className="flex items-center gap-2 rounded-md px-2 py-1.5" style={{ border: `1px solid ${NEON.borderSoft}` }}>
-                  <button
-                    className="min-w-0 flex-1 truncate text-left text-[12.5px] font-medium hover:underline"
-                    onClick={async () => {
-                      const row = await loadScene({ data: { id: s.id } });
-                      applyScene(row, row.id);
-                      setLoadOpen(false);
-                    }}
-                  >
-                    {s.name}
-                  </button>
-                  <span className="text-[10px]" style={{ color: NEON.muted }}>{new Date(s.updated_at).toLocaleString()}</span>
-                  <button
-                    className="text-[10px]"
-                    style={{ color: NEON.red }}
-                    title="Delete scene"
-                    onClick={async () => {
-                      await deleteScene({ data: { id: s.id } });
-                      setScenes((xs) => xs.filter((x) => x.id !== s.id));
-                      if (sceneId === s.id) setSceneId(null);
-                    }}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
+      {/* the persistent hotkey strip is GONE — "?" owns the cheat sheet */}
+
+      {/* "?" cheat sheet — rendered from the keymap registry */}
+      {helpOpen && <KeymapOverlay bindings={bindings} onClose={() => setHelpOpen(false)} />}
+
+      {/* AC4: CUE SHEET — the entered frame's derived space-walk sequence (authoring).
+          Popped out it lives in a 2nd-monitor window (ungated by chrome → stays
+          live in film); in-canvas we leave a placeholder chip to bring it back. */}
+      {cueSheetOpen && currentFrameId && isPopped("cuesheet") && (
+        <PanelPopout win={popWins.cuesheet!} title="Cue sheet" onReturn={() => returnPop("cuesheet")}>
+          <CueSheet frameId={currentFrameId} inPopout onClose={() => setCueSheetOpen(false)} recording={cueRecording} onToggleRecord={toggleRecord} />
+        </PanelPopout>
+      )}
+      {chrome && cueSheetOpen && currentFrameId && !isPopped("cuesheet") && (
+        <CueSheet frameId={currentFrameId} onClose={() => setCueSheetOpen(false)} onPopOut={() => openPop("cuesheet")} recording={cueRecording} onToggleRecord={toggleRecord} />
+      )}
+      {chrome && cueSheetOpen && isPopped("cuesheet") && (
+        <PopoutPlaceholder title="Cue sheet" onReturn={() => returnPop("cuesheet")} style={{ top: 12, right: 12 }} />
+      )}
+
+      {/* STORYBOARD (Phase 4) — bird's-eye board of frames in film order; click to enter. */}
+      {chrome && storyboardOpen && (
+        <Storyboard
+          onClose={() => setStoryboardOpen(false)}
+          timing={{ riff: riffMultiplier }}
+          threshold={readTimeThreshold}
+          onOpenScript={() => { setStoryboardOpen(false); setScriptOpen(true); }}
+          onRehearse={(fid) => startRehearsal(fid)}
+        />
+      )}
+
+      {/* VISUAL MIX (Phase 8) — read-only lesson summary; changes nothing. */}
+      {chrome && visualMixOpen && (
+        <VisualMixPanel
+          lessonId={currentFrameId ? (rf.getNode(currentFrameId)?.parentId ?? null) : null}
+          onClose={() => setVisualMixOpen(false)}
+          riff={riffMultiplier}
+        />
+      )}
+
+      {/* SCRIPT EDITOR — the whole course script in one modal (authoring only) */}
+      {chrome && scriptOpen && (
+        <ScriptEditor
+          courseName={(sceneCourse ? courseLabel(sceneCourse) : null) ?? sceneName ?? "Course"}
+          currentFrameId={currentFrameId}
+          onClose={() => setScriptOpen(false)}
+          statusCell={(fid) => <TakeBoardCell frameId={fid} />}
+          lessonControl={(lessonId) => <LessonPublishControl lessonId={lessonId} courseName={sceneCourse ? courseLabel(sceneCourse) : null} />}
+          onOpenFrameNav={(fid) => { setScriptOpen(false); enterFrame(fid); setShowFrameHeader(true); }}
+        />
+      )}
+
+      {/* SCRIPT-IN-PLACE — the current frame's script docked beside its visual
+          (same data as the modal + teleprompter). Pops to a window like the
+          teleprompter. Only while inside a frame. */}
+      {scriptDock && currentFrameId && !isPopped("script") && (
+        <FrameScriptDock frameId={currentFrameId} onClose={() => setScriptDock(false)} onPopOut={() => openPop("script", 420, 640)} cramMode={cramMode} />
+      )}
+      {isPopped("script") && (
+        <PanelPopout win={popWins.script!} title="Script" onReturn={() => returnPop("script")}>
+          <FrameScriptDockBody frameId={currentFrameId} cramMode={cramMode} />
+        </PanelPopout>
+      )}
+
+      {/* RUN TIMER — the F9 run clock on the director's 2nd monitor. It is a
+          SEPARATE window, so an OBS Window Capture of the MAIN canvas never sees
+          it: the big elapsed time, current CEQ number and 3:00 colour shift stay
+          off-stage. Renders whenever the popout is open (even between runs). */}
+      {isPopped("runtimer") && (
+        <PanelPopout win={popWins.runtimer!} title="Run timer" onReturn={() => returnPop("runtimer")}>
+          <RunTimerBody
+            elapsedMs={runElapsed}
+            ceqN={Math.min(runCeqTotal || 999, runEvents.filter((e) => e.kind === "resolve").length + 1)}
+            ceqTotal={runCeqTotal}
+          />
+        </PanelPopout>
+      )}
+
+      {/* OUTLINE v2 landscape popout (prompt 4) — the navigator on the 2nd monitor,
+          off OBS Window Capture of the main canvas; still live (same node store). */}
+      {isPopped("outline") && (
+        <PanelPopout win={popWins.outline!} title="Outline" onReturn={() => returnPop("outline")}>
+          <div style={{ padding: 8 }}><OutlinePanel /></div>
+        </PanelPopout>
+      )}
+
+      {/* TELEPROMPTER — author-only, works in authoring AND film; `p` toggles.
+          Never a student surface: it's an overlay on Lee's filming canvas.
+          Popped out → the reason this whole feature exists: a big-type reader on
+          the 2nd monitor near the lens, off-stage for OBS, live-following nav. */}
+      {prompter && isPopped("teleprompter") && (
+        <PanelPopout win={popWins.teleprompter!} title="Teleprompter" onReturn={() => returnPop("teleprompter")}>
+          <TeleprompterPopout frameId={currentFrameId} />
+        </PanelPopout>
+      )}
+      {prompter && !isPopped("teleprompter") && (
+        <TeleprompterOverlay
+          frameId={currentFrameId}
+          corner={prompterCorner}
+          onCorner={setPrompterCorner}
+          onClose={() => setPrompter(false)}
+          onPopOut={() => openPop("teleprompter", 720, 540)}
+        />
+      )}
+      {chrome && prompter && isPopped("teleprompter") && (
+        <PopoutPlaceholder title="Teleprompter" onReturn={() => returnPop("teleprompter")} style={{ top: 12, left: "50%", transform: "translateX(-50%)" }} />
+      )}
+
+
+      {/* snap/composition guides — brand-gold lines while a drag aligns. Weight
+          sets the treatment: frame CENTER strongest → FIFTHS lightest; SAFE dashed. */}
+      {guides.v.map((g, i) => { const s = guideStyle(g.weight); return (
+        <div key={`gv${i}-${g.pos}`} className="pointer-events-none absolute z-[45]" style={{ left: g.pos, top: 0, bottom: 0, width: s.thick, background: s.solid, borderLeft: s.dash, opacity: s.opacity }} />
+      ); })}
+      {guides.h.map((g, i) => { const s = guideStyle(g.weight); return (
+        <div key={`gh${i}-${g.pos}`} className="pointer-events-none absolute z-[45]" style={{ top: g.pos, left: 0, right: 0, height: s.thick, background: s.solid, borderTop: s.dash, opacity: s.opacity }} />
+      ); })}
+
+      {/* snapshot restore confirm */}
+      {confirmSnap && (
+        <div className="absolute inset-0 grid place-items-center" style={{ background: "rgba(0,0,0,0.6)", zIndex: Z.modal }} onClick={() => setConfirmSnap(null)}>
+          <div className="w-80 rounded-xl p-4" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
+            <p className="text-[12.5px]">
+              Replace the current canvas with the snapshot from{" "}
+              <b className="tabular-nums">{new Date(confirmSnap.taken_at).toLocaleString()}</b>? Ctrl+Z brings the current state back.
+            </p>
+            <div className="mt-3 flex justify-end gap-2">
+              <button className="rounded px-2.5 py-1 text-[11.5px] font-semibold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setConfirmSnap(null)}>
+                cancel
+              </button>
+              <button
+                className="rounded px-2.5 py-1 text-[11.5px] font-bold"
+                style={{ color: NEON.yellow, border: "1px solid rgba(252,163,17,0.5)", background: "rgba(252,163,17,0.12)" }}
+                onClick={() => {
+                  void restoreSnapshot(confirmSnap.id);
+                  setConfirmSnap(null);
+                  setLoadOpen(false);
+                }}
+              >
+                restore
+              </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* two-tab guard banner */}
+      {tabConflict && chrome && (
+        <div className="absolute left-1/2 top-16 z-50 -translate-x-1/2 rounded-lg px-3 py-1.5 text-[12px] font-semibold" style={{ background: "rgba(252,163,17,0.15)", border: `1px solid ${NEON.yellow}`, color: NEON.yellow }}>
+          This scene is open in another tab — autosave paused here (manual Save still works).
+        </div>
+      )}
+
+      {/* import diff preview */}
+      {importPreview && (
+        <div className="absolute inset-0 grid place-items-center" style={{ background: "rgba(0,0,0,0.6)", zIndex: Z.modal }} onClick={() => setImportPreview(null)}>
+          <div className="w-96 rounded-xl p-4" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>Import preview</div>
+            {importPreview.error ? (
+              <p className="text-[12px]" style={{ color: NEON.red }}>{importPreview.error}</p>
+            ) : (
+              <>
+                <p className="text-[12.5px]">
+                  “{importPreview.name}” brings <b>{importPreview.incomingTotal}</b> cards
+                  {Object.entries(importPreview.incomingByKind).map(([k, n]) => ` · ${n} ${k}`).join("")}
+                </p>
+                <p className="mt-1.5 text-[11.5px]" style={{ color: NEON.muted }}>
+                  Applying REPLACES the current canvas ({rf.getNodes().filter((n) => !isContainerType(n.type)).length} cards). The imported scene
+                  arrives unsaved — hit Save to keep it. Your DB scenes are untouched until then.
+                </p>
+              </>
+            )}
+            <div className="mt-3 flex justify-end gap-2">
+              <button className="rounded px-2.5 py-1 text-[11.5px] font-semibold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setImportPreview(null)}>
+                cancel
+              </button>
+              {!importPreview.error && (
+                <button
+                  className="rounded px-2.5 py-1 text-[11.5px] font-bold"
+                  style={{ color: NEON.yellow, border: "1px solid rgba(252,163,17,0.5)", background: "rgba(252,163,17,0.12)" }}
+                  onClick={() => {
+                    applyScene(importPreview.payload, null);
+                    setImportPreview(null);
+                  }}
+                >
+                  apply import
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DUPLICATE FRAME dialog (PROMPT 1) — pick a target lesson + beat */}
+      {dupFrameFor && <DuplicateFrameDialog frameId={dupFrameFor} onClose={() => setDupFrameFor(null)} onDuplicate={(fid, dest) => duplicateFrame(fid, dest)} />}
+
+      {/* FRAME REARRANGE GRID ("r") — big-picture full grid: drag to reorder (reflow),
+          copy a frame + paste into an empty slot, + new frames in any beat. */}
+      {rearrangeOpen && (() => {
+        const lid = (currentFrameId ? rf.getNode(currentFrameId)?.parentId : null) ?? lastLessonRef.current ?? rf.getNodes().find((n) => n.type === "lesson" && !n.parentId)?.id ?? null;
+        if (!lid) { flashToast("No lesson to rearrange — open a lesson first"); return null; }
+        const frames = rf.getNodes().filter((n) => n.type === "frame" && n.parentId === lid);
+        const label = (rf.getNode(lid)?.data as { label?: string } | undefined)?.label ?? "Lesson";
+        return (
+          <FrameRearrangeGrid
+            lessonId={lid}
+            lessonLabel={label}
+            frames={frames as never}
+            currentFrameId={currentFrameId}
+            copiedFrameId={copiedFrameId}
+            onEnter={(fid) => enterFrame(fid)}
+            onMoveToFrame={(src, dest) => moveFrameToFrame(src, dest)}
+            onMoveToBeat={(src, beat) => moveFrameToBeat(src, beat)}
+            onCreate={(beat) => createFrameInBeat(lid, beat)}
+            onCopy={(fid) => { setCopiedFrameId(fid); flashToast("Frame copied — paste it into an empty slot"); }}
+            onPaste={(beat) => { if (copiedFrameId) duplicateFrame(copiedFrameId, { lessonId: lid, beat }); }}
+            onClose={() => setRearrangeOpen(false)}
+          />
+        );
+      })()}
+
+      {/* SNIPPET right-click menu (PROMPT 2) */}
+      {snipMenu && (
+        <>
+          <div className="fixed inset-0 z-[75]" onClick={() => setSnipMenu(null)} onContextMenu={(e) => { e.preventDefault(); setSnipMenu(null); }} />
+          <div className="fixed z-[76] overflow-hidden rounded-lg py-1 text-[12px]" style={{ left: snipMenu.x, top: snipMenu.y, background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text, boxShadow: "0 12px 30px -12px rgba(0,0,0,0.7)" }}>
+            <button className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left hover:bg-white/5" onClick={() => openSnippetSave(snipMenu.ids)}>
+              <Layers className="h-3.5 w-3.5" style={{ color: NEON.pink }} /> Save as snippet{snipMenu.ids.length > 1 ? ` (${snipMenu.ids.length} cards)` : ""}
+            </button>
+            <button className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left hover:bg-white/5" onClick={() => { toggleLockIds(snipMenu.ids); setSnipMenu(null); }}>
+              <Lock className="h-3.5 w-3.5" style={{ color: NEON.yellow }} /> {rf.getNodes().some((n) => snipMenu.ids.includes(n.id) && !(n.data as { posLock?: boolean }).posLock) ? "Lock" : "Unlock"}{snipMenu.ids.length > 1 ? ` (${snipMenu.ids.length})` : ""}
+            </button>
+            <button className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left hover:bg-white/5" onClick={() => { nudgeLayer(snipMenu.ids, 1); setSnipMenu(null); }}>
+              <span className="w-3.5 text-center font-black" style={{ color: NEON.cyan }}>↑</span> Bring forward
+            </button>
+            <button className="flex w-full items-center gap-1.5 px-3 py-1.5 text-left hover:bg-white/5" onClick={() => { nudgeLayer(snipMenu.ids, -1); setSnipMenu(null); }}>
+              <span className="w-3.5 text-center font-black" style={{ color: NEON.cyan }}>↓</span> Send backward
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* SNIPPET save dialog (PROMPT 2) — name it */}
+      {snipSaveIds && (
+        <div className="absolute inset-0 z-[70] grid place-items-center" style={{ background: "rgba(0,0,0,0.6)" }} onClick={() => setSnipSaveIds(null)}>
+          <form
+            className="w-80 max-w-[92vw] rounded-xl p-4"
+            style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }}
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => { e.preventDefault(); void commitSnippetSave(snipName); }}
+          >
+            <div className="mb-2 flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.pink }}><Layers className="h-3.5 w-3.5" /> Save as snippet</div>
+            <input
+              autoFocus
+              value={snipName}
+              onChange={(e) => setSnipName(e.target.value)}
+              onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Escape") setSnipSaveIds(null); }}
+              placeholder="e.g. Adjusting stub"
+              className="w-full rounded bg-black/30 px-2 py-1 text-[13px] outline-none"
+              style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+            />
+            <p className="mt-1 text-[10px]" style={{ color: NEON.muted }}>{snipSaveIds.length} card{snipSaveIds.length === 1 ? "" : "s"} + layout · usable in any scene.</p>
+            <div className="mt-3 flex justify-end gap-2">
+              <button type="button" className="rounded px-2.5 py-1 text-[11px] font-semibold" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.muted }} onClick={() => setSnipSaveIds(null)}>Cancel</button>
+              <button type="submit" disabled={!snipName.trim()} className="rounded px-2.5 py-1 text-[11px] font-bold disabled:opacity-40" style={{ background: NEON.pink, color: "#0B1322" }}>Save</button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* GRID BY TYPE (ITEM 4) — read-only projection overlay. */}
+      {chrome && gridByType && <LessonGridView onClose={() => setGridByType(false)} onActivateLesson={setActiveLesson} />}
+      {/* CEQ STUDIO (prompt 5) — three-pane authoring overlay (sets · questions +
+          chains · memo library). Reuses named decks + CEQ cards + prompt-1 chains. */}
+      {chrome && ceqStudioOpen && !isPopped("ceqstudio") && <CeqStudio decks={decks} setDecks={setDecks} globalClips={globalClips} setGlobalClips={setGlobalClips} initialCeqId={studioFocusCeq} initialSetId={studioFocusSet} onPopOut={() => openPop("ceqstudio", 1180, 800)} onClose={() => { setCeqStudioOpen(false); setStudioFocusCeq(null); setStudioFocusSet(null); }} />}
+      {isPopped("ceqstudio") && (
+        <PanelPopout win={popWins.ceqstudio!} title="Studio" onReturn={() => returnPop("ceqstudio")}>
+          <CeqStudio decks={decks} setDecks={setDecks} globalClips={globalClips} setGlobalClips={setGlobalClips} initialCeqId={studioFocusCeq} initialSetId={studioFocusSet} popped onClose={() => { returnPop("ceqstudio"); setCeqStudioOpen(false); setStudioFocusCeq(null); setStudioFocusSet(null); }} />
+        </PanelPopout>
+      )}
+
+      {/* BRANDING STUDIO — the reusable brand-frame gallery behind the Branding Portal. */}
+      {chrome && brandingOpen && <BrandingStudio onClose={() => setBrandingOpen(false)} />}
+
+      {/* MEMO LIBRARY — right drawer, opened from the outline's MEMOS entry (not default). */}
+      {chrome && !chromeV1 && memosOpen && (
+        <div className="fixed bottom-0 right-0 top-11 z-[75] flex w-[320px] flex-col" style={{ background: "rgba(9,14,26,0.97)", borderLeft: `1px solid ${NEON.borderSoft}` }}>
+          <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
+            <span className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: "#F0B24A" }}>Memo Library</span>
+            <button onClick={() => setMemosOpen(false)} className="grid h-6 w-6 place-items-center rounded hover:bg-white/10" style={{ color: NEON.muted }} title="Close"><X className="h-4 w-4" /></button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-hidden"><MemoLibraryPanel /></div>
+        </div>
+      )}
+
+      {/* NEW LESSON (ITEM 3) — pick type + topic, then scaffold ordinary frames. */}
+      {newLessonOpen && (
+        <div className="absolute inset-0 grid place-items-center" style={{ background: "rgba(0,0,0,0.6)", zIndex: Z.modal }} onClick={() => setNewLessonOpen(false)}>
+          <div className="w-96 max-w-[92vw] rounded-xl p-4" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>New lesson</div>
+            <div className="text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>category</div>
+            <div className="mt-1 grid grid-cols-2 gap-1">
+              {LESSON_CATEGORIES.map((t) => {
+                const on = newLessonCategory === t;
+                const scaffoldHint = t === "CEQ" ? "Hook Intro · CEQ Hook · CEQ Run · Outro" : t === "TEACH" ? "Hook · Teach · Model · Cram" : "one placeholder frame";
+                return (
+                  <button key={t} className="rounded px-2 py-1 text-left" style={{ border: `1px solid ${on ? NEON.yellow : NEON.borderSoft}`, background: on ? "rgba(252,163,17,0.12)" : "transparent" }} onClick={() => setNewLessonCategory(t)}>
+                    <div className="text-[11px] font-bold" style={{ color: on ? NEON.yellow : NEON.text }}>{LESSON_CATEGORY_LABEL[t]}</div>
+                    <div className="text-[8.5px] normal-case" style={{ color: NEON.muted }}>{scaffoldHint}</div>
+                  </button>
+                );
+              })}
+            </div>
+            {newLessonCategory === "CEQ" && (
+              <div className="mt-1 text-[8.5px] normal-case" style={{ color: NEON.muted }}>CEQ videos are Free or Paid — set that on the lesson's access badge after creating.</div>
+            )}
+            <label className="mt-3 block text-[9.5px] font-bold uppercase tracking-wider" style={{ color: NEON.muted }}>
+              topic
+              <input
+                autoFocus
+                className="mt-0.5 w-full rounded bg-black/30 px-2 py-1 text-[12px] font-normal normal-case outline-none"
+                style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+                placeholder="groups sibling lessons into a row (also the lesson label)"
+                value={newLessonTopic}
+                onChange={(e) => setNewLessonTopic(e.target.value)}
+                onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter") createTypedLesson(); }}
+              />
+            </label>
+            <div className="mt-3 flex justify-end gap-2">
+              <button className="rounded px-2.5 py-1 text-[11.5px] font-semibold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setNewLessonOpen(false)}>
+                cancel
+              </button>
+              <button
+                className="rounded px-2.5 py-1 text-[11.5px] font-bold"
+                style={{ color: NEON.yellow, border: "1px solid rgba(252,163,17,0.5)", background: "rgba(252,163,17,0.12)" }}
+                onClick={createTypedLesson}
+              >
+                create lesson
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manage accounts (course COA curation) */}
+      {manageAccountsOpen && sceneCourseId && (
+        <ManageAccountsDialog
+          courseId={sceneCourseId}
+          courseName={sceneCourse ? courseLabel(sceneCourse) : "Course"}
+          onClose={() => setManageAccountsOpen(false)}
+        />
+      )}
+
+      {/* Manage course (course structure cleanup — rename + chapter CRUD/reorder) */}
+      {manageCourseOpen && sceneCourseId && (
+        <ManageCourseDialog
+          courseId={sceneCourseId}
+          courseName={sceneCourse ? courseLabel(sceneCourse) : "Course"}
+          onClose={() => setManageCourseOpen(false)}
+        />
+      )}
+
+      {/* fail-loud banner: content-reset migration not applied */}
+      {contentResetMissing && chrome && (
+        <div className="absolute left-1/2 top-16 -translate-x-1/2 rounded-lg px-3 py-1.5 text-[12px] font-semibold" style={{ background: "rgba(255,92,122,0.15)", border: `1px solid ${NEON.red}`, color: NEON.red, zIndex: Z.toast }}>
+          Scenario lifecycle columns missing — run migration/supabase-migrations/0087_content_reset.sql in the Supabase SQL editor.
+        </div>
+      )}
+
+      {/* fail-loud banner: scenes table missing / server down */}
+      {dbDown && chrome && (
+        <div className="absolute left-1/2 top-16 -translate-x-1/2 rounded-lg px-3 py-1.5 text-[12px] font-semibold" style={{ background: "rgba(255,92,122,0.15)", border: `1px solid ${NEON.red}`, color: NEON.red, zIndex: Z.toast }}>
+          Scene DB unavailable — {dbDown}. Falling back to localStorage.
+        </div>
+      )}
+
+      {/* Reset… scope picker — Canvas (rebuild the 4 brand frames) · CEQ (un-deal cards) ·
+          Both. All NON-destructive to CEQ data; Ctrl+Z undoes any of them. */}
+      {resetScopeOpen && (
+        <div className="absolute inset-0 grid place-items-center" style={{ background: "rgba(0,0,0,0.6)", zIndex: Z.modal }} onClick={() => setResetScopeOpen(false)}>
+          <div className="w-[440px] rounded-xl p-4" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 44px -16px rgba(0,0,0,0.75)" }} onClick={(e) => e.stopPropagation()}>
+            <div className="mb-1 text-[13px] font-black" style={{ color: NEON.text }}>Reset…</div>
+            <p className="mb-3 text-[11px] leading-snug" style={{ color: NEON.muted }}>Pick what to reset. Your CEQ sets, questions, chains and memos are <b style={{ color: NEON.text }}>always kept</b>. Ctrl+Z undoes any reset.</p>
+            {[
+              { scope: "canvas" as const, title: "Just the canvas", desc: "Rebuild the 4 brand frames (Intro · CEQ Hook · CEQ Portal · Outro) in “Start Here”. Every other frame and all content is left untouched." },
+              { scope: "ceq" as const, title: "Just the CEQs", desc: "Un-deal all CEQ cards from the canvas back into their sets. Keeps every set/question/chain/memo — re-deal any time from the Studio." },
+              { scope: "both" as const, title: "Both", desc: "Rebuild the 4 brand frames AND un-deal all CEQ cards." },
+            ].map((o) => (
+              <button key={o.scope} className="mb-1.5 flex w-full flex-col rounded-lg px-3 py-2 text-left transition-colors" style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(255,255,255,0.02)" }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(252,163,17,0.10)")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")}
+                onClick={() => { setResetScopeOpen(false); runReset(o.scope); }}>
+                <span className="text-[12px] font-bold" style={{ color: NEON.yellow }}>{o.title}</span>
+                <span className="text-[10.5px] leading-snug" style={{ color: NEON.muted }}>{o.desc}</span>
+              </button>
+            ))}
+            <div className="mt-1 flex justify-end">
+              <button className="rounded px-2.5 py-1 text-[11.5px] font-semibold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setResetScopeOpen(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Load dialog — scenes grouped by FOLDER (= course groups, 0088) */}
+      {loadOpen && (
+        <div className="absolute inset-0 grid place-items-center" style={{ background: "rgba(0,0,0,0.6)", zIndex: Z.modal }} onClick={() => setLoadOpen(false)}>
+          <div className="max-h-[75vh] w-[430px] overflow-y-auto rounded-xl p-3" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 flex items-center gap-2">
+              <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.pink }}>Load scene</span>
+              <input
+                className="ml-auto w-32 rounded bg-black/30 px-1.5 py-0.5 text-[10.5px] outline-none"
+                style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+                placeholder="New folder…"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === "Enter" && newFolderName.trim()) {
+                    void createFolder({ data: { name: newFolderName.trim() } })
+                      .then(() => { setNewFolderName(""); void qcFolders(); })
+                      .catch((err) => setFoldersError(err instanceof Error ? err.message : String(err)));
+                  }
+                }}
+              />
+            </div>
+            {foldersError && <p className="mb-2 rounded px-2 py-1 text-[11px]" style={{ color: NEON.red, border: "1px solid rgba(255,92,122,0.4)" }}>{foldersError}</p>}
+            {scenes.length === 0 && <p className="text-[12px] italic" style={{ color: NEON.muted }}>No saved scenes yet.</p>}
+            {[...(folders ?? []), { id: null as string | null, name: "Unfiled", course_id: null, sort: 9999 }].map((f) => {
+              const inFolder = scenes.filter((s) => (s.folder_id ?? null) === f.id);
+              const fkey = f.id ?? "__unfiled__";
+              const isCollapsed = collapsedFolders.has(fkey);
+              return (
+                <div key={fkey} className="mb-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      className="flex min-w-0 flex-1 items-center gap-1 text-left text-[10.5px] font-bold uppercase tracking-wider"
+                      style={{ color: f.id ? NEON.yellow : NEON.muted }}
+                      onClick={() => setCollapsedFolders((p) => { const n = new Set(p); if (n.has(fkey)) n.delete(fkey); else n.add(fkey); return n; })}
+                    >
+                      {isCollapsed ? <ChevronRight className="h-3 w-3 shrink-0" /> : <ChevronDown className="h-3 w-3 shrink-0" />}
+                      {renamingFolder?.id === f.id ? (
+                        <input
+                          autoFocus
+                          className="w-32 rounded bg-black/40 px-1 text-[10.5px] font-bold uppercase outline-none"
+                          style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+                          defaultValue={f.name}
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === "Enter") {
+                              const v = (e.target as HTMLInputElement).value.trim();
+                              if (v && f.id) void renameFolder({ data: { id: f.id, name: v } }).then(() => void qcFolders());
+                              setRenamingFolder(null);
+                            }
+                            if (e.key === "Escape") setRenamingFolder(null);
+                          }}
+                          onBlur={() => setRenamingFolder(null)}
+                        />
+                      ) : (
+                        <span
+                          className="truncate"
+                          title={f.id ? "Double-click to rename" : "Scenes without a folder"}
+                          onDoubleClick={(e) => { e.stopPropagation(); if (f.id) setRenamingFolder({ id: f.id }); }}
+                        >
+                          {f.name}
+                        </span>
+                      )}
+                      <span style={{ color: NEON.muted }}>({inFolder.length})</span>
+                    </button>
+                    {f.id && (
+                      <button
+                        className="shrink-0 text-[10px]"
+                        style={{ color: NEON.red }}
+                        title={f.course_id ? "Delete folder (course-linked — scenes move to Unfiled)" : "Delete folder (scenes move to Unfiled)"}
+                        onClick={() => {
+                          const warn = f.course_id
+                            ? `"${f.name}" is linked to a course — folder assignments also set scene course context. Delete it anyway? Its ${inFolder.length} scene(s) move to Unfiled (nothing is deleted).`
+                            : `Delete folder "${f.name}"? Its ${inFolder.length} scene(s) move to Unfiled (nothing is deleted).`;
+                          if (!window.confirm(warn)) return;
+                          void deleteFolder({ data: { id: f.id! } })
+                            .then(() => {
+                              void qcFolders();
+                              // repoint the local list too so the rows appear under Unfiled immediately
+                              setScenes((xs) => xs.map((x) => (x.folder_id === f.id ? { ...x, folder_id: null } : x)));
+                            })
+                            .catch((err) => setFoldersError(err instanceof Error ? err.message : String(err)));
+                        }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  {!isCollapsed && (
+                    <div className="mt-1 space-y-1 pl-3">
+                      {inFolder.length === 0 && <p className="text-[10px] italic" style={{ color: NEON.muted }}>empty</p>}
+                      {inFolder.map((s) => (
+                <div key={s.id} className="rounded-md px-2 py-1.5" style={{ border: `1px solid ${NEON.borderSoft}` }}>
+                  <div className="flex items-center gap-2">
+                    <button
+                      className="min-w-0 flex-1 truncate text-left text-[12.5px] font-medium hover:underline"
+                      title={tabState.tabs.some((t) => t.sceneId === s.id) ? "Already open — focuses its tab" : "Open in a new tab"}
+                      onClick={() => openSceneInTab(s)}
+                    >
+                      {s.name}
+                    </button>
+                    <span className="text-[10px]" style={{ color: NEON.muted }}>{new Date(s.updated_at).toLocaleString()}</span>
+                    <button
+                      className="shrink-0 text-[9.5px] font-semibold uppercase"
+                      style={{ color: NEON.cyan }}
+                      title="Duplicate scene — full copy, same folder, '(copy)' name"
+                      onClick={async () => {
+                        const res = await duplicateScene({ data: { id: s.id } });
+                        setScenes((xs) => [{ ...s, id: res.id, name: res.name, updated_at: new Date().toISOString() }, ...xs]);
+                      }}
+                    >
+                      dup
+                    </button>
+                    <button
+                      className="shrink-0 text-[9.5px] font-semibold uppercase"
+                      style={{ color: snapsFor === s.id ? NEON.yellow : NEON.muted }}
+                      title="Snapshots (auto-saved when film mode starts)"
+                      onClick={() => void openSnaps(s.id)}
+                    >
+                      snaps
+                    </button>
+                    <button
+                      className="shrink-0 text-[10px]"
+                      style={{ color: NEON.red }}
+                      title="Delete scene"
+                      onClick={async () => {
+                        await deleteScene({ data: { id: s.id } });
+                        setScenes((xs) => xs.filter((x) => x.id !== s.id));
+                        if (sceneId === s.id) setSceneId(null);
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  {/* FILE INTO A FOLDER — its own labeled, full-width row (was a
+                      tiny 70px muted dropdown that Lee couldn't find). Create a
+                      folder up top ("New folder…"), then pick it here. */}
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <span className="shrink-0 text-[9.5px] font-semibold uppercase" style={{ color: NEON.muted }}>Folder</span>
+                    <select
+                      className="min-w-0 flex-1 rounded bg-black/40 px-1.5 py-0.5 text-[10.5px] outline-none"
+                      style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+                      title="File this scene into a folder"
+                      value={s.folder_id ?? ""}
+                      onChange={(e) => void moveScene(s, e.target.value || null)}
+                    >
+                      <option value="">— Unfiled —</option>
+                      {(folders ?? []).map((fo) => <option key={fo.id} value={fo.id ?? ""}>{fo.name}</option>)}
+                    </select>
+                    {(folders ?? []).length === 0 && (
+                      <span className="shrink-0 text-[9px] italic" style={{ color: NEON.muted }}>make one up top ↑</span>
+                    )}
+                  </div>
+                  {snapsFor === s.id && (
+                    <div className="mt-1 space-y-0.5 border-t pt-1" style={{ borderColor: NEON.borderSoft }}>
+                      {snapErr && <p className="text-[10px]" style={{ color: NEON.red }}>{snapErr}</p>}
+                      {!snapErr && snaps.length === 0 && (
+                        <p className="text-[10px] italic" style={{ color: NEON.muted }}>No snapshots yet — one is taken each time film mode starts.</p>
+                      )}
+                      {snaps.map((sn) => (
+                        <div key={sn.id} className="flex items-center gap-2 text-[10.5px]">
+                          <span className="flex-1 tabular-nums" style={{ color: NEON.text }}>{new Date(sn.taken_at).toLocaleString()}</span>
+                          <span style={{ color: NEON.muted }}>{sn.label ?? ""}</span>
+                          <button
+                            className="rounded px-1.5 text-[9.5px] font-bold uppercase"
+                            style={{ color: NEON.yellow, border: "1px solid rgba(252,163,17,0.5)" }}
+                            onClick={() => setConfirmSnap(sn)}
+                          >
+                            restore
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+        </div>
+      </div>
     </div>
+    </FrameTakesProvider>
+    </ActiveLessonContext.Provider>
+    </SpotlightCtx.Provider>
+    </FrameNavContext.Provider>
+    </DecksContext.Provider>
+    </CanvasSettingsContext.Provider>
   );
 }
 
@@ -520,11 +7128,57 @@ function TB({ children, onClick, title, active }: { children: React.ReactNode; o
       title={title}
       onClick={onClick}
       className="grid h-7 w-7 place-items-center rounded-md transition-colors"
-      style={{ color: active === false ? NEON.muted : NEON.text, background: active ? "rgba(255,45,149,0.15)" : "transparent", border: `1px solid transparent` }}
+      style={{ color: active === false ? NEON.muted : NEON.text, background: active ? "rgba(252,163,17,0.16)" : "transparent", border: `1px solid transparent` }}
       onMouseEnter={(e) => (e.currentTarget.style.borderColor = NEON.border)}
       onMouseLeave={(e) => (e.currentTarget.style.borderColor = "transparent")}
     >
       {children}
+    </button>
+  );
+}
+
+/** Labeled toolbar button that opens a dropdown (File, Add Card). */
+function MenuButton({ icon, label, open, onClick }: { icon: React.ReactNode; label: string; open: boolean; onClick: () => void }) {
+  return (
+    <button
+      title={label}
+      onClick={onClick}
+      className="flex h-7 items-center gap-1 rounded-md px-2 text-[12px] font-semibold transition-colors"
+      style={{ color: NEON.text, background: open ? "rgba(252,163,17,0.16)" : "transparent", border: "1px solid transparent" }}
+      onMouseEnter={(e) => (e.currentTarget.style.borderColor = NEON.border)}
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = open ? NEON.border : "transparent")}
+    >
+      {icon} {label}
+    </button>
+  );
+}
+
+/** One icon+label row inside a toolbar dropdown menu. */
+function MenuRow({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button
+      className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-[12px] font-medium transition-colors"
+      style={{ color: NEON.text }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(252,163,17,0.12)")}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+      onClick={onClick}
+    >
+      <span style={{ color: NEON.muted }}>{icon}</span> {label}
+    </button>
+  );
+}
+
+function BgOption({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      className="block w-full rounded-md px-2 py-1 text-left text-[12px] font-medium transition-colors"
+      style={{
+        color: active ? NEON.yellow : NEON.text,
+        background: active ? "rgba(252,163,17,0.14)" : "transparent",
+      }}
+      onClick={onClick}
+    >
+      {label}
     </button>
   );
 }
