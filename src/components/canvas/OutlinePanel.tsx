@@ -105,6 +105,23 @@ export function OutlinePanel() {
   }, [nodes]);
   const isPublished = (d: DeckDef) => !!d.lessonId && publishedLessonIds.has(d.lessonId);
 
+  /** CEQ COUNTS PER SET — "n free · n" on each set row (Studio Consolidation C: these used to be
+   *  the CEQS strip's "Free n · Full n", which only showed for the ONE open set. Here you see the
+   *  whole course's shape at once). Loaded-scene sets only: a set whose scene isn't open has no
+   *  nodes here, so it renders no counts rather than a lying "0 free · 0". */
+  const ceqCounts = useMemo(() => {
+    const m = new Map<string, { free: number; total: number }>();
+    for (const n of nodes) {
+      if (n.type !== "ceq") continue;
+      const d = n.data as unknown as { deckId?: string; free?: boolean };
+      if (!d.deckId) continue;
+      const c = m.get(d.deckId) ?? { free: 0, total: 0 };
+      c.total++; if (d.free) c.free++;
+      m.set(d.deckId, c);
+    }
+    return m;
+  }, [nodes]);
+
   // Published videos = lesson nodes with a Mux playback id (finished/published).
   const videos = useMemo(() => nodes
     .filter((n) => n.type === "lesson" && !!(n.data as { muxPlaybackId?: string }).muxPlaybackId)
@@ -155,7 +172,7 @@ export function OutlinePanel() {
       {open === "topics" && (
         <div className="ml-2 border-l pl-1.5" style={{ borderColor: NEON.borderSoft }}>
           {courses.length === 0 && <div className="px-1 py-1 text-[10px] italic" style={{ color: NEON.muted }}>No courses.</div>}
-          {courses.map((c) => <CourseTopics key={c.id} course={c} focus={isFocusCourse(c)} decksByTopic={decksByTopic} isPublished={isPublished} openSet={openSet} lastSetId={lastSetId} showToast={showToast} libraryDecks={isFocusCourse(c) ? libraryDecks : []} />)}
+          {courses.map((c) => <CourseTopics key={c.id} course={c} focus={isFocusCourse(c)} decksByTopic={decksByTopic} ceqCounts={ceqCounts} isPublished={isPublished} openSet={openSet} lastSetId={lastSetId} showToast={showToast} libraryDecks={isFocusCourse(c) ? libraryDecks : []} />)}
         </div>
       )}
 
@@ -188,8 +205,9 @@ export function OutlinePanel() {
 // The focus course (Intro 1) is the full authoring surface: rapid-fire add (Enter = another sibling,
 // Shift+Enter on a topic = commit + add a child set), double-click rename, hover-✕ delete (empty topic
 // instant; with-sets confirmed; sets soft-delete to the Library), drag-reorder = the teaching flow.
-function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastSetId, showToast, libraryDecks }: {
+function CourseTopics({ course, focus, decksByTopic, ceqCounts, isPublished, openSet, lastSetId, showToast, libraryDecks }: {
   course: CourseOption; focus: boolean; decksByTopic: Map<string, DeckDef[]>;
+  ceqCounts: Map<string, { free: number; total: number }>;
   isPublished: (d: DeckDef) => boolean; openSet: (id: string) => void; lastSetId: string | null;
   showToast: (msg: string, undo?: () => void) => void; libraryDecks: DeckDef[];
 }) {
@@ -240,12 +258,14 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
   const [csvBusy, setCsvBusy] = useState(false);
   const [csvDiff, setCsvDiff] = useState<CsvImportDiff | null>(null);
   const csvTextRef = useRef<string>("");
-  const doCsvExport = async () => {
+  /** `simple` = topic_name, set_name, ceq_stem only — for reading/sharing. The full export stays
+   *  the round-trip file (it carries the ids import matches on). */
+  const doCsvExport = async (simple = false) => {
     try {
-      const { csv } = await exportCurriculumCsv();
+      const { csv } = await exportCurriculumCsv({ data: { simple } });
       const blob = new Blob([csv], { type: "text/csv" });
       const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob); a.download = "curriculum.csv"; a.click();
+      a.href = URL.createObjectURL(blob); a.download = simple ? "curriculum-simple.csv" : "curriculum.csv"; a.click();
       URL.revokeObjectURL(a.href);
     } catch (e) { showToast(e instanceof Error ? e.message : "Export failed."); }
   };
@@ -400,6 +420,12 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
                               <button className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-left" onClick={() => openSet(d.id)} onDoubleClick={focus && editable ? (e) => { e.stopPropagation(); setRenamingSet(d.id); } : undefined} title={`Open "${setName(d)}" in the Studio · ${d.status === "live" ? "LIVE" : "draft"}${pub ? " · video published" : ""}${focus && editable ? " · drag to move/reorder · double-click to rename" : ""}`}>
                                 <Circle className="h-2.5 w-2.5 shrink-0" style={{ color: d.status === "live" ? "#3BF5A0" : "#F0B24A", fill: d.status === "live" ? "#3BF5A0" : "transparent" }} />
                                 <span className="min-w-0 flex-1 truncate" style={{ color: active ? NEON.yellow : NEON.text }}>{setName(d)}</span>
+                                {/* CEQ COUNTS — "n free · n", the CEQS strip's Free/Full moved here
+                                    so the whole course's shape reads at a glance, not just the open
+                                    set. Absent for sets whose scene isn't loaded (see ceqCounts). */}
+                                {(() => { const c = ceqCounts.get(d.id); return c && c.total > 0
+                                  ? <span className="shrink-0 text-[9.5px] tabular-nums" style={{ color: NEON.muted }} title={`${c.free} free · ${c.total} total CEQs`}>{c.free} free · {c.total}</span>
+                                  : null; })()}
                               </button>
                             )}
                             {focus && editable && renamingSet !== d.id && (
@@ -504,7 +530,8 @@ function CourseTopics({ course, focus, decksByTopic, isPublished, openSet, lastS
               import. Rows with ids UPDATE, blank ids CREATE, absent rows are UNTOUCHED (never deletes). */}
           {focus && (
             <div className="mt-1 flex gap-1.5">
-              <button className="flex-1 rounded px-1.5 py-1 text-[10px] font-bold uppercase tracking-wider hover:bg-white/5" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => void doCsvExport()}>Export CSV</button>
+              <button className="flex-1 rounded px-1.5 py-1 text-[10px] font-bold uppercase tracking-wider hover:bg-white/5" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => void doCsvExport()} title="Full export — every column, including the ids. This is the file Import CSV round-trips.">Export CSV</button>
+              <button className="flex-1 rounded px-1.5 py-1 text-[10px] font-bold uppercase tracking-wider hover:bg-white/5" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => void doCsvExport(true)} title="Simple export — topic_name, set_name, ceq_stem only. For reading and sharing; it carries no ids, so it can't be re-imported.">Simple</button>
               <button className="flex-1 rounded px-1.5 py-1 text-[10px] font-bold uppercase tracking-wider disabled:opacity-40 hover:bg-white/5" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} disabled={csvBusy} onClick={() => csvFileRef.current?.click()}>{csvBusy ? "Reading…" : "Import CSV…"}</button>
               <input ref={csvFileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void doCsvDryRun(f); e.target.value = ""; }} />
             </div>

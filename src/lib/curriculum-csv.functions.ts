@@ -78,7 +78,14 @@ async function loadSnapshot(db: Db): Promise<Snapshot> {
   return { courseId, chapters, scenes: out, deckScene, ceqScene };
 }
 
-export const exportCurriculumCsv = createServerFn({ method: "GET" }).handler(async (): Promise<{ csv: string }> => {
+/** SIMPLE mode (Lee) — the same data path, fewer columns: topic_name, set_name, ceq_stem only.
+ *  For reading and sharing the curriculum, NOT for round-tripping: it carries no ids, and import
+ *  matches on ids (blank id = "create"), so re-importing a simple file would duplicate everything.
+ *  Deliberately one export with a mode rather than a second export tool. */
+export const exportCurriculumCsv = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ simple: z.boolean().optional() }).parse(d ?? {}))
+  .handler(async ({ data }): Promise<{ csv: string }> => {
+  const simple = !!data.simple;
   const db = await dbAdmin();
   const snap = await loadSnapshot(db);
   // starter-map exam label per topic (informational `unit` column)
@@ -102,15 +109,29 @@ export const exportCurriculumCsv = createServerFn({ method: "GET" }).handler(asy
       const l = ceqsByDeck.get(n.data.deckId) ?? []; l.push({ id: n.id, prompt: (n.data.prompt ?? "").trim(), order: n.data.stageOrder ?? 0 }); ceqsByDeck.set(n.data.deckId, l);
     }
   }
-  const lines: string[] = ["topic_id,unit,topic_order,topic_name,set_id,set_stem,ceq_id,ceq_stem,status"];
+  const lines: string[] = [simple
+    ? "topic_name,set_name,ceq_stem"
+    : "topic_id,unit,topic_order,topic_name,set_id,set_stem,ceq_id,ceq_stem,status"];
   for (const ch of snap.chapters) {
     const decks = decksByTopic.get(ch.id) ?? [];
-    if (!decks.length) { lines.push([ch.id, unitByTopic.get(ch.id) ?? "", ch.number ?? "", ch.name, "", "", "", "", ""].map(esc).join(",")); continue; }
+    if (!decks.length) {
+      lines.push(simple
+        ? [ch.name, "", ""].map(esc).join(",")
+        : [ch.id, unitByTopic.get(ch.id) ?? "", ch.number ?? "", ch.name, "", "", "", "", ""].map(esc).join(","));
+      continue;
+    }
     for (const d of decks) {
       const ceqs = (ceqsByDeck.get(d.id) ?? []).sort((a, b) => a.order - b.order);
       const status = d.status === "live" ? "live" : "draft";
-      if (!ceqs.length) { lines.push([ch.id, unitByTopic.get(ch.id) ?? "", ch.number ?? "", ch.name, d.id, d.name ?? "Set", "", "", status].map(esc).join(",")); continue; }
-      for (const q of ceqs) lines.push([ch.id, unitByTopic.get(ch.id) ?? "", ch.number ?? "", ch.name, d.id, d.name ?? "Set", q.id, q.prompt, status].map(esc).join(","));
+      if (!ceqs.length) {
+        lines.push(simple
+          ? [ch.name, d.name ?? "Set", ""].map(esc).join(",")
+          : [ch.id, unitByTopic.get(ch.id) ?? "", ch.number ?? "", ch.name, d.id, d.name ?? "Set", "", "", status].map(esc).join(","));
+        continue;
+      }
+      for (const q of ceqs) lines.push(simple
+        ? [ch.name, d.name ?? "Set", q.prompt].map(esc).join(",")
+        : [ch.id, unitByTopic.get(ch.id) ?? "", ch.number ?? "", ch.name, d.id, d.name ?? "Set", q.id, q.prompt, status].map(esc).join(","));
     }
   }
   return { csv: lines.join("\n") };
