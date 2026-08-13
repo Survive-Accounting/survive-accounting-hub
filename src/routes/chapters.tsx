@@ -9,7 +9,8 @@ import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/componen
 import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { CampusSelector, type School } from "./landing";
-import { createGreekChapter, searchChapterOrgs, verifyChapterPhone } from "@/lib/greek-chapters.functions";
+import { supabase } from "@/integrations/supabase/client";
+import { createGreekChapter, resendChapterCode, searchChapterOrgs, verifyChapterPhone } from "@/lib/greek-chapters.functions";
 
 export const Route = createFileRoute("/chapters")({
   head: () => ({ meta: [{ title: "⚡ Free Exam 1 for your whole chapter — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
@@ -50,6 +51,18 @@ function ChaptersPage() {
   );
 }
 
+// SMS-TRUTH — live phone formatting so the officer sees "(662) 565-8818" as they type
+// (server normalizes to E.164 before Twilio). "+…" international input passes through raw.
+const fmtPhone = (v: string) => {
+  if (v.trim().startsWith("+")) return "+" + v.replace(/\D/g, "").slice(0, 15);
+  const d = v.replace(/\D/g, "").slice(0, 10);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
+  return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+};
+
+const CODE_TTL_MS = 10 * 60_000, RESEND_COOLDOWN_MS = 60_000;
+
 type Step = "form" | "verify" | "done";
 function SignupFlow() {
   const [step, setStep] = useState<Step>("form");
@@ -63,6 +76,13 @@ function SignupFlow() {
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // SMS-TRUTH: when the last code was texted — drives the "expires in m:ss" line + resend cooldown.
+  const [sentAt, setSentAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  // SHARE-THE-LINK: copied acknowledgement. DASHBOARD-BRIDGE: did the sign-in email actually send.
+  const [copied, setCopied] = useState(false);
+  const [linkSent, setLinkSent] = useState<boolean | null>(null);
+  useEffect(() => { if (step !== "verify") return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [step]);
 
   const emailOk = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
   const formOk = !!school && org.name.trim().length > 1 && nameRole.trim().length > 2 && emailOk && phone.replace(/\D/g, "").length >= 10;
@@ -71,9 +91,30 @@ function SignupFlow() {
     if (!formOk || busy) return;
     setBusy(true); setErr(null);
     try {
-      const r = await createGreekChapter({ data: { campusId: school!.campusId, schoolName: school!.name, chapterName: org.name.trim(), greekOrgId: org.id, adminNameRole: nameRole.trim(), adminEmail: email.trim(), adminPhone: phone.trim() } });
-      setChapterId(r.chapterId); setStep("verify");
+      if (chapterId) {
+        // "Wrong number? Change it" round-trip — UPDATE the existing row, never mint a duplicate.
+        const r = await resendChapterCode({ data: { chapterId, phone: phone.trim() } });
+        if (!r.ok) setErr(r.error ?? "Couldn't resend — try again.");
+        else if (r.smsSent === false) setErr(r.error ?? "Couldn't text that number — double-check it.");
+        else { setSentAt(Date.now()); setCode(""); setStep("verify"); }
+      } else {
+        const r = await createGreekChapter({ data: { campusId: school!.campusId, schoolName: school!.name, chapterName: org.name.trim(), greekOrgId: org.id, adminNameRole: nameRole.trim(), adminEmail: email.trim(), adminPhone: phone.trim() } });
+        setChapterId(r.chapterId);
+        // SMS-TRUTH: only claim "I just texted you" when the text actually went out.
+        if (r.smsSent) { setSentAt(Date.now()); setStep("verify"); }
+        else setErr("Couldn't text that number — double-check it, or text me at (662) 565-8818 and I'll set you up.");
+      }
     } catch (e) { setErr(e instanceof Error ? e.message : "Something went wrong — try again."); }
+    finally { setBusy(false); }
+  };
+  const resend = async () => {
+    if (!chapterId || busy) return;
+    setBusy(true); setErr(null);
+    try {
+      const r = await resendChapterCode({ data: { chapterId } });
+      if (!r.ok || r.smsSent === false) setErr(r.error ?? "Couldn't resend — try again.");
+      else { setSentAt(Date.now()); setCode(""); }
+    } catch (e) { setErr(e instanceof Error ? e.message : "Try again."); }
     finally { setBusy(false); }
   };
   const submitCode = async () => {
@@ -81,7 +122,13 @@ function SignupFlow() {
     setBusy(true); setErr(null);
     try {
       const r = await verifyChapterPhone({ data: { chapterId, code: code.trim() } });
-      if (r.ok && r.url) { setUrl(r.url); setStep("done"); } else setErr(r.error ?? "That code isn't right.");
+      if (r.ok && r.url) {
+        setUrl(r.url); setStep("done");
+        // DASHBOARD-BRIDGE: actually send the promised dashboard sign-in link (the done screen
+        // only claims it once this resolves). Never blocks the link reveal.
+        void supabase.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: `${window.location.origin}/chapters/dashboard` } })
+          .then(({ error }) => setLinkSent(!error)).catch(() => setLinkSent(false));
+      } else setErr(r.error ?? "That code isn't right.");
     } catch (e) { setErr(e instanceof Error ? e.message : "Try again."); }
     finally { setBusy(false); }
   };
@@ -93,28 +140,62 @@ function SignupFlow() {
 
   if (step === "done") {
     const full = `${ORIGIN}${url}`;
+    const link = `https://${full}`;
+    // SHARE-THE-LINK: the whole thesis is "share it in the group chat" — so texting it is the
+    // PRIMARY action: native share sheet where available, sms: prefill otherwise.
+    const shareText = `Free Exam 1 for the whole chapter ⚡ ${link}`;
+    const doShare = async () => {
+      if (typeof navigator !== "undefined" && navigator.share) { try { await navigator.share({ text: shareText, url: link }); return; } catch { /* user cancelled — fall through to nothing */ return; } }
+      window.location.href = `sms:?&body=${encodeURIComponent(shareText)}`;
+    };
+    const doCopy = async () => {
+      try { await navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+      catch { setErr("Couldn't copy — long-press the link to copy it."); }
+    };
     return (
       <div className={card} style={cardStyle}>
         <h2 className="text-[19px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Your chapter link is live ⚡</h2>
         <p className="mt-2 text-[13px]" style={{ color: "var(--text-muted)" }}>Share it in the group chat — every member gets Exam 1 free.</p>
         <div className="mt-4 flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(245,239,230,0.14)" }}>
           <span className="min-w-0 flex-1 truncate text-[13.5px] font-bold" style={{ color: "var(--accent)" }}>{full}</span>
-          <button onClick={() => { void navigator.clipboard?.writeText(`https://${full}`); }} className="shrink-0 rounded-lg px-2.5 py-1 text-[12px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>Copy</button>
+          <button onClick={() => void doCopy()} className="shrink-0 rounded-lg px-2.5 py-1 text-[12px] font-black" style={{ background: copied ? "#3BF5A0" : "var(--accent)", color: "#0B1220" }}>{copied ? "Copied ⚡" : "Copy"}</button>
         </div>
+        <button onClick={() => void doShare()} className="mt-3 w-full rounded-xl py-3 text-[15px] font-black transition-transform hover:scale-[1.02]" style={{ background: "var(--accent)", color: "#0B1220" }}>Text it to the group chat →</button>
+        <div className="mt-4 flex items-center gap-3">
+          <img src={`https://api.qrserver.com/v1/create-qr-code/?size=110x110&margin=0&data=${encodeURIComponent(link)}`} alt="Chapter link QR" width={110} height={110} className="shrink-0 rounded-lg" style={{ background: "#fff", padding: 5 }} />
+          <p className="text-[12px] leading-relaxed" style={{ color: "var(--text-muted)" }}>Or let members scan this at your next meeting — same link.</p>
+        </div>
+        {err && <p className="mt-2 text-[12.5px]" style={{ color: "#F3C6CC" }}>{err}</p>}
         <a href="/chapters/dashboard" className="mt-4 inline-block text-[12.5px] font-semibold" style={{ color: "var(--accent)" }}>Open your chapter dashboard →</a>
-        <p className="mt-1 text-[11.5px]" style={{ color: "var(--text-muted)" }}>We'll send a sign-in link to {email}.</p>
+        <p className="mt-1 text-[11.5px]" style={{ color: "var(--text-muted)" }}>
+          {linkSent === true ? `Sent a sign-in link to ${email} — use it any time to open your dashboard.`
+            : linkSent === false ? "Couldn't email your sign-in link automatically — request one on the dashboard page."
+            : `Sending a sign-in link to ${email}…`}
+        </p>
       </div>
     );
   }
 
   if (step === "verify") {
+    // SMS-TRUTH: expiry countdown + visible resend with a cooldown + a way back to fix the number.
+    const msLeft = sentAt ? Math.max(0, CODE_TTL_MS - (now - sentAt)) : 0;
+    const expired = sentAt !== null && msLeft <= 0;
+    const cooldownLeft = sentAt ? Math.max(0, RESEND_COOLDOWN_MS - (now - sentAt)) : 0;
+    const mmss = `${Math.floor(msLeft / 60_000)}:${String(Math.floor((msLeft % 60_000) / 1000)).padStart(2, "0")}`;
     return (
       <div className={card} style={cardStyle}>
         <h2 className="text-[19px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Verify your phone</h2>
-        <p className="mt-2 text-[13px]" style={{ color: "var(--text-muted)" }}>Enter the 6-digit code I just texted to {phone}.</p>
+        <p className="mt-2 text-[13px]" style={{ color: "var(--text-muted)" }}>Enter the 6-digit code I texted to {phone}.{!expired && sentAt !== null && <span> Expires in <span className="tabular-nums font-semibold" style={{ color: "var(--brand-cream)" }}>{mmss}</span>.</span>}</p>
+        {expired && <p className="mt-1 text-[12.5px] font-semibold" style={{ color: "#F3C6CC" }}>That code expired — resend a fresh one below.</p>}
         <input value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" placeholder="123456" className={`${inputCls} mt-3 text-center tracking-[0.3em]`} style={inputStyle} />
         {err && <p className="mt-2 text-[12.5px]" style={{ color: "#F3C6CC" }}>{err}</p>}
         <button onClick={submitCode} disabled={code.length < 4 || busy} className="mt-4 w-full rounded-xl py-3 text-[15px] font-black disabled:opacity-40" style={{ background: "var(--accent)", color: "#0B1220" }}>{busy ? "Verifying…" : "Verify & get my link"}</button>
+        <div className="mt-3 flex items-center justify-between text-[12.5px]">
+          <button onClick={() => void resend()} disabled={busy || cooldownLeft > 0} className="font-semibold disabled:opacity-40" style={{ color: "var(--accent)" }}>
+            {cooldownLeft > 0 ? `Resend code (${Math.ceil(cooldownLeft / 1000)}s)` : "Resend code"}
+          </button>
+          <button onClick={() => { setStep("form"); setErr(null); }} className="font-semibold" style={{ color: "var(--text-muted)" }}>Wrong number? ← Change it</button>
+        </div>
       </div>
     );
   }
@@ -133,11 +214,11 @@ function SignupFlow() {
 
       <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Email (.edu preferred)" className={inputCls} style={inputStyle} />
-        <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="Mobile" className={inputCls} style={inputStyle} />
+        <input value={phone} onChange={(e) => setPhone(fmtPhone(e.target.value))} inputMode="tel" placeholder="Mobile — (662) 555-0123" className={inputCls} style={inputStyle} />
       </div>
 
       {err && <p className="mt-2 text-[12.5px]" style={{ color: "#F3C6CC" }}>{err}</p>}
-      <button onClick={submitForm} disabled={!formOk || busy} className="mt-5 w-full rounded-xl py-3 text-[15px] font-black transition-opacity disabled:opacity-40" style={{ background: "var(--accent)", color: "#0B1220" }}>{busy ? "…" : "Text me a code →"}</button>
+      <button onClick={submitForm} disabled={!formOk || busy} className="mt-5 w-full rounded-xl py-3 text-[15px] font-black transition-opacity disabled:opacity-40" style={{ background: "var(--accent)", color: "#0B1220" }}>{busy ? "…" : chapterId ? "Text a new code →" : "Text me a code →"}</button>
       <p className="mt-2 text-[11px]" style={{ color: "var(--text-muted)" }}>I'll text a 6-digit code to verify it's really you.</p>
     </div>
   );

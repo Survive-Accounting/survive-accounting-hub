@@ -24,6 +24,8 @@ function DashboardPage() {
   const [data, setData] = useState<ChapterDashboard | null | undefined>(undefined); // undefined=loading, null=no chapter
   const [loginEmail, setLoginEmail] = useState("");
   const [sent, setSent] = useState(false);
+  const [sendBusy, setSendBusy] = useState(false);
+  const [sendErr, setSendErr] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -42,11 +44,19 @@ function DashboardPage() {
 
   const wrap = { ...frameThemeVars(DEFAULT_FRAME_THEME), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative" as const, overflowX: "hidden" as const };
 
+  // DASHBOARD-BRIDGE: never claim "sent" without checking — surface invalid emails, failures,
+  // and a busy state instead of unconditionally flipping to the success screen.
   const sendLink = async () => {
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(loginEmail.trim())) return;
-    const redirect = typeof window !== "undefined" ? `${window.location.origin}/chapters/dashboard` : undefined;
-    await supabase.auth.signInWithOtp({ email: loginEmail.trim(), options: { emailRedirectTo: redirect } });
-    setSent(true);
+    if (sendBusy) return;
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(loginEmail.trim())) { setSendErr("That email doesn't look right — check it and try again."); return; }
+    setSendBusy(true); setSendErr(null);
+    try {
+      const redirect = typeof window !== "undefined" ? `${window.location.origin}/chapters/dashboard` : undefined;
+      const { error } = await supabase.auth.signInWithOtp({ email: loginEmail.trim(), options: { emailRedirectTo: redirect } });
+      if (error) setSendErr(error.message.includes("rate") ? "Too many requests — wait a minute and try again." : "Couldn't send the link — try again in a moment.");
+      else setSent(true);
+    } catch { setSendErr("Couldn't reach the server — check your connection and try again."); }
+    finally { setSendBusy(false); }
   };
 
   return (
@@ -59,12 +69,16 @@ function DashboardPage() {
           <div className="mx-auto max-w-sm rounded-2xl p-6" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)", fontFamily: BRAND_SANS }}>
             <h1 className="text-[18px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Chapter dashboard</h1>
             {sent ? (
-              <p className="mt-3 text-[14px]" style={{ color: "var(--brand-cream)" }}>Check your email — I sent a sign-in link to {loginEmail}.</p>
+              <>
+                <p className="mt-3 text-[14px]" style={{ color: "var(--brand-cream)" }}>Check your email — I sent a sign-in link to {loginEmail}.</p>
+                <p className="mt-2 text-[12px]" style={{ color: "var(--text-muted)" }}>Not there in a minute? Check spam, or <button onClick={() => { setSent(false); }} className="font-semibold underline" style={{ color: "var(--accent)" }}>resend it</button>.</p>
+              </>
             ) : (
               <>
                 <p className="mt-2 text-[13px]" style={{ color: "var(--text-muted)" }}>Sign in with the email you used to set up your chapter.</p>
-                <input value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} type="email" placeholder="you@email.com" className="mt-3 w-full rounded-xl px-4 py-3 text-[14px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }} />
-                <button onClick={sendLink} className="mt-4 w-full rounded-xl py-3 text-[15px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>Email me a sign-in link</button>
+                <input value={loginEmail} onChange={(e) => { setLoginEmail(e.target.value); setSendErr(null); }} type="email" placeholder="you@email.com" className="mt-3 w-full rounded-xl px-4 py-3 text-[14px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }} />
+                {sendErr && <p className="mt-2 text-[12.5px]" style={{ color: "#F3C6CC" }}>{sendErr}</p>}
+                <button onClick={sendLink} disabled={sendBusy} className="mt-4 w-full rounded-xl py-3 text-[15px] font-black disabled:opacity-50" style={{ background: "var(--accent)", color: "#0B1220" }}>{sendBusy ? "Sending…" : "Email me a sign-in link"}</button>
               </>
             )}
           </div>
@@ -86,6 +100,8 @@ function DashboardPage() {
 
 function Dashboard({ data, token, onDigest }: { data: ChapterDashboard; token: string; onDigest: (v: boolean) => void }) {
   const full = `${ORIGIN}${data.url}`;
+  const [copied, setCopied] = useState(false);
+  const doCopy = async () => { try { await navigator.clipboard.writeText(`https://${full}`); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* long-press fallback */ } };
   const qr = `https://api.qrserver.com/v1/create-qr-code/?size=130x130&margin=0&data=${encodeURIComponent(`https://${full}`)}`;
   const toggleDigest = async () => { const next = !data.digestEnabled; onDigest(next); await setChapterDigest({ data: { accessToken: token, enabled: next } }); };
   const buySeats = `sms:${LEE_TEL}?&body=${encodeURIComponent(`${data.chapterName} is interested in semester seats.`)}`;
@@ -99,7 +115,7 @@ function Dashboard({ data, token, onDigest }: { data: ChapterDashboard; token: s
             <p className="text-[12.5px]" style={{ color: "var(--text-muted)" }}>{data.schoolName}</p>
             <div className="mt-3 flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(245,239,230,0.14)" }}>
               <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: "var(--accent)" }}>{full}</span>
-              <button onClick={() => void navigator.clipboard?.writeText(`https://${full}`)} className="shrink-0 rounded-lg px-2.5 py-1 text-[12px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>Copy</button>
+              <button onClick={() => void doCopy()} className="shrink-0 rounded-lg px-2.5 py-1 text-[12px] font-black" style={{ background: copied ? "#3BF5A0" : "var(--accent)", color: "#0B1220" }}>{copied ? "Copied ⚡" : "Copy"}</button>
             </div>
           </div>
           <img src={qr} alt="Chapter link QR" width={130} height={130} className="shrink-0 rounded-lg" style={{ background: "#fff", padding: 6 }} />

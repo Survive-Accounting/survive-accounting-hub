@@ -16,7 +16,9 @@ export interface ResolvedExam {
   num: number; // 1..n, 99 = Final, 999 = unparsed
   label: string;
   chapterIds: string[]; // ordered topic (chapters) ids
-  coveragePct: number; // gap-meter % (manual mapper field; default 80)
+  /** gap-meter % — HONEST-TRUST-LINE: null when no mapper ever set one. The landing only renders
+   *  a "Likely covers N%" claim from a real number; a default-80 would manufacture a statistic. */
+  coveragePct: number | null;
 }
 export type MapLevel = "professor" | "campus" | "starter" | "none";
 export type MapStatus = "inherited" | "edited" | "verified";
@@ -57,7 +59,7 @@ async function examsAtLevel(db: Db, courseId: string, campusId: string | null, p
     .map((e) => ({
       id: e.id, num: examNum(e.name), label: e.name,
       chapterIds: (byExam.get(e.id) ?? []).sort((a, b) => (a.position ?? 0) - (b.position ?? 0)).map((t) => t.chapter_id),
-      coveragePct: e.coverage_pct ?? 80,
+      coveragePct: e.coverage_pct ?? null,
     }))
     .sort((a, b) => a.num - b.num);
 }
@@ -70,7 +72,7 @@ async function legacyDefaultExams(db: Db): Promise<ResolvedExam[]> {
   for (const r of (data ?? []) as { unit_id: string; exam_number: number }[]) {
     const l = byNum.get(r.exam_number) ?? []; l.push(r.unit_id); byNum.set(r.exam_number, l);
   }
-  return [...byNum.entries()].map(([num, chapterIds]) => ({ id: null, num, label: num === 99 ? "Final" : `Exam ${num}`, chapterIds, coveragePct: 80 })).sort((a, b) => a.num - b.num);
+  return [...byNum.entries()].map(([num, chapterIds]) => ({ id: null, num, label: num === 99 ? "Final" : `Exam ${num}`, chapterIds, coveragePct: null })).sort((a, b) => a.num - b.num);
 }
 
 const isMissingPiece = (e: unknown): boolean => /professor_id|map_meta|column|relation .* does not exist|42703|42P01/i.test(String((e as { message?: string })?.message ?? e ?? ""));
@@ -112,7 +114,7 @@ export const resolveStudentMap = createServerFn({ method: "POST" })
           const { data: topics } = await db.from("campus_exam_topics").select("campus_exam_id,chapter_id,position").in("campus_exam_id", ids);
           const byExam = new Map<string, { chapter_id: string; position: number | null }[]>();
           for (const t of (topics ?? []) as { campus_exam_id: string; chapter_id: string; position: number | null }[]) { const l = byExam.get(t.campus_exam_id) ?? []; l.push(t); byExam.set(t.campus_exam_id, l); }
-          exams = (ce as { id: string; name: string; coverage_pct: number | null }[]).map((e2) => ({ id: e2.id, num: examNum(e2.name), label: e2.name, chapterIds: (byExam.get(e2.id) ?? []).sort((a, b) => (a.position ?? 0) - (b.position ?? 0)).map((t) => t.chapter_id), coveragePct: e2.coverage_pct ?? 80 })).sort((a, b) => a.num - b.num);
+          exams = (ce as { id: string; name: string; coverage_pct: number | null }[]).map((e2) => ({ id: e2.id, num: examNum(e2.name), label: e2.name, chapterIds: (byExam.get(e2.id) ?? []).sort((a, b) => (a.position ?? 0) - (b.position ?? 0)).map((t) => t.chapter_id), coveragePct: e2.coverage_pct ?? null })).sort((a, b) => a.num - b.num);
           level = "campus";
         }
       } catch { /* fall to legacy default */ }

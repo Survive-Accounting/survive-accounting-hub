@@ -40,14 +40,16 @@ async function examsAt(db: Db, s: MapScope): Promise<ResolvedExam[] | null> {
     const l = byExam.get(t.campus_exam_id) ?? []; l.push(t); byExam.set(t.campus_exam_id, l);
   }
   return (exams as { id: string; name: string; coverage_pct: number | null }[])
-    .map((e) => ({ id: e.id, num: examNum(e.name), label: e.name, chapterIds: (byExam.get(e.id) ?? []).sort((a, b) => (a.position ?? 0) - (b.position ?? 0)).map((t) => t.chapter_id), coveragePct: e.coverage_pct ?? 80 }))
+    /* coveragePct null when no mapper ever set one — HONEST-TRUST-LINE: never invent 80, and never
+       bake a fake 80 into a row via copyResolvedIntoLevel. */
+    .map((e) => ({ id: e.id, num: examNum(e.name), label: e.name, chapterIds: (byExam.get(e.id) ?? []).sort((a, b) => (a.position ?? 0) - (b.position ?? 0)).map((t) => t.chapter_id), coveragePct: e.coverage_pct ?? null }))
     .sort((a, b) => a.num - b.num);
 }
 async function legacyDefault(db: Db): Promise<ResolvedExam[]> {
   const { data } = await db.from("default_exam_units").select("unit_id,exam_number,sort_order").order("exam_number").order("sort_order");
   const byNum = new Map<number, string[]>();
   for (const r of (data ?? []) as { unit_id: string; exam_number: number }[]) { const l = byNum.get(r.exam_number) ?? []; l.push(r.unit_id); byNum.set(r.exam_number, l); }
-  return [...byNum.entries()].map(([num, chapterIds]) => ({ id: null, num, label: num === 99 ? "Final" : `Exam ${num}`, chapterIds, coveragePct: 80 })).sort((a, b) => a.num - b.num);
+  return [...byNum.entries()].map(([num, chapterIds]) => ({ id: null, num, label: num === 99 ? "Final" : `Exam ${num}`, chapterIds, coveragePct: null })).sort((a, b) => a.num - b.num);
 }
 
 export interface MapMetaInfo {

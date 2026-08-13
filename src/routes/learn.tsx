@@ -245,15 +245,24 @@ function LearnShell() {
   const current = allTopics.find((x) => x.t.id === topicId);
   const accent = NEON.yellow;
 
+  // HONEST-PAYWALL: the paywall shows ONLY on an explicit "locked" answer from the server.
+  // Network/server failures get a retryable toast — never "you haven't paid" over a wifi blip.
+  const [fetchNote, setFetchNote] = useState<{ msg: string; retry?: () => void } | null>(null);
   const openSet = async (t: StudentTopic, s: StudentSet) => {
     if (s.access === "paid") {
       if (!unlockedTopics.has(t.id)) { setPaywallTopic(t); return; }
       // Unlocked paid set — fetch the withheld playback id securely (server re-checks the grant).
-      try { const { playbackId } = await getSetPlayback({ data: { setId: s.id } }); if (!playbackId) return; setPlaying({ set: { ...s, playbackId }, topic: t }); }
-      catch { setPaywallTopic(t); }
+      try {
+        const r = await getSetPlayback({ data: { setId: s.id } });
+        setFetchNote(null);
+        if (r.status === "ok") setPlaying({ set: { ...s, playbackId: r.playbackId }, topic: t });
+        else if (r.status === "locked") setPaywallTopic(t);
+        else if (r.status === "unpublished") setFetchNote({ msg: "This video isn't published yet — check back soon." });
+        else setFetchNote({ msg: "Couldn't find that video — refresh and try again." });
+      } catch { setFetchNote({ msg: "Couldn't reach the server — check your connection.", retry: () => void openSet(t, s) }); }
       return;
     }
-    if (!s.playbackId) return;
+    if (!s.playbackId) { setFetchNote({ msg: "This video isn't published yet — check back soon." }); return; }
     setPlaying({ set: s, topic: t });
   };
 
@@ -366,6 +375,14 @@ function LearnShell() {
       {playing && <VideoPlayer set={playing.set} chipText={chip(playing.topic)} onClose={() => setPlaying(null)} onStarted={() => markProgress(playing.set.id, "in_progress")} onComplete={() => markProgress(playing.set.id, "complete")} />}
       {paywallTopic && <Paywall topic={paywallTopic} onClose={() => setPaywallTopic(null)} onRestore={userId ? restore : undefined} restoring={restoring} />}
       {signInOpen && <SignInDialog onClose={() => setSignInOpen(false)} />}
+      {/* HONEST-PAYWALL: retryable fetch-failure toast — the honest alternative to a false paywall. */}
+      {fetchNote && (
+        <div className="fixed bottom-4 left-1/2 z-[120] flex -translate-x-1/2 items-center gap-3 rounded-xl px-4 py-2.5 text-[12.5px] font-semibold shadow-xl" style={{ background: "#141a2c", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}>
+          <span>{fetchNote.msg}</span>
+          {fetchNote.retry && <button className="rounded-lg px-2.5 py-1 text-[11.5px] font-black uppercase tracking-wide" style={{ background: NEON.yellow, color: "#0B1322" }} onClick={fetchNote.retry}>Retry</button>}
+          <button className="text-[11px] font-bold" style={{ color: NEON.muted }} onClick={() => setFetchNote(null)}>✕</button>
+        </div>
+      )}
     </div>
   );
 }

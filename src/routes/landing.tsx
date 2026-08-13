@@ -11,10 +11,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, GraduationCap, Instagram, MessageCircle, Plus, Search, X, Youtube } from "lucide-react";
+import { ChevronDown, GraduationCap, Instagram, Lock, MessageCircle, Plus, Search, X, Youtube } from "lucide-react";
 
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
-import { resolveStudentMap } from "@/lib/map-resolver.functions";
+import { resolveStudentMap, type MapLevel } from "@/lib/map-resolver.functions";
+import { joinPricingWaitlist } from "@/lib/pricing-api";
 import { getChapterNames, listCampusIntroCodes } from "@/lib/default-map.functions";
 import { logSchoolDemand, submitExamAsk, submitSyllabus } from "@/lib/syllabus.functions";
 import { searchOrderProfessors, type ProfessorLite } from "@/lib/orders.functions";
@@ -169,6 +170,9 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
   const resolvedMap = mapQ.data ?? null;
   const mapped = resolvedMap ? resolvedMap.level === "campus" || resolvedMap.level === "professor" : false;
   const mapStatus = resolvedMap?.status ?? "inherited";
+  // HONEST-TRUST-LINE: which level actually SERVED the map — the professor-syllabus trust claim
+  // is only allowed when the professor's own map won resolution, not a campus/starter fallback.
+  const mapLevel: MapLevel = resolvedMap?.level ?? "none";
   const resolvedExams = useMemo(() => resolvedMap?.exams ?? [], [resolvedMap]);
   const coverageByNum = useMemo(() => new Map(resolvedExams.map((e) => [e.num, e.coveragePct])), [resolvedExams]);
 
@@ -210,10 +214,10 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
   const exam3R = useMemo(() => resolveExam(3, STATIC_EXAM3, true), [resolvedExams, nameById, chapterById, treeTopicById]);
   const finalR = useMemo(() => resolveExam(99, STATIC_FINAL, true), [resolvedExams, nameById, chapterById, treeTopicById]);
   const exams = useMemo<ExamTab[]>(() => [
-    { num: 1, label: "Exam 1", price: null, topics: exam1R, coveragePct: coverageByNum.get(1) ?? 80 },
-    { num: 2, label: "Exam 2", price: 50, topics: exam2R, coveragePct: coverageByNum.get(2) ?? 80 },
-    { num: 3, label: "Exam 3", price: 50, topics: exam3R, coveragePct: coverageByNum.get(3) ?? 80 },
-    { num: 99, label: "Final", price: 50, topics: finalR, coveragePct: coverageByNum.get(99) ?? 80 },
+    { num: 1, label: "Exam 1", price: null, topics: exam1R, coveragePct: coverageByNum.get(1) ?? null },
+    { num: 2, label: "Exam 2", price: 50, topics: exam2R, coveragePct: coverageByNum.get(2) ?? null },
+    { num: 3, label: "Exam 3", price: 50, topics: exam3R, coveragePct: coverageByNum.get(3) ?? null },
+    { num: 99, label: "Final", price: 50, topics: finalR, coveragePct: coverageByNum.get(99) ?? null },
   ], [exam1R, exam2R, exam3R, finalR, coverageByNum]);
 
   const pickSchool = (s: School) => {
@@ -247,7 +251,7 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px" }}>
         {chapterBanner && <ChapterBanner name={chapterBanner} slug={chapterSlug} />}
         <Hero onTryFree={onTryFree} />
-        <ExamPlayer exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} onChangeSchool={changeSchool} pickerPulse={pickerPulse} focusSignal={focusSignal} schools={schoolsWithCodes} mapped={mapped} mapStatus={mapStatus} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} profSkipped={profSkipped} onSkipProfessor={skipProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); try { localStorage.setItem("sa-landing-school", "__notlisted__"); } catch { /* ignore */ } }} theater={theater} onTheaterDone={() => setTheater(null)} />
+        <ExamPlayer exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} onChangeSchool={changeSchool} pickerPulse={pickerPulse} focusSignal={focusSignal} schools={schoolsWithCodes} mapped={mapped} mapStatus={mapStatus} mapLevel={mapLevel} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} profSkipped={profSkipped} onSkipProfessor={skipProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); try { localStorage.setItem("sa-landing-school", "__notlisted__"); } catch { /* ignore */ } }} theater={theater} onTheaterDone={() => setTheater(null)} />
         <SectionDivider />
         <TestimonialsSlider />
         <SectionDivider />
@@ -508,7 +512,7 @@ function Theater({ school, mode, onDone }: { school: School; mode: "full" | "sho
 // ---- EXAM PLAYER — ONE player, FOUR exam tabs (Exam 1 free · 2/3/Final paid). The left outline
 // lists each tab's topics → sets; the stage plays the selected free set or shows a poster. The ONLY
 // school picker lives in this player's blurred gate. Replaces the old Exam-1 hero + paid row/popup.
-type ExamTab = { num: number; label: string; price: number | null; topics: ResolvedTopic[]; coveragePct: number };
+type ExamTab = { num: number; label: string; price: number | null; topics: ResolvedTopic[]; coveragePct: number | null };
 const RELEASE_LABEL = "Opens soon"; // no release-date field in the data yet — placeholder for paid tabs
 type Sel = { topicKey: string; setId: string | null };
 const fmtRuntime = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
@@ -533,7 +537,7 @@ const examStats = (tab: ExamTab): string => {
   return parts.join(" · ");
 };
 
-function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusSignal, schools, mapped, mapStatus, onSyllabus, professor, onPickProfessor, profSkipped, onSkipProfessor, notListed, onNotListed, theater, onTheaterDone }: { exams: ExamTab[]; school: School | null; onPick: (s: School) => void; onChangeSchool: () => void; pickerPulse: number; focusSignal: number; schools: School[]; mapped: boolean; mapStatus: "inherited" | "edited" | "verified"; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; profSkipped: boolean; onSkipProfessor: () => void; notListed: boolean; onNotListed: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void }) {
+function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusSignal, schools, mapped, mapStatus, mapLevel, onSyllabus, professor, onPickProfessor, profSkipped, onSkipProfessor, notListed, onNotListed, theater, onTheaterDone }: { exams: ExamTab[]; school: School | null; onPick: (s: School) => void; onChangeSchool: () => void; pickerPulse: number; focusSignal: number; schools: School[]; mapped: boolean; mapStatus: "inherited" | "edited" | "verified"; mapLevel: MapLevel; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; profSkipped: boolean; onSkipProfessor: () => void; notListed: boolean; onNotListed: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void }) {
   const [activeNum, setActiveNum] = useState(1);
   const [selById, setSelById] = useState<Record<number, Sel>>({});
   const [openTopics, setOpenTopics] = useState<Set<string>>(() => new Set());
@@ -598,7 +602,7 @@ function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusS
         {/* course masthead — ONE centered cluster (identity line + resolving second line). The gap
             meter exists only once a professor is picked; skippers get the "pick yours →" re-entry.
             Ambient personalization — no counters, no toasts, no explainers. */}
-        {school && <CourseMasthead school={school} exam={active} professor={professor} skipped={profSkipped} mapStatus={mapStatus} onChangeSchool={onChangeSchool} onPick={onPickProfessor} onSkip={onSkipProfessor} onSyllabus={onSyllabus} />}
+        {school && <CourseMasthead school={school} exam={active} professor={professor} skipped={profSkipped} mapStatus={mapStatus} mapLevel={mapLevel} onChangeSchool={onChangeSchool} onPick={onPickProfessor} onSkip={onSkipProfessor} onSyllabus={onSyllabus} />}
 
         {/* unlisted-school masthead — same cluster shape, brand navy; line 2 is the syllabus door */}
         {!school && notListed && (
@@ -623,7 +627,7 @@ function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusS
 
         <div className="sm:flex">
           <div className={`${drawerOpen ? "block" : "hidden"} border-b sm:block sm:w-[42%] sm:max-w-[360px] sm:border-b-0 sm:border-r`} style={{ borderColor: "rgba(245,239,230,0.1)" }}>
-            <ExamOutline tab={active} stats={examStats(active)} isPaid={isPaid} curSetId={curSet?.id ?? null} curTopicKey={cur?.topicKey ?? null} openTopics={openTopics} onToggleTopic={toggleTopic} onPickSet={pickSet} />
+            <ExamOutline tab={active} school={school} stats={examStats(active)} isPaid={isPaid} curSetId={curSet?.id ?? null} curTopicKey={cur?.topicKey ?? null} openTopics={openTopics} onToggleTopic={toggleTopic} onPickSet={pickSet} />
           </div>
 
           <div className="min-w-0 flex-1">
@@ -686,9 +690,12 @@ function ExamTabs({ exams, activeNum, onSelect }: { exams: ExamTab[]; activeNum:
   );
 }
 
-function ExamOutline({ tab, stats, isPaid, curSetId, curTopicKey, openTopics, onToggleTopic, onPickSet }: { tab: ExamTab; stats: string; isPaid: boolean; curSetId: string | null; curTopicKey: string | null; openTopics: Set<string>; onToggleTopic: (k: string) => void; onPickSet: (topicKey: string, setId: string | null) => void }) {
+function ExamOutline({ tab, school, stats, isPaid, curSetId, curTopicKey, openTopics, onToggleTopic, onPickSet }: { tab: ExamTab; school: School | null; stats: string; isPaid: boolean; curSetId: string | null; curTopicKey: string | null; openTopics: Set<string>; onToggleTopic: (k: string) => void; onPickSet: (topicKey: string, setId: string | null) => void }) {
   const activeRef = useRef<HTMLButtonElement>(null);
   useEffect(() => { activeRef.current?.scrollIntoView({ block: "nearest" }); }, [curSetId, curTopicKey]);
+  // PAID-TAB-CAPTURE: a paid-row tap (peak intent) points at the persistent notify panel below
+  // instead of flashing a self-destructing tooltip.
+  const [notifyPulse, setNotifyPulse] = useState(0);
   return (
     <div className="max-h-[300px] overflow-y-auto p-3 sm:max-h-[380px]">
       <div className="mb-2 flex items-center justify-between px-1">
@@ -699,16 +706,67 @@ function ExamOutline({ tab, stats, isPaid, curSetId, curTopicKey, openTopics, on
         </span>
         {isPaid && <span className="text-[10px] font-bold" style={{ color: "var(--accent)" }}>{RELEASE_LABEL}</span>}
       </div>
+      {/* LOCK-NOT-BROKEN: one caption explains the ░ redaction once, so it reads as a tease, not a bug */}
+      {isPaid && (
+        <div className="mb-2 flex items-center gap-1.5 px-1 text-[10.5px]" style={{ color: "var(--text-muted)" }}>
+          <Lock className="h-3 w-3 shrink-0" style={{ color: "var(--accent)" }} />
+          <span>Blurred bits unlock with {tab.label}.</span>
+        </div>
+      )}
       {tab.topics.map((t) => (
-        <TopicRow key={t.key} topic={t} isPaid={isPaid} price={tab.price} open={openTopics.has(t.key)} onToggle={() => onToggleTopic(t.key)} curSetId={curSetId} curTopicKey={curTopicKey} activeRef={activeRef} onPickSet={onPickSet} />
+        <TopicRow key={t.key} topic={t} isPaid={isPaid} price={tab.price} open={openTopics.has(t.key)} onToggle={() => onToggleTopic(t.key)} curSetId={curSetId} curTopicKey={curTopicKey} activeRef={activeRef} onPickSet={onPickSet} onPaidClick={() => setNotifyPulse((p) => p + 1)} />
       ))}
       {/* the quiet sum — where the eye lands after scanning the list, not a headline */}
       <div className="mt-2 border-t px-1 pt-2 text-[10.5px]" style={{ borderColor: "rgba(245,239,230,0.08)", color: "var(--text-muted)" }}>{stats}</div>
+      {/* PAID-TAB-CAPTURE: the persistent next step at the moment of maximum purchase intent */}
+      {isPaid && <PaidNotifyRow exam={tab} school={school} pulse={notifyPulse} />}
     </div>
   );
 }
 
-function TopicRow({ topic, isPaid, price, open, onToggle, curSetId, curTopicKey, activeRef, onPickSet }: { topic: ResolvedTopic; isPaid: boolean; price: number | null; open: boolean; onToggle: () => void; curSetId: string | null; curTopicKey: string | null; activeRef: RefObject<HTMLButtonElement | null>; onPickSet: (topicKey: string, setId: string | null) => void }) {
+// PAID-TAB-CAPTURE — "Exam 2 · $50 — opens soon" + one email field into the existing pricing
+// waitlist (campus_waitlist, tier test_pass). Joined state persists per exam so it asks once.
+function PaidNotifyRow({ exam, school, pulse }: { exam: ExamTab; school: School | null; pulse: number }) {
+  const key = `sa-notify-exam-${exam.num}`;
+  const [email, setEmail] = useState("");
+  const [state, setState] = useState<"open" | "busy" | "done" | "error">(() => { try { return localStorage.getItem(key) === "done" ? "done" : "open"; } catch { return "open"; } });
+  const [flash, setFlash] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!pulse) return;
+    boxRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    setFlash(true);
+    const t = setTimeout(() => setFlash(false), 1200);
+    return () => clearTimeout(t);
+  }, [pulse]);
+  const submit = async () => {
+    const e = email.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) || state === "busy") return;
+    setState("busy");
+    try {
+      await joinPricingWaitlist({ email: e, campus: school?.name ?? null, course: `${exam.label}${school?.code ? ` · ${school.code}` : ""}`, tier: "test_pass" });
+      setState("done"); try { localStorage.setItem(key, "done"); } catch { /* ignore */ }
+    } catch { setState("error"); }
+  };
+  return (
+    <div ref={boxRef} className="mt-2 rounded-xl px-3 py-2.5" style={{ border: `1px solid ${flash ? "var(--accent)" : "rgba(252,163,17,0.35)"}`, background: flash ? "rgba(252,163,17,0.14)" : "rgba(252,163,17,0.06)", transition: "background 300ms, border-color 300ms" }}>
+      {state === "done" ? (
+        <p className="text-[11.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>✓ You're on the list — I'll email you the day {exam.label} opens.</p>
+      ) : (
+        <>
+          <p className="text-[11.5px] font-bold" style={{ color: "var(--brand-cream)" }}>{exam.label} · ${exam.price} — opens soon. Want it the day it drops?</p>
+          <div className="mt-1.5 flex gap-1.5">
+            <input value={email} onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("open"); }} onKeyDown={(e) => { if (e.key === "Enter") void submit(); }} type="email" placeholder="you@school.edu" className="min-w-0 flex-1 rounded-lg px-2.5 py-1.5 text-[12px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }} />
+            <button onClick={() => void submit()} disabled={state === "busy"} className="shrink-0 rounded-lg px-3 py-1.5 text-[11.5px] font-black disabled:opacity-50" style={{ background: "var(--accent)", color: "#0B1220" }}>{state === "busy" ? "…" : "Notify me"}</button>
+          </div>
+          {state === "error" && <p className="mt-1 text-[10.5px]" style={{ color: "#F3C6CC" }}>Couldn't save that — try again in a moment.</p>}
+        </>
+      )}
+    </div>
+  );
+}
+
+function TopicRow({ topic, isPaid, price, open, onToggle, curSetId, curTopicKey, activeRef, onPickSet, onPaidClick }: { topic: ResolvedTopic; isPaid: boolean; price: number | null; open: boolean; onToggle: () => void; curSetId: string | null; curTopicKey: string | null; activeRef: RefObject<HTMLButtonElement | null>; onPickSet: (topicKey: string, setId: string | null) => void; onPaidClick: () => void }) {
   const built = topic.sets.length > 0;
   const totalCeq = topic.sets.reduce((a, s) => a + s.ceqCount, 0);
   const posterActive = curTopicKey === topic.key && !curSetId;
@@ -731,7 +789,7 @@ function TopicRow({ topic, isPaid, price, open, onToggle, curSetId, curTopicKey,
       </button>
       {open && (
         <div className="ml-5 mt-0.5 space-y-0.5">
-          {topic.sets.map((s) => <SetRow key={s.id} set={s} isPaid={isPaid} price={price} active={s.id === curSetId} activeRef={activeRef} onPick={() => onPickSet(topic.key, s.id)} />)}
+          {topic.sets.map((s) => <SetRow key={s.id} set={s} isPaid={isPaid} price={price} active={s.id === curSetId} activeRef={activeRef} onPick={() => onPickSet(topic.key, s.id)} onPaidClick={onPaidClick} />)}
         </div>
       )}
     </div>
@@ -741,21 +799,22 @@ function TopicRow({ topic, isPaid, price, open, onToggle, curSetId, curTopicKey,
 // The set row is the product shelf: the first question's STEM, truncated at ~40ch — the truncation
 // is the tease; the full stem shows in the player when selected. Paid-tab stems arrive from the
 // server already ░-redacted. Counts language: topics · questions · video time (never "sets"/"stems").
-function SetRow({ set, isPaid, price, active, activeRef, onPick }: { set: StudentSet; isPaid: boolean; price: number | null; active: boolean; activeRef: RefObject<HTMLButtonElement | null>; onPick: () => void }) {
-  const [tip, setTip] = useState(false);
+function SetRow({ set, isPaid, active, activeRef, onPick, onPaidClick }: { set: StudentSet; isPaid: boolean; price: number | null; active: boolean; activeRef: RefObject<HTMLButtonElement | null>; onPick: () => void; onPaidClick: () => void }) {
   const live = !!set.playbackId;
   const stem = set.firstStem?.trim() || set.name;
   const tease = stem.length > 40 ? `${stem.slice(0, 40).trimEnd()}…` : stem;
   const meta = `${set.ceqCount} question${set.ceqCount === 1 ? "" : "s"}${set.runtimeSec ? ` · ${fmtRuntime(set.runtimeSec)}` : ""}`;
-  const onClick = () => { if (isPaid) { setTip(true); window.setTimeout(() => setTip(false), 1800); return; } onPick(); };
+  // LOCK-NOT-BROKEN: paid rows keep FULL opacity (dim = disabled = "broken") and wear a lock in
+  // the same slot free rows wear ▶. PAID-TAB-CAPTURE: tapping one points at the notify panel.
+  const onClick = () => { if (isPaid) { onPaidClick(); return; } onPick(); };
   return (
-    <button ref={active ? activeRef : undefined} onClick={onClick} className="relative flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/5" style={{ background: active ? "rgba(252,163,17,0.12)" : "transparent", opacity: isPaid ? 0.6 : live ? 1 : 0.7 }}>
+    <button ref={active ? activeRef : undefined} onClick={onClick} className="relative flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/5" style={{ background: active ? "rgba(252,163,17,0.12)" : "transparent", opacity: !isPaid && !live ? 0.7 : 1 }}>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[12.5px] font-semibold" style={{ color: active ? "var(--accent)" : "var(--brand-cream)" }}>{tease}</span>
         <span className="block text-[10.5px]" style={{ color: "var(--text-muted)" }}>{meta}{!live && !isPaid ? " · coming" : ""}</span>
       </span>
       {live && !isPaid && <span className="shrink-0 text-[11px]" style={{ color: "var(--accent)" }}>▶</span>}
-      {isPaid && tip && <span className="absolute right-2 top-full z-20 mt-1 whitespace-nowrap rounded px-2 py-1 text-[10.5px] font-bold" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.2)", color: "var(--brand-cream)" }}>Opens soon — ${price}</span>}
+      {isPaid && <Lock className="h-3 w-3 shrink-0" style={{ color: "var(--accent)" }} />}
     </button>
   );
 }
@@ -789,11 +848,14 @@ function SchoolDemandField() {
 // hover-reveal "change" (→ back to the gate; the next pick re-runs the short recolor beat). Line 2
 // RESOLVES, the cluster never grows: professor prompt → "Likely covers N% …" meter (slides in once)
 // → or, on skip, "Built for your professor's exams — pick yours →" reopening the picker.
-function CourseMasthead({ school, exam, professor, skipped, mapStatus, onChangeSchool, onPick, onSkip, onSyllabus }: { school: School; exam: ExamTab; professor: ProfessorLite | null; skipped: boolean; mapStatus: "inherited" | "edited" | "verified"; onChangeSchool: () => void; onPick: (p: ProfessorLite | null) => void; onSkip: () => void; onSyllabus: (framing?: string) => void }) {
+function CourseMasthead({ school, exam, professor, skipped, mapStatus, mapLevel, onChangeSchool, onPick, onSkip, onSyllabus }: { school: School; exam: ExamTab; professor: ProfessorLite | null; skipped: boolean; mapStatus: "inherited" | "edited" | "verified"; mapLevel: MapLevel; onChangeSchool: () => void; onPick: (p: ProfessorLite | null) => void; onSkip: () => void; onSyllabus: (framing?: string) => void }) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLDivElement>(null);
   const code = school.codeVerified && school.code ? school.code : null;
   const profLabel = professor ? `Prof. ${professor.last || professor.name}` : null;
+  // HONEST-TRUST-LINE: the coverage claim renders ONLY from a real mapper-set number, and ONLY on
+  // paid tabs — a hardcoded 80 on the free Exam 1 manufactures doubt at the free offer.
+  const realPct = exam.price != null ? exam.coveragePct : null;
   return (
     <>
       <div ref={anchorRef} className="border-b px-3 py-2 text-center" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.12)" }}>
@@ -802,15 +864,26 @@ function CourseMasthead({ school, exam, professor, skipped, mapStatus, onChangeS
           <button onClick={onChangeSchool} className="sa-chg text-[10.5px]" style={{ color: "var(--text-muted)" }}>change</button>
         </div>
         {professor ? (
-          mapStatus === "verified" ? (
-            /* TRUST LINE — the map was built/confirmed from an actual syllabus (map_meta.verified) */
+          mapStatus === "verified" && mapLevel === "professor" ? (
+            /* TRUST LINE — literally true only when the PROFESSOR's own map won resolution AND it
+               was built/confirmed from an actual syllabus (map_meta.verified at that level). */
             <p key={`${professor.id}-v`} className="sa-meter-in mt-0.5 text-[11.5px] font-semibold" style={{ color: "#3BF5A0" }}>
               ✓ Mapped to {profLabel}'s syllabus
             </p>
-          ) : (
+          ) : mapStatus === "verified" ? (
+            /* campus-level verification — claim the school's exams, never the professor's syllabus */
+            <p key={`${professor.id}-cv`} className="sa-meter-in mt-0.5 text-[11.5px] font-semibold" style={{ color: "#3BF5A0" }}>
+              ✓ Mapped to {school.name}{code ? ` ${code}` : ""} exams
+            </p>
+          ) : realPct != null ? (
             /* the payoff line — slides in once per pick; "Likely" carries the hedge, so no tilde */
             <button key={professor.id} onClick={() => onSyllabus()} className="sa-meter-in mt-0.5 text-[11.5px] hover:opacity-90" style={{ color: "var(--brand-cream)" }}>
-              Likely covers <b>{exam.coveragePct}%</b> of {profLabel}'s {exam.label} — <span className="font-bold" style={{ color: "var(--accent)" }}>help me get the rest →</span>
+              Likely covers <b>{realPct}%</b> of {profLabel}'s {exam.label} — <span className="font-bold" style={{ color: "var(--accent)" }}>help me get the rest →</span>
+            </button>
+          ) : (
+            /* no real coverage number — the ask without an invented statistic */
+            <button key={`${professor.id}-s`} onClick={() => onSyllabus()} className="sa-meter-in mt-0.5 text-[11.5px] hover:opacity-90" style={{ color: "var(--text-muted)" }}>
+              Help me tailor this to {profLabel}'s exams — <span className="font-bold" style={{ color: "var(--accent)" }}>send your syllabus →</span>
             </button>
           )
         ) : !skipped ? (

@@ -11,19 +11,33 @@ const admin = async () => {
   return supabaseAdmin as unknown as DB;
 };
 
-// Send an SMS via Twilio (same Messages API as onboarding.notifyLee). No-op if env is missing.
-async function sendSms(to: string, body: string) {
+// SMS-TRUTH — normalize a user-typed phone to E.164 or null. Twilio rejects bare 10-digit
+// strings, so "(662) 565-8818" must become "+16625658818" BEFORE the send, and a number we
+// can't normalize must fail loudly at the form, not silently at Twilio.
+export function normalizePhoneE164(raw: string): string | null {
+  const digits = raw.replace(/\D/g, "");
+  if (raw.trim().startsWith("+")) return digits.length >= 8 && digits.length <= 15 ? `+${digits}` : null;
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  return null;
+}
+
+// Send an SMS via Twilio (same Messages API as onboarding.notifyLee). SMS-TRUTH: reports the
+// outcome — callers surface failures instead of telling the user "I just texted you" on a lie.
+async function sendSms(to: string, body: string): Promise<{ ok: boolean; error?: string }> {
   const sid = process.env.TWILIO_ACCOUNT_SID ?? "", token = process.env.TWILIO_AUTH_TOKEN ?? "", msid = process.env.TWILIO_MESSAGING_SERVICE_SID ?? "";
-  const dest = to.replace(/[^+\d]/g, "");
-  if (!sid || !token || !msid || !dest) { console.warn("sendSms: missing Twilio env or phone, skipping"); return; }
+  const dest = normalizePhoneE164(to);
+  if (!dest) return { ok: false, error: "bad-phone" };
+  if (!sid || !token || !msid) { console.warn("sendSms: missing Twilio env, skipping"); return { ok: false, error: "no-twilio-env" }; }
   try {
     const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
       method: "POST",
       headers: { Authorization: "Basic " + Buffer.from(`${sid}:${token}`).toString("base64"), "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ MessagingServiceSid: msid, To: dest, Body: body }),
     });
-    if (!res.ok) console.warn("sendSms twilio error", res.status, await res.text());
-  } catch (e) { console.warn("sendSms failed", (e as Error).message); }
+    if (!res.ok) { console.warn("sendSms twilio error", res.status, await res.text()); return { ok: false, error: `twilio-${res.status}` }; }
+    return { ok: true };
+  } catch (e) { console.warn("sendSms failed", (e as Error).message); return { ok: false, error: "network" }; }
 }
 
 const slugify = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "-").replace(/-+/g, "-").slice(0, 40);
@@ -58,8 +72,11 @@ export const createGreekChapter = createServerFn({ method: "POST" })
     adminEmail: z.string().trim().email().max(200),
     adminPhone: z.string().trim().min(7).max(20),
   }).parse(d))
-  .handler(async ({ data }): Promise<{ chapterId: string }> => {
+  .handler(async ({ data }): Promise<{ chapterId: string; smsSent: boolean }> => {
     const db = await admin();
+    // SMS-TRUTH: reject un-normalizable phones at the door — the code text below can't reach them.
+    const phone = normalizePhoneE164(data.adminPhone);
+    if (!phone) throw new Error("That phone number doesn't look right — use (XXX) XXX-XXXX.");
     // needs_review = we couldn't match the chapter to GreekIntel (no org id chosen) — Lee's manual check.
     const needsReview = !data.greekOrgId;
     // Unique slug: school-chapter, then -2/-3… on conflict.
@@ -70,12 +87,36 @@ export const createGreekChapter = createServerFn({ method: "POST" })
     const { data: ins, error } = await db.from("greek_chapters").insert({
       slug, campus_id: data.campusId ?? null, school_name: data.schoolName, chapter_name: data.chapterName,
       greek_org_id: data.greekOrgId ?? null, admin_name_role: data.adminNameRole, admin_email: data.adminEmail,
-      admin_phone: data.adminPhone, verify_code: code, verify_expires_at: new Date(Date.now() + 10 * 60_000).toISOString(),
+      admin_phone: phone, verify_code: code, verify_expires_at: new Date(Date.now() + 10 * 60_000).toISOString(),
       needs_review: needsReview,
     }).select("id").single();
     if (error) throw new Error(error.message);
-    await sendSms(data.adminPhone, `Survive Accounting: your chapter verification code is ${code}. It expires in 10 minutes.`);
-    return { chapterId: ins.id as string };
+    const sms = await sendSms(phone, `Survive Accounting: your chapter verification code is ${code}. It expires in 10 minutes.`);
+    return { chapterId: ins.id as string, smsSent: sms.ok };
+  });
+
+// SMS-TRUTH — re-mint + re-text the verification code, optionally onto a corrected phone number
+// (the "Wrong number? Change it" path UPDATES the existing row — no duplicate chapters). Rate-limited
+// via the code's own timestamp: expires 10 min after send, so (expires − 10 min) is the last send.
+export const resendChapterCode = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ chapterId: z.string().uuid(), phone: z.string().trim().min(7).max(20).optional() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; smsSent?: boolean; error?: string }> => {
+    const db = await admin();
+    const { data: row } = await db.from("greek_chapters").select("id,admin_phone,phone_verified_at,verify_expires_at").eq("id", data.chapterId).maybeSingle();
+    if (!row) return { ok: false, error: "Chapter not found — start over below." };
+    if (row.phone_verified_at) return { ok: false, error: "You're already verified — your link is live." };
+    const lastSent = row.verify_expires_at ? new Date(row.verify_expires_at).getTime() - 10 * 60_000 : 0;
+    if (Date.now() - lastSent < 55_000) return { ok: false, error: "Just sent one — give it a minute, then try again." };
+    let phone = row.admin_phone as string;
+    if (data.phone) {
+      const norm = normalizePhoneE164(data.phone);
+      if (!norm) return { ok: false, error: "That phone number doesn't look right — use (XXX) XXX-XXXX." };
+      phone = norm;
+    }
+    const code = code6();
+    await db.from("greek_chapters").update({ admin_phone: phone, verify_code: code, verify_expires_at: new Date(Date.now() + 10 * 60_000).toISOString() }).eq("id", data.chapterId);
+    const sms = await sendSms(phone, `Survive Accounting: your chapter verification code is ${code}. It expires in 10 minutes.`);
+    return { ok: true, smsSent: sms.ok, error: sms.ok ? undefined : "Couldn't text that number — double-check it, or text me at (662) 565-8818 and I'll set you up." };
   });
 
 export const verifyChapterPhone = createServerFn({ method: "POST" })

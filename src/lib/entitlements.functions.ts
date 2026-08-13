@@ -50,12 +50,23 @@ export const fetchMyUnlockedTopics = createServerFn({ method: "GET" })
     return [...(await unlockedTopicIds(db, context.userId as string))];
   });
 
+/** HONEST-PAYWALL — the three "no video" outcomes are DIFFERENT answers and the client must be
+ *  able to tell them apart: `locked` (show the paywall — the ONLY case that should), `unpublished`
+ *  (grant is fine, no ready video), `not_found` (stale tree). A thrown error is reserved for real
+ *  infrastructure failure, so the client's catch can honestly say "couldn't reach the server —
+ *  retry" instead of showing a paying student the paywall over a wifi blip. */
+export type SetPlaybackResult =
+  | { status: "ok"; playbackId: string }
+  | { status: "locked" }
+  | { status: "unpublished" }
+  | { status: "not_found" };
+
 /** SECURE per-set playback fetch. A paid set's id is never in the tree; the client asks for it
  *  here, and it's returned ONLY when the set is free or the caller holds a covering grant. */
 export const getSetPlayback = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ setId: z.string() }).parse(d))
-  .handler(async ({ data, context }): Promise<{ playbackId: string | null }> => {
+  .handler(async ({ data, context }): Promise<SetPlaybackResult> => {
     const db = await admin();
     const { data: scenes, error } = await db.from("canvas_scenes").select("nodes_json");
     if (error) throw new Error(error.message);
@@ -65,14 +76,15 @@ export const getSetPlayback = createServerFn({ method: "POST" })
       deck = (s.nodes_json?.decks ?? []).find((d) => d.id === data.setId && d.status === "live" && d.payloadType === "cards");
       if (deck) break;
     }
-    if (!deck) throw new Error("Set not found or not live.");
+    if (!deck) return { status: "not_found" };
     if (deck.access === "paid") {
       const unlocked = await unlockedTopicIds(db, context.userId as string);
-      if (!deck.topicId || !unlocked.has(deck.topicId)) throw new Error("This set is locked.");
+      if (!deck.topicId || !unlocked.has(deck.topicId)) return { status: "locked" };
     }
-    if (!deck.lessonId) return { playbackId: null };
+    if (!deck.lessonId) return { status: "unpublished" };
     const { data: vids } = await db.from("lesson_videos").select("playback_id,version,stage").eq("lesson_id", deck.lessonId).eq("stage", "ready").order("version", { ascending: false }).limit(1);
-    return { playbackId: ((vids?.[0] as { playback_id: string | null } | undefined)?.playback_id) ?? null };
+    const playbackId = ((vids?.[0] as { playback_id: string | null } | undefined)?.playback_id) ?? null;
+    return playbackId ? { status: "ok", playbackId } : { status: "unpublished" };
   });
 
 /** FULFILLMENT STUB — grant entitlements for the caller's OWN orders (matched by email). No
