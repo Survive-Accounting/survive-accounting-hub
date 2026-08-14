@@ -2253,9 +2253,21 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
           (student-facing previews). Preview is a FIRST-CLASS tab so the editor
           and the video preview stop competing for the same center pane. */}
       <div className="flex shrink-0 items-center gap-1 border-b px-3 py-1" style={{ borderColor: NEON.borderSoft }}>
-        {([["videos", "CEQs"], ["preview", "Publish"], ["student", "Student"]] as const).map(([k, l]) => (
+        {/* STUDENT tab hidden (film-run fixes §6.2) — the "Student view · soon" pill in the
+            canvas navbar is the future entry point. The tab's code stays wired; only the
+            button is gone, so re-showing it is a one-line change. */}
+        {([["videos", "CEQs"], ["preview", "Publish"]] as const).map(([k, l]) => (
           <button key={k} className="rounded px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: topTab === k ? "#0B1322" : NEON.muted, background: topTab === k ? NEON.yellow : "transparent", border: `1px solid ${topTab === k ? NEON.yellow : NEON.borderSoft}` }} onClick={() => { setPrefs({ topTab: k }); if (!setsOpen) setSetsOpen(true); }}>{l}</button>
         ))}
+        {/* MEMOS — the ONE way in (film-run fixes §6.1). It replaces two right-edge vertical
+            tabs (this Studio's collapsed rail and the canvas route's fixed edge tab). The
+            library still opens as the same right-side panel, still defaults CLOSED, and
+            still has its own ✕ — this is just the handle. */}
+        {topTab !== "preview" && (
+          <button className="ml-2 flex items-center gap-1 rounded px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: libOpen ? "#0B1322" : NEON.cyan, background: libOpen ? NEON.cyan : "transparent", border: `1px solid ${libOpen ? NEON.cyan : NEON.borderSoft}` }} onClick={() => setLibOpen((v) => !v)} title={libOpen ? "Close the memo library" : "Memo library — search, quick-add, and drag memos onto choices"}>
+            <Library className="h-3 w-3" /> Memos <span className="tabular-nums opacity-70">{memos.length}</span>
+          </button>
+        )}
       </div>
       {/* ONE-NAV-TRUCE (Krug pass): the internal set-tab strip is GONE — it was the
           third navigation showing the same objects as the outline. The outline is the
@@ -2700,29 +2712,38 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                               <BufferedTextarea rows={2} className="nodrag w-full resize-none rounded px-1.5 py-1 text-[11px] outline-none" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} placeholder="Transcript (Mux import lands here later)…" value={qd.transcript ?? ""} onCommit={(v) => patchQ(qId!, { transcript: v }, `q:${qId}:tr`)} onKeyDown={(e) => e.stopPropagation()} />
                             </div>
                           </details>
-                          <BufferedTextarea rows={2} className="nodrag w-full resize-none rounded px-2 py-1.5 text-[13px] outline-none" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={qd.prompt} onCommit={(v) => patchQ(qId!, { prompt: v }, `q:${qId}:prompt`)} placeholder="The question stem…" onKeyDown={(e) => e.stopPropagation()}
-                            onSelect={(e) => { const t = e.target as HTMLTextAreaElement; if (t.selectionStart !== t.selectionEnd) setStemSel({ qid: qId!, s: t.selectionStart, e: t.selectionEnd }); }} />
-                          {/* PAID-DISPLAY BLUR — select stem text above, then mark it. Ranges redact ONLY on
-                              locked/paid surfaces (server-side); Studio + free tab always show the full stem.
-                              Ranges are character offsets: re-mark after rewording the stem. */}
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <button
-                              className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide disabled:opacity-35"
-                              style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }}
-                              disabled={!stemSel || stemSel.qid !== qId || stemSel.s === stemSel.e}
-                              onClick={() => { if (!stemSel || stemSel.qid !== qId) return; patchQ(qId!, { blurRanges: [...(qd.blurRanges ?? []), { s: stemSel.s, e: stemSel.e }] }, `q:${qId}:blur`); setStemSel(null); }}
-                              title="Mark the selected stem text to render blurred (░) on locked/paid display only"
-                            >🔒 Blur on locked</button>
-                            {(qd.blurRanges?.length ?? 0) > 0 && (
-                              <>
-                                <span className="min-w-0 flex-1 truncate text-[10px]" style={{ color: NEON.muted }} title="How the stem reads on a locked/paid surface (re-mark after rewording the stem)">
-                                  locked: {redactStem(qd.prompt, qd.blurRanges ?? [])}
-                                </span>
-                                <button className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => patchQ(qId!, { blurRanges: [] }, `q:${qId}:blur`)} title="Remove all blur marks on this stem">clear</button>
-                              </>
+                          {/* PAID-DISPLAY BLUR (film-run fixes §4.2) — no longer a permanent button.
+                              It surfaces as a mini selection toolbar over the stem the moment you
+                              highlight text, and vanishes the moment the selection collapses. Ranges
+                              redact ONLY on locked/paid surfaces (server-side); Studio + the free tab
+                              always show the full stem. Ranges are character offsets, so re-mark after
+                              rewording. onMouseDown is prevented so clicking it can't steal the
+                              selection out of the textarea before the handler reads it. */}
+                          <div className="relative">
+                            <BufferedTextarea rows={2} className="nodrag w-full resize-none rounded px-2 py-1.5 text-[13px] outline-none" style={{ background: "rgba(0,0,0,0.3)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={qd.prompt} onCommit={(v) => patchQ(qId!, { prompt: v }, `q:${qId}:prompt`)} placeholder="The question stem…" onKeyDown={(e) => e.stopPropagation()}
+                              onSelect={(e) => { const t = e.target as HTMLTextAreaElement; setStemSel(t.selectionStart !== t.selectionEnd ? { qid: qId!, s: t.selectionStart, e: t.selectionEnd } : null); }} />
+                            {stemSel && stemSel.qid === qId && stemSel.s !== stemSel.e && (
+                              <button
+                                className="absolute -top-2 right-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide shadow-lg"
+                                style={{ color: "#0B1322", background: NEON.yellow, border: `1px solid ${NEON.yellow}` }}
+                                onMouseDown={(ev) => ev.preventDefault()}
+                                onClick={() => { patchQ(qId!, { blurRanges: [...(qd.blurRanges ?? []), { s: stemSel.s, e: stemSel.e }] }, `q:${qId}:blur`); setStemSel(null); }}
+                                title="Mark the selected stem text to render blurred (░) on locked/paid display only"
+                              >🔒 Blur on locked</button>
                             )}
                           </div>
-                          <div className="text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Choices — click ○ to mark correct · +💡 or drop a memo to chain it</div>
+                          {(qd.blurRanges?.length ?? 0) > 0 && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="min-w-0 flex-1 truncate text-[10px]" style={{ color: NEON.muted }} title="How the stem reads on a locked/paid surface (re-mark after rewording the stem)">
+                                locked: {redactStem(qd.prompt, qd.blurRanges ?? [])}
+                              </span>
+                              <button className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => patchQ(qId!, { blurRanges: [] }, `q:${qId}:blur`)} title="Remove all blur marks on this stem">clear</button>
+                            </div>
+                          )}
+                          {/* TEXT DIET (film-run fixes §4.1) — the header used to spell out the whole
+                              interaction model. Dropping a memo on a choice and the +💡 chain button
+                              both still work; they just don't need captioning any more. */}
+                          <div className="text-[9px] tracking-wide" style={{ color: NEON.muted }}>click ○ to mark correct</div>
                           {qd.choices.map((ch, ci) => (
                             <div key={ch.id} className="flex items-center gap-1 rounded px-1 py-0.5" style={{ border: `1px solid ${ch.correct ? "rgba(59,245,160,0.5)" : NEON.borderSoft}` }}
                               onDragOver={(e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }}
@@ -2748,12 +2769,10 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
 
         {/* PANE 3 — MEMO LIBRARY (collapsible to a thin rail). HIDDEN in Preview: that
             view is Recording mode — a filming cockpit, no memo library. */}
-        {topTab === "preview" ? null : !libOpen ? (
-          <button className="flex w-8 shrink-0 flex-col items-center gap-2 rounded-lg py-2" style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)", color: NEON.cyan }} onClick={() => setLibOpen(true)} title="Show the memo library">
-            <Library className="h-4 w-4" />
-            <span className="text-[9px] font-bold uppercase tracking-wider" style={{ writingMode: "vertical-rl" }}>Memos ({memos.length})</span>
-          </button>
-        ) : (
+        {/* The collapsed vertical "MEMOS (30)" rail is gone (film-run fixes §6.1) — the
+            MEMOS button in the tab row above is the single entry point. Closed = nothing
+            here at all, so the editor gets the width back. */}
+        {topTab === "preview" || !libOpen ? null : (
         <div className={COL} style={{ maxWidth: 260, border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)" }}>
           <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Memo library <span style={{ color: NEON.muted }}>({memos.length})</span>
             <button className="ml-auto grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => setLibOpen(false)} title="Collapse the memo library"><ChevronRight className="h-3.5 w-3.5" /></button>

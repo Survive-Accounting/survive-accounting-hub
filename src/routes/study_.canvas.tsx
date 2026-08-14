@@ -7075,21 +7075,17 @@ function PresentCanvas() {
       {/* BRANDING STUDIO — the reusable brand-frame gallery behind the Branding Portal. */}
       {chrome && brandingOpen && <BrandingStudio onClose={() => setBrandingOpen(false)} />}
 
-      {/* MEMO LIBRARY COLLAPSED EDGE TAB — the drawer defaults closed, so it needs a visible way
-          back that isn't a menu hunt. Chrome-only: film/recording never sees it. */}
-      {chrome && !chromeV1 && !memosOpen && (
-        <button
-          onClick={() => setMemosOpen(true)}
-          title="Memo Library"
-          className="fixed right-0 top-1/2 z-[74] -translate-y-1/2 rounded-l-lg px-1.5 py-3 text-[10px] font-bold uppercase tracking-[0.14em] transition-colors hover:bg-white/10"
-          style={{ writingMode: "vertical-rl", background: "rgba(9,14,26,0.97)", border: `1px solid ${NEON.borderSoft}`, borderRight: "none", color: "#F0B24A" }}
-        >
-          Memos
-        </button>
-      )}
+      {/* MEMO LIBRARY EDGE TAB — removed (film-run fixes §6.1). It was the second of two
+          vertical MEMOS tabs stacked on the right edge, and it sat at z-74, so it also drew
+          on top of the Studio overlay. The outline's MEMOS entry (OutlinePanel → openMemos)
+          opens this same drawer and is now its only handle on the canvas surface. */}
 
-      {/* MEMO LIBRARY — right drawer, opened from the outline's MEMOS entry (not default). */}
-      {chrome && !chromeV1 && memosOpen && (
+      {/* MEMO LIBRARY — right drawer, opened from the outline's MEMOS entry (not default).
+          Never while the Studio overlay is up (film-run fixes §6.1): the Studio has its own
+          memo library behind its MEMOS button, and two panels both titled "Memo Library"
+          side by side is exactly the double entry point that prompt set out to kill. The
+          drawer's open flag is left alone, so closing the Studio brings it back as it was. */}
+      {chrome && !chromeV1 && memosOpen && !ceqStudioOpen && (
         <div className="fixed bottom-0 right-0 top-11 z-[75] flex w-[320px] flex-col" style={{ background: "rgba(9,14,26,0.97)", borderLeft: `1px solid ${NEON.borderSoft}` }}>
           <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: `1px solid ${NEON.borderSoft}` }}>
             <span className="text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: "#F0B24A" }}>Memo Library</span>

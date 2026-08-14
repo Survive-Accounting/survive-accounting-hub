@@ -15,7 +15,7 @@
 //     proportional to frame count, labeled A/B/C…; click → jump to that run's
 //     first frame; the current run's segment is highlighted. The seed of the
 //     future exam map, deliberately display-only.
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FileText, HelpCircle, MoreVertical, Plus, Star } from "lucide-react";
 
 import { NEON } from "./theme";
@@ -34,30 +34,52 @@ export interface StripItem {
 const DENSITY_STEPS = [1, 3, 6, 12] as const;
 const DENSITY_KEY = "sa-strip-density";
 
-/** The slim [+] that lives in the gap between two frames (and above/below the ends). */
-function InsertGap({ at, onInsert }: { at: number; onInsert: (at: number, kind: "ceq" | "note") => void }) {
-  const [chooser, setChooser] = useState(false);
-  return (
-    <div className="group relative flex h-2 shrink-0 items-center justify-center" onMouseLeave={() => setChooser(false)}>
-      {!chooser ? (
-        <button
-          className="pointer-events-auto grid h-4 w-4 place-items-center rounded-full opacity-0 transition-opacity group-hover:opacity-100"
-          style={{ color: "#0B1322", background: NEON.yellow, border: `1px solid ${NEON.yellow}`, zIndex: 5 }}
-          onClick={() => setChooser(true)}
-          title="Insert a frame here"
-        >
-          <Plus className="h-3 w-3" />
+/** The gap between two frames (and above/below the ends). Closed it is a 2px hover
+ *  target holding a [+]. Open it becomes a FULL-SIZE PLACEHOLDER CARD, in flow at the
+ *  current density, so the surrounding cards slide apart to make room and nothing is
+ *  clipped by the rail's 192px width (film-run fixes §5 — the old chooser was a tiny
+ *  absolutely-positioned popover that ran off the rail edge).
+ *  Only one gap is ever open: the strip owns `openAt`. Esc or a click anywhere else
+ *  closes it without inserting. */
+function InsertGap({ at, open, onOpen, onClose, onInsert, dense, rowH }: { at: number; open: boolean; onOpen: (at: number) => void; onClose: () => void; onInsert: (at: number, kind: "ceq" | "note") => void; dense: boolean; rowH: string }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [open, onClose]);
+  if (open) {
+    return (
+      <div
+        className="flex shrink-0 flex-col items-stretch justify-center gap-1 rounded-lg px-1.5 py-1"
+        style={{
+          minHeight: dense ? undefined : rowH,
+          height: dense ? rowH : undefined,
+          border: `1px dashed ${NEON.yellow}`,
+          background: "rgba(252,163,17,0.08)",
+        }}
+      >
+        <span className="text-center text-[8.5px] font-bold uppercase tracking-widest" style={{ color: NEON.muted }}>New frame</span>
+        <button className="flex items-center justify-center gap-1 rounded px-2 py-1 text-[10px] font-bold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}`, background: "rgba(9,14,26,0.6)" }} onClick={() => { onClose(); onInsert(at, "ceq"); }} title="A question card — counts, practices, films">
+          <HelpCircle className="h-3 w-3" /> CEQ frame
         </button>
-      ) : (
-        <div className="absolute z-10 flex items-center gap-1 rounded-lg px-1.5 py-1" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, boxShadow: "0 8px 24px -8px rgba(0,0,0,0.7)" }}>
-          <button className="flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setChooser(false); onInsert(at, "ceq"); }} title="A question card — counts, practices, films">
-            <HelpCircle className="h-3 w-3" /> CEQ frame
-          </button>
-          <button className="flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setChooser(false); onInsert(at, "note"); }} title="Text/memo-only: tips, trigger words, headspace. Films like a frame, never counts as a question">
-            <FileText className="h-3 w-3" /> Note frame
-          </button>
-        </div>
-      )}
+        <button className="flex items-center justify-center gap-1 rounded px-2 py-1 text-[10px] font-bold" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}`, background: "rgba(9,14,26,0.6)" }} onClick={() => { onClose(); onInsert(at, "note"); }} title="Text/memo-only: tips, trigger words, headspace. Films like a frame, never counts as a question">
+          <FileText className="h-3 w-3" /> Note frame
+        </button>
+        <span className="text-center text-[8px]" style={{ color: NEON.muted }}>Esc to cancel</span>
+      </div>
+    );
+  }
+  return (
+    <div className="group relative flex h-2 shrink-0 items-center justify-center">
+      <button
+        className="pointer-events-auto grid h-4 w-4 place-items-center rounded-full opacity-0 transition-opacity group-hover:opacity-100"
+        style={{ color: "#0B1322", background: NEON.yellow, border: `1px solid ${NEON.yellow}`, zIndex: 5 }}
+        onClick={() => onOpen(at)}
+        title="Insert a frame here"
+      >
+        <Plus className="h-3 w-3" />
+      </button>
     </div>
   );
 }
@@ -91,6 +113,9 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
 }) {
   const selected = sel ?? new Set<string>();
   const [menuOpen, setMenuOpen] = useState(false);
+  /** Which gap is showing its full-size chooser card (§5). One at a time; null = none. */
+  const [insertAt, setInsertAt] = useState<number | null>(null);
+  const closeInsert = useCallback(() => setInsertAt(null), []);
   const anchorRef = useRef<string | null>(null); // shift-range origin
   const rowClick = (id: string, e: React.MouseEvent) => {
     if (!onSelChange) { onSelect(id); return; }
@@ -212,8 +237,8 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
             </div>
           </>)}
         </div>
-        <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-1.5 py-1">
-          <InsertGap at={0} onInsert={onInsert} />
+        <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-1.5 py-1" onClick={(e) => { if (insertAt !== null && e.target === e.currentTarget) setInsertAt(null); }}>
+          <InsertGap at={0} open={insertAt === 0} onOpen={setInsertAt} onClose={closeInsert} onInsert={onInsert} dense={dense} rowH={rowH} />
           {items.map((it, i) => {
             if (!it.noteOnly) ceqN += 1;
             const active = it.id === qId;
@@ -234,15 +259,16 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
                     opacity: active || selected.has(it.id) ? 1 : sameRun ? 0.8 : 0.55,
                     transition: "height 220ms cubic-bezier(0.2,0.7,0.3,1), min-height 220ms cubic-bezier(0.2,0.7,0.3,1), opacity 150ms ease",
                   }}
-                  onClick={(e) => rowClick(it.id, e)}
+                  onClick={(e) => { if (insertAt !== null) setInsertAt(null); rowClick(it.id, e); }}
                   title={it.stem || label}
                 >
                   {/* same-run bracket — the shape of the take you're inside */}
                   {sameRun && <span className="absolute bottom-1 left-0 top-1 w-0.5 rounded" style={{ background: NEON.cyan, opacity: 0.7 }} title={`Run ${it.run} — same take as the current frame`} />}
                   <div className="flex items-center gap-1">
-                    {it.noteOnly
-                      ? <FileText className="h-3 w-3 shrink-0" style={{ color: NEON.yellow }} />
-                      : <HelpCircle className="h-3 w-3 shrink-0" style={{ color: NEON.cyan }} />}
+                    {/* RAIL CLEANUP (film-run fixes §3.1): the "?" glyph before Q1/Q2/… is gone —
+                        "Q3" already says it is a question. The note icon stays: it is the only
+                        thing that distinguishes a note frame from a numbered one. */}
+                    {it.noteOnly && <FileText className="h-3 w-3 shrink-0" style={{ color: NEON.yellow }} />}
                     <span className="text-[9px] font-bold tabular-nums" style={{ color: active ? NEON.yellow : NEON.muted }}>
                       {it.noteOnly ? "note" : `Q${ceqN}`}
                     </span>
@@ -251,12 +277,14 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
                     <span className="ml-auto flex shrink-0 items-center gap-0.5">
                       {it.starred && <Star className="h-2.5 w-2.5" style={{ color: "#FFD23F", fill: "#FFD23F" }} />}
                       {it.clips > 0 && <span className="h-1.5 w-1.5 rounded-full" style={{ background: "#3BF5A0" }} title={`${it.clips} clip${it.clips === 1 ? "" : "s"}`} />}
-                      {it.free && !it.noteOnly && <span className="text-[8px] font-black" style={{ color: "#3BF5A0" }} title="Free question">🆓</span>}
+                      {/* FREE badge removed (film-run fixes §3.2) — free-cut membership is a
+                          publishing fact, and the PUBLISH tab is where it belongs. `it.free`
+                          still feeds the ⋮ menu's Free toggle. */}
                     </span>
                   </div>
                   {!dense && <span className={density === 1 ? "text-[13px] leading-snug" : "line-clamp-2 text-[10px] leading-tight"} style={{ color: active ? NEON.text : "rgba(230,236,255,0.75)" }}>{label}</span>}
                 </button>
-                <InsertGap at={i + 1} onInsert={onInsert} />
+                <InsertGap at={i + 1} open={insertAt === i + 1} onOpen={setInsertAt} onClose={closeInsert} onInsert={onInsert} dense={dense} rowH={rowH} />
               </div>
             );
           })}
