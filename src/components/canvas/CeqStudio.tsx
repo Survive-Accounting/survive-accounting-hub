@@ -28,6 +28,7 @@ import { autoClipName, buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, 
 import { buildSetExport } from "./ceq-export";
 import { SetFilmstrip, type StripItem } from "./SetFilmstrip";
 import { checkFilmReadiness, type ReadinessReport } from "./film-readiness";
+import { assignRunTo, fillDownRuns, normRun, type RunChange } from "./film-runs";
 import { groupedStageElements, type StageElementSpec } from "./stage-elements";
 import { MISCONCEPTION_SEEDS, questionMisconceptions, toSlug } from "./ceq-misconceptions";
 import { ingestNumOf } from "./ceq-walk";
@@ -1360,6 +1361,40 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
   const bulkFree = () => { const allOn = selData().every((d) => !!d?.free); const n = bulkPatchQ(allOn ? "bulk un-free" : "bulk free", () => ({ free: !allOn })); setNote(`${allOn ? "Removed" : "Added"} ${n} question${n === 1 ? "" : "s"} ${allOn ? "from" : "to"} the FREE cut.`); };
   const bulkBoss = () => { const allOn = selData().every((d) => !!d?.boss); const n = bulkPatchQ("bulk boss", () => ({ boss: !allOn })); setNote(`Boss ${allOn ? "off" : "on"} for ${n} question${n === 1 ? "" : "s"}.`); };
   const bulkChaching = () => { const allSilenced = selData().every((d) => d?.confirmSfx === false); const n = bulkPatchQ("bulk chaching", () => ({ confirmSfx: allSilenced ? true : false })); setNote(`Chaching-on-correct ${allSilenced ? "ON" : "OFF"} for ${n} question${n === 1 ? "" : "s"}.`); };
+  // ---- RUN LETTERS (film-prep) — a RUN is the span captured in ONE take. --------
+  // The decisions (which letter is next, what fill-down does to a half-lettered
+  // set, when an assignment splits a run) live in film-runs.ts so they're tested;
+  // this half is only dispatch + the toast. Cleared letters are written as "" —
+  // every reader normalizes through normRun, and the readiness check already
+  // treats blank as missing.
+  const applyRunChange = (change: RunChange, label: string) => {
+    const cmds = change.changes
+      .map((c) => patchDataCmd(rfl, c.id, { run: c.run ?? "" } as never, label))
+      .filter((c): c is NonNullable<typeof c> => !!c);
+    const cmd = compositeCmd(cmds, label);
+    if (cmd) bus.dispatch(cmd);
+    return cmds.length;
+  };
+  /** Stamp the selection (or the open frame) with a letter; null clears it. */
+  const assignRun = (letter: string | null) => {
+    const ids = qSel.size > 0 ? [...qSel] : qId && qId !== LAYOUT_Q0 ? [qId] : [];
+    if (ids.length === 0) { setNote("Pick frames in the strip first (ctrl-click / shift-click)."); return; }
+    const L = normRun(letter);
+    const change = assignRunTo(stripItems, ids, letter);
+    const n = applyRunChange(change, L ? `assign run ${L}` : "clear run");
+    if (n === 0) { setNote(L ? `Those frames are already run ${L}.` : "No run letter to clear there."); return; }
+    const head = L
+      ? `Run ${L} → ${n} frame${n === 1 ? "" : "s"}`
+      : `Cleared the run letter on ${n} frame${n === 1 ? "" : "s"}`;
+    setNote([`${head} (one undo).`, ...change.warnings].join(" "));
+  };
+  /** Every unlettered frame inherits the letter above it — the 256-frame path. */
+  const fillRunsDown = () => {
+    const n = applyRunChange(fillDownRuns(stripItems), "fill down runs");
+    setNote(n === 0
+      ? "Every frame in this set already has a run letter."
+      : `Filled ${n} frame${n === 1 ? "" : "s"} down from the letters above (one undo).`);
+  };
   /** SHUFFLE CHOICES (Lee) — reorder each selected question's choices so the correct
    *  answer stops living at A. Reordering the ARRAY is exactly right: the letter comes
    *  from array position, while every choice keeps its own id — so chained memos,
@@ -2477,6 +2512,8 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   chaching: () => (qSel.size ? bulkChaching() : qId && qId !== LAYOUT_Q0 ? patchQ(qId, { confirmSfx: (rf.getNode(qId)?.data as unknown as CeqCard | undefined)?.confirmSfx === false }) : undefined),
                   short: () => (qSel.size ? bulkShort() : qId && qId !== LAYOUT_Q0 ? patchQ(qId, { short: !(rf.getNode(qId)?.data as unknown as CeqCard | undefined)?.short }) : undefined),
                   free: () => (qSel.size ? bulkFree() : qId && qId !== LAYOUT_Q0 ? patchQ(qId, { free: !(rf.getNode(qId)?.data as unknown as CeqCard | undefined)?.free }) : undefined),
+                  assignRun,
+                  fillDownRuns: fillRunsDown,
                 }}
               />
               {/* (SET CLIPS moved to the Publish panel — one home for the publish path.) */}

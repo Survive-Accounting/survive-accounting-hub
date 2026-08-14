@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { FileText, HelpCircle, MoreVertical, Plus, Star } from "lucide-react";
 
+import { nextRunLetter, normRun, runSegments, usedRunLetters } from "./film-runs";
 import { NEON } from "./theme";
 
 export interface StripItem {
@@ -84,17 +85,8 @@ function InsertGap({ at, open, onOpen, onClose, onInsert, dense, rowH }: { at: n
   );
 }
 
-/** Contiguous run segments (unlettered frames group as unlabeled segments). */
-function runSegments(items: StripItem[]): { run: string | null; start: number; count: number }[] {
-  const segs: { run: string | null; start: number; count: number }[] = [];
-  items.forEach((it, i) => {
-    const run = it.run?.trim() || null;
-    const last = segs[segs.length - 1];
-    if (last && last.run === run) last.count += 1;
-    else segs.push({ run, start: i, count: 1 });
-  });
-  return segs;
-}
+// (Contiguous run segments now come from film-runs.ts — the same grouping the
+//  assign/fill-down actions reason about, so the rail can't drift from the write.)
 
 export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange, actions }: {
   items: StripItem[];
@@ -109,6 +101,11 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
   actions?: {
     shuffleChoices: () => void;
     star: () => void; boss: () => void; chaching: () => void; short: () => void; free: () => void;
+    /** RUN LETTERS — stamp the selection (or the open frame) with a letter, or
+     *  clear it with null. Optional so the strip renders before it's wired. */
+    assignRun?: (letter: string | null) => void;
+    /** Every unlettered frame inherits the letter above it — the 256-frame path. */
+    fillDownRuns?: () => void;
   };
 }) {
   const selected = sel ?? new Set<string>();
@@ -161,8 +158,10 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
     scrollRef.current?.querySelector(`[data-strip-frame="${qId}"]`)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [qId]);
 
-  const currentRun = items.find((it) => it.id === qId)?.run?.trim() || null;
+  const currentRun = normRun(items.find((it) => it.id === qId)?.run);
   const segs = runSegments(items);
+  const usedRuns = usedRunLetters(items);
+  const nextRun = nextRunLetter(items);
   const dense = density >= 6; // mini-cards: shorthand + run + glyph, one line
   const rowH = `calc((100vh - 210px) / ${density})`;
 
@@ -233,6 +232,49 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
                   <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#FF8B9E", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.short(); }} title="Flag as shorts-worthy — joins the Shorts queue">🎬 Short</button>
                   <button className="col-span-2 rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.free(); }} title="Include in the FREE cut">🆓 Free</button>
                 </div>
+                {/* RUN LETTERS — a run = the span you capture in ONE take. Tap a letter
+                    already used in this set, take the next one, or clear. Fill down
+                    finishes the set from the split points you've marked. */}
+                {(actions.assignRun || actions.fillDownRuns) && (<>
+                  <div className="my-0.5 h-px" style={{ background: NEON.borderSoft }} />
+                  <div className="text-[8.5px] font-bold uppercase tracking-widest" style={{ color: NEON.muted }}>
+                    Run letter
+                    <span className="ml-1 normal-case tracking-normal opacity-70">· one take</span>
+                  </div>
+                  {actions.assignRun && (
+                    <div className="flex flex-wrap gap-1">
+                      {usedRuns.map((L) => (
+                        <button
+                          key={L}
+                          className="rounded px-1.5 py-0.5 text-[10px] font-black hover:bg-white/10"
+                          style={{ color: currentRun === L ? "#0B1322" : NEON.cyan, background: currentRun === L ? NEON.cyan : "transparent", border: `1px solid ${currentRun === L ? NEON.cyan : NEON.borderSoft}` }}
+                          onClick={() => { setMenuOpen(false); actions.assignRun?.(L); }}
+                          title={`Film these frames as part of run ${L}`}
+                        >{L}</button>
+                      ))}
+                      <button
+                        className="rounded px-1.5 py-0.5 text-[10px] font-black hover:bg-white/10"
+                        style={{ color: NEON.yellow, border: `1px dashed ${NEON.borderSoft}` }}
+                        onClick={() => { setMenuOpen(false); actions.assignRun?.(nextRun); }}
+                        title={`Start a new take: run ${nextRun}`}
+                      >＋ {nextRun}</button>
+                      <button
+                        className="ml-auto rounded px-1.5 py-0.5 text-[10px] font-bold hover:bg-white/10"
+                        style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }}
+                        onClick={() => { setMenuOpen(false); actions.assignRun?.(null); }}
+                        title="Remove the run letter — back to unlettered"
+                      >✕ Clear</button>
+                    </div>
+                  )}
+                  {actions.fillDownRuns && (
+                    <button
+                      className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10"
+                      style={{ color: NEON.cyan }}
+                      onClick={() => { setMenuOpen(false); actions.fillDownRuns?.(); }}
+                      title="Every unlettered frame takes the letter of the frame above it — mark the split points, then finish the set in one click. A set with no letters at all becomes one run: A."
+                    >⤓ Fill down the set</button>
+                  )}
+                </>)}
               </>)}
             </div>
           </>)}
@@ -242,7 +284,7 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
           {items.map((it, i) => {
             if (!it.noteOnly) ceqN += 1;
             const active = it.id === qId;
-            const sameRun = !active && currentRun !== null && (it.run?.trim() || null) === currentRun;
+            const sameRun = !active && currentRun !== null && normRun(it.run) === currentRun;
             const label = (it.shorthand || it.stem || (it.noteOnly ? "Note" : "Question")).trim();
             return (
               <div key={it.id} className="flex shrink-0 flex-col" data-strip-frame={it.id}>
