@@ -37,6 +37,7 @@ import { archiveSetFile, loadSetPool, migrateToSetFiles, saveSetFile, seedExam1M
 // apply without a local checkout (the overnight run found the first apply was
 // clobbered by a stale-tab autosave — re-applying is now one click).
 import exam1MasterCsv from "../../data/exam1-master.csv?raw";
+import { generateShorthand } from "@/components/canvas/shorthand";
 import { retryUnlessMigrationHint } from "@/lib/pg-errors";
 import { ManageAccountsDialog } from "@/components/canvas/ManageAccountsDialog";
 import { ManageCourseDialog } from "@/components/canvas/ManageCourseDialog";
@@ -83,7 +84,7 @@ import { CeqStudio } from "@/components/canvas/CeqStudio";
 import { BrandingStudio } from "@/components/canvas/BrandingStudio";
 import { seedCeqSets } from "@/components/canvas/ceq-seed";
 import { loadPreviewStudent, savePreviewStudent, TOKEN_KEYS, type PreviewStudent } from "@/components/canvas/variables";
-import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, LESSON_STATUSES, LESSON_CATEGORIES, LESSON_CATEGORY_LABEL, type Beat, type CardBase, type CardData, type CardNode, type CeqChoice, type CeqChainItem, type CeqChainTemplate, type DeckDef, type FilmRun, type GlobalClips, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonAccess, type LessonBox, type LessonCategory, type LessonPathing, type LessonStatus, type ListCard, type RecCue, type RunEvent, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
+import { cardId, clampScale, FRAME_CARD_SCALE, FRAME_H, FRAME_W, isContainerType, isElementKind, LESSON_STATUSES, LESSON_CATEGORIES, LESSON_CATEGORY_LABEL, type Beat, type CardBase, type CardData, type CardNode, type CeqCard, type CeqChoice, type CeqChainItem, type CeqChainTemplate, type DeckDef, type FilmRun, type GlobalClips, type FormulaCard, type FrameBox, type FrameScript, type JeCard, type JeLine, type LegendCard, type LessonAccess, type LessonBox, type LessonCategory, type LessonPathing, type LessonStatus, type ListCard, type RecCue, type RunEvent, type ScheduleCard, type ComputationCard, type ZoneBox } from "@/components/canvas/types";
 import { EditableText, toggleWrapInField } from "@/components/canvas/ui";
 import { deckLessonFor, nextStageOrder, useCardActions } from "@/components/canvas/BaseCard";
 import { withFaceDown } from "@/components/canvas/CardBack";
@@ -1706,6 +1707,9 @@ function PresentCanvas() {
   const [poolLegacy, setPoolLegacy] = useState<{ id: string; name: string; decks: number } | null>(null);
   /** File ▾ → "Exam 1 master seed…" — dry-run + apply from the bundled CSV. */
   const [seedModalOpen, setSeedModalOpen] = useState(false);
+  /** File ▾ → "Generate missing shorthands" (film-prep tool 3) — preview rows with
+   *  inline edit, Apply = ONE undo step, never overwrites an existing shorthand. */
+  const [shorthandRows, setShorthandRows] = useState<{ id: string; deck: string; stem: string; proposed: string }[] | null>(null);
   const [tabState, setTabState] = useState<{ tabs: TabEntry[]; active: string }>(() => {
     const key = Math.random().toString(36).slice(2);
     return { tabs: [{ key, sceneId: null, name: "Untitled set", dirty: false }], active: key };
@@ -5663,6 +5667,14 @@ function PresentCanvas() {
           onViewV1={() => setChromeVersion(true)}
           poolMode={poolMode}
           onSeedExam1={() => setSeedModalOpen(true)}
+          onShorthandBackfill={poolMode ? () => {
+            const rows = rf.getNodes()
+              .filter((n) => n.type === "ceq")
+              .map((n) => ({ id: n.id, d: n.data as unknown as CeqCard & { deckId?: string } }))
+              .filter((x) => !x.d.noteOnly && (x.d.prompt ?? "").trim() && !(x.d.shorthand ?? "").trim())
+              .map((x) => ({ id: x.id, deck: decks.find((dd) => dd.id === x.d.deckId)?.name ?? "", stem: x.d.prompt, proposed: generateShorthand(x.d.prompt) }));
+            setShorthandRows(rows);
+          } : undefined}
         />
       )}
       {/* Hidden import input — lives OUTSIDE the v1 toolbar so File → Import works in
@@ -7018,6 +7030,38 @@ function PresentCanvas() {
       {chrome && gridByType && <LessonGridView onClose={() => setGridByType(false)} onActivateLesson={setActiveLesson} />}
       {/* CEQ STUDIO (prompt 5) — three-pane authoring overlay (sets · questions +
           chains · memo library). Reuses named decks + CEQ cards + prompt-1 chains. */}
+      {/* SHORTHAND BACKFILL — preview table, inline edit, one-undo Apply. */}
+      {chrome && shorthandRows && (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center" style={{ background: "rgba(4,8,16,0.72)" }} onClick={() => setShorthandRows(null)}>
+          <div className="flex max-h-[80vh] w-[640px] max-w-[94vw] flex-col rounded-xl p-4" style={{ background: NEON.panel, border: `1px solid ${NEON.borderSoft}` }} onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 text-[13px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>Generate missing shorthands</div>
+            {shorthandRows.length === 0 ? (
+              <div className="py-6 text-center text-[12px]" style={{ color: NEON.muted }}>Every CEQ frame already has a shorthand. Nothing to do.</div>
+            ) : (<>
+              <div className="mb-2 text-[11px]" style={{ color: NEON.muted }}>{shorthandRows.length} CEQ frame{shorthandRows.length === 1 ? "" : "s"} with no shorthand — edit inline, then Apply (one undo step). Existing shorthands are never touched.</div>
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {shorthandRows.map((r, i) => (
+                  <div key={r.id} className="mb-1 flex items-center gap-2 rounded px-1.5 py-1" style={{ border: `1px solid ${NEON.borderSoft}` }}>
+                    <span className="w-44 shrink-0 truncate text-[10px]" title={`${r.deck} — ${r.stem}`} style={{ color: NEON.muted }}>{r.stem}</span>
+                    <input className="min-w-0 flex-1 rounded bg-black/30 px-1.5 py-0.5 text-[11px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} value={r.proposed} maxLength={38}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      onChange={(e) => setShorthandRows((p) => p?.map((x, j) => (j === i ? { ...x, proposed: e.target.value } : x)) ?? null)} />
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button className="rounded px-3 py-1.5 text-[12px] font-bold" style={{ color: "#0B1322", background: NEON.yellow }} onClick={() => {
+                  const cmds = shorthandRows.filter((r) => r.proposed.trim()).map((r) => patchDataCmd(rf as unknown as RfLike, r.id, { shorthand: r.proposed.trim() }, "shorthand")).filter((c): c is NonNullable<typeof c> => !!c);
+                  const cmd = compositeCmd(cmds, "backfill shorthands");
+                  if (cmd) bus.dispatch(cmd);
+                  setShorthandRows(null);
+                }}>Apply {shorthandRows.filter((r) => r.proposed.trim()).length}</button>
+                <button className="rounded px-3 py-1.5 text-[12px] font-semibold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setShorthandRows(null)}>Cancel</button>
+              </div>
+            </>)}
+          </div>
+        </div>
+      )}
       {/* EXAM 1 MASTER SEED — dry-run first, apply on confirm; reloads the pool after. */}
       {chrome && seedModalOpen && <SeedExam1Modal onClose={() => setSeedModalOpen(false)} onApplied={() => { setSeedModalOpen(false); if (poolModeRef.current) void openPoolRef.current(); }} />}
       {/* POOL MODE: the Studio IS the surface — closing it means going Home. */}

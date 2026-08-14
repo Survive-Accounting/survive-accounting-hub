@@ -23,7 +23,7 @@ function NavMenuRow({ icon, label, danger, onClick }: { icon: ReactNode; label: 
   );
 }
 
-export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSaveAs, onLoad, onExport, onImport, onNewTab, onReset, onSeedSets, onCleanNames, onHotkeys, onOpenStudio, onViewV1, onHome, homeActive, poolMode, onSeedExam1 }: {
+export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSaveAs, onLoad, onExport, onImport, onNewTab, onReset, onSeedSets, onCleanNames, onHotkeys, onOpenStudio, onViewV1, onHome, homeActive, poolMode, onSeedExam1, onShorthandBackfill }: {
   onHome: () => void; homeActive: boolean;
   sceneName: string;
   setSceneName: (v: string) => void;
@@ -44,6 +44,8 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
    *  is parked behind "Open canvas view — experimental"; sets rename in the outline. */
   poolMode?: boolean;
   onSeedExam1?: () => void;
+  /** Film-prep tool 3 — preview + apply shorthands for CEQ frames missing one. */
+  onShorthandBackfill?: () => void;
 }) {
   const [fileOpen, setFileOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -103,6 +105,7 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
             {!poolMode && item(<ListOrdered className="h-3.5 w-3.5" />, "Open Studio", onOpenStudio)}
             {onSeedExam1 && <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />}
             {onSeedExam1 && item(<Sprout className="h-3.5 w-3.5" />, "Exam 1 master seed…", onSeedExam1)}
+            {onShorthandBackfill && item(<Eraser className="h-3.5 w-3.5" />, "Generate missing shorthands", onShorthandBackfill)}
             {!homeActive && !poolMode && <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />}
             {!homeActive && !poolMode && item(<Sprout className="h-3.5 w-3.5" />, "Seed starter sets", onSeedSets)}
             {!homeActive && !poolMode && item(<Eraser className="h-3.5 w-3.5" />, "Clean set names", onCleanNames)}
