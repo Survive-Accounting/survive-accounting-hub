@@ -1112,6 +1112,22 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     setNodes(build() as unknown as Node[]);
   }, [build, setNodes]);
 
+  // STAGED ELEMENTS refresh on their OWN effect rather than the seed above. That seed
+  // is skippable — skipSeedRef protects an in-flight drag/resize from being reset —
+  // and the guard was eating the 👁 show/hide: the flag flipped on the canvas node but
+  // the previewer kept its stale copy, so the ghost never appeared. This re-reads the
+  // live card data + hidden flag for STAGED nodes only, so it can't disturb the CEQ
+  // card, its memos or the arrows, and is therefore safe to run unconditionally.
+  useEffect(() => {
+    setNodes((nds) => nds.map((n) => {
+      if (!(n.data as { stage?: unknown } | undefined)?.stage) return n;
+      const live = mainRf.getNode(n.id)?.data as { stage?: { hidden?: boolean } } | undefined;
+      if (!live?.stage) return n;
+      return { ...n, data: live as never, style: live.stage.hidden ? { opacity: 0.28, filter: "saturate(0.35)" } : undefined };
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stageSig, setNodes]);
+
   const fitRef = useRef<ReactFlowInstance | null>(null);
   // Fit to the ACTIVE frame; in overview that's the frame at its stack index, so a
   // question change SMOOTHLY glides the view to it. `fitAll` zooms out to every frame.
