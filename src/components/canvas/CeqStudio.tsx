@@ -150,8 +150,24 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   }, [initialSetId]);
   const [addChooser, setAddChooser] = useState(false); // "+ Frame" → CEQ/Note chooser
   const [readiness, setReadiness] = useState<ReadinessReport | null>(null); // "Ready to film?" panel
-  const [addOpen, setAddOpen] = useState(false); // the ONE "Add" menu (stage elements)
+  // ADD MENU — anchored to the button but PORTALED to the document body. It used to be
+  // an absolutely-positioned child of the strip toolbar, which is `overflow-x-auto`:
+  // that clips any child that escapes the row, so the menu rendered behind/under the
+  // Studio and was unusable. Portal + fixed coords + the named Z scale fixes it for
+  // good (and keeps working when the Studio is popped out to a 2nd window).
+  const [addAt, setAddAt] = useState<{ x: number; y: number } | null>(null);
+  const addOpen = addAt !== null;
   const [addQuery, setAddQuery] = useState("");
+  const openAddMenu = (e: React.MouseEvent) => {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setAddAt(addOpen ? null : { x: r.left, y: r.bottom + 4 });
+  };
+  const closeAdd = () => { setAddAt(null); setAddQuery(""); };
+  /** ELEMENT CLIPBOARD (Lee) — copy a staged element off one frame and paste it onto
+   *  another. Holds the card's DATA only (never the node id or its stage spot), so a
+   *  paste is always a fresh, independent card: editing the copy can't touch the
+   *  original. Session-only, like the memo clipboard. */
+  const [elClip, setElClip] = useState<{ label: string; data: Record<string, unknown> } | null>(null);
   // REHEARSAL (film-prep tool 2) — a silent full-screen walkthrough on the SAME
   // surface Recording Mode films (so it renders exactly like the take), plus a tiny
   // corner counter and a 500ms run-boundary interstitial. No recording, no timers.
@@ -820,23 +836,40 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
    *  (so every existing card feature keeps working) carrying `data.stage`, which is
    *  what puts it on the CEQ stage instead of loose on the canvas. Lands centred-ish
    *  and VISIBLE; the eye toggle in the strip hides it until Lee reveals it. */
-  const addStageElement = (spec: StageElementSpec) => {
+  /** Put a card's data onto the OPEN frame's stage. Shared by "add new" and "paste". */
+  const stageCardData = (card: Record<string, unknown>, label: string, size?: { w: number; h: number }, offset = 0) => {
     if (!qId || qId === LAYOUT_Q0) { setNote("Open a question first — elements are staged onto a frame."); return; }
-    const card = spec.make() as unknown as Record<string, unknown>;
-    const size = spec.size ?? { w: 420, h: 260 };
-    // Centre it on the 1600×900 stage, nudged up so it doesn't bury the choices.
-    const x = Math.round((frameW - size.w) / 2);
-    const y = Math.round((frameH - size.h) / 2) - 60;
-    const id = cardId("el");
-    const node = {
-      id, type: spec.make().kind, position: { x, y }, selected: false,
-      data: { ...card, stage: { ceqId: qId, x, y, scale: 1 } },
-    };
-    const cmd = addNodesCmd(rfl, [node] as never, `add ${spec.label}`);
+    const sz = size ?? { w: 420, h: 260 };
+    // Centre on the 1600×900 stage, nudged up so it doesn't bury the choices. A paste
+    // offsets slightly so it can't land exactly on top of an existing element.
+    const x = Math.round((frameW - sz.w) / 2) + offset;
+    const y = Math.round((frameH - sz.h) / 2) - 60 + offset;
+    const kind = String(card.kind ?? "note");
+    const node = { id: cardId("el"), type: kind, position: { x, y }, selected: false, data: { ...card, stage: { ceqId: qId, x, y, scale: 1 } } };
+    const cmd = addNodesCmd(rfl, [node] as never, label);
     if (cmd) bus.dispatch(cmd);
-    setAddOpen(false);
-    setAddQuery("");
-    setNote(`Added ${spec.label} to this question — drag to place, 👁 to hide it until you reveal it.`);
+  };
+  const addStageElement = (spec: StageElementSpec) => {
+    const card = spec.make() as unknown as Record<string, unknown>;
+    stageCardData(card, `add ${spec.label}`, spec.size);
+    closeAdd();
+    setNote(`Added ${spec.label} to this question — drag to place, ⧉ to copy it onto another frame, 👁 to hide it until you reveal it.`);
+  };
+  /** Copy a staged element (data only — a fresh card on paste, never a shared one). */
+  const copyStageElement = (nid: string) => {
+    const d = rf.getNode(nid)?.data as Record<string, unknown> | undefined;
+    if (!d) return;
+    const { stage: _stage, ...rest } = d;
+    void _stage;
+    const label = String(rest.title ?? rest.kind ?? "element");
+    setElClip({ label, data: rest });
+    setNote(`Copied "${label}" — open another frame and paste it from the Add menu.`);
+  };
+  const pasteStageElement = () => {
+    if (!elClip) return;
+    stageCardData(structuredClone(elClip.data), `paste ${elClip.label}`, undefined, 24);
+    closeAdd();
+    setNote(`Pasted "${elClip.label}" onto this question.`);
   };
   /** Elements staged on the OPEN question (for the show/hide row). */
   const stagedHere = useMemo(() => (qId && qId !== LAYOUT_Q0
@@ -2362,36 +2395,16 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
               {/* ADD (Lee) — the ONE menu for every element that can go on a question:
                   grouped, alphabetical inside each group, type-to-filter. Replaces the
                   two v1-toolbar menus (cards + design elements) that v2 chrome hid. */}
-              <div className="relative shrink-0">
-                <button className="flex items-center gap-1 rounded px-2 py-0.5 text-[9.5px] font-bold leading-none" style={{ color: addOpen ? "#0B1322" : NEON.yellow, background: addOpen ? NEON.yellow : "transparent", border: `1px solid ${addOpen ? NEON.yellow : NEON.borderSoft}` }} onClick={() => setAddOpen((v) => !v)} title="Add an element onto this question — it films with the card and can be hidden until you reveal it">
-                  <Plus className="h-3 w-3" /> Add
-                </button>
-                {addOpen && (<>
-                  <div className="fixed inset-0 z-[74]" onClick={() => { setAddOpen(false); setAddQuery(""); }} />
-                  <div className="absolute left-0 top-7 z-[75] flex max-h-[62vh] w-64 flex-col rounded-xl p-2" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, boxShadow: "0 18px 44px -16px rgba(0,0,0,0.8)" }}>
-                    <input autoFocus value={addQuery} onChange={(e) => setAddQuery(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Escape") { setAddOpen(false); setAddQuery(""); } }} placeholder="Filter…" className="mb-1.5 shrink-0 rounded bg-black/40 px-2 py-1 text-[11px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} />
-                    <div className="min-h-0 flex-1 overflow-y-auto">
-                      {groupedStageElements(addQuery).map((g) => (
-                        <div key={g.group} className="mb-1.5">
-                          <div className="mb-0.5 px-1 text-[8.5px] font-bold uppercase tracking-widest" style={{ color: NEON.muted }}>{g.group}</div>
-                          <div className="grid grid-cols-2 gap-1">
-                            {g.items.map((it) => (
-                              <button key={it.label} className="rounded px-1.5 py-1 text-left text-[10.5px] font-medium hover:bg-white/10" style={{ color: NEON.text, border: `1px dashed ${NEON.borderSoft}` }} onClick={() => addStageElement(it)} title={`Add ${it.label} to this question`}>{it.label}</button>
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                      {groupedStageElements(addQuery).length === 0 && <div className="px-1 py-3 text-center text-[10px] italic" style={{ color: NEON.muted }}>Nothing matches “{addQuery}”.</div>}
-                    </div>
-                  </div>
-                </>)}
-              </div>
+              <button className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-[9.5px] font-bold leading-none" style={{ color: addOpen ? "#0B1322" : NEON.yellow, background: addOpen ? NEON.yellow : "transparent", border: `1px solid ${addOpen ? NEON.yellow : NEON.borderSoft}` }} onClick={openAddMenu} title="Add an element onto this question — it films with the card and can be hidden until you reveal it">
+                <Plus className="h-3 w-3" /> Add
+              </button>
               {/* STAGED ON THIS QUESTION — show/hide + remove. 👁 is the film toggle:
                   hidden elements ghost here and never reach the camera. */}
               {stagedHere.map((el) => (
                 <span key={el.id} className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold leading-none" style={{ color: el.hidden ? NEON.muted : "#3BF5A0", border: `1px solid ${el.hidden ? NEON.borderSoft : "rgba(59,245,160,0.4)"}` }} title={el.hidden ? "Hidden — click 👁 to put it on camera" : "On camera — click 👁 to hide it"}>
                   <button onClick={() => toggleStageHidden(el.id)} title={el.hidden ? "Show on camera" : "Hide until revealed"}>{el.hidden ? "🙈" : "👁"}</button>
                   <span className="max-w-[76px] truncate">{el.title || el.kind}</span>
+                  <button style={{ color: NEON.cyan }} onClick={() => copyStageElement(el.id)} title="Copy this element — then open another frame and paste it from the Add menu">⧉</button>
                   <button style={{ color: NEON.red }} onClick={() => removeStageElement(el.id)} title="Remove this element from the question">✕</button>
                 </span>
               ))}
@@ -2892,6 +2905,41 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
             </div>
           </div>
         </div>
+      )}
+      {/* ADD MENU — portaled to the document body at fixed coords. Living inside the
+          strip toolbar meant `overflow-x-auto` clipped it (it rendered behind the
+          Studio and couldn't be used). Z.modal puts it above the Studio overlay. */}
+      {addOpen && addAt && studioRootRef.current && createPortal(
+        <>
+          <div className="fixed inset-0" style={{ zIndex: Z.modal }} onClick={closeAdd} />
+          <div
+            className="fixed flex max-h-[62vh] w-64 flex-col rounded-xl p-2"
+            style={{ left: Math.min(addAt.x, (studioRootRef.current.ownerDocument.defaultView?.innerWidth ?? 1200) - 280), top: addAt.y, zIndex: Z.modal + 1, background: NEON.panelSolid, border: `1px solid ${NEON.border}`, boxShadow: "0 18px 44px -16px rgba(0,0,0,0.8)" }}
+          >
+            <input autoFocus value={addQuery} onChange={(e) => setAddQuery(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Escape") closeAdd(); }} placeholder="Filter…" className="mb-1.5 shrink-0 rounded bg-black/40 px-2 py-1 text-[11px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} />
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {/* PASTE sits at the top when something's on the element clipboard —
+                  the copy→other frame→paste loop without leaving this one menu. */}
+              {elClip && (
+                <button className="mb-1.5 w-full rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: NEON.cyan, border: `1px solid rgba(79,209,224,0.5)` }} onClick={pasteStageElement} title="Paste the copied element onto this question (a fresh, independent copy)">
+                  ⧉ Paste “{elClip.label.slice(0, 22)}”
+                </button>
+              )}
+              {groupedStageElements(addQuery).map((g) => (
+                <div key={g.group} className="mb-1.5">
+                  <div className="mb-0.5 px-1 text-[8.5px] font-bold uppercase tracking-widest" style={{ color: NEON.muted }}>{g.group}</div>
+                  <div className="grid grid-cols-2 gap-1">
+                    {g.items.map((it) => (
+                      <button key={it.label} className="rounded px-1.5 py-1 text-left text-[10.5px] font-medium hover:bg-white/10" style={{ color: NEON.text, border: `1px dashed ${NEON.borderSoft}` }} onClick={() => addStageElement(it)} title={`Add ${it.label} to this question`}>{it.label}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {groupedStageElements(addQuery).length === 0 && <div className="px-1 py-3 text-center text-[10px] italic" style={{ color: NEON.muted }}>Nothing matches “{addQuery}”.</div>}
+            </div>
+          </div>
+        </>,
+        studioRootRef.current.ownerDocument.body,
       )}
       {chainFor && <CeqChainEditor nodeId={chainFor} onClose={() => setChainFor(null)} />}
       {confirmBox && (

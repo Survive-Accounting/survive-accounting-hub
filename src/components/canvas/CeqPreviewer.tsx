@@ -1135,14 +1135,18 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // live card data + hidden flag for STAGED nodes only, so it can't disturb the CEQ
   // card, its memos or the arrows, and is therefore safe to run unconditionally.
   useEffect(() => {
-    setNodes((nds) => nds.map((n) => {
-      if (!(n.data as { stage?: unknown } | undefined)?.stage) return n;
-      const live = mainRf.getNode(n.id)?.data as { stage?: { hidden?: boolean } } | undefined;
-      if (!live?.stage) return n;
-      return { ...n, data: live as never, style: live.stage.hidden ? { opacity: 0.28, filter: "saturate(0.35)" } : undefined };
+    setNodes((nds) => nds.flatMap((n) => {
+      if (!(n.data as { stage?: unknown } | undefined)?.stage) return [n];
+      const live = mainRf.getNode(n.id)?.data as { stage?: { ceqId?: string; hidden?: boolean } } | undefined;
+      // DROP a staged node that no longer belongs on this frame — deleted on the
+      // canvas, or (the real bug) staged on a DIFFERENT question and left behind when
+      // the seed was skipped on the frame switch. Unremoved it bleeds one question's
+      // element onto the next, and would eventually leak into a take.
+      if (!live?.stage || live.stage.ceqId !== ceqId) return [];
+      return [{ ...n, data: live as never, style: live.stage.hidden ? { opacity: 0.28, filter: "saturate(0.35)" } : undefined }];
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stageSig, setNodes]);
+  }, [stageSig, ceqId, setNodes]);
 
   const fitRef = useRef<ReactFlowInstance | null>(null);
   // Fit to the ACTIVE frame; in overview that's the frame at its stack index, so a

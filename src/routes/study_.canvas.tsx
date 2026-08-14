@@ -7518,12 +7518,14 @@ function CanvasHome({ onOpenScene, onNewScene, onOpenSets, legacy, onLegacyDetec
   };
   return (
     <div className="absolute inset-x-0 bottom-0 top-11 z-[60] flex flex-col items-center justify-center" style={{ background: "#14213D" }}>
+      {/* ONE BOLT, NOT TWO (Lee): the standalone boiling bolt used to sit above the
+          wordmark — but the wordmark already carries the bolt as its "i", so the mark
+          read twice. The wordmark is now the whole lockup, sized up (92 → 116) to hold
+          the space the bolt vacated. The bolt asset itself is untouched: it still
+          renders in the wordmark, the spotlight signature and the player sting. */}
       <div className="flex flex-col items-center" style={{ fontFamily: "'Rubik', system-ui, sans-serif" }}>
-        {reduce
-          ? <span className="inline-block" style={{ height: 170, width: 120 }}><Bolt c1="#C62828" c2="#1565C0" /></span>
-          : <BoltBoil height={170} />}
-        <div className="mt-8"><SurviveWordmark size={92} /></div>
-        <div className="mt-6 text-[22px] font-semibold" style={{ color: "#F5EFE6" }}>Only what's on your exam.</div>
+        <SurviveWordmark size={116} />
+        <div className="mt-5 text-[22px] font-semibold" style={{ color: "#F5EFE6" }}>Only what's on your exam.</div>
         {/* PRIMARY: the set dashboard. Sets are filmed; frames are what's in them. */}
         {hasSetFiles && (
           <button onClick={onOpenSets} className="mt-8 rounded-xl px-6 py-2.5 text-[15px] font-bold transition-colors hover:bg-white/10" style={{ color: NEON.yellow, border: "2px solid rgba(252,163,17,0.6)" }} title="Open every set — the outline on the left is the one navigation">
