@@ -16,7 +16,7 @@
 //     first frame; the current run's segment is highlighted. The seed of the
 //     future exam map, deliberately display-only.
 import { useEffect, useRef, useState } from "react";
-import { FileText, HelpCircle, Plus, Star } from "lucide-react";
+import { FileText, HelpCircle, MoreVertical, Plus, Star } from "lucide-react";
 
 import { NEON } from "./theme";
 
@@ -74,12 +74,43 @@ function runSegments(items: StripItem[]): { run: string | null; start: number; c
   return segs;
 }
 
-export function SetFilmstrip({ items, qId, onSelect, onInsert }: {
+export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange, actions }: {
   items: StripItem[];
   qId: string | null;
   onSelect: (id: string) => void;
   onInsert: (at: number, kind: "ceq" | "note") => void;
+  /** MULTI-SELECT (Lee): ctrl/⌘-click toggles one, shift-click takes the range from
+   *  the last click. Drives the ⋮ menu's bulk actions. */
+  sel?: Set<string>;
+  onSelChange?: (next: Set<string>) => void;
+  /** Bulk actions for the ⋮ menu — applied to the selection (or the open frame). */
+  actions?: {
+    shuffleChoices: () => void;
+    star: () => void; boss: () => void; chaching: () => void; short: () => void; free: () => void;
+  };
 }) {
+  const selected = sel ?? new Set<string>();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const anchorRef = useRef<string | null>(null); // shift-range origin
+  const rowClick = (id: string, e: React.MouseEvent) => {
+    if (!onSelChange) { onSelect(id); return; }
+    const ids = items.map((it) => it.id);
+    if (e.shiftKey && anchorRef.current) {
+      const a = ids.indexOf(anchorRef.current); const b = ids.indexOf(id);
+      if (a >= 0 && b >= 0) { const [lo, hi] = a < b ? [a, b] : [b, a]; onSelChange(new Set([...selected, ...ids.slice(lo, hi + 1)])); return; }
+    }
+    if (e.ctrlKey || e.metaKey) {
+      const next = new Set(selected);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      anchorRef.current = id;
+      onSelChange(next);
+      return;
+    }
+    // plain click = open the frame AND reset the selection to nothing
+    anchorRef.current = id;
+    if (selected.size) onSelChange(new Set());
+    onSelect(id);
+  };
   const scrollRef = useRef<HTMLDivElement>(null);
   const [density, setDensityRaw] = useState<number>(() => {
     try { const v = Number(localStorage.getItem(DENSITY_KEY)); return DENSITY_STEPS.includes(v as never) ? v : 6; } catch { return 6; }
@@ -132,11 +163,54 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert }: {
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* strip header: the density stepper (1/3/6/12 frames per screen). */}
-        <div className="flex shrink-0 items-center justify-end gap-0.5 px-1 pt-1" title="Density — frames per screen. Ctrl+scroll steps too; plain scroll just scrolls.">
-          {DENSITY_STEPS.map((s) => (
-            <button key={s} className="rounded px-1 text-[8.5px] font-black tabular-nums" style={{ color: density === s ? "#0B1322" : NEON.muted, background: density === s ? NEON.yellow : "transparent", border: `1px solid ${density === s ? NEON.yellow : "transparent"}` }} onClick={() => setDensity(s)}>{s}</button>
-          ))}
+        {/* STRIP MENU (Lee) — one ⋮ above the frames instead of a row of loose controls.
+            Holds the density steps and every marker that used to be a text button in
+            the bottom bar (★ boss / chaching / short / free), plus Shuffle choices.
+            Markers apply to the SELECTION when there is one, else the open frame. */}
+        <div className="relative flex shrink-0 items-center gap-1 px-1 pt-1">
+          <button
+            className="grid h-5 w-5 shrink-0 place-items-center rounded"
+            style={{ color: menuOpen ? "#0B1322" : NEON.muted, background: menuOpen ? NEON.yellow : "transparent", border: `1px solid ${menuOpen ? NEON.yellow : NEON.borderSoft}` }}
+            onClick={() => setMenuOpen((v) => !v)}
+            title="Frame menu — density, shuffle choices, and the ★/boss/chaching/short markers"
+          >
+            <MoreVertical className="h-3.5 w-3.5" />
+          </button>
+          {selected.size > 0 && (
+            <button className="rounded px-1.5 text-[8.5px] font-black" style={{ color: "#0B1322", background: NEON.cyan }} onClick={() => onSelChange?.(new Set())} title="Clear the selection">
+              {selected.size} selected ✕
+            </button>
+          )}
+          {menuOpen && (<>
+            <div className="fixed inset-0 z-[78]" onClick={() => setMenuOpen(false)} />
+            <div className="absolute left-0 top-7 z-[79] flex w-52 flex-col gap-1 rounded-xl p-2" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, boxShadow: "0 18px 44px -16px rgba(0,0,0,0.8)" }}>
+              <div className="flex items-center gap-1">
+                <span className="text-[8.5px] font-bold uppercase tracking-widest" style={{ color: NEON.muted }}>Density</span>
+                <span className="ml-auto flex gap-0.5">
+                  {DENSITY_STEPS.map((s) => (
+                    <button key={s} className="rounded px-1.5 text-[9px] font-black tabular-nums" style={{ color: density === s ? "#0B1322" : NEON.muted, background: density === s ? NEON.yellow : "transparent", border: `1px solid ${density === s ? NEON.yellow : NEON.borderSoft}` }} onClick={() => setDensity(s)} title={`${s} frame${s === 1 ? "" : "s"} per screen`}>{s}</button>
+                  ))}
+                </span>
+              </div>
+              {actions && (<>
+                <div className="my-0.5 h-px" style={{ background: NEON.borderSoft }} />
+                <div className="text-[8.5px] font-bold uppercase tracking-widest" style={{ color: NEON.muted }}>
+                  {selected.size > 0 ? `${selected.size} selected` : "This frame"}
+                  <span className="ml-1 normal-case tracking-normal opacity-70">· ctrl/shift-click to pick</span>
+                </div>
+                <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: NEON.yellow }} onClick={() => { setMenuOpen(false); actions.shuffleChoices(); }} title="Reorder each selected question's choices so the answer stops living at A. Chains and arrows follow their choice; “None of these” stays last.">
+                  🔀 Shuffle choices
+                </button>
+                <div className="grid grid-cols-2 gap-1">
+                  <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#FFD23F", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.star(); }} title="Star — performer's note; inert for stitch/publish">★ Star</button>
+                  <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.boss(); }} title="Boss card — fires the cram-launch cue on deal">👑 Boss</button>
+                  <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.chaching(); }} title="Chaching on the correct-Enter (on by default)">💰 Chaching</button>
+                  <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#FF8B9E", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.short(); }} title="Flag as shorts-worthy — joins the Shorts queue">🎬 Short</button>
+                  <button className="col-span-2 rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.free(); }} title="Include in the FREE cut">🆓 Free</button>
+                </div>
+              </>)}
+            </div>
+          </>)}
         </div>
         <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto px-1.5 py-1">
           <InsertGap at={0} onInsert={onInsert} />
@@ -152,13 +226,15 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert }: {
                   style={{
                     minHeight: dense ? undefined : rowH,
                     height: dense ? rowH : undefined,
-                    border: `1px solid ${active ? "rgba(252,163,17,0.9)" : NEON.borderSoft}`,
-                    boxShadow: active ? "0 0 0 1.5px rgba(252,163,17,0.45)" : undefined,
-                    background: active ? "rgba(252,163,17,0.12)" : "rgba(9,14,26,0.5)",
-                    opacity: active ? 1 : sameRun ? 0.8 : 0.55,
+                    // SELECTED (bulk ops) reads as a cyan ring — distinct from the gold
+                    // "currently open" ring, since a frame can be both at once.
+                    border: `1px solid ${active ? "rgba(252,163,17,0.9)" : selected.has(it.id) ? "rgba(79,209,224,0.85)" : NEON.borderSoft}`,
+                    boxShadow: active ? "0 0 0 1.5px rgba(252,163,17,0.45)" : selected.has(it.id) ? "0 0 0 1.5px rgba(79,209,224,0.4)" : undefined,
+                    background: active ? "rgba(252,163,17,0.12)" : selected.has(it.id) ? "rgba(79,209,224,0.12)" : "rgba(9,14,26,0.5)",
+                    opacity: active || selected.has(it.id) ? 1 : sameRun ? 0.8 : 0.55,
                     transition: "height 220ms cubic-bezier(0.2,0.7,0.3,1), min-height 220ms cubic-bezier(0.2,0.7,0.3,1), opacity 150ms ease",
                   }}
-                  onClick={() => onSelect(it.id)}
+                  onClick={(e) => rowClick(it.id, e)}
                   title={it.stem || label}
                 >
                   {/* same-run bracket — the shape of the take you're inside */}

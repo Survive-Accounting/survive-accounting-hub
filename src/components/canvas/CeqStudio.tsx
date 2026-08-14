@@ -1328,6 +1328,42 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
   const bulkFree = () => { const allOn = selData().every((d) => !!d?.free); const n = bulkPatchQ(allOn ? "bulk un-free" : "bulk free", () => ({ free: !allOn })); setNote(`${allOn ? "Removed" : "Added"} ${n} question${n === 1 ? "" : "s"} ${allOn ? "from" : "to"} the FREE cut.`); };
   const bulkBoss = () => { const allOn = selData().every((d) => !!d?.boss); const n = bulkPatchQ("bulk boss", () => ({ boss: !allOn })); setNote(`Boss ${allOn ? "off" : "on"} for ${n} question${n === 1 ? "" : "s"}.`); };
   const bulkChaching = () => { const allSilenced = selData().every((d) => d?.confirmSfx === false); const n = bulkPatchQ("bulk chaching", () => ({ confirmSfx: allSilenced ? true : false })); setNote(`Chaching-on-correct ${allSilenced ? "ON" : "OFF"} for ${n} question${n === 1 ? "" : "s"}.`); };
+  /** SHUFFLE CHOICES (Lee) — reorder each selected question's choices so the correct
+   *  answer stops living at A. Reordering the ARRAY is exactly right: the letter comes
+   *  from array position, while every choice keeps its own id — so chained memos,
+   *  memo→choice arrows (anchored on anc:<choiceId>) and per-choice sounds all follow
+   *  their choice to its new letter. Nothing is rewritten, only reordered.
+   *
+   *  "None of these" style options stay pinned LAST (shuffling them mid-list reads as
+   *  a typo on camera), and a shuffle that lands on the original order is retried so
+   *  the action never silently does nothing. */
+  const shuffleChoices = () => {
+    const ids = qSel.size > 0 ? [...qSel] : qId && qId !== LAYOUT_Q0 ? [qId] : [];
+    if (ids.length === 0) { setNote("Select questions in the strip first (ctrl-click / shift-click)."); return; }
+    const isPinned = (t: string) => /^\s*none of (these|the above)/i.test(t);
+    let moved = 0;
+    const cmds = ids.map((id) => {
+      const d = rf.getNode(id)?.data as unknown as CeqCard | undefined;
+      const all = d?.choices ?? [];
+      if (all.length < 2) return null;
+      const pinned = all.filter((c) => isPinned(c.text));
+      const pool = all.filter((c) => !isPinned(c.text));
+      if (pool.length < 2) return null;
+      const before = pool.map((c) => c.id).join("|");
+      let next = pool;
+      for (let attempt = 0; attempt < 6; attempt++) {
+        next = [...pool];
+        for (let i = next.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [next[i], next[j]] = [next[j], next[i]]; }
+        if (next.map((c) => c.id).join("|") !== before) break;
+      }
+      if (next.map((c) => c.id).join("|") === before) return null; // genuinely unshufflable
+      moved += 1;
+      return patchDataCmd(rfl, id, { choices: [...next, ...pinned] } as never, "shuffle choices");
+    }).filter((c): c is NonNullable<typeof c> => !!c);
+    const cmd = compositeCmd(cmds, "shuffle choices");
+    if (cmd) bus.dispatch(cmd);
+    setNote(moved ? `Shuffled choices on ${moved} question${moved === 1 ? "" : "s"} — chains + arrows followed their choice. One undo.` : "Nothing to shuffle.");
+  };
   const bulkShort = () => { const allOn = selData().every((d) => !!d?.short); const n = bulkPatchQ("bulk short", () => ({ short: !allOn })); setNote(`Shorts flag ${allOn ? "cleared" : "set"} on ${n} question${n === 1 ? "" : "s"}.`); };
   const bulkClearClips = () => {
     const withClips = selData().filter((d) => cardClips(d).length > 0).length;
@@ -2408,7 +2444,25 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   frame 1 at top, scroll down; the selected frame renders large in the editor
                   beside it. The outline stays the cross-set list; this rail is the inside of
                   ONE set. Hover a gap → [+] → CEQ/Note chooser. */}
-              <SetFilmstrip items={stripItems} qId={qId === LAYOUT_Q0 ? null : qId} onSelect={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onInsert={insertFrame} />
+              <SetFilmstrip
+                items={stripItems}
+                qId={qId === LAYOUT_Q0 ? null : qId}
+                onSelect={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }}
+                onInsert={insertFrame}
+                sel={qSel}
+                onSelChange={setQSel}
+                // Markers act on the SELECTION when there is one, else the open frame —
+                // so the ⋮ menu is the single home for them (they were loose text
+                // buttons in the bottom bar).
+                actions={{
+                  shuffleChoices,
+                  star: () => (qSel.size ? bulkStar() : qId && qId !== LAYOUT_Q0 ? patchQ(qId, { starred: !(rf.getNode(qId)?.data as unknown as CeqCard | undefined)?.starred }) : undefined),
+                  boss: () => (qSel.size ? bulkBoss() : qId && qId !== LAYOUT_Q0 ? patchQ(qId, { boss: !(rf.getNode(qId)?.data as unknown as CeqCard | undefined)?.boss }) : undefined),
+                  chaching: () => (qSel.size ? bulkChaching() : qId && qId !== LAYOUT_Q0 ? patchQ(qId, { confirmSfx: (rf.getNode(qId)?.data as unknown as CeqCard | undefined)?.confirmSfx === false }) : undefined),
+                  short: () => (qSel.size ? bulkShort() : qId && qId !== LAYOUT_Q0 ? patchQ(qId, { short: !(rf.getNode(qId)?.data as unknown as CeqCard | undefined)?.short }) : undefined),
+                  free: () => (qSel.size ? bulkFree() : qId && qId !== LAYOUT_Q0 ? patchQ(qId, { free: !(rf.getNode(qId)?.data as unknown as CeqCard | undefined)?.free }) : undefined),
+                }}
+              />
               {/* (SET CLIPS moved to the Publish panel — one home for the publish path.) */}
               {/* READY TO FILM? panel — pass/fail list + counts; ✗ rows link to frames. */}
               {readiness && deck && (
