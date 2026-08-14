@@ -355,6 +355,12 @@ export interface CeqCard extends CardBase {
    *  happens SERVER-SIDE (fetchStudentTree) so the hidden text never ships to an unentitled client.
    *  Never applied in Studio, the free tab, or for entitled users. Additive scene JSON. */
   blurRanges?: { s: number; e: number }[];
+  /** EXAM-1 MASTER SEED (Lee) — short label for player navigation ("Q7 · Unearned → earned"). */
+  shorthand?: string;
+  /** Film-time exhibit flag from the master sheet: "T" = T-account, "TB" = trial balance. */
+  exhibit?: string;
+  /** Author note carried from the master sheet (e.g. BIGGER = missing-variable beat change). */
+  seedNote?: string;
   choices: CeqChoice[];
   revealedAnswer?: boolean;
   /** PER-CEQ SCRIPT NOTE — LEGACY field. Superseded by the SCRIPT LAYERS below:
