@@ -126,7 +126,19 @@ const PV_CSS = `
 /* Modern transitions (Lee): a CEQ slides+fades in when the question changes (the
    card node remounts on ceqId change), and a chain memo POPS in when it's revealed
    in film — a touch more emphatic than a plain fade. */
-@keyframes sa-ceq-in { from { opacity: 0; transform: translateY(12px) scale(0.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+/* CEQ ARRIVAL (Lee — "same frame, a new CEQ just appears") — a SETTLE, not a fade-in.
+   It used to start at opacity 0: because each question is its own node id, the old card
+   unmounts and the new one mounts INVISIBLE, so every space-press showed a blank beat —
+   that blink is what read as flickery. Starting at 0.5 keeps a card on screen the whole
+   way through; the eye sees one card resolve, never an empty frame. Short travel (7px),
+   a hair of scale, and a slow-out curve do the rest. */
+@keyframes sa-ceq-in { from { opacity: 0.5; transform: translateY(7px) scale(0.994); } to { opacity: 1; transform: translateY(0) scale(1); } }
+/* …and ONE quiet brand pulse on the card edge so it's unmistakable that the question
+   CHANGED without a flash: a gold ring blooms and dissolves in under half a second. */
+@keyframes sa-ceq-edge {
+  0%   { box-shadow: 0 8px 26px -10px rgba(0,0,0,0.6), 0 0 0 2.5px rgba(252,163,17,0.55), 0 0 18px rgba(252,163,17,0.35); }
+  100% { box-shadow: 0 8px 26px -10px rgba(0,0,0,0.6), 0 0 0 0 rgba(252,163,17,0), 0 0 0 rgba(252,163,17,0); }
+}
 /* HARD PUSH (Lee, #4) — PageDown / PageUp are a DISTINCT, faster deal than the Space walk:
    a pure vertical push, NO fade / blur / scale. PageDown (next) enters from BELOW, PageUp
    (prev) from ABOVE, 180ms sharp ease-out. Held, it rips a whole set in ~1s for the tease. */
@@ -153,13 +165,17 @@ const PV_CSS = `
    still shows a full strike; where the keyframes exist it animates. */
 @keyframes sa-strike { from { transform: translateY(-50%) scaleX(0); } to { transform: translateY(-50%) scaleX(1); } }
 .sa-strike-draw { animation: sa-strike 200ms cubic-bezier(0.4,0,0.2,1) both; }
-.sa-ceq-in, .sa-memo-pop, .sa-memo-in { transform-origin: 0 0; }
+.sa-memo-pop, .sa-memo-in { transform-origin: 0 0; }
+/* The CEQ card settles about its OWN CENTRE. With origin 0 0 it grew out of its
+   top-left corner, so the arrival read as a sideways shift on top of the fade —
+   the second half of the "flashy" feel. Sub-pixel drift at scale 0.994. */
+.sa-ceq-in { transform-origin: 50% 50%; }
 /* On-memo cluster: slight grow on hover (legibility), authoring-only by gating. */
 .sa-memo-cluster { transition: transform 120ms; }
 .sa-memo-cluster:hover { scale: 1.15; }
 /* Selection ring in film: present but quiet — the shot shows intent, not UI. */
 .film-mode .sa-msel { outline: none; }
-@media (prefers-reduced-motion: reduce) { .sa-ceq-in, .sa-memo-pop, .sa-memo-in, .sa-ceq-correct, .sa-strike-draw { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .sa-ceq-in, .sa-ceq-edge, .sa-memo-pop, .sa-memo-in, .sa-ceq-correct, .sa-strike-draw { animation: none !important; } }
 /* SPOTLIGHT GUARDRAILS (Lee) — cap the FLAME super-scale inside the previewer so a
    flamed choice/memo can't blow outside the CEQ box / frame on a take (beats
    FLAME_CSS's scale(1.4) !important by specificity; origin stays left-center). */
@@ -354,7 +370,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
   const startStemEdit = () => { if (!canEditStem) return; setStemDraft(d.stem || ""); setStemEditing(true); };
   const commitStemEdit = () => { editStem?.(id, stemDraft); setStemEditing(false); };
   return (
-    <div data-ceq-card="" className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.2,0.7,0.3,1) both" }}>
+    <div data-ceq-card="" className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
       {/* QUESTION 0 ribbon — unmistakably the LAYOUT stage, never content. */}
       {d.layoutBadge && !film && <span style={{ position: "absolute", top: -12, left: 12, borderRadius: 6, padding: "1px 8px", fontSize: 10, fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase", color: "#0B0F1E", background: NEON.yellow, zIndex: 21 }}>Layout</span>}
       {/* STUDENT PROGRESS — "X of Y" top-right + a slim fill bar along the top edge;
@@ -1017,7 +1033,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     const enterAnimName = dealAnim === "pushDown" ? "sa-ceq-push-down" : dealAnim === "pushUp" ? "sa-ceq-push-up" : "sa-ceq-in";
     const enterAnim = reduceMotion ? "none"
       : dealAnim === "pushDown" || dealAnim === "pushUp" ? `${enterAnimName} 180ms cubic-bezier(0.16,1,0.3,1) both`
-      : "sa-ceq-in 300ms cubic-bezier(0.2,0.7,0.3,1) both";
+      : "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both";
     const ceqNode = { id: ceqId, type: "ceqPreview", position: { x: cs.x, y: yOff + cs.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cs.scale, layoutBadge: layoutMode, progress, topic, enterAnim, enterAnimName }, draggable: true, zIndex: 1 };
     // PLACEMENT: in Question 0 each stage chip IS its slot (whole rack, so inactive
     // ones stay visible to switch on). In a real question memos fill the ACTIVE slots
