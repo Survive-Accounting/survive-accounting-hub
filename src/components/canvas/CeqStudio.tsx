@@ -9,7 +9,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEdges, useNodes, useReactFlow } from "@xyflow/react";
-import { CheckCircle2, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Circle, ClipboardPaste, Copy, ExternalLink, FolderInput, Globe, LayoutGrid, Library, Lightbulb, ListChecks, Loader2, Play, Plus, Search, Square, Trash2, WrapText, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
+import { BadgeCheck, CheckCircle2, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Circle, ClipboardPaste, Clapperboard, Copy, Crown, ExternalLink, FolderInput, Globe, LayoutGrid, Library, Lightbulb, ListChecks, Loader2, Lock, Play, Plus, Search, Square, Star, Trash2, Unlock, WrapText, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
 
 import { courseLabel, fetchCourseOptions, topicLabel, type CourseOption } from "@/lib/je-api";
 import { createChapter } from "@/lib/canvas.functions";
@@ -148,7 +148,6 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     if (cardDecks.some((d) => d.id === initialSetId)) openSetTab(initialSetId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSetId]);
-  const [addChooser, setAddChooser] = useState(false); // "+ Frame" → CEQ/Note chooser
   const [readiness, setReadiness] = useState<ReadinessReport | null>(null); // "Ready to film?" panel
   // ADD MENU — anchored to the button but PORTALED to the document body. It used to be
   // an absolutely-positioned child of the strip toolbar, which is `overflow-x-auto`:
@@ -1500,58 +1499,9 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
     setNote(`Stamped "${tpl.name}" onto ${targets.length} question${targets.length === 1 ? "" : "s"} (one undo)${skipped > 0 ? ` · ${skipped} skipped (already have chains)` : ""}.`);
   };
 
-  /** DEAL the set into the current frame — reparent its CEQ cards (a tucked stack)
-   *  AND their chain memos, each at the EXACT position it holds in this previewer.
-   *  The CEQ sits at the deal-centre; memos keep their frame-local spots but are
-   *  hidden in film until Enter-walked (the hiddenOf reconciler owns that). So the
-   *  frame is film-ready — no post-deal editing. */
-  const dealIntoFrame = () => {
-    const frameId = nav.currentFrameId;
-    if (!frameId || !deck) { setNote("Enter a frame first, then Deal."); return; }
-    const frame = rf.getNode(frameId);
-    if (!frame || frame.type !== "frame") { setNote("Enter a frame first, then Deal."); return; }
-    const fw = (frame.data as { w?: number }).w ?? frame.width ?? 1600;
-    const fh = (frame.data as { h?: number }).h ?? frame.height ?? 900;
-    const members = questions.map((q) => rf.getNode(q.id)).filter((n): n is NonNullable<typeof n> => !!n);
-    const memberIds = new Set(members.map((m) => m.id));
-    // Card + memos land at the SET BASELINE (deck.layout), NOT the drifting previewer
-    // positions — every question deals identically. dealSpot is the stack flip-spot
-    // (stackStep reads it now); memos key off the FLAT chain index PER question so
-    // slot 1 of every question sits in the same baseline spot. Default = centre / right-stack.
-    // Each question deals at ITS OWN resolved spot (instance ?? template), through the
-    // same resolver the previewer draws with — so what you previewed is what deals.
-    // (It previously read raw memoSlots[i] while the previewer walked ACTIVE slots, so
-    // a set with a switched-off slot dealt differently from its preview.)
-    // LAYOUT MODE decides what a DEAL starts from. ON: the template governs, so each
-    // question is stamped from it (a fresh, consistent deal). OFF: freeform — each
-    // question deals exactly where it was last authored. Either way a manual move
-    // afterwards writes that question's instance and sticks.
-    const layoutGoverns = deck.layoutMode !== false;
-    const cardSpotOf = (m: (typeof members)[number]) => resolveCardSpot(layoutGoverns ? undefined : (m.data as unknown as CeqCard).geom, deck.layout, fw, fh);
-    const dealSpot = { x: Math.round(cardSpotOf(members[0] ?? ({ data: {} } as never)).x), y: Math.round(cardSpotOf(members[0] ?? ({ data: {} } as never)).y) };
-    const cardPlace = new Map<string, Spot>();
-    const memoPlace = new Map<string, Spot>();
-    for (const m of members) {
-      const qGeom = layoutGoverns ? undefined : (m.data as unknown as CeqCard).geom;
-      cardPlace.set(m.id, cardSpotOf(m));
-      let i = 0;
-      for (const ch of ((m.data as unknown as CeqCard).choices ?? [])) for (const it of (ch.chain ?? [])) { if (it.memoNodeId) memoPlace.set(it.memoNodeId, resolveMemoSpot(qGeom, deck.layout, i, fw, fh)); i++; }
-    }
-    bus.dispatch({
-      label: `deal ${deck.name} into frame`,
-      do: () => rf.setNodes((nds) => nds.map((n) => {
-        if (memberIds.has(n.id)) { const mi = members.findIndex((m) => m.id === n.id); const cp = cardPlace.get(n.id) ?? { x: dealSpot.x, y: dealSpot.y, scale: 1 }; return { ...n, parentId: frameId, position: { x: Math.round(cp.x), y: Math.round(cp.y) }, data: { ...n.data, tucked: mi > 0, deckMember: true, staged: undefined, minimized: undefined, scale: cp.scale } } as typeof n; }
-        if (memoPlace.has(n.id)) { const p = memoPlace.get(n.id)!; return { ...n, parentId: frameId, position: { x: Math.round(p.x), y: Math.round(p.y) }, data: { ...n.data, scale: p.scale } } as typeof n; }
-        return n;
-      })),
-      undo: () => { /* transient staging move — re-deal to redo; not separately undone */ },
-    });
-    const c = patchDataCmd(rfl, frameId, { stackDeal: true, dealSpot }, "stack deal"); if (c) bus.dispatch(c);
-    // Stamp what we just dealt onto each question's instance, so a later Space flip
-    // (and any nudge) is per-question from here on.
-    if (layoutGoverns) applyLayoutToAll({ silent: true });
-    setNote(`Dealt ${members.length} question${members.length === 1 ? "" : "s"} + ${memoPlace.size} memo${memoPlace.size === 1 ? "" : "s"} at the set baseline. Film-ready (Enter reveals the memos).`);
-  };
+  /* DEAL INTO FRAME — retired (film-run fixes 2.1). It staged a set into a canvas frame
+     for the old whiteboard workflow; the filmstrip + previewer replaced it and it had
+     stopped being part of any real run. Nothing else called it. */
 
   // ---- MEMO LIBRARY ---------------------------------------------------------
   const memos = useMemo(() => rf.getNodes().filter((n) => n.type === "memo").map((n, i) => { const d = n.data as { label?: string; title?: string; body?: string; category?: string; subcategory?: string; course?: string }; return { id: n.id, order: i, label: d.label || memoText(d.title, d.body), category: (d.category || "").toUpperCase(), subcategory: d.subcategory || "", course: d.course || "" }; }), [nodes]);
@@ -2144,8 +2094,51 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
   // ONE previewer prop set, rendered in EITHER the authoring pane (recMode=false) or the
   // Recording Mode portal (recMode=true). recMode drives the previewer's chrome/key/interaction
   // suppression; the enter/exit callbacks flip the studio-level `recording` flag.
+  /* TRANSPORT ROW SLOTS (film-run fixes §2.3 + §2.6). The row lives in the previewer but
+     the data lives here, so the Studio supplies the controls as nodes:
+       left  = the open question's CLIP STACK, hoisted out of the editor toolbar;
+       right = the four per-CEQ flags as icon toggles, hoisted out of the EDIT STEM row,
+               where the ‹ › question arrows used to be. On/off reads at a glance: a
+               filled, coloured chip is ON, a muted outline is OFF.
+     Both are Q0-blind — the layout stage is not a question and carries no flags. */
+  const transportClips = qId && qId !== LAYOUT_Q0 ? (() => {
+    const clips = cardClips(rf.getNode(qId)?.data as unknown as CeqCard | undefined);
+    return (
+      <button className="flex h-6 shrink-0 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: takePreview === qId ? "#0B1322" : clips.length ? "#3BF5A0" : NEON.muted, background: takePreview === qId ? "#3BF5A0" : "transparent", border: "1px solid rgba(59,245,160,0.4)" }} onClick={() => setTakePreview((k) => (k === qId ? null : qId))} title={clips.length ? `${clips.length} clip${clips.length === 1 ? "" : "s"} on the open question — manage the stack (base + lookbacks)` : "No clips on the open question yet — open the stack to see the drop target"}>
+        {clips.length ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />} Clips{clips.length ? ` (${clips.length})` : ""}
+      </button>
+    );
+  })() : null;
+  const FLAG_ON = { star: "#FFD23F", boss: NEON.yellow, chaching: "#3BF5A0", short: "#FF8B9E" } as const;
+  const flagBtn = (key: keyof typeof FLAG_ON, on: boolean, label: string, tip: string, Icon: typeof Star) => (
+    <button
+      key={key}
+      className="grid h-6 w-6 place-items-center rounded"
+      aria-label={label}
+      aria-pressed={on}
+      style={on ? { color: "#0B1322", background: FLAG_ON[key], border: `1px solid ${FLAG_ON[key]}` } : { color: NEON.muted, background: "transparent", border: `1px solid ${NEON.borderSoft}` }}
+      onClick={() => { if (qId && qId !== LAYOUT_Q0) toggleFlag(key); }}
+      title={tip}
+    ><Icon className="h-3.5 w-3.5" /></button>
+  );
+  const toggleFlag = (key: keyof typeof FLAG_ON) => {
+    if (!qId || qId === LAYOUT_Q0) return;
+    const d = rf.getNode(qId)?.data as unknown as CeqCard | undefined;
+    if (key === "star") patchQ(qId, { starred: !d?.starred });
+    else if (key === "boss") patchQ(qId, { boss: !d?.boss });
+    // Cha-ching is an OPT-OUT: absent/true = plays. The toggle writes the inverse.
+    else if (key === "chaching") patchQ(qId, { confirmSfx: d?.confirmSfx === false });
+    else patchQ(qId, { short: !d?.short });
+  };
+  const transportFlags = qd && qId && qId !== LAYOUT_Q0 ? (<>
+    {flagBtn("star", !!qd.starred, "Star", "Star — a performer's note. Inert: NO effect on spacewalk / stitch / publish.", Star)}
+    {flagBtn("boss", !!qd.boss, "Boss", "Boss card — fires the cram-launch cue when this question is dealt (film)", Crown)}
+    {flagBtn("chaching", qd.confirmSfx !== false, "Cha-ching on correct", "Cha-ching on correct — plays by DEFAULT on the correct-Enter (film); click to silence it for this question", BadgeCheck)}
+    {flagBtn("short", !!qd.short, "Short", "Flag this CEQ as shorts-worthy — it joins the Shorts queue worklist", Clapperboard)}
+  </>) : null;
+
   const renderPreviewer = (recMode: boolean) => (
-    <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSaveInstance={(g) => { if (qId && qId !== LAYOUT_Q0) saveInstanceGeom(qId, g); }} layoutOn={deck?.layoutMode !== false} onSetLayoutMode={setLayoutMode} onApplyLayoutToAll={() => { const n = questions.length; if (n > 0 && window.confirm(`Re-stamp all ${n} question${n === 1 ? "" : "s"} from the layout?
+    <CeqPreviewer transportLeft={transportClips} transportRight={transportFlags} ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSaveInstance={(g) => { if (qId && qId !== LAYOUT_Q0) saveInstanceGeom(qId, g); }} layoutOn={deck?.layoutMode !== false} onSetLayoutMode={setLayoutMode} onApplyLayoutToAll={() => { const n = questions.length; if (n > 0 && window.confirm(`Re-stamp all ${n} question${n === 1 ? "" : "s"} from the layout?
 
 This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undoes all of it.`)) applyLayoutToAll(); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onReorderChainMemo={reorderChainByMemo} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} counterIds={counterIds} stageSig={stagedHere.map((e) => `${e.id}:${e.hidden ? 1 : 0}`).join(",")} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onEditStem={(cid, text) => patchQ(cid, { prompt: text }, `q:${cid}:prompt`)} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSetMisconception={setMemoMisconception} misconceptionSlugs={misconceptionDefs.map((d) => d.slug)} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} showProgress={deck?.showProgress} onSetShowProgress={(b) => { if (deck) setDecks((prev) => updateDeck(prev, deck.id, { showProgress: b })); }} onOpenMemoLib={(id) => { setLibOpen(true); setPreviewSelMemo(id); }} topicName={(() => { const rows = spineRows(deck); return rows ? topicLabel(rows.topic).replace(/^ch\s*\d+\s*[·.\-:]\s*/i, "").replace(/\s*\(archived\)\s*$/i, "").trim() : undefined; })()} recording={recMode} onEnterRecording={() => setRecording(true)} onExitRecording={() => { setRecording(false); setRehearse(false); setRunCard(null); }} />
   );
@@ -2199,6 +2192,20 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                 title={deck.status === "live" ? "Live on student side — students can see this set. Click to pull it back to draft (author-only)." : "Draft — author-only, students never see it. Click to go Live on the student side."}
               >
                 <Globe className="h-3 w-3" /> {deck.status === "live" ? "Live" : "Draft"}
+              </button>
+              {/* FREE / PAID (film-run fixes §2.7) — the SET's paywall, `deck.access`. This is
+                  the real gate: entitlements.functions.ts and /learn both branch on
+                  access === "paid", and /landing hides paid sets from the free tab. It is
+                  NOT the same axis as the per-CEQ `free` flag, which only decides which
+                  questions land in the free CUT of this set's video. New sets default to
+                  free; until now nothing in the UI could change that. */}
+              <button
+                className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+                style={deck.access === "paid" ? { color: "#0B1322", background: NEON.yellow, border: `1px solid ${NEON.yellow}` } : { color: "#3BF5A0", background: "transparent", border: "1px solid rgba(59,245,160,0.5)" }}
+                onClick={() => setDecks((prev) => updateDeck(prev, deck.id, { access: deck.access === "paid" ? "free" : "paid" }))}
+                title={deck.access === "paid" ? "Paid — this set is locked behind checkout on the student side. Click to make it free." : "Free — this set plays signed-out. Click to lock it behind checkout."}
+              >
+                {deck.access === "paid" ? <Lock className="h-3 w-3" /> : <Unlock className="h-3 w-3" />} {deck.access === "paid" ? "Paid" : "Free"}
               </button>
               {/* TAKE LOGGER (film-prep tool 4) — a sticky note on the set: "run A = clip
                   0047, redo Q9". Collapsed to the 🗒 icon until it has content; autosaves
@@ -2389,9 +2396,9 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                 <LayoutGrid className="h-3 w-3" style={{ color: NEON.yellow }} /> 0 · Layout
                 <span className="tabular-nums" style={{ color: NEON.muted }}>{deck.layout?.memoSlots?.length ?? 0}</span>
               </button>
-              <button className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-[9.5px] font-bold leading-none" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={dealIntoFrame} title="Deal this set into the frame you're in (stack; Space flips, Enter-walks chains)"><Film className="h-3 w-3" /> Deal into frame</button>
-              {/* + CEQ and the open question's CLIP STACK — relocated from the deleted list column
-                  (Studio Consolidation D): the "+ question" footer and the per-row clip circle. */}
+              {/* TOOLBAR DIET (film-run fixes §2.1–2.3): "Deal into frame" is gone (retired),
+                  "+ Frame" is gone (frames are inserted from the left rail's + affordances),
+                  and "Clips" moved down to the transport row beside FILM. */}
               {/* ADD (Lee) — the ONE menu for every element that can go on a question:
                   grouped, alphabetical inside each group, type-to-filter. Replaces the
                   two v1-toolbar menus (cards + design elements) that v2 chrome hid. */}
@@ -2408,22 +2415,6 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   <button style={{ color: NEON.red }} onClick={() => removeStageElement(el.id)} title="Remove this element from the question">✕</button>
                 </span>
               ))}
-              {/* + FRAME (frames rename) — the chooser: CEQ frame or Note frame, appended at
-                  the end. Mid-strip inserts live on the filmstrip's hover [+]. */}
-              {!addChooser ? (
-                <button className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-[9.5px] font-bold leading-none" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} onClick={() => setAddChooser(true)} title="Add a frame at the end of this set — CEQ (question) or Note (headspace/trigger words)"><Plus className="h-3 w-3" /> Frame</button>
-              ) : (
-                <span className="flex shrink-0 items-center gap-1">
-                  <button className="rounded px-2 py-0.5 text-[9.5px] font-bold leading-none" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setAddChooser(false); insertFrame(questions.length, "ceq"); }} title="A question card — counts, practices, films">? CEQ</button>
-                  <button className="rounded px-2 py-0.5 text-[9.5px] font-bold leading-none" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setAddChooser(false); insertFrame(questions.length, "note"); }} title="Text/memo only — films, never counts as a question">📝 Note</button>
-                  <button className="rounded px-1 py-0.5 text-[9.5px] leading-none" style={{ color: NEON.muted }} onClick={() => setAddChooser(false)}>✕</button>
-                </span>
-              )}
-              {qId && qId !== LAYOUT_Q0 && (() => { const clips = cardClips(rf.getNode(qId)?.data as unknown as CeqCard | undefined); return (
-                <button className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-[9.5px] font-bold leading-none" style={{ color: takePreview === qId ? "#0B1322" : clips.length ? "#3BF5A0" : NEON.muted, background: takePreview === qId ? "#3BF5A0" : "transparent", border: "1px solid rgba(59,245,160,0.4)" }} onClick={() => setTakePreview((k) => (k === qId ? null : qId))} title={clips.length ? `${clips.length} clip${clips.length === 1 ? "" : "s"} on the open question — manage the stack (base + lookbacks)` : "No clips on the open question yet — open the stack to see the drop target"}>
-                  {clips.length ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />} Clips{clips.length ? ` (${clips.length})` : ""}
-                </button>
-              ); })()}
 
               <div className="ml-auto flex shrink-0 items-center gap-1">
                 {/* READY TO FILM? (film-prep tool 1) — read-only pass/fail panel; failures
@@ -2683,12 +2674,10 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   <div className="shrink-0 border-t" style={{ borderColor: NEON.borderSoft }}>
                     <div className="flex items-center gap-1 px-2 py-1">
                       <button className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }} onClick={() => setEditorOpen((v) => !v)}>{editorOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />} edit stem & choices</button>
-                      {/* SOUND FLAGS (sound pass) — Boss (cram-launch on deal) + Chaching on correct (opt-out). */}
-                      <button className="ml-2 flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: qd.starred ? "#0B1322" : NEON.muted, background: qd.starred ? "#FFD23F" : "transparent", border: `1px solid ${qd.starred ? "#FFD23F" : NEON.borderSoft}` }} onClick={() => patchQ(qId!, { starred: !qd.starred })} title="Star — a performer's note. Inert: NO effect on spacewalk / stitch / publish.">{qd.starred ? "★" : "☆"} Star</button>
-                      <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: qd.boss ? "#0B0F1E" : NEON.muted, background: qd.boss ? NEON.yellow : "transparent", border: `1px solid ${qd.boss ? NEON.yellow : NEON.borderSoft}` }} onClick={() => patchQ(qId!, { boss: !qd.boss })} title="Boss card — fires the cram-launch cue when this question is dealt (film)">👑 Boss</button>
-                      <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: qd.confirmSfx === false ? NEON.muted : "#3BF5A0", border: `1px solid ${qd.confirmSfx === false ? NEON.borderSoft : "rgba(59,245,160,0.5)"}` }} onClick={() => patchQ(qId!, { confirmSfx: qd.confirmSfx === false })} title="Chaching on correct — plays by DEFAULT on the correct-Enter (film); click to silence it for this question (opt-out)">Chaching on correct {qd.confirmSfx === false ? "✗" : "✓"}</button>
-                      {/* SHORTS-WORTHY (verticals) — flag + optional one-line angle (note row below). */}
-                      <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: qd.short ? "#0B0F1E" : NEON.muted, background: qd.short ? "#FF8B9E" : "transparent", border: `1px solid ${qd.short ? "#FF8B9E" : NEON.borderSoft}` }} onClick={() => patchQ(qId!, { short: !qd.short })} title="Flag this CEQ as shorts-worthy — it joins the Shorts queue worklist">🎬 Short</button>
+                      {/* STAR / BOSS / CHA-CHING / SHORT moved to the transport row as icon
+                          toggles (film-run fixes §2.6) — this row is now just the collapse
+                          toggle and CHAINS & TEMPLATES. The Short ANGLE field stays below,
+                          since it only appears once the flag is on. */}
                       <button className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setChainFor(qId)} title="Per-choice chains + save/load template (same model as the card popover)"><Link2 className="h-3 w-3" /> chains & templates</button>
                     </div>
                     {qd.short && (
