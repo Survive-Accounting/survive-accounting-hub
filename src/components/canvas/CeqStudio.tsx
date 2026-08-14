@@ -27,6 +27,7 @@ import { resolveCardSpot, resolveMemoSpot, stampFromTemplate, withInstanceSpot, 
 import { autoClipName, buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, stageTake, stitchManifest, stitchRuntime, videoFromDrop, videosFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
 import { buildSetExport } from "./ceq-export";
 import { SetFilmstrip, type StripItem } from "./SetFilmstrip";
+import { checkFilmReadiness, type ReadinessReport } from "./film-readiness";
 import { MISCONCEPTION_SEEDS, questionMisconceptions, toSlug } from "./ceq-misconceptions";
 import { ingestNumOf } from "./ceq-walk";
 import { CeqStitch, type StitchRow } from "./CeqStitch";
@@ -147,6 +148,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSetId]);
   const [addChooser, setAddChooser] = useState(false); // "+ Frame" → CEQ/Note chooser
+  const [readiness, setReadiness] = useState<ReadinessReport | null>(null); // "Ready to film?" panel
   const [chainFor, setChainFor] = useState<string | null>(null); // CEQ node whose chain editor is open
   const [note, setNote] = useState<string | null>(null);
   const [memoQuery, setMemoQuery] = useState("");
@@ -2196,6 +2198,14 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
               ); })()}
 
               <div className="ml-auto flex shrink-0 items-center gap-1">
+                {/* READY TO FILM? (film-prep tool 1) — read-only pass/fail panel; failures
+                    click through to the offending frame. */}
+                <button className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-[9.5px] font-bold leading-none" style={{ color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.4)" }} title="Run the film-readiness checks on this set — correct choices, stems, exhibits, run letters, shorthands. Read-only; fixes happen in the editor." onClick={() => {
+                  setReadiness(checkFilmReadiness(questions.map((qn) => {
+                    const d = rf.getNode(qn.id)?.data as unknown as CeqCard | undefined;
+                    return { id: qn.id, prompt: d?.prompt ?? "", noteOnly: !!d?.noteOnly, choices: (d?.choices ?? []).map((ch) => ({ text: ch.text, correct: ch.correct })), exhibit: d?.exhibit, run: d?.run, shorthand: d?.shorthand, chainCount: (d?.choices ?? []).reduce((a, ch) => a + (ch.chain?.length ?? 0), 0) };
+                  })));
+                }}><ListChecks className="h-3 w-3" /> Ready to film?</button>
                 {/* TOOLBAR DIET (frames rename §5): the ★ FILTER is gone — it filtered the
                     deleted list column, so it filtered nothing. The star COUNT + clear stay
                     (real actions); stars themselves show on the filmstrip. */}
@@ -2219,6 +2229,41 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   ONE set. Hover a gap → [+] → CEQ/Note chooser. */}
               <SetFilmstrip items={stripItems} qId={qId === LAYOUT_Q0 ? null : qId} onSelect={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onInsert={insertFrame} />
               {/* (SET CLIPS moved to the Publish panel — one home for the publish path.) */}
+              {/* READY TO FILM? panel — pass/fail list + counts; ✗ rows link to frames. */}
+              {readiness && deck && (
+                <div className="absolute inset-0 z-[73] flex items-start justify-center" style={{ background: "rgba(4,7,14,0.6)" }} onClick={() => setReadiness(null)}>
+                  <div className="mt-8 flex max-h-[85vh] w-[460px] max-w-[94vw] flex-col overflow-hidden rounded-xl shadow-2xl" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}` }} onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-2 border-b px-3 py-2" style={{ borderColor: NEON.borderSoft }}>
+                      <ListChecks className="h-4 w-4" style={{ color: readiness.ready ? "#3BF5A0" : NEON.yellow }} />
+                      <span className="min-w-0 flex-1 truncate text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.cyan }}>Ready to film? — {setDisplayName(deck.name)}</span>
+                      <span className="text-[11px] font-black" style={{ color: readiness.ready ? "#3BF5A0" : NEON.yellow }}>{readiness.ready ? "READY ✓" : "NOT YET"}</span>
+                      <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setReadiness(null)} title="Close"><X className="h-4 w-4" /></button>
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                      <div className="mb-2 px-1 text-[10.5px] font-bold" style={{ color: NEON.muted }}>
+                        {readiness.counts.ceq} CEQ frame{readiness.counts.ceq === 1 ? "" : "s"} · {readiness.counts.notes} note frame{readiness.counts.notes === 1 ? "" : "s"} · {readiness.counts.runs} run{readiness.counts.runs === 1 ? "" : "s"}
+                      </div>
+                      {readiness.checks.map((c) => (
+                        <div key={c.key} className="mb-1.5 rounded px-1.5 py-1" style={{ border: `1px solid ${c.ok ? "rgba(59,245,160,0.25)" : "rgba(255,92,108,0.35)"}` }}>
+                          <div className="flex items-start gap-1.5 text-[10.5px]">
+                            <span className="shrink-0 font-black" style={{ color: c.ok ? "#3BF5A0" : NEON.red }}>{c.ok ? "✓" : "✗"}</span>
+                            <span className="min-w-0 flex-1 font-semibold" style={{ color: c.ok ? NEON.text : NEON.red }}>{c.label}{!c.ok && <span style={{ color: NEON.muted }}> — {c.fails.length}</span>}</span>
+                          </div>
+                          {!c.ok && (
+                            <div className="mt-0.5 flex flex-col">
+                              {c.fails.map((f) => (
+                                <button key={`${c.key}-${f.id}`} className="rounded px-1.5 py-0.5 text-left text-[10px] hover:bg-white/5" style={{ color: NEON.cyan }} title="Open this frame in the editor" onClick={() => { setQId(f.id); setExpandedQ((s) => new Set(s).add(f.id)); setReadiness(null); }}>
+                                  → {f.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
               {publishOpen && deck && (
                 <div className="absolute inset-0 z-[72] flex items-start justify-center" style={{ background: "rgba(4,7,14,0.6)" }} onClick={() => setPublishOpen(false)}>
                   <div className="mt-8 flex max-h-[85vh] w-[440px] max-w-[94vw] flex-col overflow-hidden rounded-xl shadow-2xl" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}` }} onClick={(e) => e.stopPropagation()}>
