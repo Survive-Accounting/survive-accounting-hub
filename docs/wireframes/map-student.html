@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Outline-as-Map — Student side</title>
+<style>
+  @page{size:Letter landscape;margin:12mm}
+  :root{
+    --navy:#14213D;--deep:#0B1322;--panel:#0e1728;--panel2:#131f36;--line:rgba(245,239,230,.14);
+    --gold:#FCA311;--cyan:#4FD1E0;--green:#3BF5A0;--amber:#F0B24A;--red:#CE1126;
+    --text:#E6ECFF;--muted:#7a86a3;--cream:#F5EFE6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#fff;color:#14213D;font:11px/1.4 Inter,system-ui,sans-serif}
+  .page{page-break-after:always;padding:0 0 8px}
+  .page:last-child{page-break-after:auto}
+  .hd{display:flex;align-items:baseline;gap:10px;border-bottom:2px solid #CE1126;padding-bottom:5px;margin-bottom:9px}
+  .hd h1{font-size:15px}
+  .hd .side{margin-left:auto;font-size:9px;text-transform:uppercase;letter-spacing:.16em;color:#fff;background:#CE1126;padding:2px 8px;border-radius:3px}
+  .hd .st{font-size:10px;color:#5b6478}
+  .lede{font-size:10.5px;color:#39415a;margin-bottom:9px;max-width:1000px}
+  .lede b{color:#14213D}
+  .row{display:flex;gap:12px;align-items:flex-start}
+  .frame{background:var(--navy);border-radius:9px;overflow:hidden;flex:1;box-shadow:0 3px 10px rgba(0,0,0,.28)}
+  .topbar{display:flex;gap:7px;align-items:center;padding:5px 9px;border-bottom:1px solid var(--line);font-size:8.5px;color:var(--muted)}
+  .topbar b{color:var(--cream)}
+  .topbar .who{margin-left:auto;color:var(--cream)}
+  .body{display:flex;min-height:340px}
+  /* ---------- CHARGING SPINE ---------- */
+  .spine{width:186px;border-right:1px solid var(--line);background:var(--deep);padding:8px 7px;display:flex;flex-direction:column}
+  .spine.mini{width:46px;padding:8px 5px}
+  .ex{font-size:8px;letter-spacing:.11em;text-transform:uppercase;color:var(--cream);margin:0 3px 3px;display:flex;justify-content:space-between}
+  .ex .pct{color:var(--gold);font-weight:800}
+  .exbar{height:4px;border-radius:4px;background:rgba(245,239,230,.12);margin:0 3px 8px;overflow:hidden}
+  .exbar i{display:block;height:100%;width:41%;border-radius:4px;background:linear-gradient(90deg,#CE1126,#FCA311 70%,#FFD68A)}
+  /* a segment is a BATTERY CELL: dim shell, charged portion fills from the bottom */
+  .seg{position:relative;display:flex;align-items:center;gap:6px;margin-bottom:3px;border-radius:6px;padding:0 7px;background:var(--panel2);border:1px solid transparent;overflow:hidden}
+  .seg .fill{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,rgba(252,163,17,.42),rgba(206,17,38,.5));border-top:1.5px solid var(--gold)}
+  .seg .fill.done{background:linear-gradient(180deg,rgba(59,245,160,.34),rgba(59,245,160,.18));border-top-color:var(--green)}
+  .seg .nm{position:relative;flex:1;font-size:8.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .seg .n{position:relative;font-size:7.5px;color:var(--cream);opacity:.75;font-variant-numeric:tabular-nums}
+  .seg .lock{position:relative;font-size:8px;opacity:.5}
+  .seg.on{border-color:var(--gold)}
+  .seg.locked .nm{color:var(--muted)}
+  .bolt{position:relative;color:var(--gold);font-size:8px}
+  .ms{border-radius:3px;margin-bottom:2px;background:var(--panel2);position:relative;overflow:hidden;border:1px solid transparent}
+  .ms .fill{position:absolute;left:0;right:0;bottom:0;background:linear-gradient(180deg,rgba(252,163,17,.45),rgba(206,17,38,.5))}
+  .ms .fill.done{background:rgba(59,245,160,.3)}
+  .ms.on{border-color:var(--gold)}
+  .foot{margin-top:auto;border-top:1px solid var(--line);padding-top:6px;display:flex;gap:5px;justify-content:center}
+  .foot .ic{width:30px;height:22px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:9px;color:var(--cyan)}
+  .foot .ic span{font-size:5.5px;color:var(--muted)}
+  /* ---------- panes ---------- */
+  .hero{flex:1;padding:14px 16px;display:flex;flex-direction:column;gap:9px}
+  .hero .kick{font-size:8px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold)}
+  .hero h2{font-size:16px;color:var(--cream);line-height:1.25}
+  .hero p{font-size:9.5px;color:var(--muted);max-width:400px;line-height:1.5}
+  .cta{align-self:flex-start;background:var(--gold);color:#0B1322;border-radius:6px;padding:6px 14px;font-size:10px;font-weight:800}
+  .cta.ghost{background:transparent;color:var(--cream);border:1px solid var(--line);font-weight:600}
+  .nextup{margin-top:auto;background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:8px 10px}
+  .nextup .lb{font-size:7.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+  .nextup .t{font-size:10px;color:var(--cream);font-weight:700}
+  .nextup .m{font-size:8px;color:var(--muted);margin-top:2px}
+  .sets{flex:1;padding:10px}
+  .sets .th{font-size:10.5px;color:var(--cream);font-weight:800}
+  .sets .tsub{font-size:8px;color:var(--muted);margin-bottom:8px}
+  .scard{background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:7px 9px;margin-bottom:5px;display:flex;gap:8px;align-items:center;position:relative;overflow:hidden}
+  .scard .sfill{position:absolute;left:0;top:0;bottom:0;background:rgba(252,163,17,.13);border-right:1.5px solid rgba(252,163,17,.55)}
+  .scard .t{position:relative;flex:1;min-width:0}
+  .scard .t .nm{font-size:9px;color:var(--cream);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .scard .t .mt{font-size:7.5px;color:var(--muted);margin-top:1px}
+  .scard .pill{position:relative;font-size:7.5px;font-weight:800;border-radius:99px;padding:1px 7px}
+  .pill.free{background:rgba(59,245,160,.18);color:var(--green);border:1px solid rgba(59,245,160,.45)}
+  .pill.lock{background:rgba(245,239,230,.07);color:var(--muted);border:1px solid var(--line)}
+  .pill.now{background:var(--gold);color:#0B1322}
+  .player{flex:1;display:flex;flex-direction:column;padding:9px}
+  .video{flex:1;background:#000;border-radius:7px;display:flex;align-items:center;justify-content:center;position:relative;min-height:150px}
+  .video .qc{background:var(--cream);color:#14213D;border-radius:7px;padding:9px 11px;width:74%}
+  .video .qc .stem{font-weight:800;font-size:9.5px;margin-bottom:6px}
+  .video .qc .ch{border:1.2px solid #C9CEDC;border-radius:5px;padding:3px 6px;font-size:8.5px;margin-bottom:3px}
+  .video .qc .ch.ok{border-color:#1E9E63;background:#E9F9F1}
+  .video .cnt{position:absolute;top:7px;right:9px;font-size:8px;color:rgba(245,239,230,.75);font-weight:700}
+  .scrub{height:5px;border-radius:4px;background:rgba(245,239,230,.14);margin-top:7px;overflow:hidden;display:flex}
+  .scrub i{display:block;height:100%;background:var(--gold);width:38%}
+  .scrub b{display:block;height:100%;width:4%;background:var(--cream);opacity:.5}
+  .ann{width:250px;flex:none}
+  .ann h3{font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:#14213D;margin-bottom:5px;border-bottom:1px solid #d5dae6;padding-bottom:3px}
+  .ann li{list-style:none;font-size:9px;color:#39415a;margin-bottom:5px;padding-left:12px;position:relative;line-height:1.42}
+  .ann li::before{content:"▸";position:absolute;left:0;color:var(--red);font-weight:900}
+  .ann li b{color:#14213D}
+  .kbd{background:#eef1f7;border:1px solid #d5dae6;border-radius:3px;padding:0 3px;font-size:8px}
+  .decis{background:#FDF0F1;border:1px solid #E8A9B0;border-radius:6px;padding:7px 9px;margin-top:7px}
+  .decis h4{font-size:8px;text-transform:uppercase;letter-spacing:.11em;color:#8d1220;margin-bottom:3px}
+  .decis p{font-size:8.5px;color:#6d2027;line-height:1.45}
+  .h18{height:18px}.h26{height:26px}.h34{height:34px}.h44{height:44px}.h14{height:14px}.h22{height:22px}.h20{height:20px}.h16{height:16px}.h24{height:24px}.h15{height:15px}.h23{height:23px}
+</style>
+</head>
+<body>
+
+<!-- ===================== PAGE 1 ===================== -->
+<div class="page">
+  <div class="hd"><h1>Outline&#8209;as&#8209;Map</h1><span class="st">State 1 · the exam, charging</span><span class="side">Student</span></div>
+  <p class="lede">The identical spine component, fed <b>progress</b> instead of readiness. Each topic is a <b>cell that charges from the bottom</b> as they work it — red→gold while charging, green when full. The header bar is the whole exam charging. Same geometry as the authoring map, so what Lee builds <i>is</i> what the student navigates.</p>
+  <div class="row">
+    <div class="frame">
+      <div class="topbar"><b>surv⚡ve</b> · Intro to Accounting <span class="who">Ole Miss · ACCY 201 · Maya ▾</span></div>
+      <div class="body">
+        <div class="spine">
+          <div class="ex"><span>EXAM 1</span><span class="pct">41% charged</span></div>
+          <div class="exbar"><i></i></div>
+          <div class="seg h18"><span class="fill done" style="height:100%"></span><span class="nm">Accounting Cycle</span><span class="n">12/12</span><span class="bolt">⚡</span></div>
+          <div class="seg h34"><span class="fill done" style="height:100%"></span><span class="nm">Analyzing Transactions</span><span class="n">48/48</span><span class="bolt">⚡</span></div>
+          <div class="seg on h44"><span class="fill" style="height:45%"></span><span class="nm">Recording JEs</span><span class="n">27/60</span></div>
+          <div class="seg h14"><span class="fill" style="height:25%"></span><span class="nm">Receivables &amp; Pay.</span><span class="n">2/8</span></div>
+          <div class="seg h24 locked"><span class="nm">Posting to T Accts</span><span class="lock">🔒</span></div>
+          <div class="seg h15 locked"><span class="nm">Trial Balances</span><span class="lock">🔒</span></div>
+          <div class="seg h26 locked"><span class="nm">Adjusting Entries</span><span class="lock">🔒</span></div>
+          <div class="seg h23 locked"><span class="nm">Financial Stmts</span><span class="lock">🔒</span></div>
+          <div class="seg h20 locked"><span class="nm">Closing Entries</span><span class="lock">🔒</span></div>
+          <div class="seg h16 locked"><span class="nm">Principles</span><span class="lock">🔒</span></div>
+          <div class="foot">
+            <div class="ic">▶<span>WATCH</span></div>
+            <div class="ic">💡<span>CHEATS</span></div>
+            <div class="ic">🏛<span>MY CLASS</span></div>
+          </div>
+        </div>
+        <div class="hero">
+          <div class="kick">PICK UP WHERE YOU LEFT OFF</div>
+          <h2>Recording Journal Entries<br><span style="font-size:12px;color:var(--gold)">27 of 60 charged</span></h2>
+          <p>Three sets left in this topic. Finish it and Posting to T Accounts unlocks — that's the next block on your exam.</p>
+          <div class="cta">⚡ Keep charging</div>
+          <div class="nextup">
+            <div class="lb">Next up</div>
+            <div class="t">“What is the journal entry for [&nbsp;&nbsp;]?” · Q28</div>
+            <div class="m">24 questions · 6 free · ~9 min</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="ann">
+      <h3>The charging metaphor</h3>
+      <ul>
+        <li><b>Fill = progress, height = weight.</b> A student sees instantly that Recording JEs is the biggest block on the exam <i>and</i> that they're 45% through it.</li>
+        <li><b>Red→gold while charging, green + ⚡ when full.</b> The bolt is the reward mark; the palette is already yours.</li>
+        <li><b>Locked topics are dim shells</b> — visible (so the exam's true size is honest) but clearly not yet available.</li>
+        <li><b>Same component as authoring.</b> Same segment heights, same order, same spine. Lee's readiness dots become the student's charge level — one geometry, two feeds.</li>
+        <li><b>Foot icons re-skin per side:</b> Videos→Watch, Memos→Cheats, Campuses→My class.</li>
+      </ul>
+      <div class="decis">
+        <h4>Why it sells</h4>
+        <p>The map is the product demo. A prospect landing on <span class="kbd">/</span> sees the exam as a battery with the free topics already charged — the paid ones are the rest of the bar.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== PAGE 2 ===================== -->
+<div class="page">
+  <div class="hd"><h1>Outline&#8209;as&#8209;Map</h1><span class="st">State 2 · topic open — sets as chargeable blocks</span><span class="side">Student</span></div>
+  <p class="lede">Same collapse-to-46px behaviour as authoring. Sets show their own charge, runtime, and the paywall line — <b>free sets are genuinely free and say so</b>; locked ones show what they contain rather than hiding it. (Your HONEST-PAYWALL rule, drawn.)</p>
+  <div class="row">
+    <div class="frame">
+      <div class="topbar"><b>surv⚡ve</b> · Exam 1 <span class="who">41% charged · Maya ▾</span></div>
+      <div class="body">
+        <div class="spine mini">
+          <div class="ms h18"><span class="fill done" style="height:100%"></span></div>
+          <div class="ms h34"><span class="fill done" style="height:100%"></span></div>
+          <div class="ms on h44"><span class="fill" style="height:45%"></span></div>
+          <div class="ms h14"><span class="fill" style="height:25%"></span></div>
+          <div class="ms h24"></div><div class="ms h15"></div><div class="ms h26"></div>
+          <div class="ms h23"></div><div class="ms h20"></div><div class="ms h16"></div>
+          <div class="foot mini" style="justify-content:center"><div class="ic" style="width:100%">▶</div></div>
+        </div>
+        <div class="sets">
+          <div class="th">RECORDING JOURNAL ENTRIES</div>
+          <div class="tsub">3 sets · 60 questions · 27 charged · ~34 min left</div>
+          <div class="scard">
+            <span class="sfill" style="width:100%"></span>
+            <span class="t"><span class="nm">“When do you debit — and when credit?”</span><span class="mt">18 questions · done · 6 min</span></span>
+            <span class="pill free">⚡ CHARGED</span>
+          </div>
+          <div class="scard">
+            <span class="sfill" style="width:38%"></span>
+            <span class="t"><span class="nm">“What is the journal entry for [&nbsp;&nbsp;]?”</span><span class="mt">24 questions · 9 of 24 · 9 min</span></span>
+            <span class="pill now">CONTINUE</span>
+          </div>
+          <div class="scard">
+            <span class="t"><span class="nm">“How does a debit vs. credit affect [&nbsp;&nbsp;]?”</span><span class="mt">18 questions · 4 free, then $ · 7 min</span></span>
+            <span class="pill lock">4 FREE</span>
+          </div>
+          <div class="scard" style="border-style:dashed;background:transparent">
+            <span class="t"><span class="nm" style="color:var(--muted)">Everything above stays free forever.</span><span class="mt">Full exam unlock: one payment, all 10 topics.</span></span>
+            <span class="pill free">SEE PRICE</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="ann">
+      <h3>What changed</h3>
+      <ul>
+        <li><b>Set cards carry a horizontal charge bar</b> (left→right) while topics charge bottom→up — subtly different axes so the two levels never read as the same object.</li>
+        <li><b>“4 FREE” not “LOCKED”.</b> The pill states what they <i>get</i>, then the price line is one quiet row — no dark patterns, no fake urgency.</li>
+        <li><b>Runtime per set</b> (“9 min”) is the honest unit of student effort — the same numbers your stitch runtime already computes.</li>
+        <li><b>The spine still shows the whole exam.</b> Progress never hides the map; a student can always see how far the mountain goes.</li>
+      </ul>
+      <div class="decis">
+        <h4>Data feed</h4>
+        <p><span class="kbd">progress</span>: per-set charged-count + entitlement. Both already exist server-side (student tree + entitlements); the map only reads them.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== PAGE 3 ===================== -->
+<div class="page">
+  <div class="hd"><h1>Outline&#8209;as&#8209;Map</h1><span class="st">State 3 · playing — the spine becomes the player outline</span><span class="side">Student</span></div>
+  <p class="lede">The endgame you named: <b>the same spine is the player's outline</b>. While a set plays, the mini-spine keeps the exam in view and the charge visibly climbs as they clear questions — the student watches their own battery fill in real time, which is exactly the authoring strip one zoom down.</p>
+  <div class="row">
+    <div class="frame">
+      <div class="topbar"><b>surv⚡ve</b> · JE for [ ] <span class="who">Q 12 of 24 · Maya ▾</span></div>
+      <div class="body">
+        <div class="spine mini">
+          <div class="ms h18"><span class="fill done" style="height:100%"></span></div>
+          <div class="ms h34"><span class="fill done" style="height:100%"></span></div>
+          <div class="ms on h44"><span class="fill" style="height:52%"></span></div>
+          <div class="ms h14"><span class="fill" style="height:25%"></span></div>
+          <div class="ms h24"></div><div class="ms h15"></div><div class="ms h26"></div>
+          <div class="ms h23"></div><div class="ms h20"></div><div class="ms h16"></div>
+          <div class="foot mini" style="justify-content:center"><div class="ic" style="width:100%">💡</div></div>
+        </div>
+        <div class="player">
+          <div class="video">
+            <span class="cnt">Q 12 / 24 &nbsp;·&nbsp; ⚡ 52%</span>
+            <div class="qc">
+              <div class="stem">The company pays $1,200 for 12 months of insurance in advance. What is the entry?</div>
+              <div class="ch ok"><b>A</b> &nbsp;Dr Prepaid Insurance · Cr Cash</div>
+              <div class="ch"><b>B</b> &nbsp;Dr Insurance Expense · Cr Cash</div>
+              <div class="ch"><b>C</b> &nbsp;Dr Cash · Cr Prepaid Insurance</div>
+            </div>
+          </div>
+          <div class="scrub"><i></i><b></b></div>
+          <div style="display:flex;gap:6px;margin-top:7px;align-items:center">
+            <span class="cta" style="padding:4px 11px;font-size:9px">Next ⚡</span>
+            <span class="cta ghost" style="padding:4px 11px;font-size:9px">Replay explanation</span>
+            <span style="margin-left:auto;font-size:8px;color:var(--muted)">12 charged this session · 33 to full</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="ann">
+      <h3>One component, four surfaces</h3>
+      <ul>
+        <li><b>Authoring rail</b> (readiness) → <b>student map</b> (progress) → <b>player outline</b> (this page) → <b>full-screen course view</b> (later). All the same <span class="kbd">&lt;ExamMap&gt;</span>.</li>
+        <li><b>The charge climbs while they play</b> — the mini-spine's active cell fills question by question. The feedback loop is the product.</li>
+        <li><b>Cheats icon at the foot</b> is where your memo library becomes a student-facing asset: the CHEAT CODES they've unlocked, collected.</li>
+        <li><b>Partner-ready:</b> a tutor's exam renders in exactly this shell, with your brand and your player — which is the deal you're offering them.</li>
+      </ul>
+      <div class="decis">
+        <h4>Tomorrow's build</h4>
+        <p>Authoring State&nbsp;1 → commit → 2 → commit → 3 → commit. The student feed is <i>designed</i> tonight, built after Exam&nbsp;1 ships. Tree mode stays as the safety toggle.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

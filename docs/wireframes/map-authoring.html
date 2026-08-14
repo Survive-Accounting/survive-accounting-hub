@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Outline-as-Map — Authoring side</title>
+<style>
+  @page{size:Letter landscape;margin:12mm}
+  :root{
+    --navy:#0B1322;--panel:#0e1728;--panel2:#131f36;--line:rgba(245,239,230,.14);
+    --gold:#FCA311;--cyan:#4FD1E0;--green:#3BF5A0;--amber:#F0B24A;--red:#FF5C6C;
+    --text:#E6ECFF;--muted:#7a86a3;--cream:#F5EFE6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#fff;color:#14213D;font:11px/1.4 Inter,system-ui,sans-serif}
+  .page{page-break-after:always;padding:0 0 8px}
+  .page:last-child{page-break-after:auto}
+  .hd{display:flex;align-items:baseline;gap:10px;border-bottom:2px solid #14213D;padding-bottom:5px;margin-bottom:9px}
+  .hd h1{font-size:15px;letter-spacing:.01em}
+  .hd .side{margin-left:auto;font-size:9px;text-transform:uppercase;letter-spacing:.16em;color:#fff;background:#14213D;padding:2px 8px;border-radius:3px}
+  .hd .st{font-size:10px;color:#5b6478}
+  .lede{font-size:10.5px;color:#39415a;margin-bottom:9px;max-width:1000px}
+  .lede b{color:#14213D}
+  .row{display:flex;gap:12px;align-items:flex-start}
+  /* ---- app frame ---- */
+  .frame{background:var(--navy);border-radius:9px;overflow:hidden;flex:1;box-shadow:0 3px 10px rgba(0,0,0,.28)}
+  .topbar{display:flex;gap:7px;align-items:center;padding:5px 9px;border-bottom:1px solid var(--line);font-size:8.5px;color:var(--muted)}
+  .topbar b{color:var(--text)}
+  .topbar .sw{margin-left:auto;color:var(--gold);font-weight:700;border:1px solid rgba(252,163,17,.5);border-radius:4px;padding:1px 7px}
+  .body{display:flex;min-height:340px}
+  /* ---- the spine ---- */
+  .spine{width:184px;border-right:1px solid var(--line);background:var(--panel);padding:8px 7px;display:flex;flex-direction:column}
+  .spine.mini{width:46px;padding:8px 5px}
+  .ex{font-size:8px;letter-spacing:.11em;text-transform:uppercase;color:var(--cream);margin:0 3px 7px;display:flex;justify-content:space-between}
+  .ex .pct{color:var(--green);font-weight:800}
+  .seg{display:flex;align-items:center;gap:6px;margin-bottom:3px;border-radius:6px;padding:0 7px;background:var(--panel2);border:1px solid transparent}
+  .seg.on{border-color:var(--gold);background:rgba(252,163,17,.14)}
+  .seg .bar{width:3px;border-radius:3px;height:58%}
+  .seg .nm{flex:1;font-size:8.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .seg.on .nm{color:var(--gold);font-weight:700}
+  .seg .n{font-size:7.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .seg .d{width:6px;height:6px;border-radius:99px;flex:none}
+  .ms{border-radius:3px;margin-bottom:2px;background:var(--panel2);border:1px solid transparent;position:relative}
+  .ms.on{background:rgba(252,163,17,.28);border-color:var(--gold)}
+  .ms .md{position:absolute;right:2px;top:2px;width:4px;height:4px;border-radius:99px}
+  .g{background:var(--green)}.a{background:var(--amber)}
+  /* foot icons */
+  .foot{margin-top:auto;border-top:1px solid var(--line);padding-top:6px;display:flex;gap:5px;justify-content:center}
+  .foot .ic{width:26px;height:22px;border-radius:5px;background:var(--panel2);border:1px solid var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:9px;color:var(--cyan)}
+  .foot .ic span{font-size:5.5px;color:var(--muted);letter-spacing:.04em}
+  .foot.mini .ic{width:100%;height:20px}
+  /* ---- panes ---- */
+  .stage{flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:9.5px;text-align:center;padding:16px;line-height:1.7}
+  .fan{flex:1;padding:10px;background:var(--navy)}
+  .fan .th{font-size:10.5px;color:var(--gold);font-weight:800}
+  .fan .tsub{font-size:8px;color:var(--muted);margin-bottom:8px}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:7px;padding:6px 8px;margin-bottom:5px;display:flex;gap:8px;align-items:center}
+  .card.warn{border-color:rgba(240,178,74,.5)}
+  .mini5{display:flex;flex-direction:column;gap:1.5px;flex:none}
+  .mini5 i{display:block;width:14px;height:2.5px;border-radius:2px;background:rgba(245,239,230,.2)}
+  .mini5 i.f{background:var(--green)}
+  .card .t{flex:1;min-width:0}
+  .card .t .nm{font-size:9px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .card .t .mt{font-size:7.5px;color:var(--muted);margin-top:1px}
+  .card .d{width:7px;height:7px;border-radius:99px;flex:none}
+  .add{border:1px dashed var(--line);border-radius:7px;padding:5px;text-align:center;color:var(--muted);font-size:8px}
+  .strip{width:104px;border-right:1px solid var(--line);background:var(--panel);padding:5px}
+  .fr{background:var(--panel2);border:1px solid var(--line);border-radius:5px;height:22px;margin-bottom:3px;display:flex;align-items:center;gap:4px;padding:0 5px;font-size:7px;color:var(--muted)}
+  .fr.on{border-color:var(--gold);box-shadow:0 0 0 1.2px rgba(252,163,17,.4);color:var(--text)}
+  .fr .q{color:var(--gold);font-weight:800}
+  .fr .run{background:var(--cyan);color:#0B1322;border-radius:2px;padding:0 2px;font-weight:900;font-size:6px}
+  .editor{flex:1;display:flex;align-items:center;justify-content:center;padding:10px}
+  .qcard{background:var(--cream);color:#14213D;border-radius:8px;padding:11px 13px;width:92%}
+  .qcard .stem{font-weight:800;font-size:10px;margin-bottom:7px}
+  .qcard .ch{border:1.2px solid #C9CEDC;border-radius:5px;padding:3px 6px;font-size:8.5px;margin-bottom:3px}
+  .qcard .ch.ok{border-color:#1E9E63;background:#E9F9F1}
+  .qcard .ch b{color:#4C5670}
+  /* ---- annotations ---- */
+  .ann{width:250px;flex:none}
+  .ann h3{font-size:9px;text-transform:uppercase;letter-spacing:.12em;color:#14213D;margin-bottom:5px;border-bottom:1px solid #d5dae6;padding-bottom:3px}
+  .ann li{list-style:none;font-size:9px;color:#39415a;margin-bottom:5px;padding-left:12px;position:relative;line-height:1.42}
+  .ann li::before{content:"▸";position:absolute;left:0;color:var(--gold);font-weight:900}
+  .ann li b{color:#14213D}
+  .kbd{background:#eef1f7;border:1px solid #d5dae6;border-radius:3px;padding:0 3px;font-size:8px}
+  .decis{background:#FFF8EC;border:1px solid #F0C77A;border-radius:6px;padding:7px 9px;margin-top:7px}
+  .decis h4{font-size:8px;text-transform:uppercase;letter-spacing:.11em;color:#8a5a00;margin-bottom:3px}
+  .decis p{font-size:8.5px;color:#6b4a10;line-height:1.45}
+  .h18{height:18px}.h26{height:26px}.h34{height:34px}.h44{height:44px}.h14{height:14px}.h22{height:22px}.h20{height:20px}.h16{height:16px}.h24{height:24px}.h15{height:15px}.h23{height:23px}
+</style>
+</head>
+<body>
+
+<!-- ===================== PAGE 1 ===================== -->
+<div class="page">
+  <div class="hd"><h1>Outline&#8209;as&#8209;Map</h1><span class="st">State 1 · resting — the exam <i>is</i> the navigation</span><span class="side">Authoring</span></div>
+  <p class="lede">Boot lands here. The left rail stops being a file tree and becomes the exam: <b>segment height = CEQ weight</b>, <b>colour = film-readiness</b> (the same pure check behind “Ready to film?”). One glance answers <i>how big</i>, <i>where's the weight</i>, <i>what's ready</i> — before a single click. ~14 resting controls where the tree had 69.</p>
+  <div class="row">
+    <div class="frame">
+      <div class="topbar"><b>Home</b> · File ▾ <span class="sw">Intro 1 · Exam 1 ▾</span></div>
+      <div class="body">
+        <div class="spine">
+          <div class="ex"><span>EXAM 1 · 256 CEQ</span><span class="pct">72% ready</span></div>
+          <div class="seg h18"><span class="bar g"></span><span class="nm">Accounting Cycle</span><span class="n">12</span><span class="d g"></span></div>
+          <div class="seg h34"><span class="bar g"></span><span class="nm">Analyzing Transactions</span><span class="n">48</span><span class="d g"></span></div>
+          <div class="seg h44"><span class="bar a"></span><span class="nm">Recording JEs</span><span class="n">60</span><span class="d a"></span></div>
+          <div class="seg h14"><span class="bar g"></span><span class="nm">Receivables &amp; Pay.</span><span class="n">8</span><span class="d g"></span></div>
+          <div class="seg h24"><span class="bar a"></span><span class="nm">Posting to T Accts</span><span class="n">24</span><span class="d a"></span></div>
+          <div class="seg h15"><span class="bar g"></span><span class="nm">Trial Balances</span><span class="n">11</span><span class="d g"></span></div>
+          <div class="seg h26"><span class="bar a"></span><span class="nm">Adjusting Entries</span><span class="n">30</span><span class="d a"></span></div>
+          <div class="seg h23"><span class="bar g"></span><span class="nm">Financial Stmts</span><span class="n">28</span><span class="d g"></span></div>
+          <div class="seg h20"><span class="bar a"></span><span class="nm">Closing Entries</span><span class="n">23</span><span class="d a"></span></div>
+          <div class="seg h16"><span class="bar g"></span><span class="nm">Principles</span><span class="n">12</span><span class="d g"></span></div>
+          <div class="foot">
+            <div class="ic">▶<span>VIDEOS</span></div>
+            <div class="ic">🏛<span>CAMPUS</span></div>
+            <div class="ic">💡<span>MEMOS</span></div>
+          </div>
+        </div>
+        <div class="stage">the work area stays empty here —<br>the map <i>is</i> the content until a set opens<br><span style="opacity:.6">(recent sets appear as three quiet chips, bottom)</span></div>
+      </div>
+    </div>
+    <div class="ann">
+      <h3>What changed</h3>
+      <ul>
+        <li><b>Switcher = exams/maps only.</b> “Exam 1 ▾” lists Exam 2, Final, other courses — and later, partner exams you're reviewing. Nothing else lives there.</li>
+        <li><b>Videos · Campuses · Memos are three icons at the spine's foot.</b> Always reachable, never competing with content for vertical space.</li>
+        <li><b>Height carries meaning.</b> Recording JEs (60 CEQ) is visibly the mountain; Receivables (8) is a pebble. The tree made them identical rows.</li>
+        <li><b>Readiness is ambient</b> — the dot per segment and “72% ready” in the header. The exam grades itself; you never open a panel to find out.</li>
+        <li><b>Tree mode survives</b> as a View&nbsp;▾ toggle for when you want the literal list (bulk renames, drag-heavy sessions).</li>
+      </ul>
+      <div class="decis">
+        <h4>Build note</h4>
+        <p>One shared <b>&lt;ExamMap&gt;</b> component. This page is the <i>authoring feed</i>: <span class="kbd">readiness</span> per set. The student page is the same component with a <span class="kbd">progress</span> feed.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== PAGE 2 ===================== -->
+<div class="page">
+  <div class="hd"><h1>Outline&#8209;as&#8209;Map</h1><span class="st">State 2 · topic open — sets fan out</span><span class="side">Authoring</span></div>
+  <p class="lede">Click a segment and the spine <b>collapses to 46px but never leaves</b> — you're not “inside a folder”, you're at a place on the map. The topic's sets fan out as cards carrying a mini-strip thumbnail (green rows = frames with clips), counts, and the readiness verdict with its reason.</p>
+  <div class="row">
+    <div class="frame">
+      <div class="topbar"><b>Home</b> · File ▾ <span class="sw">Exam 1 ▾</span></div>
+      <div class="body">
+        <div class="spine mini">
+          <div class="ms h18"><span class="md g"></span></div>
+          <div class="ms h34"><span class="md g"></span></div>
+          <div class="ms on h44"><span class="md a"></span></div>
+          <div class="ms h14"><span class="md g"></span></div>
+          <div class="ms h24"><span class="md a"></span></div>
+          <div class="ms h15"><span class="md g"></span></div>
+          <div class="ms h26"><span class="md a"></span></div>
+          <div class="ms h23"><span class="md g"></span></div>
+          <div class="ms h20"><span class="md a"></span></div>
+          <div class="ms h16"><span class="md g"></span></div>
+          <div class="foot mini"><div class="ic">▶</div></div>
+        </div>
+        <div class="fan">
+          <div class="th">RECORDING JOURNAL ENTRIES</div>
+          <div class="tsub">3 sets · 60 CEQ · 2 of 3 sets lettered · 1 ready to film</div>
+          <div class="card">
+            <span class="mini5"><i class="f"></i><i class="f"></i><i></i><i></i><i></i></span>
+            <span class="t"><span class="nm">“What is the journal entry for [&nbsp;&nbsp;]?”</span><span class="mt">24 CEQ · 6 free · runs A–C · filmed 08-12</span></span>
+            <span class="d g"></span>
+          </div>
+          <div class="card warn">
+            <span class="mini5"><i></i><i></i><i></i><i></i><i></i></span>
+            <span class="t"><span class="nm">“How does a debit vs. credit affect [&nbsp;&nbsp;]?”</span><span class="mt" style="color:var(--amber)">18 CEQ · 4 free · 18 issues — no run letters</span></span>
+            <span class="d a"></span>
+          </div>
+          <div class="card">
+            <span class="mini5"><i class="f"></i><i></i><i></i><i></i><i></i></span>
+            <span class="t"><span class="nm">“When do you debit — and when credit?”</span><span class="mt">18 CEQ · 5 free · runs A–B</span></span>
+            <span class="d a"></span>
+          </div>
+          <div class="add">+ set in this topic</div>
+        </div>
+      </div>
+    </div>
+    <div class="ann">
+      <h3>What changed</h3>
+      <ul>
+        <li><b>The spine is now the miniature.</b> Same proportions, same colours, 46px. Hovering a stub shows its topic name + readiness; clicking jumps.</li>
+        <li><b>Set cards replace set rows.</b> The mini-strip is a genuine thumbnail of the filmstrip: you see at a glance which frames already have clips.</li>
+        <li><b>The amber card explains itself</b> — “18 issues — no run letters”, not a bare dot. Krug: the answer, not the invitation to go find it.</li>
+        <li><b>Bulk ops, CSV round-trip, park/delete, rename</b> move to a <span class="kbd">···</span> on each card and on the topic header. Nothing lost, nothing resting.</li>
+        <li><b>Partner shape:</b> hand a tutor one topic and this <i>is</i> their whole app — the same screen, smaller.</li>
+      </ul>
+      <div class="decis">
+        <h4>Build order</h4>
+        <p>State&nbsp;1 → commit → State&nbsp;2 → commit → State&nbsp;3 → commit. Tree mode stays wired throughout so filming is never blocked.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== PAGE 3 ===================== -->
+<div class="page">
+  <div class="hd"><h1>Outline&#8209;as&#8209;Map</h1><span class="st">State 3 · set open — today's Studio, spine kept</span><span class="side">Authoring</span></div>
+  <p class="lede">Exactly the Studio you filmed with this morning — filmstrip, editor, View&nbsp;▾ — with the 46px spine still on the far left. <b>Three zoom levels visible at once</b> (exam · set · frame) and any topic is one click away. No “back”, no breadcrumb, no tree.</p>
+  <div class="row">
+    <div class="frame">
+      <div class="topbar"><b>Home</b> · File ▾ · <b style="color:var(--gold)">JE for [ ]</b> · Draft · 🗒 <span class="sw">Exam 1 ▾</span></div>
+      <div class="body">
+        <div class="spine mini">
+          <div class="ms h18"><span class="md g"></span></div>
+          <div class="ms h34"><span class="md g"></span></div>
+          <div class="ms on h44"><span class="md a"></span></div>
+          <div class="ms h14"><span class="md g"></span></div>
+          <div class="ms h24"><span class="md a"></span></div>
+          <div class="ms h15"><span class="md g"></span></div>
+          <div class="ms h26"><span class="md a"></span></div>
+          <div class="ms h23"><span class="md g"></span></div>
+          <div class="ms h20"><span class="md a"></span></div>
+          <div class="ms h16"><span class="md g"></span></div>
+          <div class="foot mini"><div class="ic">💡</div></div>
+        </div>
+        <div class="strip">
+          <div class="fr on"><span class="q">Q1</span><span class="run">A</span> owner invests</div>
+          <div class="fr"><span class="q">Q2</span><span class="run">A</span> services cash</div>
+          <div class="fr" style="border-style:dashed"><span style="color:var(--gold)">📝</span> note · breathe</div>
+          <div class="fr"><span class="q">Q3</span><span class="run">B</span> pay on account</div>
+          <div class="fr"><span class="q">Q4</span><span class="run">B</span> prepaid rent</div>
+          <div class="fr"><span class="q">Q5</span> unearned rev</div>
+          <div class="fr"><span class="q">Q6</span> dividends</div>
+          <div class="fr"><span class="q">Q7</span> depreciation</div>
+        </div>
+        <div class="editor">
+          <div class="qcard">
+            <div class="stem">Owner invests $10,000 cash in exchange for common stock. What is the journal entry?</div>
+            <div class="ch ok"><b>A</b> &nbsp;Dr Cash · Cr Common Stock</div>
+            <div class="ch"><b>B</b> &nbsp;Dr Common Stock · Cr Cash</div>
+            <div class="ch"><b>C</b> &nbsp;Dr Cash · Cr Revenue</div>
+            <div class="ch"><b>D</b> &nbsp;Dr Equity · Cr Cash</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="ann">
+      <h3>What changed</h3>
+      <ul>
+        <li><b>The spine persists</b> (your call). Cost: 46px. Gain: you always know where this set sits in the exam, and topic-hopping is one click mid-session.</li>
+        <li><b>Everything else is what you already have</b> — filmstrip with run letters + note frames, auto-selected frame 1, View&nbsp;▾, Ready to film?, Rehearse, 🗒 Takes.</li>
+        <li><b>Four zooms, one grammar:</b> exam spine → topic → set strip → frame. The run-rail idea you shipped, applied all the way up.</li>
+        <li><b>Memo icon at the foot</b> replaces the resting memo panel — it opens the library when you actually want it (chain work opens it automatically).</li>
+      </ul>
+      <div class="decis">
+        <h4>Same component, later</h4>
+        <p>This spine becomes the <b>player outline</b> on the student side, then the full-screen course view. One component, two feeds — see the student PDF.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
