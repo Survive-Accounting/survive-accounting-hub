@@ -59,6 +59,8 @@ import { revealedTargetId } from "@/components/canvas/spotlight";
 import { ambientViewport, fillViewport, spotlightPushViewport } from "@/components/canvas/camera-push";
 import { absRectOf, beatColOf, beatNeighborFrame, BEAT_COLUMNS, BEAT_LABEL, blankFrameData, columnX, frameCellLabel, frameCompositionGuides, framesInBeat, framesInLesson, frameWalkNext, frameWalkPrev, GRID, gridLayout, isWrapUpName, lessonCellSize, lessonGrid, lessonRollFrame, nextSubIndex, regionLayout, RESERVED_ROWS, rowY, SCAFFOLD_BEATS, subIndexOf, subNeighborFrame, type GuideWeight } from "@/components/canvas/frames";
 import { BridgeCardNode, CeqHookNode, CeqTeaseNode, CornerBoltNode, ExamCueNode, FrameBoltNode, GateNode, IntroCardNode, LogoCardNode, OutroCardNode, TextElementNode } from "@/components/canvas/cards/elements";
+import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
+import { Bolt } from "@/components/canvas/brand";
 import { CycleNode } from "@/components/canvas/cards/CycleNode";
 import { configureSfx, playSfx, preloadSfx, SFX_DEFAULT, type SfxConfig, type SfxEvent } from "@/components/canvas/sfx";
 import { framePartIds, framePartLabels, materializeFrame, REST_TARGET, WHOLE_TARGET } from "@/components/canvas/choreo";
@@ -1675,6 +1677,11 @@ function PresentCanvas() {
   const [soundsOpen, setSoundsOpen] = useState(false); // per-frame Sounds popover in the frame header (Lee)
   const [savedAt, setSavedAt] = useState<string | null>(null);
   // SCENE TABS — the open set + which one drives the live canvas
+  // HOME STATE (header consolidation) — the app boots to the brand frame, not an auto-created
+  // "Untitled scene". The tab machinery keeps its one phantom untitled entry underneath (every
+  // consumer expects an active tab), but while homeOpen the canvas is covered by the home frame,
+  // the tab strip hides, and nothing autosaves (the empty-canvas guard already skips 0-node saves).
+  const [homeOpen, setHomeOpen] = useState(true);
   const [tabState, setTabState] = useState<{ tabs: TabEntry[]; active: string }>(() => {
     const key = Math.random().toString(36).slice(2);
     return { tabs: [{ key, sceneId: null, name: "Untitled scene", dirty: false }], active: key };
@@ -4633,11 +4640,28 @@ function PresentCanvas() {
   const newTab = useCallback(() => {
     const key = Math.random().toString(36).slice(2);
     setTabState((p) => ({
-      tabs: [...p.tabs.map((t) => (t.key === p.active ? (sceneLoadingRef.current ? t : { ...t, sceneId, name: sceneName, snap: snapshotCurrent() }) : t)), { key, sceneId: null, name: "Untitled scene", dirty: false }],
-      active: key,
+      // From HOME the phantom untitled tab is pristine — REUSE it rather than stacking a second
+      // untitled; otherwise snapshot the active tab and append as before.
+      tabs: homeOpen && p.tabs.length === 1 && !p.tabs[0].sceneId && !p.tabs[0].dirty
+        ? p.tabs
+        : [...p.tabs.map((t) => (t.key === p.active ? (sceneLoadingRef.current ? t : { ...t, sceneId, name: sceneName, snap: snapshotCurrent() }) : t)), { key, sceneId: null, name: "Untitled scene", dirty: false }],
+      active: homeOpen && p.tabs.length === 1 && !p.tabs[0].sceneId && !p.tabs[0].dirty ? p.tabs[0].key : key,
     }));
     clearCanvasState();
-  }, [sceneId, sceneName, snapshotCurrent, clearCanvasState]);
+    setHomeOpen(false); // "New scene" leaves home; the inline name input takes over ("Untitled scene", editable)
+  }, [sceneId, sceneName, snapshotCurrent, clearCanvasState, homeOpen]);
+
+  /** HOME — close the scene view back to the brand frame. Same guard as closing a tab: any dirty
+   *  tab must be confirmed away. All tabs are dropped; a fresh phantom untitled backs the canvas. */
+  const goHome = useCallback(() => {
+    const dirtyCount = tabState.tabs.filter((t) => t.dirty).length;
+    if (dirtyCount > 0 && !window.confirm(`${dirtyCount} scene${dirtyCount === 1 ? " has" : "s have"} unsaved changes — close ${dirtyCount === 1 ? "it" : "them"} and go Home anyway?`)) return;
+    const fresh = { key: Math.random().toString(36).slice(2), sceneId: null, name: "Untitled scene", dirty: false };
+    setTabState({ tabs: [fresh], active: fresh.key });
+    clearCanvasState();
+    setSceneName("Untitled scene");
+    setHomeOpen(true);
+  }, [tabState, clearCanvasState]);
 
   const closeTab = useCallback(
     (key: string) => {
@@ -4671,6 +4695,7 @@ function PresentCanvas() {
    *  (in-app duplicate prevention); otherwise a NEW tab. */
   const openSceneInTab = useCallback(
     (row: SceneListRow) => {
+      setHomeOpen(false); // opening a scene always leaves the home state
       setLoadOpen(false);
       const existing = tabState.tabs.find((t) => t.sceneId === row.id);
       if (existing) {
@@ -5495,12 +5520,17 @@ function PresentCanvas() {
           onCleanNames={runCleanNames}
           onHotkeys={() => setHelpOpen(true)}
           onOpenStudio={() => setCeqStudioOpen(true)}
+          onHome={goHome}
+          homeActive={homeOpen}
           onViewV1={() => setChromeVersion(true)}
         />
       )}
       {/* Hidden import input — lives OUTSIDE the v1 toolbar so File → Import works in
           both chrome versions. */}
-      {chrome && <input ref={importRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => void onImportFile(e)} />}
+      {chrome && <input ref={importRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => { setHomeOpen(false); void onImportFile(e); }} />}
+      {/* HOME STATE — the brand frame IS the screen when no scene is open (boot lands here; the
+          Home button returns here). Covers the outline + canvas, sits under the navbar/modals. */}
+      {chrome && !chromeV1 && homeOpen && <CanvasHome onOpenScene={openSceneInTab} onNewScene={newTab} />}
       <div className="flex min-h-0 min-w-0 flex-1">
         {chrome && !chromeV1 && (outlineCollapsed ? (
           // COLLAPSED — a thin rail; click to bring the outline back.
@@ -6531,8 +6561,9 @@ function PresentCanvas() {
         </div>
       )}
 
-      {/* SCENE TABS — bottom-left; drag the strip to scroll when overflowing */}
-      {chrome && (
+      {/* SCENE TABS — bottom-left; drag the strip to scroll when overflowing. Hidden on the HOME
+          state: the strip only exists once a scene is actually open. */}
+      {chrome && !homeOpen && (
         <div
           className="absolute bottom-3 left-3 z-40 flex max-w-[30vw] cursor-grab items-center gap-1 overflow-x-auto rounded-xl px-1.5 py-1 active:cursor-grabbing"
           style={{ background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", scrollbarWidth: "none" }}
@@ -7243,5 +7274,40 @@ function BgOption({ label, active, onClick }: { label: string; active: boolean; 
     >
       {label}
     </button>
+  );
+}
+
+// ── HOME STATE (header consolidation) ───────────────────────────────────────────────────────────
+// The brand frame full-canvas: navy, boiling bolt centered, "survive" wordmark, tagline — the
+// outro-card composition from the existing brand components (no new art). A quiet overlay at the
+// bottom lists the last 5 scenes + New scene: the frame is the screen; the list is furniture.
+// prefers-reduced-motion → static bolt.
+function CanvasHome({ onOpenScene, onNewScene }: { onOpenScene: (row: SceneListRow) => void; onNewScene: () => void }) {
+  const [reduce] = useState(() => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
+  const recentQ = useQuery({ queryKey: ["home-recent-scenes"], queryFn: () => listScenes(), staleTime: 30_000, networkMode: "always" });
+  const recent = (recentQ.data ?? []).slice(0, 5); // listScenes is already updated_at DESC
+  const when = (s?: string) => { try { return s ? new Date(s).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : ""; } catch { return ""; } };
+  return (
+    <div className="absolute inset-x-0 bottom-0 top-11 z-[60] flex flex-col items-center justify-center" style={{ background: "#14213D" }}>
+      <div className="flex flex-col items-center" style={{ fontFamily: "'Rubik', system-ui, sans-serif" }}>
+        {reduce
+          ? <span className="inline-block" style={{ height: 170, width: 120 }}><Bolt c1="#C62828" c2="#1565C0" /></span>
+          : <BoltBoil height={170} />}
+        <div className="mt-8"><SurviveWordmark size={92} /></div>
+        <div className="mt-6 text-[22px] font-semibold" style={{ color: "#F5EFE6" }}>Only what's on your exam.</div>
+      </div>
+      {/* the furniture — muted, small, at the bottom */}
+      <div className="absolute inset-x-0 bottom-8 flex flex-col items-center gap-2">
+        <div className="flex flex-wrap items-center justify-center gap-1.5 px-6">
+          {recent.map((r) => (
+            <button key={r.id} onClick={() => onOpenScene(r)} className="max-w-[220px] truncate rounded-lg px-3 py-1.5 text-[12px] font-semibold transition-colors hover:bg-white/10" style={{ color: "rgba(245,239,230,0.75)", border: "1px solid rgba(245,239,230,0.18)" }} title={`Open "${r.name}"`}>
+              {r.name} <span style={{ opacity: 0.55 }}>· {when((r as { updated_at?: string }).updated_at)}</span>
+            </button>
+          ))}
+          <button onClick={onNewScene} className="rounded-lg px-3 py-1.5 text-[12px] font-bold transition-colors hover:bg-white/10" style={{ color: NEON.yellow, border: `1px solid rgba(252,163,17,0.45)` }} title="Start a new scene (name it inline in the top bar)">+ New scene</button>
+        </div>
+        {recentQ.isLoading && <span className="text-[10.5px]" style={{ color: "rgba(245,239,230,0.4)" }}>loading recent scenes…</span>}
+      </div>
+    </div>
   );
 }

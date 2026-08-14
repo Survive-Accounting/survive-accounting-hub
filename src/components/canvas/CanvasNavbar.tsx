@@ -5,9 +5,8 @@
 // Dashboard v1 chrome (old toolbar + drawer) — nothing was deleted, only gated.
 // Authoring-only: the route renders it when `chrome && v2`; film mode never sees it.
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Archive, ChevronDown, Download, Eraser, Eye, FilePlus2, FolderOpen, Keyboard, ListOrdered, Plus, RotateCcw, Save, Sprout, Upload } from "lucide-react";
+import { Archive, ChevronDown, Download, Eraser, Eye, FilePlus2, FolderOpen, Home as HomeIcon, Keyboard, ListOrdered, Plus, RotateCcw, Save, Sprout, Upload } from "lucide-react";
 
-import { BrandLogo } from "./brand";
 import { NEON } from "./theme";
 
 function NavMenuRow({ icon, label, danger, onClick }: { icon: ReactNode; label: string; danger?: boolean; onClick: () => void }) {
@@ -24,7 +23,8 @@ function NavMenuRow({ icon, label, danger, onClick }: { icon: ReactNode; label: 
   );
 }
 
-export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSaveAs, onLoad, onExport, onImport, onNewTab, onReset, onSeedSets, onCleanNames, onHotkeys, onOpenStudio, onViewV1 }: {
+export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSaveAs, onLoad, onExport, onImport, onNewTab, onReset, onSeedSets, onCleanNames, onHotkeys, onOpenStudio, onViewV1, onHome, homeActive }: {
+  onHome: () => void; homeActive: boolean;
   sceneName: string;
   setSceneName: (v: string) => void;
   savedNote?: string | null;
@@ -60,19 +60,17 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
 
   return (
     <div className="relative z-[65] flex h-11 shrink-0 items-center gap-2 px-3" style={{ background: "rgba(9,14,26,0.97)", borderBottom: `1px solid ${NEON.borderSoft}` }}>
-      {/* THE brand mark — one in the whole app. The bolt + STUDIO lockup used to sit inside the
-          Studio panel and duplicated the old red/blue "Study Canvas" mark here; consolidated to a
-          single identity at the app's top-left (Studio Consolidation A). */}
-      <span className="inline-block h-5 w-4 shrink-0"><BrandLogo mode="bolt" c1={NEON.yellow} c2={NEON.yellow} size={20} /></span>
-      <span className="text-[12px] font-black uppercase tracking-[0.2em]" style={{ color: NEON.yellow }}>Studio</span>
-      <span className="mx-1 h-4 w-px" style={{ background: NEON.borderSoft }} />
-      <input
-        className="w-48 bg-transparent text-[12.5px] font-semibold outline-none"
-        value={sceneName}
-        onChange={(e) => setSceneName(e.target.value)}
-        onKeyDown={(e) => e.stopPropagation()}
-        title="Scene name"
-      />
+      {/* HOME — a BUTTON, not a brand mark (the wordmark/bolt lockup is gone; the home frame IS
+          the brand now). Closes the current scene view back to the home state, with the same
+          unsaved-changes guard as closing a tab. */}
+      <button
+        className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[12px] font-bold"
+        style={homeActive ? { color: "#0B1322", background: NEON.yellow, border: `1px solid ${NEON.yellow}` } : { color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}
+        onClick={onHome}
+        title="Home — close the scene view (unsaved changes are guarded)"
+      >
+        <HomeIcon className="h-3.5 w-3.5" /> Home
+      </button>
 
       {/* FILE */}
       <div className="relative" ref={ref}>
@@ -84,44 +82,42 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
           File <ChevronDown className="h-3 w-3" />
         </button>
         {fileOpen && (
-          <div className="absolute left-0 top-9 z-[70] w-56 rounded-xl p-1.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}>
-            {item(<Save className="h-3.5 w-3.5" />, "Save", onSave)}
-            {item(<FilePlus2 className="h-3.5 w-3.5" />, "Save as new", onSaveAs)}
+          <div className="absolute left-0 top-9 z-[70] w-60 rounded-xl p-1.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}>
+            {/* Scene-dependent rows hide on the home state — there is no scene to save/export/reset. */}
+            {!homeActive && item(<Save className="h-3.5 w-3.5" />, "Save", onSave)}
+            {!homeActive && item(<FilePlus2 className="h-3.5 w-3.5" />, "Save as new", onSaveAs)}
             {item(<FolderOpen className="h-3.5 w-3.5" />, "Open… (scenes + folders)", onLoad)}
             <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
-            {item(<Download className="h-3.5 w-3.5" />, "Export (.json + .md)", onExport)}
+            {!homeActive && item(<Download className="h-3.5 w-3.5" />, "Export (.json + .md)", onExport)}
             {item(<Upload className="h-3.5 w-3.5" />, "Import from file", onImport)}
-            {item(<Plus className="h-3.5 w-3.5" />, "New tab", onNewTab)}
+            {item(<Plus className="h-3.5 w-3.5" />, "New scene", onNewTab)}
             <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
-            {item(<Sprout className="h-3.5 w-3.5" />, "Seed starter sets", onSeedSets)}
-            {item(<Eraser className="h-3.5 w-3.5" />, "Clean set names", onCleanNames)}
-            <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
-            {item(<RotateCcw className="h-3.5 w-3.5" />, "Reset… (canvas · CEQs · both)", onReset, true)}
+            {/* Hotkeys + Studio moved in from the top bar (header consolidation) — the shortcuts
+                keep working; the labels say so. */}
+            {item(<Keyboard className="h-3.5 w-3.5" />, "Hotkeys — press ?", onHotkeys)}
+            {item(<ListOrdered className="h-3.5 w-3.5" />, "Open Studio", onOpenStudio)}
+            {!homeActive && <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />}
+            {!homeActive && item(<Sprout className="h-3.5 w-3.5" />, "Seed starter sets", onSeedSets)}
+            {!homeActive && item(<Eraser className="h-3.5 w-3.5" />, "Clean set names", onCleanNames)}
+            {!homeActive && <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />}
+            {!homeActive && item(<RotateCcw className="h-3.5 w-3.5" />, "Reset… (canvas · CEQs · both)", onReset, true)}
             <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
             {item(<Archive className="h-3.5 w-3.5" />, "View archive: Dashboard v1", onViewV1)}
           </div>
         )}
       </div>
 
-      {/* HOTKEYS — read-only cheat sheet (the "?" overlay; registry-driven, never stale) */}
-      <button
-        className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[12px] font-bold"
-        style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}
-        onClick={onHotkeys}
-        title="Hotkeys — the full cheat sheet (also ?)"
-      >
-        <Keyboard className="h-3.5 w-3.5" /> Hotkeys
-      </button>
-
-      {/* STUDIO — the portal door also lives in the navbar */}
-      <button
-        className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[12px] font-black uppercase tracking-wide"
-        style={{ color: NEON.yellow, border: "1px solid rgba(252,163,17,0.5)" }}
-        onClick={onOpenStudio}
-        title="Open the Studio — sets · questions + chains · memo library"
-      >
-        <ListOrdered className="h-3.5 w-3.5" /> Studio
-      </button>
+      {/* Scene name — only when a scene is actually open; Home is an app state, never a scene. */}
+      {!homeActive && (<>
+        <span className="mx-1 h-4 w-px" style={{ background: NEON.borderSoft }} />
+        <input
+          className="w-48 bg-transparent text-[12.5px] font-semibold outline-none"
+          value={sceneName}
+          onChange={(e) => setSceneName(e.target.value)}
+          onKeyDown={(e) => e.stopPropagation()}
+          title="Scene name"
+        />
+      </>)}
 
       <div className="min-w-0 flex-1" />
       {savedNote && <span className="truncate text-[10.5px]" style={{ color: NEON.muted }}>{savedNote}</span>}
