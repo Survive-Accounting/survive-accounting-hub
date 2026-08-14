@@ -4,9 +4,10 @@
 // Gates are VISUAL PLACEHOLDERS ONLY — real gating ships with World v1.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
-import { AlignCenter, AlignLeft, Braces, Copy, GripVertical, HandCoins, Lock, LockOpen, MessageCircleQuestion, Share2, SunDim, UserRoundPlus, Volume2, X } from "lucide-react";
+import { AlignCenter, AlignLeft, Braces, Clapperboard, Copy, GripVertical, HandCoins, Lock, LockOpen, MessageCircleQuestion, Share2, SunDim, UserRoundPlus, Volume2, X } from "lucide-react";
 
 import { useFrameNav } from "../FrameNavContext";
+import { useFilm } from "../film-lock";
 import { playSfx } from "../sfx";
 
 import { BaseCard, useCardActions } from "../BaseCard";
@@ -23,9 +24,16 @@ import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { IntroFrame, OutroFrame, CornerFrame } from "@/components/frames";
 import type { BridgeCard, CeqHookElement, CeqTeaseElement, CornerBoltElement, ExamCueElement, FrameBoltElement, GateElement, IntroCardElement, LogoElement, OutroCardElement, TextElement } from "../types";
 
-// ---- shared element chrome: clone · × · pos-lock (hover only) ---------------
+// ---- shared element chrome: clone · × · pos-lock · film-unlock (hover only) --
 export function ElementChrome({ id, posLock, selected, align = "right" }: { id: string; posLock?: boolean; selected?: boolean; align?: "left" | "right" }) {
   const { update, remove, duplicate } = useCardActions(id);
+  const rf = useReactFlow();
+  // FILM LOCK (A1): chrome NEVER renders on camera — nothing to hover, click, or
+  // hold keyboard focus. FILM_LOCK_CSS backs this up for cards with custom chrome.
+  const film = useFilm();
+  // Read the film-unlock flag off the node so every element gets the toggle
+  // without threading a prop through each card. update() re-renders us on change.
+  const filmMovable = !!(rf.getNode(id)?.data as { filmMovable?: boolean } | undefined)?.filmMovable;
   const btn = (title: string, onClick: () => void, child: React.ReactNode, active?: boolean) => (
     <button
       title={title}
@@ -37,6 +45,7 @@ export function ElementChrome({ id, posLock, selected, align = "right" }: { id: 
       {child}
     </button>
   );
+  if (film) return null;
   return (
     <div
       className={`card-actions absolute -top-6 ${align === "left" ? "left-0" : "right-0"} z-[2] flex items-center gap-0.5 rounded-lg px-1 py-0.5 transition-opacity ${selected || posLock ? "opacity-100" : "opacity-0 group-hover/el:opacity-100"}`}
@@ -48,6 +57,12 @@ export function ElementChrome({ id, posLock, selected, align = "right" }: { id: 
         () => update({ posLock: !posLock }),
         posLock ? <Lock className="h-3 w-3" /> : <LockOpen className="h-3 w-3" />,
         posLock,
+      )}
+      {btn(
+        filmMovable ? "Movable in film mode — click to freeze (the default)" : "Frozen in film mode (default) — click to allow moving it on camera",
+        () => update({ filmMovable: !filmMovable }),
+        <Clapperboard className="h-3 w-3" />,
+        filmMovable,
       )}
       {btn("Delete", remove, <X className="h-3 w-3" />)}
     </div>
@@ -64,9 +79,13 @@ export function ElementResizer({ id, selected, minWidth, minHeight, keepAspect =
 }) {
   const rf = useReactFlow();
   const start = useRef<{ pos: { x: number; y: number }; w?: number; h?: number } | null>(null);
+  // FILM LOCK (A1): geometry is read-only on camera. A film-mode resize was the
+  // "card randomly resizes" incident — onResizeEnd PERSISTS w/h, while film drags
+  // don't, so the card kept a stuck size under rubber-banding positions.
+  const film = useFilm();
   return (
     <NodeResizer
-      isVisible={!!selected}
+      isVisible={!!selected && !film}
       minWidth={minWidth}
       minHeight={minHeight}
       keepAspectRatio={keepAspect}

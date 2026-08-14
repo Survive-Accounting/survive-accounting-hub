@@ -134,6 +134,10 @@ export interface CardBase {
   /** POSITION LOCK (B2): frozen in place (no drag) — edits still allowed.
    *  Distinct from the JE review-lock, which also freezes edits. */
   posLock?: boolean;
+  /** FILM UNLOCK (film-mode-lock): in film mode every object is frozen; this is
+   *  the explicit per-object opt-out for the rare frame that needs a movable
+   *  card on camera. Authored outside film (ElementChrome toggle). */
+  filmMovable?: boolean;
   /** ALT+CLICK CHROMELESS (Lee, #288): hide this card's header bar (title +
    *  settings + chrome) for a clean on-camera look. Alt+click the card toggles it. */
   hideChrome?: boolean;

@@ -11,6 +11,7 @@ import { GripVertical, Plus, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { ConnectionDots } from "../ConnectionDots";
+import { useFilm } from "../film-lock";
 import { useSpotlight } from "../SpotlightContext";
 import { ElementChrome, ElementResizer } from "./elements";
 import { BIG_FONT, DISPLAY_FONT, NEON } from "../theme";
@@ -71,6 +72,10 @@ export function CycleNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as CycleElement;
   const { update, toFront } = useCardActions(id);
   const sp = useSpotlight();
+  // FILM LOCK (A1): on camera this card is a TEACHING SURFACE, not an editor —
+  // no move grip, no step editing, no add/remove. ElementChrome/Resizer already
+  // self-gate; these are the card's CUSTOM affordances obeying the same signal.
+  const film = useFilm();
   const [editingStep, setEditingStep] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
 
@@ -120,7 +125,7 @@ export function CycleNode({ id, data, selected }: NodeProps) {
       <ConnectionDots />
       {!anySpot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
       <ElementResizer id={id} selected={selected && !anySpot} minWidth={340} minHeight={220} />
-      {!anySpot && (
+      {!anySpot && !film && (
         <div
           className={`absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`}
           title="Drag to move"
@@ -200,10 +205,10 @@ export function CycleNode({ id, data, selected }: NodeProps) {
             />
           ) : (
             <span
-              className="pointer-events-auto cursor-text leading-tight"
+              className={`pointer-events-auto leading-tight${film ? "" : " cursor-text"}`}
               style={{ fontFamily: BIG_FONT, fontWeight: 800, fontSize: Math.max(15, w / 30), letterSpacing: "-0.01em", color: "#F4EFE6", textShadow: "0 2px 12px rgba(0,0,0,0.7)" }}
-              title="Double-click to edit the title"
-              onDoubleClick={(e) => { e.stopPropagation(); setEditingTitle(true); }}
+              title={film ? undefined : "Double-click to edit the title"}
+              onDoubleClick={film ? undefined : (e) => { e.stopPropagation(); setEditingTitle(true); }}
             >
               {d.title || "The Accounting Cycle"}
             </span>
@@ -281,15 +286,15 @@ export function CycleNode({ id, data, selected }: NodeProps) {
                           : "0 0 0 3px rgba(9,13,26,0.95), 0 0 22px rgba(252,163,17,0.75)")
                       : "0 6px 16px -8px rgba(0,0,0,0.8), 0 0 0 3px rgba(9,13,26,0.9)",
                   }}
-                  title="Click to edit · Ctrl-click to spotlight (Ctrl+Shift = 🔥 · Ctrl+Alt+Shift = 🚨)"
+                  title={film ? "Ctrl-click to spotlight (Ctrl+Shift = 🔥 · Ctrl+Alt+Shift = 🚨)" : "Click to edit · Ctrl-click to spotlight (Ctrl+Shift = 🔥 · Ctrl+Alt+Shift = 🚨)"}
                   onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => { e.stopPropagation(); setEditingStep(s.id); }}
+                  onClick={film ? (e) => e.stopPropagation() : (e) => { e.stopPropagation(); setEditingStep(s.id); }}
                 >
                   <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full text-[8px] font-black" style={{ background: "#FCA311", color: "#0B0F1E" }}>
                     {i + 1}
                   </span>
                   {s.text || "Step"}
-                  {steps.length > 1 && !isSpot && (
+                  {steps.length > 1 && !isSpot && !film && (
                     <button
                       className="nodrag ml-0.5 hidden h-3.5 w-3.5 place-items-center rounded-full group-hover/pill:grid"
                       style={{ background: "rgba(224,40,74,0.9)", color: "#fff" }}
@@ -306,8 +311,8 @@ export function CycleNode({ id, data, selected }: NodeProps) {
           );
         })}
 
-        {/* add step */}
-        {!anySpot && (
+        {/* add step (card-actions ⇒ FILM_LOCK_CSS also hides it in the popout) */}
+        {!anySpot && !film && (
           <button
             className="nodrag card-actions absolute bottom-2 right-2 flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold opacity-0 transition-opacity group-hover/el:opacity-100"
             style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, color: NEON.yellow }}
