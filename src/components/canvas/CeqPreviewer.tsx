@@ -29,7 +29,7 @@
 // dirty the real CEQ, and reset when you switch questions.
 import { Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Background, BackgroundVariant, BaseEdge, ConnectionMode, getSmoothStepPath, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodesState, useStore, ViewportPortal, type Connection, type Edge, type EdgeProps, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
-import { Clapperboard, ChevronLeft, ChevronRight, Grid3x3, LayoutGrid, Maximize2, Pause, Play, Plus, RotateCcw, Rows3, Save, Spline, Timer, X } from "lucide-react";
+import { Clapperboard, ChevronDown, ChevronLeft, ChevronRight, Eye, Grid3x3, LayoutGrid, Maximize2, Pause, Play, Plus, RotateCcw, Rows3, Save, Spline, Timer, X } from "lucide-react";
 
 import { Bolt, BOLT_PRESETS, BOLT_RATIO, boltColorById, BRAND_DISPLAY } from "./brand";
 import { frameCompositionGuides, SAFE_INSET_FRAC, type Guide } from "./frames";
@@ -797,7 +797,14 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
   // so you can zoom out to see them all + click to navigate. The ACTIVE question keeps
   // the full live rig; the others are static clickable cards. Off ⇒ the focused single
   // frame (unchanged). Needs the deck's ordered ceq ids (deckCeqIds).
-  const [overview, setOverview] = useState(false);
+  // VIEW MENU (frames rename §4) — one dropdown replaces the STUDENT / GUIDES /
+  // LAYOUT ON / OVERVIEW button pile + the world select. View choices persist PER
+  // USER (localStorage), not per set; the world stays per-set (it's set content).
+  const [viewMenuOpen, setViewMenuOpen] = useState(false);
+  const [viewStudent, setViewStudentRaw] = useState<boolean>(() => { try { return localStorage.getItem("sa-view-student") !== "0"; } catch { return true; } });
+  const setViewStudent = (v: boolean) => { setViewStudentRaw(v); try { localStorage.setItem("sa-view-student", v ? "1" : "0"); } catch { /* ignore */ } };
+  const [overview, setOverviewRaw] = useState<boolean>(() => { try { return localStorage.getItem("sa-view-overview") === "1"; } catch { return false; } });
+  const setOverview = (fn: boolean | ((v: boolean) => boolean)) => setOverviewRaw((v) => { const nv = typeof fn === "function" ? fn(v) : fn; try { localStorage.setItem("sa-view-overview", nv ? "1" : "0"); } catch { /* ignore */ } return nv; });
   // Where the ACTIVE id sits in the deck order. -1 = it isn't one of the deck's
   // questions at all (Question 0's layout stage), so it has no slot in the vertical
   // stack — and a stack built around it would draw the deck's questions straight
@@ -979,7 +986,9 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     // STUDENT OVERLAY (Lee) — filmed on the card, one toggle (showProgress):
     //   "X of Y" over the deck order + a fill bar, and the TOPIC name kicker
     //   (name only, no chapter number — Lee's call). Never on the Q0 stage.
-    const student = showProgress !== false && !layoutMode;
+    // Student chrome is a PER-USER view choice now (View menu) — deck.showProgress
+    // stays in the data but no longer drives this surface.
+    const student = viewStudent && !layoutMode;
     // NOTE FRAMES (frames rename §3): the counter counts CEQ frames ONLY — counterIds
     // is the deck order minus notes, so "Q 14/29" skips them; a note frame itself gets
     // the topic kicker but no count (it's breath, not a question).
@@ -1055,7 +1064,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
     });
     return [...active, ...others] as typeof active;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, counterIds, activeYOff, layoutMode, walk, viewChoice, guidesOn, showProgress, topicName, recording, dealAnim]);
+  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, counterIds, activeYOff, layoutMode, walk, viewChoice, guidesOn, viewStudent, topicName, recording, dealAnim]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   // A drag/resize writeback (commitGeom → onSaveInstance) bumps mainSig, which would
@@ -1620,7 +1629,48 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                 {/* COMPOSITION GUIDES — thirds grid + safe zones (title-safe, camera,
                     watermark, end-screen) for laying out the CEQ; drag a slot/card and
                     it snaps to the lines (hold Alt to place freely). Persists. */}
-                <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: guidesOn ? "#0B0F1E" : NEON.muted, background: guidesOn ? "#7EF3C0" : "transparent", border: `1px solid ${guidesOn ? "#7EF3C0" : NEON.borderSoft}` }} onClick={toggleGuides} title={guidesOn ? "Composition guides ON — rule-of-thirds + title-safe/camera/watermark/end-screen zones, and drag-to-snap. Click to hide." : "Composition guides — show the rule-of-thirds grid + safe zones and snap dragged slots/cards to them (hold Alt while dragging to place freely)."}><Grid3x3 className="h-3.5 w-3.5" /> Guides</button>
+                {/* VIEW MENU (frames rename §4) — Student chrome · Guides · Layout overlay ·
+                    Overview · World picker, one dropdown (opens UP; the bar is at the bottom).
+                    The old STUDENT / GUIDES / LAYOUT ON / OVERVIEW buttons + the world select
+                    lived here as five separate controls. FILM stays top-level (a mode, not a
+                    view); play/reset stay. */}
+                <div className="relative">
+                  <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: viewMenuOpen ? "#0B0F1E" : NEON.text, background: viewMenuOpen ? NEON.yellow : "transparent", border: `1px solid ${viewMenuOpen ? NEON.yellow : NEON.borderSoft}` }} onClick={() => setViewMenuOpen((v) => !v)} title="View — student chrome, guides, layout overlay, overview, world backdrop. Choices persist per user (the world is per set).">
+                    <Eye className="h-3.5 w-3.5" /> View <ChevronDown className="h-3 w-3" style={{ transform: "rotate(180deg)" }} />
+                  </button>
+                  {viewMenuOpen && (
+                    <>
+                      <div className="fixed inset-0 z-[68]" onClick={() => setViewMenuOpen(false)} />
+                      <div className="absolute bottom-8 left-0 z-[69] flex w-56 flex-col gap-0.5 rounded-lg p-1.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, boxShadow: "0 -12px 32px -12px rgba(0,0,0,0.7)" }}>
+                        <button className="flex items-center gap-2 rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: viewStudent ? "#3BF5A0" : NEON.muted }} onClick={() => setViewStudent(!viewStudent)} title='Topic label + "N of M" counter filmed on the CEQ box. The counter counts CEQ frames only — notes never count.'>
+                          <span className="w-3 text-center">{viewStudent ? "✓" : ""}</span> Student chrome
+                        </button>
+                        <button className="flex items-center gap-2 rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: guidesOn ? "#7EF3C0" : NEON.muted }} onClick={toggleGuides} title="Rule-of-thirds + safe zones, with drag-to-snap (Alt = free placement)">
+                          <span className="w-3 text-center">{guidesOn ? "✓" : ""}</span> Guides
+                        </button>
+                        {onSetLayoutMode && !layoutMode && (
+                          <button className="flex items-center gap-2 rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: layoutOn === false ? NEON.muted : NEON.cyan }} onClick={() => onSetLayoutMode(layoutOn === false)} title="Deals conform to the Q0 layout; new memos snap to the next active slot. Off = fully freeform. (Per set — it drives filmed geometry.)">
+                            <span className="w-3 text-center">{layoutOn === false ? "" : "✓"}</span> Layout overlay
+                          </button>
+                        )}
+                        {deckCeqIds && deckCeqIds.length > 1 && activeIdx >= 0 && (
+                          <button className="flex items-center gap-2 rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: overview ? NEON.cyan : NEON.muted }} onClick={() => setOverview((v) => !v)} title="Stack every frame vertically — zoom out to see the whole set, click one to glide to it">
+                            <span className="w-3 text-center">{overview ? "✓" : ""}</span> Overview
+                          </button>
+                        )}
+                        {onSetWorld && (
+                          <div className="mt-0.5 flex items-center gap-1.5 border-t px-1.5 pt-1.5" style={{ borderColor: NEON.borderSoft }}>
+                            <span className="text-[9px] font-bold uppercase" style={{ color: NEON.muted }}>World</span>
+                            <select className="h-6 min-w-0 flex-1 rounded px-1 text-[9.5px] font-bold uppercase" style={{ color: world ? NEON.yellow : NEON.muted, background: "transparent", border: `1px solid ${NEON.borderSoft}` }} value={world ?? ""} onChange={(e) => onSetWorld(e.target.value || undefined)} title="Per-set backdrop behind the CEQ in the previewer + film mode">
+                              <option value="">No world</option>
+                              {WORLDS.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
                 {layoutMode && onSaveBaseline && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={standardLandscape} title="Standard Landscape — set a camera-safe baseline in one click: CEQ card top-left, three memo slots down the right above the camera box (the other two off). Tweak from there; writes the set's layout.">Standard</button>}
                 {/* NAMED TEMPLATES — save the current arrangement under a name (reusable
                     across sets); pick one to apply it to this set's layout, then
@@ -1636,8 +1686,7 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                     <button className="grid h-6 w-6 place-items-center rounded disabled:opacity-30" style={{ color: NEON.red, border: `1px solid ${NEON.borderSoft}` }} disabled={!tplSel} onClick={() => { if (tplSel) { deleteTemplate(tplSel); setTplSel(""); } }} title="Delete the selected template"><X className="h-3 w-3" /></button>
                   </>)}
                 </>)}
-                {onSetShowProgress && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: showProgress === false ? NEON.muted : "#0B0F1E", background: showProgress === false ? "transparent" : "#3BF5A0", border: `1px solid ${showProgress === false ? NEON.borderSoft : "#3BF5A0"}` }} onClick={() => onSetShowProgress(showProgress === false)} title={showProgress === false ? "Student overlay OFF — click to film the topic name + \"X of Y\" progress + fill bar on every CEQ box (momentum cue for viewers)." : "Student overlay ON — topic name + \"X of Y\" + fill bar filmed on every CEQ. Click to hide."}>Student</button>}
-                {onSetLayoutMode && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: layoutOn === false ? NEON.muted : "#0B0F1E", background: layoutOn === false ? "transparent" : NEON.cyan, border: `1px solid ${layoutOn === false ? NEON.borderSoft : NEON.cyan}` }} onClick={() => onSetLayoutMode(layoutOn === false)} title={layoutOn === false ? "Layout mode OFF — deals land where each question was last authored, nothing conforms. Click to turn ON (the layout governs new deals)." : "Layout mode ON — a deal starts each question from the layout, and new memos snap to the next active slot. Click to turn OFF for fully freeform placement. Either way, a move you make always sticks to that question."}>Layout {layoutOn === false ? "off" : "on"}</button>}
+                {/* STUDENT + LAYOUT ON/OFF → the View menu (frames rename §4). */}
                 {/* LAYOUT WRITES LIVE AT Q0 ONLY (Lee) — Standard / templates / Apply-to-all
                     are Q0-only now, so moving memos in a normal CEQ (or on camera) can never
                     change the set layout. "Set layout" is gone: Q0 IS the layout, edited directly. */}
@@ -1648,20 +1697,9 @@ function Inner({ ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, w
                   <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase disabled:opacity-40" style={{ color: NEON.red, border: `1px solid ${NEON.borderSoft}` }} disabled={liveSlots.length <= 1 && rack.length <= PALETTE_N} onClick={removeSlot} title={rack.length <= PALETTE_N ? `The ${PALETTE_N}-slot palette is the floor — switch a slot OFF with its number badge instead of removing it` : "Remove the last added slot (the base palette stays)"}>− slot</button>
                   <span className="flex h-6 items-center text-[9px] font-bold uppercase" style={{ color: NEON.muted }}>{liveSlots.length}/{rack.length} on — click a number to switch</span>
                 </>)}
-                {deckCeqIds && deckCeqIds.length > 1 && activeIdx >= 0 && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: overview ? "#0B0F1E" : NEON.cyan, background: overview ? NEON.cyan : "transparent", border: `1px solid ${overview ? NEON.cyan : NEON.borderSoft}` }} onClick={() => setOverview((v) => !v)} title="Overview — stack every question as its own frame vertically. Zoom out (scroll) to see them all, drag to pan, click a question to glide to it. The active question stays fully live."><Rows3 className="h-3.5 w-3.5" /> {overview ? "Overview" : "Overview"}</button>}
+                {/* OVERVIEW toggle + WORLD select → the View menu; the fit-all icon stays
+                    (only meaningful while overview is on). */}
                 {overviewOn && <button className="grid h-6 w-6 place-items-center rounded" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={fitAll} title="Fit all questions in view (zoom out)"><Maximize2 className="h-3.5 w-3.5" /></button>}
-                {onSetWorld && (
-                  <select
-                    className="h-6 rounded px-1 text-[9.5px] font-bold uppercase"
-                    style={{ color: world ? NEON.yellow : NEON.muted, background: "transparent", border: `1px solid ${NEON.borderSoft}`, maxWidth: 118 }}
-                    value={world ?? ""}
-                    onChange={(e) => onSetWorld(e.target.value || undefined)}
-                    title="Visual world — a per-set background (orbital grid, deep space, …) shown behind the CEQ in the previewer + film mode. Set once per set."
-                  >
-                    <option value="">No world</option>
-                    {WORLDS.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
-                  </select>
-                )}
                 <span className="flex items-center gap-1 tabular-nums text-[12px] font-bold" style={{ color: NEON.text }}><Timer className="h-3.5 w-3.5" style={{ color: NEON.cyan }} />{mmss(elapsed)}</span>
                 {walk.length > 0 && !layoutMode && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: showAll ? "#0B0F1E" : "#E0284A", background: showAll ? "#E0284A" : "transparent", border: `1px solid ${showAll ? "#E0284A" : "rgba(224,40,74,0.5)"}` }} onClick={() => setShowAll((v) => !v)} title="Show arrows — AUTHORING AID: reveal every memo here so you can check the arrows land on the right choices (Ctrl/Shift-click one to test its spotlight). Arrows DO appear on camera, but this toggle does not — the film window keeps showing the real Enter-walk. Toggle off to walk normally."><Spline className="h-3.5 w-3.5" /> Arrows</button>}
                 <span className="text-[9px] uppercase tracking-wide" style={{ color: NEON.muted }}>{showAll ? `${walk.length} shown` : `${revealedCount}/${walk.length} shown`}</span>

@@ -2196,11 +2196,14 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
               ); })()}
 
               <div className="ml-auto flex shrink-0 items-center gap-1">
-                {(starOnly || starCount > 0) && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px] font-bold" style={{ color: starOnly ? "#0B1322" : "#FFD23F", background: starOnly ? "#FFD23F" : "transparent", border: `1px solid ${starOnly ? "#FFD23F" : NEON.borderSoft}` }} onClick={() => setStarOnly((v) => !v)} title="Show only STARRED questions (performer's notes)">★ {starCount}</button>}
+                {/* TOOLBAR DIET (frames rename §5): the ★ FILTER is gone — it filtered the
+                    deleted list column, so it filtered nothing. The star COUNT + clear stay
+                    (real actions); stars themselves show on the filmstrip. */}
+                {starCount > 0 && <span className="flex items-center gap-1 px-1 text-[9.5px] font-bold" style={{ color: "#FFD23F" }} title="Starred questions in this set (performer's notes) — shown on the filmstrip">★ {starCount}</span>}
                 {starCount > 0 && <button className="rounded px-1.5 py-0.5 text-[9.5px] font-bold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={clearAllStars} title="Clear ALL stars in this set (confirm)">clear ★</button>}
                 {selChainMemos.size > 0 && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px] font-bold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={copyMemos} title="Copy the selected memos (Ctrl+C)"><Copy className="h-3 w-3" /> copy {selChainMemos.size}</button>}
                 {memoClip.length > 0 && qId && <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9.5px] font-bold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => pasteMemos(qId)} title="Paste the copied memos into this question (Ctrl+V)"><ClipboardPaste className="h-3 w-3" /> paste {memoClip.length}</button>}
-                <button className="grid h-5 w-5 place-items-center rounded" style={{ color: wrapStems ? NEON.yellow : NEON.muted, border: `1px solid ${wrapStems ? "rgba(252,163,17,0.5)" : NEON.borderSoft}` }} onClick={() => setPrefs({ wrapStems: !wrapStems })} title="Wrap question text ↔ clamp to 2 lines"><WrapText className="h-3 w-3" /></button>
+                {/* WRAP toggle removed (§5): it styled rows in the deleted list column. */}
               </div>
             </div>
           )}
