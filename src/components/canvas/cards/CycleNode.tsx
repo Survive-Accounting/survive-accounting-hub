@@ -54,6 +54,19 @@ function arcBetween(a0: number, a1: number): string {
   return `M ${p(a0)} A ${RX} ${RY} 0 0 1 ${p(a1)}`;
 }
 
+/** ARROW GAPS (Lee) — the head used to disappear UNDER the next pill: the old
+ *  symmetric gap was seg*0.14, which at 9 steps is ~5.6° — far less than a pill's
+ *  angular half-width, so the point landed beneath its rounded border. The gap is
+ *  asymmetric now: a small one leaving the pill behind, a MUCH larger one before
+ *  the next pill so the arrowhead always lands in open space and reads on camera.
+ *  Both are capped so a 3-step cycle doesn't lose its arcs entirely. */
+const gapAfter = (seg: number) => Math.min(seg * 0.16, 0.16);
+const gapBefore = (seg: number) => Math.min(seg * 0.42, 0.42);
+
+/** Width of the longest line — a multi-line step sizes to its widest row, not its
+ *  total character count (which would make a 3-line pill absurdly wide). */
+const longestLine = (t: string): number => t.split("\n").reduce((m, l) => Math.max(m, l.length), 0);
+
 export function CycleNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as CycleElement;
   const { update, toFront } = useCardActions(id);
@@ -63,16 +76,24 @@ export function CycleNode({ id, data, selected }: NodeProps) {
 
   const steps = d.steps ?? [];
   const placed = placeSteps(steps);
-  const w = d.w ?? 620;
-  const h = d.h ?? 380;
+  // BIGGER BY DEFAULT (Lee): a 9-step cycle at 620×380 crowded its pills together.
+  // Only NEW cards pick this up — anything already placed keeps its saved w/h.
+  const w = d.w ?? 900;
+  const h = d.h ?? 560;
   const pillFont = Math.max(10, Math.min(16, w / 52));
   const n = Math.max(placed.length, 1);
   const seg = (2 * Math.PI) / n;
-  const pad = seg * 0.14; // gap at each pill so arrows read between them
   const dashed = new Set(d.dashedArrows ?? []);
-  // Only STEPS are spotlightable now. When any step is lit, drop the element's edit
+  // Only STEPS are spotlightable. When any step is lit, drop the element's edit
   // chrome so the shot reads clean.
-  const anySpot = steps.some((s) => sp?.targetState(id, s.id) === "spot");
+  const litIds = steps.filter((s) => sp?.targetState(id, s.id) === "spot").map((s) => s.id);
+  const anySpot = litIds.length > 0;
+  // CHAIN EMPHASIS (Lee): ONE lit step pops to the centre (it's a single callout).
+  // TWO OR MORE stay exactly where they are — popping them all to the centre would
+  // stack them on top of each other, and the whole point of lighting a run like
+  // "Unadjusted TB → Adjusting Entries → Adjusted TB" is to SEE the sequence sitting
+  // in order around the ring. Unlit steps recede instead.
+  const chainMode = litIds.length > 1;
 
   const setStep = (sid: string, text: string) => update({ steps: steps.map((s) => (s.id === sid ? { ...s, text } : s)) });
   const addStep = () => update({ steps: [...steps, { id: cardId("cy"), text: "New step" }] });
@@ -84,7 +105,14 @@ export function CycleNode({ id, data, selected }: NodeProps) {
   const spotClick = (sid: string) => (e: React.PointerEvent) => {
     if (!sp) return;
     if (e.ctrlKey && e.shiftKey) { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); sp.toggleFlame(id, sid, e.altKey ? "warn" : "focus"); return; }
-    if (e.ctrlKey || e.metaKey) { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); if (sp.targetState(id, sid) === "spot") sp.exit(); else sp.start(id, sid); }
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation();
+      // ALWAYS start() — it toggles this ONE target (applyRegularClick adds/removes)
+      // and leaves the rest of the set alone. It used to call exit() on a lit step,
+      // which cleared EVERY spotlight, making a multi-step chain impossible to build:
+      // lighting the 3rd step then correcting the 2nd wiped all three.
+      sp.start(id, sid);
+    }
   };
 
   return (
@@ -121,25 +149,32 @@ export function CycleNode({ id, data, selected }: NodeProps) {
               <stop offset="0%" stopColor="#FCA311" />
               <stop offset="100%" stopColor="#E0284A" />
             </linearGradient>
-            <marker id={`cyc-arrow-${id}`} viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+            {/* refX=1 puts the marker's TIP at the path end (was 7, which pulled the
+                point backwards INTO the arc). markerUnits=userSpaceOnUse keeps the head
+                a constant size regardless of the slimmer stroke. */}
+            <marker id={`cyc-arrow-${id}`} viewBox="0 0 10 10" refX="1" refY="5" markerWidth="16" markerHeight="16" markerUnits="userSpaceOnUse" orient="auto-start-reverse">
               <path d="M0 0 L10 5 L0 10 z" fill="#FCA311" />
             </marker>
           </defs>
           {placed.map((s, i) => {
-            const a0 = s.ang + pad;
-            const a1 = s.ang + seg - pad;
+            const a0 = s.ang + gapAfter(seg);
+            const a1 = s.ang + seg - gapBefore(seg);
             const isDash = dashed.has(i);
+            // CHAIN EMPHASIS: the arc BETWEEN two lit steps is part of the chain —
+            // it brightens with them; every other arc recedes so the run reads.
+            const inChain = chainMode && litIds.includes(s.id) && litIds.includes(placed[(i + 1) % n].id);
+            const dim = chainMode && !inChain;
             return (
               <path
                 key={s.id}
                 d={arcBetween(a0, a1)}
                 fill="none"
-                stroke={`url(#cyc-grad-${id})`}
-                strokeWidth={5.5}
+                stroke={inChain ? "#FCA311" : `url(#cyc-grad-${id})`}
+                strokeWidth={inChain ? 4.2 : 3.2}
                 strokeLinecap="round"
                 markerEnd={`url(#cyc-arrow-${id})`}
                 className={`nodrag${isDash ? " cyc-dash" : ""}`}
-                style={{ vectorEffect: "non-scaling-stroke", pointerEvents: "stroke", cursor: "pointer", strokeDasharray: isDash ? "9 7" : undefined, filter: "drop-shadow(0 1px 3px rgba(0,0,0,0.6))" }}
+                style={{ vectorEffect: "non-scaling-stroke", pointerEvents: "stroke", cursor: "pointer", strokeDasharray: isDash ? "9 7" : undefined, opacity: dim ? 0.22 : 1, transition: "opacity 160ms ease, stroke-width 160ms ease", filter: inChain ? "drop-shadow(0 0 6px rgba(252,163,17,0.85))" : "drop-shadow(0 1px 3px rgba(0,0,0,0.6))" }}
                 onPointerDown={(e) => { if (e.shiftKey) e.stopPropagation(); }}
                 onClick={(e) => { if (e.shiftKey) { e.stopPropagation(); toggleDashed(i); } }}
                 data-i={i}
@@ -181,31 +216,58 @@ export function CycleNode({ id, data, selected }: NodeProps) {
           const flamed = sp?.isFlamed(id, s.id) ?? false;
           const warn = (sp?.flameTone(id, s.id) ?? null) === "warn"; // 🚨 red "BAD" super
           const isSpot = spotState === "spot";
+          // ONE lit step → pop to centre. A CHAIN (2+) stays in place, scaled just
+          // enough to lift off the ring; unlit steps fade back so the run reads.
+          const popToCentre = isSpot && !chainMode;
           const bigScale = flamed ? 2.15 : 1.7;
+          const chainScale = flamed ? 1.3 : 1.16;
+          const faded = chainMode && !isSpot;
           return (
             <div
               key={s.id}
               data-spot-target={s.id}
               onPointerDownCapture={spotClick(s.id)}
               className="group/pill absolute"
-              style={isSpot
+              style={popToCentre
                 ? { left: "50%", top: "50%", transform: `translate(-50%, -50%) scale(${bigScale})`, zIndex: 40, transition: "transform 160ms ease" }
-                : { left: `${s.xPct}%`, top: `${s.yPct}%`, transform: "translate(-50%, -50%)", transition: "transform 160ms ease" }}
+                : {
+                    left: `${s.xPct}%`, top: `${s.yPct}%`,
+                    transform: `translate(-50%, -50%)${isSpot ? ` scale(${chainScale})` : ""}`,
+                    zIndex: isSpot ? 30 : undefined,
+                    opacity: faded ? 0.34 : 1,
+                    filter: faded ? "saturate(0.4)" : undefined,
+                    transition: "transform 160ms ease, opacity 160ms ease, filter 160ms ease",
+                  }}
             >
               {editingStep === s.id ? (
-                <input
+                // TEXTAREA, not input (Lee): long step names need line breaks so a
+                // 9-step cycle doesn't stretch its pills into each other.
+                // Shift+Enter = newline · Enter = commit — same contract as memo text.
+                <textarea
                   autoFocus
-                  className="nodrag rounded-full bg-black/50 px-2.5 py-1 text-center outline-none"
-                  style={{ width: Math.max(90, s.text.length * 8 + 28), color: "#F4EFE6", fontFamily: DISPLAY_FONT, fontSize: pillFont, border: "1.5px solid #FCA311" }}
+                  rows={Math.max(1, s.text.split("\n").length)}
+                  className="nodrag resize-none rounded-2xl bg-black/50 px-2.5 py-1 text-center outline-none"
+                  style={{ width: Math.max(96, Math.min(200, longestLine(s.text) * 8 + 30)), color: "#F4EFE6", fontFamily: DISPLAY_FONT, fontSize: pillFont, border: "1.5px solid #FCA311", lineHeight: 1.2 }}
                   defaultValue={s.text}
                   onPointerDown={(e) => e.stopPropagation()}
                   onBlur={(e) => { setStep(s.id, e.target.value); setEditingStep(null); }}
-                  onKeyDown={(e) => { if (e.key === "Enter") { setStep(s.id, (e.target as HTMLInputElement).value); setEditingStep(null); } if (e.key === "Escape") setEditingStep(null); e.stopPropagation(); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); setStep(s.id, (e.target as HTMLTextAreaElement).value); setEditingStep(null); }
+                    if (e.key === "Escape") setEditingStep(null);
+                    e.stopPropagation();
+                  }}
+                  title="Shift+Enter for a line break · Enter to commit"
                 />
               ) : (
                 <div
-                  className="nodrag flex cursor-text items-center gap-1 whitespace-nowrap rounded-full px-3 py-1.5 font-semibold"
+                  className="nodrag flex cursor-text items-center gap-1 rounded-2xl px-3 py-1.5 font-semibold"
                   style={{
+                    // pre-line honours the author's \n; a single-line step still reads
+                    // as one line, so nothing changes for short labels.
+                    whiteSpace: "pre-line",
+                    textAlign: "center",
+                    lineHeight: 1.18,
+                    maxWidth: 220,
                     fontFamily: DISPLAY_FONT,
                     fontSize: pillFont,
                     color: "#F4EFE6",
