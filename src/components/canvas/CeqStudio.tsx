@@ -153,6 +153,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   // surface Recording Mode films (so it renders exactly like the take), plus a tiny
   // corner counter and a 500ms run-boundary interstitial. No recording, no timers.
   const [rehearse, setRehearse] = useState(false);
+  const [takesNoteOpen, setTakesNoteOpen] = useState(false); // tool 4 — the set's sticky note
   const [runCard, setRunCard] = useState<string | null>(null); // interstitial text ("B")
   const prevRunRef = useRef<string | undefined>(undefined);
   const runCardTimer = useRef<number | null>(null);
@@ -2076,6 +2077,36 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
               >
                 <Globe className="h-3 w-3" /> {deck.status === "live" ? "Live" : "Draft"}
               </button>
+              {/* TAKE LOGGER (film-prep tool 4) — a sticky note on the set: "run A = clip
+                  0047, redo Q9". Collapsed to the 🗒 icon until it has content; autosaves
+                  through the deck (pool save carries it). No structure, no parsing. */}
+              <div className="relative shrink-0">
+                <button
+                  className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-bold"
+                  style={deck.takesNote?.trim() ? { color: "#0B1322", background: NEON.yellow, border: `1px solid ${NEON.yellow}` } : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }}
+                  onClick={() => setTakesNoteOpen((v) => !v)}
+                  title={deck.takesNote?.trim() ? `Takes note:\n${deck.takesNote}` : "Takes — a free-text sticky note for this set (clip numbers, redos). Autosaved."}
+                >🗒{deck.takesNote?.trim() ? " Takes" : ""}</button>
+                {takesNoteOpen && (
+                  <div className="absolute left-0 top-8 z-[74] flex w-72 flex-col gap-1.5 rounded-lg p-2" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, boxShadow: "0 14px 36px -12px rgba(0,0,0,0.7)" }}>
+                    <textarea
+                      autoFocus
+                      className="nodrag h-28 w-full resize-y rounded bg-black/30 p-1.5 text-[11px] leading-snug outline-none"
+                      style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}
+                      placeholder={"run A = clip 0047\nrun B = 0048\nredo Q9"}
+                      value={deck.takesNote ?? ""}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      onChange={(e) => setDecks((prev) => updateDeck(prev, deck.id, { takesNote: e.target.value }))}
+                    />
+                    <div className="flex items-center gap-2">
+                      <button className="rounded px-2 py-0.5 text-[9.5px] font-bold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} title="Stamp today as this set's last-filmed date (read-only elsewhere)" onClick={() => setDecks((prev) => updateDeck(prev, deck.id, { lastFilmedAt: new Date().toISOString().slice(0, 10) }))}>Mark filmed today</button>
+                      {deck.lastFilmedAt && <span className="text-[9.5px]" style={{ color: NEON.muted }}>last filmed {deck.lastFilmedAt}</span>}
+                      <button className="ml-auto rounded px-1.5 py-0.5 text-[9.5px]" style={{ color: NEON.muted }} onClick={() => setTakesNoteOpen(false)}>close</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {deck.lastFilmedAt && !takesNoteOpen && <span className="shrink-0 text-[9px]" style={{ color: NEON.muted }} title="Set manually via 'Mark filmed today' in the Takes note">filmed {deck.lastFilmedAt}</span>}
             </>
           ) : (
             <span className="text-[12px] font-bold" style={{ color: NEON.muted }}>No set open</span>
