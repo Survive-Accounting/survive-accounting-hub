@@ -4,15 +4,17 @@
 // canvas / Studio. Intro 1 is the focus course (full-color, editable topics); Intro 2 / IA1 / IA2
 // render muted (view-only) beneath it. "Topic" IS a `chapters` row.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { useNodes } from "@xyflow/react";
+import { useNodes, useReactFlow } from "@xyflow/react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Archive, Building2, ChevronDown, ChevronRight, Circle, Eye, EyeOff, GraduationCap, GripVertical, Layers, MessageSquare, Plus, Search, Video, X } from "lucide-react";
+import { Archive, Building2, CheckSquare, ChevronDown, ChevronRight, Circle, Eye, EyeOff, GraduationCap, GripVertical, Layers, MessageSquare, Plus, Search, Square, Video, X } from "lucide-react";
 
 import { NEON } from "./theme";
 import { CeqVideoLibrary } from "./CeqVideoLibrary";
 import { useFrameNav } from "./FrameNavContext";
 import { useDecks } from "./DecksContext";
-import type { CardNode, DeckDef, LessonBox } from "./types";
+import { clearCeqSel, setCeqSel, useCeqSel } from "./ceq-selection";
+import { addNodesCmd, bus, compositeCmd, patchDataCmd, patchDataFnCmd, removeNodesCmd, type RfLike } from "./commands";
+import { cardId, type CardNode, type CeqCard, type CeqChoice, type ChainSound, type DeckDef, type LessonBox, type TakeRef } from "./types";
 import { courseLabel, fetchCourseOptions, topicLabel, type CourseOption } from "@/lib/je-api";
 import { createChapter, listAllCardDecks, renameChapter, reorderChapters, setChapterParked, setChapterStatus } from "@/lib/canvas.functions";
 import { snapshotDefaultFromOleMiss, type SnapshotDiff } from "@/lib/default-map.functions";
@@ -43,6 +45,8 @@ const TARGET_SEARCH: Record<string, string> = { "Ole Miss": "University of Missi
 
 const setName = (d: DeckDef) => (d.name ?? "Set").replace(/^\s*ch\s*\d+\s*·\s*/i, "").trim() || "Set";
 const LAST_SET_KEY = "sa-study-last-set";
+// Shift+click range anchor for outline CEQ selection (module-level, like the mapper's armed file).
+let lastCeqSel: string | null = null;
 const OPEN_SECTION_KEY = "sa-outline-open"; // persist which section is open (accordion)
 const COST_KEY = "sa-outline-cost"; // Videos library $ toggle (moved here from the Studio)
 type SectionId = "videos" | "topics" | "campuses";
@@ -159,6 +163,9 @@ export function OutlinePanel() {
   return (
     <div className="nodrag nowheel h-full max-h-[74vh] w-full overflow-y-auto px-1 py-1 text-[12px] [.sa-dock_&]:max-h-full" style={{ color: NEON.text }}>
       {courseOptionsQ.isLoading && <p className="px-1.5 py-2 text-[11px] italic" style={{ color: NEON.muted }}>Loading…</p>}
+      {/* CEQ BULK BAR (Studio Consolidation D) — pinned atop the outline while any CEQ rows are
+          selected. This IS prompt B's bar, relocated with the rows it acts on. */}
+      <CeqBulkBar ceqsByDeck={ceqsByDeck} showToast={showToast} />
 
       <SectionHeader open={open === "videos"} onToggle={() => toggle("videos")} icon={<Video className="h-3.5 w-3.5" />} label="Videos" count={videos.length} color={NEON.yellow} />
       {open === "videos" && (
@@ -220,6 +227,46 @@ function CourseTopics({ course, focus, decksByTopic, ceqsByDeck, isPublished, op
   // LEVEL 3 (Studio Consolidation D) — which sets have their CEQ rows expanded.
   const [openSets, setOpenSets] = useState<Set<string>>(new Set());
   const toggleSetOpen = (id: string) => setOpenSets((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  // CEQ selection (shared store) + Shift+click ranges within a set. Esc clears (global listener).
+  const ceqSel = useCeqSel();
+  const toggleCeqSel = (id: string, shift: boolean, orderedIds: string[]) => {
+    const n = new Set(ceqSel);
+    if (shift && lastCeqSel && orderedIds.includes(lastCeqSel)) {
+      const a = orderedIds.indexOf(lastCeqSel), b = orderedIds.indexOf(id);
+      if (a >= 0 && b >= 0) { for (let i = Math.min(a, b); i <= Math.max(a, b); i++) n.add(orderedIds[i]); lastCeqSel = id; setCeqSel(n); return; }
+    }
+    n.has(id) ? n.delete(id) : n.add(id);
+    lastCeqSel = id;
+    setCeqSel(n);
+  };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") clearCeqSel(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // CEQ drag-reorder (within a set) / move (across sets). One undoable composite per drop:
+  // reindex stageOrder in every affected deck; a cross-set move also patches deckId + title.
+  const rf = useReactFlow(); const rfl = rf as unknown as RfLike;
+  const [qDrag, setQDrag] = useState<{ id: string; from: string } | null>(null);
+  const [qOver, setQOver] = useState<{ deckId: string; index: number } | null>(null);
+  const performQDrop = (targetDeckId: string, index: number) => {
+    const drag = qDrag; setQDrag(null); setQOver(null);
+    if (!drag) return;
+    const src = ceqsByDeck.get(drag.from) ?? [];
+    const cross = drag.from !== targetDeckId;
+    const tgtBase = (cross ? (ceqsByDeck.get(targetDeckId) ?? []) : src).filter((q) => q.id !== drag.id).map((q) => q.id);
+    const clamped = Math.min(Math.max(0, index), tgtBase.length);
+    const tgtOrder = [...tgtBase.slice(0, clamped), drag.id, ...tgtBase.slice(clamped)];
+    const cmds: ReturnType<typeof patchDataCmd>[] = [];
+    tgtOrder.forEach((id, idx) => cmds.push(patchDataCmd(rfl, id, id === drag.id && cross
+      ? { stageOrder: idx, slotIndex: idx, deckId: targetDeckId, title: loadedDecks.find((x) => x.id === targetDeckId)?.name }
+      : { stageOrder: idx, slotIndex: idx }, "reorder question")));
+    if (cross) src.filter((q) => q.id !== drag.id).forEach((q, idx) => cmds.push(patchDataCmd(rfl, q.id, { stageOrder: idx, slotIndex: idx }, "reorder question")));
+    const cmd = compositeCmd(cmds.filter((c): c is NonNullable<typeof c> => !!c), cross ? "move question to set" : "reorder question");
+    if (cmd) bus.dispatch(cmd);
+  };
   const [adding, setAdding] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);        // topic id being renamed
   const [renamingSet, setRenamingSet] = useState<string | null>(null);  // deck id being renamed
@@ -447,25 +494,47 @@ function CourseTopics({ course, focus, decksByTopic, ceqsByDeck, isPublished, op
                               <button className="shrink-0 rounded p-0.5 opacity-0 hover:bg-white/10 group-hover:opacity-60" title="Move set to the Library" onClick={(e) => { e.stopPropagation(); delSet(d); }}><X className="h-3 w-3" /></button>
                             )}
                           </div>
-                          {/* LEVEL 3 — CEQ ROWS. Same shape as the rows prompt B cleaned: number,
-                              stem, one status chip. Clicking opens that CEQ in the Studio editor.
-                              (Selection checkboxes + the bulk bar + drag-reorder land here next —
-                              held back so the tree's width and truncation can be eyeballed first.) */}
+                          {/* LEVEL 3 — CEQ ROWS: checkbox · number · stem · one status chip (the
+                              shape prompt B settled on). Click opens the Studio editor on that
+                              question; Shift+click ranges within the set; the whole row drags to
+                              reorder (mapper-style drop line), and dropping on ANOTHER set's rows
+                              moves the question across sets. */}
                           {ceqOpen && (
-                            <div className="ml-5 border-l pl-1" style={{ borderColor: NEON.borderSoft }}>
+                            <div className="ml-5 border-l pl-1" style={{ borderColor: NEON.borderSoft }}
+                              onDragOver={qDrag ? (e) => { e.preventDefault(); e.stopPropagation(); } : undefined}
+                              onDrop={qDrag ? (e) => { e.preventDefault(); e.stopPropagation(); performQDrop(d.id, qOver?.deckId === d.id ? qOver.index : ceqRows.length); } : undefined}>
                               {ceqRows.map((q, qi) => (
-                                <button
-                                  key={q.id}
-                                  onClick={() => nav.openStudio(q.id)}
-                                  title={q.stem}
-                                  className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left hover:bg-white/5"
-                                >
-                                  <span className="shrink-0 text-[9.5px] tabular-nums" style={{ color: NEON.muted }}>{qi + 1}.</span>
-                                  <span className="min-w-0 flex-1 truncate text-[11px]" style={{ color: NEON.text }}>{q.stem}</span>
-                                  <span className="shrink-0 rounded px-1 text-[8px] font-black leading-none" style={q.free
-                                    ? { color: "#04120B", background: "#3BF5A0", border: "1px solid #3BF5A0" }
-                                    : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }}>{q.free ? "🆓" : "$"}</span>
-                                </button>
+                                <div key={q.id}>
+                                  {qDrag && qOver?.deckId === d.id && qOver.index === qi && qDrag.id !== q.id && <div className="mx-1 my-0.5 h-0.5 rounded-full" style={{ background: NEON.cyan }} />}
+                                  <div
+                                    className="flex items-center gap-1.5 rounded px-1 py-0.5 hover:bg-white/5"
+                                    style={{ opacity: qDrag?.id === q.id ? 0.4 : 1 }}
+                                    draggable
+                                    onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; setQDrag({ id: q.id, from: d.id }); }}
+                                    onDragEnd={() => { setQDrag(null); setQOver(null); }}
+                                    onDragOver={qDrag ? (e) => {
+                                      e.preventDefault(); e.stopPropagation();
+                                      const r = e.currentTarget.getBoundingClientRect();
+                                      const below = e.clientY > r.top + r.height / 2;
+                                      const base = ceqRows.filter((x) => x.id !== qDrag.id).findIndex((x) => x.id === q.id);
+                                      const idx = base < 0 ? ceqRows.length : base + (below ? 1 : 0);
+                                      if (qOver?.deckId !== d.id || qOver.index !== idx) setQOver({ deckId: d.id, index: idx });
+                                    } : undefined}
+                                    onDrop={qDrag ? (e) => { e.preventDefault(); e.stopPropagation(); performQDrop(d.id, qOver?.deckId === d.id ? qOver.index : ceqRows.length); } : undefined}
+                                  >
+                                    <button className="grid h-4 w-4 shrink-0 place-items-center" style={{ color: ceqSel.has(q.id) ? NEON.yellow : NEON.muted }} onClick={(e) => toggleCeqSel(q.id, e.shiftKey, ceqRows.map((x) => x.id))} title="Select for bulk actions (Shift+click = range · Esc clears)">
+                                      {ceqSel.has(q.id) ? <CheckSquare className="h-3 w-3" /> : <Square className="h-3 w-3" />}
+                                    </button>
+                                    <button onClick={() => nav.openStudio(q.id)} title={q.stem} className="flex min-w-0 flex-1 items-center gap-1.5 rounded py-0.5 text-left">
+                                      <span className="shrink-0 text-[9.5px] tabular-nums" style={{ color: NEON.muted }}>{qi + 1}.</span>
+                                      <span className="min-w-0 flex-1 truncate text-[11px]" style={{ color: NEON.text }}>{q.stem}</span>
+                                      <span className="shrink-0 rounded px-1 text-[8px] font-black leading-none" style={q.free
+                                        ? { color: "#04120B", background: "#3BF5A0", border: "1px solid #3BF5A0" }
+                                        : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }}>{q.free ? "🆓" : "$"}</span>
+                                    </button>
+                                  </div>
+                                  {qDrag && qOver?.deckId === d.id && qOver.index === qi + 1 && qi === ceqRows.length - 1 && qDrag.id !== q.id && <div className="mx-1 my-0.5 h-0.5 rounded-full" style={{ background: NEON.cyan }} />}
+                                </div>
                               ))}
                             </div>
                           )}
@@ -1221,6 +1290,108 @@ function InboundRow({ row, onOpenFile, onArm, onChange, fmt }: { row: InboundFil
       <div className="mt-1.5 flex items-center gap-2">
         <input value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={async () => { if ((row.notes ?? "") !== notes) { await updateInboundFile({ data: { id: row.id, notes: notes || null } }); onChange(); } }} placeholder="Notes…" className="min-w-0 flex-1 rounded px-2 py-1 text-[10.5px] outline-none" style={{ background: "rgba(0,0,0,0.25)", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} />
         <button className="shrink-0 rounded px-2 py-1 text-[10px] font-bold" style={{ color: "#C9A9F5", border: `1px solid ${NEON.borderSoft}` }} onClick={() => onArm({ id: row.id, label })} title="Arm this file — map edits made while reviewing link it as their source automatically">Open in mapper</button>
+      </div>
+    </div>
+  );
+}
+
+// ── CEQ BULK BAR (Studio Consolidation D) ───────────────────────────────────────────────────────
+// Prompt B's bulk bar, relocated to the outline with the rows it acts on. Every action is ONE
+// undoable composite via the shared command bus; Delete confirms with the count. The selection may
+// span sets — patch ops don't care, and Duplicate groups by set so each clone lands under its
+// source with dense stageOrder. Chain-template stamping is the one op that did NOT move (it needs
+// the Studio's baseline-slot machinery); it stays reachable through the Studio's chain editor.
+function CeqBulkBar({ ceqsByDeck, showToast }: { ceqsByDeck: Map<string, { id: string; stem: string; free: boolean; order: number }[]>; showToast: (msg: string, undo?: () => void) => void }) {
+  const rf = useReactFlow(); const rfl = rf as unknown as RfLike;
+  const { decks } = useDecks();
+  const sel = useCeqSel();
+  if (sel.size === 0) return null;
+  const selArr = [...sel];
+  const dataOf = (id: string) => rf.getNode(id)?.data as unknown as CeqCard | undefined;
+  const clipsOf = (d?: CeqCard): TakeRef[] => ((d?.takes && d.takes.length ? d.takes : d?.take ? [d.take] : []) as TakeRef[]);
+  const bulkPatch = (label: string, patch: (d: CeqCard | undefined) => Partial<CeqCard> | null) => {
+    const cmds = selArr.map((id) => { const p = patch(dataOf(id)); return p ? patchDataCmd(rfl, id, p as never, label) : null; }).filter((c): c is NonNullable<ReturnType<typeof patchDataCmd>> => !!c);
+    const cmd = compositeCmd(cmds, label); if (cmd) bus.dispatch(cmd);
+    return cmds.length;
+  };
+  const allOn = (k: (d?: CeqCard) => boolean) => selArr.every((id) => k(dataOf(id)));
+
+  const bulkFree = () => { const on = allOn((d) => !!d?.free); const n = bulkPatch(on ? "bulk un-free" : "bulk free", () => ({ free: !on })); showToast(`${on ? "Removed" : "Added"} ${n} question${n === 1 ? "" : "s"} ${on ? "from" : "to"} the FREE cut (one undo).`); };
+  const bulkStar = () => { const on = allOn((d) => !!d?.starred); bulkPatch(on ? "bulk unstar" : "bulk star", () => ({ starred: !on })); };
+  const bulkBoss = () => { const on = allOn((d) => !!d?.boss); bulkPatch("bulk boss", () => ({ boss: !on })); };
+  const bulkChaching = () => { const silenced = allOn((d) => d?.confirmSfx === false); bulkPatch("bulk chaching", () => ({ confirmSfx: silenced ? true : false })); };
+  const bulkShort = () => { const on = allOn((d) => !!d?.short); bulkPatch("bulk short", () => ({ short: !on })); };
+  const bulkVinylLast = () => {
+    const n = bulkPatch("vinyl on last chain item", (d) => {
+      const correct = d?.choices?.find((c) => c.correct);
+      if (!correct?.chain?.length) return null;
+      return { choices: (d?.choices ?? []).map((c: CeqChoice) => (!c.correct || !c.chain?.length) ? c : ({ ...c, chain: c.chain.map((it, i) => (i === (c.chain?.length ?? 0) - 1 ? { ...it, sound: "vinylScratch" as ChainSound } : it)) })) };
+    });
+    showToast(`💿 Vinyl set on ${n} question${n === 1 ? "" : "s"} (skipped any without a correct-choice chain).`);
+  };
+  const bulkSwapPrev = () => {
+    const n = bulkPatch("bulk swap takes", (d) => {
+      const clips = clipsOf(d);
+      if (!clips.some((t) => t.prev)) return null;
+      return { takes: clips.map((t) => (t.prev ? { ...t.prev, refs: t.refs, prev: { url: t.url, path: t.path, name: t.name, duration: t.duration } } : t)), take: undefined };
+    });
+    showToast(n ? `Swapped to the previous take on ${n} question${n === 1 ? "" : "s"}.` : "No prior takes exist in the selection.");
+  };
+  const bulkClearClips = () => {
+    const withClips = selArr.filter((id) => clipsOf(dataOf(id)).length > 0).length;
+    if (!withClips) { showToast("No clips to clear in the selection."); return; }
+    if (!window.confirm(`Clear ALL clips from ${withClips} selected question${withClips === 1 ? "" : "s"}? (Ctrl+Z restores; staged files stay in storage.)`)) return;
+    bulkPatch("bulk clear clips", (d) => (clipsOf(d).length ? { takes: undefined, take: undefined } : null));
+  };
+  const bulkDuplicate = () => {
+    const byDeck = new Map<string, Set<string>>();
+    for (const id of selArr) { const dk = dataOf(id)?.deckId; if (!dk) continue; const s = byDeck.get(dk) ?? new Set<string>(); s.add(id); byDeck.set(dk, s); }
+    const nodes: unknown[] = []; const reindex: NonNullable<ReturnType<typeof patchDataCmd>>[] = [];
+    for (const [deckId, ids] of byDeck) {
+      const deckName = decks.find((x) => x.id === deckId)?.name;
+      const order: { id: string; isNew: boolean; srcId?: string }[] = [];
+      for (const q of ceqsByDeck.get(deckId) ?? []) { order.push({ id: q.id, isNew: false }); if (ids.has(q.id)) order.push({ id: cardId("ceq"), isNew: true, srcId: q.id }); }
+      order.forEach((o, idx) => {
+        if (o.isNew) {
+          const sd = dataOf(o.srcId as string);
+          nodes.push({ id: o.id, type: "ceq", position: { x: 520, y: 210 }, selected: false, data: { kind: "ceq", title: deckName ?? sd?.title, prompt: sd?.prompt ?? "Question", choices: (sd?.choices ?? []).map((c) => ({ id: cardId("ch"), text: c.text, correct: c.correct })), scale: sd?.scale, deckId, deckMember: true, tucked: true, stageOrder: idx, slotIndex: idx, deckCategory: "ceq:studio", deckPos: { x: 520, y: 210 } } });
+        } else { const p = patchDataCmd(rfl, o.id, { stageOrder: idx, slotIndex: idx }, "reorder"); if (p) reindex.push(p); }
+      });
+    }
+    if (!nodes.length) return;
+    const cmd = compositeCmd([addNodesCmd(rfl, nodes as never, "duplicate questions"), ...reindex], "duplicate questions");
+    if (cmd) bus.dispatch(cmd);
+    clearCeqSel();
+    showToast(`Duplicated ${nodes.length} question${nodes.length === 1 ? "" : "s"} below each original (one undo) — edit the stems.`);
+  };
+  const bulkDelete = () => {
+    if (!window.confirm(`Delete ${selArr.length} question${selArr.length === 1 ? "" : "s"}? (Ctrl+Z restores them; chained memos stay in the library.)`)) return;
+    const rm = removeNodesCmd(rfl, selArr, "delete questions");
+    if (!rm) return;
+    bus.dispatch(rm);
+    clearCeqSel();
+    showToast(`Deleted ${selArr.length} question${selArr.length === 1 ? "" : "s"} (Ctrl+Z to undo).`);
+  };
+
+  const BTN = "rounded px-1.5 py-0.5 text-[11px] font-bold";
+  return (
+    <div className="sticky top-0 z-20 mb-1 flex flex-col gap-1 rounded p-1.5" style={{ background: "rgba(20,26,44,0.98)", border: `1px solid ${NEON.border}`, boxShadow: "0 6px 18px -8px rgba(0,0,0,0.7)" }}>
+      <div className="flex flex-wrap items-center gap-1">
+        <span className="px-0.5 text-[11px] font-bold tabular-nums" style={{ color: NEON.yellow }}>{sel.size} selected</span>
+        <button className={BTN} style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={bulkFree} title="Flip FREE ⇄ paid for every selected question (one undo)">Free / paid</button>
+        <button className={BTN} style={{ color: "#FFD23F", border: `1px solid ${NEON.borderSoft}` }} onClick={bulkStar} title="Star / unstar all selected (one undo)">★ Star</button>
+        <button className={BTN} style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkDuplicate} title="Duplicate each selected question directly below itself (one undo)">Duplicate below</button>
+        <button className={BTN} style={{ color: NEON.red, border: `1px solid ${NEON.red}66` }} onClick={bulkDelete} title="Delete every selected question (confirms with the count; one undo)">Delete</button>
+        <button className="ml-auto rounded px-1.5 py-0.5 text-[11px] font-bold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={clearCeqSel} title="Clear selection (Esc)">Clear</button>
+      </div>
+      <div className="flex flex-wrap items-center gap-1 border-t pt-1" style={{ borderColor: NEON.borderSoft }}>
+        <span className="px-0.5 text-[9.5px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Filming</span>
+        <button className={BTN} style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkBoss} title="Boss flag on/off — cram launch fires when the question is dealt (one undo)">👑 Boss</button>
+        <button className={BTN} style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkChaching} title="Chaching-on-correct on/off for all selected (one undo)">🪙 Chaching</button>
+        <button className={BTN} style={{ color: "#FF8B9E", border: `1px solid ${NEON.borderSoft}` }} onClick={bulkShort} title="Shorts flag on/off for all selected (one undo)">🎬 Shorts</button>
+        <button className={BTN} style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkSwapPrev} title="Swap every clip to its PREVIOUS version where one exists (one undo)">⇄ Prev take</button>
+        <button className={BTN} style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkVinylLast} title="Vinyl scratch on the LAST chain item of each selected question's correct-choice chain (one undo)">💿 Vinyl last</button>
+        <button className={BTN} style={{ color: NEON.red, border: `1px solid ${NEON.borderSoft}` }} onClick={bulkClearClips} title="Clear ALL clips from the selected questions (confirm; one undo)">✂ Clear clips</button>
       </div>
     </div>
   );

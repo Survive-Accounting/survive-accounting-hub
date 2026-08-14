@@ -1460,9 +1460,11 @@ function PresentCanvas() {
   const [outlineCollapsed, setOutlineCollapsed] = useState<boolean>(() => { try { return localStorage.getItem("sa-outline-collapsed") === "1"; } catch { return false; } });
   const toggleOutline = useCallback((collapsed: boolean) => { setOutlineCollapsed(collapsed); try { localStorage.setItem("sa-outline-collapsed", collapsed ? "1" : "0"); } catch { /* ignore */ } }, []);
   // OUTLINE WIDTH (Studio Consolidation D) — drag-resizable + persisted. The outline is the app's
-  // ONE list now (topic → set → CEQ stems), so it needs room; 360 is the default, clamped to a
-  // range that can't hide the panel or swallow the canvas.
-  const [outlineW, setOutlineW] = useState<number>(() => { try { const n = parseInt(localStorage.getItem("sa-outline-w") ?? "", 10); return Number.isFinite(n) ? Math.min(560, Math.max(240, n)) : 360; } catch { return 360; } });
+  // ONE list now (topic → set → CEQ stems), so it needs room. Default 520: measured against a real
+  // 12-CEQ set, 360 clipped 12/12 stems and 440 still clipped 5/12, while 520 clipped none. These
+  // stems are near-identical up front ("Which step immediately follows/precedes…"), so the first
+  // ~33 chars a narrow panel shows are the LEAST distinguishing part of the string.
+  const [outlineW, setOutlineW] = useState<number>(() => { try { const n = parseInt(localStorage.getItem("sa-outline-w") ?? "", 10); return Number.isFinite(n) ? Math.min(560, Math.max(240, n)) : 520; } catch { return 520; } });
   const [resizingOutline, setResizingOutline] = useState(false);
   const startOutlineResize = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
