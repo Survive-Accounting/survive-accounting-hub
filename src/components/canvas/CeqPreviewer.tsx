@@ -406,6 +406,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
               onAnimationEnd={(ev) => { if (ev.animationName === "sa-ceq-correct") (ev.currentTarget as HTMLElement).style.willChange = "auto"; }}
               data-flame={flamed ? "on" : undefined}
               data-flame-tone={flamed ? spot.tone(key) : undefined}
+              data-spot-lit={spState === "spot" ? "on" : undefined}
               onPointerDownCapture={(e) => spot.onClick(key, e)}
               onClick={film ? undefined : (e) => { if (e.ctrlKey || e.metaKey || e.shiftKey) return; onViewChoice?.(i); }}
               onContextMenu={(e) => choiceMenu(c.id, e)}
@@ -521,6 +522,7 @@ function MemoPreviewNode({ id, data, selected, dragging }: NodeProps) {
       onAnimationEnd={(ev) => { if (ev.animationName === "sa-memo-in") (ev.currentTarget as HTMLElement).style.willChange = "auto"; }}
       data-flame={flamed ? "on" : undefined}
       data-flame-tone={flamed ? spot.tone(key) : undefined}
+      data-spot-lit={spState === "spot" ? "on" : undefined}
       ref={wrapRef}
       onPointerDownCapture={(e) => { if (!editing) spot.onClick(key, e); }}
       // SPOTLIT MEMO POPS IN ITS OWN NAVY (Lee) — spotStyle paints a spotlit target with

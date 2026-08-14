@@ -167,6 +167,9 @@ export function spotTargetProps(sp: SpotlightApi | null, cardId: string, targetI
     tone,
     props: {
       "data-spot-target": targetId,
+      // BOLT SIGNATURE (frames rename §6) — the CSS in FilmOverlays keys off this
+      // to stamp a small static brand bolt at the highlight ring's corner.
+      "data-spot-lit": state === "spot" ? "on" : undefined,
       "data-flame": flamed ? "on" : undefined,
       // "warn" ⇒ 🚨 red siren (BAD/trap); "focus"/absent ⇒ 🔥 gold flame.
       "data-flame-tone": flamed ? (tone ?? "focus") : undefined,

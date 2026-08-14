@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronsLeft, ChevronsRight } from "lucide-react";
 import { NEON } from "./theme";
+import { BOLT_OUTER, BOLT_VIEWBOX } from "./brand";
 
 /** ARM CUE (space-walk) — Lee's teleprompter tell that the current frame is
  *  EXHAUSTED and the next space will transition. Rendered as FILMING CHROME: a
@@ -242,6 +243,32 @@ export const FLAME_CSS = `
   @keyframes sa-siren-pulse {
     0%, 100% { outline-color: rgba(255,45,60,0.5);  outline-offset: 1px; }
     50%      { outline-color: rgba(255,90,100,1);   outline-offset: 3px; }
+  }
+${""/* SPOTLIGHT BOLT SIGNATURE (frames rename §6) — a small STATIC brand bolt at the
+     highlight ring's corner, brand red at ~40%, present in film output (this sheet is
+     injected in the previewer, the film popout, AND the canvas). Regular spotlights
+     take it on ::after (their pseudos are free). The super-spotlight's FOCUS tone
+     folds the bolt into its bottom-bar ::after as a second background layer and may
+     pulse ONCE on activation (200ms) — then static. The 🚨 warn tone keeps its siren
+     identity, no bolt. prefers-reduced-motion: static always. */}
+  [data-spot-lit="on"]:not([data-flame="on"])::after {
+    content: ""; position: absolute; top: -7px; right: -6px; width: 12px; height: 16px;
+    background: url("${"data:image/svg+xml,"}${encodeURIComponent(`<svg viewBox="${BOLT_VIEWBOX}" xmlns="http://www.w3.org/2000/svg"><path d="${BOLT_OUTER}" fill="#CE1126" fill-opacity="0.4"/></svg>`)}") no-repeat center / contain;
+    pointer-events: none; z-index: 8;
+  }
+  [data-flame-tone="focus"]::after {
+    height: 18px; bottom: -19px;
+    background:
+      url("${"data:image/svg+xml,"}${encodeURIComponent(`<svg viewBox="${BOLT_VIEWBOX}" xmlns="http://www.w3.org/2000/svg"><path d="${BOLT_OUTER}" fill="#CE1126" fill-opacity="0.4"/></svg>`)}") no-repeat right 0 top 2px / 12px 16px,
+      linear-gradient(90deg, transparent, rgba(252,163,17,0.9) 50%, transparent) no-repeat left top / 100% 2px;
+    animation: sa-focus-glide 2.2s ease-in-out infinite, sa-bolt-pop 200ms ease-out 1;
+  }
+  @keyframes sa-bolt-pop {
+    0%   { transform: translateX(-4%) scale(1.35); }
+    100% { transform: translateX(-4%) scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    [data-flame-tone="focus"]::before, [data-flame-tone="focus"]::after { animation: none !important; opacity: 0.6; }
   }
 `;
 
