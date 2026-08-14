@@ -143,7 +143,11 @@ export async function runExam1Seed(db: Db, csvText: string, apply: boolean): Pro
   // 2. SCENES — all decks/nodes; new content lands in the WORKING scene (most card decks).
   const { data: scenes, error: sErr } = await db.from("canvas_scenes").select("id,name,nodes_json");
   if (sErr) return { errors: [sErr.message] };
-  const all = (scenes ?? []) as Scene[];
+  // ARCHIVED ROWS ARE INVISIBLE (frames rename): the pre-split archive still carries
+  // every deck id, so without this filter a deck could map to the archive and the
+  // seed would write cards the app never loads (it did — 11 Trial Balances cards on
+  // 08-14; they sit in the archive as harmless baggage, rewritten here correctly).
+  const all = ((scenes ?? []) as Scene[]).filter((s) => !(s.nodes_json as { archived?: boolean } | null)?.archived);
   let working: Scene | null = null; let best = -1;
   for (const s of all) {
     const n = (s.nodes_json?.decks ?? []).filter((d) => d.payloadType === "cards").length;
