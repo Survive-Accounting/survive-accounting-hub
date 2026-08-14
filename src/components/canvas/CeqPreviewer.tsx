@@ -41,6 +41,7 @@ import { WorldBackground } from "./WorldBackground";
 import { WORLDS } from "./worlds";
 import { renderInline } from "./inline-md";
 import { resolveCardSpot, resolveMemoSpot, withInstanceSpot } from "./ceq-geom";
+import { clearExhibitHighlights } from "./exhibit-highlights";
 import { FILM_LOCK_CSS, FilmContext, filmDragAllowed } from "./film-lock";
 import { memoAnchorId, TextAnchor } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
@@ -1644,6 +1645,9 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
         if (e.key === "PageDown" || e.key === "PageUp") { if (!e.repeat) startHold(e.key === "PageDown" ? 1 : -1, win); return; } // hard push + hold-to-repeat (tease shot)
         if (e.key === "Enter") { if (e.shiftKey) retreat(); else advance(); return; }
         if (e.shiftKey && (e.code === "Backquote" || e.key === "~" || e.key === "`")) { sweepMemos(); return; }
+        // ` on the recording surface (A3): clear every exhibit highlight — the
+        // instant reset between explanations. (Already behind the typing guard.)
+        if (e.code === "Backquote" || e.key === "`") { clearExhibitHighlights(); return; }
         return; // any other key: swallowed, no-op — protects the take
       }
       // RECORDING MODE = the FILM POP-OUT. "\" toggles it open/closed — a real 2nd-monitor
@@ -1692,7 +1696,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       // ` = full reset (choices + memos). SHIFT+` = MEMO SWEEP: clear the memos off
       // the board but KEEP every choice's resolution, so a wrong answer stays struck
       // and the correct one stays green. Nothing re-resolves, so no sound re-fires.
-      if (e.key === "`" || e.code === "Backquote" || (e.shiftKey && e.key === "~")) { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) sweepMemos(); else { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); setPerfArrows([]); setSelPerf(null); } return; }
+      if (e.key === "`" || e.code === "Backquote" || (e.shiftKey && e.key === "~")) { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) sweepMemos(); else { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); setPerfArrows([]); setSelPerf(null); clearExhibitHighlights(); } return; }
     };
     const onOwnerKey = (e: KeyboardEvent) => handle(e, ownerWin, false);
     // Releasing Page Down / Page Up ends the hold-to-repeat (#4). clearHold is intentionally

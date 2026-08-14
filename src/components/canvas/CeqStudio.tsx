@@ -28,6 +28,7 @@ import { autoClipName, buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, 
 import { buildSetExport } from "./ceq-export";
 import { SetFilmstrip, type StripItem } from "./SetFilmstrip";
 import { checkFilmReadiness, type ReadinessReport } from "./film-readiness";
+import { FILM_LOCK_CSS, FilmContext } from "./film-lock";
 import { assignRunTo, fillDownRuns, normRun, type RunChange } from "./film-runs";
 import { groupedStageElements, type StageElementSpec } from "./stage-elements";
 import { MISCONCEPTION_SEEDS, questionMisconceptions, toSlug } from "./ceq-misconceptions";
@@ -2184,11 +2185,15 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
           it also works when the Studio is popped out. Shows ONLY the live CEQ card + reveal
           state; the previewer itself hides its chrome + swallows non-allowlisted keys. */}
       {recording && studioRootRef.current && createPortal(
-        <div className="sa-rec-surface fixed inset-0" style={{ zIndex: Z.recording, background: "#080D18", cursor: cursorHidden ? "none" : undefined }}>
+        <div className="sa-rec-surface film-mode fixed inset-0" style={{ zIndex: Z.recording, background: "#080D18", cursor: cursorHidden ? "none" : undefined }}>
           {/* Force the cursor hidden across EVERYTHING in the shot — ReactFlow sets its own
               pane cursor, which would otherwise sit in-frame after the 1s idle. */}
           {cursorHidden && <style>{`.sa-rec-surface, .sa-rec-surface * { cursor: none !important; }`}</style>}
-          <div className="h-full w-full">{renderPreviewer(true)}</div>
+          {/* FILM-TRUE (A1/A3): the recording surface is a filming surface — cards must
+              KNOW it (chrome/resize hidden, glow clicks live). It never had FilmContext,
+              which is why a scale grip could sit in the shot (Lee's 08-14 screenshot). */}
+          <style>{FILM_LOCK_CSS}</style>
+          <div className="h-full w-full"><FilmContext.Provider value={true}>{renderPreviewer(true)}</FilmContext.Provider></div>
           {/* REHEARSAL chrome (tool 2): the ONLY chrome — a tiny corner counter. */}
           {rehearse && qId && qId !== LAYOUT_Q0 && (() => {
             const d = rf.getNode(qId)?.data as unknown as CeqCard | undefined;

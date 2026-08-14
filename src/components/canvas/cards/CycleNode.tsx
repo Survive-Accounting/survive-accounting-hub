@@ -1,18 +1,22 @@
 // ACCOUNTING CYCLE (Lee) — an OPAQUE callout whose steps sit evenly around an
 // OVAL, joined by clockwise flow arrows that close the loop. Add / remove / rename
 // steps; the oval re-solves from the step count. Design ELEMENT: resizable, never
-// in the deck. SPOTLIGHT is per-STEP (not the whole element): spotlighting or
-// super-spotlighting a step POPS it to the centre of the oval (over the title) so
-// it never runs off the frame even when the card is stretched large. Shift-click
-// an arrow to toggle its animated-dashed style (like the element-connect arrows).
+// in the deck. EMPHASIS (A3) is the shared EXHIBIT-HIGHLIGHT system: in film
+// mode, clicking a step toggles a brand-orange GLOW; any number can glow at once
+// (light a run like "Unadjusted TB → Adjusting → Adjusted TB"); the arc between
+// two adjacent lit steps glows too, so a sequence reads as a flowing path; `
+// clears everything. Glow is shadow/border/opacity ONLY — the old spotlight's
+// pop-to-centre transform resized the card mid-take and is gone. Order is taught
+// with highlights now, so the pills carry no number badges. Shift-click an arrow
+// to toggle its animated-dashed style (like the element-connect arrows).
 import { useState } from "react";
 import { type NodeProps } from "@xyflow/react";
 import { GripVertical, Plus, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
 import { ConnectionDots } from "../ConnectionDots";
+import { EXHIBIT_GLOW, useExhibitHighlights } from "../exhibit-highlights";
 import { useFilm } from "../film-lock";
-import { useSpotlight } from "../SpotlightContext";
 import { ElementChrome, ElementResizer } from "./elements";
 import { BIG_FONT, DISPLAY_FONT, NEON } from "../theme";
 import { cardId, type CycleElement, type CycleStep } from "../types";
@@ -71,7 +75,9 @@ const longestLine = (t: string): number => t.split("\n").reduce((m, l) => Math.m
 export function CycleNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as CycleElement;
   const { update, toFront } = useCardActions(id);
-  const sp = useSpotlight();
+  // EXHIBIT HIGHLIGHTS (A3) — the shared glow system; this card only declares
+  // its nodes (the steps, adjacency = ring order). No spotlight, no transforms.
+  const hl = useExhibitHighlights();
   // FILM LOCK (A1): on camera this card is a TEACHING SURFACE, not an editor —
   // no move grip, no step editing, no add/remove. ElementChrome/Resizer already
   // self-gate; these are the card's CUSTOM affordances obeying the same signal.
@@ -89,43 +95,18 @@ export function CycleNode({ id, data, selected }: NodeProps) {
   const n = Math.max(placed.length, 1);
   const seg = (2 * Math.PI) / n;
   const dashed = new Set(d.dashedArrows ?? []);
-  // Only STEPS are spotlightable. When any step is lit, drop the element's edit
-  // chrome so the shot reads clean.
-  const litIds = steps.filter((s) => sp?.targetState(id, s.id) === "spot").map((s) => s.id);
-  const anySpot = litIds.length > 0;
-  // CHAIN EMPHASIS (Lee): ONE lit step pops to the centre (it's a single callout).
-  // TWO OR MORE stay exactly where they are — popping them all to the centre would
-  // stack them on top of each other, and the whole point of lighting a run like
-  // "Unadjusted TB → Adjusting Entries → Adjusted TB" is to SEE the sequence sitting
-  // in order around the ring. Unlit steps recede instead.
-  const chainMode = litIds.length > 1;
 
   const setStep = (sid: string, text: string) => update({ steps: steps.map((s) => (s.id === sid ? { ...s, text } : s)) });
   const addStep = () => update({ steps: [...steps, { id: cardId("cy"), text: "New step" }] });
   const removeStep = (sid: string) => { if (steps.length > 1) update({ steps: steps.filter((s) => s.id !== sid) }); };
   const toggleDashed = (i: number) => { const next = new Set(dashed); if (next.has(i)) next.delete(i); else next.add(i); update({ dashedArrows: [...next].sort((a, b) => a - b) }); };
-  // Ctrl-click a step → spotlight pill · Ctrl+Shift-click → super-flame. Mirrors
-  // spotTargetProps, but we render the emphasis ourselves (pop-to-centre) instead
-  // of via FLAME_CSS, so the positioning transform is ours to control.
-  const spotClick = (sid: string) => (e: React.PointerEvent) => {
-    if (!sp) return;
-    if (e.ctrlKey && e.shiftKey) { e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation(); sp.toggleFlame(id, sid, e.altKey ? "warn" : "focus"); return; }
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault(); e.stopPropagation(); e.nativeEvent.stopImmediatePropagation();
-      // ALWAYS start() — it toggles this ONE target (applyRegularClick adds/removes)
-      // and leaves the rest of the set alone. It used to call exit() on a lit step,
-      // which cleared EVERY spotlight, making a multi-step chain impossible to build:
-      // lighting the 3rd step then correcting the 2nd wiped all three.
-      sp.start(id, sid);
-    }
-  };
 
   return (
     <div onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150" style={{ width: w, minHeight: h }}>
       <ConnectionDots />
-      {!anySpot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
-      <ElementResizer id={id} selected={selected && !anySpot} minWidth={340} minHeight={220} />
-      {!anySpot && !film && (
+      <ElementChrome id={id} posLock={d.posLock} selected={selected} />
+      <ElementResizer id={id} selected={selected} minWidth={340} minHeight={220} />
+      {!film && (
         <div
           className={`absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`}
           title="Drag to move"
@@ -165,21 +146,21 @@ export function CycleNode({ id, data, selected }: NodeProps) {
             const a0 = s.ang + gapAfter(seg);
             const a1 = s.ang + seg - gapBefore(seg);
             const isDash = dashed.has(i);
-            // CHAIN EMPHASIS: the arc BETWEEN two lit steps is part of the chain —
-            // it brightens with them; every other arc recedes so the run reads.
-            const inChain = chainMode && litIds.includes(s.id) && litIds.includes(placed[(i + 1) % n].id);
-            const dim = chainMode && !inChain;
+            // ADJACENCY GLOW (A3): the arc BETWEEN two lit steps is part of the lit
+            // path — it glows with them; every other arc recedes so the run reads.
+            const litArc = hl.edgeLit(s.id, placed[(i + 1) % n].id);
+            const dim = hl.any && !litArc;
             return (
               <path
                 key={s.id}
                 d={arcBetween(a0, a1)}
                 fill="none"
-                stroke={inChain ? "#FCA311" : `url(#cyc-grad-${id})`}
-                strokeWidth={inChain ? 4.2 : 3.2}
+                stroke={litArc ? EXHIBIT_GLOW.arcStroke : `url(#cyc-grad-${id})`}
+                strokeWidth={litArc ? 4.2 : 3.2}
                 strokeLinecap="round"
                 markerEnd={`url(#cyc-arrow-${id})`}
                 className={`nodrag${isDash ? " cyc-dash" : ""}`}
-                style={{ vectorEffect: "non-scaling-stroke", pointerEvents: "stroke", cursor: "pointer", strokeDasharray: isDash ? "9 7" : undefined, opacity: dim ? 0.22 : 1, transition: "opacity 160ms ease, stroke-width 160ms ease", filter: inChain ? "drop-shadow(0 0 6px rgba(252,163,17,0.85))" : "drop-shadow(0 1px 3px rgba(0,0,0,0.6))" }}
+                style={{ vectorEffect: "non-scaling-stroke", pointerEvents: "stroke", cursor: "pointer", strokeDasharray: isDash ? "9 7" : undefined, opacity: dim ? 0.22 : 1, transition: "opacity 160ms ease, stroke-width 160ms ease", filter: litArc ? EXHIBIT_GLOW.arcFilter : "drop-shadow(0 1px 3px rgba(0,0,0,0.6))" }}
                 onPointerDown={(e) => { if (e.shiftKey) e.stopPropagation(); }}
                 onClick={(e) => { if (e.shiftKey) { e.stopPropagation(); toggleDashed(i); } }}
                 data-i={i}
@@ -215,34 +196,24 @@ export function CycleNode({ id, data, selected }: NodeProps) {
           )}
         </div>
 
-        {/* the step pills — around the oval, POPPING to the centre when spotlit */}
+        {/* the step pills — around the oval. Emphasis NEVER moves or scales a pill
+            (the old pop-to-centre resized the card mid-take): lit = glow, unlit
+            recedes in opacity, position is constant. */}
         {placed.map((s, i) => {
-          const spotState = sp?.targetState(id, s.id) ?? null;
-          const flamed = sp?.isFlamed(id, s.id) ?? false;
-          const warn = (sp?.flameTone(id, s.id) ?? null) === "warn"; // 🚨 red "BAD" super
-          const isSpot = spotState === "spot";
-          // ONE lit step → pop to centre. A CHAIN (2+) stays in place, scaled just
-          // enough to lift off the ring; unlit steps fade back so the run reads.
-          const popToCentre = isSpot && !chainMode;
-          const bigScale = flamed ? 2.15 : 1.7;
-          const chainScale = flamed ? 1.3 : 1.16;
-          const faded = chainMode && !isSpot;
+          const isLit = hl.isLit(s.id);
+          const faded = hl.any && !isLit;
           return (
             <div
               key={s.id}
-              data-spot-target={s.id}
-              onPointerDownCapture={spotClick(s.id)}
               className="group/pill absolute"
-              style={popToCentre
-                ? { left: "50%", top: "50%", transform: `translate(-50%, -50%) scale(${bigScale})`, zIndex: 40, transition: "transform 160ms ease" }
-                : {
-                    left: `${s.xPct}%`, top: `${s.yPct}%`,
-                    transform: `translate(-50%, -50%)${isSpot ? ` scale(${chainScale})` : ""}`,
-                    zIndex: isSpot ? 30 : undefined,
-                    opacity: faded ? 0.34 : 1,
-                    filter: faded ? "saturate(0.4)" : undefined,
-                    transition: "transform 160ms ease, opacity 160ms ease, filter 160ms ease",
-                  }}
+              style={{
+                left: `${s.xPct}%`, top: `${s.yPct}%`,
+                transform: "translate(-50%, -50%)",
+                zIndex: isLit ? 30 : undefined,
+                opacity: faded ? EXHIBIT_GLOW.dimOpacity : 1,
+                filter: faded ? "saturate(0.5)" : undefined,
+                transition: "opacity 160ms ease, filter 160ms ease",
+              }}
             >
               {editingStep === s.id ? (
                 // TEXTAREA, not input (Lee): long step names need line breaks so a
@@ -277,24 +248,18 @@ export function CycleNode({ id, data, selected }: NodeProps) {
                     fontSize: pillFont,
                     color: "#F4EFE6",
                     background: "linear-gradient(180deg, rgba(37,52,88,0.96), rgba(16,24,44,0.96))",
-                    border: `1.5px solid ${isSpot ? (flamed ? (warn ? "#FF1E32" : "#FF7A00") : "#FCA311") : "rgba(252,163,17,0.55)"}`,
-                    boxShadow: isSpot
-                      ? (flamed
-                          ? (warn
-                              ? "0 0 0 3px rgba(9,13,26,0.95), 0 0 28px rgba(255,30,50,0.95)"
-                              : "0 0 0 3px rgba(9,13,26,0.95), 0 0 28px rgba(255,122,0,0.9)")
-                          : "0 0 0 3px rgba(9,13,26,0.95), 0 0 22px rgba(252,163,17,0.75)")
+                    border: `1.5px solid ${isLit ? EXHIBIT_GLOW.border : "rgba(252,163,17,0.55)"}`,
+                    boxShadow: isLit
+                      ? EXHIBIT_GLOW.shadow
                       : "0 6px 16px -8px rgba(0,0,0,0.8), 0 0 0 3px rgba(9,13,26,0.9)",
+                    transition: "box-shadow 160ms ease, border-color 160ms ease",
                   }}
-                  title={film ? "Ctrl-click to spotlight (Ctrl+Shift = 🔥 · Ctrl+Alt+Shift = 🚨)" : "Click to edit · Ctrl-click to spotlight (Ctrl+Shift = 🔥 · Ctrl+Alt+Shift = 🚨)"}
+                  title={film ? "Click to glow (any number can glow) · ` clears" : "Click to edit"}
                   onPointerDown={(e) => e.stopPropagation()}
-                  onClick={film ? (e) => e.stopPropagation() : (e) => { e.stopPropagation(); setEditingStep(s.id); }}
+                  onClick={film ? (e) => { e.stopPropagation(); hl.toggle(s.id); } : (e) => { e.stopPropagation(); setEditingStep(s.id); }}
                 >
-                  <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full text-[8px] font-black" style={{ background: "#FCA311", color: "#0B0F1E" }}>
-                    {i + 1}
-                  </span>
                   {s.text || "Step"}
-                  {steps.length > 1 && !isSpot && !film && (
+                  {steps.length > 1 && !film && (
                     <button
                       className="nodrag ml-0.5 hidden h-3.5 w-3.5 place-items-center rounded-full group-hover/pill:grid"
                       style={{ background: "rgba(224,40,74,0.9)", color: "#fff" }}
@@ -312,7 +277,7 @@ export function CycleNode({ id, data, selected }: NodeProps) {
         })}
 
         {/* add step (card-actions ⇒ FILM_LOCK_CSS also hides it in the popout) */}
-        {!anySpot && !film && (
+        {!film && (
           <button
             className="nodrag card-actions absolute bottom-2 right-2 flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold opacity-0 transition-opacity group-hover/el:opacity-100"
             style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, color: NEON.yellow }}

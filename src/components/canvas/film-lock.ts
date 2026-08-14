@@ -27,12 +27,19 @@
 //   3. FilmContext / useFilm — the shared "you are on camera" signal, moved out
 //      of CeqPreviewer so exhibit cards can consume it. Chrome components
 //      (ElementChrome / ElementResizer) return nothing in film.
-import { createContext, useContext } from "react";
+import { createContext, createElement, useContext, type ReactNode } from "react";
 
 /** True ⇒ this render is on a film surface. Provided by the film popout (and any
  *  future film surface); default false = authoring. */
 export const FilmContext = createContext(false);
 export const useFilm = () => useContext(FilmContext);
+/** Plain-identifier provider for ROUTE files: TanStack Router's code-splitter
+ *  drops imports referenced only via member-expression JSX (<FilmContext.Provider>
+ *  → "FilmContext is not defined" at runtime, invisible to tsc). Components under
+ *  src/components can keep using FilmContext.Provider directly. */
+export function FilmProvider({ value, children }: { value: boolean; children: ReactNode }) {
+  return createElement(FilmContext.Provider, { value }, children);
+}
 
 /** The minimum shape the drag rule needs — keeps it testable without ReactFlow. */
 export interface FilmLockNode {

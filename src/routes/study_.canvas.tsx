@@ -128,6 +128,8 @@ import { getCanvasSfx, saveCanvasSfx, uploadCanvasSfxFile, type CanvasSfxFiles }
 import { downloadText, parseImport, sceneToOutline, type ImportPreview } from "@/components/canvas/export";
 import { KeymapOverlay } from "@/components/canvas/KeymapOverlay";
 import { CardTapPulse, CARD_CURSOR_CSS, ClickRipples, CursorSpotlight, FILM_MODE_CSS, FLAME_CSS, FrameArmCue, type ArmState } from "@/components/canvas/FilmOverlays";
+import { clearExhibitHighlights } from "@/components/canvas/exhibit-highlights";
+import { FilmProvider } from "@/components/canvas/film-lock";
 import { FilmPerfProbe } from "@/components/canvas/FilmPerfProbe";
 import { CameraBubble } from "@/components/canvas/CameraBubble";
 import { FrameRearrangeGrid } from "@/components/canvas/FrameRearrangeGrid";
@@ -1621,6 +1623,20 @@ function PresentCanvas() {
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, []);
+  // ` on CANVAS FILM (A3): clear every exhibit highlight — the instant reset
+  // between explanations (cycle cards live on this canvas). Film-only so the
+  // authoring backtick keeps typing backticks; guarded against text fields.
+  useEffect(() => {
+    if (!film) return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = document.activeElement as HTMLElement | null;
+      const typing = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
+      if (typing || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.code === "Backquote" || e.key === "`") clearExhibitHighlights();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [film]);
   const [hideFrameChrome, setHideFrameChrome] = useState(false); // FF-6: hide frame headers outside film too
   const [compositionGuides, setCompositionGuides] = useState(true); // GUIDES item 1: center/thirds/fifths while dragging in a frame
   const [watermarkOn, setWatermarkOn] = useState(true); // brand watermark on the recording (toggle) — Lee's call
@@ -5635,6 +5651,11 @@ function PresentCanvas() {
     <SpotlightCtx.Provider value={spot}>
     <ActiveLessonContext.Provider value={activeLessonCtx}>
     <FrameTakesProvider courseName={sceneCourse ? courseLabel(sceneCourse) : null} introClipLength={introClipLength} autoTrimIntros={autoTrimIntros}>
+    {/* FILM-TRUE (A1/A3): canvas film mode tells every card it's on camera — the
+        shared film-lock chrome gating + exhibit-highlight glow clicks (cycle cards
+        live on THIS canvas, e.g. the accounting-cycle set) work here, not just in
+        the Studio popout. Value is the film flag itself: authoring stays false. */}
+    <FilmProvider value={film}>
     <div
       className={`fixed inset-0 flex flex-col ${film ? "film-mode" : ""} ${connecting ? "sa-connecting" : ""} ${film && filmEntrancePop ? "sa-entrance-pop" : ""} ${film && filmCheckGlow ? "sa-check-glow" : ""} ${chrome && backstage === "cinema" ? "sa-cinema" : ""}`}
       style={{ background: chrome ? BACKSTAGE_BG[backstage] : chromaBlack ? "#000" : NEON.bg }}
@@ -7391,6 +7412,7 @@ function PresentCanvas() {
         </div>
       </div>
     </div>
+    </FilmProvider>
     </FrameTakesProvider>
     </ActiveLessonContext.Provider>
     </SpotlightCtx.Provider>
