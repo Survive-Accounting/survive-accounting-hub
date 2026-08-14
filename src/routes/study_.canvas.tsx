@@ -33,10 +33,10 @@ import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAcco
 // as ONE pooled document and saves back only the rows whose content moved.
 import { extractSetJson, mergePool, setHash, type PoolDoc, type SceneJsonLike, type SetDeckLike, type SetEdgeLike, type SetNodeLike } from "@/lib/set-files.core";
 import { archiveSetFile, loadSetPool, migrateToSetFiles, saveSetFile, seedExam1Master } from "@/lib/set-files.functions";
-// Exam 1 master CSV rides in the bundle so the File ▾ seed action can dry-run +
-// apply without a local checkout (the overnight run found the first apply was
-// clobbered by a stale-tab autosave — re-applying is now one click).
-import exam1MasterCsv from "../../data/exam1-master.csv?raw";
+// NOTE: the Exam 1 master CSV is deliberately NOT imported here. A `?raw` import of
+// data/exam1-master.csv broke the Vercel build (data/ is gitignored — the file exists
+// only on Lee's disk) AND inlined all 256 questions with their correct answers into
+// the public /study/canvas client bundle. The seed modal takes the file from disk.
 import { generateShorthand } from "@/components/canvas/shorthand";
 import { retryUnlessMigrationHint } from "@/lib/pg-errors";
 import { ManageAccountsDialog } from "@/components/canvas/ManageAccountsDialog";
@@ -7568,30 +7568,39 @@ function CanvasHome({ onOpenScene, onNewScene, onOpenSets, legacy, onLegacyDetec
   );
 }
 
-/** EXAM 1 MASTER SEED (File ▾) — the same dry-run → confirm → apply ritual as every
- *  import, but one click from the app: the master CSV ships in the bundle. Exists
- *  because the 2026-08-13 script apply was clobbered by a stale-tab autosave; with
- *  per-set rows the writes are small and the pool reloads right after. */
+/** EXAM 1 MASTER SEED (File ▾) — dry-run → confirm → apply, same ritual as every import.
+ *
+ *  THE CSV IS NEVER BUNDLED. It used to be a `?raw` import of data/exam1-master.csv,
+ *  which (a) broke the Vercel build — data/ is gitignored, so the file only existed on
+ *  Lee's disk — and (b) shipped all 256 questions WITH their correct answers into the
+ *  public client bundle for /study/canvas. The master sheet is the paid product; it
+ *  does not belong in a browser download. Lee picks the file from disk instead: it
+ *  crosses to the server fn and back, and nothing persists in the bundle. */
 function SeedExam1Modal({ onClose, onApplied }: { onClose: () => void; onApplied: () => void }) {
-  const [phase, setPhase] = useState<"dryrun" | "confirm" | "applying" | "done" | "error">("dryrun");
+  const [phase, setPhase] = useState<"pick" | "dryrun" | "confirm" | "applying" | "done" | "error">("pick");
   const [msg, setMsg] = useState<string>("");
+  const [csv, setCsv] = useState<string>("");
+  const [fileName, setFileName] = useState<string>("");
   const [report, setReport] = useState<{ setsCreated: string[]; setsUpdated: string[]; setsRenamed: string[]; ceqsCreated: number; ceqsUpdated: number } | null>(null);
-  useEffect(() => {
-    let stop = false;
-    void seedExam1Master({ data: { csv: exam1MasterCsv, apply: false } })
-      .then((r) => {
-        if (stop) return;
-        if ("errors" in r) { setPhase("error"); setMsg(r.errors.join("\n")); return; }
-        setReport(r as never);
-        setPhase("confirm");
-      })
-      .catch((e) => { if (!stop) { setPhase("error"); setMsg(e instanceof Error ? e.message : String(e)); } });
-    return () => { stop = true; };
-  }, []);
+  const pickRef = useRef<HTMLInputElement>(null);
+  const dryRun = async (text: string, name: string) => {
+    setCsv(text);
+    setFileName(name);
+    setPhase("dryrun");
+    try {
+      const r = await seedExam1Master({ data: { csv: text, apply: false } });
+      if ("errors" in r) { setPhase("error"); setMsg(r.errors.join("\n")); return; }
+      setReport(r as never);
+      setPhase("confirm");
+    } catch (e) {
+      setPhase("error");
+      setMsg(e instanceof Error ? e.message : String(e));
+    }
+  };
   const apply = async () => {
     setPhase("applying");
     try {
-      const r = await seedExam1Master({ data: { csv: exam1MasterCsv, apply: true } });
+      const r = await seedExam1Master({ data: { csv, apply: true } });
       if ("errors" in r) { setPhase("error"); setMsg(r.errors.join("\n")); return; }
       setPhase("done");
     } catch (e) {
@@ -7603,9 +7612,23 @@ function SeedExam1Modal({ onClose, onApplied }: { onClose: () => void; onApplied
     <div className="fixed inset-0 z-[95] flex items-center justify-center" style={{ background: "rgba(4,8,16,0.72)" }} onClick={onClose}>
       <div className="w-[520px] max-w-[92vw] rounded-xl p-5" style={{ background: NEON.panel, border: `1px solid ${NEON.borderSoft}` }} onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 text-[13px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>Exam 1 master seed</div>
-        {phase === "dryrun" && <div className="text-[12px]" style={{ color: NEON.muted }}>Dry-running against the live sets…</div>}
+        {/* PICK — the master sheet stays on disk (never in the bundle: it's the paid
+            product, and a browser download of the answer key is not a thing we ship). */}
+        {phase === "pick" && (
+          <div className="flex flex-col gap-3 text-[12px]" style={{ color: NEON.text }}>
+            <span>Choose the master CSV — usually <code style={{ color: NEON.cyan }}>data/exam1-master.csv</code> in the repo.</span>
+            <span style={{ color: NEON.muted }}>It's read here and sent straight to the seed; nothing is stored in the app bundle.</span>
+            <input ref={pickRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; void f.text().then((t) => dryRun(t, f.name)); }} />
+            <div className="flex gap-2">
+              <button className="rounded px-3 py-1.5 text-[12px] font-bold" style={{ color: "#0B1322", background: NEON.yellow }} onClick={() => pickRef.current?.click()}>Choose CSV…</button>
+              <button className="rounded px-3 py-1.5 text-[12px] font-semibold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={onClose}>Cancel</button>
+            </div>
+          </div>
+        )}
+        {phase === "dryrun" && <div className="text-[12px]" style={{ color: NEON.muted }}>Dry-running “{fileName}” against the live sets…</div>}
         {phase === "confirm" && report && (
           <div className="flex flex-col gap-2 text-[12px]" style={{ color: NEON.text }}>
+            <span style={{ color: NEON.muted }}>{fileName}</span>
             <span><b>{report.ceqsCreated}</b> CEQ frames to create · <b>{report.ceqsUpdated}</b> to update</span>
             <span><b>{report.setsCreated.length}</b> sets to create · <b>{report.setsUpdated.length}</b> to update · <b>{report.setsRenamed.length}</b> renames</span>
             <span style={{ color: NEON.muted }}>Never deletes a set or CEQ; never blanks choices; Exam 1 only.</span>

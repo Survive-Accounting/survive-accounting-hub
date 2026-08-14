@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Outline-as-Map — wireframe</title>
+<style>
+  :root{
+    --navy:#0B1322; --panel:#0e1728; --panel2:#131f36; --line:rgba(245,239,230,0.14);
+    --gold:#FCA311; --cyan:#4FD1E0; --green:#3BF5A0; --amber:#F0B24A; --red:#FF5C6C;
+    --text:#E6ECFF; --muted:#7a86a3; --cream:#F5EFE6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#080D18;color:var(--text);font:13px/1.45 Inter,system-ui,sans-serif;padding:28px}
+  h1{font-size:19px;color:var(--cream);letter-spacing:.02em}
+  h1 .bolt{color:var(--gold)}
+  .sub{color:var(--muted);margin:6px 0 22px;max-width:900px}
+  .states{display:flex;gap:22px;align-items:flex-start;flex-wrap:wrap}
+  .state{flex:1 1 340px;min-width:330px;max-width:460px}
+  .state h2{font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:var(--gold);margin-bottom:2px}
+  .state .cap{font-size:11px;color:var(--muted);margin-bottom:10px;min-height:44px}
+  .frame{background:var(--navy);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 18px 44px -18px rgba(0,0,0,.8)}
+  .topbar{display:flex;gap:8px;align-items:center;padding:7px 10px;border-bottom:1px solid var(--line);font-size:10px;color:var(--muted)}
+  .topbar b{color:var(--text);font-weight:700}
+  .body{display:flex;min-height:430px}
+  .note{font-size:10px;color:var(--gold);background:rgba(252,163,17,.08);border:1px dashed rgba(252,163,17,.45);border-radius:6px;padding:4px 7px;margin:8px}
+  /* ---------- STATE 1: the resting map ---------- */
+  .map{width:190px;border-right:1px solid var(--line);padding:10px 8px;display:flex;flex-direction:column;background:var(--panel)}
+  .map .exam{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--cream);margin:0 4px 8px;display:flex;justify-content:space-between}
+  .map .exam .pct{color:var(--green)}
+  .seg{position:relative;display:flex;align-items:center;gap:7px;margin:0 0 3px;border-radius:7px;padding:0 8px;cursor:pointer;border:1px solid transparent;background:var(--panel2)}
+  .seg:hover{border-color:rgba(252,163,17,.5)}
+  .seg .bar{width:4px;border-radius:4px;height:60%}
+  .seg .nm{flex:1;font-size:10.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .seg .n{font-size:9px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .seg .dot{width:7px;height:7px;border-radius:99px;flex:none}
+  .g{background:var(--green);box-shadow:0 0 5px rgba(59,245,160,.6)}
+  .a{background:var(--amber);box-shadow:0 0 5px rgba(240,178,74,.5)}
+  .stage{flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;text-align:center;padding:18px}
+  /* heights proportional to CEQ counts (Exam 1 real shape) */
+  .h1x{height:26px}.h2x{height:34px}.h3x{height:48px}.h4x{height:58px}
+  /* ---------- STATE 2: topic fan-out ---------- */
+  .fan{position:relative;flex:1;padding:12px;background:var(--navy)}
+  .fan .th{font-size:12px;color:var(--gold);font-weight:800;margin-bottom:2px}
+  .fan .tsub{font-size:10px;color:var(--muted);margin-bottom:10px}
+  .setcard{background:var(--panel2);border:1px solid var(--line);border-radius:9px;padding:8px 10px;margin-bottom:7px;cursor:pointer;display:flex;gap:9px;align-items:center}
+  .setcard:hover{border-color:rgba(252,163,17,.55)}
+  .setcard .mini{display:flex;flex-direction:column;gap:2px;flex:none}
+  .setcard .mini i{display:block;width:16px;height:3px;border-radius:2px;background:rgba(245,239,230,.22)}
+  .setcard .mini i.f{background:var(--green)}
+  .setcard .t{flex:1;min-width:0}
+  .setcard .t .nm{font-size:11px;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .setcard .t .meta{font-size:9px;color:var(--muted);margin-top:1px}
+  .setcard .dot{width:8px;height:8px;border-radius:99px;flex:none}
+  .addset{border:1px dashed var(--line);border-radius:9px;padding:7px;text-align:center;color:var(--muted);font-size:10px;cursor:pointer}
+  .addset:hover{color:var(--gold);border-color:rgba(252,163,17,.5)}
+  .mapmini{width:44px;border-right:1px solid var(--line);background:var(--panel);padding:8px 5px;display:flex;flex-direction:column}
+  .mapmini .ms{border-radius:3px;margin-bottom:2px;background:var(--panel2);border:1px solid transparent;cursor:pointer}
+  .mapmini .ms.on{background:rgba(252,163,17,.25);border-color:var(--gold)}
+  /* ---------- STATE 3: set open ---------- */
+  .strip{width:120px;border-right:1px solid var(--line);background:var(--panel);padding:6px}
+  .fr{background:var(--panel2);border:1px solid var(--line);border-radius:6px;height:26px;margin-bottom:4px;display:flex;align-items:center;gap:5px;padding:0 6px;font-size:8.5px;color:var(--muted)}
+  .fr.on{border-color:var(--gold);box-shadow:0 0 0 1.5px rgba(252,163,17,.4);color:var(--text)}
+  .fr .q{color:var(--gold);font-weight:800}
+  .fr .run{background:var(--cyan);color:#0B1322;border-radius:3px;padding:0 3px;font-weight:900;font-size:7.5px}
+  .editor{flex:1;display:flex;align-items:center;justify-content:center;padding:14px}
+  .card{background:var(--cream);color:#14213D;border-radius:10px;padding:14px 16px;width:88%;box-shadow:0 10px 30px -12px rgba(0,0,0,.7)}
+  .card .stem{font-weight:800;font-size:12.5px;margin-bottom:9px}
+  .card .ch{border:1.5px solid #C9CEDC;border-radius:7px;padding:5px 8px;font-size:11px;margin-bottom:5px;display:flex;gap:7px}
+  .card .ch.correct{border-color:#1E9E63;background:#E9F9F1}
+  .card .ch b{color:#4C5670}
+  .legend{margin-top:26px;border-top:1px solid var(--line);padding-top:14px;max-width:980px}
+  .legend h3{font-size:11px;text-transform:uppercase;letter-spacing:.13em;color:var(--cream);margin-bottom:8px}
+  .legend ul{list-style:none}
+  .legend li{font-size:11.5px;color:var(--muted);margin-bottom:6px;padding-left:16px;position:relative}
+  .legend li::before{content:"⚡";position:absolute;left:0;color:var(--gold);font-size:9px;top:2px}
+  .legend b{color:var(--text)}
+</style>
+</head>
+<body>
+  <h1>OUTLINE-AS-MAP <span class="bolt">⚡</span> wireframe</h1>
+  <p class="sub">The left rail stops being a file tree and becomes the exam itself. Same grammar at every zoom level: <b style="color:var(--text)">exam → topic segments → set cards → frame strip</b> — the run rail's proportional-segment idea, promoted to the whole course. Segment heights are proportional to CEQ counts (real Exam 1 shape); color is the ambient readiness verdict you shipped today.</p>
+
+  <div class="states">
+    <!-- ============ STATE 1 ============ -->
+    <div class="state">
+      <h2>1 · Resting — the exam is the nav</h2>
+      <div class="cap">Boot lands here. One glance answers: how big is the exam, where is the weight, what's film-ready. ~14 controls instead of 69. Chapters/campuses/videos live behind the exam switcher (▾).</div>
+      <div class="frame">
+        <div class="topbar"><b>Home</b> · File ▾ <span style="margin-left:auto">Intro 1 · <b style="color:var(--gold)">Exam 1 ▾</b></span></div>
+        <div class="body">
+          <div class="map">
+            <div class="exam"><span>EXAM 1 · 256 CEQ</span><span class="pct">72% ready</span></div>
+            <div class="seg h1x"><span class="bar g"></span><span class="nm">Accounting Cycle</span><span class="n">12</span><span class="dot g"></span></div>
+            <div class="seg h3x"><span class="bar g"></span><span class="nm">Analyzing Transactions</span><span class="n">48</span><span class="dot g"></span></div>
+            <div class="seg h4x" style="border-color:rgba(252,163,17,.55)"><span class="bar a"></span><span class="nm" style="color:var(--gold)">Recording JEs</span><span class="n">60</span><span class="dot a"></span></div>
+            <div class="seg h1x"><span class="bar g"></span><span class="nm">Receivables &amp; Payables</span><span class="n">8</span><span class="dot g"></span></div>
+            <div class="seg h2x"><span class="bar a"></span><span class="nm">Posting to T Accounts</span><span class="n">24</span><span class="dot a"></span></div>
+            <div class="seg h1x"><span class="bar g"></span><span class="nm">Trial Balances</span><span class="n">11</span><span class="dot g"></span></div>
+            <div class="seg h2x"><span class="bar a"></span><span class="nm">Adjusting Entries</span><span class="n">30</span><span class="dot a"></span></div>
+            <div class="seg h2x"><span class="bar g"></span><span class="nm">Financial Statements</span><span class="n">28</span><span class="dot g"></span></div>
+            <div class="seg h2x"><span class="bar a"></span><span class="nm">Closing Entries</span><span class="n">23</span><span class="dot a"></span></div>
+            <div class="seg h1x"><span class="bar g"></span><span class="nm">Principles &amp; Assump.</span><span class="n">12</span><span class="dot g"></span></div>
+            <div class="note">parked topics collapse to a single muted stub · “+ topic” at the bottom</div>
+          </div>
+          <div class="stage">editor stays empty-state only here —<br>the map IS the content until a set opens</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ STATE 2 ============ -->
+    <div class="state">
+      <h2>2 · Topic open — sets fan out</h2>
+      <div class="cap">Click a segment → the map collapses to a 44px spine (you never lose the whole-exam view) and the topic's sets fan out as cards: mini-strip thumbnail (green rows = filmed clips), counts, readiness. Click a card → state 3.</div>
+      <div class="frame">
+        <div class="topbar"><b>Home</b> · File ▾ <span style="margin-left:auto">Exam 1 ▾</span></div>
+        <div class="body">
+          <div class="mapmini">
+            <div class="ms" style="height:18px"></div>
+            <div class="ms" style="height:34px"></div>
+            <div class="ms on" style="height:44px"></div>
+            <div class="ms" style="height:16px"></div>
+            <div class="ms" style="height:26px"></div>
+            <div class="ms" style="height:15px"></div>
+            <div class="ms" style="height:24px"></div>
+            <div class="ms" style="height:23px"></div>
+            <div class="ms" style="height:20px"></div>
+            <div class="ms" style="height:14px"></div>
+          </div>
+          <div class="fan">
+            <div class="th">RECORDING JOURNAL ENTRIES</div>
+            <div class="tsub">3 sets · 60 CEQ · 2 runs lettered · 1 set ready</div>
+            <div class="setcard">
+              <span class="mini"><i class="f"></i><i class="f"></i><i></i><i></i></span>
+              <span class="t"><span class="nm">"What is the journal entry for [&nbsp;&nbsp;]?"</span><span class="meta">24 CEQ · 6 free · runs A–C · filmed 08-12</span></span>
+              <span class="dot g"></span>
+            </div>
+            <div class="setcard" style="border-color:rgba(252,163,17,.5)">
+              <span class="mini"><i></i><i></i><i></i><i></i></span>
+              <span class="t"><span class="nm">"How does a debit vs. credit affect [&nbsp;&nbsp;]?"</span><span class="meta">18 CEQ · 4 free · <span style="color:var(--amber)">18 issues — no runs</span></span></span>
+              <span class="dot a"></span>
+            </div>
+            <div class="setcard">
+              <span class="mini"><i class="f"></i><i></i><i></i><i></i></span>
+              <span class="t"><span class="nm">"When do you debit — and when credit?"</span><span class="meta">18 CEQ · 5 free · runs A–B</span></span>
+              <span class="dot a"></span>
+            </div>
+            <div class="addset">+ set in this topic</div>
+            <div class="note">bulk ops + CSV round-trip live on a “···” per card and the topic header — not as resting chrome</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ STATE 3 ============ -->
+    <div class="state">
+      <h2>3 · Set open — today's Studio, spine kept</h2>
+      <div class="cap">Exactly what you have now (strip + editor + View ▾) with one change: the 44px spine stays on the far left. You always know where this set sits in the exam, and any topic is one click — no “back”, no tree.</div>
+      <div class="frame">
+        <div class="topbar"><b>Home</b> · File ▾ <span style="margin-left:auto">JE for [ ] · Draft · 🗒 · Exam 1 ▾</span></div>
+        <div class="body">
+          <div class="mapmini">
+            <div class="ms" style="height:18px"></div>
+            <div class="ms" style="height:34px"></div>
+            <div class="ms on" style="height:44px"></div>
+            <div class="ms" style="height:16px"></div>
+            <div class="ms" style="height:26px"></div>
+            <div class="ms" style="height:15px"></div>
+            <div class="ms" style="height:24px"></div>
+            <div class="ms" style="height:23px"></div>
+            <div class="ms" style="height:20px"></div>
+            <div class="ms" style="height:14px"></div>
+          </div>
+          <div class="strip">
+            <div class="fr on"><span class="q">Q1</span><span class="run">A</span> owner invests…</div>
+            <div class="fr"><span class="q">Q2</span><span class="run">A</span> services for cash</div>
+            <div class="fr" style="border-style:dashed"><span style="color:var(--gold)">📝</span> note · breathe</div>
+            <div class="fr"><span class="q">Q3</span><span class="run">B</span> pay on account</div>
+            <div class="fr"><span class="q">Q4</span><span class="run">B</span> prepaid rent</div>
+            <div class="fr"><span class="q">Q5</span> unearned rev</div>
+            <div class="fr"><span class="q">Q6</span> dividends</div>
+          </div>
+          <div class="editor">
+            <div class="card">
+              <div class="stem">Owner invests $10,000 cash in exchange for common stock. What is the journal entry?</div>
+              <div class="ch correct"><b>A</b> Dr Cash · Cr Common Stock</div>
+              <div class="ch"><b>B</b> Dr Common Stock · Cr Cash</div>
+              <div class="ch"><b>C</b> Dr Cash · Cr Revenue</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <h3>The rules the map obeys</h3>
+    <ul>
+      <li><b>One grammar, four zooms.</b> Exam spine → topic segments → set cards → frame strip → (later) the student landing map. The run rail you shipped is this grammar at zoom 4; this is zooms 1–3.</li>
+      <li><b>Size = weight, color = readiness.</b> Segment height is CEQ count; green/amber is the same pure check behind “Ready to film?”. The header “72% ready” is the whole exam self-grading — for partners, it's their scoreboard.</li>
+      <li><b>Nothing is deleted.</b> Every current outline capability keeps a home: rename/park/delete → right-click or ··· menus; CSV import/export + Snapshot Flow → topic-header ··· ; drag-reorder → drag cards/segments; level-3 CEQ rows → the strip already does this better.</li>
+      <li><b>The spine never leaves.</b> States 2–3 keep the 44px miniature — you're never “inside a folder”, you're at a place on the map. (Hover a spine segment = tooltip with topic name + readiness.)</li>
+      <li><b>Partner-shaped by accident.</b> Give a tutor one topic: their map is just… smaller. The exam switcher (▾) is where Exam 2 / Final / other courses live — and later, other tutors' exams you're reviewing.</li>
+    </ul>
+  </div>
+</body>
+</html>
