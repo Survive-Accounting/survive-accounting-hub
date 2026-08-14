@@ -9,6 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, Building2, CheckSquare, ChevronDown, ChevronRight, Circle, Eye, EyeOff, GraduationCap, GripVertical, Layers, MessageSquare, Plus, Search, Square, Video, X } from "lucide-react";
 
 import { NEON } from "./theme";
+import { checkFilmReadiness, type ReadinessCard } from "./film-readiness";
 import { CeqVideoLibrary } from "./CeqVideoLibrary";
 import { useFrameNav } from "./FrameNavContext";
 import { useDecks } from "./DecksContext";
@@ -127,6 +128,28 @@ export function OutlinePanel() {
     return m;
   }, [nodes]);
 
+  /** READY-IS-THE-COMPASS (Krug pass) — the "Ready to film?" verdict, ambient: every
+   *  set row carries a green/amber dot from the SAME pure check the Studio panel runs,
+   *  so the whole exam's film-readiness reads at a glance without opening anything. */
+  const readinessByDeck = useMemo(() => {
+    const byDeck = new Map<string, (ReadinessCard & { order: number })[]>();
+    for (const n of nodes) {
+      if (n.type !== "ceq") continue;
+      const d = n.data as unknown as { deckId?: string; prompt?: string; noteOnly?: boolean; choices?: { text: string; correct?: boolean; chain?: unknown[] }[]; exhibit?: string; run?: string; shorthand?: string; stageOrder?: number };
+      if (!d.deckId) continue;
+      const l = byDeck.get(d.deckId) ?? [];
+      l.push({ id: n.id, prompt: d.prompt ?? "", noteOnly: !!d.noteOnly, choices: (d.choices ?? []).map((c) => ({ text: c.text, correct: c.correct })), exhibit: d.exhibit, run: d.run, shorthand: d.shorthand, chainCount: (d.choices ?? []).reduce((a, c) => a + (c.chain?.length ?? 0), 0), order: d.stageOrder ?? 0 });
+      byDeck.set(d.deckId, l);
+    }
+    const m = new Map<string, { ready: boolean; failCount: number }>();
+    for (const [id, cards] of byDeck) {
+      cards.sort((a, b) => a.order - b.order);
+      const r = checkFilmReadiness(cards);
+      m.set(id, { ready: r.ready, failCount: r.checks.reduce((a, c) => a + c.fails.length, 0) });
+    }
+    return m;
+  }, [nodes]);
+
   // Published videos = lesson nodes with a Mux playback id (finished/published).
   const videos = useMemo(() => nodes
     .filter((n) => n.type === "lesson" && !!(n.data as { muxPlaybackId?: string }).muxPlaybackId)
@@ -180,7 +203,7 @@ export function OutlinePanel() {
       {open === "topics" && (
         <div className="ml-2 border-l pl-1.5" style={{ borderColor: NEON.borderSoft }}>
           {courses.length === 0 && <div className="px-1 py-1 text-[10px] italic" style={{ color: NEON.muted }}>No courses.</div>}
-          {courses.map((c) => <CourseTopics key={c.id} course={c} focus={isFocusCourse(c)} decksByTopic={decksByTopic} ceqsByDeck={ceqsByDeck} isPublished={isPublished} openSet={openSet} lastSetId={lastSetId} showToast={showToast} libraryDecks={isFocusCourse(c) ? libraryDecks : []} />)}
+          {courses.map((c) => <CourseTopics key={c.id} course={c} focus={isFocusCourse(c)} decksByTopic={decksByTopic} ceqsByDeck={ceqsByDeck} readiness={readinessByDeck} isPublished={isPublished} openSet={openSet} lastSetId={lastSetId} showToast={showToast} libraryDecks={isFocusCourse(c) ? libraryDecks : []} />)}
         </div>
       )}
 
@@ -213,9 +236,10 @@ export function OutlinePanel() {
 // The focus course (Intro 1) is the full authoring surface: rapid-fire add (Enter = another sibling,
 // Shift+Enter on a topic = commit + add a child set), double-click rename, hover-✕ delete (empty topic
 // instant; with-sets confirmed; sets soft-delete to the Library), drag-reorder = the teaching flow.
-function CourseTopics({ course, focus, decksByTopic, ceqsByDeck, isPublished, openSet, lastSetId, showToast, libraryDecks }: {
+function CourseTopics({ course, focus, decksByTopic, ceqsByDeck, readiness, isPublished, openSet, lastSetId, showToast, libraryDecks }: {
   course: CourseOption; focus: boolean; decksByTopic: Map<string, DeckDef[]>;
   ceqsByDeck: Map<string, { id: string; stem: string; free: boolean; order: number }[]>;
+  readiness: Map<string, { ready: boolean; failCount: number }>;
   isPublished: (d: DeckDef) => boolean; openSet: (id: string) => void; lastSetId: string | null;
   showToast: (msg: string, undo?: () => void) => void; libraryDecks: DeckDef[];
 }) {
@@ -485,6 +509,11 @@ function CourseTopics({ course, focus, decksByTopic, ceqsByDeck, isPublished, op
                                 {/* CEQ COUNTS — "n free · n", the CEQS strip's Free/Full moved here
                                     so the whole course's shape reads at a glance, not just the open set. */}
                                 {ceqRows.length > 0 && <span className="shrink-0 text-[9.5px] tabular-nums" style={{ color: NEON.muted }} title={`${freeN} free · ${ceqRows.length} total CEQs`}>{freeN} free · {ceqRows.length}</span>}
+                                {/* READY-IS-THE-COMPASS — ambient film-readiness from the SAME pure
+                                    check as the Studio's "Ready to film?" panel. */}
+                                {(() => { const rd = readiness.get(d.id); if (!rd) return null; return (
+                                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: rd.ready ? "#3BF5A0" : "#F0B24A", boxShadow: rd.ready ? "0 0 4px rgba(59,245,160,0.55)" : "0 0 4px rgba(240,178,74,0.45)" }} title={rd.ready ? "Ready to film ✓" : `${rd.failCount} readiness issue${rd.failCount === 1 ? "" : "s"} — open the set → "Ready to film?" for the list`} />
+                                ); })()}
                               </button>
                             </>)}
                             {focus && editable && renamingSet !== d.id && (

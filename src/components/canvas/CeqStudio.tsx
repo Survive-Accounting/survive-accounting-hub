@@ -158,6 +158,9 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const prevRunRef = useRef<string | undefined>(undefined);
   const runCardTimer = useRef<number | null>(null);
   const [chainFor, setChainFor] = useState<string | null>(null); // CEQ node whose chain editor is open
+  // MEMOS-EARN-THEIR-PANEL: chain work is the moment the library earns its screen —
+  // opening the chain editor opens the panel alongside it.
+  useEffect(() => { if (chainFor) setLibOpen(true); }, [chainFor]);
   const [note, setNote] = useState<string | null>(null);
   const [memoQuery, setMemoQuery] = useState("");
   const [memoSort, setMemoSort] = useState<"recent" | "az">("recent"); // library sort
@@ -165,7 +168,10 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const [courseFilter, setCourseFilter] = useState<string>("all");
   const [sel, setSel] = useState<Set<string>>(() => new Set());
   const [editorOpen, setEditorOpen] = useState(true); // collapsible stem/choices editor
-  const [libOpen, setLibOpen] = useState(true); // collapsible memo-library pane
+  // MEMOS-EARN-THEIR-PANEL (Krug pass): the library defaults CLOSED — it is the
+  // densest panel and is only needed mid-chain-work. It opens itself when the
+  // chain editor opens, on "/" (search), and on any explicit open-memo action.
+  const [libOpen, setLibOpen] = useState(false);
   // MEMO SPEED PASS (Lee) — quick-add + recent strip + last-used category + search focus.
   const [qaText, setQaText] = useState(""); // quick-add input (Enter creates, no modal)
   const [lastMemoCat, setLastMemoCat] = useState<string>("OTHER TIPS"); // last-used category for quick-add
@@ -419,6 +425,16 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const tabDecks = useMemo(() => openTabs.map((id) => cardDecks.find((d) => d.id === id)).filter((d): d is DeckDef => !!d), [openTabs, cardDecks]);
   // An active set always has a visible tab chip (covers session-restore edge cases).
   useEffect(() => { if (setId && cardDecks.some((d) => d.id === setId)) setOpenTabs((p) => (p.includes(setId) ? p : [...p, setId])); }, [setId, cardDecks]);
+  // FIRST-FRAME-RULE (Krug pass): an open set always shows a real frame — never the
+  // "Select a question" placeholder. Whenever a set is open with nothing selected,
+  // frame 1 selects itself (covers open-from-outline, set switches, and the first
+  // insert into an empty set). Explicit Q0/layout selection is untouched.
+  useEffect(() => {
+    if (!deck || qId) return;
+    const first = deckMembersOf(nodes as { id: string; type?: string; data?: { deckId?: string; stageOrder?: number } }[], deck.id).filter((n) => (n as { type?: string }).type === "ceq")[0];
+    if (first) { setQId(first.id); setExpandedQ((s) => new Set(s).add(first.id)); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deck?.id, qId, nodes]);
   const questions = useMemo(() => (deck ? deckMembersOf(nodes as { id: string; type?: string; data?: { deckId?: string; stageOrder?: number } }[], deck.id).filter((n) => (n as { type?: string }).type === "ceq") : []), [deck, nodes]);
   // STABLE identity — this feeds the previewer's build() deps. A fresh array every
   // render re-seeded the preview constantly, which is what made an in-progress move
@@ -2127,18 +2143,11 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
           <button key={k} className="rounded px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: topTab === k ? "#0B1322" : NEON.muted, background: topTab === k ? NEON.yellow : "transparent", border: `1px solid ${topTab === k ? NEON.yellow : NEON.borderSoft}` }} onClick={() => { setPrefs({ topTab: k }); if (!setsOpen) setSetsOpen(true); }}>{l}</button>
         ))}
       </div>
-      {/* SET TAB STRIP — open sets are INTERNAL Studio tabs (not browser tabs); multiple
-          open at once, close per-tab, last-open restored per session. */}
-      {tabDecks.length > 0 && (
-        <div className="flex shrink-0 items-center gap-1 overflow-x-auto border-b px-3 py-1" style={{ borderColor: NEON.borderSoft }}>
-          {tabDecks.map((d) => { const on = setId === d.id; return (
-            <div key={d.id} className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5" style={{ background: on ? "rgba(252,163,17,0.14)" : "rgba(0,0,0,0.25)", border: `1px solid ${on ? NEON.border : NEON.borderSoft}` }}>
-              <button className="max-w-[150px] truncate text-[10px] font-semibold" style={{ color: on ? NEON.yellow : NEON.text }} onClick={() => { setSetId(d.id); setQId(null); }} title={d.name}>{setDisplayName(d.name)}</button>
-              <button className="grid h-3.5 w-3.5 place-items-center" style={{ color: NEON.muted }} onClick={() => closeSetTab(d.id)} title="Close tab"><X className="h-3 w-3" /></button>
-            </div>
-          ); })}
-        </div>
-      )}
+      {/* ONE-NAV-TRUCE (Krug pass): the internal set-tab strip is GONE — it was the
+          third navigation showing the same objects as the outline. The outline is the
+          ONE cross-set list; the filmstrip is the inside of a set; the header names
+          the open set. openTabs/setId machinery stays (session restore, outline
+          clicks) — only the redundant chip row was removed. */}
       {/* SHORTS QUEUE (Lee) — the batch-filming worklist of every shorts-flagged CEQ. */}
       {shortsQueueOpen && (
         <div className="absolute inset-0 z-[70] flex flex-col" style={{ background: "rgba(6,10,20,0.97)" }} onClick={() => setShortsQueueOpen(false)}>
