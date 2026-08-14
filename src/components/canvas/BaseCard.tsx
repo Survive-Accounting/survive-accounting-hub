@@ -1,6 +1,6 @@
 // Shared card shell — the card contract. Header (title + edit/duplicate/minimize/delete),
 // resize, click-to-front z-order, neon frame. Every card type renders its body inside this.
-import { useRef, useState } from "react";
+import { createContext, useContext, useRef, useState } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { Lightbulb, Lock, LockOpen, Minus, Pencil, Plus, Copy, Scaling, X } from "lucide-react";
 import { addNodesCmd, bus, patchDataCmd, patchDataFnCmd, removeNodesCmd, type RfLike } from "./commands";
@@ -148,9 +148,20 @@ export function deckLessonFor(rf: { getNode: (id: string) => { type?: string } |
   return rf.getNode(parentId)?.type === "lesson" ? parentId : null;
 }
 
+/** CARD WRITE BRIDGE (Lee, Add menu) — when a REAL card component is rendered on a
+ *  surface that owns a different React Flow instance (the CEQ previewer, and the film
+ *  popout that mirrors it), its edits must still land on the MAIN canvas node. Without
+ *  this, useCardActions' useReactFlow() resolves to the previewer's throwaway instance
+ *  and every edit is silently lost on the next re-seed.
+ *
+ *  Absent (the canvas itself) ⇒ useReactFlow() as before. Purely additive. */
+export const CardWriteCtx = createContext<RfLike | null>(null);
+
 export function useCardActions(id: string) {
   const rf = useReactFlow();
-  const rfl = rf as unknown as RfLike;
+  // Hooks stay unconditional; the bridge just wins when a host provides one.
+  const bridge = useContext(CardWriteCtx);
+  const rfl = (bridge ?? (rf as unknown as RfLike)) as RfLike;
   return {
     /** Absolute patch through the dispatcher (undoable). Bursts on the same keys —
      *  keystrokes in the title input, slider drags — coalesce into ONE undo step. */
@@ -171,6 +182,8 @@ export function useCardActions(id: string) {
     // z-order is view noise, deliberately NOT on the undo rail. INTERACTION
     // RAISES within the node's tier (container < frame < element < card < memo),
     // so touching a card lifts it above its peers but never above a memo.
+    // z-order is view state — it belongs to whichever surface is rendering, so this
+    // deliberately stays on the LOCAL rf even when a write bridge is present.
     toFront: () => rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, zIndex: nextZ(n.type, (n.data as { kind?: string })?.kind) } : n))),
     /** Join the deck WITHOUT leaving the canvas (dealt member, end of order).
      *  A card parented to a LESSON joins that lesson's deck group (PROMPT C);

@@ -81,9 +81,26 @@ export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
 export const isElementKind = (k: string | undefined): boolean => KIND_CATEGORY[k as CardKind] === "element";
 
 /** Shared across every card, merged into node.data. */
+/** STAGED ON A CEQ (Lee, Add menu) — an element card laid onto the CEQ editing/film
+ *  surface, over the question, instead of living loose on the canvas. Position +
+ *  scale are FRAME-LOCAL (the previewer's 1600×900 stage), so an element sits in the
+ *  same spot in the previewer, the film popout, and the take. `hidden` keeps it in
+ *  the set but off camera until Lee reveals it — the show/hide he films with. */
+export interface CardStage {
+  /** The CEQ node this element is staged on. */
+  ceqId: string;
+  x: number;
+  y: number;
+  scale: number;
+  /** true = authored but not on camera (ghosted in authoring, absent in film). */
+  hidden?: boolean;
+}
+
 export interface CardBase {
   kind: CardKind;
   title?: string; // header label; falls back to a per-kind default
+  /** Staged onto a CEQ's surface (Add menu). Absent = an ordinary canvas card. */
+  stage?: CardStage;
   /** DECK MEMBERSHIP — separate from presence. A member can be dealt (visible
    *  on canvas) or tucked (hidden in the deck). Loose cards are non-members. */
   deckMember?: boolean;

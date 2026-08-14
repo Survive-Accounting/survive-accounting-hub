@@ -28,6 +28,7 @@ import { autoClipName, buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, 
 import { buildSetExport } from "./ceq-export";
 import { SetFilmstrip, type StripItem } from "./SetFilmstrip";
 import { checkFilmReadiness, type ReadinessReport } from "./film-readiness";
+import { groupedStageElements, type StageElementSpec } from "./stage-elements";
 import { MISCONCEPTION_SEEDS, questionMisconceptions, toSlug } from "./ceq-misconceptions";
 import { ingestNumOf } from "./ceq-walk";
 import { CeqStitch, type StitchRow } from "./CeqStitch";
@@ -149,6 +150,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   }, [initialSetId]);
   const [addChooser, setAddChooser] = useState(false); // "+ Frame" → CEQ/Note chooser
   const [readiness, setReadiness] = useState<ReadinessReport | null>(null); // "Ready to film?" panel
+  const [addOpen, setAddOpen] = useState(false); // the ONE "Add" menu (stage elements)
+  const [addQuery, setAddQuery] = useState("");
   // REHEARSAL (film-prep tool 2) — a silent full-screen walkthrough on the SAME
   // surface Recording Mode films (so it renders exactly like the take), plus a tiny
   // corner counter and a 500ms run-boundary interstitial. No recording, no timers.
@@ -813,6 +816,41 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     setQId(id);
     setExpandedQ((s) => new Set(s).add(id));
   };
+  /** ADD AN ELEMENT to the open question's surface. The card is a normal canvas node
+   *  (so every existing card feature keeps working) carrying `data.stage`, which is
+   *  what puts it on the CEQ stage instead of loose on the canvas. Lands centred-ish
+   *  and VISIBLE; the eye toggle in the strip hides it until Lee reveals it. */
+  const addStageElement = (spec: StageElementSpec) => {
+    if (!qId || qId === LAYOUT_Q0) { setNote("Open a question first — elements are staged onto a frame."); return; }
+    const card = spec.make() as unknown as Record<string, unknown>;
+    const size = spec.size ?? { w: 420, h: 260 };
+    // Centre it on the 1600×900 stage, nudged up so it doesn't bury the choices.
+    const x = Math.round((frameW - size.w) / 2);
+    const y = Math.round((frameH - size.h) / 2) - 60;
+    const id = cardId("el");
+    const node = {
+      id, type: spec.make().kind, position: { x, y }, selected: false,
+      data: { ...card, stage: { ceqId: qId, x, y, scale: 1 } },
+    };
+    const cmd = addNodesCmd(rfl, [node] as never, `add ${spec.label}`);
+    if (cmd) bus.dispatch(cmd);
+    setAddOpen(false);
+    setAddQuery("");
+    setNote(`Added ${spec.label} to this question — drag to place, 👁 to hide it until you reveal it.`);
+  };
+  /** Elements staged on the OPEN question (for the show/hide row). */
+  const stagedHere = useMemo(() => (qId && qId !== LAYOUT_Q0
+    ? nodes.filter((n) => (n.data as { stage?: { ceqId?: string } } | undefined)?.stage?.ceqId === qId)
+      .map((n) => ({ id: n.id, kind: (n.data as { kind?: string }).kind ?? "card", title: (n.data as { title?: string }).title, hidden: !!(n.data as { stage?: { hidden?: boolean } }).stage?.hidden }))
+    : []), [qId, nodes]);
+  const toggleStageHidden = (nid: string) => {
+    const st = (rf.getNode(nid)?.data as { stage?: { ceqId: string; x: number; y: number; scale: number; hidden?: boolean } } | undefined)?.stage;
+    if (!st) return;
+    const c = patchDataCmd(rfl, nid, { stage: { ...st, hidden: !st.hidden } }, "show/hide element");
+    if (c) bus.dispatch(c);
+  };
+  const removeStageElement = (nid: string) => { const c = removeNodesCmd(rfl, [nid], "remove element"); if (c) bus.dispatch(c); };
+
   /** The filmstrip's mini-card data — read once per nodes change. */
   const stripItems = useMemo<StripItem[]>(() => questions.map((q) => {
     const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined;
@@ -2040,7 +2078,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
   const renderPreviewer = (recMode: boolean) => (
     <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSaveInstance={(g) => { if (qId && qId !== LAYOUT_Q0) saveInstanceGeom(qId, g); }} layoutOn={deck?.layoutMode !== false} onSetLayoutMode={setLayoutMode} onApplyLayoutToAll={() => { const n = questions.length; if (n > 0 && window.confirm(`Re-stamp all ${n} question${n === 1 ? "" : "s"} from the layout?
 
-This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undoes all of it.`)) applyLayoutToAll(); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onReorderChainMemo={reorderChainByMemo} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} counterIds={counterIds} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onEditStem={(cid, text) => patchQ(cid, { prompt: text }, `q:${cid}:prompt`)} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSetMisconception={setMemoMisconception} misconceptionSlugs={misconceptionDefs.map((d) => d.slug)} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} showProgress={deck?.showProgress} onSetShowProgress={(b) => { if (deck) setDecks((prev) => updateDeck(prev, deck.id, { showProgress: b })); }} onOpenMemoLib={(id) => { setLibOpen(true); setPreviewSelMemo(id); }} topicName={(() => { const rows = spineRows(deck); return rows ? topicLabel(rows.topic).replace(/^ch\s*\d+\s*[·.\-:]\s*/i, "").replace(/\s*\(archived\)\s*$/i, "").trim() : undefined; })()} recording={recMode} onEnterRecording={() => setRecording(true)} onExitRecording={() => { setRecording(false); setRehearse(false); setRunCard(null); }} />
+This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undoes all of it.`)) applyLayoutToAll(); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onReorderChainMemo={reorderChainByMemo} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} counterIds={counterIds} stageSig={stagedHere.map((e) => `${e.id}:${e.hidden ? 1 : 0}`).join(",")} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onEditStem={(cid, text) => patchQ(cid, { prompt: text }, `q:${cid}:prompt`)} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSetMisconception={setMemoMisconception} misconceptionSlugs={misconceptionDefs.map((d) => d.slug)} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} showProgress={deck?.showProgress} onSetShowProgress={(b) => { if (deck) setDecks((prev) => updateDeck(prev, deck.id, { showProgress: b })); }} onOpenMemoLib={(id) => { setLibOpen(true); setPreviewSelMemo(id); }} topicName={(() => { const rows = spineRows(deck); return rows ? topicLabel(rows.topic).replace(/^ch\s*\d+\s*[·.\-:]\s*/i, "").replace(/\s*\(archived\)\s*$/i, "").trim() : undefined; })()} recording={recMode} onEnterRecording={() => setRecording(true)} onExitRecording={() => { setRecording(false); setRehearse(false); setRunCard(null); }} />
   );
   return (
     <div ref={studioRootRef} className={popped ? "flex h-full w-full flex-col" : "absolute inset-0 flex flex-col"} style={{ background: "rgba(6,10,20,0.98)", color: NEON.text, zIndex: popped ? undefined : Z.overlay }}>
@@ -2285,6 +2323,42 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
               <button className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-[9.5px] font-bold leading-none" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={dealIntoFrame} title="Deal this set into the frame you're in (stack; Space flips, Enter-walks chains)"><Film className="h-3 w-3" /> Deal into frame</button>
               {/* + CEQ and the open question's CLIP STACK — relocated from the deleted list column
                   (Studio Consolidation D): the "+ question" footer and the per-row clip circle. */}
+              {/* ADD (Lee) — the ONE menu for every element that can go on a question:
+                  grouped, alphabetical inside each group, type-to-filter. Replaces the
+                  two v1-toolbar menus (cards + design elements) that v2 chrome hid. */}
+              <div className="relative shrink-0">
+                <button className="flex items-center gap-1 rounded px-2 py-0.5 text-[9.5px] font-bold leading-none" style={{ color: addOpen ? "#0B1322" : NEON.yellow, background: addOpen ? NEON.yellow : "transparent", border: `1px solid ${addOpen ? NEON.yellow : NEON.borderSoft}` }} onClick={() => setAddOpen((v) => !v)} title="Add an element onto this question — it films with the card and can be hidden until you reveal it">
+                  <Plus className="h-3 w-3" /> Add
+                </button>
+                {addOpen && (<>
+                  <div className="fixed inset-0 z-[74]" onClick={() => { setAddOpen(false); setAddQuery(""); }} />
+                  <div className="absolute left-0 top-7 z-[75] flex max-h-[62vh] w-64 flex-col rounded-xl p-2" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, boxShadow: "0 18px 44px -16px rgba(0,0,0,0.8)" }}>
+                    <input autoFocus value={addQuery} onChange={(e) => setAddQuery(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Escape") { setAddOpen(false); setAddQuery(""); } }} placeholder="Filter…" className="mb-1.5 shrink-0 rounded bg-black/40 px-2 py-1 text-[11px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} />
+                    <div className="min-h-0 flex-1 overflow-y-auto">
+                      {groupedStageElements(addQuery).map((g) => (
+                        <div key={g.group} className="mb-1.5">
+                          <div className="mb-0.5 px-1 text-[8.5px] font-bold uppercase tracking-widest" style={{ color: NEON.muted }}>{g.group}</div>
+                          <div className="grid grid-cols-2 gap-1">
+                            {g.items.map((it) => (
+                              <button key={it.label} className="rounded px-1.5 py-1 text-left text-[10.5px] font-medium hover:bg-white/10" style={{ color: NEON.text, border: `1px dashed ${NEON.borderSoft}` }} onClick={() => addStageElement(it)} title={`Add ${it.label} to this question`}>{it.label}</button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      {groupedStageElements(addQuery).length === 0 && <div className="px-1 py-3 text-center text-[10px] italic" style={{ color: NEON.muted }}>Nothing matches “{addQuery}”.</div>}
+                    </div>
+                  </div>
+                </>)}
+              </div>
+              {/* STAGED ON THIS QUESTION — show/hide + remove. 👁 is the film toggle:
+                  hidden elements ghost here and never reach the camera. */}
+              {stagedHere.map((el) => (
+                <span key={el.id} className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold leading-none" style={{ color: el.hidden ? NEON.muted : "#3BF5A0", border: `1px solid ${el.hidden ? NEON.borderSoft : "rgba(59,245,160,0.4)"}` }} title={el.hidden ? "Hidden — click 👁 to put it on camera" : "On camera — click 👁 to hide it"}>
+                  <button onClick={() => toggleStageHidden(el.id)} title={el.hidden ? "Show on camera" : "Hide until revealed"}>{el.hidden ? "🙈" : "👁"}</button>
+                  <span className="max-w-[76px] truncate">{el.title || el.kind}</span>
+                  <button style={{ color: NEON.red }} onClick={() => removeStageElement(el.id)} title="Remove this element from the question">✕</button>
+                </span>
+              ))}
               {/* + FRAME (frames rename) — the chooser: CEQ frame or Note frame, appended at
                   the end. Mid-strip inserts live on the filmstrip's hover [+]. */}
               {!addChooser ? (
