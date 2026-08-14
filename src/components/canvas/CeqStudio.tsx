@@ -149,6 +149,13 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   }, [initialSetId]);
   const [addChooser, setAddChooser] = useState(false); // "+ Frame" → CEQ/Note chooser
   const [readiness, setReadiness] = useState<ReadinessReport | null>(null); // "Ready to film?" panel
+  // REHEARSAL (film-prep tool 2) — a silent full-screen walkthrough on the SAME
+  // surface Recording Mode films (so it renders exactly like the take), plus a tiny
+  // corner counter and a 500ms run-boundary interstitial. No recording, no timers.
+  const [rehearse, setRehearse] = useState(false);
+  const [runCard, setRunCard] = useState<string | null>(null); // interstitial text ("B")
+  const prevRunRef = useRef<string | undefined>(undefined);
+  const runCardTimer = useRef<number | null>(null);
   const [chainFor, setChainFor] = useState<string | null>(null); // CEQ node whose chain editor is open
   const [note, setNote] = useState<string | null>(null);
   const [memoQuery, setMemoQuery] = useState("");
@@ -1966,6 +1973,48 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
     setNote(`Attached "${clip(label, 24)}" to choice.`);
   };
 
+  // ---- REHEARSAL wiring (tool 2) ------------------------------------------------
+  const startRehearse = () => {
+    if (!deck || questions.length === 0) return;
+    prevRunRef.current = undefined;
+    setQId(questions[0].id);
+    setRecording(true); // the film-true surface
+    setRehearse(true);
+  };
+  const exitRehearse = () => {
+    setRehearse(false);
+    setRecording(false);
+    setRunCard(null);
+    prevRunRef.current = undefined;
+  };
+  // keys: ←/→ walk (PageUp/PageDown already walk via the recording surface);
+  // Esc exits; ANY key skips a showing interstitial. Capture-phase so the walk
+  // keys never leak into other handlers while rehearsing.
+  useEffect(() => {
+    if (!rehearse) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (runCardTimer.current != null) { setRunCard(null); }
+      if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); exitRehearse(); return; }
+      if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); gotoQuestion(1); return; }
+      if (e.key === "ArrowLeft") { e.preventDefault(); e.stopPropagation(); gotoQuestion(-1); return; }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rehearse, qId, questions]);
+  // run-boundary interstitial: fires when the frame under the cursor changes run
+  useEffect(() => {
+    if (!rehearse || !qId || qId === LAYOUT_Q0) return;
+    const run = ((rf.getNode(qId)?.data as unknown as CeqCard | undefined)?.run ?? "").trim() || undefined;
+    if (prevRunRef.current !== undefined && run && run !== prevRunRef.current) {
+      setRunCard(run);
+      if (runCardTimer.current != null) window.clearTimeout(runCardTimer.current);
+      runCardTimer.current = window.setTimeout(() => { setRunCard(null); runCardTimer.current = null; }, 500);
+    }
+    prevRunRef.current = run;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rehearse, qId]);
+
   const COL = "flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg";
   const HEAD = "flex shrink-0 items-center gap-1.5 border-b px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider";
   // ONE previewer prop set, rendered in EITHER the authoring pane (recMode=false) or the
@@ -1974,7 +2023,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
   const renderPreviewer = (recMode: boolean) => (
     <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSaveInstance={(g) => { if (qId && qId !== LAYOUT_Q0) saveInstanceGeom(qId, g); }} layoutOn={deck?.layoutMode !== false} onSetLayoutMode={setLayoutMode} onApplyLayoutToAll={() => { const n = questions.length; if (n > 0 && window.confirm(`Re-stamp all ${n} question${n === 1 ? "" : "s"} from the layout?
 
-This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undoes all of it.`)) applyLayoutToAll(); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onReorderChainMemo={reorderChainByMemo} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} counterIds={counterIds} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onEditStem={(cid, text) => patchQ(cid, { prompt: text }, `q:${cid}:prompt`)} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSetMisconception={setMemoMisconception} misconceptionSlugs={misconceptionDefs.map((d) => d.slug)} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} showProgress={deck?.showProgress} onSetShowProgress={(b) => { if (deck) setDecks((prev) => updateDeck(prev, deck.id, { showProgress: b })); }} onOpenMemoLib={(id) => { setLibOpen(true); setPreviewSelMemo(id); }} topicName={(() => { const rows = spineRows(deck); return rows ? topicLabel(rows.topic).replace(/^ch\s*\d+\s*[·.\-:]\s*/i, "").replace(/\s*\(archived\)\s*$/i, "").trim() : undefined; })()} recording={recMode} onEnterRecording={() => setRecording(true)} onExitRecording={() => setRecording(false)} />
+This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undoes all of it.`)) applyLayoutToAll(); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onReorderChainMemo={reorderChainByMemo} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} counterIds={counterIds} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onEditStem={(cid, text) => patchQ(cid, { prompt: text }, `q:${cid}:prompt`)} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSetMisconception={setMemoMisconception} misconceptionSlugs={misconceptionDefs.map((d) => d.slug)} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} showProgress={deck?.showProgress} onSetShowProgress={(b) => { if (deck) setDecks((prev) => updateDeck(prev, deck.id, { showProgress: b })); }} onOpenMemoLib={(id) => { setLibOpen(true); setPreviewSelMemo(id); }} topicName={(() => { const rows = spineRows(deck); return rows ? topicLabel(rows.topic).replace(/^ch\s*\d+\s*[·.\-:]\s*/i, "").replace(/\s*\(archived\)\s*$/i, "").trim() : undefined; })()} recording={recMode} onEnterRecording={() => setRecording(true)} onExitRecording={() => { setRecording(false); setRehearse(false); setRunCard(null); }} />
   );
   return (
     <div ref={studioRootRef} className={popped ? "flex h-full w-full flex-col" : "absolute inset-0 flex flex-col"} style={{ background: "rgba(6,10,20,0.98)", color: NEON.text, zIndex: popped ? undefined : Z.overlay }}>
@@ -1988,6 +2037,22 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
               pane cursor, which would otherwise sit in-frame after the 1s idle. */}
           {cursorHidden && <style>{`.sa-rec-surface, .sa-rec-surface * { cursor: none !important; }`}</style>}
           <div className="h-full w-full">{renderPreviewer(true)}</div>
+          {/* REHEARSAL chrome (tool 2): the ONLY chrome — a tiny corner counter. */}
+          {rehearse && qId && qId !== LAYOUT_Q0 && (() => {
+            const d = rf.getNode(qId)?.data as unknown as CeqCard | undefined;
+            const n = counterIds.indexOf(qId) + 1;
+            return (
+              <div className="pointer-events-none fixed left-3 top-3 rounded px-2 py-1 text-[11px] font-bold tabular-nums" style={{ color: "rgba(245,239,230,0.55)", background: "rgba(8,13,24,0.65)" }}>
+                {d?.noteOnly ? "note" : `Q ${n}/${counterIds.length}`}{d?.run ? ` · run ${d.run}` : ""}
+              </div>
+            );
+          })()}
+          {/* Run-boundary interstitial — 500ms, any key skips. */}
+          {rehearse && runCard && (
+            <div className="fixed inset-0 grid place-items-center" style={{ background: "rgba(8,13,24,0.88)" }}>
+              <span className="text-[42px] font-black tracking-widest" style={{ color: "rgba(245,239,230,0.85)" }}>— Run {runCard} —</span>
+            </div>
+          )}
         </div>,
         studioRootRef.current.ownerDocument.body,
       )}
@@ -2206,6 +2271,8 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                     return { id: qn.id, prompt: d?.prompt ?? "", noteOnly: !!d?.noteOnly, choices: (d?.choices ?? []).map((ch) => ({ text: ch.text, correct: ch.correct })), exhibit: d?.exhibit, run: d?.run, shorthand: d?.shorthand, chainCount: (d?.choices ?? []).reduce((a, ch) => a + (ch.chain?.length ?? 0), 0) };
                   })));
                 }}><ListChecks className="h-3 w-3" /> Ready to film?</button>
+                {/* REHEARSE (tool 2) — coffee + walkthrough before OBS opens. */}
+                <button className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-[9.5px] font-bold leading-none" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} title="Rehearse — full-screen, film-true walkthrough from Q1. →/PageDown next, ←/PageUp back, Esc exits. A slim '— Run B —' card marks take boundaries. Nothing records, nothing logs." onClick={startRehearse}><Play className="h-3 w-3" /> Rehearse</button>
                 {/* TOOLBAR DIET (frames rename §5): the ★ FILTER is gone — it filtered the
                     deleted list column, so it filtered nothing. The star COUNT + clear stay
                     (real actions); stars themselves show on the filmstrip. */}
