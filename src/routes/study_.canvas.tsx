@@ -1697,6 +1697,8 @@ function PresentCanvas() {
   const [poolMode, setPoolMode] = useState(false);
   const poolModeRef = useRef(false);
   poolModeRef.current = poolMode;
+  const homeOpenRef = useRef(true);
+  homeOpenRef.current = homeOpen;
   const poolRowsRef = useRef<{ deckRows: Record<string, string>; workspaceRowId: string | null }>({ deckRows: {}, workspaceRowId: null });
   const poolHashesRef = useRef<Map<string, string>>(new Map());
   /** Present when a legacy multi-set scene exists and no set files do — the home
@@ -4615,6 +4617,11 @@ function PresentCanvas() {
         },
         null,
       );
+      // KILL THE SCENE-TAB MACHINERY for this session: a restored legacy-scene tab
+      // kept autosaving its old row (it clobbered the archive rename the first time
+      // the split ran). Pool mode = one fresh phantom tab, sceneId null, no snaps.
+      const freshTab = { key: Math.random().toString(36).slice(2), sceneId: null, name: "Untitled set", dirty: false };
+      setTabState({ tabs: [freshTab], active: freshTab.key });
       setPoolMode(true);
       setHomeOpen(false);
       setCeqStudioOpen(true);
@@ -4954,6 +4961,10 @@ function PresentCanvas() {
       // scene's truth yet) and never write an EMPTY canvas over a scene row —
       // rf.setNodes can drop pre-init, leaving sceneId set over zero nodes.
       // Deliberate empties persist via manual Save only.
+      // HOME = NOTHING AUTOSAVES. A restored scene tab hydrates the canvas behind
+      // the home frame, so the old empty-canvas guard alone let it keep writing its
+      // row from under Home — that write clobbered the split's archive rename.
+      if (homeOpenRef.current) return;
       // POOL MODE: per-set saves (hash-gated, so a quiet pool writes nothing).
       // Same guards: never while a load is in flight, never over an empty canvas.
       if (poolModeRef.current) {
@@ -7429,14 +7440,17 @@ function CanvasHome({ onOpenScene, onNewScene, onOpenSets, legacy, onLegacyDetec
   const [plan, setPlan] = useState<{ sets: number; cards: number; memosCopied: number; orphanCards: number; already: number; archiveName: string } | null>(null);
   const [migErr, setMigErr] = useState<string | null>(null);
   useEffect(() => {
-    if (hasSetFiles || !rows.length) { onLegacyDetected(null); return; }
+    // Always dry-run detect: an UN-ARCHIVED legacy scene must keep offering the
+    // split even after set files exist (the first run's archive rename was once
+    // clobbered by a stale-tab autosave — re-running is idempotent and finishes it).
+    if (!rows.length) { onLegacyDetected(null); return; }
     let stop = false;
     void migrateToSetFiles({ data: { apply: false } })
       .then((r) => { if (!stop) onLegacyDetected({ id: "", name: r.plan.archiveName.replace(" — canvas archive", ""), decks: r.plan.sets + r.plan.already }); })
       .catch(() => { if (!stop) onLegacyDetected(null); });
     return () => { stop = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasSetFiles, rows.length]);
+  }, [rows.length]);
   const runSplit = async () => {
     setMigErr(null);
     try {
@@ -7472,8 +7486,9 @@ function CanvasHome({ onOpenScene, onNewScene, onOpenSets, legacy, onLegacyDetec
             Open sets →
           </button>
         )}
-        {/* SPLIT BANNER — the one-time scene → set-files migration. */}
-        {!hasSetFiles && legacy && (
+        {/* SPLIT BANNER — the one-time scene → set-files migration (re-shown while an
+            un-archived legacy scene remains; the apply is idempotent). */}
+        {legacy && (
           <div className="mt-8 flex max-w-[520px] flex-col items-center gap-2 rounded-xl px-5 py-4 text-center" style={{ border: "1px solid rgba(252,163,17,0.5)", background: "rgba(252,163,17,0.07)" }}>
             <span className="text-[13px] font-semibold" style={{ color: "#F5EFE6" }}>
               "{legacy.name}" still holds {legacy.decks} sets in one file.
