@@ -25,7 +25,7 @@ export interface Exam1Row {
 
 export interface Exam1SeedReport {
   fatalMissingTopics: string[];
-  setsCreated: string[]; setsUpdated: string[];
+  setsCreated: string[]; setsUpdated: string[]; setsRenamed: string[];
   ceqsCreated: number; ceqsUpdated: number;
   perTopicFile: { topic: string; ceqs: number }[];
   /** per set: stems in the APP but not the file (never deleted) + stems the file ADDED — printed
@@ -101,6 +101,18 @@ export function parseExam1Csv(text: string): { rows: Exam1Row[]; errors: string[
 let _seq = 0;
 const genId = (kind: string) => { _seq += 1; return `${kind}-${Date.now().toString(36)}-sd${_seq}`; };
 
+/** RENAME MAP (Lee, "apply with renames") — the master sheet re-stemmed five set names. Matching
+ *  by name alone would CREATE five near-duplicates and strand the old sets; this maps the file's
+ *  NEW stem (normalized) → the OLD app name (normalized) so those sets match, get renamed in
+ *  place, and their existing CEQs reconcile normally (clips/chains/free flags carried forward). */
+const SET_RENAMES = new Map<string, string>([
+  [norm(`"Find the error in this trial balance — and which errors DON'T break it?"`), norm(`"Find the error in this trial balance."`)],
+  [norm(`"Is [           ] a deferral or an accrual?"`), norm(`"Is [           ] a deferral or accrual?"`)],
+  [norm(`"What is the correct order we prepare financial statements?"`), norm(`"What order do we prepare them in?"`)],
+  [norm(`"What is the journal entry to close [  ]?"`), norm(`"What is the entry to close [  ]"?`)],
+  [norm(`"How do closing entries change with net income vs. a net loss?"`), norm(`"How does closing change with a net loss?"`)],
+]);
+
 type Deck = Record<string, unknown> & { id: string; name?: string; payloadType?: string; status?: string; topicId?: string | null; courseId?: string | null; sortOrder?: number };
 type Node = { id: string; type?: string; data?: Record<string, unknown> & { deckId?: string; prompt?: string; stageOrder?: number; choices?: unknown[] } };
 type Scene = { id: string; name?: string; nodes_json?: { decks?: Deck[]; nodes?: Node[] } & Record<string, unknown> };
@@ -122,7 +134,7 @@ export async function runExam1Seed(db: Db, csvText: string, apply: boolean): Pro
   const fileTopics = [...new Set(rows.map((r) => r.topic))];
   const fatalMissingTopics = fileTopics.filter((t) => !topicIdByName.has(t));
   const report: Exam1SeedReport = {
-    fatalMissingTopics, setsCreated: [], setsUpdated: [], ceqsCreated: 0, ceqsUpdated: 0,
+    fatalMissingTopics, setsCreated: [], setsUpdated: [], setsRenamed: [], ceqsCreated: 0, ceqsUpdated: 0,
     perTopicFile: fileTopics.map((t) => ({ topic: t, ceqs: rows.filter((r) => r.topic === t).length })),
     unmatched: [], appSetsNotInFile: [], totalFileCeqs: rows.length, applied: false,
   };
@@ -162,13 +174,30 @@ export async function runExam1Seed(db: Db, csvText: string, apply: boolean): Pro
   const matchedDeckIds = new Set<string>();
   for (const g of groups) {
     const topicId = topicIdByName.get(g.topic) as string;
-    const existing = (decksByTopic.get(topicId) ?? []).find((d) => norm(d.name ?? "") === norm(g.setStem));
+    let existing = (decksByTopic.get(topicId) ?? []).find((d) => norm(d.name ?? "") === norm(g.setStem));
+    let renamedFrom: string | null = null;
+    if (!existing) {
+      const oldName = SET_RENAMES.get(norm(g.setStem));
+      if (oldName) {
+        existing = (decksByTopic.get(topicId) ?? []).find((d) => norm(d.name ?? "") === oldName);
+        if (existing) renamedFrom = existing.name ?? "";
+      }
+    }
     g.rows.sort((a, b) => a.ceqNum - b.ceqNum);
     let deck: Deck; let scene: Scene;
     if (existing) {
       deck = existing; scene = sceneOfDeck.get(existing.id) as Scene;
       matchedDeckIds.add(existing.id);
-      report.setsUpdated.push(`${g.topic} → ${g.setStem}`);
+      if (renamedFrom !== null) {
+        report.setsRenamed.push(`${g.topic}: "${renamedFrom}" → ${g.setStem}`);
+        if (apply) {
+          existing.name = g.setStem;
+          for (const n of nodesOfDeck(existing.id)) if (n.data) n.data.title = g.setStem; // keep card titles in sync
+          dirty.add(scene.id);
+        }
+      } else {
+        report.setsUpdated.push(`${g.topic} → ${g.setStem}`);
+      }
     } else {
       const maxSort = Math.max(-1, ...(decksByTopic.get(topicId) ?? []).map((d) => d.sortOrder ?? 0));
       deck = { id: genId("deck"), name: g.setStem, slots: [], access: "free", layout: undefined, status: "draft", topicId, courseId, payloadType: "cards", sortOrder: maxSort + 1, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
