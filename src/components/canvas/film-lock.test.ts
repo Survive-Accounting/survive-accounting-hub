@@ -53,3 +53,22 @@ describe("the film popout enforces the lock (source-level pins)", () => {
     expect(previewerSrc).toContain('&& !filmWindow && selMemoIds.size > 0 && !layoutMode) {');
   });
 });
+
+describe("film stack / spacewalk preload (A2) — transitions may never remount", () => {
+  test("stand-in cards keep the REAL question id, so activation is a data flip", () => {
+    // If someone prefixes these ids (like overview's ov:), the walk becomes a
+    // remount again and the on-camera flash returns.
+    expect(previewerSrc).toContain('out.push({ id: qid, type: "ceqPreview"');
+    expect(previewerSrc).toContain("inert: true");
+  });
+  test("inert cards read the base practice state, never the active question's", () => {
+    expect(previewerSrc).toContain("const pr = inert ? INERT_PRACTICE : prLive;");
+  });
+  test("the popout holds a preparing gate until fonts + images are warm", () => {
+    expect(previewerSrc).toContain("Preparing set…");
+    expect(previewerSrc).toContain("fonts?.ready");
+  });
+  test("the recording surface (Rehearse) gets the same stack treatment", () => {
+    expect(previewerSrc).toContain("recording && filmStack ? recNodes : nodes");
+  });
+});

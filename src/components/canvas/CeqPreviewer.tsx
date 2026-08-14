@@ -333,8 +333,16 @@ function FrameBgNode({ data }: NodeProps) {
  *  green/strike on resolve). Each choice carries the SAME right-side text-end memo
  *  anchor the real card uses (TextAnchor → `anc:<choiceId>`). Scales with data.scale.
  *  Ctrl+click a choice = rehearsal spotlight (local). */
+/** Practice state for INERT stand-ins (film stack, A2): always the base state. */
+const INERT_PRACTICE = { emph: null as number | null, resolved: new Set<number>() };
 function CeqPreviewNode({ id, data }: NodeProps) {
-  const pr = useContext(PracticeContext);
+  // INERT (film stack, A2): this card is a fully-rendered stand-in for a NON-ACTIVE
+  // frame — practice/emphasis state belongs to the active question only, so an
+  // inert card always shows its clean base state. Same id + type as the live card,
+  // so activation is a DATA FLIP (no remount → nothing can flash on camera).
+  const inert = !!(data as { inert?: boolean }).inert;
+  const prLive = useContext(PracticeContext);
+  const pr = inert ? INERT_PRACTICE : prLive;
   const vc = useContext(ViewChoiceContext);
   const viewChoice = vc?.view ?? null;
   const onViewChoice = vc?.set;
@@ -841,7 +849,9 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   // through it. Whenever the active id isn't a member, overview is simply off and
   // the single-frame render stands alone.
   const activeIdx = deckCeqIds ? deckCeqIds.indexOf(ceqId) : -1;
-  const overviewOn = overview && !!deckCeqIds && deckCeqIds.length > 1 && activeIdx >= 0;
+  // `!recording`: on the recording surface the FILM STACK (A2) owns the vertical
+  // stack — overview's ov: stand-ins would double-render under the real ones.
+  const overviewOn = overview && !recording && !!deckCeqIds && deckCeqIds.length > 1 && activeIdx >= 0;
   // COPY/PASTE STYLE (Lee) — marquee-select (Ctrl+drag) memos, right-click → copy their
   // STYLE (size + frame-local position + choice-label/arrow flags, NOT content), then
   // paste onto another selection. Generic node op (cards later). styleClip is ordered.
@@ -852,9 +862,21 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   const [addCat, setAddCat] = useState<string | null>(null);
   // Right-click memo sub-modes: inline rename field / category picker.
   const [memoMode, setMemoMode] = useState<null | "rename" | "cat" | "trap">(null);
-  // The active frame's vertical offset in the stack (0 outside overview). Node positions
-  // carry it; the baseline is FRAME-LOCAL, so persistence subtracts it back off.
-  const activeYOff = useMemo(() => (overviewOn ? activeIdx * (frameH + Math.round(frameH * 0.16)) : 0), [overviewOn, activeIdx, frameH]);
+  // (Declared here, used by the film block far below: activeYOff needs to know
+  //  whether the film popout is open.)
+  const [filmWin, setFilmWin] = useState<Window | null>(null);
+  // FILM STACK (A2, spacewalk-preload): on a filming surface (the "\" popout, or
+  // the recording surface Rehearse mounts) the WHOLE set is mounted — every frame
+  // full-fidelity at its own slot in the vertical stack — and the space-walk is a
+  // pan + data-flip instead of a node re-seed. The re-seed was the on-camera
+  // flash: the old card unmounted instantly while the new one faded in from
+  // opacity 0, so the frame read EMPTY for the first beats of every transition,
+  // and heavy frames (images, fonts in the popout's own document) fetched at
+  // transition time. Now everything mounts ONCE, behind the preparing gate.
+  const filmStack = (!!filmWin || recording) && !!deckCeqIds && deckCeqIds.length > 1 && activeIdx >= 0;
+  // The active frame's vertical offset in the stack (0 outside overview/film). Node
+  // positions carry it; the baseline is FRAME-LOCAL, so persistence subtracts it back off.
+  const activeYOff = useMemo(() => (overviewOn || filmStack ? activeIdx * (frameH + Math.round(frameH * 0.16)) : 0), [overviewOn, filmStack, activeIdx, frameH]);
   // BOSS test cue (Lee): hear the cram-launch when you ADVANCE to a boss-flagged CEQ
   // in the previewer (not on the first open). Read the flag fresh from the main store.
   // HARD PUSH (#4) — PageDown/PageUp deal with a DISTINCT fast vertical push (vs the Space
@@ -1160,8 +1182,33 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   // is now INTERACTIVE (drag/resize/spotlight two-way). The view stays fitted to the
   // 16:9 frame; refit ONLY on open / question change / frame-size / window resize —
   // NOT on `nodes` changes, else dragging a card in film would snap the view back.
-  const [filmWin, setFilmWin] = useState<Window | null>(null);
+  // (filmWin state is declared up beside activeYOff — the film stack needs it.)
   const filmFitRef = useRef<ReactFlowInstance | null>(null);
+  // PREPARING GATE (A2): the popout is its OWN document — its fonts and images
+  // load on first use, which used to happen at TRANSITION time. Hold a cover over
+  // the pane until the whole mounted set is warm (fonts.ready + every image
+  // complete + two RAFs so ReactFlow has painted), capped at 4s so a broken asset
+  // can never lock the surface out.
+  const [filmReady, setFilmReady] = useState(false);
+  useEffect(() => {
+    if (!filmWin) { setFilmReady(false); return; }
+    let dead = false;
+    const done = () => { if (!dead) setFilmReady(true); };
+    const cap = window.setTimeout(done, 4000);
+    (async () => {
+      try {
+        // Two RAFs first: the portal renders after open, so snapshot images late.
+        await new Promise((r) => filmWin.requestAnimationFrame(() => filmWin.requestAnimationFrame(r)));
+        const doc = filmWin.document;
+        await (doc as Document & { fonts?: { ready: Promise<unknown> } }).fonts?.ready;
+        const imgs = Array.from(doc.images ?? []).filter((im) => !im.complete);
+        await Promise.all(imgs.map((im) => new Promise((r) => { im.addEventListener("load", r, { once: true }); im.addEventListener("error", r, { once: true }); })));
+        await new Promise((r) => filmWin.requestAnimationFrame(() => filmWin.requestAnimationFrame(r)));
+      } catch { /* the cap still lifts the gate */ }
+      done();
+    })();
+    return () => { dead = true; window.clearTimeout(cap); };
+  }, [filmWin]);
   /** FILL the popout (cover), not fitView (contain). fitView preserves aspect, so a
    *  16:9 frame in a window of any other shape letterboxed — black bars Lee then had
    *  to crop in OBS. This scales to the LARGER ratio and centres, so the frame runs
@@ -1503,13 +1550,52 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
    *  number badges. The camera gets the active frame only. */
   // HIDDEN STAGED ELEMENTS never reach the camera: authoring ghosts them at 28% so
   // Lee can place + arrange them, film drops them entirely. That IS the show/hide.
+  // FILM STAND-INS (A2): full-fidelity renders of every NON-ACTIVE frame, each at
+  // its slot in the stack. The CEQ card keeps the question's REAL id, so walking
+  // onto a frame flips its data (inert → live) IN PLACE — no unmount, no flash;
+  // the deal-in animation still plays because enterAnim flips "none" → the walk
+  // anim on the same element. Staged elements keep their real ids for the same
+  // reason. Memos/arrows stay active-only (they appear on Enter anyway — an
+  // undealt frame IS the base state). Deliberately NOT keyed on `walk`/practice
+  // state, so a Space step never rebuilds the stack.
+  const stackSlotH = frameH + Math.round(frameH * 0.16);
+  const filmStandins = useMemo<Node[]>(() => {
+    if (!filmStack || !deckCeqIds) return [];
+    const out: Node[] = [];
+    const cIds = counterIds ?? deckCeqIds;
+    const allNodes = mainRf.getNodes() as { id: string; data?: unknown }[];
+    deckCeqIds.forEach((qid, k) => {
+      if (qid === ceqId) return; // the live render owns the active slot
+      const od = mainRf.getNode(qid)?.data as unknown as CeqCard | undefined;
+      if (!od) return;
+      const y = k * stackSlotH;
+      out.push({ id: `fbg:${qid}`, type: "frameBg", position: { x: 0, y }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum: k + 1, guides: false }, draggable: false, selectable: false, zIndex: -10 } as Node);
+      // Mirror the live ceqNode's data EXACTLY (same spot resolution, same student
+      // overlay) so the activation flip changes practice/animation state only —
+      // identical pixels means an invisible handover.
+      const ocs = resolveCardSpot(od.geom, baseline, frameW, frameH);
+      const pIdx = cIds.indexOf(qid);
+      const progress = viewStudent && pIdx >= 0 && cIds.length > 1 ? { x: pIdx + 1, y: cIds.length } : null;
+      out.push({ id: qid, type: "ceqPreview", position: { x: ocs.x, y: y + ocs.y }, data: { stem: od.prompt, choices: od.choices, scale: ocs.scale, progress, topic: viewStudent && topicName ? topicName : null, enterAnim: "none", enterAnimName: "none", inert: true }, draggable: false, selectable: false, zIndex: 1 } as Node);
+      for (const n of allNodes) {
+        const st = (n.data as { stage?: { ceqId?: string; x: number; y: number; hidden?: boolean } } | undefined)?.stage;
+        if (!st || st.ceqId !== qid || st.hidden) continue;
+        out.push({ id: n.id, type: stageNodeType((n.data as { kind: string }).kind), position: { x: st.x, y: y + st.y }, data: n.data as Record<string, unknown>, draggable: false, selectable: false, zIndex: 8 } as Node);
+      }
+    });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filmStack, deckCeqIds, ceqId, mainSig, stageSig, baseline, frameW, frameH, stackSlotH, world, worldIntensity, worldMotion, viewStudent, topicName, counterIds]);
   // FILM LOCK (A1): on camera, geometry is read-only — every node is frozen except
   // arrow heads (a performance tool) and explicit data.filmMovable opt-ins. The
   // per-node flag beats the pane-level nodesDraggable, so the pane prop can stay
   // true for the nodes that ARE allowed to move.
   const filmNodes = useMemo(() => nodes
     .filter((n) => !n.id.startsWith("ov:") && !n.id.startsWith("ovf:") && !n.id.startsWith("ovm:") && !(n.data as { stage?: { hidden?: boolean } } | undefined)?.stage?.hidden)
-    .map((n): Node => ({ ...n, draggable: filmDragAllowed(n) })), [nodes]);
+    .map((n): Node => ({ ...n, draggable: filmDragAllowed(n) }))
+    .concat(filmStandins), [nodes, filmStandins]);
+  // The recording surface's merged set (rehearse): live nodes + the same stand-ins.
+  const recNodes = useMemo(() => nodes.concat(filmStandins), [nodes, filmStandins]);
   const filmEdges = useMemo(() => buildEdges(walkRevealedIds), [walk, walkRevealedIds, ceqId]);
   const onConnect = (c: Connection) => {
     if (!c.source || !c.target || c.source === c.target) return;
@@ -1655,7 +1741,9 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
             <div ref={rootRef} className="flex h-full min-h-0 flex-col" onMouseEnter={() => { engagedRef.current = true; }} onMouseLeave={() => { engagedRef.current = false; }}>
               <div className="min-h-0 flex-1" style={{ background: "rgba(4,7,14,0.6)", position: "relative" }}>
                 <ReactFlow
-                  nodes={nodes}
+                  // RECORDING/REHEARSE (A2): same preload treatment as the film popout —
+                  // the whole set stays mounted so the walk is a pan, never a re-seed.
+                  nodes={recording && filmStack ? recNodes : nodes}
                   edges={edges}
                   onNodesChange={onNodesChange}
                   onNodeDrag={onNodeDrag}
@@ -1935,6 +2023,13 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                     {/* No in-app film watermark for now (Lee) — the brand watermark will be
                         added later in the actual HTML player, not baked into the take. */}
                     <PerfArrowLayer arrows={perfArrows} add={addPerfArrow} sel={selPerf} setSel={setSelPerf} />
+                    {/* PREPARING GATE (A2) — covers the pane until the mounted set is warm.
+                        Opaque brand navy: whatever loads underneath can never flash on camera. */}
+                    {!filmReady && (
+                      <div style={{ position: "absolute", inset: 0, zIndex: 60, display: "grid", placeItems: "center", background: "#05070d" }}>
+                        <div style={{ color: "rgba(230,236,255,0.5)", fontSize: 12, fontWeight: 800, letterSpacing: "0.28em", textTransform: "uppercase" }}>Preparing set…</div>
+                      </div>
+                    )}
                   </div>
                 </FilmContext.Provider>
                 </RevealContext.Provider>
