@@ -105,20 +105,21 @@ export function OutlinePanel() {
   }, [nodes]);
   const isPublished = (d: DeckDef) => !!d.lessonId && publishedLessonIds.has(d.lessonId);
 
-  /** CEQ COUNTS PER SET — "n free · n" on each set row (Studio Consolidation C: these used to be
-   *  the CEQS strip's "Free n · Full n", which only showed for the ONE open set. Here you see the
-   *  whole course's shape at once). Loaded-scene sets only: a set whose scene isn't open has no
-   *  nodes here, so it renders no counts rather than a lying "0 free · 0". */
-  const ceqCounts = useMemo(() => {
-    const m = new Map<string, { free: number; total: number }>();
+  /** CEQs PER SET — the outline's THIRD level (Studio Consolidation D) and the source of the set
+   *  row's "n free · n" (prompt C). Ordered by stageOrder, exactly as the Studio's list was.
+   *  Loaded-scene sets only: a set whose scene isn't open contributes no nodes, so it renders no
+   *  counts and no children rather than a lying "0 free · 0" / an empty tree. */
+  const ceqsByDeck = useMemo(() => {
+    const m = new Map<string, { id: string; stem: string; free: boolean; order: number }[]>();
     for (const n of nodes) {
       if (n.type !== "ceq") continue;
-      const d = n.data as unknown as { deckId?: string; free?: boolean };
+      const d = n.data as unknown as { deckId?: string; free?: boolean; prompt?: string; stageOrder?: number };
       if (!d.deckId) continue;
-      const c = m.get(d.deckId) ?? { free: 0, total: 0 };
-      c.total++; if (d.free) c.free++;
-      m.set(d.deckId, c);
+      const l = m.get(d.deckId) ?? [];
+      l.push({ id: n.id, stem: (d.prompt ?? "").trim() || "Question", free: !!d.free, order: d.stageOrder ?? 0 });
+      m.set(d.deckId, l);
     }
+    for (const l of m.values()) l.sort((a, b) => a.order - b.order);
     return m;
   }, [nodes]);
 
@@ -172,7 +173,7 @@ export function OutlinePanel() {
       {open === "topics" && (
         <div className="ml-2 border-l pl-1.5" style={{ borderColor: NEON.borderSoft }}>
           {courses.length === 0 && <div className="px-1 py-1 text-[10px] italic" style={{ color: NEON.muted }}>No courses.</div>}
-          {courses.map((c) => <CourseTopics key={c.id} course={c} focus={isFocusCourse(c)} decksByTopic={decksByTopic} ceqCounts={ceqCounts} isPublished={isPublished} openSet={openSet} lastSetId={lastSetId} showToast={showToast} libraryDecks={isFocusCourse(c) ? libraryDecks : []} />)}
+          {courses.map((c) => <CourseTopics key={c.id} course={c} focus={isFocusCourse(c)} decksByTopic={decksByTopic} ceqsByDeck={ceqsByDeck} isPublished={isPublished} openSet={openSet} lastSetId={lastSetId} showToast={showToast} libraryDecks={isFocusCourse(c) ? libraryDecks : []} />)}
         </div>
       )}
 
@@ -205,16 +206,20 @@ export function OutlinePanel() {
 // The focus course (Intro 1) is the full authoring surface: rapid-fire add (Enter = another sibling,
 // Shift+Enter on a topic = commit + add a child set), double-click rename, hover-✕ delete (empty topic
 // instant; with-sets confirmed; sets soft-delete to the Library), drag-reorder = the teaching flow.
-function CourseTopics({ course, focus, decksByTopic, ceqCounts, isPublished, openSet, lastSetId, showToast, libraryDecks }: {
+function CourseTopics({ course, focus, decksByTopic, ceqsByDeck, isPublished, openSet, lastSetId, showToast, libraryDecks }: {
   course: CourseOption; focus: boolean; decksByTopic: Map<string, DeckDef[]>;
-  ceqCounts: Map<string, { free: number; total: number }>;
+  ceqsByDeck: Map<string, { id: string; stem: string; free: boolean; order: number }[]>;
   isPublished: (d: DeckDef) => boolean; openSet: (id: string) => void; lastSetId: string | null;
   showToast: (msg: string, undo?: () => void) => void; libraryDecks: DeckDef[];
 }) {
   const qc = useQueryClient();
+  const nav = useFrameNav(); // level-3 CEQ rows open the Studio editor on that question
   const { decks: loadedDecks, createDeck, setDeckTopic, renameDeck, reorderDecksInTopic, setDeckParked } = useDecks();
   const [open, setOpen] = useState(focus);
   const [openTopics, setOpenTopics] = useState<Set<string>>(new Set());
+  // LEVEL 3 (Studio Consolidation D) — which sets have their CEQ rows expanded.
+  const [openSets, setOpenSets] = useState<Set<string>>(new Set());
+  const toggleSetOpen = (id: string) => setOpenSets((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const [adding, setAdding] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);        // topic id being renamed
   const [renamingSet, setRenamingSet] = useState<string | null>(null);  // deck id being renamed
@@ -403,6 +408,10 @@ function CourseTopics({ course, focus, decksByTopic, ceqCounts, isPublished, ope
                       const active = d.id === lastSetId; const pub = isPublished(d); const editable = canEditSet(d.id);
                       const dragging = setDrag?.id === d.id;
                       const dropLine = setTarget && setOver?.index === i && setDrag?.id !== d.id;
+                      // LEVEL 3 (Studio Consolidation D) — this set's CEQs, in stageOrder.
+                      const ceqRows = ceqsByDeck.get(d.id) ?? [];
+                      const freeN = ceqRows.reduce((a, q) => a + (q.free ? 1 : 0), 0);
+                      const ceqOpen = openSets.has(d.id);
                       return (
                         <div key={d.id}>
                           {dropLine && <div className="mx-1 my-0.5 h-0.5 rounded-full" style={{ background: NEON.cyan }} />}
@@ -416,18 +425,21 @@ function CourseTopics({ course, focus, decksByTopic, ceqCounts, isPublished, ope
                             onDrop={focus && setDrag ? (e) => { e.preventDefault(); e.stopPropagation(); performSetDrop(ch.id, setOver?.topic === ch.id ? setOver.index : tDecks.length); } : undefined}>
                             {focus && renamingSet === d.id ? (
                               <div className="flex-1 px-1.5 py-0.5"><InlineInput initial={setName(d)} onCommit={(v) => { setRenamingSet(null); renameDeck(d.id, v); }} onCancel={() => setRenamingSet(null)} /></div>
-                            ) : (
-                              <button className="flex min-w-0 flex-1 items-center gap-1.5 px-1.5 py-1 text-left" onClick={() => openSet(d.id)} onDoubleClick={focus && editable ? (e) => { e.stopPropagation(); setRenamingSet(d.id); } : undefined} title={`Open "${setName(d)}" in the Studio · ${d.status === "live" ? "LIVE" : "draft"}${pub ? " · video published" : ""}${focus && editable ? " · drag to move/reorder · double-click to rename" : ""}`}>
+                            ) : (<>
+                              {/* LEVEL-3 DISCLOSURE — only for sets whose CEQs are actually loaded. */}
+                              {ceqRows.length > 0 ? (
+                                <button className="grid h-4 w-4 shrink-0 place-items-center" style={{ color: NEON.muted }} onClick={(e) => { e.stopPropagation(); toggleSetOpen(d.id); }} title={ceqOpen ? "Hide questions" : "Show questions"}>
+                                  {ceqOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                                </button>
+                              ) : <span className="h-4 w-4 shrink-0" />}
+                              <button className="flex min-w-0 flex-1 items-center gap-1.5 py-1 pr-1.5 text-left" onClick={() => openSet(d.id)} onDoubleClick={focus && editable ? (e) => { e.stopPropagation(); setRenamingSet(d.id); } : undefined} title={`Open "${setName(d)}" in the Studio · ${d.status === "live" ? "LIVE" : "draft"}${pub ? " · video published" : ""}${focus && editable ? " · drag to move/reorder · double-click to rename" : ""}`}>
                                 <Circle className="h-2.5 w-2.5 shrink-0" style={{ color: d.status === "live" ? "#3BF5A0" : "#F0B24A", fill: d.status === "live" ? "#3BF5A0" : "transparent" }} />
                                 <span className="min-w-0 flex-1 truncate" style={{ color: active ? NEON.yellow : NEON.text }}>{setName(d)}</span>
                                 {/* CEQ COUNTS — "n free · n", the CEQS strip's Free/Full moved here
-                                    so the whole course's shape reads at a glance, not just the open
-                                    set. Absent for sets whose scene isn't loaded (see ceqCounts). */}
-                                {(() => { const c = ceqCounts.get(d.id); return c && c.total > 0
-                                  ? <span className="shrink-0 text-[9.5px] tabular-nums" style={{ color: NEON.muted }} title={`${c.free} free · ${c.total} total CEQs`}>{c.free} free · {c.total}</span>
-                                  : null; })()}
+                                    so the whole course's shape reads at a glance, not just the open set. */}
+                                {ceqRows.length > 0 && <span className="shrink-0 text-[9.5px] tabular-nums" style={{ color: NEON.muted }} title={`${freeN} free · ${ceqRows.length} total CEQs`}>{freeN} free · {ceqRows.length}</span>}
                               </button>
-                            )}
+                            </>)}
                             {focus && editable && renamingSet !== d.id && (
                               <button className="shrink-0 rounded p-0.5 opacity-0 hover:bg-white/10 group-hover:opacity-60" title="Park set (hide from the production view; never served to students)" onClick={(e) => { e.stopPropagation(); setDeckParked(d.id, true); showToast(`Parked "${setName(d)}".`, () => setDeckParked(d.id, false)); }}><Eye className="h-3 w-3" /></button>
                             )}
@@ -435,6 +447,28 @@ function CourseTopics({ course, focus, decksByTopic, ceqCounts, isPublished, ope
                               <button className="shrink-0 rounded p-0.5 opacity-0 hover:bg-white/10 group-hover:opacity-60" title="Move set to the Library" onClick={(e) => { e.stopPropagation(); delSet(d); }}><X className="h-3 w-3" /></button>
                             )}
                           </div>
+                          {/* LEVEL 3 — CEQ ROWS. Same shape as the rows prompt B cleaned: number,
+                              stem, one status chip. Clicking opens that CEQ in the Studio editor.
+                              (Selection checkboxes + the bulk bar + drag-reorder land here next —
+                              held back so the tree's width and truncation can be eyeballed first.) */}
+                          {ceqOpen && (
+                            <div className="ml-5 border-l pl-1" style={{ borderColor: NEON.borderSoft }}>
+                              {ceqRows.map((q, qi) => (
+                                <button
+                                  key={q.id}
+                                  onClick={() => nav.openStudio(q.id)}
+                                  title={q.stem}
+                                  className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left hover:bg-white/5"
+                                >
+                                  <span className="shrink-0 text-[9.5px] tabular-nums" style={{ color: NEON.muted }}>{qi + 1}.</span>
+                                  <span className="min-w-0 flex-1 truncate text-[11px]" style={{ color: NEON.text }}>{q.stem}</span>
+                                  <span className="shrink-0 rounded px-1 text-[8px] font-black leading-none" style={q.free
+                                    ? { color: "#04120B", background: "#3BF5A0", border: "1px solid #3BF5A0" }
+                                    : { color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }}>{q.free ? "🆓" : "$"}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
                           {setTarget && setOver?.index === i + 1 && i === tDecks.length - 1 && setDrag?.id !== d.id && <div className="mx-1 my-0.5 h-0.5 rounded-full" style={{ background: NEON.cyan }} />}
                         </div>
                       );

@@ -1459,6 +1459,25 @@ function PresentCanvas() {
   // Collapse the v2 left outline sidebar to a thin rail (persisted per browser).
   const [outlineCollapsed, setOutlineCollapsed] = useState<boolean>(() => { try { return localStorage.getItem("sa-outline-collapsed") === "1"; } catch { return false; } });
   const toggleOutline = useCallback((collapsed: boolean) => { setOutlineCollapsed(collapsed); try { localStorage.setItem("sa-outline-collapsed", collapsed ? "1" : "0"); } catch { /* ignore */ } }, []);
+  // OUTLINE WIDTH (Studio Consolidation D) — drag-resizable + persisted. The outline is the app's
+  // ONE list now (topic → set → CEQ stems), so it needs room; 360 is the default, clamped to a
+  // range that can't hide the panel or swallow the canvas.
+  const [outlineW, setOutlineW] = useState<number>(() => { try { const n = parseInt(localStorage.getItem("sa-outline-w") ?? "", 10); return Number.isFinite(n) ? Math.min(560, Math.max(240, n)) : 360; } catch { return 360; } });
+  const [resizingOutline, setResizingOutline] = useState(false);
+  const startOutlineResize = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    setResizingOutline(true);
+    const startX = e.clientX, startW = outlineW;
+    const onMove = (ev: PointerEvent) => setOutlineW(Math.min(560, Math.max(240, startW + (ev.clientX - startX))));
+    const onUp = () => {
+      setResizingOutline(false);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      setOutlineW((w) => { try { localStorage.setItem("sa-outline-w", String(w)); } catch { /* ignore */ } return w; });
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }, [outlineW]);
   const [resetScopeOpen, setResetScopeOpen] = useState(false); // File → Reset… scope picker
   const [frameHeaderOpen, setFrameHeaderOpen] = useState(false); // Frame Header panel (header toggle + lesson media)
   const [rearrangeOpen, setRearrangeOpen] = useState(false); // "r": full-grid frame rearrange overlay
@@ -5488,7 +5507,16 @@ function PresentCanvas() {
             <span className="text-[9px] font-bold uppercase tracking-wider" style={{ writingMode: "vertical-rl", color: NEON.muted }}>Sets</span>
           </button>
         ) : (
-          <aside className="sa-dock flex w-[280px] shrink-0 flex-col overflow-hidden" style={{ background: "rgba(9,14,26,0.92)", borderRight: `1px solid ${NEON.borderSoft}` }}>
+          /* WIDTH is drag-resizable and persisted (Studio Consolidation D): the outline carries a
+             three-level tree now (topic → set → CEQ stems), so 280px clipped every stem. Default
+             360px; the grip lives on the right edge. */
+          <aside className="sa-dock relative flex shrink-0 flex-col overflow-hidden" style={{ width: outlineW, background: "rgba(9,14,26,0.92)", borderRight: `1px solid ${NEON.borderSoft}` }}>
+            <div
+              onPointerDown={startOutlineResize}
+              className="absolute right-0 top-0 z-20 h-full w-1.5 cursor-col-resize"
+              style={{ background: resizingOutline ? NEON.yellow : "transparent" }}
+              title="Drag to resize the outline"
+            />
             <div className="flex items-center justify-end px-1.5 pt-1">
               <button className="grid h-5 w-5 place-items-center rounded hover:bg-white/10" style={{ color: NEON.muted }} onClick={() => toggleOutline(true)} title="Collapse the outline">«</button>
             </div>
