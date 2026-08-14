@@ -26,6 +26,7 @@ import { activeSlots, CeqPreviewer, dealCentre, defaultMemoPos, paletteSlots, ra
 import { resolveCardSpot, resolveMemoSpot, stampFromTemplate, withInstanceSpot, type Spot } from "./ceq-geom";
 import { autoClipName, buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, stageTake, stitchManifest, stitchRuntime, videoFromDrop, videosFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
 import { buildSetExport } from "./ceq-export";
+import { SetFilmstrip, type StripItem } from "./SetFilmstrip";
 import { MISCONCEPTION_SEEDS, questionMisconceptions, toSlug } from "./ceq-misconceptions";
 import { ingestNumOf } from "./ceq-walk";
 import { CeqStitch, type StitchRow } from "./CeqStitch";
@@ -145,6 +146,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     if (cardDecks.some((d) => d.id === initialSetId)) openSetTab(initialSetId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSetId]);
+  const [addChooser, setAddChooser] = useState(false); // "+ Frame" → CEQ/Note chooser
   const [chainFor, setChainFor] = useState<string | null>(null); // CEQ node whose chain editor is open
   const [note, setNote] = useState<string | null>(null);
   const [memoQuery, setMemoQuery] = useState("");
@@ -412,6 +414,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   // render re-seeded the preview constantly, which is what made an in-progress move
   // snap back to the saved geometry mid-edit.
   const deckCeqIds = useMemo(() => questions.map((q) => q.id), [questions]);
+  // CEQ-only order for the student counter — note frames never count ("Q 14/29" skips them)
+  const counterIds = useMemo(() => questions.filter((q) => !(rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.noteOnly).map((q) => q.id), [questions, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
   const starCount = useMemo(() => questions.reduce((n, q) => n + ((rf.getNode(q.id)?.data as unknown as CeqCard | undefined)?.starred ? 1 : 0), 0), [questions, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
   const qNode = qId ? nodes.find((n) => n.id === qId) : null;
   const qd = qNode?.data as unknown as CeqCard | undefined;
@@ -757,6 +761,37 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     const cmd = addNodesCmd(rfl, [node] as never, "add question"); if (cmd) bus.dispatch(cmd);
     setQId(id);
   };
+  /** INSERT A FRAME at strip position `at` (frames rename §3) — CEQ frame or Note
+   *  frame. Same renumber pattern as duplicateQuestion: everything at/below `at`
+   *  shifts down one stageOrder, one undo step. Note frames are CEQ cards with
+   *  noteOnly (no choices, never counted) so the whole card system just works. */
+  const insertFrame = (at: number, frameKind: "ceq" | "note") => {
+    if (!deck) return;
+    const id = cardId("ceq");
+    const pos = { x: 520, y: 210 };
+    const node = {
+      id, type: "ceq", position: pos, selected: false,
+      data: {
+        kind: "ceq", title: deck.name,
+        prompt: frameKind === "note" ? "New note — trigger words, headspace, a tip" : "New question",
+        ...(frameKind === "note" ? { noteOnly: true } : {}),
+        choices: frameKind === "note" ? [] : [{ id: cardId("ch"), text: "Choice A", correct: true }, { id: cardId("ch"), text: "Choice B" }],
+        deckId: deck.id, deckMember: true, tucked: true, stageOrder: at, slotIndex: at, deckCategory: "ceq:studio", deckPos: pos,
+      },
+    };
+    const newOrder = [...questions.slice(0, at), { id }, ...questions.slice(at)];
+    const reindex = newOrder.map((q, idx) => (q.id === id ? null : patchDataCmd(rfl, q.id, { stageOrder: idx }, "reorder"))).filter((c): c is NonNullable<typeof c> => !!c);
+    const add = addNodesCmd(rfl, [node] as never, frameKind === "note" ? "add note frame" : "add CEQ frame");
+    const cmd = compositeCmd([add, ...reindex].filter((c): c is NonNullable<typeof c> => !!c), "insert frame");
+    if (cmd) bus.dispatch(cmd);
+    setQId(id);
+    setExpandedQ((s) => new Set(s).add(id));
+  };
+  /** The filmstrip's mini-card data — read once per nodes change. */
+  const stripItems = useMemo<StripItem[]>(() => questions.map((q) => {
+    const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined;
+    return { id: q.id, stem: d?.prompt ?? "", shorthand: d?.shorthand, run: d?.run, noteOnly: !!d?.noteOnly, free: !!d?.free, clips: cardClips(d).length, starred: !!d?.starred };
+  }), [questions, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
   /** `coalesceKey` (optional) merges a keystroke burst into ONE undo step — pass it
    *  from live-committing text fields so a typed stem isn't 60 Ctrl+Z presses. */
   const patchQ = (id: string, patch: Record<string, unknown>, coalesceKey?: string) => { const c = patchDataCmd(rfl, id, patch, "edit question", coalesceKey); if (c) bus.dispatch(c); };
@@ -1711,6 +1746,16 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
       // (this handler is behind !recording already via the outer gate on typing + the
       // recording surface swallowing keys), and PageUp/Down remain the film-mode walk.
       if (!recording && (e.key === "ArrowUp" || e.key === "ArrowDown") && qId && qId !== LAYOUT_Q0) { e.preventDefault(); gotoQuestion(e.key === "ArrowDown" ? 1 : -1); return; }
+      // INSERT FRAME (frames rename §3): Ctrl/Cmd+Enter = new frame BELOW the
+      // selected one, +Shift = ABOVE. The chooser opens on the strip's [+] for
+      // type choice; the keyboard path inserts a CEQ frame (the 90% case) — a
+      // note is one click away on the strip.
+      if (!recording && e.key === "Enter" && (e.ctrlKey || e.metaKey) && deck) {
+        e.preventDefault();
+        const i = qId && qId !== LAYOUT_Q0 ? questions.findIndex((q) => q.id === qId) : questions.length - 1;
+        insertFrame(e.shiftKey ? Math.max(0, i) : i + 1, "ceq");
+        return;
+      }
       if (e.key === "Escape" && qSel.size > 0) { setQSel(new Set()); return; } // Esc clears the question selection
       if (e.key !== "Delete" && e.key !== "Backspace") return;
       if (previewSelMemo && qId) { e.preventDefault(); removeFromChain(qId, previewSelMemo); return; }
@@ -1719,7 +1764,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewSelMemo, qId, sel, selChainMemos, memoClip, qClip, itemsClip, qSel, recording]);
+  }, [previewSelMemo, qId, sel, selChainMemos, memoClip, qClip, itemsClip, qSel, recording, questions, deck]);
 
   /** NEXT-SLOT PLACEMENT — a new memo at flat chain index N lands in the Nth ACTIVE
    *  palette slot (position + size; slots Lee switched OFF are skipped entirely).
@@ -1927,7 +1972,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
   const renderPreviewer = (recMode: boolean) => (
     <CeqPreviewer ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSaveInstance={(g) => { if (qId && qId !== LAYOUT_Q0) saveInstanceGeom(qId, g); }} layoutOn={deck?.layoutMode !== false} onSetLayoutMode={setLayoutMode} onApplyLayoutToAll={() => { const n = questions.length; if (n > 0 && window.confirm(`Re-stamp all ${n} question${n === 1 ? "" : "s"} from the layout?
 
-This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undoes all of it.`)) applyLayoutToAll(); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onReorderChainMemo={reorderChainByMemo} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onEditStem={(cid, text) => patchQ(cid, { prompt: text }, `q:${cid}:prompt`)} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSetMisconception={setMemoMisconception} misconceptionSlugs={misconceptionDefs.map((d) => d.slug)} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} showProgress={deck?.showProgress} onSetShowProgress={(b) => { if (deck) setDecks((prev) => updateDeck(prev, deck.id, { showProgress: b })); }} onOpenMemoLib={(id) => { setLibOpen(true); setPreviewSelMemo(id); }} topicName={(() => { const rows = spineRows(deck); return rows ? topicLabel(rows.topic).replace(/^ch\s*\d+\s*[·.\-:]\s*/i, "").replace(/\s*\(archived\)\s*$/i, "").trim() : undefined; })()} recording={recMode} onEnterRecording={() => setRecording(true)} onExitRecording={() => setRecording(false)} />
+This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undoes all of it.`)) applyLayoutToAll(); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onReorderChainMemo={reorderChainByMemo} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} counterIds={counterIds} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onEditStem={(cid, text) => patchQ(cid, { prompt: text }, `q:${cid}:prompt`)} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSetMisconception={setMemoMisconception} misconceptionSlugs={misconceptionDefs.map((d) => d.slug)} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} showProgress={deck?.showProgress} onSetShowProgress={(b) => { if (deck) setDecks((prev) => updateDeck(prev, deck.id, { showProgress: b })); }} onOpenMemoLib={(id) => { setLibOpen(true); setPreviewSelMemo(id); }} topicName={(() => { const rows = spineRows(deck); return rows ? topicLabel(rows.topic).replace(/^ch\s*\d+\s*[·.\-:]\s*/i, "").replace(/\s*\(archived\)\s*$/i, "").trim() : undefined; })()} recording={recMode} onEnterRecording={() => setRecording(true)} onExitRecording={() => setRecording(false)} />
   );
   return (
     <div ref={studioRootRef} className={popped ? "flex h-full w-full flex-col" : "absolute inset-0 flex flex-col"} style={{ background: "rgba(6,10,20,0.98)", color: NEON.text, zIndex: popped ? undefined : Z.overlay }}>
@@ -2133,7 +2178,17 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
               <button className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-[9.5px] font-bold leading-none" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={dealIntoFrame} title="Deal this set into the frame you're in (stack; Space flips, Enter-walks chains)"><Film className="h-3 w-3" /> Deal into frame</button>
               {/* + CEQ and the open question's CLIP STACK — relocated from the deleted list column
                   (Studio Consolidation D): the "+ question" footer and the per-row clip circle. */}
-              <button className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-[9.5px] font-bold leading-none" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} onClick={addQuestion} title="Add a new CEQ at the end of this set"><Plus className="h-3 w-3" /> CEQ</button>
+              {/* + FRAME (frames rename) — the chooser: CEQ frame or Note frame, appended at
+                  the end. Mid-strip inserts live on the filmstrip's hover [+]. */}
+              {!addChooser ? (
+                <button className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-[9.5px] font-bold leading-none" style={{ color: NEON.cyan, border: `1px dashed ${NEON.borderSoft}` }} onClick={() => setAddChooser(true)} title="Add a frame at the end of this set — CEQ (question) or Note (headspace/trigger words)"><Plus className="h-3 w-3" /> Frame</button>
+              ) : (
+                <span className="flex shrink-0 items-center gap-1">
+                  <button className="rounded px-2 py-0.5 text-[9.5px] font-bold leading-none" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setAddChooser(false); insertFrame(questions.length, "ceq"); }} title="A question card — counts, practices, films">? CEQ</button>
+                  <button className="rounded px-2 py-0.5 text-[9.5px] font-bold leading-none" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setAddChooser(false); insertFrame(questions.length, "note"); }} title="Text/memo only — films, never counts as a question">📝 Note</button>
+                  <button className="rounded px-1 py-0.5 text-[9.5px] leading-none" style={{ color: NEON.muted }} onClick={() => setAddChooser(false)}>✕</button>
+                </span>
+              )}
               {qId && qId !== LAYOUT_Q0 && (() => { const clips = cardClips(rf.getNode(qId)?.data as unknown as CeqCard | undefined); return (
                 <button className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-[9.5px] font-bold leading-none" style={{ color: takePreview === qId ? "#0B1322" : clips.length ? "#3BF5A0" : NEON.muted, background: takePreview === qId ? "#3BF5A0" : "transparent", border: "1px solid rgba(59,245,160,0.4)" }} onClick={() => setTakePreview((k) => (k === qId ? null : qId))} title={clips.length ? `${clips.length} clip${clips.length === 1 ? "" : "s"} on the open question — manage the stack (base + lookbacks)` : "No clips on the open question yet — open the stack to see the drop target"}>
                   {clips.length ? <CheckCircle2 className="h-3 w-3" /> : <Circle className="h-3 w-3" />} Clips{clips.length ? ` (${clips.length})` : ""}
@@ -2155,9 +2210,11 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
             <div className="grid flex-1 place-items-center px-6 text-center text-[11px]" style={{ color: NEON.muted }}>No set open — pick one in the outline on the far left.</div>
           ) : (
             <div className="flex min-h-0 flex-1">
-              {/* NO CEQ LIST HERE (Studio Consolidation D) — the left outline is the ONE list in
-                  the app; the Studio is the EDITOR for whichever CEQ is open. Rows, selection, the
-                  bulk bar and drag-reorder all live in the outline now. */}
+              {/* LINEAR BOARD (frames rename §2) — the vertical filmstrip IS the set's shape:
+                  frame 1 at top, scroll down; the selected frame renders large in the editor
+                  beside it. The outline stays the cross-set list; this rail is the inside of
+                  ONE set. Hover a gap → [+] → CEQ/Note chooser. */}
+              <SetFilmstrip items={stripItems} qId={qId === LAYOUT_Q0 ? null : qId} onSelect={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onInsert={insertFrame} />
               {/* (SET CLIPS moved to the Publish panel — one home for the publish path.) */}
               {publishOpen && deck && (
                 <div className="absolute inset-0 z-[72] flex items-start justify-center" style={{ background: "rgba(4,7,14,0.6)" }} onClick={() => setPublishOpen(false)}>
