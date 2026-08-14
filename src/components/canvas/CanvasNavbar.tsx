@@ -23,7 +23,7 @@ function NavMenuRow({ icon, label, danger, onClick }: { icon: ReactNode; label: 
   );
 }
 
-export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSaveAs, onLoad, onExport, onImport, onNewTab, onReset, onSeedSets, onCleanNames, onHotkeys, onOpenStudio, onViewV1, onHome, homeActive }: {
+export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSaveAs, onLoad, onExport, onImport, onNewTab, onReset, onSeedSets, onCleanNames, onHotkeys, onOpenStudio, onViewV1, onHome, homeActive, poolMode, onSeedExam1 }: {
   onHome: () => void; homeActive: boolean;
   sceneName: string;
   setSceneName: (v: string) => void;
@@ -40,6 +40,10 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
   onHotkeys: () => void;
   onOpenStudio: () => void;
   onViewV1: () => void;
+  /** SET-POOL mode (frames rename): the Studio is the surface; the free-pan canvas
+   *  is parked behind "Open canvas view — experimental"; sets rename in the outline. */
+  poolMode?: boolean;
+  onSeedExam1?: () => void;
 }) {
   const [fileOpen, setFileOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -67,7 +71,7 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
         className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[12px] font-bold"
         style={homeActive ? { color: "#0B1322", background: NEON.yellow, border: `1px solid ${NEON.yellow}` } : { color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}
         onClick={onHome}
-        title="Home — close the scene view (unsaved changes are guarded)"
+        title="Home — close the set view (unsaved changes are guarded)"
       >
         <HomeIcon className="h-3.5 w-3.5" /> Home
       </button>
@@ -83,39 +87,47 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
         </button>
         {fileOpen && (
           <div className="absolute left-0 top-9 z-[70] w-60 rounded-xl p-1.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}>
-            {/* Scene-dependent rows hide on the home state — there is no scene to save/export/reset. */}
-            {!homeActive && item(<Save className="h-3.5 w-3.5" />, "Save", onSave)}
-            {!homeActive && item(<FilePlus2 className="h-3.5 w-3.5" />, "Save as new", onSaveAs)}
-            {item(<FolderOpen className="h-3.5 w-3.5" />, "Open… (scenes + folders)", onLoad)}
+            {/* Set-dependent rows hide on the home state — there is nothing open to save/export/reset. */}
+            {!homeActive && item(<Save className="h-3.5 w-3.5" />, poolMode ? "Save all sets" : "Save", onSave)}
+            {!homeActive && !poolMode && item(<FilePlus2 className="h-3.5 w-3.5" />, "Save as new", onSaveAs)}
+            {/* In pool mode the outline opens sets; this dialog is the PARKED whiteboard door. */}
+            {item(<FolderOpen className="h-3.5 w-3.5" />, poolMode || homeActive ? "Open canvas view — experimental" : "Open… (sets + folders)", onLoad)}
             <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
             {!homeActive && item(<Download className="h-3.5 w-3.5" />, "Export (.json + .md)", onExport)}
             {item(<Upload className="h-3.5 w-3.5" />, "Import from file", onImport)}
-            {item(<Plus className="h-3.5 w-3.5" />, "New scene", onNewTab)}
+            {!poolMode && item(<Plus className="h-3.5 w-3.5" />, "New set", onNewTab)}
             <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
             {/* Hotkeys + Studio moved in from the top bar (header consolidation) — the shortcuts
                 keep working; the labels say so. */}
             {item(<Keyboard className="h-3.5 w-3.5" />, "Hotkeys — press ?", onHotkeys)}
-            {item(<ListOrdered className="h-3.5 w-3.5" />, "Open Studio", onOpenStudio)}
-            {!homeActive && <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />}
-            {!homeActive && item(<Sprout className="h-3.5 w-3.5" />, "Seed starter sets", onSeedSets)}
-            {!homeActive && item(<Eraser className="h-3.5 w-3.5" />, "Clean set names", onCleanNames)}
-            {!homeActive && <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />}
-            {!homeActive && item(<RotateCcw className="h-3.5 w-3.5" />, "Reset… (canvas · CEQs · both)", onReset, true)}
+            {!poolMode && item(<ListOrdered className="h-3.5 w-3.5" />, "Open Studio", onOpenStudio)}
+            {onSeedExam1 && <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />}
+            {onSeedExam1 && item(<Sprout className="h-3.5 w-3.5" />, "Exam 1 master seed…", onSeedExam1)}
+            {!homeActive && !poolMode && <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />}
+            {!homeActive && !poolMode && item(<Sprout className="h-3.5 w-3.5" />, "Seed starter sets", onSeedSets)}
+            {!homeActive && !poolMode && item(<Eraser className="h-3.5 w-3.5" />, "Clean set names", onCleanNames)}
+            {!homeActive && !poolMode && <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />}
+            {!homeActive && !poolMode && item(<RotateCcw className="h-3.5 w-3.5" />, "Reset… (canvas · CEQs · both)", onReset, true)}
             <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
             {item(<Archive className="h-3.5 w-3.5" />, "View archive: Dashboard v1", onViewV1)}
           </div>
         )}
       </div>
 
-      {/* Scene name — only when a scene is actually open; Home is an app state, never a scene. */}
-      {!homeActive && (<>
+      {/* Name — pool mode shows the fixed "Sets" surface label (sets rename in the
+          outline); canvas view keeps the editable name input. Home shows neither. */}
+      {!homeActive && poolMode && (<>
+        <span className="mx-1 h-4 w-px" style={{ background: NEON.borderSoft }} />
+        <span className="text-[12.5px] font-semibold" style={{ color: NEON.text }}>Sets</span>
+      </>)}
+      {!homeActive && !poolMode && (<>
         <span className="mx-1 h-4 w-px" style={{ background: NEON.borderSoft }} />
         <input
           className="w-48 bg-transparent text-[12.5px] font-semibold outline-none"
           value={sceneName}
           onChange={(e) => setSceneName(e.target.value)}
           onKeyDown={(e) => e.stopPropagation()}
-          title="Scene name"
+          title="Set name"
         />
       </>)}
 

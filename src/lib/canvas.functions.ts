@@ -34,12 +34,21 @@ export interface SceneListRow {
   /** Folder assignment (0088). undefined when the migration isn't applied —
    *  the Load dialog then renders flat with a fail-loud folder header. */
   folder_id?: string | null;
+  /** SET-FILE MARKERS (frames rename) — jsonb flags surfaced so the UI can keep
+   *  set files OUT of the legacy scene picker (opening one as a scene would strip
+   *  its setFile flag on save and orphan the set). Null/undefined = plain scene. */
+  set_file?: boolean | null;
+  workspace?: boolean | null;
+  archived?: boolean | null;
 }
 
 export const listScenes = createServerFn({ method: "POST" }).handler(async (): Promise<SceneListRow[]> => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const tbl = () => supabaseAdmin.from("canvas_scenes" as never) as any;
-  let { data, error } = await tbl().select("id,name,chapter_id,updated_at,folder_id").order("updated_at", { ascending: false });
+  let { data, error } = await tbl().select("id,name,chapter_id,updated_at,folder_id,set_file:nodes_json->setFile,workspace:nodes_json->workspace,archived:nodes_json->archived").order("updated_at", { ascending: false });
+  if (error) {
+    ({ data, error } = await tbl().select("id,name,chapter_id,updated_at,folder_id").order("updated_at", { ascending: false }));
+  }
   if (error && (error.code === "42703" || /folder_id/.test(error.message))) {
     ({ data, error } = await tbl().select("id,name,chapter_id,updated_at").order("updated_at", { ascending: false }));
   }

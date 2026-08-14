@@ -29,6 +29,14 @@ import { ArrowLeft, ChevronDown, ChevronRight, ChevronUp, ClipboardCopy, Clipboa
 
 import { chapterLabel, courseLabel, fetchCourseOptions, fetchJeBrowserTree } from "@/lib/je-api";
 import { createFolder, deleteFolder, deleteScene, duplicateScene, listCourseAccounts, listFolders, listScenes, loadScene, moveSceneToFolder, renameFolder, saveScene, type SceneListRow } from "@/lib/canvas.functions";
+// SET FILES (frames rename): one canvas_scenes row per set; the route loads them
+// as ONE pooled document and saves back only the rows whose content moved.
+import { extractSetJson, mergePool, setHash, type PoolDoc, type SceneJsonLike, type SetDeckLike, type SetEdgeLike, type SetNodeLike } from "@/lib/set-files.core";
+import { archiveSetFile, loadSetPool, migrateToSetFiles, saveSetFile, seedExam1Master } from "@/lib/set-files.functions";
+// Exam 1 master CSV rides in the bundle so the File ▾ seed action can dry-run +
+// apply without a local checkout (the overnight run found the first apply was
+// clobbered by a stale-tab autosave — re-applying is now one click).
+import exam1MasterCsv from "../../data/exam1-master.csv?raw";
 import { retryUnlessMigrationHint } from "@/lib/pg-errors";
 import { ManageAccountsDialog } from "@/components/canvas/ManageAccountsDialog";
 import { ManageCourseDialog } from "@/components/canvas/ManageCourseDialog";
@@ -1335,7 +1343,7 @@ function PresentCanvas() {
     } catch { /* ignore */ }
   }, []);
   const [sceneId, setSceneId] = useState<string | null>(null);
-  const [sceneName, setSceneName] = useState("Untitled scene");
+  const [sceneName, setSceneName] = useState("Untitled set");
   const [decks, setDecks] = useState<DeckDef[]>([]); // named decks (P3) — persisted in the scene payload
   const [ceqStudioOpen, setCeqStudioOpen] = useState(false); // CEQ STUDIO (prompt 5) — 3-pane authoring overlay
   const [brandingOpen, setBrandingOpen] = useState(false); // BRANDING STUDIO — reusable brand-frame gallery
@@ -1682,9 +1690,23 @@ function PresentCanvas() {
   // consumer expects an active tab), but while homeOpen the canvas is covered by the home frame,
   // the tab strip hides, and nothing autosaves (the empty-canvas guard already skips 0-node saves).
   const [homeOpen, setHomeOpen] = useState(true);
+  // ---- SET POOL (frames rename): the working mode. Every set file row merges into
+  // one in-memory document; the Studio is the whole surface; saves go back per-set
+  // (only rows whose extracted hash moved). The legacy whiteboard stays reachable
+  // via File ▾ → "Open canvas view — experimental" and uses the old scene machinery.
+  const [poolMode, setPoolMode] = useState(false);
+  const poolModeRef = useRef(false);
+  poolModeRef.current = poolMode;
+  const poolRowsRef = useRef<{ deckRows: Record<string, string>; workspaceRowId: string | null }>({ deckRows: {}, workspaceRowId: null });
+  const poolHashesRef = useRef<Map<string, string>>(new Map());
+  /** Present when a legacy multi-set scene exists and no set files do — the home
+   *  state shows the one-click split banner. */
+  const [poolLegacy, setPoolLegacy] = useState<{ id: string; name: string; decks: number } | null>(null);
+  /** File ▾ → "Exam 1 master seed…" — dry-run + apply from the bundled CSV. */
+  const [seedModalOpen, setSeedModalOpen] = useState(false);
   const [tabState, setTabState] = useState<{ tabs: TabEntry[]; active: string }>(() => {
     const key = Math.random().toString(36).slice(2);
-    return { tabs: [{ key, sceneId: null, name: "Untitled scene", dirty: false }], active: key };
+    return { tabs: [{ key, sceneId: null, name: "Untitled set", dirty: false }], active: key };
   });
 
   // SCENE FOLDERS (0088) — course groups in the Load dialog
@@ -1713,7 +1735,7 @@ function PresentCanvas() {
       try {
         let res = await moveSceneToFolder({ data: { scene_id: s.id, folder_id: folderId } });
         if ("conflict" in res) {
-          if (!window.confirm("This scene already has a DIFFERENT course set. Overwrite it with the folder's course?")) return;
+          if (!window.confirm("This set already has a DIFFERENT course. Overwrite it with the folder's course?")) return;
           res = await moveSceneToFolder({ data: { scene_id: s.id, folder_id: folderId, force_course: true } });
         }
         if ("courseSet" in res && res.courseSet && s.id === sceneId) setSceneCourseId(res.courseSet);
@@ -4376,6 +4398,47 @@ function PresentCanvas() {
     [serialize, sceneId],
   );
 
+  /** POOL SAVE — extract every cards-deck from the live document, write only the
+   *  rows whose hash moved, soft-archive rows whose deck was deleted, and keep the
+   *  workspace row (loose memos + settings + factories) in step. The serialize()
+   *  pipeline is reused 1:1 so sanitize + settings collection stay one code path. */
+  const savePool = useCallback(async () => {
+    const body = JSON.parse(serialize().nodes_json) as { nodes: SetNodeLike[]; edges: SetEdgeLike[]; decks: SetDeckLike[]; ceqSets: unknown[]; sceneSettings: Record<string, unknown> };
+    const cardDecks = (body.decks ?? []).filter((d) => (d.payloadType ?? "cards") === "cards");
+    try {
+      const claimed = new Set<string>();
+      for (const deck of cardDecks) {
+        const json = extractSetJson(deck, body.nodes ?? [], body.edges ?? []);
+        for (const n of json.nodes) claimed.add(n.id);
+        const h = setHash(json);
+        if (poolHashesRef.current.get(deck.id) === h) continue;
+        const res = await saveSetFile({ data: { id: poolRowsRef.current.deckRows[deck.id], name: (deck.name || "Set").slice(0, 120), nodes_json: JSON.stringify(json) } });
+        poolRowsRef.current.deckRows[deck.id] = res.id;
+        poolHashesRef.current.set(deck.id, h);
+      }
+      // decks deleted this session → their rows soft-archive (pool load skips them)
+      for (const [deckId, rowId] of Object.entries(poolRowsRef.current.deckRows)) {
+        if (cardDecks.some((d) => d.id === deckId)) continue;
+        await archiveSetFile({ data: { id: rowId } });
+        delete poolRowsRef.current.deckRows[deckId];
+        poolHashesRef.current.delete(deckId);
+      }
+      // workspace row: EVERYTHING unclaimed (loose memos, strays — nothing is dropped)
+      const loose = (body.nodes ?? []).filter((n) => !claimed.has(n.id));
+      const ws: SceneJsonLike = { workspace: true, schema_version: 5, nodes: loose, edges: [], decks: (body.decks ?? []).filter((d) => (d.payloadType ?? "cards") !== "cards"), ceqSets: body.ceqSets ?? [], sceneSettings: body.sceneSettings ?? {} };
+      const wh = setHash(ws);
+      if (poolHashesRef.current.get("__ws") !== wh) {
+        const res = await saveSetFile({ data: { id: poolRowsRef.current.workspaceRowId ?? undefined, name: "__workspace", nodes_json: JSON.stringify(ws) } });
+        poolRowsRef.current.workspaceRowId = res.id;
+        poolHashesRef.current.set("__ws", wh);
+      }
+      setSavedAt(new Date().toLocaleTimeString());
+      setDbDown(null);
+    } catch (e) {
+      setDbDown(e instanceof Error ? e.message : String(e));
+    }
+  }, [serialize]);
+
   const applyScene = useCallback(
     (payload: { name: string; nodes_json: string; viewport_json: string; bg?: string | null }, id: string | null) => {
       let nj: {
@@ -4528,13 +4591,49 @@ function PresentCanvas() {
     }
   }, [applyScene]);
 
+  /** OPEN THE SET POOL — the default working surface. Fetches every set file,
+   *  hydrates the merged document through the standard loader (migrations +
+   *  sanitize + bus.clear), baselines per-set hashes, and opens the Studio. */
+  const openPool = useCallback(async (focusSetId?: string | null) => {
+    try {
+      const p = await loadSetPool();
+      setPoolLegacy(p.legacy ?? null);
+      const pool = JSON.parse(p.pool_json) as PoolDoc;
+      poolRowsRef.current = { deckRows: { ...p.deckRows }, workspaceRowId: p.workspaceRowId };
+      poolHashesRef.current = new Map();
+      // Baselines from the RAW rows: after hydration the loader's migrations may
+      // normalize node shapes, so the first autosave can rewrite rows once — that
+      // write is correct content (it normalizes rows) and then hashes settle.
+      for (const deck of pool.decks.filter((d) => (d.payloadType ?? "cards") === "cards")) {
+        poolHashesRef.current.set(deck.id, setHash(extractSetJson(deck, pool.nodes, pool.edges)));
+      }
+      applyScene(
+        {
+          name: "Sets",
+          nodes_json: JSON.stringify({ schema_version: 5, nodes: pool.nodes, edges: pool.edges, decks: pool.decks, ceqSets: pool.ceqSets, sceneSettings: pool.sceneSettings }),
+          viewport_json: "null",
+        },
+        null,
+      );
+      setPoolMode(true);
+      setHomeOpen(false);
+      setCeqStudioOpen(true);
+      if (focusSetId) setStudioFocusSet(focusSetId);
+      setDbDown(null);
+    } catch (e) {
+      setDbDown(e instanceof Error ? e.message : String(e));
+    }
+  }, [applyScene]);
+  const openPoolRef = useRef(openPool);
+  openPoolRef.current = openPool;
+
   /** Reset the CURRENT tab's canvas to a blank untitled scene. */
   const clearCanvasState = useCallback(() => {
     bus.clear();
     rf.setNodes([]);
     rf.setEdges([]);
     setSceneId(null);
-    setSceneName("Untitled scene");
+    setSceneName("Untitled set");
     setDecks([]);
     setCeqSets([]);
     setSavedAt(null);
@@ -4644,7 +4743,7 @@ function PresentCanvas() {
       // untitled; otherwise snapshot the active tab and append as before.
       tabs: homeOpen && p.tabs.length === 1 && !p.tabs[0].sceneId && !p.tabs[0].dirty
         ? p.tabs
-        : [...p.tabs.map((t) => (t.key === p.active ? (sceneLoadingRef.current ? t : { ...t, sceneId, name: sceneName, snap: snapshotCurrent() }) : t)), { key, sceneId: null, name: "Untitled scene", dirty: false }],
+        : [...p.tabs.map((t) => (t.key === p.active ? (sceneLoadingRef.current ? t : { ...t, sceneId, name: sceneName, snap: snapshotCurrent() }) : t)), { key, sceneId: null, name: "Untitled set", dirty: false }],
       active: homeOpen && p.tabs.length === 1 && !p.tabs[0].sceneId && !p.tabs[0].dirty ? p.tabs[0].key : key,
     }));
     clearCanvasState();
@@ -4654,14 +4753,27 @@ function PresentCanvas() {
   /** HOME — close the scene view back to the brand frame. Same guard as closing a tab: any dirty
    *  tab must be confirmed away. All tabs are dropped; a fresh phantom untitled backs the canvas. */
   const goHome = useCallback(() => {
+    if (poolModeRef.current) {
+      // pool mode: flush the per-set saves (hash-gated, cheap), then close the pool
+      void (savePool as () => Promise<void>)().finally(() => {
+        setPoolMode(false);
+        setCeqStudioOpen(false);
+        setStudioFocusSet(null);
+        const fresh = { key: Math.random().toString(36).slice(2), sceneId: null, name: "Untitled set", dirty: false };
+        setTabState({ tabs: [fresh], active: fresh.key });
+        clearCanvasState();
+        setHomeOpen(true);
+      });
+      return;
+    }
     const dirtyCount = tabState.tabs.filter((t) => t.dirty).length;
-    if (dirtyCount > 0 && !window.confirm(`${dirtyCount} scene${dirtyCount === 1 ? " has" : "s have"} unsaved changes — close ${dirtyCount === 1 ? "it" : "them"} and go Home anyway?`)) return;
-    const fresh = { key: Math.random().toString(36).slice(2), sceneId: null, name: "Untitled scene", dirty: false };
+    if (dirtyCount > 0 && !window.confirm(`${dirtyCount} set${dirtyCount === 1 ? " has" : "s have"} unsaved changes — close ${dirtyCount === 1 ? "it" : "them"} and go Home anyway?`)) return;
+    const fresh = { key: Math.random().toString(36).slice(2), sceneId: null, name: "Untitled set", dirty: false };
     setTabState({ tabs: [fresh], active: fresh.key });
     clearCanvasState();
-    setSceneName("Untitled scene");
+    setSceneName("Untitled set");
     setHomeOpen(true);
-  }, [tabState, clearCanvasState]);
+  }, [tabState, clearCanvasState, savePool]);
 
   const closeTab = useCallback(
     (key: string) => {
@@ -4672,7 +4784,7 @@ function PresentCanvas() {
       if (dirty && !window.confirm(`"${isActive ? sceneName : t.name}" has unsaved changes — close anyway?`)) return;
       const rest = tabState.tabs.filter((x) => x.key !== key);
       if (rest.length === 0) {
-        const fresh = { key: Math.random().toString(36).slice(2), sceneId: null, name: "Untitled scene", dirty: false };
+        const fresh = { key: Math.random().toString(36).slice(2), sceneId: null, name: "Untitled set", dirty: false };
         setTabState({ tabs: [fresh], active: fresh.key });
         clearCanvasState();
         return;
@@ -4695,6 +4807,14 @@ function PresentCanvas() {
    *  (in-app duplicate prevention); otherwise a NEW tab. */
   const openSceneInTab = useCallback(
     (row: SceneListRow) => {
+      // SET-FILE GUARD: a set file opened as a scene would lose its setFile flag on
+      // the next scene save and vanish from the pool — route it to the pool instead.
+      if (row.set_file || row.workspace) {
+        void openPoolRef.current();
+        setLoadOpen(false);
+        return;
+      }
+      setPoolMode(false); // canvas view = the legacy machinery
       setHomeOpen(false); // opening a scene always leaves the home state
       setLoadOpen(false);
       const existing = tabState.tabs.find((t) => t.sceneId === row.id);
@@ -4775,7 +4895,8 @@ function PresentCanvas() {
     } catch { return Math.random().toString(36).slice(2); }
   })());
   const [tabConflict, setTabConflict] = useState(false);
-  const lockKey = sceneId ? `sa-canvas-lock-${sceneId}` : null;
+  // pool mode locks ONE key for the whole set pool — the per-set rows share a fate
+  const lockKey = poolMode ? "sa-canvas-lock-pool" : sceneId ? `sa-canvas-lock-${sceneId}` : null;
   const lockOwned = useCallback(() => {
     if (!lockKey) return true;
     try {
@@ -4807,7 +4928,7 @@ function PresentCanvas() {
   // autosave every 30s: the ACTIVE scene (lock-guarded), plus any DIRTY
   // background tabs from their snapshots — each tab autosaves independently.
   const saveRef = useRef(doSave);
-  saveRef.current = doSave;
+  saveRef.current = poolMode ? (savePool as typeof doSave) : doSave; // Ctrl+S + autosave both follow the mode
   const tabStateRef = useRef(tabState);
   tabStateRef.current = tabState;
   useEffect(() => {
@@ -4833,6 +4954,12 @@ function PresentCanvas() {
       // scene's truth yet) and never write an EMPTY canvas over a scene row —
       // rf.setNodes can drop pre-init, leaving sceneId set over zero nodes.
       // Deliberate empties persist via manual Save only.
+      // POOL MODE: per-set saves (hash-gated, so a quiet pool writes nothing).
+      // Same guards: never while a load is in flight, never over an empty canvas.
+      if (poolModeRef.current) {
+        if (lockOwned() && !sceneLoadingRef.current && rf.getNodes().length > 0) void saveRef.current();
+        return;
+      }
       if (sceneId && lockOwned() && !sceneLoadingRef.current && rf.getNodes().length > 0) void saveRef.current();
       for (const tab of tabStateRef.current.tabs) {
         if (tab.key !== tabStateRef.current.active && tab.dirty && tab.sceneId && tab.snap) {
@@ -5400,7 +5527,7 @@ function PresentCanvas() {
       { combo: "r", group: "Frames", description: "Rearrange this lesson's frames — full-grid drag reorder + copy/paste", handler: () => setRearrangeOpen((v) => !v) },
       { combo: "pagedown", group: "Frames", description: "Next beat", hidden: true, handler: (e) => { e.preventDefault(); stepBeat(1); } },
       { combo: "pageup", group: "Frames", description: "Previous beat", hidden: true, handler: (e) => { e.preventDefault(); stepBeat(-1); } },
-      { combo: "ctrl+s", group: "File", description: "Save the scene", handler: (e) => { e.preventDefault(); void saveRef.current(); } },
+      { combo: "ctrl+s", group: "File", description: "Save the set", handler: (e) => { e.preventDefault(); void saveRef.current(); } },
       { combo: "ctrl+z", group: "History", description: "Undo", handler: (e) => { e.preventDefault(); bus.undo(); } },
       { combo: "ctrl+y", group: "History", description: "Redo", handler: (e) => { e.preventDefault(); bus.redo(); } },
       { combo: "ctrl+shift+z", group: "History", description: "Redo", hidden: true, handler: (e) => { e.preventDefault(); bus.redo(); } },
@@ -5509,7 +5636,7 @@ function PresentCanvas() {
           sceneName={sceneName}
           setSceneName={setSceneName}
           savedNote={savedAt ? `saved ${savedAt}` : null}
-          onSave={() => void doSave()}
+          onSave={() => void saveRef.current()}
           onSaveAs={() => void doSave(true)}
           onLoad={() => void openLoad()}
           onExport={exportScene}
@@ -5523,6 +5650,8 @@ function PresentCanvas() {
           onHome={goHome}
           homeActive={homeOpen}
           onViewV1={() => setChromeVersion(true)}
+          poolMode={poolMode}
+          onSeedExam1={() => setSeedModalOpen(true)}
         />
       )}
       {/* Hidden import input — lives OUTSIDE the v1 toolbar so File → Import works in
@@ -5530,7 +5659,7 @@ function PresentCanvas() {
       {chrome && <input ref={importRef} type="file" accept=".json,application/json" className="hidden" onChange={(e) => { setHomeOpen(false); void onImportFile(e); }} />}
       {/* HOME STATE — the brand frame IS the screen when no scene is open (boot lands here; the
           Home button returns here). Covers the outline + canvas, sits under the navbar/modals. */}
-      {chrome && !chromeV1 && homeOpen && <CanvasHome onOpenScene={openSceneInTab} onNewScene={newTab} />}
+      {chrome && !chromeV1 && homeOpen && <CanvasHome onOpenScene={openSceneInTab} onNewScene={newTab} onOpenSets={() => void openPool()} legacy={poolLegacy} onLegacyDetected={setPoolLegacy} onMigrated={() => void openPool()} />}
       <div className="flex min-h-0 min-w-0 flex-1">
         {chrome && !chromeV1 && (outlineCollapsed ? (
           // COLLAPSED — a thin rail; click to bring the outline back.
@@ -6154,7 +6283,7 @@ function PresentCanvas() {
             value={sceneName}
             onChange={(e) => setSceneName(e.target.value)}
             onKeyDown={(e) => e.stopPropagation()}
-            title="Scene name"
+            title="Set name"
           />
           {/* CUE SHEET — moved to the leftmost tool slot (Lee's call, swapped with File) */}
           {!cramMode && <TB title="Cue sheet — the entered frame's space-walk sequence (enter a frame first)" active={cueSheetOpen} onClick={() => { setCueSheetOpen((v) => { const nv = !v; if (nv && !currentFrameId) flashToast("Enter a frame to see its cue sheet"); return nv; }); }}><ListOrdered className="h-3.5 w-3.5" /></TB>}
@@ -6205,7 +6334,7 @@ function PresentCanvas() {
                 <div className="absolute bottom-9 left-1/2 z-50 w-44 -translate-x-1/2 rounded-xl p-1.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}>
                   <MenuRow icon={<Save className="h-3.5 w-3.5" />} label="Save" onClick={() => { setFileMenuOpen(false); void doSave(); }} />
                   <MenuRow icon={<FilePlus2 className="h-3.5 w-3.5" />} label="Save as new" onClick={() => { setFileMenuOpen(false); void doSave(true); }} />
-                  <MenuRow icon={<FolderOpen className="h-3.5 w-3.5" />} label="Load scene" onClick={() => { setFileMenuOpen(false); void openLoad(); }} />
+                  <MenuRow icon={<FolderOpen className="h-3.5 w-3.5" />} label="Open set" onClick={() => { setFileMenuOpen(false); void openLoad(); }} />
                   <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
                   <MenuRow icon={<Download className="h-3.5 w-3.5" />} label="Export (.json + .md)" onClick={() => { setFileMenuOpen(false); exportScene(); }} />
                   <MenuRow icon={<Upload className="h-3.5 w-3.5" />} label="Import from file" onClick={() => { setFileMenuOpen(false); importRef.current?.click(); }} />
@@ -6511,9 +6640,9 @@ function PresentCanvas() {
                 <button
                   className="mt-1.5 w-full rounded px-1 py-1 text-[10px] font-bold uppercase tracking-wide"
                   style={{ color: NEON.red, border: "1px solid rgba(255,92,122,0.45)" }}
-                  title="Reset this tab to a blank untitled scene"
+                  title="Reset this tab to a blank untitled set"
                   onClick={() => {
-                    if (window.confirm("Clear this scene? The canvas resets to a blank untitled scene (saved scenes are untouched).")) {
+                    if (window.confirm("Clear this set? The canvas resets to a blank untitled set (saved sets are untouched).")) {
                       clearCanvasState();
                       setSettingsOpen(false);
                     }
@@ -6561,9 +6690,10 @@ function PresentCanvas() {
         </div>
       )}
 
-      {/* SCENE TABS — bottom-left; drag the strip to scroll when overflowing. Hidden on the HOME
-          state: the strip only exists once a scene is actually open. */}
-      {chrome && !homeOpen && (
+      {/* CANVAS-VIEW TABS — bottom-left; drag the strip to scroll when overflowing. Hidden on the
+          HOME state AND in pool mode: sets carry their own tabs in the Studio header — this strip
+          only exists for the legacy canvas view (File ▾ → Open canvas view). */}
+      {chrome && !homeOpen && !poolMode && (
         <div
           className="absolute bottom-3 left-3 z-40 flex max-w-[30vw] cursor-grab items-center gap-1 overflow-x-auto rounded-xl px-1.5 py-1 active:cursor-grabbing"
           style={{ background: NEON.panel, border: `1px solid ${NEON.borderSoft}`, backdropFilter: "blur(8px)", scrollbarWidth: "none" }}
@@ -6877,7 +7007,10 @@ function PresentCanvas() {
       {chrome && gridByType && <LessonGridView onClose={() => setGridByType(false)} onActivateLesson={setActiveLesson} />}
       {/* CEQ STUDIO (prompt 5) — three-pane authoring overlay (sets · questions +
           chains · memo library). Reuses named decks + CEQ cards + prompt-1 chains. */}
-      {chrome && ceqStudioOpen && !isPopped("ceqstudio") && <CeqStudio decks={decks} setDecks={setDecks} globalClips={globalClips} setGlobalClips={setGlobalClips} initialCeqId={studioFocusCeq} initialSetId={studioFocusSet} onPopOut={() => openPop("ceqstudio", 1180, 800)} onClose={() => { setCeqStudioOpen(false); setStudioFocusCeq(null); setStudioFocusSet(null); }} />}
+      {/* EXAM 1 MASTER SEED — dry-run first, apply on confirm; reloads the pool after. */}
+      {chrome && seedModalOpen && <SeedExam1Modal onClose={() => setSeedModalOpen(false)} onApplied={() => { setSeedModalOpen(false); if (poolModeRef.current) void openPoolRef.current(); }} />}
+      {/* POOL MODE: the Studio IS the surface — closing it means going Home. */}
+      {chrome && ceqStudioOpen && !isPopped("ceqstudio") && <CeqStudio decks={decks} setDecks={setDecks} globalClips={globalClips} setGlobalClips={setGlobalClips} initialCeqId={studioFocusCeq} initialSetId={studioFocusSet} onPopOut={() => openPop("ceqstudio", 1180, 800)} onClose={poolMode ? goHome : () => { setCeqStudioOpen(false); setStudioFocusCeq(null); setStudioFocusSet(null); }} />}
       {isPopped("ceqstudio") && (
         <PanelPopout win={popWins.ceqstudio!} title="Studio" onReturn={() => returnPop("ceqstudio")}>
           <CeqStudio decks={decks} setDecks={setDecks} globalClips={globalClips} setGlobalClips={setGlobalClips} initialCeqId={studioFocusCeq} initialSetId={studioFocusSet} popped onClose={() => { returnPop("ceqstudio"); setCeqStudioOpen(false); setStudioFocusCeq(null); setStudioFocusSet(null); }} />
@@ -7024,7 +7157,7 @@ function PresentCanvas() {
         <div className="absolute inset-0 grid place-items-center" style={{ background: "rgba(0,0,0,0.6)", zIndex: Z.modal }} onClick={() => setLoadOpen(false)}>
           <div className="max-h-[75vh] w-[430px] overflow-y-auto rounded-xl p-3" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
             <div className="mb-2 flex items-center gap-2">
-              <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.pink }}>Load scene</span>
+              <span className="text-[12px] font-bold uppercase tracking-wider" style={{ color: NEON.pink }}>Open set</span>
               <input
                 className="ml-auto w-32 rounded bg-black/30 px-1.5 py-0.5 text-[10.5px] outline-none"
                 style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
@@ -7077,7 +7210,7 @@ function PresentCanvas() {
                       ) : (
                         <span
                           className="truncate"
-                          title={f.id ? "Double-click to rename" : "Scenes without a folder"}
+                          title={f.id ? "Double-click to rename" : "Sets without a folder"}
                           onDoubleClick={(e) => { e.stopPropagation(); if (f.id) setRenamingFolder({ id: f.id }); }}
                         >
                           {f.name}
@@ -7089,7 +7222,7 @@ function PresentCanvas() {
                       <button
                         className="shrink-0 text-[10px]"
                         style={{ color: NEON.red }}
-                        title={f.course_id ? "Delete folder (course-linked — scenes move to Unfiled)" : "Delete folder (scenes move to Unfiled)"}
+                        title={f.course_id ? "Delete folder (course-linked — sets move to Unfiled)" : "Delete folder (sets move to Unfiled)"}
                         onClick={() => {
                           const warn = f.course_id
                             ? `"${f.name}" is linked to a course — folder assignments also set scene course context. Delete it anyway? Its ${inFolder.length} scene(s) move to Unfiled (nothing is deleted).`
@@ -7125,7 +7258,7 @@ function PresentCanvas() {
                     <button
                       className="shrink-0 text-[9.5px] font-semibold uppercase"
                       style={{ color: NEON.cyan }}
-                      title="Duplicate scene — full copy, same folder, '(copy)' name"
+                      title="Duplicate set — full copy, same folder, '(copy)' name"
                       onClick={async () => {
                         const res = await duplicateScene({ data: { id: s.id } });
                         setScenes((xs) => [{ ...s, id: res.id, name: res.name, updated_at: new Date().toISOString() }, ...xs]);
@@ -7144,7 +7277,7 @@ function PresentCanvas() {
                     <button
                       className="shrink-0 text-[10px]"
                       style={{ color: NEON.red }}
-                      title="Delete scene"
+                      title="Delete set"
                       onClick={async () => {
                         await deleteScene({ data: { id: s.id } });
                         setScenes((xs) => xs.filter((x) => x.id !== s.id));
@@ -7162,7 +7295,7 @@ function PresentCanvas() {
                     <select
                       className="min-w-0 flex-1 rounded bg-black/40 px-1.5 py-0.5 text-[10.5px] outline-none"
                       style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
-                      title="File this scene into a folder"
+                      title="File this set into a folder"
                       value={s.folder_id ?? ""}
                       onChange={(e) => void moveScene(s, e.target.value || null)}
                     >
@@ -7282,11 +7415,49 @@ function BgOption({ label, active, onClick }: { label: string; active: boolean; 
 // outro-card composition from the existing brand components (no new art). A quiet overlay at the
 // bottom lists the last 5 scenes + New scene: the frame is the screen; the list is furniture.
 // prefers-reduced-motion → static bolt.
-function CanvasHome({ onOpenScene, onNewScene }: { onOpenScene: (row: SceneListRow) => void; onNewScene: () => void }) {
+function CanvasHome({ onOpenScene, onNewScene, onOpenSets, legacy, onLegacyDetected, onMigrated }: { onOpenScene: (row: SceneListRow) => void; onNewScene: () => void; onOpenSets: () => void; legacy: { id: string; name: string; decks: number } | null; onLegacyDetected: (l: { id: string; name: string; decks: number } | null) => void; onMigrated: () => void }) {
   const [reduce] = useState(() => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
   const recentQ = useQuery({ queryKey: ["home-recent-scenes"], queryFn: () => listScenes(), staleTime: 30_000, networkMode: "always" });
-  const recent = (recentQ.data ?? []).slice(0, 5); // listScenes is already updated_at DESC
+  const rows = recentQ.data ?? []; // updated_at DESC
+  const hasSetFiles = rows.some((r) => r.set_file);
+  // recents: set files open the pool; workspace/archived rows stay off the home
+  const recent = rows.filter((r) => !r.workspace && !r.archived).slice(0, 5);
   const when = (s?: string) => { try { return s ? new Date(s).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : ""; } catch { return ""; } };
+  // LEGACY DETECTION — a multi-set scene with no set files yet shows the one-click
+  // split banner (dry-run counts first, apply on confirm — the import ritual).
+  const [migrating, setMigrating] = useState<"idle" | "dryrun" | "confirm" | "applying">("idle");
+  const [plan, setPlan] = useState<{ sets: number; cards: number; memosCopied: number; orphanCards: number; already: number; archiveName: string } | null>(null);
+  const [migErr, setMigErr] = useState<string | null>(null);
+  useEffect(() => {
+    if (hasSetFiles || !rows.length) { onLegacyDetected(null); return; }
+    let stop = false;
+    void migrateToSetFiles({ data: { apply: false } })
+      .then((r) => { if (!stop) onLegacyDetected({ id: "", name: r.plan.archiveName.replace(" — canvas archive", ""), decks: r.plan.sets + r.plan.already }); })
+      .catch(() => { if (!stop) onLegacyDetected(null); });
+    return () => { stop = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasSetFiles, rows.length]);
+  const runSplit = async () => {
+    setMigErr(null);
+    try {
+      if (migrating === "idle") {
+        setMigrating("dryrun");
+        const r = await migrateToSetFiles({ data: { apply: false } });
+        setPlan(r.plan);
+        setMigrating("confirm");
+        return;
+      }
+      if (migrating === "confirm") {
+        setMigrating("applying");
+        await migrateToSetFiles({ data: { apply: true } });
+        onLegacyDetected(null);
+        onMigrated();
+      }
+    } catch (e) {
+      setMigErr(e instanceof Error ? e.message : String(e));
+      setMigrating("idle");
+    }
+  };
   return (
     <div className="absolute inset-x-0 bottom-0 top-11 z-[60] flex flex-col items-center justify-center" style={{ background: "#14213D" }}>
       <div className="flex flex-col items-center" style={{ fontFamily: "'Rubik', system-ui, sans-serif" }}>
@@ -7295,18 +7466,109 @@ function CanvasHome({ onOpenScene, onNewScene }: { onOpenScene: (row: SceneListR
           : <BoltBoil height={170} />}
         <div className="mt-8"><SurviveWordmark size={92} /></div>
         <div className="mt-6 text-[22px] font-semibold" style={{ color: "#F5EFE6" }}>Only what's on your exam.</div>
+        {/* PRIMARY: the set dashboard. Sets are filmed; frames are what's in them. */}
+        {hasSetFiles && (
+          <button onClick={onOpenSets} className="mt-8 rounded-xl px-6 py-2.5 text-[15px] font-bold transition-colors hover:bg-white/10" style={{ color: NEON.yellow, border: "2px solid rgba(252,163,17,0.6)" }} title="Open every set — the outline on the left is the one navigation">
+            Open sets →
+          </button>
+        )}
+        {/* SPLIT BANNER — the one-time scene → set-files migration. */}
+        {!hasSetFiles && legacy && (
+          <div className="mt-8 flex max-w-[520px] flex-col items-center gap-2 rounded-xl px-5 py-4 text-center" style={{ border: "1px solid rgba(252,163,17,0.5)", background: "rgba(252,163,17,0.07)" }}>
+            <span className="text-[13px] font-semibold" style={{ color: "#F5EFE6" }}>
+              "{legacy.name}" still holds {legacy.decks} sets in one file.
+            </span>
+            {migrating === "confirm" && plan && (
+              <span className="text-[12px]" style={{ color: "rgba(245,239,230,0.8)" }}>
+                Split plan: {plan.sets} set files · {plan.cards} CEQ frames · {plan.memosCopied} memo copies · {plan.orphanCards} legacy orphans stay in "{plan.archiveName}". Nothing is deleted.
+              </span>
+            )}
+            {migErr && <span className="text-[11px]" style={{ color: "#ff8a80" }}>{migErr}</span>}
+            <button onClick={() => void runSplit()} disabled={migrating === "dryrun" || migrating === "applying"} className="rounded-lg px-4 py-1.5 text-[12.5px] font-bold transition-colors hover:bg-white/10 disabled:opacity-50" style={{ color: NEON.yellow, border: "1px solid rgba(252,163,17,0.6)" }}>
+              {migrating === "idle" && "Split into set files…"}
+              {migrating === "dryrun" && "Checking…"}
+              {migrating === "confirm" && "Looks right — split now"}
+              {migrating === "applying" && "Splitting…"}
+            </button>
+          </div>
+        )}
       </div>
       {/* the furniture — muted, small, at the bottom */}
       <div className="absolute inset-x-0 bottom-8 flex flex-col items-center gap-2">
         <div className="flex flex-wrap items-center justify-center gap-1.5 px-6">
           {recent.map((r) => (
-            <button key={r.id} onClick={() => onOpenScene(r)} className="max-w-[220px] truncate rounded-lg px-3 py-1.5 text-[12px] font-semibold transition-colors hover:bg-white/10" style={{ color: "rgba(245,239,230,0.75)", border: "1px solid rgba(245,239,230,0.18)" }} title={`Open "${r.name}"`}>
+            <button key={r.id} onClick={() => onOpenScene(r)} className="max-w-[220px] truncate rounded-lg px-3 py-1.5 text-[12px] font-semibold transition-colors hover:bg-white/10" style={{ color: "rgba(245,239,230,0.75)", border: "1px solid rgba(245,239,230,0.18)" }} title={r.set_file ? `Open the set dashboard at "${r.name}"` : `Open "${r.name}" (canvas view)`}>
               {r.name} <span style={{ opacity: 0.55 }}>· {when((r as { updated_at?: string }).updated_at)}</span>
             </button>
           ))}
-          <button onClick={onNewScene} className="rounded-lg px-3 py-1.5 text-[12px] font-bold transition-colors hover:bg-white/10" style={{ color: NEON.yellow, border: `1px solid rgba(252,163,17,0.45)` }} title="Start a new scene (name it inline in the top bar)">+ New scene</button>
+          {!hasSetFiles && <button onClick={onNewScene} className="rounded-lg px-3 py-1.5 text-[12px] font-bold transition-colors hover:bg-white/10" style={{ color: NEON.yellow, border: `1px solid rgba(252,163,17,0.45)` }} title="Start a new set (name it inline in the top bar)">+ New set</button>}
         </div>
-        {recentQ.isLoading && <span className="text-[10.5px]" style={{ color: "rgba(245,239,230,0.4)" }}>loading recent scenes…</span>}
+        {recentQ.isLoading && <span className="text-[10.5px]" style={{ color: "rgba(245,239,230,0.4)" }}>loading recent sets…</span>}
+      </div>
+    </div>
+  );
+}
+
+/** EXAM 1 MASTER SEED (File ▾) — the same dry-run → confirm → apply ritual as every
+ *  import, but one click from the app: the master CSV ships in the bundle. Exists
+ *  because the 2026-08-13 script apply was clobbered by a stale-tab autosave; with
+ *  per-set rows the writes are small and the pool reloads right after. */
+function SeedExam1Modal({ onClose, onApplied }: { onClose: () => void; onApplied: () => void }) {
+  const [phase, setPhase] = useState<"dryrun" | "confirm" | "applying" | "done" | "error">("dryrun");
+  const [msg, setMsg] = useState<string>("");
+  const [report, setReport] = useState<{ setsCreated: string[]; setsUpdated: string[]; setsRenamed: string[]; ceqsCreated: number; ceqsUpdated: number } | null>(null);
+  useEffect(() => {
+    let stop = false;
+    void seedExam1Master({ data: { csv: exam1MasterCsv, apply: false } })
+      .then((r) => {
+        if (stop) return;
+        if ("errors" in r) { setPhase("error"); setMsg(r.errors.join("\n")); return; }
+        setReport(r as never);
+        setPhase("confirm");
+      })
+      .catch((e) => { if (!stop) { setPhase("error"); setMsg(e instanceof Error ? e.message : String(e)); } });
+    return () => { stop = true; };
+  }, []);
+  const apply = async () => {
+    setPhase("applying");
+    try {
+      const r = await seedExam1Master({ data: { csv: exam1MasterCsv, apply: true } });
+      if ("errors" in r) { setPhase("error"); setMsg(r.errors.join("\n")); return; }
+      setPhase("done");
+    } catch (e) {
+      setPhase("error");
+      setMsg(e instanceof Error ? e.message : String(e));
+    }
+  };
+  return (
+    <div className="fixed inset-0 z-[95] flex items-center justify-center" style={{ background: "rgba(4,8,16,0.72)" }} onClick={onClose}>
+      <div className="w-[520px] max-w-[92vw] rounded-xl p-5" style={{ background: NEON.panel, border: `1px solid ${NEON.borderSoft}` }} onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 text-[13px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}>Exam 1 master seed</div>
+        {phase === "dryrun" && <div className="text-[12px]" style={{ color: NEON.muted }}>Dry-running against the live sets…</div>}
+        {phase === "confirm" && report && (
+          <div className="flex flex-col gap-2 text-[12px]" style={{ color: NEON.text }}>
+            <span><b>{report.ceqsCreated}</b> CEQ frames to create · <b>{report.ceqsUpdated}</b> to update</span>
+            <span><b>{report.setsCreated.length}</b> sets to create · <b>{report.setsUpdated.length}</b> to update · <b>{report.setsRenamed.length}</b> renames</span>
+            <span style={{ color: NEON.muted }}>Never deletes a set or CEQ; never blanks choices; Exam 1 only.</span>
+            <div className="mt-2 flex gap-2">
+              <button className="rounded px-3 py-1.5 text-[12px] font-bold" style={{ color: "#0B1322", background: NEON.yellow }} onClick={() => void apply()}>Apply</button>
+              <button className="rounded px-3 py-1.5 text-[12px] font-semibold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={onClose}>Cancel</button>
+            </div>
+          </div>
+        )}
+        {phase === "applying" && <div className="text-[12px]" style={{ color: NEON.muted }}>Applying…</div>}
+        {phase === "done" && (
+          <div className="flex flex-col gap-2 text-[12px]" style={{ color: NEON.text }}>
+            <span>Applied. The pool reloads with the seeded frames.</span>
+            <button className="self-start rounded px-3 py-1.5 text-[12px] font-bold" style={{ color: "#0B1322", background: NEON.yellow }} onClick={onApplied}>Done</button>
+          </div>
+        )}
+        {phase === "error" && (
+          <div className="flex flex-col gap-2 text-[12px]">
+            <span style={{ color: "#ff8a80", whiteSpace: "pre-wrap" }}>{msg}</span>
+            <button className="self-start rounded px-3 py-1.5 text-[12px] font-semibold" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={onClose}>Close</button>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -361,6 +361,15 @@ export interface CeqCard extends CardBase {
   exhibit?: string;
   /** Author note carried from the master sheet (e.g. BIGGER = missing-variable beat change). */
   seedNote?: string;
+  /** RUN LETTER (frames rename) — the take-span this frame films in ("A", "B", …). A run
+   *  = a contiguous span of frames captured in one take. Additive scene JSON; the
+   *  film-readiness check lists gaps, the rehearsal view shows run boundaries. */
+  run?: string;
+  /** NOTE FRAME (frames rename) — true ⇒ this is a Note frame: title + body (prompt) +
+   *  memo chips, NO choices, film-ready, but NEVER a CEQ: excluded from the student
+   *  question counter ("Q 14/29" skips notes), practice entry, and readiness checks.
+   *  Same card system as CEQ frames so film mode + the player timeline show it. */
+  noteOnly?: boolean;
   choices: CeqChoice[];
   revealedAnswer?: boolean;
   /** PER-CEQ SCRIPT NOTE — LEGACY field. Superseded by the SCRIPT LAYERS below:
@@ -1295,6 +1304,11 @@ export interface DeckDef {
    *  set is NEVER served to students regardless of `status` — fetchStudentTree drops it server-side.
    *  Additive scene JSON; no migration. */
   parked?: boolean;
+  /** TAKE LOGGER (film-prep tools) — a free-text sticky note on the set ("run A =
+   *  clip 0047, redo Q9"), autosaved, no structure or parsing. Additive. */
+  takesNote?: string;
+  /** "Mark filmed today" — manual read-only timestamp (ISO date). Additive. */
+  lastFilmedAt?: string;
   /** CEQ Studio special slots (per set): INTRO + OUTRO staged clips. The shared
    *  TRANSITION lives in panel prefs (one file across all sets). Additive. */
   intro?: TakeRef;
