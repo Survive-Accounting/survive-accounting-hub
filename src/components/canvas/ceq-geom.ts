@@ -22,6 +22,12 @@ const SLOT_H = 150; // nominal chip height at scale 1 — the overflow stacking 
 
 /** Where THIS question's card sits: its own spot, else the set's template card,
  *  else the deal centre. */
+/** LAYOUT OPT-OUT gate — the ONE place "does the template apply to this frame"
+ *  is decided. Pass a card's template through this at every resolve/apply site. */
+export function templateFor<T>(ignoreLayout: boolean | undefined, template: T | undefined): T | undefined {
+  return ignoreLayout ? undefined : template;
+}
+
 export function resolveCardSpot(instance: CeqInstanceGeom | undefined, template: DeckLayout | undefined, fw: number, fh: number): Spot {
   const s = instance?.card ?? template?.card;
   if (s) return { x: s.x, y: s.y, scale: s.scale ?? 1 };

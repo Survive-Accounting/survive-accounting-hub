@@ -23,7 +23,7 @@ import { CeqChainEditor } from "./CeqChainEditor";
 import { listChainTemplates } from "./ceq-chain-templates";
 import { MemoPickerModal } from "./MemoPickerModal";
 import { activeSlots, CeqPreviewer, dealCentre, defaultMemoPos, paletteSlots, rackOf } from "./CeqPreviewer";
-import { resolveCardSpot, resolveMemoSpot, stampFromTemplate, withInstanceSpot, type Spot } from "./ceq-geom";
+import { resolveCardSpot, resolveMemoSpot, stampFromTemplate, templateFor, withInstanceSpot, type Spot } from "./ceq-geom";
 import { autoClipName, buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, stageTake, stitchManifest, stitchRuntime, videoFromDrop, videosFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
 import { buildSetExport } from "./ceq-export";
 import { SetFilmstrip, type StripItem } from "./SetFilmstrip";
@@ -250,6 +250,21 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const [qSel, setQSel] = useState<Set<string>>(() => new Set());
   // DISSECT (P5) — which CEQ's moments editor is open (null = closed).
   const [dissectQ, setDissectQ] = useState<string | null>(null);
+  // LAYOUT REWORK — entering the base frame remembers where to return; leaving
+  // it (Done) opens the SAVE-TIME apply choice. Application is author-time only.
+  const layoutReturnRef = useRef<string | null>(null);
+  const [applyPanel, setApplyPanel] = useState<null | { conform: number; hand: number; opted: number }>(null);
+  const enterLayoutEdit = () => { if (qId !== LAYOUT_Q0) layoutReturnRef.current = qId; setQId(LAYOUT_Q0); };
+  const exitLayoutEdit = () => {
+    const back = layoutReturnRef.current ?? questions[0]?.id ?? null;
+    if (back) setQId(back);
+    const ds = questions.map((qn) => rf.getNode(qn.id)?.data as unknown as CeqCard | undefined);
+    setApplyPanel({
+      conform: ds.filter((d) => d && !d.geom && !d.ignoreLayout).length,
+      hand: ds.filter((d) => d && !!d.geom && !d.ignoreLayout).length,
+      opted: ds.filter((d) => !!d?.ignoreLayout).length,
+    });
+  };
   // SET PROFILE (P6) — the production-profile panel + templates.
   const [profileOpen, setProfileOpen] = useState(false);
   // IDEA BANK (P7) — null closed · "capture" = the F8 quick popover · "board".
@@ -1115,8 +1130,10 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const applyLayoutToAll = (opts?: { silent?: boolean }) => {
     if (!deck) return 0;
     const cmds: NonNullable<ReturnType<typeof patchDataCmd>>[] = [];
+    let optedOut = 0;
     for (const q of questions) {
       const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined; if (!d) continue;
+      if (d.ignoreLayout) { optedOut++; continue; } // per-frame opt-out (layout rework)
       const chainCount = (d.choices ?? []).reduce((n, c) => n + (c.chain?.length ?? 0), 0);
       const g = stampFromTemplate(deck.layout, chainCount, frameW, frameH);
       // FORCE-STAMP every question (was: skip when geom already matched — that left
@@ -1127,23 +1144,16 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     if (cmds.length === 0) { if (!opts?.silent) setNote("No questions to stamp."); return 0; }
     const cmd = compositeCmd(cmds, `apply layout to ${cmds.length} question${cmds.length === 1 ? "" : "s"}`);
     if (cmd) bus.dispatch(cmd);
-    setNote(`Re-stamped ${cmds.length} question${cmds.length === 1 ? "" : "s"} from the layout — one Ctrl+Z puts them all back.`);
+    setNote(`Re-stamped ${cmds.length} question${cmds.length === 1 ? "" : "s"} from the layout${optedOut ? ` (${optedOut} opted out, untouched)` : ""} — one Ctrl+Z puts them all back.`);
     return cmds.length;
   };
-  /** LAYOUT MODE toggle. Turning it ON asks ONCE whether to re-stamp what's already
-   *  authored — never silent, because that would overwrite hand-placed geometry. */
+  /** LAYOUT MODE toggle — a PLAIN toggle now (layout rework). The apply decision
+   *  lives at SAVE TIME (the Done → apply-choice panel), never at toggle time,
+   *  and never in a window.confirm. Application stays author-time only. */
   const setLayoutMode = (on: boolean) => {
     if (!deck) return;
     setDecks((prev) => updateDeck(prev, deck.id, { layoutMode: on }));
-    if (!on) { setNote("Layout mode OFF — deals land where each question was last authored; nothing conforms."); return; }
-    const n = questions.length;
-    if (n > 0 && window.confirm(`Layout mode ON.
-
-Re-stamp all ${n} question${n === 1 ? "" : "s"} from the layout now?
-
-OK = apply to all (one Ctrl+Z undoes it).
-Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: true });
-    else setNote("Layout mode ON — the layout governs future deals; existing questions left as they are.");
+    setNote(on ? "Layout overlay ON — future deals conform to the base frame. Edit it via View ▸ Edit set layout…" : "Layout overlay OFF — deals land where each question was last authored.");
   };
 
   /** The set's assigned spine rows (courseId/topicId → the real course + chapter). */
@@ -1939,7 +1949,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
     // frame-local, so an unparented memo landed at those numbers in WORLD space, i.e.
     // nowhere near the frame: created-but-not-placed, which is what Lee was seeing.
     const frameId = qNodeRef?.parentId ?? nav.currentFrameId ?? undefined;
-    const spot = resolveMemoSpot((qNodeRef?.data as unknown as CeqCard | undefined)?.geom, deck?.layout, chainCount, frameW, frameH);
+    const spot = resolveMemoSpot((qNodeRef?.data as unknown as CeqCard | undefined)?.geom, templateFor((qNodeRef?.data as unknown as CeqCard | undefined)?.ignoreLayout, deck?.layout), chainCount, frameW, frameH);
     const memoNode = { id: memoId, type: "memo", ...(frameId ? { parentId: frameId } : {}), position: { x: Math.round(spot.x), y: Math.round(spot.y) }, selected: false, data: { kind: "memo", memoKind: "note", title: label, body: "", category, scale: spot.scale } };
     if (choiceId === "__stem__") {
       // STEM CHAIN (P2) — chained to the QUESTION: walks out before any choice,
@@ -2230,7 +2240,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
   const renderPreviewer = (recMode: boolean) => (
     <CeqPreviewer transportLeft={transportClips} transportRight={transportFlags} ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSaveInstance={(g) => { if (qId && qId !== LAYOUT_Q0) saveInstanceGeom(qId, g); }} layoutOn={deck?.layoutMode !== false} onSetLayoutMode={setLayoutMode} onApplyLayoutToAll={() => { const n = questions.length; if (n > 0 && window.confirm(`Re-stamp all ${n} question${n === 1 ? "" : "s"} from the layout?
 
-This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undoes all of it.`)) applyLayoutToAll(); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onReorderChainMemo={reorderChainByMemo} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} counterIds={counterIds} stageSig={stagedHere.map((e) => `${e.id}:${e.hidden ? 1 : 0}`).join(",")} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onEditStem={(cid, text) => patchQ(cid, { prompt: text }, `q:${cid}:prompt`)} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSetMisconception={setMemoMisconception} misconceptionSlugs={misconceptionDefs.map((d) => d.slug)} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} showProgress={deck?.showProgress} onSetShowProgress={(b) => { if (deck) setDecks((prev) => updateDeck(prev, deck.id, { showProgress: b })); }} bossAutoArm={deck?.bossAutoArm} onOpenMemoLib={(id) => { setLibOpen(true); setPreviewSelMemo(id); }} topicName={(() => { const rows = spineRows(deck); return rows ? topicLabel(rows.topic).replace(/^ch\s*\d+\s*[·.\-:]\s*/i, "").replace(/\s*\(archived\)\s*$/i, "").trim() : undefined; })()} recording={recMode} onExitRecording={() => { setRecording(false); setRehearse(false); setRunCard(null); }} />
+This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undoes all of it.`)) applyLayoutToAll(); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onReorderChainMemo={reorderChainByMemo} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} counterIds={counterIds} stageSig={stagedHere.map((e) => `${e.id}:${e.hidden ? 1 : 0}`).join(",")} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onEditStem={(cid, text) => patchQ(cid, { prompt: text }, `q:${cid}:prompt`)} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSetMisconception={setMemoMisconception} misconceptionSlugs={misconceptionDefs.map((d) => d.slug)} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} showProgress={deck?.showProgress} onSetShowProgress={(b) => { if (deck) setDecks((prev) => updateDeck(prev, deck.id, { showProgress: b })); }} bossAutoArm={deck?.bossAutoArm} onOpenMemoLib={(id) => { setLibOpen(true); setPreviewSelMemo(id); }} topicName={(() => { const rows = spineRows(deck); return rows ? topicLabel(rows.topic).replace(/^ch\s*\d+\s*[·.\-:]\s*/i, "").replace(/\s*\(archived\)\s*$/i, "").trim() : undefined; })()} recording={recMode} onEditLayout={enterLayoutEdit} onExitRecording={() => { setRecording(false); setRehearse(false); setRunCard(null); }} />
   );
   return (
     <div ref={studioRootRef} className={popped ? "flex h-full w-full flex-col" : "absolute inset-0 flex flex-col"} style={{ background: "rgba(6,10,20,0.98)", color: NEON.text, zIndex: popped ? undefined : Z.overlay }}>
@@ -2576,6 +2586,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   assignRun,
                   dissect: () => { if (qId && qId !== LAYOUT_Q0) setDissectQ(qId); },
                   profile: () => setProfileOpen(true),
+                  ignoreLayout: () => { const ids = qSel.size ? [...qSel] : qId && qId !== LAYOUT_Q0 ? [qId] : []; if (!ids.length) return; const allOn = ids.every((iid) => !!(rf.getNode(iid)?.data as unknown as CeqCard | undefined)?.ignoreLayout); const cmds = ids.map((iid) => patchDataCmd(rfl, iid, { ignoreLayout: !allOn }, "layout opt-out")).filter((c): c is NonNullable<typeof c> => !!c); const cmd = compositeCmd(cmds, "layout opt-out"); if (cmd) bus.dispatch(cmd); setNote(ids.length + " frame" + (ids.length === 1 ? "" : "s") + (allOn ? " back on the set layout" : " now IGNORE the set layout") + "."); },
                   fillDownRuns: fillRunsDown,
                 }}
               />
@@ -2585,6 +2596,32 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   Toggle dissect on/off; add / rename / reorder / waive moments; tag an
                   existing take to a moment. All writes go through patchQ (undoable). */}
               {/* SET PRODUCTION PROFILE (P6) — compact per-set panel + templates. */}
+              {/* EDITING SET LAYOUT (layout rework) — the unmistakable state. */}
+              {qId === LAYOUT_Q0 && (
+                <div className="absolute left-1/2 top-2 z-[72] flex -translate-x-1/2 items-center gap-2 rounded-lg px-3 py-1.5 shadow-xl" style={{ background: "rgba(252,163,17,0.95)", color: "#0B1322" }}>
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                  <span className="text-[10.5px] font-black uppercase tracking-wider">Editing set layout — the base frame every frame deals from</span>
+                  <button className="rounded px-2 py-0.5 text-[10px] font-black uppercase" style={{ background: "#0B1322", color: NEON.yellow }} onClick={exitLayoutEdit}>Done</button>
+                </div>
+              )}
+              {/* SAVE-TIME APPLY CHOICE (layout rework): after editing the base frame,
+                  the explicit decision — with the honest counts — or nothing yet. */}
+              {applyPanel && deck && (
+                <div className="absolute inset-0 z-[73] flex items-start justify-center" style={{ background: "rgba(4,7,14,0.6)" }} onClick={() => setApplyPanel(null)}>
+                  <div className="mt-16 w-[400px] max-w-[94vw] rounded-xl p-3 shadow-2xl" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}` }} onClick={(e) => e.stopPropagation()}>
+                    <div className="text-[11px] font-black uppercase tracking-wider" style={{ color: NEON.yellow }}>Layout saved — apply it?</div>
+                    <div className="mt-1.5 text-[10.5px] leading-relaxed" style={{ color: NEON.text }}>
+                      <b>{applyPanel.conform}</b> frame{applyPanel.conform === 1 ? "" : "s"} already follow the layout and will re-conform.<br />
+                      <b style={{ color: applyPanel.hand ? "#FFD23F" : undefined }}>{applyPanel.hand}</b> ha{applyPanel.hand === 1 ? "s" : "ve"} hand-placed geometry that applying will overwrite (one Ctrl+Z restores).<br />
+                      <b>{applyPanel.opted}</b> opted out (📐) and will not be touched.
+                    </div>
+                    <div className="mt-2.5 flex items-center gap-2">
+                      <button className="rounded px-2.5 py-1 text-[10px] font-black uppercase" style={{ background: NEON.yellow, color: "#0B1322" }} onClick={() => { setApplyPanel(null); applyLayoutToAll(); }}>Apply to {applyPanel.conform + applyPanel.hand} frame{applyPanel.conform + applyPanel.hand === 1 ? "" : "s"}</button>
+                      <button className="rounded px-2.5 py-1 text-[10px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setApplyPanel(null)}>Not yet — future deals only</button>
+                    </div>
+                  </div>
+                </div>
+              )}
               {ideaBank && !recording && <IdeaBank mode={ideaBank} onClose={() => setIdeaBank(null)} />}
               {profileOpen && deck && (() => {
                 const pf = deck.profile ?? {};

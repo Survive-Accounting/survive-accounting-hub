@@ -399,6 +399,10 @@ export interface CeqCard extends CardBase {
    *  standardized reading card. Additive scene JSON; absent = plain callout
    *  with topic on. See cards/CalloutCard.tsx for the render contract. */
   callout?: CalloutSettings;
+  /** LAYOUT OPT-OUT (layout rework): true ⇒ this frame IGNORES the set layout —
+   *  the template never places it and apply-to-all skips it. Its own instance
+   *  geometry (or the deal centre) governs. Additive scene JSON. */
+  ignoreLayout?: boolean;
   /** STEM CHAIN (P2) — memos chained to the QUESTION itself. They walk out
    *  BEFORE any choice is selected (setup, context, a distractor tease), in
    *  authored order, always earlier than choice-chained memos. Additive. */
