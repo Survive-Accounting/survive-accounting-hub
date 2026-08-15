@@ -2628,6 +2628,19 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   assignRun,
                   dissect: () => { if (qId && qId !== LAYOUT_Q0) setDissectQ(qId); },
                   profile: () => setProfileOpen(true),
+                  uploadClip: (file: File) => { void (async () => {
+                    const ids = qSel.size ? questions.filter((q) => qSel.has(q.id)).map((q) => q.id) : qId && qId !== LAYOUT_Q0 ? [qId] : [];
+                    if (!ids.length) { setNote("Select frames in the spine (or open one) first — then Upload clip."); return; }
+                    setNote("Uploading clip for " + ids.length + " frame" + (ids.length === 1 ? "" : "s") + "…");
+                    try {
+                      const t = await stageTake(file);
+                      const first = ids[0];
+                      const d0 = rf.getNode(first)?.data as unknown as CeqCard | undefined;
+                      const take = ids.length > 1 ? { ...t, coversFrameIds: ids } : t;
+                      patchQ(first, { takes: [...cardClips(d0), take] });
+                      setNote("Clip (" + fmtDur(t.duration) + ") attached — covers " + ids.length + " frame" + (ids.length === 1 ? "" : "s") + " from the first selected. Review in Publish ▸ Clips.");
+                    } catch (err) { setNote("Upload FAILED: " + (err instanceof Error ? err.message : String(err))); }
+                  })(); },
                   revealAnswers: () => { if (!deck) return; const on = !deck.revealAnswers; setDecks((prev) => updateDeck(prev, deck.id, { revealAnswers: on })); setNote(on ? "ANSWERS REVEALED — every CEQ in this set deals with the correct choice already green (recap mode)." : "Answers hidden again — normal practice dealing."); },
                   revealAnswersOn: deck?.revealAnswers,
                   ignoreLayout: () => { const ids = qSel.size ? [...qSel] : qId && qId !== LAYOUT_Q0 ? [qId] : []; if (!ids.length) return; const allOn = ids.every((iid) => !!(rf.getNode(iid)?.data as unknown as CeqCard | undefined)?.ignoreLayout); const cmds = ids.map((iid) => patchDataCmd(rfl, iid, { ignoreLayout: !allOn }, "layout opt-out")).filter((c): c is NonNullable<typeof c> => !!c); const cmd = compositeCmd(cmds, "layout opt-out"); if (cmd) bus.dispatch(cmd); setNote(ids.length + " frame" + (ids.length === 1 ? "" : "s") + (allOn ? " back on the set layout" : " now IGNORE the set layout") + "."); },

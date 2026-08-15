@@ -339,6 +339,11 @@ export interface TakeRef {
    *  "resolution"…). Additive; the readiness check counts a moment covered when
    *  any take carries its id. */
   momentId?: string;
+  /** RANGE COVERAGE (Lee, 08-15): this clip covers a SPAN of frames (a run
+   *  filmed in one take), uploaded via the spine's "Upload clip". Attached to
+   *  the FIRST frame of the span; the others are inside its footage. Additive —
+   *  mirrors frame_takes.frame_ids (0100) on the canvas take board. */
+  coversFrameIds?: string[];
   /** REFERENCE PICKER (Lee, lookback) — for a lookback clip in a CEQ's stack: the
    *  ceqIds of EARLIER questions this clip reviews. Base clips usually have none.
    *  Additive; authoring metadata. */

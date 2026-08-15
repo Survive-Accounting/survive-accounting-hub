@@ -118,10 +118,14 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
      *  already resolved — recap/review sets. */
     revealAnswers?: () => void;
     revealAnswersOn?: boolean;
+    /** UPLOAD CLIP (Lee): attach one filmed clip covering the spine selection
+     *  (or the open frame) — review lands on the Publish side. */
+    uploadClip?: (file: File) => void;
   };
 }) {
   const selected = sel ?? new Set<string>();
   const [menuOpen, setMenuOpen] = useState(false);
+  const uploadRef = useRef<HTMLInputElement>(null);
   /** Which gap is showing its full-size chooser card (§5). One at a time; null = none. */
   const [insertAt, setInsertAt] = useState<number | null>(null);
   const closeInsert = useCallback(() => setInsertAt(null), []);
@@ -249,6 +253,10 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
                   <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.boss(); }} title="Boss card — fires the cram-launch cue on deal">👑 Boss</button>
                   <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.chaching(); }} title="Chaching on the correct-Enter (on by default)">💰 Chaching</button>
                   <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#FF8B9E", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.short(); }} title="Flag as shorts-worthy — joins the Shorts queue">🎬 Short</button>
+                  {actions.uploadClip && (<>
+                    <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: "#3BF5A0" }} onClick={() => { setMenuOpen(false); uploadRef.current?.click(); }} title="Upload ONE clip that covers the selected frames (a run filmed in one take) — or just the open frame. It attaches to the first frame of the span; review it on the Publish side.">{"⬆ Upload clip" + ((sel?.size ?? 0) > 1 ? " · " + sel!.size + " frames" : "")}</button>
+                    <input ref={uploadRef} type="file" accept="video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) actions.uploadClip!(f); }} />
+                  </>)}
                   {actions.revealAnswers && <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: actions.revealAnswersOn ? "#0B1322" : "#3BF5A0", background: actions.revealAnswersOn ? "#3BF5A0" : "transparent", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.revealAnswers!(); }} title="SET-LEVEL: every CEQ deals with its correct choice already resolved-green (silent) — for recap/review sets. Toggle any time.">✓ Answers revealed{actions.revealAnswersOn ? " · ON" : ""}</button>}
                   {actions.ignoreLayout && <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#8FD3FF", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.ignoreLayout!(); }} title="This frame ignores the set layout — the base frame never places it, apply-to-all skips it. Its own hand-placed geometry governs.">📐 Ignore set layout</button>}
                   {actions.profile && <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: NEON.cyan }} onClick={() => { setMenuOpen(false); actions.profile!(); }} title="Per-set production profile — style, clip mapping, note budget, callout defaults, formula note, templates">⚙ Production profile…</button>}
