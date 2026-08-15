@@ -38,6 +38,12 @@ export function clearExhibitHighlights(): void {
   clearListeners.forEach((fn) => fn());
 }
 
+/** Register extra work for the ` reset (text highlights etc.) — same bus, same
+ *  lifecycle: clearExhibitHighlights() fires every registered card's clear. */
+export function useOnExhibitClear(fn: () => void): void {
+  useEffect(() => { clearListeners.add(fn); return () => { clearListeners.delete(fn); }; }, [fn]);
+}
+
 export interface ExhibitHighlights {
   /** The lit node ids (this card instance). */
   lit: ReadonlySet<string>;

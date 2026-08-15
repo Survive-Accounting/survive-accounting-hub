@@ -43,7 +43,7 @@ import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { renderInline } from "./inline-md";
 import { resolveCardSpot, resolveMemoSpot, templateFor, withInstanceSpot } from "./ceq-geom";
 import { CALLOUT_KINDS, CalloutBody, calloutKindForCategory, nextCalloutKind } from "./cards/CalloutCard";
-import { clearExhibitHighlights } from "./exhibit-highlights";
+import { clearExhibitHighlights, useOnExhibitClear } from "./exhibit-highlights";
 import { FILM_LOCK_CSS, FilmContext, filmDragAllowed, isTypingTarget } from "./film-lock";
 import { memoAnchorId, TextAnchor } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
@@ -388,6 +388,13 @@ function CeqPreviewNode({ id, data }: NodeProps) {
     if (b > a) setStemSel({ a, b });
   };
   const canEditStem = !film && !!editStem && !d.layoutBadge;
+  // PERSISTENT TEXT HIGHLIGHTS (Lee, film): choice-text ranges live here; the
+  // stem's range is stemSel. Both persist across the whole rip (cards in the
+  // film stack never unmount) until ` (all) or a click on the CEQ box (this
+  // card). Never saved — pure performance state.
+  const [choiceSels, setChoiceSels] = useState<Map<number, { a: number; b: number }>>(() => new Map());
+  const clearTextHl = useCallback(() => { setStemSel(null); setChoiceSels((m) => (m.size ? new Map() : m)); }, []);
+  useOnExhibitClear(clearTextHl);
   const [stemEditing, setStemEditing] = useState(false);
   const [stemDraft, setStemDraft] = useState("");
   const startStemEdit = () => { if (!canEditStem) return; setStemDraft(d.stem || ""); setStemEditing(true); };
@@ -412,7 +419,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
     setBulletEdit(null);
   };
   return (
-    <div data-ceq-card="" onClickCapture={!inert ? (e) => { if (e.altKey && e.ctrlKey) { e.preventDefault(); e.stopPropagation(); prLive.toggleBoss?.(); } } : undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}${!inert && (d as { boss?: boolean }).boss ? " sa-boss-card" : ""}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : CARD_W * s, minWidth: isCallout ? 320 * s : undefined, maxWidth: isCallout ? CARD_W * s : undefined, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
+    <div data-ceq-card="" onClickCapture={!inert ? (e) => { if (e.altKey && e.ctrlKey) { e.preventDefault(); e.stopPropagation(); prLive.toggleBoss?.(); } } : undefined} onClick={film && !inert ? (e) => { if (e.altKey || e.ctrlKey) return; const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; clearTextHl(); } : undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}${!inert && (d as { boss?: boolean }).boss ? " sa-boss-card" : ""}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : CARD_W * s, minWidth: isCallout ? 320 * s : undefined, maxWidth: isCallout ? CARD_W * s : undefined, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
       {/* BOSS (P3): the boiling bolt sweeps in with the charge — no text, no sound. */}
       {!inert && (d as { boss?: boolean }).boss && <div className="sa-boss-bolt" style={{ position: "absolute", top: -18 * s, right: 16 * s, zIndex: 22 }}><BoltBoil height={40 * s} /></div>}
       {/* QUESTION 0 ribbon — unmistakably the LAYOUT stage, never content. */}
@@ -481,8 +488,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
           onDragOver={film ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }}
           onDrop={film ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); attachMemo("__stem__", mid); } }}
           ref={stemRef}
-          onClick={film ? (e) => { if (e.altKey || inert) return; const sel = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (sel && !sel.isCollapsed) return; prLive.select?.(-1); } : undefined}
-          onMouseDown={film ? () => setStemSel(null) : undefined}
+          onClick={film ? (e) => { if (e.altKey || inert) return; e.stopPropagation(); const sel = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (sel && !sel.isCollapsed) return; prLive.select?.(-1); } : undefined}
           onMouseUp={film ? readStemSelection : undefined}
           onDoubleClick={canEditStem ? (e) => { e.stopPropagation(); startStemEdit(); } : undefined}
           title={canEditStem ? "Double-click to edit the question" : undefined}
@@ -512,7 +518,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
               data-flame-tone={flamed ? spot.tone(key) : undefined}
               data-spot-lit={spState === "spot" ? "on" : undefined}
               onPointerDownCapture={(e) => spot.onClick(key, e)}
-              onClick={film ? (e) => { if (e.altKey || inert) return; e.stopPropagation(); if (pr.emph === i) prLive.resolveChoice?.(i); else prLive.select?.(i); } : (e) => { if (e.ctrlKey || e.metaKey || e.shiftKey) return; onViewChoice?.(i); }}
+              onClick={film ? (e) => { if (e.altKey || inert) return; e.stopPropagation(); const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; if (pr.emph === i) prLive.resolveChoice?.(i); else prLive.select?.(i); } : (e) => { if (e.ctrlKey || e.metaKey || e.shiftKey) return; onViewChoice?.(i); }}
               onContextMenu={(e) => choiceMenu(c.id, e)}
               // DRAG-TO-CHAIN (Lee) — drop a library memo straight onto a choice here in
               // the previewer (same-window drag) to chain it, exactly like the Pane-2 rows.
@@ -528,7 +534,17 @@ function CeqPreviewNode({ id, data }: NodeProps) {
                   end + re-reads on reflow via updateNodeInternals; the #185 loop was a
                   separate selEdgeIds bug (fixed), so this is safe again. */}
               <span style={{ fontSize: 18 * s, fontWeight: 600, color: PAPER.ink }}>
-                <TextAnchor subId={c.id} nodeId={id} strike={st === "wrong"}>{c.text || ""}</TextAnchor>
+                <TextAnchor subId={c.id} nodeId={id} strike={st === "wrong"}><span
+                  onMouseUp={film && !inert ? (e) => {
+                    const el = e.currentTarget; const v = el.ownerDocument.defaultView; const sl = v?.getSelection();
+                    if (!el || !sl || sl.rangeCount === 0 || sl.isCollapsed) return;
+                    const r = sl.getRangeAt(0); if (!el.contains(r.commonAncestorContainer)) return;
+                    const pre = r.cloneRange(); pre.selectNodeContents(el); pre.setEnd(r.startContainer, r.startOffset);
+                    const a = pre.toString().length, b = a + r.toString().length;
+                    if (b > a) setChoiceSels((m) => new Map(m).set(i, { a, b }));
+                  } : undefined}
+                  style={film ? { userSelect: "text", WebkitUserSelect: "text" } : undefined}
+                >{(() => { const hc = choiceSels.get(i); const t = c.text || ""; return hc && hc.a < t.length ? (<>{t.slice(0, hc.a)}<span className="sa-sel-emph">{t.slice(hc.a, hc.b)}</span>{t.slice(hc.b)}</>) : t; })()}</span></TextAnchor>
               </span>
             </div>
           );
@@ -597,13 +613,17 @@ function MemoPreviewNode({ id, data, selected, dragging }: NodeProps) {
   // label as [before][<b>selected</b>][after] — no manual DOM mutation of the teaching text.
   const labelRef = useRef<HTMLDivElement>(null);
   const [selEmph, setSelEmph] = useState<{ a: number; b: number } | null>(null);
+  // PERSISTENT (Lee): memo highlights survive the rip; ` wipes them with the rest.
+  const clearMemoHl = useCallback(() => setSelEmph(null), []);
+  useOnExhibitClear(clearMemoHl);
   // The highlight-to-bold tool is a FILM-ONLY teaching gesture. In authoring, drag-
   // selecting text on a memo must NOT emphasise it (Lee is trying to edit) — so this is
   // gated to film. Authoring gets inline editing instead (double-click, below).
   const readSelection = () => {
     if (!film) return;
     const el = labelRef.current; const win = el?.ownerDocument.defaultView; const sel = win?.getSelection();
-    if (!el || !sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+    if (!el || !sel || sel.rangeCount === 0) return;
+    if (sel.isCollapsed) { setSelEmph(null); return; } // plain click on the memo = clear ITS highlight
     const r = sel.getRangeAt(0);
     if (!el.contains(r.commonAncestorContainer)) return; // selection isn't in this memo
     const pre = r.cloneRange(); pre.selectNodeContents(el); pre.setEnd(r.startContainer, r.startOffset);
@@ -682,7 +702,7 @@ function MemoPreviewNode({ id, data, selected, dragging }: NodeProps) {
             style={{ width: "100%", boxSizing: "border-box", resize: "none", fontFamily: BRAND_DISPLAY, fontWeight: 500, fontSize: 14 * s, color: NEON.text, lineHeight: 1.28, background: "rgba(0,0,0,0.35)", border: `1px solid ${NEON.cyan}`, borderRadius: 6 * s, padding: `${4 * s}px ${6 * s}px`, outline: "none" }}
           />
         ) : (
-          <div ref={labelRef} onMouseDown={film ? () => setSelEmph(null) : undefined} onMouseUp={film ? readSelection : undefined} onDoubleClick={canEdit ? (e) => { e.stopPropagation(); startEdit(); } : undefined} title={canEdit ? "Double-click to edit — updates this memo everywhere it's used (Shift+Enter for a line break)" : undefined} style={{ fontFamily: BRAND_DISPLAY, fontWeight: 500, fontSize: 14 * s, color: NEON.text, lineHeight: 1.28, whiteSpace: "pre-wrap" }}>
+          <div ref={labelRef} onMouseUp={film ? readSelection : undefined} onDoubleClick={canEdit ? (e) => { e.stopPropagation(); startEdit(); } : undefined} title={canEdit ? "Double-click to edit — updates this memo everywhere it's used (Shift+Enter for a line break)" : undefined} style={{ fontFamily: BRAND_DISPLAY, fontWeight: 500, fontSize: 14 * s, color: NEON.text, lineHeight: 1.28, whiteSpace: "pre-wrap" }}>
             {selEmph && selEmph.a < lbl.length ? (<>{lbl.slice(0, selEmph.a)}<span className={`sa-sel-emph${spState ? " sa-sel-emph-spot" : ""}`}>{lbl.slice(selEmph.a, selEmph.b)}</span>{lbl.slice(selEmph.b)}</>) : lbl}
           </div>
         )}
