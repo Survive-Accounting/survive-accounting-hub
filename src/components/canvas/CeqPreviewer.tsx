@@ -43,7 +43,7 @@ import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { renderInline } from "./inline-md";
 import { resolveCardSpot, resolveMemoSpot, templateFor, withInstanceSpot } from "./ceq-geom";
 import { CALLOUT_KINDS, CalloutBody, calloutKindForCategory, nextCalloutKind } from "./cards/CalloutCard";
-import { clearExhibitHighlights, useOnExhibitClear } from "./exhibit-highlights";
+import { clearExhibitHighlights } from "./exhibit-highlights";
 import { FILM_LOCK_CSS, FilmContext, filmDragAllowed, isTypingTarget } from "./film-lock";
 import { memoAnchorId, TextAnchor } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
@@ -58,6 +58,19 @@ import { clampScale, type CalloutSettings, type CeqCard, type CeqChainItem, type
 
 /** Practice state read by the CEQ mock (emphasis + which choices are resolved). */
 const PracticeContext = createContext<{ emph: number | null; resolved: Set<number>; select?: (i: number) => void; resolveChoice?: (i: number) => void; toggleBoss?: () => void }>({ emph: null, resolved: new Set() });
+/** PERSISTENT TEXT HIGHLIGHTS (workflow-verified fix): state lives in INNER —
+ *  keyed by question/memo id, the perfArrows pattern — because node components
+ *  DO unmount (memo nodes on every walk-away; the arriving card for one commit
+ *  before the arrival-gap fix). Session-level state survives everything. */
+const HighlightContext = createContext<{
+  stem: (qid: string) => { a: number; b: number } | null;
+  setStem: (qid: string, r: { a: number; b: number } | null) => void;
+  choice: (qid: string, i: number) => { a: number; b: number } | null;
+  setChoice: (qid: string, i: number, r: { a: number; b: number }) => void;
+  clearCeq: (qid: string) => void;
+  memo: (mid: string) => { a: number; b: number } | null;
+  setMemo: (mid: string, r: { a: number; b: number } | null) => void;
+}>({ stem: () => null, setStem: () => {}, choice: () => null, setChoice: () => {}, clearCeq: () => {}, memo: () => null, setMemo: () => {} });
 /** The set of currently-revealed chain-memo node ids (read by memo chips). */
 const RevealContext = createContext<Set<string>>(new Set());
 /** Live resize: write a node's data.scale (mini + main store). */
@@ -377,7 +390,8 @@ function CeqPreviewNode({ id, data }: NodeProps) {
   // edit (double-click → textarea → commits the question prompt everywhere).
   const editStem = useContext(StemEditContext);
   const stemRef = useRef<HTMLDivElement>(null);
-  const [stemSel, setStemSel] = useState<{ a: number; b: number } | null>(null);
+  const hlx = useContext(HighlightContext);
+  const stemSel = hlx.stem(id);
   const stemPlain = stripInlineMarks(d.stem || "Question");
   const readStemSelection = () => {
     if (!film) return;
@@ -387,18 +401,17 @@ function CeqPreviewNode({ id, data }: NodeProps) {
     if (!el.contains(r.commonAncestorContainer)) return;
     const pre = r.cloneRange(); pre.selectNodeContents(el); pre.setEnd(r.startContainer, r.startOffset);
     const a = pre.toString().length, b = a + r.toString().length;
-    if (b > a) setStemSel({ a, b });
+    if (b > a) hlx.setStem(id, { a, b });
   };
   const canEditStem = !film && !!editStem && !d.layoutBadge;
   // PERSISTENT TEXT HIGHLIGHTS (Lee, film): choice-text ranges live here; the
   // stem's range is stemSel. Both persist across the whole rip (cards in the
   // film stack never unmount) until ` (all) or a click on the CEQ box (this
   // card). Never saved — pure performance state.
-  const [choiceSels, setChoiceSels] = useState<Map<number, { a: number; b: number }>>(() => new Map());
+  // (choice-highlight state lives in HighlightContext — survives unmounts)
   // WIDTH GRIP (Lee): drag preview for the per-frame card-width override.
   const [wDrag, setWDrag] = useState<number | null>(null);
-  const clearTextHl = useCallback(() => { setStemSel(null); setChoiceSels((m) => (m.size ? new Map() : m)); }, []);
-  useOnExhibitClear(clearTextHl);
+  // (the backtick clears text highlights via Inner now)
   const [stemEditing, setStemEditing] = useState(false);
   const [stemDraft, setStemDraft] = useState("");
   const startStemEdit = () => { if (!canEditStem) return; setStemDraft(d.stem || ""); setStemEditing(true); };
@@ -423,7 +436,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
     setBulletEdit(null);
   };
   return (
-    <div data-ceq-card="" onClickCapture={!inert ? (e) => { if (e.altKey && e.ctrlKey) { e.preventDefault(); e.stopPropagation(); prLive.toggleBoss?.(); } } : undefined} onClick={film && !inert ? (e) => { if (e.altKey || e.ctrlKey) return; const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; clearTextHl(); } : undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}${!inert && (d as { boss?: boolean }).boss ? " sa-boss-card" : ""}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : (wDrag ?? (d as { cardW?: number }).cardW ?? CARD_W) * s, minWidth: isCallout ? 320 * s : undefined, maxWidth: isCallout ? CARD_W * s : undefined, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
+    <div data-ceq-card="" onClickCapture={!inert ? (e) => { if (e.altKey && e.ctrlKey) { e.preventDefault(); e.stopPropagation(); prLive.toggleBoss?.(); } } : undefined} onClick={film && !inert ? (e) => { if (e.altKey || e.ctrlKey) return; const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; hlx.clearCeq(id); } : undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}${!inert && (d as { boss?: boolean }).boss ? " sa-boss-card" : ""}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : (wDrag ?? (d as { cardW?: number }).cardW ?? CARD_W) * s, minWidth: isCallout ? 320 * s : undefined, maxWidth: isCallout ? CARD_W * s : undefined, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
       {/* BOSS (P3): the boiling bolt sweeps in with the charge — no text, no sound. */}
       {!inert && (d as { boss?: boolean }).boss && <div className="sa-boss-bolt" style={{ position: "absolute", top: -18 * s, right: 16 * s, zIndex: 22 }}><BoltBoil height={40 * s} /></div>}
       {/* QUESTION 0 ribbon — unmistakably the LAYOUT stage, never content. */}
@@ -545,10 +558,10 @@ function CeqPreviewNode({ id, data }: NodeProps) {
                     const r = sl.getRangeAt(0); if (!el.contains(r.commonAncestorContainer)) return;
                     const pre = r.cloneRange(); pre.selectNodeContents(el); pre.setEnd(r.startContainer, r.startOffset);
                     const a = pre.toString().length, b = a + r.toString().length;
-                    if (b > a) setChoiceSels((m) => new Map(m).set(i, { a, b }));
+                    if (b > a) hlx.setChoice(id, i, { a, b });
                   } : undefined}
                   style={film ? { userSelect: "text", WebkitUserSelect: "text" } : undefined}
-                >{(() => { const hc = choiceSels.get(i); const t = c.text || ""; return hc && hc.a < t.length ? (<>{t.slice(0, hc.a)}<span className="sa-sel-emph">{t.slice(hc.a, hc.b)}</span>{t.slice(hc.b)}</>) : t; })()}</span></TextAnchor>
+                >{(() => { const hc = hlx.choice(id, i); const t = c.text || ""; return hc && hc.a < t.length ? (<>{t.slice(0, hc.a)}<span className="sa-sel-emph">{t.slice(hc.a, hc.b)}</span>{t.slice(hc.b)}</>) : t; })()}</span></TextAnchor>
               </span>
             </div>
           );
@@ -641,10 +654,8 @@ function MemoPreviewNode({ id, data, selected, dragging }: NodeProps) {
   // it spotlighted"). React-safe: we capture the selection's char range and re-render the
   // label as [before][<b>selected</b>][after] — no manual DOM mutation of the teaching text.
   const labelRef = useRef<HTMLDivElement>(null);
-  const [selEmph, setSelEmph] = useState<{ a: number; b: number } | null>(null);
-  // PERSISTENT (Lee): memo highlights survive the rip; ` wipes them with the rest.
-  const clearMemoHl = useCallback(() => setSelEmph(null), []);
-  useOnExhibitClear(clearMemoHl);
+  const hlx = useContext(HighlightContext);
+  const selEmph = hlx.memo(id); // session-level: survives the walk-away unmount
   // The highlight-to-bold tool is a FILM-ONLY teaching gesture. In authoring, drag-
   // selecting text on a memo must NOT emphasise it (Lee is trying to edit) — so this is
   // gated to film. Authoring gets inline editing instead (double-click, below).
@@ -652,12 +663,12 @@ function MemoPreviewNode({ id, data, selected, dragging }: NodeProps) {
     if (!film) return;
     const el = labelRef.current; const win = el?.ownerDocument.defaultView; const sel = win?.getSelection();
     if (!el || !sel || sel.rangeCount === 0) return;
-    if (sel.isCollapsed) { setSelEmph(null); return; } // plain click on the memo = clear ITS highlight
+    if (sel.isCollapsed) { hlx.setMemo(id, null); return; } // plain click on the memo = clear ITS highlight
     const r = sel.getRangeAt(0);
     if (!el.contains(r.commonAncestorContainer)) return; // selection isn't in this memo
     const pre = r.cloneRange(); pre.selectNodeContents(el); pre.setEnd(r.startContainer, r.startOffset);
     const a = pre.toString().length, b = a + r.toString().length;
-    if (b > a) setSelEmph({ a, b });
+    if (b > a) hlx.setMemo(id, { a, b });
   };
   // INLINE MEMO EDIT (authoring) — double-click the text to edit it; the commit ripples
   // to the library + every CEQ that chains this memo (MemoEditContext → renameMemoEverywhere).
@@ -990,6 +1001,20 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   const [spots, setSpots] = useState<SpotSets>(EMPTY_SPOTS);
   // PERFORMANCE ARROWS (Lee) — freehand live-pointer arrows, session-only (never saved).
   const [perfArrows, setPerfArrows] = useState<PerfArrow[]>([]);
+  // TEXT HIGHLIGHTS (film) — survive every walk; the backtick wipes; box/memo clicks clear.
+  const [stemHls, setStemHls] = useState<Map<string, { a: number; b: number }>>(() => new Map());
+  const [choiceHls, setChoiceHls] = useState<Map<string, { a: number; b: number }>>(() => new Map());
+  const [memoHls, setMemoHls] = useState<Map<string, { a: number; b: number }>>(() => new Map());
+  const clearAllTextHls = useCallback(() => { setStemHls((m) => (m.size ? new Map() : m)); setChoiceHls((m) => (m.size ? new Map() : m)); setMemoHls((m) => (m.size ? new Map() : m)); }, []);
+  const hlApi = useMemo(() => ({
+    stem: (qid: string) => stemHls.get(qid) ?? null,
+    setStem: (qid: string, r: { a: number; b: number } | null) => setStemHls((m) => { const x = new Map(m); if (r) x.set(qid, r); else x.delete(qid); return x; }),
+    choice: (qid: string, i: number) => choiceHls.get(qid + "|" + i) ?? null,
+    setChoice: (qid: string, i: number, r: { a: number; b: number }) => setChoiceHls((m) => new Map(m).set(qid + "|" + i, r)),
+    clearCeq: (qid: string) => { setStemHls((m) => { if (!m.has(qid)) return m; const x = new Map(m); x.delete(qid); return x; }); setChoiceHls((m) => { const x = new Map([...m].filter(([k]) => !k.startsWith(qid + "|"))); return x.size === m.size ? m : x; }); },
+    memo: (mid: string) => memoHls.get(mid) ?? null,
+    setMemo: (mid: string, r: { a: number; b: number } | null) => setMemoHls((m) => { const x = new Map(m); if (r) x.set(mid, r); else x.delete(mid); return x; }),
+  }), [stemHls, choiceHls, memoHls]);
   const [selPerf, setSelPerf] = useState<string | null>(null);
   const addPerfArrow = (a: Omit<PerfArrow, "id">) => setPerfArrows((p) => [...p, { ...a, id: `pa${p.length}_${Math.round(a.x2 * 99991)}_${Math.round(a.y2 * 9973)}` }]);
   const [selEdgeIds, setSelEdgeIds] = useState<Set<string>>(new Set());
@@ -1122,7 +1147,14 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
    *  Enter for it — wrong scratches, correct confirms). Chains stay on
    *  Enter/Shift+Enter/Tab. */
   const resolveChoice = (i: number) => {
-    if (resolved.has(i)) return;
+    if (resolved.has(i)) {
+      // ANSWERS-REVEALED sets pre-resolve the correct choice SILENTLY — which
+      // swallowed the chaching (Lee's report). The confirm CLICK is the
+      // performance moment: replay the cue on the already-resolved CORRECT
+      // choice so revealed rips still get their chaching.
+      if (cd?.choices[i]?.correct && cd?.confirmSfx !== false) playSfx("chaching");
+      return;
+    }
     setEmph(i);
     setResolved((r) => new Set(r).add(i)); setShown((s) => new Map(s).set(i, 0));
     if (cd?.choices[i]?.correct) { if (cd?.confirmSfx !== false) playSfx("chaching"); }
@@ -1150,6 +1182,10 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       else if (cd?.choices[e]) playSfx("vinylScratch");
     } else {
       const cur = shown.get(e) ?? 0;
+      // Revealed-answers sets: the FIRST Enter on the pre-resolved correct
+      // choice is Lee's confirm beat — fire the chaching once (cur===0), then
+      // walk chains as normal.
+      if (cur === 0 && revealAnswers && cd?.choices[e]?.correct && cd?.confirmSfx !== false) playSfx("chaching");
       if (cur < chainLenOf(e)) {
         setShown((s) => new Map(s).set(e, cur + 1));
         const it = cd?.choices[e]?.chain?.[cur]; if (it?.sound && it.sound !== "vinylScratch") { const snd = it.sound; window.setTimeout(() => playSfx(snd), 200); } // per-chain-item reveal sound — fire at SETTLE (~200ms) as the memo arrives. Vinyl is EXCLUDED (Lee): it's now the wrong-answer cue, not a memo-reveal sound.
@@ -1788,7 +1824,12 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     const cIds = counterIds ?? deckCeqIds;
     const allNodes = mainRf.getNodes() as { id: string; data?: unknown }[];
     deckCeqIds.forEach((qid, k) => {
-      if (qid === ceqId) return; // the live render owns the active slot
+      // SELF-SYNCHRONIZING EXCLUSION (workflow-verified): drop a stand-in only
+      // when the LIVE nodes actually contain the question. The old ceqId check
+      // dropped the DESTINATION one commit before the post-commit re-seed
+      // delivered its live card — the id vanished for one commit, React Flow
+      // unmounted it (an on-camera blink + state loss on arrival).
+      if (liveIds.has(qid)) return;
       const od = mainRf.getNode(qid)?.data as unknown as CeqCard | undefined;
       if (!od) return;
       const y = k * stackSlotH;
@@ -1813,6 +1854,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   // arrow heads (a performance tool) and explicit data.filmMovable opt-ins. The
   // per-node flag beats the pane-level nodesDraggable, so the pane prop can stay
   // true for the nodes that ARE allowed to move.
+  const liveIds = useMemo(() => new Set(nodes.map((nd) => nd.id)), [nodes]);
   const filmNodes = useMemo(() => nodes
     .filter((n) => !n.id.startsWith("ov:") && !n.id.startsWith("ovf:") && !n.id.startsWith("ovm:") && !(n.data as { stage?: { hidden?: boolean } } | undefined)?.stage?.hidden)
     .map((n): Node => ({ ...n, draggable: filmDragAllowed(n) }))
@@ -1871,7 +1913,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
         // ` on the recording surface: the SAME full reset as every other surface
         // (backtick sweep) — practice, spotlights, arrows, perf arrows, highlights.
         // Temporary state only; nothing saved is touched.
-        if (e.code === "Backquote" || e.key === "`") { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); setPerfArrows([]); setSelPerf(null); clearExhibitHighlights(); return; }
+        if (e.code === "Backquote" || e.key === "`") { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); setPerfArrows([]); setSelPerf(null); clearExhibitHighlights(); clearAllTextHls(); return; }
         return; // any other key: swallowed, no-op — protects the take
       }
       // RECORDING MODE = the FILM POP-OUT. "\" toggles it open/closed — a real 2nd-monitor
@@ -1928,7 +1970,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       // ` = full reset (choices + memos). SHIFT+` = MEMO SWEEP: clear the memos off
       // the board but KEEP every choice's resolution, so a wrong answer stays struck
       // and the correct one stays green. Nothing re-resolves, so no sound re-fires.
-      if (e.key === "`" || e.code === "Backquote" || (e.shiftKey && e.key === "~")) { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) sweepMemos(); else { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); setPerfArrows([]); setSelPerf(null); clearExhibitHighlights(); } return; }
+      if (e.key === "`" || e.code === "Backquote" || (e.shiftKey && e.key === "~")) { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) sweepMemos(); else { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); setPerfArrows([]); setSelPerf(null); clearExhibitHighlights(); clearAllTextHls(); } return; }
     };
     const onOwnerKey = (e: KeyboardEvent) => handle(e, ownerWin, false);
     // Releasing Page Down / Page Up ends the hold-to-repeat (#4). clearHold is intentionally
@@ -1955,6 +1997,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     // useCardActions() would otherwise resolve to this previewer's throwaway RF.
     // Pointing it at the main canvas makes their edits land on the actual node
     // (and therefore autosave), in both this pane and the film popout below.
+    <HighlightContext.Provider value={hlApi}>
     <CardWriteCtx.Provider value={mainRf as unknown as RfLike}>
     <PracticeContext.Provider value={{ emph, resolved, select: (i) => setEmph(i), resolveChoice, toggleBoss: toggleBossFlag }}>
       <RevealContext.Provider value={revealedMemoIds}>
@@ -2301,6 +2344,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       </RevealContext.Provider>
     </PracticeContext.Provider>
     </CardWriteCtx.Provider>
+    </HighlightContext.Provider>
   );
 }
 
