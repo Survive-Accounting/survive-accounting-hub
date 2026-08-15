@@ -1306,6 +1306,10 @@ export interface DeckDef {
   /** BOSS AUTO-ARM (P3): entering a BOSS-flagged CEQ in film auto-triggers the
    *  final-boss treatment. Per-set, default off; Alt+Click always toggles. */
   bossAutoArm?: boolean;
+  /** SET PRODUCTION PROFILE (P6) — light creative tooling, per set. Every
+   *  field optional; absent = the classic defaults. Nothing changes on any
+   *  existing set until Lee explicitly edits/applies a profile. */
+  profile?: SetProfile;
   /** Card-kind (cards) or memoKind/category (memos) to auto-include, or null. */
   filter?: string | null;
   runMode: DeckRunMode;
@@ -1439,6 +1443,22 @@ export interface CalloutSettings {
   kind?: CalloutKind;
   /** Dropped-memo node ids: 1 = memo callout, 2+ = the highlights stack. */
   memoIds?: string[];
+}
+
+/** SET PRODUCTION PROFILE (P6): each set is its own project. */
+export interface SetProfile {
+  /** Production style — drives readiness emphasis, never blocks. */
+  style?: "runs" | "dissect-heavy" | "mixed";
+  /** Clip-mapping preference (a planning note the take tools surface). */
+  clipMapping?: "take-per-run" | "clips-per-ceq";
+  /** Soft cap on note frames — overruns warn gently, never block. */
+  noteBudget?: number;
+  /** Default callout style for this set's note frames. */
+  calloutKind?: CalloutKind;
+  /** Is the boiling bolt on-brand for this set? */
+  boltOnBrand?: boolean;
+  /** Free-text creative intent — shown at the top of the strip while authoring. */
+  formula?: string;
 }
 
 /** DISSECT (P5): one planned moment of a dissected CEQ's clip sequence. */

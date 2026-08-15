@@ -88,7 +88,7 @@ function InsertGap({ at, open, onOpen, onClose, onInsert, dense, rowH }: { at: n
 // (Contiguous run segments now come from film-runs.ts — the same grouping the
 //  assign/fill-down actions reason about, so the rail can't drift from the write.)
 
-export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange, actions }: {
+export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange, actions, formulaNote }: {
   items: StripItem[];
   qId: string | null;
   onSelect: (id: string) => void;
@@ -97,6 +97,8 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
    *  the last click. Drives the ⋮ menu's bulk actions. */
   sel?: Set<string>;
   onSelChange?: (next: Set<string>) => void;
+  /** SET PROFILE (P6): the set's free-text creative intent, shown at the top. */
+  formulaNote?: string;
   /** Bulk actions for the ⋮ menu — applied to the selection (or the open frame). */
   actions?: {
     shuffleChoices: () => void;
@@ -108,6 +110,8 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
     fillDownRuns?: () => void;
     /** DISSECT (P5): open the moments editor for the open frame. */
     dissect?: () => void;
+    /** SET PROFILE (P6): open the production-profile panel. */
+    profile?: () => void;
   };
 }) {
   const selected = sel ?? new Set<string>();
@@ -171,6 +175,13 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
   let ceqN = 0;
   return (
     <div className="flex w-48 shrink-0 border-r" style={{ borderColor: NEON.borderSoft, background: "rgba(0,0,0,0.18)" }}>
+      {/* FORMULA NOTE (P6) — the set's creative intent, always in view while
+          authoring. Display-only; edited in the Production profile panel. */}
+      {formulaNote && (
+        <div className="shrink-0 rounded px-1.5 py-1 text-[9px] italic leading-snug" style={{ color: "#FFD9A0", background: "rgba(252,163,17,0.08)", border: `1px solid rgba(252,163,17,0.25)` }} title="This set's formula (Production profile)">
+          {formulaNote}
+        </div>
+      )}
       {/* RUN MAP RAIL — the miniature of the whole set. */}
       {items.length > 0 && (
         <div className="flex w-4 shrink-0 flex-col py-1" title="Run map — click a segment to jump to that run">
@@ -232,6 +243,7 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
                   <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.boss(); }} title="Boss card — fires the cram-launch cue on deal">👑 Boss</button>
                   <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.chaching(); }} title="Chaching on the correct-Enter (on by default)">💰 Chaching</button>
                   <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#FF8B9E", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.short(); }} title="Flag as shorts-worthy — joins the Shorts queue">🎬 Short</button>
+                  {actions.profile && <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: NEON.cyan }} onClick={() => { setMenuOpen(false); actions.profile!(); }} title="Per-set production profile — style, clip mapping, note budget, callout defaults, formula note, templates">⚙ Production profile…</button>}
                   {actions.dissect && <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#B79CFF", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.dissect!(); }} title="Dissect — plan this CEQ as a SEQUENCE of short surgical clips (setup / the trap / resolution…) instead of one run-covered take">🔬 Dissect…</button>}
                   <button className="col-span-2 rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.free(); }} title="Include in the FREE cut">🆓 Free</button>
                 </div>

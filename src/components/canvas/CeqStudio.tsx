@@ -30,6 +30,7 @@ import { SetFilmstrip, type StripItem } from "./SetFilmstrip";
 import { checkFilmReadiness, type ReadinessReport } from "./film-readiness";
 import { FILM_LOCK_CSS, FilmContext } from "./film-lock";
 import { MEMO_KIND_META, MEMO_KIND_ORDER, kindFromCategory, type PlaybookKind } from "./memo-kinds";
+import { applyTemplate, loadTemplates, saveTemplate, templateFromDeck, type SetTemplate } from "./set-profile";
 import { assignRunTo, fillDownRuns, normRun, type RunChange } from "./film-runs";
 import { groupedStageElements, type StageElementSpec } from "./stage-elements";
 import { MISCONCEPTION_SEEDS, questionMisconceptions, toSlug } from "./ceq-misconceptions";
@@ -248,6 +249,9 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const [qSel, setQSel] = useState<Set<string>>(() => new Set());
   // DISSECT (P5) — which CEQ's moments editor is open (null = closed).
   const [dissectQ, setDissectQ] = useState<string | null>(null);
+  // SET PROFILE (P6) — the production-profile panel + templates.
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [tplList, setTplList] = useState<SetTemplate[]>(() => loadTemplates());
   const lastQSelRef = useRef<string | null>(null);
   // Switching sets (tab click, chip jump, session restore) DROPS the selection — the
   // bar must never stay armed with the previous set's questions (bulkPatchQ resolves
@@ -2508,7 +2512,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   setReadiness(checkFilmReadiness(questions.map((qn) => {
                     const d = rf.getNode(qn.id)?.data as unknown as CeqCard | undefined;
                     return { id: qn.id, prompt: d?.prompt ?? "", noteOnly: !!d?.noteOnly, choices: (d?.choices ?? []).map((ch) => ({ text: ch.text, correct: ch.correct })), exhibit: d?.exhibit, run: d?.run, shorthand: d?.shorthand, chainCount: (d?.choices ?? []).reduce((a, ch) => a + (ch.chain?.length ?? 0), 0), dissect: d?.dissect, takeMomentIds: cardClips(d).map((t) => t.momentId).filter((x): x is string => !!x) };
-                  })));
+                  }), deck?.profile));
                 }}><ListChecks className="h-3 w-3" /> Ready to film?</button>
                 {/* REHEARSE (tool 2) — coffee + walkthrough before OBS opens. */}
                 <button className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-[9.5px] font-bold leading-none" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} title="Rehearse — full-screen, film-true walkthrough from Q1. →/PageDown next, ←/PageUp back, Esc exits. A slim '— Run B —' card marks take boundaries. Nothing records, nothing logs." onClick={startRehearse}><Play className="h-3 w-3" /> Rehearse</button>
@@ -2543,6 +2547,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                 // Markers act on the SELECTION when there is one, else the open frame —
                 // so the ⋮ menu is the single home for them (they were loose text
                 // buttons in the bottom bar).
+                formulaNote={deck?.profile?.formula}
                 actions={{
                   shuffleChoices,
                   star: () => (qSel.size ? bulkStar() : qId && qId !== LAYOUT_Q0 ? patchQ(qId, { starred: !(rf.getNode(qId)?.data as unknown as CeqCard | undefined)?.starred }) : undefined),
@@ -2552,6 +2557,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   free: () => (qSel.size ? bulkFree() : qId && qId !== LAYOUT_Q0 ? patchQ(qId, { free: !(rf.getNode(qId)?.data as unknown as CeqCard | undefined)?.free }) : undefined),
                   assignRun,
                   dissect: () => { if (qId && qId !== LAYOUT_Q0) setDissectQ(qId); },
+                  profile: () => setProfileOpen(true),
                   fillDownRuns: fillRunsDown,
                 }}
               />
@@ -2560,6 +2566,59 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
               {/* DISSECT MOMENTS EDITOR (P5) — the pre-filming shot list for one CEQ.
                   Toggle dissect on/off; add / rename / reorder / waive moments; tag an
                   existing take to a moment. All writes go through patchQ (undoable). */}
+              {/* SET PRODUCTION PROFILE (P6) — compact per-set panel + templates. */}
+              {profileOpen && deck && (() => {
+                const pf = deck.profile ?? {};
+                const setPf = (patch: Partial<NonNullable<DeckDef["profile"]>>) => setDecks((prev) => updateDeck(prev, deck.id, { profile: { ...pf, ...patch } }));
+                const noteCount = questions.filter((qn) => !!(rf.getNode(qn.id)?.data as unknown as CeqCard | undefined)?.noteOnly).length;
+                const SEL = "w-full rounded bg-black/40 px-1 py-0.5 text-[10px]";
+                const LBL = "pt-1.5 text-[8px] font-bold uppercase tracking-wide";
+                return (
+                  <div className="absolute inset-0 z-[73] flex items-start justify-center" style={{ background: "rgba(4,7,14,0.6)" }} onClick={() => setProfileOpen(false)}>
+                    <div className="mt-10 flex max-h-[82vh] w-[400px] max-w-[94vw] flex-col overflow-y-auto rounded-xl p-3 shadow-2xl" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}` }} onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: NEON.cyan }}>⚙ Production profile</span>
+                        <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => setProfileOpen(false)}><X className="h-3 w-3" /></button>
+                      </div>
+                      <span className="truncate text-[9.5px]" style={{ color: NEON.muted }}>{deck.name}</span>
+                      <div className={LBL} style={{ color: NEON.muted }}>Production style</div>
+                      <select className={SEL} style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} value={pf.style ?? "runs"} onChange={(e) => setPf({ style: e.target.value as NonNullable<typeof pf.style> })}>
+                        <option value="runs">runs (default) — spans filmed in one take</option>
+                        <option value="dissect-heavy">dissect-heavy — most CEQs clip-sequenced</option>
+                        <option value="mixed">mixed</option>
+                      </select>
+                      <div className={LBL} style={{ color: NEON.muted }}>Clip mapping</div>
+                      <select className={SEL} style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} value={pf.clipMapping ?? "take-per-run"} onChange={(e) => setPf({ clipMapping: e.target.value as NonNullable<typeof pf.clipMapping> })}>
+                        <option value="take-per-run">1 take per run</option>
+                        <option value="clips-per-ceq">many clips per CEQ</option>
+                      </select>
+                      <div className={LBL} style={{ color: NEON.muted }}>Note-frame budget <span className="normal-case" style={{ color: noteCount > (pf.noteBudget ?? Infinity) ? "#FFD23F" : NEON.muted }}>— {noteCount} in this set{pf.noteBudget != null ? ` / ${pf.noteBudget} budget` : ""}</span></div>
+                      <input type="number" min={0} className={SEL} style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} value={pf.noteBudget ?? ""} placeholder="no budget (soft cap when set)" onChange={(e) => setPf({ noteBudget: e.target.value === "" ? undefined : Math.max(0, Number(e.target.value)) })} />
+                      <div className={LBL} style={{ color: NEON.muted }}>Default callout style</div>
+                      <div className="flex items-center gap-1">
+                        <select className={SEL} style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} value={pf.calloutKind ?? ""} onChange={(e) => setPf({ calloutKind: (e.target.value || undefined) as NonNullable<typeof pf.calloutKind> })}>
+                          <option value="">plain (no banner)</option>
+                          {(["cheat-code", "memorize-this", "deeper-idea", "recap", "distractor"] as const).map((k) => <option key={k} value={k}>{k}</option>)}
+                        </select>
+                        <button className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-black" style={{ color: pf.boltOnBrand ? "#0B1322" : NEON.muted, background: pf.boltOnBrand ? NEON.yellow : "transparent", border: `1px solid ${pf.boltOnBrand ? NEON.yellow : NEON.borderSoft}` }} onClick={() => setPf({ boltOnBrand: !pf.boltOnBrand })} title="Is the boiling bolt on-brand for this set's callouts?">⚡ bolt</button>
+                      </div>
+                      <div className={LBL} style={{ color: NEON.muted }}>Formula — the creative intent (shown atop the strip)</div>
+                      <BufferedTextarea className="min-h-[54px] w-full rounded bg-black/30 px-1.5 py-1 text-[10px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} value={pf.formula ?? ""} onCommit={(v: string) => setPf({ formula: v || undefined })} placeholder="e.g. fast + ruthless: no notes, boss on Q7, dissect the two hard ones" />
+                      <div className="mt-2 border-t pt-2" style={{ borderColor: NEON.borderSoft }}>
+                        <div className="text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Templates (profile + layout + world · copy-on-write)</div>
+                        <div className="mt-1 flex items-center gap-1">
+                          <button className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setTplList(saveTemplate(templateFromDeck(deck.name, deck)))} title="Save THIS set's profile + layout + world as a named template (name = the set's name)">Save as template</button>
+                          <select className="min-w-0 flex-1 rounded bg-black/40 text-[9.5px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} defaultValue="" onChange={(e) => { const t = tplList.find((x) => x.name === e.target.value); if (t) { setDecks((prev) => updateDeck(prev, deck.id, applyTemplate(t))); setNote(`Applied template "${t.name}" (copy — nothing links back).`); } e.currentTarget.value = ""; }} title="Apply a saved template to THIS set — copy-on-write, nothing links back">
+                            <option value="" disabled>apply template…</option>
+                            {tplList.map((t) => <option key={t.name} value={t.name}>{t.name}</option>)}
+                          </select>
+                        </div>
+                        <div className="pt-1 text-[8px]" style={{ color: NEON.muted }}>Templates live on this machine (localStorage) — v1, single-author by design.</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
               {dissectQ && (() => {
                 const dd = rf.getNode(dissectQ)?.data as unknown as CeqCard | undefined;
                 const dz = dd?.dissect ?? { on: false, moments: [] };

@@ -33,6 +33,15 @@ export interface ReadinessCheck {
   label: string;
   ok: boolean;
   fails: ReadinessFail[];
+  /** SOFT (P6): a gentle warning — shown amber, NEVER blocks ready. */
+  soft?: boolean;
+}
+
+/** The slice of the set profile readiness reads (film-readiness stays pure —
+ *  no import from types to keep this module dependency-free). */
+export interface ReadinessProfile {
+  style?: "runs" | "dissect-heavy" | "mixed";
+  noteBudget?: number;
 }
 
 export interface ReadinessReport {
@@ -46,7 +55,7 @@ const short = (c: ReadinessCard, n: number): string => {
   return `Q${n} · ${s.slice(0, 44) || "(empty)"}`;
 };
 
-export function checkFilmReadiness(cards: ReadinessCard[]): ReadinessReport {
+export function checkFilmReadiness(cards: ReadinessCard[], profile?: ReadinessProfile): ReadinessReport {
   const ceqs = cards.filter((c) => !c.noteOnly);
   const notes = cards.filter((c) => c.noteOnly);
   // student numbering: CEQ frames only (notes are breath, not questions)
@@ -90,9 +99,17 @@ export function checkFilmReadiness(cards: ReadinessCard[]): ReadinessReport {
     { key: "dissect", label: "Dissected CEQs: every planned moment filmed or waived", ok: dissectGaps.length === 0, fails: dissectGaps },
     { key: "shorthand", label: "Shorthand on every CEQ frame", ok: shorthandGaps.length === 0, fails: shorthandGaps },
   ];
+  // SET PROFILE (P6) — soft checks: amber advice, never blockers.
+  if (profile?.noteBudget != null && notes.length > profile.noteBudget) {
+    checks.push({ key: "noteBudget", label: `Note-frame budget (soft cap ${profile.noteBudget})`, ok: false, soft: true, fails: [{ id: notes[0]?.id ?? "", label: `${notes.length} note frames — ${notes.length - profile.noteBudget} over this set's budget` }] });
+  }
+  if (profile?.style === "dissect-heavy") {
+    const flat = ceqs.filter((c) => !c.dissect?.on);
+    if (flat.length > 0) checks.push({ key: "dissectHeavy", label: "Dissect-heavy set: CEQs still on run coverage", ok: false, soft: true, fails: flat.map((c) => ({ id: c.id, label: q(c) })) });
+  }
   return {
     checks,
     counts: { ceq: ceqs.length, notes: notes.length, runs: runs.size },
-    ready: checks.every((c) => c.ok),
+    ready: checks.every((c) => c.ok || c.soft), // soft never blocks
   };
 }
