@@ -39,6 +39,7 @@ import { FLAME_CSS } from "./FilmOverlays";
 import { openPopoutWindow, PanelPopout } from "./PanelPopout";
 import { WorldBackground } from "./WorldBackground";
 import { WORLDS } from "./worlds";
+import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { renderInline } from "./inline-md";
 import { resolveCardSpot, resolveMemoSpot, withInstanceSpot } from "./ceq-geom";
 import { CALLOUT_KINDS, CalloutBody, calloutKindForCategory, nextCalloutKind } from "./cards/CalloutCard";
@@ -56,7 +57,7 @@ import { CHAINED_MARKER, NEON, PAPER } from "./theme";
 import { clampScale, type CalloutSettings, type CeqCard, type CeqChainItem, type CeqInstanceGeom, type DeckLayout, type DeckSlotLayout } from "./types";
 
 /** Practice state read by the CEQ mock (emphasis + which choices are resolved). */
-const PracticeContext = createContext<{ emph: number | null; resolved: Set<number> }>({ emph: null, resolved: new Set() });
+const PracticeContext = createContext<{ emph: number | null; resolved: Set<number>; select?: (i: number) => void; boss?: boolean; toggleBoss?: () => void }>({ emph: null, resolved: new Set() });
 /** The set of currently-revealed chain-memo node ids (read by memo chips). */
 const RevealContext = createContext<Set<string>>(new Set());
 /** Live resize: write a node's data.scale (mini + main store). */
@@ -111,6 +112,16 @@ const LAYOUT_CARD = { prompt: "**LAYOUT** — the question card deals here", cho
 /** In the film popout the resize grips are HOVER-ONLY (like the real canvas film
  *  mode) — invisible on camera, but there when Lee reaches in to nudge a card. */
 const PV_CSS = `
+/* BOSS MOMENT (P3) — charge-up then settle: a hard energy flash relaxing to a
+   sharper hi-tech border. Shadow/border only (film-lock law); no text, no sound. */
+@keyframes sa-boss-charge {
+  0% { box-shadow: 0 0 0 0 rgba(79,209,224,0), 0 8px 26px -10px rgba(0,0,0,0.6); }
+  30% { box-shadow: 0 0 0 7px rgba(79,209,224,0.4), 0 0 70px rgba(252,163,17,0.85); }
+  100% { box-shadow: 0 0 0 2px rgba(79,209,224,0.55), 0 0 24px rgba(252,163,17,0.3), 0 8px 26px -10px rgba(0,0,0,0.6); }
+}
+.sa-boss-card { animation: sa-boss-charge 750ms cubic-bezier(0.22,1,0.36,1) both !important; border-color: #4FD1E0 !important; }
+@keyframes sa-boss-bolt-in { from { transform: translateX(30px) rotate(9deg); opacity: 0; } to { transform: none; opacity: 1; } }
+.sa-boss-bolt { animation: sa-boss-bolt-in 480ms 160ms cubic-bezier(0.16,1,0.3,1) both; }
 .sa-pv-node .sa-grip-film { opacity: 0; pointer-events: none; transition: opacity 120ms ease; }
 .sa-pv-node:hover .sa-grip-film { opacity: 1; pointer-events: auto; }
 /* MOVE STRIPS (Lee) — the memo moves only by its top/bottom edge, but the strips are
@@ -336,7 +347,7 @@ function FrameBgNode({ data }: NodeProps) {
  *  anchor the real card uses (TextAnchor → `anc:<choiceId>`). Scales with data.scale.
  *  Ctrl+click a choice = rehearsal spotlight (local). */
 /** Practice state for INERT stand-ins (film stack, A2): always the base state. */
-const INERT_PRACTICE = { emph: null as number | null, resolved: new Set<number>() };
+const INERT_PRACTICE: { emph: number | null; resolved: Set<number>; select?: (i: number) => void; boss?: boolean; toggleBoss?: () => void } = { emph: null, resolved: new Set() };
 function CeqPreviewNode({ id, data }: NodeProps) {
   // INERT (film stack, A2): this card is a fully-rendered stand-in for a NON-ACTIVE
   // frame — practice/emphasis state belongs to the active question only, so an
@@ -400,7 +411,9 @@ function CeqPreviewNode({ id, data }: NodeProps) {
     setBulletEdit(null);
   };
   return (
-    <div data-ceq-card="" className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : CARD_W * s, minWidth: isCallout ? 320 * s : undefined, maxWidth: isCallout ? CARD_W * s : undefined, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
+    <div data-ceq-card="" onClickCapture={film && !inert ? (e) => { if (e.altKey) { e.preventDefault(); e.stopPropagation(); prLive.toggleBoss?.(); } } : undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}${!inert && pr.boss ? " sa-boss-card" : ""}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : CARD_W * s, minWidth: isCallout ? 320 * s : undefined, maxWidth: isCallout ? CARD_W * s : undefined, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
+      {/* BOSS (P3): the boiling bolt sweeps in with the charge — no text, no sound. */}
+      {!inert && pr.boss && <div className="sa-boss-bolt" style={{ position: "absolute", top: -18 * s, right: 16 * s, zIndex: 22 }}><BoltBoil height={40 * s} /></div>}
       {/* QUESTION 0 ribbon — unmistakably the LAYOUT stage, never content. */}
       {d.layoutBadge && !film && <span style={{ position: "absolute", top: -12, left: 12, borderRadius: 6, padding: "1px 8px", fontSize: 10, fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase", color: "#0B0F1E", background: NEON.yellow, zIndex: 21 }}>Layout</span>}
       {/* STUDENT PROGRESS — "X of Y" top-right + a slim fill bar along the top edge;
@@ -467,6 +480,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
           onDragOver={film ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }}
           onDrop={film ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); attachMemo("__stem__", mid); } }}
           ref={stemRef}
+          onClick={film ? (e) => { if (e.altKey || inert) return; const sel = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (sel && !sel.isCollapsed) return; prLive.select?.(-1); } : undefined}
           onMouseDown={film ? () => setStemSel(null) : undefined}
           onMouseUp={film ? readStemSelection : undefined}
           onDoubleClick={canEditStem ? (e) => { e.stopPropagation(); startStemEdit(); } : undefined}
@@ -496,7 +510,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
               data-flame-tone={flamed ? spot.tone(key) : undefined}
               data-spot-lit={spState === "spot" ? "on" : undefined}
               onPointerDownCapture={(e) => spot.onClick(key, e)}
-              onClick={film ? undefined : (e) => { if (e.ctrlKey || e.metaKey || e.shiftKey) return; onViewChoice?.(i); }}
+              onClick={film ? (e) => { if (e.altKey || inert) return; e.stopPropagation(); prLive.select?.(i); } : (e) => { if (e.ctrlKey || e.metaKey || e.shiftKey) return; onViewChoice?.(i); }}
               onContextMenu={(e) => choiceMenu(c.id, e)}
               // DRAG-TO-CHAIN (Lee) — drop a library memo straight onto a choice here in
               // the previewer (same-window drag) to chain it, exactly like the Pane-2 rows.
@@ -853,7 +867,7 @@ function PerfArrowLayer({ arrows, add, sel, setSel }: { arrows: PerfArrow[]; add
 }
 
 
-function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, world, worldIntensity, worldMotion, deckCeqIds, counterIds, stageSig, layoutMode, onSaveBaseline, onSaveInstance, onReorderChainMemo, layoutOn, onSetLayoutMode, onApplyLayoutToAll, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onAddMemoAtChoice, onAddMemoAt, onRenameMemo, onEditStem, onDuplicateMemo, onSetMemoCategory, onDeleteMemo, onSetMisconception, misconceptionSlugs, onNextQuestion, onPrevQuestion, showProgress, onSetShowProgress, onOpenMemoLib, topicName, recording, onExitRecording }: { transportLeft?: ReactNode; transportRight?: ReactNode; ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number; chainEdges: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; counterIds?: string[]; stageSig?: string; layoutMode?: boolean; onSaveBaseline?: (l: DeckLayout) => void; onSaveInstance?: (g: CeqInstanceGeom) => void; onReorderChainMemo?: (memoNodeId: string, dir: -1 | 1) => void; layoutOn?: boolean; onSetLayoutMode?: (on: boolean) => void; onApplyLayoutToAll?: () => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onAddMemoAtChoice?: (choiceId: string, text: string, category: string) => void; onAddMemoAt?: (pos: { x: number; y: number }, text: string, category: string) => void; onRenameMemo?: (memoNodeId: string, label: string) => void; onEditStem?: (ceqId: string, text: string) => void; onDuplicateMemo?: (memoNodeId: string) => void; onSetMemoCategory?: (memoNodeIds: string[], category: string) => void; onSetMisconception?: (memoNodeIds: string[], slug: string | null) => void; misconceptionSlugs?: string[]; onDeleteMemo?: (memoNodeIds: string[]) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void; showProgress?: boolean; onSetShowProgress?: (b: boolean) => void; onOpenMemoLib?: (id: string) => void; topicName?: string; recording?: boolean; onExitRecording?: () => void }) {
+function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, frameH, chainEdges, baseline, world, worldIntensity, worldMotion, deckCeqIds, counterIds, stageSig, layoutMode, onSaveBaseline, onSaveInstance, onReorderChainMemo, layoutOn, onSetLayoutMode, onApplyLayoutToAll, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onAddMemoAtChoice, onAddMemoAt, onRenameMemo, onEditStem, onDuplicateMemo, onSetMemoCategory, onDeleteMemo, onSetMisconception, misconceptionSlugs, onNextQuestion, onPrevQuestion, showProgress, onSetShowProgress, onOpenMemoLib, topicName, recording, bossAutoArm, onExitRecording }: { transportLeft?: ReactNode; transportRight?: ReactNode; ceqId: string; mainRf: MainRf; mainSig: string; frameW: number; frameH: number; chainEdges: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; counterIds?: string[]; stageSig?: string; layoutMode?: boolean; onSaveBaseline?: (l: DeckLayout) => void; onSaveInstance?: (g: CeqInstanceGeom) => void; onReorderChainMemo?: (memoNodeId: string, dir: -1 | 1) => void; layoutOn?: boolean; onSetLayoutMode?: (on: boolean) => void; onApplyLayoutToAll?: () => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onAddMemoAtChoice?: (choiceId: string, text: string, category: string) => void; onAddMemoAt?: (pos: { x: number; y: number }, text: string, category: string) => void; onRenameMemo?: (memoNodeId: string, label: string) => void; onEditStem?: (ceqId: string, text: string) => void; onDuplicateMemo?: (memoNodeId: string) => void; onSetMemoCategory?: (memoNodeIds: string[], category: string) => void; onSetMisconception?: (memoNodeIds: string[], slug: string | null) => void; misconceptionSlugs?: string[]; onDeleteMemo?: (memoNodeIds: string[]) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void; showProgress?: boolean; onSetShowProgress?: (b: boolean) => void; onOpenMemoLib?: (id: string) => void; topicName?: string; recording?: boolean; bossAutoArm?: boolean; onExitRecording?: () => void }) {
   const ceq = mainRf.getNode(ceqId);
   // QUESTION 0 (layoutMode): the stage edits the SET BASELINE directly — a placeholder
   // LAYOUT card + "Slot N" placeholders stand in for a real question. Same nodes, same
@@ -882,6 +896,11 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   }, [mainSig, layoutMode, rack]);
 
   // ---- PRACTICE (local; never touches the real CEQ) ------------------------
+  // BOSS MOMENT (P3): film-local presentation state — NEVER saved. Alt+Click
+  // toggles; a BOSS-flagged CEQ auto-arms when the per-set setting is on.
+  const [bossOn, setBossOn] = useState(false);
+  useEffect(() => { setBossOn(!!(bossAutoArm && (cd as { boss?: boolean } | undefined)?.boss)); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ceqId, bossAutoArm]);
   const [emph, setEmph] = useState<number | null>(null);
   const [resolved, setResolved] = useState<Set<number>>(new Set());
   const [shown, setShown] = useState<Map<number, number>>(new Map());
@@ -999,17 +1018,28 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
    *  drives the choice styling and `shown` is what drives the reveals — so sweeping
    *  is exactly "empty `shown`, keep `resolved`". */
   const sweepMemos = () => setShown((s) => (s.size === 0 ? s : new Map()));
-  const tabNav = (dir: 1 | -1) => setEmph((e) => (nChoices === 0 ? null : e == null ? (dir > 0 ? 0 : nChoices - 1) : (e + dir + nChoices) % nChoices));
+  // ELEMENT NAVIGATION (P3): arrows (and clicks) move the SELECTION across the
+  // CEQ's elements — the stem (-1) first, then the choices, wrapping. Tab is the
+  // walk now (Lee's sheets muscle memory), so navigation belongs to arrows/clicks;
+  // neither is required — they're equals.
+  const elemNav = (dir: 1 | -1) => setEmph((e) => {
+    if (nChoices === 0) return (cd?.stemChain?.length ?? 0) > 0 ? -1 : e;
+    const lo = -1, hi = nChoices - 1;
+    if (e == null) return dir > 0 ? lo : hi;
+    const next = e + dir;
+    return next < lo ? hi : next > hi ? lo : next;
+  });
   const advance = () => { // Enter — resolve the emphasised choice, then walk its chain
     // STEM CHAIN (P2): question-level memos drain FIRST — Lee can spacewalk on
     // the question itself (setup / context / distractor tease) before choices.
     const stemLen = cd?.stemChain?.length ?? 0;
     const stemShown = shown.get(-1) ?? 0;
-    if (stemLen > 0 && stemShown < stemLen) {
+    if ((emph == null || emph === -1) && stemLen > 0 && stemShown < stemLen) {
       setShown((s) => new Map(s).set(-1, stemShown + 1));
       const sit = cd?.stemChain?.[stemShown]; if (sit?.sound && sit.sound !== "vinylScratch") { const snd = sit.sound; window.setTimeout(() => playSfx(snd), 200); }
       return;
     }
+    if (emph === -1) return; // stem selected + drained: Tab has nothing left here
     const e = emph == null ? 0 : emph;
     if (emph == null) setEmph(0);
     if (!resolved.has(e)) {
@@ -1028,7 +1058,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     }
   };
   const retreat = () => { // Shift+Enter
-    if (emph == null) { const ss = shown.get(-1) ?? 0; if (ss > 0) setShown((s) => new Map(s).set(-1, ss - 1)); return; }
+    if (emph == null || emph === -1) { const ss = shown.get(-1) ?? 0; if (ss > 0) setShown((s) => new Map(s).set(-1, ss - 1)); return; }
     const cur = shown.get(emph) ?? 0;
     if (cur > 0) { setShown((s) => new Map(s).set(emph, cur - 1)); return; }
     if (resolved.has(emph)) { setResolved((r) => { const n = new Set(r); n.delete(emph); return n; }); setShown((s) => { const n = new Map(s); n.delete(emph); return n; }); }
@@ -1717,7 +1747,9 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
         if ((e.key === "r" || e.key === "R") && !e.ctrlKey && !e.metaKey && !e.altKey) { onExitRecording?.(); return; }
         if (isSpace) { setDealAnim("in"); repeatFiringRef.current = false; if (e.shiftKey) onPrevQuestion?.(); else onNextQuestion?.(); return; }
         if (e.key === "PageDown" || e.key === "PageUp") { if (!e.repeat) startHold(e.key === "PageDown" ? 1 : -1, win); return; } // hard push + hold-to-repeat (tease shot)
-        if (e.key === "Enter") { if (e.shiftKey) retreat(); else advance(); return; }
+        if (e.key === "Enter" || e.key === "Tab") { if (e.shiftKey) retreat(); else advance(); return; } // Tab = the walk (P3)
+        if (e.key === "ArrowDown" || e.key === "ArrowRight") { elemNav(1); return; }
+        if (e.key === "ArrowUp" || e.key === "ArrowLeft") { elemNav(-1); return; }
         if (e.shiftKey && (e.code === "Backquote" || e.key === "~" || e.key === "`")) { sweepMemos(); return; }
         // ` on the recording surface (A3): clear every exhibit highlight — the
         // instant reset between explanations. (Already behind the typing guard.)
@@ -1749,7 +1781,15 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
         window.setTimeout(() => commitGeom(), 0);
         return;
       }
-      if (e.key === "Tab") { e.preventDefault(); e.stopImmediatePropagation(); tabNav(e.shiftKey ? -1 : 1); return; }
+      if (e.key === "Tab") { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) retreat(); else advance(); return; } // Tab = the walk (P3)
+      if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        // ELEMENT NAV (P3) — arrows select stem/choices. The authoring memo-nudge
+        // (selMemoIds, gated !filmWindow) matched above; reaching here means the
+        // arrows are free to navigate.
+        e.preventDefault(); e.stopImmediatePropagation();
+        elemNav(e.key === "ArrowDown" || e.key === "ArrowRight" ? 1 : -1);
+        return;
+      }
       if (e.key === "Enter") { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) retreat(); else advance(); return; }
       // DEAL-ADVANCE between CEQs — Space / Shift+Space, plus Page Down / Page Up as a
       // presenter-remote-friendly pair (SAME handlers, no new walk logic). Page Down = deal
@@ -1798,7 +1838,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     // Pointing it at the main canvas makes their edits land on the actual node
     // (and therefore autosave), in both this pane and the film popout below.
     <CardWriteCtx.Provider value={mainRf as unknown as RfLike}>
-    <PracticeContext.Provider value={{ emph, resolved }}>
+    <PracticeContext.Provider value={{ emph, resolved, select: (i) => setEmph(i), boss: bossOn, toggleBoss: () => setBossOn((v) => !v) }}>
       <RevealContext.Provider value={revealedMemoIds}>
         <ScaleContext.Provider value={setScale}>
          <ScaleCommitContext.Provider value={commitGeom}>
@@ -2168,12 +2208,12 @@ class PreviewErrorBoundary extends Component<{ children: ReactNode; resetKey: st
   }
 }
 
-export function CeqPreviewer({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW = 1600, frameH = 900, chainEdges = [], baseline, world, worldIntensity, worldMotion, deckCeqIds, counterIds, stageSig, layoutMode, onSaveBaseline, onSaveInstance, onReorderChainMemo, layoutOn, onSetLayoutMode, onApplyLayoutToAll, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onAddMemoAtChoice, onAddMemoAt, onRenameMemo, onEditStem, onDuplicateMemo, onSetMemoCategory, onDeleteMemo, onSetMisconception, misconceptionSlugs, onNextQuestion, onPrevQuestion, showProgress, onSetShowProgress, onOpenMemoLib, topicName, recording, onExitRecording }: { transportLeft?: ReactNode; transportRight?: ReactNode; ceqId: string | null; mainRf: MainRf; mainSig: string; frameW?: number; frameH?: number; chainEdges?: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; counterIds?: string[]; stageSig?: string; layoutMode?: boolean; onSaveBaseline?: (l: DeckLayout) => void; onSaveInstance?: (g: CeqInstanceGeom) => void; onReorderChainMemo?: (memoNodeId: string, dir: -1 | 1) => void; layoutOn?: boolean; onSetLayoutMode?: (on: boolean) => void; onApplyLayoutToAll?: () => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onAddMemoAtChoice?: (choiceId: string, text: string, category: string) => void; onAddMemoAt?: (pos: { x: number; y: number }, text: string, category: string) => void; onRenameMemo?: (memoNodeId: string, label: string) => void; onEditStem?: (ceqId: string, text: string) => void; onDuplicateMemo?: (memoNodeId: string) => void; onSetMemoCategory?: (memoNodeIds: string[], category: string) => void; onSetMisconception?: (memoNodeIds: string[], slug: string | null) => void; misconceptionSlugs?: string[]; onDeleteMemo?: (memoNodeIds: string[]) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void; showProgress?: boolean; onSetShowProgress?: (b: boolean) => void; onOpenMemoLib?: (id: string) => void; topicName?: string; recording?: boolean; onExitRecording?: () => void }) {
+export function CeqPreviewer({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW = 1600, frameH = 900, chainEdges = [], baseline, world, worldIntensity, worldMotion, deckCeqIds, counterIds, stageSig, layoutMode, onSaveBaseline, onSaveInstance, onReorderChainMemo, layoutOn, onSetLayoutMode, onApplyLayoutToAll, onSetWorld, onPatchChainItem, onAttachMemo, onSelectMemo, onSelectQuestion, onCopyItems, onPasteItems, hasItemsClip, onSendToStarred, onCopyStyleToSet, starredCount, onAddMemoAtChoice, onAddMemoAt, onRenameMemo, onEditStem, onDuplicateMemo, onSetMemoCategory, onDeleteMemo, onSetMisconception, misconceptionSlugs, onNextQuestion, onPrevQuestion, showProgress, onSetShowProgress, onOpenMemoLib, topicName, recording, bossAutoArm, onExitRecording }: { transportLeft?: ReactNode; transportRight?: ReactNode; ceqId: string | null; mainRf: MainRf; mainSig: string; frameW?: number; frameH?: number; chainEdges?: PreviewEdge[]; baseline?: DeckLayout; world?: string; worldIntensity?: number; worldMotion?: number; deckCeqIds?: string[]; counterIds?: string[]; stageSig?: string; layoutMode?: boolean; onSaveBaseline?: (l: DeckLayout) => void; onSaveInstance?: (g: CeqInstanceGeom) => void; onReorderChainMemo?: (memoNodeId: string, dir: -1 | 1) => void; layoutOn?: boolean; onSetLayoutMode?: (on: boolean) => void; onApplyLayoutToAll?: () => void; onSetWorld?: (w: string | undefined) => void; onPatchChainItem?: (memoNodeId: string, patch: Partial<CeqChainItem>) => void; onAttachMemo?: (choiceId: string, memoId: string) => void; onSelectMemo?: (id: string | null) => void; onSelectQuestion?: (id: string) => void; onCopyItems?: (memoNodeIds: string[]) => void; onPasteItems?: (mode: "new" | "exact") => void; hasItemsClip?: number; onSendToStarred?: (memoNodeIds: string[]) => void; onCopyStyleToSet?: (styles: { idx: number; x: number; y: number; scale: number; hideChoiceLabel?: boolean; hideArrow?: boolean; sound?: CeqChainItem["sound"] }[]) => void; starredCount?: number; onAddMemoAtChoice?: (choiceId: string, text: string, category: string) => void; onAddMemoAt?: (pos: { x: number; y: number }, text: string, category: string) => void; onRenameMemo?: (memoNodeId: string, label: string) => void; onEditStem?: (ceqId: string, text: string) => void; onDuplicateMemo?: (memoNodeId: string) => void; onSetMemoCategory?: (memoNodeIds: string[], category: string) => void; onSetMisconception?: (memoNodeIds: string[], slug: string | null) => void; misconceptionSlugs?: string[]; onDeleteMemo?: (memoNodeIds: string[]) => void; onNextQuestion?: () => void; onPrevQuestion?: () => void; showProgress?: boolean; onSetShowProgress?: (b: boolean) => void; onOpenMemoLib?: (id: string) => void; topicName?: string; recording?: boolean; bossAutoArm?: boolean; onExitRecording?: () => void }) {
   if (!ceqId) return <div className="grid h-full place-items-center text-[11px]" style={{ color: NEON.muted }}>Select a question to preview.</div>;
   return (
     <PreviewErrorBoundary resetKey={ceqId}>
       <ReactFlowProvider>
-        <Inner transportLeft={transportLeft} transportRight={transportRight} ceqId={ceqId} mainRf={mainRf} mainSig={mainSig} frameW={frameW} frameH={frameH} chainEdges={chainEdges} baseline={baseline} world={world} worldIntensity={worldIntensity} worldMotion={worldMotion} deckCeqIds={deckCeqIds} counterIds={counterIds} stageSig={stageSig} layoutMode={layoutMode} onSaveBaseline={onSaveBaseline} onSaveInstance={onSaveInstance} onReorderChainMemo={onReorderChainMemo} layoutOn={layoutOn} onSetLayoutMode={onSetLayoutMode} onApplyLayoutToAll={onApplyLayoutToAll} onSetWorld={onSetWorld} onPatchChainItem={onPatchChainItem} onAttachMemo={onAttachMemo} onSelectMemo={onSelectMemo} onSelectQuestion={onSelectQuestion} onCopyItems={onCopyItems} onPasteItems={onPasteItems} hasItemsClip={hasItemsClip} onSendToStarred={onSendToStarred} onCopyStyleToSet={onCopyStyleToSet} starredCount={starredCount} onAddMemoAtChoice={onAddMemoAtChoice} onAddMemoAt={onAddMemoAt} onRenameMemo={onRenameMemo} onEditStem={onEditStem} onDuplicateMemo={onDuplicateMemo} onSetMemoCategory={onSetMemoCategory} onDeleteMemo={onDeleteMemo} onSetMisconception={onSetMisconception} misconceptionSlugs={misconceptionSlugs} onNextQuestion={onNextQuestion} onPrevQuestion={onPrevQuestion} showProgress={showProgress} onSetShowProgress={onSetShowProgress} onOpenMemoLib={onOpenMemoLib} topicName={topicName} recording={recording} onExitRecording={onExitRecording} />
+        <Inner transportLeft={transportLeft} transportRight={transportRight} ceqId={ceqId} mainRf={mainRf} mainSig={mainSig} frameW={frameW} frameH={frameH} chainEdges={chainEdges} baseline={baseline} world={world} worldIntensity={worldIntensity} worldMotion={worldMotion} deckCeqIds={deckCeqIds} counterIds={counterIds} stageSig={stageSig} layoutMode={layoutMode} onSaveBaseline={onSaveBaseline} onSaveInstance={onSaveInstance} onReorderChainMemo={onReorderChainMemo} layoutOn={layoutOn} onSetLayoutMode={onSetLayoutMode} onApplyLayoutToAll={onApplyLayoutToAll} onSetWorld={onSetWorld} onPatchChainItem={onPatchChainItem} onAttachMemo={onAttachMemo} onSelectMemo={onSelectMemo} onSelectQuestion={onSelectQuestion} onCopyItems={onCopyItems} onPasteItems={onPasteItems} hasItemsClip={hasItemsClip} onSendToStarred={onSendToStarred} onCopyStyleToSet={onCopyStyleToSet} starredCount={starredCount} onAddMemoAtChoice={onAddMemoAtChoice} onAddMemoAt={onAddMemoAt} onRenameMemo={onRenameMemo} onEditStem={onEditStem} onDuplicateMemo={onDuplicateMemo} onSetMemoCategory={onSetMemoCategory} onDeleteMemo={onDeleteMemo} onSetMisconception={onSetMisconception} misconceptionSlugs={misconceptionSlugs} onNextQuestion={onNextQuestion} onPrevQuestion={onPrevQuestion} showProgress={showProgress} onSetShowProgress={onSetShowProgress} onOpenMemoLib={onOpenMemoLib} topicName={topicName} recording={recording} bossAutoArm={bossAutoArm} onExitRecording={onExitRecording} />
       </ReactFlowProvider>
     </PreviewErrorBoundary>
   );

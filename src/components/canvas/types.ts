@@ -1288,6 +1288,9 @@ export interface DeckDef {
    *  (filmed), so viewers see momentum through the set. Undefined = ON for CEQ
    *  sets; false hides it. Toggled from the previewer toolbar. */
   showProgress?: boolean;
+  /** BOSS AUTO-ARM (P3): entering a BOSS-flagged CEQ in film auto-triggers the
+   *  final-boss treatment. Per-set, default off; Alt+Click always toggles. */
+  bossAutoArm?: boolean;
   /** Card-kind (cards) or memoKind/category (memos) to auto-include, or null. */
   filter?: string | null;
   runMode: DeckRunMode;

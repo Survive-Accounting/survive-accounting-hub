@@ -25,8 +25,8 @@ describe("stem chain — the question is a chain target", () => {
     const adv = previewer.slice(previewer.indexOf("const advance = () =>"), previewer.indexOf("const retreat = () =>"));
     expect(adv.indexOf("stemShown")).toBeLessThan(adv.indexOf("resolved.has(e)"));
   });
-  test("Shift+Enter un-reveals stem items while no choice is engaged", () => {
-    expect(previewer).toContain("if (emph == null) { const ss = shown.get(-1) ?? 0;");
+  test("Shift+Enter/Tab un-reveals stem items while no choice is engaged (or the stem is selected)", () => {
+    expect(previewer).toContain("if (emph == null || emph === -1) { const ss = shown.get(-1) ?? 0;");
   });
   test("stem memos draw no choice arrow (no anchor to pin to)", () => {
     expect(previewer).toContain('w.choiceId === "__stem__" || !revealSet.has(w.memoNodeId)');
