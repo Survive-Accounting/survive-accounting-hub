@@ -29,6 +29,7 @@ import { buildSetExport } from "./ceq-export";
 import { SetFilmstrip, type StripItem } from "./SetFilmstrip";
 import { checkFilmReadiness, type ReadinessReport } from "./film-readiness";
 import { FILM_LOCK_CSS, FilmContext } from "./film-lock";
+import { MEMO_KIND_META, MEMO_KIND_ORDER, kindFromCategory, type PlaybookKind } from "./memo-kinds";
 import { assignRunTo, fillDownRuns, normRun, type RunChange } from "./film-runs";
 import { groupedStageElements, type StageElementSpec } from "./stage-elements";
 import { MISCONCEPTION_SEEDS, questionMisconceptions, toSlug } from "./ceq-misconceptions";
@@ -184,7 +185,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const [note, setNote] = useState<string | null>(null);
   const [memoQuery, setMemoQuery] = useState("");
   const [memoSort, setMemoSort] = useState<"recent" | "az">("recent"); // library sort
-  const [catFilter, setCatFilter] = useState<Set<string>>(() => new Set([...MEMO_CATEGORIES, NONE]));
+  const [catFilter, setCatFilter] = useState<Set<string>>(() => new Set([...MEMO_KIND_ORDER, NONE])); // PLAYBOOK (P4): filter by KIND
   const [courseFilter, setCourseFilter] = useState<string>("all");
   const [sel, setSel] = useState<Set<string>>(() => new Set());
   const [editorOpen, setEditorOpen] = useState(true); // collapsible stem/choices editor
@@ -1540,7 +1541,7 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
      stopped being part of any real run. Nothing else called it. */
 
   // ---- MEMO LIBRARY ---------------------------------------------------------
-  const memos = useMemo(() => rf.getNodes().filter((n) => n.type === "memo").map((n, i) => { const d = n.data as { label?: string; title?: string; body?: string; category?: string; subcategory?: string; course?: string }; return { id: n.id, order: i, label: d.label || memoText(d.title, d.body), category: (d.category || "").toUpperCase(), subcategory: d.subcategory || "", course: d.course || "" }; }), [nodes]);
+  const memos = useMemo(() => rf.getNodes().filter((n) => n.type === "memo").map((n, i) => { const d = n.data as { label?: string; title?: string; body?: string; category?: string; subcategory?: string; course?: string; playbookKind?: string }; return { id: n.id, order: i, label: d.label || memoText(d.title, d.body), category: (d.category || "").toUpperCase(), subcategory: d.subcategory || "", course: d.course || "", body: d.body || "", playbookKind: d.playbookKind || "" }; }), [nodes]);
   const courses = useMemo(() => [...new Set(memos.map((m) => m.course).filter(Boolean))].sort(), [memos]);
   // USAGE (Lee) — where each memo is chained, ACROSS ALL SETS. A memo counts once per
   // CEQ (a "place" = one question / T.QQ), so a memo on two choices of the same
@@ -1576,11 +1577,15 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
   const inScope = (id: string) => effScope === "all" || justCreated.has(id) || id === previewSelMemo || (effScope === "set" ? setMemoIds.has(id) : chainMemoIds.has(id));
   // Full memo list (with body) for the +💡 picker modal — searches ALL memos.
   const memosForPicker = useMemo(() => rf.getNodes().filter((n) => n.type === "memo").map((n) => { const d = n.data as { label?: string; title?: string; body?: string; category?: string }; return { id: n.id, label: d.label || memoText(d.title, d.body), body: d.body || "", category: (d.category || "").toUpperCase() }; }), [nodes]);
+  // PLAYBOOK KIND (P4): display DERIVES the kind — playbookKind if stamped,
+  // else the legacy-category mapping — so the panel is correct before AND
+  // after the migration materializes the field. "" normalizes to unfiled.
+  const pkOf = (m: { playbookKind?: string; category: string }): PlaybookKind | null => ((m.playbookKind || undefined) as PlaybookKind | undefined) ?? kindFromCategory(m.category);
   const shownMemos = memos
     .filter((m) => inScope(m.id))
-    .filter((m) => catFilter.has(m.category || NONE))
+    .filter((m) => catFilter.has(pkOf(m) ?? NONE))
     .filter((m) => courseFilter === "all" || m.course === courseFilter)
-    .filter((m) => { const q = memoQuery.trim().toLowerCase(); return !q || m.label.toLowerCase().includes(q) || m.subcategory.toLowerCase().includes(q); })
+    .filter((m) => { const q = memoQuery.trim().toLowerCase(); return !q || m.label.toLowerCase().includes(q) || m.subcategory.toLowerCase().includes(q) || m.body.toLowerCase().includes(q) || m.category.toLowerCase().includes(q) || (pkOf(m) ?? "").includes(q); })
     .sort((a, b) => (memoSort === "az" ? a.label.localeCompare(b.label) : b.order - a.order)); // recent = newest node first
   const toggleCat = (c: string) => setCatFilter((p) => { const n = new Set(p); n.has(c) ? n.delete(c) : n.add(c); return n; });
   const toggleSel = (id: string) => setSel((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -2011,6 +2016,14 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
     setLastMemoCat(next);
     touchRecent(id);
   };
+  /** PLAYBOOK (P4) quick-reassign — cycle kind through the taxonomy, then unfiled.
+   *  Writes playbookKind only; the legacy category is never touched. */
+  const cycleKind = (id: string, cur: PlaybookKind | null) => {
+    const order: (PlaybookKind | null)[] = [...MEMO_KIND_ORDER, null];
+    const next = order[(order.indexOf(cur) + 1) % order.length];
+    const p = patchDataCmd(rfl, id, { playbookKind: next ?? "" }, "set playbook kind"); if (p) bus.dispatch(p);
+    touchRecent(id);
+  };
   // Search focus: autofocus whenever the library opens; "/" (global, below) also lands here.
   useEffect(() => { if (libOpen) { const t = window.setTimeout(() => memoSearchRef.current?.focus(), 60); return () => window.clearTimeout(t); } }, [libOpen]);
 
@@ -2322,8 +2335,8 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
             library still opens as the same right-side panel, still defaults CLOSED, and
             still has its own ✕ — this is just the handle. */}
         {topTab !== "preview" && (
-          <button className="ml-2 flex items-center gap-1 rounded px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: libOpen ? "#0B1322" : NEON.cyan, background: libOpen ? NEON.cyan : "transparent", border: `1px solid ${libOpen ? NEON.cyan : NEON.borderSoft}` }} onClick={() => setLibOpen((v) => !v)} title={libOpen ? "Close the memo library" : "Memo library — search, quick-add, and drag memos onto choices"}>
-            <Library className="h-3 w-3" /> Memos <span className="tabular-nums opacity-70">{memos.length}</span>
+          <button className="ml-2 flex items-center gap-1 rounded px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: libOpen ? "#0B1322" : NEON.cyan, background: libOpen ? NEON.cyan : "transparent", border: `1px solid ${libOpen ? NEON.cyan : NEON.borderSoft}` }} onClick={() => setLibOpen((v) => !v)} title={libOpen ? "Close the Playbook" : "Playbook — the memo library: search, quick-add, and drag memos onto choices"}>
+            <Library className="h-3 w-3" /> Playbook <span className="tabular-nums opacity-70">{memos.length}</span>
           </button>
         )}
       </div>
@@ -2865,8 +2878,8 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
             </div>
           )}
           <div className="flex flex-wrap gap-1 p-1.5">
-            {[...MEMO_CATEGORIES, NONE].map((c) => { const on = catFilter.has(c); return (
-              <button key={c} className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: on ? "#0B1322" : NEON.muted, background: on ? NEON.yellow : "transparent", border: `1px solid ${on ? NEON.yellow : NEON.borderSoft}` }} onClick={() => toggleCat(c)}>{c === NONE ? "Unfiled" : c}</button>
+            {[...MEMO_KIND_ORDER, NONE].map((c) => { const on = catFilter.has(c); const meta = c === NONE ? null : MEMO_KIND_META[c as PlaybookKind]; return (
+              <button key={c} className="rounded px-1 py-0.5 text-[8px] font-bold uppercase" style={{ color: on ? "#0B1322" : NEON.muted, background: on ? NEON.yellow : "transparent", border: `1px solid ${on ? NEON.yellow : NEON.borderSoft}` }} onClick={() => toggleCat(c)} title={meta ? (meta.group === "CALLOUT" ? "Callout kind — renders as a callout card" : "Support kind — chain/reference material") : "No kind assigned (always a valid state)"}>{meta ? meta.glyph + " " + meta.label : "Unfiled"}</button>
             ); })}
           </div>
           <div className="flex items-center justify-between px-1.5 text-[9px]" style={{ color: NEON.muted }}>
@@ -2890,7 +2903,18 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
           )}
           <div className="min-h-0 flex-1 overflow-y-auto p-1">
             {shownMemos.length === 0 && <div className="px-1 py-2 text-[9.5px] italic" style={{ color: NEON.muted }}>No memos match — or none exist yet.</div>}
-            {shownMemos.map((m) => { const on = sel.has(m.id); const uses = usageOf(m.id); const editing = editMemo === m.id; const picked = m.id === previewSelMemo; return (
+            {([...MEMO_KIND_ORDER, null] as (PlaybookKind | null)[]).map((gk) => {
+              const items = shownMemos.filter((m) => pkOf(m) === gk);
+              if (items.length === 0) return null;
+              const gMeta = gk ? MEMO_KIND_META[gk] : null;
+              return (
+                <div key={gk ?? "__unfiled"}>
+                  <div className="flex items-center gap-1 px-0.5 pb-0.5 pt-1.5 text-[7.5px] font-bold uppercase tracking-wide" style={{ color: gMeta?.group === "CALLOUT" ? NEON.yellow : NEON.cyan }}>
+                    <span>{gMeta ? gMeta.glyph + " " + gMeta.label : "🗂 Unfiled"}</span>
+                    <span className="opacity-60">· {items.length}</span>
+                    {gMeta && <span className="ml-auto rounded px-1 opacity-50" style={{ border: `1px solid ${NEON.borderSoft}` }}>{gMeta.group}</span>}
+                  </div>
+            {items.map((m) => { const on = sel.has(m.id); const uses = usageOf(m.id); const editing = editMemo === m.id; const picked = m.id === previewSelMemo; return (
               <div key={m.id} ref={picked ? selMemoRowRef : undefined} draggable={!editing} className="flex cursor-grab items-center gap-1 rounded px-1 py-0.5" style={{ background: picked ? "rgba(79,163,227,0.22)" : on ? "rgba(252,163,17,0.1)" : "rgba(0,0,0,0.2)", border: `1px solid ${picked ? NEON.cyan : on ? NEON.border : NEON.borderSoft}` }}
                 onDragStart={(e) => { e.dataTransfer.setData(MEMO_DND, m.id); e.dataTransfer.effectAllowed = "copy"; }}
                 title="Drag onto a choice to attach · ☐ selects · click the label to rename · click the chip to cycle category">
@@ -2902,11 +2926,14 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                 )}
                 {/* ×N usage — the "shared, edits ripple" signal; tooltip lists the T.QQ ids. */}
                 {uses > 1 && <span className="shrink-0 text-[7.5px] font-bold tabular-nums" style={{ color: "#7CC4FF" }} title={usageTip(m.id)}>×{uses}</span>}
-                <button className="shrink-0 rounded px-1 text-[7.5px] font-bold uppercase" style={{ color: m.category ? NEON.cyan : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => cycleCategory(m.id, m.category)} title={`Category: ${m.category || "unfiled"} — click to cycle (${MEMO_CATEGORIES.join(" → ")})`}>{m.category === "ELEMENT" ? "🧩" : m.category ? m.category.slice(0, 4) : "UNF"}</button>
+                <button className="shrink-0 rounded px-1 text-[7.5px] font-bold uppercase" style={{ color: pkOf(m) ? NEON.cyan : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => cycleKind(m.id, pkOf(m))} title={"Kind: " + (pkOf(m) ? MEMO_KIND_META[pkOf(m)!].label : "unfiled") + " — click to cycle through the taxonomy (quick-reassign)"}>{pkOf(m) ? MEMO_KIND_META[pkOf(m)!].glyph : "UNF"}</button>
                 <button className="shrink-0" style={{ color: NEON.muted }} onClick={() => duplicateMemo(m.id)} title="Duplicate this memo (a linked copy, opens for editing)"><Copy className="h-3 w-3" /></button>
                 <button className="shrink-0" style={{ color: NEON.red }} onClick={() => deleteMemos([m.id])} title="Delete this memo from the library (also unchains it)"><X className="h-3 w-3" /></button>
               </div>
             ); })}
+                </div>
+              );
+            })}
           </div>
           {/* bulk triage */}
           <div className="flex flex-col gap-1 border-t p-1.5" style={{ borderColor: NEON.borderSoft }}>
