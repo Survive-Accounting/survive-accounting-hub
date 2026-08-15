@@ -31,6 +31,7 @@ import { checkFilmReadiness, type ReadinessReport } from "./film-readiness";
 import { FILM_LOCK_CSS, FilmContext } from "./film-lock";
 import { MEMO_KIND_META, MEMO_KIND_ORDER, kindFromCategory, type PlaybookKind } from "./memo-kinds";
 import { applyTemplate, loadTemplates, saveTemplate, templateFromDeck, type SetTemplate } from "./set-profile";
+import { IdeaBank } from "./IdeaBank";
 import { assignRunTo, fillDownRuns, normRun, type RunChange } from "./film-runs";
 import { groupedStageElements, type StageElementSpec } from "./stage-elements";
 import { MISCONCEPTION_SEEDS, questionMisconceptions, toSlug } from "./ceq-misconceptions";
@@ -251,6 +252,22 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const [dissectQ, setDissectQ] = useState<string | null>(null);
   // SET PROFILE (P6) — the production-profile panel + templates.
   const [profileOpen, setProfileOpen] = useState(false);
+  // IDEA BANK (P7) — null closed · "capture" = the F8 quick popover · "board".
+  const [ideaBank, setIdeaBank] = useState<null | "board" | "capture">(null);
+  // F8 = quick capture, OUTSIDE film mode only: dead while recording/rehearsing
+  // (the film controller owns the keyboard — that's what the notepad is for),
+  // and the film popout is a separate window this listener never sees.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "F8" || recording) return;
+      const el = document.activeElement as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      e.preventDefault();
+      setIdeaBank((v) => (v ? null : "capture"));
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [recording]);
   const [tplList, setTplList] = useState<SetTemplate[]>(() => loadTemplates());
   const lastQSelRef = useRef<string | null>(null);
   // Switching sets (tab click, chip jump, session restore) DROPS the selection — the
@@ -2340,11 +2357,12 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
             tabs (this Studio's collapsed rail and the canvas route's fixed edge tab). The
             library still opens as the same right-side panel, still defaults CLOSED, and
             still has its own ✕ — this is just the handle. */}
-        {topTab !== "preview" && (
+        {topTab !== "preview" && (<>
           <button className="ml-2 flex items-center gap-1 rounded px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: libOpen ? "#0B1322" : NEON.cyan, background: libOpen ? NEON.cyan : "transparent", border: `1px solid ${libOpen ? NEON.cyan : NEON.borderSoft}` }} onClick={() => setLibOpen((v) => !v)} title={libOpen ? "Close the Playbook" : "Playbook — the memo library: search, quick-add, and drag memos onto choices"}>
             <Library className="h-3 w-3" /> Playbook <span className="tabular-nums opacity-70">{memos.length}</span>
           </button>
-        )}
+          <button className="ml-1 flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setIdeaBank("board")} title="Idea bank — sticky notes by category, F8 quick-captures from anywhere in the Studio (never in film mode). Export for Claude = the overnight-prompt feeder.">📌</button>
+        </>)}
       </div>
       {/* ONE-NAV-TRUCE (Krug pass): the internal set-tab strip is GONE — it was the
           third navigation showing the same objects as the outline. The outline is the
@@ -2567,6 +2585,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   Toggle dissect on/off; add / rename / reorder / waive moments; tag an
                   existing take to a moment. All writes go through patchQ (undoable). */}
               {/* SET PRODUCTION PROFILE (P6) — compact per-set panel + templates. */}
+              {ideaBank && !recording && <IdeaBank mode={ideaBank} onClose={() => setIdeaBank(null)} />}
               {profileOpen && deck && (() => {
                 const pf = deck.profile ?? {};
                 const setPf = (patch: Partial<NonNullable<DeckDef["profile"]>>) => setDecks((prev) => updateDeck(prev, deck.id, { profile: { ...pf, ...patch } }));
