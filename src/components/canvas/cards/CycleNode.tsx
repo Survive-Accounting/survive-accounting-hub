@@ -116,15 +116,18 @@ export function CycleNode({ id, data, selected }: NodeProps) {
         </div>
       )}
 
-      {/* the callout — OPAQUE so nothing shows through (covers the bg watermark) */}
+      {/* the callout — TRANSPARENT (Lee, 08-14): pills + arcs float straight over
+          the frame's world background (was an opaque navy radial that covered the
+          bg watermark — Lee reversed that call). The pills carry their own
+          near-opaque gradients so they read over anything. A faint border remains
+          in AUTHORING ONLY as a bounds aid for drag/resize; film shows nothing. */}
       <div
         className="relative rounded-3xl"
         style={{
           width: "100%",
           height: h,
-          background: "radial-gradient(ellipse at 50% 42%, rgb(28,40,72), rgb(9,13,26))",
-          border: "1.5px solid rgba(252,163,17,0.4)",
-          boxShadow: "0 18px 44px -18px rgba(0,0,0,0.7)",
+          background: "transparent",
+          border: film ? "none" : "1.5px dashed rgba(252,163,17,0.22)",
         }}
       >
         <style>{CYCLE_CSS}</style>
