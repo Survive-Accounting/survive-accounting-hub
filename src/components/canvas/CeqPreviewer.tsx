@@ -43,6 +43,7 @@ import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { renderInline } from "./inline-md";
 import { resolveCardSpot, resolveMemoSpot, templateFor, withInstanceSpot } from "./ceq-geom";
 import { CALLOUT_KINDS, CalloutBody, calloutKindForCategory, nextCalloutKind } from "./cards/CalloutCard";
+import { CAPTURE_H, CAPTURE_W, captureCssSize, isCaptureExact, physicalSize, snapCaptureSize } from "./capture-window";
 import { clearExhibitHighlights } from "./exhibit-highlights";
 import { FILM_LOCK_CSS, FilmContext, filmDragAllowed, isTypingTarget } from "./film-lock";
 import { memoAnchorId, TextAnchor } from "./MemoLightbulb";
@@ -861,6 +862,33 @@ const edgeTypes = { chainBundle: ChainBundleEdge, chainArrow: ChainArrowEdge, fr
 const nodeTypes = { frameBg: FrameBgNode, ceqPreview: CeqPreviewNode, memoPreview: MemoPreviewNode, ovCeq: OverviewCeqNode, ovMemo: OvMemoNode, arrowEnd: ArrowEndNode, ...STAGE_NODE_TYPES };
 const EMPTY_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "focus" };
 
+/** CAPTURE BADGE (C1) — verifies the window's PHYSICAL inner size. Green
+ *  "1920x1080 ✓" when exact, red with the actual size otherwise. Auto-hides on
+ *  the first keypress (never capturable mid-take); window focus re-shows it and
+ *  auto-resnaps a drifted window; SNAP forces it. */
+function CaptureBadge({ win }: { win: Window }) {
+  const [size, setSize] = useState(() => physicalSize(win.innerWidth, win.innerHeight, win.devicePixelRatio || 1));
+  const [hidden, setHidden] = useState(false);
+  useEffect(() => {
+    const measure = () => setSize(physicalSize(win.innerWidth, win.innerHeight, win.devicePixelRatio || 1));
+    const onKey = () => setHidden(true);
+    const onFocus = () => { measure(); setHidden(false); if (!isCaptureExact(win.innerWidth, win.innerHeight, win.devicePixelRatio || 1)) { snapCaptureSize(win); window.setTimeout(measure, 200); } };
+    win.addEventListener("resize", measure);
+    win.addEventListener("keydown", onKey, true);
+    win.addEventListener("focus", onFocus);
+    return () => { win.removeEventListener("resize", measure); win.removeEventListener("keydown", onKey, true); win.removeEventListener("focus", onFocus); };
+  }, [win]);
+  if (hidden) return null;
+  const ok = size.w === CAPTURE_W && size.h === CAPTURE_H;
+  return (
+    <div style={{ position: "absolute", top: 10, right: 10, zIndex: 60, display: "flex", alignItems: "center", gap: 6, borderRadius: 8, padding: "4px 8px", background: "rgba(5,7,13,0.85)", border: '1px solid ' + (ok ? "rgba(59,245,160,0.6)" : "rgba(255,80,110,0.7)") }}>
+      <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: "0.06em", color: ok ? "#3BF5A0" : "#FF5A6E", fontVariantNumeric: "tabular-nums" }}>{size.w}×{size.h}{ok ? " ✓" : ""}</span>
+      {!ok && <button style={{ fontSize: 9, fontWeight: 900, letterSpacing: "0.08em", color: "#0B1322", background: "#3BF5A0", borderRadius: 5, padding: "2px 6px", border: "none", cursor: "pointer" }} onClick={() => snapCaptureSize(win)} title="Resize the window so the inner canvas is exactly 1920x1080 physical pixels">SNAP</button>}
+      <span style={{ fontSize: 8.5, color: "rgba(230,236,255,0.5)", fontWeight: 700 }}>hides on first key</span>
+    </div>
+  );
+}
+
 /** PERFORMANCE ARROWS (Lee) — a freehand pointer layer OVER the pane, for live use on
  *  camera (never authored/persisted to the scene). ALT+drag pulls a meaty arrow from the
  *  press point to the cursor and vanishes on release; SHIFT+ALT+drag PERSISTS it. A
@@ -1506,7 +1534,29 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       ro?.disconnect();
     };
   }, [filmWin, ceqId, frameW, frameH, fitFilm]);
-  const toggleFilm = (v2?: boolean) => { if (filmWin) { try { filmWin.close(); } catch { /* ignore */ } setFilmWin(null); return; } if (v2 !== undefined) setFilmMode(v2); const w = openPopoutWindow("ceqfilm", 1000, 600); if (w) setFilmWin(w); };
+  // CAPTURE WINDOW (C1): same film popout, but the window is snapped so the
+  // INNER canvas is exactly 1920x1080 PHYSICAL pixels (dpr-aware) — OBS
+  // window-capture at Reset Transform is 1:1 pixel-perfect.
+  const captureRef = useRef(false);
+  const toggleFilm = (v2?: boolean, capture?: boolean) => {
+    if (filmWin) { try { filmWin.close(); } catch { /* ignore */ } setFilmWin(null); captureRef.current = false; return; }
+    if (v2 !== undefined) setFilmMode(v2);
+    captureRef.current = !!capture;
+    const css = capture ? captureCssSize(window.devicePixelRatio || 1) : null;
+    const w = openPopoutWindow("ceqfilm", css?.w ?? 1000, css?.h ?? 600);
+    if (w) { setFilmWin(w); if (capture) { window.setTimeout(() => snapCaptureSize(w), 120); window.setTimeout(() => snapCaptureSize(w), 600); } }
+  };
+  // ELEMENT FULLSCREEN (C1): fullscreen targets THIS stable wrapper — it never
+  // unmounts (frames swap INSIDE it; the arrival-gap fix guarantees the
+  // interior), so spacewalking a whole set in fullscreen can never blank or
+  // drop out of fullscreen. Toggled with F in the film window.
+  const filmRootRef = useRef<HTMLDivElement>(null);
+  const toggleFilmFullscreen = () => {
+    const el = filmRootRef.current; if (!el) return;
+    const doc = el.ownerDocument;
+    if (doc.fullscreenElement) void doc.exitFullscreen().catch(() => { /* ignore */ });
+    else void el.requestFullscreen().catch(() => { /* ignore */ });
+  };
   // Q0 / LAYOUT NEVER FILMS — it's the authoring stage (already excluded from
   // counts/stitch/deck). If film is entered while on it, jump to the first real
   // question so the take opens on Q1 and the space-walk has real question state.
@@ -1941,6 +1991,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
         window.setTimeout(() => commitGeom(), 0);
         return;
       }
+      if (filmWindow && (e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); e.stopImmediatePropagation(); toggleFilmFullscreen(); return; } // F = element fullscreen on the STABLE wrapper (C1)
       if (e.key === "Tab") { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) retreat(); else advance(); return; } // Tab = the walk (P3)
       if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight") {
         // ELEMENT NAV (P3) — arrows select stem/choices. The authoring memo-nudge
@@ -2099,6 +2150,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                 ) : (<>
                   <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#FF8B9E", border: "1px solid rgba(255,139,158,0.5)" }} onClick={() => toggleFilm(false)} title="FILM V1 — the stack: every frame mounted in a vertical strip, the camera pans between them. The proven mode."><Clapperboard className="h-3.5 w-3.5" /> Film V1</button>
                   <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#B79CFF", border: "1px solid rgba(183,156,255,0.5)" }} onClick={() => toggleFilm(true)} title="FILM V2 (EXPERIMENT) — ONE stationary frame, built for SPEED: the camera never moves (the black-flash class of glitches is structurally impossible), CEQs crossfade in place (140ms), memos spacewalk/enterwalk exactly as in V1.">V2 ⚡</button>
+                  <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.5)" }} onClick={() => toggleFilm(undefined, true)} title="CAPTURE WINDOW — the film popout snapped so its inner canvas is EXACTLY 1920x1080 physical pixels (display-scaling aware). OBS window-capture at Reset Transform = pixel-perfect 1:1. A size badge verifies (auto-hides on your first keypress; window focus re-checks and re-snaps). Uses your V1/V2 preference; F = fullscreen.">🎯 Capture</button>
                 </>)}
                 {/* COMPOSITION GUIDES — thirds grid + safe zones (title-safe, camera,
                     watermark, end-screen) for laying out the CEQ; drag a slot/card and
@@ -2278,7 +2330,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                   {/* FILM_LOCK_CSS (A1): this window never had FILM_MODE_CSS, so staged
                       cards showed hover chrome + live resize handles ON CAMERA. */}
                   <style>{FLAME_CSS}{PV_CSS}{FILM_LOCK_CSS}</style>
-                  <div className="film-mode" style={{ position: "relative", width: "100%", height: "100%" }}>
+                  <div ref={filmRootRef} className="film-mode" style={{ position: "relative", width: "100%", height: "100%", background: "#000" }}>
                     <ReactFlowProvider>
                       <ReactFlow
                         nodes={filmNodes}
@@ -2316,6 +2368,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                     </ReactFlowProvider>
                     {/* No in-app film watermark for now (Lee) — the brand watermark will be
                         added later in the actual HTML player, not baked into the take. */}
+                    {captureRef.current && filmWin && <CaptureBadge win={filmWin} />}
                     <PerfArrowLayer arrows={perfArrows} add={addPerfArrow} sel={selPerf} setSel={setSelPerf} />
                     {/* PREPARING GATE (A2) — covers the pane until the mounted set is warm.
                         Opaque brand navy: whatever loads underneath can never flash on camera. */}

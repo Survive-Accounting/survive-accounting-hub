@@ -23,7 +23,7 @@ describe("film v2", () => {
     expect(kf).not.toMatch(/transform|translate|scale/);
   });
   test("the backslash key keeps the stored pref (toggleFilm argless call sites)", () => {
-    expect(src).toContain("const toggleFilm = (v2?: boolean) =>");
+    expect(src).toContain("const toggleFilm = (v2?: boolean, capture?: boolean) =>");
     expect(src).not.toMatch(/onClick=\{toggleFilm\}/); // never passes the event as the mode
   });
 });
