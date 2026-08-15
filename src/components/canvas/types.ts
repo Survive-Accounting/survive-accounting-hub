@@ -391,6 +391,10 @@ export interface CeqCard extends CardBase {
    *  question counter ("Q 14/29" skips notes), practice entry, and readiness checks.
    *  Same card system as CEQ frames so film mode + the player timeline show it. */
   noteOnly?: boolean;
+  /** CALLOUT (P1): presentation settings for a zero-choice (note) frame — the
+   *  standardized reading card. Additive scene JSON; absent = plain callout
+   *  with topic on. See cards/CalloutCard.tsx for the render contract. */
+  callout?: CalloutSettings;
   choices: CeqChoice[];
   revealedAnswer?: boolean;
   /** PER-CEQ SCRIPT NOTE — LEGACY field. Superseded by the SCRIPT LAYERS below:
@@ -1396,4 +1400,21 @@ let _seq = 0;
 export function cardId(kind: string): string {
   _seq += 1;
   return `${kind}-${Date.now().toString(36)}-${_seq}`;
+}
+
+/** The five callout types (P1) — the banner a callout card can carry. */
+export type CalloutKind = "cheat-code" | "memorize-this" | "deeper-idea" | "recap" | "distractor";
+/** CALLOUT settings (P1) on a zero-choice (note) frame. Every field optional so
+ *  an untouched note frame stays byte-identical in scene JSON. */
+export interface CalloutSettings {
+  /** Topic kicker on/off. Absent = ON. */
+  showTopic?: boolean;
+  /** Secondary stems — indented, smaller, grayed bullets under the main stem. */
+  extraStems?: string[];
+  /** Boiling bolt on the card's left. Absent = off. */
+  bolt?: boolean;
+  /** The type banner; absent = plain callout (kicker + stem only). */
+  kind?: CalloutKind;
+  /** Dropped-memo node ids: 1 = memo callout, 2+ = the highlights stack. */
+  memoIds?: string[];
 }

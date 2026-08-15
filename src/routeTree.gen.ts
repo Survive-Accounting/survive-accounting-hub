@@ -28,6 +28,7 @@ import { Route as IntroOutroRouteImport } from './routes/intro-outro'
 import { Route as ExpandRouteImport } from './routes/expand'
 import { Route as ChaptersRouteImport } from './routes/chapters'
 import { Route as CeqRouteImport } from './routes/ceq'
+import { Route as CalloutDemoRouteImport } from './routes/callout-demo'
 import { Route as BeyondRouteImport } from './routes/beyond'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as OutreachIndexRouteImport } from './routes/outreach.index'
@@ -165,6 +166,11 @@ const ChaptersRoute = ChaptersRouteImport.update({
 const CeqRoute = CeqRouteImport.update({
   id: '/ceq',
   path: '/ceq',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CalloutDemoRoute = CalloutDemoRouteImport.update({
+  id: '/callout-demo',
+  path: '/callout-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BeyondRoute = BeyondRouteImport.update({
@@ -393,6 +399,7 @@ const ApiCronBackupRoute = ApiCronBackupRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/beyond': typeof BeyondRoute
+  '/callout-demo': typeof CalloutDemoRoute
   '/ceq': typeof CeqRouteWithChildren
   '/chapters': typeof ChaptersRoute
   '/expand': typeof ExpandRoute
@@ -457,6 +464,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/beyond': typeof BeyondRoute
+  '/callout-demo': typeof CalloutDemoRoute
   '/ceq': typeof CeqRouteWithChildren
   '/chapters': typeof ChaptersRoute
   '/expand': typeof ExpandRoute
@@ -521,6 +529,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/beyond': typeof BeyondRoute
+  '/callout-demo': typeof CalloutDemoRoute
   '/ceq': typeof CeqRouteWithChildren
   '/chapters': typeof ChaptersRoute
   '/expand': typeof ExpandRoute
@@ -587,6 +596,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/beyond'
+    | '/callout-demo'
     | '/ceq'
     | '/chapters'
     | '/expand'
@@ -651,6 +661,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/beyond'
+    | '/callout-demo'
     | '/ceq'
     | '/chapters'
     | '/expand'
@@ -714,6 +725,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/beyond'
+    | '/callout-demo'
     | '/ceq'
     | '/chapters'
     | '/expand'
@@ -779,6 +791,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BeyondRoute: typeof BeyondRoute
+  CalloutDemoRoute: typeof CalloutDemoRoute
   CeqRoute: typeof CeqRouteWithChildren
   ChaptersRoute: typeof ChaptersRoute
   ExpandRoute: typeof ExpandRoute
@@ -944,6 +957,13 @@ declare module '@tanstack/react-router' {
       path: '/ceq'
       fullPath: '/ceq'
       preLoaderRoute: typeof CeqRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/callout-demo': {
+      id: '/callout-demo'
+      path: '/callout-demo'
+      fullPath: '/callout-demo'
+      preLoaderRoute: typeof CalloutDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/beyond': {
@@ -1347,6 +1367,7 @@ const OutreachRouteWithChildren = OutreachRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BeyondRoute: BeyondRoute,
+  CalloutDemoRoute: CalloutDemoRoute,
   CeqRoute: CeqRouteWithChildren,
   ChaptersRoute: ChaptersRoute,
   ExpandRoute: ExpandRoute,

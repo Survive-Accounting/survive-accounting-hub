@@ -41,6 +41,7 @@ import { WorldBackground } from "./WorldBackground";
 import { WORLDS } from "./worlds";
 import { renderInline } from "./inline-md";
 import { resolveCardSpot, resolveMemoSpot, withInstanceSpot } from "./ceq-geom";
+import { CALLOUT_KINDS, CalloutBody, calloutKindForCategory, nextCalloutKind } from "./cards/CalloutCard";
 import { clearExhibitHighlights } from "./exhibit-highlights";
 import { FILM_LOCK_CSS, FilmContext, filmDragAllowed } from "./film-lock";
 import { memoAnchorId, TextAnchor } from "./MemoLightbulb";
@@ -52,7 +53,7 @@ import { bus, patchDataCmd, type RfLike } from "./commands";
 import { STAGE_NODE_TYPES, stageNodeType } from "./stage-elements";
 import { applyRegularClick, applySuperClick, spotKey, type SpotSets, type SuperTone } from "./spotlight";
 import { CHAINED_MARKER, NEON, PAPER } from "./theme";
-import { clampScale, type CeqCard, type CeqChainItem, type CeqInstanceGeom, type DeckLayout, type DeckSlotLayout } from "./types";
+import { clampScale, type CalloutSettings, type CeqCard, type CeqChainItem, type CeqInstanceGeom, type DeckLayout, type DeckSlotLayout } from "./types";
 
 /** Practice state read by the CEQ mock (emphasis + which choices are resolved). */
 const PracticeContext = createContext<{ emph: number | null; resolved: Set<number> }>({ emph: null, resolved: new Set() });
@@ -352,7 +353,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
   const attachMemo = useContext(AttachMemoContext);
   const choiceMenu = useContext(ChoiceMenuContext);
   const [dropChoice, setDropChoice] = useState<string | null>(null); // choice a memo is hovering (drag-to-chain)
-  const d = data as unknown as { stem: string; choices: { id: string; text: string; correct?: boolean; chain?: unknown[] }[]; scale?: number; layoutBadge?: boolean; brandBolt?: false | string; progress?: { x: number; y: number } | null; topic?: string | null };
+  const d = data as unknown as { stem: string; choices: { id: string; text: string; correct?: boolean; chain?: unknown[] }[]; scale?: number; layoutBadge?: boolean; brandBolt?: false | string; progress?: { x: number; y: number } | null; topic?: string | null; callout?: CalloutSettings; calloutMemos?: { label: string; category?: string }[] };
   const s = d.scale ?? 1;
   // BRANDING — the bolt sits top-left of the CEQ box, filmed with the card. Floated
   // so the stem wraps around it. `brandBolt` false hides it; a string picks a colour
@@ -379,8 +380,27 @@ function CeqPreviewNode({ id, data }: NodeProps) {
   const [stemDraft, setStemDraft] = useState("");
   const startStemEdit = () => { if (!canEditStem) return; setStemDraft(d.stem || ""); setStemEditing(true); };
   const commitStemEdit = () => { editStem?.(id, stemDraft); setStemEditing(false); };
+  // ---- CALLOUT (P1): a zero-choice (note) frame renders as the standardized
+  // reading card. Affordances are AUTHORING-ONLY (film shows the finished face);
+  // writes go through the main store like any other card edit (undoable).
+  const isCallout = !d.layoutBadge && (d.choices?.length ?? 0) === 0;
+  const rflW = useContext(CardWriteCtx);
+  const patchCallout = (patch: Partial<CalloutSettings>) => {
+    if (!rflW) return;
+    const cmd = patchDataCmd(rflW, id, { callout: { ...(d.callout ?? {}), ...patch } } as never, "edit callout");
+    if (cmd) bus.dispatch(cmd);
+  };
+  const [bulletEdit, setBulletEdit] = useState<{ i: number; draft: string } | null>(null);
+  const commitBullet = () => {
+    if (!bulletEdit) return;
+    const xs = [...(d.callout?.extraStems ?? [])];
+    const t = bulletEdit.draft.trim();
+    if (t) xs[bulletEdit.i] = t; else xs.splice(bulletEdit.i, 1); // empty text removes the bullet
+    patchCallout({ extraStems: xs });
+    setBulletEdit(null);
+  };
   return (
-    <div data-ceq-card="" className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} style={{ position: "relative", width: CARD_W * s, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
+    <div data-ceq-card="" className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : CARD_W * s, minWidth: isCallout ? 320 * s : undefined, maxWidth: isCallout ? CARD_W * s : undefined, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
       {/* QUESTION 0 ribbon — unmistakably the LAYOUT stage, never content. */}
       {d.layoutBadge && !film && <span style={{ position: "absolute", top: -12, left: 12, borderRadius: 6, padding: "1px 8px", fontSize: 10, fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase", color: "#0B0F1E", background: NEON.yellow, zIndex: 21 }}>Layout</span>}
       {/* STUDENT PROGRESS — "X of Y" top-right + a slim fill bar along the top edge;
@@ -389,12 +409,46 @@ function CeqPreviewNode({ id, data }: NodeProps) {
         <div style={{ position: "absolute", top: 0, left: 0, height: 4 * s, width: `${Math.round((d.progress.x / d.progress.y) * 100)}%`, background: `linear-gradient(90deg, ${PAPER.green}, #3BF5A0)`, borderTopLeftRadius: 14 * s, borderBottomRightRadius: 3 * s, zIndex: 8 }} />
         <span style={{ position: "absolute", top: 12 * s, right: 14 * s, fontSize: 15 * s, fontWeight: 800, letterSpacing: "0.02em", color: PAPER.inkMuted, zIndex: 8 }}>{d.progress.x} <span style={{ opacity: 0.6 }}>of</span> {d.progress.y}</span>
       </>)}
+      {/* CALLOUT controls (P1) — small, unobtrusive, authoring-only (sa-chrome
+          + card-actions ⇒ film CSS kills them even if the gate ever slips). */}
+      {isCallout && !film && (
+        <div className="sa-chrome nodrag card-actions" style={{ position: "absolute", top: -26, right: 0, zIndex: 21, display: "flex", gap: 4, alignItems: "center", borderRadius: 8, padding: "2px 4px", background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}` }} onPointerDown={(e) => e.stopPropagation()}>
+          <button className="rounded px-1 text-[9px] font-black" style={{ color: d.callout?.showTopic === false ? NEON.muted : NEON.cyan }} title="Topic label on/off" onClick={() => patchCallout({ showTopic: d.callout?.showTopic === false })}>TOPIC</button>
+          <button className="rounded px-1 text-[9px] font-black" style={{ color: d.callout?.bolt ? NEON.yellow : NEON.muted }} title="Boiling bolt on the left (off by default)" onClick={() => patchCallout({ bolt: !d.callout?.bolt })}>⚡</button>
+          <button className="rounded px-1 text-[9px] font-black" style={{ color: d.callout?.kind ? CALLOUT_KINDS[d.callout.kind].accent : NEON.muted }} title="Callout type — click to cycle (or drop a memo from the library to convert)" onClick={() => patchCallout({ kind: nextCalloutKind(d.callout?.kind) })}>{d.callout?.kind ? CALLOUT_KINDS[d.callout.kind].label : "TYPE"}</button>
+          <button className="rounded px-1 text-[9px] font-black" style={{ color: NEON.muted }} title="Add a secondary stem (indented gray bullet; double-click one to edit)" onClick={() => patchCallout({ extraStems: [...(d.callout?.extraStems ?? []), "New point"] })}>+ STEM</button>
+          {(d.callout?.memoIds?.length ?? 0) > 0 && <button className="rounded px-1 text-[9px] font-black" style={{ color: "#FF8B9E" }} title="Clear the dropped memos (back to the stem)" onClick={() => patchCallout({ memoIds: [] })}>✕ MEMOS</button>}
+        </div>
+      )}
       {/* CLIP — a spotlit choice's scale + glow stays INSIDE the CEQ box (never spills
           into the frame on a take). The ScaleGrip lives OUTSIDE this clip. */}
       <div style={{ overflow: "hidden", borderRadius: 13 * s, padding: 16 * s }}>
       {/* TOPIC kicker — name only (no Ch#), small uppercase above the stem so a
           viewer landing mid-clip knows the topic. */}
-      {d.topic && <div style={{ fontSize: 12 * s, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: PAPER.inkMuted, marginBottom: 6 * s, maxWidth: "58%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.topic}</div>}
+      {!isCallout && d.topic && <div style={{ fontSize: 12 * s, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: PAPER.inkMuted, marginBottom: 6 * s, maxWidth: "58%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.topic}</div>}
+      {isCallout && !stemEditing && (
+        <div onDoubleClick={canEditStem ? (e) => { e.stopPropagation(); startStemEdit(); } : undefined} title={canEditStem ? "Double-click to edit the text" : undefined}>
+          <CalloutBody
+            scale={s}
+            topic={d.callout?.showTopic === false ? null : d.topic}
+            stem={d.stem}
+            extraStems={d.callout?.extraStems}
+            kind={d.callout?.kind ?? (d.calloutMemos?.length ? calloutKindForCategory(d.calloutMemos[0].category) : undefined)}
+            highlights={(d.calloutMemos ?? []).map((m) => m.label)}
+            bolt={d.callout?.bolt}
+            onEditBullet={film ? undefined : (i) => setBulletEdit({ i, draft: d.callout?.extraStems?.[i] ?? "" })}
+          />
+        </div>
+      )}
+      {isCallout && bulletEdit && (
+        <textarea autoFocus className="nodrag" value={bulletEdit.draft}
+          onChange={(e) => setBulletEdit({ i: bulletEdit.i, draft: e.target.value })}
+          onPointerDown={(e) => e.stopPropagation()}
+          onBlur={commitBullet}
+          onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); commitBullet(); } else if (e.key === "Escape") { e.preventDefault(); setBulletEdit(null); } }}
+          rows={Math.max(1, bulletEdit.draft.split("\n").length)}
+          style={{ width: "100%", boxSizing: "border-box", resize: "none", fontFamily: "inherit", fontSize: 15.5 * s, fontWeight: 600, color: PAPER.inkMuted, marginTop: 8 * s, background: "rgba(0,0,0,0.05)", border: `1px solid ${NEON.cyan}`, borderRadius: 6 * s, padding: `${4 * s}px ${6 * s}px`, outline: "none" }} />
+      )}
       {stemEditing ? (
         <textarea
           autoFocus
@@ -408,7 +462,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
           rows={Math.max(2, stemDraft.split("\n").length)}
           style={{ width: "100%", boxSizing: "border-box", resize: "none", fontFamily: "inherit", fontSize: 24 * s, fontWeight: 800, lineHeight: 1.25, color: PAPER.ink, marginBottom: 12 * s, background: "rgba(0,0,0,0.05)", border: `1px solid ${NEON.cyan}`, borderRadius: 8 * s, padding: `${6 * s}px ${8 * s}px`, outline: "none" }}
         />
-      ) : (
+      ) : isCallout ? null : (
         <div
           ref={stemRef}
           onMouseDown={film ? () => setStemSel(null) : undefined}
@@ -849,6 +903,11 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   // stack — and a stack built around it would draw the deck's questions straight
   // through it. Whenever the active id isn't a member, overview is simply off and
   // the single-frame render stands alone.
+  /** CALLOUT (P1): resolve dropped-memo ids to display labels once, main-store side. */
+  const calloutMemosOf = (c: CeqCard | undefined) => (c?.callout?.memoIds ?? []).map((mid) => {
+    const md = mainRf.getNode(mid)?.data as { label?: string; title?: string; category?: string } | undefined;
+    return { label: md?.label ?? md?.title ?? "Memo", category: md?.category };
+  });
   const activeIdx = deckCeqIds ? deckCeqIds.indexOf(ceqId) : -1;
   // `!recording`: on the recording surface the FILM STACK (A2) owns the vertical
   // stack — overview's ov: stand-ins would double-render under the real ones.
@@ -1057,7 +1116,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     const enterAnim = reduceMotion ? "none"
       : dealAnim === "pushDown" || dealAnim === "pushUp" ? `${enterAnimName} 180ms cubic-bezier(0.16,1,0.3,1) both`
       : "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both";
-    const ceqNode = { id: ceqId, type: "ceqPreview", position: { x: cs.x, y: yOff + cs.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cs.scale, layoutBadge: layoutMode, progress, topic, enterAnim, enterAnimName }, draggable: true, zIndex: 1 };
+    const ceqNode = { id: ceqId, type: "ceqPreview", position: { x: cs.x, y: yOff + cs.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cs.scale, layoutBadge: layoutMode, progress, topic, enterAnim, enterAnimName, callout: cd.callout, calloutMemos: calloutMemosOf(cd) }, draggable: true, zIndex: 1 };
     // PLACEMENT: in Question 0 each stage chip IS its slot (whole rack, so inactive
     // ones stay visible to switch on). In a real question memos fill the ACTIVE slots
     // in order — inactive slots simply don't exist here. Past the last active slot,
@@ -1577,7 +1636,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       const ocs = resolveCardSpot(od.geom, baseline, frameW, frameH);
       const pIdx = cIds.indexOf(qid);
       const progress = viewStudent && pIdx >= 0 && cIds.length > 1 ? { x: pIdx + 1, y: cIds.length } : null;
-      out.push({ id: qid, type: "ceqPreview", position: { x: ocs.x, y: y + ocs.y }, data: { stem: od.prompt, choices: od.choices, scale: ocs.scale, progress, topic: viewStudent && topicName ? topicName : null, enterAnim: "none", enterAnimName: "none", inert: true }, draggable: false, selectable: false, zIndex: 1 } as Node);
+      out.push({ id: qid, type: "ceqPreview", position: { x: ocs.x, y: y + ocs.y }, data: { stem: od.prompt, choices: od.choices, scale: ocs.scale, progress, topic: viewStudent && topicName ? topicName : null, enterAnim: "none", enterAnimName: "none", inert: true, callout: od.callout, calloutMemos: calloutMemosOf(od) }, draggable: false, selectable: false, zIndex: 1 } as Node);
       for (const n of allNodes) {
         const st = (n.data as { stage?: { ceqId?: string; x: number; y: number; hidden?: boolean } } | undefined)?.stage;
         if (!st || st.ceqId !== qid || st.hidden) continue;

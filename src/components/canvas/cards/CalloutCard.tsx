@@ -1,0 +1,114 @@
+// CALLOUT (P1) — the standardized reading card: what a student reads in their
+// head as a take opens, and what Lee recaps with. It IS the zero-choice (note)
+// frame's face in the previewer/film — CeqPreviewNode renders CalloutBody when
+// a card has no choices — and the /callout-demo route renders it standalone.
+//
+// Content model (CalloutSettings on the card, additive scene JSON):
+//   showTopic     — topic kicker on/off (default on)
+//   extraStems    — secondary stems: indented, smaller, grayed bullets
+//   bolt          — boiling bolt on the left (off by default)
+//   kind          — the type banner; unset = plain callout
+//   memoIds       — dropped memos; 1 renders as a styled memo callout, 2+
+//                   renders the "Highlights from this set" stack (Lookback)
+//
+// Film law: this file is PRESENTATION ONLY. All authoring affordances live in
+// CeqPreviewNode behind the film gate — nothing here captures keys or drags.
+import { BoltBoil } from "@/components/brand-cards/bolt-boil";
+import { renderInline } from "../inline-md";
+import { PAPER } from "../theme";
+import type { CalloutKind } from "../types";
+
+/** The five callout types — each a small on-brand badge/accent, none loud. */
+export const CALLOUT_KINDS: Record<CalloutKind, { label: string; accent: string; tint: string }> = {
+  "cheat-code": { label: "CHEAT CODE", accent: "#1F9D57", tint: "rgba(31,157,87,0.10)" },
+  "memorize-this": { label: "MEMORIZE THIS", accent: "#C77D0A", tint: "rgba(199,125,10,0.10)" },
+  "deeper-idea": { label: "DEEPER IDEA", accent: "#1D7FA8", tint: "rgba(29,127,168,0.10)" },
+  recap: { label: "RECAP", accent: "#6D5BB8", tint: "rgba(109,91,184,0.10)" },
+  distractor: { label: "DISTRACTOR", accent: "#C22B45", tint: "rgba(194,43,69,0.10)" },
+};
+
+/** Default kind when a memo is dropped, from its library category. */
+export function calloutKindForCategory(category?: string): CalloutKind {
+  const c = (category ?? "").toUpperCase();
+  if (c.includes("CHEAT")) return "cheat-code";
+  if (c.includes("STEP")) return "memorize-this";
+  if (c.includes("TRAP")) return "distractor";
+  if (c.includes("TIP")) return "deeper-idea";
+  return "recap";
+}
+
+/** The kind-cycler control order: none → the five kinds → none. */
+export function nextCalloutKind(k?: CalloutKind): CalloutKind | undefined {
+  const order = Object.keys(CALLOUT_KINDS) as CalloutKind[];
+  if (!k) return order[0];
+  const i = order.indexOf(k);
+  return i < 0 || i === order.length - 1 ? undefined : order[i + 1];
+}
+
+export interface CalloutBodyProps {
+  scale: number;
+  /** Already-resolved topic text; null/undefined = no kicker. */
+  topic?: string | null;
+  stem: string;
+  extraStems?: string[];
+  kind?: CalloutKind;
+  /** Dropped-memo labels; 1 = single memo callout, 2+ = highlights stack. */
+  highlights?: string[];
+  bolt?: boolean;
+  /** Authoring-only inline edit hook for an extra-stem bullet (never in film). */
+  onEditBullet?: (idx: number) => void;
+}
+
+/** The callout's face — cream card interior, navy text, orange corner accent.
+ *  Rendered INSIDE the existing card shell (which owns width/drag/scale). */
+export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, highlights = [], bolt, onEditBullet }: CalloutBodyProps) {
+  const stack = highlights.length > 1;
+  const meta = stack ? { label: "HIGHLIGHTS FROM THIS SET", accent: "#C77D0A", tint: "rgba(199,125,10,0.08)" } : kind ? CALLOUT_KINDS[kind] : null;
+  const mainText = highlights.length === 1 ? highlights[0] : stem;
+  return (
+    <div style={{ position: "relative" }}>
+      {/* the little orange corner accent — the callout's signature, kept */}
+      <span aria-hidden style={{ position: "absolute", top: -16 * s, right: -16 * s, width: 26 * s, height: 26 * s, background: "#FCA311", clipPath: "polygon(100% 0, 0 0, 100% 100%)", borderTopRightRadius: 13 * s, opacity: 0.9 }} />
+      {meta && (
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 6 * s, marginBottom: 8 * s, padding: `${2 * s}px ${8 * s}px`, borderRadius: 6 * s, fontSize: 10.5 * s, fontWeight: 900, letterSpacing: "0.12em", color: meta.accent, background: meta.tint, border: `1px solid ${meta.accent}44` }}>
+          {meta.label}
+        </div>
+      )}
+      {topic && <div style={{ fontSize: 12 * s, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: PAPER.inkMuted, marginBottom: 6 * s }}>{topic}</div>}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 * s }}>
+        {bolt && <div style={{ flexShrink: 0, marginTop: 2 * s }}><BoltBoil height={44 * s} /></div>}
+        <div style={{ minWidth: 0 }}>
+          {stack ? (
+            <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 8 * s }}>
+              {highlights.map((h, i) => (
+                <li key={i} style={{ display: "flex", gap: 8 * s, alignItems: "baseline", fontSize: 17 * s, fontWeight: 700, lineHeight: 1.3, color: PAPER.ink }}>
+                  <span style={{ color: "#FCA311", fontWeight: 900 }}>•</span>
+                  <span>{renderInline(h)}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <>
+              <div style={{ fontSize: 24 * s, fontWeight: 800, lineHeight: 1.25, color: PAPER.ink, whiteSpace: "pre-wrap" }}>{renderInline(mainText || "Callout")}</div>
+              {extraStems.length > 0 && (
+                <ul style={{ margin: `${10 * s}px 0 0 ${6 * s}px`, padding: 0, listStyle: "none", display: "grid", gap: 5 * s }}>
+                  {extraStems.map((t, i) => (
+                    <li
+                      key={i}
+                      onDoubleClick={onEditBullet ? (e) => { e.stopPropagation(); onEditBullet(i); } : undefined}
+                      style={{ display: "flex", gap: 7 * s, alignItems: "baseline", fontSize: 15.5 * s, fontWeight: 600, lineHeight: 1.3, color: PAPER.inkMuted, cursor: onEditBullet ? "text" : undefined }}
+                      title={onEditBullet ? "Double-click to edit · empty text removes it" : undefined}
+                    >
+                      <span style={{ opacity: 0.55 }}>–</span>
+                      <span>{renderInline(t)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
