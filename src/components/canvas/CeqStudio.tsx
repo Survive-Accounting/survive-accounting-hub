@@ -5,7 +5,7 @@
 // one model / two doors); MEMO LIBRARY = every memo with label + category (incl
 // ELEMENT), search/filter, bulk triage for the unfiled pile, and drag-onto-a-choice
 // to attach to a chain. No new storage beyond panel prefs.
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEdges, useNodes, useReactFlow } from "@xyflow/react";
@@ -32,6 +32,9 @@ import { FILM_LOCK_CSS, FilmContext, isTypingTarget } from "./film-lock";
 import { MEMO_KIND_META, MEMO_KIND_ORDER, kindFromCategory, type PlaybookKind } from "./memo-kinds";
 import { applyTemplate, loadTemplates, saveTemplate, templateFromDeck, type SetTemplate } from "./set-profile";
 import { IdeaBank } from "./IdeaBank";
+import { TakesInbox } from "./TakesInbox";
+import { type ObsStatus } from "./obs-bridge";
+import { currentTakes, saveTake, type TakeRecord, type TakeTarget } from "./takes-store";
 import { assignRunTo, fillDownRuns, normRun, type RunChange } from "./film-runs";
 import { isoDay, saveRoomTone, todaysRoomTone } from "./room-tone";
 import { resolveWorkerRender, startDissectStitch, type DissectStitchResult } from "@/lib/render-worker.functions";
@@ -297,14 +300,48 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   };
   // SET PROFILE (P6) — the production-profile panel + templates.
   const [profileOpen, setProfileOpen] = useState(false);
-  // IDEA BANK (P7) — null closed · "capture" = the F8 quick popover · "board".
+  // IDEA BANK (P7) — null closed · "capture" = the F7 quick popover · "board".
   const [ideaBank, setIdeaBank] = useState<null | "board" | "capture">(null);
+  // TAKES INBOX (T1/T2) — the drawer, the armed target, and the OBS status the
+  // Studio renders. EVERY status surface here is studio-only: the chip, the
+  // recording dot, the armed badge and the countdown never render inside the
+  // film popout, the capture window or the Recording Mode portal.
+  const [takesOpen, setTakesOpen] = useState(false);
+  const [armedTarget, setArmedTarget] = useState<TakeTarget | null>(null);
+  const [obsState, setObsState] = useState<{ status: ObsStatus; recording: boolean; detail?: string }>({ status: "off", recording: false });
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const cdRef = useRef<number | undefined>(undefined);
+  const runCountdown = useCallback(() => {
+    const secs = Number(localStorage.getItem("sa-countdown") ?? 3);
+    if (!secs) return;
+    if (cdRef.current != null) window.clearInterval(cdRef.current);
+    setCountdown(secs);
+    cdRef.current = window.setInterval(() => {
+      setCountdown((c) => {
+        if (c == null) return null;
+        if (c <= 1) { if (cdRef.current != null) window.clearInterval(cdRef.current); window.setTimeout(() => setCountdown(null), 700); return 0; }
+        return c - 1;
+      });
+    }, 1000);
+  }, []);
+  /** Arm from the spine selection (or the open frame) — T2. */
+  const armFromSelection = () => {
+    const ids = qSel.size ? questions.filter((q) => qSel.has(q.id)).map((q) => q.id) : qId && qId !== LAYOUT_Q0 ? [qId] : [];
+    if (!ids.length) { setNote("Select frames in the spine (or open one) to arm uploads."); return; }
+    const first = rf.getNode(ids[0])?.data as unknown as CeqCard | undefined;
+    const runLetter = first?.run?.trim();
+    const kind: TakeTarget["kind"] = ids.length === 1 ? "ceq" : runLetter && ids.every((iid) => ((rf.getNode(iid)?.data as unknown as CeqCard | undefined)?.run ?? "").trim() === runLetter) ? "run" : "range";
+    const label = kind === "run" ? "run " + runLetter : kind === "ceq" ? (first?.shorthand || "1 frame") : ids.length + " frames";
+    setArmedTarget({ kind, ids, label });
+    setTakesOpen(true);
+    setNote("ARMED → " + label + " · takes that finish now bank against it.");
+  };
   // F8 = quick capture, OUTSIDE film mode only: dead while recording/rehearsing
   // (the film controller owns the keyboard — that's what the notepad is for),
   // and the film popout is a separate window this listener never sees.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "F8" || recording) return;
+      if (e.key !== "F7" || recording) return; // F7 (moved off F8 — takes triage owns that)
       if (isTypingTarget()) return;
       e.preventDefault();
       setIdeaBank((v) => (v ? null : "capture"));
@@ -2438,7 +2475,8 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
           <button className="ml-2 flex items-center gap-1 rounded px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: libOpen ? "#0B1322" : NEON.cyan, background: libOpen ? NEON.cyan : "transparent", border: `1px solid ${libOpen ? NEON.cyan : NEON.borderSoft}` }} onClick={() => setLibOpen((v) => !v)} title={libOpen ? "Close Elements" : "Elements — the memo library: search, quick-add, and drag memos onto choices"}>
             <Library className="h-3 w-3" /> Elements <span className="tabular-nums opacity-70">{memos.length}</span>
           </button>
-          <button className="ml-1 flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setIdeaBank("board")} title="Idea bank — sticky notes by category, F8 quick-captures from anywhere in the Studio (never in film mode). Export for Claude = the overnight-prompt feeder.">📌</button>
+          <button className="ml-1 flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: obsState.recording ? "#FF5A6E" : obsState.status === "connected" ? "#3BF5A0" : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setTakesOpen((v) => !v)} title="Takes inbox — OBS records, takes land here, review locally, Keep or Trash (F10 / F8). Nothing uploads until you Keep.">🎬 Takes{obsState.recording ? " ●" : ""}{armedTarget ? " · armed" : ""}</button>
+          <button className="ml-1 flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setIdeaBank("board")} title="Idea bank — sticky notes by category, F7 quick-captures from anywhere in the Studio (never in film mode). Export for Claude = the overnight-prompt feeder.">📌</button>
         </>)}
       </div>
       {/* ONE-NAV-TRUCE (Krug pass): the internal set-tab strip is GONE — it was the
@@ -2655,6 +2693,8 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   assignRun,
                   dissect: () => { if (qId && qId !== LAYOUT_Q0) setDissectQ(qId); },
                   profile: () => setProfileOpen(true),
+                  armUploads: () => armFromSelection(),
+                  armedLabel: armedTarget?.label,
                   uploadClip: (file: File) => { void (async () => {
                     const ids = qSel.size ? questions.filter((q) => qSel.has(q.id)).map((q) => q.id) : qId && qId !== LAYOUT_Q0 ? [qId] : [];
                     if (!ids.length) { setNote("Select frames in the spine (or open one) first — then Upload clip."); return; }
@@ -2704,6 +2744,34 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                       <button className="rounded px-2.5 py-1 text-[10px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setApplyPanel(null)}>Not yet — future deals only</button>
                     </div>
                   </div>
+                </div>
+              )}
+              {takesOpen && !recording && (
+                <TakesInbox
+                  onClose={() => setTakesOpen(false)}
+                  armed={armedTarget}
+                  onDisarm={() => { setArmedTarget(null); setNote("Uploads disarmed — new takes land unattached."); }}
+                  liveFrameIds={() => (qId && qId !== LAYOUT_Q0 ? [qId] : [])}
+                  onObsState={setObsState}
+                  onRecordStart={runCountdown}
+                  onUpload={async (t: TakeRecord, file: File) => {
+                    const ids = t.target?.ids ?? [];
+                    if (!ids.length) throw new Error("take has no target");
+                    const staged = await stageTake(file);
+                    const first = ids[0];
+                    const d0 = rf.getNode(first)?.data as unknown as CeqCard | undefined;
+                    const take = ids.length > 1 ? { ...staged, coversFrameIds: ids } : staged;
+                    patchQ(first, { takes: [...cardClips(d0), take] });
+                    return { url: staged.url, path: staged.path };
+                  }}
+                />
+              )}
+              {/* COUNTDOWN (T1 addendum) — STUDIO ONLY. Never rendered inside the
+                  film popout, the capture window or the Recording Mode portal:
+                  nothing status-related may exist where OBS captures. */}
+              {countdown != null && !recording && (
+                <div className="pointer-events-none absolute inset-0 z-[80] grid place-items-center" style={{ background: "rgba(4,7,14,0.35)" }}>
+                  <span style={{ fontSize: 180, fontWeight: 900, lineHeight: 1, color: countdown === 0 ? "#3BF5A0" : NEON.yellow, textShadow: "0 8px 40px rgba(0,0,0,0.7)" }}>{countdown === 0 ? "SPEAK" : countdown}</span>
                 </div>
               )}
               {ideaBank && !recording && <IdeaBank mode={ideaBank} onClose={() => setIdeaBank(null)} />}

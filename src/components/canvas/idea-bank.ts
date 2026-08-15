@@ -1,4 +1,5 @@
 // IDEA BANK (P7) — the parking lot as a feature: sticky notes by category,
+// captured with F7 (moved off F8 on 08-15 — takes triage owns F8/F10 now).
 // captured in under 5 seconds, exportable as a Claude-ready markdown digest.
 // Self-contained: no interaction with sets/memos/entitlements.
 //

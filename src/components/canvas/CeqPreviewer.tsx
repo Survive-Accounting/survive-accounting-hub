@@ -45,6 +45,7 @@ import { resolveCardSpot, resolveMemoSpot, templateFor, withInstanceSpot } from 
 import { CALLOUT_KINDS, CalloutBody, calloutKindForCategory, nextCalloutKind } from "./cards/CalloutCard";
 import { CAPTURE_H, CAPTURE_W, captureCssSize, isCaptureExact, physicalSize, snapCaptureSize } from "./capture-window";
 import { clearExhibitHighlights } from "./exhibit-highlights";
+import { triageLatest } from "./takes-store";
 import { FILM_LOCK_CSS, FilmContext, filmDragAllowed, isTypingTarget } from "./film-lock";
 import { memoAnchorId, TextAnchor } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
@@ -1968,6 +1969,8 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
         if (e.key === "Enter" || e.key === "Tab") { if (e.shiftKey) retreat(); else advance(); return; } // Tab = the walk (P3)
         if (e.key === "ArrowDown" || e.key === "ArrowRight") { elemNav(1); return; }
         if (e.key === "ArrowUp" || e.key === "ArrowLeft") { elemNav(-1); return; }
+        if (e.key === "F8") { triageLatest("trash"); return; }   // TAKES TRIAGE (T1)
+        if (e.key === "F10") { triageLatest("keep"); return; }
         if (e.shiftKey && (e.code === "Backquote" || e.key === "~" || e.key === "`")) { sweepMemos(); return; }
         // ` on the recording surface: the SAME full reset as every other surface
         // (backtick sweep) — practice, spotlights, arrows, perf arrows, highlights.
@@ -2000,6 +2003,9 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
         window.setTimeout(() => commitGeom(), 0);
         return;
       }
+      // TAKES TRIAGE (T1) — app-focus keys (unlike OBS's global F9): F8 trashes
+      // the most recent pending take, F10 keeps it. The inbox owns the action.
+      if (e.key === "F8" || e.key === "F10") { e.preventDefault(); e.stopImmediatePropagation(); triageLatest(e.key === "F8" ? "trash" : "keep"); return; }
       if (filmWindow && (e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); e.stopImmediatePropagation(); toggleFilmFullscreen(); return; } // F = element fullscreen on the STABLE wrapper (C1)
       if (e.key === "Tab") { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) retreat(); else advance(); return; } // Tab = the walk (P3)
       if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight") {

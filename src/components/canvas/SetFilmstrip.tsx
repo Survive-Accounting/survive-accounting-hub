@@ -121,6 +121,9 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
     /** UPLOAD CLIP (Lee): attach one filmed clip covering the spine selection
      *  (or the open frame) — review lands on the Publish side. */
     uploadClip?: (file: File) => void;
+    /** ARM UPLOADS (T2): takes that finish now bank against this selection. */
+    armUploads?: () => void;
+    armedLabel?: string;
   };
 }) {
   const selected = sel ?? new Set<string>();
@@ -253,6 +256,7 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
                   <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.boss(); }} title="Boss card — fires the cram-launch cue on deal">👑 Boss</button>
                   <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.chaching(); }} title="Chaching on the correct-Enter (on by default)">💰 Chaching</button>
                   <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#FF8B9E", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.short(); }} title="Flag as shorts-worthy — joins the Shorts queue">🎬 Short</button>
+                  {actions.armUploads && <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: actions.armedLabel ? "#0B1322" : "#B79CFF", background: actions.armedLabel ? "#B79CFF" : "transparent", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.armUploads!(); }} title="ARM UPLOADS — every take you finish (F9 stop in OBS) banks against these frames automatically. Re-arm to replace the target.">🎯 Arm uploads{actions.armedLabel ? " · " + actions.armedLabel : ""}</button>}
                   {actions.uploadClip && (<>
                     <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: "#3BF5A0" }} onClick={() => { setMenuOpen(false); uploadRef.current?.click(); }} title="Upload ONE clip that covers the selected frames (a run filmed in one take) — or just the open frame. It attaches to the first frame of the span; review it on the Publish side.">{"⬆ Upload clip" + ((sel?.size ?? 0) > 1 ? " · " + sel!.size + " frames" : "")}</button>
                     <input ref={uploadRef} type="file" accept="video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) actions.uploadClip!(f); }} />

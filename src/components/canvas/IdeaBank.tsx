@@ -1,5 +1,5 @@
 // IDEA BANK (P7) — the board + quick capture. Rendered by CeqStudio (top-bar
-// 📌 icon + F8 quick-capture, both dead while filming/recording — that's what
+// 📌 icon + F7 quick-capture, both dead while filming/recording — that's what
 // the physical notepad is for; nothing may steal keys from the film controller).
 import { useEffect, useRef, useState } from "react";
 import { Archive, ArchiveRestore, Copy, Download, Pin, X } from "lucide-react";
@@ -73,7 +73,7 @@ export function IdeaBank({ mode, onClose }: { mode: "board" | "capture"; onClose
                 ))}
               </div>
             ))}
-            {groupIdeas(ideas, showArchived).length === 0 && <div className="px-1 py-3 text-[10px] italic" style={{ color: NEON.muted }}>Empty — F8 anywhere in the Studio captures a thought in under five seconds.</div>}
+            {groupIdeas(ideas, showArchived).length === 0 && <div className="px-1 py-3 text-[10px] italic" style={{ color: NEON.muted }}>Empty — F7 anywhere in the Studio captures a thought in under five seconds.</div>}
           </div>
         )}
       </div>
