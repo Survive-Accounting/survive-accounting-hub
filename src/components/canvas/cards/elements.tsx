@@ -2,7 +2,7 @@
 // BRIDGE placeholder cards. Elements never join the deck, never flip, carry no
 // teaching settings: chrome is exactly clone · × · position-lock (+ resize).
 // Gates are VISUAL PLACEHOLDERS ONLY — real gating ships with World v1.
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
 import { AlignCenter, AlignLeft, Braces, Clapperboard, Copy, GripVertical, HandCoins, Lock, LockOpen, MessageCircleQuestion, Share2, SunDim, UserRoundPlus, Volume2, X } from "lucide-react";
 
@@ -10,7 +10,7 @@ import { useFrameNav } from "../FrameNavContext";
 import { isTypingTarget, useFilm } from "../film-lock";
 import { playSfx } from "../sfx";
 
-import { BaseCard, useCardActions } from "../BaseCard";
+import { BaseCard, CardWriteCtx, useCardActions } from "../BaseCard";
 import { bus } from "../commands";
 import { CardPopover } from "../CardPopover";
 import { ConnectionDots } from "../ConnectionDots";
@@ -83,6 +83,11 @@ export function ElementResizer({ id, selected, minWidth, minHeight, keepAspect =
   // "card randomly resizes" incident — onResizeEnd PERSISTS w/h, while film drags
   // don't, so the card kept a stuck size under rubber-banding positions.
   const film = useFilm();
+  // WRITE BRIDGE (Lee, resize-revert fix): when a host provides CardWriteCtx
+  // (the Studio previewer), the resize must persist to the MAIN store or the
+  // next re-seed reverts it. No bridge = the main canvas = local rf is truth.
+  const bridge = useContext(CardWriteCtx);
+  const { updateFn } = useCardActions(id);
   return (
     <NodeResizer
       isVisible={!!selected && !film}
@@ -99,11 +104,26 @@ export function ElementResizer({ id, selected, minWidth, minHeight, keepAspect =
         const before = start.current;
         start.current = null;
         if (!before) return;
-        const apply = (pos: { x: number; y: number }, w: number | undefined, h: number | undefined) =>
-          rf.setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, position: { ...pos }, width: w, height: h, data: { ...n.data, w, h } } : n)));
+        const w = Math.max(minWidth, Math.round(p.width));
+        const h = Math.max(minHeight, Math.round(p.height));
+        if (bridge) {
+          // PERSIST to the main store (undoable). Staged elements also carry the
+          // position delta into data.stage — frame-local, so yOff cancels out.
+          const dx = Math.round(p.x - before.pos.x);
+          const dy = Math.round(p.y - before.pos.y);
+          updateFn((data) => {
+            const st = data.stage as { x: number; y: number; scale?: number; hidden?: boolean } | undefined;
+            return { w, h, ...(st && (dx !== 0 || dy !== 0) ? { stage: { ...st, x: st.x + dx, y: st.y + dy } } : {}) };
+          });
+          // local visual sync so the node doesn't snap while the re-seed catches up
+          rf.setNodes((nds) => nds.map((nd) => (nd.id === id ? { ...nd, position: { x: p.x, y: p.y }, width: w, height: h, data: { ...nd.data, w, h } } : nd)));
+          return;
+        }
+        const apply = (pos: { x: number; y: number }, aw: number | undefined, ah: number | undefined) =>
+          rf.setNodes((nds) => nds.map((nd) => (nd.id === id ? { ...nd, position: { ...pos }, width: aw, height: ah, data: { ...nd.data, w: aw, h: ah } } : nd)));
         bus.dispatch({
           label: "resize element",
-          do: () => apply({ x: p.x, y: p.y }, Math.max(minWidth, Math.round(p.width)), Math.max(minHeight, Math.round(p.height))),
+          do: () => apply({ x: p.x, y: p.y }, w, h),
           undo: () => apply(before.pos, before.w, before.h),
         });
       }}

@@ -76,7 +76,8 @@ export function CalloutBody({ scale: s, topic, stem, extraStems = [], kind, high
       )}
       {topic && <div style={{ fontSize: 12 * s, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: PAPER.inkMuted, marginBottom: 6 * s }}>{topic}</div>}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 12 * s }}>
-        {bolt && <div style={{ flexShrink: 0, marginTop: 2 * s }}><BoltBoil height={44 * s} /></div>}
+        {/* (bolt retired 08-15 — the standalone Bolt element replaced it; the
+            data field stays readable, nothing renders it here) */}
         <div style={{ minWidth: 0 }}>
           {stack ? (
             <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "grid", gap: 8 * s }}>

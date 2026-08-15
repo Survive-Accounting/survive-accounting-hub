@@ -868,9 +868,14 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
         deckId: deck.id, deckMember: true, tucked: true, stageOrder: at, slotIndex: at, deckCategory: "ceq:studio", deckPos: pos,
       },
     };
+    // NOTE frames arrive with a BOLT element already staged (Lee, 08-15): the
+    // callout's built-in bolt is retired — this one is a free object: move it,
+    // resize it, recolor it to any SEC school (or a student, for personalized
+    // videos). Delete it like any element if the frame doesn't want it.
+    const boltNode = frameKind === "note" ? { id: cardId("el"), type: "logo", position: { x: 430, y: 250 }, selected: false, data: { kind: "logo", mode: "bolt", w: 90, h: 120, stage: { ceqId: id, x: 430, y: 250, scale: 1 } } } : null;
     const newOrder = [...questions.slice(0, at), { id }, ...questions.slice(at)];
     const reindex = newOrder.map((q, idx) => (q.id === id ? null : patchDataCmd(rfl, q.id, { stageOrder: idx }, "reorder"))).filter((c): c is NonNullable<typeof c> => !!c);
-    const add = addNodesCmd(rfl, [node] as never, frameKind === "note" ? "add note frame" : "add CEQ frame");
+    const add = addNodesCmd(rfl, (boltNode ? [node, boltNode] : [node]) as never, frameKind === "note" ? "add note frame" : "add CEQ frame");
     const cmd = compositeCmd([add, ...reindex].filter((c): c is NonNullable<typeof c> => !!c), "insert frame");
     if (cmd) bus.dispatch(cmd);
     setQId(id);
@@ -2405,8 +2410,8 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
             library still opens as the same right-side panel, still defaults CLOSED, and
             still has its own ✕ — this is just the handle. */}
         {topTab !== "preview" && (<>
-          <button className="ml-2 flex items-center gap-1 rounded px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: libOpen ? "#0B1322" : NEON.cyan, background: libOpen ? NEON.cyan : "transparent", border: `1px solid ${libOpen ? NEON.cyan : NEON.borderSoft}` }} onClick={() => setLibOpen((v) => !v)} title={libOpen ? "Close the Playbook" : "Playbook — the memo library: search, quick-add, and drag memos onto choices"}>
-            <Library className="h-3 w-3" /> Playbook <span className="tabular-nums opacity-70">{memos.length}</span>
+          <button className="ml-2 flex items-center gap-1 rounded px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: libOpen ? "#0B1322" : NEON.cyan, background: libOpen ? NEON.cyan : "transparent", border: `1px solid ${libOpen ? NEON.cyan : NEON.borderSoft}` }} onClick={() => setLibOpen((v) => !v)} title={libOpen ? "Close Elements" : "Elements — the memo library: search, quick-add, and drag memos onto choices"}>
+            <Library className="h-3 w-3" /> Elements <span className="tabular-nums opacity-70">{memos.length}</span>
           </button>
           <button className="ml-1 flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setIdeaBank("board")} title="Idea bank — sticky notes by category, F8 quick-captures from anywhere in the Studio (never in film mode). Export for Claude = the overnight-prompt feeder.">📌</button>
         </>)}

@@ -71,6 +71,7 @@ export const STAGE_ELEMENTS: StageElementSpec[] = [
   { label: "Exam Cue", group: "Brand", make: () => blankCard("examcue") },
   { label: "Intro card", group: "Brand", make: () => blankCard("intro") },
   { label: "Logo", group: "Brand", make: () => blankCard("logo") },
+  { label: "Bolt", group: "Brand", make: () => ({ ...(blankCard("logo") as unknown as Record<string, unknown>), mode: "bolt", w: 90, h: 120 } as unknown as ReturnType<typeof blankCard>), size: { w: 90, h: 120 } },
   { label: "Outro card", group: "Brand", make: () => blankCard("outro") },
   { label: "Testimonial", group: "Brand", make: () => blankCard("testimonial") },
 
