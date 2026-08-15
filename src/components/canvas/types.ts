@@ -1308,7 +1308,8 @@ export interface DeckDef {
    *  sets; false hides it. Toggled from the previewer toolbar. */
   showProgress?: boolean;
   /** BOSS AUTO-ARM (P3): entering a BOSS-flagged CEQ in film auto-triggers the
-   *  final-boss treatment. Per-set, default off; Alt+Click always toggles. */
+   *  final-boss treatment. Per-set, default off; Ctrl+Alt+Click always toggles
+   *  (Alt alone belongs to the performance-arrow tool). */
   bossAutoArm?: boolean;
   /** SET PRODUCTION PROFILE (P6) — light creative tooling, per set. Every
    *  field optional; absent = the classic defaults. Nothing changes on any

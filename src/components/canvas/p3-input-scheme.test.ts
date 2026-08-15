@@ -35,8 +35,8 @@ describe("walk", () => {
 });
 
 describe("boss moment", () => {
-  test("Alt+Click toggles at the film controller level, capture phase, never on stand-ins", () => {
-    expect(src).toContain("onClickCapture={film && !inert ? (e) => { if (e.altKey) {");
+  test("Ctrl+Alt+Click toggles at the film controller level, capture phase, never on stand-ins (Alt alone = the arrow tool)", () => {
+    expect(src).toContain("onClickCapture={film && !inert ? (e) => { if (e.altKey && e.ctrlKey) {");
   });
   test("charge-then-settle is shadow/border only — the film-lock law holds", () => {
     const css = src.slice(src.indexOf("@keyframes sa-boss-charge"), src.indexOf(".sa-pv-node .sa-grip-film"));
