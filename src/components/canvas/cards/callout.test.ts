@@ -40,8 +40,8 @@ describe("previewer integration (source pins)", () => {
     expect(previewerSrc).toContain("onDrop={film || !isCallout ? undefined");
     expect(previewerSrc).toContain("{isCallout && !film && (");
   });
-  test("callouts auto-fit their text — no orphaned empty tail", () => {
-    expect(previewerSrc).toContain('width: isCallout ? "fit-content" : CARD_W * s');
+  test("callouts auto-fit their text — no orphaned empty tail (MC cards honor the per-frame width override)", () => {
+    expect(previewerSrc).toContain('width: isCallout ? "fit-content" : (wDrag ?? (d as { cardW?: number }).cardW ?? CARD_W) * s');
   });
   test("the demo route renders the shared CalloutBody, not a copy", () => {
     const demo = readFileSync(join(import.meta.dir, "..", "..", "..", "routes", "callout-demo.tsx"), "utf8");

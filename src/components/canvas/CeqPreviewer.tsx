@@ -393,6 +393,8 @@ function CeqPreviewNode({ id, data }: NodeProps) {
   // film stack never unmount) until ` (all) or a click on the CEQ box (this
   // card). Never saved — pure performance state.
   const [choiceSels, setChoiceSels] = useState<Map<number, { a: number; b: number }>>(() => new Map());
+  // WIDTH GRIP (Lee): drag preview for the per-frame card-width override.
+  const [wDrag, setWDrag] = useState<number | null>(null);
   const clearTextHl = useCallback(() => { setStemSel(null); setChoiceSels((m) => (m.size ? new Map() : m)); }, []);
   useOnExhibitClear(clearTextHl);
   const [stemEditing, setStemEditing] = useState(false);
@@ -419,7 +421,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
     setBulletEdit(null);
   };
   return (
-    <div data-ceq-card="" onClickCapture={!inert ? (e) => { if (e.altKey && e.ctrlKey) { e.preventDefault(); e.stopPropagation(); prLive.toggleBoss?.(); } } : undefined} onClick={film && !inert ? (e) => { if (e.altKey || e.ctrlKey) return; const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; clearTextHl(); } : undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}${!inert && (d as { boss?: boolean }).boss ? " sa-boss-card" : ""}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : CARD_W * s, minWidth: isCallout ? 320 * s : undefined, maxWidth: isCallout ? CARD_W * s : undefined, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
+    <div data-ceq-card="" onClickCapture={!inert ? (e) => { if (e.altKey && e.ctrlKey) { e.preventDefault(); e.stopPropagation(); prLive.toggleBoss?.(); } } : undefined} onClick={film && !inert ? (e) => { if (e.altKey || e.ctrlKey) return; const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; clearTextHl(); } : undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}${!inert && (d as { boss?: boolean }).boss ? " sa-boss-card" : ""}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : (wDrag ?? (d as { cardW?: number }).cardW ?? CARD_W) * s, minWidth: isCallout ? 320 * s : undefined, maxWidth: isCallout ? CARD_W * s : undefined, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
       {/* BOSS (P3): the boiling bolt sweeps in with the charge — no text, no sound. */}
       {!inert && (d as { boss?: boolean }).boss && <div className="sa-boss-bolt" style={{ position: "absolute", top: -18 * s, right: 16 * s, zIndex: 22 }}><BoltBoil height={40 * s} /></div>}
       {/* QUESTION 0 ribbon — unmistakably the LAYOUT stage, never content. */}
@@ -551,6 +553,31 @@ function CeqPreviewNode({ id, data }: NodeProps) {
         })}
       </div>
       </div>
+      {/* WIDTH GRIP — right edge, authoring only: THIS frame goes wide (or back
+          to standard on double-click) while every other frame keeps conforming
+          to the set layout. Distinct from ScaleGrip (uniform scale). */}
+      {!film && !inert && !d.layoutBadge && (
+        <div
+          className="sa-chrome nodrag absolute rounded"
+          style={{ top: 10 * s, bottom: 10 * s, right: -7 * s, width: 10, cursor: "ew-resize", background: wDrag != null ? "rgba(252,163,17,0.55)" : "rgba(252,163,17,0.18)", zIndex: 20 }}
+          title="Drag: set THIS card's width (overrides the layout for this frame only) · double-click: back to standard width"
+          onPointerDown={(e) => {
+            e.stopPropagation(); e.preventDefault();
+            const el = e.currentTarget; el.setPointerCapture(e.pointerId);
+            const startX = e.clientX; const startW = (d as { cardW?: number }).cardW ?? CARD_W;
+            const clamp = (v: number) => Math.round(Math.min(980, Math.max(420, v)));
+            const mv = (ev: PointerEvent) => setWDrag(clamp(startW + (ev.clientX - startX) / s));
+            const up = (ev: PointerEvent) => {
+              el.removeEventListener("pointermove", mv); el.removeEventListener("pointerup", up);
+              const fin = clamp(startW + (ev.clientX - startX) / s);
+              setWDrag(null);
+              if (rflW && fin !== startW) { const c = patchDataCmd(rflW, id, { cardW: fin } as never, "card width"); if (c) bus.dispatch(c); }
+            };
+            el.addEventListener("pointermove", mv); el.addEventListener("pointerup", up);
+          }}
+          onDoubleClick={(e) => { e.stopPropagation(); if (rflW) { const c = patchDataCmd(rflW, id, { cardW: undefined } as never, "card width reset"); if (c) bus.dispatch(c); } }}
+        />
+      )}
       {!film && <ScaleGrip id={id} scale={s} color={NEON.yellow} film={film} />}
     </div>
   );
@@ -727,7 +754,7 @@ function OverviewCeqNode({ data }: NodeProps) {
     // `pointer-events:none` unless it is selectable/draggable or the flow has node
     // mouse handlers, and these overview stand-ins are deliberately neither. Without
     // this the click below never fires (the cursor/tooltip don't even show).
-    <div onClick={() => onSelect(d.qid)} title="Click (or double-click) to open this question — the view glides to it" style={{ pointerEvents: "auto", cursor: "pointer", width: CARD_W, borderRadius: 14, background: PAPER.card, border: `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.5)", padding: 16, opacity: 0.9, ...(s === 1 ? {} : { transform: `scale(${s})`, transformOrigin: "0 0" }) }}>
+    <div onClick={() => onSelect(d.qid)} title="Click (or double-click) to open this question — the view glides to it" style={{ pointerEvents: "auto", cursor: "pointer", width: (d as { cardW?: number }).cardW ?? CARD_W, borderRadius: 14, background: PAPER.card, border: `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.5)", padding: 16, opacity: 0.9, ...(s === 1 ? {} : { transform: `scale(${s})`, transformOrigin: "0 0" }) }}>
       <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 12 }}>
         <span style={{ display: "grid", placeItems: "center", width: 30, height: 30, borderRadius: 8, fontWeight: 900, fontSize: 16, color: "#0B0F1E", background: NEON.yellow, flexShrink: 0 }}>{d.num}</span>
         <div style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.2, color: PAPER.ink }}>{renderInline(d.stem || "Question")}</div>
@@ -1233,7 +1260,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     const enterAnim = reduceMotion ? "none"
       : dealAnim === "pushDown" || dealAnim === "pushUp" ? `${enterAnimName} 180ms cubic-bezier(0.16,1,0.3,1) both`
       : "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both";
-    const ceqNode = { id: ceqId, type: "ceqPreview", position: { x: cs.x, y: yOff + cs.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cs.scale, layoutBadge: layoutMode, progress, topic, enterAnim, enterAnimName, boss: cd.boss, callout: cd.callout, calloutMemos: calloutMemosOf(cd) }, draggable: true, zIndex: 1 };
+    const ceqNode = { id: ceqId, type: "ceqPreview", position: { x: cs.x, y: yOff + cs.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cs.scale, layoutBadge: layoutMode, progress, topic, enterAnim, enterAnimName, boss: cd.boss, cardW: cd.cardW, callout: cd.callout, calloutMemos: calloutMemosOf(cd) }, draggable: true, zIndex: 1 };
     // PLACEMENT: in Question 0 each stage chip IS its slot (whole rack, so inactive
     // ones stay visible to switch on). In a real question memos fill the ACTIVE slots
     // in order — inactive slots simply don't exist here. Past the last active slot,
@@ -1302,7 +1329,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       // all conform; before, each reads honestly (fix: neighbours used the active
       // card's x, making the active question look like the odd one out).
       const ocs = resolveCardSpot(od?.geom, templateFor(od?.ignoreLayout, baseline), frameW, frameH);
-      others.push({ id: `ov:${qid}`, type: "ovCeq", position: { x: ocs.x, y: y + ocs.y }, data: { qid, num: k + 1, stem: od?.prompt ?? "", choices: od?.choices ?? [], scale: ocs.scale }, draggable: false, selectable: false, zIndex: 1 });
+      others.push({ id: `ov:${qid}`, type: "ovCeq", position: { x: ocs.x, y: y + ocs.y }, data: { qid, num: k + 1, stem: od?.prompt ?? "", choices: od?.choices ?? [], scale: ocs.scale, cardW: od?.cardW }, draggable: false, selectable: false, zIndex: 1 });
       // ALL-CHAINS: the other questions' chained memos, at their resolved instance
       // spots — static, non-interactive, ovm:-prefixed (excluded from film + save).
       let mi = 0;
@@ -1762,7 +1789,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       const ocs = resolveCardSpot(od.geom, templateFor(od.ignoreLayout, baseline), frameW, frameH);
       const pIdx = cIds.indexOf(qid);
       const progress = viewStudent && pIdx >= 0 && cIds.length > 1 ? { x: pIdx + 1, y: cIds.length } : null;
-      out.push({ id: qid, type: "ceqPreview", position: { x: ocs.x, y: y + ocs.y }, data: { stem: od.prompt, choices: od.choices, scale: ocs.scale, progress, topic: viewStudent && topicName ? topicName : null, enterAnim: "none", enterAnimName: "none", inert: true, boss: od.boss, callout: od.callout, calloutMemos: calloutMemosOf(od) }, draggable: false, selectable: false, zIndex: 1 } as Node);
+      out.push({ id: qid, type: "ceqPreview", position: { x: ocs.x, y: y + ocs.y }, data: { stem: od.prompt, choices: od.choices, scale: ocs.scale, progress, topic: viewStudent && topicName ? topicName : null, enterAnim: "none", enterAnimName: "none", inert: true, boss: od.boss, cardW: od.cardW, callout: od.callout, calloutMemos: calloutMemosOf(od) }, draggable: false, selectable: false, zIndex: 1 } as Node);
       for (const n of allNodes) {
         const st = (n.data as { stage?: { ceqId?: string; x: number; y: number; hidden?: boolean } } | undefined)?.stage;
         if (!st || st.ceqId !== qid || st.hidden) continue;

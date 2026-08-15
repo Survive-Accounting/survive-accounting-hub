@@ -407,6 +407,11 @@ export interface CeqCard extends CardBase {
    *  BEFORE any choice is selected (setup, context, a distractor tease), in
    *  authored order, always earlier than choice-chained memos. Additive. */
   stemChain?: CeqChainItem[];
+  /** CARD WIDTH OVERRIDE (Lee, 08-15): this ONE frame renders its CEQ card at
+   *  this width (px at scale 1) instead of the standard CARD_W — for long
+   *  ordering-style stems/choices that read better wide. Set by the width grip
+   *  in authoring; layout apply never touches it. Absent = conform. */
+  cardW?: number;
   /** DISSECT (P5) — this CEQ intentionally carries a SEQUENCE of short surgical
    *  clips instead of one run-covered take. moments = the pre-filming shot list
    *  (free-text labels, ordered); a moment is satisfied by a take tagged with
