@@ -112,6 +112,8 @@ const LAYOUT_CARD = { prompt: "**LAYOUT** — the question card deals here", cho
 /** In the film popout the resize grips are HOVER-ONLY (like the real canvas film
  *  mode) — invisible on camera, but there when Lee reaches in to nudge a card. */
 const PV_CSS = `
+/* FILM V2 — the one-frame crossfade: pure opacity, zero movement. */
+@keyframes sa-ceq-v2-fade { from { opacity: 0; } to { opacity: 1; } }
 /* BOSS MOMENT (P3) — charge-up then settle: a hard energy flash relaxing to a
    sharper hi-tech border. Shadow/border only (film-lock law); no text, no sound. */
 @keyframes sa-boss-charge {
@@ -1038,7 +1040,13 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   // opacity 0, so the frame read EMPTY for the first beats of every transition,
   // and heavy frames (images, fonts in the popout's own document) fetched at
   // transition time. Now everything mounts ONCE, behind the preparing gate.
-  const filmStack = (!!filmWin || recording) && !!deckCeqIds && deckCeqIds.length > 1 && activeIdx >= 0;
+  // FILM V2 (Lee's speed experiment): ONE stationary frame — the camera never
+  // moves, so the pan/refit class of glitches (black flashes at blast pace)
+  // is structurally impossible. CEQs crossfade in place; memos walk as in V1.
+  // V1 (the stack) stays the default until the experiment wins. Pref persists.
+  const [filmV2, setFilmV2] = useState<boolean>(() => { try { return localStorage.getItem("sa-film-mode") === "v2"; } catch { return false; } });
+  const setFilmMode = (v2: boolean) => { setFilmV2(v2); try { localStorage.setItem("sa-film-mode", v2 ? "v2" : "v1"); } catch { /* ignore */ } };
+  const filmStack = ((!!filmWin && !filmV2) || recording) && !!deckCeqIds && deckCeqIds.length > 1 && activeIdx >= 0;
   // The active frame's vertical offset in the stack (0 outside overview/film). Node
   // positions carry it; the baseline is FRAME-LOCAL, so persistence subtracts it back off.
   const activeYOff = useMemo(() => (overviewOn || filmStack ? activeIdx * (frameH + Math.round(frameH * 0.16)) : 0), [overviewOn, filmStack, activeIdx, frameH]);
@@ -1256,8 +1264,10 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     // Reduced-motion → instant (no animation) EXCEPT while recording — a filming surface must
     // always move (#3), so the reduced-motion check is skipped when recording.
     const reduceMotion = !recording && typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    const enterAnimName = dealAnim === "pushDown" ? "sa-ceq-push-down" : dealAnim === "pushUp" ? "sa-ceq-push-up" : "sa-ceq-in";
+    const v2Film = filmV2 && !!filmWin; // V2: in-place crossfade, never a slide
+    const enterAnimName = v2Film ? "sa-ceq-v2-fade" : dealAnim === "pushDown" ? "sa-ceq-push-down" : dealAnim === "pushUp" ? "sa-ceq-push-up" : "sa-ceq-in";
     const enterAnim = reduceMotion ? "none"
+      : v2Film ? "sa-ceq-v2-fade 140ms ease-out both"
       : dealAnim === "pushDown" || dealAnim === "pushUp" ? `${enterAnimName} 180ms cubic-bezier(0.16,1,0.3,1) both`
       : "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both";
     const ceqNode = { id: ceqId, type: "ceqPreview", position: { x: cs.x, y: yOff + cs.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cs.scale, layoutBadge: layoutMode, progress, topic, enterAnim, enterAnimName, boss: cd.boss, cardW: cd.cardW, callout: cd.callout, calloutMemos: calloutMemosOf(cd) }, draggable: true, zIndex: 1 };
@@ -1341,7 +1351,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     });
     return [...active, ...others] as typeof active;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, counterIds, stageSig, activeYOff, layoutMode, walk, viewChoice, guidesOn, viewStudent, topicName, recording, dealAnim]);
+  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, counterIds, stageSig, activeYOff, layoutMode, walk, viewChoice, guidesOn, viewStudent, topicName, recording, dealAnim, filmV2, filmWin]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   // A drag/resize writeback (commitGeom → onSaveInstance) bumps mainSig, which would
@@ -1460,7 +1470,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       ro?.disconnect();
     };
   }, [filmWin, ceqId, frameW, frameH, fitFilm]);
-  const toggleFilm = () => { if (filmWin) { try { filmWin.close(); } catch { /* ignore */ } setFilmWin(null); return; } const w = openPopoutWindow("ceqfilm", 1000, 600); if (w) setFilmWin(w); };
+  const toggleFilm = (v2?: boolean) => { if (filmWin) { try { filmWin.close(); } catch { /* ignore */ } setFilmWin(null); return; } if (v2 !== undefined) setFilmMode(v2); const w = openPopoutWindow("ceqfilm", 1000, 600); if (w) setFilmWin(w); };
   // Q0 / LAYOUT NEVER FILMS — it's the authoring stage (already excluded from
   // counts/stitch/deck). If film is entered while on it, jump to the first real
   // question so the take opens on Q1 and the space-walk has real question state.
@@ -2041,7 +2051,12 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                     practice timer and the "N/M shown" counter are GONE: none of them survived a
                     real film run (` still resets, Shift+` still sweeps). What's left is the row's
                     actual job — FILM, VIEW, this set's clip stack, and the per-CEQ flags. */}
-                <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: filmWin ? "#0B0F1E" : "#FF8B9E", background: filmWin ? "#FF8B9E" : "transparent", border: `1px solid ${filmWin ? "#FF8B9E" : "rgba(255,139,158,0.5)"}` }} onClick={toggleFilm} title={filmWin ? "Close the film window" : "FILM MODE — pops a clean 16:9 canvas frame (world background + watermark) onto your 2nd monitor. TWO-WAY: drag / resize / spotlight / Space-Tab-Enter (Page Down / Page Up deal between CEQs) work in EITHER window and stay in sync. Maximize it for OBS."}><Clapperboard className="h-3.5 w-3.5" /> {filmWin ? "Filming" : "Film"}</button>
+                {filmWin ? (
+                  <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#0B0F1E", background: "#FF8B9E", border: "1px solid #FF8B9E" }} onClick={() => toggleFilm()} title="Close the film window"><Clapperboard className="h-3.5 w-3.5" /> Filming{filmV2 ? " · V2" : ""}</button>
+                ) : (<>
+                  <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#FF8B9E", border: "1px solid rgba(255,139,158,0.5)" }} onClick={() => toggleFilm(false)} title="FILM V1 — the stack: every frame mounted in a vertical strip, the camera pans between them. The proven mode."><Clapperboard className="h-3.5 w-3.5" /> Film V1</button>
+                  <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#B79CFF", border: "1px solid rgba(183,156,255,0.5)" }} onClick={() => toggleFilm(true)} title="FILM V2 (EXPERIMENT) — ONE stationary frame, built for SPEED: the camera never moves (the black-flash class of glitches is structurally impossible), CEQs crossfade in place (140ms), memos spacewalk/enterwalk exactly as in V1.">V2 ⚡</button>
+                </>)}
                 {/* COMPOSITION GUIDES — thirds grid + safe zones (title-safe, camera,
                     watermark, end-screen) for laying out the CEQ; drag a slot/card and
                     it snaps to the lines (hold Alt to place freely). Persists. */}
