@@ -807,6 +807,11 @@ export interface MemoCard extends CardBase {
   /** Optional name shown above the body; the memo's label in a memo deck. */
   title?: string;
   body: string;
+  /** PLAYBOOK KIND (P4) — the memo taxonomy (callout kinds render as P1
+   *  callout cards; support kinds chain). Absent = UNFILED, forever valid.
+   *  Distinct from `memoKind` (box accent) and `category` (legacy tag, kept).
+   *  Values + mapping live in memo-kinds.ts. */
+  playbookKind?: string;
   /** Free author tag for memo-deck filtering (the top-level category — one of
    *  MEMO_CATEGORIES, incl ELEMENT). */
   category?: string;
