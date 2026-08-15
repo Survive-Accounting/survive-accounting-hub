@@ -417,6 +417,10 @@ export interface CeqCard extends CardBase {
    *  ordering-style stems/choices that read better wide. Set by the width grip
    *  in authoring; layout apply never touches it. Absent = conform. */
   cardW?: number;
+  /** SMART STITCH: the ingest-stitched single asset for this dissected CEQ
+   *  (auto-trim + gaps + loudnorm on the Fly worker). buildStitch prefers it
+   *  over the raw takes when present; sources in takes[] are never touched. */
+  stitched?: TakeRef;
   /** DISSECT (P5) — this CEQ intentionally carries a SEQUENCE of short surgical
    *  clips instead of one run-covered take. moments = the pre-filming shot list
    *  (free-text labels, ordered); a moment is satisfied by a take tagged with
@@ -1482,6 +1486,9 @@ export interface SetProfile {
 /** DISSECT (P5): one planned moment of a dissected CEQ's clip sequence. */
 export interface DissectMoment {
   id: string;
+  /** SMART STITCH: this moment's start offset in the stitched asset, ms —
+   *  written from the worker manifest; the player's chapter data. */
+  startMs?: number;
   /** Free-text shot label — "setup", "the trap", "resolution", "takeaway"… */
   label: string;
   /** Explicitly not filming this moment (readiness treats it as covered). */

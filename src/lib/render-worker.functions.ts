@@ -114,9 +114,59 @@ export const startWorkerRender = createServerFn({ method: "POST" })
   });
 
 /** POLL a render job; when done, hand back the public URL Auphonic will read. */
+/** SMART STITCH (dissect): enqueue one CEQ's moment clips → ONE stitched asset.
+ *  Sources stay in storage untouched; the job's result carries the chapters
+ *  manifest (per-clip start offsets + resolved trims). Poll with
+ *  resolveWorkerRender — its `result` passes the manifest through. */
+export interface DissectStitchResult {
+  clips: { startS: number; durS: number }[];
+  totalS: number;
+  gapsS: number[];
+  roomTone: boolean;
+  trims: { start: number; end: number }[];
+}
+
+export const startDissectStitch = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({
+      urls: z.array(z.string().url()).min(1).max(12),
+      roomToneUrl: z.string().url().optional(),
+      silenceDb: z.number().min(-80).max(-10).optional(),
+      gapMs: z.number().int().min(0).max(2000).optional(),
+      gapJitterMs: z.number().int().min(0).max(500).optional(),
+      loudI: z.number().min(-31).max(-9).optional(),
+      pads: z.array(z.object({ headMs: z.number().int().min(0).max(5000).optional(), tailMs: z.number().int().min(0).max(5000).optional() }).nullable()).optional(),
+      trims: z.array(z.object({ start: z.number().min(0), end: z.number().min(0) }).nullable()).optional(),
+    }).parse(d))
+  .handler(async ({ data }): Promise<{ jobId: string; path: string; machineId: string | null }> => {
+    const c = cfg();
+    if (c.state !== "on") throw new Error(c.state === "partial" ? `Render worker half-configured — ${c.missing} is missing.` : "Render worker not configured (RENDER_WORKER_URL / RENDER_WORKER_TOKEN).");
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const path = `dissect-stitch/${Date.now()}.mp4`;
+    const { data: signed, error } = await supabaseAdmin.storage.from("canvas-media").createSignedUploadUrl(path);
+    if (error || !signed?.signedUrl) throw new Error(`signed upload URL failed: ${error?.message ?? "no url"}`);
+    const inputs: { id: string; url: string }[] = data.urls.map((url, i) => ({ id: `c${i}`, url }));
+    if (data.roomToneUrl) inputs.push({ id: "rt", url: data.roomToneUrl });
+    const stage = {
+      kind: "dissect_stitch",
+      inputs: data.urls.map((_, i) => `c${i}`),
+      ...(data.roomToneUrl ? { roomTone: "rt" } : {}),
+      ...(data.silenceDb != null ? { silenceDb: data.silenceDb } : {}),
+      ...(data.gapMs != null ? { gapMs: data.gapMs } : {}),
+      ...(data.gapJitterMs != null ? { gapJitterMs: data.gapJitterMs } : {}),
+      ...(data.loudI != null ? { loudI: data.loudI } : {}),
+      ...(data.pads ? { pads: data.pads } : {}),
+      ...(data.trims ? { trims: data.trims } : {}),
+    };
+    const body = { v: 1, inputs, stages: [stage], output: { putUrl: signed.signedUrl, contentType: "video/mp4" } };
+    const res = await workerFetch(c, "/render", { method: "POST", body: JSON.stringify(body) });
+    if (!res.jobId) throw new Error(`worker refused the job: ${JSON.stringify(res).slice(0, 300)}`);
+    return { jobId: String(res.jobId), path, machineId: res.machineId ? String(res.machineId) : null };
+  });
+
 export const resolveWorkerRender = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ jobId: z.string().uuid(), path: z.string().min(5), machineId: z.string().max(64).nullable().optional() }).parse(d))
-  .handler(async ({ data }): Promise<{ state: "queued" | "downloading" | "rendering" | "uploading" | "done" | "error"; note: string; fileUrl: string | null; error: string | null }> => {
+  .handler(async ({ data }): Promise<{ state: "queued" | "downloading" | "rendering" | "uploading" | "done" | "error"; note: string; fileUrl: string | null; error: string | null; result?: DissectStitchResult | null }> => {
     const c = cfg();
     if (c.state !== "on") throw new Error("Render worker not (fully) configured.");
     // pin to the job's machine (see startWorkerRender) — Fly routes the request
@@ -127,7 +177,7 @@ export const resolveWorkerRender = createServerFn({ method: "POST" })
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: pub } = supabaseAdmin.storage.from("canvas-media").getPublicUrl(data.path);
       if (!pub?.publicUrl) throw new Error("rendered file has no public URL");
-      return { state, note: String(res.note ?? ""), fileUrl: pub.publicUrl, error: null };
+      return { state, note: String(res.note ?? ""), fileUrl: pub.publicUrl, error: null, result: (res.result as DissectStitchResult | undefined) ?? null };
     }
     return { state, note: String(res.note ?? ""), fileUrl: null, error: res.error ? String(res.error) : null };
   });

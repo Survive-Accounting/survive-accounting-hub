@@ -72,7 +72,7 @@ export type StitchItem = { kind: "intro" | "frontBumper" | "hook" | "ceq" | "wra
  *  STACK plays base→lookbacks) → WRAP clips → outro. FREE = same but only free-flagged
  *  CEQs. A CEQ with NO clips is skipped and returned in `missing`. Order is derived
  *  from the passed ceqs (deck order) only. */
-export function buildStitch(mode: "free" | "full", opts: { intro?: TakeRef; hook?: TakeRef; outro?: TakeRef; wrap?: TakeRef[]; frontBumpers?: TakeRef[]; backBumpers?: TakeRef[]; ceqs: { id: string; prompt: string; take?: TakeRef; takes?: TakeRef[]; free?: boolean }[] }): { items: StitchItem[]; missing: { id: string; prompt: string }[] } {
+export function buildStitch(mode: "free" | "full", opts: { intro?: TakeRef; hook?: TakeRef; outro?: TakeRef; wrap?: TakeRef[]; frontBumpers?: TakeRef[]; backBumpers?: TakeRef[]; ceqs: { id: string; prompt: string; take?: TakeRef; takes?: TakeRef[]; stitched?: TakeRef; free?: boolean }[] }): { items: StitchItem[]; missing: { id: string; prompt: string }[] } {
   const items: StitchItem[] = [];
   const missing: { id: string; prompt: string }[] = [];
   if (opts.intro) items.push({ kind: "intro", take: opts.intro, label: "Intro" });
@@ -86,7 +86,9 @@ export function buildStitch(mode: "free" | "full", opts: { intro?: TakeRef; hook
     if (mode === "free" && !c.free) continue;
     // A question's CLIP STACK plays in order (base first, then lookbacks); fall back to
     // the legacy single `take`. A question with NO clips at all is `missing`.
-    const clips = c.takes && c.takes.length ? c.takes : c.take ? [c.take] : [];
+    // SMART STITCH: a dissected CEQ with an ingest-stitched asset plays THAT
+    // one seamless file; its raw moment clips stay archived in takes[].
+    const clips = c.stitched ? [c.stitched] : c.takes && c.takes.length ? c.takes : c.take ? [c.take] : [];
     if (clips.length === 0) { missing.push({ id: c.id, prompt: c.prompt }); continue; }
     clips.forEach((t, ci) => items.push({ kind: "ceq", ceqId: c.id, clip: ci, take: t, label: ci === 0 ? c.prompt : `${c.prompt} — lookback ${ci}` }));
   }
