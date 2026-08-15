@@ -33,6 +33,8 @@ import { MEMO_KIND_META, MEMO_KIND_ORDER, kindFromCategory, type PlaybookKind } 
 import { applyTemplate, loadTemplates, saveTemplate, templateFromDeck, type SetTemplate } from "./set-profile";
 import { IdeaBank } from "./IdeaBank";
 import { assignRunTo, fillDownRuns, normRun, type RunChange } from "./film-runs";
+import { isoDay, saveRoomTone, todaysRoomTone } from "./room-tone";
+import { resolveWorkerRender, startDissectStitch, type DissectStitchResult } from "@/lib/render-worker.functions";
 import { groupedStageElements, type StageElementSpec } from "./stage-elements";
 import { MISCONCEPTION_SEEDS, questionMisconceptions, toSlug } from "./ceq-misconceptions";
 import { ingestNumOf } from "./ceq-walk";
@@ -255,6 +257,29 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const [qSel, setQSel] = useState<Set<string>>(() => new Set());
   // DISSECT (P5) — which CEQ's moments editor is open (null = closed).
   const [dissectQ, setDissectQ] = useState<string | null>(null);
+  // SMART STITCH — the panel's job state: idle → running (phase note) →
+  // preview (fileUrl + manifest, awaiting Finalize) → finalized/cleared.
+  const [stitchJob, setStitchJob] = useState<null | { phase: string; running: boolean; fileUrl?: string; path?: string; result?: DissectStitchResult; trims?: ({ start: number; end: number } | null)[] }>(null);
+  useEffect(() => { setStitchJob(null); }, [dissectQ]);
+  const roomToneRef = useRef<HTMLInputElement>(null);
+  /** Run (or re-run with manual trims) the ingest stitch for the open dissect CEQ. */
+  const runStitch = (ceqId: string, trims?: ({ start: number; end: number } | null)[]) => { void (async () => {
+    const dd = rf.getNode(ceqId)?.data as unknown as CeqCard | undefined;
+    const clips = cardClips(dd);
+    if (!clips.length) { setStitchJob({ phase: "no clips on this CEQ yet — upload takes first", running: false }); return; }
+    setStitchJob({ phase: "enqueuing…", running: true, trims });
+    try {
+      const rt = todaysRoomTone();
+      const { jobId, path, machineId } = await startDissectStitch({ data: { urls: clips.map((c) => c.url), ...(rt ? { roomToneUrl: rt.url } : {}), ...(trims ? { trims } : {}) } });
+      for (;;) {
+        await new Promise((r) => setTimeout(r, 2500));
+        const r = await resolveWorkerRender({ data: { jobId, path, machineId } });
+        if (r.state === "error") throw new Error(r.error ?? "worker error");
+        if (r.state === "done" && r.fileUrl) { setStitchJob({ phase: "preview ready — play it, re-trim if needed, then Finalize", running: false, fileUrl: r.fileUrl, path, result: r.result ?? undefined, trims: (r.result?.trims as ({ start: number; end: number } | null)[] | undefined) ?? trims }); return; }
+        setStitchJob((p) => ({ ...(p ?? { running: true }), phase: r.note || r.state, running: true, trims }));
+      }
+    } catch (err) { setStitchJob({ phase: "FAILED: " + (err instanceof Error ? err.message : String(err)), running: false, trims }); }
+  })(); };
   // LAYOUT REWORK — entering the base frame remembers where to return; leaving
   // it (Done) opens the SAVE-TIME apply choice. Application is author-time only.
   const layoutReturnRef = useRef<string | null>(null);
@@ -2538,6 +2563,8 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                 onDrop={(e) => { e.preventDefault(); setDragKey(null); void matchIngest(videosFromDrop(e)); }}
                 title="Batch takes — drop multiple clips (or click to browse); a confirm table opens before anything uploads. Name clips 01, 02… or q1.03 for auto-match.">
                 ⬇ <b>batch takes</b>
+                <span className="nodrag ml-1 inline-flex cursor-pointer items-center gap-1 rounded px-1.5 text-[9px] font-bold uppercase" style={{ color: todaysRoomTone() ? "#3BF5A0" : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={(e) => { e.stopPropagation(); roomToneRef.current?.click(); }} title="ROOM TONE — a few seconds of your recorded silence. Uploading stores it stamped with today's date; the smart stitcher automatically fills dissect gaps with it (no per-CEQ steps). Re-upload same-day replaces.">🎙 room tone{todaysRoomTone() ? " ✓" : ""}</span>
+                <input ref={roomToneRef} type="file" accept="audio/*,video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (!f) return; void (async () => { try { const t = await stageTake(f); saveRoomTone({ date: isoDay(), url: t.url, path: t.path, name: f.name }); setNote("Room tone saved for " + isoDay() + " — dissect stitches today use it automatically."); } catch (err) { setNote("Room tone upload FAILED: " + (err instanceof Error ? err.message : String(err))); } })(); }} />
                 <input ref={ingestFileRef} type="file" accept="video/*" multiple className="hidden" onChange={(e) => { const fs = Array.from(e.target.files ?? []); e.target.value = ""; void matchIngest(fs); }} />
               </div>
               {/* SET INTRO — a filmable, fully editable frame (a copy of the CEQ HOOK frame) with
@@ -2765,7 +2792,53 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                         ))}
                         <button className="mt-1 flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold" style={{ color: "#B79CFF", border: `1px dashed ${NEON.borderSoft}` }} onClick={() => patchDz({ ...dz, on: true, moments: [...dz.moments, { id: cardId("dm"), label: "" }] })}><Plus className="h-3 w-3" /> Add a moment</button>
                       </div>
-                      <div className="border-t px-3 py-1.5 text-[8.5px]" style={{ borderColor: NEON.borderSoft, color: NEON.muted }}>Clips play in take order in the player (the existing clip stack) — this list is the plan + the readiness contract, chapters come from the stitch manifest.</div>
+                      {/* SMART STITCH — trim/breathe/level the moment clips into ONE asset. */}
+                      <div className="border-t px-3 py-2" style={{ borderColor: NEON.borderSoft }}>
+                        <div className="flex items-center gap-2">
+                          <button className="rounded px-2 py-1 text-[10px] font-black uppercase disabled:opacity-40" style={{ color: "#0B1322", background: "#B79CFF" }} disabled={!!stitchJob?.running} onClick={() => runStitch(dissectQ!)} title="Auto-trim head/tail silence, insert breathing gaps (room tone), loudness-match, micro-fade the joints — one seamless asset. Sources are never touched; re-stitch anytime.">⚙ Stitch clips</button>
+                          <span className="text-[8.5px] font-bold uppercase" style={{ color: todaysRoomTone() ? "#3BF5A0" : NEON.muted }}>{todaysRoomTone() ? "room tone: today's ✓" : "room tone: none (using fallback)"}</span>
+                          {(dd as CeqCard | undefined)?.stitched && <span className="ml-auto text-[8.5px] font-bold uppercase" style={{ color: "#3BF5A0" }}>stitched ✓ {fmtDur((dd as CeqCard).stitched!.duration)}</span>}
+                        </div>
+                        {stitchJob && (
+                          <div className="mt-1.5 text-[9px]" style={{ color: stitchJob.phase.startsWith("FAILED") ? "#FF8B9E" : NEON.muted }}>{stitchJob.phase}</div>
+                        )}
+                        {stitchJob?.fileUrl && stitchJob.result && (
+                          <div className="mt-1.5 rounded p-1.5" style={{ border: `1px solid ${NEON.borderSoft}` }}>
+                            <video src={stitchJob.fileUrl} controls className="max-h-[180px] w-full rounded" />
+                            <div className="mt-1 text-[8.5px]" style={{ color: NEON.muted }}>
+                              total {stitchJob.result.totalS.toFixed(1)}s · {stitchJob.result.clips.map((c, k) => "clip " + (k + 1) + " " + c.durS.toFixed(1) + "s").join(" · ")}
+                            </div>
+                            {/* per-clip re-trim: seconds into the SOURCE; blank = keep detection */}
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                              {stitchJob.result.trims.map((t, k) => (
+                                <span key={k} className="inline-flex items-center gap-0.5 text-[8.5px]" style={{ color: NEON.muted }}>
+                                  {k + 1}:
+                                  <input defaultValue={t.start} className="w-11 rounded bg-black/30 px-1 text-[9px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} data-trim-start={k} title={"clip " + (k + 1) + " IN point (seconds into the source)"} />
+                                  <input defaultValue={t.end} className="w-11 rounded bg-black/30 px-1 text-[9px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} data-trim-end={k} title={"clip " + (k + 1) + " OUT point (seconds into the source)"} />
+                                </span>
+                              ))}
+                              <button className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: "#B79CFF", border: `1px solid ${NEON.borderSoft}` }} onClick={(e) => {
+                                const root = (e.currentTarget as HTMLElement).parentElement!;
+                                const trims = stitchJob.result!.trims.map((t, k) => {
+                                  const sEl = root.querySelector('[data-trim-start="' + k + '"]') as HTMLInputElement | null;
+                                  const eEl = root.querySelector('[data-trim-end="' + k + '"]') as HTMLInputElement | null;
+                                  const sv = parseFloat(sEl?.value ?? ""); const ev = parseFloat(eEl?.value ?? "");
+                                  return Number.isFinite(sv) && Number.isFinite(ev) && ev > sv ? { start: sv, end: ev } : { start: t.start, end: t.end };
+                                });
+                                runStitch(dissectQ!, trims);
+                              }} title="Re-run the stitch with these manual in/out points (they win over detection)">↻ Re-stitch</button>
+                              <button className="rounded px-1.5 py-0.5 text-[9px] font-black uppercase" style={{ color: "#0B1322", background: "#3BF5A0" }} onClick={() => {
+                                const res = stitchJob.result!;
+                                const ms = dz.moments.map((m, k) => ({ ...m, startMs: Math.round((res.clips[k]?.startS ?? 0) * 1000) }));
+                                patchQ(dissectQ!, { stitched: { url: stitchJob.fileUrl!, path: stitchJob.path ?? "", name: "dissect-stitch.mp4", duration: res.totalS }, dissect: { ...dz, moments: ms } });
+                                setStitchJob(null);
+                                setNote("Stitched asset finalized (" + res.totalS.toFixed(1) + "s) — publish plays it as ONE seamless clip; moment chapters written" + (dz.moments.length !== res.clips.length ? " (note: " + dz.moments.length + " moments vs " + res.clips.length + " clips — order-matched)" : "") + ". Sources stay archived in the clip stack.");
+                              }} title="Attach the stitched asset as THIS CEQ's playback file (publish prefers it) and write each moment's chapter offset. Sources stay in the clip stack untouched.">✓ Finalize</button>
+                            </div>
+                          </div>
+                        )}
+                        <div className="mt-1.5 text-[8.5px]" style={{ color: NEON.muted }}>Clips play in take order; chapters come from the stitch manifest. Sources are never modified — re-stitch anytime.</div>
+                      </div>
                     </div>
                   </div>
                 );
