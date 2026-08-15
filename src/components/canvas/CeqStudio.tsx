@@ -510,7 +510,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const qd = qNode?.data as unknown as CeqCard | undefined;
   // Re-seed signature for the live previewer — CONTENT only (stem/choices/chain), NOT
   // positions, so dragging a memo (which writes position back) never re-seeds/fights.
-  const ceqSig = qd ? `${qId}|${qd.prompt}|${qd.choices.map((c) => `${c.text}:${c.correct ? 1 : 0}:${(c.chain ?? []).map((it) => `${it.memoNodeId}~${it.label}~${it.sound ?? ""}~${it.hideChoiceLabel ? 1 : 0}~${it.hideArrow ? 1 : 0}`).join(",")}`).join("|")}` : "";
+  const ceqSig = qd ? `${qId}|${qd.boss ? "B" : ""}|${qd.prompt}|${qd.choices.map((c) => `${c.text}:${c.correct ? 1 : 0}:${(c.chain ?? []).map((it) => `${it.memoNodeId}~${it.label}~${it.sound ?? ""}~${it.hideChoiceLabel ? 1 : 0}~${it.hideArrow ? 1 : 0}`).join(",")}`).join("|")}` : "";
   // The frame the set will be dealt into — the previewer mirrors ITS size so the
   // composition you build == the dealt frame exactly. Defaults to a 1600×900 stage.
   // Mirror a canvas frame's size ONLY when it actually hosts this deck's CEQs (you

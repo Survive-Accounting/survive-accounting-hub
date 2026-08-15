@@ -27,7 +27,7 @@
 // click a lit target clears. Plain / Shift+click still selects an arrow (RF).
 // A start/stop timer times the run. Practice + spotlight state are LOCAL — they never
 // dirty the real CEQ, and reset when you switch questions.
-import { Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Component, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Background, BackgroundVariant, BaseEdge, ConnectionMode, getSmoothStepPath, Handle, MarkerType, Position, ReactFlow, ReactFlowProvider, useNodesState, useStore, ViewportPortal, type Connection, type Edge, type EdgeProps, type Node, type NodeProps, type ReactFlowInstance } from "@xyflow/react";
 import { Clapperboard, ChevronDown, ChevronRight, Eye, Grid3x3, LayoutGrid, Maximize2, Plus, Rows3, Save, Spline, X } from "lucide-react";
 
@@ -438,7 +438,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
       <div style={{ overflow: "hidden", borderRadius: 13 * s, padding: 16 * s }}>
       {/* TOPIC kicker — name only (no Ch#), small uppercase above the stem so a
           viewer landing mid-clip knows the topic. */}
-      {!isCallout && d.topic && <div style={{ fontSize: 12 * s, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: PAPER.inkMuted, marginBottom: 6 * s, maxWidth: "58%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.topic}</div>}
+      {!isCallout && d.topic && <div style={{ display: "flex", alignItems: "center", gap: 6 * s, fontSize: 12 * s, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: PAPER.inkMuted, marginBottom: 6 * s, maxWidth: "58%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{boltCol && <span style={{ flexShrink: 0, display: "inline-block", height: 15 * s, width: Math.round(15 * s * BOLT_RATIO) }}><Bolt c1={boltCol.c1} c2={boltCol.c2} /></span>}<span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{d.topic}</span></div>}
       {isCallout && !stemEditing && (
         <div onDoubleClick={canEditStem ? (e) => { e.stopPropagation(); startStemEdit(); } : undefined} title={canEditStem ? "Double-click to edit the text" : undefined}>
           <CalloutBody
@@ -477,7 +477,6 @@ function CeqPreviewNode({ id, data }: NodeProps) {
         />
       ) : isCallout ? null : (
         <div style={{ display: "flex", alignItems: "flex-start", gap: 10 * s, marginBottom: 12 * s }}>
-        {boltCol && <span style={{ flexShrink: 0, display: "inline-block", height: 44 * s, width: Math.round(44 * s * BOLT_RATIO), marginTop: 1 * s }} title={film ? undefined : "The brand bolt — films with the card"}><Bolt c1={boltCol.c1} c2={boltCol.c2} /></span>}
         <div
           onDragOver={film ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }}
           onDrop={film ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); attachMemo("__stem__", mid); } }}
@@ -1033,8 +1032,8 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     }, 400);
   };
   const bossArmed = useRef(false);
-  useEffect(() => {
-    setEmph(null); setResolved(new Set()); setShown(new Map()); setSpots(EMPTY_SPOTS); // BLANK on open / question change
+  useLayoutEffect(() => {
+    setEmph(null); setResolved(new Set()); setShown(new Map()); setSpots(EMPTY_SPOTS); // BLANK on open / question change (PRE-paint — the old useEffect leaked the previous question's marks for one frame)
     // Suppress the boss cram-launch cue during a HELD repeat (single discrete deals still sound).
     if (bossArmed.current && !repeatFiringRef.current && !!(mainRf.getNode(ceqId)?.data as { boss?: boolean } | undefined)?.boss) playSfx("cramLaunch");
     bossArmed.current = true;
@@ -1124,7 +1123,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   useEffect(() => { setViewChoice(null); }, [ceqId]);
   // ANSWERS REVEALED (Lee, set-level): a recap-style set deals every CEQ with
   // the correct choice pre-resolved (silent). Practice/chains untouched.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!revealAnswers || layoutMode || !cd) return;
     const ci = cd.choices.findIndex((c) => c.correct);
     if (ci >= 0) { setResolved(new Set([ci])); setShown(new Map([[ci, 0]])); }
@@ -1214,7 +1213,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     const enterAnim = reduceMotion ? "none"
       : dealAnim === "pushDown" || dealAnim === "pushUp" ? `${enterAnimName} 180ms cubic-bezier(0.16,1,0.3,1) both`
       : "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both";
-    const ceqNode = { id: ceqId, type: "ceqPreview", position: { x: cs.x, y: yOff + cs.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cs.scale, layoutBadge: layoutMode, progress, topic, enterAnim, enterAnimName, callout: cd.callout, calloutMemos: calloutMemosOf(cd) }, draggable: true, zIndex: 1 };
+    const ceqNode = { id: ceqId, type: "ceqPreview", position: { x: cs.x, y: yOff + cs.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cs.scale, layoutBadge: layoutMode, progress, topic, enterAnim, enterAnimName, boss: cd.boss, callout: cd.callout, calloutMemos: calloutMemosOf(cd) }, draggable: true, zIndex: 1 };
     // PLACEMENT: in Question 0 each stage chip IS its slot (whole rack, so inactive
     // ones stay visible to switch on). In a real question memos fill the ACTIVE slots
     // in order — inactive slots simply don't exist here. Past the last active slot,
@@ -1371,14 +1370,19 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
    *  16:9 frame in a window of any other shape letterboxed — black bars Lee then had
    *  to crop in OBS. This scales to the LARGER ratio and centres, so the frame runs
    *  edge to edge; on a 16:9 window cover and contain are identical. */
+  // activeYOff via a REF: a settle timer scheduled before a Space press must
+  // never pan to the OLD frame (the confirmed blast-pace jitter). The callback
+  // stays referentially stable across question changes as a bonus.
+  const activeYOffRef = useRef(activeYOff);
+  activeYOffRef.current = activeYOff;
   const fitFilm = useCallback(() => {
     const inst = filmFitRef.current; const win = filmWin;
     if (!inst || !win) return;
     const w = win.innerWidth, h = win.innerHeight;
     if (!w || !h) return;
     const zoom = Math.max(w / frameW, h / frameH);
-    inst.setViewport({ x: (w - frameW * zoom) / 2, y: (h - frameH * zoom) / 2 - activeYOff * zoom, zoom }, { duration: 0 });
-  }, [filmWin, frameW, frameH, activeYOff]);
+    inst.setViewport({ x: (w - frameW * zoom) / 2, y: (h - frameH * zoom) / 2 - activeYOffRef.current * zoom, zoom }, { duration: 0 });
+  }, [filmWin, frameW, frameH]);
   useEffect(() => {
     if (!filmWin) return;
     // Refit the 16:9 cover on EVERY way the popout can change size. Going FULLSCREEN
@@ -1386,7 +1390,10 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     // `resize` — so without a fullscreenchange hook the viewport stays stale and the
     // window paints near-black (the frame is off-screen). Multi-fire over ~1s to ride
     // out the animation, plus a ResizeObserver as the reliable catch-all.
-    const settle = () => { [0, 40, 240, 500, 900].forEach((ms) => window.setTimeout(fitFilm, ms)); };
+    // Timers are TRACKED and cancelled on re-run/cleanup — the fire-and-forget
+    // version left up to 900ms of stale pans behind every Space press.
+    const timers: number[] = [];
+    const settle = () => { timers.splice(0).forEach((t) => window.clearTimeout(t)); [0, 40, 240, 500, 900].forEach((ms) => timers.push(window.setTimeout(fitFilm, ms))); };
     settle();
     filmWin.addEventListener("resize", settle);
     filmWin.addEventListener("focus", settle);
@@ -1399,6 +1406,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       if (RO && target) { ro = new RO(() => fitFilm()); ro.observe(target); }
     } catch { /* ResizeObserver unavailable in the popout — the listeners above still cover it */ }
     return () => {
+      timers.splice(0).forEach((t) => window.clearTimeout(t));
       filmWin.removeEventListener("resize", settle);
       filmWin.removeEventListener("focus", settle);
       doc.removeEventListener("fullscreenchange", settle);
@@ -1734,7 +1742,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       const ocs = resolveCardSpot(od.geom, templateFor(od.ignoreLayout, baseline), frameW, frameH);
       const pIdx = cIds.indexOf(qid);
       const progress = viewStudent && pIdx >= 0 && cIds.length > 1 ? { x: pIdx + 1, y: cIds.length } : null;
-      out.push({ id: qid, type: "ceqPreview", position: { x: ocs.x, y: y + ocs.y }, data: { stem: od.prompt, choices: od.choices, scale: ocs.scale, progress, topic: viewStudent && topicName ? topicName : null, enterAnim: "none", enterAnimName: "none", inert: true, callout: od.callout, calloutMemos: calloutMemosOf(od) }, draggable: false, selectable: false, zIndex: 1 } as Node);
+      out.push({ id: qid, type: "ceqPreview", position: { x: ocs.x, y: y + ocs.y }, data: { stem: od.prompt, choices: od.choices, scale: ocs.scale, progress, topic: viewStudent && topicName ? topicName : null, enterAnim: "none", enterAnimName: "none", inert: true, boss: od.boss, callout: od.callout, calloutMemos: calloutMemosOf(od) }, draggable: false, selectable: false, zIndex: 1 } as Node);
       for (const n of allNodes) {
         const st = (n.data as { stage?: { ceqId?: string; x: number; y: number; hidden?: boolean } } | undefined)?.stage;
         if (!st || st.ceqId !== qid || st.hidden) continue;
