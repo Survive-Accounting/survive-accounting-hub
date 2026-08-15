@@ -44,7 +44,7 @@ import { renderStitchViaWorker, wakeRenderWorker } from "./render-worker-client"
 import type { LessonBox } from "./types";
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { useFrameNav } from "./FrameNavContext";
-import { cardId, type CeqCard, type ChainSound, type CeqChainItem, type CeqChoice, type CeqInstanceGeom, type DeckDef, type DeckLayout, type DeckSlotLayout, type GlobalClips, type TakeRef, type TakeRole } from "./types";
+import { cardId, type CalloutSettings, type CeqCard, type ChainSound, type CeqChainItem, type CeqChoice, type CeqInstanceGeom, type DeckDef, type DeckLayout, type DeckSlotLayout, type GlobalClips, type TakeRef, type TakeRole } from "./types";
 import { NEON } from "./theme";
 import { Bolt } from "./brand";
 import { Z } from "./z-layers";
@@ -312,7 +312,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const [selChainMemos, setSelChainMemos] = useState<Set<string>>(new Set()); // outline memo selection (memoNodeId)
   const [memoClip, setMemoClip] = useState<{ label: string; title: string; body: string; memoKind: string; category: string; subcategory: string; x: number; y: number; scale: number; choiceIdx: number }[]>([]); // copied chain memos
   const [itemsClip, setItemsClip] = useState<{ memoNodeId: string; choiceIdx: number; label: string; title: string; body: string; memoKind: string; category: string; subcategory: string; sound?: ChainSound; hideChoiceLabel?: boolean; hideArrow?: boolean }[]>([]); // "copy items" clipboard (memos, for new/exact paste)
-  const [qClip, setQClip] = useState<{ prompt: string; scale: number; choices: { text: string; correct?: boolean }[]; memos: { label: string; title: string; body: string; memoKind: string; category: string; subcategory: string; x: number; y: number; scale: number; choiceIdx: number }[] } | null>(null); // copied whole question
+  const [qClip, setQClip] = useState<{ prompt: string; scale: number; noteOnly?: boolean; callout?: CalloutSettings; run?: string; choices: { text: string; correct?: boolean }[]; memos: { label: string; title: string; body: string; memoKind: string; category: string; subcategory: string; x: number; y: number; scale: number; choiceIdx: number }[] }[] | null>(null); // FRAME CLIPBOARD (spine): copied frames, in spine order; choiceIdx -1 = stem chain
   // MEMO WORKFLOW (Lee) — the +💡 picker modal, inline edits (replacing prompt()),
   // bulk-field inline entry, and the library scope filter (question|set|all).
   const [pickModal, setPickModal] = useState<{ ceqId: string; choiceId: string } | null>(null); // +💡 add-memo modal target
@@ -1847,38 +1847,67 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
 
   /** Copy the CURRENT question (stem + choices + its chain memos, deep) to the
    *  question clipboard. */
-  const copyQuestion = () => {
-    if (!qId || !qd) return;
-    const memos: NonNullable<typeof qClip>["memos"] = [];
-    qd.choices.forEach((ch, ci) => (ch.chain ?? []).forEach((it) => {
-      const m = rf.getNode(it.memoNodeId); if (!m) return;
-      const md = m.data as { title?: string; body?: string; memoKind?: string; category?: string; subcategory?: string; scale?: number };
-      memos.push({ label: it.label, title: md.title ?? "", body: md.body ?? "", memoKind: md.memoKind ?? "note", category: md.category ?? "", subcategory: md.subcategory ?? "", x: Math.round(m.position.x), y: Math.round(m.position.y), scale: md.scale ?? 1, choiceIdx: ci });
-    }));
-    setQClip({ prompt: qd.prompt, scale: (qNode?.data as { scale?: number } | undefined)?.scale ?? 1, choices: qd.choices.map((c) => ({ text: c.text, correct: c.correct })), memos });
+  /** FRAME CLIPBOARD (Lee, 08-15): copy the SPINE-SELECTED frame(s) at full
+   *  fidelity — noteOnly, callout, run letter and STEM chain travel too (the
+   *  old copy silently dropped them). Frames are copied from the spine only;
+   *  in-frame Ctrl+C belongs to components. */
+  const copyFrames = (ids: string[]) => {
+    const ordered = questions.filter((q) => ids.includes(q.id)).map((q) => q.id);
+    const clips: NonNullable<typeof qClip> = [];
+    for (const fid of ordered) {
+      const node = rf.getNode(fid);
+      const d = node?.data as unknown as CeqCard | undefined; if (!d) continue;
+      const memos: NonNullable<typeof qClip>[number]["memos"] = [];
+      const pull = (items: CeqChainItem[] | undefined, choiceIdx: number) => (items ?? []).forEach((it) => {
+        const m = rf.getNode(it.memoNodeId); if (!m) return;
+        const md = m.data as { title?: string; body?: string; memoKind?: string; category?: string; subcategory?: string; scale?: number };
+        memos.push({ label: it.label, title: md.title ?? "", body: md.body ?? "", memoKind: md.memoKind ?? "note", category: md.category ?? "", subcategory: md.subcategory ?? "", x: Math.round(m.position.x), y: Math.round(m.position.y), scale: md.scale ?? 1, choiceIdx });
+      });
+      d.choices.forEach((ch, ci) => pull(ch.chain, ci));
+      pull(d.stemChain, -1);
+      clips.push({ prompt: d.prompt, scale: (node?.data as { scale?: number } | undefined)?.scale ?? 1, noteOnly: d.noteOnly, callout: d.callout ? structuredClone(d.callout) : undefined, run: d.run, choices: d.choices.map((c) => ({ text: c.text, correct: c.correct })), memos });
+    }
+    if (!clips.length) return;
+    setQClip(clips);
     setMemoClip([]);
-    setNote(`Copied the question (${memos.length} memo${memos.length === 1 ? "" : "s"}) — Ctrl+V to paste into this set.`);
+    lastClipRef.current = "q";
+    setNote(`Copied ${clips.length} frame${clips.length === 1 ? "" : "s"} — Ctrl+V pastes below the selected spine row.`);
   };
   /** Paste the copied question into the current set (fresh ids, its memos too). */
-  const pasteQuestion = () => {
-    if (!qClip || !deck) return;
-    const order = nextStageOrder(rf.getNodes() as never);
-    const ceqId = cardId("ceq");
-    const choiceIds = qClip.choices.map(() => cardId("ch"));
-    const chainByChoice = new Map<string, { kind: "memo"; memoNodeId: string; label: string }[]>();
-    const memoNodes: Record<string, unknown>[] = [];
+  /** Paste the copied frame(s) BELOW the last spine-selected frame (or the open
+   *  one) — fresh ids, memos + chains rebuilt (stem chains too), stageOrder
+   *  reindexed with insertFrame's pattern. One undoable composite. */
+  const pasteFrames = () => {
+    if (!qClip?.length || !deck) return;
+    const idxOf = (fid: string) => questions.findIndex((q) => q.id === fid);
+    const selIdx = [...qSel].map(idxOf).filter((i) => i >= 0);
+    const openIdx = qId && qId !== LAYOUT_Q0 ? idxOf(qId) : -1;
+    const at = (selIdx.length ? Math.max(...selIdx) : openIdx >= 0 ? openIdx : questions.length - 1) + 1;
+    const newNodes: Record<string, unknown>[] = [];
     const newEdges: Record<string, unknown>[] = [];
-    for (const clip of qClip.memos) {
-      const cid = choiceIds[clip.choiceIdx]; if (!cid) continue;
-      const memoId = cardId("memo");
-      memoNodes.push({ id: memoId, type: "memo", position: { x: clip.x, y: clip.y }, selected: false, data: { kind: "memo", memoKind: clip.memoKind, title: clip.title, body: clip.body, category: clip.category, subcategory: clip.subcategory, scale: clip.scale } });
-      newEdges.push({ id: `chn-${cid}-${memoId}`, source: memoId, sourceHandle: "l", target: ceqId, targetHandle: memoAnchorId(cid), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } });
-      const arr = chainByChoice.get(cid) ?? []; arr.push({ kind: "memo", memoNodeId: memoId, label: clip.label }); chainByChoice.set(cid, arr);
-    }
-    const ceqNode = { id: ceqId, type: "ceq", position: { x: 520, y: 210 }, selected: false, data: { kind: "ceq", title: deck.name, prompt: qClip.prompt, scale: qClip.scale, choices: qClip.choices.map((c, i) => ({ id: choiceIds[i], text: c.text, correct: c.correct, ...(chainByChoice.has(choiceIds[i]) ? { chain: chainByChoice.get(choiceIds[i]) } : {}) })), deckId: deck.id, deckMember: true, tucked: true, stageOrder: order, slotIndex: questions.length, deckCategory: "ceq:studio", deckPos: { x: 520, y: 210 } } };
-    const add = addNodesAndEdgesCmd(rfl, [ceqNode, ...memoNodes] as never, newEdges as never, "paste question"); if (add) bus.dispatch(add);
-    setQId(ceqId);
-    setNote(`Pasted a question (${qClip.memos.length} memo${qClip.memos.length === 1 ? "" : "s"}).`);
+    const newIds: string[] = [];
+    qClip.forEach((clip, k) => {
+      const ceqId = cardId("ceq");
+      newIds.push(ceqId);
+      const choiceIds = clip.choices.map(() => cardId("ch"));
+      const chainByChoice = new Map<string, { kind: "memo"; memoNodeId: string; label: string }[]>();
+      const stemChain: { kind: "memo"; memoNodeId: string; label: string }[] = [];
+      for (const mc of clip.memos) {
+        const memoId = cardId("memo");
+        newNodes.push({ id: memoId, type: "memo", position: { x: mc.x, y: mc.y }, selected: false, data: { kind: "memo", memoKind: mc.memoKind, title: mc.title, body: mc.body, category: mc.category, subcategory: mc.subcategory, scale: mc.scale } });
+        if (mc.choiceIdx === -1) { stemChain.push({ kind: "memo", memoNodeId: memoId, label: mc.label }); continue; }
+        const cid = choiceIds[mc.choiceIdx]; if (!cid) continue;
+        newEdges.push({ id: `chn-${cid}-${memoId}`, source: memoId, sourceHandle: "l", target: ceqId, targetHandle: memoAnchorId(cid), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } });
+        const arr = chainByChoice.get(cid) ?? []; arr.push({ kind: "memo", memoNodeId: memoId, label: mc.label }); chainByChoice.set(cid, arr);
+      }
+      newNodes.push({ id: ceqId, type: "ceq", position: { x: 520, y: 210 }, selected: false, data: { kind: "ceq", title: deck.name, prompt: clip.prompt, scale: clip.scale, ...(clip.noteOnly ? { noteOnly: true } : {}), ...(clip.callout ? { callout: structuredClone(clip.callout) } : {}), ...(clip.run ? { run: clip.run } : {}), ...(stemChain.length ? { stemChain } : {}), choices: clip.choices.map((c, i) => ({ id: choiceIds[i], text: c.text, correct: c.correct, ...(chainByChoice.has(choiceIds[i]) ? { chain: chainByChoice.get(choiceIds[i]) } : {}) })), deckId: deck.id, deckMember: true, tucked: true, stageOrder: at + k, slotIndex: at + k, deckCategory: "ceq:studio", deckPos: { x: 520, y: 210 } } });
+    });
+    const reindex = questions.slice(at).map((q, i) => patchDataCmd(rfl, q.id, { stageOrder: at + qClip.length + i }, "reorder")).filter((c): c is NonNullable<typeof c> => !!c);
+    const add = addNodesAndEdgesCmd(rfl, newNodes as never, newEdges as never, "paste frames");
+    const cmd = compositeCmd([...(add ? [add] : []), ...reindex], `paste ${qClip.length} frame${qClip.length === 1 ? "" : "s"}`);
+    if (cmd) bus.dispatch(cmd);
+    setQId(newIds[0]);
+    setNote(`Pasted ${qClip.length} frame${qClip.length === 1 ? "" : "s"} below ${selIdx.length ? "the selected row" : "the open frame"} (one undo).`);
   };
 
   // SELECTING a memo in the previewer SURFACES it in the library: open the pane +
@@ -1899,8 +1928,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       const typing = el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
       if (typing) return;
       const ctrl = e.ctrlKey || e.metaKey;
-      if (ctrl && (e.key === "c" || e.key === "C")) { e.preventDefault(); if (selChainMemos.size > 0) { copyMemos(); lastClipRef.current = "memos"; } else if (selStageEl) copyStageElement(selStageEl); else if (qId) { copyQuestion(); lastClipRef.current = "q"; } return; }
-      if (ctrl && (e.key === "v" || e.key === "V")) { e.preventDefault(); if (lastClipRef.current === "el" && elClip && qId && qId !== LAYOUT_Q0) pasteStageElement(); else if (itemsClip.length > 0 && qId && qId !== LAYOUT_Q0) pasteItems("new"); else if (memoClip.length > 0 && qId && qId !== LAYOUT_Q0) pasteMemos(qId); else if (elClip && qId && qId !== LAYOUT_Q0) pasteStageElement(); else if (qClip) pasteQuestion(); return; }
+      if (ctrl && (e.key === "c" || e.key === "C")) { e.preventDefault(); if (selChainMemos.size > 0) { copyMemos(); lastClipRef.current = "memos"; } else if (selStageEl) copyStageElement(selStageEl); else if (qSel.size > 0) copyFrames([...qSel]); else setNote("Nothing copyable selected — click a component on the stage, or select frame rows in the spine. (The open frame is no longer copied implicitly.)"); return; }
+      if (ctrl && (e.key === "v" || e.key === "V")) { e.preventDefault(); if (lastClipRef.current === "el" && elClip && qId && qId !== LAYOUT_Q0) pasteStageElement(); else if (itemsClip.length > 0 && qId && qId !== LAYOUT_Q0) pasteItems("new"); else if (memoClip.length > 0 && qId && qId !== LAYOUT_Q0) pasteMemos(qId); else if (elClip && qId && qId !== LAYOUT_Q0) pasteStageElement(); else if (qClip?.length) pasteFrames(); return; }
       if (ctrl && (e.key === "d" || e.key === "D")) { if (qId && qId !== LAYOUT_Q0) { e.preventDefault(); duplicateQuestion(qId); } return; }
       if (e.key === "/") { e.preventDefault(); setLibOpen(true); window.setTimeout(() => memoSearchRef.current?.focus(), 60); return; } // "/" focuses the memo search from anywhere
       // ` = wipe temporary state (backtick sweep): here that means the strip

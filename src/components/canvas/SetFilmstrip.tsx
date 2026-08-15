@@ -318,9 +318,12 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
                     height: dense ? rowH : undefined,
                     // SELECTED (bulk ops) reads as a cyan ring — distinct from the gold
                     // "currently open" ring, since a frame can be both at once.
-                    border: `1px solid ${active ? "rgba(252,163,17,0.9)" : selected.has(it.id) ? "rgba(79,209,224,0.85)" : NEON.borderSoft}`,
-                    boxShadow: active ? "0 0 0 1.5px rgba(252,163,17,0.45)" : selected.has(it.id) ? "0 0 0 1.5px rgba(79,209,224,0.4)" : undefined,
-                    background: active ? "rgba(252,163,17,0.12)" : selected.has(it.id) ? "rgba(79,209,224,0.12)" : "rgba(9,14,26,0.5)",
+                    // OPEN frame = a SUBTLE amber glow; SELECTED = the strong highlight
+                    // (selection wins when both) — selection is the deliberate act now
+                    // (frame copy/paste, bulk ops), so it gets the visual weight.
+                    border: `1px solid ${selected.has(it.id) ? "rgba(79,209,224,0.85)" : active ? "rgba(252,163,17,0.4)" : NEON.borderSoft}`,
+                    boxShadow: selected.has(it.id) ? "0 0 0 1.5px rgba(79,209,224,0.4)" : active ? "0 0 10px rgba(252,163,17,0.35)" : undefined,
+                    background: selected.has(it.id) ? "rgba(79,209,224,0.12)" : active ? "rgba(252,163,17,0.05)" : "rgba(9,14,26,0.5)",
                     opacity: active || selected.has(it.id) ? 1 : sameRun ? 0.8 : 0.55,
                     transition: "height 220ms cubic-bezier(0.2,0.7,0.3,1), min-height 220ms cubic-bezier(0.2,0.7,0.3,1), opacity 150ms ease",
                   }}

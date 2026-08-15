@@ -36,8 +36,17 @@ describe("component clipboard — copy the edited component, not the frame", () 
   test("the previewer reports the selected STAGED element", () => {
     expect(previewer).toContain("onSelectStageEl?.((sel.find((nd) => !!(nd.data as { stage?: unknown } | undefined)?.stage)?.id) ?? null);");
   });
-  test("Ctrl+C priority: chain memos → selected component → the frame", () => {
-    expect(studio).toContain("else if (selStageEl) copyStageElement(selStageEl); else if (qId) { copyQuestion();");
+  test("Ctrl+C priority: chain memos → selected component → SPINE-selected frames (never the open frame implicitly)", () => {
+    expect(studio).toContain("else if (selStageEl) copyStageElement(selStageEl); else if (qSel.size > 0) copyFrames([...qSel]);");
+    expect(studio).toContain("The open frame is no longer copied implicitly");
+  });
+  test("frames paste BELOW the selected spine row, reindexed, one undo", () => {
+    expect(studio).toContain("const at = (selIdx.length ? Math.max(...selIdx) : openIdx >= 0 ? openIdx : questions.length - 1) + 1;");
+    expect(studio).toContain('patchDataCmd(rfl, q.id, { stageOrder: at + qClip.length + i }, "reorder")');
+  });
+  test("frame copies carry full fidelity: noteOnly, callout, run, STEM chains", () => {
+    expect(studio).toContain("pull(d.stemChain, -1);");
+    expect(studio).toContain("noteOnly: d.noteOnly, callout: d.callout ? structuredClone(d.callout) : undefined, run: d.run");
   });
   test("Ctrl+V pastes the most recent copy; a copied component lands on the OPEN frame", () => {
     expect(studio).toContain('if (lastClipRef.current === "el" && elClip && qId && qId !== LAYOUT_Q0) pasteStageElement();');
