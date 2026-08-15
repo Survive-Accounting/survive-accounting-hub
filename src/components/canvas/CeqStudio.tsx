@@ -1913,6 +1913,15 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
     const frameId = qNodeRef?.parentId ?? nav.currentFrameId ?? undefined;
     const spot = resolveMemoSpot((qNodeRef?.data as unknown as CeqCard | undefined)?.geom, deck?.layout, chainCount, frameW, frameH);
     const memoNode = { id: memoId, type: "memo", ...(frameId ? { parentId: frameId } : {}), position: { x: Math.round(spot.x), y: Math.round(spot.y) }, selected: false, data: { kind: "memo", memoKind: "note", title: label, body: "", category, scale: spot.scale } };
+    if (choiceId === "__stem__") {
+      // STEM CHAIN (P2) — chained to the QUESTION: walks out before any choice,
+      // in authored order. No canvas chain-arrow (there is no choice anchor).
+      const patch = patchDataFnCmd(rfl, ceqId, (prev) => ({ stemChain: [...((prev as unknown as { stemChain?: CeqChainItem[] }).stemChain ?? []), { kind: "memo" as const, memoNodeId: memoId, label }] }), "attach memo to question");
+      if (patch) bus.dispatch(patch);
+      touchRecent(memoId);
+      setNote(`Attached "${clip(label, 24)}" to the QUESTION — walks out before any choice.`);
+      return;
+    }
     const edge = { id: `chn-${choiceId}-${memoId}`, source: memoId, sourceHandle: "l", target: ceqId, targetHandle: memoAnchorId(choiceId), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } };
     // ONE undo step: the node+edge, the chain entry, and the instance slot together —
     // it used to be two dispatches, so undo left an orphan memo with a dangling arrow.
@@ -2075,6 +2084,15 @@ Cancel = the layout governs FUTURE deals only.`)) applyLayoutToAll({ silent: tru
     const m = rf.getNode(memoId); if (!m) return;
     const md = m.data as { label?: string; title?: string; body?: string };
     const label = md.label || memoText(md.title, md.body);
+    if (choiceId === "__stem__") {
+      // STEM CHAIN (P2) — chained to the QUESTION: walks out before any choice,
+      // in authored order. No canvas chain-arrow (there is no choice anchor).
+      const patch = patchDataFnCmd(rfl, ceqId, (prev) => ({ stemChain: [...((prev as unknown as { stemChain?: CeqChainItem[] }).stemChain ?? []), { kind: "memo" as const, memoNodeId: memoId, label }] }), "attach memo to question");
+      if (patch) bus.dispatch(patch);
+      touchRecent(memoId);
+      setNote(`Attached "${clip(label, 24)}" to the QUESTION — walks out before any choice.`);
+      return;
+    }
     const edge = { id: `chn-${choiceId}-${memoId}`, source: memoId, sourceHandle: "l", target: ceqId, targetHandle: memoAnchorId(choiceId), type: "smoothstep", zIndex: EDGE_Z, style: { ...EDGE_STYLE }, markerEnd: { ...EDGE_MARKER } };
     const add = addNodesAndEdgesCmd(rfl, [] as never, [edge] as never, "chain arrow"); if (add) bus.dispatch(add);
     const patch = patchDataFnCmd(rfl, ceqId, (prev) => ({ choices: (prev as unknown as { choices: CeqChoice[] }).choices.map((c) => (c.id === choiceId ? { ...c, chain: [...(c.chain ?? []), { kind: "memo" as const, memoNodeId: memoId, label }] } : c)) }), "attach memo");

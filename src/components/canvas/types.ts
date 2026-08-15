@@ -395,6 +395,10 @@ export interface CeqCard extends CardBase {
    *  standardized reading card. Additive scene JSON; absent = plain callout
    *  with topic on. See cards/CalloutCard.tsx for the render contract. */
   callout?: CalloutSettings;
+  /** STEM CHAIN (P2) — memos chained to the QUESTION itself. They walk out
+   *  BEFORE any choice is selected (setup, context, a distractor tease), in
+   *  authored order, always earlier than choice-chained memos. Additive. */
+  stemChain?: CeqChainItem[];
   choices: CeqChoice[];
   revealedAnswer?: boolean;
   /** PER-CEQ SCRIPT NOTE — LEGACY field. Superseded by the SCRIPT LAYERS below:

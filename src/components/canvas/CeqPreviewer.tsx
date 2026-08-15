@@ -464,6 +464,8 @@ function CeqPreviewNode({ id, data }: NodeProps) {
         />
       ) : isCallout ? null : (
         <div
+          onDragOver={film ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }}
+          onDrop={film ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); attachMemo("__stem__", mid); } }}
           ref={stemRef}
           onMouseDown={film ? () => setStemSel(null) : undefined}
           onMouseUp={film ? readStemSelection : undefined}
@@ -870,6 +872,10 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       rack.forEach((s, i) => list.push({ memoNodeId: `__slot${i}`, label: `Slot ${i + 1}`, choice: "—", choiceIdx: 0, choiceId: "", chainPos: i, num: i + 1, slotOff: !!s.off }));
       return list;
     }
+    // STEM CHAIN (P2) — question-level memos come FIRST in the walk, always
+    // earlier than any choice chain. choiceIdx -1 = the stem pseudo-choice:
+    // never "resolved" (there's nothing to answer), revealed purely by shown(-1).
+    (cd?.stemChain ?? []).forEach((it, p) => list.push({ memoNodeId: it.memoNodeId, label: it.label, choice: "Q", choiceIdx: -1, choiceId: "__stem__", chainPos: p, num: list.length + 1, hideChoiceLabel: it.hideChoiceLabel, hideArrow: it.hideArrow, sound: it.sound, arrow: it.arrow }));
     (cd?.choices ?? []).forEach((ch, ci) => (ch.chain ?? []).forEach((it, p) => list.push({ memoNodeId: it.memoNodeId, label: it.label, choice: LETTER(ci), choiceIdx: ci, choiceId: ch.id ?? "", chainPos: p, num: list.length + 1, hideChoiceLabel: it.hideChoiceLabel, hideArrow: it.hideArrow, sound: it.sound, arrow: it.arrow })));
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -995,6 +1001,15 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   const sweepMemos = () => setShown((s) => (s.size === 0 ? s : new Map()));
   const tabNav = (dir: 1 | -1) => setEmph((e) => (nChoices === 0 ? null : e == null ? (dir > 0 ? 0 : nChoices - 1) : (e + dir + nChoices) % nChoices));
   const advance = () => { // Enter — resolve the emphasised choice, then walk its chain
+    // STEM CHAIN (P2): question-level memos drain FIRST — Lee can spacewalk on
+    // the question itself (setup / context / distractor tease) before choices.
+    const stemLen = cd?.stemChain?.length ?? 0;
+    const stemShown = shown.get(-1) ?? 0;
+    if (stemLen > 0 && stemShown < stemLen) {
+      setShown((s) => new Map(s).set(-1, stemShown + 1));
+      const sit = cd?.stemChain?.[stemShown]; if (sit?.sound && sit.sound !== "vinylScratch") { const snd = sit.sound; window.setTimeout(() => playSfx(snd), 200); }
+      return;
+    }
     const e = emph == null ? 0 : emph;
     if (emph == null) setEmph(0);
     if (!resolved.has(e)) {
@@ -1013,7 +1028,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     }
   };
   const retreat = () => { // Shift+Enter
-    if (emph == null) return;
+    if (emph == null) { const ss = shown.get(-1) ?? 0; if (ss > 0) setShown((s) => new Map(s).set(-1, ss - 1)); return; }
     const cur = shown.get(emph) ?? 0;
     if (cur > 0) { setShown((s) => new Map(s).set(emph, cur - 1)); return; }
     if (resolved.has(emph)) { setResolved((r) => { const n = new Set(r); n.delete(emph); return n; }); setShown((s) => { const n = new Map(s); n.delete(emph); return n; }); }
@@ -1033,7 +1048,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   const [dragGuides, setDragGuides] = useState<{ v: Guide[]; h: Guide[] }>({ v: [], h: [] });
   useEffect(() => { setViewChoice(null); }, [ceqId]);
   // TRUE walk state — what the CAMERA sees: only memos the Enter-walk has revealed.
-  const walkRevealedIds = useMemo(() => { const set = new Set<string>(); for (const w of walk) if (resolved.has(w.choiceIdx) && w.chainPos < (shown.get(w.choiceIdx) ?? 0)) set.add(w.memoNodeId); return set; }, [walk, resolved, shown]);
+  const walkRevealedIds = useMemo(() => { const set = new Set<string>(); for (const w of walk) if ((w.choiceIdx === -1 || resolved.has(w.choiceIdx)) && w.chainPos < (shown.get(w.choiceIdx) ?? 0)) set.add(w.memoNodeId); return set; }, [walk, resolved, shown]);
   // AUTHORING view — the Arrows toggle (and Q0) light everything so Lee can check
   // alignment without walking. Deliberately NOT given to the film subtree: an
   // authoring aid must never change what a take records.
@@ -1584,7 +1599,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
    *  previewer passes the authoring reveal set; film passes the true walk state, so an
    *  arrow shows on camera exactly when its memo is revealed (no ghost when you step back). */
   const buildEdges = (revealSet: Set<string>): Edge[] => walk.flatMap((w) => {
-    if (w.hideArrow || !w.choiceId || !revealSet.has(w.memoNodeId)) return [];
+    if (w.hideArrow || !w.choiceId || w.choiceId === "__stem__" || !revealSet.has(w.memoNodeId)) return [];
     return [{
       id: `arr:${w.memoNodeId}`,
       source: `ah:${w.memoNodeId}`, sourceHandle: "s",
