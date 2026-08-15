@@ -43,3 +43,17 @@ describe("the stable-wrapper fullscreen + capture window (C1 source pins)", () =
     expect(rec).not.toContain("CaptureBadge");
   });
 });
+
+describe("anti-banding (C2 source pins)", () => {
+  test("the grain exists once, in the FILM branch only, at imperceptible opacity", () => {
+    expect((previewer.match(/FILM_GRAIN_URI/g) ?? []).length).toBe(2); // const + one use
+    const filmBranch = previewer.slice(previewer.indexOf("if (film) return ("), previewer.indexOf("  return (\n    <div style={{ width: d.w, height: d.h, borderRadius: 12"));
+    expect(filmBranch).toContain("backgroundImage: FILM_GRAIN_URI");
+    expect(filmBranch).toContain("opacity: 0.015");
+  });
+  test("filmed positions land on integer pixels — no fractional-pixel text blur", () => {
+    expect(previewer).toContain("position: { x: Math.round(cs.x), y: Math.round(yOff + cs.y) }");
+    expect(previewer).toContain("position: { x: Math.round(geom.x), y: Math.round(yOff + geom.y) }");
+    expect(previewer).toContain("position: { x: Math.round(dd.stage.x), y: Math.round(yOff + dd.stage.y) }");
+  });
+});

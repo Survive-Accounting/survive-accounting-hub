@@ -331,6 +331,13 @@ function GuidesOverlay({ w, h }: { w: number; h: number }) {
   );
 }
 
+/** ANTI-BANDING GRAIN (C2) — a 128px monochrome fractal-noise tile at ~1.5%
+ *  opacity over the dark gradients. Imperceptible at 100% zoom; its whole job
+ *  is breaking up flat gradients so encoders don't band them. FILM ONLY (the
+ *  authoring branch never renders it). Part of the scene — fine to bake, like
+ *  color; watermark/overlays stay overlay-only. */
+const FILM_GRAIN_URI = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='128' height='128' filter='url(%23n)'/%3E%3C/svg%3E\")";
+
 function FrameBgNode({ data }: NodeProps) {
   const film = useContext(FilmContext);
   const d = data as unknown as { w: number; h: number; world?: string; worldIntensity?: number; worldMotion?: number; qNum?: number; guides?: boolean };
@@ -341,6 +348,8 @@ function FrameBgNode({ data }: NodeProps) {
   if (film) return (
     <div style={{ width: d.w, height: d.h, background: "#05070d", position: "relative", overflow: "hidden", pointerEvents: "none", boxShadow: "0 0 48px 8px rgba(96,140,230,0.16), 0 0 0 1px rgba(120,160,235,0.14)" }}>
       {world}
+      {/* C2: encoder-friendly grain — film only, ~1.5%, breaks banding rings */}
+      <div style={{ position: "absolute", inset: 0, pointerEvents: "none", opacity: 0.015, mixBlendMode: "overlay", backgroundImage: FILM_GRAIN_URI, backgroundRepeat: "repeat" }} />
       <div style={{ position: "absolute", inset: 0, pointerEvents: "none", boxShadow: "inset 0 0 90px 14px rgba(0,0,0,0.42)" }} />
     </div>
   );
@@ -1334,7 +1343,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       : v2Film ? "sa-ceq-v2-fade 140ms ease-out both"
       : dealAnim === "pushDown" || dealAnim === "pushUp" ? `${enterAnimName} 180ms cubic-bezier(0.16,1,0.3,1) both`
       : "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both";
-    const ceqNode = { id: ceqId, type: "ceqPreview", position: { x: cs.x, y: yOff + cs.y }, data: { stem: cd.prompt, choices: cd.choices, scale: cs.scale, layoutBadge: layoutMode, progress, topic, enterAnim, enterAnimName, boss: cd.boss, cardW: cd.cardW, callout: cd.callout, calloutMemos: calloutMemosOf(cd) }, draggable: true, zIndex: 1 };
+    const ceqNode = { id: ceqId, type: "ceqPreview", position: { x: Math.round(cs.x), y: Math.round(yOff + cs.y) }, data: { stem: cd.prompt, choices: cd.choices, scale: cs.scale, layoutBadge: layoutMode, progress, topic, enterAnim, enterAnimName, boss: cd.boss, cardW: cd.cardW, callout: cd.callout, calloutMemos: calloutMemosOf(cd) }, draggable: true, zIndex: 1 };
     // PLACEMENT: in Question 0 each stage chip IS its slot (whole rack, so inactive
     // ones stay visible to switch on). In a real question memos fill the ACTIVE slots
     // in order — inactive slots simply don't exist here. Past the last active slot,
@@ -1352,7 +1361,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
         : resolveMemoSpot(cd?.geom, templateFor(cd?.ignoreLayout, baseline), slotIdx, frameW, frameH);
       return { w, geom };
     });
-    const memoNodes = memoGeoms.map(({ w, geom }) => ({ id: w.memoNodeId, type: "memoPreview", position: { x: geom.x, y: yOff + geom.y }, data: { label: w.label, walkNum: w.num, choice: w.choice, scale: geom.scale, hideChoiceLabel: w.hideChoiceLabel, hideArrow: w.hideArrow, sound: w.sound, slotOff: w.slotOff }, draggable: true, zIndex: 5 }));
+    const memoNodes = memoGeoms.map(({ w, geom }) => ({ id: w.memoNodeId, type: "memoPreview", position: { x: Math.round(geom.x), y: Math.round(yOff + geom.y) }, data: { label: w.label, walkNum: w.num, choice: w.choice, scale: geom.scale, hideChoiceLabel: w.hideChoiceLabel, hideArrow: w.hideArrow, sound: w.sound, slotOff: w.slotOff }, draggable: true, zIndex: 5 }));
     // MEMO ARROW HEAD (Lee) — the arrow's TAIL is pinned to the choice's last-letter
     // text anchor (an RF edge source handle in buildEdges); only the HEAD is a draggable
     // dot. It starts at the memo's centre-right and item.arrow.x2/y2 (once dragged) wins.
@@ -1380,7 +1389,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
         return {
           id: n.id,
           type: stageNodeType(dd.kind),
-          position: { x: dd.stage.x, y: yOff + dd.stage.y },
+          position: { x: Math.round(dd.stage.x), y: Math.round(yOff + dd.stage.y) },
           data: n.data,
           draggable: true,
           zIndex: 8,
@@ -1403,13 +1412,13 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       // all conform; before, each reads honestly (fix: neighbours used the active
       // card's x, making the active question look like the odd one out).
       const ocs = resolveCardSpot(od?.geom, templateFor(od?.ignoreLayout, baseline), frameW, frameH);
-      others.push({ id: `ov:${qid}`, type: "ovCeq", position: { x: ocs.x, y: y + ocs.y }, data: { qid, num: k + 1, stem: od?.prompt ?? "", choices: od?.choices ?? [], scale: ocs.scale, cardW: od?.cardW }, draggable: false, selectable: false, zIndex: 1 });
+      others.push({ id: `ov:${qid}`, type: "ovCeq", position: { x: Math.round(ocs.x), y: Math.round(y + ocs.y) }, data: { qid, num: k + 1, stem: od?.prompt ?? "", choices: od?.choices ?? [], scale: ocs.scale, cardW: od?.cardW }, draggable: false, selectable: false, zIndex: 1 });
       // ALL-CHAINS: the other questions' chained memos, at their resolved instance
       // spots — static, non-interactive, ovm:-prefixed (excluded from film + save).
       let mi = 0;
       for (const ch of (od?.choices ?? [])) for (const it of (ch.chain ?? [])) {
         const sp = resolveMemoSpot(od?.geom, templateFor(od?.ignoreLayout, baseline), mi, frameW, frameH);
-        others.push({ id: `ovm:${qid}:${mi}`, type: "ovMemo", position: { x: sp.x, y: y + sp.y }, data: { label: it.label, scale: sp.scale }, draggable: false, selectable: false, zIndex: 5 });
+        others.push({ id: `ovm:${qid}:${mi}`, type: "ovMemo", position: { x: Math.round(sp.x), y: Math.round(y + sp.y) }, data: { label: it.label, scale: sp.scale }, draggable: false, selectable: false, zIndex: 5 });
         mi++;
       }
     });
@@ -1890,7 +1899,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       const ocs = resolveCardSpot(od.geom, templateFor(od.ignoreLayout, baseline), frameW, frameH);
       const pIdx = cIds.indexOf(qid);
       const progress = viewStudent && pIdx >= 0 && cIds.length > 1 ? { x: pIdx + 1, y: cIds.length } : null;
-      out.push({ id: qid, type: "ceqPreview", position: { x: ocs.x, y: y + ocs.y }, data: { stem: od.prompt, choices: od.choices, scale: ocs.scale, progress, topic: viewStudent && topicName ? topicName : null, enterAnim: "none", enterAnimName: "none", inert: true, boss: od.boss, cardW: od.cardW, callout: od.callout, calloutMemos: calloutMemosOf(od) }, draggable: false, selectable: false, zIndex: 1 } as Node);
+      out.push({ id: qid, type: "ceqPreview", position: { x: Math.round(ocs.x), y: Math.round(y + ocs.y) }, data: { stem: od.prompt, choices: od.choices, scale: ocs.scale, progress, topic: viewStudent && topicName ? topicName : null, enterAnim: "none", enterAnimName: "none", inert: true, boss: od.boss, cardW: od.cardW, callout: od.callout, calloutMemos: calloutMemosOf(od) }, draggable: false, selectable: false, zIndex: 1 } as Node);
       for (const n of allNodes) {
         const st = (n.data as { stage?: { ceqId?: string; x: number; y: number; hidden?: boolean } } | undefined)?.stage;
         if (!st || st.ceqId !== qid || st.hidden) continue;
