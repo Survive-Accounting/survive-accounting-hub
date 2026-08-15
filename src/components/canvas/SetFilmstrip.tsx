@@ -106,6 +106,8 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
     assignRun?: (letter: string | null) => void;
     /** Every unlettered frame inherits the letter above it — the 256-frame path. */
     fillDownRuns?: () => void;
+    /** DISSECT (P5): open the moments editor for the open frame. */
+    dissect?: () => void;
   };
 }) {
   const selected = sel ?? new Set<string>();
@@ -230,6 +232,7 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
                   <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.boss(); }} title="Boss card — fires the cram-launch cue on deal">👑 Boss</button>
                   <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.chaching(); }} title="Chaching on the correct-Enter (on by default)">💰 Chaching</button>
                   <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#FF8B9E", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.short(); }} title="Flag as shorts-worthy — joins the Shorts queue">🎬 Short</button>
+                  {actions.dissect && <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#B79CFF", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.dissect!(); }} title="Dissect — plan this CEQ as a SEQUENCE of short surgical clips (setup / the trap / resolution…) instead of one run-covered take">🔬 Dissect…</button>}
                   <button className="col-span-2 rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.free(); }} title="Include in the FREE cut">🆓 Free</button>
                 </div>
                 {/* RUN LETTERS — a run = the span you capture in ONE take. Tap a letter

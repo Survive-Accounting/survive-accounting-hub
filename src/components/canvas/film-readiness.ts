@@ -16,6 +16,9 @@ export interface ReadinessCard {
   exhibit?: string;
   run?: string;
   shorthand?: string;
+  /** DISSECT (P5): moments + which moment ids the card's takes cover. */
+  dissect?: { on: boolean; moments: { id: string; label: string; waived?: boolean }[] };
+  takeMomentIds?: string[];
   /** Total chain items across the card's choices (the exhibit proxy). */
   chainCount: number;
 }
@@ -56,6 +59,7 @@ export function checkFilmReadiness(cards: ReadinessCard[]): ReadinessReport {
   const thinChoices: ReadinessFail[] = [];
   const exhibitGaps: ReadinessFail[] = [];
   const runGaps: ReadinessFail[] = [];
+  const dissectGaps: ReadinessFail[] = [];
   const shorthandGaps: ReadinessFail[] = [];
 
   for (const c of ceqs) {
@@ -65,7 +69,14 @@ export function checkFilmReadiness(cards: ReadinessCard[]): ReadinessReport {
     const filled = c.choices.filter((ch) => ch.text.trim()).length;
     if (filled < 2 || filled < c.choices.length) thinChoices.push({ id: c.id, label: `${q(c)} — ${filled}/${c.choices.length} choices filled` });
     if (c.exhibit && c.chainCount === 0) exhibitGaps.push({ id: c.id, label: `${q(c)} — flagged "${c.exhibit}", no memos chained` });
-    if (!c.run?.trim()) runGaps.push({ id: c.id, label: q(c) });
+    if (c.dissect?.on) {
+      // DISSECT (P5): a dissected CEQ is clip-sequenced, not run-covered — it is
+      // EXEMPT from the run-letter check; instead every planned moment must be
+      // covered by a tagged take or explicitly waived.
+      const covered = new Set(c.takeMomentIds ?? []);
+      for (const m of c.dissect.moments) if (!m.waived && !covered.has(m.id)) dissectGaps.push({ id: c.id, label: `${q(c)} — moment "${m.label || "(unnamed)"}" has no take (waive it or film it)` });
+      if (c.dissect.moments.length === 0) dissectGaps.push({ id: c.id, label: `${q(c)} — dissect is ON but has no planned moments` });
+    } else if (!c.run?.trim()) runGaps.push({ id: c.id, label: q(c) });
     if (!c.shorthand?.trim()) shorthandGaps.push({ id: c.id, label: q(c) });
   }
 
@@ -75,7 +86,8 @@ export function checkFilmReadiness(cards: ReadinessCard[]): ReadinessReport {
     { key: "stems", label: "No empty stems", ok: emptyStem.length === 0, fails: emptyStem },
     { key: "choices", label: "No empty choice slots, at least 2 choices", ok: thinChoices.length === 0, fails: thinChoices },
     { key: "exhibits", label: "Exhibit-flagged frames have something attached (chain proxy)", ok: exhibitGaps.length === 0, fails: exhibitGaps },
-    { key: "runs", label: "Run letter set on every CEQ frame", ok: runGaps.length === 0, fails: runGaps },
+    { key: "runs", label: "Run letter set on every CEQ frame (dissected CEQs exempt)", ok: runGaps.length === 0, fails: runGaps },
+    { key: "dissect", label: "Dissected CEQs: every planned moment filmed or waived", ok: dissectGaps.length === 0, fails: dissectGaps },
     { key: "shorthand", label: "Shorthand on every CEQ frame", ok: shorthandGaps.length === 0, fails: shorthandGaps },
   ];
   return {

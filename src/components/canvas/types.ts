@@ -335,6 +335,10 @@ export interface TakeRef {
   /** The clip's designated type (chosen on upload). */
   role?: TakeRole;
   prev?: { url: string; path: string; name?: string; duration?: number };
+  /** DISSECT (P5): the planned moment this take covers ("setup" / "the trap" /
+   *  "resolution"…). Additive; the readiness check counts a moment covered when
+   *  any take carries its id. */
+  momentId?: string;
   /** REFERENCE PICKER (Lee, lookback) — for a lookback clip in a CEQ's stack: the
    *  ceqIds of EARLIER questions this clip reviews. Base clips usually have none.
    *  Additive; authoring metadata. */
@@ -399,6 +403,12 @@ export interface CeqCard extends CardBase {
    *  BEFORE any choice is selected (setup, context, a distractor tease), in
    *  authored order, always earlier than choice-chained memos. Additive. */
   stemChain?: CeqChainItem[];
+  /** DISSECT (P5) — this CEQ intentionally carries a SEQUENCE of short surgical
+   *  clips instead of one run-covered take. moments = the pre-filming shot list
+   *  (free-text labels, ordered); a moment is satisfied by a take tagged with
+   *  its id or by waived. Toggle off returns to run coverage, clips preserved —
+   *  the takes[] CLIP STACK is the play order either way (nothing new to play). */
+  dissect?: { on: boolean; moments: DissectMoment[] };
   choices: CeqChoice[];
   revealedAnswer?: boolean;
   /** PER-CEQ SCRIPT NOTE — LEGACY field. Superseded by the SCRIPT LAYERS below:
@@ -1429,4 +1439,13 @@ export interface CalloutSettings {
   kind?: CalloutKind;
   /** Dropped-memo node ids: 1 = memo callout, 2+ = the highlights stack. */
   memoIds?: string[];
+}
+
+/** DISSECT (P5): one planned moment of a dissected CEQ's clip sequence. */
+export interface DissectMoment {
+  id: string;
+  /** Free-text shot label — "setup", "the trap", "resolution", "takeaway"… */
+  label: string;
+  /** Explicitly not filming this moment (readiness treats it as covered). */
+  waived?: boolean;
 }

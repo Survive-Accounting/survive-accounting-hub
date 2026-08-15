@@ -246,6 +246,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   //  the row. Studio Consolidation B.)
   // BULK QUESTION OPS (Lee) — multi-select question rows + one action bar.
   const [qSel, setQSel] = useState<Set<string>>(() => new Set());
+  // DISSECT (P5) — which CEQ's moments editor is open (null = closed).
+  const [dissectQ, setDissectQ] = useState<string | null>(null);
   const lastQSelRef = useRef<string | null>(null);
   // Switching sets (tab click, chip jump, session restore) DROPS the selection — the
   // bar must never stay armed with the previous set's questions (bulkPatchQ resolves
@@ -2505,7 +2507,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                 <button className="flex shrink-0 items-center gap-1 rounded px-2 py-0.5 text-[9.5px] font-bold leading-none" style={{ color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.4)" }} title="Run the film-readiness checks on this set — correct choices, stems, exhibits, run letters, shorthands. Read-only; fixes happen in the editor." onClick={() => {
                   setReadiness(checkFilmReadiness(questions.map((qn) => {
                     const d = rf.getNode(qn.id)?.data as unknown as CeqCard | undefined;
-                    return { id: qn.id, prompt: d?.prompt ?? "", noteOnly: !!d?.noteOnly, choices: (d?.choices ?? []).map((ch) => ({ text: ch.text, correct: ch.correct })), exhibit: d?.exhibit, run: d?.run, shorthand: d?.shorthand, chainCount: (d?.choices ?? []).reduce((a, ch) => a + (ch.chain?.length ?? 0), 0) };
+                    return { id: qn.id, prompt: d?.prompt ?? "", noteOnly: !!d?.noteOnly, choices: (d?.choices ?? []).map((ch) => ({ text: ch.text, correct: ch.correct })), exhibit: d?.exhibit, run: d?.run, shorthand: d?.shorthand, chainCount: (d?.choices ?? []).reduce((a, ch) => a + (ch.chain?.length ?? 0), 0), dissect: d?.dissect, takeMomentIds: cardClips(d).map((t) => t.momentId).filter((x): x is string => !!x) };
                   })));
                 }}><ListChecks className="h-3 w-3" /> Ready to film?</button>
                 {/* REHEARSE (tool 2) — coffee + walkthrough before OBS opens. */}
@@ -2549,11 +2551,53 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   short: () => (qSel.size ? bulkShort() : qId && qId !== LAYOUT_Q0 ? patchQ(qId, { short: !(rf.getNode(qId)?.data as unknown as CeqCard | undefined)?.short }) : undefined),
                   free: () => (qSel.size ? bulkFree() : qId && qId !== LAYOUT_Q0 ? patchQ(qId, { free: !(rf.getNode(qId)?.data as unknown as CeqCard | undefined)?.free }) : undefined),
                   assignRun,
+                  dissect: () => { if (qId && qId !== LAYOUT_Q0) setDissectQ(qId); },
                   fillDownRuns: fillRunsDown,
                 }}
               />
               {/* (SET CLIPS moved to the Publish panel — one home for the publish path.) */}
               {/* READY TO FILM? panel — pass/fail list + counts; ✗ rows link to frames. */}
+              {/* DISSECT MOMENTS EDITOR (P5) — the pre-filming shot list for one CEQ.
+                  Toggle dissect on/off; add / rename / reorder / waive moments; tag an
+                  existing take to a moment. All writes go through patchQ (undoable). */}
+              {dissectQ && (() => {
+                const dd = rf.getNode(dissectQ)?.data as unknown as CeqCard | undefined;
+                const dz = dd?.dissect ?? { on: false, moments: [] };
+                const clips = cardClips(dd);
+                const patchDz = (next: NonNullable<CeqCard["dissect"]>) => patchQ(dissectQ, { dissect: next });
+                const mv = (i: number, dir: -1 | 1) => { const ms = [...dz.moments]; const j = i + dir; if (j < 0 || j >= ms.length) return; [ms[i], ms[j]] = [ms[j], ms[i]]; patchDz({ ...dz, moments: ms }); };
+                return (
+                  <div className="absolute inset-0 z-[73] flex items-start justify-center" style={{ background: "rgba(4,7,14,0.6)" }} onClick={() => setDissectQ(null)}>
+                    <div className="mt-10 flex max-h-[80vh] w-[480px] max-w-[94vw] flex-col overflow-hidden rounded-xl shadow-2xl" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}` }} onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-2 border-b px-3 py-2" style={{ borderColor: NEON.borderSoft }}>
+                        <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: "#B79CFF" }}>🔬 Dissect</span>
+                        <span className="min-w-0 flex-1 truncate text-[10px]" style={{ color: NEON.muted }}>{(dd?.shorthand || dd?.prompt || "").slice(0, 48)}</span>
+                        <button className="rounded px-2 py-0.5 text-[9px] font-black uppercase" style={{ color: dz.on ? "#0B1322" : NEON.muted, background: dz.on ? "#B79CFF" : "transparent", border: `1px solid ${dz.on ? "#B79CFF" : NEON.borderSoft}` }} onClick={() => patchDz({ ...dz, on: !dz.on })} title="ON: this CEQ films as a clip SEQUENCE (run-letter check exempt; every moment must be filmed or waived). OFF: normal run coverage — clips preserved.">{dz.on ? "ON" : "OFF"}</button>
+                        <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => setDissectQ(null)}><X className="h-3 w-3" /></button>
+                      </div>
+                      <div className="min-h-0 flex-1 overflow-y-auto p-2">
+                        {dz.moments.length === 0 && <div className="px-1 py-2 text-[10px] italic" style={{ color: NEON.muted }}>No planned moments yet — this list is the shot list on film day. Typical: setup · the trap · resolution · takeaway.</div>}
+                        {dz.moments.map((m, i) => (
+                          <div key={m.id} className="mb-1 flex items-center gap-1 rounded px-1 py-0.5" style={{ background: "rgba(0,0,0,0.25)", border: `1px solid ${NEON.borderSoft}`, opacity: m.waived ? 0.55 : 1 }}>
+                            <span className="w-4 shrink-0 text-center text-[9px] font-black tabular-nums" style={{ color: "#B79CFF" }}>{i + 1}</span>
+                            <BufferedInput className="min-w-0 flex-1 rounded bg-black/30 px-1 py-0.5 text-[10.5px] outline-none" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}`, textDecoration: m.waived ? "line-through" : undefined }} value={m.label} onCommit={(v: string) => patchDz({ ...dz, moments: dz.moments.map((x) => (x.id === m.id ? { ...x, label: v } : x)) })} placeholder="moment label (free text)" />
+                            <select className="w-[104px] shrink-0 rounded bg-black/40 text-[8.5px]" style={{ color: clips.some((c) => c.momentId === m.id) ? "#3BF5A0" : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} value={String(clips.findIndex((c) => c.momentId === m.id))} onChange={(e) => { const ci = Number(e.target.value); const takes = clips.map((c, k) => ({ ...c, momentId: k === ci ? m.id : c.momentId === m.id ? undefined : c.momentId })); patchQ(dissectQ, { takes }); }} title="Tag one of this CEQ's takes to this moment (readiness counts it covered)">
+                              <option value="-1">no take</option>
+                              {clips.map((c, k) => <option key={k} value={String(k)}>{(c.name || `clip ${k + 1}`).slice(0, 16)}</option>)}
+                            </select>
+                            <button className="shrink-0 rounded px-1 text-[8px] font-bold uppercase" style={{ color: m.waived ? "#FFD23F" : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => patchDz({ ...dz, moments: dz.moments.map((x) => (x.id === m.id ? { ...x, waived: !x.waived } : x)) })} title="Waive — deliberately not filming this moment (readiness treats it as covered)">waive</button>
+                            <button className="shrink-0" style={{ color: NEON.muted }} onClick={() => mv(i, -1)} title="Move up"><ArrowUp className="h-3 w-3" /></button>
+                            <button className="shrink-0" style={{ color: NEON.muted }} onClick={() => mv(i, 1)} title="Move down"><ArrowDown className="h-3 w-3" /></button>
+                            <button className="shrink-0" style={{ color: NEON.red }} onClick={() => patchDz({ ...dz, moments: dz.moments.filter((x) => x.id !== m.id) })} title="Remove this moment (takes keep their files)"><X className="h-3 w-3" /></button>
+                          </div>
+                        ))}
+                        <button className="mt-1 flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold" style={{ color: "#B79CFF", border: `1px dashed ${NEON.borderSoft}` }} onClick={() => patchDz({ ...dz, on: true, moments: [...dz.moments, { id: cardId("dm"), label: "" }] })}><Plus className="h-3 w-3" /> Add a moment</button>
+                      </div>
+                      <div className="border-t px-3 py-1.5 text-[8.5px]" style={{ borderColor: NEON.borderSoft, color: NEON.muted }}>Clips play in take order in the player (the existing clip stack) — this list is the plan + the readiness contract, chapters come from the stitch manifest.</div>
+                    </div>
+                  </div>
+                );
+              })()}
               {readiness && deck && (
                 <div className="absolute inset-0 z-[73] flex items-start justify-center" style={{ background: "rgba(4,7,14,0.6)" }} onClick={() => setReadiness(null)}>
                   <div className="mt-8 flex max-h-[85vh] w-[460px] max-w-[94vw] flex-col overflow-hidden rounded-xl shadow-2xl" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}` }} onClick={(e) => e.stopPropagation()}>

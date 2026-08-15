@@ -135,10 +135,10 @@ export function OutlinePanel() {
     const byDeck = new Map<string, (ReadinessCard & { order: number })[]>();
     for (const n of nodes) {
       if (n.type !== "ceq") continue;
-      const d = n.data as unknown as { deckId?: string; prompt?: string; noteOnly?: boolean; choices?: { text: string; correct?: boolean; chain?: unknown[] }[]; exhibit?: string; run?: string; shorthand?: string; stageOrder?: number };
+      const d = n.data as unknown as { deckId?: string; prompt?: string; noteOnly?: boolean; choices?: { text: string; correct?: boolean; chain?: unknown[] }[]; exhibit?: string; run?: string; shorthand?: string; stageOrder?: number; dissect?: { on: boolean; moments: { id: string; label: string; waived?: boolean }[] }; takes?: { momentId?: string }[]; take?: { momentId?: string } };
       if (!d.deckId) continue;
       const l = byDeck.get(d.deckId) ?? [];
-      l.push({ id: n.id, prompt: d.prompt ?? "", noteOnly: !!d.noteOnly, choices: (d.choices ?? []).map((c) => ({ text: c.text, correct: c.correct })), exhibit: d.exhibit, run: d.run, shorthand: d.shorthand, chainCount: (d.choices ?? []).reduce((a, c) => a + (c.chain?.length ?? 0), 0), order: d.stageOrder ?? 0 });
+      l.push({ id: n.id, prompt: d.prompt ?? "", noteOnly: !!d.noteOnly, choices: (d.choices ?? []).map((c) => ({ text: c.text, correct: c.correct })), exhibit: d.exhibit, run: d.run, shorthand: d.shorthand, chainCount: (d.choices ?? []).reduce((a, c) => a + (c.chain?.length ?? 0), 0), order: d.stageOrder ?? 0, dissect: d.dissect, takeMomentIds: (d.takes && d.takes.length ? d.takes : d.take ? [d.take] : []).map((t) => t.momentId).filter((x): x is string => !!x) });
       byDeck.set(d.deckId, l);
     }
     const m = new Map<string, { ready: boolean; failCount: number }>();
