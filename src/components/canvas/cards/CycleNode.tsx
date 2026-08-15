@@ -14,10 +14,8 @@ import { type NodeProps } from "@xyflow/react";
 import { GripVertical, Plus, X } from "lucide-react";
 
 import { useCardActions } from "../BaseCard";
-import { ConnectionDots } from "../ConnectionDots";
-import { EXHIBIT_GLOW, useExhibitHighlights } from "../exhibit-highlights";
-import { useFilm } from "../film-lock";
-import { ElementChrome, ElementResizer } from "./elements";
+import { EXHIBIT_GLOW } from "../exhibit-highlights";
+import { ExhibitShell, useExhibit, type ExhibitDeclaration } from "../exhibit-base";
 import { BIG_FONT, DISPLAY_FONT, NEON } from "../theme";
 import { cardId, type CycleElement, type CycleStep } from "../types";
 
@@ -74,18 +72,17 @@ const longestLine = (t: string): number => t.split("\n").reduce((m, l) => Math.m
 
 export function CycleNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as CycleElement;
-  const { update, toFront } = useCardActions(id);
-  // EXHIBIT HIGHLIGHTS (A3) — the shared glow system; this card only declares
-  // its nodes (the steps, adjacency = ring order). No spotlight, no transforms.
-  const hl = useExhibitHighlights();
-  // FILM LOCK (A1): on camera this card is a TEACHING SURFACE, not an editor —
-  // no move grip, no step editing, no add/remove. ElementChrome/Resizer already
-  // self-gate; these are the card's CUSTOM affordances obeying the same signal.
-  const film = useFilm();
+  const { update } = useCardActions(id);
   const [editingStep, setEditingStep] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
 
   const steps = d.steps ?? [];
+  // EXHIBIT BASE — this card DECLARES its shape; lock/highlights/`-reset/film
+  // behavior all come from the shared layer (see exhibit-base.tsx).
+  const decl: ExhibitDeclaration = { minWidth: 340, minHeight: 220, nodes: steps.map((st) => st.id), adjacency: "ring" };
+  const ex = useExhibit(decl);
+  const film = ex.film;
+  const hl = ex.hl;
   const placed = placeSteps(steps);
   // BIGGER BY DEFAULT (Lee): a 9-step cycle at 620×380 crowded its pills together.
   // Only NEW cards pick this up — anything already placed keeps its saved w/h.
@@ -102,10 +99,7 @@ export function CycleNode({ id, data, selected }: NodeProps) {
   const toggleDashed = (i: number) => { const next = new Set(dashed); if (next.has(i)) next.delete(i); else next.add(i); update({ dashedArrows: [...next].sort((a, b) => a - b) }); };
 
   return (
-    <div onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150" style={{ width: w, minHeight: h }}>
-      <ConnectionDots />
-      <ElementChrome id={id} posLock={d.posLock} selected={selected} />
-      <ElementResizer id={id} selected={selected} minWidth={340} minHeight={220} />
+    <ExhibitShell id={id} decl={decl} posLock={d.posLock} selected={selected} width={w} minHeight={h}>
       {!film && (
         <div
           className={`absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`}
@@ -151,7 +145,7 @@ export function CycleNode({ id, data, selected }: NodeProps) {
             const isDash = dashed.has(i);
             // ADJACENCY GLOW (A3): the arc BETWEEN two lit steps is part of the lit
             // path — it glows with them; every other arc recedes so the run reads.
-            const litArc = hl.edgeLit(s.id, placed[(i + 1) % n].id);
+            const litArc = ex.edgeLit(s.id, placed[(i + 1) % n].id);
             const dim = hl.any && !litArc;
             return (
               <path
@@ -203,8 +197,9 @@ export function CycleNode({ id, data, selected }: NodeProps) {
             (the old pop-to-centre resized the card mid-take): lit = glow, unlit
             recedes in opacity, position is constant. */}
         {placed.map((s, i) => {
-          const isLit = hl.isLit(s.id);
-          const faded = hl.any && !isLit;
+          const ns = ex.nodeStyle(s.id);
+          const isLit = ns.lit;
+          const faded = ns.dimmed;
           return (
             <div
               key={s.id}
@@ -213,7 +208,7 @@ export function CycleNode({ id, data, selected }: NodeProps) {
                 left: `${s.xPct}%`, top: `${s.yPct}%`,
                 transform: "translate(-50%, -50%)",
                 zIndex: isLit ? 30 : undefined,
-                opacity: faded ? EXHIBIT_GLOW.dimOpacity : 1,
+                opacity: ns.opacity,
                 filter: faded ? "saturate(0.5)" : undefined,
                 transition: "opacity 160ms ease, filter 160ms ease",
               }}
@@ -251,15 +246,13 @@ export function CycleNode({ id, data, selected }: NodeProps) {
                     fontSize: pillFont,
                     color: "#F4EFE6",
                     background: "linear-gradient(180deg, rgba(37,52,88,0.96), rgba(16,24,44,0.96))",
-                    border: `1.5px solid ${isLit ? EXHIBIT_GLOW.border : "rgba(252,163,17,0.55)"}`,
-                    boxShadow: isLit
-                      ? EXHIBIT_GLOW.shadow
-                      : "0 6px 16px -8px rgba(0,0,0,0.8), 0 0 0 3px rgba(9,13,26,0.9)",
+                    border: `1.5px solid ${ns.border}`,
+                    boxShadow: ns.boxShadow ?? "0 6px 16px -8px rgba(0,0,0,0.8), 0 0 0 3px rgba(9,13,26,0.9)",
                     transition: "box-shadow 160ms ease, border-color 160ms ease",
                   }}
                   title={film ? "Click to glow (any number can glow) · ` clears" : "Click to edit"}
                   onPointerDown={(e) => e.stopPropagation()}
-                  onClick={film ? (e) => { e.stopPropagation(); hl.toggle(s.id); } : (e) => { e.stopPropagation(); setEditingStep(s.id); }}
+                  onClick={film ? ex.nodeClick(s.id) : (e) => { e.stopPropagation(); setEditingStep(s.id); }}
                 >
                   {s.text || "Step"}
                   {steps.length > 1 && !film && (
@@ -292,6 +285,6 @@ export function CycleNode({ id, data, selected }: NodeProps) {
           </button>
         )}
       </div>
-    </div>
+    </ExhibitShell>
   );
 }

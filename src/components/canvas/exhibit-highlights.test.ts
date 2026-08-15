@@ -43,13 +43,13 @@ describe("the cycle card declares, the shared layer behaves (source pins)", () =
   test("the number badges (1-9) are gone — order is taught with highlights now", () => {
     expect(cycleSrc).not.toContain("{i + 1}");
   });
-  test("emphasis comes from the shared exhibit layer", () => {
-    expect(cycleSrc).toContain("useExhibitHighlights");
-    expect(cycleSrc).toContain("hl.edgeLit(s.id, placed[(i + 1) % n].id)");
-    expect(cycleSrc).toContain("EXHIBIT_GLOW.shadow");
+  test("emphasis comes from the shared exhibit layer (via exhibit-base since the extraction)", () => {
+    expect(cycleSrc).toContain("useExhibit(decl)");
+    expect(cycleSrc).toContain("ex.edgeLit(s.id, placed[(i + 1) % n].id)");
+    expect(cycleSrc).toContain("ex.nodeStyle(s.id)");
   });
-  test("film click toggles glow; authoring click still edits", () => {
-    expect(cycleSrc).toContain("hl.toggle(s.id)");
+  test("film click toggles glow (layer-owned); authoring click still edits", () => {
+    expect(cycleSrc).toContain("ex.nodeClick(s.id)");
     expect(cycleSrc).toContain("setEditingStep(s.id)");
   });
 });
