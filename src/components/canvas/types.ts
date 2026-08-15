@@ -1307,10 +1307,13 @@ export interface DeckDef {
    *  (filmed), so viewers see momentum through the set. Undefined = ON for CEQ
    *  sets; false hides it. Toggled from the previewer toolbar. */
   showProgress?: boolean;
-  /** BOSS AUTO-ARM (P3): entering a BOSS-flagged CEQ in film auto-triggers the
-   *  final-boss treatment. Per-set, default off; Ctrl+Alt+Click always toggles
-   *  (Alt alone belongs to the performance-arrow tool). */
+  /** LEGACY (P3): superseded 08-15 — the boss charge renders straight from the
+   *  card's saved boss flag now (Ctrl+Alt+Click marks it). Kept readable. */
   bossAutoArm?: boolean;
+  /** ANSWERS REVEALED (Lee, 08-15): every CEQ in this set deals with its
+   *  correct choice already resolved-green (silent) — recap/review sets.
+   *  Toggled from the strip ⋮ menu. */
+  revealAnswers?: boolean;
   /** SET PRODUCTION PROFILE (P6) — light creative tooling, per set. Every
    *  field optional; absent = the classic defaults. Nothing changes on any
    *  existing set until Lee explicitly edits/applies a profile. */

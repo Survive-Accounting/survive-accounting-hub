@@ -35,19 +35,20 @@ describe("walk", () => {
 });
 
 describe("boss moment", () => {
-  test("Ctrl+Alt+Click toggles at the film controller level, capture phase, never on stand-ins (Alt alone = the arrow tool)", () => {
-    expect(src).toContain("onClickCapture={film && !inert ? (e) => { if (e.altKey && e.ctrlKey) {");
+  test("Ctrl+Alt+Click toggles at the controller level, capture phase, never on stand-ins (Alt alone = the arrow tool)", () => {
+    expect(src).toContain("onClickCapture={!inert ? (e) => { if (e.altKey && e.ctrlKey) {");
   });
   test("charge-then-settle is shadow/border only — the film-lock law holds", () => {
     const css = src.slice(src.indexOf("@keyframes sa-boss-charge"), src.indexOf(".sa-pv-node .sa-grip-film"));
     expect(css).toContain("box-shadow");
     expect(css).not.toMatch(/sa-boss-card[^}]*transform|width|height/);
   });
-  test("boss state is film-local presentation state — never written to the scene", () => {
-    expect(src).toContain("const [bossOn, setBossOn] = useState(false);");
-    expect(src).not.toContain("patchDataCmd(rflW, id, { boss");
+  test("boss is the SAVED card flag now (Lee 08-15): Ctrl+Alt+Click marks it, the 808 fires on arm", () => {
+    expect(src).toContain("const toggleBossFlag = () => {");
+    expect(src).toContain('if (arming) playSfx("cramLaunch");');
+    expect(src).not.toContain("const [bossOn, setBossOn]"); // the film-local state is gone
   });
-  test("per-set auto-arm exists on DeckDef, default off", () => {
-    expect(types).toContain("bossAutoArm?: boolean;");
+  test("the charge + bolt render straight from the saved flag", () => {
+    expect(src).toContain('(d as { boss?: boolean }).boss ? " sa-boss-card" : ""');
   });
 });
