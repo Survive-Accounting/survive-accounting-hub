@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { LIMITS } from "./config";
+import { DISSECT_DEFAULTS, detectSilenceArgs, dissectStitchArgs, gapForJoin, parseSilence, trimFromSilence, type DissectTrim } from "./dissect-stitch";
 import { computeLoop } from "./loop-builder";
 import { planStage, validateSpec, type JobSpec, type StagedFile } from "./stages";
 
@@ -29,6 +30,8 @@ interface Job {
   totalStages: number;
   error: string | null;
   startedAt: number;
+  /** Stage-produced metadata (dissect_stitch: the chapters manifest). */
+  result: unknown | null;
 }
 const jobs = new Map<string, Job>();
 const MAX_KEPT = 40;
@@ -87,6 +90,17 @@ async function runFfmpeg(args: string[], timeoutMs: number): Promise<void> {
   if (code !== 0) throw new Error(`ffmpeg exited ${code}: …${errText.slice(-1800)}`);
 }
 
+/** Like runFfmpeg but returns stderr — silencedetect reports THROUGH stderr. */
+async function runFfmpegCapture(args: string[], timeoutMs: number): Promise<string> {
+  const p = Bun.spawn(["ffmpeg", ...args], { stdout: "ignore", stderr: "pipe" });
+  const timer = setTimeout(() => { try { p.kill(); } catch { /* already gone */ } }, timeoutMs);
+  const errText = await new Response(p.stderr).text();
+  const code = await p.exited;
+  clearTimeout(timer);
+  if (code !== 0) throw new Error(`ffmpeg (detect) exited ${code}: …${errText.slice(-800)}`);
+  return errText;
+}
+
 async function runJob(job: Job, spec: JobSpec): Promise<void> {
   // EVERYTHING inside the try — an early throw (mkdir on a full disk) must still
   // hit finally, or activeJobs leaks and the idle self-exit is disabled forever.
@@ -142,6 +156,7 @@ async function runJob(job: Job, spec: JobSpec): Promise<void> {
         stage.kind === "concat" ? stage.inputs.map(resolve)
           : stage.kind === "warp_intro" ? [resolve(stage.input), resolve(stage.bed)]
             : stage.kind === "loop_builder" ? [resolve(stage.input), resolve(stage.bed)]
+            : stage.kind === "dissect_stitch" ? [...stage.inputs.map(resolve), ...(stage.roomTone ? [resolve(stage.roomTone)] : [])]
               : [];
       // LOOP BUILDER pre-flight — a fractional bar is the whole failure mode, so fail LOUD
       // before rendering if the music bed or the short can't cover a whole X bars.
@@ -151,7 +166,29 @@ async function runJob(job: Job, spec: JobSpec): Promise<void> {
         if (bed.durationS < X - 0.001) throw new Error(`loop_builder: music bed is ${bed.durationS.toFixed(3)}s but a whole ${stage.bars} bars need X=${X.toFixed(3)}s — the bed can't fill a full loop`);
         if (short.durationS < X - 0.001) throw new Error(`loop_builder: short is ${short.durationS.toFixed(3)}s but X=${X.toFixed(3)}s — the video can't cover a full loop`);
       }
-      await runFfmpeg(planStage(stage, files, outPath), remaining(LIMITS.renderTimeoutMs));
+      if (stage.kind === "dissect_stitch") {
+        // DETECT head/tail silence per clip (unless a manual trim overrides),
+        // then plan + run the stitch and keep the chapters manifest on the job.
+        const clipFiles = files.slice(0, stage.inputs.length);
+        const roomTone = stage.roomTone ? files[stage.inputs.length] : undefined;
+        const trims: DissectTrim[] = [];
+        for (let ci = 0; ci < clipFiles.length; ci++) {
+          const manual = stage.trims?.[ci];
+          if (manual && manual.start != null && manual.end != null) { trims.push({ start: manual.start, end: manual.end }); continue; }
+          job.note = `detecting silence ${ci + 1}/${clipFiles.length}`;
+          const stderr = await runFfmpegCapture(detectSilenceArgs(clipFiles[ci].path, stage.silenceDb ?? DISSECT_DEFAULTS.silenceDb), remaining(LIMITS.renderTimeoutMs));
+          const pad = stage.pads?.[ci];
+          const t = trimFromSilence(parseSilence(stderr), clipFiles[ci].durationS, { padHeadS: (pad?.headMs ?? 0) / 1000, padTailS: (pad?.tailMs ?? 0) / 1000 });
+          trims.push({ start: manual?.start ?? t.start, end: manual?.end ?? t.end });
+        }
+        const gapsS = Array.from({ length: Math.max(0, clipFiles.length - 1) }, (_, k) => gapForJoin(k, stage.gapMs ?? DISSECT_DEFAULTS.gapMs, stage.gapJitterMs ?? DISSECT_DEFAULTS.gapJitterMs) / 1000);
+        const plan = dissectStitchArgs(clipFiles, trims, outPath, { gapsS, roomTone, loudI: stage.loudI });
+        job.result = { ...plan.manifest, trims };
+        job.note = "stitching";
+        await runFfmpeg(plan.args, remaining(LIMITS.renderTimeoutMs));
+      } else {
+        await runFfmpeg(planStage(stage, files, outPath), remaining(LIMITS.renderTimeoutMs));
+      }
       const outDur = await probeDuration(outPath);
       // LOOP BUILDER post-flight — the music dictates runtime: assert the output IS X
       // (within one frame; the video trim quantizes to a frame boundary).
@@ -210,7 +247,7 @@ Bun.serve({
         spec = body as JobSpec;
       } catch (e) { return json({ error: e instanceof Error ? e.message : String(e) }, 400); }
       const id = crypto.randomUUID();
-      const job: Job = { id, state: "queued", note: "queued", stageIndex: 0, totalStages: spec.stages.length, error: null, startedAt: Date.now() };
+      const job: Job = { id, state: "queued", note: "queued", stageIndex: 0, totalStages: spec.stages.length, error: null, startedAt: Date.now(), result: null };
       jobs.set(id, job);
       activeJobs++;
       // keep the map bounded — oldest finished jobs fall off
@@ -226,8 +263,8 @@ Bun.serve({
     if (req.method === "GET" && m) {
       const job = jobs.get(m[1]);
       if (!job) return json({ error: "unknown job (worker may have restarted — re-submit)" }, 404);
-      const { id, state, note, stageIndex, totalStages, error } = job;
-      return json({ id, state, note, stageIndex, totalStages, error });
+      const { id, state, note, stageIndex, totalStages, error, result } = job;
+      return json({ id, state, note, stageIndex, totalStages, error, result });
     }
 
     return json({ error: "not found" }, 404);

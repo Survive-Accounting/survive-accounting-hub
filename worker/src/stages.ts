@@ -40,7 +40,27 @@ export interface LoopBuilderStage {
   boltFlash?: boolean; bedDb?: number; voiceSeamMs?: number;
   loudI?: number; loudTP?: number; loudLRA?: number;
 }
-export type Stage = ConcatStage | ReversedTailStage | MusicBedStage | WarpIntroStage | LoopBuilderStage;
+/** DISSECT STITCH — a dissected CEQ's moment clips become ONE asset at ingest:
+ *  auto-trimmed (silencedetect), breathed (deterministic-jitter gaps filled
+ *  with room tone), loudness-matched, micro-faded joints, hard video cuts.
+ *  Planned SERVER-SIDE (detection is an ffmpeg pass) in dissect-stitch.ts;
+ *  the job's result carries the chapters manifest. */
+export interface DissectStitchStage {
+  kind: "dissect_stitch";
+  /** Clip ids in moment order. */
+  inputs: string[];
+  /** Optional room-tone input id (Lee's few seconds of recorded silence). */
+  roomTone?: string;
+  silenceDb?: number;
+  gapMs?: number;
+  gapJitterMs?: number;
+  loudI?: number;
+  /** Per-clip padding kept after the auto-trim (held pauses), ms. */
+  pads?: ({ headMs?: number; tailMs?: number } | null)[];
+  /** Manual per-clip trim overrides (seconds into the source) — win over detection. */
+  trims?: ({ start?: number; end?: number } | null)[];
+}
+export type Stage = ConcatStage | ReversedTailStage | MusicBedStage | WarpIntroStage | LoopBuilderStage | DissectStitchStage;
 
 export interface JobSpec {
   v: 1;
@@ -212,6 +232,10 @@ export function planStage(stage: Stage, files: StagedFile[], outPath: string): s
         loudI: stage.loudI, loudTP: stage.loudTP, loudLRA: stage.loudLRA,
       });
     }
+    case "dissect_stitch":
+      // Needs the silence-DETECTION pass first (I/O) — the server plans this
+      // one via dissect-stitch.ts and never routes it here.
+      throw new Error("dissect_stitch is planned by the server (silence detection precedes the graph)");
     case "reversed_tail":
     case "music_bed":
       throw new QueuedStageError(stage.kind);
@@ -241,6 +265,13 @@ export function validateSpec(spec: unknown): asserts spec is JobSpec {
     else if (st.kind === "loop_builder") {
       if (!known(st.input)) throw new Error(`job spec: loop_builder names unknown input "${st.input}"`);
       if (!known(st.bed)) throw new Error(`job spec: loop_builder names unknown bed "${st.bed}"`);
+    }
+    else if (st.kind === "dissect_stitch") {
+      if (!Array.isArray(st.inputs) || st.inputs.length === 0) throw new Error("job spec: dissect_stitch needs inputs");
+      for (const id of st.inputs) if (!known(id)) throw new Error(`job spec: dissect_stitch names unknown input "${id}"`);
+      if (st.roomTone && !known(st.roomTone)) throw new Error(`job spec: dissect_stitch names unknown roomTone "${st.roomTone}"`);
+      if (st.trims && st.trims.length !== st.inputs.length) throw new Error("job spec: dissect_stitch trims must match inputs");
+      if (st.pads && st.pads.length !== st.inputs.length) throw new Error("job spec: dissect_stitch pads must match inputs");
     }
     else if (st.kind === "reversed_tail" || st.kind === "music_bed") { /* queued kinds validated at plan time */ }
     else throw new Error(`job spec: unknown stage kind "${(st as { kind?: string }).kind}"`);
