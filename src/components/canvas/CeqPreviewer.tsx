@@ -44,7 +44,7 @@ import { renderInline } from "./inline-md";
 import { resolveCardSpot, resolveMemoSpot, templateFor, withInstanceSpot } from "./ceq-geom";
 import { CALLOUT_KINDS, CalloutBody, calloutKindForCategory, nextCalloutKind } from "./cards/CalloutCard";
 import { clearExhibitHighlights } from "./exhibit-highlights";
-import { FILM_LOCK_CSS, FilmContext, filmDragAllowed } from "./film-lock";
+import { FILM_LOCK_CSS, FilmContext, filmDragAllowed, isTypingTarget } from "./film-lock";
 import { memoAnchorId, TextAnchor } from "./MemoLightbulb";
 import { EDGE_MARKER, EDGE_STYLE, EDGE_Z } from "./scene-io";
 import { playSfx } from "./sfx";
@@ -1732,8 +1732,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     // removed real memos from film, and an arrow-key nudge went through
     // commitGeom → onSaveInstance, i.e. film sessions were WRITING geometry).
     const handle = (e: KeyboardEvent, win: Window, filmWindow: boolean) => {
-      const el = (win.document.activeElement ?? document.activeElement) as HTMLElement | null;
-      const typing = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
+      const typing = isTypingTarget(win.document) || isTypingTarget();
       // RECORDING MODE (#3) — the film-safe filming surface. While recording, the ONLY live
       // keys are the deal / walk / sweep allowlist + the exit key (R); EVERYTHING else is
       // swallowed so a stray press can never alter state mid-take. This branch runs before
@@ -1751,9 +1750,10 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
         if (e.key === "ArrowDown" || e.key === "ArrowRight") { elemNav(1); return; }
         if (e.key === "ArrowUp" || e.key === "ArrowLeft") { elemNav(-1); return; }
         if (e.shiftKey && (e.code === "Backquote" || e.key === "~" || e.key === "`")) { sweepMemos(); return; }
-        // ` on the recording surface (A3): clear every exhibit highlight — the
-        // instant reset between explanations. (Already behind the typing guard.)
-        if (e.code === "Backquote" || e.key === "`") { clearExhibitHighlights(); return; }
+        // ` on the recording surface: the SAME full reset as every other surface
+        // (backtick sweep) — practice, spotlights, arrows, perf arrows, highlights.
+        // Temporary state only; nothing saved is touched.
+        if (e.code === "Backquote" || e.key === "`") { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); setPerfArrows([]); setSelPerf(null); clearExhibitHighlights(); return; }
         return; // any other key: swallowed, no-op — protects the take
       }
       // RECORDING MODE = the FILM POP-OUT. "\" toggles it open/closed — a real 2nd-monitor
@@ -2017,6 +2017,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                 {/* PER-CEQ FLAGS (film-run fixes §2.6) — star / boss / cha-ching / short, as
                     icons, where the ‹ › question arrows used to sit. The arrows went because
                     frames are navigated from the left rail (and Space / PageDown still deal). */}
+                <span className="sa-chrome ml-2 shrink-0 text-[8.5px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }} title="` wipes the temporary state — practice, spotlights, arrows, highlights, selection. Touches nothing saved. In a text field it just types a backtick.">` resets</span>
                 <div className="ml-auto flex items-center gap-1">{transportRight}</div>
               </div>
             </div>

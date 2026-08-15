@@ -7,7 +7,7 @@ import { NodeResizer, useReactFlow, type NodeProps } from "@xyflow/react";
 import { AlignCenter, AlignLeft, Braces, Clapperboard, Copy, GripVertical, HandCoins, Lock, LockOpen, MessageCircleQuestion, Share2, SunDim, UserRoundPlus, Volume2, X } from "lucide-react";
 
 import { useFrameNav } from "../FrameNavContext";
-import { useFilm } from "../film-lock";
+import { isTypingTarget, useFilm } from "../film-lock";
 import { playSfx } from "../sfx";
 
 import { BaseCard, useCardActions } from "../BaseCard";
@@ -490,8 +490,7 @@ export function CeqHookNode({ id, data, selected }: NodeProps) {
     if (!(nav.film && inCurrentFrame)) return;
     setRevealed(1);
     const onKey = (e: KeyboardEvent) => {
-      const el = document.activeElement as HTMLElement | null;
-      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      if (isTypingTarget()) return;
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); e.stopPropagation(); setRevealed((r) => Math.min(r + 1, beats.length)); }
       else if (e.shiftKey && (e.code === "Backquote" || e.key === "`" || e.key === "~")) { e.preventDefault(); e.stopPropagation(); setRevealed(1); }
     };

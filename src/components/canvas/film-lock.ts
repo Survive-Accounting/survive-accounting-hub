@@ -54,6 +54,15 @@ export function filmDragAllowed(node: FilmLockNode): boolean {
   return !!(node.data as { filmMovable?: boolean } | undefined)?.filmMovable;
 }
 
+/** THE global typing guard (backtick sweep): ` (and every global key) must
+ *  never fire while focus is in a text field — there it types a backtick like
+ *  a normal key. One implementation; every keydown site uses it. */
+export function isTypingTarget(doc?: Document): boolean {
+  const d = doc ?? (typeof document !== "undefined" ? document : undefined);
+  const el = d?.activeElement as HTMLElement | null | undefined;
+  return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
+}
+
 /** Chrome + resize handles must never render under a .film-mode root.
  *  - .react-flow__resize-control: EVERY NodeResizer handle/line, all cards.
  *  - .card-actions: the element hover chrome (clone · lock · ×).

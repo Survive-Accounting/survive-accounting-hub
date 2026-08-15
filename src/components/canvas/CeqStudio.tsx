@@ -28,7 +28,7 @@ import { autoClipName, buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, 
 import { buildSetExport } from "./ceq-export";
 import { SetFilmstrip, type StripItem } from "./SetFilmstrip";
 import { checkFilmReadiness, type ReadinessReport } from "./film-readiness";
-import { FILM_LOCK_CSS, FilmContext } from "./film-lock";
+import { FILM_LOCK_CSS, FilmContext, isTypingTarget } from "./film-lock";
 import { MEMO_KIND_META, MEMO_KIND_ORDER, kindFromCategory, type PlaybookKind } from "./memo-kinds";
 import { applyTemplate, loadTemplates, saveTemplate, templateFromDeck, type SetTemplate } from "./set-profile";
 import { IdeaBank } from "./IdeaBank";
@@ -275,8 +275,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "F8" || recording) return;
-      const el = document.activeElement as HTMLElement | null;
-      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
+      if (isTypingTarget()) return;
       e.preventDefault();
       setIdeaBank((v) => (v ? null : "capture"));
     };
@@ -1898,6 +1897,9 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       if (ctrl && (e.key === "v" || e.key === "V")) { e.preventDefault(); if (itemsClip.length > 0 && qId && qId !== LAYOUT_Q0) pasteItems("new"); else if (memoClip.length > 0 && qId && qId !== LAYOUT_Q0) pasteMemos(qId); else if (qClip) pasteQuestion(); return; }
       if (ctrl && (e.key === "d" || e.key === "D")) { if (qId && qId !== LAYOUT_Q0) { e.preventDefault(); duplicateQuestion(qId); } return; }
       if (e.key === "/") { e.preventDefault(); setLibOpen(true); window.setTimeout(() => memoSearchRef.current?.focus(), 60); return; } // "/" focuses the memo search from anywhere
+      // ` = wipe temporary state (backtick sweep): here that means the strip
+      // multi-select. The previewer's own handler owns practice/highlight resets.
+      if (!recording && (e.code === "Backquote" || e.key === "`") && qSel.size > 0) { setQSel(new Set()); return; }
       // KEYBOARD FLOW (Studio Consolidation D) — with a CEQ open in the editor, ↑/↓ walk
       // prev/next in the set without the mouse. Recording/film keeps its own key model
       // (this handler is behind !recording already via the outer gate on typing + the

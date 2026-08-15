@@ -129,6 +129,7 @@ import { downloadText, parseImport, sceneToOutline, type ImportPreview } from "@
 import { KeymapOverlay } from "@/components/canvas/KeymapOverlay";
 import { CardTapPulse, CARD_CURSOR_CSS, ClickRipples, CursorSpotlight, FILM_MODE_CSS, FLAME_CSS, FrameArmCue, type ArmState } from "@/components/canvas/FilmOverlays";
 import { clearExhibitHighlights } from "@/components/canvas/exhibit-highlights";
+import { isTypingTarget } from "@/components/canvas/film-lock";
 import { FilmProvider } from "@/components/canvas/film-lock";
 import { FilmPerfProbe } from "@/components/canvas/FilmPerfProbe";
 import { CameraBubble } from "@/components/canvas/CameraBubble";
@@ -1629,10 +1630,10 @@ function PresentCanvas() {
   useEffect(() => {
     if (!film) return;
     const onKey = (e: KeyboardEvent) => {
-      const el = document.activeElement as HTMLElement | null;
-      const typing = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
-      if (typing || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
-      if (e.code === "Backquote" || e.key === "`") clearExhibitHighlights();
+      if (isTypingTarget() || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+      // ` = wipe temporary state (backtick sweep): highlights + the canvas
+      // selection. Nothing saved is touched; Esc keeps owning "close this UI".
+      if (e.code === "Backquote" || e.key === "`") { clearExhibitHighlights(); rf.setNodes((nds) => nds.some((nd) => nd.selected) ? nds.map((nd) => (nd.selected ? { ...nd, selected: false } : nd)) : nds); }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
