@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
+import { FitWordmark, SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { CampusSelector, type School } from "./landing";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,13 +21,19 @@ export const Route = createFileRoute("/chapters")({
 const ORIGIN = "surviveaccounting.com";
 
 function ChaptersPage() {
+  // M1.4 — navy overscroll, matching the meta theme-color.
+  useNavyDocument();
   const theme = DEFAULT_FRAME_THEME;
   return (
     <div style={{ ...frameThemeVars(theme), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "hidden" }}>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
-      <main style={{ position: "relative", zIndex: 1, maxWidth: 720, margin: "0 auto", padding: "0 20px" }}>
+      {/* M1.5 — this page had NO route back to the landing page. Anyone arriving on a shared
+          Greek-chapter link was simply stranded here. */}
+      <SiteHeader />
+      <main style={{ position: "relative", zIndex: 1, maxWidth: 720, margin: "0 auto", padding: "0 20px", width: "100%" }}>
         <section className="flex flex-col items-center pt-16 pb-6 text-center sm:pt-24">
-          <SurviveWordmark size={84} />
+          {/* M1.2 — was a fixed 84px nowrap lockup, wider than a phone. */}
+          <FitWordmark size={84} />
           <h1 className="mt-6 text-[26px] font-black sm:text-[32px]" style={{ letterSpacing: "-0.01em" }}>Free Exam 1 for your whole chapter.</h1>
           <p className="mt-4 max-w-lg text-[15px] leading-relaxed sm:text-[16px]" style={{ color: "var(--brand-cream)", opacity: 0.88, fontFamily: BRAND_SANS }}>
             One link, every member. Share it in the group chat — I'll handle the rest. No cost, no contract. When you're ready, semester seats are $100/member (10 minimum).

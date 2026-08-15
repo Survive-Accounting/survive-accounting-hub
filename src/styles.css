@@ -211,3 +211,30 @@
     scrollbar-color: var(--sa-sb-thumb) transparent;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   PUBLIC PAGE NAVY (M1.4) — opt-in, per page.
+
+   The meta theme-color drives Safari's toolbar, but the OVERSCROLL rubber-band
+   at the top and bottom of the page samples the html/body background instead.
+   Globally that is the light shadcn token, which the admin and JE surfaces
+   rely on — so public pages opt in with this class (see useNavyDocument) and
+   remove it on unmount, rather than repainting the whole app.
+   --------------------------------------------------------------------------- */
+html.sa-navy,
+html.sa-navy body {
+  background-color: #0F1A2E;
+}
+
+/* HORIZONTAL OVERFLOW BACKSTOP (M1.1).
+
+   The real offenders are fixed first — the oversized nowrap wordmark and the
+   school dropdown's non-shrinking flex rows. This is the belt-and-braces so a
+   future addition can never reintroduce a sideways-scrolling public page,
+   which on a phone silently breaks every tap target's position. It is NOT the
+   fix; it is the guard rail after the fix. */
+html.sa-navy,
+html.sa-navy body {
+  max-width: 100%;
+  overflow-x: hidden;
+}

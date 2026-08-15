@@ -80,7 +80,13 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      // MOBILE CHROME (M1.4). viewport-fit=cover lets the page paint under the notch and the
+      // home indicator — env(safe-area-inset-*) reports 0 until this is set.
+      { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
+      // theme-color is what iOS Safari samples for its toolbar. Without it the bar renders
+      // white against our navy page and reads as a broken render. Matches SITE_NAVY.
+      { name: "theme-color", content: "#0F1A2E" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
       { title: "Survive Accounting — Videos for accounting exam prep" },
       {
         name: "description",

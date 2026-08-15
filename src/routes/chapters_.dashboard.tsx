@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
+import { FitWordmark, SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { getChapterDashboard, setChapterDigest, type ChapterDashboard } from "@/lib/greek-chapters.functions";
 
@@ -62,8 +63,9 @@ function DashboardPage() {
   return (
     <div style={wrap}>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.3} animate /></div>
+      <SiteHeader />
       <main style={{ position: "relative", zIndex: 1, maxWidth: 720, margin: "0 auto", padding: "0 20px" }}>
-        <div className="flex flex-col items-center pt-14 pb-6"><SurviveWordmark size={72} /></div>
+        <div className="flex flex-col items-center pt-14 pb-6"><FitWordmark size={72} /></div>
 
         {!token ? (
           <div className="mx-auto max-w-sm rounded-2xl p-6" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)", fontFamily: BRAND_SANS }}>

@@ -23,6 +23,7 @@ import { claimChapterAccess } from "@/lib/greek-chapters.functions";
 import { fetchCourseOptions } from "@/lib/je-api";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
+import { FitWordmark, SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { Bolt, BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS, SEC_SCHOOLS } from "@/components/canvas/brand";
 
 // PROMOTED TO "/" on 2026-08-13. This path 301s to the homepage so every link, QR and bookmark
@@ -90,6 +91,9 @@ const STATIC_FINAL = ["Full Accounting Cycle", "Financial Statements", "Ratios &
 type ResolvedTopic = { key: string; name: string; num: number | null; sets: StudentSet[] };
 
 export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { initialCampusId?: string; chapterBanner?: string; chapterSlug?: string } = {}) {
+  // M1.4 — paint html/body navy so Safari's overscroll rubber-band matches the page instead
+  // of flashing the light default at the top and bottom edges.
+  useNavyDocument();
   // /c/<slug> pre-selects the chapter's school. If it's one of the 16 SEC schools we pre-pick it;
   // otherwise we drop into "not listed" (default map) so the player still unblurs and plays.
   const preSchool = useMemo(() => (initialCampusId ? SCHOOLS.find((s) => s.campusId === initialCampusId) ?? null : null), [initialCampusId]);
@@ -251,7 +255,14 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
       `}</style>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
 
-      <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px" }}>
+      {/* M1.5 — the persistent way home. On / it is the brand anchor; on /c/<slug> and the
+          other pages that reuse LandingPage it is the only route back. */}
+      <SiteHeader />
+
+      {/* maxWidth + overflow-x guard (M1.1): `padding: 0 20px` on a 1040-wide box is fine on
+          desktop, but any child that ignores the box (a nowrap lockup, a fixed-width panel)
+          used to push the document sideways. Clamping here contains it at the source. */}
+      <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px", width: "100%", overflowX: "clip" }}>
         {chapterBanner && <ChapterBanner name={chapterBanner} slug={chapterSlug} />}
         <Hero onTryFree={onTryFree} />
         <ExamPlayer exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} onChangeSchool={changeSchool} pickerPulse={pickerPulse} focusSignal={focusSignal} schools={schoolsWithCodes} mapped={mapped} mapStatus={mapStatus} mapLevel={mapLevel} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} profSkipped={profSkipped} onSkipProfessor={skipProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); try { localStorage.setItem("sa-landing-school", "__notlisted__"); } catch { /* ignore */ } }} theater={theater} onTheaterDone={() => setTheater(null)} />
@@ -274,7 +285,10 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
 function Hero({ onTryFree }: { onTryFree: () => void }) {
   return (
     <section className="flex flex-col items-center pt-16 pb-8 text-center sm:pt-24">
-      <SurviveWordmark size={92} />
+      {/* M1.2 — was a fixed 92px nowrap lockup (~350px wide), which on a 320-390px phone
+          both clipped the logo mid-letter and dragged the whole document into horizontal
+          scroll. FitWordmark scales the lockup to the space available instead. */}
+      <FitWordmark size={92} />
       <h1 className="mt-6 text-[26px] font-black sm:text-[34px]" style={{ letterSpacing: "-0.01em" }}>Only what's on your exam.</h1>
       <button onClick={onTryFree} className="mt-7 inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-[15.5px] font-black transition-transform hover:scale-[1.03]" style={{ background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.6)" }}>
         Try Exam 1 Free ⚡
@@ -317,7 +331,19 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
   const firstPulse = useRef(true);
   // The dropdown renders in a PORTAL (position: fixed) so it can't be clipped by the player's
   // overflow-hidden — the full school list must be scannable. Anchored to the button's rect.
-  const place = () => { const r = btnRef.current?.getBoundingClientRect(); if (r) setRect({ left: r.left, top: r.bottom + 8, width: r.width }); };
+  // MOBILE OVERFLOW (M1.1) — this used to take the button's rect verbatim. Near a viewport
+  // edge, or with the button as wide as the card, that put the panel's right edge past 100vw
+  // and the course codes were clipped off-screen. Clamp the width to the viewport with a
+  // gutter, and never let the left edge fall outside that gutter either.
+  const place = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const vw = document.documentElement.clientWidth;
+    const GUTTER = 10;
+    const width = Math.min(r.width, vw - GUTTER * 2);
+    const left = Math.max(GUTTER, Math.min(r.left, vw - width - GUTTER));
+    setRect({ left, top: r.bottom + 8, width });
+  };
   useEffect(() => {
     if (!open) return;
     place();
@@ -352,7 +378,13 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
       {open && rect && typeof document !== "undefined" && createPortal(
         // The portal renders at document.body, OUTSIDE the themed landing root — so re-declare the
         // theme CSS vars here, or every var(--brand-cream)/accent inside would be undefined (dark text).
-        <div ref={menuRef} className="fixed z-[220] overflow-hidden rounded-xl" style={{ ...frameThemeVars(DEFAULT_FRAME_THEME), left: rect.left, top: rect.top, width: rect.width, background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)" }}>
+        <>
+        {/* SCRIM (M1.3) — on a phone this must read as a modal sheet, not a floating
+            fragment. Without it the testimonial cards below showed through and around the
+            panel. It also gives a reliable tap-outside-to-close: the document mousedown
+            listener alone is easy to miss on touch. */}
+        <div className="fixed inset-0 z-[219]" style={{ background: "rgba(5,8,16,0.55)" }} onClick={() => { setOpen(false); setQ(""); }} aria-hidden />
+        <div ref={menuRef} className="fixed z-[220] overflow-hidden rounded-xl" style={{ ...frameThemeVars(DEFAULT_FRAME_THEME), left: rect.left, top: rect.top, width: rect.width, maxWidth: "calc(100vw - 20px)", background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)" }}>
           <div className="flex items-center gap-2 border-b px-3 py-2.5" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
             <Search className="h-4 w-4 opacity-50" />
             <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search 16 SEC schools…" className="w-full bg-transparent text-[14px] outline-none" style={{ color: "var(--brand-cream)" }} />
@@ -360,9 +392,14 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
           <div className="max-h-72 overflow-y-auto py-1">
             {results.length === 0 && <div className="px-4 py-3 text-[13px] italic" style={{ color: "var(--text-muted)" }}>No SEC school by that name.</div>}
             {results.map((s) => { const c = boltFor(s.id); return (
-              <button key={s.id} onClick={() => { onPick(s); setOpen(false); setQ(""); }} className="group flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-white/10">
+              // ROW LAYOUT (M1.1): `min-w-0` is load-bearing. A flex child defaults to
+              // min-width:auto, so a long school name REFUSED to shrink and shoved the
+              // course code out of the panel's overflow-hidden box — that is the
+              // "ACCY 20…" clipping. min-w-0 + truncate lets the name give way instead.
+              // 44px min-height is the tap-target floor.
+              <button key={s.id} onClick={() => { onPick(s); setOpen(false); setQ(""); }} className="group flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-white/10" style={{ minHeight: 44 }}>
                 <span className="grid h-6 w-4 shrink-0 place-items-center"><Bolt c1={c.c1} c2={c.c2} /></span>
-                <span className="flex-1 text-[14.5px] font-semibold group-hover:text-[var(--accent)]" style={{ color: "#F5EFE6" }}>{s.name}</span>
+                <span className="min-w-0 flex-1 truncate text-[14.5px] font-semibold group-hover:text-[var(--accent)]" style={{ color: "#F5EFE6" }}>{s.name}</span>
                 {s.codeVerified && s.code && <span className="shrink-0 text-[11.5px] tabular-nums" style={{ color: "rgba(245,239,230,0.65)" }}>{s.code}</span>}
               </button>
             ); })}
@@ -372,7 +409,8 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
               </button>
             )}
           </div>
-        </div>, document.body)}
+        </div>
+        </>, document.body)}
     </div>
   );
 }

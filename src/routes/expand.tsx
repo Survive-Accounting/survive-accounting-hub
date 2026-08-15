@@ -16,6 +16,7 @@ import { Check, Copy, MessageSquare, Play } from "lucide-react";
 
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
+import { FitWordmark, SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { getSiteSettings } from "@/lib/site-settings.functions";
 import { logExpandEvent, submitReferral, type ExpandEvent } from "@/lib/referrals.functions";
@@ -56,11 +57,12 @@ function ExpandPage() {
   return (
     <div style={{ ...frameThemeVars(DEFAULT_FRAME_THEME), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "hidden" }}>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.32} animate /></div>
+      <SiteHeader />
       <main style={{ position: "relative", zIndex: 1, maxWidth: 760, margin: "0 auto", padding: "0 18px" }}>
 
         {/* HERO — minimal. The ask is named in the headline; no scroll needed to know why you're here. */}
         <section className="flex flex-col items-center pt-14 pb-7 text-center sm:pt-20">
-          <SurviveWordmark size={78} />
+          <FitWordmark size={78} />
           <h1 className="mt-6 text-[25px] font-black leading-tight sm:text-[31px]" style={{ letterSpacing: "-0.01em" }}>
             Help me get this to the students who need it.
           </h1>
