@@ -43,7 +43,7 @@ import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { renderInline } from "./inline-md";
 import { resolveCardSpot, resolveMemoSpot, templateFor, withInstanceSpot } from "./ceq-geom";
 import { CALLOUT_KINDS, CalloutBody, calloutKindForCategory, nextCalloutKind } from "./cards/CalloutCard";
-import { CAPTURE_H, CAPTURE_W, captureCssSize, isCaptureExact, physicalSize, snapCaptureSize } from "./capture-window";
+import { CAPTURE_H, CAPTURE_W, captureCssSize, captureFeasibility, isCaptureExact, physicalSize, snapCaptureSize } from "./capture-window";
 import { clearExhibitHighlights } from "./exhibit-highlights";
 import { triageLatest } from "./takes-store";
 import { FILM_LOCK_CSS, FilmContext, filmDragAllowed, isTypingTarget } from "./film-lock";
@@ -877,11 +877,14 @@ const EMPTY_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "
  *  "1920x1080 ✓" when exact, red with the actual size otherwise. Auto-hides on
  *  the first keypress (never capturable mid-take); window focus re-shows it and
  *  auto-resnaps a drifted window; SNAP forces it. */
-function CaptureBadge({ win }: { win: Window }) {
+function CaptureBadge({ win, note }: { win: Window; note?: string | null }) {
   const [size, setSize] = useState(() => physicalSize(win.innerWidth, win.innerHeight, win.devicePixelRatio || 1));
   const [hidden, setHidden] = useState(false);
+  const measureRef = useRef<() => void>(() => {});
+  const measureNow = () => measureRef.current();
   useEffect(() => {
     const measure = () => setSize(physicalSize(win.innerWidth, win.innerHeight, win.devicePixelRatio || 1));
+    measureRef.current = measure;
     const onKey = () => setHidden(true);
     const onFocus = () => { measure(); setHidden(false); if (!isCaptureExact(win.innerWidth, win.innerHeight, win.devicePixelRatio || 1)) { snapCaptureSize(win); window.setTimeout(measure, 200); } };
     win.addEventListener("resize", measure);
@@ -894,7 +897,8 @@ function CaptureBadge({ win }: { win: Window }) {
   return (
     <div style={{ position: "absolute", top: 10, right: 10, zIndex: 60, display: "flex", alignItems: "center", gap: 6, borderRadius: 8, padding: "4px 8px", background: "rgba(5,7,13,0.85)", border: '1px solid ' + (ok ? "rgba(59,245,160,0.6)" : "rgba(255,80,110,0.7)") }}>
       <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: "0.06em", color: ok ? "#3BF5A0" : "#FF5A6E", fontVariantNumeric: "tabular-nums" }}>{size.w}×{size.h}{ok ? " ✓" : ""}</span>
-      {!ok && <button style={{ fontSize: 9, fontWeight: 900, letterSpacing: "0.08em", color: "#0B1322", background: "#3BF5A0", borderRadius: 5, padding: "2px 6px", border: "none", cursor: "pointer" }} onClick={() => snapCaptureSize(win)} title="Resize the window so the inner canvas is exactly 1920x1080 physical pixels">SNAP</button>}
+      {!ok && <button style={{ fontSize: 9, fontWeight: 900, letterSpacing: "0.08em", color: "#0B1322", background: "#3BF5A0", borderRadius: 5, padding: "2px 6px", border: "none", cursor: "pointer" }} onClick={() => snapCaptureSize(win, () => measureNow())} title="Resize the window so the inner canvas is exactly 1920x1080 physical pixels">SNAP</button>}
+      {!ok && <span style={{ fontSize: 8.5, color: "#FFD23F", fontWeight: 700, maxWidth: 300 }}>{note ?? captureFeasibility(win).reason ?? "press F for exact fullscreen 1:1"}</span>}
       <span style={{ fontSize: 8.5, color: "rgba(230,236,255,0.5)", fontWeight: 700 }}>hides on first key</span>
     </div>
   );
@@ -1510,7 +1514,15 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   const fitFilm = useCallback(() => {
     const inst = filmFitRef.current; const win = filmWin;
     if (!inst || !win) return;
-    const w = win.innerWidth, h = win.innerHeight;
+    // MEASURE THE PANE, NOT THE WINDOW (Lee's black-on-advance, 08-15). In
+    // ELEMENT fullscreen the window's inner size never changes — only the
+    // fullscreened element grows to the screen. Sizing the camera from
+    // win.innerWidth then panning by activeYOff put the frame outside a
+    // viewport that was really 1920x1080: a black screen you couldn't
+    // advance out of. The element's own rect is right in every case —
+    // windowed, F11, and element fullscreen.
+    const r = filmRootRef.current?.getBoundingClientRect();
+    const w = Math.round(r?.width || win.innerWidth), h = Math.round(r?.height || win.innerHeight);
     if (!w || !h) return;
     const zoom = Math.max(w / frameW, h / frameH);
     inst.setViewport({ x: (w - frameW * zoom) / 2, y: (h - frameH * zoom) / 2 - activeYOffRef.current * zoom, zoom }, { duration: 0 });
@@ -1535,7 +1547,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     try {
       const RO = (filmWin as unknown as { ResizeObserver?: typeof ResizeObserver }).ResizeObserver;
       const target = doc.documentElement ?? doc.body;
-      if (RO && target) { ro = new RO(() => fitFilm()); ro.observe(target); }
+      if (RO && target) { ro = new RO(() => fitFilm()); ro.observe(target); if (filmRootRef.current) ro.observe(filmRootRef.current); }
     } catch { /* ResizeObserver unavailable in the popout — the listeners above still cover it */ }
     return () => {
       timers.splice(0).forEach((t) => window.clearTimeout(t));
@@ -1549,13 +1561,15 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   // INNER canvas is exactly 1920x1080 PHYSICAL pixels (dpr-aware) — OBS
   // window-capture at Reset Transform is 1:1 pixel-perfect.
   const captureRef = useRef(false);
+  /** Why the capture window could NOT hit 1920×1080 (null = it did). */
+  const [captureNote, setCaptureNote] = useState<string | null>(null);
   const toggleFilm = (v2?: boolean, capture?: boolean) => {
     if (filmWin) { try { filmWin.close(); } catch { /* ignore */ } setFilmWin(null); captureRef.current = false; return; }
     if (v2 !== undefined) setFilmMode(v2);
     captureRef.current = !!capture;
     const css = capture ? captureCssSize(window.devicePixelRatio || 1) : null;
-    const w = openPopoutWindow("ceqfilm", css?.w ?? 1000, css?.h ?? 600);
-    if (w) { setFilmWin(w); if (capture) { window.setTimeout(() => snapCaptureSize(w), 120); window.setTimeout(() => snapCaptureSize(w), 600); } }
+    const w = openPopoutWindow(capture ? "ceqcapture" : "ceqfilm", css?.w ?? 1000, css?.h ?? 600);
+    if (w) { setFilmWin(w); if (capture) { window.setTimeout(() => snapCaptureSize(w, (ok, why) => setCaptureNote(ok ? null : why ?? null)), 200); } }
   };
   // ELEMENT FULLSCREEN (C1): fullscreen targets THIS stable wrapper — it never
   // unmounts (frames swap INSIDE it; the arrival-gap fix guarantees the
@@ -2384,7 +2398,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                     </ReactFlowProvider>
                     {/* No in-app film watermark for now (Lee) — the brand watermark will be
                         added later in the actual HTML player, not baked into the take. */}
-                    {captureRef.current && filmWin && <CaptureBadge win={filmWin} />}
+                    {captureRef.current && filmWin && <CaptureBadge win={filmWin} note={captureNote} />}
                     <PerfArrowLayer arrows={perfArrows} add={addPerfArrow} sel={selPerf} setSel={setSelPerf} />
                     {/* PREPARING GATE (A2) — covers the pane until the mounted set is warm.
                         Opaque brand navy: whatever loads underneath can never flash on camera. */}
