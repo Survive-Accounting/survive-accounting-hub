@@ -41,7 +41,8 @@ import { WorldBackground } from "./WorldBackground";
 import { WORLDS } from "./worlds";
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { renderInline } from "./inline-md";
-import { resolveCardSpot, resolveMemoSpot, templateFor, withInstanceSpot } from "./ceq-geom";
+import { activeSlots, CARD_H, CARD_W, dealCentre, defaultMemoPos, PALETTE_N, paletteSlots, rackOf, resolveCardSpot, resolveMemoSpot, templateFor, withInstanceSpot } from "./ceq-geom";
+export { activeSlots, dealCentre, defaultMemoPos, PALETTE_N, paletteSlots, rackOf } from "./ceq-geom";
 import { CALLOUT_KINDS, CalloutBody, calloutKindForCategory, nextCalloutKind } from "./cards/CalloutCard";
 import { CAPTURE_H, CAPTURE_W, captureCssSize, captureFeasibility, isCaptureExact, physicalSize, snapCaptureSize } from "./capture-window";
 import { clearExhibitHighlights } from "./exhibit-highlights";
@@ -245,36 +246,9 @@ function containSpot(state: "spot" | null, big = false): React.CSSProperties {
 }
 const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
 
-const CARD_W = 560, CARD_H = 480;
-export const dealCentre = (fw: number, fh: number) => ({ x: Math.max(0, Math.round((fw - CARD_W) / 2)), y: Math.max(0, Math.round((fh - CARD_H) / 2)) });
-export const defaultMemoPos = (fw: number, fh: number, i: number) => paletteSlots(fw, fh)[Math.min(i, PALETTE_N - 1)];
-
-/** THE SLOT PALETTE (Lee) — a set's baseline is a fixed rack of {@link PALETTE_N}
- *  slots running down the RIGHT side of the frame, evenly spaced and guaranteed not
- *  to overlap (the step is never smaller than a slot's own height). Generated, never
- *  hand-placed, so two slots can't be born at the same coordinate. Lee then drags
- *  any slot where he wants it and resizes it — a bigger slot is simply one that fits
- *  bigger content. */
-export const PALETTE_N = 5;
-const SLOT_H = 150; // nominal chip height at scale 1 — the minimum clear gap between slots
-export const paletteSlots = (fw: number, fh: number, n: number = PALETTE_N): { x: number; y: number; scale: number }[] => {
-  const c = dealCentre(fw, fh);
-  const x = Math.min(fw - 210, c.x + CARD_W + 70);
-  const top = 20;
-  const span = Math.max(SLOT_H, fh - top - 20 - SLOT_H); // room the rack can use
-  const step = n > 1 ? Math.max(SLOT_H + 12, Math.round(span / (n - 1))) : 0;
-  return Array.from({ length: n }, (_, i) => ({ x, y: top + i * step, scale: 1 }));
-};
-/** The set's slot rack: whatever is saved, padded out to the full palette with
- *  INACTIVE generated slots. Saved slots keep their geometry and their on/off state;
- *  layouts predating the palette have no `off` flag, so all of their slots stay
- *  active and nothing moves. */
-export const rackOf = (saved: DeckSlotLayout[] | undefined, fw: number, fh: number): DeckSlotLayout[] => {
-  const gen = paletteSlots(fw, fh);
-  return gen.map((g, i) => saved?.[i] ?? { ...g, off: true }).concat((saved ?? []).slice(PALETTE_N));
-};
-/** Only ACTIVE slots take placements, in order. */
-export const activeSlots = (rack: DeckSlotLayout[]): DeckSlotLayout[] => rack.filter((s) => !s.off);
+const SLOT_H = 150; // nominal chip height at scale 1 — the overflow stacking step
+// CARD_W/CARD_H, the slot palette, rackOf and activeSlots moved to ceq-geom.ts —
+// they were imported back from there, which made this a runtime import cycle.
 
 // getNodes joins the set for STAGED ELEMENTS (Add menu): the previewer has to scan
 // the canvas for cards staged onto the open question. The Studio already passes the
