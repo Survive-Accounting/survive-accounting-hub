@@ -89,6 +89,34 @@ export function FitWordmark({ size, subline, className, style }: { size: number;
   );
 }
 
+/** The NAVBAR lockup: wordmark with ACCOUNTING beneath, sized for a 48px bar.
+ *
+ *  Pass 2 makes this the ONLY wordmark on the page — the hero no longer carries one — so it is
+ *  also the brand statement, not just a way home. Kept as its own component because
+ *  FitWordmark's subline is proportional to the fitted size and would render ~3.4px here. */
+export function CompactLockup({ size = 19 }: { size?: number } = {}) {
+  return (
+    <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1 }}>
+      <SurviveWordmark size={size} />
+      <span
+        style={{
+          marginTop: 2,
+          fontSize: Math.max(7, size * 0.33),
+          letterSpacing: "0.34em",
+          // cancels the trailing letter-space so the word optically aligns to the wordmark's left
+          textIndent: "0.34em",
+          fontWeight: 700,
+          textTransform: "uppercase",
+          color: "var(--brand-cream, #F5EFE6)",
+          opacity: 0.55,
+          whiteSpace: "nowrap",
+        }}
+      >
+        Accounting
+      </span>
+    </span>
+  );
+}
 /** The site menu (M2.2). Holds the broad navigation that used to have nowhere to live —
  *  and specifically NOT the topic switcher, which belongs inside the card next to the
  *  content it switches. Closes on Escape, on tap-outside, and on choosing anything. */
@@ -101,15 +129,19 @@ function SiteMenu() {
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
 
-  const items: { label: string; href: string }[] = [
-    { label: "Exams", href: "/" },
-    { label: "Greek chapters", href: "/chapters" },
+  // Pass 2 order. The first item repeats the page CTA on purpose: the navbar is sticky, so once
+  // the hero has scrolled away this is the only Cram-Exam-1 door still on screen. The Greek link
+  // is a ROUTE, not an anchor, so it sits under a divider — mixing "jump down this page" with
+  // "leave this page" in one flat list is how people lose their place.
+  const items: { label: string; href: string; route?: boolean }[] = [
+    { label: "Cram Exam 1 Free", href: "/#exam1" },
+    { label: "Reviews", href: "/#reviews" },
     { label: "About Lee", href: "/#lee" },
-    // §4 — was mailto:. Any scheme-based link (mailto:, tel:, sms:) can be claimed by an
-    // installed app — which is why tapping Contact raised "Open in inDrive?" on iOS.
-    // Nav items stay ON the page; the deliberate "Text Lee" sms: CTA in the contact
-    // section is a different thing and keeps its scheme.
+    // Anchor, never mailto:/sms: — a scheme link can be claimed by an installed app, which is
+    // what made tapping Contact raise "Open in inDrive?" on iOS. The deliberate sms: CTA in the
+    // contact section is a different thing and keeps its scheme.
     { label: "Contact", href: "/#contact" },
+    { label: "For Fraternities & Sororities", href: "/chapters", route: true },
   ];
 
   return (
@@ -129,16 +161,22 @@ function SiteMenu() {
         <>
           <div className="fixed inset-0 z-[201]" style={{ background: "rgba(5,8,16,0.55)" }} onClick={() => setOpen(false)} aria-hidden />
           <div
-            className="fixed right-2 z-[202] w-52 overflow-hidden rounded-xl"
+            className="fixed right-2 z-[202] w-[252px] overflow-hidden rounded-xl"
             style={{ top: "calc(52px + env(safe-area-inset-top, 0px))", background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)" }}
           >
-            {items.map((it) => (
+            {items.map((it, i) => (
               <a
                 key={it.label}
                 href={it.href}
                 onClick={() => setOpen(false)}
                 className="flex items-center px-4 text-[14px] font-semibold hover:bg-white/10"
-                style={{ minHeight: 46, color: "#F5EFE6" }}
+                style={{
+                  minHeight: 46,
+                  color: "#F5EFE6",
+                  // The rule belongs to the FIRST route item, so adding another anchor above it
+                  // can never strand the divider in the wrong place.
+                  borderTop: it.route && !items[i - 1]?.route ? "1px solid rgba(245,239,230,0.14)" : undefined,
+                }}
               >
                 {it.label}
               </a>
@@ -153,12 +191,12 @@ function SiteMenu() {
 /** Sticky header for every public page. Small, on-brand, and the wordmark is a link home.
  *  Sits under the notch via safe-area padding so it is never obscured on a modern iPhone.
  *
- *  `hideMenuUntilScrolled` is for the landing page, whose first screen must offer exactly ONE
- *  action. The header BOX stays (it holds the layout space the hero measures against); only the
- *  hamburger fades out, and it comes back the moment the student scrolls. */
-export function SiteHeader({ wordmark = true, hideMenuUntilScrolled = false }: { wordmark?: boolean; hideMenuUntilScrolled?: boolean } = {}) {
+ *  Pass 2: the bar is ALWAYS fully visible, hamburger included. The previous fade-in-on-scroll
+ *  existed to keep exactly one interactive element above the fold when the hero carried the
+ *  wordmark; now the navbar carries the lockup and is itself the brand statement, so hiding half
+ *  of it on load would just make the page look unfinished for the first 80px of scroll. */
+export function SiteHeader({ wordmark = true }: { wordmark?: boolean } = {}) {
   const bar = useRef<HTMLElement>(null);
-  const [scrolled, setScrolled] = useState(false);
 
   // PUBLISH THE HEADER HEIGHT as --sa-header-h so a full-viewport hero can subtract exactly the
   // right amount. Hardcoding 48px is wrong on a notched phone, where safe-area-inset-top adds
@@ -177,15 +215,6 @@ export function SiteHeader({ wordmark = true, hideMenuUntilScrolled = false }: {
     return () => { ro?.disconnect(); window.removeEventListener("resize", measure); window.removeEventListener("orientationchange", measure); };
   }, []);
 
-  useEffect(() => {
-    if (!hideMenuUntilScrolled) return;
-    const onScroll = () => setScrolled(window.scrollY > 80);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [hideMenuUntilScrolled]);
-
-  const menuHidden = hideMenuUntilScrolled && !scrolled;
 
   return (
     <header
@@ -200,25 +229,20 @@ export function SiteHeader({ wordmark = true, hideMenuUntilScrolled = false }: {
         paddingRight: "env(safe-area-inset-right, 0px)",
       }}
     >
-      <div className="mx-auto flex w-full max-w-[1200px] items-center px-3" style={{ minHeight: 48 }}>
+      <div className="mx-auto flex w-full max-w-[1200px] items-center px-3" style={{ minHeight: 54 }}>
         {/* 44px minimum tap target — Apple's floor, and this is the only way home. */}
         {/* §4 — the landing page hides this: the hero wordmark sits directly below it,
             so the small one is pure duplication. Every OTHER page keeps it, because there
             it is the only route home. */}
         {wordmark
-          ? <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center" style={{ minHeight: 44, minWidth: 44 }}><SurviveWordmark size={22} /></a>
+          ? <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center" style={{ minHeight: 44, minWidth: 44 }}><CompactLockup /></a>
           : <span style={{ minHeight: 44, display: "inline-flex" }} />}
         <span className="flex-1" />
         {/* SITE NAV (M2.2) — the BROWSE ▾ toggle that used to sit INSIDE the player card is
             gone; broader navigation belongs in the page chrome, not in the content.
             aria-hidden + inert while faded so it is not reachable by keyboard or screen reader
             either — an invisible-but-focusable control is worse than a visible one. */}
-        <div
-          aria-hidden={menuHidden}
-          style={{ opacity: menuHidden ? 0 : 1, pointerEvents: menuHidden ? "none" : "auto", transition: "opacity 180ms ease" }}
-        >
-          <SiteMenu />
-        </div>
+        <SiteMenu />
       </div>
     </header>
   );
