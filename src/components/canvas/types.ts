@@ -400,6 +400,12 @@ export interface CeqCard extends CardBase {
    *  question counter ("Q 14/29" skips notes), practice entry, and readiness checks.
    *  Same card system as CEQ frames so film mode + the player timeline show it. */
   noteOnly?: boolean;
+  /** NON-CEQ FRAME MODE (Lee, 08-15): what this non-CEQ frame is FOR — a note
+   *  (tips/headspace), an intro (setting up the CEQ), or an outro (the end
+   *  card). Purely a starting point + a label: every element on any frame is
+   *  deletable and the mode is switchable, so a frame can always be stripped
+   *  bare and rebuilt. Absent on a noteOnly card = "note" (backward compat). */
+  frameMode?: "note" | "intro" | "outro";
   /** CALLOUT (P1): presentation settings for a zero-choice (note) frame — the
    *  standardized reading card. Additive scene JSON; absent = plain callout
    *  with topic on. See cards/CalloutCard.tsx for the render contract. */
@@ -746,7 +752,7 @@ export interface FrameBoltElement extends CardBase {
 //      colour when the default (context) isn't right. ----
 export interface LogoElement extends CardBase {
   kind: "logo";
-  mode: "bolt" | "wordmark" | "lockup" | "slogan";
+  mode: "bolt" | "wordmark" | "lockup" | "slogan" | "outro";
   /** Bolt colourway id (BOLT_PRESETS / SEC_SCHOOLS); absent = house red/blue. */
   colorId?: string;
   /** Letter colour: "light" (cream) | "dark" (near-black). Default light. */
@@ -1465,6 +1471,9 @@ export interface CalloutSettings {
   kind?: CalloutKind;
   /** Dropped-memo node ids: 1 = memo callout, 2+ = the highlights stack. */
   memoIds?: string[];
+  /** BARE FRAME (Lee): the callout card itself is hidden — the frame is just
+   *  its staged elements, a blank canvas to build on. Reversible. */
+  hidden?: boolean;
 }
 
 /** SET PRODUCTION PROFILE (P6): each set is its own project. */

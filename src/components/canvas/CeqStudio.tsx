@@ -916,7 +916,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
    *  frame. Same renumber pattern as duplicateQuestion: everything at/below `at`
    *  shifts down one stageOrder, one undo step. Note frames are CEQ cards with
    *  noteOnly (no choices, never counted) so the whole card system just works. */
-  const insertFrame = (at: number, frameKind: "ceq" | "note") => {
+  const insertFrame = (at: number, frameKind: "ceq" | "note" | "intro" | "outro") => {
     if (!deck) return;
     const id = cardId("ceq");
     const pos = { x: 520, y: 210 };
@@ -924,9 +924,10 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       id, type: "ceq", position: pos, selected: false,
       data: {
         kind: "ceq", title: deck.name,
-        prompt: frameKind === "note" ? "New note — trigger words, headspace, a tip" : "New question",
-        ...(frameKind === "note" ? { noteOnly: true } : {}),
-        choices: frameKind === "note" ? [] : [{ id: cardId("ch"), text: "Choice A", correct: true }, { id: cardId("ch"), text: "Choice B" }],
+        prompt: frameKind === "ceq" ? "New question" : frameKind === "intro" ? "Here is what you need to see…" : frameKind === "outro" ? "" : "New note — trigger words, headspace, a tip",
+        ...(frameKind !== "ceq" ? { noteOnly: true, frameMode: frameKind } : {}),
+        ...(frameKind === "outro" ? { callout: { hidden: true } } : {}),
+        choices: frameKind === "ceq" ? [{ id: cardId("ch"), text: "Choice A", correct: true }, { id: cardId("ch"), text: "Choice B" }] : [],
         deckId: deck.id, deckMember: true, tucked: true, stageOrder: at, slotIndex: at, deckCategory: "ceq:studio", deckPos: pos,
       },
     };
@@ -934,10 +935,16 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     // callout's built-in bolt is retired — this one is a free object: move it,
     // resize it, recolor it to any SEC school (or a student, for personalized
     // videos). Delete it like any element if the frame doesn't want it.
-    const boltNode = frameKind === "note" ? { id: cardId("el"), type: "logo", position: { x: 430, y: 250 }, selected: false, data: { kind: "logo", mode: "bolt", w: 90, h: 120, stage: { ceqId: id, x: 430, y: 250, scale: 1 } } } : null;
+    // NOTE/INTRO arrive with the free bolt; OUTRO arrives with the full Survive
+    // lockup (wordmark · the promise · the url) on a BARE frame. Both are
+    // ordinary elements — delete, move, recolour, or start the frame over.
+    const boltNode = frameKind === "outro"
+      ? { id: cardId("el"), type: "logo", position: { x: 490, y: 300 }, selected: false, data: { kind: "logo", mode: "outro", w: 620, h: 300, stage: { ceqId: id, x: 490, y: 300, scale: 1 } } }
+      : frameKind === "ceq" ? null
+      : { id: cardId("el"), type: "logo", position: { x: 430, y: 250 }, selected: false, data: { kind: "logo", mode: "bolt", w: 90, h: 120, stage: { ceqId: id, x: 430, y: 250, scale: 1 } } };
     const newOrder = [...questions.slice(0, at), { id }, ...questions.slice(at)];
     const reindex = newOrder.map((q, idx) => (q.id === id ? null : patchDataCmd(rfl, q.id, { stageOrder: idx }, "reorder"))).filter((c): c is NonNullable<typeof c> => !!c);
-    const add = addNodesCmd(rfl, (boltNode ? [node, boltNode] : [node]) as never, frameKind === "note" ? "add note frame" : "add CEQ frame");
+    const add = addNodesCmd(rfl, (boltNode ? [node, boltNode] : [node]) as never, frameKind === "ceq" ? "add CEQ frame" : "add " + frameKind + " frame");
     const cmd = compositeCmd([add, ...reindex].filter((c): c is NonNullable<typeof c> => !!c), "insert frame");
     if (cmd) bus.dispatch(cmd);
     setQId(id);
@@ -999,7 +1006,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   /** The filmstrip's mini-card data — read once per nodes change. */
   const stripItems = useMemo<StripItem[]>(() => questions.map((q) => {
     const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined;
-    return { id: q.id, stem: d?.prompt ?? "", shorthand: d?.shorthand, run: d?.run, noteOnly: !!d?.noteOnly, free: !!d?.free, clips: cardClips(d).length, starred: !!d?.starred };
+    return { id: q.id, stem: d?.prompt ?? "", shorthand: d?.shorthand, run: d?.run, noteOnly: !!d?.noteOnly, frameMode: d?.frameMode, free: !!d?.free, clips: cardClips(d).length, starred: !!d?.starred };
   }), [questions, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
   /** `coalesceKey` (optional) merges a keystroke burst into ONE undo step — pass it
    *  from live-committing text fields so a typed stem isn't 60 Ctrl+Z presses. */
@@ -2693,6 +2700,17 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   assignRun,
                   dissect: () => { if (qId && qId !== LAYOUT_Q0) setDissectQ(qId); },
                   profile: () => setProfileOpen(true),
+                  frameMode: () => {
+                    const ids = qSel.size ? [...qSel] : qId && qId !== LAYOUT_Q0 ? [qId] : [];
+                    if (!ids.length) return;
+                    const order = ["note", "intro", "outro"] as const;
+                    const cur = (rf.getNode(ids[0])?.data as unknown as CeqCard | undefined)?.frameMode ?? "note";
+                    const next = order[(order.indexOf(cur) + 1) % order.length];
+                    const cmds = ids.map((iid) => { const dd = rf.getNode(iid)?.data as unknown as CeqCard | undefined; return dd?.noteOnly ? patchDataCmd(rfl, iid, { frameMode: next }, "frame mode") : null; }).filter((c): c is NonNullable<typeof c> => !!c);
+                    if (!cmds.length) { setNote("Frame mode applies to NON-CEQ frames (note / intro / outro)."); return; }
+                    const cmd = compositeCmd(cmds, "frame mode"); if (cmd) bus.dispatch(cmd);
+                    setNote(cmds.length + " frame" + (cmds.length === 1 ? "" : "s") + " → " + next.toUpperCase() + " (a label + a starting point — everything on the frame stays yours).");
+                  },
                   armUploads: () => armFromSelection(),
                   armedLabel: armedTarget?.label,
                   uploadClip: (file: File) => { void (async () => {

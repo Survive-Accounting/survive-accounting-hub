@@ -27,6 +27,7 @@ export interface StripItem {
   shorthand?: string;
   run?: string;
   noteOnly: boolean;
+  frameMode?: "note" | "intro" | "outro";
   free: boolean;
   clips: number;
   starred: boolean;
@@ -42,7 +43,9 @@ const DENSITY_KEY = "sa-strip-density";
  *  absolutely-positioned popover that ran off the rail edge).
  *  Only one gap is ever open: the strip owns `openAt`. Esc or a click anywhere else
  *  closes it without inserting. */
-function InsertGap({ at, open, onOpen, onClose, onInsert, dense, rowH }: { at: number; open: boolean; onOpen: (at: number) => void; onClose: () => void; onInsert: (at: number, kind: "ceq" | "note") => void; dense: boolean; rowH: string }) {
+export type FrameKind = "ceq" | "note" | "intro" | "outro";
+
+function InsertGap({ at, open, onOpen, onClose, onInsert, dense, rowH }: { at: number; open: boolean; onOpen: (at: number) => void; onClose: () => void; onInsert: (at: number, kind: FrameKind) => void; dense: boolean; rowH: string }) {
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { e.stopPropagation(); onClose(); } };
@@ -64,8 +67,14 @@ function InsertGap({ at, open, onOpen, onClose, onInsert, dense, rowH }: { at: n
         <button className="flex items-center justify-center gap-1 rounded px-2 py-1 text-[10px] font-bold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}`, background: "rgba(9,14,26,0.6)" }} onClick={() => { onClose(); onInsert(at, "ceq"); }} title="A question card — counts, practices, films">
           <HelpCircle className="h-3 w-3" /> CEQ frame
         </button>
-        <button className="flex items-center justify-center gap-1 rounded px-2 py-1 text-[10px] font-bold" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}`, background: "rgba(9,14,26,0.6)" }} onClick={() => { onClose(); onInsert(at, "note"); }} title="Text/memo-only: tips, trigger words, headspace. Films like a frame, never counts as a question">
-          <FileText className="h-3 w-3" /> Note frame
+        <button className="flex items-center justify-center gap-1 rounded px-2 py-1 text-[10px] font-bold" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}`, background: "rgba(9,14,26,0.6)" }} onClick={() => { onClose(); onInsert(at, "note"); }} title="NON-CEQ · note — tips, trigger words, headspace. Films like a frame, never counts as a question. Every element is deletable; the mode is switchable.">
+          <FileText className="h-3 w-3" /> Note
+        </button>
+        <button className="flex items-center justify-center gap-1 rounded px-2 py-1 text-[10px] font-bold" style={{ color: "#8FD3FF", border: `1px solid ${NEON.borderSoft}`, background: "rgba(9,14,26,0.6)" }} onClick={() => { onClose(); onInsert(at, "intro"); }} title="NON-CEQ · intro — set up what's coming (the stem, the trap, the promise). Same freedom: delete anything, rename it, rebuild it.">
+          <FileText className="h-3 w-3" /> Intro
+        </button>
+        <button className="flex items-center justify-center gap-1 rounded px-2 py-1 text-[10px] font-bold" style={{ color: "#B79CFF", border: `1px solid ${NEON.borderSoft}`, background: "rgba(9,14,26,0.6)" }} onClick={() => { onClose(); onInsert(at, "outro"); }} title="NON-CEQ · outro — the end card. Arrives with the Survive outro lockup staged; delete or restyle anything.">
+          <FileText className="h-3 w-3" /> Outro
         </button>
         <span className="text-center text-[8px]" style={{ color: NEON.muted }}>Esc to cancel</span>
       </div>
@@ -92,7 +101,7 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
   items: StripItem[];
   qId: string | null;
   onSelect: (id: string) => void;
-  onInsert: (at: number, kind: "ceq" | "note") => void;
+  onInsert: (at: number, kind: FrameKind) => void;
   /** MULTI-SELECT (Lee): ctrl/⌘-click toggles one, shift-click takes the range from
    *  the last click. Drives the ⋮ menu's bulk actions. */
   sel?: Set<string>;
@@ -122,6 +131,8 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
      *  (or the open frame) — review lands on the Publish side. */
     uploadClip?: (file: File) => void;
     /** ARM UPLOADS (T2): takes that finish now bank against this selection. */
+    /** Cycle a NON-CEQ frame between note / intro / outro. */
+    frameMode?: () => void;
     armUploads?: () => void;
     armedLabel?: string;
   };
@@ -256,6 +267,7 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
                   <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.boss(); }} title="Boss card — fires the cram-launch cue on deal">👑 Boss</button>
                   <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.chaching(); }} title="Chaching on the correct-Enter (on by default)">💰 Chaching</button>
                   <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#FF8B9E", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.short(); }} title="Flag as shorts-worthy — joins the Shorts queue">🎬 Short</button>
+                  {actions.frameMode && <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: NEON.yellow }} onClick={() => { setMenuOpen(false); actions.frameMode!(); }} title="Cycle a NON-CEQ frame: note → intro → outro. Just a label and a starting point — every element on any frame is deletable, so you can always strip it bare and rebuild.">◑ Frame mode</button>}
                   {actions.armUploads && <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: actions.armedLabel ? "#0B1322" : "#B79CFF", background: actions.armedLabel ? "#B79CFF" : "transparent", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.armUploads!(); }} title="ARM UPLOADS — every take you finish (F9 stop in OBS) banks against these frames automatically. Re-arm to replace the target.">🎯 Arm uploads{actions.armedLabel ? " · " + actions.armedLabel : ""}</button>}
                   {actions.uploadClip && (<>
                     <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: "#3BF5A0" }} onClick={() => { setMenuOpen(false); uploadRef.current?.click(); }} title="Upload ONE clip that covers the selected frames (a run filmed in one take) — or just the open frame. It attaches to the first frame of the span; review it on the Publish side.">{"⬆ Upload clip" + ((sel?.size ?? 0) > 1 ? " · " + sel!.size + " frames" : "")}</button>
@@ -350,7 +362,7 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
                         thing that distinguishes a note frame from a numbered one. */}
                     {it.noteOnly && <FileText className="h-3 w-3 shrink-0" style={{ color: NEON.yellow }} />}
                     <span className="text-[9px] font-bold tabular-nums" style={{ color: active ? NEON.yellow : NEON.muted }}>
-                      {it.noteOnly ? "note" : `Q${ceqN}`}
+                      {it.noteOnly ? (it.frameMode ?? "note") : `Q${ceqN}`}
                     </span>
                     {it.run && <span className="rounded px-1 text-[8.5px] font-black uppercase" style={{ color: "#0B1322", background: NEON.cyan }} title={`Run ${it.run} — filmed in one take`}>{it.run}</span>}
                     {dense && <span className="min-w-0 flex-1 truncate text-[9.5px] leading-tight" style={{ color: active ? NEON.text : "rgba(230,236,255,0.75)" }}>{label}</span>}

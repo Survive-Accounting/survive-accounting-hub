@@ -106,18 +106,19 @@ export function Bolt({ c1, c2, keyline = BRAND_WHITE, title, style, className }:
   );
 }
 
-export type LogoMode = "bolt" | "wordmark" | "lockup" | "slogan";
+export type LogoMode = "bolt" | "wordmark" | "lockup" | "slogan" | "outro";
 export const LOGO_MODES: { id: LogoMode; name: string }[] = [
   { id: "bolt", name: "Bolt" },
   { id: "wordmark", name: "Wordmark" },
   { id: "lockup", name: "Lockup" },
   { id: "slogan", name: "Slogan" },
+  { id: "outro", name: "Outro" },
 ];
 
 /** The full logo in any mode. `ink` colours the letters (kit rule: cream/white
  *  or near-black); the bolt carries its own colours. `size` = cap height (px). */
-export function BrandLogo({ mode, c1, c2, keyline, ink = "#141414", size = 48, slogan = "Cram videos by Lee Ingram", style }: {
-  mode: LogoMode; c1: string; c2: string; keyline?: string; ink?: string; size?: number; slogan?: string; style?: React.CSSProperties;
+export function BrandLogo({ mode, c1, c2, keyline, ink = "#141414", size = 48, slogan = "Cram videos by Lee Ingram", url = "surviveaccounting.com", style }: {
+  mode: LogoMode; c1: string; c2: string; keyline?: string; ink?: string; size?: number; slogan?: string; url?: string; style?: React.CSSProperties;
 }) {
   // The bolt is the "i" in "surv·i·ve": a touch taller than the letters, leaning.
   const boltH = Math.round(size * 1.12);
@@ -141,6 +142,16 @@ export function BrandLogo({ mode, c1, c2, keyline, ink = "#141414", size = 48, s
         <span style={{ fontFamily: BRAND_DISPLAY, fontWeight: 600, fontSize: Math.round(size * 0.15), letterSpacing: "0.34em", textTransform: "uppercase", color: ink, whiteSpace: "nowrap", paddingLeft: "0.34em" }}>Accounting</span>
         <span style={{ flex: 1, height: Math.max(2, Math.round(size * 0.03)), borderRadius: 2, background: c2 }} />
       </span>
+    </span>
+  );
+  // OUTRO LOCKUP (Lee, 08-15) — the end card: wordmark, the promise, and the
+  // URL in a muted grey so it reads without competing. One brand source: this
+  // is the same word/bolt every other mode draws.
+  if (mode === "outro") return (
+    <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: Math.round(size * 0.14), ...style }}>
+      {word}
+      <span style={{ fontFamily: BRAND_SANS, fontWeight: 600, fontSize: Math.round(size * 0.3), letterSpacing: "0.005em", color: ink, opacity: 0.95 }}>Only what's on your exam.</span>
+      <span style={{ fontFamily: BRAND_SANS, fontWeight: 500, fontSize: Math.round(size * 0.2), letterSpacing: "0.04em", color: ink, opacity: 0.45 }}>{url}</span>
     </span>
   );
   // slogan — clean sans companion, always secondary

@@ -24,8 +24,8 @@ describe("brand system", () => {
     expect(new Set([...BOLT_PRESETS, ...SEC_SCHOOLS].map((o) => o.id)).size).toBe(19);
   });
 
-  test("four logo modes", () => {
-    expect(LOGO_MODES.map((m) => m.id)).toEqual(["bolt", "wordmark", "lockup", "slogan"]);
+  test("five logo modes (outro = the end card)", () => {
+    expect(LOGO_MODES.map((m) => m.id)).toEqual(["bolt", "wordmark", "lockup", "slogan", "outro"]);
   });
 
   test("boltColorById resolves presets + SEC, falls back to red/blue", () => {

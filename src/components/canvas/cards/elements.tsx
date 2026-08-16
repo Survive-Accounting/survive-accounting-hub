@@ -818,9 +818,9 @@ export function BridgeCardNode({ id, data, selected }: NodeProps) {
 }
 
 // ---- Logo (Lee): the Survive brand mark as a design element. Toggle the MODE
-//      (bolt / wordmark / lockup / slogan) and the bolt COLOURWAY (house preset or
+//      (bolt / wordmark / lockup / slogan / outro) and the bolt COLOURWAY (preset or
 //      SEC school). Renders the shared BrandLogo, so it always matches the kit. ----
-const LOGO_SIZE_FOR: Record<LogoMode, number> = { bolt: 0.82, wordmark: 0.6, lockup: 0.4, slogan: 0.48 };
+const LOGO_SIZE_FOR: Record<LogoMode, number> = { bolt: 0.82, wordmark: 0.6, lockup: 0.4, slogan: 0.48, outro: 0.34 };
 
 export function LogoCardNode({ id, data, selected }: NodeProps) {
   const d = data as unknown as LogoElement;

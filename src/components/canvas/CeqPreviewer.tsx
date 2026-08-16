@@ -465,6 +465,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
           <button className="rounded px-1 text-[9px] font-black" style={{ color: d.callout?.showTopic === false ? NEON.muted : NEON.cyan }} title="Topic label on/off" onClick={() => patchCallout({ showTopic: d.callout?.showTopic === false })}>TOPIC</button>
           <button className="rounded px-1 text-[9px] font-black" style={{ color: d.callout?.kind ? CALLOUT_KINDS[d.callout.kind].accent : NEON.muted }} title="Callout type — click to cycle (or drop a memo from the library to convert)" onClick={() => patchCallout({ kind: nextCalloutKind(d.callout?.kind) })}>{d.callout?.kind ? CALLOUT_KINDS[d.callout.kind].label : "TYPE"}</button>
           <button className="rounded px-1 text-[9px] font-black" style={{ color: NEON.muted }} title="Add a secondary stem (indented gray bullet; double-click one to edit)" onClick={() => patchCallout({ extraStems: [...(d.callout?.extraStems ?? []), "New point"] })}>+ STEM</button>
+          <button className="rounded px-1 text-[9px] font-black" style={{ color: d.callout?.hidden ? "#3BF5A0" : NEON.muted }} title={d.callout?.hidden ? "Bring the callout card back" : "Hide the callout card — leaves a BARE frame (just your elements) to build from scratch"} onClick={() => patchCallout({ hidden: !d.callout?.hidden })}>{d.callout?.hidden ? "+ CARD" : "✕ CARD"}</button>
           {(d.callout?.memoIds?.length ?? 0) > 0 && <button className="rounded px-1 text-[9px] font-black" style={{ color: "#FF8B9E" }} title="Clear the dropped memos (back to the stem)" onClick={() => patchCallout({ memoIds: [] })}>✕ MEMOS</button>}
         </div>
       )}
@@ -474,7 +475,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
       {/* TOPIC kicker — name only (no Ch#), small uppercase above the stem so a
           viewer landing mid-clip knows the topic. */}
       {!isCallout && d.topic && <div style={{ display: "flex", alignItems: "center", gap: 6 * s, fontSize: 12 * s, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: PAPER.inkMuted, marginBottom: 6 * s, maxWidth: "58%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{boltCol && <span style={{ flexShrink: 0, display: "inline-block", height: 15 * s, width: Math.round(15 * s * BOLT_RATIO) }}><Bolt c1={boltCol.c1} c2={boltCol.c2} /></span>}<span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{d.topic}</span></div>}
-      {isCallout && !stemEditing && (
+      {isCallout && !stemEditing && !d.callout?.hidden && (
         <div onDoubleClick={canEditStem ? (e) => { e.stopPropagation(); startStemEdit(); } : undefined} title={canEditStem ? "Double-click to edit the text" : undefined}>
           <CalloutBody
             scale={s}
