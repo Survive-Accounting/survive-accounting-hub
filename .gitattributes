@@ -1,0 +1,12 @@
+# Normalise line endings so a Windows checkout and the Linux CI build agree.
+#
+# Without this, core.autocrlf=true rewrites every checked-out file to CRLF while the tools that
+# GENERATE files write LF — so a generated file is reported modified the instant it is rebuilt,
+# with a zero-line content diff. That is not cosmetic: `git rebase` refuses to run with a dirty
+# tree, so a build immediately before a rebase blocks the rebase for no reason at all.
+* text=auto
+
+# GENERATED, and rewritten by every `vite build`. Marking it binary (-text) stops git from
+# touching its line endings in either direction, which is what makes the phantom diff disappear.
+# It stays tracked because the build needs it present; it just stops lying about being modified.
+src/routeTree.gen.ts -text linguist-generated=true
