@@ -1,25 +1,18 @@
-// THE LAUNCH DATE — one constant, every surface.
+// THE LAUNCH PROMISE — one constant, every surface.
 //
-// This is a PUBLIC PROMISE. It renders on the landing page where strangers read it, so a
-// missed date costs more trust than a vaguer line ever would. It lives here alone so moving
-// it is one edit and cannot drift between the card, the modal and any future email.
+// This renders on the landing page where strangers read it, so a missed promise costs more
+// trust than a vaguer one ever would. It lives here alone so changing it is one edit and
+// cannot drift between the poster, the notify modal and any future email.
 //
-// Confirmed with Lee on 2026-08-15: Monday, August 24. He may ship sooner; the page must
-// never promise EARLIER than this date.
-export const LAUNCH_DATE_ISO = "2026-08-24";
+// 2026-08-16: widened from "Monday, August 24" to the SEASON. A named day is a promise you
+// can miss by a day; a season is one you keep. The exact-date machinery that used to live
+// here (an ISO value with the weekday derived from it, so the two could never disagree) is
+// gone with it — keeping a stale "2026-08-24" around while the page said something else
+// would be exactly the drift this file exists to prevent.
+export const LAUNCH_WINDOW = "Fall 2026";
 
-/** "Monday, August 24" — how the date reads to a student. Derived from the ISO value so the
- *  weekday can never disagree with the date, which is the classic way this kind of string
- *  goes wrong after an edit. */
-export const LAUNCH_DATE_LABEL = new Date(`${LAUNCH_DATE_ISO}T12:00:00Z`).toLocaleDateString("en-US", {
-  weekday: "long",
-  month: "long",
-  day: "numeric",
-  timeZone: "UTC",
-});
-
-/** The full launch line: "Coming Monday, August 24". */
-export const LAUNCH_LINE = `Coming ${LAUNCH_DATE_LABEL}`;
+/** The full launch line: "Coming Fall 2026". */
+export const LAUNCH_LINE = `Coming ${LAUNCH_WINDOW}`;
 
 /** Source tag for everything captured by the landing page's "Get notified" flow. */
 export const NOTIFY_SOURCE = "landing-notify";
