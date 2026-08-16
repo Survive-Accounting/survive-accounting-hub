@@ -17,13 +17,14 @@ import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/stud
 import { resolveStudentMap, type MapLevel } from "@/lib/map-resolver.functions";
 import { joinPricingWaitlist } from "@/lib/pricing-api";
 import { getChapterNames, listCampusIntroCodes } from "@/lib/default-map.functions";
-import { logSchoolDemand, submitExamAsk, submitSyllabus } from "@/lib/syllabus.functions";
+import { logSchoolDemand, submitExamAsk, submitSyllabus , submitNotify } from "@/lib/syllabus.functions";
 import { searchOrderProfessors, type ProfessorLite } from "@/lib/orders.functions";
 import { claimChapterAccess } from "@/lib/greek-chapters.functions";
 import { fetchCourseOptions } from "@/lib/je-api";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { FitWordmark, SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
+import { contactKind, LAUNCH_LINE } from "@/lib/launch";
 import { Bolt, BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS, SEC_SCHOOLS } from "@/components/canvas/brand";
 
 // PROMOTED TO "/" on 2026-08-13. This path 301s to the homepage so every link, QR and bookmark
@@ -94,6 +95,8 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
   // M1.4 — paint html/body navy so Safari's overscroll rubber-band matches the page instead
   // of flashing the light default at the top and bottom edges.
   useNavyDocument();
+  // M2.3 — which topic the notify modal was opened from (null = closed).
+  const [notifyTopic, setNotifyTopic] = useState<string | null>(null);
   // /c/<slug> pre-selects the chapter's school. If it's one of the 16 SEC schools we pre-pick it;
   // otherwise we drop into "not listed" (default map) so the player still unblurs and plays.
   const preSchool = useMemo(() => (initialCampusId ? SCHOOLS.find((s) => s.campusId === initialCampusId) ?? null : null), [initialCampusId]);
@@ -265,7 +268,7 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px", width: "100%", overflowX: "clip" }}>
         {chapterBanner && <ChapterBanner name={chapterBanner} slug={chapterSlug} />}
         <Hero onTryFree={onTryFree} />
-        <ExamPlayer exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} onChangeSchool={changeSchool} pickerPulse={pickerPulse} focusSignal={focusSignal} schools={schoolsWithCodes} mapped={mapped} mapStatus={mapStatus} mapLevel={mapLevel} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} profSkipped={profSkipped} onSkipProfessor={skipProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); try { localStorage.setItem("sa-landing-school", "__notlisted__"); } catch { /* ignore */ } }} theater={theater} onTheaterDone={() => setTheater(null)} />
+        <ExamPlayer exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} onChangeSchool={changeSchool} pickerPulse={pickerPulse} focusSignal={focusSignal} schools={schoolsWithCodes} mapped={mapped} mapStatus={mapStatus} mapLevel={mapLevel} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} profSkipped={profSkipped} onSkipProfessor={skipProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); try { localStorage.setItem("sa-landing-school", "__notlisted__"); } catch { /* ignore */ } }} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(t) => setNotifyTopic(t)} />
         <SectionDivider />
         <TestimonialsSlider />
         <SectionDivider />
@@ -275,6 +278,7 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
       </main>
 
       {syllabusOpen && <SyllabusModal school={school} framing={syllabusFraming} onClose={() => { setSyllabusOpen(false); setSyllabusFraming(null); }} />}
+      {notifyTopic !== null && <NotifyModal topic={notifyTopic} school={school} professorName={professor ? (professor.last || professor.name) : null} onClose={() => setNotifyTopic(null)} />}
       <FloatingPill />
     </div>
   );
@@ -412,6 +416,80 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
         </div>
         </>, document.body)}
     </div>
+  );
+}
+
+/** GET NOTIFIED (M2.3) — one field, email or phone, one button.
+ *
+ *  No account, no password, no second field: asking a student to pick a channel before they
+ *  have committed to anything is friction for nothing. The topic they were looking at rides
+ *  along, so the eventual "it's live" message can be specific rather than a blast. Writes
+ *  through submitNotify into the same private table every other landing capture uses. */
+function NotifyModal({ topic, school, professorName, onClose }: { topic: string | null; school: School | null; professorName?: string | null; onClose: () => void }) {
+  const [contact, setContact] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const valid = contactKind(contact) !== "unknown";
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const send = async () => {
+    if (!valid || busy) return;
+    setBusy(true); setErr(null);
+    try {
+      await submitNotify({ data: { contact: contact.trim(), topic, campusId: school?.campusId ?? null, campusName: school?.name ?? null, professorName: professorName ?? null } });
+      setDone(true);
+    } catch (e) { setErr(e instanceof Error ? e.message : "That didn't send — try again?"); }
+    finally { setBusy(false); }
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[240] grid place-items-center px-4" style={{ ...frameThemeVars(DEFAULT_FRAME_THEME), background: "rgba(5,8,16,0.72)" }} onClick={onClose}>
+      <div
+        className="w-full max-w-[380px] rounded-2xl p-5"
+        style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)", paddingBottom: "max(20px, env(safe-area-inset-bottom, 0px))" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {done ? (
+          <div className="py-4 text-center">
+            <p className="text-[17px] font-black" style={{ color: "var(--brand-cream)" }}>You&apos;re on the list. ⚡</p>
+            <button onClick={onClose} className="mt-4 w-full rounded-xl text-[13.5px] font-black" style={{ minHeight: 46, background: "rgba(245,239,230,0.12)", color: "var(--brand-cream)" }}>Close</button>
+          </div>
+        ) : (
+          <>
+            <p className="text-[16px] font-black" style={{ color: "var(--brand-cream)" }}>{LAUNCH_LINE}</p>
+            <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-muted)" }}>
+              {topic ? `I'll tell you the moment ${topic} is up.` : "I'll tell you the moment it's up."}
+            </p>
+            <input
+              autoFocus
+              value={contact}
+              onChange={(e) => setContact(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") void send(); }}
+              placeholder="Email or phone"
+              className="mt-3 w-full rounded-xl px-3 text-[15px] outline-none"
+              style={{ minHeight: 46, background: "rgba(0,0,0,0.35)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }}
+            />
+            {err && <p className="mt-2 text-[12px]" style={{ color: "#FF8B9E" }}>{err}</p>}
+            <button
+              onClick={() => void send()}
+              disabled={!valid || busy}
+              className="mt-3 w-full rounded-xl text-[14px] font-black disabled:opacity-45"
+              style={{ minHeight: 46, background: "var(--accent)", color: "#0B1220" }}
+            >
+              {busy ? "Sending…" : "Get notified"}
+            </button>
+            <button onClick={onClose} className="mt-2 w-full text-[12.5px]" style={{ minHeight: 44, color: "var(--text-muted)" }}>No thanks</button>
+          </>
+        )}
+      </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -578,7 +656,7 @@ const examStats = (tab: ExamTab): string => {
   return parts.join(" · ");
 };
 
-function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusSignal, schools, mapped, mapStatus, mapLevel, onSyllabus, professor, onPickProfessor, profSkipped, onSkipProfessor, notListed, onNotListed, theater, onTheaterDone }: { exams: ExamTab[]; school: School | null; onPick: (s: School) => void; onChangeSchool: () => void; pickerPulse: number; focusSignal: number; schools: School[]; mapped: boolean; mapStatus: "inherited" | "edited" | "verified"; mapLevel: MapLevel; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; profSkipped: boolean; onSkipProfessor: () => void; notListed: boolean; onNotListed: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void }) {
+function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusSignal, schools, mapped, mapStatus, mapLevel, onSyllabus, professor, onPickProfessor, profSkipped, onSkipProfessor, notListed, onNotListed, theater, onTheaterDone, onNotify }: { exams: ExamTab[]; school: School | null; onPick: (s: School) => void; onChangeSchool: () => void; pickerPulse: number; focusSignal: number; schools: School[]; mapped: boolean; mapStatus: "inherited" | "edited" | "verified"; mapLevel: MapLevel; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; profSkipped: boolean; onSkipProfessor: () => void; notListed: boolean; onNotListed: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void; onNotify: (topic: string) => void }) {
   const [activeNum, setActiveNum] = useState(1);
   const [selById, setSelById] = useState<Record<number, Sel>>({});
   const [openTopics, setOpenTopics] = useState<Set<string>>(() => new Set());
@@ -652,8 +730,9 @@ function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusS
               <span className="text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>Your school · Intro Accounting</span>
               <button onClick={onChangeSchool} className="sa-chg text-[10.5px]" style={{ color: "var(--text-muted)" }}>change</button>
             </div>
-            <button onClick={() => onSyllabus()} className="mt-0.5 text-[11.5px] hover:opacity-90" style={{ color: "var(--text-muted)" }}>
-              Help me tailor this to your exact course — <span className="font-bold" style={{ color: "var(--accent)" }}>send your syllabus →</span>
+            <button onClick={() => onSyllabus()} className="mt-0.5 flex flex-col items-center gap-0.5 hover:opacity-90" style={{ color: "var(--text-muted)" }}>
+              <span className="text-[11.5px] leading-snug">Let&apos;s tailor this to your professor&apos;s exams</span>
+              <span className="text-[11.5px] font-bold leading-snug" style={{ color: "var(--accent)" }}>Send your syllabus →</span>
             </button>
           </div>
         )}
@@ -661,10 +740,23 @@ function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusS
         {/* "My school isn't listed" — one optional demand field (skippable), logged with a timestamp */}
         {notListed && <SchoolDemandField />}
 
-        {/* mobile-only drawer toggle for the outline */}
-        <button onClick={() => setDrawerOpen((v) => !v)} className="flex w-full items-center justify-between border-b px-3 py-2 text-[12px] font-bold uppercase tracking-wide sm:hidden" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--brand-cream)", background: "rgba(0,0,0,0.2)" }}>
-          <span>Common Exam Questions</span><span style={{ color: "var(--accent)" }}>{drawerOpen ? "Hide ▴" : "Browse ▾"}</span>
-        </button>
+        {/* TOPIC LINE (M2.1 + M2.2) — replaces the "COMMON EXAM QUESTIONS" header AND the
+            BROWSE ▾ / HIDE ▴ toggle. The label was telling, not showing: the videos below
+            already ARE the questions. This reads as a sentence, names the topic on screen,
+            and doubles as the switcher — so the first topic's content is already rendered
+            with nothing to click, and picking another swaps it in place. */}
+        <div className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 border-b px-3 py-2 sm:hidden" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.2)" }}>
+          <span className="text-[13px]" style={{ color: "var(--text-muted)" }}>Cram videos for</span>
+          <button
+            onClick={() => setDrawerOpen((v) => !v)}
+            aria-expanded={drawerOpen}
+            className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-bold"
+            style={{ minHeight: 40, background: "rgba(245,239,230,0.08)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }}
+          >
+            <span className="min-w-0 truncate">{curTopic?.name ?? active.label}</span>
+            <span className="shrink-0" style={{ color: "var(--accent)" }}>{drawerOpen ? "▴" : "▾"}</span>
+          </button>
+        </div>
 
         <div className="sm:flex">
           <div className={`${drawerOpen ? "block" : "hidden"} border-b sm:block sm:w-[42%] sm:max-w-[360px] sm:border-b-0 sm:border-r`} style={{ borderColor: "rgba(245,239,230,0.1)" }}>
@@ -688,7 +780,7 @@ function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusS
               ) : curSet?.playbackId ? (
                 <HeroVideo key={curSet.playbackId} playbackId={curSet.playbackId} onComplete={() => markComplete(curSet!.id)} />
               ) : (
-                <Poster school={school} topicName={curTopic?.name ?? active.label} queued={!isPaid && !!curTopic} stem={curSet?.firstStem ?? null} />
+                <Poster school={school} topicName={curTopic?.name ?? active.label} queued={!isPaid && !!curTopic} stem={curSet?.firstStem ?? null} onNotify={onNotify} />
               )}
             </div>
 
@@ -698,8 +790,9 @@ function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusS
             {/* Unmapped campus / "not listed": Exam 1 still plays (default map); offer to tailor. */}
             {((school && !mapped) || notListed) && (
               <div className="border-t px-3 py-2 text-center" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
-                <button onClick={() => onSyllabus()} className="text-[12px]" style={{ color: "var(--text-muted)" }}>
-                  Help me tailor this to your exact course — <span className="font-bold" style={{ color: "var(--accent)" }}>Send your syllabus</span>
+                <button onClick={() => onSyllabus()} className="flex w-full flex-col items-center gap-0.5" style={{ color: "var(--text-muted)" }}>
+                  <span className="text-[12px] leading-snug">Let&apos;s tailor this to your professor&apos;s exams</span>
+                  <span className="text-[12px] font-bold leading-snug" style={{ color: "var(--accent)" }}>Send your syllabus →</span>
                 </button>
               </div>
             )}
@@ -739,14 +832,15 @@ function ExamOutline({ tab, school, stats, isPaid, curSetId, curTopicKey, openTo
   const [notifyPulse, setNotifyPulse] = useState(0);
   return (
     <div className="max-h-[300px] overflow-y-auto p-3 sm:max-h-[380px]">
-      <div className="mb-2 flex items-center justify-between px-1">
-        <span className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide" style={{ color: "var(--brand-cream)" }}>
-          {/* STATIC bolt — the poster bolt stays the player's one animated element; no wordmark here */}
+      {/* "Common Exam Questions" removed here too (M2.1) — the list under it IS the
+          questions, so the header only restated what the rows already show. The bolt stays
+          as the quiet brand anchor; the release label keeps its place on paid tabs. */}
+      {isPaid && (
+        <div className="mb-2 flex items-center justify-between px-1">
           <span className="inline-block h-3.5 w-2.5 shrink-0"><Bolt c1="var(--bolt-primary)" c2="var(--bolt-secondary)" /></span>
-          Common Exam Questions
-        </span>
-        {isPaid && <span className="text-[10px] font-bold" style={{ color: "var(--accent)" }}>{RELEASE_LABEL}</span>}
-      </div>
+          <span className="text-[10px] font-bold" style={{ color: "var(--accent)" }}>{RELEASE_LABEL}</span>
+        </div>
+      )}
       {/* LOCK-NOT-BROKEN: one caption explains the ░ redaction once, so it reads as a tease, not a bug */}
       {isPaid && (
         <div className="mb-2 flex items-center gap-1.5 px-1 text-[10.5px]" style={{ color: "var(--text-muted)" }}>
@@ -923,8 +1017,12 @@ function CourseMasthead({ school, exam, professor, skipped, mapStatus, mapLevel,
             </button>
           ) : (
             /* no real coverage number — the ask without an invented statistic */
-            <button key={`${professor.id}-s`} onClick={() => onSyllabus()} className="sa-meter-in mt-0.5 text-[11.5px] hover:opacity-90" style={{ color: "var(--text-muted)" }}>
-              Help me tailor this to {profLabel}'s exams — <span className="font-bold" style={{ color: "var(--accent)" }}>send your syllabus →</span>
+            /* TWO LINES (A) — the ask and the action stopped competing for one line, which on
+               a phone wrapped mid-sentence and buried the CTA. The professor name stays
+               dynamic; `profLabel` falls back to "your professor" when none is selected. */
+            <button key={`${professor.id}-s`} onClick={() => onSyllabus()} className="sa-meter-in mt-0.5 flex flex-col items-center gap-0.5 hover:opacity-90" style={{ color: "var(--text-muted)" }}>
+              <span className="text-[11.5px] leading-snug">Let&apos;s tailor this to {profLabel}&apos;s exams</span>
+              <span className="text-[11.5px] font-bold leading-snug" style={{ color: "var(--accent)" }}>Send your syllabus →</span>
             </button>
           )
         ) : !skipped ? (
@@ -1096,7 +1194,7 @@ function HeroVideo({ playbackId, onComplete }: { playbackId: string; onComplete?
   );
 }
 
-function Poster({ school, topicName, queued, stem }: { school: School | null; topicName: string; queued: boolean; stem?: string | null }) {
+function Poster({ school, topicName, queued, stem, onNotify }: { school: School | null; topicName: string; queued: boolean; stem?: string | null; onNotify?: (topic: string) => void }) {
   const c = school ? boltFor(school.id) : { c1: BRAND_RED, c2: BRAND_BLUE };
   return (
     <div className="grid h-full w-full place-items-center" style={{ background: "var(--brand-navy)" }}>
@@ -1105,7 +1203,15 @@ function Poster({ school, topicName, queued, stem }: { school: School | null; to
         <span className="rounded-full px-3 py-1 text-[12px] font-bold uppercase tracking-wide" style={{ background: "var(--accent)", color: "#0B1220" }}>{topicName}</span>
         {/* the FULL stem — the outline row's 40ch truncation is the tease, this is the payoff */}
         {stem && <p className="max-w-md text-[13.5px] font-semibold leading-snug" style={{ color: "var(--brand-cream)" }}>{stem}</p>}
-        {queued && <a href="/order" className="text-[12.5px] font-semibold" style={{ color: "var(--brand-cream)", opacity: 0.9 }}>This one's queued — want it sooner? <span style={{ color: "var(--accent)" }}>Tell me →</span></a>}
+        {/* LAUNCH STATE (M2.3) — was "This one's queued — want it sooner? Tell me →", which
+            promised nothing and asked for a favour. A date is a commitment students can plan
+            around. LAUNCH_LINE is derived from one constant in lib/launch.ts. */}
+        {queued && (
+          <div className="flex flex-col items-center gap-1">
+            <span className="text-[12.5px] font-semibold" style={{ color: "var(--brand-cream)", opacity: 0.9 }}>{LAUNCH_LINE}</span>
+            <button onClick={() => onNotify?.(topicName)} className="text-[12.5px] font-bold" style={{ color: "var(--accent)" }}>Get notified →</button>
+          </div>
+        )}
       </div>
     </div>
   );

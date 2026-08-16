@@ -64,6 +64,63 @@ export function FitWordmark({ size, className, style }: { size: number; classNam
   );
 }
 
+/** The site menu (M2.2). Holds the broad navigation that used to have nowhere to live —
+ *  and specifically NOT the topic switcher, which belongs inside the card next to the
+ *  content it switches. Closes on Escape, on tap-outside, and on choosing anything. */
+function SiteMenu() {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
+  const items: { label: string; href: string }[] = [
+    { label: "Exams", href: "/" },
+    { label: "Greek chapters", href: "/chapters" },
+    { label: "About Lee", href: "/#lee" },
+    { label: "Contact", href: "mailto:lee@surviveaccounting.com" },
+  ];
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-label="Menu"
+        aria-expanded={open}
+        className="grid place-items-center rounded-lg"
+        style={{ minHeight: 44, minWidth: 44, color: "#F5EFE6" }}
+      >
+        <span style={{ display: "grid", gap: 4 }}>
+          {[0, 1, 2].map((i) => <span key={i} style={{ display: "block", width: 18, height: 2, borderRadius: 2, background: "currentColor" }} />)}
+        </span>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-[201]" style={{ background: "rgba(5,8,16,0.55)" }} onClick={() => setOpen(false)} aria-hidden />
+          <div
+            className="fixed right-2 z-[202] w-52 overflow-hidden rounded-xl"
+            style={{ top: "calc(52px + env(safe-area-inset-top, 0px))", background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)" }}
+          >
+            {items.map((it) => (
+              <a
+                key={it.label}
+                href={it.href}
+                onClick={() => setOpen(false)}
+                className="flex items-center px-4 text-[14px] font-semibold hover:bg-white/10"
+                style={{ minHeight: 46, color: "#F5EFE6" }}
+              >
+                {it.label}
+              </a>
+            ))}
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
 /** Sticky header for every public page. Small, on-brand, and the wordmark is a link home.
  *  Sits under the notch via safe-area padding so it is never obscured on a modern iPhone. */
 export function SiteHeader() {
@@ -84,6 +141,10 @@ export function SiteHeader() {
         <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center" style={{ minHeight: 44, minWidth: 44 }}>
           <SurviveWordmark size={22} />
         </a>
+        <span className="flex-1" />
+        {/* SITE NAV (M2.2) — the BROWSE ▾ toggle that used to sit INSIDE the player card is
+            gone; broader navigation belongs in the page chrome, not in the content. */}
+        <SiteMenu />
       </div>
     </header>
   );

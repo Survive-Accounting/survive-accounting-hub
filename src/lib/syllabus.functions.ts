@@ -114,3 +114,46 @@ export const submitSyllabus = createServerFn({ method: "POST" })
     } catch { /* 0113 not applied yet */ }
     return { ok: true };
   });
+
+// ---------------------------------------------------------------------------
+// "GET NOTIFIED" (M2.3) — the landing page's launch-date capture.
+//
+// One field on screen, email OR phone, because asking a student to pick a channel before
+// they have committed to anything is friction for no gain. Both land in the SAME private
+// table every other landing capture uses, tagged with `source` so triage can tell them
+// apart — deliberately NOT a new table or a parallel "subscribers" concept.
+//
+// `email` is NOT NULL in the schema and is really "how to reach them", so the raw contact
+// goes there whichever kind it is; `note` records the kind and which topic they were
+// looking at, which is the signal worth having when the videos land.
+// ---------------------------------------------------------------------------
+export const submitNotify = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({
+      contact: z.string().trim().min(3).max(200),
+      topic: z.string().trim().max(120).nullable().optional(),
+      campusId: z.string().uuid().nullable().optional(),
+      campusName: z.string().trim().max(120).nullable().optional(),
+      professorName: z.string().trim().max(120).nullable().optional(),
+    }).parse(d),
+  )
+  .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { contactKind, NOTIFY_SOURCE } = await import("./launch");
+    const kind = contactKind(data.contact);
+    if (kind === "unknown") throw new Error("That doesn't look like an email or a phone number.");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as unknown as { from: (t: string) => { insert: (row: unknown) => Promise<{ error: { message: string } | null }> } };
+    const { error } = await db.from("syllabus_submissions").insert({
+      email: data.contact,
+      campus_id: data.campusId ?? null,
+      campus_name: data.campusName ?? null,
+      professor_name: data.professorName ?? null,
+      source: NOTIFY_SOURCE,
+      note: `notify · ${kind}${data.topic ? ` · topic: ${data.topic}` : ""}`,
+      file_paths: [],
+      file_names: [],
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
