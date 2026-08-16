@@ -1,123 +1,147 @@
-# Hero redesign v1 — what moved where
+# Landing realign — Pass 2
 
-Branch: `hero-redesign-v1`. Scope: the hero and the entry journey. The player itself, the
-pricing page and checkout were not touched.
+Branch: `landing-realign-pass-2`. Landing page + player chrome only. Checkout, the Greek page and
+the video player internals were not touched.
 
 ---
 
-## The hero is now exactly four things
+## 1. Navbar (new)
 
-In order: **brand lockup → headline → subhead → CTA.**
+Sticky, always fully visible. Top-left is the **compact lockup** — `survive` with the split-bolt
+"i" and `ACCOUNTING` in letterspaced muted caps beneath. This is now the **only** wordmark on the
+page.
+
+Hamburger menu, in order:
+
+1. Cram Exam 1 Free → `#exam1`
+2. Reviews → `#reviews` *(new anchor, added above the testimonials)*
+3. About Lee → `#lee`
+4. Contact → `#contact`
+5. *(divider)*
+6. For Fraternities & Sororities → `/chapters` *(a route, not an anchor — hence the divider)*
+
+The previous fade-in-on-scroll hamburger is **removed**. It existed to keep exactly one
+interactive element above the fold while the hero carried the wordmark; now the navbar *is* the
+brand statement, and hiding half of it on load just looked unfinished.
+
+## 2. Hero — four elements
 
 | | |
 |---|---|
-| Lockup | `survive` with the animated split bolt as the "i", and `ACCOUNTING` beneath it in letterspaced small caps at 55% opacity |
-| Headline | `Cram what's on your exam.` (unchanged, as instructed) |
-| Subhead | `Built for your first accounting course.` |
-| CTA | `Cram Exam 1 Free ⚡` — the only interactive element on the screen |
+| H1 | `Cram what's on your exam.` |
+| Subhead | `On-demand exam prep for your first accounting course. Built for the night before.` |
+| CTA | `Cram Exam 1 Free ⚡` |
+| Badges | `Built by a pro tutor` · `1,000+ students tutored since 2015` |
 
-The section is `.sa-hero`, which fills exactly the viewport left under the sticky header, so
-nothing below it can peek above the fold.
+**Wordmark removed from the hero.** No config controls.
 
-## What left the hero, and where it went
+## 3. Player — screenshot-6 layout restored
 
-| Was in / under the hero | Now |
+- **Four exam tabs**, full player width, amber underline on the active one:
+  `EXAM 1 — FREE` · `EXAM 2 — $50` · `EXAM 3 — $50` · `FINAL — $50`.
+  The row scrolls horizontally rather than compressing, because the price is the load-bearing half
+  of each label and must not truncate at 320px.
+- **Under the tabs:** `Or grab the Semester Pass — everything, all semester, $150.`
+- **Left sidebar:** `Common exam questions` header + topic list with "coming" states + topic count.
+- **Right panel** replaces the top school/professor bar entirely:
+  - *Initial:* `Pick your school to start` + the school dropdown (`Search 16 SEC schools…`) + the
+    scrolling marquee directly beneath it.
+  - *After school:* professor search (`Search [School] professors`) with
+    `My professor isn't listed →`, `← Change school`, `Skip this`.
+  - *Confirmed:* `✓ [School] · [Course] · Prof. [Name]` inside the panel, above the content.
+- `My school isn't listed →` stays pinned at the bottom of the school list (unchanged).
+- The `One last thing / Send your syllabus` step is unchanged apart from the coverage line below.
+
+**`← Change school` / `Change` is a FULL reset** — clears school, the not-listed flag *and* the
+professor. A partial reset would leave a professor attached to a different campus's faculty.
+
+## 4. Locked tabs (Exam 2 / 3 / Final)
+
+- Sidebar header `Common exam questions` with right-aligned `Opens Fall 2026`.
+- The lock line `Blurred bits unlock with Exam 2.` is **removed** — there are no blurred bits yet.
+- Notify box: `Get notified once Exam 2 is ready` + `you@school.edu` + `Notify me`.
+
+## 5. Removals
+
+| Removed | Why |
 |---|---|
-| Exam dropdown | Unchanged, inside the player — now below the fold |
-| School / course selector (the blurred **gate**) | Deleted. School is chosen in the match sheet, or never |
-| "Let's tailor this to Prof. X's exams" | Deleted from all three places it appeared. The ask is the last, optional step of the match sheet |
-| "Send your syllabus" link | Same — inside the match sheet, and in the footer only as a removed item (see below) |
-| Topic selector | Unchanged, inside the player — and no longer hidden until a school exists |
-| School marquee (inside the gate) | Below the player as `SchoolProofBand` — proof, not an input |
+| `Start studying` floating pill | glitchy, deleted outright |
+| `BEING BUILT FOR` marquee section | the marquee now lives only under the school picker |
+| Pricing table (`Exam 1 / start here / Free … Tell me when they land`) | superseded by the tab row + Semester Pass line |
+| School/professor top bar (`MatchChip`) | selection moved into the right panel |
+| Hero wordmark | the navbar lockup is the only one now |
+| Hamburger fade-in-on-scroll | navbar is always fully visible |
 
-## The journey: one tap to content
+## 6. Three steps — final copy
 
-1. **Tap the CTA** → scrolls to the player, which is already on Exam 1, first topic, with the
-   first live set selected. No account, no school pick, no interstitial.
-2. **The player carries a quiet chip**: `Match this to your school →`.
-3. **Tapping the chip** opens a bottom sheet: school → professor → optional syllabus. Every step
-   is skippable, and the professor step has a `← Change school` row so a wrong first answer is
-   fixable.
-4. **When matched**, the chip becomes a badge: `✓ Ole Miss · ACCY 201 · Prof. Allen ▾`, still
-   tappable. Only the parts actually known are shown — a missing course code or professor drops
-   out rather than being invented.
-5. **School not listed** → the sheet goes to the syllabus step instead of dead-ending.
+1. **Pick your school and professor** — `So your cram videos match your specific exam.`
+2. **Start cramming** — `Exam 1 is completely free. Other exams are $50 each.`
+3. **Go crush exam day** — `Way easier when a tutor has shown you exactly what to expect.`
 
-**The gate is gone.** `ExamPlayer` used to compute `gated = !school && !notListed` and blur the
-stage behind a school picker. The Starter Map resolves Exam 1's seven topics with no campus at
-all, so the blur was withholding content the server was already willing to serve. The
-`if (!school) return;` guard that stopped the CTA from selecting a live set is gone with it.
+## 7. Testimonials
 
-## Below the fold, in order
+Header `What students are saying` and the carousel are unchanged. Only an `#reviews` anchor was
+added above it so the navbar item lands.
 
-1. `SchoolProofBand` — "BEING BUILT FOR" + the school marquee.
-2. `HowItWorks` — Pick your exam → Cram the topics → Walk in ready.
-3. `PricingBlock` — Exam 1 free · Exams 2/3/Final $50 each · Semester Pass $150.
-4. Then the existing testimonials, Lee section and footer, unchanged in order.
+## 8. About → "Meet your tutor"
 
-## Copy decisions made inside the rules
+- Section header: `Why I built Survive Accounting` → **`Meet your tutor`**. The story keeps its
+  name as a small uppercase sub-heading inside the expanded body.
+- Portrait caption split into three lines: `Lee Ingram` / `Ole Miss accounting grad` /
+  `Tutor since 2015` (was one dot-joined line).
+- Collapsed teaser unchanged (two student quotes + `Sound familiar?` + `Read more`).
+- Expanded body, final copy:
+  - `Lectures teach you *about* accounting. Exams test whether you can *do* it.`
+  - `So my cram videos are real exam-style questions, worked start to finish — you walk into the exam having already done the problems.`
+  - `This course is tough. So are you. Exam 1 is free — see for yourself.`
 
-- **"Try" is gone everywhere.** The CTA is `Cram Exam 1 Free`; the internal handler was renamed
-  `onTryFree` → `onStart` so the forbidden verb is not even in the source.
-- **The subhead does not restate the product.** The old line ("Cram videos for Intro Financial
-  Accounting — built for your professor's exams") repeated the lockup, repeated the headline, and
-  promised tailoring before the student had seen anything worth tailoring.
-- **"ACCOUNTING" appears once**, in the lockup. Neither the headline nor the subhead says it.
-- **No hero sentence is over 8 words** (subhead is 6; headline is 5, as specified).
-- **The proof band is not tappable.** The brief allows deep-linking a school from it, but a
-  scrolling marquee makes every name a moving target — the worst possible tap affordance — and
-  the brief's stronger requirement is that the band read as proof, not as a step. The stationary
-  version of that list lives in the match sheet.
-- **How-it-works line 1 says "No account."** because that is now literally true.
+## Also in this branch: the coverage line
 
-## Footer (requested mid-flight)
+Moved into the match sheet's **last step**, as requested. On the old top bar it was a passive
+statistic; on the final rung it is the *reason* to send a syllabus.
 
-Removed the YouTube and Instagram icons — both pointed at `#` because the accounts do not exist
-yet, and a dead link costs more trust than a missing one. Removed `Send your syllabus` and
-`Text Lee` from the link row: the syllabus ask now lives in the match sheet where it has
-context, and Text Lee is the large amber button directly above. `For Greek orgs` is the only
-link left.
+> Right now this likely covers **N%** of Prof. [Name]'s [Exam].
 
-## Deleted code
+**It renders only when the resolver returns a real number** for the active exam — a null coverage
+shows nothing rather than a zero or a guess. One deliberate deviation from the old rule: the
+previous version showed coverage on *paid tabs only*, because "80%" next to a free Exam 1
+manufactured doubt at the free offer. In the syllabus step the framing is the opposite (it names
+the gap the syllabus closes), so the paid-tab restriction was dropped. **Consequence to know:** on
+current data the Starter Map returns `null` coverage for Exam 1, so the line does not appear yet —
+I could not see it render, only verify the guard and the wiring.
 
-`CourseMasthead`, `ProfessorPicker` and `SchoolDemandField` are gone, along with the state that
-only fed them (`pickerPulse`, `profSkipped`, `skipProfessor`, `changeSchool`, `mapStatus`,
-`mapLevel`, `mapped`). `CampusSelector` stays — `/chapters` and `/expand` still use it.
+---
 
-**One capability was genuinely dropped:** the "Likely covers N% of Prof. X's Exam 2" coverage
-line and the "✓ Mapped to …" trust lines that lived in `CourseMasthead`. The chip's `✓` plus the
-school/code/professor badge carries the *matched* signal, but the percentage is not shown
-anywhere now. It could return inside the sheet's final step, where it would motivate sending a
-syllabus. Flagging rather than silently reinstating it.
+## Verified at 390×844 (measured from the live DOM)
 
-## Bugs fixed on the way
-
-- `SchoolTicker` called `matchMedia` during render via `useMemo` — a real SSR/hydration mismatch
-  on this server-rendered route, since the server always took the animated branch. Now read in an
-  effect.
-- The professor roster prefetch was lost when `CourseMasthead` was deleted, so the sheet's step 2
-  opened empty and filled a second later. Restored in `ExamPlayer` on the same query key.
-- `TwoSetAsk` required a non-null school. It now accepts `null` and records what is known, so the
-  two-sets-watched ask still fires for a student who never matched a campus.
-
-## Verified at 390×844 (measured, not eyeballed)
-
-- Hero spans y=49 → 844: fills the viewport exactly, zero overflow.
-- Interactive elements above the fold: **1** (the CTA). The header's hamburger fades in only
-  after 80px of scroll, and is `aria-hidden` + `pointer-events:none` until then, so it is not
-  reachable by keyboard or screen reader either.
-- Cold load → tap CTA → player in view, gate gone, seven Exam-1 topics listed: **1 tap**.
-- Match sheet: 17 school rows → 21 professor rows on open (prefetch working) → compact syllabus
-  step → chip reads `✓ Ole Miss · ACCY 201 · Prof. Allen`. Root scroll lock released on close.
-- `tsc --noEmit` clean; 925/925 tests pass.
+- Hero spans y=55 → 844 — fills the viewport exactly, no horizontal overflow.
+- Above the fold: lockup, hamburger, CTA (Pass 2 intends all three; the one-element rule belonged
+  to the previous hero).
+- Tabs: all four present, `tablist` scrolls horizontally, **every price visible**.
+- Locked Exam 2: `Opens Fall 2026`, `Get notified once Exam 2 is ready`, `you@school.edu`,
+  `Notify me`, no blur line.
+- Flow: panel picker → school sheet (sticky `My school isn't listed →`) → professor step
+  (21 rows; footer `My professor isn't listed →`, `← Change school`, `Skip this`) → `One last
+  thing` → confirmed `✓ Ole Miss · ACCY 201 · Prof. Allen`.
+- `Change` reset: returns to `Pick your school to start`, marquee restored, and **both**
+  `sa-landing-school` and `sa-landing-prof` cleared from localStorage.
+- Removals confirmed absent from the DOM: `BEING BUILT FOR`, the pricing table, `Start studying`.
+- `Meet your tutor` is the section header.
+- `tsc --noEmit` clean; 1022/1022 tests pass.
 
 ## Not verified
 
 - **Screenshots could not be captured.** The Browser pane's screenshot renderer paints the page
-  into a ~105px corner of the canvas while the DOM correctly reports 820×900, and under 768px it
-  forces `devicePixelRatio: 2` and crops rather than downscales. The numbers above are measured
-  from the live DOM instead. The preview deploy is the thing to look at.
-- **Lighthouse was not run**, so "performance does not regress" is unproven. The change removes
-  a component tree and adds three small static sections; no new dependency was introduced.
-- Real iOS behaviour of the bottom sheet (keyboard geometry, rubber-band, safe-area) is still
-  the open item from the picker work — unchanged by this branch.
+  into a ~105px corner of the canvas while the DOM correctly reports the real viewport, and under
+  768px it forces `devicePixelRatio: 2` and crops instead of downscaling. Same limitation as the
+  previous pass. The measurements above stand in; the preview deploy is the thing to look at.
+- The coverage line rendering with a real percentage (see above).
+
+## One flag
+
+Section 3 reinstates a **school-first gate**: the right panel shows the picker instead of content
+until a school is chosen, reversing the previous pass's "try-first, never a gate". Built as
+specified. It is softer than the old blur — the left outline stays populated the whole time — but
+the only escape at the school step is `My school isn't listed →`, which is untrue for a student
+whose school *is* listed and simply doesn't want to say. A neutral `Skip for now` would close that
+hole without weakening the ask.
