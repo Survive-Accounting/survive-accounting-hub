@@ -11,7 +11,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, GraduationCap, Instagram, Lock, MessageCircle, Plus, Search, X, Youtube } from "lucide-react";
+import { ChevronDown, GraduationCap, Instagram, Lock, MessageCircle, Plus, X, Youtube } from "lucide-react";
 
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
 import { resolveStudentMap, type MapLevel } from "@/lib/map-resolver.functions";
@@ -24,6 +24,7 @@ import { fetchCourseOptions } from "@/lib/je-api";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { FitWordmark, SiteHeader, SITE_NAVY, useNavyDocument } from "@/components/site/SiteHeader";
+import { PickerSheet } from "@/components/site/PickerSheet";
 import { contactKind, LAUNCH_LINE } from "@/lib/launch";
 import { Bolt, BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS, SEC_SCHOOLS } from "@/components/canvas/brand";
 
@@ -248,7 +249,8 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
         @keyframes sa-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
         .sa-marquee-track { animation: sa-marquee 42s linear infinite; }
         .sa-marquee:hover .sa-marquee-track { animation-play-state: paused; }
-        @keyframes sa-picker-pulse { 0% { box-shadow: 0 0 0 0 rgba(252,163,17,0.55); } 70% { box-shadow: 0 0 0 16px rgba(252,163,17,0); } 100% { box-shadow: 0 0 0 0 rgba(252,163,17,0); } }
+        /* sa-picker-pulse moved to styles.css — it was defined only here, so the ring was
+           dead on /chapters and /expand, which render the same CampusSelector. */
         .sa-chg { opacity: 0; transition: opacity 120ms; }
         .sa-idrow:hover .sa-chg, .sa-chg:focus-visible { opacity: 1; }
         @media (hover: none) { .sa-chg { opacity: 1; } }
@@ -330,49 +332,38 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [ring, setRing] = useState(false);
-  const [rect, setRect] = useState<{ left: number; top: number; width: number } | null>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const firstPulse = useRef(true);
-  // The dropdown renders in a PORTAL (position: fixed) so it can't be clipped by the player's
-  // overflow-hidden — the full school list must be scannable. Anchored to the button's rect.
-  // MOBILE OVERFLOW (M1.1) — this used to take the button's rect verbatim. Near a viewport
-  // edge, or with the button as wide as the card, that put the panel's right edge past 100vw
-  // and the course codes were clipped off-screen. Clamp the width to the viewport with a
-  // gutter, and never let the left edge fall outside that gutter either.
-  const place = () => {
-    const r = btnRef.current?.getBoundingClientRect();
-    if (!r) return;
-    const vw = document.documentElement.clientWidth;
-    const GUTTER = 10;
-    const width = Math.min(r.width, vw - GUTTER * 2);
-    const left = Math.max(GUTTER, Math.min(r.left, vw - width - GUTTER));
-    setRect({ left, top: r.bottom + 8, width });
-  };
-  useEffect(() => {
-    if (!open) return;
-    place();
-    const onDoc = (e: MouseEvent) => { const t = e.target as Node; if (!btnRef.current?.contains(t) && !menuRef.current?.contains(t)) setOpen(false); };
-    const reflow = () => place();
-    document.addEventListener("mousedown", onDoc);
-    window.addEventListener("scroll", reflow, true);
-    window.addEventListener("resize", reflow);
-    return () => { document.removeEventListener("mousedown", onDoc); window.removeEventListener("scroll", reflow, true); window.removeEventListener("resize", reflow); };
-  }, [open]);
+  const close = () => { setOpen(false); setQ(""); };
+
   useEffect(() => {
     if (pulse == null) return;
-    if (firstPulse.current) { firstPulse.current = false; return; } // ignore initial mount
+    // Swallow ONLY the genuine initial mount, which is the one where `pulse` is still 0.
+    // "Change school" sets school=null, which flips `gated` and REMOUNTS this component with
+    // pulse ALREADY bumped — so the old blanket skip meant the primary door into this picker
+    // neither rang nor opened anything.
+    if (firstPulse.current) { firstPulse.current = false; if (!pulse) return; }
     setRing(true);
     if (openOnPulse) setOpen(true);
     const t = window.setTimeout(() => setRing(false), 950);
     return () => window.clearTimeout(t);
   }, [pulse, openOnPulse]);
-  const results = schools.filter((s) => s.name.toLowerCase().includes(q.trim().toLowerCase()));
+
+  // Match on the name, the slug, and the course code — but only a code the student can
+  // actually SEE, or searching "ACCY 201" would surface a school whose row shows no code.
+  const needle = q.trim().toLowerCase();
+  const results = schools.filter((s) =>
+    s.name.toLowerCase().includes(needle) || s.id.includes(needle) || (!!s.codeVerified && !!s.code && s.code.toLowerCase().includes(needle)));
+
   return (
     <div className="relative">
+      {/* setOpen(true), NOT a toggle: the scrim's pointerdown already closes, and a toggle
+          re-opens the sheet when the compatibility click lands back on this button. */}
       <button
         ref={btnRef}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
+        aria-expanded={open}
         className="flex w-full items-center gap-3 rounded-2xl px-5 py-4 text-left transition-transform hover:scale-[1.01]"
         style={{ background: "rgba(245,239,230,0.06)", border: `2px solid ${school ? "var(--bolt-primary)" : "var(--accent)"}`, boxShadow: "0 20px 55px -22px rgba(0,0,0,0.7)", animation: ring ? "sa-picker-pulse 0.9s ease" : undefined, borderRadius: 16 }}
       >
@@ -380,42 +371,33 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
         <span className="min-w-0 flex-1 text-[17px] font-bold" style={{ color: "var(--brand-cream)" }}>{school ? school.name : "Pick your school"}</span>
         <ChevronDown className="h-5 w-5 shrink-0 opacity-70" />
       </button>
-      {open && rect && typeof document !== "undefined" && createPortal(
-        // The portal renders at document.body, OUTSIDE the themed landing root — so re-declare the
-        // theme CSS vars here, or every var(--brand-cream)/accent inside would be undefined (dark text).
-        <>
-        {/* SCRIM (M1.3) — on a phone this must read as a modal sheet, not a floating
-            fragment. Without it the testimonial cards below showed through and around the
-            panel. It also gives a reliable tap-outside-to-close: the document mousedown
-            listener alone is easy to miss on touch. */}
-        <div className="fixed inset-0 z-[219]" style={{ background: "rgba(5,8,16,0.55)" }} onClick={() => { setOpen(false); setQ(""); }} aria-hidden />
-        <div ref={menuRef} className="fixed z-[220] overflow-hidden rounded-xl" style={{ ...frameThemeVars(DEFAULT_FRAME_THEME), left: rect.left, top: rect.top, width: rect.width, maxWidth: "calc(100vw - 20px)", background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)" }}>
-          <div className="flex items-center gap-2 border-b px-3 py-2.5" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
-            <Search className="h-4 w-4 opacity-50" />
-            <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search 16 SEC schools…" className="w-full bg-transparent text-[14px] outline-none" style={{ color: "var(--brand-cream)" }} />
-          </div>
-          <div className="max-h-72 overflow-y-auto py-1">
-            {results.length === 0 && <div className="px-4 py-3 text-[13px] italic" style={{ color: "var(--text-muted)" }}>No SEC school by that name.</div>}
-            {results.map((s) => { const c = boltFor(s.id); return (
-              // ROW LAYOUT (M1.1): `min-w-0` is load-bearing. A flex child defaults to
-              // min-width:auto, so a long school name REFUSED to shrink and shoved the
-              // course code out of the panel's overflow-hidden box — that is the
-              // "ACCY 20…" clipping. min-w-0 + truncate lets the name give way instead.
-              // 44px min-height is the tap-target floor.
-              <button key={s.id} onClick={() => { onPick(s); setOpen(false); setQ(""); }} className="group flex w-full items-center gap-3 px-4 py-2.5 text-left hover:bg-white/10" style={{ minHeight: 44 }}>
-                <span className="grid h-6 w-4 shrink-0 place-items-center"><Bolt c1={c.c1} c2={c.c2} /></span>
-                <span className="min-w-0 flex-1 truncate text-[14.5px] font-semibold group-hover:text-[var(--accent)]" style={{ color: "#F5EFE6" }}>{s.name}</span>
-                {s.codeVerified && s.code && <span className="shrink-0 text-[11.5px] tabular-nums" style={{ color: "rgba(245,239,230,0.65)" }}>{s.code}</span>}
-              </button>
-            ); })}
-            {onNotListed && (
-              <button onClick={() => { onNotListed(); setOpen(false); setQ(""); }} className="flex w-full items-center gap-3 border-t px-4 py-2.5 text-left hover:bg-white/10" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
-                <span className="flex-1 text-[13.5px] font-semibold" style={{ color: "var(--accent)" }}>My school isn't listed →</span>
-              </button>
-            )}
-          </div>
-        </div>
-        </>, document.body)}
+
+      {open && (
+        <PickerSheet
+          anchor={btnRef}
+          onClose={close}
+          label="Pick your school"
+          // The count is `schools.length`, never a literal — the list can be overridden by
+          // the caller, and a hardcoded 16 becomes a lie the moment it is.
+          search={{ value: q, onChange: setQ, placeholder: `Search ${schools.length} SEC schools…` }}
+          footer={onNotListed ? (
+            <button type="button" className="sa-row sa-row--plain" onClick={() => { onNotListed(); close(); }}>
+              <span className="sa-row-name" style={{ color: "var(--accent)", fontSize: 15 }}>My school isn&apos;t listed →</span>
+            </button>
+          ) : undefined}
+        >
+          {results.length === 0 && <p className="sa-picker-empty">No SEC school by that name.</p>}
+          {results.map((s) => { const c = boltFor(s.id); return (
+            // The code cell is ALWAYS rendered, empty string and all: it holds its grid track
+            // open so the row does not jump sideways when listCampusIntroCodes resolves.
+            <button key={s.id} type="button" className="sa-row" onClick={() => { onPick(s); close(); }}>
+              <span className="sa-row-bolt" aria-hidden><Bolt c1={c.c1} c2={c.c2} /></span>
+              <span className="sa-row-name">{s.name}</span>
+              <span className="sa-row-code">{s.codeVerified && s.code ? s.code : ""}</span>
+            </button>
+          ); })}
+        </PickerSheet>
+      )}
     </div>
   );
 }
@@ -1079,6 +1061,9 @@ function SchoolDemandField() {
 function CourseMasthead({ school, exam, professor, skipped, mapStatus, mapLevel, onChangeSchool, onPick, onSkip, onSyllabus }: { school: School; exam: ExamTab; professor: ProfessorLite | null; skipped: boolean; mapStatus: "inherited" | "edited" | "verified"; mapLevel: MapLevel; onChangeSchool: () => void; onPick: (p: ProfessorLite | null) => void; onSkip: () => void; onSyllabus: (framing?: string) => void }) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef<HTMLDivElement>(null);
+  // Warm the SAME query key the picker reads, the moment a school exists — so the sheet opens
+  // populated instead of flashing "Loading…" on a phone connection.
+  useQuery({ queryKey: ["landing-profs", school.campusId], queryFn: () => searchOrderProfessors({ data: { campusId: school.campusId } }), networkMode: "always", staleTime: 300_000 });
   const code = school.codeVerified && school.code ? school.code : null;
   const profLabel = professor ? `Prof. ${professor.last || professor.name}` : null;
   // HONEST-TRUST-LINE: the coverage claim renders ONLY from a real mapper-set number, and ONLY on
@@ -1159,25 +1144,9 @@ function ProfessorPicker({ campusId, schoolName, anchorRef, onPick, onNotListedD
   const [q, setQ] = useState("");
   const [notListed, setNotListed] = useState(false);
   const [profName, setProfName] = useState("");
-  const [rect, setRect] = useState<{ left: number; top: number; width: number } | null>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
   const profQ = useQuery({ queryKey: ["landing-profs", campusId], queryFn: () => searchOrderProfessors({ data: { campusId } }), networkMode: "always", staleTime: 300_000 });
   const all = profQ.data ?? [];
   const empty = !profQ.isLoading && all.length === 0; // no roster → only the isn't-listed path
-
-  useEffect(() => {
-    const measure = () => { const r = anchorRef.current?.getBoundingClientRect(); if (r) setRect({ left: r.left + 8, top: r.bottom + 4, width: Math.min(r.width - 16, 380) }); };
-    measure();
-    window.addEventListener("resize", measure);
-    window.addEventListener("scroll", measure, true);
-    return () => { window.removeEventListener("resize", measure); window.removeEventListener("scroll", measure, true); };
-  }, [anchorRef]);
-  useEffect(() => {
-    const onDoc = (e: MouseEvent) => { if (panelRef.current && !panelRef.current.contains(e.target as Node) && !anchorRef.current?.contains(e.target as Node)) onClose(); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("mousedown", onDoc); document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDoc); document.removeEventListener("keydown", onKey); };
-  }, [onClose, anchorRef]);
 
   const needle = q.trim().toLowerCase();
   const results = useMemo(() => {
@@ -1196,33 +1165,56 @@ function ProfessorPicker({ campusId, schoolName, anchorRef, onPick, onNotListedD
     onNotListedDone(send && t ? t : undefined); // a real name → the framed syllabus ask follows (skippable)
   };
 
-  if (typeof document === "undefined" || !rect) return null;
-  return createPortal(
-    <div ref={panelRef} className="fixed z-[220] overflow-hidden rounded-xl" style={{ ...frameThemeVars(DEFAULT_FRAME_THEME), left: rect.left, top: rect.top, width: rect.width, background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)" }}>
-      {notListed || empty ? (
-        <div className="p-3">
-          <p className="text-[12.5px] font-bold" style={{ color: "#F5EFE6" }}>My professor isn't listed</p>
-          <input autoFocus value={profName} onChange={(e) => setProfName(e.target.value)} placeholder="Professor's last name (helps me map your course)" onKeyDown={(e) => { if (e.key === "Enter") void finishNotListed(true); }} className="mt-2 w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "#F5EFE6" }} />
-          <div className="mt-2 flex items-center justify-end gap-3">
-            <button onClick={() => void finishNotListed(false)} className="text-[11.5px]" style={{ color: "rgba(245,239,230,0.55)" }}>skip</button>
-            <button onClick={() => void finishNotListed(true)} className="rounded-lg px-3 py-1.5 text-[12px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>Continue</button>
+  // SHORT FORM — sized to content, so an empty roster is a small card and not a 66dvh box
+  // with one input floating in it. Keeps its own autoFocus: there is no search row for
+  // PickerSheet to focus.
+  if (notListed || empty) {
+    return (
+      <PickerSheet anchor={anchorRef} onClose={onClose} label="My professor isn't listed" search={null} compact>
+        <div className="p-4">
+          <input
+            autoFocus
+            value={profName}
+            onChange={(e) => setProfName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") void finishNotListed(true); }}
+            placeholder="Professor's last name (helps me map your course)"
+            autoCorrect="off"
+            autoCapitalize="words"
+            spellCheck={false}
+            className="w-full rounded-lg px-3 outline-none"
+            // 16px explicitly: under it, iOS zooms the whole page on focus and never zooms back.
+            style={{ fontSize: 16, minHeight: 48, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "#F5EFE6" }}
+          />
+          <div className="mt-3 flex items-center justify-end gap-3">
+            <button type="button" onClick={() => void finishNotListed(false)} style={{ minHeight: 44, padding: "0 12px", fontSize: 14, color: "rgba(245,239,230,0.55)" }}>skip</button>
+            <button type="button" onClick={() => void finishNotListed(true)} className="rounded-lg font-black" style={{ minHeight: 44, padding: "0 18px", fontSize: 15, background: "var(--accent)", color: "#0B1220" }}>Continue</button>
           </div>
         </div>
-      ) : (
-        <>
-          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search your professor…" className="w-full border-b bg-transparent px-3 py-2 text-[13px] outline-none" style={{ borderColor: "rgba(245,239,230,0.1)", color: "#F5EFE6" }} />
-          <div className="max-h-52 overflow-y-auto py-1">
-            {profQ.isLoading && <div className="px-3 py-2 text-[12px] italic" style={{ color: "rgba(245,239,230,0.55)" }}>Loading…</div>}
-            {results.map((p) => (
-              <button key={p.id} onClick={() => onPick(p)} className="block w-full px-3 py-1.5 text-left text-[13px] hover:bg-white/10" style={{ color: "#F5EFE6" }}>{profDisplay(p)}</button>
-            ))}
-            {!profQ.isLoading && results.length === 0 && <div className="px-3 py-2 text-[12px] italic" style={{ color: "rgba(245,239,230,0.55)" }}>No matches.</div>}
-          </div>
-          <button onClick={() => setNotListed(true)} className="block w-full border-t px-3 py-2 text-left text-[12.5px] font-bold hover:bg-white/10" style={{ borderColor: "rgba(245,239,230,0.1)", color: "var(--accent)" }}>My professor isn't listed →</button>
-        </>
-      )}
-    </div>,
-    document.body,
+      </PickerSheet>
+    );
+  }
+
+  return (
+    <PickerSheet
+      anchor={anchorRef}
+      onClose={onClose}
+      label="Pick your professor"
+      search={{ value: q, onChange: setQ, placeholder: "Search your professor…" }}
+      // Pinned, so it can't scroll away behind a long roster — the whole point of the row.
+      footer={
+        <button type="button" className="sa-row sa-row--plain" onClick={() => setNotListed(true)}>
+          <span className="sa-row-name" style={{ color: "var(--accent)", fontSize: 15 }}>My professor isn&apos;t listed →</span>
+        </button>
+      }
+    >
+      {profQ.isLoading && <p className="sa-picker-empty">Loading…</p>}
+      {results.map((p) => (
+        <button key={p.id} type="button" className="sa-row sa-row--plain" onClick={() => onPick(p)}>
+          <span className="sa-row-name">{profDisplay(p)}</span>
+        </button>
+      ))}
+      {!profQ.isLoading && results.length === 0 && <p className="sa-picker-empty">No matches.</p>}
+    </PickerSheet>
   );
 }
 
