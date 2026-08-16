@@ -1,11 +1,11 @@
 // Drill-down report modal for the Campus Leads stats panel.
 // Three tabs: Campuses · Leads · Course sections. CSV / Excel / PDF export.
+// TYPE-ONLY: erased at compile time, so it costs nothing in either bundle. The runtime value
+// is loaded on demand inside downloadPdfAudit.
+import type jsPDFType from "jspdf";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Download, ExternalLink, Loader2, FileSpreadsheet, FileText } from "lucide-react";
-import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -50,14 +50,14 @@ export function CampusLeadsReportModal({
               <Button
                 variant="outline" size="sm" className="gap-1.5 h-8"
                 disabled={!q.data}
-                onClick={() => q.data && downloadExcelAudit(q.data, filters)}
+                onClick={() => { if (q.data) void downloadExcelAudit(q.data, filters); }}
               >
                 <FileSpreadsheet className="h-4 w-4" /> Excel audit
               </Button>
               <Button
                 variant="outline" size="sm" className="gap-1.5 h-8"
                 disabled={!q.data}
-                onClick={() => q.data && downloadPdfAudit(q.data, filters)}
+                onClick={() => { if (q.data) void downloadPdfAudit(q.data, filters); }}
               >
                 <FileText className="h-4 w-4" /> PDF audit
               </Button>
@@ -487,7 +487,11 @@ function sectionsSheetRows(r: CampusLeadReport) {
   }));
 }
 
-function downloadExcelAudit(report: CampusLeadReport, filters: LeadFilters) {
+// LOADED ON DEMAND. Statically imported, xlsx (550 kB) and jspdf (512 kB, which drags in
+// html2canvas 349 kB + canvg 299 kB) were bundled into the SERVER function for a button an
+// admin presses occasionally — ~1.7 MB of the Nitro phase, which is 65% of the build.
+async function downloadExcelAudit(report: CampusLeadReport, filters: LeadFilters) {
+  const XLSX = await import("xlsx");
   const wb = XLSX.utils.book_new();
 
   // Summary sheet
@@ -513,7 +517,8 @@ function downloadExcelAudit(report: CampusLeadReport, filters: LeadFilters) {
   XLSX.writeFile(wb, `campus-leads-audit-${stamp}.xlsx`);
 }
 
-function downloadPdfAudit(report: CampusLeadReport, filters: LeadFilters) {
+async function downloadPdfAudit(report: CampusLeadReport, filters: LeadFilters) {
+  const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
   const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "letter" });
   const margin = 36;
 
@@ -599,7 +604,7 @@ function downloadPdfAudit(report: CampusLeadReport, filters: LeadFilters) {
   doc.save(`campus-leads-audit-${stamp}.pdf`);
 }
 
-function addFooter(doc: jsPDF) {
+function addFooter(doc: jsPDFType) {
   const pageSize = doc.internal.pageSize;
   const w = pageSize.getWidth();
   const h = pageSize.getHeight();
