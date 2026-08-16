@@ -1,6 +1,7 @@
 // Present Canvas — card data model. Every card is a React Flow node whose `data` is one of
 // these shapes (discriminated by `kind`). Edits mutate this node data ONLY (scene-local) —
 // they never write back to scenario docs. Scenes serialize the whole node array.
+import type { PublicationDef, StitchDef } from "./stitch-defs";
 import type { Node } from "@xyflow/react";
 
 export type CardKind =
@@ -1400,6 +1401,14 @@ export interface DeckDef {
    *  played AFTER the last question clip and BEFORE the outro in the stitch. Additive;
    *  rides in SceneDoc.decks. */
   wrap?: TakeRef[];
+  /** STITCHES (08-16) — the EDITS on this set: ordered take references plus their
+   *  trim/gap/loudness decisions, scoped to a CEQ, a run, or the whole set. A recipe
+   *  over immutable takes, never a destructive bake. See stitch-defs.ts. Additive. */
+  stitches?: StitchDef[];
+  /** PUBLICATIONS (08-16) — a stitch + a destination + a framing + its own metadata.
+   *  One stitch → many publications. The lesson mux fields stay the student read
+   *  path; a publication is the record behind them. Additive. */
+  publications?: PublicationDef[];
   /** LOOKBACK PROMO (Lee) — ONE vertical social file per set, staged in Supabase and
    *  re-downloadable from the Publish panel. NO pipeline — Lee posts socials manually.
    *  Additive. */

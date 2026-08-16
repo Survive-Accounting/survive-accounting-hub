@@ -30,6 +30,8 @@ import { SetFilmstrip, type StripItem } from "./SetFilmstrip";
 import { checkFilmReadiness, type ReadinessReport } from "./film-readiness";
 import { FILM_LOCK_CSS, FilmContext, isTypingTarget } from "./film-lock";
 import { MEMO_KIND_META, MEMO_KIND_ORDER, kindFromCategory, type PlaybookKind } from "./memo-kinds";
+import { applyToDeck, ceqStitchId, gateBlocks, itemsFromTakes, migrationPlan, newStitch, planReport, publishGate, setStitchId, type MigrationInput, type MigrationPlan, type StitchDef } from "./stitch-defs";
+import { StitchPreview } from "./StitchPreview";
 import { applyTemplate, loadTemplates, saveTemplate, templateFromDeck, type SetTemplate } from "./set-profile";
 import { IdeaBank } from "./IdeaBank";
 import { TakesInbox } from "./TakesInbox";
@@ -123,6 +125,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     });
   };
   const [publishOpen, setPublishOpen] = useState(false);
+  /** The dry-run plan awaiting an explicit Apply. Never auto-applies. */
+  const [migration, setMigration] = useState<MigrationPlan | null>(null);
   // IN-APP CONFIRM (memo paths) — replaces window.confirm so it themes + works in the popout.
   const [confirmBox, setConfirmBox] = useState<{ msg: string; onYes: () => void } | null>(null); // the Publish panel (per active set)
   // PUBLISH FREE+FULL COMBO — preflight checklist → confirm → sequential publish.
@@ -1258,6 +1262,101 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     if (c) bus.dispatch(c);
   };
 
+
+
+  /** F3 — the stitch being previewed. Null = the panel is closed. */
+  const [previewStitch, setPreviewStitch] = useState<StitchDef | null>(null);
+
+  /** Every take in this set, by storage path — what a stitch's items resolve
+   *  against. Built from the cards, so a stitch can never reference a clip that
+   *  is not really attached somewhere. */
+  const takesByPath = useMemo(() => {
+    const m = new Map<string, TakeRef>();
+    for (const q of questions) for (const t of cardClips(rf.getNode(q.id)?.data as unknown as CeqCard | undefined)) m.set(t.path, t);
+    if (deck?.intro) m.set(deck.intro.path, deck.intro);
+    for (const w of deck?.wrap ?? []) m.set(w.path, w);
+    if (deck?.outro) m.set(deck.outro.path, deck.outro);
+    return m;
+  }, [questions, rf, deck]);
+
+  /** Open the preview for a CEQ (or the whole set). An existing stitch is used
+   *  as-is; otherwise one is DERIVED from the clip stack and previewed WITHOUT
+   *  being saved — previewing must never write. */
+  const openStitchPreview = (scope: { kind: "ceq"; ceqId: string } | { kind: "set" }) => {
+    if (!deck) return;
+    const id = scope.kind === "ceq" ? ceqStitchId(scope.ceqId) : setStitchId(deck.id);
+    const existing = (deck.stitches ?? []).find((x) => x.id === id);
+    if (existing) { setPreviewStitch(existing); return; }
+    const clips = scope.kind === "ceq"
+      ? cardClips(rf.getNode(scope.ceqId)?.data as unknown as CeqCard | undefined)
+      : [deck.intro, ...questions.flatMap((q) => cardClips(rf.getNode(q.id)?.data as unknown as CeqCard | undefined)), ...(deck.wrap ?? []), deck.outro].filter((t): t is TakeRef => !!t);
+    if (!clips.length) { setNote("Nothing to preview — that has no clips attached yet."); return; }
+    setPreviewStitch(newStitch(id, scope, scope.kind === "ceq" ? itemsFromTakes(clips, scope.ceqId) : clips.map((c) => ({ takePath: c.path })), scope.kind === "set" ? "set cut" : undefined));
+  };
+
+  /** Persist an edited stitch onto the set. The panel already routed the edit
+   *  through `recut`, so the rev is bumped and derived publications are stale. */
+  const saveStitch = (next: StitchDef) => {
+    setPreviewStitch(next);
+    if (!deck) return;
+    const list = deck.stitches ?? [];
+    const has = list.some((x) => x.id === next.id);
+    setDecks((prev) => updateDeck(prev, deck.id, { stitches: has ? list.map((x) => (x.id === next.id ? next : x)) : [...list, next] }));
+  };
+  /** STITCH / PUBLICATION MIGRATION (08-16) — gather the WHOLE scene into the pure
+   *  planner. Reading only: this builds the input, `migrationPlan` builds the records,
+   *  and nothing is written until applyStitchMigration runs. */
+  const buildMigrationInput = (): MigrationInput => {
+    const all = rf.getNodes();
+    const lessons: MigrationInput["lessons"] = [];
+    for (const d of cardDecks) {
+      for (const access of ["FREE", "PAID"] as const) {
+        const lid = targetLessonFor(d, access);
+        if (!lid) continue;
+        const ld = rf.getNode(lid)?.data as unknown as LessonBox | undefined;
+        if (!ld) continue;
+        if (lessons.some((x) => x.id === lid)) continue; // one lesson, one row
+        lessons.push({ id: lid, deckId: d.id, access, muxAssetId: ld.muxAssetId ?? null, muxPlaybackId: ld.muxPlaybackId ?? null, ...(ld.muxPublishedAt != null ? { muxPublishedAt: ld.muxPublishedAt } : {}), ...(ld.muxDurationS != null ? { muxDurationS: ld.muxDurationS } : {}), ...(ld.ceqManifest ? { ceqManifest: ld.ceqManifest } : {}) });
+      }
+    }
+    const cards: MigrationInput["cards"] = [];
+    for (const nd of all) {
+      if (nd.type !== "ceq") continue;
+      const cd = nd.data as unknown as CeqCard & { deckId?: string };
+      if (!cd?.deckId) continue;
+      const takes = cardClips(cd);
+      if (!takes.length && !cd.stitched) continue;
+      cards.push({ id: nd.id, deckId: cd.deckId, ...(cd.run ? { run: cd.run } : {}), takes, ...(cd.stitched ? { stitched: cd.stitched } : {}), ...(cd.dissect?.moments?.length ? { moments: cd.dissect.moments.map((m) => ({ id: m.id, ...(m.startMs != null ? { startMs: m.startMs } : {}), ...(m.label ? { label: m.label } : {}) })) } : {}) });
+    }
+    return { decks: cardDecks.map((d) => ({ id: d.id, name: d.name, stitches: d.stitches, publications: d.publications, intro: d.intro, outro: d.outro, wrap: d.wrap, lookback: d.lookback })), cards, lessons };
+  };
+
+  /** DRY RUN — builds the plan and shows the table. Writes NOTHING. */
+  const dryRunStitchMigration = () => {
+    const plan = migrationPlan(buildMigrationInput());
+    setMigration(plan);
+    setNote(`Dry run: ${plan.totals.ceqStitches} ceq-stitches · ${plan.totals.setStitches} set-stitches · ${plan.totals.publications} publications would be ADDED. Nothing written.`);
+  };
+
+  /** APPLY — the same plan object the report was printed from, so what lands is
+   *  exactly what Lee read. One undoable write per set; no take, no lesson field and
+   *  no existing record is touched. */
+  const applyStitchMigration = (plan: MigrationPlan) => {
+    let sets = 0;
+    setDecks((prev) => {
+      let next = prev;
+      for (const p of plan.perDeck) {
+        if (!p.ceqStitches.length && !p.setStitches.length && !p.publications.length) continue;
+        const d = next.find((x) => x.id === p.deckId);
+        if (!d) continue;
+        next = updateDeck(next, p.deckId, applyToDeck({ id: d.id, name: d.name, stitches: d.stitches, publications: d.publications }, p));
+        sets++;
+      }
+      return next;
+    });
+    setMigration(null);
+    setNote(`Migration applied to ${sets} set${sets === 1 ? "" : "s"}: ${plan.totals.ceqStitches + plan.totals.setStitches} stitches + ${plan.totals.publications} publications ADDED. No take, no lesson field and no existing record was changed — re-running it now would plan nothing.`);
+  };
   /** APPLY THE LAYOUT TO EVERY QUESTION — re-stamp each question's instance from the
    *  template. Confirm-guarded (it overwrites hand-placed geometry) and ONE composite,
    *  so a single Ctrl+Z puts every question back exactly where it was. Questions the
@@ -1304,8 +1403,13 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
    *  targeting and video filing agree). Falls back to the set's explicitly LINKED
    *  lesson when its access matches. NEVER a first-match scan: nothing resolves ⇒
    *  null, and publish blocks loud (both accesses — PAID included). */
-  const targetLesson = (access: "FREE" | "PAID"): string | null => {
-    const rows = spineRows(deck);
+  const targetLesson = (access: "FREE" | "PAID"): string | null => targetLessonFor(deck, access);
+  /** The lesson a set's Free/Full publish attaches to. Parameterised by deck so
+   *  the stitch migration can resolve every set in the scene, not only the open
+   *  one — it is the SAME resolver publish uses, so the migration cannot invent a
+   *  different mapping than the one that actually shipped. */
+  const targetLessonFor = (deck: DeckDef | null | undefined, access: "FREE" | "PAID"): string | null => {
+    const rows = spineRows(deck ?? null);
     if (rows) {
       const cand = rf.getNodes().find((n) => {
         const ld = n.data as unknown as LessonBox;
@@ -2551,6 +2655,41 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
           ONE cross-set list; the filmstrip is the inside of a set; the header names
           the open set. openTabs/setId machinery stays (session restore, outline
           clicks) — only the redundant chip row was removed. */}
+      {/* STITCH PREVIEW (F3) — watch it, read the math, adjust it, approve it.
+          Approving is a decision, not a publish: nothing uploads from here. */}
+      {previewStitch && (() => {
+        const derived = (deck?.publications ?? []).filter((p) => p.stitchId === previewStitch.id);
+        const blockers = derived.flatMap((p) => gateBlocks(publishGate(p, previewStitch, { totalS: previewStitch.cut?.totalS, lessonId: targetLesson(p.shipped?.access ?? "FREE"), access: p.shipped?.access ?? null })).map((g) => ({ id: g.id, text: g.text })));
+        return (
+          <StitchPreview
+            stitch={previewStitch}
+            takes={takesByPath}
+            onChange={saveStitch}
+            blockers={blockers.length ? blockers : undefined}
+            onApprove={(st) => { saveStitch(st); setPreviewStitch(null); setNote(`Cut approved (rev ${st.rev}) and saved on the set. Nothing has been uploaded — publish when you are ready, and re-cutting later is always possible.`); }}
+            onClose={() => setPreviewStitch(null)}
+          />
+        );
+      })()}
+      {/* STITCH MIGRATION (08-16) — dry run → read the table → Apply. The report and
+          the write come from the SAME plan object, so what lands is what was read. */}
+      {migration && (
+        <div className="absolute inset-0 z-[80] flex items-start justify-center" style={{ background: "rgba(4,7,14,0.72)" }} onClick={() => setMigration(null)}>
+          <div className="mt-10 flex max-h-[82vh] w-[720px] max-w-[95vw] flex-col overflow-hidden rounded-xl shadow-2xl" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}` }} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 border-b px-3 py-2" style={{ borderColor: NEON.borderSoft }}>
+              <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: NEON.yellow }}>Stitch migration — dry run</span>
+              <span className="text-[10px]" style={{ color: NEON.muted }}>nothing written yet</span>
+              <button className="ml-auto grid h-6 w-6 place-items-center rounded" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setMigration(null)} title="Close — writes nothing"><X className="h-4 w-4" /></button>
+            </div>
+            <pre className="min-h-0 flex-1 overflow-auto px-3 py-2 text-[10.5px] leading-relaxed" style={{ color: NEON.text, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>{planReport(migration)}</pre>
+            <div className="flex items-center gap-2 border-t px-3 py-2" style={{ borderColor: NEON.borderSoft }}>
+              <button className="rounded px-3 py-1 text-[10px] font-black uppercase tracking-wider disabled:opacity-40" style={{ background: NEON.yellow, color: "#0B1322" }} disabled={!migration.totals.ceqStitches && !migration.totals.setStitches && !migration.totals.publications} onClick={() => applyStitchMigration(migration)} title="Add exactly the records in the table above. Nothing is deleted, no take is touched, and lesson mux fields stay as they are.">Apply — add {migration.totals.ceqStitches + migration.totals.setStitches} stitches + {migration.totals.publications} publications</button>
+              <button className="rounded px-2.5 py-1 text-[10px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setMigration(null)}>Not yet</button>
+              <span className="ml-auto text-[9px]" style={{ color: NEON.muted }}>idempotent — running it again plans nothing</span>
+            </div>
+          </div>
+        </div>
+      )}
       {/* SHORTS QUEUE (Lee) — the batch-filming worklist of every shorts-flagged CEQ. */}
       {shortsQueueOpen && (
         <div className="absolute inset-0 z-[70] flex flex-col" style={{ background: "rgba(6,10,20,0.97)" }} onClick={() => setShortsQueueOpen(false)}>
@@ -2654,6 +2793,8 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   <span className="text-[10px] tabular-nums" style={{ color: NEON.cyan }} title="Estimated runtime = summed durations of the stitch clips (intro + set intro + takes + wrap + outro)">~{fmtDur(stitchRuntime(stitchFree.items))} / {fmtDur(stitchRuntime(stitchFull.items))}</span>
                   <div className="ml-auto flex items-center gap-1.5">
                     <button className="flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-bold" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => void exportSet()} title="Export this set as one markdown doc — every question, chain, flag, script layer and clip, in deck order. Copies to the clipboard AND downloads.">Export</button>
+                    <button className="flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-bold" style={{ color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.5)" }} onClick={() => openStitchPreview({ kind: "set" })} title="PREVIEW THE CUT — play the whole set's stitch locally with its trims and gaps, see the per-clip math, adjust it, then approve. Nothing uploads.">▶ Preview cut</button>
+                    <button className="flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-bold" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={dryRunStitchMigration} title="STITCH MIGRATION — dry run. Builds a stitch for every CEQ clip stack, a set stitch for the intro/wrap/outro, and a shipped publication for every published lesson. Shows the table; writes nothing until you click Apply.">⧉ Stitches…</button>
                     <button className="flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-bold" style={{ color: publishOpen ? "#0B0F1E" : "#3BF5A0", background: publishOpen ? "#3BF5A0" : "transparent", border: "1px solid rgba(59,245,160,0.5)" }} onClick={() => setPublishOpen(true)} title="Publish panel — Publish Free / Full, the lookback vertical, and the intro/outro/wrap clips (one home)">{publishBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Film className="h-3 w-3" />} Publish</button>
                   </div>
                 </div>
@@ -2801,6 +2942,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   revealAnswersOn: deck?.revealAnswers,
                   ignoreLayout: () => { const ids = qSel.size ? [...qSel] : qId && qId !== LAYOUT_Q0 ? [qId] : []; if (!ids.length) return; const allOn = ids.every((iid) => !!(rf.getNode(iid)?.data as unknown as CeqCard | undefined)?.ignoreLayout); const cmds = ids.map((iid) => patchDataCmd(rfl, iid, { ignoreLayout: !allOn }, "layout opt-out")).filter((c): c is NonNullable<typeof c> => !!c); const cmd = compositeCmd(cmds, "layout opt-out"); if (cmd) bus.dispatch(cmd); setNote(ids.length + " frame" + (ids.length === 1 ? "" : "s") + (allOn ? " back on the set layout" : " now IGNORE the set layout") + "."); },
                   fillDownRuns: fillRunsDown,
+                  previewStitch: () => { if (qId && qId !== LAYOUT_Q0) openStitchPreview({ kind: "ceq", ceqId: qId }); else setNote("Open a frame first — the stitch preview is per CEQ (or use Publish ▸ Preview cut for the whole set)."); },
                 }}
               />
               {/* (SET CLIPS moved to the Publish panel — one home for the publish path.) */}

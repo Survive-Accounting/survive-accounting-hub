@@ -117,6 +117,8 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
     assignRun?: (letter: string | null) => void;
     /** Every unlettered frame inherits the letter above it — the 256-frame path. */
     fillDownRuns?: () => void;
+    /** F3 — play the open frame's cut locally, with its math, before any upload. */
+    previewStitch?: () => void;
     /** DISSECT (P5): open the moments editor for the open frame. */
     dissect?: () => void;
     /** SET PROFILE (P6): open the production-profile panel. */
@@ -320,6 +322,14 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
                       onClick={() => { setMenuOpen(false); actions.fillDownRuns?.(); }}
                       title="Every unlettered frame takes the letter of the frame above it — mark the split points, then finish the set in one click. A set with no letters at all becomes one run: A."
                     >⤓ Fill down the set</button>
+                  )}
+                  {actions.previewStitch && (
+                    <button
+                      className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10"
+                      style={{ color: "#3BF5A0" }}
+                      onClick={() => { setMenuOpen(false); actions.previewStitch?.(); }}
+                      title="PREVIEW THE CUT — play this frame’s clips locally with their trims and gaps, read the per-clip math, adjust it, then approve. Nothing uploads."
+                    >▶ Preview cut</button>
                   )}
                 </>)}
               </>)}
