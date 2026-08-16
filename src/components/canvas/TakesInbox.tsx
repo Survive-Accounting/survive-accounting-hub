@@ -5,7 +5,7 @@
 // armed badge and the countdown are all status, and NOTHING status-related may
 // exist anywhere OBS captures. CeqStudio gates every one of them on !recording
 // and renders them outside the film portal.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, FolderOpen, Loader2, Play, RefreshCw, RotateCcw, Trash2, X } from "lucide-react";
 
 import { connectObs, OBS_DEFAULT_ADDRESS, baseName, type ObsStatus } from "./obs-bridge";
@@ -22,17 +22,26 @@ export interface TakesInboxProps {
   /** Bank a kept take against its target: upload + attach. Resolves to the
    *  public URL, or throws — the record keeps the error and the file survives. */
   onUpload: (take: TakeRecord, file: File) => Promise<{ url: string; path: string }>;
+  /** FILMING MODE (F2): render as a filling column inside the rail instead of a
+   *  floating drawer. Same component — the mode switch re-arranges surfaces, it
+   *  does not fork them. */
+  inline?: boolean;
+  /** The per-CEQ attached-clip list, merged in above the queues. Supplied by the
+   *  Studio so the clip logic lives in exactly one place. */
+  clipsPanel?: ReactNode;
   /** Frames on screen right now — the coverage hint for a live take. */
   liveFrameIds: () => string[];
   /** Mirror status up so the Studio can render the chip/dot/countdown. */
   onObsState: (s: { status: ObsStatus; recording: boolean; detail?: string }) => void;
   /** Fired on OBS record-start so the Studio can run the countdown. */
   onRecordStart: () => void;
+  /** Mirror the Recycle counter up for the Filming Mode status strip (F2). */
+  onRecycle?: (b: { count: number; bytes: number }) => void;
 }
 
 type Dir = Awaited<ReturnType<typeof savedTakesFolder>>;
 
-export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, onObsState, onRecordStart }: TakesInboxProps) {
+export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, onObsState, onRecordStart, onRecycle, inline, clipsPanel }: TakesInboxProps) {
   const [takes, setTakes] = useState<TakeRecord[]>(() => currentTakes());
   const [dir, setDir] = useState<Dir>(null);
   const [status, setStatus] = useState<ObsStatus>("off");
@@ -59,7 +68,8 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
   const onRecStartRef = useRef(onRecordStart);
   const addrRef = useRef(addr);
   const passRef = useRef(pass);
-  useEffect(() => { liveFramesRef.current = liveFrameIds; onRecStartRef.current = onRecordStart; addrRef.current = addr; passRef.current = pass; });
+  const onRecycleRef = useRef(onRecycle);
+  useEffect(() => { liveFramesRef.current = liveFrameIds; onRecStartRef.current = onRecordStart; onRecycleRef.current = onRecycle; addrRef.current = addr; passRef.current = pass; });
   /** Bumped by the Connect button — the ONLY thing that re-dials (typing a
    *  password no longer tears the socket down mid-keystroke). */
   const [connectTick, setConnectTick] = useState(0);
@@ -72,6 +82,7 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
   // restore the folder grant silently; ask only on the button
   useEffect(() => { void (async () => { const d = await savedTakesFolder(false); if (d) { setDir(d); void refreshBin(d); } })(); }, []);
   const refreshBin = async (d: Dir) => { if (d) setBin(await recycleStats(d)); };
+  useEffect(() => { onRecycleRef.current?.(bin); }, [bin]);
 
   /** Fold new files into the store — the shared path for scans AND record-stop. */
   const ingest = useCallback(async (d: Dir, opts?: { coverage?: TakeRecord["coverage"]; slateEndMs?: number; onlyName?: string }): Promise<number> => {
@@ -192,12 +203,12 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
   };
 
   return (
-    <div className="absolute inset-y-0 right-0 z-[74] flex w-[380px] max-w-[94vw] flex-col shadow-2xl" style={{ background: NEON.panelSolid, borderLeft: `1px solid ${NEON.border}` }}>
+    <div className={inline ? "order-last ml-2 flex h-full w-[380px] min-w-0 max-w-[42%] shrink-0 flex-col overflow-hidden rounded-lg" : "absolute inset-y-0 right-0 z-[74] flex w-[380px] max-w-[94vw] flex-col shadow-2xl"} style={{ background: NEON.panelSolid, border: inline ? `1px solid ${NEON.borderSoft}` : undefined, borderLeft: inline ? undefined : `1px solid ${NEON.border}` }}>
       <div className="flex items-center gap-2 border-b px-3 py-2" style={{ borderColor: NEON.borderSoft }}>
         <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: "#3BF5A0" }}>Takes inbox</span>
         <button className="rounded px-1.5 py-0.5 text-[8.5px] font-bold uppercase" style={{ color: status === "connected" ? "#3BF5A0" : status === "error" ? "#FF8B9E" : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setShowObs((v) => !v)} title={detail || "OBS WebSocket — click for settings"}>OBS {status === "connected" ? "●" : "○"}</button>
         {armed && <span className="rounded px-1.5 py-0.5 text-[8.5px] font-bold uppercase" style={{ color: "#0B1322", background: "#B79CFF" }} title={armed.ids.length + " frame(s) armed"}>armed: {armed.label ?? armed.kind}<button className="ml-1" onClick={onDisarm} title="Disarm">✕</button></span>}
-        <button className="ml-auto grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={onClose}><X className="h-3 w-3" /></button>
+        {!inline && <button className="ml-auto grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={onClose}><X className="h-3 w-3" /></button>}
       </div>
 
       {showObs && (
@@ -225,6 +236,10 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
 
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {playing && <video src={playing.url} controls autoPlay className="mb-2 max-h-[190px] w-full rounded" />}
+        {/* MERGED RAIL (F2): the per-CEQ attached clips sit ABOVE the queues —
+            they were two lists answering the same question ("what video exists
+            for this CEQ?"). The Studio supplies this so clip logic isn't forked. */}
+        {clipsPanel}
         <div className="pb-0.5 text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.yellow }}>Pending · {pending.length}</div>
         {pending.length === 0 && <div className="px-1 py-1 text-[9.5px] italic" style={{ color: NEON.muted }}>Nothing waiting. Roll F9 in OBS — takes land here.</div>}
         {pending.map(row)}

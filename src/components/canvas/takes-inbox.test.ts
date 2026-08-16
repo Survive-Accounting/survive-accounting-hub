@@ -92,7 +92,8 @@ describe("the laws (source pins)", () => {
     expect(studio).not.toContain('if (e.key !== "F8" || recording) return;');
   });
   test("FILM-SAFE: the inbox, countdown and status never render while recording", () => {
-    expect(studio).toContain("{takesOpen && !recording && (");
+    // F2 docks the same inbox in Filming Mode — `!recording` still gates it.
+    expect(studio).toContain("{(takesOpen || filming) && !recording && (");
     // F1 moved the countdown into the capture window as a SLATE; the studio now
     // mirrors that one store, and its mirror still hides in Recording Mode.
     expect(studio).toContain("{(slate.count != null || slate.speak) && !recording && (");

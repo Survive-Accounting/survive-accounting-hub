@@ -316,6 +316,13 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
    *  Default ON; held back while a dissect CEQ still has unfilmed moments. */
   const [autoAdvance, setAutoAdvance] = useState<boolean>(() => localStorage.getItem("sa-auto-advance") !== "0");
   const [obsState, setObsState] = useState<{ status: ObsStatus; recording: boolean; detail?: string }>({ status: "off", recording: false });
+  /** FILMING MODE (F2) — a workspace-level container switch, not a fork. It
+   *  re-arranges the SAME surfaces: the spine stays the spine, the takes inbox
+   *  becomes an inline rail, and the authoring chrome (stem/choice editor, memo
+   *  library, layout tools, tab strip) is simply not rendered. It writes NOTHING
+   *  to any set — leaving it puts every surface back exactly as it was. */
+  const [filming, setFilming] = useState<boolean>(() => localStorage.getItem("sa-filming-mode") === "1");
+  const [binStat, setBinStat] = useState({ count: 0, bytes: 0 });
   // ONE COUNTDOWN (F1): the slate store is the single source — the capture window
   // renders it IN FRAME and the studio MIRRORS it here. There used to be a second,
   // independent studio timer; two clocks meant the studio could show "2" while the
@@ -1009,6 +1016,49 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   };
   const removeStageElement = (nid: string) => { const c = removeNodesCmd(rfl, [nid], "remove element"); if (c) bus.dispatch(c); };
 
+
+  /** MERGED RAIL (F2) — the per-CEQ attached clips, the other half of "what video
+   *  exists for this CEQ?". It renders INSIDE the takes inbox so the two lists that
+   *  answered the same question become one. Read-only here by design: reordering and
+   *  deleting stay in Publish ▸ Clips, because a filming pass should not be one
+   *  mis-click from dropping a take. */
+  const clipsPanel = useMemo(() => {
+    const rows = questions.map((q) => {
+      const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined;
+      return { id: q.id, run: d?.run, clips: cardClips(d), stem: (d?.shorthand || d?.prompt || "frame").slice(0, 46) };
+    });
+    const filmed = rows.filter((r) => r.clips.length).length;
+    return (
+      <div className="mb-2 rounded" style={{ background: "rgba(0,0,0,0.2)", border: `1px solid ${NEON.borderSoft}` }}>
+        <div className="flex items-center gap-1.5 px-1.5 py-1">
+          <span className="text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.cyan }}>Attached clips</span>
+          <span className="text-[8px] tabular-nums" style={{ color: NEON.muted }}>{filmed}/{rows.length} frames filmed</span>
+        </div>
+        <div className="max-h-[34vh] overflow-y-auto px-1 pb-1">
+          {rows.map((r) => (
+            <div key={r.id} className="mb-0.5 rounded px-1 py-0.5" style={{ background: r.id === qId ? "rgba(252,163,17,0.14)" : "transparent" }}>
+              <button className="flex w-full items-center gap-1 text-left" onClick={() => setQId(r.id)} title="Open this frame">
+                {r.run && <span className="shrink-0 rounded px-1 text-[7.5px] font-black" style={{ color: "#0B1322", background: NEON.yellow }}>{r.run}</span>}
+                <span className="min-w-0 flex-1 truncate text-[9.5px]" style={{ color: r.clips.length ? NEON.text : NEON.muted }}>{r.stem}</span>
+                <span className="shrink-0 text-[8px] font-bold tabular-nums" style={{ color: r.clips.length ? "#3BF5A0" : NEON.muted }}>{r.clips.length ? `${r.clips.length} clip${r.clips.length === 1 ? "" : "s"}` : "—"}</span>
+              </button>
+              {r.id === qId && r.clips.map((t, ci) => (
+                <div key={t.path} className="ml-2 mt-0.5">
+                  <button className="flex w-full items-center gap-1 text-left text-[9px]" style={{ color: NEON.muted }} onClick={() => setTakePreview((k) => (k === `${r.id}:${ci}` ? null : `${r.id}:${ci}`))} title="Preview this clip">
+                    <Play className="h-2.5 w-2.5 shrink-0" />
+                    <span className="min-w-0 flex-1 truncate">{ci + 1}. {t.name || "clip"}</span>
+                    <span className="shrink-0 tabular-nums">{fmtDur(t.duration)}</span>
+                    {t.slateEndMs != null && <span className="shrink-0" title="Filmed with the slate — this clip has a deterministic head trim">⏱</span>}
+                  </button>
+                  {takePreview === `${r.id}:${ci}` && <video src={t.url} controls playsInline preload="none" className="mt-0.5 w-full rounded" style={{ background: "#000", aspectRatio: "16 / 9", maxHeight: 150 }} />}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }, [questions, rf, qId, takePreview]);
   /** The filmstrip's mini-card data — read once per nodes change. */
   const stripItems = useMemo<StripItem[]>(() => questions.map((q) => {
     const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined;
@@ -2484,7 +2534,10 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
             tabs (this Studio's collapsed rail and the canvas route's fixed edge tab). The
             library still opens as the same right-side panel, still defaults CLOSED, and
             still has its own ✕ — this is just the handle. */}
-        {topTab !== "preview" && (<>
+        <button className="ml-2 flex items-center gap-1.5 rounded px-3 py-1 text-[10px] font-black uppercase tracking-wider" style={{ color: filming ? "#0B1322" : "#FF8B9E", background: filming ? "#FF5A6E" : "transparent", border: `1px solid ${filming ? "#FF5A6E" : "rgba(255,90,110,0.55)"}` }} onClick={() => { const v = !filming; setFilming(v); localStorage.setItem("sa-filming-mode", v ? "1" : "0"); setNote(v ? "FILMING MODE — spine, take rail, status. Authoring chrome is hidden, not changed; nothing was written to this set." : "AUTHORING MODE — everything back."); }} title="Switch the whole workspace between AUTHORING (everything) and FILMING (spine + take rail + status). A container change only — no set data is touched either way.">
+          <Clapperboard className="h-3.5 w-3.5" /> {filming ? "Filming" : "Authoring"}
+        </button>
+        {topTab !== "preview" && !filming && (<>
           <button className="ml-2 flex items-center gap-1 rounded px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: libOpen ? "#0B1322" : NEON.cyan, background: libOpen ? NEON.cyan : "transparent", border: `1px solid ${libOpen ? NEON.cyan : NEON.borderSoft}` }} onClick={() => setLibOpen((v) => !v)} title={libOpen ? "Close Elements" : "Elements — the memo library: search, quick-add, and drag memos onto choices"}>
             <Library className="h-3 w-3" /> Elements <span className="tabular-nums opacity-70">{memos.length}</span>
           </button>
@@ -2524,12 +2577,23 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
         </div>
       )}
 
+      {/* STATUS STRIP (F2) — the four things worth knowing while filming, and
+          nothing else. Studio window only; none of it may reach the capture window. */}
+      {filming && (
+        <div className="flex shrink-0 items-center gap-2 border-b px-3 py-1" style={{ borderColor: NEON.borderSoft, background: "rgba(0,0,0,0.25)" }}>
+          <span className="rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider" style={{ color: obsState.recording ? "#0B1322" : obsState.status === "connected" ? "#3BF5A0" : NEON.muted, background: obsState.recording ? "#FF5A6E" : "transparent", border: `1px solid ${NEON.borderSoft}` }} title={obsState.detail || "OBS WebSocket"}>{obsState.recording ? "● REC" : `OBS ${obsState.status === "connected" ? "●" : "○"}`}</span>
+          <span className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: armedTarget ? "#0B1322" : NEON.muted, background: armedTarget ? "#B79CFF" : "transparent", border: `1px solid ${NEON.borderSoft}` }} title={armedTarget ? armedTarget.ids.length + " frame(s) armed" : "Nothing armed — takes attach by coverage (what was on screen)"}>{armedTarget ? `armed: ${armedTarget.label ?? armedTarget.kind}` : "not armed"}</span>
+          <span className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: todaysRoomTone() ? "#3BF5A0" : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} title="Room tone for today — the smart stitcher fills gaps with it. Upload it from the Publish panel.">🎙 {todaysRoomTone() ? "room tone ✓" : "no room tone"}</span>
+          <span className="text-[9px] font-bold uppercase" style={{ color: NEON.muted }} title="Files moved to Recycle — never deleted; empty it from Explorer.">recycle {binStat.count}</span>
+          <span className="ml-auto text-[9px] uppercase" style={{ color: NEON.muted }}>F9 roll · F10 keep · F8 trash <span title="F10 and F8 are APP keys — this window needs focus. Only OBS\u2019s F9 is global.">(app focus)</span></span>
+        </div>
+      )}
       <div className="flex min-h-0 flex-1 gap-2 p-2">
         {/* LEFT RAIL — STUDENT tab only. The Studio has NO topic/set tree and no video
             library of its own: the leftmost DASHBOARD outline is the ONE navigation
             (Videos lives there too; clicking a topic or set there opens it here), and open
             sets switch via the SET TAB STRIP above. CEQs + Publish render full width. */}
-        {topTab === "student" && (!setsOpen ? (
+        {topTab === "student" && !filming && (!setsOpen ? (
           <button className="flex w-8 shrink-0 flex-col items-center gap-2 rounded-lg py-2" style={{ border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)", color: NEON.cyan }} onClick={() => setSetsOpen(true)} title="Show the left rail">
             <ListChecks className="h-4 w-4" />
             <span className="text-[9px] font-bold uppercase tracking-wider" style={{ writingMode: "vertical-rl" }}>{topTab}</span>
@@ -2771,8 +2835,11 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   </div>
                 </div>
               )}
-              {takesOpen && !recording && (
+              {(takesOpen || filming) && !recording && (
                 <TakesInbox
+                  inline={filming}
+                  onRecycle={setBinStat}
+                  clipsPanel={filming ? clipsPanel : undefined}
                   onClose={() => setTakesOpen(false)}
                   armed={armedTarget}
                   onDisarm={() => { setArmedTarget(null); setNote("Uploads disarmed — new takes land unattached."); }}
@@ -3158,7 +3225,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                       Mode renders the SAME previewer in a full-window portal (below). */}
                   {!recording && renderPreviewer(false)}
                 </div>
-                {qd && (
+                {qd && !filming && (
                   <div className="shrink-0 border-t" style={{ borderColor: NEON.borderSoft }}>
                     <div className="flex items-center gap-1 px-2 py-1">
                       <button className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }} onClick={() => setEditorOpen((v) => !v)}>{editorOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />} edit stem & choices</button>
@@ -3248,7 +3315,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
         {/* The collapsed vertical "MEMOS (30)" rail is gone (film-run fixes §6.1) — the
             MEMOS button in the tab row above is the single entry point. Closed = nothing
             here at all, so the editor gets the width back. */}
-        {topTab === "preview" || !libOpen ? null : (
+        {topTab === "preview" || !libOpen || filming ? null : (
         <div className={COL} style={{ maxWidth: 260, border: `1px solid ${NEON.borderSoft}`, background: "rgba(0,0,0,0.2)" }}>
           <div className={HEAD} style={{ borderColor: NEON.borderSoft, color: NEON.cyan }}>Memo library <span style={{ color: NEON.muted }}>({memos.length})</span>
             <button className="ml-auto grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => setLibOpen(false)} title="Collapse the memo library"><ChevronRight className="h-3.5 w-3.5" /></button>
