@@ -20,8 +20,12 @@ import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 export const SITE_NAVY = "#0F1A2E";
 
 /** Wordmark that never exceeds its container. `size` is the IDEAL size; it shrinks when the
- *  viewport is too narrow and never grows past it. */
-export function FitWordmark({ size, className, style }: { size: number; className?: string; style?: React.CSSProperties }) {
+ *  viewport is too narrow and never grows past it.
+ *
+ *  `subline` turns it into the full BRAND LOCKUP: the wordmark with a word set beneath it in
+ *  letterspaced small caps. It is sized from the FITTED size, not the ideal one, so the two
+ *  halves keep their proportion when the phone forces the wordmark down. */
+export function FitWordmark({ size, subline, className, style }: { size: number; subline?: string; className?: string; style?: React.CSSProperties }) {
   const box = useRef<HTMLDivElement>(null);
   const [fit, setFit] = useState(size);
 
@@ -58,8 +62,29 @@ export function FitWordmark({ size, className, style }: { size: number; classNam
   }, [size]);
 
   return (
-    <div ref={box} className={className} style={{ width: "100%", maxWidth: "100%", overflow: "hidden", display: "flex", justifyContent: "center", ...style }}>
+    <div ref={box} className={className} style={{ width: "100%", maxWidth: "100%", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", ...style }}>
       <SurviveWordmark size={fit} />
+      {subline && (
+        // textIndent cancels the TRAILING letter-space. Without it, centred letterspaced text
+        // sits visibly left of centre — the last character contributes a gap that the centring
+        // maths counts as glyph. Classic lockup detail, and very obvious under a big wordmark.
+        <span
+          style={{
+            marginTop: fit * 0.1,
+            fontSize: Math.max(9, fit * 0.155),
+            letterSpacing: "0.42em",
+            textIndent: "0.42em",
+            fontWeight: 700,
+            lineHeight: 1,
+            textTransform: "uppercase",
+            color: "var(--brand-cream, #F5EFE6)",
+            opacity: 0.55,
+            whiteSpace: "nowrap",
+          }}
+        >
+          {subline}
+        </span>
+      )}
     </div>
   );
 }
@@ -126,10 +151,45 @@ function SiteMenu() {
 }
 
 /** Sticky header for every public page. Small, on-brand, and the wordmark is a link home.
- *  Sits under the notch via safe-area padding so it is never obscured on a modern iPhone. */
-export function SiteHeader({ wordmark = true }: { wordmark?: boolean } = {}) {
+ *  Sits under the notch via safe-area padding so it is never obscured on a modern iPhone.
+ *
+ *  `hideMenuUntilScrolled` is for the landing page, whose first screen must offer exactly ONE
+ *  action. The header BOX stays (it holds the layout space the hero measures against); only the
+ *  hamburger fades out, and it comes back the moment the student scrolls. */
+export function SiteHeader({ wordmark = true, hideMenuUntilScrolled = false }: { wordmark?: boolean; hideMenuUntilScrolled?: boolean } = {}) {
+  const bar = useRef<HTMLElement>(null);
+  const [scrolled, setScrolled] = useState(false);
+
+  // PUBLISH THE HEADER HEIGHT as --sa-header-h so a full-viewport hero can subtract exactly the
+  // right amount. Hardcoding 48px is wrong on a notched phone, where safe-area-inset-top adds
+  // ~47px and the section below would overflow the fold by exactly that much.
+  useLayoutEffect(() => {
+    const el = bar.current;
+    if (!el) return;
+    const measure = () => document.documentElement.style.setProperty("--sa-header-h", `${Math.round(el.getBoundingClientRect().height)}px`);
+    measure();
+    // Both mechanisms, for the same reason as FitWordmark: RO is precise but is delivered during
+    // the rendering steps, so a non-compositing tab can silence it indefinitely.
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    window.addEventListener("resize", measure);
+    window.addEventListener("orientationchange", measure);
+    return () => { ro?.disconnect(); window.removeEventListener("resize", measure); window.removeEventListener("orientationchange", measure); };
+  }, []);
+
+  useEffect(() => {
+    if (!hideMenuUntilScrolled) return;
+    const onScroll = () => setScrolled(window.scrollY > 80);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [hideMenuUntilScrolled]);
+
+  const menuHidden = hideMenuUntilScrolled && !scrolled;
+
   return (
     <header
+      ref={bar}
       className="sticky top-0 z-[200] w-full"
       style={{
         background: "rgba(15,26,46,0.92)",
@@ -150,8 +210,15 @@ export function SiteHeader({ wordmark = true }: { wordmark?: boolean } = {}) {
           : <span style={{ minHeight: 44, display: "inline-flex" }} />}
         <span className="flex-1" />
         {/* SITE NAV (M2.2) — the BROWSE ▾ toggle that used to sit INSIDE the player card is
-            gone; broader navigation belongs in the page chrome, not in the content. */}
-        <SiteMenu />
+            gone; broader navigation belongs in the page chrome, not in the content.
+            aria-hidden + inert while faded so it is not reachable by keyboard or screen reader
+            either — an invisible-but-focusable control is worse than a visible one. */}
+        <div
+          aria-hidden={menuHidden}
+          style={{ opacity: menuHidden ? 0 : 1, pointerEvents: menuHidden ? "none" : "auto", transition: "opacity 180ms ease" }}
+        >
+          <SiteMenu />
+        </div>
       </div>
     </header>
   );
