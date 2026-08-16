@@ -339,6 +339,10 @@ export interface TakeRef {
    *  "resolution"…). Additive; the readiness check counts a moment covered when
    *  any take carries its id. */
   momentId?: string;
+  /** SLATE TRIM (F1): ms of in-frame countdown at this clip's head — a
+   *  DETERMINISTIC trim point the stitcher uses instead of guessing at head
+   *  silence (tail detection still applies). */
+  slateEndMs?: number;
   /** RANGE COVERAGE (Lee, 08-15): this clip covers a SPAN of frames (a run
    *  filmed in one take), uploaded via the spine's "Upload clip". Attached to
    *  the FIRST frame of the span; the others are inside its footage. Additive —

@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, FolderOpen, Loader2, Play, RefreshCw, RotateCcw, Trash2, X } from "lucide-react";
 
 import { connectObs, OBS_DEFAULT_ADDRESS, baseName, type ObsStatus } from "./obs-bridge";
+import { cancelSlate, slateEndOffsetMs, slateSeconds, startSlate, SLATE_CHOICES, setSlateSeconds } from "./film-slate";
 import { fileUrl, fsaSupported, getFile, moveToRecycle, pickTakesFolder, probeDuration, recycleStats, restoreFromRecycle, savedTakesFolder, scanFolder } from "./takes-folder";
 import { currentTakes, fmtBytes, latestPending, loadTakes, makeRecord, newFiles, saveTake, setTriageHandler, subscribeTakes, type TakeRecord, type TakeTarget } from "./takes-store";
 import { NEON } from "./theme";
@@ -45,7 +46,7 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
   const [addr, setAddr] = useState(() => localStorage.getItem("sa-obs-addr") ?? OBS_DEFAULT_ADDRESS);
   const [pass, setPass] = useState(() => localStorage.getItem("sa-obs-pass") ?? "");
   const [obsOn, setObsOn] = useState(() => localStorage.getItem("sa-obs-on") === "1");
-  const recStartRef = useRef<{ at: string; frames: string[] } | null>(null);
+  const recStartRef = useRef<{ at: string; startedMs: number; frames: string[] } | null>(null);
   const dirRef = useRef<Dir>(null);
   const armedRef = useRef<TakeTarget | null>(armed);
   useEffect(() => { armedRef.current = armed; }, [armed]);
@@ -73,12 +74,12 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
   const refreshBin = async (d: Dir) => { if (d) setBin(await recycleStats(d)); };
 
   /** Fold new files into the store — the shared path for scans AND record-stop. */
-  const ingest = useCallback(async (d: Dir, opts?: { coverage?: TakeRecord["coverage"]; onlyName?: string }): Promise<number> => {
+  const ingest = useCallback(async (d: Dir, opts?: { coverage?: TakeRecord["coverage"]; slateEndMs?: number; onlyName?: string }): Promise<number> => {
     if (!d) return 0;
     const scanned = await scanFolder(d);
     const fresh = newFiles(opts?.onlyName ? scanned.filter((f) => f.name === opts.onlyName) : scanned, currentTakes());
     for (const f of fresh) {
-      const rec = makeRecord(f, { ...(armedRef.current ? { target: armedRef.current } : {}), ...(opts?.coverage ? { coverage: opts.coverage } : {}) });
+      const rec = makeRecord(f, { ...(armedRef.current ? { target: armedRef.current } : {}), ...(opts?.coverage ? { coverage: opts.coverage } : {}), ...(opts?.slateEndMs != null ? { slateEndMs: opts.slateEndMs } : {}) });
       const file = await getFile(d, f.name);
       if (file) rec.durationS = await probeDuration(file);
       await saveTake(rec);
@@ -95,20 +96,23 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
       onRecord: (e) => {
         if (e.kind === "started") {
           setRecording(true);
-          recStartRef.current = { at: new Date().toISOString(), frames: liveFramesRef.current() };
+          const startedMs = startSlate(); // the in-frame slate — see film-slate.ts
+          recStartRef.current = { at: new Date().toISOString(), startedMs, frames: liveFramesRef.current() };
           onRecStartRef.current();
           return;
         }
         setRecording(false);
         const started = recStartRef.current;
         recStartRef.current = null;
+        cancelSlate();
         const coverage = started ? { startedAt: started.at, stoppedAt: new Date().toISOString(), frameIds: Array.from(new Set([...started.frames, ...liveFramesRef.current()])) } : undefined;
+        const slateEndMs = started ? (slateEndOffsetMs(started.startedMs) ?? undefined) : undefined;
         // OBS finishes the file just after the event — retry the scan briefly.
         const name = e.kind === "stopped" && e.path ? baseName(e.path) : undefined;
         void (async () => {
           for (const wait of [400, 1200, 2500]) {
             await new Promise((r) => setTimeout(r, wait));
-            if (await ingest(dirRef.current, { coverage, ...(name ? { onlyName: name } : {}) })) { setNote("Take banked" + (armedRef.current ? " → armed target" : "")); return; }
+            if (await ingest(dirRef.current, { coverage, slateEndMs, ...(name ? { onlyName: name } : {}) })) { setNote("Take banked" + (armedRef.current ? " → armed target" : "")); return; }
           }
           setNote(name ? `Recorded "${name}" — grant the folder to see it here.` : "Recording stopped.");
         })();
@@ -204,6 +208,10 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
           <button className="mt-1 rounded px-2 py-0.5 text-[9px] font-black uppercase" style={{ color: "#0B1322", background: obsOn ? "#FF8B9E" : "#3BF5A0" }} onClick={() => { const v = !obsOn; setObsOn(v); localStorage.setItem("sa-obs-on", v ? "1" : "0"); if (v) setConnectTick((t) => t + 1); }}>{obsOn ? "Disconnect" : "Connect"}</button>
           {obsOn && <button className="mt-1 ml-1 rounded px-2 py-0.5 text-[9px] font-black uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setConnectTick((t) => t + 1)} title="Re-dial with the current address + password">Retry</button>}
           {detail && <div className="mt-1 text-[8.5px]" style={{ color: "#FF8B9E" }}>{detail}</div>}
+          <div className="mt-1.5 flex items-center gap-1">
+            <span className="text-[8px] font-bold uppercase" style={{ color: NEON.muted }}>Slate</span>
+            {SLATE_CHOICES.map((sc) => (<button key={sc} className="rounded px-1.5 py-0.5 text-[9px] font-bold" style={{ color: slateSeconds() === sc ? "#0B1322" : NEON.muted, background: slateSeconds() === sc ? NEON.yellow : "transparent", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setSlateSeconds(sc); setNote(`Slate ${sc}s — counts down IN FRAME on record-start, and sets the take's head trim.`); }}>{sc}s</button>))}
+          </div>
         </div>
       )}
 

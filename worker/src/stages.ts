@@ -52,6 +52,10 @@ export interface DissectStitchStage {
   /** Optional room-tone input id (Lee's few seconds of recorded silence). */
   roomTone?: string;
   silenceDb?: number;
+  /** SLATE HEADS (F1): forced head trim per clip in SECONDS (null = detect).
+   *  The app knows exactly when its in-frame countdown cleared, so this beats
+   *  silencedetect at the head; the tail is still detected. */
+  heads?: (number | null)[];
   gapMs?: number;
   gapJitterMs?: number;
   loudI?: number;
@@ -271,6 +275,7 @@ export function validateSpec(spec: unknown): asserts spec is JobSpec {
       for (const id of st.inputs) if (!known(id)) throw new Error(`job spec: dissect_stitch names unknown input "${id}"`);
       if (st.roomTone && !known(st.roomTone)) throw new Error(`job spec: dissect_stitch names unknown roomTone "${st.roomTone}"`);
       if (st.trims && st.trims.length !== st.inputs.length) throw new Error("job spec: dissect_stitch trims must match inputs");
+      if (st.heads && st.heads.length !== st.inputs.length) throw new Error("job spec: dissect_stitch heads must match inputs");
       if (st.pads && st.pads.length !== st.inputs.length) throw new Error("job spec: dissect_stitch pads must match inputs");
     }
     else if (st.kind === "reversed_tail" || st.kind === "music_bed") { /* queued kinds validated at plan time */ }

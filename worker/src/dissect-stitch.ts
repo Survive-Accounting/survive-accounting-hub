@@ -85,6 +85,21 @@ export function trimFromSilence(
 
 /** The breath before clip k+1 — deterministic ±jitter (Knuth hash), so a
  *  re-stitch of the same job reproduces the same human rhythm. */
+/** RESOLVE THE HEAD (F1): a manual trim wins, then the SLATE (the app knows
+ *  exactly when its countdown cleared), then silence detection. A slate longer
+ *  than the clip is nonsense and falls back. The result is clamped so a head
+ *  can never cross its own tail. Pure. */
+export function resolveTrim(
+  detected: { start: number; end: number },
+  opts: { manual?: { start?: number; end?: number }; slateHeadS?: number | null; durationS: number },
+): { start: number; end: number } {
+  const { manual, slateHeadS, durationS } = opts;
+  const slateOk = slateHeadS != null && slateHeadS >= 0 && slateHeadS < durationS;
+  const start = manual?.start ?? (slateOk ? (slateHeadS as number) : detected.start);
+  const end = manual?.end ?? detected.end;
+  return { start, end: Math.max(start + 0.2, end) };
+}
+
 export function gapForJoin(k: number, baseMs = DISSECT_DEFAULTS.gapMs, jitterMs = DISSECT_DEFAULTS.gapJitterMs): number {
   const h = (((k + 1) * 2654435761) >>> 0) % (2 * jitterMs + 1);
   return baseMs + (h - jitterMs);

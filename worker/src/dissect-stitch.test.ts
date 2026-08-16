@@ -3,7 +3,7 @@
 // tight ends), deterministic gap rhythm, graph construction, manifest math.
 import { describe, expect, test } from "bun:test";
 
-import { DISSECT_DEFAULTS, detectSilenceArgs, dissectStitchArgs, gapForJoin, parseSilence, trimFromSilence } from "./dissect-stitch";
+import { DISSECT_DEFAULTS, detectSilenceArgs, dissectStitchArgs, gapForJoin, parseSilence, trimFromSilence, resolveTrim } from "./dissect-stitch";
 import type { StagedFile } from "./stages";
 
 const f = (durationS: number, i = 0, hasAudio = true): StagedFile => ({ path: `/tmp/clip-${i}.mp4`, durationS, hasAudio });
@@ -102,5 +102,28 @@ describe("dissectStitchArgs — the graph and the manifest", () => {
   test("mute clips become exact-length silence instead of failing the stitch", () => {
     const g = graphOf(dissectStitchArgs([f(5, 0), f(6, 1, false)], [{ start: 0, end: 5 }, { start: 0, end: 6 }], "/tmp/o.mp4", { gapsS: [0.2] }).args);
     expect(g).toContain("anullsrc");
+  });
+});
+
+describe("the slate beats silence detection at the head (F1)", () => {
+  const detected = { start: 1.4, end: 30 };
+  test("a slate trim replaces the detected head — deterministic, not guessed", () => {
+    expect(resolveTrim(detected, { slateHeadS: 3.2, durationS: 30 })).toEqual({ start: 3.2, end: 30 });
+  });
+  test("the tail is still whatever detection found — the slate says nothing about it", () => {
+    expect(resolveTrim({ start: 1.4, end: 27.5 }, { slateHeadS: 3.2, durationS: 30 }).end).toBe(27.5);
+  });
+  test("no slate ⇒ detection stands (takes filmed before F1 still stitch)", () => {
+    expect(resolveTrim(detected, { slateHeadS: null, durationS: 30 })).toEqual(detected);
+  });
+  test("a manual override outranks both — Lee's eyes win", () => {
+    expect(resolveTrim(detected, { manual: { start: 0.5 }, slateHeadS: 3.2, durationS: 30 }).start).toBe(0.5);
+  });
+  test("a slate longer than the clip is nonsense and falls back rather than emptying it", () => {
+    expect(resolveTrim(detected, { slateHeadS: 45, durationS: 30 }).start).toBe(1.4);
+  });
+  test("a head can never cross its own tail — the segment stays non-degenerate", () => {
+    const r = resolveTrim({ start: 1, end: 3 }, { slateHeadS: 5, durationS: 30, manual: { start: 5 } });
+    expect(r.end).toBeGreaterThan(r.start);
   });
 });

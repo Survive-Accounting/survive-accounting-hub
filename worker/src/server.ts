@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { LIMITS } from "./config";
-import { DISSECT_DEFAULTS, detectSilenceArgs, dissectStitchArgs, gapForJoin, parseSilence, trimFromSilence, type DissectTrim } from "./dissect-stitch";
+import { DISSECT_DEFAULTS, detectSilenceArgs, dissectStitchArgs, gapForJoin, parseSilence, trimFromSilence, type DissectTrim, resolveTrim } from "./dissect-stitch";
 import { computeLoop } from "./loop-builder";
 import { planStage, validateSpec, type JobSpec, type StagedFile } from "./stages";
 
@@ -179,7 +179,9 @@ async function runJob(job: Job, spec: JobSpec): Promise<void> {
           const stderr = await runFfmpegCapture(detectSilenceArgs(clipFiles[ci].path, stage.silenceDb ?? DISSECT_DEFAULTS.silenceDb), remaining(LIMITS.renderTimeoutMs));
           const pad = stage.pads?.[ci];
           const t = trimFromSilence(parseSilence(stderr), clipFiles[ci].durationS, { padHeadS: (pad?.headMs ?? 0) / 1000, padTailS: (pad?.tailMs ?? 0) / 1000 });
-          trims.push({ start: manual?.start ?? t.start, end: manual?.end ?? t.end });
+          // SLATE beats detection at the head (F1): the app KNOWS when the
+          // countdown cleared. The tail stays detected either way.
+          trims.push(resolveTrim(t, { manual, slateHeadS: stage.heads?.[ci] ?? null, durationS: clipFiles[ci].durationS }));
         }
         const gapsS = Array.from({ length: Math.max(0, clipFiles.length - 1) }, (_, k) => gapForJoin(k, stage.gapMs ?? DISSECT_DEFAULTS.gapMs, stage.gapJitterMs ?? DISSECT_DEFAULTS.gapJitterMs) / 1000);
         const plan = dissectStitchArgs(clipFiles, trims, outPath, { gapsS, roomTone, loudI: stage.loudI });

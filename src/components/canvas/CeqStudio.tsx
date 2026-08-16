@@ -34,7 +34,8 @@ import { applyTemplate, loadTemplates, saveTemplate, templateFromDeck, type SetT
 import { IdeaBank } from "./IdeaBank";
 import { TakesInbox } from "./TakesInbox";
 import { type ObsStatus } from "./obs-bridge";
-import { currentTakes, saveTake, type TakeRecord, type TakeTarget } from "./takes-store";
+import { attachTargets, currentTakes, saveTake, type TakeRecord, type TakeTarget } from "./takes-store";
+import { subscribeSlate, type SlateState } from "./film-slate";
 import { assignRunTo, fillDownRuns, normRun, type RunChange } from "./film-runs";
 import { isoDay, saveRoomTone, todaysRoomTone } from "./room-tone";
 import { resolveWorkerRender, startDissectStitch, type DissectStitchResult } from "@/lib/render-worker.functions";
@@ -273,7 +274,10 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     setStitchJob({ phase: "enqueuing…", running: true, trims });
     try {
       const rt = todaysRoomTone();
-      const { jobId, path, machineId } = await startDissectStitch({ data: { urls: clips.map((c) => c.url), ...(rt ? { roomToneUrl: rt.url } : {}), ...(trims ? { trims } : {}) } });
+      // SLATE HEADS (F1): a clip filmed with the in-frame slate carries its own
+      // exact head trim — deterministic, no guessing.
+      const heads = clips.map((c) => (c.slateEndMs != null ? c.slateEndMs / 1000 : null));
+      const { jobId, path, machineId } = await startDissectStitch({ data: { urls: clips.map((c) => c.url), ...(rt ? { roomToneUrl: rt.url } : {}), ...(heads.some((h) => h != null) ? { heads } : {}), ...(trims ? { trims } : {}) } });
       for (;;) {
         await new Promise((r) => setTimeout(r, 2500));
         const r = await resolveWorkerRender({ data: { jobId, path, machineId } });
@@ -308,22 +312,24 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   // film popout, the capture window or the Recording Mode portal.
   const [takesOpen, setTakesOpen] = useState(false);
   const [armedTarget, setArmedTarget] = useState<TakeTarget | null>(null);
+  /** AUTO-ADVANCE (F1): after a keep, roll straight into the next shot.
+   *  Default ON; held back while a dissect CEQ still has unfilmed moments. */
+  const [autoAdvance, setAutoAdvance] = useState<boolean>(() => localStorage.getItem("sa-auto-advance") !== "0");
   const [obsState, setObsState] = useState<{ status: ObsStatus; recording: boolean; detail?: string }>({ status: "off", recording: false });
-  const [countdown, setCountdown] = useState<number | null>(null);
-  const cdRef = useRef<number | undefined>(undefined);
-  const runCountdown = useCallback(() => {
-    const secs = Number(localStorage.getItem("sa-countdown") ?? 3);
-    if (!secs) return;
-    if (cdRef.current != null) window.clearInterval(cdRef.current);
-    setCountdown(secs);
-    cdRef.current = window.setInterval(() => {
-      setCountdown((c) => {
-        if (c == null) return null;
-        if (c <= 1) { if (cdRef.current != null) window.clearInterval(cdRef.current); window.setTimeout(() => setCountdown(null), 700); return 0; }
-        return c - 1;
-      });
-    }, 1000);
-  }, []);
+  // ONE COUNTDOWN (F1): the slate store is the single source — the capture window
+  // renders it IN FRAME and the studio MIRRORS it here. There used to be a second,
+  // independent studio timer; two clocks meant the studio could show "2" while the
+  // trim point was being recorded off the other one.
+  const [slate, setSlate] = useState<SlateState>({ count: null, speak: false });
+  useEffect(() => subscribeSlate(setSlate), []);
+  /** RUN COVERAGE (F1): every frame walked while OBS rolls, so a blast across a run
+   *  attaches to ALL of them — not just where it started and where it stopped. */
+  const coveredRef = useRef<string[]>([]);
+  const onRecordStart = useCallback(() => { coveredRef.current = []; }, []);
+  useEffect(() => {
+    if (!obsState.recording || !qId || qId === LAYOUT_Q0) return;
+    if (!coveredRef.current.includes(qId)) coveredRef.current = [...coveredRef.current, qId];
+  }, [qId, obsState.recording]);
   /** Arm from the spine selection (or the open frame) — T2. */
   const armFromSelection = () => {
     const ids = qSel.size ? questions.filter((q) => qSel.has(q.id)).map((q) => q.id) : qId && qId !== LAYOUT_Q0 ? [qId] : [];
@@ -2482,6 +2488,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
           <button className="ml-2 flex items-center gap-1 rounded px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: libOpen ? "#0B1322" : NEON.cyan, background: libOpen ? NEON.cyan : "transparent", border: `1px solid ${libOpen ? NEON.cyan : NEON.borderSoft}` }} onClick={() => setLibOpen((v) => !v)} title={libOpen ? "Close Elements" : "Elements — the memo library: search, quick-add, and drag memos onto choices"}>
             <Library className="h-3 w-3" /> Elements <span className="tabular-nums opacity-70">{memos.length}</span>
           </button>
+          <button className="ml-1 flex items-center gap-1 rounded px-2 py-1 text-[9px] font-bold uppercase tracking-wider" style={{ color: autoAdvance ? "#0B1322" : NEON.muted, background: autoAdvance ? "#3BF5A0" : "transparent", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { const v = !autoAdvance; setAutoAdvance(v); localStorage.setItem("sa-auto-advance", v ? "1" : "0"); setNote(v ? "AUTO-ADVANCE ON — a keep rolls you into the next frame (dissect CEQs wait for their moments)." : "Auto-advance OFF — keeps leave the spine where it is."); }} title="After F10 (keep), advance to the next frame automatically. A dissect CEQ with unfilmed moments always stays put.">⏭ auto</button>
           <button className="ml-1 flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: obsState.recording ? "#FF5A6E" : obsState.status === "connected" ? "#3BF5A0" : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setTakesOpen((v) => !v)} title="Takes inbox — OBS records, takes land here, review locally, Keep or Trash (F10 / F8). Nothing uploads until you Keep.">🎬 Takes{obsState.recording ? " ●" : ""}{armedTarget ? " · armed" : ""}</button>
           <button className="ml-1 flex items-center gap-1 rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setIdeaBank("board")} title="Idea bank — sticky notes by category, F7 quick-captures from anywhere in the Studio (never in film mode). Export for Claude = the overnight-prompt feeder.">📌</button>
         </>)}
@@ -2769,17 +2776,38 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   onClose={() => setTakesOpen(false)}
                   armed={armedTarget}
                   onDisarm={() => { setArmedTarget(null); setNote("Uploads disarmed — new takes land unattached."); }}
-                  liveFrameIds={() => (qId && qId !== LAYOUT_Q0 ? [qId] : [])}
+                  liveFrameIds={() => Array.from(new Set([...coveredRef.current, ...(qId && qId !== LAYOUT_Q0 ? [qId] : [])]))}
                   onObsState={setObsState}
-                  onRecordStart={runCountdown}
+                  onRecordStart={onRecordStart}
                   onUpload={async (t: TakeRecord, file: File) => {
-                    const ids = t.target?.ids ?? [];
-                    if (!ids.length) throw new Error("take has no target");
+                    // AUTO-ATTACH (F1): the frames that were ON SCREEN while this
+                    // take rolled win; the armed target is the fallback. Several
+                    // frames ⇒ run coverage across them (coversFrameIds).
+                    const ids = attachTargets(t, questions.map((q) => q.id));
+                    if (!ids.length) throw new Error("nothing to attach to — arm a target or film with a frame open");
                     const staged = await stageTake(file);
                     const first = ids[0];
                     const d0 = rf.getNode(first)?.data as unknown as CeqCard | undefined;
-                    const take = ids.length > 1 ? { ...staged, coversFrameIds: ids } : staged;
+                    const take = { ...staged, ...(ids.length > 1 ? { coversFrameIds: ids } : {}), ...(t.slateEndMs != null ? { slateEndMs: t.slateEndMs } : {}) };
                     patchQ(first, { takes: [...cardClips(d0), take] });
+                    // AUTO-ADVANCE (F1) — but a dissect CEQ with moments still to
+                    // shoot keeps the spine parked so Lee rolls the next moment.
+                    const last = ids[ids.length - 1];
+                    const dLast = rf.getNode(last)?.data as unknown as CeqCard | undefined;
+                    const dz = dLast?.dissect;
+                    const covered = new Set((cardClips(dLast).map((c) => c.momentId).filter(Boolean) as string[]));
+                    const nextMoment = dz?.on ? dz.moments.find((m) => !m.waived && !covered.has(m.id)) : undefined;
+                    if (nextMoment) {
+                      setQId(last);
+                      setNote(`Attached. STAYING PUT — dissect moment "${nextMoment.label || "(unnamed)"}" is still unfilmed.`);
+                    } else if (autoAdvance) {
+                      const idx = questions.findIndex((q) => q.id === last);
+                      const next = idx >= 0 ? questions[idx + 1] : undefined;
+                      if (next) { setQId(next.id); setNote("Attached → advanced to the next frame. Roll when ready."); }
+                      else setNote("Attached — that was the last frame in the set.");
+                    } else {
+                      setNote(`Attached to ${ids.length} frame${ids.length === 1 ? "" : "s"}.`);
+                    }
                     return { url: staged.url, path: staged.path };
                   }}
                 />
@@ -2787,9 +2815,9 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
               {/* COUNTDOWN (T1 addendum) — STUDIO ONLY. Never rendered inside the
                   film popout, the capture window or the Recording Mode portal:
                   nothing status-related may exist where OBS captures. */}
-              {countdown != null && !recording && (
+              {(slate.count != null || slate.speak) && !recording && (
                 <div className="pointer-events-none absolute inset-0 z-[80] grid place-items-center" style={{ background: "rgba(4,7,14,0.35)" }}>
-                  <span style={{ fontSize: 180, fontWeight: 900, lineHeight: 1, color: countdown === 0 ? "#3BF5A0" : NEON.yellow, textShadow: "0 8px 40px rgba(0,0,0,0.7)" }}>{countdown === 0 ? "SPEAK" : countdown}</span>
+                  <span style={{ fontSize: 180, fontWeight: 900, lineHeight: 1, color: slate.speak ? "#3BF5A0" : NEON.yellow, textShadow: "0 8px 40px rgba(0,0,0,0.7)" }}>{slate.speak ? "SPEAK" : slate.count}</span>
                 </div>
               )}
               {ideaBank && !recording && <IdeaBank mode={ideaBank} onClose={() => setIdeaBank(null)} />}

@@ -45,6 +45,7 @@ import { resolveCardSpot, resolveMemoSpot, templateFor, withInstanceSpot } from 
 import { CALLOUT_KINDS, CalloutBody, calloutKindForCategory, nextCalloutKind } from "./cards/CalloutCard";
 import { CAPTURE_H, CAPTURE_W, captureCssSize, captureFeasibility, isCaptureExact, physicalSize, snapCaptureSize } from "./capture-window";
 import { clearExhibitHighlights } from "./exhibit-highlights";
+import { subscribeSlate, type SlateState } from "./film-slate";
 import { triageLatest } from "./takes-store";
 import { FILM_LOCK_CSS, FilmContext, filmDragAllowed, isTypingTarget } from "./film-lock";
 import { memoAnchorId, TextAnchor } from "./MemoLightbulb";
@@ -872,6 +873,25 @@ const edgeTypes = { chainBundle: ChainBundleEdge, chainArrow: ChainArrowEdge, fr
 // throwaway nodes and vanish on the next re-seed).
 const nodeTypes = { frameBg: FrameBgNode, ceqPreview: CeqPreviewNode, memoPreview: MemoPreviewNode, ovCeq: OverviewCeqNode, ovMemo: OvMemoNode, arrowEnd: ArrowEndNode, ...STAGE_NODE_TYPES };
 const EMPTY_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "focus" };
+
+/** THE SLATE (F1) — the countdown, IN FRAME. The one status-ish thing allowed
+ *  inside the capture window, because it isn't status: it's a slate, and its
+ *  end is the take's deterministic head-trim point. Everything else (dot,
+ *  armed badge, OBS chip, counts) stays on the studio window. */
+function FilmSlate() {
+  const [s, setS] = useState<SlateState>({ count: null, speak: false });
+  useEffect(() => subscribeSlate(setS), []);
+  if (s.count == null && !s.speak) return null;
+  return (
+    <div style={{ position: "absolute", inset: 0, zIndex: 90, display: "grid", placeItems: "center", background: "rgba(4,7,14,0.55)", pointerEvents: "none" }}>
+      {s.speak ? (
+        <span style={{ fontSize: 96, fontWeight: 900, letterSpacing: "0.06em", color: "#3BF5A0", textShadow: "0 10px 60px rgba(0,0,0,0.8)" }}>SPEAK</span>
+      ) : (
+        <span style={{ fontSize: 260, fontWeight: 900, lineHeight: 1, color: "#FCA311", textShadow: "0 12px 70px rgba(0,0,0,0.85)", fontVariantNumeric: "tabular-nums" }}>{s.count}</span>
+      )}
+    </div>
+  );
+}
 
 /** CAPTURE BADGE (C1) — verifies the window's PHYSICAL inner size. Green
  *  "1920x1080 ✓" when exact, red with the actual size otherwise. Auto-hides on
@@ -2398,6 +2418,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                     </ReactFlowProvider>
                     {/* No in-app film watermark for now (Lee) — the brand watermark will be
                         added later in the actual HTML player, not baked into the take. */}
+                    <FilmSlate />
                     {captureRef.current && filmWin && <CaptureBadge win={filmWin} note={captureNote} />}
                     <PerfArrowLayer arrows={perfArrows} add={addPerfArrow} sel={selPerf} setSel={setSelPerf} />
                     {/* PREPARING GATE (A2) — covers the pane until the mounted set is warm.

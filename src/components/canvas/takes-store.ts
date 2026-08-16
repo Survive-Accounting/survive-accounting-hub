@@ -29,8 +29,13 @@ export interface TakeRecord {
   recordedAt: string;         // ISO
   status: TakeStatus;
   target?: TakeTarget;
-  /** What was on screen while OBS rolled (feeds the future marker pass). */
+  /** What was on screen while OBS rolled — and, from F1, WHAT THIS TAKE
+   *  ATTACHES TO on keep. */
   coverage?: { startedAt: string; stoppedAt: string; frameIds: string[] };
+  /** SLATE (F1): ms from record-start to when the countdown cleared — the
+   *  DETERMINISTIC head-trim point. Absent ⇒ the stitcher falls back to
+   *  silence detection. */
+  slateEndMs?: number;
   upload?: { state: UploadState; attempts: number; error?: string; url?: string; path?: string };
 }
 
@@ -66,6 +71,17 @@ export function makeRecord(f: ScannedFile, extra?: Partial<TakeRecord>): TakeRec
 }
 
 const hash = (s: string): number => { let h = 0; for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0; return h; };
+
+/** WHERE A KEPT TAKE ATTACHES (F1) — the frames that were on screen while it
+ *  rolled, in SPINE ORDER; falls back to the armed target when there's no
+ *  coverage. One frame ⇒ a plain attach; several ⇒ run coverage across them.
+ *  Pure. */
+export function attachTargets(t: TakeRecord, spineOrder: string[]): string[] {
+  const inSpine = new Set(spineOrder);
+  const cov = (t.coverage?.frameIds ?? []).filter((id) => inSpine.has(id));
+  const ids = new Set(cov.length ? cov : (t.target?.ids ?? []).filter((id) => inSpine.has(id)));
+  return spineOrder.filter((id) => ids.has(id)); // spine order, deduped
+}
 
 /** The take a triage hotkey acts on: the most recent PENDING one. */
 export function latestPending(list: TakeRecord[]): TakeRecord | null {

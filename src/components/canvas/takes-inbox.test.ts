@@ -93,7 +93,9 @@ describe("the laws (source pins)", () => {
   });
   test("FILM-SAFE: the inbox, countdown and status never render while recording", () => {
     expect(studio).toContain("{takesOpen && !recording && (");
-    expect(studio).toContain("{countdown != null && !recording && (");
+    // F1 moved the countdown into the capture window as a SLATE; the studio now
+    // mirrors that one store, and its mirror still hides in Recording Mode.
+    expect(studio).toContain("{(slate.count != null || slate.speak) && !recording && (");
     // and the drawer itself is studio-only — never inside the film popout tree
     expect(inbox).toContain("STUDIO SURFACE ONLY");
   });
