@@ -238,3 +238,31 @@ html.sa-navy body {
   max-width: 100%;
   overflow-x: hidden;
 }
+
+/* ---------------------------------------------------------------------------
+   iOS AUTO-ZOOM — the real cause of the "page renders wider than the viewport"
+   report, and why the earlier width audit came back clean.
+
+   Safari zooms the ENTIRE page when a focused input's font-size is under 16px,
+   and it does not zoom back out on blur. Tap the school search (14px) and the
+   page stays scaled afterwards: the hero subhead and the card then render wider
+   than the viewport, clipped at both edges, and text reads off-centre. The DOM
+   was never too wide — the VIEWPORT SCALE changed underneath it. That matches
+   the report exactly ("at some scroll positions"): it is really "after you have
+   touched a text field".
+
+   16px is the threshold, so 16px is the fix. The alternative — viewport
+   maximum-scale=1 — would suppress the symptom by disabling pinch-zoom
+   entirely, which is a real accessibility regression for the exact students
+   who most need to zoom in on a formula.
+
+   Scoped to .sa-navy (the public pages) so the Studio's dense authoring chrome
+   keeps its own type scale.
+   --------------------------------------------------------------------------- */
+@media (max-width: 767px) {
+  html.sa-navy input,
+  html.sa-navy select,
+  html.sa-navy textarea {
+    font-size: 16px;
+  }
+}

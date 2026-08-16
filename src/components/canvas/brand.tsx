@@ -150,7 +150,7 @@ export function BrandLogo({ mode, c1, c2, keyline, ink = "#141414", size = 48, s
   if (mode === "outro") return (
     <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "center", gap: Math.round(size * 0.14), ...style }}>
       {word}
-      <span style={{ fontFamily: BRAND_SANS, fontWeight: 600, fontSize: Math.round(size * 0.3), letterSpacing: "0.005em", color: ink, opacity: 0.95 }}>Only what's on your exam.</span>
+      <span style={{ fontFamily: BRAND_SANS, fontWeight: 600, fontSize: Math.round(size * 0.3), letterSpacing: "0.005em", color: ink, opacity: 0.95 }}>Cram what's on your exam.</span>
       <span style={{ fontFamily: BRAND_SANS, fontWeight: 500, fontSize: Math.round(size * 0.2), letterSpacing: "0.04em", color: ink, opacity: 0.45 }}>{url}</span>
     </span>
   );

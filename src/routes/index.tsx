@@ -41,13 +41,13 @@ const ORG_JSONLD = {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Survive Accounting — Only what's on your exam" },
+      { title: "Survive Accounting — Cram what's on your exam" },
       {
         name: "description",
         content:
           "Free cram videos for Intro Financial Accounting, built around the questions your exam actually asks. Pick your school and start Exam 1 free — no signup.",
       },
-      { property: "og:title", content: "Only what's on your exam." },
+      { property: "og:title", content: "Cram what's on your exam." },
       { property: "og:description", content: "Free cram videos for Intro Financial Accounting. Pick your school, start Exam 1 free — no signup." },
       { property: "og:type", content: "website" },
       { property: "og:url", content: "https://surviveaccounting.com/" },

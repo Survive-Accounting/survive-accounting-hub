@@ -293,7 +293,7 @@ function Hero({ onTryFree }: { onTryFree: () => void }) {
           both clipped the logo mid-letter and dragged the whole document into horizontal
           scroll. FitWordmark scales the lockup to the space available instead. */}
       <FitWordmark size={92} />
-      <h1 className="mt-6 text-[26px] font-black sm:text-[34px]" style={{ letterSpacing: "-0.01em" }}>Only what's on your exam.</h1>
+      <h1 className="mt-6 text-[26px] font-black sm:text-[34px]" style={{ letterSpacing: "-0.01em" }}>Cram what's on your exam.</h1>
       <button onClick={onTryFree} className="mt-7 inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-[15.5px] font-black transition-transform hover:scale-[1.03]" style={{ background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.6)" }}>
         Try Exam 1 Free ⚡
       </button>
@@ -1504,7 +1504,7 @@ export function Footer({ onSyllabus }: { onSyllabus?: () => void }) {
 
       {/* Layer 4 — baseline + memorial (its own quiet line) */}
       <div className="mt-8 flex flex-col items-center gap-2 px-5 text-center">
-        <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>surviveaccounting.com · Only what's on your exam.</p>
+        <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>surviveaccounting.com · Cram what's on your exam.</p>
         <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>© 2026 Earned Wisdom LLC</p>
         <p className="text-[11.5px] italic" style={{ color: "rgba(245,239,230,0.42)", letterSpacing: "0.01em" }}>In memory of Ben Ingram, 1993–2017</p>
       </div>
