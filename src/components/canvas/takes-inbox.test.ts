@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
-import { baseName, obsAuthString, parseRecordEvent } from "./obs-bridge";
+import { baseName, closeDiagnosis, obsAuthString, parseRecordEvent } from "./obs-bridge";
 import { fileKey, fmtBytes, latestPending, makeRecord, newFiles, type TakeRecord } from "./takes-store";
 
 const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8");
@@ -101,5 +101,29 @@ describe("the laws (source pins)", () => {
     const ing = inbox.slice(inbox.indexOf("const ingest ="), inbox.indexOf("// OBS bridge"));
     expect(ing).not.toContain("onUpload");
     expect(inbox).toContain("const doKeep");
+  });
+});
+
+describe("OBS failure diagnosis (the flashing bug + honest errors)", () => {
+  test("a wrong password is TERMINAL and says so — no infinite retry", () => {
+    const d = closeDiagnosis(4009);
+    expect(d.terminal).toBe(true);
+    expect(d.text).toContain("WRONG PASSWORD");
+  });
+  test("unreachable OBS retries and names the three real causes", () => {
+    const d = closeDiagnosis(1006);
+    expect(d.terminal).toBe(false);
+    expect(d.text).toMatch(/running.*ENABLED.*port/s);
+  });
+  test("unknown codes surface the code itself rather than a guess", () => {
+    expect(closeDiagnosis(4205, "nope").text).toContain("4205");
+  });
+  test("THE FLASHING BUG: the OBS effect depends only on explicit dial signals", () => {
+    const src = readFileSync(join(import.meta.dir, "TakesInbox.tsx"), "utf8");
+    expect(src).toContain("}, [obsOn, connectTick, ingest]);");
+    // render-unstable props must be read through refs, never depended on
+    expect(src).toContain("liveFramesRef.current()");
+    expect(src).toContain("onRecStartRef.current()");
+    expect(src).not.toContain("[obsOn, addr, pass, ingest, liveFrameIds, onRecordStart]");
   });
 });

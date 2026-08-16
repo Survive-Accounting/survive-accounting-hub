@@ -49,6 +49,19 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
   const dirRef = useRef<Dir>(null);
   const armedRef = useRef<TakeTarget | null>(armed);
   useEffect(() => { armedRef.current = armed; }, [armed]);
+  // THE FLASHING BUG (Lee, 08-15): these props are inline arrows from the
+  // Studio, so their identity changes EVERY render — with them in the OBS
+  // effect's deps, each failed connect wrote status, re-rendered the Studio,
+  // re-ran the effect, closed the socket and reconnected: an infinite
+  // connect/fail/flash loop that looked like OBS refusing us. Refs break it.
+  const liveFramesRef = useRef(liveFrameIds);
+  const onRecStartRef = useRef(onRecordStart);
+  const addrRef = useRef(addr);
+  const passRef = useRef(pass);
+  useEffect(() => { liveFramesRef.current = liveFrameIds; onRecStartRef.current = onRecordStart; addrRef.current = addr; passRef.current = pass; });
+  /** Bumped by the Connect button — the ONLY thing that re-dials (typing a
+   *  password no longer tears the socket down mid-keystroke). */
+  const [connectTick, setConnectTick] = useState(0);
   useEffect(() => { dirRef.current = dir; }, [dir]);
 
   useEffect(() => subscribeTakes(setTakes), []);
@@ -77,19 +90,19 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
   // OBS bridge
   useEffect(() => {
     if (!obsOn) { setStatus("off"); return; }
-    const stop = connectObs(addr, pass, {
+    const stop = connectObs(addrRef.current, passRef.current, {
       onStatus: (s, d) => { setStatus(s); setDetail(d ?? ""); },
       onRecord: (e) => {
         if (e.kind === "started") {
           setRecording(true);
-          recStartRef.current = { at: new Date().toISOString(), frames: liveFrameIds() };
-          onRecordStart();
+          recStartRef.current = { at: new Date().toISOString(), frames: liveFramesRef.current() };
+          onRecStartRef.current();
           return;
         }
         setRecording(false);
         const started = recStartRef.current;
         recStartRef.current = null;
-        const coverage = started ? { startedAt: started.at, stoppedAt: new Date().toISOString(), frameIds: Array.from(new Set([...started.frames, ...liveFrameIds()])) } : undefined;
+        const coverage = started ? { startedAt: started.at, stoppedAt: new Date().toISOString(), frameIds: Array.from(new Set([...started.frames, ...liveFramesRef.current()])) } : undefined;
         // OBS finishes the file just after the event — retry the scan briefly.
         const name = e.kind === "stopped" && e.path ? baseName(e.path) : undefined;
         void (async () => {
@@ -102,7 +115,8 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
       },
     });
     return stop;
-  }, [obsOn, addr, pass, ingest, liveFrameIds, onRecordStart]);
+    // deps: ONLY the explicit dial signals — never render-unstable identities.
+  }, [obsOn, connectTick, ingest]);
 
   const doKeep = useCallback(async (t: TakeRecord) => {
     const d = dirRef.current;
@@ -187,7 +201,8 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
           <div className="text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>OBS ▸ Tools ▸ WebSocket Server Settings</div>
           <input className="mt-1 w-full rounded bg-black/30 px-1.5 py-0.5 text-[10px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} value={addr} onChange={(e) => { setAddr(e.target.value); localStorage.setItem("sa-obs-addr", e.target.value); }} placeholder={OBS_DEFAULT_ADDRESS} />
           <input type="password" className="mt-1 w-full rounded bg-black/30 px-1.5 py-0.5 text-[10px]" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} value={pass} onChange={(e) => { setPass(e.target.value); localStorage.setItem("sa-obs-pass", e.target.value); }} placeholder="server password" />
-          <button className="mt-1 rounded px-2 py-0.5 text-[9px] font-black uppercase" style={{ color: "#0B1322", background: obsOn ? "#FF8B9E" : "#3BF5A0" }} onClick={() => { const v = !obsOn; setObsOn(v); localStorage.setItem("sa-obs-on", v ? "1" : "0"); }}>{obsOn ? "Disconnect" : "Connect"}</button>
+          <button className="mt-1 rounded px-2 py-0.5 text-[9px] font-black uppercase" style={{ color: "#0B1322", background: obsOn ? "#FF8B9E" : "#3BF5A0" }} onClick={() => { const v = !obsOn; setObsOn(v); localStorage.setItem("sa-obs-on", v ? "1" : "0"); if (v) setConnectTick((t) => t + 1); }}>{obsOn ? "Disconnect" : "Connect"}</button>
+          {obsOn && <button className="mt-1 ml-1 rounded px-2 py-0.5 text-[9px] font-black uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setConnectTick((t) => t + 1)} title="Re-dial with the current address + password">Retry</button>}
           {detail && <div className="mt-1 text-[8.5px]" style={{ color: "#FF8B9E" }}>{detail}</div>}
         </div>
       )}

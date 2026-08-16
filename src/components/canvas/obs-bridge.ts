@@ -51,6 +51,19 @@ export const baseName = (p: string): string => p.split(/[\\/]/).pop() ?? p;
 
 export type ObsStatus = "off" | "connecting" | "connected" | "error";
 
+/** obs-websocket v5 close codes — the diagnosis is in the CODE, not the guess.
+ *  4009 (bad password) and 4008/4011 are terminal: retrying can't fix them. */
+export function closeDiagnosis(code: number, reason?: string): { text: string; terminal: boolean } {
+  switch (code) {
+    case 4009: return { text: "WRONG PASSWORD — copy it from OBS ▸ Tools ▸ WebSocket Server Settings ▸ Show Connect Info.", terminal: true };
+    case 4008: return { text: "OBS rejected the handshake (session invalid) — reconnect after restarting OBS's WebSocket server.", terminal: true };
+    case 4011: return { text: "Unsupported RPC version — update OBS to 28+ (obs-websocket v5).", terminal: true };
+    case 4010: return { text: "OBS wants a password but none was given — paste it above.", terminal: true };
+    case 1006: return { text: "Couldn't reach OBS — check it's running, the WebSocket server is ENABLED, and the port matches.", terminal: false };
+    default: return { text: reason ? `closed (${code}): ${reason}` : `closed (${code})`, terminal: false };
+  }
+}
+
 export interface ObsBridgeHandlers {
   onStatus: (s: ObsStatus, detail?: string) => void;
   onRecord: (e: ObsRecordEvent) => void;
@@ -88,12 +101,21 @@ export function connectObs(address: string, password: string, h: ObsBridgeHandle
       const rec = parseRecordEvent(msg);
       if (rec.kind !== "other") h.onRecord(rec);
     };
-    sock.onerror = () => { h.onStatus("error", "connection failed — is OBS running with Tools ▸ WebSocket Server enabled?"); };
-    sock.onclose = () => { if (!closed) { h.onStatus("off"); schedule(); } };
+    // The ERROR event carries no detail by design (browser security), so we
+    // stay quiet here and let onclose diagnose from the CLOSE CODE.
+    sock.onerror = () => { /* diagnosed in onclose */ };
+    sock.onclose = (ev) => {
+      if (closed) return;
+      const d = closeDiagnosis(ev.code, ev.reason);
+      h.onStatus("error", d.text);
+      if (d.terminal) { closed = true; return; } // retrying can't fix a wrong password
+      schedule();
+    };
   };
   const schedule = () => {
     if (closed) return;
     const wait = Math.min(30_000, 1500 * 2 ** Math.min(retry++, 4));
+    h.onStatus("error", `retrying in ${Math.round(wait / 1000)}s…`);
     timer = window.setTimeout(open, wait);
   };
 
