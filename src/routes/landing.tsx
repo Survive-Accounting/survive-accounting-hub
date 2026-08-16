@@ -23,7 +23,7 @@ import { claimChapterAccess } from "@/lib/greek-chapters.functions";
 import { fetchCourseOptions } from "@/lib/je-api";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
-import { FitWordmark, SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
+import { FitWordmark, SiteHeader, SITE_NAVY, useNavyDocument } from "@/components/site/SiteHeader";
 import { contactKind, LAUNCH_LINE } from "@/lib/launch";
 import { Bolt, BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS, SEC_SCHOOLS } from "@/components/canvas/brand";
 
@@ -65,7 +65,7 @@ const schoolColors = (id: string) => COLOR_BY_ID.get(id) ?? { c1: BRAND_RED, c2:
 // Bolt colors must READ on the navy page. Dark school primaries (Ole Miss navy #14213D, Auburn,
 // Georgia) blend into the background, so lift any low-contrast color toward white until it's
 // visible, preserving hue (navy → steel-blue, still "their color").
-const PAGE_NAVY = "#111A32";
+const PAGE_NAVY = SITE_NAVY; // ONE navy — must equal the meta theme-color (M3)
 function hx(hex: string): [number, number, number] { const h = hex.replace("#", ""); const s = h.length === 3 ? h.split("").map((c) => c + c).join("") : h; const n = parseInt(s, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function toHex(r: number, g: number, b: number) { const t = (x: number) => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, "0"); return `#${t(r)}${t(g)}${t(b)}`; }
 function lum([r, g, b]: [number, number, number]) { const f = (c: number) => { const x = c / 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); }
@@ -632,7 +632,6 @@ function Theater({ school, mode, onDone }: { school: School; mode: "full" | "sho
 // lists each tab's topics → sets; the stage plays the selected free set or shows a poster. The ONLY
 // school picker lives in this player's blurred gate. Replaces the old Exam-1 hero + paid row/popup.
 type ExamTab = { num: number; label: string; price: number | null; topics: ResolvedTopic[]; coveragePct: number | null };
-const RELEASE_LABEL = "Opens soon"; // no release-date field in the data yet — placeholder for paid tabs
 type Sel = { topicKey: string; setId: string | null };
 const fmtRuntime = (sec: number) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
 
@@ -652,7 +651,7 @@ const examStats = (tab: ExamTab): string => {
   const hrs = secs / 3600;
   const parts = [`${topics} topic${topics === 1 ? "" : "s"}`];
   if (questions > 0) parts.push(`${questions} questions`);
-  if (hrs > 0) parts.push(`${hrs.toFixed(1)} hrs of video`);
+  if (hrs > 0) parts.push(`${hrs.toFixed(1)} hrs video time`);
   return parts.join(" · ");
 };
 
@@ -770,7 +769,6 @@ function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusS
                   <div className="absolute inset-0" style={{ filter: "blur(9px)", transform: "scale(1.06)", opacity: 0.65 }} aria-hidden><Poster school={null} topicName="Exam 1" queued={false} /></div>
                   <div className="absolute inset-0 grid place-items-center px-5" style={{ background: "rgba(11,18,32,0.6)" }}>
                     <div className="flex w-full max-w-sm flex-col items-center gap-3">
-                      <p className="text-center text-[16px] font-black sm:text-[18px]" style={{ color: "var(--brand-cream)" }}>Pick your school to start</p>
                       <div className="w-full"><CampusSelector school={null} onPick={onPick} schools={schools} pulse={pickerPulse} openOnPulse onNotListed={onNotListed} /></div>
                       {/* ticker answers "is my school here?" right at the moment of the question */}
                       <SchoolTicker />
@@ -838,7 +836,7 @@ function ExamOutline({ tab, school, stats, isPaid, curSetId, curTopicKey, openTo
       {isPaid && (
         <div className="mb-2 flex items-center justify-between px-1">
           <span className="inline-block h-3.5 w-2.5 shrink-0"><Bolt c1="var(--bolt-primary)" c2="var(--bolt-secondary)" /></span>
-          <span className="text-[10px] font-bold" style={{ color: "var(--accent)" }}>{RELEASE_LABEL}</span>
+          <span className="text-[10px] font-bold" style={{ color: "var(--accent)" }}>{LAUNCH_LINE}</span>
         </div>
       )}
       {/* LOCK-NOT-BROKEN: one caption explains the ░ redaction once, so it reads as a tease, not a bug */}
@@ -1141,7 +1139,7 @@ function TwoSetAsk({ school, professor, onDone }: { school: School; professor: P
         <span className="text-[12.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>Got it — I'll be in touch. — Lee</span>
       ) : (
         <>
-          <span className="min-w-0 flex-1 text-[12.5px]" style={{ color: "var(--brand-cream)" }}>Two videos down. Tell me what your exam covers and I'll make sure you're set.</span>
+          <span className="min-w-0 flex-1 text-[12.5px]" style={{ color: "var(--brand-cream)" }}>Two down. What else is on your exam?</span>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" className="rounded-lg px-3 py-1.5 text-[12.5px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)", minWidth: 0 }} />
           <button onClick={send} disabled={!ok || busy} className="shrink-0 rounded-lg px-3 py-1.5 text-[12.5px] font-black disabled:opacity-40" style={{ background: "var(--accent)", color: "#0B1220" }}>{busy ? "…" : "Send"}</button>
           <button onClick={onDone} className="grid h-6 w-6 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--text-muted)" }} aria-label="Dismiss"><X className="h-3.5 w-3.5" /></button>
