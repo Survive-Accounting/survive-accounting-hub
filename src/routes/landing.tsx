@@ -260,7 +260,7 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
 
       {/* M1.5 — the persistent way home. On / it is the brand anchor; on /c/<slug> and the
           other pages that reuse LandingPage it is the only route back. */}
-      <SiteHeader />
+      <SiteHeader wordmark={false} />
 
       {/* maxWidth + overflow-x guard (M1.1): `padding: 0 20px` on a 1040-wide box is fine on
           desktop, but any child that ignores the box (a nowrap lockup, a fixed-width panel)
@@ -272,6 +272,7 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
         <SectionDivider />
         <TestimonialsSlider />
         <SectionDivider />
+        <div id="lee" className="scroll-mt-16" />
         <LeeSection />
         <SectionDivider />
         <Footer onSyllabus={() => setSyllabusOpen(true)} />
@@ -715,7 +716,12 @@ function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusS
   return (
     <section id="exam1" className="scroll-mt-6">
       <div className="relative overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(252,163,17,0.45)" }}>
-        <ExamTabs exams={exams} activeNum={activeNum} onSelect={(n) => { setActiveNum(n); setDrawerOpen(false); }} />
+        <ExamSelector
+          exams={exams}
+          activeNum={activeNum}
+          onSelect={(n) => { setActiveNum(n); setDrawerOpen(false); }}
+          onPass={() => onNotify("Semester Pass")}
+        />
 
         {/* course masthead — ONE centered cluster (identity line + resolving second line). The gap
             meter exists only once a professor is picked; skippers get the "pick yours →" re-entry.
@@ -725,11 +731,17 @@ function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusS
         {/* unlisted-school masthead — same cluster shape, brand navy; line 2 is the syllabus door */}
         {!school && notListed && (
           <div className="border-b px-3 py-2 text-center" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.12)" }}>
-            <div className="sa-idrow flex items-baseline justify-center gap-2">
-              <span className="text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>Your school · Intro Accounting</span>
-              <button onClick={onChangeSchool} className="sa-chg text-[10.5px]" style={{ color: "var(--text-muted)" }}>change</button>
-            </div>
-            <button onClick={() => onSyllabus()} className="mt-0.5 flex flex-col items-center gap-0.5 hover:opacity-90" style={{ color: "var(--text-muted)" }}>
+            {/* Same tappable-row pattern as the mapped school line (§2). */}
+            <button
+              onClick={onChangeSchool}
+              aria-label="Change school"
+              className="mx-auto flex w-full max-w-[420px] items-center gap-2 rounded-lg px-2.5 text-left"
+              style={{ minHeight: 44, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.14)" }}
+            >
+              <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>Your school · Intro Accounting</span>
+              <span className="shrink-0 text-[12px]" style={{ color: "var(--accent)" }}>▾</span>
+            </button>
+            <button onClick={() => onSyllabus()} className="mt-1 flex w-full flex-col items-center gap-0.5 hover:opacity-90" style={{ color: "var(--text-muted)" }}>
               <span className="text-[11.5px] leading-snug">Let&apos;s tailor this to your professor&apos;s exams</span>
               <span className="text-[11.5px] font-bold leading-snug" style={{ color: "var(--accent)" }}>Send your syllabus →</span>
             </button>
@@ -744,8 +756,13 @@ function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusS
             already ARE the questions. This reads as a sentence, names the topic on screen,
             and doubles as the switcher — so the first topic's content is already rendered
             with nothing to click, and picking another swaps it in place. */}
-        <div className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 border-b px-3 py-2 sm:hidden" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.2)" }}>
-          <span className="text-[13px]" style={{ color: "var(--text-muted)" }}>Cram videos for</span>
+        {/* TOPIC ROW (Krug §1D) — appears only once a school is picked, so the card reads
+            "these are being built for YOUR school" rather than as a generic catalogue you
+            then filter. It no longer repeats "Cram videos for": that phrase now belongs to
+            the exam line at the top of the card, and saying it twice made the two controls
+            look like the same control. The topic name IS the label. */}
+        {school && <div className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 border-b px-3 py-2 sm:hidden" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.2)" }}>
+          <span className="text-[13px]" style={{ color: "var(--text-muted)" }}>Topic</span>
           <button
             onClick={() => setDrawerOpen((v) => !v)}
             aria-expanded={drawerOpen}
@@ -755,7 +772,7 @@ function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusS
             <span className="min-w-0 truncate">{curTopic?.name ?? active.label}</span>
             <span className="shrink-0" style={{ color: "var(--accent)" }}>{drawerOpen ? "▴" : "▾"}</span>
           </button>
-        </div>
+        </div>}
 
         <div className="sm:flex">
           <div className={`${drawerOpen ? "block" : "hidden"} border-b sm:block sm:w-[42%] sm:max-w-[360px] sm:border-b-0 sm:border-r`} style={{ borderColor: "rgba(245,239,230,0.1)" }}>
@@ -806,7 +823,85 @@ function ExamPlayer({ exams, school, onPick, onChangeSchool, pickerPulse, focusS
 
 // Exam 1 (the current exam) takes ~1/3 of the bar with type one step up; the paid tabs share the
 // rest. Same component, same underline — the asymmetry reads as emphasis, not a different control.
-function ExamTabs({ exams, activeNum, onSelect }: { exams: ExamTab[]; activeNum: number; onSelect: (n: number) => void }) {
+/** SEMESTER PASS — the bundle. Presented at the foot of the exam list rather than as a
+ *  fifth exam, because it is a different KIND of thing: Final is a product ($50, like
+ *  Exams 2 and 3); the Pass is all of them together. Renaming Final to a bundle name
+ *  would have deleted a product from the lineup and made the bundle ambiguous. */
+const SEMESTER_PASS_PRICE = 150;
+
+/** THE EXAM SELECTOR (Krug §1A) — replaces the four-tab row.
+ *
+ *  "Cram videos for [ Exam 1 ▾ ]". Exam 1 is the default and carries a FREE chip; nothing
+ *  else is shown until asked for. PRICES STAY OFF SCREEN until a paid option is actually
+ *  selected or the list is open — three $50 tags before a student has watched a single
+ *  video is friction, not information. Everyone arriving today wants Exam 1. */
+function ExamSelector({ exams, activeNum, onSelect, onPass }: { exams: ExamTab[]; activeNum: number; onSelect: (n: number) => void; onPass: () => void }) {
+  const [open, setOpen] = useState(false);
+  const active = exams.find((e) => e.num === activeNum) ?? exams[0];
+  const wrap = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onDown = (e: PointerEvent) => { if (!wrap.current?.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onDown); };
+  }, [open]);
+
+  return (
+    <div ref={wrap} className="relative flex flex-wrap items-center gap-x-2 gap-y-1 border-b px-3 py-2" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.22)" }}>
+      <span className="text-[13px]" style={{ color: "var(--text-muted)" }}>Cram videos for</span>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-label="Change exam"
+        className="inline-flex min-w-0 items-center gap-2 rounded-lg px-2.5 text-[13.5px] font-bold"
+        style={{ minHeight: 40, background: "rgba(245,239,230,0.08)", border: "1px solid rgba(245,239,230,0.18)", color: "var(--brand-cream)" }}
+      >
+        <span className="min-w-0 truncate">{active?.label ?? "Exam 1"}</span>
+        {/* The only price on screen when closed: the one for what is actually selected. */}
+        {active?.price != null
+          ? <span className="shrink-0 text-[12px] font-bold" style={{ color: "var(--accent)" }}>${active.price}</span>
+          : <span className="shrink-0 rounded-full px-1.5 text-[10px] font-black uppercase" style={{ background: "var(--accent)", color: "#0B1220" }}>Free</span>}
+        <span className="shrink-0" style={{ color: "var(--accent)" }}>{open ? "▴" : "▾"}</span>
+      </button>
+
+      {open && (
+        <div className="absolute left-3 right-3 top-[calc(100%-4px)] z-[120] overflow-hidden rounded-xl" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.16)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)" }}>
+          {exams.map((e) => (
+            <button
+              key={e.num}
+              onClick={() => { onSelect(e.num); setOpen(false); }}
+              className="flex w-full items-center gap-3 px-3 text-left hover:bg-white/10"
+              style={{ minHeight: 46, color: e.num === activeNum ? "var(--accent)" : "var(--brand-cream)" }}
+            >
+              <span className="min-w-0 flex-1 truncate text-[13.5px] font-bold">{e.label}</span>
+              {/* Prices live HERE — in the open list, where they read as a comparison
+                  rather than as an obstacle in front of the free thing. */}
+              <span className="shrink-0 text-[12px] font-bold" style={{ color: e.price != null ? "var(--text-muted)" : "var(--accent)" }}>
+                {e.price != null ? `$${e.price}` : "Free"}
+              </span>
+            </button>
+          ))}
+          <button
+            onClick={() => { setOpen(false); onPass(); }}
+            className="flex w-full items-center gap-3 border-t px-3 text-left hover:bg-white/10"
+            style={{ minHeight: 50, borderColor: "rgba(245,239,230,0.12)", background: "rgba(252,163,17,0.08)" }}
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13.5px] font-black" style={{ color: "var(--brand-cream)" }}>Semester Pass</span>
+              <span className="block text-[11px]" style={{ color: "var(--text-muted)" }}>Every exam, all semester</span>
+            </span>
+            <span className="shrink-0 text-[13px] font-black" style={{ color: "var(--accent)" }}>${SEMESTER_PASS_PRICE}</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExamTabsLegacy({ exams, activeNum, onSelect }: { exams: ExamTab[]; activeNum: number; onSelect: (n: number) => void }) {
   return (
     <div className="flex items-stretch" style={{ background: "rgba(0,0,0,0.22)" }}>
       {exams.map((e) => {
@@ -992,10 +1087,21 @@ function CourseMasthead({ school, exam, professor, skipped, mapStatus, mapLevel,
   return (
     <>
       <div ref={anchorRef} className="border-b px-3 py-2 text-center" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.12)" }}>
-        <div className="sa-idrow flex items-baseline justify-center gap-2">
-          <span className="text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>{school.name}{code ? ` · ${code}` : ""}{profLabel ? ` · ${profLabel}` : ""}</span>
-          <button onClick={onChangeSchool} className="sa-chg text-[10.5px]" style={{ color: "var(--text-muted)" }}>change</button>
-        </div>
+        {/* SCHOOL ROW (Krug §1B + §2) — the line IS the control. No "change" link: the word
+            was a second thing to read and a second thing to aim at. Tapping the row reopens
+            the picker with the current value selected, and the aria-label carries the verb
+            that the visible ▾ implies, so removing the word costs nothing to a screen reader.
+            The PROFESSOR NAME IS GONE FROM THIS LINE — professor content lives in exactly one
+            place now, the row below. */}
+        <button
+          onClick={onChangeSchool}
+          aria-label="Change school"
+          className="mx-auto flex w-full max-w-[420px] items-center gap-2 rounded-lg px-2.5 text-left"
+          style={{ minHeight: 44, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.14)" }}
+        >
+          <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>{school.name}{code ? ` · ${code}` : ""}</span>
+          <span className="shrink-0 text-[12px]" style={{ color: "var(--accent)" }}>▾</span>
+        </button>
         {professor ? (
           mapStatus === "verified" && mapLevel === "professor" ? (
             /* TRUST LINE — literally true only when the PROFESSOR's own map won resolution AND it
@@ -1471,7 +1577,7 @@ export function Footer({ onSyllabus }: { onSyllabus?: () => void }) {
   return (
     <footer id="site-footer" className="border-t pt-14 pb-10" style={{ borderColor: "rgba(245,239,230,0.1)", fontFamily: BRAND_SANS }}>
       {/* Layer 1 — the text-me moment, ghost bolt boiling behind the words */}
-      <div className="relative mx-auto flex max-w-md flex-col items-center gap-4 px-5 text-center">
+      <div id="contact" className="relative mx-auto flex max-w-md flex-col items-center gap-4 px-5 text-center scroll-mt-16">
         <div aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[0.06]" style={{ zIndex: 0 }}>
           <BoltBoil height={150} red="var(--bolt-primary)" blue="var(--bolt-secondary)" />
         </div>

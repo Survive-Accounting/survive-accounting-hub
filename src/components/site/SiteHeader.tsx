@@ -80,7 +80,11 @@ function SiteMenu() {
     { label: "Exams", href: "/" },
     { label: "Greek chapters", href: "/chapters" },
     { label: "About Lee", href: "/#lee" },
-    { label: "Contact", href: "mailto:lee@surviveaccounting.com" },
+    // §4 — was mailto:. Any scheme-based link (mailto:, tel:, sms:) can be claimed by an
+    // installed app — which is why tapping Contact raised "Open in inDrive?" on iOS.
+    // Nav items stay ON the page; the deliberate "Text Lee" sms: CTA in the contact
+    // section is a different thing and keeps its scheme.
+    { label: "Contact", href: "/#contact" },
   ];
 
   return (
@@ -123,7 +127,7 @@ function SiteMenu() {
 
 /** Sticky header for every public page. Small, on-brand, and the wordmark is a link home.
  *  Sits under the notch via safe-area padding so it is never obscured on a modern iPhone. */
-export function SiteHeader() {
+export function SiteHeader({ wordmark = true }: { wordmark?: boolean } = {}) {
   return (
     <header
       className="sticky top-0 z-[200] w-full"
@@ -138,9 +142,12 @@ export function SiteHeader() {
     >
       <div className="mx-auto flex w-full max-w-[1200px] items-center px-3" style={{ minHeight: 48 }}>
         {/* 44px minimum tap target — Apple's floor, and this is the only way home. */}
-        <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center" style={{ minHeight: 44, minWidth: 44 }}>
-          <SurviveWordmark size={22} />
-        </a>
+        {/* §4 — the landing page hides this: the hero wordmark sits directly below it,
+            so the small one is pure duplication. Every OTHER page keeps it, because there
+            it is the only route home. */}
+        {wordmark
+          ? <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center" style={{ minHeight: 44, minWidth: 44 }}><SurviveWordmark size={22} /></a>
+          : <span style={{ minHeight: 44, display: "inline-flex" }} />}
         <span className="flex-1" />
         {/* SITE NAV (M2.2) — the BROWSE ▾ toggle that used to sit INSIDE the player card is
             gone; broader navigation belongs in the page chrome, not in the content. */}
