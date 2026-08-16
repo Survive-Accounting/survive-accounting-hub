@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEdges, useNodes, useReactFlow } from "@xyflow/react";
-import { BadgeCheck, CheckCircle2, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Circle, ClipboardPaste, Clapperboard, Copy, Crown, ExternalLink, FolderInput, Globe, LayoutGrid, Library, Lightbulb, ListChecks, Loader2, Lock, Play, Plus, Search, Square, Star, Trash2, Unlock, WrapText, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
+import { BadgeCheck, CheckCircle2, CheckSquare, ChevronDown, ChevronLeft, ChevronRight, Circle, ClipboardPaste, Clapperboard, Copy, Crown, ExternalLink, FileText, FolderInput, Globe, LayoutGrid, Library, Lightbulb, ListChecks, Loader2, Lock, Play, Plus, Search, Square, Star, Trash2, Unlock, WrapText, X, ArrowUp, ArrowDown, Link2, Film } from "lucide-react";
 
 import { courseLabel, fetchCourseOptions, topicLabel, type CourseOption } from "@/lib/je-api";
 import { createChapter } from "@/lib/canvas.functions";
@@ -1027,9 +1027,23 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
    *  deleting stay in Publish ▸ Clips, because a filming pass should not be one
    *  mis-click from dropping a take. */
   const clipsPanel = useMemo(() => {
+    // LABELS MATCH THE SPINE (Lee, 08-16): a truncated stem told you nothing at a
+    // glance. Notes get the note icon and their mode word; questions get Q1, Q2, …
+    // numbered exactly as the filmstrip numbers them — notes never take a number,
+    // so the two lists can never disagree about which frame is which.
+    let ceqN = 0;
     const rows = questions.map((q) => {
       const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined;
-      return { id: q.id, run: d?.run, clips: cardClips(d), stem: (d?.shorthand || d?.prompt || "frame").slice(0, 46) };
+      const noteOnly = !!d?.noteOnly;
+      if (!noteOnly) ceqN += 1;
+      return {
+        id: q.id,
+        run: d?.run,
+        clips: cardClips(d),
+        noteOnly,
+        label: noteOnly ? (d?.frameMode ?? "note") : `Q${ceqN}`,
+        stem: (d?.shorthand || d?.prompt || "frame").slice(0, 70), // the tooltip
+      };
     });
     const filmed = rows.filter((r) => r.clips.length).length;
     return (
@@ -1041,10 +1055,11 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
         <div className="max-h-[34vh] overflow-y-auto px-1 pb-1">
           {rows.map((r) => (
             <div key={r.id} className="mb-0.5 rounded px-1 py-0.5" style={{ background: r.id === qId ? "rgba(252,163,17,0.14)" : "transparent" }}>
-              <button className="flex w-full items-center gap-1 text-left" onClick={() => setQId(r.id)} title="Open this frame">
-                {r.run && <span className="shrink-0 rounded px-1 text-[7.5px] font-black" style={{ color: "#0B1322", background: NEON.yellow }}>{r.run}</span>}
-                <span className="min-w-0 flex-1 truncate text-[9.5px]" style={{ color: r.clips.length ? NEON.text : NEON.muted }}>{r.stem}</span>
-                <span className="shrink-0 text-[8px] font-bold tabular-nums" style={{ color: r.clips.length ? "#3BF5A0" : NEON.muted }}>{r.clips.length ? `${r.clips.length} clip${r.clips.length === 1 ? "" : "s"}` : "—"}</span>
+              <button className="flex w-full items-center gap-1 text-left" onClick={() => setQId(r.id)} title={r.stem}>
+                {r.noteOnly && <FileText className="h-3 w-3 shrink-0" style={{ color: NEON.yellow }} />}
+                <span className="shrink-0 text-[9px] font-bold uppercase tabular-nums" style={{ color: r.id === qId ? NEON.yellow : NEON.muted }}>{r.label}</span>
+                {r.run && <span className="shrink-0 rounded px-1 text-[7.5px] font-black" style={{ color: "#0B1322", background: NEON.cyan }} title={`Run ${r.run} — filmed in one take`}>{r.run}</span>}
+                <span className="ml-auto shrink-0 text-[8px] font-bold tabular-nums" style={{ color: r.clips.length ? "#3BF5A0" : NEON.muted }}>{r.clips.length ? `${r.clips.length} clip${r.clips.length === 1 ? "" : "s"}` : "—"}</span>
               </button>
               {r.id === qId && r.clips.map((t, ci) => (
                 <div key={t.path} className="ml-2 mt-0.5">

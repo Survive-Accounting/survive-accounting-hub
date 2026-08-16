@@ -9,6 +9,7 @@ import { describe, expect, test } from "bun:test";
 
 const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8");
 const inbox = readFileSync(join(import.meta.dir, "TakesInbox.tsx"), "utf8");
+const filmstrip = readFileSync(join(import.meta.dir, "SetFilmstrip.tsx"), "utf8");
 
 describe("the mode switch", () => {
   test("it persists, and the toggle is never hidden by the mode it toggles", () => {
@@ -67,5 +68,21 @@ describe("the inbox learned a shape, it did not fork", () => {
   });
   test("a slate-filmed clip is marked, so a deterministic trim is visible at a glance", () => {
     expect(studio).toContain("{t.slateEndMs != null && <span className=\"shrink-0\" title=\"Filmed with the slate");
+  });
+});
+
+describe("the merged list names frames the way the spine does (Lee, 08-16)", () => {
+  test("rows carry the spine label, not a truncated stem", () => {
+    expect(studio).toContain('label: noteOnly ? (d?.frameMode ?? "note") : `Q${ceqN}`,');
+    expect(studio).toContain('{r.noteOnly && <FileText className="h-3 w-3 shrink-0"');
+  });
+  test("notes never take a number — the two lists can never disagree about which frame is which", () => {
+    // Same rule as SetFilmstrip: ceqN advances only on non-note frames. If either
+    // side ever numbered notes, the rail would point at the wrong frame.
+    expect(studio).toContain("if (!noteOnly) ceqN += 1;");
+    expect(filmstrip).toContain("if (!it.noteOnly) ceqN += 1;");
+  });
+  test("the stem survives as the tooltip — dropped from the row, not lost", () => {
+    expect(studio).toContain("onClick={() => setQId(r.id)} title={r.stem}");
   });
 });
