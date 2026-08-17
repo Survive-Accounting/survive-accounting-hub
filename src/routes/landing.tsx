@@ -363,7 +363,7 @@ function Hero({ onStart, stops }: { onStart: () => void; stops: PaperStop[] }) {
         {/* The card names ONE school at a time, which could read as "only these schools". This
             says the quiet part so a student from a school not in the cycle doesn't bounce. */}
         {stops.length > 0 && (
-          <p className="mt-3 text-center text-[12px]" style={{ color: "var(--text-muted)" }}>
+          <p className="sa-paper-caption text-center text-[12px]" style={{ color: "var(--text-muted)" }}>
             Covers any intro accounting course, nationwide.
           </p>
         )}
@@ -461,20 +461,43 @@ const FAQS: { q: string; a: string }[] = [
 ];
 
 function Faq() {
+  // PASS 7 — one question on load, the rest behind a toggle. Seven stacked cards was a wall of
+  // text between the player and the testimonials, and the first question is the one nearly
+  // everybody actually has; the other six are for the student who is still deciding. Same
+  // "+ Show more" / "× Show less" pattern as Meet your tutor, so the page has one idiom for
+  // "there is more here" rather than two.
+  const [open, setOpen] = useState(false);
+  const [first, ...rest] = FAQS;
   return (
     <section className="py-10">
       <p className="text-center text-[11.5px] font-bold" style={{ color: "var(--text-muted)", letterSpacing: "0.16em" }}>
         FREQUENTLY ASKED QUESTIONS
       </p>
       <div className="mx-auto mt-5 max-w-[640px] space-y-4">
-        {FAQS.map((f) => (
-          <div key={f.q} className="rounded-xl px-4 py-3.5" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.09)" }}>
-            <p className="text-[14.5px] font-black" style={{ color: "var(--brand-cream)" }}>{f.q}</p>
-            <p className="mt-1.5 text-[13.5px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.72 }}>{f.a}</p>
-          </div>
-        ))}
+        <FaqCard f={first} />
+        {open && rest.map((f) => <FaqCard key={f.q} f={f} />)}
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            className="text-[13px] font-bold"
+            style={{ minHeight: 40, color: "var(--accent)" }}
+          >
+            {open ? "× Show less" : `+ Show more (${rest.length})`}
+          </button>
+        </div>
       </div>
     </section>
+  );
+}
+
+function FaqCard({ f }: { f: { q: string; a: string } }) {
+  return (
+    <div className="rounded-xl px-4 py-3.5" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.09)" }}>
+      <p className="text-[14.5px] font-black" style={{ color: "var(--brand-cream)" }}>{f.q}</p>
+      <p className="mt-1.5 text-[13.5px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.72 }}>{f.a}</p>
+    </div>
   );
 }
 
@@ -482,12 +505,27 @@ function Faq() {
 // ---- CAMPUS SELECTOR -------------------------------------------------------------------------
 // `schools` overrides the static list (so a code-enriched list from the dropdown payload can be
 // passed in). `pulse` bumps → a one-shot attention ring; with `openOnPulse` it also opens.
-export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openOnPulse, onNotListed }: { school: School | null; onPick: (s: School) => void; schools?: School[]; pulse?: number; openOnPulse?: boolean; onNotListed?: () => void }) {
+export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openOnPulse, onNotListed, cue }: {
+  school: School | null;
+  onPick: (s: School) => void;
+  schools?: School[];
+  pulse?: number;
+  openOnPulse?: boolean;
+  onNotListed?: () => void;
+  /** Bump to glow the picker once, ~2s. Distinct from `pulse`, which also OPENS the sheet. */
+  cue?: number;
+}) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [ring, setRing] = useState(false);
+  // THE ARRIVAL CUE (Pass 7) — separate from `pulse`, which also OPENS the sheet. This one only
+  // glows: after a CTA scroll the student is looking at a player they did not ask to be scrolled
+  // to, and opening a modal on top of that would take the decision away rather than point at it.
+  const [cued, setCued] = useState(false);
+  const lastCue = useRef(0);
   const btnRef = useRef<HTMLButtonElement>(null);
   const firstPulse = useRef(true);
+  const firstCue = useRef(true);
   const close = () => { setOpen(false); setQ(""); };
 
   useEffect(() => {
@@ -502,6 +540,21 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
     const t = window.setTimeout(() => setRing(false), 950);
     return () => window.clearTimeout(t);
   }, [pulse, openOnPulse]);
+
+  useEffect(() => {
+    if (cue == null) return;
+    // Never on a plain page load — cue starts at 0 and only a CTA/anchor click bumps it.
+    if (firstCue.current) { firstCue.current = false; return; }
+    // Already chosen? Nothing to point at. A returning student mid-flow gets no glow.
+    if (school) return;
+    // Mashing the CTA should not restart the glow over and over.
+    const now = performance.now();
+    if (now - lastCue.current < 3000) return;
+    lastCue.current = now;
+    setCued(true);
+    const t = window.setTimeout(() => setCued(false), 2000);
+    return () => window.clearTimeout(t);
+  }, [cue, school]);
 
   // Match on the name, the slug, and the course code — but only a code the student can
   // actually SEE, or searching "ACCY 201" would surface a school whose row shows no code.
@@ -518,7 +571,7 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="flex w-full items-center gap-3 rounded-2xl px-5 py-4 text-left transition-transform hover:scale-[1.01]"
+        className={`flex w-full items-center gap-3 rounded-2xl px-5 py-4 text-left transition-transform hover:scale-[1.01]${cued ? " sa-cue" : ""}`}
         style={{ background: "rgba(245,239,230,0.06)", border: `2px solid ${school ? "var(--bolt-primary)" : "var(--accent)"}`, boxShadow: "0 20px 55px -22px rgba(0,0,0,0.7)", animation: ring ? "sa-picker-pulse 0.9s ease" : undefined, borderRadius: 16 }}
       >
         <GraduationCap className="h-6 w-6 shrink-0" style={{ color: "var(--accent)" }} />
@@ -810,7 +863,7 @@ const examStats = (tab: ExamTab): string => {
  *
  *  `onReset` clears school AND professor together. A half-reset — new school, professor left
  *  over from the old one — would silently attach a student to another campus's faculty. */
-function MatchPanel({ school, professor, notListed, profDone, materialsDone, coveragePct, schools, onPick, onNotListed, onPickProfessor, onProfNotListed, onMaterials, onSkipMaterials, onReset }: {
+function MatchPanel({ school, professor, notListed, profDone, materialsDone, coveragePct, schools, cueSignal, onPick, onNotListed, onPickProfessor, onProfNotListed, onMaterials, onSkipMaterials, onReset }: {
   school: School | null;
   professor: ProfessorLite | null;
   notListed: boolean;
@@ -820,6 +873,8 @@ function MatchPanel({ school, professor, notListed, profDone, materialsDone, cov
   materialsDone: boolean;
   /** Real resolver number for the active exam, or null. Never invented. */
   coveragePct: number | null;
+  /** Bumped by the hero CTA so the picker can glow on arrival. */
+  cueSignal?: number;
   schools: School[];
   onPick: (s: School) => void;
   onNotListed: () => void;
@@ -837,7 +892,7 @@ function MatchPanel({ school, professor, notListed, profDone, materialsDone, cov
     return (
       <div className="grid h-full w-full place-items-center px-5 py-8" style={{ background: "var(--sa-surface-2)" }}>
         <div className="flex w-full max-w-sm flex-col items-center gap-3">
-          <div className="w-full"><CampusSelector school={null} onPick={onPick} schools={schools} onNotListed={onNotListed} /></div>
+          <div className="w-full"><CampusSelector school={null} onPick={onPick} schools={schools} onNotListed={onNotListed} cue={cueSignal} /></div>
           {/* The marquee lives HERE and nowhere else — under the picker it answers "is my school
               here?" at the moment the question is asked. */}
           <SchoolTicker onPick={onPick} />
@@ -1046,6 +1101,10 @@ function ExamPlayer({ exams, school, onPick, focusSignal, schools, onSyllabus, p
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active.num, firstTopicKey]);
 
+  // Every rung answered. In states 1-3 MatchPanel IS the panel; only here does it shrink to the
+  // confirmed bar and hand the space to the video.
+  const flowDone = (!!school || notListed) && profDone && materialsDone;
+
   const pickSet = (topicKey: string, setId: string | null) => { setSelById((p) => ({ ...p, [active.num]: { topicKey, setId } })); setDrawerOpen(false); };
   const toggleTopic = (k: string) => setOpenTopics((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
@@ -1072,7 +1131,7 @@ function ExamPlayer({ exams, school, onPick, focusSignal, schools, onSyllabus, p
           </button>
         </div>
 
-        <div className="sm:flex">
+        <div className="sa-player-min sm:flex">
           <div className={`${drawerOpen ? "block" : "hidden"} border-b sm:block sm:w-[42%] sm:max-w-[360px] sm:border-b-0 sm:border-r`} style={{ borderColor: "rgba(245,239,230,0.1)" }}>
             <ExamOutline tab={active} school={school} stats={examStats(active)} isPaid={isPaid} curSetId={curSet?.id ?? null} curTopicKey={cur?.topicKey ?? null} openTopics={openTopics} onToggleTopic={toggleTopic} onPickSet={pickSet} />
           </div>
@@ -1081,13 +1140,11 @@ function ExamPlayer({ exams, school, onPick, focusSignal, schools, onSyllabus, p
             {/* RIGHT PANEL. Until a school exists the panel IS the picker; after that it carries
                 the confirmed line above the content. The left outline stays populated the whole
                 time, so this asks a question without hiding the catalogue behind it. */}
-            {!school && !notListed ? (
-              <div className="relative w-full" style={{ minHeight: 260 }}>
-                <MatchPanel school={school} professor={professor} notListed={notListed} profDone={profDone} materialsDone={materialsDone} coveragePct={active.coveragePct} schools={schools} onPick={onPick} onNotListed={onNotListed} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); }} onProfNotListed={() => setProfDone(true)} onMaterials={() => { setMaterialsDone(true); onSyllabus(); }} onSkipMaterials={() => setMaterialsDone(true)} onReset={onReset} />
-              </div>
-            ) : (
-              <>
-                <MatchPanel school={school} professor={professor} notListed={notListed} profDone={profDone} materialsDone={materialsDone} coveragePct={active.coveragePct} schools={schools} onPick={onPick} onNotListed={onNotListed} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); }} onProfNotListed={() => setProfDone(true)} onMaterials={() => { setMaterialsDone(true); onSyllabus(); }} onSkipMaterials={() => setMaterialsDone(true)} onReset={onReset} />
+            {/* ONE STATE AT A TIME. `flowDone` is the whole ladder, not its first rung — see the
+                note above sa-panel-min in styles.css for the height half of this. */}
+            <div className="sa-panel-min relative w-full">
+              <MatchPanel school={school} professor={professor} notListed={notListed} profDone={profDone} materialsDone={materialsDone} coveragePct={active.coveragePct} schools={schools} cueSignal={focusSignal} onPick={onPick} onNotListed={onNotListed} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); }} onProfNotListed={() => setProfDone(true)} onMaterials={() => { setMaterialsDone(true); onSyllabus(); }} onSkipMaterials={() => setMaterialsDone(true)} onReset={onReset} />
+              {flowDone && (
                 <div className="relative w-full" style={{ aspectRatio: "16 / 9", background: "#000" }}>
                   {curSet?.playbackId ? (
                     <HeroVideo key={curSet.playbackId} playbackId={curSet.playbackId} onComplete={() => markComplete(curSet!.id)} />
@@ -1095,8 +1152,8 @@ function ExamPlayer({ exams, school, onPick, focusSignal, schools, onSyllabus, p
                     <Poster school={school} topicName={curTopic?.name ?? active.label} stem={curSet?.firstStem ?? null} />
                   )}
                 </div>
-              </>
-            )}
+              )}
+            </div>
 
             {/* Two sets down — the ONLY proactive email ask in the free flow (quiet inline card). */}
             {showAsk && <TwoSetAsk school={school} professor={professor} onDone={finishAsk} />}
@@ -1738,7 +1795,11 @@ export function Footer() {
             and this tagline is repeated VERBATIM in the bottom row, so on a phone the two would sit
             a few hundred pixels apart saying the same sentence twice. */}
         <div className="hidden sm:block">
-          <FitWordmark size={54} />
+          {/* FitWordmark hard-centres (alignItems: "center") because that is right in a navbar.
+              In a footer COLUMN it put the mark 83px right of the tagline under it and out of line
+              with NAVIGATE / REACH LEE. The component spreads `style` last, so overriding the
+              alignment is the whole fix — no wrapper, and the navbar lockup is untouched. */}
+          <FitWordmark size={54} style={{ alignItems: "flex-start" }} />
           <p className="mt-2 text-[12.5px]" style={{ color: "var(--text-muted)" }}>Cram what&apos;s on your exam.</p>
         </div>
 

@@ -71,6 +71,19 @@
   --sa-surface-1: #1B2B4D;
   --sa-surface-2: #223458;
   --sa-surface-nav: #182647;
+
+  /* The player's right panel. Sized to the TALLEST state (the professor list) so advancing the
+     flow does not resize the player under the cursor — a control that moves as you use it is the
+     thing being fixed, and a min-height is the only way to hold four differently-sized states
+     still. Deliberately below the 16:9 content height: state 4 is allowed to be taller, because
+     by then the student is watching, not choosing. */
+  --sa-panel-min: 340px;
+
+  /* The player ROW. The right panel alone was not enough: the LEFT column also changes height as
+     the school's real topic map replaces the Starter Map (392px for 7 topics -> 258px for 3), and
+     because the sidebar is the taller column the whole card followed it down. Holding the row at
+     the tallest chooser sidebar keeps the card within a few px across all four states. */
+  --sa-player-min: 392px;
   --brand-red: #CE1126;
   --hero-bg: #0A2A57;
   --footer-bg: #0f172a;
@@ -539,4 +552,33 @@ html.sa-navy body {
 .sa-passline-x:focus-visible { opacity: 1; }
 @media (hover: none) {
   .sa-passline-x { opacity: 0.5; }
+}
+
+
+/* ── PASS 7 ──────────────────────────────────────────────────────────────────────────────────
+   Right-panel height stability. Every state centres inside the same box, so the player does not
+   jump between school -> professor -> materials. */
+.sa-player-min { min-height: var(--sa-player-min); }
+.sa-panel-min { min-height: var(--sa-panel-min); display: flex; flex-direction: column; justify-content: center; }
+/* State 4 puts a 16:9 video in here; centring a video would letterbox it, so the flex centring
+   only applies while the panel is a chooser. */
+.sa-panel-min:has(video), .sa-panel-min:has([data-poster]) { justify-content: flex-start; }
+
+/* THE CTA SCROLL TARGET. #exam1 had scroll-mt-6 (24px) while the navbar is ~54px and sticky, so
+   "Cram Exam 1 Free" scrolled the exam tab row underneath the navbar. --sa-header-h is published
+   by SiteHeader at runtime, so this tracks the real bar instead of a guessed number, and the
+   extra 28px is the breathing room the brief asks for. */
+#exam1 { scroll-margin-top: calc(var(--sa-header-h, 54px) + 28px); }
+
+/* THE ARRIVAL CUE — a soft amber breath on the school picker after a CTA scroll. Two beats, then
+   it stops on its own: this is a nudge toward the next action, not an alarm. */
+@keyframes sa-cue-glow {
+  0%   { box-shadow: 0 0 0 0 rgba(252,163,17,0.0); border-color: var(--accent); }
+  35%  { box-shadow: 0 0 0 6px rgba(252,163,17,0.22); }
+  100% { box-shadow: 0 0 0 0 rgba(252,163,17,0.0); }
+}
+.sa-cue { animation: sa-cue-glow 1.9s ease-out 1; }
+@media (prefers-reduced-motion: reduce) {
+  /* No pulse. The border still says "here", it just says it without moving. */
+  .sa-cue { animation: none; border-color: var(--accent) !important; box-shadow: 0 0 0 3px rgba(252,163,17,0.20); }
 }

@@ -69,6 +69,36 @@ export function ExamPaper({ stops, onActivate, className, style }: {
         <g transform="rotate(-4 150 170)">
           <rect x="26" y="18" width="248" height="304" rx="12" fill="rgba(0,0,0,0.22)" />
           <rect x="22" y="14" width="248" height="304" rx="12" fill="#22304F" stroke="rgba(245,239,230,0.10)" strokeWidth="1" />
+
+          {/* EXAM HINTS — behind the bolt, and deliberately almost subliminal. Pass 4 drew a full
+              worksheet and it fought the mark; these are three text strokes and two bubble rows at
+              a fraction of that opacity. They exist so the card reads as an EXAM at a glance, and
+              nothing more. If they ever compete with the bolt, lower the opacity — do not redraw. */}
+          <g opacity="0.5">
+            {[124, 176, 228].map((y, n) => (
+              <rect key={y} x="46" y={y} width={[150, 120, 138][n]} height="4" rx="2" fill="rgba(245,239,230,0.14)" />
+            ))}
+            {[150, 202].map((y) => (
+              <g key={y}>
+                {[0, 1, 2, 3].map((b) => (
+                  <circle key={b} cx={52 + b * 22} cy={y} r="5.5" fill="none" stroke="rgba(245,239,230,0.13)" strokeWidth="1.4" />
+                ))}
+              </g>
+            ))}
+          </g>
+
+          {/* THE GRADE. One red check, drawn with the same hand as the bolt — two strokes, round
+              caps, slightly uneven so it reads as marked rather than printed. This is the whole
+              reason the hints are there: an exam with a check on it is a PASSED exam. */}
+          <path
+            d="M196 232 L214 252 L252 196"
+            fill="none"
+            stroke="#CE1126"
+            strokeWidth="9"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            opacity="0.92"
+          />
         </g>
       </svg>
 
@@ -88,43 +118,14 @@ export function ExamPaper({ stops, onActivate, className, style }: {
             navy, Florida blue) merge into the navy page. */}
         <Bolt c1="var(--sa-bolt-1)" c2="var(--sa-bolt-2)" />
       </span>
-      <span className="sa-paper-pencil" aria-hidden><Pencil /></span>
     </button>
   );
 }
 
-/** THE PENCIL — flat, brand-style, drawn rather than an emoji.
- *
- *  An emoji glyph would render as a different picture on every OS and could not take the white
- *  keyline that ties it to the bolt; a raster would go soft on a retina hero. Six shapes: body,
- *  the darker underside that gives it a single light direction, ferrule, eraser, wood collar and
- *  graphite tip. It is drawn at a diagonal so it crosses the bolt rather than sitting beside it. */
-function Pencil() {
-  return (
-    <svg viewBox="0 0 200 60" role="img" aria-hidden className="w-full" style={{ overflow: "visible" }}>
-      {/* Every piece carries the same dark keyline, so the pencil reads as one object against both
-          the card and the bolt it crosses. */}
-      <g stroke="rgba(10,16,30,0.85)" strokeWidth="3.2" strokeLinejoin="round">
-        <rect x="44" y="14" width="112" height="32" fill="#F2B441" />
-        {/* underside: one light direction, no gradients */}
-        <path d="M44 34 h112 v12 H44 z" fill="#D9972B" stroke="none" />
-        <path d="M44 34 h112" stroke="rgba(10,16,30,0.35)" strokeWidth="2" />
-        {/* wood collar + graphite */}
-        <path d="M44 14 L16 30 L44 46 Z" fill="#F0E2C8" />
-        <path d="M27.5 22.5 L16 30 L27.5 37.5 Z" fill="#2B3448" />
-        {/* ferrule + eraser */}
-        <rect x="156" y="14" width="18" height="32" fill="#C9CFDA" />
-        <path d="M174 14 h8 a10 10 0 0 1 0 32 h-8 z" fill="#E8737F" />
-      </g>
-      {/* the white keyline that matches the bolt's, drawn OUTSIDE the dark one */}
-      <g fill="none" stroke="#FFFFFF" strokeWidth="1.6" strokeLinejoin="round" opacity="0.9">
-        <path d="M44 12.4 h112 M44 47.6 h112" />
-        <path d="M44 12.4 L14 30 L44 47.6" />
-        <path d="M182 12.6 a11.6 11.6 0 0 1 0 34.8" />
-      </g>
-    </svg>
-  );
-}
+// The PENCIL is gone (Pass 7). It was drawn to brand rules — flat shapes, the bolt's own white
+// keyline — and it still read as clip art the moment it sat next to the real mark. A second
+// illustrated object competing with the bolt is the problem; drawing it better was never going to
+// fix that. What the card needed was CONTEXT behind the bolt, not company beside it.
 
 /** Component-local stylesheet, injected once by the hero. It lives here rather than in styles.css
  *  because nothing else on the site reads it. */
@@ -205,16 +206,14 @@ export const EXAM_PAPER_CSS = `
 /* The bolt's own fills transition too, so a school change moves card accent and bolt together. */
 .sa-paper-bolt path { transition: fill 900ms ease; }
 
-/* THE PENCIL — crosses the lower half of the bolt. Sized at 52% of the card and rotated so it
-   reads as laid ACROSS the mark; anything larger starts competing with the bolt. */
-.sa-paper-pencil {
-  position: absolute;
-  left: 50%;
-  top: 66%;
-  width: 52%;
-  transform: translate(-50%, -50%) rotate(-24deg);
-  pointer-events: none;
-  filter: drop-shadow(0 6px 14px rgba(0,0,0,0.45));
+/* THE CAPTION — tilted to the card's own -4deg and pulled tight under its bottom edge, so it
+   reads as part of the composition rather than a line of page text that happens to sit below a
+   picture. The card is rotated about its centre, so the caption has to be rotated the same way
+   and nudged up; the negative margin is what closes the gap the rotation opens. */
+.sa-paper-caption {
+  transform: rotate(-4deg);
+  transform-origin: center;
+  margin-top: -10px;
 }
 
 @media (prefers-reduced-motion: reduce) {

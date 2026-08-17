@@ -1,3 +1,131 @@
+# Landing Pass 7 — hero illustration, player stacking fix, FAQ collapse, footer + CTA
+
+Branch: `landing-pass-7`, on top of `main` @ `20b41094`. Landing page only — no Greek, no studio,
+no filming code.
+
+> The filming session's changelog for `vertical-filming` / `studio-tease-mode` follows below,
+> unchanged. Both sessions write this file; Pass 6's entry was already overwritten once, so this
+> one stacks rather than replaces.
+
+---
+
+## 1. The pencil is gone
+
+It was drawn to brand rules — flat shapes, the bolt's own white keyline — and it still read as clip
+art the moment it sat beside the real mark. A second illustrated object competing with the bolt was
+the problem; drawing it better was never going to fix that.
+
+What replaced it is **context behind the bolt, not company beside it**: three text strokes and two
+bubble rows at `opacity 0.5` over `rgba(245,239,230,0.13–0.14)` — roughly a quarter of Pass 4's
+worksheet — plus **one red check** (`#CE1126`, two round-capped strokes, deliberately uneven so it
+reads as marked rather than printed). An exam with a check on it is a *passed* exam; that is the
+whole reason the hints are there.
+
+The rule is written into the code: if the hints ever compete, lower the opacity — do not redraw.
+
+**Caption** now carries `.sa-paper-caption` — `rotate(-4deg)` matching the card exactly, and
+`margin-top: -10px` to close the gap the rotation opens, so it sits tight under the card's bottom
+edge instead of floating in its own space.
+
+## 2. The stacking bug — and a second cause underneath it
+
+**The reported bug.** The branch condition was `!school && !notListed` — *"has a school been chosen
+yet?"*. But the flow has four rungs, and answering the **first** one flipped it to the else-branch,
+which renders `MatchPanel` **and** the content box. So during professor and materials the panel drew
+the picker with a 16:9 black poster stacked under it, and the player grew by the height of a video
+nothing was going to play. The condition is now the whole ladder:
+
+```ts
+const flowDone = (!!school || notListed) && profDone && materialsDone;
+```
+
+**Verified:** the 16:9 box exists in state 4 only; states 1–3 render exactly one thing.
+
+### The audit found a second, unreported cause
+
+Fixing exclusivity alone did **not** stabilise the height, because the culprit is the *other*
+column. The **sidebar** shrinks as the school's real topic map replaces the Starter Map:
+
+| state | sidebar |
+|---|---|
+| 1 school (Starter Map, 7 topics) | 392px |
+| 2 professor (loading) | 358px |
+| 3 materials (Ole Miss, 3 topics) | 258px |
+
+The sidebar is the taller column, so the card followed it down — a 52px collapse that looks exactly
+like the stacking bug but has nothing to do with state overlap. It is real content changing, not a
+rendering fault, so the fix is to hold the **row**: `--sa-player-min: 392px` on the flex row, sized
+to the tallest chooser sidebar.
+
+**Result — card height across the four states: 478 / 492 / 478 / 481px, a 14px spread**, measured at
+both 1440×900 and 1280×900. Was 478 / 444 / 426 / 481 (52px).
+
+**No other overlap found** in school→professor or materials→content: each transition swaps exactly
+one rendered subtree.
+
+### On the "no internal scrollbar" re-check
+
+One scroller remains, in the professor state only: the professor **list** itself
+(`max-h-[190px] overflow-y-auto`, 22 names at Ole Miss). That is a deliberately bounded list *inside*
+the panel, not the player scrolling — twenty-two names have to scroll somewhere, and the alternative
+is a panel that grows past the video. Pass 5's requirement was that the sidebar and player don't
+scroll, and they don't, in any state. Flagging it explicitly rather than quietly counting it as a
+pass.
+
+## 3. FAQ collapses to one
+
+One question on load; `+ Show more (6)` reveals the rest; `× Show less` puts them back — the same
+idiom as Meet your tutor, so the page has one way of saying "there is more here". Seven stacked
+cards was a wall of text between the player and the testimonials, and the first question is the one
+nearly everybody actually has.
+
+## 4. Footer wordmark
+
+`FitWordmark` hard-centres (`alignItems: "center"`), which is right in a navbar and wrong in a
+footer column — the mark sat **83px** right of the tagline beneath it. The component spreads
+`style` last, so `alignItems: "flex-start"` is the entire fix; no wrapper, navbar untouched.
+Measured: wordmark box, tagline and column left edge all at **237px**.
+
+## 5. CTA scroll target + arrival cue
+
+`#exam1` had `scroll-mt-6` (24px) against a sticky ~55px navbar, so "Cram Exam 1 Free" parked the
+exam tab row underneath it. Now `scroll-margin-top: calc(var(--sa-header-h, 54px) + 28px)` — it
+reads the height SiteHeader publishes at runtime, so it tracks the real bar instead of a guess, and
+mobile's shorter navbar is handled by the same rule. **Measured: 83px** = 55 real + 28.
+
+The cue is a separate `cue` prop, **not** the existing `pulse` — `pulse` also *opens* the sheet, and
+after an unrequested scroll a modal takes the decision away rather than pointing at it. All five
+conditions verified:
+
+| condition | result |
+|---|---|
+| plain page load | no cue |
+| after CTA click | cue fires |
+| after ~2s | cue gone |
+| second click within 3s | suppressed |
+| school already chosen | skipped |
+
+`prefers-reduced-motion` swaps the pulse for a static border emphasis.
+
+---
+
+## Verification
+
+`tsc` clean · 1122 tests · build clean · no console errors.
+
+### Not verified
+
+**Screenshots — seven requested, none produced. Seventh pass running.** The Browser pane will not
+composite frames here. Also **unverifiable in this environment**: the CTA scroll *landing position*,
+because smooth scrolling is compositor-driven and does not run — I verified the `scroll-margin-top`
+contract (83px against a 55px navbar) rather than the final scroll offset. Worth one click on a real
+browser.
+
+Needs a human eye: whether the exam hints read as "subtle context" or as "smudges", and whether the
+red check lands as a graded exam or as decoration.
+
+---
+
 # vertical-filming — 9:16 frames, capture window, mode toggle
 
 > **This branch stacks on `studio-tease-mode`.** Both edit `CeqPreviewer.tsx`, so
