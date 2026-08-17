@@ -28,22 +28,41 @@ const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_
   auth: { persistSession: false },
 });
 
+/** PostgREST caps a response at 1,000 rows regardless of `.limit()`. A plain `.limit(5000)` on a
+ *  1,107-row table returns 1,000 and reports no error — so 107 chapters would silently get no slug
+ *  and no /go/ page, and the run would print a confident "written 1000". This repo has hit that cap
+ *  before (623d2a9 "fix 1000-row cap"); every full-table read here pages explicitly. */
+async function fetchAll<T>(table: string, columns: string): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await db.from(table as never).select(columns).range(from, from + 999);
+    if (error) throw new Error(`${table}: ${error.message}`);
+    out.push(...((data ?? []) as T[]));
+    if (!data || data.length < 1000) break;
+  }
+  return out;
+}
+
 type Row = { id: string; campus_id: string; greek_org_id: string | null; slug: string | null; chapter_designation: string | null };
 
 const main = async () => {
   console.log(`=== GREEK SLUG BACKFILL (${APPLY ? "APPLY" : "DRY RUN — nothing will be written"}) ===\n`);
 
-  const { data: rows, error } = await db
-    .from("campus_greek_chapters")
-    .select("id,campus_id,greek_org_id,slug,chapter_designation")
-    .limit(5000);
-  if (error) { console.error("read failed — is 0115 applied?", error.message); process.exit(1); }
+  let all: Row[];
+  try {
+    all = await fetchAll<Row>("campus_greek_chapters", "id,campus_id,greek_org_id,slug,chapter_designation");
+  } catch (e) { console.error("read failed — is 0115 applied?", (e as Error).message); process.exit(1); }
 
-  const all = (rows ?? []) as Row[];
-  const { data: orgs } = await db.from("greek_orgs").select("id,name");
-  const orgName = new Map((orgs ?? []).map((o) => [(o as { id: string }).id, ((o as { name: string | null }).name ?? "").trim()]));
-  const { data: camps } = await db.from("campuses").select("id,slug,name");
-  const campusSlug = new Map((camps ?? []).map((c) => [(c as { id: string }).id, (c as { slug: string | null }).slug ?? ""]));
+  // Cross-check the paged read against the server's own count. If these ever disagree the run is
+  // working from a partial picture and must not write.
+  const { count: exact } = await db.from("campus_greek_chapters").select("*", { count: "exact", head: true });
+  console.log(`rows fetched ${all.length} / server count ${exact}`);
+  if (exact != null && all.length !== exact) { console.error("ABORT: paged read is incomplete — refusing to write a partial backfill."); process.exit(1); }
+
+  const orgs = await fetchAll<{ id: string; name: string | null }>("greek_orgs", "id,name");
+  const orgName = new Map<string, string>(orgs.map((o) => [o.id, (o.name ?? "").trim()]));
+  const camps = await fetchAll<{ id: string; slug: string | null; name: string }>("campuses", "id,slug,name");
+  const campusSlug = new Map<string, string>(camps.map((c) => [c.id, c.slug ?? ""]));
 
   // Slugs already in use, per campus — so a re-run cannot collide with a previous run's writes.
   const taken = new Map<string, Set<string>>();

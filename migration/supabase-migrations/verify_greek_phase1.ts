@@ -14,6 +14,21 @@ const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_
   auth: { persistSession: false },
 });
 
+/** PostgREST caps a response at 1,000 rows regardless of `.limit()`. In a VERIFIER that is worse
+ *  than a slow query: a truncated read makes every "no duplicates / no orphans" check pass by
+ *  simply not looking at the rest of the table. Every full-table read here pages explicitly and is
+ *  cross-checked against the server's own exact count. */
+async function fetchAll<T>(table: string, columns: string): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await db.from(table as never).select(columns).range(from, from + 999);
+    if (error) throw new Error(`${table}: ${error.message}`);
+    out.push(...((data ?? []) as T[]));
+    if (!data || data.length < 1000) break;
+  }
+  return out;
+}
+
 let failures = 0;
 const check = (ok: boolean, label: string, detail = "") => {
   console.log(`${ok ? "PASS" : "FAIL"}  ${label}${detail ? `  — ${detail}` : ""}`);
@@ -51,19 +66,21 @@ const main = async () => {
 
   // Per-campus uniqueness — the partial unique index should make this impossible, so a hit here
   // means the index did not get created.
-  const { data: allSlugs } = await db.from("campus_greek_chapters").select("campus_id,slug").not("slug", "is", null).limit(5000);
+  const allSlugs = await fetchAll<{ campus_id: string; slug: string | null }>("campus_greek_chapters", "campus_id,slug");
+  check(allSlugs.length === (total ?? -1), "slug check saw EVERY row (no 1000-row truncation)", `read ${allSlugs.length} of ${total}`);
   const seen = new Set<string>();
   const dupes: string[] = [];
-  for (const r of (allSlugs ?? []) as Array<{ campus_id: string; slug: string }>) {
+  for (const r of allSlugs.filter((x) => x.slug) as Array<{ campus_id: string; slug: string }>) {
     const k = `${r.campus_id}/${r.slug}`;
     if (seen.has(k)) dupes.push(k); else seen.add(k);
   }
   check(dupes.length === 0, "no duplicate (campus, slug) pairs", dupes.slice(0, 5).join(", "));
 
   // ── 3. THE INVARIANT ───────────────────────────────────────────────────────────────────────
-  const { data: members } = await db.from("greek_chapter_members").select("id,chapter_id,user_id,phone,source").limit(5000);
-  const mem = (members ?? []) as Array<{ id: string; chapter_id: string | null; user_id: string | null; phone: string | null; source: string | null }>;
+  const mem = await fetchAll<{ id: string; chapter_id: string | null; user_id: string | null; phone: string | null; source: string | null }>("greek_chapter_members", "id,chapter_id,user_id,phone,source");
+  const { count: memCount } = await db.from("greek_chapter_members").select("*", { count: "exact", head: true });
   console.log(`\ngreek_chapter_members: ${mem.length} rows`);
+  check(mem.length === (memCount ?? -1), "membership checks saw EVERY row (no 1000-row truncation)", `read ${mem.length} of ${memCount}`);
 
   // one account, one membership per chapter
   const pairs = new Set<string>();
@@ -76,13 +93,13 @@ const main = async () => {
   check(dupPairs.length === 0, "no account is a member of the same chapter twice", dupPairs.slice(0, 5).join(", "));
 
   // no orphans: every member points at a chapter that exists
-  const { data: chs } = await db.from("greek_chapters").select("id,campus_greek_chapter_id,claim_status,slug").limit(5000);
-  const chapterIds = new Set(((chs ?? []) as Array<{ id: string }>).map((c) => c.id));
+  const chs = await fetchAll<{ id: string; campus_greek_chapter_id: string | null; claim_status: string | null; slug: string | null }>("greek_chapters", "id,campus_greek_chapter_id,claim_status,slug");
+  const chapterIds = new Set(chs.map((c) => c.id));
   const orphans = mem.filter((m) => !m.chapter_id || !chapterIds.has(m.chapter_id));
   check(orphans.length === 0, "no orphaned member rows", `${orphans.length} orphan(s)`);
 
   // every chapter record binds to exactly one roster row
-  const chList = (chs ?? []) as Array<{ id: string; campus_greek_chapter_id: string | null; claim_status: string | null }>;
+  const chList = chs;
   const bound = new Set<string>();
   const dupBind: string[] = [];
   for (const c of chList) {
