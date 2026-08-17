@@ -47,6 +47,8 @@ import { CALLOUT_KINDS, CalloutBody, calloutKindForCategory, nextCalloutKind } f
 import { CAPTURE_H, CAPTURE_W, captureCssSize, captureFeasibility, isCaptureExact, physicalSize, snapCaptureSize } from "./capture-window";
 import { clearExhibitHighlights } from "./exhibit-highlights";
 import { NOTE_EYEBROW } from "./frame-copy";
+import { captureSize } from "./orientation";
+import { orientation, subscribeOrientation } from "./orientation-store";
 import { subscribeSlate, type SlateState } from "./film-slate";
 import { triageLatest } from "./takes-store";
 import { FILM_LOCK_CSS, FilmContext, filmDragAllowed, isTypingTarget } from "./film-lock";
@@ -881,6 +883,10 @@ function FilmSlate() {
  *  the first keypress (never capturable mid-take); window focus re-shows it and
  *  auto-resnaps a drifted window; SNAP forces it. */
 function CaptureBadge({ win, note }: { win: Window; note?: string | null }) {
+  // Which target counts is the ACTIVE orientation — a vertical window measured
+  // against 1920x1080 would read "wrong" while being exactly right.
+  const [o, setO] = useState(orientation());
+  useEffect(() => subscribeOrientation(setO), []);
   const [size, setSize] = useState(() => physicalSize(win.innerWidth, win.innerHeight, win.devicePixelRatio || 1));
   const [hidden, setHidden] = useState(false);
   const measureRef = useRef<() => void>(() => {});
@@ -889,7 +895,7 @@ function CaptureBadge({ win, note }: { win: Window; note?: string | null }) {
     const measure = () => setSize(physicalSize(win.innerWidth, win.innerHeight, win.devicePixelRatio || 1));
     measureRef.current = measure;
     const onKey = () => setHidden(true);
-    const onFocus = () => { measure(); setHidden(false); if (!isCaptureExact(win.innerWidth, win.innerHeight, win.devicePixelRatio || 1)) { snapCaptureSize(win); window.setTimeout(measure, 200); } };
+    const onFocus = () => { measure(); setHidden(false); if (!isCaptureExact(win.innerWidth, win.innerHeight, win.devicePixelRatio || 1, o)) { snapCaptureSize(win, undefined, o); window.setTimeout(measure, 200); } };
     win.addEventListener("resize", measure);
     win.addEventListener("keydown", onKey, true);
     win.addEventListener("focus", onFocus);
@@ -900,7 +906,7 @@ function CaptureBadge({ win, note }: { win: Window; note?: string | null }) {
   return (
     <div style={{ position: "absolute", top: 10, right: 10, zIndex: 60, display: "flex", alignItems: "center", gap: 6, borderRadius: 8, padding: "4px 8px", background: "rgba(5,7,13,0.85)", border: '1px solid ' + (ok ? "rgba(59,245,160,0.6)" : "rgba(255,80,110,0.7)") }}>
       <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: "0.06em", color: ok ? "#3BF5A0" : "#FF5A6E", fontVariantNumeric: "tabular-nums" }}>{size.w}×{size.h}{ok ? " ✓" : ""}</span>
-      {!ok && <button style={{ fontSize: 9, fontWeight: 900, letterSpacing: "0.08em", color: "#0B1322", background: "#3BF5A0", borderRadius: 5, padding: "2px 6px", border: "none", cursor: "pointer" }} onClick={() => snapCaptureSize(win, () => measureNow())} title="Resize the window so the inner canvas is exactly 1920x1080 physical pixels">SNAP</button>}
+      {!ok && <button style={{ fontSize: 9, fontWeight: 900, letterSpacing: "0.08em", color: "#0B1322", background: "#3BF5A0", borderRadius: 5, padding: "2px 6px", border: "none", cursor: "pointer" }} onClick={() => snapCaptureSize(win, () => measureNow(), o)} title={`Resize the window so the inner canvas is exactly ${captureSize(o).w}×${captureSize(o).h} physical pixels`}>SNAP</button>}
       {!ok && <span style={{ fontSize: 8.5, color: "#FFD23F", fontWeight: 700, maxWidth: 300 }}>{note ?? captureFeasibility(win).reason ?? "press F for exact fullscreen 1:1"}</span>}
       <span style={{ fontSize: 8.5, color: "rgba(230,236,255,0.5)", fontWeight: 700 }}>hides on first key</span>
     </div>
@@ -1575,9 +1581,10 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     if (filmWin) { try { filmWin.close(); } catch { /* ignore */ } setFilmWin(null); captureRef.current = false; return; }
     if (v2 !== undefined) setFilmMode(v2);
     captureRef.current = !!capture;
-    const css = capture ? captureCssSize(window.devicePixelRatio || 1) : null;
+    const o = orientation();
+    const css = capture ? captureCssSize(window.devicePixelRatio || 1, o) : null;
     const w = openPopoutWindow(capture ? "ceqcapture" : "ceqfilm", css?.w ?? 1000, css?.h ?? 600);
-    if (w) { setFilmWin(w); if (capture) { window.setTimeout(() => snapCaptureSize(w, (ok, why) => setCaptureNote(ok ? null : why ?? null)), 200); } }
+    if (w) { setFilmWin(w); if (capture) { window.setTimeout(() => snapCaptureSize(w, (ok, why) => setCaptureNote(ok ? null : why ?? null), o), 200); } }
   };
   // ELEMENT FULLSCREEN (C1): fullscreen targets THIS stable wrapper — it never
   // unmounts (frames swap INSIDE it; the arrival-gap fix guarantees the

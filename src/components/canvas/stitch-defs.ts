@@ -174,6 +174,10 @@ export interface GateContext {
   reframeExists?: boolean;
   /** Is the LAST item in the cut the rip? Shorts rip only at the end. */
   ripAtEnd?: boolean;
+  /** The orientations the cut's clips were FILMED in. Vertical publications are
+   *  filmed natively (08-17) — there is no crop path — so a 9:16 built from
+   *  landscape footage, or from a mix, is a mistake worth stopping. */
+  clipOrientations?: ("16:9" | "9:16")[];
 }
 
 export const SHORT_MIN_S = 22;
@@ -191,8 +195,17 @@ export function publishGate(pub: PublicationDef, stitch: StitchDef | undefined, 
   if (!stitch) out.push({ id: "all/stitch-missing", level: "block", text: "this publication points at a stitch that no longer exists" });
 
   // ---- framing ------------------------------------------------------------
-  if (pub.framing === "9:16" && (!pub.reframeId || ctx.reframeExists === false)) {
-    out.push({ id: "framing/no-reframe", level: "block", text: "this vertical has no authored reframe — author one or pick a saved one. There is no auto-crop: a center crop loses the CEQ card and the cutout" });
+  // FILMED NATIVELY (08-17). The reframe/crop path was superseded before it was
+  // built: a vertical short is FILMED vertical from the same set. So the gate is
+  // no longer "is there a reframe" but "was this actually shot vertical".
+  const ors = ctx.clipOrientations;
+  if (pub.framing === "9:16" && ors && ors.length) {
+    const wrong = ors.filter((o) => o !== "9:16").length;
+    if (wrong === ors.length) out.push({ id: "framing/not-vertical", level: "block", text: "this 9:16 publication is built entirely from LANDSCAPE takes — film it vertically (Filming Mode → 9:16); there is no crop path, because cropping loses the card and the cutout" });
+    else if (wrong > 0) out.push({ id: "framing/mixed-orientation", level: "block", text: `${wrong} of ${ors.length} clips in this 9:16 cut were filmed landscape — a mixed cut letterboxes mid-video` });
+  }
+  if (pub.framing === "9:16" && !ors?.length) {
+    out.push({ id: "framing/unknown-orientation", level: "confirm", text: "none of these clips record what they were filmed in (banked before vertical existed) — confirm by eye that they are vertical" });
   }
 
   // ---- shorts -------------------------------------------------------------

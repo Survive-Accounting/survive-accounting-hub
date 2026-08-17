@@ -57,13 +57,26 @@ describe("staleness — a shipped asset is never silently left out of date", () 
 });
 
 describe("the publish gate", () => {
-  test("a 9:16 with no authored reframe is BLOCKED — there is no auto-crop to fall back to", () => {
-    const g = publishGate(pub({ framing: "9:16" }), stitch());
-    expect(gateBlocks(g).map((x) => x.id)).toContain("framing/no-reframe");
+  // SUPERSEDED 08-17: verticals are FILMED vertical, so the gate asks what the
+  // clips were shot in rather than whether a reframe exists. No crop path was
+  // ever built, which is why there is nothing to fall back to.
+  test("a 9:16 built entirely from LANDSCAPE takes is BLOCKED — film it vertical", () => {
+    const g = publishGate(pub({ framing: "9:16" }), stitch(), { clipOrientations: ["16:9", "16:9"], lessonId: "l1", access: "FREE" });
+    expect(gateBlocks(g).map((x) => x.id)).toContain("framing/not-vertical");
   });
-  test("a saved reframe that no longer exists blocks just the same", () => {
-    const g = publishGate(pub({ framing: "9:16", reframeId: "rf1" }), stitch(), { reframeExists: false, lessonId: "l1", access: "FREE" });
-    expect(gateBlocks(g).map((x) => x.id)).toContain("framing/no-reframe");
+  test("a MIXED cut is blocked — it would letterbox mid-video", () => {
+    const g = publishGate(pub({ framing: "9:16" }), stitch(), { clipOrientations: ["9:16", "16:9"], lessonId: "l1", access: "FREE" });
+    const b = gateBlocks(g).map((x) => x.id);
+    expect(b).toContain("framing/mixed-orientation");
+    expect(b).not.toContain("framing/not-vertical");
+  });
+  test("an all-vertical cut passes the framing gate", () => {
+    const ids = gateBlocks(publishGate(pub({ framing: "9:16" }), stitch(), { clipOrientations: ["9:16", "9:16"], lessonId: "l1", access: "FREE" })).map((x) => x.id);
+    expect(ids.filter((i) => i.startsWith("framing/"))).toEqual([]);
+  });
+  test("clips with no recorded orientation raise a CONFIRM, not a block — they predate the field", () => {
+    const g = publishGate(pub({ framing: "9:16" }), stitch(), { lessonId: "l1", access: "FREE" });
+    expect(g.find((x) => x.id === "framing/unknown-orientation")?.level).toBe("confirm");
   });
   test("the solved-JE check is a CONFIRM, never a guess — the machine cannot see it", () => {
     const g = publishGate(pub({ kind: "short", framing: "9:16", reframeId: "r" }), stitch(), { reframeExists: true });

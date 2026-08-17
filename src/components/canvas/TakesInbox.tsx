@@ -10,6 +10,7 @@ import { Check, FolderOpen, Loader2, Mic, Play, RefreshCw, RotateCcw, Trash2, X 
 
 import { connectObs, OBS_DEFAULT_ADDRESS, baseName, type ObsStatus } from "./obs-bridge";
 import { cancelSlate, slateEndOffsetMs, slateSeconds, startSlate, SLATE_CHOICES, setSlateSeconds } from "./film-slate";
+import { orientation } from "./orientation-store";
 import { fileUrl, fsaSupported, getFile, moveToRecycle, pickTakesFolder, probeDuration, recycleStats, restoreFromRecycle, savedTakesFolder, scanFolder } from "./takes-folder";
 import { currentTakes, dropTakeRecord, fmtBytes, latestPending, loadTakes, makeRecord, missingRecords, newFiles, saveTake, setTriageHandler, subscribeTakes, type TakeRecord, type TakeTarget } from "./takes-store";
 import { NEON } from "./theme";
@@ -102,7 +103,10 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
     }
     const fresh = newFiles(opts?.onlyName ? scanned.filter((f) => f.name === opts.onlyName) : scanned, currentTakes());
     for (const f of fresh) {
-      const rec = makeRecord(f, { ...(armedRef.current ? { target: armedRef.current } : {}), ...(opts?.coverage ? { coverage: opts.coverage } : {}), ...(opts?.slateEndMs != null ? { slateEndMs: opts.slateEndMs } : {}) });
+      // Stamp the shape it was FILMED in at ingest — the only moment we can know
+      // it for certain, and what lets the rail group and the publish gate refuse a
+      // mixed 9:16 cut.
+      const rec = makeRecord(f, { orientation: orientation(), ...(armedRef.current ? { target: armedRef.current } : {}), ...(opts?.coverage ? { coverage: opts.coverage } : {}), ...(opts?.slateEndMs != null ? { slateEndMs: opts.slateEndMs } : {}) });
       const file = await getFile(d, f.name);
       if (file) rec.durationS = await probeDuration(file);
       await saveTake(rec);
@@ -200,6 +204,7 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
         <button className="shrink-0" style={{ color: NEON.cyan }} title="Play locally (instant — nothing uploads)"
           onClick={() => void (async () => { if (playing?.id === t.id) { URL.revokeObjectURL(playing.url); setPlaying(null); return; } const u = dirRef.current ? await fileUrl(dirRef.current, t.fileName) : null; if (u) setPlaying({ id: t.id, url: u }); })()}><Play className="h-3 w-3" /></button>
         <span className="min-w-0 flex-1 truncate text-[10px]" style={{ color: NEON.text }} title={t.fileName}>{t.fileName}</span>
+        {t.orientation === "9:16" && <span className="shrink-0 rounded px-1 text-[7.5px] font-black" style={{ color: "#0B1322", background: "#B79CFF" }} title="Filmed vertical">9:16</span>}
         {t.durationS ? <span className="shrink-0 text-[8.5px] tabular-nums" style={{ color: NEON.muted }}>{Math.round(t.durationS)}s</span> : null}
         {t.target && <span className="shrink-0 rounded px-1 text-[7.5px] font-bold uppercase" style={{ color: "#B79CFF", border: `1px solid ${NEON.borderSoft}` }} title={t.target.ids.length + " frame(s)"}>{t.target.label ?? t.target.kind}</span>}
         {up === "uploading" && <Loader2 className="h-3 w-3 shrink-0 animate-spin" style={{ color: NEON.cyan }} />}

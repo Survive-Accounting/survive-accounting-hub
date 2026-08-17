@@ -340,6 +340,10 @@ export interface TakeRef {
    *  "resolution"…). Additive; the readiness check counts a moment covered when
    *  any take carries its id. */
   momentId?: string;
+  /** FILMED IN (08-17): the orientation this clip was shot in. A 9:16
+   *  publication draws only from vertical clips; absent = 16:9 (everything
+   *  filmed before vertical existed). */
+  orientation?: "16:9" | "9:16";
   /** SLATE TRIM (F1): ms of in-frame countdown at this clip's head — a
    *  DETERMINISTIC trim point the stitcher uses instead of guessing at head
    *  silence (tail detection still applies). */

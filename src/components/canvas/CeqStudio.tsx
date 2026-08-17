@@ -38,6 +38,8 @@ import { TakesInbox } from "./TakesInbox";
 import { type ObsStatus } from "./obs-bridge";
 import { attachTargets, currentTakes, saveTake, type TakeRecord, type TakeTarget } from "./takes-store";
 import { subscribeSlate, type SlateState } from "./film-slate";
+import { frameSize, isVertical, type Orientation } from "./orientation";
+import { setOrientation, subscribeOrientation } from "./orientation-store";
 import { assignRunTo, fillDownRuns, normRun, type RunChange } from "./film-runs";
 import { isoDay, saveRoomTone, todaysRoomTone } from "./room-tone";
 import { resolveWorkerRender, startDissectStitch, type DissectStitchResult } from "@/lib/render-worker.functions";
@@ -334,6 +336,10 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   // renders it IN FRAME and the studio MIRRORS it here. There used to be a second,
   // independent studio timer; two clocks meant the studio could show "2" while the
   // trim point was being recorded off the other one.
+  /** ORIENTATION (vertical filming) — workspace state, not per-set: Lee films a
+   *  whole pass in one shape. Layout only; the CEQ, memos and spine are identical. */
+  const [orient, setOrient] = useState<Orientation>("16:9");
+  useEffect(() => subscribeOrientation(setOrient), []);
   const [slate, setSlate] = useState<SlateState>({ count: null, speak: false });
   useEffect(() => subscribeSlate(setSlate), []);
   /** RUN COVERAGE (F1): every frame walked while OBS rolls, so a blast across a run
@@ -2527,7 +2533,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   </>) : null;
 
   const renderPreviewer = (recMode: boolean) => (
-    <CeqPreviewer transportLeft={transportClips} transportRight={transportFlags} ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={frameW} frameH={frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSaveInstance={(g) => { if (qId && qId !== LAYOUT_Q0) saveInstanceGeom(qId, g); }} layoutOn={deck?.layoutMode !== false} onSetLayoutMode={setLayoutMode} onApplyLayoutToAll={() => { const n = questions.length; if (n > 0 && window.confirm(`Re-stamp all ${n} question${n === 1 ? "" : "s"} from the layout?
+    <CeqPreviewer transportLeft={transportClips} transportRight={transportFlags} ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={isVertical(orient) ? frameSize(orient).w : frameW} frameH={isVertical(orient) ? frameSize(orient).h : frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSaveInstance={(g) => { if (qId && qId !== LAYOUT_Q0) saveInstanceGeom(qId, g); }} layoutOn={deck?.layoutMode !== false} onSetLayoutMode={setLayoutMode} onApplyLayoutToAll={() => { const n = questions.length; if (n > 0 && window.confirm(`Re-stamp all ${n} question${n === 1 ? "" : "s"} from the layout?
 
 This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undoes all of it.`)) applyLayoutToAll(); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onReorderChainMemo={reorderChainByMemo} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} counterIds={counterIds} stageSig={stagedHere.map((e) => `${e.id}:${e.hidden ? 1 : 0}`).join(",")} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onEditStem={(cid, text) => patchQ(cid, { prompt: text }, `q:${cid}:prompt`)} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSetMisconception={setMemoMisconception} misconceptionSlugs={misconceptionDefs.map((d) => d.slug)} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} showProgress={deck?.showProgress} onSetShowProgress={(b) => { if (deck) setDecks((prev) => updateDeck(prev, deck.id, { showProgress: b })); }} bossAutoArm={deck?.bossAutoArm} onOpenMemoLib={(id) => { setLibOpen(true); setPreviewSelMemo(id); }} topicName={(() => { const rows = spineRows(deck); return rows ? topicLabel(rows.topic).replace(/^ch\s*\d+\s*[·.\-:]\s*/i, "").replace(/\s*\(archived\)\s*$/i, "").trim() : undefined; })()} recording={recMode} onToggleBoss={(cid) => { const cur = !!(rf.getNode(cid)?.data as unknown as CeqCard | undefined)?.boss; patchQ(cid, { boss: !cur }); setNote(cur ? "Boss mark removed." : "👑 Marked as a BOSS — it joins the boss compilation pool."); }} revealAnswers={deck?.revealAnswers} onEditLayout={enterLayoutEdit} onSelectStageEl={setSelStageEl} onExitRecording={() => { setRecording(false); setRehearse(false); setRunCard(null); }} />
   );
@@ -2748,6 +2754,16 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
           <span className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: armedTarget ? "#0B1322" : NEON.muted, background: armedTarget ? "#B79CFF" : "transparent", border: `1px solid ${NEON.borderSoft}` }} title={armedTarget ? armedTarget.ids.length + " frame(s) armed" : "Nothing armed — takes attach by coverage (what was on screen)"}>{armedTarget ? `armed: ${armedTarget.label ?? armedTarget.kind}` : "not armed"}</span>
           <span className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: todaysRoomTone() ? "#3BF5A0" : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} title="Room tone for today — the smart stitcher fills gaps with it. Upload it from the Publish panel.">🎙 {todaysRoomTone() ? "room tone ✓" : "no room tone"}</span>
           <span className="text-[9px] font-bold uppercase" style={{ color: NEON.muted }} title="Files moved to Recycle — never deleted; empty it from Explorer.">recycle {binStat.count}</span>
+          {/* ORIENTATION — the whole point of the vertical pass. Prominent, because
+              filming a set in the wrong shape is an hour lost. */}
+          {(["16:9", "9:16"] as const).map((o) => (
+            <button key={o} className="rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider"
+              style={{ color: orient === o ? "#0B1322" : NEON.muted, background: orient === o ? NEON.yellow : "transparent", border: `1px solid ${orient === o ? NEON.yellow : NEON.borderSoft}` }}
+              onClick={() => { setOrientation(o); setNote(o === "9:16" ? "VERTICAL (9:16) — same CEQs, same spine, re-typeset for a phone. The capture window opens at 1080×1920." : "LANDSCAPE (16:9) — the site blast."); }}
+              title={o === "9:16" ? "Film the vertical short from this same set. Layout only — nothing about the questions changes." : "Film the landscape blast for the site."}>
+              {o === "9:16" ? "▯ 9:16" : "▭ 16:9"}
+            </button>
+          ))}
           <span className="ml-auto text-[9px] uppercase" style={{ color: NEON.muted }}>F9 roll · F10 keep · F8 trash <span title="F10 and F8 are APP keys — this window needs focus. Only OBS\u2019s F9 is global.">(app focus)</span></span>
         </div>
       )}
@@ -3029,7 +3045,9 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                     const staged = await stageTake(file);
                     const first = ids[0];
                     const d0 = rf.getNode(first)?.data as unknown as CeqCard | undefined;
-                    const take = { ...staged, ...(ids.length > 1 ? { coversFrameIds: ids } : {}), ...(t.slateEndMs != null ? { slateEndMs: t.slateEndMs } : {}) };
+                    // FILMED IN — tagged from the take record, which was stamped at
+                    // ingest. A 9:16 publication draws only from vertical clips.
+                    const take = { ...staged, ...(ids.length > 1 ? { coversFrameIds: ids } : {}), ...(t.slateEndMs != null ? { slateEndMs: t.slateEndMs } : {}), ...(t.orientation ? { orientation: t.orientation } : {}) };
                     patchQ(first, { takes: [...cardClips(d0), take] });
                     // AUTO-ADVANCE (F1) — but a dissect CEQ with moments still to
                     // shoot keeps the spine parked so Lee rolls the next moment.

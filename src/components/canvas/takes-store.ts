@@ -32,6 +32,11 @@ export interface TakeRecord {
   /** What was on screen while OBS rolled — and, from F1, WHAT THIS TAKE
    *  ATTACHES TO on keep. */
   coverage?: { startedAt: string; stoppedAt: string; frameIds: string[] };
+  /** FILMED IN (vertical filming, 08-17). Tagged at ingest from the workspace
+   *  orientation, so the rail can group/filter and a 9:16 publication can draw
+   *  only from vertical takes. Absent on takes banked before this existed —
+   *  treated as 16:9, which is what they are. */
+  orientation?: "16:9" | "9:16";
   /** SLATE (F1): ms from record-start to when the countdown cleared — the
    *  DETERMINISTIC head-trim point. Absent ⇒ the stitcher falls back to
    *  silence detection. */

@@ -33,9 +33,10 @@ describe("the stable-wrapper fullscreen + capture window (C1 source pins)", () =
     expect(previewer).toContain('if (filmWindow && (e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey && !e.altKey)');
   });
   test("the capture window snaps on open (ITERATING) and re-snaps on focus; the badge hides on first key", () => {
-    expect(previewer).toContain("snapCaptureSize(w, (ok, why) => setCaptureNote(ok ? null : why ?? null))");
+    // orientation-aware since vertical filming: the snap target is 1080x1920 in 9:16
+    expect(previewer).toContain("snapCaptureSize(w, (ok, why) => setCaptureNote(ok ? null : why ?? null), o)");
     expect(previewer).toContain('const onKey = () => setHidden(true);');
-    expect(previewer).toContain("if (!isCaptureExact(win.innerWidth, win.innerHeight, win.devicePixelRatio || 1)) { snapCaptureSize(win);");
+    expect(previewer).toContain("if (!isCaptureExact(win.innerWidth, win.innerHeight, win.devicePixelRatio || 1, o)) { snapCaptureSize(win, undefined, o);");
   });
   test("the capture window gets its OWN name — never inherits a stale film window's size", () => {
     expect(previewer).toContain('openPopoutWindow(capture ? "ceqcapture" : "ceqfilm"');
