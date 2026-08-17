@@ -22,7 +22,10 @@ import { cardId, type ChainSound, type CeqCard, type CeqChainItem, type CeqChoic
 import { NEON } from "./theme";
 import { BufferedInput } from "./ui";
 
-const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
+// Hoisted, not a const arrow — see tdz-hazards.test.ts: a module-scope arrow
+// is in a temporal dead zone until the module body reaches it, and a bundler may
+// render a component first. This one killed the previewer in production (08-16).
+function LETTER(i: number): string { return String.fromCharCode(65 + (i % 26)); }
 const memoLabel = (title?: string, body?: string) => ((title && title.trim()) || (body || "").replace(/[*_=~`#>]/g, "").trim() || "memo").slice(0, 40);
 /** Deterministic edge id per (choice, memo) so remove can find + drop the arrow. */
 const chainEdgeId = (choiceId: string, memoNodeId: string) => `chn-${choiceId}-${memoNodeId}`;

@@ -21,6 +21,8 @@
 //
 // Exit 0 when every assertion holds, 1 otherwise — so it can gate a script.
 
+import fs from "node:fs";
+
 const args = process.argv.slice(2);
 const opt = (name, fallback) => {
   const i = args.indexOf(`--${name}`);
@@ -39,6 +41,25 @@ if (!has.length && !gone.length) {
   console.error("nothing to check. Pass --has '<new string>' and/or --gone '<old string>'.");
   console.error("  --gone is the strong one: the string you REPLACED must be absent.");
   process.exit(2);
+}
+
+/** A --gone marker only proves something if the string is GONE FROM THE SOURCE.
+ *  On 08-16 a marker was still present in a second file, so it could never go
+ *  absent — and the run reported "NOT LIVE" as if that were evidence. Check the
+ *  working tree and say so, loudly, rather than handing back a false negative. */
+function undecidable(needle) {
+  const hits = [];
+  const walk = (dir) => {
+    let entries; try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      const full = `${dir}/${e.name}`;
+      if (e.isDirectory()) { if (!/node_modules|\.git|dist|\.vercel/.test(e.name)) walk(full); continue; }
+      if (!/\.(ts|tsx|js|jsx|css|html)$/.test(e.name) || /\.test\./.test(e.name)) continue;
+      try { if (fs.readFileSync(full, "utf8").includes(needle)) hits.push(full); } catch { /* unreadable */ }
+    }
+  };
+  walk("src");
+  return hits;
 }
 
 const get = async (url) => {
@@ -80,6 +101,22 @@ const report = (r) => {
     console.log(`  ${x.ok ? "✓" : "✗"} must be ${verb}: ${JSON.stringify(x.s.slice(0, 70))}`);
   }
 };
+
+let bogus = false;
+for (const g of gone) {
+  const hits = undecidable(g);
+  if (hits.length) {
+    bogus = true;
+    console.log(`WARNING: --gone ${JSON.stringify(g.slice(0, 50))} STILL EXISTS in ${hits.join(", ")}`);
+    console.log("  That string can never go absent, so this assertion proves NOTHING —");
+    console.log("  it will report NOT LIVE forever. Pick a marker unique to the code you replaced.");
+    console.log();
+  }
+}
+if (bogus && !has.length) {
+  console.log("Refusing to report a verdict from an assertion that cannot pass.");
+  process.exit(2);
+}
 
 const started = Date.now();
 for (;;) {

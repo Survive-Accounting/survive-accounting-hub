@@ -63,7 +63,10 @@ const memoText = (title?: string, body?: string) => ((title && title.trim()) || 
  *  `take` migrated as a one-item list. The single source of truth for stitch/publish. */
 const cardClips = (d?: { takes?: TakeRef[]; take?: TakeRef }): TakeRef[] => (d?.takes && d.takes.length ? d.takes : d?.take ? [d.take] : []);
 const clip = (s: string, n = 40) => (s.length > n ? s.slice(0, n) + "…" : s);
-const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
+// Hoisted, not a const arrow — see tdz-hazards.test.ts: a module-scope arrow
+// is in a temporal dead zone until the module body reaches it, and a bundler may
+// render a component first. This one killed the previewer in production (08-16).
+function LETTER(i: number): string { return String.fromCharCode(65 + (i % 26)); }
 const NONE = "__uncat__";
 const MEMO_DND = "text/sa-studio-memo";
 const QREORDER = "text/sa-ceq-qreorder"; // dragging a question ROW to reorder

@@ -27,7 +27,10 @@ export interface SetExportInput {
   misconceptions?: { slug: string; questions: string[] }[];
 }
 
-const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
+// Hoisted, not a const arrow — see tdz-hazards.test.ts: a module-scope arrow
+// is in a temporal dead zone until the module body reaches it, and a bundler may
+// render a component first. This one killed the previewer in production (08-16).
+function LETTER(i: number): string { return String.fromCharCode(65 + (i % 26)); }
 const flagLine = (f: ExportQuestion["flags"]): string => {
   const parts: string[] = [];
   if (f.starred) parts.push("★ starred");
