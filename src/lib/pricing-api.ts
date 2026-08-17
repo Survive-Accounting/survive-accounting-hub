@@ -44,20 +44,27 @@ async function insertWaitlist(row: {
   if (error) throw new Error(error.message);
 }
 
-/** Materials waitlist (test pass / semester membership). */
+/** Materials waitlist (test pass / semester membership).
+ *
+ *  `examNum` rides in the SOURCE tag rather than in a column of its own. All four exam tabs on the
+ *  landing page collect emails now, so "which exam did this person ask for" has to be recorded
+ *  somewhere — and a source suffix needs no migration. 99 is the Final, matching the exam
+ *  numbering used everywhere else. Tier stays a real WaitlistTier: an exam is not a pricing tier,
+ *  and widening that union to carry one would corrupt every existing tier_interest report. */
 export function joinPricingWaitlist(input: {
   email: string;
   phone?: string | null;
   campus?: string | null;
   course?: string | null;
   tier: WaitlistTier;
+  examNum?: number | null;
 }): Promise<void> {
   return insertWaitlist({
     email: input.email,
     phone: input.phone,
     campus: input.campus,
     course: input.course,
-    source: `pricing_page_${input.tier}`,
+    source: `pricing_page_${input.tier}${input.examNum != null ? `_exam${input.examNum}` : ""}`,
     tierInterest: input.tier,
   });
 }

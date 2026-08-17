@@ -25,6 +25,7 @@ import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/componen
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { FitWordmark, SiteHeader, SITE_NAVY, useNavyDocument } from "@/components/site/SiteHeader";
 import { PickerSheet } from "@/components/site/PickerSheet";
+import { ExamPaper, EXAM_PAPER_CSS } from "@/components/site/ExamPaper";
 import { contactKind, LAUNCH_LINE, LAUNCH_WINDOW } from "@/lib/launch";
 import { Bolt, BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS, SEC_SCHOOLS } from "@/components/canvas/brand";
 
@@ -248,6 +249,7 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
 
   return (
     <div style={{ ...frameThemeVars(theme), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "hidden" }}>
+      <style>{EXAM_PAPER_CSS}</style>
       <style>{`
         @keyframes sa-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
         .sa-marquee-track { animation: sa-marquee 42s linear infinite; }
@@ -306,37 +308,45 @@ const TRUST_BADGES = ["Built by a pro tutor", "1,000+ students tutored since 201
 
 function Hero({ onStart }: { onStart: () => void }) {
   return (
-    // .sa-hero (styles.css) fills exactly the viewport left under the sticky navbar, so nothing
-    // below it can peek above the fold. justify-center optically centres the four elements.
-    <section className="sa-hero flex flex-col items-center justify-center pb-10 text-center">
-      <h1 className="text-[30px] font-black leading-[1.08] sm:text-[42px]" style={{ letterSpacing: "-0.015em" }}>
-        Cram what&apos;s on your exam.
-      </h1>
+    // Pass 3: two columns from 1024px, single centred column below it. The vertical padding is
+    // deliberately short of a full viewport now — the player's tab row should PEEK at the bottom
+    // on a 1080p screen, because a half-visible control is a better scroll cue than any arrow.
+    <section className="sa-hero3 grid items-center gap-10 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12 lg:py-14">
+      <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
+        <h1 className="text-[30px] font-black leading-[1.08] sm:text-[42px] lg:text-[52px]" style={{ letterSpacing: "-0.015em" }}>
+          Cram what&apos;s on your exam.
+        </h1>
 
-      <p className="mt-4 max-w-[22ch] text-[16px] leading-snug sm:max-w-[42ch] sm:text-[18px]" style={{ color: "var(--brand-cream)", opacity: 0.66 }}>
-        On-demand exam prep for your first accounting course. Built for the night before.
-      </p>
+        <p className="mt-4 max-w-[22ch] text-[16px] leading-snug sm:max-w-[42ch] sm:text-[18px]" style={{ color: "var(--brand-cream)", opacity: 0.66 }}>
+          On-demand exam prep for your first accounting course. Built for the night before.
+        </p>
 
-      <button
-        onClick={onStart}
-        className="mt-8 inline-flex items-center gap-2 rounded-xl px-7 py-4 text-[16px] font-black transition-transform hover:scale-[1.03]"
-        style={{ background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.6)", minHeight: 52 }}
-      >
-        Cram Exam 1 Free ⚡
-      </button>
+        <button
+          onClick={onStart}
+          className="mt-8 inline-flex items-center gap-2 rounded-xl px-7 py-4 text-[16px] font-black transition-transform hover:scale-[1.03]"
+          style={{ background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.6)", minHeight: 52 }}
+        >
+          Cram Exam 1 Free ⚡
+        </button>
 
-      {/* Muted pills, not cards: they are corroboration, and anything with a border and a
-          background would read as a second thing to act on. */}
-      <div className="mt-7 flex flex-wrap items-center justify-center gap-2">
-        {TRUST_BADGES.map((b) => (
-          <span
-            key={b}
-            className="rounded-full px-3 py-1.5 text-[12px] font-semibold"
-            style={{ background: "rgba(245,239,230,0.07)", border: "1px solid rgba(245,239,230,0.13)", color: "var(--brand-cream)", opacity: 0.8 }}
-          >
-            {b}
-          </span>
-        ))}
+        <div className="mt-7 flex flex-wrap items-center justify-center gap-2 lg:justify-start">
+          {TRUST_BADGES.map((b) => (
+            <span
+              key={b}
+              className="rounded-full px-3 py-1.5 text-[12px] font-semibold"
+              style={{ background: "rgba(245,239,230,0.07)", border: "1px solid rgba(245,239,230,0.13)", color: "var(--brand-cream)", opacity: 0.8 }}
+            >
+              {b}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* THE GRAPHIC. `order-first` on mobile puts it above the H1 as specified; the width is
+          capped so it cannot push the CTA under the fold on a 390x844 phone — see .sa-hero3 in
+          styles.css, where the mobile size is set and the omit-vs-shrink decision is recorded. */}
+      <div className="order-first flex justify-center lg:order-none lg:justify-end">
+        <ExamPaper onActivate={onStart} className="sa-hero3-paper" />
       </div>
     </section>
   );
@@ -1069,7 +1079,7 @@ function ExamPlayer({ exams, school, onPick, focusSignal, schools, onSyllabus, p
                   {curSet?.playbackId ? (
                     <HeroVideo key={curSet.playbackId} playbackId={curSet.playbackId} onComplete={() => markComplete(curSet!.id)} />
                   ) : (
-                    <Poster school={school} topicName={curTopic?.name ?? active.label} queued={!isPaid && !!curTopic} stem={curSet?.firstStem ?? null} onNotify={onNotify} />
+                    <Poster school={school} topicName={curTopic?.name ?? active.label} stem={curSet?.firstStem ?? null} />
                   )}
                 </div>
               </>
@@ -1122,6 +1132,12 @@ const SEMESTER_PASS_PRICE = 150;
 /** What one paid exam costs. Hoisted out of the exams array so the pricing block below the fold
  *  and the exam list inside the player read the SAME number and cannot drift. */
 export const PAID_EXAM_PRICE = 50;
+
+/** EXAM 1's sidebar status label. Exams 2/3/Final say when they OPEN; Exam 1 is being made now,
+ *  so it reports progress instead. Lee changes this line as filming moves — it is one string in
+ *  one place for exactly that reason, and it is the only copy on the page that is expected to
+ *  change weekly. */
+export const EXAM1_STATUS_LABEL = "Filming this week";
 
 /** THE EXAM TABS (Pass 2) — the older four-tab row, restored.
  *
@@ -1194,7 +1210,7 @@ function ExamOutline({ tab, school, stats, isPaid, curSetId, curTopicKey, openTo
           release label. */}
       <div className="mb-2 flex items-center justify-between px-1">
         <span className="text-[10.5px] font-black uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Common exam questions</span>
-        {isPaid && <span className="text-[10px] font-bold" style={{ color: "var(--accent)" }}>Opens {LAUNCH_WINDOW}</span>}
+        <span className="text-[10px] font-bold" style={{ color: "var(--accent)" }}>{isPaid ? `Opens ${LAUNCH_WINDOW}` : EXAM1_STATUS_LABEL}</span>
       </div>
       {tab.topics.map((t) => (
         <TopicRow key={t.key} topic={t} isPaid={isPaid} price={tab.price} open={openTopics.has(t.key)} onToggle={() => onToggleTopic(t.key)} curSetId={curSetId} curTopicKey={curTopicKey} activeRef={activeRef} onPickSet={onPickSet} onPaidClick={() => setNotifyPulse((p) => p + 1)} />
@@ -1202,7 +1218,10 @@ function ExamOutline({ tab, school, stats, isPaid, curSetId, curTopicKey, openTo
       {/* the quiet sum — where the eye lands after scanning the list, not a headline */}
       <div className="mt-2 border-t px-1 pt-2 text-[10.5px]" style={{ borderColor: "rgba(245,239,230,0.08)", color: "var(--text-muted)" }}>{stats}</div>
       {/* PAID-TAB-CAPTURE: the persistent next step at the moment of maximum purchase intent */}
-      {isPaid && <PaidNotifyRow exam={tab} school={school} pulse={notifyPulse} />}
+      {/* Pass 3: the notify box is on ALL four tabs. Exam 1 used to advertise its launch state
+          twice — a line on the poster AND a link — while collecting nothing. Same box, same
+          shape, one place to leave an email, whichever exam the student came for. */}
+      <PaidNotifyRow exam={tab} school={school} pulse={notifyPulse} />
     </div>
   );
 }
@@ -1227,7 +1246,9 @@ function PaidNotifyRow({ exam, school, pulse }: { exam: ExamTab; school: School 
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) || state === "busy") return;
     setState("busy");
     try {
-      await joinPricingWaitlist({ email: e, campus: school?.name ?? null, course: `${exam.label}${school?.code ? ` · ${school.code}` : ""}`, tier: "test_pass" });
+      // examNum is carried explicitly: all four tabs collect emails now, so "which exam did
+      // this person ask for" is no longer inferable from the fact that a row exists at all.
+      await joinPricingWaitlist({ email: e, campus: school?.name ?? null, course: `${exam.label}${school?.code ? ` · ${school.code}` : ""}`, tier: "test_pass", examNum: exam.num });
       setState("done"); try { localStorage.setItem(key, "done"); } catch { /* ignore */ }
     } catch { setState("error"); }
   };
@@ -1378,7 +1399,7 @@ function HeroVideo({ playbackId, onComplete }: { playbackId: string; onComplete?
   );
 }
 
-function Poster({ school, topicName, queued, stem, onNotify }: { school: School | null; topicName: string; queued: boolean; stem?: string | null; onNotify?: (topic: string) => void }) {
+function Poster({ school, topicName, stem }: { school: School | null; topicName: string; stem?: string | null }) {
   const c = school ? boltFor(school.id) : { c1: BRAND_RED, c2: BRAND_BLUE };
   return (
     <div className="grid h-full w-full place-items-center" style={{ background: "var(--brand-navy)" }}>
@@ -1387,15 +1408,9 @@ function Poster({ school, topicName, queued, stem, onNotify }: { school: School 
         <span className="rounded-full px-3 py-1 text-[12px] font-bold uppercase tracking-wide" style={{ background: "var(--accent)", color: "#0B1220" }}>{topicName}</span>
         {/* the FULL stem — the outline row's 40ch truncation is the tease, this is the payoff */}
         {stem && <p className="max-w-md text-[13.5px] font-semibold leading-snug" style={{ color: "var(--brand-cream)" }}>{stem}</p>}
-        {/* LAUNCH STATE (M2.3) — was "This one's queued — want it sooner? Tell me →", which
-            promised nothing and asked for a favour. A date is a commitment students can plan
-            around. LAUNCH_LINE is derived from one constant in lib/launch.ts. */}
-        {queued && (
-          <div className="flex flex-col items-center gap-1">
-            <span className="text-[12.5px] font-semibold" style={{ color: "var(--brand-cream)", opacity: 0.9 }}>{LAUNCH_LINE}</span>
-            <button onClick={() => onNotify?.(topicName)} className="text-[12.5px] font-bold" style={{ color: "var(--accent)" }}>Get notified →</button>
-          </div>
-        )}
+        {/* Pass 3 removed the launch line and the Get-notified link from here. Both now live in
+            the sidebar notify box, which actually captures the email — the poster was announcing
+            the same fact a second time and sending the student somewhere else to act on it. */}
       </div>
     </div>
   );

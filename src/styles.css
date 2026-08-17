@@ -479,3 +479,25 @@ html.sa-navy body {
   .sa-picker,
   .sa-picker-scrim { animation: none; }
 }
+
+/* ---------------------------------------------------------------------------
+   HERO (Pass 3). The old .sa-hero filled the whole viewport under the navbar.
+   Pass 3 wants the player tab row to PEEK at the bottom on a 1080p screen, so
+   the hero is now sized by its CONTENT with a min-height that stops short of
+   the fold rather than meeting it.
+
+   MOBILE DECISION (measured, not guessed): at 390x844 the graphic at 58vw plus
+   the four copy elements keeps the CTA above the fold, so the graphic stays.
+   If it ever stops fitting, the brief says the CTA wins — hide the graphic here
+   with display:none rather than shrinking it into illegibility.
+   --------------------------------------------------------------------------- */
+.sa-hero3 { min-height: calc(78vh - var(--sa-header-h, 54px)); }
+.sa-hero3-paper { width: 58vw; max-width: 300px; }
+
+@media (min-width: 1024px) {
+  /* Tuned by MEASUREMENT, not guess: at 62vh the tab row landed at y=672 on a 1080 viewport,
+     exposing ~400px of the player — not a peek. 80vh puts the tabs near y=918, so the row is
+     visible as a scroll cue while the card stays mostly below the fold. */
+  .sa-hero3 { min-height: calc(80vh - var(--sa-header-h, 54px)); }
+  .sa-hero3-paper { width: 100%; max-width: 380px; }
+}
