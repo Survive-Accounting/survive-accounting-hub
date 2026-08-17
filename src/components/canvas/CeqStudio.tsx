@@ -2686,6 +2686,12 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
           />
         );
       })()}
+      {/* IDEA BANK — a Studio-level overlay, NOT a CEQS-pane child. It used to
+          mount inside the questions pane, so the 📌 button rendered on every tab
+          but silently did nothing on Publish, and F7 there captured nothing. A
+          capture tool that works on some screens is a capture tool you stop
+          trusting. Still dead while recording — the film controller owns the keys. */}
+      {ideaBank && !recording && <IdeaBank mode={ideaBank} onClose={() => setIdeaBank(null)} />}
       {/* STITCH MIGRATION (08-16) — dry run → read the table → Apply. The report and
           the write come from the SAME plan object, so what lands is what was read. */}
       {migration && (
@@ -3044,7 +3050,6 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   <span style={{ fontSize: 180, fontWeight: 900, lineHeight: 1, color: slate.speak ? "#3BF5A0" : NEON.yellow, textShadow: "0 8px 40px rgba(0,0,0,0.7)" }}>{slate.speak ? "SPEAK" : slate.count}</span>
                 </div>
               )}
-              {ideaBank && !recording && <IdeaBank mode={ideaBank} onClose={() => setIdeaBank(null)} />}
               {profileOpen && deck && (() => {
                 const pf = deck.profile ?? {};
                 const setPf = (patch: Partial<NonNullable<DeckDef["profile"]>>) => setDecks((prev) => updateDeck(prev, deck.id, { profile: { ...pf, ...patch } }));
