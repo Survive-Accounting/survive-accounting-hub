@@ -208,3 +208,29 @@ describe("the workspace wiring", () => {
     expect(store).toContain('(ORIENTATIONS as readonly string[]).includes(v ?? "") ? (v as Orientation) : DEFAULT_ORIENTATION');
   });
 });
+
+describe("exhibit reflow is wired into the SHARED shell", () => {
+  const base = readFileSync(join(import.meta.dir, "exhibit-base.tsx"), "utf8");
+
+  test("every exhibit card inherits the fit by using the shell — no per-card code", () => {
+    expect(base).toContain('const fit = isVertical(o) ? exhibitFit({ w: width, h: minHeight }, o) : 1;');
+    // CycleNode still declares and paints; it must not learn about orientation.
+    const cycle = readFileSync(join(import.meta.dir, "cards", "CycleNode.tsx"), "utf8");
+    expect(cycle).not.toContain("orientation");
+    expect(cycle).not.toContain("exhibitFit");
+  });
+  test("LANDSCAPE IS UNTOUCHED: fit is exactly 1 and no wrapper is emitted", () => {
+    // Lee films landscape today; the vertical work must not be able to disturb it.
+    expect(exhibitFit({ w: 900, h: 560 }, "16:9")).toBe(1);
+    expect(base).toContain("{fit < 1 ? (");
+    expect(base).toContain(") : children}");
+  });
+  test("the inner box keeps its NATURAL size — the card's own maths stay valid", () => {
+    // pill %s and the arc viewBox are computed against the authored size; scaling
+    // the outer box instead would desynchronise them from the arcs.
+    expect(base).toContain('<div style={{ width, minHeight, transform: `scale(${fit})`, transformOrigin: "top left" }}>{children}</div>');
+  });
+  test("the outer box reports the SCALED size, so neighbours don't overlap it", () => {
+    expect(base).toContain("style={fit < 1 ? { width: Math.round(width * fit), minHeight: Math.round(minHeight * fit) } : { width, minHeight }}");
+  });
+});

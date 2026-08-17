@@ -20,8 +20,11 @@
 // A NEW CARD DECLARES ONLY: content (its JSX), its highlightable nodes +
 // adjacency, and its intrinsic min size. Zero behavior code. See
 // docs/NEW-EXHIBIT-CHECKLIST.md before building one.
+import { useEffect, useState } from "react";
 import { useCardActions } from "./BaseCard";
 import { ConnectionDots } from "./ConnectionDots";
+import { exhibitFit, isVertical } from "./orientation";
+import { orientation, subscribeOrientation } from "./orientation-store";
 import { EXHIBIT_GLOW, useExhibitHighlights, type ExhibitHighlights } from "./exhibit-highlights";
 import { useFilm } from "./film-lock";
 import { ElementChrome, ElementResizer } from "./cards/elements";
@@ -117,12 +120,27 @@ export function ExhibitShell({ id, decl, posLock, selected, width, minHeight, ch
   children: React.ReactNode;
 }) {
   const { toFront } = useCardActions(id);
+  // VERTICAL REFLOW (shared — every exhibit card inherits it by using the shell).
+  // An exhibit authored for a 1600-wide landscape frame is wider than a 900-wide
+  // vertical one and would run off the card band. Scale it to fit, never past 1x.
+  //
+  // LANDSCAPE IS BIT-FOR-BIT UNCHANGED: in 16:9 the fit is exactly 1 and NO
+  // transform or wrapper is emitted at all. Lee films landscape today, so the
+  // vertical work must not be able to disturb it.
+  const [o, setO] = useState(orientation());
+  useEffect(() => subscribeOrientation(setO), []);
+  const fit = isVertical(o) ? exhibitFit({ w: width, h: minHeight }, o) : 1;
   return (
-    <div onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150" style={{ width, minHeight }}>
+    <div onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150"
+      style={fit < 1 ? { width: Math.round(width * fit), minHeight: Math.round(minHeight * fit) } : { width, minHeight }}>
       <ConnectionDots />
       <ElementChrome id={id} posLock={posLock} selected={selected} />
       <ElementResizer id={id} selected={selected} minWidth={decl.minWidth} minHeight={decl.minHeight} keepAspect={decl.keepAspect} />
-      {children}
+      {fit < 1 ? (
+        // The inner box keeps its NATURAL size so the card's own layout maths
+        // (pill %s, arc viewBox) are untouched; only the painted result shrinks.
+        <div style={{ width, minHeight, transform: `scale(${fit})`, transformOrigin: "top left" }}>{children}</div>
+      ) : children}
     </div>
   );
 }
