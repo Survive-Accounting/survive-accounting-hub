@@ -6,12 +6,12 @@
 // exist anywhere OBS captures. CeqStudio gates every one of them on !recording
 // and renders them outside the film portal.
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, FolderOpen, Loader2, Play, RefreshCw, RotateCcw, Trash2, X } from "lucide-react";
+import { Check, FolderOpen, Loader2, Mic, Play, RefreshCw, RotateCcw, Trash2, X } from "lucide-react";
 
 import { connectObs, OBS_DEFAULT_ADDRESS, baseName, type ObsStatus } from "./obs-bridge";
 import { cancelSlate, slateEndOffsetMs, slateSeconds, startSlate, SLATE_CHOICES, setSlateSeconds } from "./film-slate";
 import { fileUrl, fsaSupported, getFile, moveToRecycle, pickTakesFolder, probeDuration, recycleStats, restoreFromRecycle, savedTakesFolder, scanFolder } from "./takes-folder";
-import { currentTakes, fmtBytes, latestPending, loadTakes, makeRecord, newFiles, saveTake, setTriageHandler, subscribeTakes, type TakeRecord, type TakeTarget } from "./takes-store";
+import { currentTakes, dropTakeRecord, fmtBytes, latestPending, loadTakes, makeRecord, missingRecords, newFiles, saveTake, setTriageHandler, subscribeTakes, type TakeRecord, type TakeTarget } from "./takes-store";
 import { NEON } from "./theme";
 
 export interface TakesInboxProps {
@@ -37,11 +37,15 @@ export interface TakesInboxProps {
   onRecordStart: () => void;
   /** Mirror the Recycle counter up for the Filming Mode status strip (F2). */
   onRecycle?: (b: { count: number; bytes: number }) => void;
+  /** ROOM TONE from a TAKE (Lee, 08-17) — roll a few seconds of silence, keep it,
+   *  mark it. Room tone becomes part of the filming pass instead of a file picker
+   *  in another panel. Any recording works: the stitcher only reads its audio. */
+  onRoomTone?: (t: TakeRecord, file: File) => Promise<void>;
 }
 
 type Dir = Awaited<ReturnType<typeof savedTakesFolder>>;
 
-export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, onObsState, onRecordStart, onRecycle, inline, clipsPanel }: TakesInboxProps) {
+export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, onObsState, onRecordStart, onRecycle, onRoomTone, inline, clipsPanel }: TakesInboxProps) {
   const [takes, setTakes] = useState<TakeRecord[]>(() => currentTakes());
   const [dir, setDir] = useState<Dir>(null);
   const [status, setStatus] = useState<ObsStatus>("off");
@@ -84,10 +88,18 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
   const refreshBin = async (d: Dir) => { if (d) setBin(await recycleStats(d)); };
   useEffect(() => { onRecycleRef.current?.(bin); }, [bin]);
 
-  /** Fold new files into the store — the shared path for scans AND record-stop. */
+  /** Fold new files into the store — the shared path for scans AND record-stop.
+   *  A full scan (no onlyName) also RECONCILES: rows whose file Lee deleted in
+   *  Explorer are dropped, because a scan that only ever adds leaves the inbox
+   *  showing takes that no longer exist. */
   const ingest = useCallback(async (d: Dir, opts?: { coverage?: TakeRecord["coverage"]; slateEndMs?: number; onlyName?: string }): Promise<number> => {
     if (!d) return 0;
     const scanned = await scanFolder(d);
+    if (!opts?.onlyName) {
+      const gone = missingRecords(currentTakes(), scanned);
+      for (const id of gone) await dropTakeRecord(id);
+      if (gone.length) setNote(`${gone.length} row${gone.length === 1 ? "" : "s"} cleared — the file is no longer in the folder.`);
+    }
     const fresh = newFiles(opts?.onlyName ? scanned.filter((f) => f.name === opts.onlyName) : scanned, currentTakes());
     for (const f of fresh) {
       const rec = makeRecord(f, { ...(armedRef.current ? { target: armedRef.current } : {}), ...(opts?.coverage ? { coverage: opts.coverage } : {}), ...(opts?.slateEndMs != null ? { slateEndMs: opts.slateEndMs } : {}) });
@@ -198,6 +210,20 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
           <button className="shrink-0" style={{ color: "#FF8B9E" }} title="Trash (F8) — moves the file to Recycle; never deleted" onClick={() => void doTrash(t)}><Trash2 className="h-3 w-3" /></button>
         </>)}
         {t.status === "trashed" && <button className="shrink-0" style={{ color: NEON.cyan }} title="Restore out of Recycle" onClick={() => void doRestore(t)}><RotateCcw className="h-3 w-3" /></button>}
+        {t.status === "kept" && onRoomTone && (
+          <button className="shrink-0" style={{ color: "#B79CFF" }} title="Use THIS take as today's room tone — a few seconds of your silence. Any recording works; only its audio is used."
+            onClick={() => void (async () => {
+              const d = dirRef.current; if (!d) { setNote("Grant the folder first."); return; }
+              const f = await getFile(d, t.fileName);
+              if (!f) { setNote("That file is no longer in the folder — Scan to refresh."); return; }
+              try { await onRoomTone(t, f); setNote("Room tone set from this take."); }
+              catch (err) { setNote("Room tone FAILED: " + (err instanceof Error ? err.message : String(err))); }
+            })()}><Mic className="h-3 w-3" /></button>
+        )}
+        {/* Remove the ROW, never the file. For takes already dealt with — or ones
+            whose file Lee deleted himself. Trash (F8) is the one that moves a file. */}
+        <button className="shrink-0" style={{ color: NEON.muted }} title="Remove this row from the inbox. The file on disk is NOT touched — use Trash to move a file to Recycle."
+          onClick={() => void dropTakeRecord(t.id)}><X className="h-3 w-3" /></button>
       </div>
     );
   };

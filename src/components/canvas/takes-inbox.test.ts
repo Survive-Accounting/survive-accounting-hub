@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
 import { baseName, closeDiagnosis, obsAuthString, parseRecordEvent } from "./obs-bridge";
-import { fileKey, fmtBytes, latestPending, makeRecord, newFiles, type TakeRecord } from "./takes-store";
+import { fileKey, fmtBytes, latestPending, makeRecord, missingRecords, newFiles, type TakeRecord } from "./takes-store";
 
 const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8");
 const inbox = readFileSync(join(import.meta.dir, "TakesInbox.tsx"), "utf8");
@@ -128,5 +128,44 @@ describe("OBS failure diagnosis (the flashing bug + honest errors)", () => {
     expect(src).toContain("liveFramesRef.current()");
     expect(src).toContain("onRecStartRef.current()");
     expect(src).not.toContain("[obsOn, addr, pass, ingest, liveFrameIds, onRecordStart]");
+  });
+});
+
+describe("the scan RECONCILES, it does not only add (Lee, 08-17)", () => {
+  const rec = (id: string, fileName: string, status: "pending" | "kept" | "trashed"): TakeRecord =>
+    ({ id, fileName, sizeBytes: 1, mtimeMs: 1, recordedAt: "2026-08-17T00:00:00.000Z", status });
+  const onDisk = (...names: string[]) => names.map((name) => ({ name, size: 1, lastModified: 1 }));
+
+  test("a row whose file Lee deleted in Explorer is dropped", () => {
+    const list = [rec("a", "gone.mkv", "kept"), rec("b", "here.mkv", "kept")];
+    expect(missingRecords(list, onDisk("here.mkv"))).toEqual(["a"]);
+  });
+  test("a TRASHED row is exempt — its file is in Recycle/, which the root scan never sees", () => {
+    // Pruning it would destroy the record of a file that is still restorable.
+    expect(missingRecords([rec("t", "binned.mkv", "trashed")], onDisk())).toEqual([]);
+  });
+  test("pending rows are reconciled too, not just kept ones", () => {
+    expect(missingRecords([rec("p", "vanished.mkv", "pending")], onDisk())).toEqual(["p"]);
+  });
+  test("an empty folder clears every non-trashed row, and nothing else", () => {
+    const list = [rec("a", "x.mkv", "kept"), rec("b", "y.mkv", "pending"), rec("t", "z.mkv", "trashed")];
+    expect(missingRecords(list, onDisk()).sort()).toEqual(["a", "b"]);
+  });
+  test("nothing is dropped when every file is still there", () => {
+    expect(missingRecords([rec("a", "x.mkv", "kept")], onDisk("x.mkv"))).toEqual([]);
+  });
+  test("the reconcile runs on a FULL scan only — a record-stop ingest must not prune", () => {
+    // record-stop passes onlyName and sees a filtered list; pruning from that
+    // would delete every other take in the folder.
+    expect(inbox).toContain("if (!opts?.onlyName) {");
+    expect(inbox).toContain("const gone = missingRecords(currentTakes(), scanned);");
+  });
+  test("removing a row never touches the file — Trash is the only thing that moves one", () => {
+    expect(inbox).toContain("title=\"Remove this row from the inbox. The file on disk is NOT touched");
+    expect(inbox).toContain("onClick={() => void dropTakeRecord(t.id)}");
+  });
+  test("room tone can be set from a kept take, in the filming pass", () => {
+    expect(inbox).toContain("Use THIS take as today's room tone");
+    expect(studio).toContain("onRoomTone={async (_t, file) => {");
   });
 });

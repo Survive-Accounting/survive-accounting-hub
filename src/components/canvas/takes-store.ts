@@ -83,6 +83,19 @@ export function attachTargets(t: TakeRecord, spineOrder: string[]): string[] {
   return spineOrder.filter((id) => ids.has(id)); // spine order, deduped
 }
 
+/** RECORDS WHOSE FILE IS GONE (Lee, 08-17). Deleting a recording in Explorer used
+ *  to leave its row in the inbox forever — Scan only ever ADDED. These are the ids
+ *  to drop.
+ *
+ *  TRASHED records are exempt: their file lives in Recycle/, which the root scan
+ *  never sees, so pruning them would delete the record of a restorable file. This
+ *  drops the RECORD only; no file is ever touched, because the file is already
+ *  gone by the time we notice. */
+export function missingRecords(list: TakeRecord[], scanned: ScannedFile[]): string[] {
+  const onDisk = new Set(scanned.map((f) => f.name));
+  return list.filter((t) => t.status !== "trashed" && !onDisk.has(t.fileName)).map((t) => t.id);
+}
+
 /** The take a triage hotkey acts on: the most recent PENDING one. */
 export function latestPending(list: TakeRecord[]): TakeRecord | null {
   const p = list.filter((t) => t.status === "pending").sort((a, b) => b.mtimeMs - a.mtimeMs);

@@ -3005,6 +3005,14 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                 <TakesInbox
                   inline={filming}
                   onRecycle={setBinStat}
+                  onRoomTone={async (_t, file) => {
+                    // Same destination as the Publish-panel picker — one room tone
+                    // per day — but reachable IN the filming pass: roll silence,
+                    // F10, click 🎙. Only the audio is used, so any take works.
+                    const st = await stageTake(file);
+                    saveRoomTone({ date: isoDay(), url: st.url, path: st.path, name: file.name });
+                    setNote("Room tone set for " + isoDay() + " from that take — dissect stitches today fill their gaps with it.");
+                  }}
                   clipsPanel={filming ? clipsPanel : undefined}
                   onClose={() => setTakesOpen(false)}
                   armed={armedTarget}

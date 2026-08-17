@@ -44,3 +44,7 @@ CONTEXT_SCRAPER_SESSION.md
 data/*
 # …but JE scenario source docs ARE versioned (the importer reads them from the repo)
 !data/scenarios/
+# .env.local is created by `vercel link` / `vercel env pull` and carries pulled
+# values. The committed rule above is exactly ".env", which does NOT match it —
+# so widen it. (.vercel/ is already covered further up.)
+.env*
