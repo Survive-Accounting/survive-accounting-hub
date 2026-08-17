@@ -106,9 +106,8 @@ zones, exhibit fit, pixel-exactness at three scalings, and the wiring pins.
    the first real look; they are two constants in one file precisely so that's a
    one-line change.
 4. **The 5-CEQ vertical F9/F10 loop.** Needs OBS.
-5. **Exhibit reflow on camera** — `exhibitFit` is applied by the shared layer but
-   the cycle card consumes it via the shared shell (see below) — but how the
-   scaled diagram reads on a phone is unverified.
+5. **Exhibit reflow on camera.** It is wired through the shared shell (below),
+   but how the scaled cycle diagram actually reads on a phone is unverified.
 
 ### Exhibit reflow — wired (the gap from the first commit is closed)
 
