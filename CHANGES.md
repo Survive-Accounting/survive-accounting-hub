@@ -107,14 +107,26 @@ zones, exhibit fit, pixel-exactness at three scalings, and the wiring pins.
    one-line change.
 4. **The 5-CEQ vertical F9/F10 loop.** Needs OBS.
 5. **Exhibit reflow on camera** — `exhibitFit` is applied by the shared layer but
-   the cycle card does not yet *consume* it (see below).
+   the cycle card consumes it via the shared shell (see below) — but how the
+   scaled diagram reads on a phone is unverified.
 
-### Known gap
+### Exhibit reflow — wired (the gap from the first commit is closed)
 
-`exhibitFit` is built, tested and exported, but `CycleNode` doesn't call it yet —
-the cycle diagram will render at its authored size in a vertical frame and may
-overflow the card band. That's the next commit; I stopped here rather than ship
-an untested reflow into a filming surface.
+`exhibitFit` is applied by **`ExhibitShell`**, so every exhibit card inherits it
+by using the shell. `CycleNode` still knows nothing about orientation — pinned by
+test — which is what keeps the future T-account / JE / trial-balance cards free
+of it too.
+
+**Landscape is bit-for-bit unchanged:** in 16:9 the fit is exactly `1` and no
+transform or wrapper is emitted at all. Lee films landscape today, so the
+vertical work must not be able to disturb it.
+
+The inner box keeps its **natural** size and only the paint scales — the card's
+own maths (pill percentages, the arc viewBox) are computed against the authored
+size, so scaling the outer box instead would desynchronise the pills from the
+arcs. The outer box reports the scaled size, so neighbours don't overlap it.
+
+Still not eyeballed: how the scaled cycle actually reads on a phone.
 
 ---
 
