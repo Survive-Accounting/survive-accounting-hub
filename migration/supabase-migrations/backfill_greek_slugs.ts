@@ -74,9 +74,18 @@ const main = async () => {
 
   const plan: Array<{ id: string; campus: string; slug: string; from: string }> = [];
   const skipped: Array<{ id: string; why: string }> = [];
+  const duplicates: Array<{ id: string; campus: string; slug: string; from: string }> = [];
   let already = 0;
 
-  for (const r of all) {
+  // WHICH DUPLICATE WINS. Ordering decides it, so it must be deterministic or a re-run could move
+  // a live URL from one row to the other. A row that carries a chapter_designation ("Delta Rho")
+  // knows more about the actual chapter than one that doesn't, so it sorts first; ties break on id.
+  const ordered = all.slice().sort((a, b) => {
+    const ad = a.chapter_designation ? 0 : 1, bd = b.chapter_designation ? 0 : 1;
+    return ad !== bd ? ad - bd : a.id.localeCompare(b.id);
+  });
+
+  for (const r of ordered) {
     if (r.slug) { already++; continue; }
     const name = r.greek_org_id ? (orgName.get(r.greek_org_id) ?? "") : "";
     if (!name) { skipped.push({ id: r.id, why: "no greek_org_id / no org name" }); continue; }
@@ -85,23 +94,40 @@ const main = async () => {
 
     if (!taken.has(r.campus_id)) taken.set(r.campus_id, new Set());
     const used = taken.get(r.campus_id)!;
-    // Two chapters of the same org at one campus is rare but real (colonies, re-charters). The
-    // designation disambiguates when it exists; a counter is the last resort. Never a random id —
-    // these URLs go on printed flyers.
-    let slug = base;
-    if (used.has(slug) && r.chapter_designation) {
-      const d = orgSlug(r.chapter_designation);
-      if (d) slug = `${base}-${d}`;
-    }
-    for (let i = 2; used.has(slug) && i < 50; i++) slug = `${base}-${i}`;
-    used.add(slug);
-    plan.push({ id: r.id, campus: campusSlug.get(r.campus_id) ?? "(no campus slug)", slug, from: name });
+
+    // A COLLISION HERE IS A DUPLICATE, NOT A SECOND CHAPTER.
+    //
+    // greek_orgs holds the same organisation twice — once bare, once with its legal suffix
+    // ("Kappa Kappa Gamma" and "Kappa Kappa Gamma Fraternity Inc"; likewise all nine NPHC orgs).
+    // At 14 campuses BOTH rows are referenced, so one real chapter has two roster rows: identical
+    // council, and identical chapter_designation wherever both carry one (Ole Miss both "Delta
+    // Rho", Auburn both "Epsilon Eta").
+    //
+    // An earlier version of this script appended "-2" to the loser, which would have printed two
+    // different flyer URLs for one chapter and split its member count between them. So the second
+    // row is left UNSLUGGED and reported instead: it gets no /go/ page, nothing is deleted, and
+    // merging the duplicate org records stays a separate decision rather than something a slug
+    // backfill quietly made on its own.
+    if (used.has(base)) { duplicates.push({ id: r.id, campus: campusSlug.get(r.campus_id) ?? "?", slug: base, from: name }); continue; }
+
+    used.add(base);
+    plan.push({ id: r.id, campus: campusSlug.get(r.campus_id) ?? "(no campus slug)", slug: base, from: name });
   }
 
   console.log(`rows total            ${all.length}`);
   console.log(`already had a slug    ${already}`);
   console.log(`to write              ${plan.length}`);
+  console.log(`duplicates (no slug)  ${duplicates.length}`);
   console.log(`skipped               ${skipped.length}`);
+
+  // NOT a silent cap: a duplicate row deliberately gets no /go/ page, and every one is named here
+  // so the decision is visible rather than inferred from a count that doesn't add up.
+  if (duplicates.length) {
+    console.log("\nDUPLICATE ROSTER ROWS — same org at the same campus, left unslugged (no page, nothing deleted):");
+    for (const d of duplicates) console.log(`  ${d.campus.padEnd(28)} ${d.slug.padEnd(24)} "${d.from}"`);
+    console.log("  Root cause: greek_orgs holds these organisations twice (bare name + legal suffix).");
+    console.log("  Merging those org records is a separate call — this script only declines to give one chapter two URLs.");
+  }
 
   // Campuses with no slug of their own can't produce a reachable /go/ URL — worth naming rather
   // than silently writing chapter slugs that nothing can route to.
