@@ -1,9 +1,18 @@
-// /chapters — public self-serve onboarding for a Greek chapter: hero + 3 beats + a one-screen signup
-// (4 fields), phone-verified over SMS, then the shareable /c/<slug> link is minted IMMEDIATELY on the
-// confirmation screen. Navy/bolt/cream. Krug: one decision per screen, no field we don't need today.
-import { createFileRoute } from "@tanstack/react-router";
+// /chapters — the Greek front door. Phase 1 flips what this page leads with.
+//
+// It used to be signup-only: an exec typed their school, chapter, name, email and phone, verified
+// over SMS, and only THEN got a link. That made sense when a chapter could not exist until someone
+// created it. Every one of the 1,107 GreekIntel chapters now has a live /go/ page, so the page
+// leads with FIND YOUR CHAPTER and keeps the signup form as the honest exception — a chapter we
+// genuinely don't have on file yet.
+//
+// Navy/bolt/cream. Krug: one decision per screen, no field we don't need today.
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+
+import { ChapterFinder } from "@/components/site/ChapterFinder";
+import { listGoSchools } from "@/lib/greek-go.functions";
 
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
@@ -38,10 +47,17 @@ function ChaptersPage() {
           <p className="mt-4 max-w-lg text-[15px] leading-relaxed sm:text-[16px]" style={{ color: "var(--brand-cream)", opacity: 0.88, fontFamily: BRAND_SANS }}>
             One link, every member. Share it in the group chat — I'll handle the rest. No cost, no contract. When you're ready, semester seats are $100/member (10 minimum).
           </p>
-          <a href="#signup" className="mt-7 inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-[15.5px] font-black transition-transform hover:scale-[1.03]" style={{ background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.6)" }}>Get your chapter link</a>
+          {/* PHASE 1 — the chapter already exists. All 1,107 GreekIntel chapters have a live page
+              now, so the first thing this page offers is the way TO one. The signup form below used
+              to be the only door, which meant an exec had to type their own chapter into existence
+              before they could see anything at all. */}
+          <div className="mt-7 w-full max-w-sm">
+            <FindMyChapter />
+          </div>
+          <a href="#signup" className="mt-4 text-[12.5px] underline underline-offset-4" style={{ color: "var(--text-muted)", fontFamily: BRAND_SANS }}>My chapter isn&apos;t listed →</a>
 
           <div className="mt-8 flex w-full max-w-md flex-col gap-2 text-left" style={{ fontFamily: BRAND_SANS }}>
-            {["Sign up your chapter — takes a minute", "Share your link — members get Exam 1 free", "Watch it work — you see who's using it"].map((b, i) => (
+            {["Find your chapter — it's already listed", "Share your link — members get Exam 1 free", "Watch it work — you see who's using it"].map((b, i) => (
               <div key={i} className="flex items-center gap-3 rounded-lg px-3 py-2" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
                 <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[12px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>{i + 1}</span>
                 <span className="text-[13.5px]" style={{ color: "var(--brand-cream)" }}>{b}</span>
@@ -55,6 +71,24 @@ function ChaptersPage() {
         </section>
       </main>
     </div>
+  );
+}
+
+/** FIND MY CHAPTER — school + chapter -> the chapter's live /go/ page.
+ *
+ *  This is the primary path now. The SignupFlow below it is the exception, not the rule: it exists
+ *  for a chapter GreekIntel genuinely doesn't have, which is why it now sits behind "My chapter
+ *  isn't listed" rather than being the hero CTA. */
+function FindMyChapter() {
+  const nav = useNavigate();
+  const schoolsQ = useQuery({ queryKey: ["go-schools"], queryFn: () => listGoSchools(), networkMode: "always", staleTime: 600_000 });
+  return (
+    <ChapterFinder
+      schools={schoolsQ.data ?? []}
+      cta="Go to my chapter ⚡"
+      onPick={(school, chapter) => void nav({ to: "/go/$school/$chapter", params: { school, chapter } })}
+      note="Every chapter is already live — no signup needed to see yours."
+    />
   );
 }
 

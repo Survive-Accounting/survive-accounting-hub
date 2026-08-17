@@ -1,9 +1,14 @@
 // GREEK CHAPTERS (server) — self-serve onboarding: sign up a chapter, SMS-verify the admin phone,
-// mint a shareable /c/<slug> free-Exam-1 link, redeem it (member join), and read a magic-link
-// dashboard. Deny-by-default: every write is service-role here; the dashboard verifies the caller's
-// Supabase JWT (magic-link) and matches it to the chapter's admin_email. Tables: 0111 (manual-apply).
+// mint a shareable free-Exam-1 link, redeem it (member join), and read a magic-link dashboard.
+// Deny-by-default: every write is service-role here; the dashboard verifies the caller's Supabase
+// JWT (magic-link) and matches it to the chapter's admin_email. Tables: 0111 + 0115 (manual-apply).
+//
+// LINK LAW (Phase 1): the link this mints is /go/<school>/<chapter>. /c/<slug> is redirect-only and
+// nothing here may build one — see goUrlForChapter below.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+
+import { goPath } from "@/lib/greek-go.functions";
 
 type DB = { from: (t: string) => any; auth: { getUser: (jwt: string) => Promise<{ data: { user: { email?: string | null } | null }; error: unknown }> } };
 const admin = async () => {
@@ -42,6 +47,22 @@ async function sendSms(to: string, body: string): Promise<{ ok: boolean; error?:
 
 const slugify = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "-").replace(/-+/g, "-").slice(0, 40);
 const code6 = () => String(Math.floor(100000 + Math.random() * 900000));
+
+/** LINK LAW (Phase 1): a chapter's public URL is /go/<school>/<chapter>, never /c/<slug>. /c/ is
+ *  redirect-only, so nothing in this file may build one — every surface that shows, copies or
+ *  QR-encodes a chapter link resolves through here.
+ *
+ *  Returns null when the chapter has no roster row behind it (a 0111-era signup that was never
+ *  linked to campus_greek_chapters). Null is deliberate: the caller reports that the link isn't
+ *  ready yet, which is honest, instead of falling back to a /c/ URL and minting a fresh legacy
+ *  link at the exact moment we're trying to retire them. */
+async function goUrlForChapter(db: DB, ch: { campus_id: string | null; campus_greek_chapter_id: string | null }): Promise<string | null> {
+  if (!ch.campus_id || !ch.campus_greek_chapter_id) return null;
+  const { data: campus } = await (db as any).from("campuses").select("slug").eq("id", ch.campus_id).maybeSingle();
+  const { data: roster } = await (db as any).from("campus_greek_chapters").select("slug").eq("id", ch.campus_greek_chapter_id).maybeSingle();
+  if (!campus?.slug || !roster?.slug) return null;
+  return goPath(campus.slug, roster.slug);
+}
 
 export interface ChapterOrg { id: string; name: string }
 // Chapter picker source — the SAME GreekIntel data as elsewhere: campus_greek_chapters → greek_orgs
@@ -123,13 +144,13 @@ export const verifyChapterPhone = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ chapterId: z.string().uuid(), code: z.string().trim().min(4).max(8) }).parse(d))
   .handler(async ({ data }): Promise<{ ok: boolean; slug?: string; url?: string; error?: string }> => {
     const db = await admin();
-    const { data: row } = await db.from("greek_chapters").select("id,slug,verify_code,verify_expires_at,phone_verified_at").eq("id", data.chapterId).maybeSingle();
+    const { data: row } = await db.from("greek_chapters").select("id,slug,verify_code,verify_expires_at,phone_verified_at,campus_id,campus_greek_chapter_id").eq("id", data.chapterId).maybeSingle();
     if (!row) return { ok: false, error: "Chapter not found." };
-    if (row.phone_verified_at) return { ok: true, slug: row.slug, url: `/c/${row.slug}` };
+    if (row.phone_verified_at) return { ok: true, slug: row.slug, url: (await goUrlForChapter(db, row)) ?? undefined };
     if (!row.verify_code || row.verify_code !== data.code) return { ok: false, error: "That code isn't right." };
     if (row.verify_expires_at && new Date(row.verify_expires_at).getTime() < Date.now()) return { ok: false, error: "That code expired — resend it." };
     await db.from("greek_chapters").update({ phone_verified_at: new Date().toISOString(), verify_code: null }).eq("id", data.chapterId);
-    return { ok: true, slug: row.slug, url: `/c/${row.slug}` };
+    return { ok: true, slug: row.slug, url: (await goUrlForChapter(db, row)) ?? undefined };
   });
 
 export interface ChapterPublic { slug: string; chapterName: string; schoolName: string; campusId: string | null }
@@ -165,7 +186,9 @@ async function chapterForToken(db: DB, accessToken: string) {
 }
 
 export interface ChapterDashboard {
-  chapterName: string; schoolName: string; campusId: string | null; slug: string; url: string;
+  chapterName: string; schoolName: string; campusId: string | null; slug: string;
+  /** /go/<school>/<chapter>, or null when the chapter has no roster row yet - see goUrlForChapter. */
+  url: string | null;
   digestEnabled: boolean; membersJoined: number; setsCompleted: number; activeThisWeek: number;
   roster: Array<{ name: string; joinedAt: string; setsCompleted: number }>;
 }
@@ -177,9 +200,10 @@ export const getChapterDashboard = createServerFn({ method: "POST" })
     if (!ch) return null;
     const { data: mem } = await db.from("greek_chapter_members").select("name,joined_at,sets_completed").eq("chapter_id", ch.id).order("joined_at", { ascending: false });
     const rows = (mem ?? []) as Array<{ name: string; joined_at: string; sets_completed: number }>;
+    const goUrl = await goUrlForChapter(db, ch);
     const weekAgo = Date.now() - 7 * 864e5;
     return {
-      chapterName: ch.chapter_name, schoolName: ch.school_name, campusId: ch.campus_id ?? null, slug: ch.slug, url: `/c/${ch.slug}`,
+      chapterName: ch.chapter_name, schoolName: ch.school_name, campusId: ch.campus_id ?? null, slug: ch.slug, url: goUrl,
       digestEnabled: !!ch.digest_enabled,
       membersJoined: rows.length,
       setsCompleted: rows.reduce((a, r) => a + (r.sets_completed ?? 0), 0),

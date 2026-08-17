@@ -19,7 +19,7 @@ import { joinPricingWaitlist } from "@/lib/pricing-api";
 import { getChapterNames, listCampusIntroCodes } from "@/lib/default-map.functions";
 import { logSchoolDemand, submitExamAsk, submitSyllabus , submitNotify } from "@/lib/syllabus.functions";
 import { searchOrderProfessors, type ProfessorLite } from "@/lib/orders.functions";
-import { claimChapterAccess } from "@/lib/greek-chapters.functions";
+import { tagChapterMember } from "@/lib/greek-go.functions";
 import { fetchCourseOptions } from "@/lib/je-api";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
@@ -93,7 +93,10 @@ const STATIC_FINAL = ["Full Accounting Cycle", "Financial Statements", "Ratios &
 // set per topic, but the shape supports more). A topic with no sets is "coming" (poster).
 type ResolvedTopic = { key: string; name: string; num: number | null; sets: StudentSet[] };
 
-export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { initialCampusId?: string; chapterBanner?: string; chapterSlug?: string } = {}) {
+/** `goChapter` replaces the old flat `chapterSlug`. A chapter is identified by (school, chapter)
+ *  now — the /c/ single-slug namespace is redirect-only — and this pair is what the claim writes
+ *  against. */
+export function LandingPage({ initialCampusId, chapterBanner, goChapter }: { initialCampusId?: string; chapterBanner?: string; goChapter?: { schoolSlug: string; chapterSlug: string } } = {}) {
   // M1.4 — paint html/body navy so Safari's overscroll rubber-band matches the page instead
   // of flashing the light default at the top and bottom edges.
   useNavyDocument();
@@ -277,7 +280,7 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
           desktop, but any child that ignores the box (a nowrap lockup, a fixed-width panel)
           used to push the document sideways. Clamping here contains it at the source. */}
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px", width: "100%", overflowX: "clip" }}>
-        {chapterBanner && <ChapterBanner name={chapterBanner} slug={chapterSlug} />}
+        {chapterBanner && <ChapterBanner name={chapterBanner} go={goChapter} />}
         <Hero onStart={onStart} stops={stops} />
         <ExamPlayer exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); try { localStorage.setItem("sa-landing-school", "__notlisted__"); } catch { /* ignore */ } }} onReset={resetMatch} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(t) => setNotifyTopic(t)} />
 
@@ -1603,23 +1606,23 @@ function TestimonialsSlider() {
   );
 }
 
-// ---- CHAPTER BANNER + CLAIM (on /c/<slug> links) ---------------------------------------------
+// ---- CHAPTER BANNER + CLAIM (on /go/<school>/<chapter> links) --------------------------------
 // "Free Exam 1, courtesy of [Chapter]" + an optional claim (name + phone → member row). Never gates:
 // the player already works; claiming just registers the member so the chapter dashboard counts them.
-function ChapterBanner({ name, slug }: { name: string; slug?: string }) {
+function ChapterBanner({ name, go }: { name: string; go?: { schoolSlug: string; chapterSlug: string } }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-xl px-4 py-2 text-center text-[13px] font-bold" style={{ background: "rgba(252,163,17,0.12)", border: "1px solid rgba(252,163,17,0.4)", color: "var(--brand-cream)" }}>
         <span>⚡ Free Exam 1, courtesy of {name}</span>
-        {slug && <button onClick={() => setOpen(true)} className="rounded-lg px-2.5 py-1 text-[12px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>Claim your free access →</button>}
+        {go && <button onClick={() => setOpen(true)} className="rounded-lg px-2.5 py-1 text-[12px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>Claim your free access →</button>}
       </div>
-      {open && slug && <ClaimModal slug={slug} chapter={name} onClose={() => setOpen(false)} />}
+      {open && go && <ClaimModal go={go} chapter={name} onClose={() => setOpen(false)} />}
     </>
   );
 }
 
-function ClaimModal({ slug, chapter, onClose }: { slug: string; chapter: string; onClose: () => void }) {
+function ClaimModal({ go, chapter, onClose }: { go: { schoolSlug: string; chapterSlug: string }; chapter: string; onClose: () => void }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1628,7 +1631,10 @@ function ClaimModal({ slug, chapter, onClose }: { slug: string; chapter: string;
   const submit = async () => {
     if (!ok || busy) return;
     setBusy(true);
-    try { await claimChapterAccess({ data: { slug, name: name.trim(), phone: phone.trim() } }); setDone(true); } catch { setBusy(false); }
+    // source: "link" — this student arrived on the chapter's own URL. A self-report from the
+    // generic landing page writes the same row with source "self_report", so the two can be told
+    // apart later without a second table.
+    try { await tagChapterMember({ data: { schoolSlug: go.schoolSlug, chapterSlug: go.chapterSlug, name: name.trim(), phone: phone.trim(), source: "link" } }); setDone(true); } catch { setBusy(false); }
   };
   return (
     <div className="fixed inset-0 z-[210] grid place-items-center p-4" style={{ background: "rgba(6,10,20,0.72)" }} onClick={onClose}>

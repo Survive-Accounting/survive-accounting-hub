@@ -1,20 +1,23 @@
-// /c/<slug> — a Greek chapter's shareable free-Exam-1 link. Renders the normal player pre-selected to
-// the chapter's school with a "courtesy of [Chapter]" banner + claim. Never gates: an invalid/expired
-// slug (or one still loading) just falls through to the standard free player.
-import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+// /c/<slug> — LEGACY. Redirect-only since Phase 1; /go/<school>/<chapter> is canonical.
+//
+// The redirect is a real 301 rather than a client-side hop because these links were printed and
+// texted: the permanent status is what lets a search engine, a link preview and a phone's
+// autocomplete all learn the new address instead of holding the old one forever.
+//
+// No surface generates a /c/ link any more — share toolkit, QR, dashboard and every copy action
+// emit /go/ only, via goPath(). This route exists purely so links already in the wild keep working.
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { getChapterBySlug } from "@/lib/greek-chapters.functions";
-import { LandingPage } from "./landing";
+import { resolveLegacyChapterSlug } from "@/lib/greek-go.functions";
 
 export const Route = createFileRoute("/c/$slug")({
-  head: () => ({ meta: [{ title: "⚡ Survive Accounting — Free Exam 1" }, { name: "robots", content: "noindex" }] }),
-  component: ChapterRedeem,
+  beforeLoad: async ({ params }) => {
+    // Resolved server-side so the 301 is issued on the first response — a client-side redirect
+    // would render a flash of the wrong page and would not teach anything the new URL.
+    const to = await resolveLegacyChapterSlug({ data: { slug: params.slug } }).catch(() => null);
+    // An unresolvable slug (revoked chapter, typo, a 0111 row that never got linked to a roster
+    // chapter) goes to the landing page rather than a 404 — the student still gets the free player,
+    // which is the thing the link promised.
+    throw redirect({ href: to ?? "/", statusCode: 301 });
+  },
 });
-
-function ChapterRedeem() {
-  const { slug } = Route.useParams();
-  const chQ = useQuery({ queryKey: ["chapter-slug", slug], queryFn: () => getChapterBySlug({ data: { slug } }), networkMode: "always", staleTime: 300_000 });
-  const ch = chQ.data ?? null;
-  return <LandingPage initialCampusId={ch?.campusId ?? undefined} chapterBanner={ch?.chapterName ?? undefined} chapterSlug={ch ? slug : undefined} />;
-}
