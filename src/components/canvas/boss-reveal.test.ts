@@ -13,8 +13,15 @@ import {
 import { frameSize } from "./orientation";
 import { MAX_GAIN, SFX_DEFAULT } from "./sfx";
 
-const sfx = readFileSync(join(import.meta.dir, "sfx.ts"), "utf8");
-const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8");
+// LINE ENDINGS NORMALISED AT READ. These tests assert on raw source text, and the multi-line
+// expectations below are written with plain \n. On a Windows checkout git leaves CRLF on disk, so
+// every one of those assertions failed against code that was perfectly correct — the suite was red
+// on this machine and green on another, for the same commit. Normalising here keeps the
+// expectations readable and makes the answer the same everywhere.
+const readSrc = (name: string) => readFileSync(join(import.meta.dir, name), "utf8").split("\r\n").join("\n");
+
+const sfx = readSrc("sfx.ts");
+const previewer = readSrc("CeqPreviewer.tsx");
 
 describe("the timing", () => {
   test("the whole reveal lands in Lee's 600–900ms window", () => {
