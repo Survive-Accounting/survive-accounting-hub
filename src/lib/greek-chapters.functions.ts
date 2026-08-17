@@ -186,11 +186,20 @@ async function chapterForToken(db: DB, accessToken: string) {
 }
 
 export interface ChapterDashboard {
+  /** Needed by every Phase-2b action (seats, transfer) — the dashboard used to expose only a slug,
+   *  which is a display value, not a key. */
+  chapterId: string;
+  /** /chapters/kit/<school>/<chapter>, or null for the same reason `url` can be null. */
+  kitPath: string | null;
+  seatsTotal: number;
+  seatsAssigned: number;
+  seatsNote: string | null;
   chapterName: string; schoolName: string; campusId: string | null; slug: string;
   /** /go/<school>/<chapter>, or null when the chapter has no roster row yet - see goUrlForChapter. */
   url: string | null;
   digestEnabled: boolean; membersJoined: number; setsCompleted: number; activeThisWeek: number;
-  roster: Array<{ name: string; joinedAt: string; setsCompleted: number }>;
+  /** `id` and `hasSeat` are what make a seat toggle possible per row. */
+  roster: Array<{ id: string; name: string; joinedAt: string; setsCompleted: number; hasSeat: boolean }>;
 }
 export const getChapterDashboard = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ accessToken: z.string().min(10) }).parse(d))
@@ -198,17 +207,24 @@ export const getChapterDashboard = createServerFn({ method: "POST" })
     const db = await admin();
     const ch = await chapterForToken(db, data.accessToken);
     if (!ch) return null;
-    const { data: mem } = await db.from("greek_chapter_members").select("name,joined_at,sets_completed").eq("chapter_id", ch.id).order("joined_at", { ascending: false });
-    const rows = (mem ?? []) as Array<{ name: string; joined_at: string; sets_completed: number }>;
+    const { data: mem } = await db.from("greek_chapter_members").select("id,name,joined_at,sets_completed,seat_assigned_at").eq("chapter_id", ch.id).order("joined_at", { ascending: false });
+    const rows = (mem ?? []) as Array<{ id: string; name: string; joined_at: string; sets_completed: number; seat_assigned_at: string | null }>;
     const goUrl = await goUrlForChapter(db, ch);
+    // The kit path mirrors the /go/ path exactly — same two segments, different prefix — so a
+    // printed flyer and the page it points at can never disagree about which chapter this is.
+    const kitPath = goUrl && goUrl.startsWith("/go/") ? `/chapters/kit/${goUrl.slice(4)}` : null;
     const weekAgo = Date.now() - 7 * 864e5;
     return {
+      chapterId: ch.id, kitPath,
+      seatsTotal: (ch.seats_total as number) ?? 0,
+      seatsAssigned: rows.filter((r) => r.seat_assigned_at).length,
+      seatsNote: ch.seats_note ?? null,
       chapterName: ch.chapter_name, schoolName: ch.school_name, campusId: ch.campus_id ?? null, slug: ch.slug, url: goUrl,
       digestEnabled: !!ch.digest_enabled,
       membersJoined: rows.length,
       setsCompleted: rows.reduce((a, r) => a + (r.sets_completed ?? 0), 0),
       activeThisWeek: rows.filter((r) => new Date(r.joined_at).getTime() >= weekAgo).length,
-      roster: rows.map((r) => ({ name: r.name, joinedAt: r.joined_at, setsCompleted: r.sets_completed ?? 0 })),
+      roster: rows.map((r) => ({ id: r.id, name: r.name, joinedAt: r.joined_at, setsCompleted: r.sets_completed ?? 0, hasSeat: !!r.seat_assigned_at })),
     };
   });
 

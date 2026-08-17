@@ -9,6 +9,7 @@ import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { FitWordmark, SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { getChapterDashboard, setChapterDigest, type ChapterDashboard } from "@/lib/greek-chapters.functions";
+import { assignSeat, transferChapterOwnership } from "@/lib/greek-seats.functions";
 
 export const Route = createFileRoute("/chapters_/dashboard")({
   head: () => ({ meta: [{ title: "⚡ Chapter dashboard — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
@@ -35,13 +36,19 @@ function DashboardPage() {
     return () => { active = false; sub.subscription.unsubscribe(); };
   }, []);
 
+  // Bumped after any action that changes server state (a seat toggle). Re-reading is deliberate:
+  // seat counts and entitlements are decided server-side, so patching them in the client would be
+  // a second source of truth that can disagree with the first.
+  const [reloadKey, setReloadKey] = useState(0);
+  const reload = () => setReloadKey((k) => k + 1);
+
   useEffect(() => {
     if (!token) { setData(token === null && checked ? null : undefined); return; }
     let active = true;
     setData(undefined);
     void getChapterDashboard({ data: { accessToken: token } }).then((d) => { if (active) setData(d); }).catch(() => { if (active) setData(null); });
     return () => { active = false; };
-  }, [token, checked]);
+  }, [token, checked, reloadKey]);
 
   const wrap = { ...frameThemeVars(DEFAULT_FRAME_THEME), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative" as const, overflowX: "hidden" as const };
 
@@ -93,14 +100,14 @@ function DashboardPage() {
             <button onClick={() => void supabase.auth.signOut()} className="mt-4 block text-[11.5px]" style={{ color: "var(--text-muted)" }}>sign out</button>
           </div>
         ) : (
-          <Dashboard data={data} token={token} onDigest={(v) => setData({ ...data, digestEnabled: v })} />
+          <Dashboard data={data} token={token} onDigest={(v) => setData({ ...data, digestEnabled: v })} onReload={reload} />
         )}
       </main>
     </div>
   );
 }
 
-function Dashboard({ data, token, onDigest }: { data: ChapterDashboard; token: string; onDigest: (v: boolean) => void }) {
+function Dashboard({ data, token, onDigest, onReload }: { data: ChapterDashboard; token: string; onDigest: (v: boolean) => void; onReload: () => void }) {
   // data.url is /go/<school>/<chapter>, or null when this chapter has no roster row behind it yet.
   // Null shows a plain "link pending" line instead of a copyable URL: half a link in a Copy button
   // is worse than none, and the fallback that USED to fill this gap was a /c/ link, which is
@@ -109,6 +116,36 @@ function Dashboard({ data, token, onDigest }: { data: ChapterDashboard; token: s
   const [copied, setCopied] = useState(false);
   const doCopy = async () => { if (!full) return; try { await navigator.clipboard.writeText(`https://${full}`); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* long-press fallback */ } };
   const qr = full ? `https://api.qrserver.com/v1/create-qr-code/?size=130x130&margin=0&data=${encodeURIComponent(`https://${full}`)}` : null;
+  const seatsLeft = Math.max(0, data.seatsTotal - data.seatsAssigned);
+  const [seatBusy, setSeatBusy] = useState<string | null>(null);
+  const [seatErr, setSeatErr] = useState<string | null>(null);
+  const [xferOpen, setXferOpen] = useState(false);
+  const [xEmail, setXEmail] = useState("");
+  const [xName, setXName] = useState("");
+  const [xPhone, setXPhone] = useState("");
+  const [xBusy, setXBusy] = useState(false);
+  const [xDone, setXDone] = useState(false);
+  const [xErr, setXErr] = useState<string | null>(null);
+
+  const onSeat = async (memberId: string, assign: boolean) => {
+    setSeatBusy(memberId); setSeatErr(null);
+    try {
+      const r = await assignSeat({ data: { accessToken: token, chapterId: data.chapterId, memberId, assign } });
+      if (!r.ok) setSeatErr(r.error ?? "Couldn't change that seat.");
+      else onReload();
+    } catch { setSeatErr("Couldn't reach the server — try again."); }
+    finally { setSeatBusy(null); }
+  };
+
+  const onTransfer = async () => {
+    setXBusy(true); setXErr(null);
+    try {
+      const r = await transferChapterOwnership({ data: { accessToken: token, chapterId: data.chapterId, toEmail: xEmail.trim(), toNameRole: xName.trim(), toPhone: xPhone.trim() || undefined } });
+      if (r.ok) setXDone(true); else setXErr(r.error ?? "Transfer failed.");
+    } catch { setXErr("Couldn't reach the server — try again."); }
+    finally { setXBusy(false); }
+  };
+
   const toggleDigest = async () => { const next = !data.digestEnabled; onDigest(next); await setChapterDigest({ data: { accessToken: token, enabled: next } }); };
   const buySeats = `sms:${LEE_TEL}?&body=${encodeURIComponent(`${data.chapterName} is interested in semester seats.`)}`;
   const fmtDate = (s: string) => { try { return new Date(s).toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch { return "—"; } };
@@ -150,11 +187,24 @@ function Dashboard({ data, token, onDigest }: { data: ChapterDashboard; token: s
         </div>
         {data.roster.length === 0 && <div className="px-4 py-4 text-center text-[12.5px] italic" style={{ color: "var(--text-muted)" }}>No members yet — share your link.</div>}
         <div className="max-h-72 overflow-y-auto">
-          {data.roster.map((m, i) => (
-            <div key={i} className="flex items-center justify-between border-b px-4 py-2 text-[12.5px]" style={{ borderColor: "rgba(245,239,230,0.06)", color: "var(--brand-cream)" }}>
+          {data.roster.map((m) => (
+            <div key={m.id} className="flex items-center gap-2 border-b px-4 py-2 text-[12.5px]" style={{ borderColor: "rgba(245,239,230,0.06)", color: "var(--brand-cream)" }}>
               <span className="min-w-0 flex-1 truncate">{m.name}</span>
-              <span className="shrink-0 px-3" style={{ color: "var(--text-muted)" }}>{fmtDate(m.joinedAt)}</span>
+              <span className="shrink-0" style={{ color: "var(--text-muted)" }}>{fmtDate(m.joinedAt)}</span>
               <span className="shrink-0 tabular-nums" style={{ color: "var(--text-muted)" }}>{m.setsCompleted} sets</span>
+              {/* Disabled rather than hidden when no seats remain: hiding it would leave the exec
+                  wondering whether the feature exists, and the title says which case this is. */}
+              <button
+                onClick={() => void onSeat(m.id, !m.hasSeat)}
+                disabled={seatBusy === m.id || (!m.hasSeat && seatsLeft <= 0)}
+                title={!m.hasSeat && seatsLeft <= 0 ? "No seats left" : m.hasSeat ? "Remove this seat" : "Give this member a seat"}
+                className="shrink-0 rounded-lg px-2 py-1 text-[11.5px] font-black disabled:opacity-35"
+                style={m.hasSeat
+                  ? { background: "var(--accent)", color: "#0B1220" }
+                  : { background: "rgba(245,239,230,0.08)", color: "var(--brand-cream)", border: "1px solid rgba(245,239,230,0.16)" }}
+              >
+                {m.hasSeat ? "Seat ✓" : "Seat"}
+              </button>
             </div>
           ))}
         </div>
@@ -167,6 +217,51 @@ function Dashboard({ data, token, onDigest }: { data: ChapterDashboard; token: s
         </button>
         <a href={buySeats} className="rounded-xl px-4 py-2 text-[13px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>Buy seats</a>
       </div>
+
+      {/* SEATS — the honest state of the account: what was paid for, and what has been handed out.
+          Lee sets the total (it is the money step); the exec chooses who gets one. */}
+      <div className="mt-3 rounded-2xl px-4 py-3" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)" }}>
+        <div className="flex flex-wrap items-baseline gap-x-2">
+          <span className="text-[13px] font-black" style={{ color: "var(--brand-cream)" }}>
+            {data.seatsAssigned} of {data.seatsTotal} seats assigned
+          </span>
+          <span className="text-[12px]" style={{ color: seatsLeft > 0 ? "var(--accent)" : "var(--text-muted)" }}>
+            {data.seatsTotal === 0 ? "— none bought yet" : seatsLeft > 0 ? `${seatsLeft} left` : "all assigned"}
+          </span>
+        </div>
+        <p className="mt-1 text-[11.5px]" style={{ color: "var(--text-muted)" }}>
+          {data.seatsTotal === 0
+            ? "Seats unlock every exam for a member, all semester. Text Lee to buy them."
+            : "A seat unlocks every exam for that member, all semester. Toggle it on any row above."}
+        </p>
+        {seatErr && <p className="mt-1 text-[11.5px]" style={{ color: "#F3C6CC" }}>{seatErr}</p>}
+      </div>
+
+      {/* SHARE KIT + HANDOFF — exec-lifecycle tools; neither belongs on a student surface. */}
+      <div className="mt-3 flex flex-wrap items-center gap-3 rounded-2xl px-4 py-3" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)" }}>
+        {data.kitPath
+          ? <a href={data.kitPath} className="rounded-xl px-3 py-2 text-[12.5px] font-black" style={{ background: "rgba(245,239,230,0.08)", color: "var(--brand-cream)", border: "1px solid rgba(245,239,230,0.16)" }}>Flyer &amp; slide kit →</a>
+          : <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>Share kit unavailable until your link is set up.</span>}
+        <button onClick={() => setXferOpen((v) => !v)} className="text-[12.5px] underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
+          Handing over to the next exec?
+        </button>
+      </div>
+
+      {xferOpen && (
+        <div className="mt-3 rounded-2xl px-4 py-3" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(252,163,17,0.35)" }}>
+          {/* Said plainly because it is irreversible from this side: afterwards the page is theirs. */}
+          <p className="text-[12.5px] font-bold" style={{ color: "var(--brand-cream)" }}>Transfer this chapter</p>
+          <p className="mb-2 text-[11.5px]" style={{ color: "var(--text-muted)" }}>They&apos;ll sign in with their own email. You&apos;ll lose access.</p>
+          <input value={xEmail} onChange={(e) => setXEmail(e.target.value)} type="email" placeholder="their@school.edu" className="mb-2 w-full rounded-lg px-3 text-[13.5px] outline-none" style={{ minHeight: 42, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }} />
+          <input value={xName} onChange={(e) => setXName(e.target.value)} placeholder="Their name and role" className="mb-2 w-full rounded-lg px-3 text-[13.5px] outline-none" style={{ minHeight: 42, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }} />
+          <input value={xPhone} onChange={(e) => setXPhone(e.target.value)} inputMode="tel" placeholder="Their mobile (optional)" className="w-full rounded-lg px-3 text-[13.5px] outline-none" style={{ minHeight: 42, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }} />
+          {xErr && <p className="mt-1 text-[11.5px]" style={{ color: "#F3C6CC" }}>{xErr}</p>}
+          {xDone
+            ? <p className="mt-2 text-[12.5px] font-bold" style={{ color: "#3BF5A0" }}>Done — {xEmail} runs this chapter now.</p>
+            : <button onClick={() => void onTransfer()} disabled={xBusy || !xEmail.trim() || xName.trim().length < 2} className="mt-2 w-full rounded-xl text-[14px] font-black disabled:opacity-40" style={{ minHeight: 44, background: "var(--accent)", color: "#0B1220" }}>{xBusy ? "…" : "Transfer chapter"}</button>}
+        </div>
+      )}
+
       <p className="mt-2 text-center text-[11px]" style={{ color: "var(--text-muted)" }}>Semester seats are $100/member (10 min) — text me and I'll set it up.</p>
     </div>
   );

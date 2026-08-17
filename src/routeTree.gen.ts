@@ -75,6 +75,7 @@ import { Route as CeqIdEditRouteImport } from './routes/ceq.$id.edit'
 import { Route as CeqCourseSlugChapterSlugRouteImport } from './routes/ceq.$courseSlug.$chapterSlug'
 import { Route as ApiCronWeeklyDigestRouteImport } from './routes/api.cron.weekly-digest'
 import { Route as ApiCronBackupRouteImport } from './routes/api.cron.backup'
+import { Route as ChaptersKitSchoolChapterRouteImport } from './routes/chapters_.kit.$school.$chapter'
 
 const WelcomeRoute = WelcomeRouteImport.update({
   id: '/welcome',
@@ -413,6 +414,12 @@ const ApiCronBackupRoute = ApiCronBackupRouteImport.update({
   path: '/api/cron/backup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ChaptersKitSchoolChapterRoute =
+  ChaptersKitSchoolChapterRouteImport.update({
+    id: '/chapters_/kit/$school/$chapter',
+    path: '/chapters/kit/$school/$chapter',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -481,6 +488,7 @@ export interface FileRoutesByFullPath {
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
+  '/chapters/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -548,6 +556,7 @@ export interface FileRoutesByTo {
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
   '/outreach/leadfinder': typeof OutreachLeadfinderIndexRoute
+  '/chapters/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -617,6 +626,7 @@ export interface FileRoutesById {
   '/outreach_/school/$slug': typeof OutreachSchoolSlugRoute
   '/study_/scenarios/$slug': typeof StudyScenariosSlugRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
+  '/chapters_/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -687,6 +697,7 @@ export interface FileRouteTypes {
     | '/outreach/school/$slug'
     | '/study/scenarios/$slug'
     | '/outreach/leadfinder/'
+    | '/chapters/kit/$school/$chapter'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -754,6 +765,7 @@ export interface FileRouteTypes {
     | '/outreach/school/$slug'
     | '/study/scenarios/$slug'
     | '/outreach/leadfinder'
+    | '/chapters/kit/$school/$chapter'
   id:
     | '__root__'
     | '/'
@@ -822,6 +834,7 @@ export interface FileRouteTypes {
     | '/outreach_/school/$slug'
     | '/study_/scenarios/$slug'
     | '/outreach/leadfinder/'
+    | '/chapters_/kit/$school/$chapter'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -860,6 +873,7 @@ export interface RootRouteChildren {
   GoSchoolChapterRoute: typeof GoSchoolChapterRoute
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
   StudyScenariosSlugRoute: typeof StudyScenariosSlugRoute
+  ChaptersKitSchoolChapterRoute: typeof ChaptersKitSchoolChapterRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1326,6 +1340,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronBackupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/chapters_/kit/$school/$chapter': {
+      id: '/chapters_/kit/$school/$chapter'
+      path: '/chapters/kit/$school/$chapter'
+      fullPath: '/chapters/kit/$school/$chapter'
+      preLoaderRoute: typeof ChaptersKitSchoolChapterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1461,6 +1482,7 @@ const rootRouteChildren: RootRouteChildren = {
   GoSchoolChapterRoute: GoSchoolChapterRoute,
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
   StudyScenariosSlugRoute: StudyScenariosSlugRoute,
+  ChaptersKitSchoolChapterRoute: ChaptersKitSchoolChapterRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
