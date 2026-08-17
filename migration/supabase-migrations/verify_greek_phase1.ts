@@ -10,6 +10,11 @@
 // Exits non-zero if any invariant fails, so it can gate a merge.
 import { createClient } from "@supabase/supabase-js";
 
+// Imported so this file can distinguish a chapter the backfill deliberately skipped (a duplicate
+// roster row) from one it missed. Without that, the 14 known duplicates read as a permanent
+// failure, and a verifier that always fails is a verifier nobody reads.
+import { greekChapterSlug } from "../../src/lib/greek-slug";
+
 const db = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
 });
@@ -58,7 +63,22 @@ const main = async () => {
   const { count: secTotal } = await db.from("campus_greek_chapters").select("*", { count: "exact", head: true }).in("campus_id", secIds);
   const { count: secSlugged } = await db.from("campus_greek_chapters").select("*", { count: "exact", head: true }).in("campus_id", secIds).not("slug", "is", null);
   console.log(`SEC campuses:          ${secSlugged} / ${secTotal} have a slug`);
-  check(secSlugged === secTotal, "every SEC chapter has a slug");
+  // An unslugged SEC row is EXPECTED when another row at the same campus already owns the slug
+  // its org name produces — that is the duplicate-roster-row case (greek_orgs holds ten orgs
+  // twice; at 14 campuses both records are referenced). Anything else is a real miss.
+  const secSet = new Set(secIds);
+  const rosterAll = await fetchAll<{ id: string; campus_id: string; slug: string | null; greek_org_id: string | null }>("campus_greek_chapters", "id,campus_id,slug,greek_org_id");
+  const orgRows = await fetchAll<{ id: string; name: string | null }>("greek_orgs", "id,name");
+  const orgNames = new Map<string, string>(orgRows.map((o) => [o.id, (o.name ?? "").trim()]));
+  const slugTaken = new Set(rosterAll.filter((r) => r.slug).map((r) => `${r.campus_id}/${r.slug}`));
+  const secMissing = rosterAll.filter((r) => secSet.has(r.campus_id) && !r.slug);
+  const expectedDupes = secMissing.filter((r) => {
+    const n = r.greek_org_id ? (orgNames.get(r.greek_org_id) ?? "") : "";
+    return !!n && slugTaken.has(`${r.campus_id}/${greekChapterSlug(n)}`);
+  });
+  const realMisses = secMissing.length - expectedDupes.length;
+  console.log(`  of the ${secMissing.length} unslugged SEC row(s): ${expectedDupes.length} are known duplicates, ${realMisses} unexplained`);
+  check(realMisses === 0, "every SEC chapter has a slug (duplicates excluded by design)", realMisses ? `${realMisses} unexplained` : "");
 
   // A slug on a campus with no campuses.slug produces a URL nothing can route to.
   const noCampusSlug = (sec ?? []).filter((c) => !(c as { slug: string | null }).slug);

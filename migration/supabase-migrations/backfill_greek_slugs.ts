@@ -72,7 +72,7 @@ const main = async () => {
     taken.get(r.campus_id)!.add(r.slug);
   }
 
-  const plan: Array<{ id: string; campus: string; slug: string; from: string }> = [];
+  const plan: Array<{ id: string; campusId: string; campus: string; slug: string; from: string }> = [];
   const skipped: Array<{ id: string; why: string }> = [];
   const duplicates: Array<{ id: string; campus: string; slug: string; from: string }> = [];
   let already = 0;
@@ -111,7 +111,7 @@ const main = async () => {
     if (used.has(base)) { duplicates.push({ id: r.id, campus: campusSlug.get(r.campus_id) ?? "?", slug: base, from: name }); continue; }
 
     used.add(base);
-    plan.push({ id: r.id, campus: campusSlug.get(r.campus_id) ?? "(no campus slug)", slug: base, from: name });
+    plan.push({ id: r.id, campusId: r.campus_id, campus: campusSlug.get(r.campus_id) || "(no campus slug)", slug: base, from: name });
   }
 
   console.log(`rows total            ${all.length}`);
@@ -129,10 +129,18 @@ const main = async () => {
     console.log("  Merging those org records is a separate call — this script only declines to give one chapter two URLs.");
   }
 
-  // Campuses with no slug of their own can't produce a reachable /go/ URL — worth naming rather
-  // than silently writing chapter slugs that nothing can route to.
-  const noCampusSlug = plan.filter((p) => p.campus === "(no campus slug)").length;
-  if (noCampusSlug) console.log(`\nWARNING: ${noCampusSlug} chapter(s) sit on a campus with no campuses.slug — their /go/ URL will not resolve until that campus gets a slug.`);
+  // A campus with no slug of its own cannot produce a reachable /go/ URL. The chapter slug is
+  // still written — per-campus unique, harmless, and the URL starts working the moment that
+  // campus gets slugged — but the count is STATED. The previous version compared against a
+  // placeholder that a null slug never produced, so it printed nothing while the plan showed
+  // "/go//phi-kappa-psi".
+  const unroutable = plan.filter((x) => x.campus === "(no campus slug)");
+  if (unroutable.length) {
+    console.log(`
+NOT ROUTABLE YET: ${unroutable.length} chapter(s) sit on a campus with no campuses.slug.`);
+    console.log("  Slug still written (harmless); /go/<school>/... resolves once that campus is slugged.");
+    console.log("  All non-SEC — every SEC campus has a slug (verify_greek_phase1.ts checks this).");
+  }
 
   console.log("\nfirst 25 of the plan:");
   for (const p of plan.slice(0, 25)) console.log(`  /go/${p.campus}/${p.slug}   <- ${p.from}`);
@@ -142,10 +150,15 @@ const main = async () => {
     for (const s of skipped.slice(0, 15)) console.log(`  ${s.id}  ${s.why}`);
   }
 
-  // Collision self-check: the whole point of the per-campus unique index is that this can't happen.
+  // Collision self-check. Keyed on campus_id, NOT the display slug: every campus without a
+  // campuses.slug renders as the same "(no campus slug)" placeholder, so keying on the display
+  // string made 63 unrelated campuses look like one and aborted a run that was actually fine.
+  // The database index is on (campus_id, slug); the check has to agree with it or it is testing
+  // a different question than the one that matters.
   const seen = new Set<string>();
-  const dupes = plan.filter((p) => { const k = `${p.campus}/${p.slug}`; if (seen.has(k)) return true; seen.add(k); return false; });
-  console.log(`\ncollisions in plan: ${dupes.length}${dupes.length ? "  <- BUG, not writing" : ""}`);
+  const dupes = plan.filter((x) => { const k = `${x.campusId}/${x.slug}`; if (seen.has(k)) return true; seen.add(k); return false; });
+  console.log(`
+collisions in plan: ${dupes.length}${dupes.length ? "  <- BUG, not writing" : ""}`);
   if (dupes.length) { for (const d of dupes.slice(0, 10)) console.log(`  ${d.campus}/${d.slug}`); process.exit(1); }
 
   if (!APPLY) { console.log("\nDRY RUN — nothing written. Re-run with --apply to write."); return; }

@@ -25,17 +25,23 @@ const APPLY = flags.includes("--apply");
 const FORCE = flags.includes("--force");
 
 const PROJECT = process.env.SUPABASE_PROJECT_ID;
-const TOKEN = process.env.SUPABASE_ACCESS_TOKEN;
+// Accept every name this token has been stored under. Lee added it to the Vercel project as
+// SUPABASETOKEN; SUPABASE_TOKEN_1 predates that; SUPABASE_ACCESS_TOKEN is what Supabase's own
+// docs call it. Reading one name and failing on the others would mean a token that exists but
+// "isn't there" — the exact failure mode that cost a cycle on 0115.
+const TOKEN = process.env.SUPABASETOKEN
+  || process.env.SUPABASE_ACCESS_TOKEN
+  || process.env.SUPABASE_TOKEN_1;
 
 if (!fileArg) { console.error("usage: run_sql.ts <file.sql> [--apply] [--force]"); process.exit(1); }
 if (!PROJECT) { console.error("SUPABASE_PROJECT_ID missing from env"); process.exit(1); }
 if (!TOKEN) {
-  console.error(
-    "SUPABASE_ACCESS_TOKEN missing.\n" +
-    "  1. create a Personal Access Token at https://supabase.com/dashboard/account/tokens\n" +
-    "  2. add it to .env yourself as SUPABASE_ACCESS_TOKEN=... (never paste it into a chat)\n" +
-    "  .env is gitignored, so it stays local.",
-  );
+  console.error("No Supabase access token in the environment.");
+  console.error("  Looked for: SUPABASETOKEN, SUPABASE_ACCESS_TOKEN, SUPABASE_TOKEN_1");
+  console.error("  If it lives in the Vercel project rather than locally:");
+  console.error("    npx vercel env pull .env.vercel --environment=production --yes");
+  console.error("    set -a && . ./.env && . ./.env.vercel && set +a");
+  console.error("  .env* is gitignored, so pulled secrets stay local - delete .env.vercel when done.");
   process.exit(1);
 }
 
