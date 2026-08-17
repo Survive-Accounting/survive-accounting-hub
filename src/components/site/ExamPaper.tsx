@@ -76,20 +76,22 @@ export function ExamPaper({ stops, onActivate, className, style }: {
       {/* THE SHEET */}
       <svg viewBox="0 0 300 340" role="img" aria-hidden className="w-full sa-paper-sheet" style={{ overflow: "visible" }}>
         <g transform="rotate(-4 150 170)">
-          <rect x="26" y="18" width="248" height="304" rx="10" fill="rgba(0,0,0,0.40)" />
-          <rect x="22" y="14" width="248" height="304" rx="10" fill="#F5F1E8" />
+          <rect x="26" y="18" width="248" height="304" rx="10" fill="rgba(0,0,0,0.22)" />
+          {/* Navy-tinted, not cream: the paper is the PROBLEM in this composition and must not
+                compete with the bolt. Still unmistakably a sheet — rounded, tilted, ruled. */}
+          <rect x="22" y="14" width="248" height="304" rx="10" fill="#22304F" stroke="rgba(245,239,230,0.10)" strokeWidth="1" />
 
           {/* header rule only — the course line itself is HTML, so its text can crossfade */}
-          <line x1="42" y1="62" x2="160" y2="62" stroke="#D3D8E1" strokeWidth="1.2" />
-          <line x1="172" y1="62" x2="250" y2="62" stroke="#D3D8E1" strokeWidth="1.2" />
+          <line x1="42" y1="62" x2="160" y2="62" stroke="rgba(245,239,230,0.20)" strokeWidth="1.2" />
+          <line x1="172" y1="62" x2="250" y2="62" stroke="rgba(245,239,230,0.20)" strokeWidth="1.2" />
 
           {ROWS.map((r, n) => {
             const top = 96 + n * 52;
             return (
               <g key={n}>
                 {/* fainter than Pass 3 — the paper must not compete with the bolt */}
-                <rect x="42" y={top} width={(r.w / 100) * 200} height="4.5" rx="2.25" fill="#DCE1E9" />
-                <rect x="42" y={top + 10} width={(r.w / 100) * 128} height="4.5" rx="2.25" fill="#E6EAF0" />
+                <rect x="42" y={top} width={(r.w / 100) * 200} height="4.5" rx="2.25" fill="rgba(245,239,230,0.20)" />
+                <rect x="42" y={top + 10} width={(r.w / 100) * 128} height="4.5" rx="2.25" fill="rgba(245,239,230,0.13)" />
                 {Array.from({ length: BUBBLES }, (_, b) => (
                   <circle
                     key={b}
@@ -115,11 +117,20 @@ export function ExamPaper({ stops, onActivate, className, style }: {
         </span>
       </span>
 
-      {/* THE BOLT — the real brand asset, overhanging the sheet top and bottom. `keyline=""`
-          drops the white outline: on navy the outline reads as a sticker edge, and here the bolt
-          should look like it is lighting the paper rather than sitting on it. */}
+      {/* BOTTOM-LEFT — this is the line that carries the school. Legibility is handled by a dark
+          paint-order stroke rather than by picking "safe" colours: Vanderbilt gold and Tennessee
+          white would both vanish on the tinted card otherwise, and dropping them from the cycle
+          would mean the hero silently never shows those schools. */}
+      <span className="sa-paper-campus" aria-hidden>
+        <span key={`c-${stop.id}`} className="sa-paper-course-in">{stop.name}</span>
+      </span>
+
+      {/* THE BOLT — the real brand asset, overhanging the sheet top and bottom. */}
       <span className="sa-paper-bolt" aria-hidden>
-        <Bolt c1="var(--sa-bolt-1)" c2="var(--sa-bolt-2)" keyline="" />
+        {/* keyline left at its default (BRAND_WHITE): the white outline is now permanent on every
+            colourway. Pass 4 passed keyline="" to drop it, which made dark colourways (Auburn navy,
+            Florida blue) merge into the navy page. */}
+        <Bolt c1="var(--sa-bolt-1)" c2="var(--sa-bolt-2)" />
       </span>
     </button>
   );
@@ -153,12 +164,35 @@ export const EXAM_PAPER_CSS = `
   font-weight: 700;
   letter-spacing: 0.14em;
   white-space: nowrap;
-  color: var(--sa-bolt-1);
-  transition: color 900ms ease;
+  /* STATIC, deliberately not var(--sa-bolt-1): the code changes with the school but the colour
+     never does, so this line is legible on every colourway with no contrast gymnastics. */
+  color: rgba(245,239,230,0.92);
 }
 /* Re-keying the inner span on each school remounts it, so this runs as a crossfade-in. */
 .sa-paper-course-in { display: inline-block; animation: sa-course-in 900ms ease; }
 @keyframes sa-course-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* The campus name is where the school colour lives now. */
+.sa-paper-campus {
+  position: absolute;
+  left: 13%;
+  bottom: 12%;
+  transform: rotate(-4deg);
+  transform-origin: left center;
+  font-family: 'Rubik', system-ui, sans-serif;
+  font-size: clamp(11px, 3.4cqw, 15px);
+  font-weight: 900;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--sa-bolt-1);
+  /* paint-order draws the dark stroke BEHIND the fill, so a light colourway (Vanderbilt gold,
+     Tennessee white) keeps its true colour and simply gains a dark edge. Plain
+     -webkit-text-stroke without paint-order would eat into the glyph instead. */
+  -webkit-text-stroke: 3px rgba(10,16,30,0.85);
+  paint-order: stroke fill;
+  transition: color 900ms ease;
+}
 
 /* THE BOLT — 1.5x the Pass 3 size and deliberately taller than the sheet, so it overhangs top
    and bottom. The glow is kept low on purpose: the brief says illuminated, not flashy. */
@@ -184,7 +218,7 @@ export const EXAM_PAPER_CSS = `
 @media (prefers-reduced-motion: reduce) {
   .sa-paper, .sa-paper:hover { transform: none; }
   .sa-paper-course-in { animation: none; }
-  .sa-paper-course, .sa-paper-bolt, .sa-paper-bolt path { transition: none; }
+  .sa-paper-campus, .sa-paper-bolt, .sa-paper-bolt path { transition: none; }
 }
 `;
 

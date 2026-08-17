@@ -1,116 +1,104 @@
-# Landing Pass 4 — hero bolt fix, copy lock, player flow restage
+# Landing Pass 5 — in-player states, FAQ, no internal scrollbar, hero polish
 
-Branch: `landing-pass-4` (on top of Pass 3). **No Greek page changes**, per the brief. Checkout and
-the video player internals were not touched.
+Branch: `landing-pass-5` (on top of `main` @ `382f878`). Nothing outside the landing page and its
+own components was touched — no Greek work, no checkout, no player internals.
 
 ---
 
-## Every copy string changed
+## 1. The materials step moved INSIDE the player
 
-| Where | Was | Now |
-|---|---|---|
-| Hero subhead | `On-demand exam prep for your first accounting course. Built for the night before.` | `On-demand tutoring videos for your first accounting course. Built for last-minute strugglers and 4.0s chasing easy extra points.` |
-| Trust badge | `Built by a pro tutor` | `Created by a pro tutor` |
-| Below-player block | 1-2-3 cards (`Pick your exam` / `Cram the topics` / `Walk in ready`) | header `Will this match my professor's exam?` |
-| — body | *(three card lines)* | `That's the whole point. Pick your school and professor in the player — then send your syllabus, study guides, or old exams, and I'll send back an exact gameplan for your exam.` |
-| — CTA | *(none)* | `Match my exam ⚡` |
-| Materials modal title | `One last thing` | `Get your exam gameplan` |
-| Materials modal headline | `Want it matched exactly?` | `Get your exam gameplan` |
-| Materials modal body | `Send your syllabus and I'll map your exams topic by topic.` | `Send your syllabus, study guides, old exams — whatever you've got — and I'll match my videos to your course and send you an exact gameplan. The more you send, the better the plan.` |
-| Materials primary CTA | `Send your syllabus` | `Upload course materials` |
-| Coverage line | `Right now this likely covers N% of …` | `This already covers about N% of …` |
-| Top bar action | `Change` | `Reset` |
-| Professor step | had `Skip this` | **removed** |
-| Hamburger / footer Greek item | *(no subtext)* | + `Boost chapter GPAs` |
+`MatchSheet` is **deleted**, not hidden. It portalled to `document.body`, so the materials step
+rendered as a detached panel pinned to the top-left of the viewport rather than inside the player —
+and because a professor pick re-opened it (at the professor rung), picking a professor read as the
+selection having failed.
 
-Hero H1, both exam-tab labels, the Semester Pass line, `Meet your tutor` and all legal/memorial
-lines are unchanged.
+`MatchPanel` is now the whole flow, one state machine in the right panel:
 
-## 1. Hero graphic
+| State | What the panel is |
+|---|---|
+| 1 | Pick your school |
+| 2 | Pick your professor |
+| 3 | **Materials gate** (new — was the modal) |
+| 4 | Confirmed bar + video/poster |
 
-- **The bolt is now the real brand asset** — `Bolt` from `components/canvas/brand`, the same
-  13-point split bolt the wordmark and player use. Not redrawn.
-- **Sized to overpower the exam**: 122% of the sheet's height, overhanging top and bottom.
-- **Paper simplified**: 5 rows → **4**, strokes lightened (`#DCE1E9` / `#E6EAF0`), one inked
-  bubble per row in brand red.
-- **Course-code cycling replaces the colour-only cycle.** The header reads `ACCY 201 — EXAM 1`;
-  every 4s the code, its accent and the bolt's colourway crossfade together (900ms). Order is
-  Ole Miss → LSU → Tennessee → the rest in picker order.
-- Glow deliberately restrained — a low double `drop-shadow`, per "if in doubt, reduce the glow".
-- `prefers-reduced-motion` → static first stop (Ole Miss), no interval, no transitions.
-- No marquee in the hero; it remains only under `Pick your school to start`.
+State 3 is centred in the panel like the two rungs before it. `matchOpen` is gone; the panel tracks
+`materialsDone`, and `useEffect(… , [school?.id])` clears both `profDone` and `materialsDone`, so
+Reset genuinely restarts the flow instead of resuming three-quarters of the way through it.
 
-**Honesty rule:** `paperStops` **drops any school without a VERIFIED course code** rather than
-showing a blank or a plausible-looking one. If none are verified the hero renders no graphic at
-all. Covered by `src/components/site/exam-paper.test.ts`.
+### Coverage % is now on the materials header
 
-## 2. Player flow — actions on centre stage
+The stat and the ask are one sentence in one place instead of a title above a separate modal:
 
-`MatchPanel` is now three sequential states in the middle of the right panel:
+- with a professor — `This already covers ~80% of Prof. Prakash's Exam 1.`
+- school only — `This already covers ~80% of most Exam 1s.`
+- resolver returned nothing — `This already covers most Exam 1s.`
 
-1. **Pick school** (unchanged).
-2. **Pick professor** — new `ProfessorStage`, rendered *inline on the stage*, not in a sheet:
-   heading, search box, scrollable list, `My professor isn't listed →`, and `← Change school`
-   demoted to small muted text beneath. **`Skip this` removed** — `isn't listed` is the only
-   alternate path, and it reaches the same next step, so nobody is trapped.
-3. **Confirmed** — the top bar carries only what is true: `✓ Ole Miss · ACCY 201 · Prof. Allen`
-   plus **`Reset`**. `Add professor` is gone; adding one happens by resetting the flow.
+The number is only ever the real resolver value. When there isn't one, the sentence drops the
+number rather than inventing one. All three branches were exercised in the browser.
 
-The sheet now takes an `initialStep`, so finishing the professor rung on stage opens it directly
-on materials instead of re-asking a question already answered. (Caught in testing — it was
-re-opening at the professor step.)
+Body copy: *Send your syllabus, study guides — whatever you've got — and I'll match my videos to
+your course. The more you send, the better.* Buttons: `Upload materials` / `Not now`. The "old
+exams" phrasing is gone.
 
-## 3. Other
+## 2. FAQ replaces the objection block
 
-- **Semester Pass bar is dismissible.** Hover-revealed `×` on pointer devices, permanently visible
-  at 50% opacity on touch, focus-visible for keyboard. Dismissal persists in localStorage
-  (`sa-pass-line-dismissed`), read in an effect so SSR and client agree.
-- **Testimonials**: card `minHeight` 260 → 210, padding trimmed, quote 16/18px → 14.5/15.5px,
-  quote mark 64 → 44px, **avatar 36px → 48px**. Attribution is `[Campus] · [Course code]` — but
-  **no testimonial carries a code today, so every card renders campus-only.** The field is
-  optional and must be filled per student; inferring a code from the campus would be inventing a
-  fact about a real person.
-- **Footer rebuilt** — all five nav links (with the Greek subtext), the existing text-me block, and
-  the three legal/memorial lines unchanged at the very bottom.
+`MatchObjection` (headline + `Match my exam ⚡`) is replaced by a 7-question FAQ under a quiet
+`FREQUENTLY ASKED QUESTIONS` label. The CTA went with it on purpose: the answer to Q1 points at the
+player *above*, so a button here would have scrolled past the thing it was pointing at.
 
-## 4. The navbar sticky bug — root cause
+Order is biggest-objection-first, ending warm — `What if I watch everything and still feel lost?`
+closes on a person, not a policy. `FAQS` is a plain array, built to grow.
 
-Not a missing `position: sticky`; it was already set. The landing root div carried
-`overflow-x: hidden`, which forces `overflow-y` to compute to `auto` — **making it a scroll
-container**. A sticky header then sticks to *that container* rather than the viewport, so it
-scrolled away (measured: header at `-900` after scrolling 900px).
+## 3. The player has no internal vertical scrollbar
 
-Fixed by switching to `overflow-x: clip`, which blocks the same sideways overflow **without**
-creating a scroll container, on both the root div and the `html.sa-navy` guard rail. `hidden` is
-kept as a preceding declaration so engines without `clip` still get the overflow guard.
+**Reproduced first.** The outline column was capped at `sm:max-h-[380px] overflow-y-auto`. With the
+Starter Map's 7 topics the column's natural height is **392px** — 12px over the cap — so it
+scrolled, and the notify box (the last thing in the column, and the only thing in it that captures
+an email) sat below the fold of a box most students never realise is scrollable.
 
-Measured after: header at `0` after scrolling 1200px, and horizontal overflow still prevented.
+- At `sm` and up the cap is removed entirely (`sm:max-h-none sm:overflow-visible`). The column is
+  its natural height and the **page** scrolls. It cannot re-break as topics are added.
+- Below `sm` the outline is a drop-down drawer stacked above the video, where capping it is
+  correct — an unbounded drawer would push the video off-screen. It keeps a cap, now `60vh`.
+- The notify box was compacted anyway (`px-3 py-2.5` → `px-2.5 py-2`, 11.5px label → 11px,
+  `mt-1.5` → `mt-1`), since every pixel it spends is a pixel the column grows past the video.
 
-## Verified (measured from the live DOM)
+Measured after the change at 1920×1080 and 1440×900: **nothing inside `#exam1` scrolls** — outline
+392px, right panel 392px, whole player card 479px. The school/professor lists inside the picker
+still scroll, which is intended.
 
-- Graphic: `BUTTON`, `aria-label="Cram Exam 1 Free"`, 2 bolt paths filled `var(--sa-bolt-1)`,
-  4 question rows, header cycling `ACCT 200` → `AC 210` → `ACCT 2013` on a 4s beat.
-- Cycle ORDER proven by unit test (browser timing kept sampling mid-rotation): Ole Miss, LSU,
-  Tennessee, then picker order; unverified codes dropped.
-- Copy: new subhead present, `Created by a pro tutor` present, `Built by a pro tutor` absent.
-- Objection block present with `Match my exam ⚡`; `Go crush exam day` absent.
-- Pass line `×` present and `opacity: 0` at rest.
-- Professor stage: heading, `Search Ole Miss professors` placeholder, 21 roster rows,
-  `isn't listed`, `← Change school`, **no `Skip this`**, and not rendered as a sheet.
-- Materials modal: `Get your exam gameplan`, new body, `Upload course materials`, `Not now`;
-  old copy absent.
-- Top bar: `✓ Ole Miss …`, `Reset`, no `Add professor`.
-- Footer: 5 links incl. Greek + subtext, text-me block, three legal lines last and in order.
-- Navbar sticky at 1440×1000; `tsc` clean; **1032/1032 tests**.
+## 4. Hero polish
 
-## Not verified
+- **The white keyline is back on the bolt.** Pass 4 passed `keyline=""`; on the dark colourways
+  (Auburn navy, Florida blue) that merged the bolt into the navy page.
+- **The sheet is navy-tinted (`#22304F`), not cream.** At hero size the cream sheet was the loudest
+  object in the composition and competed with the bolt. Rules, rows and bubbles were re-tinted to
+  match; it still reads unmistakably as a tilted, ruled exam sheet.
+- **The course code is static cream.** It was `var(--sa-bolt-1)`, so its legibility changed with
+  every school in the cycle.
+- **The campus name (new, bottom-left) carries the school colour.** Legibility comes from
+  `-webkit-text-stroke: 3px rgba(10,16,30,0.85)` with `paint-order: stroke fill`, which draws the
+  dark edge *behind* the fill — so Vanderbilt gold and Tennessee white keep their true colour
+  instead of being dropped from the cycle for being too light.
 
-- **Screenshots — fourth pass running.** The Browser pane paints into a ~105px corner and, under
-  768px, forces `devicePixelRatio: 2` and crops instead of downscaling. None of the seven
-  requested shots could be captured. The preview deploy is the thing to look at.
-- Mobile WAS re-measured after writing this section: at 390×844 the graphic sits at 58vw and the
-  CTA bottom lands at y=670 with **174px of headroom**; the navbar is sticky on mobile too and
-  there is no horizontal overflow. So the graphic stays on mobile.
+`EXAM1_STATUS_LABEL` → `Filming this week!`.
 
-- The crossfade's *feel* (900ms against a 4s dwell) and whether the restrained glow reads as
-  "illuminated" — both judgement calls that want your eye.
+---
+
+## Verification
+
+- `tsc --noEmit` — clean.
+- `bun test` — 1049 pass, 0 fail.
+- `bun run build` — clean.
+- Browser, at 1920×1080 / 1440×900 / 375×812: all four panel states walked end to end including
+  the no-professor fallback header; zero console errors on a fresh tab; no internal scrollbar in
+  the player; mobile drawer still capped at 60vh; no horizontal page overflow (`scrollWidth` ==
+  `innerWidth` at 375).
+
+### Not verified
+
+**Screenshots.** The Browser pane won't composite frames in this environment, so every visual claim
+above rests on measured DOM geometry and computed styles, not on looking at the page. The campus
+name's contrast in particular is reasoned (`boltFor` floors every `--sa-bolt-1` at 2.6 against the
+page navy; against the slightly lighter `#22304F` card the worst case lands near 2.2 before the
+dark stroke is counted) rather than seen. Worth a glance on a real screen.

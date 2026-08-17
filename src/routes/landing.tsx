@@ -115,9 +115,6 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
   // later — the student sees the thing before being asked anything about themselves.
   const [focusSignal, setFocusSignal] = useState(0);
   const onStart = () => { document.getElementById("exam1")?.scrollIntoView({ behavior: "smooth" }); setFocusSignal((f) => f + 1); };
-  // The objection block's CTA. Same destination as the hero CTA — the difference is intent, so
-  // it also bumps focusSignal, which is what puts the school picker in front of the student.
-  const onMatch = () => { document.getElementById("exam1")?.scrollIntoView({ behavior: "smooth" }); setFocusSignal((f) => f + 1); };
   const [syllabusOpen, setSyllabusOpen] = useState(false);
   // Optional custom lead line for the syllabus modal (e.g. the unlisted-professor follow-up:
   // "Don't see Prof. X yet — send me anything from the class and I'll map it."). Null = default copy.
@@ -286,7 +283,7 @@ export function LandingPage({ initialCampusId, chapterBanner, chapterSlug }: { i
 
         {/* Under the player: how it works, then the existing testimonials / tutor / footer.
             The proof marquee moved INTO the picker and the pricing table is now the tab row. */}
-        <MatchObjection onMatch={onMatch} />
+        <Faq />
         <SectionDivider />
         <div id="reviews" className="scroll-mt-20" />
         <TestimonialsSlider />
@@ -384,28 +381,57 @@ function SchoolTicker({ size = 12.5, className = "mt-3 w-full max-w-md" }: { siz
 // ---- BELOW THE FOLD, IN ORDER: proof -> how -> price ----------------------------------------
 
 
-/** THE OBJECTION BLOCK (Pass 4) — replaces the 1-2-3 cards.
+/** THE FAQ (Pass 5) — replaces the single objection block and its button.
  *
- *  The cards narrated a process nobody doubted. The actual thing standing between a student and
- *  the free video is one question — "will this match MY professor's exam?" — so the section now
- *  asks that question out loud and answers it, instead of explaining how a website works. */
-function MatchObjection({ onMatch }: { onMatch: () => void }) {
+ *  Ordered biggest-objection-first and ending warm, which is why 'still feel lost' is last: the
+ *  section closes on a person, not a policy. The CTA is gone on purpose — the answer to Q1 tells
+ *  the student to use the player ABOVE, so a button here would send them past the thing it is
+ *  pointing at. Lee's voice, two sentences max, and the list is built to grow. */
+const FAQS: { q: string; a: string }[] = [
+  {
+    q: "Will this match my professor's exam?",
+    a: "That's the whole point — pick your school and professor above, send what you've got, and I'll match my videos to your course.",
+  },
+  {
+    q: "Is Exam 1 really free?",
+    a: "Yep — every Exam 1 topic, completely free, no card required. If it helps, come back for Exam 2!",
+  },
+  {
+    q: "Do you do 1-on-1 tutoring?",
+    a: "A little — most of my week goes to filming new cram videos, but I keep 10 hours open for Zoom sessions at $120/hr. Text me and we'll find a time.",
+  },
+  {
+    q: "When do Exams 2, 3, and the Final come out?",
+    a: "I film through the semester, ahead of each exam. Drop your email on any exam tab and I'll tell you the day it lands.",
+  },
+  {
+    q: "Is this allowed?",
+    a: "Yes — this is tutoring, same as any campus tutor or study guide. I teach you how to do the problems; exam day is still all you.",
+  },
+  {
+    q: "What if my school isn't listed?",
+    a: "Intro accounting is nearly the same course everywhere, so these videos will still carry you — and I add schools as students ask. Hit \"My school isn't listed\" and tell me.",
+  },
+  {
+    q: "What if I watch everything and still feel lost?",
+    a: "Text me. I read every message myself — I'll do everything I can to get you from lost to confident.",
+  },
+];
+
+function Faq() {
   return (
-    <section className="py-10 text-center">
-      <h2 className="text-[24px] font-black sm:text-[30px]" style={{ color: "var(--brand-cream)", letterSpacing: "-0.01em" }}>
-        Will this match my professor&apos;s exam?
-      </h2>
-      <p className="mx-auto mt-3 max-w-[46ch] text-[15px] leading-relaxed sm:text-[16px]" style={{ color: "var(--brand-cream)", opacity: 0.72 }}>
-        That&apos;s the whole point. Pick your school and professor in the player — then send your
-        syllabus, study guides, or old exams, and I&apos;ll send back an exact gameplan for your exam.
+    <section className="py-10">
+      <p className="text-center text-[11.5px] font-bold" style={{ color: "var(--text-muted)", letterSpacing: "0.16em" }}>
+        FREQUENTLY ASKED QUESTIONS
       </p>
-      <button
-        onClick={onMatch}
-        className="mt-6 inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-[15.5px] font-black transition-transform hover:scale-[1.03]"
-        style={{ background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.6)", minHeight: 50 }}
-      >
-        Match my exam ⚡
-      </button>
+      <div className="mx-auto mt-5 max-w-[640px] space-y-4">
+        {FAQS.map((f) => (
+          <div key={f.q} className="rounded-xl px-4 py-3.5" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.09)" }}>
+            <p className="text-[14.5px] font-black" style={{ color: "var(--brand-cream)" }}>{f.q}</p>
+            <p className="mt-1.5 text-[13.5px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.72 }}>{f.a}</p>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
@@ -731,8 +757,8 @@ const examStats = (tab: ExamTab): string => {
 // REFINEMENT now: the player plays on the Starter Map immediately, and this chip offers to tune
 // it. Everything here is skippable, and skipping costs the student nothing but tailoring.
 
-/** The three rungs of the match, in order. `syllabus` is only ever reached by choosing it. */
-type MatchStep = "school" | "professor" | "syllabus";
+// `type MatchStep` lived here to drive MatchSheet's step machine. MatchSheet is gone and the rungs
+// are plain booleans on MatchPanel now (profDone / materialsDone), so the type went with it.
 
 /** THE MATCH PANEL — Pass 4 moves the professor step onto CENTRE STAGE.
  *
@@ -742,17 +768,23 @@ type MatchStep = "school" | "professor" | "syllabus";
  *
  *  `onReset` clears school AND professor together. A half-reset — new school, professor left
  *  over from the old one — would silently attach a student to another campus's faculty. */
-function MatchPanel({ school, professor, notListed, profDone, schools, onPick, onNotListed, onPickProfessor, onProfNotListed, onReset }: {
+function MatchPanel({ school, professor, notListed, profDone, materialsDone, coveragePct, schools, onPick, onNotListed, onPickProfessor, onProfNotListed, onMaterials, onSkipMaterials, onReset }: {
   school: School | null;
   professor: ProfessorLite | null;
   notListed: boolean;
   /** true once the professor rung is answered — picked OR declared unlisted. */
   profDone: boolean;
+  /** true once the materials gate has been answered either way. */
+  materialsDone: boolean;
+  /** Real resolver number for the active exam, or null. Never invented. */
+  coveragePct: number | null;
   schools: School[];
   onPick: (s: School) => void;
   onNotListed: () => void;
   onPickProfessor: (p: ProfessorLite) => void;
   onProfNotListed: () => void;
+  onMaterials: () => void;
+  onSkipMaterials: () => void;
   onReset: () => void;
 }) {
   const matched = !!school || notListed;
@@ -787,7 +819,43 @@ function MatchPanel({ school, professor, notListed, profDone, schools, onPick, o
     );
   }
 
-  // STATE 3 — confirmed. The bar states what is TRUE and offers one way back.
+  // STATE 3 — the materials gate. Was a portalled modal in Pass 4, which rendered detached at the
+  // top-left of the viewport; it is a centred panel state now, same as the two rungs before it.
+  if (!materialsDone) {
+    return (
+      <div className="grid h-full w-full place-items-center px-5 py-8" style={{ background: "var(--brand-navy)" }}>
+        <div className="flex w-full max-w-sm flex-col items-center gap-3 text-center">
+          {/* ONE header, carrying the coverage stat. The separate "Get your exam gameplan" title
+              is gone — with the modal removed there is no second surface to title. The stat only
+              renders when the resolver returned a real number; otherwise the honest general line. */}
+          <p className="text-[16px] font-black leading-snug" style={{ color: "var(--brand-cream)" }}>
+            {coveragePct != null && professor
+              ? <>This already covers <span style={{ color: "var(--accent)" }}>~{coveragePct}%</span> of Prof. {professor.last || professor.name}&apos;s Exam 1.</>
+              : coveragePct != null
+                ? <>This already covers <span style={{ color: "var(--accent)" }}>~{coveragePct}%</span> of most Exam 1s.</>
+                : <>This already covers most Exam 1s.</>}
+          </p>
+          <p className="text-[13.5px] leading-snug" style={{ color: "var(--text-muted)" }}>
+            Send your syllabus, study guides — whatever you&apos;ve got — and I&apos;ll match my videos to
+            your course. The more you send, the better.
+          </p>
+          <button
+            type="button"
+            onClick={onMaterials}
+            className="mt-1 w-full rounded-xl text-[15px] font-black"
+            style={{ minHeight: 48, background: "var(--accent)", color: "#0B1220" }}
+          >
+            Upload materials
+          </button>
+          <button type="button" onClick={onSkipMaterials} className="text-[13px]" style={{ minHeight: 40, color: "var(--text-muted)" }}>
+            Not now
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // STATE 4 — confirmed. The bar states what is TRUE and offers one way back.
   return (
     <div className="flex items-center gap-2 border-b px-3 py-2" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.18)" }}>
       <span className="shrink-0 text-[12px]" style={{ color: "#3BF5A0" }}>✓</span>
@@ -859,200 +927,10 @@ function ProfessorStage({ school, onPick, onNotListed, onChangeSchool }: {
     </div>
   );
 }
-
-/** The match sheet. ONE PickerSheet whose contents swap between steps, rather than a sheet per
- *  step: remounting would re-run the scroll lock and the open animation on every step, which
- *  reads as three separate interruptions instead of one flow.
- *
- *  Steps 1 and 2 both keep a search row, so the focused input survives the swap; step 3 has no
- *  list, so it renders compact and sized to its content. */
-function MatchSheet({ anchor, school, schools, professor, coveragePct, examLabel, professorName, initialStep, onPickSchool, onPickProfessor, onNotListed, onSyllabus, onReset, onClose }: {
-  anchor: RefObject<HTMLElement | null>;
-  school: School | null;
-  schools: School[];
-  professor: ProfessorLite | null;
-  /** Real resolver number for the ACTIVE exam, or null. Never invented. */
-  coveragePct: number | null;
-  examLabel: string;
-  professorName: string | null;
-  /** Where to open. The centre-stage flow answers the school and professor rungs itself, so it
-   *  opens the sheet straight on the materials step rather than re-asking. */
-  initialStep?: MatchStep;
-  onPickSchool: (s: School) => void;
-  onPickProfessor: (p: ProfessorLite | null) => void;
-  onNotListed: () => void;
-  /** Clears school + professor and closes. Wired to the sheet's Change-school row. */
-  onReset: () => void;
-  onSyllabus: (framing?: string) => void;
-  onClose: () => void;
-}) {
-  // Re-entering with a school already picked starts at the professor rung — the student should
-  // never have to re-answer a question they have already answered to reach the next one.
-  const [step, setStep] = useState<MatchStep>(initialStep ?? (school ? "professor" : "school"));
-  const [q, setQ] = useState("");
-  const [profName, setProfName] = useState("");
-  const [notListedProf, setNotListedProf] = useState(false);
-  const campusId = school?.campusId ?? null;
-
-  const profQ = useQuery({
-    queryKey: ["landing-profs", campusId],
-    queryFn: () => searchOrderProfessors({ data: { campusId: campusId! } }),
-    enabled: !!campusId, networkMode: "always", staleTime: 300_000,
-  });
-  const roster = profQ.data ?? [];
-  const noRoster = !!campusId && !profQ.isLoading && roster.length === 0;
-
-  const needle = q.trim().toLowerCase();
-  const schoolResults = schools.filter((s) =>
-    s.name.toLowerCase().includes(needle) || s.id.includes(needle) || (!!s.codeVerified && !!s.code && s.code.toLowerCase().includes(needle)));
-  const profResults = useMemo(() => {
-    const sorted = roster.slice().sort((a, b) => (a.last || a.name).localeCompare(b.last || b.name) || (a.first || "").localeCompare(b.first || ""));
-    if (!needle) return sorted;
-    return sorted.filter((p) => {
-      const first = (p.first || "").toLowerCase(), last = (p.last || "").toLowerCase(), full = p.name.toLowerCase();
-      return full.includes(needle) || `${last}, ${first}`.includes(needle) || `${last} ${first}`.includes(needle);
-    });
-  }, [roster, needle]);
-
-  const toProfessor = () => { setQ(""); setStep("professor"); };
-  const toSyllabus = () => { setQ(""); setStep("syllabus"); };
-
-  const pickSchool = (s: School) => { onPickSchool(s); toProfessor(); };
-  const pickProfessor = (p: ProfessorLite) => { onPickProfessor(p); toSyllabus(); };
-
-  // The unlisted-professor name is demand data whether or not the student goes on to send a
-  // syllabus, so it is logged before the next step either way (best-effort, never blocking).
-  const submitUnlistedProf = async () => {
-    const t = profName.trim();
-    if (t && school) { try { await logSchoolDemand({ data: { text: `prof not listed · ${school.name}: ${t}` } }); } catch { /* best-effort */ } }
-    setNotListedProf(false);
-    toSyllabus();
-  };
-
-  // ---- STEP 3: the optional syllabus rung. Compact — a short form, not a list.
-  if (step === "syllabus") {
-    return (
-      <PickerSheet anchor={anchor} onClose={onClose} label="Get your exam gameplan" search={null} compact>
-        <div className="px-4 py-4 text-center">
-          <p className="text-[15px] font-black" style={{ color: "var(--brand-cream)" }}>Get your exam gameplan</p>
-          <p className="mx-auto mt-1.5 max-w-[300px] text-[13px] leading-snug" style={{ color: "var(--text-muted)" }}>
-            Send your syllabus, study guides, old exams — whatever you&apos;ve got — and I&apos;ll match
-            my videos to your course and send you an exact gameplan. The more you send, the better
-            the plan.
-          </p>
-          {/* THE COVERAGE LINE, moved here from the deleted CourseMasthead. This is the right
-              home for it: on the old top bar it was a passive statistic, but on the last rung of
-              the match it is the REASON to send a syllabus — it names the gap the syllabus
-              closes. Renders only when the resolver returned a real number for this exam; a null
-              coverage shows nothing rather than a zero or a guess. */}
-          {coveragePct != null && (
-            <p className="mx-auto mt-3 max-w-[300px] text-[13px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.9 }}>
-              This already covers about <b style={{ color: "var(--accent)" }}>{coveragePct}%</b> of
-              {professorName ? ` Prof. ${professorName}'s ` : " your "}
-              {examLabel}.
-            </p>
-          )}
-          <button
-            type="button"
-            onClick={() => { onClose(); onSyllabus(); }}
-            className="mt-4 w-full rounded-xl text-[15px] font-black"
-            style={{ minHeight: 48, background: "var(--accent)", color: "#0B1220" }}
-          >
-            Upload course materials
-          </button>
-          <button type="button" onClick={onClose} className="mt-2 w-full text-[13.5px]" style={{ minHeight: 44, color: "var(--text-muted)" }}>
-            Not now
-          </button>
-        </div>
-      </PickerSheet>
-    );
-  }
-
-  // ---- STEP 2b: the professor isn't listed. Same compact shape as step 3.
-  if (step === "professor" && (notListedProf || noRoster)) {
-    return (
-      <PickerSheet anchor={anchor} onClose={onClose} label="Professor not listed" search={null} compact>
-        <div className="p-4">
-          <input
-            autoFocus
-            value={profName}
-            onChange={(e) => setProfName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") void submitUnlistedProf(); }}
-            placeholder="Professor's last name"
-            autoCorrect="off" autoCapitalize="words" spellCheck={false}
-            className="w-full rounded-lg px-3 outline-none"
-            // 16px explicitly: below it, iOS zooms the page on focus and never zooms back.
-            style={{ fontSize: 16, minHeight: 48, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "#F5EFE6" }}
-          />
-          <div className="mt-3 flex items-center justify-end gap-3">
-            <button type="button" onClick={toSyllabus} style={{ minHeight: 44, padding: "0 12px", fontSize: 14, color: "rgba(245,239,230,0.55)" }}>Skip</button>
-            <button type="button" onClick={() => void submitUnlistedProf()} className="rounded-lg font-black" style={{ minHeight: 44, padding: "0 18px", fontSize: 15, background: "var(--accent)", color: "#0B1220" }}>Continue</button>
-          </div>
-        </div>
-      </PickerSheet>
-    );
-  }
-
-  // ---- STEP 2: pick the professor.
-  if (step === "professor") {
-    return (
-      <PickerSheet
-        anchor={anchor}
-        onClose={onClose}
-        label="Pick your professor"
-        search={{ value: q, onChange: setQ, placeholder: `Search ${school?.name ?? "your school"} professors` }}
-        footer={
-          <>
-            <button type="button" className="sa-row sa-row--plain" onClick={() => setNotListedProf(true)}>
-              <span className="sa-row-name" style={{ color: "var(--accent)", fontSize: 15 }}>My professor isn&apos;t listed →</span>
-            </button>
-            {/* FULL reset, not a step back: clears school AND professor and returns the panel to
-                "Pick your school to start". A new school with a stale professor attached would
-                silently mismatch a student to another campus's faculty. */}
-            <button type="button" className="sa-row sa-row--plain" onClick={onReset}>
-              <span className="sa-row-name" style={{ color: "var(--text-muted)", fontSize: 14 }}>&larr; Change school</span>
-            </button>
-            <button type="button" className="sa-row sa-row--plain" onClick={toSyllabus}>
-              <span className="sa-row-name" style={{ color: "var(--text-muted)", fontSize: 14 }}>Skip this</span>
-            </button>
-          </>
-        }
-      >
-        {profQ.isLoading && <p className="sa-picker-empty">Loading…</p>}
-        {profResults.map((p) => (
-          <button key={p.id} type="button" className="sa-row sa-row--plain" onClick={() => pickProfessor(p)}>
-            <span className="sa-row-name">{profDisplay(p)}</span>
-          </button>
-        ))}
-        {!profQ.isLoading && profResults.length === 0 && <p className="sa-picker-empty">No matches.</p>}
-      </PickerSheet>
-    );
-  }
-
-  // ---- STEP 1: pick the school.
-  return (
-    <PickerSheet
-      anchor={anchor}
-      onClose={onClose}
-      label="Pick your school"
-      search={{ value: q, onChange: setQ, placeholder: `Search ${schools.length} SEC schools…` }}
-      footer={
-        <button type="button" className="sa-row sa-row--plain" onClick={() => { onNotListed(); toSyllabus(); }}>
-          <span className="sa-row-name" style={{ color: "var(--accent)", fontSize: 15 }}>My school isn&apos;t listed →</span>
-        </button>
-      }
-    >
-      {schoolResults.length === 0 && <p className="sa-picker-empty">No SEC school by that name.</p>}
-      {schoolResults.map((s) => { const c = boltFor(s.id); return (
-        <button key={s.id} type="button" className="sa-row" onClick={() => pickSchool(s)}>
-          <span className="sa-row-bolt" aria-hidden><Bolt c1={c.c1} c2={c.c2} /></span>
-          <span className="sa-row-name">{s.name}</span>
-          <span className="sa-row-code">{s.codeVerified && s.code ? s.code : ""}</span>
-        </button>
-      ); })}
-    </PickerSheet>
-  );
-}
+// MatchSheet DELETED in Pass 5. It portalled to document.body, so the materials step rendered as
+// a detached panel at the top-left of the viewport instead of inside the player — and opening it
+// on a professor pick is what made school/professor selection feel broken. Every step of the flow
+// now lives in MatchPanel, inside the right panel, where the student is already looking.
 
 
 function ExamPlayer({ exams, school, onPick, focusSignal, schools, onSyllabus, professor, onPickProfessor, notListed, onNotListed, onReset, theater, onTheaterDone, onNotify }: { exams: ExamTab[]; school: School | null; onPick: (s: School) => void; focusSignal: number; schools: School[]; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; notListed: boolean; onNotListed: () => void; onReset: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void; onNotify: (topic: string) => void }) {
@@ -1061,12 +939,14 @@ function ExamPlayer({ exams, school, onPick, focusSignal, schools, onSyllabus, p
   const [openTopics, setOpenTopics] = useState<Set<string>>(() => new Set());
   const [drawerOpen, setDrawerOpen] = useState(false);
   // The match sheet. It is the ONLY place school/professor are chosen now — there is no gate.
-  const [matchOpen, setMatchOpen] = useState(false);
+  // The materials gate is a STATE of the panel now, not a modal. It shows once the professor
+  // rung is answered and clears when the student acts on it either way.
+  const [materialsDone, setMaterialsDone] = useState(false);
   // The professor rung is "answered" once a professor is picked OR declared unlisted. Without
   // this the stage would sit on the professor step forever for anyone who has no listed prof.
   const [profDone, setProfDone] = useState(false);
   useEffect(() => { if (professor) setProfDone(true); }, [professor]);
-  useEffect(() => { setProfDone(false); }, [school?.id]);
+  useEffect(() => { setProfDone(false); setMaterialsDone(false); }, [school?.id]);
   const chipRef = useRef<HTMLButtonElement>(null);
   // WARM THE ROSTER on the SAME query key the match sheet reads, the moment a school exists.
   // Without this the sheet step 2 opens empty and fills a second later - the prefetch used to
@@ -1162,11 +1042,11 @@ function ExamPlayer({ exams, school, onPick, focusSignal, schools, onSyllabus, p
                 time, so this asks a question without hiding the catalogue behind it. */}
             {!school && !notListed ? (
               <div className="relative w-full" style={{ minHeight: 260 }}>
-                <MatchPanel school={school} professor={professor} notListed={notListed} profDone={profDone} schools={schools} onPick={onPick} onNotListed={onNotListed} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); setMatchOpen(true); }} onProfNotListed={() => { setProfDone(true); setMatchOpen(true); }} onReset={onReset} />
+                <MatchPanel school={school} professor={professor} notListed={notListed} profDone={profDone} materialsDone={materialsDone} coveragePct={active.coveragePct} schools={schools} onPick={onPick} onNotListed={onNotListed} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); }} onProfNotListed={() => setProfDone(true)} onMaterials={() => { setMaterialsDone(true); onSyllabus(); }} onSkipMaterials={() => setMaterialsDone(true)} onReset={onReset} />
               </div>
             ) : (
               <>
-                <MatchPanel school={school} professor={professor} notListed={notListed} profDone={profDone} schools={schools} onPick={onPick} onNotListed={onNotListed} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); setMatchOpen(true); }} onProfNotListed={() => { setProfDone(true); setMatchOpen(true); }} onReset={onReset} />
+                <MatchPanel school={school} professor={professor} notListed={notListed} profDone={profDone} materialsDone={materialsDone} coveragePct={active.coveragePct} schools={schools} onPick={onPick} onNotListed={onNotListed} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); }} onProfNotListed={() => setProfDone(true)} onMaterials={() => { setMaterialsDone(true); onSyllabus(); }} onSkipMaterials={() => setMaterialsDone(true)} onReset={onReset} />
                 <div className="relative w-full" style={{ aspectRatio: "16 / 9", background: "#000" }}>
                   {curSet?.playbackId ? (
                     <HeroVideo key={curSet.playbackId} playbackId={curSet.playbackId} onComplete={() => markComplete(curSet!.id)} />
@@ -1190,25 +1070,6 @@ function ExamPlayer({ exams, school, onPick, focusSignal, schools, onSyllabus, p
 
         {/* school-select takeover - SCOPED to the player frame (absolute, clipped by the card) */}
         {theater && <Theater school={theater.school} mode={theater.mode} onDone={onTheaterDone} />}
-
-        {matchOpen && (
-          <MatchSheet
-            anchor={chipRef}
-            school={school}
-            schools={schools}
-            professor={professor}
-            onPickSchool={onPick}
-            onPickProfessor={onPickProfessor}
-            onNotListed={onNotListed}
-            onSyllabus={onSyllabus}
-            coveragePct={active.coveragePct}
-            examLabel={active.label}
-            professorName={professor ? (professor.last || professor.name) : null}
-            onReset={onReset}
-            initialStep="syllabus"
-            onClose={() => setMatchOpen(false)}
-          />
-        )}
       </div>
     </section>
   );
@@ -1230,7 +1091,7 @@ export const PAID_EXAM_PRICE = 50;
  *  so it reports progress instead. Lee changes this line as filming moves — it is one string in
  *  one place for exactly that reason, and it is the only copy on the page that is expected to
  *  change weekly. */
-export const EXAM1_STATUS_LABEL = "Filming this week";
+export const EXAM1_STATUS_LABEL = "Filming this week!";
 
 /** THE EXAM TABS (Pass 2) — the older four-tab row, restored.
  *
@@ -1318,7 +1179,14 @@ function ExamOutline({ tab, school, stats, isPaid, curSetId, curTopicKey, openTo
   // instead of flashing a self-destructing tooltip.
   const [notifyPulse, setNotifyPulse] = useState(0);
   return (
-    <div className="max-h-[300px] overflow-y-auto p-3 sm:max-h-[380px]">
+    /* NO INTERNAL SCROLLBAR ON DESKTOP (Pass 5). This used to be a hard `sm:max-h-[380px]` cap, so
+       once the outline grew past ~6 rows — or the notify box was added under the stats line — the
+       sidebar started scrolling INSIDE the player: two nested scroll surfaces on one screen, and
+       the notify box (the whole point of the panel) fell below the fold of a box most students
+       never realise is scrollable. At sm and up the column is now its natural height and the PAGE
+       scrolls. Below sm the outline is a drop-down drawer stacked above the video, where capping
+       it is correct — an unbounded drawer would push the video off-screen. */
+    <div className="max-h-[60vh] overflow-y-auto p-3 sm:max-h-none sm:overflow-visible">
       {/* Sidebar header, restored in Pass 2. It was cut on the theory that the rows below already
           ARE the questions — true, but the header is also the only thing naming what the left
           column IS once the right panel stops being a video. On a locked tab it carries the
@@ -1368,13 +1236,16 @@ function PaidNotifyRow({ exam, school, pulse }: { exam: ExamTab; school: School 
     } catch { setState("error"); }
   };
   return (
-    <div ref={boxRef} className="mt-2 rounded-xl px-3 py-2.5" style={{ border: `1px solid ${flash ? "var(--accent)" : "rgba(252,163,17,0.35)"}`, background: flash ? "rgba(252,163,17,0.14)" : "rgba(252,163,17,0.06)", transition: "background 300ms, border-color 300ms" }}>
+    /* Compacted in Pass 5 (px-3 py-2.5 → px-2.5 py-2, 11.5px label → 11px, mt-1.5 → mt-1). It is the
+       last thing in a column that no longer scrolls, so every pixel it spends is a pixel the sidebar
+       grows past the video beside it. */
+    <div ref={boxRef} className="mt-2 rounded-xl px-2.5 py-2" style={{ border: `1px solid ${flash ? "var(--accent)" : "rgba(252,163,17,0.35)"}`, background: flash ? "rgba(252,163,17,0.14)" : "rgba(252,163,17,0.06)", transition: "background 300ms, border-color 300ms" }}>
       {state === "done" ? (
-        <p className="text-[11.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>✓ You're on the list — I'll email you the day {exam.label} opens.</p>
+        <p className="text-[11px] font-semibold" style={{ color: "var(--brand-cream)" }}>✓ You're on the list — I'll email you the day {exam.label} opens.</p>
       ) : (
         <>
-          <p className="text-[11.5px] font-bold" style={{ color: "var(--brand-cream)" }}>Get notified once {exam.label} is ready</p>
-          <div className="mt-1.5 flex gap-1.5">
+          <p className="text-[11px] font-bold" style={{ color: "var(--brand-cream)" }}>Get notified once {exam.label} is ready</p>
+          <div className="mt-1 flex gap-1.5">
             <input value={email} onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("open"); }} onKeyDown={(e) => { if (e.key === "Enter") void submit(); }} type="email" placeholder="you@school.edu" className="min-w-0 flex-1 rounded-lg px-2.5 py-1.5 text-[12px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }} />
             <button onClick={() => void submit()} disabled={state === "busy"} className="shrink-0 rounded-lg px-3 py-1.5 text-[11.5px] font-black disabled:opacity-50" style={{ background: "var(--accent)", color: "#0B1220" }}>{state === "busy" ? "…" : "Notify me"}</button>
           </div>
