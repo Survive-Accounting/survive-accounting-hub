@@ -1030,6 +1030,29 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const removeStageElement = (nid: string) => { const c = removeNodesCmd(rfl, [nid], "remove element"); if (c) bus.dispatch(c); };
 
 
+  /** Detach a clip from a frame. The FILE and the take record both survive —
+   *  this only breaks the link, and one Ctrl+Z puts it back. */
+  const detachClip = (frameId: string, idx: number) => {
+    const d = rf.getNode(frameId)?.data as unknown as CeqCard | undefined;
+    const clips = cardClips(d);
+    const gone = clips[idx];
+    if (!gone) return;
+    patchQ(frameId, { takes: clips.filter((_, i) => i !== idx) });
+    setNote(`Detached "${gone.name ?? "clip"}". The file and the take are untouched — Ctrl+Z re-attaches.`);
+  };
+
+  /** Attach the most recent KEPT take to a frame — the "replace" half. Detach
+   *  then attach-latest is how a bad take gets swapped without leaving the rail. */
+  const attachLatestKept = (frameId: string) => {
+    const kept = currentTakes().filter((t) => t.status === "kept" && t.upload?.url && t.upload?.path);
+    const t = kept[0]; // currentTakes() is newest-first
+    if (!t) { setNote("No kept take has been uploaded yet — press F10 on one first."); return; }
+    const d = rf.getNode(frameId)?.data as unknown as CeqCard | undefined;
+    const clip: TakeRef = { url: t.upload!.url as string, path: t.upload!.path as string, name: t.fileName, ...(t.durationS ? { duration: t.durationS } : {}), ...(t.slateEndMs != null ? { slateEndMs: t.slateEndMs } : {}), ...(t.orientation ? { orientation: t.orientation } : {}) };
+    patchQ(frameId, { takes: [...cardClips(d), clip] });
+    setNote(`Attached "${t.fileName}" to this frame.`);
+  };
+
   /** MERGED RAIL (F2) — the per-CEQ attached clips, the other half of "what video
    *  exists for this CEQ?". It renders INSIDE the takes inbox so the two lists that
    *  answered the same question become one. Read-only here by design: reordering and
@@ -1072,15 +1095,25 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
               </button>
               {r.id === qId && r.clips.map((t, ci) => (
                 <div key={t.path} className="ml-2 mt-0.5">
-                  <button className="flex w-full items-center gap-1 text-left text-[9px]" style={{ color: NEON.muted }} onClick={() => setTakePreview((k) => (k === `${r.id}:${ci}` ? null : `${r.id}:${ci}`))} title="Preview this clip">
-                    <Play className="h-2.5 w-2.5 shrink-0" />
-                    <span className="min-w-0 flex-1 truncate">{ci + 1}. {t.name || "clip"}</span>
-                    <span className="shrink-0 tabular-nums">{fmtDur(t.duration)}</span>
-                    {t.slateEndMs != null && <span className="shrink-0" title="Filmed with the slate — this clip has a deterministic head trim">⏱</span>}
-                  </button>
+                  <div className="flex w-full items-center gap-1 text-[9px]" style={{ color: NEON.muted }}>
+                    <button className="flex min-w-0 flex-1 items-center gap-1 text-left" onClick={() => setTakePreview((k) => (k === `${r.id}:${ci}` ? null : `${r.id}:${ci}`))} title="Preview this clip">
+                      <Play className="h-2.5 w-2.5 shrink-0" />
+                      <span className="min-w-0 flex-1 truncate">{ci + 1}. {t.name || "clip"}</span>
+                      <span className="shrink-0 tabular-nums">{fmtDur(t.duration)}</span>
+                      {t.slateEndMs != null && <span className="shrink-0" title="Filmed with the slate — this clip has a deterministic head trim">⏱</span>}
+                    </button>
+                    {/* DETACH — breaks the link only. The file stays on disk and the
+                        take stays in the rail, so a mis-click costs one Ctrl+Z. */}
+                    <button className="shrink-0" style={{ color: "#FF8B9E" }} title="Detach from this frame. The file and the take survive — Ctrl+Z re-attaches." onClick={() => detachClip(r.id, ci)}><X className="h-2.5 w-2.5" /></button>
+                  </div>
                   {takePreview === `${r.id}:${ci}` && <video src={t.url} controls playsInline preload="none" className="mt-0.5 w-full rounded" style={{ background: "#000", aspectRatio: "16 / 9", maxHeight: 150 }} />}
                 </div>
               ))}
+              {/* ATTACH LATEST — the other half of "replace": detach the bad one,
+                  attach the take you just kept, without leaving the rail. */}
+              {r.id === qId && (
+                <button className="ml-2 mt-0.5 text-[8.5px] font-bold uppercase" style={{ color: NEON.cyan }} title="Attach the most recently KEPT take to this frame" onClick={() => attachLatestKept(r.id)}>+ attach latest kept</button>
+              )}
             </div>
           ))}
         </div>
@@ -3040,8 +3073,8 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                     // AUTO-ATTACH (F1): the frames that were ON SCREEN while this
                     // take rolled win; the armed target is the fallback. Several
                     // frames ⇒ run coverage across them (coversFrameIds).
-                    const ids = attachTargets(t, questions.map((q) => q.id));
-                    if (!ids.length) throw new Error("nothing to attach to — arm a target or film with a frame open");
+                    const ids = attachTargets(t, questions.map((q) => q.id), qId && qId !== LAYOUT_Q0 ? qId : null);
+                    if (!ids.length) throw new Error("nothing to attach to — open a frame in the spine first (a kept take attaches to whatever frame is selected)");
                     const staged = await stageTake(file);
                     const first = ids[0];
                     const d0 = rf.getNode(first)?.data as unknown as CeqCard | undefined;

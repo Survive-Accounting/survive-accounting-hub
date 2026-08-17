@@ -74,8 +74,8 @@ describe("the loop is wired end to end (F1 source pins)", () => {
     expect(previewer).toContain("function FilmSlate()");
     expect(previewer).toContain("<FilmSlate />");
   });
-  test("keep attaches by coverage, not by the armed target alone", () => {
-    expect(studio).toContain("const ids = attachTargets(t, questions.map((q) => q.id));");
+  test("keep attaches by coverage, then armed, then the OPEN frame (08-17)", () => {
+    expect(studio).toContain("const ids = attachTargets(t, questions.map((q) => q.id), qId && qId !== LAYOUT_Q0 ? qId : null);");
   });
   test("a run of frames attaches as run coverage; the slate trim rides along", () => {
     expect(studio).toContain("...(ids.length > 1 ? { coversFrameIds: ids } : {})");
@@ -102,5 +102,52 @@ describe("the loop is wired end to end (F1 source pins)", () => {
     expect(studio).toContain("if (!coveredRef.current.includes(qId)) coveredRef.current = [...coveredRef.current, qId];");
     expect(studio).toContain("liveFrameIds={() => Array.from(new Set([...coveredRef.current,");
     expect(studio).toContain("const onRecordStart = useCallback(() => { coveredRef.current = []; }, []);");
+  });
+});
+
+describe("a kept take always has somewhere to go (Lee, 08-17)", () => {
+  const spine = ["q1", "q2", "q3"];
+  test("THE BUG: no coverage and nothing armed used to attach to NOTHING", () => {
+    // That is how a take banked as "KEPT 1" beside "0/11 frames filmed".
+    expect(attachTargets(take(), spine)).toEqual([]);
+  });
+  test("the OPEN FRAME is now the fallback — the row highlighted in Attached Clips", () => {
+    expect(attachTargets(take(), spine, "q2")).toEqual(["q2"]);
+  });
+  test("coverage still wins — a run blast spans the frames it actually covered", () => {
+    const t = take({ coverage: { startedAt: "", stoppedAt: "", frameIds: ["q1", "q2"] } });
+    expect(attachTargets(t, spine, "q3")).toEqual(["q1", "q2"]);
+  });
+  test("an armed target still beats the open frame — it was an explicit instruction", () => {
+    const t = take({ target: { kind: "ceq", ids: ["q1"] } });
+    expect(attachTargets(t, spine, "q3")).toEqual(["q1"]);
+  });
+  test("an open frame that is not in this set is ignored, not attached to a ghost", () => {
+    expect(attachTargets(take(), spine, "from-another-set")).toEqual([]);
+  });
+  test("the layout pseudo-frame is never an attach target", () => {
+    // CeqStudio passes null for LAYOUT_Q0, so this can only ever be a real frame.
+    expect(attachTargets(take(), spine, null)).toEqual([]);
+  });
+});
+
+describe("detach and replace (Lee, 08-17)", () => {
+  test("detach breaks the LINK only — the file and the take record survive", () => {
+    expect(studio).toContain("patchQ(frameId, { takes: clips.filter((_, i) => i !== idx) });");
+    expect(studio).toContain("The file and the take are untouched — Ctrl+Z re-attaches.");
+    // it must never call the folder or the take store's delete paths
+    const fn = studio.slice(studio.indexOf("const detachClip ="), studio.indexOf("const attachLatestKept ="));
+    expect(fn).not.toContain("moveToRecycle");
+    expect(fn).not.toContain("dropTakeRecord");
+  });
+  test("attach-latest takes the most recent KEPT + uploaded take, newest first", () => {
+    expect(studio).toContain('const kept = currentTakes().filter((t) => t.status === "kept" && t.upload?.url && t.upload?.path);');
+    expect(studio).toContain("const t = kept[0]; // currentTakes() is newest-first");
+  });
+  test("it refuses loudly rather than attaching an un-uploaded take", () => {
+    expect(studio).toContain('No kept take has been uploaded yet — press F10 on one first.');
+  });
+  test("the attached clip carries its slate trim and orientation across", () => {
+    expect(studio).toContain("...(t.slateEndMs != null ? { slateEndMs: t.slateEndMs } : {}), ...(t.orientation ? { orientation: t.orientation } : {})");
   });
 });

@@ -81,10 +81,23 @@ const hash = (s: string): number => { let h = 0; for (let i = 0; i < s.length; i
  *  rolled, in SPINE ORDER; falls back to the armed target when there's no
  *  coverage. One frame ⇒ a plain attach; several ⇒ run coverage across them.
  *  Pure. */
-export function attachTargets(t: TakeRecord, spineOrder: string[]): string[] {
+export function attachTargets(t: TakeRecord, spineOrder: string[], openFrameId?: string | null): string[] {
   const inSpine = new Set(spineOrder);
   const cov = (t.coverage?.frameIds ?? []).filter((id) => inSpine.has(id));
-  const ids = new Set(cov.length ? cov : (t.target?.ids ?? []).filter((id) => inSpine.has(id)));
+  const armed = (t.target?.ids ?? []).filter((id) => inSpine.has(id));
+  // PRECEDENCE, most specific first:
+  //   1. COVERAGE — the frames actually on screen while OBS rolled. Right for a
+  //      run blast, where one take spans several frames.
+  //   2. ARMED — an explicit instruction Lee gave before rolling.
+  //   3. THE OPEN FRAME — the row highlighted in Attached Clips.
+  //
+  // (3) is the fix for the case that bit Lee (08-17): keeping a take that was
+  // not filmed during a live roll left coverage empty and nothing armed, so the
+  // attach resolved to NOTHING and the take banked against no frame at all —
+  // "KEPT 1" beside "0/11 frames filmed". With a frame open there is now always
+  // somewhere for a kept take to go.
+  const open = openFrameId && inSpine.has(openFrameId) ? [openFrameId] : [];
+  const ids = new Set(cov.length ? cov : armed.length ? armed : open);
   return spineOrder.filter((id) => ids.has(id)); // spine order, deduped
 }
 
