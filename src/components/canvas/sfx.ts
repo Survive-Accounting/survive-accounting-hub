@@ -14,7 +14,9 @@ export type SfxEvent = "keypad" | "swoosh" | "cramLaunch" | "confirm" | "chachin
 export interface SfxConfig {
   /** Global mute — silences every event. */
   muted: boolean;
-  /** Per-event gain, 0..1. */
+  /** Per-event gain. NOT capped at 1 — see MAX_GAIN. A GainNode happily
+   *  amplifies, and the 808 needs it: the sample is quiet, and clamping to 1
+   *  meant "loudest possible" was still barely audible in a recording. */
   volume: Record<SfxEvent, number>;
   /** Filename under /sfx/ for each event — swap to re-skin. */
   file: Record<SfxEvent, string>;
@@ -32,9 +34,15 @@ export const SFX_FILES: Record<SfxEvent, string> = {
   vinylScratch: "vinyl-scratch.mp3",
 };
 
+/** Ceiling on a single event's gain. 4x (~+12 dB) is enough to lift a quiet
+ *  sample to a usable level without turning clipping into the default. */
+export const MAX_GAIN = 4;
+
 export const SFX_DEFAULT: SfxConfig = {
   muted: false,
-  volume: { keypad: 0.55, swoosh: 0.5, cramLaunch: 0.85, confirm: 0.6, chaching: 0.8, vinylScratch: 0.7 },
+  // cramLaunch is the 808 DROP on a boss reveal. It defaults LOUD (Lee, 08-17):
+  // it was inaudible in recordings at 0.85, which was also the old hard ceiling.
+  volume: { keypad: 0.55, swoosh: 0.5, cramLaunch: 2.6, confirm: 0.6, chaching: 0.8, vinylScratch: 0.7 },
   file: { ...SFX_FILES },
 };
 
@@ -97,9 +105,33 @@ async function load(file: string): Promise<AudioBuffer | null> {
   return p;
 }
 
+/** UNLOCK + WARM (Lee, 08-17). Two separate failures looked like one "the 808 is
+ *  too quiet" bug:
+ *
+ *   1. An AudioContext created without a user gesture starts SUSPENDED. Nothing
+ *      throws — every cue silently plays into a stopped context. Opening the film
+ *      or capture window is not itself a gesture, so the first keypress in there
+ *      has to resume it. Call this from a real key/click handler.
+ *   2. The first cue used to decode on demand, landing ~200ms late — after the
+ *      flash it was supposed to hit with.
+ *
+ *  Returns the context state so a caller can SAY which it was rather than guess. */
+export function unlockSfx(): "running" | "suspended" | "unavailable" {
+  const ac = audio();               // creates it, and calls resume() if suspended
+  if (!ac) return "unavailable";
+  void ac.resume();                 // idempotent; a no-op when already running
+  preloadSfx();
+  return ac.state === "running" ? "running" : "suspended";
+}
+
+/** Is the engine actually able to make a sound right now? */
+export const sfxReady = (): boolean => !!ctx && ctx.state === "running";
+
 /** Warm the decoders (call on entering film so the first cue isn't laggy). */
 export function preloadSfx(): void {
-  if (cfg.muted || reducedMotion()) return;
+  // Decode even when muted: mute is about PLAYING, and un-muting mid-take should
+  // not then cost a 200ms decode on the next cue.
+  if (reducedMotion()) return;
   for (const ev of Object.keys(cfg.file) as SfxEvent[]) void load(cfg.file[ev]);
 }
 
@@ -115,7 +147,7 @@ export function playSfx(event: SfxEvent): void {
     const src = ac.createBufferSource();
     src.buffer = buf;
     const gain = ac.createGain();
-    gain.gain.value = Math.max(0, Math.min(1, vol));
+    gain.gain.value = Math.max(0, Math.min(MAX_GAIN, vol));
     src.connect(gain).connect(ac.destination);
     src.start();
   });

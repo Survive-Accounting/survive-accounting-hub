@@ -47,6 +47,8 @@ import { CALLOUT_KINDS, CalloutBody, calloutKindForCategory, nextCalloutKind } f
 import { CAPTURE_H, CAPTURE_W, captureCssSize, captureFeasibility, isCaptureExact, physicalSize, snapCaptureSize } from "./capture-window";
 import { clearExhibitHighlights } from "./exhibit-highlights";
 import { NOTE_EYEBROW } from "./frame-copy";
+import { BOSS_REVEAL_CSS, REVEAL_MS, bossLabel, labelSize, revealZone } from "./boss-reveal";
+import { unlockSfx } from "./sfx";
 import { captureSize } from "./orientation";
 import { orientation, subscribeOrientation } from "./orientation-store";
 import { subscribeSlate, type SlateState } from "./film-slate";
@@ -134,6 +136,7 @@ const LAYOUT_CARD = { prompt: "**LAYOUT** — the question card deals here", cho
 const PV_CSS = `
 /* FILM V2 — the one-frame crossfade: pure opacity, zero movement. */
 @keyframes sa-ceq-v2-fade { from { opacity: 0; } to { opacity: 1; } }
+${BOSS_REVEAL_CSS}
 /* BOSS MOMENT (P3) — charge-up then settle: a hard energy flash relaxing to a
    sharper hi-tech border. Shadow/border only (film-lock law); no text, no sound. */
 @keyframes sa-boss-charge {
@@ -435,14 +438,18 @@ function CeqPreviewNode({ id, data }: NodeProps) {
   return (
     <div data-ceq-card="" onClickCapture={!inert ? (e) => { if (e.altKey && e.ctrlKey) { e.preventDefault(); e.stopPropagation(); prLive.toggleBoss?.(); } } : undefined} onClick={film && !inert ? (e) => { if (e.altKey || e.ctrlKey) return; const ws = (e.currentTarget.ownerDocument.defaultView ?? window).getSelection(); if (ws && !ws.isCollapsed) return; hlx.clearCeq(id); } : undefined} className={`sa-pv-node ${(d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in"}${!inert && (d as { boss?: boolean }).boss ? " sa-boss-card" : ""}`} onAnimationEnd={(ev) => { if (ev.animationName === ((d as { enterAnimName?: string }).enterAnimName ?? "sa-ceq-in")) (ev.currentTarget as HTMLElement).style.willChange = "auto"; }} onDragOver={film || !isCallout ? undefined : (e) => { if (e.dataTransfer.types.includes(MEMO_DND)) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop={film || !isCallout ? undefined : (e) => { const mid = e.dataTransfer.getData(MEMO_DND); if (mid) { e.preventDefault(); patchCallout({ memoIds: [...(d.callout?.memoIds ?? []), mid] }); } }} style={{ position: "relative", width: isCallout ? "fit-content" : (wDrag ?? (d as { cardW?: number }).cardW ?? CARD_W) * s, minWidth: isCallout ? 320 * s : undefined, maxWidth: isCallout ? CARD_W * s : undefined, borderRadius: 14 * s, background: PAPER.card, border: d.layoutBadge && !film ? `2px dashed ${NEON.yellow}` : `1px solid ${PAPER.cardEdge}`, boxShadow: "0 8px 26px -10px rgba(0,0,0,0.6)", willChange: "transform, opacity", animation: (d as { enterAnim?: string }).enterAnim ?? "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both" }}>
       {/* BOSS (P3): the boiling bolt sweeps in with the charge — no text, no sound. */}
-      {!inert && (d as { boss?: boolean }).boss && <div className="sa-boss-bolt" style={{ position: "absolute", top: -18 * s, right: 16 * s, zIndex: 22 }}><BoltBoil height={40 * s} /></div>}
+      {/* The persistent top-right boss bolt is GONE (Lee, 08-17): it collided with
+          the counter, and a bolt standing in frame is a burned-in watermark — the
+          rule is that the HTML player brands the video, never the footage. A boss
+          CEQ now reads from its card styling at rest; the bolt only appears in the
+          REVEAL, where it is performing rather than branding. */}
       {/* QUESTION 0 ribbon — unmistakably the LAYOUT stage, never content. */}
       {d.layoutBadge && !film && <span style={{ position: "absolute", top: -12, left: 12, borderRadius: 6, padding: "1px 8px", fontSize: 10, fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase", color: "#0B0F1E", background: NEON.yellow, zIndex: 21 }}>Layout</span>}
       {/* STUDENT PROGRESS — "X of Y" top-right + a slim fill bar along the top edge;
           filmed with the card. Momentum cue: "you're 3 of 22, keep going". */}
       {d.progress && (<>
         <div style={{ position: "absolute", top: 0, left: 0, height: 4 * s, width: `${Math.round((d.progress.x / d.progress.y) * 100)}%`, background: `linear-gradient(90deg, ${PAPER.green}, #3BF5A0)`, borderTopLeftRadius: 14 * s, borderBottomRightRadius: 3 * s, zIndex: 8 }} />
-        <span style={{ position: "absolute", top: 12 * s, right: 14 * s, fontSize: 15 * s, fontWeight: 800, letterSpacing: "0.02em", color: PAPER.inkMuted, zIndex: 8 }}>{d.progress.x} <span style={{ opacity: 0.6 }}>of</span> {d.progress.y}</span>
+        <span style={{ position: "absolute", top: 12 * s, right: 14 * s, fontSize: 15 * s, fontWeight: 800, letterSpacing: "0.02em", color: PAPER.inkMuted, zIndex: 8 }}><span style={{ opacity: 0.6 }}>Q </span>{d.progress.x}<span style={{ opacity: 0.6 }}>/</span>{d.progress.y}</span>
       </>)}
       {/* CALLOUT controls (P1) — small, unobtrusive, authoring-only (sa-chrome
           + card-actions ⇒ film CSS kills them even if the gate ever slips). */}
@@ -460,7 +467,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
       <div style={{ overflow: "hidden", borderRadius: 13 * s, padding: 16 * s }}>
       {/* TOPIC kicker — name only (no Ch#), small uppercase above the stem so a
           viewer landing mid-clip knows the topic. */}
-      {!isCallout && d.topic && <div style={{ display: "flex", alignItems: "center", gap: 6 * s, fontSize: 12 * s, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: PAPER.inkMuted, marginBottom: 6 * s, maxWidth: "58%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{boltCol && <span style={{ flexShrink: 0, display: "inline-block", height: 15 * s, width: Math.round(15 * s * BOLT_RATIO) }}><Bolt c1={boltCol.c1} c2={boltCol.c2} /></span>}<span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{d.topic}</span></div>}
+      {!isCallout && d.topic && <div style={{ display: "flex", alignItems: "center", gap: 6 * s, fontSize: 12 * s, fontWeight: 800, letterSpacing: "0.1em", textTransform: "uppercase", color: PAPER.inkMuted, marginBottom: 6 * s, maxWidth: "58%", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{/* no bolt here either — see the note above the boss bolt */}<span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{d.topic}</span></div>}
       {isCallout && !stemEditing && !d.callout?.hidden && (
         <div onDoubleClick={canEditStem ? (e) => { e.stopPropagation(); startStemEdit(); } : undefined} title={canEditStem ? "Double-click to edit the text" : undefined}>
           <CalloutBody
@@ -859,6 +866,28 @@ const edgeTypes = { chainBundle: ChainBundleEdge, chainArrow: ChainArrowEdge, fr
 const nodeTypes = { frameBg: FrameBgNode, ceqPreview: CeqPreviewNode, memoPreview: MemoPreviewNode, ovCeq: OverviewCeqNode, ovMemo: OvMemoNode, arrowEnd: ArrowEndNode, ...STAGE_NODE_TYPES };
 const EMPTY_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "focus" };
 
+/** BOSS REVEAL — the flash + label, drawn in the MARGIN beside the card.
+ *
+ *  It never renders over the card: `revealZone` returns the free margin, and
+ *  returns NULL when there is not enough room, in which case the flash is simply
+ *  skipped. A boss cue that covers the question is worse than no boss cue.
+ *
+ *  It self-dismisses after REVEAL_MS so Lee can keep talking over a calm card;
+ *  the lasting boss signal is the card border, not this. */
+function BossReveal({ label, zone, o }: { label: string; zone: { x: number; y: number; w: number; h: number }; o: "16:9" | "9:16" }) {
+  const size = labelSize(o, zone);
+  return (
+    <div style={{ position: "absolute", left: zone.x, top: zone.y, width: zone.w, height: zone.h, zIndex: 60, pointerEvents: "none", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: Math.round(size * 0.22) }}>
+      <span className="sa-boss-flash" style={{ display: "block", height: size * 1.9, width: Math.round(size * 1.9 * BOLT_RATIO), filter: "drop-shadow(0 0 26px rgba(252,163,17,0.95))" }}>
+        <Bolt c1="#FCA311" c2="#E0284A" />
+      </span>
+      <span className="sa-boss-label" style={{ fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: size, lineHeight: 1, letterSpacing: "0.16em", color: "#F4EFE6", textAlign: "center", textShadow: "0 0 24px rgba(252,163,17,0.8), 0 4px 18px rgba(0,0,0,0.85)", whiteSpace: "nowrap" }}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
 /** THE SLATE (F1) — the countdown, IN FRAME. The one status-ish thing allowed
  *  inside the capture window, because it isn't status: it's a slate, and its
  *  end is the take's deterministic head-trim point. Everything else (dot,
@@ -1044,7 +1073,19 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     if (!ceq || !onToggleBoss) return;
     const arming = !(cd as { boss?: boolean } | undefined)?.boss;
     onToggleBoss(ceqId);
-    if (arming) playSfx("cramLaunch");
+    if (!arming) { setReveal(null); return; }   // Ctrl+Alt+Click again exits
+    // THE DROP LANDS ON THE FLASH — same tick, no timeout between them. The
+    // context is unlocked first because a popout window's audio starts suspended
+    // and would otherwise play this into silence (see sfx.unlockSfx).
+    unlockOnce();
+    playSfx("cramLaunch");
+    const cs = resolveCardSpot(cd?.geom, templateFor(cd?.ignoreLayout, baseline), frameW, frameH);
+    const cardW = ((cd as { cardW?: number } | undefined)?.cardW ?? CARD_W) * cs.scale;
+    const cardH = CARD_H * cs.scale;
+    const zone = revealZone({ w: frameW, h: frameH }, { x: cs.x, y: cs.y, w: cardW, h: cardH }, orientation());
+    setReveal({ label: bossLabel(ceqId, deckCeqIds ?? []), zone });
+    if (revealTimer.current != null) window.clearTimeout(revealTimer.current);
+    revealTimer.current = window.setTimeout(() => setReveal(null), REVEAL_MS);
   };
   const [emph, setEmph] = useState<number | null>(null);
   const [resolved, setResolved] = useState<Set<number>>(new Set());
@@ -1163,6 +1204,20 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       holdRef.current.interval = win.setInterval(() => pushDeal(dir, true), 90);
     }, 400);
   };
+  /** THE REVEAL (Lee, 08-17). Session-only: it fires, it settles, it is gone.
+   *  `zone` is resolved at fire time from the card's actual spot, so a card that
+   *  has been dragged still gets a flash in free margin rather than over its own
+   *  text. Null zone ⇒ no room ⇒ no flash (the styling and the 808 still land). */
+  const [reveal, setReveal] = useState<{ label: string; zone: { x: number; y: number; w: number; h: number } | null } | null>(null);
+  const revealTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => { if (revealTimer.current != null) window.clearTimeout(revealTimer.current); }, []);
+  /** AUTOPLAY UNLOCK (Lee, 08-17). An AudioContext created without a user gesture
+   *  starts SUSPENDED and every cue plays into silence — nothing throws, which is
+   *  exactly why "the 808 is too quiet" was so hard to pin down. Opening the film
+   *  or capture window is not a gesture, so the FIRST key or click in there does it.
+   *  The result is kept so the UI can report which case it actually was. */
+  const sfxUnlock = useRef<string | null>(null);
+  const unlockOnce = useCallback(() => { if (!sfxUnlock.current) sfxUnlock.current = unlockSfx(); }, []);
   const bossArmed = useRef(false);
   useLayoutEffect(() => {
     setEmph(null); setResolved(new Set()); setShown(new Map()); setSpots(EMPTY_SPOTS); // BLANK on open / question change (PRE-paint — the old useEffect leaked the previous question's marks for one frame)
@@ -2005,7 +2060,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
         // ` on the recording surface: the SAME full reset as every other surface
         // (backtick sweep) — practice, spotlights, arrows, perf arrows, highlights.
         // Temporary state only; nothing saved is touched.
-        if (e.code === "Backquote" || e.key === "`") { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); setPerfArrows([]); setSelPerf(null); clearExhibitHighlights(); clearAllTextHls(); return; }
+        if (e.code === "Backquote" || e.key === "`") { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); setPerfArrows([]); setSelPerf(null); clearExhibitHighlights(); clearAllTextHls(); setReveal(null); return; }
         // 0 — every exhibit node back to normal, and NOTHING else. ` stays the
         // global wipe; this is the narrow one you can hit mid-take without
         // losing your memos. Audit in CHANGES.md: no digit was bound anywhere.
@@ -2037,6 +2092,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
         window.setTimeout(() => commitGeom(), 0);
         return;
       }
+      unlockOnce();   // first key in the film window resumes the audio context
       // TAKES TRIAGE (T1) — app-focus keys (unlike OBS's global F9): F8 trashes
       // the most recent pending take, F10 keeps it. The inbox owns the action.
       if (e.key === "F8" || e.key === "F10") { e.preventDefault(); e.stopImmediatePropagation(); triageLatest(e.key === "F8" ? "trash" : "keep"); return; }
@@ -2070,7 +2126,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       // ` = full reset (choices + memos). SHIFT+` = MEMO SWEEP: clear the memos off
       // the board but KEEP every choice's resolution, so a wrong answer stays struck
       // and the correct one stays green. Nothing re-resolves, so no sound re-fires.
-      if (e.key === "`" || e.code === "Backquote" || (e.shiftKey && e.key === "~")) { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) sweepMemos(); else { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); setPerfArrows([]); setSelPerf(null); clearExhibitHighlights(); clearAllTextHls(); } return; }
+      if (e.key === "`" || e.code === "Backquote" || (e.shiftKey && e.key === "~")) { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) sweepMemos(); else { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); setPerfArrows([]); setSelPerf(null); clearExhibitHighlights(); clearAllTextHls(); setReveal(null); } return; }
       // 0 — reset every exhibit node to normal. Narrow by design (see above).
       if (e.code === "Digit0" || e.key === "0") { e.preventDefault(); e.stopImmediatePropagation(); clearExhibitHighlights(); return; }
     };
@@ -2419,6 +2475,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                     </ReactFlowProvider>
                     {/* No in-app film watermark for now (Lee) — the brand watermark will be
                         added later in the actual HTML player, not baked into the take. */}
+                    {reveal?.zone && <BossReveal label={reveal.label} zone={reveal.zone} o={orientation()} />}
                     <FilmSlate />
                     {captureRef.current && filmWin && <CaptureBadge win={filmWin} note={captureNote} />}
                     <PerfArrowLayer arrows={perfArrows} add={addPerfArrow} sel={selPerf} setSel={setSelPerf} />

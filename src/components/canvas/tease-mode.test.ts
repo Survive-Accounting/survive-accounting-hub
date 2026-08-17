@@ -112,8 +112,14 @@ describe("what the states LOOK like on camera", () => {
 });
 
 describe("the keys", () => {
-  test("backtick still does the full global wipe, unchanged", () => {
-    expect(previewer).toContain('if (e.code === "Backquote" || e.key === "`") { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); setPerfArrows([]); setSelPerf(null); clearExhibitHighlights(); clearAllTextHls(); return; }');
+  test("backtick still does the full global wipe — and it GREW, it did not shrink", () => {
+    // 08-17: the boss reveal joined the wipe. Every clear that was there before
+    // is still there; asserting each one individually means a future edit can add
+    // to this list but never quietly drop something out of it.
+    const line = previewer.split("\n").find((l) => l.includes('if (e.code === "Backquote" || e.key === "`")')) ?? "";
+    for (const clear of ["resetPractice()", "setSpots(EMPTY_SPOTS)", "resetArrows()", "setPerfArrows([])", "setSelPerf(null)", "clearExhibitHighlights()", "clearAllTextHls()", "setReveal(null)"]) {
+      expect(line).toContain(clear);
+    }
   });
   test("0 resets every exhibit node — in BOTH keymaps (recording surface + film)", () => {
     expect((previewer.match(/if \(e\.code === "Digit0" \|\| e\.key === "0"\)/g) ?? []).length).toBe(2);

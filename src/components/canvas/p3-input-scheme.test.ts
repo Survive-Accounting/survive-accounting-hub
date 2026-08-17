@@ -45,7 +45,10 @@ describe("boss moment", () => {
   });
   test("boss is the SAVED card flag now (Lee 08-15): Ctrl+Alt+Click marks it, the 808 fires on arm", () => {
     expect(src).toContain("const toggleBossFlag = () => {");
-    expect(src).toContain('if (arming) playSfx("cramLaunch");');
+    // 08-17: the 808 now fires as part of the REVEAL, after an autoplay unlock —
+    // it still fires only on ARM (a second Ctrl+Alt+Click exits silently).
+    expect(src).toContain('if (!arming) { setReveal(null); return; }');
+    expect(src).toContain('playSfx("cramLaunch");');
     expect(src).not.toContain("const [bossOn, setBossOn]"); // the film-local state is gone
   });
   test("the charge + bolt render straight from the saved flag", () => {
