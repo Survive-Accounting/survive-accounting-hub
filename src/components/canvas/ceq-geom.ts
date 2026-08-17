@@ -31,7 +31,9 @@ const SLOT_H = 150; // nominal chip height at scale 1 — the overflow stacking 
 
 export const CARD_W = 560, CARD_H = 480;
 
-export const dealCentre = (fw: number, fh: number): { x: number; y: number } => ({ x: Math.max(0, Math.round((fw - CARD_W) / 2)), y: Math.max(0, Math.round((fh - CARD_H) / 2)) });
+export function dealCentre(fw: number, fh: number): { x: number; y: number } {
+  return { x: Math.max(0, Math.round((fw - CARD_W) / 2)), y: Math.max(0, Math.round((fh - CARD_H) / 2)) };
+}
 
 /** THE SLOT PALETTE (Lee) — a set's baseline is a fixed rack of {@link PALETTE_N}
  *  slots running down the RIGHT side of the frame, evenly spaced and guaranteed not
@@ -41,28 +43,32 @@ export const dealCentre = (fw: number, fh: number): { x: number; y: number } => 
  *  bigger content. */
 export const PALETTE_N = 5;
 
-export const paletteSlots = (fw: number, fh: number, n: number = PALETTE_N): { x: number; y: number; scale: number }[] => {
+export function paletteSlots(fw: number, fh: number, n: number = PALETTE_N): { x: number; y: number; scale: number }[] {
   const c = dealCentre(fw, fh);
   const x = Math.min(fw - 210, c.x + CARD_W + 70);
   const top = 20;
   const span = Math.max(SLOT_H, fh - top - 20 - SLOT_H); // room the rack can use
   const step = n > 1 ? Math.max(SLOT_H + 12, Math.round(span / (n - 1))) : 0;
   return Array.from({ length: n }, (_, i) => ({ x, y: top + i * step, scale: 1 }));
-};
+}
 
-export const defaultMemoPos = (fw: number, fh: number, i: number): { x: number; y: number; scale: number } => paletteSlots(fw, fh)[Math.min(i, PALETTE_N - 1)];
+export function defaultMemoPos(fw: number, fh: number, i: number): { x: number; y: number; scale: number } {
+  return paletteSlots(fw, fh)[Math.min(i, PALETTE_N - 1)];
+}
 
 /** The set's slot rack: whatever is saved, padded out to the full palette with
  *  INACTIVE generated slots. Saved slots keep their geometry and their on/off state;
  *  layouts predating the palette have no `off` flag, so all of their slots stay
  *  active and nothing moves. */
-export const rackOf = (saved: DeckSlotLayout[] | undefined, fw: number, fh: number): DeckSlotLayout[] => {
+export function rackOf(saved: DeckSlotLayout[] | undefined, fw: number, fh: number): DeckSlotLayout[] {
   const gen = paletteSlots(fw, fh);
   return gen.map((g, i) => saved?.[i] ?? { ...g, off: true }).concat((saved ?? []).slice(PALETTE_N));
-};
+}
 
 /** Only ACTIVE slots take placements, in order. */
-export const activeSlots = (rack: DeckSlotLayout[]): DeckSlotLayout[] => rack.filter((s) => !s.off);
+export function activeSlots(rack: DeckSlotLayout[]): DeckSlotLayout[] {
+  return rack.filter((s) => !s.off);
+}
 
 
 /** Where THIS question's card sits: its own spot, else the set's template card,

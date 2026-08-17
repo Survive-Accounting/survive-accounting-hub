@@ -102,7 +102,7 @@ const MemoEditContext = createContext<((memoNodeId: string, text: string) => voi
 const StemEditContext = createContext<((ceqId: string, text: string) => void) | null>(null);
 /** Strip the inline-md markers so a film text-selection's char offsets (measured against the
  *  RENDERED text) line up with the string we slice for the bold-emphasis re-render. */
-const stripInlineMarks = (t: string) => t.replace(/\*\*([^*]+?)\*\*/g, "$1").replace(/==([^=]+?)==/g, "$1");
+function stripInlineMarks(t: string): string { return t.replace(/\*\*([^*]+?)\*\*/g, "$1").replace(/==([^=]+?)==/g, "$1"); }
 /** QUESTION 0 — switch a palette slot on/off from its number badge. Non-null ONLY on
  *  the layout stage, so a real question's memo chips keep their normal badge. */
 const SlotToggleContext = createContext<((slotIdx: number) => void) | null>(null);
@@ -244,7 +244,15 @@ function containSpot(state: "spot" | null, big = false): React.CSSProperties {
     ? { ...s, transform: "scale(1.4)", transformOrigin: "center center", borderRadius: 12, zIndex: 30, boxShadow: "inset 5px 0 0 #FCA311, 0 0 36px rgba(252,163,17,0.8), 0 18px 36px -8px rgba(0,0,0,0.62)" }
     : { ...s, transform: "scale(1.18)", borderRadius: 10 };
 }
-const LETTER = (i: number) => String.fromCharCode(65 + (i % 26));
+// HOISTED ON PURPOSE — do not turn these back into `const` arrows.
+// `Cannot access X before initialization` killed the previewer in production
+// (08-16) while dev and every local build stayed green: a module-level const is
+// in its temporal dead zone until the module body reaches it, and bundlers are
+// free to order module bodies in ways that render a component first. A function
+// DECLARATION is hoisted and initialised before any code in the module runs, so
+// it cannot be in a dead zone no matter how the chunks are ordered. Anything at
+// module scope that render can call must be declared this way.
+function LETTER(i: number): string { return String.fromCharCode(65 + (i % 26)); }
 
 const SLOT_H = 150; // nominal chip height at scale 1 — the overflow stacking step
 // CARD_W/CARD_H, the slot palette, rackOf and activeSlots moved to ceq-geom.ts —
