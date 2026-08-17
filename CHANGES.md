@@ -1,104 +1,127 @@
-# Landing Pass 5 — in-player states, FAQ, no internal scrollbar, hero polish
+# studio-tease-mode — note-frame eyebrow + tease mode
 
-Branch: `landing-pass-5` (on top of `main` @ `382f878`). Nothing outside the landing page and its
-own components was touched — no Greek work, no checkout, no player internals.
+## 1. Note frame eyebrow
 
----
+The note card's eyebrow was the topic name (`THE ACCOUNTING CYCLE`). It is now the
+static string **`FOUND ON YOUR EXAM`** on every note frame, regardless of topic,
+exam, school or professor.
 
-## 1. The materials step moved INSIDE the player
+One constant, one file: [`src/components/canvas/frame-copy.ts`](src/components/canvas/frame-copy.ts).
 
-`MatchSheet` is **deleted**, not hidden. It portalled to `document.body`, so the materials step
-rendered as a detached panel pinned to the top-left of the viewport rather than inside the player —
-and because a professor pick re-opened it (at the professor rung), picking a professor read as the
-selection having failed.
+```ts
+export const NOTE_EYEBROW = "FOUND ON YOUR EXAM";
+```
 
-`MatchPanel` is now the whole flow, one state machine in the right panel:
+Applied in both places a note frame is drawn — the live frame and the film-stack
+standins — so a note never shows the topic in either. CEQ cards keep their topic
+kicker in student view; that is a different card doing a different job, and the
+prompt scoped this to note frames.
 
-| State | What the panel is |
+Everything else about the card is untouched: position, cream stock, amber
+dog-ear, quotation marks, type treatment.
+
+**Why it's a constant and not a prop:** anything in that file gets *filmed into
+footage*. Footage that names a school can only ever be sold to that school. Exam
+number, university and professor are stamped by the HTML player at watch time.
+
+## 2. Tease mode
+
+Clicking a step in the accounting cycle now advances it through three states, in
+one fixed order, looping:
+
+```
+normal  →  highlighted  →  blurred  →  normal
+```
+
+One click = one advance. No modifiers, no mode toggle, no context menu — the
+gesture has to be predictable while Lee is on camera. States are per node and
+independent; any mix across the nine steps is valid.
+
+Built in the **shared exhibit layer**
+([`exhibit-highlights.ts`](src/components/canvas/exhibit-highlights.ts) +
+[`exhibit-base.tsx`](src/components/canvas/exhibit-base.tsx)), not as a cycle-card
+patch — so the T-account, journal-entry and trial-balance cards inherit tease
+mode by declaring, exactly like they inherit glow today. `CycleNode` gained only
+paint (it reads `ns.scale` / `ns.contentFilter`); it has no behaviour code.
+
+### On camera
+
+| state | treatment |
 |---|---|
-| 1 | Pick your school |
-| 2 | Pick your professor |
-| 3 | **Materials gate** (new — was the modal) |
-| 4 | Confirmed bar + video/poster |
+| `normal` | unchanged |
+| `highlighted` | amber border + layered bloom, and a **1.06** scale so it still reads at thumbnail size |
+| `blurred` | `blur(11px) contrast(0.72)` **on the text only** — the pill keeps a crisp border at 0.9 opacity, so the viewer sees a step is *there* and can't read it |
 
-State 3 is centred in the panel like the two rungs before it. `matchOpen` is gone; the panel tracks
-`materialsDone`, and `useEffect(… , [school?.id])` clears both `profDone` and `materialsDone`, so
-Reset genuinely restarts the flow instead of resuming three-quarters of the way through it.
+The blur is deliberately heavy: the radius exceeds the pill's glyph height
+(10–16px), and the contrast drop stops letterforms reassembling when a viewer
+pauses and zooms. Transitions are **180ms ease** — fast, no bounce.
 
-### Coverage % is now on the materials header
+A blurred node is *not* also dimmed (that would hide it rather than tease it),
+and blurring alone doesn't dim the other steps — only a **lit** node drives the
+recede, because hiding one step isn't the same as spotlighting another.
 
-The stat and the ask are one sentence in one place instead of a title above a separate modal:
+Arrows are unaffected by node state, as specified: an arc still glows only when
+*both* its endpoints are lit.
 
-- with a professor — `This already covers ~80% of Prof. Prakash's Exam 1.`
-- school only — `This already covers ~80% of most Exam 1s.`
-- resolver returned nothing — `This already covers most Exam 1s.`
+### Persistence
 
-The number is only ever the real resolver value. When there isn't one, the sentence drops the
-number rather than inventing one. All three branches were exercised in the browser.
+None. State lives in component state, cleared on unmount. No `localStorage`, no
+`sessionStorage`, no card-data write — pinned by test, so a refresh always
+returns every node to normal.
 
-Body copy: *Send your syllabus, study guides — whatever you've got — and I'll match my videos to
-your course. The more you send, the better.* Buttons: `Upload materials` / `Not now`. The "old
-exams" phrasing is gone.
+## 3. Reset binding — the audit
 
-## 2. FAQ replaces the objection block
+Every key compared anywhere in the canvas today:
 
-`MatchObjection` (headline + `Match my exam ⚡`) is replaced by a 7-question FAQ under a quiet
-`FREQUENTLY ASKED QUESTIONS` label. The CTA went with it on purpose: the answer to Q1 points at the
-player *above*, so a button here would have scrolled past the thing it was pointing at.
+```
+/  @  ArrowDown ArrowLeft ArrowRight ArrowUp  Backspace  C/c  D/d  Delete
+Enter  Escape  F/f  F7  F8  F10  PageDown  PageUp  R/r  Tab  V/v  \  `  ~
+```
 
-Order is biggest-objection-first, ending warm — `What if I watch everything and still feel lost?`
-closes on a person, not a policy. `FAQS` is a plain array, built to grow.
+- **`Escape` — rejected.** Already bound: it clears the memo selection in the
+  previewer (`CeqPreviewer.tsx:2012`) and closes every popover, menu and inline
+  editor. Overloading it mid-take would dismiss things Lee didn't mean to.
+- **`0` — chosen.** **No digit key is bound anywhere in the canvas.** It sits at
+  the far end of the number row, well away from `` ` ``, and "back to zero" says
+  what it does. (The Idea Bank's 1–7 category keys live inside its own textarea
+  and `stopPropagation`, so they never reach the canvas.)
 
-## 3. The player has no internal vertical scrollbar
+**`0` is deliberately narrow:** it calls `clearExhibitHighlights()` and nothing
+else. `` ` `` remains the full global wipe — practice state, spotlights, arrows,
+performance arrows, exhibit highlights, text highlights — **completely
+unchanged**, pinned by test. `0` is the one you can hit on camera without losing
+your memos.
 
-**Reproduced first.** The outline column was capped at `sm:max-h-[380px] overflow-y-auto`. With the
-Starter Map's 7 topics the column's natural height is **392px** — 12px over the cap — so it
-scrolled, and the notify box (the last thing in the column, and the only thing in it that captures
-an email) sat below the fold of a box most students never realise is scrollable.
+Bound in both keymaps (the recording surface and the film controller), so it
+works wherever `` ` `` works.
 
-- At `sm` and up the cap is removed entirely (`sm:max-h-none sm:overflow-visible`). The column is
-  its natural height and the **page** scrolls. It cannot re-break as topics are added.
-- Below `sm` the outline is a drop-down drawer stacked above the video, where capping it is
-  correct — an unbounded drawer would push the video off-screen. It keeps a cap, now `60vh`.
-- The notify box was compacted anyway (`px-3 py-2.5` → `px-2.5 py-2`, 11.5px label → 11px,
-  `mt-1.5` → `mt-1`), since every pixel it spends is a pixel the column grows past the video.
+## 4. One law I narrowed — flagging it explicitly
 
-Measured after the change at 1920×1080 and 1440×900: **nothing inside `#exam1` scrolls** — outline
-392px, right panel 392px, whole player card 479px. The school/professor lists inside the picker
-still scroll, which is intended.
+Two existing tests banned *any* transform in the emphasis path. They were written
+after a real incident: a pop-to-centre spotlight **resized the card mid-take**.
 
-## 4. Hero polish
+Lee's spec asks for a "slight scale up" on a highlighted step, so I narrowed both
+tests rather than deleting them. The protection now targets the harm instead of
+the word:
 
-- **The white keyline is back on the bolt.** Pass 4 passed `keyline=""`; on the dark colourways
-  (Auburn navy, Florida blue) that merged the bolt into the navy page.
-- **The sheet is navy-tinted (`#22304F`), not cream.** At hero size the cream sheet was the loudest
-  object in the composition and competed with the bolt. Rules, rows and bubbles were re-tinted to
-  match; it still reads unmistakably as a tilted, ruled exam sheet.
-- **The course code is static cream.** It was `var(--sa-bolt-1)`, so its legibility changed with
-  every school in the cycle.
-- **The campus name (new, bottom-left) carries the school colour.** Legibility comes from
-  `-webkit-text-stroke: 3px rgba(10,16,30,0.85)` with `paint-order: stroke fill`, which draws the
-  dark edge *behind* the fill — so Vanderbilt gold and Tennessee white keep their true colour
-  instead of being dropped from the cycle for being too light.
+- **Still banned:** `translate`, `width`, `height`, `top`, `left` in `nodeStyle`;
+  `popToCentre`, `bigScale`, `chainScale` in the card.
+- **Now allowed:** one bounded `scale` on the **node**, read from a single shared
+  constant and asserted `≤ 1.1`. The card asserts it has exactly *one* `scale(`
+  in the whole file and that the pill's translate is still the plain centering
+  offset.
 
-`EXAM1_STATUS_LABEL` → `Filming this week!`.
-
----
+A pill is absolutely positioned, so scaling it cannot change the card's box —
+the original failure mode can't recur. If you'd rather have zero motion, drop
+`EXHIBIT_GLOW.litScale` to `1` and both tests still pass.
 
 ## Verification
 
-- `tsc --noEmit` — clean.
-- `bun test` — 1049 pass, 0 fail.
-- `bun run build` — clean.
-- Browser, at 1920×1080 / 1440×900 / 375×812: all four panel states walked end to end including
-  the no-professor fallback header; zero console errors on a fresh tab; no internal scrollbar in
-  the player; mobile drawer still capped at 60vh; no horizontal page overflow (`scrollWidth` ==
-  `innerWidth` at 375).
+- `1092 tests, 0 fail` · `tsc` clean · production build clean.
+- 24 new tests in
+  [`tease-mode.test.ts`](src/components/canvas/tease-mode.test.ts) covering the
+  cycle order, independence, immutability, blur strength, transition timing, the
+  key bindings, and that nothing persists.
 
-### Not verified
-
-**Screenshots.** The Browser pane won't composite frames in this environment, so every visual claim
-above rests on measured DOM geometry and computed styles, not on looking at the page. The campus
-name's contrast in particular is reasoned (`boltFor` floors every `--sa-bolt-1` at 2.6 against the
-page navy; against the slightly lighter `#22304F` card the worst case lands near 2.2 before the
-dark stroke is counted) rather than seen. Worth a glance on a real screen.
+**Not verified:** the blurred-node zoom check and the on-camera screenshots need
+a human at 1080p — see the note in the handoff.

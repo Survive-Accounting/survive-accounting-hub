@@ -206,11 +206,14 @@ export function CycleNode({ id, data, selected }: NodeProps) {
               className="group/pill absolute"
               style={{
                 left: `${s.xPct}%`, top: `${s.yPct}%`,
-                transform: "translate(-50%, -50%)",
+                // The one permitted motion: a slight lift on a LIT pill. It is a
+                // transform on an absolutely-positioned node, so the card's own box is
+                // untouched — the banned thing was a pop-to-centre that resized the card.
+                transform: `translate(-50%, -50%) scale(${ns.scale})`,
                 zIndex: isLit ? 30 : undefined,
                 opacity: ns.opacity,
                 filter: faded ? "saturate(0.5)" : undefined,
-                transition: "opacity 160ms ease, filter 160ms ease",
+                transition: `opacity ${ns.transition}, filter ${ns.transition}, transform ${ns.transition}`,
               }}
             >
               {editingStep === s.id ? (
@@ -248,13 +251,15 @@ export function CycleNode({ id, data, selected }: NodeProps) {
                     background: "linear-gradient(180deg, rgba(37,52,88,0.96), rgba(16,24,44,0.96))",
                     border: `1.5px solid ${ns.border}`,
                     boxShadow: ns.boxShadow ?? "0 6px 16px -8px rgba(0,0,0,0.8), 0 0 0 3px rgba(9,13,26,0.9)",
-                    transition: "box-shadow 160ms ease, border-color 160ms ease",
+                    transition: `box-shadow ${ns.transition}, border-color ${ns.transition}`,
                   }}
-                  title={film ? "Click to glow (any number can glow) · ` clears" : "Click to edit"}
+                  title={film ? "Click: normal → highlighted → blurred → normal · ` clears · 0 resets every step" : "Click to edit"}
                   onPointerDown={(e) => e.stopPropagation()}
                   onClick={film ? ex.nodeClick(s.id) : (e) => { e.stopPropagation(); setEditingStep(s.id); }}
                 >
-                  {s.text || "Step"}
+                  {/* TEASE: the filter goes on the TEXT so the pill keeps a crisp
+                      outline — the viewer sees a step is there and cannot read it. */}
+                  <span style={{ filter: ns.contentFilter, transition: `filter ${ns.transition}`, userSelect: ns.blurred ? "none" : undefined }}>{s.text || "Step"}</span>
                   {steps.length > 1 && !film && (
                     <button
                       className="nodrag ml-0.5 hidden h-3.5 w-3.5 place-items-center rounded-full group-hover/pill:grid"

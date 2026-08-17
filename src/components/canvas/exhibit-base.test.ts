@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
 import { declaredAdjacent, type ExhibitDeclaration } from "./exhibit-base";
+import { EXHIBIT_GLOW } from "./exhibit-highlights";
 
 const cycleSrc = readFileSync(join(import.meta.dir, "cards", "CycleNode.tsx"), "utf8");
 const baseSrc = readFileSync(join(import.meta.dir, "exhibit-base.tsx"), "utf8");
@@ -28,9 +29,21 @@ describe("declaredAdjacent — adjacency from declarations", () => {
 });
 
 describe("the layer's laws (source pins)", () => {
-  test("nodeStyle is purely visual — no transform, no size, no position", () => {
+  test("nodeStyle never changes the CARD's box — no size, no position, no layout", () => {
+    // NARROWED 08-17 (tease mode). The law was written after a pop-to-centre
+    // transform RESIZED THE CARD mid-take, and that is still what it protects:
+    // emphasis may not touch width/height/top/left/translate. Tease mode adds a
+    // bounded `scale` on the NODE — a transform on an absolutely-positioned pill,
+    // which cannot change the card's box — so the ban is now on the harm, not on
+    // the word "transform". The bound is asserted in the test below.
     const styleFn = baseSrc.slice(baseSrc.indexOf("nodeStyle: (nodeId)"), baseSrc.indexOf("edgeLit: (a, b)"));
-    expect(styleFn).not.toMatch(/transform|scale\(|translate|width|height|top|left/);
+    expect(styleFn).not.toMatch(/translate|width|height|top:|left:/);
+  });
+  test("the only motion is a BOUNDED node scale, read from the shared constant", () => {
+    const styleFn = baseSrc.slice(baseSrc.indexOf("nodeStyle: (nodeId)"), baseSrc.indexOf("edgeLit: (a, b)"));
+    // never a computed/animated scale — one constant, one value, capped
+    expect(styleFn).toContain("scale: lit ? EXHIBIT_GLOW.litScale : 1,");
+    expect(EXHIBIT_GLOW.litScale).toBeLessThanOrEqual(1.1);
   });
   test("the base never binds keys — Space/Enter/Tab/` belong to the film controller", () => {
     expect(baseSrc).not.toContain("addEventListener");

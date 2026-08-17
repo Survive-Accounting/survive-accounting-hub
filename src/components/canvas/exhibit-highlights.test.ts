@@ -34,8 +34,15 @@ describe("EXHIBIT_GLOW — purely visual, by construction", () => {
 });
 
 describe("the cycle card declares, the shared layer behaves (source pins)", () => {
-  test("pop-to-centre and its transforms are GONE", () => {
-    expect(cycleSrc).not.toMatch(/popToCentre|bigScale|chainScale|scale\(\$\{/);
+  test("pop-to-centre is GONE — the pill never moves, and never resizes the card", () => {
+    // NARROWED 08-17 (tease mode): the banned thing is a pill that LEAVES ITS
+    // POSITION or grows without bound, which is what resized the card mid-take.
+    // A lit pill now scales in place by one capped constant; its translate is
+    // still the plain centering offset, so its position is unchanged.
+    expect(cycleSrc).not.toMatch(/popToCentre|bigScale|chainScale/);
+    expect(cycleSrc).toContain("transform: `translate(-50%, -50%) scale(${ns.scale})`");
+    // the ONLY scale in the card comes from the shared style — nothing bespoke
+    expect([...cycleSrc.matchAll(/scale\(/g)]).toHaveLength(1);
   });
   test("the card no longer touches the spotlight system", () => {
     expect(cycleSrc).not.toMatch(/useSpotlight|SpotlightContext|toggleFlame/);

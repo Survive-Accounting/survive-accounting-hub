@@ -50,7 +50,10 @@ export interface ExhibitApi {
    *  (authoring clicks stay the card's own, e.g. inline editing). */
   nodeClick: (nodeId: string) => ((e: React.MouseEvent) => void) | undefined;
   /** Visual state for a declared node. Pure styles — never size or position. */
-  nodeStyle: (nodeId: string) => { lit: boolean; dimmed: boolean; border: string; boxShadow?: string; opacity?: number };
+  /** Everything a card needs to paint one node in its current tease state.
+   *  `contentFilter` goes on the TEXT, not the node box, so a blurred step keeps
+   *  a crisp outline — present but unreadable. */
+  nodeStyle: (nodeId: string) => { lit: boolean; blurred: boolean; dimmed: boolean; border: string; boxShadow?: string; opacity?: number; scale: number; contentFilter?: string; transition: string };
   /** True when the connector between two nodes should glow (both ends lit AND
    *  declared adjacent). */
   edgeLit: (a: string, b: string) => boolean;
@@ -75,16 +78,26 @@ export function useExhibit(decl: ExhibitDeclaration): ExhibitApi {
   return {
     film,
     hl,
-    nodeClick: (nodeId) => (film ? (e) => { if (e.altKey) return; e.stopPropagation(); hl.toggle(nodeId); } : undefined),
+    // ONE CLICK = ONE ADVANCE through normal → lit → blurred. Alt is still the
+    // escape hatch for anything that needs the raw element.
+    nodeClick: (nodeId) => (film ? (e) => { if (e.altKey) return; e.stopPropagation(); hl.cycle(nodeId); } : undefined),
     nodeStyle: (nodeId) => {
-      const lit = hl.isLit(nodeId);
-      const dimmed = hl.any && !lit;
+      const st = hl.stateOf(nodeId);
+      const lit = st === "lit";
+      const blurred = st === "blurred";
+      // A blurred node is NOT dimmed as well — it is already hidden, and
+      // stacking the dim on top would make it vanish instead of tease.
+      const dimmed = hl.any && !lit && !blurred;
       return {
         lit,
+        blurred,
         dimmed,
-        border: lit ? EXHIBIT_GLOW.border : "rgba(252,163,17,0.55)",
+        border: lit ? EXHIBIT_GLOW.border : blurred ? EXHIBIT_GLOW.blurredBorder : "rgba(252,163,17,0.55)",
         boxShadow: lit ? EXHIBIT_GLOW.shadow : undefined,
-        opacity: dimmed ? EXHIBIT_GLOW.dimOpacity : 1,
+        opacity: dimmed ? EXHIBIT_GLOW.dimOpacity : blurred ? EXHIBIT_GLOW.blurredOpacity : 1,
+        scale: lit ? EXHIBIT_GLOW.litScale : 1,
+        ...(blurred ? { contentFilter: EXHIBIT_GLOW.blurFilter } : {}),
+        transition: EXHIBIT_GLOW.transition,
       };
     },
     edgeLit: (a, b) => declaredAdjacent(decl, a, b) && hl.edgeLit(a, b),

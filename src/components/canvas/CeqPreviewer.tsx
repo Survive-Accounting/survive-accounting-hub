@@ -46,6 +46,7 @@ export { activeSlots, dealCentre, defaultMemoPos, PALETTE_N, paletteSlots, rackO
 import { CALLOUT_KINDS, CalloutBody, calloutKindForCategory, nextCalloutKind } from "./cards/CalloutCard";
 import { CAPTURE_H, CAPTURE_W, captureCssSize, captureFeasibility, isCaptureExact, physicalSize, snapCaptureSize } from "./capture-window";
 import { clearExhibitHighlights } from "./exhibit-highlights";
+import { NOTE_EYEBROW } from "./frame-copy";
 import { subscribeSlate, type SlateState } from "./film-slate";
 import { triageLatest } from "./takes-store";
 import { FILM_LOCK_CSS, FilmContext, filmDragAllowed, isTypingTarget } from "./film-lock";
@@ -1340,7 +1341,12 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     const pIdx = cIds?.indexOf(ceqId) ?? -1;
     const pTot = cIds?.length ?? 0;
     const progress = student && pIdx >= 0 && pTot > 1 ? { x: pIdx + 1, y: pTot } : null;
-    const topic = student && topicName ? topicName : null;
+    // NOTE-FRAME EYEBROW (Lee, 08-17): a note frame always reads FOUND ON YOUR
+    // EXAM — never the topic, never an exam number. Exam number, school and
+    // professor are stamped by the HTML player later; filming them into the frame
+    // would pin the footage to one school forever. CEQ cards keep the topic
+    // kicker in student view, which is a different card and a different job.
+    const topic = cd.noteOnly ? NOTE_EYEBROW : student && topicName ? topicName : null;
     // Card entrance: Space walk = slide-fade (sa-ceq-in); PageDown/PageUp = the HARD PUSH.
     // Reduced-motion → instant (no animation) EXCEPT while recording — a filming surface must
     // always move (#3), so the reduced-motion check is skipped when recording.
@@ -1917,7 +1923,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       const ocs = resolveCardSpot(od.geom, templateFor(od.ignoreLayout, baseline), frameW, frameH);
       const pIdx = cIds.indexOf(qid);
       const progress = viewStudent && pIdx >= 0 && cIds.length > 1 ? { x: pIdx + 1, y: cIds.length } : null;
-      out.push({ id: qid, type: "ceqPreview", position: { x: Math.round(ocs.x), y: Math.round(y + ocs.y) }, data: { stem: od.prompt, choices: od.choices, scale: ocs.scale, progress, topic: viewStudent && topicName ? topicName : null, enterAnim: "none", enterAnimName: "none", inert: true, boss: od.boss, cardW: od.cardW, callout: od.callout, calloutMemos: calloutMemosOf(od) }, draggable: false, selectable: false, zIndex: 1 } as Node);
+      out.push({ id: qid, type: "ceqPreview", position: { x: Math.round(ocs.x), y: Math.round(y + ocs.y) }, data: { stem: od.prompt, choices: od.choices, scale: ocs.scale, progress, topic: od.noteOnly ? NOTE_EYEBROW : viewStudent && topicName ? topicName : null, enterAnim: "none", enterAnimName: "none", inert: true, boss: od.boss, cardW: od.cardW, callout: od.callout, calloutMemos: calloutMemosOf(od) }, draggable: false, selectable: false, zIndex: 1 } as Node);
       for (const n of allNodes) {
         const st = (n.data as { stage?: { ceqId?: string; x: number; y: number; hidden?: boolean } } | undefined)?.stage;
         if (!st || st.ceqId !== qid || st.hidden) continue;
@@ -1993,6 +1999,10 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
         // (backtick sweep) — practice, spotlights, arrows, perf arrows, highlights.
         // Temporary state only; nothing saved is touched.
         if (e.code === "Backquote" || e.key === "`") { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); setPerfArrows([]); setSelPerf(null); clearExhibitHighlights(); clearAllTextHls(); return; }
+        // 0 — every exhibit node back to normal, and NOTHING else. ` stays the
+        // global wipe; this is the narrow one you can hit mid-take without
+        // losing your memos. Audit in CHANGES.md: no digit was bound anywhere.
+        if (e.code === "Digit0" || e.key === "0") { clearExhibitHighlights(); return; }
         return; // any other key: swallowed, no-op — protects the take
       }
       // RECORDING MODE = the FILM POP-OUT. "\" toggles it open/closed — a real 2nd-monitor
@@ -2054,6 +2064,8 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       // the board but KEEP every choice's resolution, so a wrong answer stays struck
       // and the correct one stays green. Nothing re-resolves, so no sound re-fires.
       if (e.key === "`" || e.code === "Backquote" || (e.shiftKey && e.key === "~")) { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) sweepMemos(); else { resetPractice(); setSpots(EMPTY_SPOTS); resetArrows(); setPerfArrows([]); setSelPerf(null); clearExhibitHighlights(); clearAllTextHls(); } return; }
+      // 0 — reset every exhibit node to normal. Narrow by design (see above).
+      if (e.code === "Digit0" || e.key === "0") { e.preventDefault(); e.stopImmediatePropagation(); clearExhibitHighlights(); return; }
     };
     const onOwnerKey = (e: KeyboardEvent) => handle(e, ownerWin, false);
     // Releasing Page Down / Page Up ends the hold-to-repeat (#4). clearHold is intentionally
