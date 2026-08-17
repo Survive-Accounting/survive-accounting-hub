@@ -96,7 +96,15 @@ type ResolvedTopic = { key: string; name: string; num: number | null; sets: Stud
 /** `goChapter` replaces the old flat `chapterSlug`. A chapter is identified by (school, chapter)
  *  now — the /c/ single-slug namespace is redirect-only — and this pair is what the claim writes
  *  against. */
-export function LandingPage({ initialCampusId, chapterBanner, goChapter }: { initialCampusId?: string; chapterBanner?: string; goChapter?: { schoolSlug: string; chapterSlug: string } } = {}) {
+export function LandingPage({ initialCampusId, chapterBanner, goChapter, chapterClaim }: {
+  initialCampusId?: string;
+  chapterBanner?: string;
+  goChapter?: { schoolSlug: string; chapterSlug: string };
+  /** Rendered directly beneath the chapter banner. A SLOT rather than an import, so this
+   *  route file keeps knowing nothing about Greek claims — /go/ owns that concern and passes
+   *  the component in. */
+  chapterClaim?: React.ReactNode;
+} = {}) {
   // M1.4 — paint html/body navy so Safari's overscroll rubber-band matches the page instead
   // of flashing the light default at the top and bottom edges.
   useNavyDocument();
@@ -287,6 +295,12 @@ export function LandingPage({ initialCampusId, chapterBanner, goChapter }: { ini
           used to push the document sideways. Clamping here contains it at the source. */}
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px", width: "100%", overflowX: "clip" }}>
         {chapterBanner && <ChapterBanner name={chapterBanner} go={goChapter} />}
+        {/* The claim sits with the banner because that strip IS the chapter's context. It used
+            to render after everything, which on a /go/ page put it BELOW THE FOOTER — past the
+            player, the FAQ, the testimonials and the legal lines. An exec landing on their own
+            chapter's page had no way to know the page was claimable without scrolling the whole
+            document. */}
+        {chapterClaim}
         <Hero onStart={onStart} stops={stops} />
         <ExamPlayer exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); try { localStorage.setItem("sa-landing-school", "__notlisted__"); } catch { /* ignore */ } }} onReset={resetMatch} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(t) => setNotifyTopic(t)} />
 

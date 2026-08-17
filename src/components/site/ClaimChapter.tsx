@@ -56,7 +56,7 @@ export function ClaimChapter({ schoolSlug, chapterSlug, chapterName, claimStatus
   };
 
   return (
-    <div className="mx-auto max-w-[640px] px-5 pb-14 text-center" style={{ fontFamily: BRAND_SANS }}>
+    <div className="mx-auto max-w-[640px] px-5 pt-2 text-center" style={{ fontFamily: BRAND_SANS }}>
       {done ? (
         <div className="mx-auto max-w-sm rounded-xl p-4" style={{ background: "rgba(252,163,17,0.08)", border: "1px solid rgba(252,163,17,0.35)" }}>
           <p className="text-[13.5px] font-bold" style={{ color: "var(--brand-cream)" }}>Got it — Lee has your details.</p>

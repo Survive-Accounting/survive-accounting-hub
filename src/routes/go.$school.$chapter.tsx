@@ -44,9 +44,14 @@ function GoChapterPage() {
         initialCampusId={ch?.campusId ?? undefined}
         chapterBanner={ch ? ch.chapterName : undefined}
         goChapter={ch ? { schoolSlug: ch.schoolSlug, chapterSlug: ch.chapterSlug } : undefined}
+        // TOP OF PAGE, under the banner. Execs are a tiny fraction of this page's traffic but
+        // they are the only visitor who can act on it, and they were the one group being asked
+        // to scroll past the entire document to find their control.
+        chapterClaim={ch ? <ClaimChapter schoolSlug={ch.schoolSlug} chapterSlug={ch.chapterSlug} chapterName={ch.chapterName} claimStatus={ch.claimStatus} /> : undefined}
       />
+      {/* Self-report stays at the foot: it is a STUDENT correction ("I'm in a different house"),
+          worth offering but never worth interrupting the reason they came. */}
       {ch && <SelfReport current={ch.chapterName} />}
-      {ch && <ClaimChapter schoolSlug={ch.schoolSlug} chapterSlug={ch.chapterSlug} chapterName={ch.chapterName} claimStatus={ch.claimStatus} />}
     </>
   );
 }
