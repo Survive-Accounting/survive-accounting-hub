@@ -133,7 +133,7 @@ function SiteMenu() {
   // the hero has scrolled away this is the only Cram-Exam-1 door still on screen. The Greek link
   // is a ROUTE, not an anchor, so it sits under a divider — mixing "jump down this page" with
   // "leave this page" in one flat list is how people lose their place.
-  const items: { label: string; href: string; route?: boolean }[] = [
+  const items: { label: string; href: string; route?: boolean; sub?: string }[] = [
     { label: "Cram Exam 1 Free", href: "/#exam1" },
     { label: "Reviews", href: "/#reviews" },
     { label: "About Lee", href: "/#lee" },
@@ -141,7 +141,7 @@ function SiteMenu() {
     // what made tapping Contact raise "Open in inDrive?" on iOS. The deliberate sms: CTA in the
     // contact section is a different thing and keeps its scheme.
     { label: "Contact", href: "/#contact" },
-    { label: "For Fraternities & Sororities", href: "/chapters", route: true },
+    { label: "For Fraternities & Sororities", href: "/chapters", route: true, sub: "Boost chapter GPAs" },
   ];
 
   return (
@@ -178,7 +178,10 @@ function SiteMenu() {
                   borderTop: it.route && !items[i - 1]?.route ? "1px solid rgba(245,239,230,0.14)" : undefined,
                 }}
               >
-                {it.label}
+                <span className="flex flex-col">
+                  <span>{it.label}</span>
+                  {it.sub && <span className="text-[11px] font-bold" style={{ color: "var(--accent, #FCA311)" }}>{it.sub}</span>}
+                </span>
               </a>
             ))}
           </div>

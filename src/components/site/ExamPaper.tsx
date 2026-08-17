@@ -1,148 +1,205 @@
-// THE HERO GRAPHIC (Pass 3) — a cream exam sheet on the navy, with the split bolt struck
-// through it.
+// THE HERO GRAPHIC — a plain multiple-choice exam with the brand bolt struck through it.
 //
-// It exists because the hero read as empty: centred text floating in a large navy field with
-// nothing to look at. This is the visual anchor, and it is also a second door into the player —
-// the whole thing is one button that does exactly what the CTA does.
+// The story is the composition: the bolt OVERPOWERS the exam. It overhangs the sheet top and
+// bottom, and the paper underneath is deliberately dull — four faint rows, one inked bubble each.
+// Nothing on the paper should compete for attention, because the paper is the problem and the
+// bolt is the answer.
 //
-// DECORATIVE ONLY, deliberately. The question lines are greeked strokes, not sentences, and the
-// bubbles carry no letters. A student must never be able to read a real accounting question here
-// and least of all a real ANSWER: the filled bubbles are chosen for rhythm, not correctness, and
-// putting legible content on a marketing prop is how an answer key leaks into a screenshot.
+// PASS 4 changed two things from the first version. The bolt is now the REAL brand asset
+// (`Bolt` from canvas/brand — the 13-point split bolt used by the wordmark and the player), not a
+// hand-drawn approximation. And the cycle is no longer colour-only: the header names a real
+// course at a real school, and the course code, its accent and the bolt's colourway crossfade
+// together so the graphic reads as "this is your exam", school by school.
 //
-// Pure SVG + CSS: no JS animation loop, no canvas, no video. The colour cycle is a CSS keyframe
-// on two CSS variables, so it costs nothing per frame in JS and stops dead under reduced motion.
-import { BRAND_BLUE, BRAND_RED } from "@/components/canvas/brand";
+// DECORATIVE ONLY. The question rows are greeked strokes and the inked bubbles are chosen for
+// rhythm, not correctness. A marketing prop carrying a real question and a real answer is exactly
+// how an answer key ends up in a screenshot.
+import { useEffect, useState } from "react";
 
-/** Greeked question rows. `w` is the stroke length as a % of the writing column — varying it is
- *  what makes the block read as language rather than as a barcode. `fill` is which bubble is
- *  inked, chosen only for visual rhythm. */
+import { Bolt } from "@/components/canvas/brand";
+import type { School } from "@/routes/landing";
+
+/** One stop in the cycle. `code` is a VERIFIED course code — never a guess. */
+export type PaperStop = { id: string; name: string; code: string; c1: string; c2: string };
+
+/** Greeked rows. Four, faint, one inked bubble each — see the note above about staying dull. */
 const ROWS: { w: number; fill: number }[] = [
   { w: 92, fill: 2 },
-  { w: 78, fill: 0 },
-  { w: 88, fill: 3 },
-  { w: 64, fill: 1 },
-  { w: 84, fill: 2 },
+  { w: 76, fill: 0 },
+  { w: 86, fill: 3 },
+  { w: 68, fill: 1 },
 ];
-
 const BUBBLES = 4;
 
-export function ExamPaper({ onActivate, className, style }: { onActivate: () => void; className?: string; style?: React.CSSProperties }) {
+/** ~4s per school, per the brief. */
+const DWELL_MS = 4000;
+
+export function ExamPaper({ stops, onActivate, className, style }: {
+  stops: PaperStop[];
+  onActivate: () => void;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  const [i, setI] = useState(0);
+  const [reduce, setReduce] = useState(false);
+
+  // Read in an effect, never during render: this route is server-rendered, and calling matchMedia
+  // while rendering makes the server and a reduced-motion client disagree on the first paint.
+  useEffect(() => { setReduce(!!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches); }, []);
+
+  // The header TEXT changes, which CSS keyframes cannot do — so this is a state tick, not an
+  // animation loop: one setState every 4 seconds, and the crossfade itself is CSS.
+  useEffect(() => {
+    if (reduce || stops.length < 2) return;
+    const t = window.setInterval(() => setI((n) => (n + 1) % stops.length), DWELL_MS);
+    return () => window.clearInterval(t);
+  }, [reduce, stops.length]);
+
+  const stop = stops[reduce ? 0 : i] ?? stops[0];
+  if (!stop) return null;
+
   return (
     <button
       type="button"
       onClick={onActivate}
       aria-label="Cram Exam 1 Free"
       className={`sa-paper group relative block ${className ?? ""}`}
-      style={{ WebkitTapHighlightColor: "transparent", ...style }}
+      style={{
+        WebkitTapHighlightColor: "transparent",
+        // Both the bolt and the header accent read these, so one state change moves every
+        // colour in the composition at once and the light can never disagree with the object.
+        ["--sa-bolt-1" as string]: stop.c1,
+        ["--sa-bolt-2" as string]: stop.c2,
+        ...style,
+      }}
     >
-      <svg viewBox="0 0 300 360" role="img" aria-hidden className="w-full" style={{ overflow: "visible" }}>
-        <defs>
-          {/* The glow. Two stops on the SAME hue so the halo reads as light off the bolt rather
-              than as a coloured ring drawn around it. */}
-          <radialGradient id="sa-paper-glow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="var(--sa-bolt-1)" stopOpacity="0.55" />
-            <stop offset="55%" stopColor="var(--sa-bolt-1)" stopOpacity="0.16" />
-            <stop offset="100%" stopColor="var(--sa-bolt-1)" stopOpacity="0" />
-          </radialGradient>
-        </defs>
+      {/* THE SHEET */}
+      <svg viewBox="0 0 300 340" role="img" aria-hidden className="w-full sa-paper-sheet" style={{ overflow: "visible" }}>
+        <g transform="rotate(-4 150 170)">
+          <rect x="26" y="18" width="248" height="304" rx="10" fill="rgba(0,0,0,0.40)" />
+          <rect x="22" y="14" width="248" height="304" rx="10" fill="#F5F1E8" />
 
-        {/* THE SHEET — rotated as a group so the shadow, rules and bubbles all tilt together. */}
-        <g transform="rotate(-4 150 180)">
-          <rect x="26" y="14" width="248" height="332" rx="10" fill="rgba(0,0,0,0.42)" />
-          <rect x="22" y="10" width="248" height="332" rx="10" fill="#F5F1E8" />
+          {/* header rule only — the course line itself is HTML, so its text can crossfade */}
+          <line x1="42" y1="62" x2="160" y2="62" stroke="#D3D8E1" strokeWidth="1.2" />
+          <line x1="172" y1="62" x2="250" y2="62" stroke="#D3D8E1" strokeWidth="1.2" />
 
-          {/* header: EXAM 1 + the name/date rule */}
-          <text x="42" y="42" fontFamily="'Rubik', system-ui, sans-serif" fontSize="11" fontWeight="700" letterSpacing="2.2" fill="#9AA2AF">EXAM 1</text>
-          <line x1="42" y1="58" x2="160" y2="58" stroke="#C9CFDA" strokeWidth="1.4" />
-          <line x1="172" y1="58" x2="250" y2="58" stroke="#C9CFDA" strokeWidth="1.4" />
-
-          {/* question block */}
-          {ROWS.map((r, i) => {
-            const top = 88 + i * 50;
+          {ROWS.map((r, n) => {
+            const top = 96 + n * 52;
             return (
-              <g key={i}>
-                {/* greeked stem — two strokes so it reads as a wrapped sentence */}
-                <rect x="42" y={top} width={(r.w / 100) * 200} height="5.5" rx="2.75" fill="#C3C9D4" />
-                <rect x="42" y={top + 11} width={(r.w / 100) * 132} height="5.5" rx="2.75" fill="#D5DAE3" />
-                {/* answer bubbles — exactly one inked per row */}
+              <g key={n}>
+                {/* fainter than Pass 3 — the paper must not compete with the bolt */}
+                <rect x="42" y={top} width={(r.w / 100) * 200} height="4.5" rx="2.25" fill="#DCE1E9" />
+                <rect x="42" y={top + 10} width={(r.w / 100) * 128} height="4.5" rx="2.25" fill="#E6EAF0" />
                 {Array.from({ length: BUBBLES }, (_, b) => (
                   <circle
                     key={b}
                     cx={48 + b * 26}
-                    cy={top + 30}
-                    r="6.4"
+                    cy={top + 29}
+                    r="6"
                     fill={b === r.fill ? "#CE1126" : "none"}
-                    stroke={b === r.fill ? "#CE1126" : "#C3C9D4"}
-                    strokeWidth="1.6"
+                    stroke={b === r.fill ? "#CE1126" : "#DCE1E9"}
+                    strokeWidth="1.4"
                   />
                 ))}
               </g>
             );
           })}
         </g>
-
-        {/* THE GLOW, behind the bolt and outside the rotated group so it stays optically upright */}
-        <circle cx="150" cy="182" r="118" fill="url(#sa-paper-glow)" className="sa-paper-halo" />
-
-        {/* THE BOLT — the canonical hand-traced path, scaled to ~50% of the sheet height and
-            struck through the middle of the questions. Its two colours are CSS variables, which
-            is what lets the cycle animate without React re-rendering anything. */}
-        <g transform="translate(150 182) scale(1.42) translate(-36 -74)">
-          <path d="M44.7 0 6.9 79.4h25.6L15.4 148 76 60.2H46.8L74.3 0Z" fill="var(--sa-bolt-1)" />
-          <path d="M44.7 0 6.9 79.4h25.6L15.4 148 40 74Z" fill="var(--sa-bolt-2)" />
-        </g>
       </svg>
+
+      {/* THE COURSE LINE — HTML rather than SVG <text> so the string can crossfade on key change.
+          Positioned over the sheet's header area and tilted to match its -4deg. */}
+      <span className="sa-paper-course" aria-hidden>
+        <span key={stop.id} className="sa-paper-course-in">
+          {stop.code} <span style={{ opacity: 0.55 }}>— EXAM 1</span>
+        </span>
+      </span>
+
+      {/* THE BOLT — the real brand asset, overhanging the sheet top and bottom. `keyline=""`
+          drops the white outline: on navy the outline reads as a sticker edge, and here the bolt
+          should look like it is lighting the paper rather than sitting on it. */}
+      <span className="sa-paper-bolt" aria-hidden>
+        <Bolt c1="var(--sa-bolt-1)" c2="var(--sa-bolt-2)" keyline="" />
+      </span>
     </button>
   );
 }
 
-/** The stylesheet for the graphic. Injected once by the hero rather than living in styles.css,
- *  because it is meaningless anywhere else on the site and keeps the global sheet from growing a
- *  section only one component reads.
- *
- *  The cycle drives two custom properties through four SEC colourways. Animating the VARIABLES
- *  (rather than the fills) means one animation drives the bolt and its halo in lockstep, so the
- *  light never disagrees with the object casting it. */
+/** Component-local stylesheet, injected once by the hero. It lives here rather than in styles.css
+ *  because nothing else on the site reads it. */
 export const EXAM_PAPER_CSS = `
 .sa-paper {
-  --sa-bolt-1: ${BRAND_RED};
-  --sa-bolt-2: #8C9099;
+  position: relative;
+  display: block;
   cursor: pointer;
   border: 0;
   background: none;
   padding: 0;
-  transition: transform 220ms cubic-bezier(.2,.8,.2,1), filter 220ms ease;
-  filter: drop-shadow(0 18px 44px rgba(0,0,0,0.45));
+  transition: transform 220ms cubic-bezier(.2,.8,.2,1);
 }
-.sa-paper:hover { transform: scale(1.02); filter: drop-shadow(0 22px 54px rgba(0,0,0,0.55)); }
-.sa-paper:focus-visible {
-  outline: 3px solid var(--accent);
-  outline-offset: 6px;
-  border-radius: 14px;
+.sa-paper:hover { transform: scale(1.02); }
+.sa-paper:focus-visible { outline: 3px solid var(--accent); outline-offset: 8px; border-radius: 14px; }
+.sa-paper-sheet { filter: drop-shadow(0 18px 40px rgba(0,0,0,0.45)); }
+
+/* The course line, tilted onto the sheet's header rule. */
+.sa-paper-course {
+  position: absolute;
+  left: 13%;
+  top: 11.5%;
+  transform: rotate(-4deg);
+  transform-origin: left center;
+  font-family: 'Rubik', system-ui, sans-serif;
+  font-size: clamp(9px, 2.6cqw, 12px);
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+  color: var(--sa-bolt-1);
+  transition: color 900ms ease;
 }
-.sa-paper-halo { transition: opacity 220ms ease; }
-.sa-paper:hover .sa-paper-halo { opacity: 1.15; }
+/* Re-keying the inner span on each school remounts it, so this runs as a crossfade-in. */
+.sa-paper-course-in { display: inline-block; animation: sa-course-in 900ms ease; }
+@keyframes sa-course-in { from { opacity: 0; } to { opacity: 1; } }
 
-/* ~10s round trip through four colourways, eased at every stop so no transition reads as a cut.
-   @property would let the browser interpolate these as real colours; without it the fallback is
-   a discrete swap at each keyframe, which is why the stops sit close together. */
-@property --sa-bolt-1 { syntax: "<color>"; inherits: true; initial-value: ${BRAND_RED}; }
-@property --sa-bolt-2 { syntax: "<color>"; inherits: true; initial-value: #8C9099; }
-
-@keyframes sa-bolt-cycle {
-  0%   { --sa-bolt-1: ${BRAND_RED};  --sa-bolt-2: #8C9099; }
-  25%  { --sa-bolt-1: ${BRAND_RED};  --sa-bolt-2: ${BRAND_BLUE}; }
-  50%  { --sa-bolt-1: #E87722;       --sa-bolt-2: #0C2340; }
-  75%  { --sa-bolt-1: #582C83;       --sa-bolt-2: #C5B783; }
-  100% { --sa-bolt-1: ${BRAND_RED};  --sa-bolt-2: #8C9099; }
+/* THE BOLT — 1.5x the Pass 3 size and deliberately taller than the sheet, so it overhangs top
+   and bottom. The glow is kept low on purpose: the brief says illuminated, not flashy. */
+.sa-paper-bolt {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 46%;
+  height: 122%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  filter: drop-shadow(0 0 18px color-mix(in srgb, var(--sa-bolt-1) 45%, transparent))
+          drop-shadow(0 6px 26px rgba(0,0,0,0.5));
+  transition: filter 900ms ease;
 }
-.sa-paper { animation: sa-bolt-cycle 10s ease-in-out infinite; }
+.sa-paper:hover .sa-paper-bolt {
+  filter: drop-shadow(0 0 26px color-mix(in srgb, var(--sa-bolt-1) 60%, transparent))
+          drop-shadow(0 6px 30px rgba(0,0,0,0.55));
+}
+/* The bolt's own fills transition too, so a school change moves paper accent and bolt together. */
+.sa-paper-bolt path { transition: fill 900ms ease; }
 
-/* Reduced motion: the bolt holds the canonical red/grey with its glow intact. The graphic is
-   still the same button — only the colour cycle stops. */
 @media (prefers-reduced-motion: reduce) {
-  .sa-paper { animation: none; --sa-bolt-1: ${BRAND_RED}; --sa-bolt-2: #8C9099; }
-  .sa-paper:hover { transform: none; }
+  .sa-paper, .sa-paper:hover { transform: none; }
+  .sa-paper-course-in { animation: none; }
+  .sa-paper-course, .sa-paper-bolt, .sa-paper-bolt path { transition: none; }
 }
 `;
+
+/** Build the cycle from the SAME school list the picker uses.
+ *
+ *  Ole Miss, LSU and Tennessee lead (the brief's order); the rest follow in picker order. Schools
+ *  with no VERIFIED course code are dropped rather than shown with an empty code — inventing
+ *  "ACCY 201" for a campus that has not confirmed it would be a fabricated fact on the landing
+ *  page. If nothing has a code yet the hero simply renders no graphic. */
+const LEAD = ["ole-miss", "lsu", "tennessee"];
+export function paperStops(schools: School[], boltFor: (id: string) => { c1: string; c2: string }): PaperStop[] {
+  const rank = (id: string) => { const i = LEAD.indexOf(id); return i < 0 ? LEAD.length : i; };
+  return schools
+    .filter((s) => s.codeVerified && !!s.code)
+    .slice()
+    .sort((a, b) => rank(a.id) - rank(b.id))
+    .map((s) => ({ id: s.id, name: s.name, code: s.code!, ...boltFor(s.id) }));
+}

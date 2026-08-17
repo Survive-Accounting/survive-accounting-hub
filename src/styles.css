@@ -236,7 +236,12 @@ html.sa-navy body {
 html.sa-navy,
 html.sa-navy body {
   max-width: 100%;
+  /* `hidden` first as the fallback for engines without `clip`. THE ORDER MATTERS: hidden makes
+     overflow-y compute to auto, which turns the element into a SCROLL CONTAINER — and a sticky
+     header then sticks to that container instead of the viewport, i.e. it stops being sticky.
+     `clip` blocks the same sideways overflow WITHOUT creating a scroll container. */
   overflow-x: hidden;
+  overflow-x: clip;
 }
 
 /* ---------------------------------------------------------------------------
@@ -500,4 +505,16 @@ html.sa-navy body {
      visible as a scroll cue while the card stays mostly below the fold. */
   .sa-hero3 { min-height: calc(80vh - var(--sa-header-h, 54px)); }
   .sa-hero3-paper { width: 100%; max-width: 380px; }
+}
+
+/* ---------------------------------------------------------------------------
+   SEMESTER PASS LINE — the dismiss x is hover-revealed on pointer devices and
+   permanently visible (small, muted) on touch, where there is no hover to
+   reveal it with. Keyboard users get it on focus, or it would be unreachable.
+   --------------------------------------------------------------------------- */
+.sa-passline-x { opacity: 0; transition: opacity 140ms ease; }
+.sa-passline:hover .sa-passline-x,
+.sa-passline-x:focus-visible { opacity: 1; }
+@media (hover: none) {
+  .sa-passline-x { opacity: 0.5; }
 }

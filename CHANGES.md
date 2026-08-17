@@ -1,114 +1,116 @@
-# Landing Pass 3 — hero graphic + Exam 1 notify pattern
+# Landing Pass 4 — hero bolt fix, copy lock, player flow restage
 
-Branch: `landing-pass-3`. Two focused changes; everything else from Pass 2 is untouched. The
-school/professor flow, checkout and the Greek page were not opened.
-
----
-
-## 1. Hero — two columns and a graphic
-
-**≥1024px:** two-column grid, `1.05fr / 0.95fr`. Copy left-aligned on the left, the exam-paper
-graphic on the right. Below 1024px it collapses to the Pass 2 single centred column.
-
-**Copy unchanged from Pass 2** — H1, subhead, CTA and both trust badges are byte-identical.
-
-**Hero height was tuned by measurement, not by guess.** The brief asked for the player's tab row
-to peek above the fold as a scroll cue. First attempt (62vh) put the tab row at **y=672 on a 1080
-viewport, exposing ~400px of the player** — that is not a peek. At **80vh** the tabs land at
-**y=865 with 46% of the card visible**: present as a cue, not fully revealed.
-
-## 2. The exam-paper graphic — `src/components/site/ExamPaper.tsx`
-
-Pure SVG + CSS. No JS animation loop, no canvas, no video, no raster asset.
-
-- Cream sheet, rounded, rotated −4°, with a soft drop shadow lifting it off the navy.
-- `EXAM 1` header + a name/date rule line.
-- **5 greeked question rows**, each two strokes of varying length so the block reads as language
-  rather than as a barcode, with **exactly one of four bubbles inked** per row in brand red.
-- The split bolt struck through the middle at ~50% of sheet height, with a radial glow.
-
-**Decorative only, deliberately.** No legible accounting content and no legible answers anywhere
-on the paper. The inked bubbles were chosen for visual rhythm; putting real content on a marketing
-prop is how an answer key ends up in a screenshot.
-
-**The colour cycle animates two CSS custom properties** (`--sa-bolt-1` / `--sa-bolt-2`) through
-four SEC colourways on a 10s ease-in-out loop — red/grey → red/blue → orange/navy → purple/gold.
-Animating the *variables* rather than the fills means one keyframe drives the bolt and its halo in
-lockstep, so the light can never disagree with the object casting it. Zero JS per frame.
-
-**Reduced motion:** verified a `prefers-reduced-motion` block targeting `.sa-paper` exists — the
-cycle stops on the canonical red/grey, the glow stays, hover scaling is disabled.
-
-**The whole graphic is a `<button>`** — `aria-label="Cram Exam 1 Free"`, keyboard focusable
-(`tabIndex 0`), visible focus ring, hover scale 1.02 with an intensified glow.
-
-## 3. Mobile — the graphic stays, decided by measurement
-
-The brief said CTA-above-the-fold beats the graphic. At 390×844 the graphic renders above the H1
-at **58% of viewport width (226px)** and the **CTA bottom lands at y=641 — 203px of headroom**. So
-it comfortably fits and the graphic stays. The fallback (`display:none`) is recorded in
-`styles.css` next to the rule, so if the copy ever grows the next person knows which way to trade.
-
-## 4. Exam 1 adopts the Exam 2 notify pattern
-
-| | |
-|---|---|
-| Sidebar label | `Filming this week`, from `EXAM1_STATUS_LABEL` in `landing.tsx` |
-| Notify box | `Get notified once Exam 1 is ready` + `you@school.edu` + `Notify me` |
-| Removed from the poster | `Coming Fall 2026` and `Get notified →` |
-
-`EXAM1_STATUS_LABEL` is one exported constant. It is the only copy on the page expected to change
-weekly, which is exactly why it is isolated.
-
-Exams 2/3/Final keep `Opens Fall 2026` and their own notify boxes — verified unchanged.
-
-**Notify signups now record their exam.** `joinPricingWaitlist` gained an optional `examNum` that
-rides in the **source tag** (`pricing_page_test_pass_exam1`), not a new column — no migration
-needed. `tier` deliberately stays a real `WaitlistTier`: the union is only
-`"test_pass" | "membership"`, and widening it to carry an exam would corrupt every existing
-`tier_interest` report. (My first draft passed `tier: "exam_1_free"`, which would not have
-compiled — caught before it shipped.)
-
-`Poster` lost its now-dead `queued` and `onNotify` props rather than keeping parameters that no
-longer do anything.
+Branch: `landing-pass-4` (on top of Pass 3). **No Greek page changes**, per the brief. Checkout and
+the video player internals were not touched.
 
 ---
+
+## Every copy string changed
+
+| Where | Was | Now |
+|---|---|---|
+| Hero subhead | `On-demand exam prep for your first accounting course. Built for the night before.` | `On-demand tutoring videos for your first accounting course. Built for last-minute strugglers and 4.0s chasing easy extra points.` |
+| Trust badge | `Built by a pro tutor` | `Created by a pro tutor` |
+| Below-player block | 1-2-3 cards (`Pick your exam` / `Cram the topics` / `Walk in ready`) | header `Will this match my professor's exam?` |
+| — body | *(three card lines)* | `That's the whole point. Pick your school and professor in the player — then send your syllabus, study guides, or old exams, and I'll send back an exact gameplan for your exam.` |
+| — CTA | *(none)* | `Match my exam ⚡` |
+| Materials modal title | `One last thing` | `Get your exam gameplan` |
+| Materials modal headline | `Want it matched exactly?` | `Get your exam gameplan` |
+| Materials modal body | `Send your syllabus and I'll map your exams topic by topic.` | `Send your syllabus, study guides, old exams — whatever you've got — and I'll match my videos to your course and send you an exact gameplan. The more you send, the better the plan.` |
+| Materials primary CTA | `Send your syllabus` | `Upload course materials` |
+| Coverage line | `Right now this likely covers N% of …` | `This already covers about N% of …` |
+| Top bar action | `Change` | `Reset` |
+| Professor step | had `Skip this` | **removed** |
+| Hamburger / footer Greek item | *(no subtext)* | + `Boost chapter GPAs` |
+
+Hero H1, both exam-tab labels, the Semester Pass line, `Meet your tutor` and all legal/memorial
+lines are unchanged.
+
+## 1. Hero graphic
+
+- **The bolt is now the real brand asset** — `Bolt` from `components/canvas/brand`, the same
+  13-point split bolt the wordmark and player use. Not redrawn.
+- **Sized to overpower the exam**: 122% of the sheet's height, overhanging top and bottom.
+- **Paper simplified**: 5 rows → **4**, strokes lightened (`#DCE1E9` / `#E6EAF0`), one inked
+  bubble per row in brand red.
+- **Course-code cycling replaces the colour-only cycle.** The header reads `ACCY 201 — EXAM 1`;
+  every 4s the code, its accent and the bolt's colourway crossfade together (900ms). Order is
+  Ole Miss → LSU → Tennessee → the rest in picker order.
+- Glow deliberately restrained — a low double `drop-shadow`, per "if in doubt, reduce the glow".
+- `prefers-reduced-motion` → static first stop (Ole Miss), no interval, no transitions.
+- No marquee in the hero; it remains only under `Pick your school to start`.
+
+**Honesty rule:** `paperStops` **drops any school without a VERIFIED course code** rather than
+showing a blank or a plausible-looking one. If none are verified the hero renders no graphic at
+all. Covered by `src/components/site/exam-paper.test.ts`.
+
+## 2. Player flow — actions on centre stage
+
+`MatchPanel` is now three sequential states in the middle of the right panel:
+
+1. **Pick school** (unchanged).
+2. **Pick professor** — new `ProfessorStage`, rendered *inline on the stage*, not in a sheet:
+   heading, search box, scrollable list, `My professor isn't listed →`, and `← Change school`
+   demoted to small muted text beneath. **`Skip this` removed** — `isn't listed` is the only
+   alternate path, and it reaches the same next step, so nobody is trapped.
+3. **Confirmed** — the top bar carries only what is true: `✓ Ole Miss · ACCY 201 · Prof. Allen`
+   plus **`Reset`**. `Add professor` is gone; adding one happens by resetting the flow.
+
+The sheet now takes an `initialStep`, so finishing the professor rung on stage opens it directly
+on materials instead of re-asking a question already answered. (Caught in testing — it was
+re-opening at the professor step.)
+
+## 3. Other
+
+- **Semester Pass bar is dismissible.** Hover-revealed `×` on pointer devices, permanently visible
+  at 50% opacity on touch, focus-visible for keyboard. Dismissal persists in localStorage
+  (`sa-pass-line-dismissed`), read in an effect so SSR and client agree.
+- **Testimonials**: card `minHeight` 260 → 210, padding trimmed, quote 16/18px → 14.5/15.5px,
+  quote mark 64 → 44px, **avatar 36px → 48px**. Attribution is `[Campus] · [Course code]` — but
+  **no testimonial carries a code today, so every card renders campus-only.** The field is
+  optional and must be filled per student; inferring a code from the campus would be inventing a
+  fact about a real person.
+- **Footer rebuilt** — all five nav links (with the Greek subtext), the existing text-me block, and
+  the three legal/memorial lines unchanged at the very bottom.
+
+## 4. The navbar sticky bug — root cause
+
+Not a missing `position: sticky`; it was already set. The landing root div carried
+`overflow-x: hidden`, which forces `overflow-y` to compute to `auto` — **making it a scroll
+container**. A sticky header then sticks to *that container* rather than the viewport, so it
+scrolled away (measured: header at `-900` after scrolling 900px).
+
+Fixed by switching to `overflow-x: clip`, which blocks the same sideways overflow **without**
+creating a scroll container, on both the root div and the `html.sa-navy` guard rail. `hidden` is
+kept as a preceding declaration so engines without `clip` still get the overflow guard.
+
+Measured after: header at `0` after scrolling 1200px, and horizontal overflow still prevented.
 
 ## Verified (measured from the live DOM)
 
-**Desktop 1440×1080:** two columns (`499.8px / 452.2px`); H1 left-aligned at x=217; graphic is a
-`BUTTON` with `aria-label="Cram Exam 1 Free"`, animation `sa-bolt-cycle` at `10s`; tab row at
-y=865 with 46% of the player exposed; no horizontal overflow.
-
-**Mobile 390×844:** single column; graphic above the H1 at 58vw; CTA bottom y=641 with 203px
-headroom; no horizontal overflow.
-
-**Exam 1 tab:** `Filming this week`, `Get notified once Exam 1 is ready`, `you@school.edu`,
-`Notify me`, `COMMON EXAM QUESTIONS` header, topic pill present — and `Coming Fall 2026` /
-`Get notified →` both **absent**.
-
-**Exam 2 tab:** `Opens Fall 2026`, `Get notified once Exam 2 is ready`, no blur line — unchanged.
-
-**Graphic activation:** instrumented `scrollIntoView` and clicked both controls. Both call it on
-`#exam1` with identical options and both land at **y=757**. The graphic does exactly what the CTA
-does.
-
-`tsc --noEmit` clean; **1028/1028 tests** pass.
+- Graphic: `BUTTON`, `aria-label="Cram Exam 1 Free"`, 2 bolt paths filled `var(--sa-bolt-1)`,
+  4 question rows, header cycling `ACCT 200` → `AC 210` → `ACCT 2013` on a 4s beat.
+- Cycle ORDER proven by unit test (browser timing kept sampling mid-rotation): Ole Miss, LSU,
+  Tennessee, then picker order; unverified codes dropped.
+- Copy: new subhead present, `Created by a pro tutor` present, `Built by a pro tutor` absent.
+- Objection block present with `Match my exam ⚡`; `Go crush exam day` absent.
+- Pass line `×` present and `opacity: 0` at rest.
+- Professor stage: heading, `Search Ole Miss professors` placeholder, 21 roster rows,
+  `isn't listed`, `← Change school`, **no `Skip this`**, and not rendered as a sheet.
+- Materials modal: `Get your exam gameplan`, new body, `Upload course materials`, `Not now`;
+  old copy absent.
+- Top bar: `✓ Ole Miss …`, `Reset`, no `Add professor`.
+- Footer: 5 links incl. Greek + subtext, text-me block, three legal lines last and in order.
+- Navbar sticky at 1440×1000; `tsc` clean; **1032/1032 tests**.
 
 ## Not verified
 
-- **Screenshots could not be captured**, for the third pass running. The Browser pane paints the
-  page into a ~105px corner of the canvas and, under 768px, forces `devicePixelRatio: 2` and crops
-  instead of downscaling. The measurements above stand in; the preview deploy is the thing to look
-  at. The two glow-cycle moments in particular cannot be captured here.
-- **The colour cycle depends on `@property`.** Where it is supported the four colourways
-  interpolate smoothly; without it browsers fall back to discrete swaps at each keyframe, which
-  reads as four steps rather than a crossfade. Not visually confirmed in this environment.
+- **Screenshots — fourth pass running.** The Browser pane paints into a ~105px corner and, under
+  768px, forces `devicePixelRatio: 2` and crops instead of downscaling. None of the seven
+  requested shots could be captured. The preview deploy is the thing to look at.
+- Mobile WAS re-measured after writing this section: at 390×844 the graphic sits at 58vw and the
+  CTA bottom lands at y=670 with **174px of headroom**; the navbar is sticky on mobile too and
+  there is no horizontal overflow. So the graphic stays on mobile.
 
-## One note on smooth scrolling
-
-Clicking either the CTA *or* the graphic appears not to scroll in this pane. That is a harness
-artifact, not a bug: `scrollIntoView({behavior:'auto'})` moves to y=757 while `'smooth'` does not
-move at all, because smooth scrolling is compositor-driven and this pane does not composite. The
-same starvation freezes CSS animations and breaks screenshots here. No code was changed to
-accommodate it.
+- The crossfade's *feel* (900ms against a 4s dwell) and whether the restrained glow reads as
+  "illuminated" — both judgement calls that want your eye.
