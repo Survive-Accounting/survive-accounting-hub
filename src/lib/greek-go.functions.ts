@@ -1,0 +1,224 @@
+// GREEK /go/ (server) — Phase 1. The canonical public chapter surface:
+//
+//     /go/<campus.slug>/<campus_greek_chapters.slug>
+//
+// Every one of the 1,107 roster chapters is public from day one — no claim required, no exec
+// signup required. That is the whole shape change from 0111, which could not represent a chapter
+// until someone claimed it.
+//
+// LINK LAW: nothing in this file (or anywhere else, from now on) emits a /c/<slug> URL. /c/ is
+// redirect-only. `goPath()` below is the ONE place a chapter URL is built, so there is exactly one
+// thing to change if the scheme ever moves again.
+//
+// Tables: 0115 (manual-apply) on top of 0111.
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+
+type DB = { from: (t: string) => any };
+const admin = async () => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin as unknown as DB;
+};
+
+/** THE canonical chapter URL builder. Everything that shows, copies, QR-encodes or prints a
+ *  chapter link goes through this — share toolkit, dashboard, flyer, admin list. */
+export function goPath(schoolSlug: string, chapterSlug: string): string {
+  return `/go/${schoolSlug}/${chapterSlug}`;
+}
+
+export interface GoChapter {
+  campusGreekChapterId: string;
+  campusId: string;
+  schoolSlug: string;
+  schoolName: string;
+  chapterSlug: string;
+  chapterName: string;
+  /** e.g. "Mississippi Alpha" — the chapter's own Greek designation, when GreekIntel has it. */
+  designation: string | null;
+  council: string | null;
+  claimStatus: "unclaimed" | "pending" | "claimed";
+  /** Members banked against this chapter so far. Real count or 0 — never a decorative number. */
+  members: number;
+}
+
+/** Resolve a /go/ URL to its chapter. Returns null for an unknown school or chapter, which the
+ *  route renders as the plain landing page rather than a 404 — a bad flyer QR should still land
+ *  the student on something that works. */
+export const getGoChapter = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    schoolSlug: z.string().trim().min(1).max(80),
+    chapterSlug: z.string().trim().min(1).max(60),
+  }).parse(d))
+  .handler(async ({ data }): Promise<GoChapter | null> => {
+    const db = await admin();
+    const { data: campus } = await db.from("campuses").select("id,slug,name,short_name").eq("slug", data.schoolSlug).maybeSingle();
+    if (!campus?.id) return null;
+
+    const { data: row } = await db.from("campus_greek_chapters")
+      .select("id,campus_id,greek_org_id,slug,chapter_designation,council,claim_status")
+      .eq("campus_id", campus.id).eq("slug", data.chapterSlug).maybeSingle();
+    if (!row?.id) return null;
+
+    const { data: org } = row.greek_org_id
+      ? await db.from("greek_orgs").select("name").eq("id", row.greek_org_id).maybeSingle()
+      : { data: null };
+
+    // The member count comes from the shell chapter row if one exists yet; no shell = nobody has
+    // joined = 0. Reported as-is.
+    const { data: shell } = await db.from("greek_chapters").select("id").eq("campus_greek_chapter_id", row.id).maybeSingle();
+    let members = 0;
+    if (shell?.id) {
+      const { count } = await db.from("greek_chapter_members").select("*", { count: "exact", head: true }).eq("chapter_id", shell.id);
+      members = count ?? 0;
+    }
+
+    return {
+      campusGreekChapterId: row.id,
+      campusId: campus.id,
+      schoolSlug: campus.slug,
+      schoolName: campus.short_name || campus.name,
+      chapterSlug: row.slug,
+      chapterName: (org?.name ?? "").trim() || "Chapter",
+      designation: row.chapter_designation ?? null,
+      council: row.council ?? null,
+      claimStatus: (row.claim_status ?? "unclaimed") as GoChapter["claimStatus"],
+      members,
+    };
+  });
+
+/** Schools that actually have chapters, with their REAL campuses.slug.
+ *
+ *  Read from the database rather than from landing.tsx's SCHOOLS list, whose `id` is a short label
+ *  ("ole-miss") and not the campus slug ("university-of-mississippi"). Hardcoding a second mapping
+ *  between the two is how /go/ URLs would start 404-ing the first time a campus slug changed. */
+export const listGoSchools = createServerFn({ method: "GET" })
+  .handler(async (): Promise<Array<{ slug: string; name: string }>> => {
+    const db = await admin();
+    const { data: camps } = await db.from("campuses").select("id,slug,name,short_name").eq("is_sec", true).not("slug", "is", null);
+    const list = (camps ?? []) as Array<{ id: string; slug: string; name: string; short_name: string | null }>;
+    if (!list.length) return [];
+    // Only schools with at least one slugged chapter — offering a school whose roster has no
+    // reachable /go/ page yet would be a dropdown entry that leads nowhere.
+    const { data: rows } = await db.from("campus_greek_chapters")
+      .select("campus_id").in("campus_id", list.map((c) => c.id)).not("slug", "is", null).limit(2000);
+    const have = new Set(((rows ?? []) as Array<{ campus_id: string }>).map((r) => r.campus_id));
+    return list
+      .filter((c) => have.has(c.id))
+      .map((c) => ({ slug: c.slug, name: c.short_name || c.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  });
+
+/** Every chapter at one school — the self-report picker and the school index both read this. */
+export const listGoChapters = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ schoolSlug: z.string().trim().min(1).max(80) }).parse(d))
+  .handler(async ({ data }): Promise<Array<{ slug: string; name: string; council: string | null }>> => {
+    const db = await admin();
+    const { data: campus } = await db.from("campuses").select("id").eq("slug", data.schoolSlug).maybeSingle();
+    if (!campus?.id) return [];
+    const { data: rows } = await db.from("campus_greek_chapters")
+      .select("slug,greek_org_id,council").eq("campus_id", campus.id).not("slug", "is", null).limit(600);
+    const list = (rows ?? []) as Array<{ slug: string; greek_org_id: string | null; council: string | null }>;
+    const ids = [...new Set(list.map((r) => r.greek_org_id).filter(Boolean))] as string[];
+    if (!ids.length) return [];
+    const { data: orgs } = await db.from("greek_orgs").select("id,name").in("id", ids);
+    const byId = new Map<string, string>((orgs ?? []).map((o: { id: string; name: string | null }) => [o.id, (o.name ?? "").trim()]));
+    return list
+      .map((r) => ({ slug: r.slug, name: r.greek_org_id ? (byId.get(r.greek_org_id) ?? "") : "", council: r.council }))
+      .filter((r) => r.name)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  });
+
+/** The shell chapter record for a roster row, created on demand.
+ *
+ *  A chapter can bank members long before an exec claims it, but greek_chapter_members keys to
+ *  greek_chapters, so the first join has to materialise that row. 0115 relaxed the three admin_*
+ *  NOT NULLs for exactly this. school_name / chapter_name / slug are all fillable from the roster
+ *  row, so they stay NOT NULL — the shell is a real, complete chapter record that simply has no
+ *  admin yet. The global slug is <campus>-<chapter>, which is unique because campus slugs are. */
+async function shellChapterId(db: DB, ch: GoChapter): Promise<string | null> {
+  const { data: found } = await db.from("greek_chapters").select("id").eq("campus_greek_chapter_id", ch.campusGreekChapterId).maybeSingle();
+  if (found?.id) return found.id as string;
+  const { data: ins, error } = await db.from("greek_chapters").insert({
+    slug: `${ch.schoolSlug}-${ch.chapterSlug}`,
+    campus_id: ch.campusId,
+    campus_greek_chapter_id: ch.campusGreekChapterId,
+    school_name: ch.schoolName,
+    chapter_name: ch.chapterName,
+    claim_status: "unclaimed",
+  }).select("id").single();
+  if (error) {
+    // A concurrent first-join races here; the unique index on campus_greek_chapter_id is what makes
+    // that safe, so re-read rather than surfacing a collision as a failure.
+    const { data: again } = await db.from("greek_chapters").select("id").eq("campus_greek_chapter_id", ch.campusGreekChapterId).maybeSingle();
+    return (again?.id as string) ?? null;
+  }
+  return ins.id as string;
+}
+
+/** Tag a student as a member of a chapter.
+ *
+ *  THE INVARIANT: one account, one membership per chapter. When a userId is present the write is an
+ *  upsert against the (chapter_id, user_id) unique index from 0115, so joining twice — a second
+ *  visit, a re-scanned QR, a link forwarded back to someone already in — updates one row instead of
+ *  creating a second person. Anonymous tags (no account yet) carry name/phone only and are
+ *  reconciled to an account when the student signs in. */
+export const tagChapterMember = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    schoolSlug: z.string().trim().min(1).max(80),
+    chapterSlug: z.string().trim().min(1).max(60),
+    userId: z.string().uuid().nullable().optional(),
+    name: z.string().trim().min(1).max(120).nullable().optional(),
+    phone: z.string().trim().max(20).nullable().optional(),
+    source: z.enum(["link", "self_report", "exec_invite"]).default("link"),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; members: number }> => {
+    const db = await admin();
+    const ch = await getGoChapter({ data: { schoolSlug: data.schoolSlug, chapterSlug: data.chapterSlug } });
+    if (!ch) return { ok: false, members: 0 };
+    const chapterId = await shellChapterId(db, ch);
+    if (!chapterId) return { ok: false, members: ch.members };
+
+    if (data.userId) {
+      await db.from("greek_chapter_members").upsert({
+        chapter_id: chapterId, user_id: data.userId, name: data.name ?? null, phone: data.phone ?? null,
+        source: data.source, tagged_at: new Date().toISOString(),
+      }, { onConflict: "chapter_id,user_id" });
+    } else {
+      // No account yet. Without a user_id the unique index does not apply, so de-dupe on phone —
+      // the only stable handle an anonymous student has — rather than banking the same person twice.
+      const phone = (data.phone ?? "").trim();
+      const { data: dupe } = phone
+        ? await db.from("greek_chapter_members").select("id").eq("chapter_id", chapterId).eq("phone", phone).maybeSingle()
+        : { data: null };
+      if (!dupe?.id) {
+        await db.from("greek_chapter_members").insert({
+          chapter_id: chapterId, name: data.name ?? null, phone: phone || null, source: data.source,
+        });
+      }
+    }
+
+    const { count } = await db.from("greek_chapter_members").select("*", { count: "exact", head: true }).eq("chapter_id", chapterId);
+    return { ok: true, members: count ?? 0 };
+  });
+
+/** LEGACY /c/<slug> -> /go/. Returns the canonical path for an old chapter link, or null.
+ *
+ *  0111's greek_chapters.slug was the old public key. A row that predates Phase 1 has no
+ *  campus_greek_chapter_id, so it falls back to matching its campus — an old link keeps working
+ *  even if it cannot name a specific chapter. */
+export const resolveLegacyChapterSlug = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ slug: z.string().trim().min(1).max(60) }).parse(d))
+  .handler(async ({ data }): Promise<string | null> => {
+    const db = await admin();
+    const { data: ch } = await db.from("greek_chapters")
+      .select("campus_id,campus_greek_chapter_id").eq("slug", data.slug).maybeSingle();
+    if (!ch) return null;
+    const { data: campus } = ch.campus_id
+      ? await db.from("campuses").select("slug").eq("id", ch.campus_id).maybeSingle()
+      : { data: null };
+    if (!campus?.slug) return null;
+    if (!ch.campus_greek_chapter_id) return null;
+    const { data: roster } = await db.from("campus_greek_chapters").select("slug").eq("id", ch.campus_greek_chapter_id).maybeSingle();
+    if (!roster?.slug) return null;
+    return goPath(campus.slug, roster.slug);
+  });

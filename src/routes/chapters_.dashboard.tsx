@@ -101,10 +101,14 @@ function DashboardPage() {
 }
 
 function Dashboard({ data, token, onDigest }: { data: ChapterDashboard; token: string; onDigest: (v: boolean) => void }) {
-  const full = `${ORIGIN}${data.url}`;
+  // data.url is /go/<school>/<chapter>, or null when this chapter has no roster row behind it yet.
+  // Null shows a plain "link pending" line instead of a copyable URL: half a link in a Copy button
+  // is worse than none, and the fallback that USED to fill this gap was a /c/ link, which is
+  // exactly what Phase 1 retired.
+  const full = data.url ? `${ORIGIN}${data.url}` : null;
   const [copied, setCopied] = useState(false);
-  const doCopy = async () => { try { await navigator.clipboard.writeText(`https://${full}`); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* long-press fallback */ } };
-  const qr = `https://api.qrserver.com/v1/create-qr-code/?size=130x130&margin=0&data=${encodeURIComponent(`https://${full}`)}`;
+  const doCopy = async () => { if (!full) return; try { await navigator.clipboard.writeText(`https://${full}`); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* long-press fallback */ } };
+  const qr = full ? `https://api.qrserver.com/v1/create-qr-code/?size=130x130&margin=0&data=${encodeURIComponent(`https://${full}`)}` : null;
   const toggleDigest = async () => { const next = !data.digestEnabled; onDigest(next); await setChapterDigest({ data: { accessToken: token, enabled: next } }); };
   const buySeats = `sms:${LEE_TEL}?&body=${encodeURIComponent(`${data.chapterName} is interested in semester seats.`)}`;
   const fmtDate = (s: string) => { try { return new Date(s).toLocaleDateString(undefined, { month: "short", day: "numeric" }); } catch { return "—"; } };
@@ -116,11 +120,17 @@ function Dashboard({ data, token, onDigest }: { data: ChapterDashboard; token: s
             <h1 className="text-[20px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{data.chapterName}</h1>
             <p className="text-[12.5px]" style={{ color: "var(--text-muted)" }}>{data.schoolName}</p>
             <div className="mt-3 flex items-center gap-2 rounded-xl px-3 py-2" style={{ background: "rgba(0,0,0,0.25)", border: "1px solid rgba(245,239,230,0.14)" }}>
-              <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: "var(--accent)" }}>{full}</span>
-              <button onClick={() => void doCopy()} className="shrink-0 rounded-lg px-2.5 py-1 text-[12px] font-black" style={{ background: copied ? "#3BF5A0" : "var(--accent)", color: "#0B1220" }}>{copied ? "Copied ⚡" : "Copy"}</button>
+              {full ? (
+                <>
+                  <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: "var(--accent)" }}>{full}</span>
+                  <button onClick={() => void doCopy()} className="shrink-0 rounded-lg px-2.5 py-1 text-[12px] font-black" style={{ background: copied ? "#3BF5A0" : "var(--accent)", color: "#0B1220" }}>{copied ? "Copied ⚡" : "Copy"}</button>
+                </>
+              ) : (
+                <span className="text-[12.5px]" style={{ color: "var(--text-muted)" }}>Your share link is being set up — text Lee and he&apos;ll finish it in a minute.</span>
+              )}
             </div>
           </div>
-          <img src={qr} alt="Chapter link QR" width={130} height={130} className="shrink-0 rounded-lg" style={{ background: "#fff", padding: 6 }} />
+          {qr && <img src={qr} alt="Chapter link QR" width={130} height={130} className="shrink-0 rounded-lg" style={{ background: "#fff", padding: 6 }} />}
         </div>
       </div>
 

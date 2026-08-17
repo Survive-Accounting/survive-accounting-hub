@@ -1,19 +1,19 @@
-// THE HERO GRAPHIC — a plain multiple-choice exam with the brand bolt struck through it.
+// THE HERO GRAPHIC — a quiet navy card, the brand bolt, and a pencil crossing it.
 //
-// The story is the composition: the bolt OVERPOWERS the exam. It overhangs the sheet top and
-// bottom, and the paper underneath is deliberately dull — four faint rows, one inked bubble each.
-// Nothing on the paper should compete for attention, because the paper is the problem and the
-// bolt is the answer.
+// PASS 6 removed the exam. Earlier versions drew answer bubbles and greeked question rows, on the
+// theory that the composition should show the PROBLEM (an exam) being overpowered by the ANSWER
+// (the bolt). In practice the rows and bubbles just made the card busy at hero size, and every
+// pass since had been spent dulling them down — fainter strokes, fainter fills, a darker sheet —
+// which is a long way of admitting they should not have been there. The card is now empty on
+// purpose: two lines of type, and one mark.
 //
-// PASS 4 changed two things from the first version. The bolt is now the REAL brand asset
-// (`Bolt` from canvas/brand — the 13-point split bolt used by the wordmark and the player), not a
-// hand-drawn approximation. And the cycle is no longer colour-only: the header names a real
-// course at a real school, and the course code, its accent and the bolt's colourway crossfade
-// together so the graphic reads as "this is your exam", school by school.
+// The mark is the bolt with a pencil across it: exam + energy, read in one glance. The bolt
+// dominates and the pencil is deliberately small and flat — if the pencil ever competes, shrink it
+// rather than restyling the bolt.
 //
-// DECORATIVE ONLY. The question rows are greeked strokes and the inked bubbles are chosen for
-// rhythm, not correctness. A marketing prop carrying a real question and a real answer is exactly
-// how an answer key ends up in a screenshot.
+// The cycle names a real course at a real school, and the course code, the campus name and the
+// bolt's colourway crossfade together so the graphic reads as "this is your exam", school by
+// school.
 import { useEffect, useState } from "react";
 
 import { Bolt } from "@/components/canvas/brand";
@@ -21,15 +21,6 @@ import type { School } from "@/routes/landing";
 
 /** One stop in the cycle. `code` is a VERIFIED course code — never a guess. */
 export type PaperStop = { id: string; name: string; code: string; c1: string; c2: string };
-
-/** Greeked rows. Four, faint, one inked bubble each — see the note above about staying dull. */
-const ROWS: { w: number; fill: number }[] = [
-  { w: 92, fill: 2 },
-  { w: 76, fill: 0 },
-  { w: 86, fill: 3 },
-  { w: 68, fill: 1 },
-];
-const BUBBLES = 4;
 
 /** ~4s per school, per the brief. */
 const DWELL_MS = 4000;
@@ -47,7 +38,7 @@ export function ExamPaper({ stops, onActivate, className, style }: {
   // while rendering makes the server and a reduced-motion client disagree on the first paint.
   useEffect(() => { setReduce(!!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches); }, []);
 
-  // The header TEXT changes, which CSS keyframes cannot do — so this is a state tick, not an
+  // The card TEXT changes, which CSS keyframes cannot do — so this is a state tick, not an
   // animation loop: one setState every 4 seconds, and the crossfade itself is CSS.
   useEffect(() => {
     if (reduce || stops.length < 2) return;
@@ -66,73 +57,72 @@ export function ExamPaper({ stops, onActivate, className, style }: {
       className={`sa-paper group relative block ${className ?? ""}`}
       style={{
         WebkitTapHighlightColor: "transparent",
-        // Both the bolt and the header accent read these, so one state change moves every
-        // colour in the composition at once and the light can never disagree with the object.
+        // Both the mark and the campus line read these, so one state change moves every colour in
+        // the composition at once and the light can never disagree with the object.
         ["--sa-bolt-1" as string]: stop.c1,
         ["--sa-bolt-2" as string]: stop.c2,
         ...style,
       }}
     >
-      {/* THE SHEET */}
+      {/* THE CARD — one tilted, rounded panel. No rules, no rows, no bubbles. */}
       <svg viewBox="0 0 300 340" role="img" aria-hidden className="w-full sa-paper-sheet" style={{ overflow: "visible" }}>
         <g transform="rotate(-4 150 170)">
-          <rect x="26" y="18" width="248" height="304" rx="10" fill="rgba(0,0,0,0.22)" />
-          {/* Navy-tinted, not cream: the paper is the PROBLEM in this composition and must not
-                compete with the bolt. Still unmistakably a sheet — rounded, tilted, ruled. */}
-          <rect x="22" y="14" width="248" height="304" rx="10" fill="#22304F" stroke="rgba(245,239,230,0.10)" strokeWidth="1" />
-
-          {/* header rule only — the course line itself is HTML, so its text can crossfade */}
-          <line x1="42" y1="62" x2="160" y2="62" stroke="rgba(245,239,230,0.20)" strokeWidth="1.2" />
-          <line x1="172" y1="62" x2="250" y2="62" stroke="rgba(245,239,230,0.20)" strokeWidth="1.2" />
-
-          {ROWS.map((r, n) => {
-            const top = 96 + n * 52;
-            return (
-              <g key={n}>
-                {/* fainter than Pass 3 — the paper must not compete with the bolt */}
-                <rect x="42" y={top} width={(r.w / 100) * 200} height="4.5" rx="2.25" fill="rgba(245,239,230,0.20)" />
-                <rect x="42" y={top + 10} width={(r.w / 100) * 128} height="4.5" rx="2.25" fill="rgba(245,239,230,0.13)" />
-                {Array.from({ length: BUBBLES }, (_, b) => (
-                  <circle
-                    key={b}
-                    cx={48 + b * 26}
-                    cy={top + 29}
-                    r="6"
-                    fill={b === r.fill ? "#CE1126" : "none"}
-                    stroke={b === r.fill ? "#CE1126" : "#DCE1E9"}
-                    strokeWidth="1.4"
-                  />
-                ))}
-              </g>
-            );
-          })}
+          <rect x="26" y="18" width="248" height="304" rx="12" fill="rgba(0,0,0,0.22)" />
+          <rect x="22" y="14" width="248" height="304" rx="12" fill="#22304F" stroke="rgba(245,239,230,0.10)" strokeWidth="1" />
         </g>
       </svg>
 
-      {/* THE COURSE LINE — HTML rather than SVG <text> so the string can crossfade on key change.
-          Positioned over the sheet's header area and tilted to match its -4deg. */}
+      {/* TOP-LEFT, TWO LINES. Line 1 is static neutral so it is legible against every colourway
+          without any contrast gymnastics; line 2 is the one that carries the school. */}
       <span className="sa-paper-course" aria-hidden>
-        <span key={stop.id} className="sa-paper-course-in">
-          {stop.code} <span style={{ opacity: 0.55 }}>— EXAM 1</span>
-        </span>
+        <span key={stop.id} className="sa-paper-course-in">Cram for {stop.code}</span>
       </span>
-
-      {/* BOTTOM-LEFT — this is the line that carries the school. Legibility is handled by a dark
-          paint-order stroke rather than by picking "safe" colours: Vanderbilt gold and Tennessee
-          white would both vanish on the tinted card otherwise, and dropping them from the cycle
-          would mean the hero silently never shows those schools. */}
       <span className="sa-paper-campus" aria-hidden>
         <span key={`c-${stop.id}`} className="sa-paper-course-in">{stop.name}</span>
       </span>
 
-      {/* THE BOLT — the real brand asset, overhanging the sheet top and bottom. */}
+      {/* THE MARK — bolt (dominant) with the pencil crossing it. */}
       <span className="sa-paper-bolt" aria-hidden>
-        {/* keyline left at its default (BRAND_WHITE): the white outline is now permanent on every
-            colourway. Pass 4 passed keyline="" to drop it, which made dark colourways (Auburn navy,
-            Florida blue) merge into the navy page. */}
+        {/* keyline left at its default (BRAND_WHITE): the white outline is permanent on every
+            colourway. Pass 4 passed keyline="" to drop it, which made dark colourways (Auburn
+            navy, Florida blue) merge into the navy page. */}
         <Bolt c1="var(--sa-bolt-1)" c2="var(--sa-bolt-2)" />
       </span>
+      <span className="sa-paper-pencil" aria-hidden><Pencil /></span>
     </button>
+  );
+}
+
+/** THE PENCIL — flat, brand-style, drawn rather than an emoji.
+ *
+ *  An emoji glyph would render as a different picture on every OS and could not take the white
+ *  keyline that ties it to the bolt; a raster would go soft on a retina hero. Six shapes: body,
+ *  the darker underside that gives it a single light direction, ferrule, eraser, wood collar and
+ *  graphite tip. It is drawn at a diagonal so it crosses the bolt rather than sitting beside it. */
+function Pencil() {
+  return (
+    <svg viewBox="0 0 200 60" role="img" aria-hidden className="w-full" style={{ overflow: "visible" }}>
+      {/* Every piece carries the same dark keyline, so the pencil reads as one object against both
+          the card and the bolt it crosses. */}
+      <g stroke="rgba(10,16,30,0.85)" strokeWidth="3.2" strokeLinejoin="round">
+        <rect x="44" y="14" width="112" height="32" fill="#F2B441" />
+        {/* underside: one light direction, no gradients */}
+        <path d="M44 34 h112 v12 H44 z" fill="#D9972B" stroke="none" />
+        <path d="M44 34 h112" stroke="rgba(10,16,30,0.35)" strokeWidth="2" />
+        {/* wood collar + graphite */}
+        <path d="M44 14 L16 30 L44 46 Z" fill="#F0E2C8" />
+        <path d="M27.5 22.5 L16 30 L27.5 37.5 Z" fill="#2B3448" />
+        {/* ferrule + eraser */}
+        <rect x="156" y="14" width="18" height="32" fill="#C9CFDA" />
+        <path d="M174 14 h8 a10 10 0 0 1 0 32 h-8 z" fill="#E8737F" />
+      </g>
+      {/* the white keyline that matches the bolt's, drawn OUTSIDE the dark one */}
+      <g fill="none" stroke="#FFFFFF" strokeWidth="1.6" strokeLinejoin="round" opacity="0.9">
+        <path d="M44 12.4 h112 M44 47.6 h112" />
+        <path d="M44 12.4 L14 30 L44 47.6" />
+        <path d="M182 12.6 a11.6 11.6 0 0 1 0 34.8" />
+      </g>
+    </svg>
   );
 }
 
@@ -152,35 +142,35 @@ export const EXAM_PAPER_CSS = `
 .sa-paper:focus-visible { outline: 3px solid var(--accent); outline-offset: 8px; border-radius: 14px; }
 .sa-paper-sheet { filter: drop-shadow(0 18px 40px rgba(0,0,0,0.45)); }
 
-/* The course line, tilted onto the sheet's header rule. */
+/* LINE 1 — "Cram for ACCY 201". Tilted onto the card to match its -4deg. */
 .sa-paper-course {
   position: absolute;
-  left: 13%;
-  top: 11.5%;
+  left: 12%;
+  top: 11%;
   transform: rotate(-4deg);
   transform-origin: left center;
   font-family: 'Rubik', system-ui, sans-serif;
-  font-size: clamp(9px, 2.6cqw, 12px);
-  font-weight: 700;
-  letter-spacing: 0.14em;
+  font-size: clamp(13px, 4.2cqw, 19px);
+  font-weight: 900;
+  letter-spacing: 0.01em;
   white-space: nowrap;
-  /* STATIC, deliberately not var(--sa-bolt-1): the code changes with the school but the colour
+  /* STATIC. Deliberately not var(--sa-bolt-1) — the code changes with the school but the colour
      never does, so this line is legible on every colourway with no contrast gymnastics. */
-  color: rgba(245,239,230,0.92);
+  color: rgba(245,239,230,0.96);
 }
 /* Re-keying the inner span on each school remounts it, so this runs as a crossfade-in. */
 .sa-paper-course-in { display: inline-block; animation: sa-course-in 900ms ease; }
 @keyframes sa-course-in { from { opacity: 0; } to { opacity: 1; } }
 
-/* The campus name is where the school colour lives now. */
+/* LINE 2 — the campus. Smaller and secondary, and the line that carries the school colour. */
 .sa-paper-campus {
   position: absolute;
-  left: 13%;
-  bottom: 12%;
+  left: 12%;
+  top: 19.5%;
   transform: rotate(-4deg);
   transform-origin: left center;
   font-family: 'Rubik', system-ui, sans-serif;
-  font-size: clamp(11px, 3.4cqw, 15px);
+  font-size: clamp(10px, 3.1cqw, 14px);
   font-weight: 900;
   letter-spacing: 0.10em;
   text-transform: uppercase;
@@ -194,12 +184,12 @@ export const EXAM_PAPER_CSS = `
   transition: color 900ms ease;
 }
 
-/* THE BOLT — 1.5x the Pass 3 size and deliberately taller than the sheet, so it overhangs top
-   and bottom. The glow is kept low on purpose: the brief says illuminated, not flashy. */
+/* THE BOLT — deliberately taller than the card, so it overhangs top and bottom. The glow is kept
+   low on purpose: the brief says illuminated, not flashy. */
 .sa-paper-bolt {
   position: absolute;
   left: 50%;
-  top: 50%;
+  top: 52%;
   width: 46%;
   height: 122%;
   transform: translate(-50%, -50%);
@@ -212,8 +202,20 @@ export const EXAM_PAPER_CSS = `
   filter: drop-shadow(0 0 26px color-mix(in srgb, var(--sa-bolt-1) 60%, transparent))
           drop-shadow(0 6px 30px rgba(0,0,0,0.55));
 }
-/* The bolt's own fills transition too, so a school change moves paper accent and bolt together. */
+/* The bolt's own fills transition too, so a school change moves card accent and bolt together. */
 .sa-paper-bolt path { transition: fill 900ms ease; }
+
+/* THE PENCIL — crosses the lower half of the bolt. Sized at 52% of the card and rotated so it
+   reads as laid ACROSS the mark; anything larger starts competing with the bolt. */
+.sa-paper-pencil {
+  position: absolute;
+  left: 50%;
+  top: 66%;
+  width: 52%;
+  transform: translate(-50%, -50%) rotate(-24deg);
+  pointer-events: none;
+  filter: drop-shadow(0 6px 14px rgba(0,0,0,0.45));
+}
 
 @media (prefers-reduced-motion: reduce) {
   .sa-paper, .sa-paper:hover { transform: none; }

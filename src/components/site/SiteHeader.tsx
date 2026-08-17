@@ -136,12 +136,12 @@ function SiteMenu() {
   const items: { label: string; href: string; route?: boolean; sub?: string }[] = [
     { label: "Cram Exam 1 Free", href: "/#exam1" },
     { label: "Reviews", href: "/#reviews" },
-    { label: "About Lee", href: "/#lee" },
+    { label: "Meet your tutor", href: "/#lee" },
     // Anchor, never mailto:/sms: — a scheme link can be claimed by an installed app, which is
     // what made tapping Contact raise "Open in inDrive?" on iOS. The deliberate sms: CTA in the
     // contact section is a different thing and keeps its scheme.
     { label: "Contact", href: "/#contact" },
-    { label: "For Fraternities & Sororities", href: "/chapters", route: true, sub: "Boost chapter GPAs" },
+    { label: "For Fraternities & Sororities", href: "/chapters", route: true, sub: "⚡ Boost chapter GPAs" },
   ];
 
   return (
@@ -224,7 +224,7 @@ export function SiteHeader({ wordmark = true }: { wordmark?: boolean } = {}) {
       ref={bar}
       className="sticky top-0 z-[200] w-full"
       style={{
-        background: "rgba(15,26,46,0.92)",
+        background: "color-mix(in srgb, var(--sa-surface-nav) 92%, transparent)",
         backdropFilter: "blur(8px)",
         borderBottom: "1px solid rgba(245,239,230,0.10)",
         paddingTop: "env(safe-area-inset-top, 0px)",

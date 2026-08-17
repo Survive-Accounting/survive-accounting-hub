@@ -1,0 +1,252 @@
+// GREEK CLAIMS (server) — Phase 2a. An exec claims their chapter; Lee gets a text; Lee approves or
+// rejects from an authed route. Tables: greek_chapter_claims (0115).
+//
+// AUTH — READ THIS BEFORE CHANGING THE APPROVAL PATH.
+//
+// `AdminGate` is a localStorage flag guarding a passcode that is compiled into the public client
+// bundle; its own source calls it "a deterrent, not real security". Approving a claim hands a
+// stranger a chapter dashboard, a member roster with names and phone numbers, and (in 2b) seat
+// entitlements. That is a real privilege grant, so it cannot be gated by a string anyone can read
+// out of the JS.
+//
+// Every function here that reads or decides a claim verifies the caller's Supabase JWT server-side
+// and matches the resulting email against ADMIN_EMAILS. AdminGate still wraps the PAGE, because it
+// keeps the route out of the way day to day — but it is decoration. The server never trusts it.
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+
+import { getGoChapter, goPath } from "@/lib/greek-go.functions";
+import { normalizePhoneE164, sendSms } from "@/lib/greek-chapters.functions";
+
+type DB = {
+  from: (t: string) => any;
+  auth: { getUser: (jwt: string) => Promise<{ data: { user: { email?: string | null } | null }; error: unknown }> };
+};
+const admin = async () => {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  return supabaseAdmin as unknown as DB;
+};
+
+/** Who may decide a claim. Server-side only — this list never reaches the browser. */
+const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com"];
+
+/** Verify a Supabase JWT and confirm it belongs to an admin. Returns the email or null.
+ *  Null is always treated as "no", never as "probably fine". */
+async function adminEmailFromToken(db: DB, accessToken: string): Promise<string | null> {
+  const { data, error } = await db.auth.getUser(accessToken);
+  if (error) return null;
+  const email = (data.user?.email ?? "").trim().toLowerCase();
+  return email && ADMIN_EMAILS.includes(email) ? email : null;
+}
+
+const POSITIONS = ["President", "Treasurer", "Academic chair", "Scholarship chair", "Advisor", "Other"] as const;
+export const CLAIM_POSITIONS: readonly string[] = POSITIONS;
+
+// ── SUBMIT (public) ───────────────────────────────────────────────────────────────────────────
+
+export const submitChapterClaim = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    schoolSlug: z.string().trim().min(1).max(80),
+    chapterSlug: z.string().trim().min(1).max(60),
+    name: z.string().trim().min(2).max(120),
+    position: z.string().trim().min(1).max(60),
+    email: z.string().trim().email().max(200),
+    phone: z.string().trim().min(7).max(20),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
+    const db = await admin();
+
+    // SMS-TRUTH: a phone Twilio cannot reach fails at the form, not silently later — Lee's alert
+    // carries an sms: deep link built from this number, so a bad one makes the alert useless.
+    const phone = normalizePhoneE164(data.phone);
+    if (!phone) return { ok: false, error: "That phone number doesn't look right — use (XXX) XXX-XXXX." };
+
+    const ch = await getGoChapter({ data: { schoolSlug: data.schoolSlug, chapterSlug: data.chapterSlug } });
+    if (!ch) return { ok: false, error: "Couldn't find that chapter — check the link and try again." };
+    if (ch.claimStatus === "claimed") return { ok: false, error: "This chapter is already claimed. Text Lee if that's wrong." };
+
+    // An existing pending claim is reported, not duplicated. Two execs claiming the same week is a
+    // normal thing to happen, and a second row would just mean Lee gets two texts about one chapter.
+    const { data: existing } = await db.from("greek_chapter_claims")
+      .select("id").eq("campus_greek_chapter_id", ch.campusGreekChapterId).eq("status", "pending").maybeSingle();
+    if (existing?.id) return { ok: false, error: "Someone from your chapter already claimed this — I'm reviewing it now." };
+
+    const { error } = await db.from("greek_chapter_claims").insert({
+      campus_greek_chapter_id: ch.campusGreekChapterId,
+      name: data.name, position: data.position, email: data.email, phone,
+      // Snapshot: how many members this chapter had already banked at the moment of the claim.
+      // Recorded now because it is the number that made the claim interesting, and it keeps moving.
+      members_at_claim: ch.members,
+    });
+    if (error) return { ok: false, error: "Couldn't save that — try again in a moment." };
+
+    await db.from("campus_greek_chapters").update({ claim_status: "pending" }).eq("id", ch.campusGreekChapterId);
+
+    // THE ALERT. This is the whole point of 2a — it unblocks Lee's outreach replies, so the text
+    // has to carry enough to answer without opening a laptop: who, what chapter, how many members
+    // already banked, and a tappable number to call straight back.
+    const to = process.env.FOUNDER_ALERT_PHONE ?? "";
+    if (to) {
+      const body =
+        `⚡ CHAPTER CLAIM\n${ch.chapterName} — ${ch.schoolName}\n` +
+        `${data.name} (${data.position})\n${phone}  ${data.email}\n` +
+        `${ch.members} member${ch.members === 1 ? "" : "s"} already banked\n` +
+        `surviveaccounting.com${goPath(ch.schoolSlug, ch.chapterSlug)}`;
+      // Reported but not fatal: the claim is saved either way. Losing the row because a text failed
+      // would be strictly worse than Lee finding it in the approval queue instead.
+      const sms = await sendSms(to, body);
+      if (!sms.ok) console.warn("chapter-claim alert failed to send:", sms.error);
+    } else {
+      console.warn("FOUNDER_ALERT_PHONE not set — chapter claim saved, no alert sent");
+    }
+
+    return { ok: true };
+  });
+
+// ── REVIEW (admin, JWT-verified) ──────────────────────────────────────────────────────────────
+
+export interface ClaimRow {
+  id: string;
+  chapterName: string;
+  schoolName: string;
+  goUrl: string | null;
+  name: string;
+  position: string;
+  email: string;
+  phone: string;
+  status: string;
+  membersAtClaim: number;
+  membersNow: number;
+  createdAt: string;
+}
+
+export const listChapterClaims = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    accessToken: z.string().min(10),
+    status: z.enum(["pending", "approved", "rejected", "all"]).default("pending"),
+  }).parse(d))
+  .handler(async ({ data }): Promise<ClaimRow[] | null> => {
+    const db = await admin();
+    // null (not []) so the UI can tell "you are not signed in as an admin" apart from "no claims".
+    if (!(await adminEmailFromToken(db, data.accessToken))) return null;
+
+    let q = db.from("greek_chapter_claims").select("*").order("created_at", { ascending: false }).limit(200);
+    if (data.status !== "all") q = q.eq("status", data.status);
+    const { data: claims } = await q;
+    const rows = (claims ?? []) as Array<Record<string, unknown>>;
+    if (!rows.length) return [];
+
+    const out: ClaimRow[] = [];
+    for (const c of rows) {
+      const rosterId = c.campus_greek_chapter_id as string;
+      const { data: roster } = await db.from("campus_greek_chapters").select("id,campus_id,slug,greek_org_id").eq("id", rosterId).maybeSingle();
+      const { data: campus } = roster?.campus_id
+        ? await db.from("campuses").select("slug,name,short_name").eq("id", roster.campus_id).maybeSingle()
+        : { data: null };
+      const { data: org } = roster?.greek_org_id
+        ? await db.from("greek_orgs").select("name").eq("id", roster.greek_org_id).maybeSingle()
+        : { data: null };
+
+      // membersNow vs membersAtClaim: a chapter that kept growing while the claim sat in the queue
+      // is a different proposition from one that stalled, and Lee should see both numbers.
+      const { data: shell } = await db.from("greek_chapters").select("id").eq("campus_greek_chapter_id", rosterId).maybeSingle();
+      let membersNow = 0;
+      if (shell?.id) {
+        const { count } = await db.from("greek_chapter_members").select("*", { count: "exact", head: true }).eq("chapter_id", shell.id);
+        membersNow = count ?? 0;
+      }
+
+      out.push({
+        id: c.id as string,
+        chapterName: ((org?.name as string) ?? "").trim() || "Chapter",
+        schoolName: (campus?.short_name as string) || (campus?.name as string) || "",
+        goUrl: campus?.slug && roster?.slug ? goPath(campus.slug as string, roster.slug as string) : null,
+        name: c.name as string,
+        position: c.position as string,
+        email: c.email as string,
+        phone: c.phone as string,
+        status: c.status as string,
+        membersAtClaim: (c.members_at_claim as number) ?? 0,
+        membersNow,
+        createdAt: c.created_at as string,
+      });
+    }
+    return out;
+  });
+
+export const decideChapterClaim = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    accessToken: z.string().min(10),
+    claimId: z.string().uuid(),
+    decision: z.enum(["approved", "rejected"]),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
+    const db = await admin();
+    const who = await adminEmailFromToken(db, data.accessToken);
+    if (!who) return { ok: false, error: "Not authorised." };
+
+    const { data: claim } = await db.from("greek_chapter_claims").select("*").eq("id", data.claimId).maybeSingle();
+    if (!claim) return { ok: false, error: "Claim not found." };
+    if (claim.status !== "pending") return { ok: false, error: `Already ${claim.status}.` };
+
+    const rosterId = claim.campus_greek_chapter_id as string;
+    const { data: roster } = await db.from("campus_greek_chapters").select("id,campus_id,slug,greek_org_id").eq("id", rosterId).maybeSingle();
+    if (!roster) return { ok: false, error: "That chapter no longer exists." };
+
+    if (data.decision === "rejected") {
+      await db.from("greek_chapter_claims").update({ status: "rejected", decided_at: new Date().toISOString() }).eq("id", data.claimId);
+      // Back to unclaimed, not left dangling on 'pending' — a rejected claim must not block the
+      // next person from claiming the same chapter.
+      await db.from("campus_greek_chapters").update({ claim_status: "unclaimed" }).eq("id", rosterId);
+      return { ok: true };
+    }
+
+    // APPROVE. The chapter record may already exist as an unclaimed shell (created by the first
+    // member to join from the /go/ page), so this attaches the admin to whatever is there rather
+    // than assuming a fresh insert — inserting blind would either fail on the unique index or
+    // orphan every member already banked against the shell.
+    const { data: campus } = roster.campus_id
+      ? await db.from("campuses").select("slug,name,short_name").eq("id", roster.campus_id).maybeSingle()
+      : { data: null };
+    const { data: org } = roster.greek_org_id
+      ? await db.from("greek_orgs").select("name").eq("id", roster.greek_org_id).maybeSingle()
+      : { data: null };
+    const chapterName = ((org?.name as string) ?? "").trim() || "Chapter";
+    const schoolName = (campus?.short_name as string) || (campus?.name as string) || "";
+
+    const adminFields = {
+      admin_name_role: `${claim.name}, ${claim.position}`,
+      admin_email: claim.email,
+      admin_phone: claim.phone,
+      claim_status: "claimed",
+      status: "active",
+      // Lee approving IS the verification — he answered this person. Leaving phone_verified_at null
+      // would lock the new admin out of their own dashboard.
+      phone_verified_at: new Date().toISOString(),
+    };
+
+    const { data: shell } = await db.from("greek_chapters").select("id").eq("campus_greek_chapter_id", rosterId).maybeSingle();
+    if (shell?.id) {
+      const { error } = await db.from("greek_chapters").update(adminFields).eq("id", shell.id);
+      if (error) return { ok: false, error: error.message };
+    } else {
+      const { error } = await db.from("greek_chapters").insert({
+        slug: `${campus?.slug ?? "chapter"}-${roster.slug ?? claim.id}`,
+        campus_id: roster.campus_id, campus_greek_chapter_id: rosterId,
+        school_name: schoolName, chapter_name: chapterName, greek_org_id: roster.greek_org_id,
+        ...adminFields,
+      });
+      if (error) return { ok: false, error: error.message };
+    }
+
+    await db.from("greek_chapter_claims").update({ status: "approved", decided_at: new Date().toISOString() }).eq("id", data.claimId);
+    await db.from("campus_greek_chapters").update({ claim_status: "claimed", claimed_at: new Date().toISOString() }).eq("id", rosterId);
+
+    // Tell the exec, with the link they now own. Non-fatal: the approval already happened, and
+    // reporting failure is better than pretending the text went out.
+    const url = campus?.slug && roster.slug ? `surviveaccounting.com${goPath(campus.slug as string, roster.slug as string)}` : "surviveaccounting.com";
+    const sms = await sendSms(claim.phone as string, `⚡ ${chapterName} is approved — your chapter link is ${url}. Sign in at surviveaccounting.com/chapters/dashboard with ${claim.email}.`);
+    if (!sms.ok) console.warn("approval SMS failed:", sms.error);
+
+    return { ok: true };
+  });
