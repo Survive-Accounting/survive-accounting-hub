@@ -1,104 +1,131 @@
-# Landing Pass 5 — in-player states, FAQ, no internal scrollbar, hero polish
+# Landing Pass 6 — hero card redesign, player depth, copy lock, footer rebuild
 
-Branch: `landing-pass-5` (on top of `main` @ `382f878`). Nothing outside the landing page and its
-own components was touched — no Greek work, no checkout, no player internals.
+Branch: `landing-pass-6`, on top of `main` @ `ca55099`. **No Greek branch changes** — Greek Phase 1
+and 2a were merged to main before this branch was cut, so there is no overlap in the panel-state
+code.
 
 ---
 
-## 1. The materials step moved INSIDE the player
+## 1. The hero card
 
-`MatchSheet` is **deleted**, not hidden. It portalled to `document.body`, so the materials step
-rendered as a detached panel pinned to the top-left of the viewport rather than inside the player —
-and because a professor pick re-opened it (at the professor rung), picking a professor read as the
-selection having failed.
+**The exam is gone.** Earlier passes drew answer bubbles and greeked question rows so the
+composition could show the problem being overpowered by the answer. Every pass since had been spent
+dulling them down — fainter strokes, fainter fills, a darker sheet — which is a long way of
+admitting they should not have been there. The card is now empty on purpose: two lines of type and
+one mark.
 
-`MatchPanel` is now the whole flow, one state machine in the right panel:
-
-| State | What the panel is |
+| | |
 |---|---|
-| 1 | Pick your school |
-| 2 | Pick your professor |
-| 3 | **Materials gate** (new — was the modal) |
-| 4 | Confirmed bar + video/poster |
+| Line 1 | `Cram for ACCY 201` — **static cream**, legible on every colourway with no contrast work |
+| Line 2 | `OLE MISS` — smaller, secondary, and the line that **carries the school colour** |
 
-State 3 is centred in the panel like the two rungs before it. `matchOpen` is gone; the panel tracks
-`materialsDone`, and `useEffect(… , [school?.id])` clears both `profDone` and `materialsDone`, so
-Reset genuinely restarts the flow instead of resuming three-quarters of the way through it.
+Line 2 keeps the Pass 5 legibility treatment: `-webkit-text-stroke` with `paint-order: stroke fill`,
+which draws the dark edge *behind* the fill, so Vanderbilt gold and Tennessee white keep their true
+colour instead of being dropped from the cycle for being too light.
 
-### Coverage % is now on the materials header
+**The pencil is drawn, not an emoji** — an emoji glyph renders as a different picture on every OS
+and cannot take the white keyline that ties it to the bolt. Six flat shapes, one dark keyline, one
+white outer keyline matching the bolt's, laid diagonally so it crosses the mark rather than sitting
+beside it. Sized at 52% of the card: the bolt dominates, and the rule for future edits is written
+into the CSS — if the pencil competes, shrink the pencil, don't restyle the bolt.
 
-The stat and the ask are one sentence in one place instead of a title above a separate modal:
+Caption below: `Covers any intro accounting course, nationwide.` The card names one school at a time,
+which could read as *only* these schools.
 
-- with a professor — `This already covers ~80% of Prof. Prakash's Exam 1.`
-- school only — `This already covers ~80% of most Exam 1s.`
-- resolver returned nothing — `This already covers most Exam 1s.`
+Cycle behaviour unchanged: Ole Miss → LSU → Tennessee → picker order, ~4s, tandem crossfade,
+reduced-motion → static.
 
-The number is only ever the real resolver value. When there isn't one, the sentence drops the
-number rather than inventing one. All three branches were exercised in the browser.
+## 2. Copy
 
-Body copy: *Send your syllabus, study guides — whatever you've got — and I'll match my videos to
-your course. The more you send, the better.* Buttons: `Upload materials` / `Not now`. The "old
-exams" phrasing is gone.
+- Subhead: `…last-minute strugglers and **anyone** chasing easy extra points.`
+- Badge: `1,000+ students tutored since 2015` → **`1,000+ students helped`**. The date already lives
+  in Lee's bio; a fact stated twice goes stale in one place and not the other.
 
-## 2. FAQ replaces the objection block
+## 3. Surface depth
 
-`MatchObjection` (headline + `Match my exam ⚡`) is replaced by a 7-question FAQ under a quiet
-`FREQUENTLY ASKED QUESTIONS` label. The CTA went with it on purpose: the answer to Q1 points at the
-player *above*, so a button here would have scrolled past the thing it was pointing at.
+A three-step ladder of one navy, declared as tokens in `styles.css`:
 
-Order is biggest-objection-first, ending warm — `What if I watch everything and still feel lost?`
-closes on a person, not a policy. `FAQS` is a plain array, built to grow.
+```
+--sa-surface-0   #0F1A2E   page          (darkest)
+--sa-surface-1   #1B2B4D   player frame / sidebar
+--sa-surface-2   #223458   right panel   (lightest — the thing you look INTO)
+--sa-surface-nav #182647   navbar, its own quiet layer
+```
 
-## 3. The player has no internal vertical scrollbar
+Tokens rather than inline values, because the ladder only works if every state uses the *same* step
+— one panel state hardcoding `--brand-navy` drops back to the page colour and the depth breaks on
+that screen alone. **Measured: all four right-panel states report `rgb(34,52,88)`.** No state
+flashes back.
 
-**Reproduced first.** The outline column was capped at `sm:max-h-[380px] overflow-y-auto`. With the
-Starter Map's 7 topics the column's natural height is **392px** — 12px over the cap — so it
-scrolled, and the notify box (the last thing in the column, and the only thing in it that captures
-an email) sat below the fold of a box most students never realise is scrollable.
+`--sa-surface-0` is `#0F1A2E`, not `#14213D`. The page renders `SITE_NAVY`, which is a shade darker
+than `--brand-navy`; a ladder whose bottom rung names a colour the page doesn't use reads as correct
+and measures wrong.
 
-- At `sm` and up the cap is removed entirely (`sm:max-h-none sm:overflow-visible`). The column is
-  its natural height and the **page** scrolls. It cannot re-break as topics are added.
-- Below `sm` the outline is a drop-down drawer stacked above the video, where capping it is
-  correct — an unbounded drawer would push the video off-screen. It keeps a cap, now `60vh`.
-- The notify box was compacted anyway (`px-3 py-2.5` → `px-2.5 py-2`, 11.5px label → 11px,
-  `mt-1.5` → `mt-1`), since every pixel it spends is a pixel the column grows past the video.
+**The stray divider.** The line splitting the colours was `sa-passline`'s `border-b`, which spans
+the full player exactly where the frame surface meets the panel surface — invisible while both were
+the same navy, a hard cut the moment the panel lightened. Removed, along with the matching rule on
+the mobile topic row: the surface step *is* the separation now.
 
-Measured after the change at 1920×1080 and 1440×900: **nothing inside `#exam1` scrolls** — outline
-392px, right panel 392px, whole player card 479px. The school/professor lists inside the picker
-still scroll, which is intended.
+## 4. School picker
 
-## 4. Hero polish
+- **One instruction, once.** The `Pick your school to start` heading is gone; the dropdown's own
+  label carries it. The heading and the button were saying the same sentence twice.
+- **The ticker is clickable.** It sits under the picker to answer "is my school here?", so a student
+  who spotted theirs was being asked to look away and find it again in a dropdown. Clicking a name
+  selects that school and advances the flow — **verified: clicking LSU stores `lsu` and lands on the
+  professor step.** Pauses on hover *and* focus; the duplicate row that makes the marquee loop is
+  `aria-hidden` and unfocusable, so schools are not in the tab order twice.
 
-- **The white keyline is back on the bolt.** Pass 4 passed `keyline=""`; on the dark colourways
-  (Auburn navy, Florida blue) that merged the bolt into the navy page.
-- **The sheet is navy-tinted (`#22304F`), not cream.** At hero size the cream sheet was the loudest
-  object in the composition and competed with the bolt. Rules, rows and bubbles were re-tinted to
-  match; it still reads unmistakably as a tilted, ruled exam sheet.
-- **The course code is static cream.** It was `var(--sa-bolt-1)`, so its legibility changed with
-  every school in the cycle.
-- **The campus name (new, bottom-left) carries the school colour.** Legibility comes from
-  `-webkit-text-stroke: 3px rgba(10,16,30,0.85)` with `paint-order: stroke fill`, which draws the
-  dark edge *behind* the fill — so Vanderbilt gold and Tennessee white keep their true colour
-  instead of being dropped from the cycle for being too light.
+## 5. Sidebar
 
-`EXAM1_STATUS_LABEL` → `Filming this week!`.
+- `COMMON EXAM QUESTIONS` → **`WHAT'S ON EXAM 1`**, per tab. "CEQ" is internal vocabulary and is now
+  absent from student-facing UI.
+- `Filming this week!` **deleted, not relocated** — per the brief it belongs in the video player. The
+  `EXAM1_STATUS_LABEL` export went with it rather than being left as a string nothing renders.
+
+> **Bug caught in verification:** the Final tab rendered `What's on Exam 99`. Its `num` is a `99`
+> sentinel, because the Final has no ordinal position. The heading now composes from `tab.label`,
+> which is already every tab's display name, so it can't drift again.
+
+## 6 & 7. Menus and footer
+
+`About Lee` → `Meet your tutor` (it scrolls to a section by that name) and `⚡ Boost chapter GPAs`,
+in **both** the hamburger and the footer.
+
+The footer is three columns plus a full-width bottom row. **Measured against production, which is
+still Pass 5:**
+
+| | production | Pass 6 |
+|---|---|---|
+| desktop 1440 | 500px | **365px** (−27%) |
+| mobile 375 | 541px | **460px** (−15%) |
+
+The first attempt came in at 371px desktop but **688px mobile** — stacking three columns adds their
+headers and the brand block to one narrow column, so "multi-column" made the phone *worse*. Two
+things now drop below `sm`, both because they are duplicates there: the column labels (self-evident
+when stacked) and the brand block (the header shows the wordmark a swipe away, and its tagline is
+repeated verbatim in the bottom row). Tagline now appears **once**.
+
+Bottom row text and order unchanged; the memorial line is still the last thing on the page.
 
 ---
 
 ## Verification
 
-- `tsc --noEmit` — clean.
-- `bun test` — 1049 pass, 0 fail.
-- `bun run build` — clean.
-- Browser, at 1920×1080 / 1440×900 / 375×812: all four panel states walked end to end including
-  the no-professor fallback header; zero console errors on a fresh tab; no internal scrollbar in
-  the player; mobile drawer still capped at 60vh; no horizontal page overflow (`scrollWidth` ==
-  `innerWidth` at 375).
+`tsc` clean · 1073 tests, 0 fail · production build clean · no horizontal overflow at 375
+(`scrollWidth === innerWidth`).
+
+Measured in the browser: hero card has **0 circles**, both text lines, pencil present, caption
+present · badge and subhead updated · picker heading gone and button relabelled · 32 ticker buttons,
+click selects · per-tab headers correct including the Final · `Filming this week` and
+`Common exam questions` both absent from the DOM · surface ladder holds across all four panel states
+· footer stacks in order with the memorial line last.
 
 ### Not verified
 
-**Screenshots.** The Browser pane won't composite frames in this environment, so every visual claim
-above rests on measured DOM geometry and computed styles, not on looking at the page. The campus
-name's contrast in particular is reasoned (`boltFor` floors every `--sa-bolt-1` at 2.6 against the
-page navy; against the slightly lighter `#22304F` card the worst case lands near 2.2 before the
-dark stroke is counted) rather than seen. Worth a glance on a real screen.
+**Screenshots — the deliverable asked for nine and I produced none.** The Browser pane in this
+environment will not composite frames: `computer{action:"screenshot"}` times out, and CSS
+transitions freeze mid-flight so sampled colours are interpolated garbage rather than settled
+values. Every visual claim above is measured DOM geometry and computed style, not a picture. The
+things that most need a human eye: the bolt-and-pencil composition at hero size, whether the pencil
+reads as clean or busy, and line 2's legibility on the light colourways (Vanderbilt, Tennessee).

@@ -49,6 +49,28 @@
 
   /* Survive Accounting — navy + red brand */
   --brand-navy: #14213D;
+
+  /* ── SURFACE LADDER (Pass 6) ───────────────────────────────────────────────────────────────
+     Three steps of ONE navy, so the player reads as looking INTO a lit space framed by the page
+     rather than as a flat card sitting on it. Every value is a lightened #14213D at the same hue,
+     which is what keeps this depth rather than a theme change — none of these is a light-mode
+     panel, and nothing here goes near white.
+
+       surface-0  the page            #14213D   darkest, the frame around everything
+       surface-1  player frame/sidebar          one step up
+       surface-2  right panel                   lightest, the thing you are looking into
+       navbar                                   its own quiet layer, between 0 and 1
+
+     Declared as tokens rather than written inline at each site because the ladder only works if
+     every state uses the SAME step — a panel state that hardcodes --brand-navy drops back to the
+     page colour and the illusion of depth breaks on that one screen. */
+  /* #0F1A2E, not #14213D — the page renders SITE_NAVY (SiteHeader.tsx), which is a shade darker
+     than --brand-navy. A ladder whose bottom rung names a colour the page does not actually use is
+     worse than no ladder: it reads as correct and measures wrong. */
+  --sa-surface-0: #0F1A2E;
+  --sa-surface-1: #1B2B4D;
+  --sa-surface-2: #223458;
+  --sa-surface-nav: #182647;
   --brand-red: #CE1126;
   --hero-bg: #0A2A57;
   --footer-bg: #0f172a;
