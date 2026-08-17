@@ -18,6 +18,7 @@ import { useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { ChapterFinder } from "@/components/site/ChapterFinder";
+import { ClaimChapter } from "@/components/site/ClaimChapter";
 import { getGoChapter, listGoSchools, tagChapterMember } from "@/lib/greek-go.functions";
 import { LandingPage } from "./landing";
 
@@ -45,6 +46,7 @@ function GoChapterPage() {
         goChapter={ch ? { schoolSlug: ch.schoolSlug, chapterSlug: ch.chapterSlug } : undefined}
       />
       {ch && <SelfReport current={ch.chapterName} />}
+      {ch && <ClaimChapter schoolSlug={ch.schoolSlug} chapterSlug={ch.chapterSlug} chapterName={ch.chapterName} claimStatus={ch.claimStatus} />}
     </>
   );
 }

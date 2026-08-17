@@ -82,9 +82,25 @@ function ChaptersPage() {
 function FindMyChapter() {
   const nav = useNavigate();
   const schoolsQ = useQuery({ queryKey: ["go-schools"], queryFn: () => listGoSchools(), networkMode: "always", staleTime: 600_000 });
+
+  // DEGRADE TO THE OLD DOOR. listGoSchools reads campus_greek_chapters.slug, which does not exist
+  // until 0115 is applied and the backfill has run — so on a deploy that lands before the migration
+  // this returns [] and the finder would be a dead dropdown on a live public page. Until there is
+  // something to find, the page keeps its original signup CTA and nobody sees a broken control.
+  // Renders nothing while loading rather than flashing an empty state first.
+  if (schoolsQ.isLoading) return <div style={{ minHeight: 148 }} />;
+  if (!schoolsQ.data?.length) {
+    return (
+      <a href="#signup" className="inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-[15.5px] font-black transition-transform hover:scale-[1.03]"
+        style={{ background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.6)", fontFamily: BRAND_SANS }}>
+        Get your chapter link
+      </a>
+    );
+  }
+
   return (
     <ChapterFinder
-      schools={schoolsQ.data ?? []}
+      schools={schoolsQ.data}
       cta="Go to my chapter ⚡"
       onPick={(school, chapter) => void nav({ to: "/go/$school/$chapter", params: { school, chapter } })}
       note="Every chapter is already live — no signup needed to see yours."

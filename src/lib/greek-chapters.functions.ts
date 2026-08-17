@@ -29,7 +29,7 @@ export function normalizePhoneE164(raw: string): string | null {
 
 // Send an SMS via Twilio (same Messages API as onboarding.notifyLee). SMS-TRUTH: reports the
 // outcome — callers surface failures instead of telling the user "I just texted you" on a lie.
-async function sendSms(to: string, body: string): Promise<{ ok: boolean; error?: string }> {
+export async function sendSms(to: string, body: string): Promise<{ ok: boolean; error?: string }> {
   const sid = process.env.TWILIO_ACCOUNT_SID ?? "", token = process.env.TWILIO_AUTH_TOKEN ?? "", msid = process.env.TWILIO_MESSAGING_SERVICE_SID ?? "";
   const dest = normalizePhoneE164(to);
   if (!dest) return { ok: false, error: "bad-phone" };
