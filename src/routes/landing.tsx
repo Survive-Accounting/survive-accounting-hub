@@ -26,6 +26,7 @@ import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { FitWordmark, SiteHeader, SITE_NAVY, useNavyDocument } from "@/components/site/SiteHeader";
 import { PickerSheet } from "@/components/site/PickerSheet";
 import { ExamPaper, EXAM_PAPER_CSS, paperStops, type PaperStop } from "@/components/site/ExamPaper";
+import { CampusProvider, useCampus } from "@/lib/campus-context";
 import { contactKind, LAUNCH_LINE, LAUNCH_WINDOW } from "@/lib/launch";
 import { Bolt, BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS, SEC_SCHOOLS } from "@/components/canvas/brand";
 
@@ -96,6 +97,9 @@ type ResolvedTopic = { key: string; name: string; num: number | null; sets: Stud
 /** `goChapter` replaces the old flat `chapterSlug`. A chapter is identified by (school, chapter)
  *  now — the /c/ single-slug namespace is redirect-only — and this pair is what the claim writes
  *  against. */
+// PROVIDER SHELL. The /go/ route knows the school from the URL; everything under here reads it
+// from campus context rather than re-deriving it, which is what let the hero cycle through other
+// schools' colourways on a chapter page that named one school in its banner.
 export function LandingPage({ initialCampusId, chapterBanner, goChapter, chapterClaim }: {
   initialCampusId?: string;
   chapterBanner?: string;
@@ -105,6 +109,22 @@ export function LandingPage({ initialCampusId, chapterBanner, goChapter, chapter
    *  the component in. */
   chapterClaim?: React.ReactNode;
 } = {}) {
+  return (
+    <CampusProvider urlSchoolSlug={goChapter?.schoolSlug ?? null} accountCampusId={initialCampusId ?? null}>
+      <LandingPageInner initialCampusId={initialCampusId} chapterBanner={chapterBanner} goChapter={goChapter} chapterClaim={chapterClaim} />
+    </CampusProvider>
+  );
+}
+
+function LandingPageInner({ initialCampusId, chapterBanner, goChapter, chapterClaim }: {
+  initialCampusId?: string;
+  chapterBanner?: string;
+  goChapter?: { schoolSlug: string; chapterSlug: string };
+  /** Rendered directly beneath the chapter banner. A SLOT rather than an import, so this
+   *  route file keeps knowing nothing about Greek claims — /go/ owns that concern and passes
+   *  the component in. */
+  chapterClaim?: React.ReactNode;
+}) {
   // M1.4 — paint html/body navy so Safari's overscroll rubber-band matches the page instead
   // of flashing the light default at the top and bottom edges.
   useNavyDocument();
@@ -112,6 +132,7 @@ export function LandingPage({ initialCampusId, chapterBanner, goChapter, chapter
   const [notifyTopic, setNotifyTopic] = useState<string | null>(null);
   // /c/<slug> pre-selects the chapter's school. If it's one of the 16 SEC schools we pre-pick it;
   // otherwise we drop into "not listed" (default map) so the player still unblurs and plays.
+  const campus = useCampus();
   const preSchool = useMemo(() => (initialCampusId ? SCHOOLS.find((s) => s.campusId === initialCampusId) ?? null : null), [initialCampusId]);
   const [school, setSchool] = useState<School | null>(preSchool);
   // "My school isn't listed" — unblur with the DEFAULT map + brand navy (no school colors), plus an
@@ -148,6 +169,20 @@ export function LandingPage({ initialCampusId, chapterBanner, goChapter, chapter
     resetProfessor();
     try { localStorage.removeItem("sa-landing-school"); } catch { /* ignore */ }
   };
+  // ADOPT THE URL'S SCHOOL. preSchool is derived from initialCampusId, which arrives from the
+  // chapter QUERY — so on a /go/ page it is still null during the first render, and
+  // useState(preSchool) captured that null and never looked again. The player then asked "Pick
+  // your school" on a URL that had already named the school.
+  //
+  // Campus context resolves the slug synchronously from the school table, with no request, so it
+  // is right on the very first render. Only fills an EMPTY choice: a visitor who picks a different
+  // school in the player outranks the URL and must not be overwritten.
+  useEffect(() => {
+    if (school || notListed || !campus.school) return;
+    const s = SCHOOLS.find((x) => x.id === campus.school!.id);
+    if (s) setSchool(s);
+  }, [campus.school, school, notListed]);
+
   // RETURNING VISITOR — restore school (or "not listed") + professor + skip AFTER mount (never in an
   // initializer: this route SSRs, and a server/client mismatch there breaks hydration). A /c/<slug>
   // link's pre-selection wins over storage. Legacy sessionStorage values migrate forward once.
@@ -182,7 +217,15 @@ export function LandingPage({ initialCampusId, chapterBanner, goChapter, chapter
 
   // The hero cycles school COLOURWAYS only — no course code, no campus name (Pass 8). It still
   // reads the code-enriched list so the two stay in sync if the graphic ever shows type again.
-  const stops = useMemo(() => paperStops(schoolsWithCodes, boltFor), [schoolsWithCodes]);
+  // HERO LOCK. One stop means no cycle — ExamPaper only starts its interval at stops.length >= 2,
+  // so a known campus pins the bolt to its own colourway with no extra machinery. Unknown campus
+  // still gets the full rotation, which is the whole point of the rotation.
+  const stops = useMemo(() => {
+    const all = paperStops(schoolsWithCodes, boltFor);
+    if (!campus.school) return all;
+    const mine = all.find((x) => x.id === campus.school!.id);
+    return mine ? [mine] : all;
+  }, [schoolsWithCodes, campus.school]);
 
   const treeQ = useQuery({ queryKey: ["landing-tree", school?.campusId ?? null], queryFn: () => fetchStudentTree({ data: school ? { campusId: school.campusId } : {} }), networkMode: "always", staleTime: 300_000 });
   const intro1 = useMemo(() => (treeQ.data ?? []).find((c) => c.family === "intro_1" || c.name.trim().toLowerCase() === "intro 1") ?? null, [treeQ.data]);
@@ -255,7 +298,7 @@ export function LandingPage({ initialCampusId, chapterBanner, goChapter, chapter
     setNotListed(false);
     if (school?.id !== s.id) resetProfessor(); // new school → professor line resets (spec: ladder resets with school)
     setSchool(s);
-    try { localStorage.setItem("sa-landing-school", s.id); } catch { /* ignore */ } // persists across visits
+    campus.setSessionSchool(s.id);   // persists AND raises campus context to session priority
     if (reduce) return; // instant swap, no takeover
     const mode = firstPick.current ? "short" : "full";
     firstPick.current = true;

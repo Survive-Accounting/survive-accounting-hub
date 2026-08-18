@@ -1,3 +1,107 @@
+# Campus context — one shared source for "whose school is this?"
+
+Branch: `campus-context`, on top of `main` @ `0277fa8f`.
+
+> Both sessions write this file, so this entry STACKS on top of what follows.
+
+---
+
+## The root cause was three namespaces, not a rendering bug
+
+The same fact was spelled three different ways and nothing joined them up:
+
+| surface | spelling | example |
+|---|---|---|
+| landing picker | short id | `ole-miss`, `lsu`, `texas-am` |
+| `/go/` URLs | campus slug | `university-of-mississippi`, `louisiana-state-university` |
+| Greek picker | `campuses.short_name` | `Bama`, `Mizzou`, `OU`, `Vandy`, `UT Austin` |
+
+That is why `/go/ole-miss/...` resolved to nothing (the slug is
+`university-of-mississippi`) and why a chapter page could name one school in its banner while the
+hero cycled another school's colourway beside it. Neither component was wrong on its own; they
+never asked each other.
+
+**`src/lib/schools.ts`** is now the one table — picker id, `campusId`, `/go/` slug, canonical name,
+for each of the 16 SEC schools. Every mapping was **verified against the `campuses` table**, not
+inferred from names: all sixteen resolve to a slugged campus with `is_sec = true`.
+
+Canonical name = **the landing picker's name**, Greek pages included. A student who picks "Ole
+Miss" on the front page should not meet "University of Mississippi" two clicks later and wonder
+whether it's the same list.
+
+**Course codes are deliberately NOT in that table.** They stay in
+`campuses.course_family_codes_json.intro_1` and are fetched at runtime, so a code that changes
+mid-semester doesn't need a deploy — and a hardcoded copy would be a second source of truth for the
+exact fact this module exists to have only one of.
+
+## The provider
+
+**`src/lib/campus-context.tsx`** resolves campus once, in priority order:
+
+1. `account` — signed-in user's school
+2. `session` — picked this session. **Beats the URL on purpose**: a student on a chapter page who
+   picks a different school in the player means it.
+3. `url` — `/go/<school>/<chapter>`
+4. `stored` — previous visit
+
+None ⇒ **UNKNOWN**, and the app keeps today's cycling hero and generic copy.
+
+A school with no verified code yields `code: null` and callers fall back to `your accounting
+course`. Never a placeholder, never another school's code — that substitution is the whole failure
+mode being fixed.
+
+## Components migrated
+
+| component | was | now |
+|---|---|---|
+| `LandingPage` | — | splits into a `CampusProvider` shell + `LandingPageInner` |
+| hero (`ExamPaper`) | cycled all 16 regardless of page | locked when campus is known |
+| player school pick | wrote `localStorage` directly | routes through `setSessionSchool` |
+| player school step | asked even on a `/go/` URL | adopts the URL's school |
+
+**The hero lock falls out of the data, not a new flag.** A known campus yields a *one-element*
+`stops` array, and `ExamPaper` only starts its interval at `stops.length >= 2`. No extra machinery,
+and unknown campus keeps the full rotation.
+
+## A second bug found while wiring it
+
+The player asked "Pick your school" on `/go/` pages even though the URL named the school.
+`preSchool` derives from `initialCampusId`, which arrives from the chapter **query** — so it was
+still `null` during the first render, `useState(preSchool)` captured that null and never looked
+again, and the returning-visitor effect then bailed out ("chapter-link sessions keep their own
+preselection") on a preselection that had silently failed. Campus context resolves the slug
+synchronously, so it is right on the first render.
+
+## Scope note — the hero text half of the reported bug was already gone
+
+The spec's headline symptom, `Cram for ACC 311 / TEXAS` on an Ole Miss chapter page, refers to hero
+copy that **Landing Pass 8 deleted earlier the same day** along with the card. Per Lee's decision,
+the bolt-only hero stays; this branch fixes the **colourway** half. No hero course-code text was
+resurrected.
+
+## Schools missing a course code
+
+**None of the 16 SEC schools.** All have a verified `intro_1` code (Ole Miss `ACCY 201`, LSU
+`ACCT 2001`, Alabama `AC 210`, Tennessee `ACCT 200`, Arkansas `ACCT 2013`, South Carolina
+`ACCT 225`, Georgia `ACCT 2101`, Kentucky `ACC 201`, Auburn `ACCT 2110`, Mississippi State
+`ACC 2013`, Missouri `ACCTCY 2026`, Oklahoma `ACCT 2113`, Texas A&M `ACCT 229`, Florida `ACG 2021`,
+Texas `ACC 311`, Vanderbilt `BUS 1100`).
+
+The fallback path is therefore **not exercised by any SEC school today** — it exists for the
+non-SEC campuses in the roster (most of the other 116 have no code) and for any future school added
+before its code is confirmed.
+
+## Verification
+
+- `tsc --noEmit` clean; `bun test` **1181 pass / 0 fail**.
+- Ole Miss chapter page locks to `#697183/#CE1126`; LSU to `#FDD023/#896eab` — each **stable across
+  24s (six 4-second dwell periods)**.
+- `/` with no stored school **still cycles** (`#FDD023/#896eab` → `#FFFFFF/#5c7cc2`).
+- `/go/university-of-mississippi/alpha-phi` opens the player at "Pick your professor".
+- **Screenshots not delivered** — the Browser pane does not composite frames, so `screenshot` times
+  out. All figures are DOM measurements.
+
+---
 # Pipeline View — P0–P4 (filming → cut → telemetry, one room)
 
 On `main` directly (vertical-filming → main), commits `c1b4460b`…`P4`. Studio/filming code only —
