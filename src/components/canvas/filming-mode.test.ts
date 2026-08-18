@@ -64,7 +64,7 @@ describe("the inbox learned a shape, it did not fork", () => {
     expect(studio).toContain("{clipsPanel}"); // rendered in the pipeline center column
   });
   test("the merged list is read-only — a filming pass is never one mis-click from dropping a take", () => {
-    const panel = studio.slice(studio.indexOf("const clipsPanel = useMemo"), studio.indexOf("}, [questions, rf, qId, takePreview]);"));
+    const panel = studio.slice(studio.indexOf("const clipsPanel = useMemo"), studio.indexOf("}, [questions, rf, qId, takePreview, pipelineStitch, preRollMs, postRollMs, proposeBusy]);"));
     expect(panel).not.toContain("deleteClip");
     expect(panel).not.toContain("clearTake");
     expect(panel).toContain("<video");   // but it DOES preview, which is the point

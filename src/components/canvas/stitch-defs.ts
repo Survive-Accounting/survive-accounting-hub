@@ -37,6 +37,9 @@ export interface StitchItem {
   momentId?: string;
   /** Dropped from the cut WITHOUT losing the decision. */
   muted?: boolean;
+  /** P2: this trim came from PROPOSE TRIMS and hasn't been hand-adjusted.
+   *  Any drag/nudge clears it — the auto marking must stay honest. */
+  autoTrim?: boolean;
 }
 
 export type StitchScope =

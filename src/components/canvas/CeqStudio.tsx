@@ -26,20 +26,23 @@ import { activeSlots, CeqPreviewer, dealCentre, defaultMemoPos, paletteSlots, ra
 import { resolveCardSpot, resolveMemoSpot, stampFromTemplate, templateFor, withInstanceSpot, type Spot } from "./ceq-geom";
 import { autoClipName, buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, stageTake, stitchManifest, stitchRuntime, videoFromDrop, videosFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
 import { buildSetExport } from "./ceq-export";
+import { ClipTrimStrip } from "./ClipTrimStrip";
 import { PipelinePlayer } from "./PipelinePlayer";
 import { SetFilmstrip, type StripItem } from "./SetFilmstrip";
 import { checkFilmReadiness, type ReadinessReport } from "./film-readiness";
 import { FILM_LOCK_CSS, FilmContext, isTypingTarget } from "./film-lock";
 import { MEMO_KIND_META, MEMO_KIND_ORDER, kindFromCategory, type PlaybookKind } from "./memo-kinds";
-import { applyToDeck, ceqStitchId, gateBlocks, itemsFromTakes, migrationPlan, newStitch, planReport, publishGate, setStitchId, type MigrationInput, type MigrationPlan, type StitchDef, type StitchItem } from "./stitch-defs";
+import { applyToDeck, ceqStitchId, gateBlocks, itemsFromTakes, migrationPlan, newStitch, planReport, publishGate, recut, setStitchId, type MigrationInput, type MigrationPlan, type StitchDef, type StitchItem } from "./stitch-defs";
 import { StitchPreview } from "./StitchPreview";
 import { applyTemplate, loadTemplates, saveTemplate, templateFromDeck, type SetTemplate } from "./set-profile";
 import { IdeaBank } from "./IdeaBank";
 import { TakesInbox } from "./TakesInbox";
 import { type ObsStatus } from "./obs-bridge";
 import { attachTargets, currentTakes, saveTake, triageLatest, type TakeRecord, type TakeTarget } from "./takes-store";
+import { clipAudio } from "./waveform-peaks";
 import { subscribeSlate, type SlateState } from "./film-slate";
 import { coverageLabel, logCoverageFrame } from "./coverage-log";
+import { DEFAULT_POST_ROLL_MS, DEFAULT_PRE_ROLL_MS, detectSpeech, proposeTrim } from "./landmarks";
 import { PLATFORM_LABEL, VERTICAL_PLATFORMS, frameSize, geomField, isVertical, layoutField, layoutOf, type Orientation, type VerticalPlatform } from "./orientation";
 import { setOrientation, subscribeOrientation } from "./orientation-store";
 import { assignRunTo, fillDownRuns, normRun, type RunChange } from "./film-runs";
@@ -1116,7 +1119,107 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
    *  answered the same question become one. Read-only here by design: reordering and
    *  deleting stay in Publish ▸ Clips, because a filming pass should not be one
    *  mis-click from dropping a take. */
+  /** Every take in this set, by storage path — what a stitch's items resolve
+   *  against. Built from the cards, so a stitch can never reference a clip that
+   *  is not really attached somewhere. */
+  const takesByPath = useMemo(() => {
+    const m = new Map<string, TakeRef>();
+    for (const q of questions) for (const t of cardClips(rf.getNode(q.id)?.data as unknown as CeqCard | undefined)) m.set(t.path, t);
+    if (deck?.intro) m.set(deck.intro.path, deck.intro);
+    for (const w of deck?.wrap ?? []) m.set(w.path, w);
+    if (deck?.outro) m.set(deck.outro.path, deck.outro);
+    return m;
+  }, [questions, rf, deck]);
+
+  /** takePath → frame id, so the pipeline player can scope "this CEQ" even on
+   *  saved recipes whose items predate per-item ceqId stamping. */
+  const ceqOfPath = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const q of questions) for (const t of cardClips(rf.getNode(q.id)?.data as unknown as CeqCard | undefined)) m.set(t.path, q.id);
+    return m;
+  }, [questions, rf]);
+
+  /** PIPELINE (P1): the ONE cut the inline player plays — the saved set recipe
+   *  when there is one, with takes it does not yet reference AUTO-JOINED at
+   *  their spine position, so a fresh keep is in the very next play without a
+   *  save. DERIVED ONLY — previewing must never write; saving still goes
+   *  through saveStitch. */
+  const pipelineStitch = useMemo(() => {
+    if (!deck) return null;
+    const spine: StitchItem[] = [];
+    if (deck.intro) spine.push({ takePath: deck.intro.path });
+    for (const q of questions) for (const t of cardClips(rf.getNode(q.id)?.data as unknown as CeqCard | undefined)) spine.push({ takePath: t.path, ceqId: q.id });
+    for (const w of deck.wrap ?? []) spine.push({ takePath: w.path });
+    if (deck.outro) spine.push({ takePath: deck.outro.path });
+    if (!spine.length) return null;
+    const saved = (deck.stitches ?? []).find((x) => x.id === setStitchId(deck.id));
+    if (!saved) return newStitch(setStitchId(deck.id), { kind: "set" }, spine, "set cut");
+    const known = new Set(saved.items.map((i) => i.takePath));
+    const fresh = spine.filter((i) => !known.has(i.takePath));
+    if (!fresh.length) return saved;
+    const items = [...saved.items];
+    for (const f of fresh) {
+      let at = -1;
+      if (f.ceqId) for (let i = items.length - 1; i >= 0; i--) if (items[i].ceqId === f.ceqId) { at = i; break; }
+      items.splice(at >= 0 ? at + 1 : items.length, 0, f);
+    }
+    return { ...saved, items };
+  }, [deck, questions, rf]);
+
+  /** Persist a stitch WITHOUT opening the preview overlay — the trim handles
+   *  write through here on every drag/nudge, and popping the modal each time
+   *  would make the handles unusable. saveStitch (the panel's door) still opens it. */
+  const persistStitch = (next: StitchDef) => {
+    if (!deck) return;
+    const list = deck.stitches ?? [];
+    const has = list.some((x) => x.id === next.id);
+    setDecks((prev) => updateDeck(prev, deck.id, { stitches: has ? list.map((x) => (x.id === next.id ? next : x)) : [...list, next] }));
+  };
+  // PRE/POST-ROLL (P2): the X and Y of the propose rule — settings, not constants.
+  const [preRollMs, setPreRollMs] = useState<number>(() => { const v = Number(localStorage.getItem("sa-trim-preroll-ms")); return Number.isFinite(v) && v > 0 ? v : DEFAULT_PRE_ROLL_MS; });
+  const [postRollMs, setPostRollMs] = useState<number>(() => { const v = Number(localStorage.getItem("sa-trim-postroll-ms")); return Number.isFinite(v) && v > 0 ? v : DEFAULT_POST_ROLL_MS; });
+  const [proposeBusy, setProposeBusy] = useState(false);
+  /** P2: the door every HAND trim walks through — the strips call only this.
+   *  It writes the RECIPE item (non-destructive by construction; the media
+   *  file is never touched) and clears autoTrim so the amber marking stays
+   *  honest. `_how` is the P4 telemetry seam. */
+  const applyTrim = (takePath: string, inS: number, outS: number, _how: "drag" | "nudge") => {
+    if (!pipelineStitch) return;
+    const items = pipelineStitch.items.map((i) => (i.takePath === takePath ? { ...i, trimInS: Math.round(inS * 1000) / 1000, trimOutS: Math.round(outS * 1000) / 1000, autoTrim: undefined } : i));
+    persistStitch(recut(pipelineStitch, { items }));
+  };
+  /** PROPOSE TRIMS (P2): for every clip in the cut WITHOUT a trim, in = onset − X,
+   *  out = offset + Y — slate- and length-clamped, silent clips skipped, marked
+   *  auto-proposed. Fires ONLY from its button; it never runs on its own. */
+  const proposeTrims = () => { void (async () => {
+    if (!pipelineStitch || proposeBusy) return;
+    const targets = pipelineStitch.items.filter((i) => i.trimInS == null && i.trimOutS == null && !i.muted && takesByPath.has(i.takePath));
+    if (!targets.length) { setNote("Nothing to propose — every clip in the cut already has a trim."); return; }
+    setProposeBusy(true);
+    try {
+      const found = new Map<string, { inS: number; outS: number }>();
+      // Decode in small chunks — 40 clips of raw PCM at once is a memory spike.
+      for (let at = 0; at < targets.length; at += 4) {
+        await Promise.all(targets.slice(at, at + 4).map(async (i) => {
+          const t = takesByPath.get(i.takePath);
+          if (!t) return;
+          try {
+            const a = await clipAudio(t.path, t.url);
+            const p = proposeTrim(detectSpeech(a.rms, a.frameMs), { durationS: a.durationS, slateEndMs: t.slateEndMs, preRollMs, postRollMs });
+            if (p) found.set(i.takePath, p);
+          } catch { /* undecodable — skipped; the final count stays honest */ }
+        }));
+        setNote(`Proposing trims… ${Math.min(at + 4, targets.length)}/${targets.length} clips analyzed`);
+      }
+      if (!found.size) { setNote("No trims proposed — no untrimmed clip had detectable speech (or audio failed to decode)."); return; }
+      const items = pipelineStitch.items.map((i) => { const p = found.get(i.takePath); return p ? { ...i, trimInS: Math.round(p.inS * 1000) / 1000, trimOutS: Math.round(p.outS * 1000) / 1000, autoTrim: true } : i; });
+      persistStitch(recut(pipelineStitch, { items }));
+      setNote(`PROPOSED ${found.size} trim${found.size === 1 ? "" : "s"} (in = onset − ${preRollMs}ms · out = offset + ${postRollMs}ms). Amber handles = auto — drag or nudge to adjust; nothing rendered.`);
+    } finally { setProposeBusy(false); }
+  })(); };
   const clipsPanel = useMemo(() => {
+    // P2: the recipe's trims by take path — the strips read these; applyTrim writes them.
+    const trimOf = new Map((pipelineStitch?.items ?? []).map((i) => [i.takePath, i] as const));
     // LABELS MATCH THE SPINE (Lee, 08-16): a truncated stem told you nothing at a
     // glance. Notes get the note icon and their mode word; questions get Q1, Q2, …
     // numbered exactly as the filmstrip numbers them — notes never take a number,
@@ -1141,6 +1244,15 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
         <div className="flex items-center gap-1.5 px-1.5 py-1">
           <span className="text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.cyan }}>Attached clips</span>
           <span className="text-[8px] tabular-nums" style={{ color: NEON.muted }}>{filmed}/{rows.length} frames filmed</span>
+          <div className="ml-auto flex items-center gap-1">
+            <label className="flex items-center gap-0.5 text-[7.5px] font-bold uppercase" style={{ color: NEON.muted }} title="Pre-roll X — PROPOSE TRIMS sets in = speech onset − X ms">X
+              <input type="number" min={0} step={10} className="w-9 rounded bg-transparent px-0.5 text-[8px] tabular-nums outline-none" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={preRollMs} onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setPreRollMs(v); localStorage.setItem("sa-trim-preroll-ms", String(v)); }} />
+            </label>
+            <label className="flex items-center gap-0.5 text-[7.5px] font-bold uppercase" style={{ color: NEON.muted }} title="Post-roll Y — PROPOSE TRIMS sets out = speech offset + Y ms">Y
+              <input type="number" min={0} step={10} className="w-9 rounded bg-transparent px-0.5 text-[8px] tabular-nums outline-none" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={postRollMs} onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setPostRollMs(v); localStorage.setItem("sa-trim-postroll-ms", String(v)); }} />
+            </label>
+            <button className="rounded px-1.5 py-0.5 text-[8px] font-black uppercase disabled:opacity-50" style={{ color: "#FFB020", border: "1px solid rgba(255,176,32,0.5)" }} disabled={proposeBusy || !pipelineStitch} onClick={proposeTrims} title="PROPOSE TRIMS — for every clip WITHOUT a trim: in = speech onset − X, out = speech offset + Y (slate- and length-clamped; silent clips skipped). Marked AUTO (amber) until hand-adjusted. Proposals only: nothing plays, nothing renders, never runs on its own.">{proposeBusy ? "analyzing…" : "propose trims"}</button>
+          </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-1">
           {rows.map((r) => (
@@ -1164,6 +1276,9 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                         take stays in the rail, so a mis-click costs one Ctrl+Z. */}
                     <button className="shrink-0" style={{ color: "#FF8B9E" }} title="Detach from this frame. The file and the take survive — Ctrl+Z re-attaches." onClick={() => detachClip(r.id, ci)}><X className="h-2.5 w-2.5" /></button>
                   </div>
+                  {/* P2: waveform + landmarks + trim handles — the RECIPE item is the
+                      only thing a handle writes; the file is never touched. */}
+                  <ClipTrimStrip take={t} trimInS={trimOf.get(t.path)?.trimInS} trimOutS={trimOf.get(t.path)?.trimOutS} autoTrim={trimOf.get(t.path)?.autoTrim} onTrim={(inS, outS, how) => applyTrim(t.path, inS, outS, how)} />
                   {takePreview === `${r.id}:${ci}` && <video src={t.url} controls playsInline preload="none" className="mt-0.5 w-full rounded" style={{ background: "#000", aspectRatio: "16 / 9", maxHeight: 150 }} />}
                 </div>
               ))}
@@ -1177,7 +1292,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
         </div>
       </div>
     );
-  }, [questions, rf, qId, takePreview]);
+  }, [questions, rf, qId, takePreview, pipelineStitch, preRollMs, postRollMs, proposeBusy]);
   /** Spine label for a frame id — Q-numbers for questions (notes never take a
    *  number, same rule as the filmstrip), mode word for notes. Used by the
    *  coverage chips and the pipeline clip stack. */
@@ -1399,53 +1514,6 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   /** F3 — the stitch being previewed. Null = the panel is closed. */
   const [previewStitch, setPreviewStitch] = useState<StitchDef | null>(null);
 
-  /** Every take in this set, by storage path — what a stitch's items resolve
-   *  against. Built from the cards, so a stitch can never reference a clip that
-   *  is not really attached somewhere. */
-  const takesByPath = useMemo(() => {
-    const m = new Map<string, TakeRef>();
-    for (const q of questions) for (const t of cardClips(rf.getNode(q.id)?.data as unknown as CeqCard | undefined)) m.set(t.path, t);
-    if (deck?.intro) m.set(deck.intro.path, deck.intro);
-    for (const w of deck?.wrap ?? []) m.set(w.path, w);
-    if (deck?.outro) m.set(deck.outro.path, deck.outro);
-    return m;
-  }, [questions, rf, deck]);
-
-  /** takePath → frame id, so the pipeline player can scope "this CEQ" even on
-   *  saved recipes whose items predate per-item ceqId stamping. */
-  const ceqOfPath = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const q of questions) for (const t of cardClips(rf.getNode(q.id)?.data as unknown as CeqCard | undefined)) m.set(t.path, q.id);
-    return m;
-  }, [questions, rf]);
-
-  /** PIPELINE (P1): the ONE cut the inline player plays — the saved set recipe
-   *  when there is one, with takes it does not yet reference AUTO-JOINED at
-   *  their spine position, so a fresh keep is in the very next play without a
-   *  save. DERIVED ONLY — previewing must never write; saving still goes
-   *  through saveStitch. */
-  const pipelineStitch = useMemo(() => {
-    if (!deck) return null;
-    const spine: StitchItem[] = [];
-    if (deck.intro) spine.push({ takePath: deck.intro.path });
-    for (const q of questions) for (const t of cardClips(rf.getNode(q.id)?.data as unknown as CeqCard | undefined)) spine.push({ takePath: t.path, ceqId: q.id });
-    for (const w of deck.wrap ?? []) spine.push({ takePath: w.path });
-    if (deck.outro) spine.push({ takePath: deck.outro.path });
-    if (!spine.length) return null;
-    const saved = (deck.stitches ?? []).find((x) => x.id === setStitchId(deck.id));
-    if (!saved) return newStitch(setStitchId(deck.id), { kind: "set" }, spine, "set cut");
-    const known = new Set(saved.items.map((i) => i.takePath));
-    const fresh = spine.filter((i) => !known.has(i.takePath));
-    if (!fresh.length) return saved;
-    const items = [...saved.items];
-    for (const f of fresh) {
-      let at = -1;
-      if (f.ceqId) for (let i = items.length - 1; i >= 0; i--) if (items[i].ceqId === f.ceqId) { at = i; break; }
-      items.splice(at >= 0 ? at + 1 : items.length, 0, f);
-    }
-    return { ...saved, items };
-  }, [deck, questions, rf]);
-
   /** Open the preview for a CEQ (or the whole set). An existing stitch is used
    *  as-is; otherwise one is DERIVED from the clip stack and previewed WITHOUT
    *  being saved — previewing must never write. */
@@ -1463,13 +1531,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
 
   /** Persist an edited stitch onto the set. The panel already routed the edit
    *  through `recut`, so the rev is bumped and derived publications are stale. */
-  const saveStitch = (next: StitchDef) => {
-    setPreviewStitch(next);
-    if (!deck) return;
-    const list = deck.stitches ?? [];
-    const has = list.some((x) => x.id === next.id);
-    setDecks((prev) => updateDeck(prev, deck.id, { stitches: has ? list.map((x) => (x.id === next.id ? next : x)) : [...list, next] }));
-  };
+  const saveStitch = (next: StitchDef) => { setPreviewStitch(next); persistStitch(next); };
   /** STITCH / PUBLICATION MIGRATION (08-16) — gather the WHOLE scene into the pure
    *  planner. Reading only: this builds the input, `migrationPlan` builds the records,
    *  and nothing is written until applyStitchMigration runs. */
