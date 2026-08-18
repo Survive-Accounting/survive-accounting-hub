@@ -169,6 +169,20 @@ function LandingPageInner({ initialCampusId, chapterBanner, goChapter, chapterCl
     resetProfessor();
     try { localStorage.removeItem("sa-landing-school"); } catch { /* ignore */ }
   };
+  // ADOPT THE URL'S SCHOOL. preSchool is derived from initialCampusId, which arrives from the
+  // chapter QUERY — so on a /go/ page it is still null during the first render, and
+  // useState(preSchool) captured that null and never looked again. The player then asked "Pick
+  // your school" on a URL that had already named the school.
+  //
+  // Campus context resolves the slug synchronously from the school table, with no request, so it
+  // is right on the very first render. Only fills an EMPTY choice: a visitor who picks a different
+  // school in the player outranks the URL and must not be overwritten.
+  useEffect(() => {
+    if (school || notListed || !campus.school) return;
+    const s = SCHOOLS.find((x) => x.id === campus.school!.id);
+    if (s) setSchool(s);
+  }, [campus.school, school, notListed]);
+
   // RETURNING VISITOR — restore school (or "not listed") + professor + skip AFTER mount (never in an
   // initializer: this route SSRs, and a server/client mismatch there breaks hydration). A /c/<slug>
   // link's pre-selection wins over storage. Legacy sessionStorage values migrate forward once.
