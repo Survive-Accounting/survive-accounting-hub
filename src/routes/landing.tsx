@@ -20,6 +20,8 @@ import { getChapterNames, listCampusIntroCodes } from "@/lib/default-map.functio
 import { logSchoolDemand, submitExamAsk, submitSyllabus , submitNotify } from "@/lib/syllabus.functions";
 import { searchOrderProfessors, type ProfessorLite } from "@/lib/orders.functions";
 import { tagChapterMember } from "@/lib/greek-go.functions";
+import { revealInContainer } from "@/lib/ui-scroll";
+import { useDismiss } from "@/lib/use-dismiss";
 import { fetchCourseOptions } from "@/lib/je-api";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
@@ -1290,7 +1292,9 @@ function SemesterPassLine({ onPass }: { onPass: () => void }) {
 
 function ExamOutline({ tab, school, stats, isPaid, curSetId, curTopicKey, openTopics, onToggleTopic, onPickSet }: { tab: ExamTab; school: School | null; stats: string; isPaid: boolean; curSetId: string | null; curTopicKey: string | null; openTopics: Set<string>; onToggleTopic: (k: string) => void; onPickSet: (topicKey: string, setId: string | null) => void }) {
   const activeRef = useRef<HTMLButtonElement>(null);
-  useEffect(() => { activeRef.current?.scrollIntoView({ block: "nearest" }); }, [curSetId, curTopicKey]);
+  // revealInContainer, NOT scrollIntoView: block:"nearest" also scrolls the DOCUMENT, which on a
+  // /go/ page dragged the chapter banner under the sticky navbar on load. See lib/ui-scroll.ts.
+  useEffect(() => { revealInContainer(activeRef.current); }, [curSetId, curTopicKey]);
   // PAID-TAB-CAPTURE: a paid-row tap (peak intent) points at the persistent notify panel below
   // instead of flashing a self-destructing tooltip.
   const [notifyPulse, setNotifyPulse] = useState(0);
@@ -1339,7 +1343,7 @@ function PaidNotifyRow({ exam, school, pulse }: { exam: ExamTab; school: School 
   const boxRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!pulse) return;
-    boxRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    revealInContainer(boxRef.current, "smooth");
     setFlash(true);
     const t = setTimeout(() => setFlash(false), 1200);
     return () => clearTimeout(t);
@@ -1744,6 +1748,8 @@ function ClaimModal({ go, chapter, onClose }: { go: { schoolSlug: string; chapte
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  // Esc. It had the x and the backdrop but not the key, so a keyboard user was stuck.
+  useDismiss<HTMLDivElement>(onClose, { outside: false });
   const ok = name.trim().length > 1 && phone.replace(/\D/g, "").length >= 10;
   const submit = async () => {
     if (!ok || busy) return;

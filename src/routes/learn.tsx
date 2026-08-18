@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronRight, Circle, CircleCheck, CircleDot, Lock, LogOut, Mail, Play, X, Loader2 } from "lucide-react";
 
+import { useDismiss } from "@/lib/use-dismiss";
 import { fetchStudentTree, type StudentCourse, type StudentSet, type StudentTopic } from "@/lib/student.functions";
 import { listOverrideCampuses, type CampusOpt } from "@/lib/campus-overrides.functions";
 import { claimMyOrders, fetchMyUnlockedTopics, getSetPlayback } from "@/lib/entitlements.functions";
@@ -103,6 +104,9 @@ function SignInDialog({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [msg, setMsg] = useState("");
+  // The page-level Escape handler only clears the player and the paywall, so this dialog was
+  // dismissible by backdrop click alone — and had no visible close control at all.
+  useDismiss<HTMLDivElement>(onClose, { outside: false });
   const send = async () => {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) { setState("error"); setMsg("Enter a valid email."); return; }
     setState("sending");
@@ -114,7 +118,7 @@ function SignInDialog({ onClose }: { onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-[110] grid place-items-center p-4" style={{ background: "rgba(4,7,14,0.9)" }} onClick={onClose}>
       <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: "#0b1020", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
-        <div className="mb-1 flex items-center gap-2"><Mail className="h-4 w-4" style={{ color: NEON.yellow }} /><span className="text-[14px] font-black uppercase tracking-wide">Sign in</span></div>
+        <div className="mb-1 flex items-center gap-2"><Mail className="h-4 w-4" style={{ color: NEON.yellow }} /><span className="text-[14px] font-black uppercase tracking-wide">Sign in</span><button type="button" onClick={onClose} aria-label="Close" className="ml-auto grid h-7 w-7 place-items-center rounded-full hover:bg-white/10" style={{ color: NEON.text }}><span aria-hidden style={{ fontSize: 16, lineHeight: 1 }}>×</span></button></div>
         {state === "sent" ? (
           <p className="mt-2 text-[12.5px] leading-relaxed" style={{ color: NEON.muted }}>Check <b style={{ color: NEON.text }}>{email}</b> — we sent a one-tap sign-in link. No password needed.</p>
         ) : (
