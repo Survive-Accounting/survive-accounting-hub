@@ -134,7 +134,7 @@ export function ClipTrimStrip({ take, trimInS, trimOutS, autoTrim, onTrim }: {
   );
 
   return (
-    <div className="relative mt-0.5 h-[32px] w-full select-none overflow-hidden rounded" style={{ background: "rgba(0,0,0,0.35)", border: `1px solid ${NEON.borderSoft}` }}>
+    <div draggable={false} onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }} className="relative mt-0.5 h-[32px] w-full select-none overflow-hidden rounded" style={{ background: "rgba(0,0,0,0.35)", border: `1px solid ${NEON.borderSoft}` }}>
       <canvas ref={canvasRef} className="h-full w-full" />
       {!audio && <div className="absolute inset-0 grid place-items-center text-[8px] italic" style={{ color: NEON.muted }}>decoding audio…</div>}
       {audio && grip("in", inMs)}

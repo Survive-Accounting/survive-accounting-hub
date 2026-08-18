@@ -199,3 +199,11 @@ let triageHandler: TriageFn | null = null;
 /** The inbox registers the real handler; the film keymap just fires. */
 export const setTriageHandler = (fn: TriageFn | null): void => { triageHandler = fn; };
 export const triageLatest = (action: "keep" | "trash"): void => { triageHandler?.(action); };
+
+// ---- the drop bus (P3): a rail row dragged onto the clip stack ------------
+type KeepToFn = (takeId: string, frameId: string, at?: number) => void;
+let keepToHandler: KeepToFn | null = null;
+/** The inbox registers the real handler (it owns the folder handle and the
+ *  upload path); the studio's drop target just fires. */
+export const setKeepToHandler = (fn: KeepToFn | null): void => { keepToHandler = fn; };
+export const keepTakeTo = (takeId: string, frameId: string, at?: number): void => { keepToHandler?.(takeId, frameId, at); };

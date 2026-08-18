@@ -76,7 +76,10 @@ describe("the loop is wired end to end (F1 source pins)", () => {
     expect(previewer).toContain("<FilmSlate />");
   });
   test("keep attaches by coverage, then armed, then the OPEN frame (08-17)", () => {
-    expect(studio).toContain("const ids = attachTargets(t, questions.map((q) => q.id), qId && qId !== LAYOUT_Q0 ? qId : null);");
+    // P3 put ONE thing ahead of the automation: an EXPLICIT drop target (drag is
+    // the correction layer). F10 keeps never set `explicit`, so the keyboard
+    // loop's precedence is exactly what it was.
+    expect(studio).toContain("const ids = opts?.explicit && t.target?.ids.length ? t.target.ids : attachTargets(t, questions.map((q) => q.id), qId && qId !== LAYOUT_Q0 ? qId : null);");
   });
   test("a run of frames attaches as run coverage; the slate trim rides along", () => {
     expect(studio).toContain("...(ids.length > 1 ? { coversFrameIds: ids } : {})");

@@ -38,7 +38,7 @@ import { applyTemplate, loadTemplates, saveTemplate, templateFromDeck, type SetT
 import { IdeaBank } from "./IdeaBank";
 import { TakesInbox } from "./TakesInbox";
 import { type ObsStatus } from "./obs-bridge";
-import { attachTargets, currentTakes, saveTake, triageLatest, type TakeRecord, type TakeTarget } from "./takes-store";
+import { attachTargets, currentTakes, keepTakeTo, saveTake, triageLatest, type TakeRecord, type TakeTarget } from "./takes-store";
 import { clipAudio } from "./waveform-peaks";
 import { subscribeSlate, type SlateState } from "./film-slate";
 import { coverageLabel, logCoverageFrame } from "./coverage-log";
@@ -1217,6 +1217,96 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       setNote(`PROPOSED ${found.size} trim${found.size === 1 ? "" : "s"} (in = onset − ${preRollMs}ms · out = offset + ${postRollMs}ms). Amber handles = auto — drag or nudge to adjust; nothing rendered.`);
     } finally { setProposeBusy(false); }
   })(); };
+  /** P3: an attachable TakeRef from a KEPT record — same recipe as attachLatestKept. */
+  const takeRefOf = (t: TakeRecord): TakeRef | null => (t.upload?.url && t.upload?.path ? { url: t.upload.url, path: t.upload.path, name: t.fileName, ...(t.durationS ? { duration: t.durationS } : {}), ...(t.slateEndMs != null ? { slateEndMs: t.slateEndMs } : {}), ...(t.orientation ? { orientation: t.orientation } : {}) } : null);
+  /** P3 DROP: a rail take dropped on a frame at a clip position. Uploaded kept
+   *  takes attach directly; pending (or kept-but-not-uploaded) route through
+   *  the rail's keep+upload with the drop target explicit (the drop bus). */
+  const dropTakeAt = (takeId: string, frameId: string, at?: number) => {
+    const t = currentTakes().find((x) => x.id === takeId);
+    if (!t) { setNote("That take is gone from the store."); return; }
+    const ref = takeRefOf(t);
+    if (!ref) { keepTakeTo(takeId, frameId, at); return; }
+    const d = rf.getNode(frameId)?.data as unknown as CeqCard | undefined;
+    const clips = [...cardClips(d)];
+    clips.splice(at == null ? clips.length : Math.min(at, clips.length), 0, ref);
+    patchQ(frameId, { takes: clips });
+    setNote(`Attached "${t.fileName}" to ${spineLabelOf(frameId) ?? "the frame"}${at == null ? "" : ` at position ${at + 1}`}.`);
+  };
+  /** P3: when a SAVED set recipe exists, a same-frame reorder permutes that
+   *  frame's items IN THEIR OWN SLOTS (trims ride along) — the stack order IS
+   *  the stitch order. No saved recipe ⇒ nothing to do: the derived cut
+   *  follows takes[] by construction. */
+  const syncStitchGroup = (clips: TakeRef[]) => {
+    if (!deck) return;
+    const saved = (deck.stitches ?? []).find((x) => x.id === setStitchId(deck.id));
+    if (!saved) return;
+    const order = clips.map((c) => c.path);
+    const slots = saved.items.map((i, k) => (order.includes(i.takePath) ? k : -1)).filter((k) => k >= 0);
+    if (slots.length < 2) return;
+    const sorted = slots.map((k) => saved.items[k]).sort((a, b) => order.indexOf(a.takePath) - order.indexOf(b.takePath));
+    const items = [...saved.items];
+    slots.forEach((slot, j) => { items[slot] = sorted[j]; });
+    persistStitch(recut(saved, { items }));
+  };
+  /** P3: a cross-frame move in a SAVED recipe — the item keeps its trims,
+   *  changes its ceqId, and lands at the position dropped within the target
+   *  frame's group. */
+  const moveSavedItem = (path: string, toFrameId: string, at?: number) => {
+    if (!deck) return;
+    const saved = (deck.stitches ?? []).find((x) => x.id === setStitchId(deck.id));
+    if (!saved) return;
+    const items = [...saved.items];
+    const idx = items.findIndex((i) => i.takePath === path);
+    if (idx < 0) return; // not in the recipe yet — the derived auto-join places it
+    const [it] = items.splice(idx, 1);
+    const groupIdx = items.map((i, k) => ((i.ceqId ?? ceqOfPath.get(i.takePath)) === toFrameId ? k : -1)).filter((k) => k >= 0);
+    const slot = groupIdx.length === 0 ? items.length : at == null || at >= groupIdx.length ? groupIdx[groupIdx.length - 1] + 1 : groupIdx[at];
+    items.splice(slot, 0, { ...it, ceqId: toFrameId });
+    persistStitch(recut(saved, { items }));
+  };
+  /** P3: a clip row dragged — reorder within its group, or move to another
+   *  frame at the dropped position. takes[] is the source of truth; the saved
+   *  recipe (when one exists) is re-synced in the same gesture. */
+  const moveClip = (from: { frameId: string; index: number }, toFrameId: string, atRaw?: number) => {
+    const dS = rf.getNode(from.frameId)?.data as unknown as CeqCard | undefined;
+    const src = [...cardClips(dS)];
+    const clip = src[from.index];
+    if (!clip) return;
+    if (from.frameId === toFrameId) {
+      src.splice(from.index, 1);
+      let at = atRaw == null ? src.length : Math.min(atRaw, src.length);
+      if (atRaw != null && from.index < atRaw) at -= 1;
+      src.splice(at, 0, clip);
+      patchQ(from.frameId, { takes: src });
+      syncStitchGroup(src);
+      setNote("Reordered — the stack order IS the stitch order.");
+    } else {
+      src.splice(from.index, 1);
+      const dT = rf.getNode(toFrameId)?.data as unknown as CeqCard | undefined;
+      const tgt = [...cardClips(dT)];
+      tgt.splice(atRaw == null ? tgt.length : Math.min(atRaw, tgt.length), 0, clip);
+      patchQ(from.frameId, { takes: src });
+      patchQ(toFrameId, { takes: tgt });
+      moveSavedItem(clip.path, toFrameId, atRaw);
+      setNote(`Moved the clip to ${spineLabelOf(toFrameId) ?? "the other frame"}.`);
+    }
+  };
+  /** P3: one drop handler for the whole stack. Payloads: "clip" (reorder/move),
+   *  "kept"/"pending" (rail rows). `at` = insert BEFORE this clip index;
+   *  undefined = end of the frame's stack. */
+  const allowStackDrop = (e: { preventDefault(): void; dataTransfer: DataTransfer }) => { if (e.dataTransfer.types.includes("application/x-sa-take")) e.preventDefault(); };
+  const onStackDrop = (frameId: string, at?: number) => (e: { preventDefault(): void; stopPropagation(): void; dataTransfer: DataTransfer }) => {
+    const raw = e.dataTransfer.getData("application/x-sa-take");
+    if (!raw) return;
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const p = JSON.parse(raw) as { kind: string; id?: string; frameId?: string; index?: number };
+      if (p.kind === "clip" && p.frameId && p.index != null) moveClip({ frameId: p.frameId, index: p.index }, frameId, at);
+      else if (p.id) dropTakeAt(p.id, frameId, at);
+    } catch { /* not our payload */ }
+  };
   const clipsPanel = useMemo(() => {
     // P2: the recipe's trims by take path — the strips read these; applyTrim writes them.
     const trimOf = new Map((pipelineStitch?.items ?? []).map((i) => [i.takePath, i] as const));
@@ -1256,7 +1346,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-1">
           {rows.map((r) => (
-            <div key={r.id} ref={(el) => { if (el && r.id === qId) el.scrollIntoView({ block: "nearest" }); }} className="mb-0.5 rounded px-1 py-0.5" style={{ background: r.id === qId ? "rgba(252,163,17,0.14)" : "transparent" }}>
+            <div key={r.id} ref={(el) => { if (el && r.id === qId) el.scrollIntoView({ block: "nearest" }); }} onDragOver={allowStackDrop} onDrop={onStackDrop(r.id)} className="mb-0.5 rounded px-1 py-0.5" style={{ background: r.id === qId ? "rgba(252,163,17,0.14)" : "transparent" }}>
               <button className="flex w-full items-center gap-1 text-left" onClick={() => setQId(r.id)} title={r.stem}>
                 {r.noteOnly && <FileText className="h-3 w-3 shrink-0" style={{ color: NEON.yellow }} />}
                 <span className="shrink-0 text-[9px] font-bold uppercase tabular-nums" style={{ color: r.id === qId ? NEON.yellow : NEON.muted }}>{r.label}</span>
@@ -1264,7 +1354,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                 <span className="ml-auto shrink-0 text-[8px] font-bold tabular-nums" style={{ color: r.clips.length ? "#3BF5A0" : NEON.muted }}>{r.clips.length ? `${r.clips.length} clip${r.clips.length === 1 ? "" : "s"}` : "—"}</span>
               </button>
               {r.id === qId && r.clips.map((t, ci) => (
-                <div key={t.path} className="ml-2 mt-0.5">
+                <div key={t.path} className="ml-2 mt-0.5" draggable onDragStart={(e) => { e.dataTransfer.setData("application/x-sa-take", JSON.stringify({ kind: "clip", frameId: r.id, index: ci })); e.dataTransfer.effectAllowed = "move"; }} onDragOver={allowStackDrop} onDrop={onStackDrop(r.id, ci)} style={{ cursor: "grab" }}>
                   <div className="flex w-full items-center gap-1 text-[9px]" style={{ color: NEON.muted }}>
                     <button className="flex min-w-0 flex-1 items-center gap-1 text-left" onClick={() => setTakePreview((k) => (k === `${r.id}:${ci}` ? null : `${r.id}:${ci}`))} title="Preview this clip">
                       <Play className="h-2.5 w-2.5 shrink-0" />
@@ -1274,7 +1364,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
                     </button>
                     {/* DETACH — breaks the link only. The file stays on disk and the
                         take stays in the rail, so a mis-click costs one Ctrl+Z. */}
-                    <button className="shrink-0" style={{ color: "#FF8B9E" }} title="Detach from this frame. The file and the take survive — Ctrl+Z re-attaches." onClick={() => detachClip(r.id, ci)}><X className="h-2.5 w-2.5" /></button>
+                    <button className="shrink-0" style={{ color: "#FF8B9E" }} title="DETACH — back to the rail's scratch lane, NOT trash: the file and the take survive untouched (Ctrl+Z re-attaches). Trash is F8 on the rail and moves the file to Recycle." onClick={() => detachClip(r.id, ci)}><X className="h-2.5 w-2.5" /></button>
                   </div>
                   {/* P2: waveform + landmarks + trim handles — the RECIPE item is the
                       only thing a handle writes; the file is never touched. */}
@@ -3279,14 +3369,17 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   armed={armedTarget}
                   onDisarm={() => { setArmedTarget(null); setNote("Uploads disarmed — new takes land unattached."); }}
                   openFrameId={() => (qId && qId !== LAYOUT_Q0 ? qId : null)}
+                  attachedPaths={new Set(takesByPath.keys())}
                   coverageChip={(t) => coverageLabel(t.coverage?.frameIds, questions.map((q) => q.id), spineLabelOf)}
                   onObsState={setObsState}
                   onRecordStart={onRecordStart}
-                  onUpload={async (t: TakeRecord, file: File) => {
+                  onUpload={async (t: TakeRecord, file: File, opts?: { at?: number; explicit?: boolean }) => {
                     // AUTO-ATTACH (F1): the frames that were ON SCREEN while this
                     // take rolled win; the armed target is the fallback. Several
                     // frames ⇒ run coverage across them (coversFrameIds).
-                    const ids = attachTargets(t, questions.map((q) => q.id), qId && qId !== LAYOUT_Q0 ? qId : null);
+                    // P3: an EXPLICIT drop target (drag) beats the automation —
+                    // drag is the correction layer over coverage/armed.
+                    const ids = opts?.explicit && t.target?.ids.length ? t.target.ids : attachTargets(t, questions.map((q) => q.id), qId && qId !== LAYOUT_Q0 ? qId : null);
                     if (!ids.length) throw new Error("nothing to attach to — open a frame in the spine first (a kept take attaches to whatever frame is selected)");
                     const staged = await stageTake(file);
                     const first = ids[0];
@@ -3294,24 +3387,32 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                     // FILMED IN — tagged from the take record, which was stamped at
                     // ingest. A 9:16 publication draws only from vertical clips.
                     const take = { ...staged, ...(ids.length > 1 ? { coversFrameIds: ids } : {}), ...(t.slateEndMs != null ? { slateEndMs: t.slateEndMs } : {}), ...(t.orientation ? { orientation: t.orientation } : {}) };
-                    patchQ(first, { takes: [...cardClips(d0), take] });
-                    // AUTO-ADVANCE (F1) — but a dissect CEQ with moments still to
-                    // shoot keeps the spine parked so Lee rolls the next moment.
-                    const last = ids[ids.length - 1];
-                    const dLast = rf.getNode(last)?.data as unknown as CeqCard | undefined;
-                    const dz = dLast?.dissect;
-                    const covered = new Set((cardClips(dLast).map((c) => c.momentId).filter(Boolean) as string[]));
-                    const nextMoment = dz?.on ? dz.moments.find((m) => !m.waived && !covered.has(m.id)) : undefined;
-                    if (nextMoment) {
-                      setQId(last);
-                      setNote(`Attached. STAYING PUT — dissect moment "${nextMoment.label || "(unnamed)"}" is still unfilmed.`);
-                    } else if (autoAdvance) {
-                      const idx = questions.findIndex((q) => q.id === last);
-                      const next = idx >= 0 ? questions[idx + 1] : undefined;
-                      if (next) { setQId(next.id); setNote("Attached → advanced to the next frame. Roll when ready."); }
-                      else setNote("Attached — that was the last frame in the set.");
+                    const list0 = [...cardClips(d0)];
+                    list0.splice(opts?.at == null ? list0.length : Math.min(opts.at, list0.length), 0, take);
+                    patchQ(first, { takes: list0 });
+                    if (opts?.explicit) {
+                      // P3 DROP: a drop is a correction, not the filming loop — the
+                      // spine STAYS PUT (auto-advance belongs to F10).
+                      setNote(`Attached "${t.fileName}" where you dropped it.`);
                     } else {
-                      setNote(`Attached to ${ids.length} frame${ids.length === 1 ? "" : "s"}.`);
+                      // AUTO-ADVANCE (F1) — but a dissect CEQ with moments still to
+                      // shoot keeps the spine parked so Lee rolls the next moment.
+                      const last = ids[ids.length - 1];
+                      const dLast = rf.getNode(last)?.data as unknown as CeqCard | undefined;
+                      const dz = dLast?.dissect;
+                      const covered = new Set((cardClips(dLast).map((c) => c.momentId).filter(Boolean) as string[]));
+                      const nextMoment = dz?.on ? dz.moments.find((m) => !m.waived && !covered.has(m.id)) : undefined;
+                      if (nextMoment) {
+                        setQId(last);
+                        setNote(`Attached. STAYING PUT — dissect moment "${nextMoment.label || "(unnamed)"}" is still unfilmed.`);
+                      } else if (autoAdvance) {
+                        const idx = questions.findIndex((q) => q.id === last);
+                        const next = idx >= 0 ? questions[idx + 1] : undefined;
+                        if (next) { setQId(next.id); setNote("Attached → advanced to the next frame. Roll when ready."); }
+                        else setNote("Attached — that was the last frame in the set.");
+                      } else {
+                        setNote(`Attached to ${ids.length} frame${ids.length === 1 ? "" : "s"}.`);
+                      }
                     }
                     return { url: staged.url, path: staged.path };
                   }}

@@ -13,7 +13,7 @@ import { cancelSlate, slateEndOffsetMs, slateSeconds, startSlate, SLATE_CHOICES,
 import { beginCoverage, coverageForFile, endCoverage } from "./coverage-log";
 import { orientation } from "./orientation-store";
 import { fileUrl, fsaSupported, getFile, moveToRecycle, pickTakesFolder, probeDuration, recycleStats, restoreFromRecycle, savedTakesFolder, scanFolder } from "./takes-folder";
-import { currentTakes, dropTakeRecord, fmtBytes, latestPending, loadTakes, makeRecord, missingRecords, newFiles, saveTake, setTriageHandler, subscribeTakes, type TakeRecord, type TakeTarget } from "./takes-store";
+import { currentTakes, dropTakeRecord, fmtBytes, latestPending, loadTakes, makeRecord, missingRecords, newFiles, saveTake, setKeepToHandler, setTriageHandler, subscribeTakes, type TakeRecord, type TakeTarget } from "./takes-store";
 import { NEON } from "./theme";
 
 export interface TakesInboxProps {
@@ -23,7 +23,11 @@ export interface TakesInboxProps {
   onDisarm: () => void;
   /** Bank a kept take against its target: upload + attach. Resolves to the
    *  public URL, or throws — the record keeps the error and the file survives. */
-  onUpload: (take: TakeRecord, file: File) => Promise<{ url: string; path: string }>;
+  onUpload: (take: TakeRecord, file: File, opts?: { at?: number; explicit?: boolean }) => Promise<{ url: string; path: string }>;
+  /** P3: storage paths already attached somewhere in the set. Kept takes NOT
+   *  in it are the rail's SCRATCH lane; attached ones live in the stack — one
+   *  home each, or it's the two-UIs bug again. */
+  attachedPaths?: Set<string>;
   /** HIDE THE PIXELS, KEEP THE PROCESS (P0, 08-18). While Recording Mode owns
    *  the screen the inbox must not RENDER — but unmounting it closed the OBS
    *  socket and unregistered the F8/F10 triage handler mid-session, which is
@@ -56,7 +60,7 @@ export interface TakesInboxProps {
 
 type Dir = Awaited<ReturnType<typeof savedTakesFolder>>;
 
-export function TakesInbox({ onClose, armed, onDisarm, onUpload, openFrameId, coverageChip, onObsState, onRecordStart, onRecycle, onRoomTone, inline, hidden }: TakesInboxProps) {
+export function TakesInbox({ onClose, armed, onDisarm, onUpload, openFrameId, coverageChip, onObsState, onRecordStart, onRecycle, onRoomTone, inline, hidden, attachedPaths }: TakesInboxProps) {
   const [takes, setTakes] = useState<TakeRecord[]>(() => currentTakes());
   const [dir, setDir] = useState<Dir>(null);
   const [status, setStatus] = useState<ObsStatus>("off");
@@ -170,7 +174,10 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, openFrameId, co
     // deps: ONLY the explicit dial signals — never render-unstable identities.
   }, [obsOn, connectTick, ingest]);
 
-  const doKeep = useCallback(async (t: TakeRecord) => {
+  // P3: `over` is the DROP override — a rail row dragged onto the stack keeps
+  // straight to that frame. Explicit beats coverage: drag is the correction layer.
+  const doKeep = useCallback(async (t0: TakeRecord, over?: { frameId: string; at?: number }) => {
+    const t: TakeRecord = over ? { ...t0, target: { kind: "ceq", ids: [over.frameId], label: "dropped" } } : t0;
     const d = dirRef.current;
     await saveTake({ ...t, status: "kept", upload: t.target ? { state: "queued", attempts: 0 } : t.upload });
     if (!t.target || !d) { setNote(t.target ? "Kept — folder not granted, upload deferred." : "Kept (unattached — attach it from the target picker)."); return; }
@@ -178,7 +185,7 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, openFrameId, co
     if (!file) { await saveTake({ ...t, status: "kept", upload: { state: "error", attempts: 1, error: "file not found in the folder" } }); return; }
     await saveTake({ ...t, status: "kept", upload: { state: "uploading", attempts: 1 } });
     try {
-      const { url, path } = await onUpload(t, file);
+      const { url, path } = await onUpload(t, file, over ? { ...(over.at != null ? { at: over.at } : {}), explicit: true } : undefined);
       await saveTake({ ...t, status: "kept", upload: { state: "done", attempts: 1, url, path } });
       setNote(`Uploaded "${t.fileName}" → its target.`);
     } catch (err) {
@@ -214,14 +221,28 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, openFrameId, co
     });
     return () => setTriageHandler(null);
   }, [doKeep, doTrash]);
+  // DROP ATTACH (P3) — registered like the triage bus: the studio's stack
+  // fires with a frame + position, this owns the keep + upload.
+  useEffect(() => {
+    setKeepToHandler((takeId, frameId, at) => {
+      const t = currentTakes().find((x) => x.id === takeId);
+      if (!t) { setNote("That take is gone from the store."); return; }
+      void doKeep(t, { frameId, ...(at != null ? { at } : {}) });
+    });
+    return () => setKeepToHandler(null);
+  }, [doKeep]);
 
   const pending = takes.filter((t) => t.status === "pending");
   const kept = takes.filter((t) => t.status === "kept");
+  // SCRATCH LANE (P3): only kept takes NOT attached anywhere in the set —
+  // attached ones render in the center stack, and a clip DETACHed there
+  // reappears here automatically (its path stops being referenced).
+  const keptUnattached = kept.filter((t) => !t.upload?.path || !(attachedPaths?.has(t.upload.path) ?? false));
   const trashed = takes.filter((t) => t.status === "trashed");
   const row = (t: TakeRecord) => {
     const up = t.upload?.state;
     return (
-      <div key={t.id} className="mb-1 flex items-center gap-1.5 rounded px-1.5 py-1" style={{ background: "rgba(0,0,0,0.25)", border: `1px solid ${NEON.borderSoft}` }}>
+      <div key={t.id} draggable={t.status !== "trashed"} onDragStart={(e) => { e.dataTransfer.setData("application/x-sa-take", JSON.stringify({ kind: t.status === "pending" ? "pending" : "kept", id: t.id })); e.dataTransfer.effectAllowed = "copyMove"; }} title={t.status === "trashed" ? undefined : "Drag onto a frame in the clip stack to attach it there"} className="mb-1 flex items-center gap-1.5 rounded px-1.5 py-1" style={{ background: "rgba(0,0,0,0.25)", border: `1px solid ${NEON.borderSoft}`, cursor: t.status === "trashed" ? undefined : "grab" }}>
         <button className="shrink-0" style={{ color: NEON.cyan }} title="Play locally (instant — nothing uploads)"
           onClick={() => void (async () => { if (playing?.id === t.id) { URL.revokeObjectURL(playing.url); setPlaying(null); return; } const u = dirRef.current ? await fileUrl(dirRef.current, t.fileName) : null; if (u) setPlaying({ id: t.id, url: u }); })()}><Play className="h-3 w-3" /></button>
         <span className="min-w-0 flex-1 truncate text-[10px]" style={{ color: NEON.text }} title={t.fileName}>{t.fileName}</span>
@@ -297,8 +318,8 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, openFrameId, co
         <div className="pb-0.5 text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.yellow }}>Pending · {pending.length}</div>
         {pending.length === 0 && <div className="px-1 py-1 text-[9.5px] italic" style={{ color: NEON.muted }}>Nothing waiting. Roll F9 in OBS — takes land here.</div>}
         {pending.map(row)}
-        {kept.length > 0 && <div className="pb-0.5 pt-2 text-[8px] font-bold uppercase tracking-wide" style={{ color: "#3BF5A0" }}>Kept · {kept.length}</div>}
-        {kept.map(row)}
+        {keptUnattached.length > 0 && <div className="pb-0.5 pt-2 text-[8px] font-bold uppercase tracking-wide" style={{ color: "#3BF5A0" }} title="Kept, not attached to any frame yet — drag one onto a frame in the stack (attached clips live in the stack, not here)">Scratch — kept, unattached · {keptUnattached.length}</div>}
+        {keptUnattached.map(row)}
         {trashed.length > 0 && <div className="pb-0.5 pt-2 text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Recycle · {trashed.length}</div>}
         {trashed.map(row)}
       </div>
