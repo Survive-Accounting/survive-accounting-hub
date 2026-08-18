@@ -5684,6 +5684,7 @@ function PresentCanvas() {
           onCleanNames={runCleanNames}
           onHotkeys={() => setHelpOpen(true)}
           onOpenStudio={() => setCeqStudioOpen(true)}
+          onPipeline={() => { localStorage.setItem("sa-filming-mode", "1"); setCeqStudioOpen(true); window.dispatchEvent(new Event("sa-open-pipeline")); }}
           onHome={goHome}
           homeActive={homeOpen}
           onViewV1={() => setChromeVersion(true)}

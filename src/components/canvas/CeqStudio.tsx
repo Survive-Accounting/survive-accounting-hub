@@ -26,17 +26,18 @@ import { activeSlots, CeqPreviewer, dealCentre, defaultMemoPos, paletteSlots, ra
 import { resolveCardSpot, resolveMemoSpot, stampFromTemplate, templateFor, withInstanceSpot, type Spot } from "./ceq-geom";
 import { autoClipName, buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, stageTake, stitchManifest, stitchRuntime, videoFromDrop, videosFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
 import { buildSetExport } from "./ceq-export";
+import { PipelinePlayer } from "./PipelinePlayer";
 import { SetFilmstrip, type StripItem } from "./SetFilmstrip";
 import { checkFilmReadiness, type ReadinessReport } from "./film-readiness";
 import { FILM_LOCK_CSS, FilmContext, isTypingTarget } from "./film-lock";
 import { MEMO_KIND_META, MEMO_KIND_ORDER, kindFromCategory, type PlaybookKind } from "./memo-kinds";
-import { applyToDeck, ceqStitchId, gateBlocks, itemsFromTakes, migrationPlan, newStitch, planReport, publishGate, setStitchId, type MigrationInput, type MigrationPlan, type StitchDef } from "./stitch-defs";
+import { applyToDeck, ceqStitchId, gateBlocks, itemsFromTakes, migrationPlan, newStitch, planReport, publishGate, setStitchId, type MigrationInput, type MigrationPlan, type StitchDef, type StitchItem } from "./stitch-defs";
 import { StitchPreview } from "./StitchPreview";
 import { applyTemplate, loadTemplates, saveTemplate, templateFromDeck, type SetTemplate } from "./set-profile";
 import { IdeaBank } from "./IdeaBank";
 import { TakesInbox } from "./TakesInbox";
 import { type ObsStatus } from "./obs-bridge";
-import { attachTargets, currentTakes, saveTake, type TakeRecord, type TakeTarget } from "./takes-store";
+import { attachTargets, currentTakes, saveTake, triageLatest, type TakeRecord, type TakeTarget } from "./takes-store";
 import { subscribeSlate, type SlateState } from "./film-slate";
 import { coverageLabel, logCoverageFrame } from "./coverage-log";
 import { PLATFORM_LABEL, VERTICAL_PLATFORMS, frameSize, geomField, isVertical, layoutField, layoutOf, type Orientation, type VerticalPlatform } from "./orientation";
@@ -332,6 +333,13 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
    *  library, layout tools, tab strip) is simply not rendered. It writes NOTHING
    *  to any set — leaving it puts every surface back exactly as it was. */
   const [filming, setFilming] = useState<boolean>(() => localStorage.getItem("sa-filming-mode") === "1");
+  // PIPELINE (P1): the navbar button seeds localStorage for a FRESH mount, but a
+  // Studio that is already open only hears this event.
+  useEffect(() => {
+    const on = () => setFilming(true);
+    window.addEventListener("sa-open-pipeline", on);
+    return () => window.removeEventListener("sa-open-pipeline", on);
+  }, []);
   const [binStat, setBinStat] = useState({ count: 0, bytes: 0 });
   // ONE COUNTDOWN (F1): the slate store is the single source — the capture window
   // renders it IN FRAME and the studio MIRRORS it here. There used to be a second,
@@ -408,6 +416,23 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [recording]);
+  // PIPELINE (P1): F10 keep / F8 trash work in the STUDIO itself — before this,
+  // the triage keys lived only in the film-controller keymap (film window open)
+  // and the recording surface (mid-take), so reviewing takes in the Pipeline
+  // view needed the mouse. Bubble phase + the defaultPrevented guard means the
+  // film keymaps (capture + preventDefault + stopImmediatePropagation) always
+  // win — this can never double-triage.
+  useEffect(() => {
+    if (!filming) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.key !== "F8" && e.key !== "F10") || e.defaultPrevented || recording) return;
+      if (isTypingTarget()) return;
+      e.preventDefault();
+      triageLatest(e.key === "F8" ? "trash" : "keep");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [filming, recording]);
   const [tplList, setTplList] = useState<SetTemplate[]>(() => loadTemplates());
   const lastQSelRef = useRef<string | null>(null);
   // Switching sets (tab click, chip jump, session restore) DROPS the selection — the
@@ -1112,14 +1137,14 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     });
     const filmed = rows.filter((r) => r.clips.length).length;
     return (
-      <div className="mb-2 rounded" style={{ background: "rgba(0,0,0,0.2)", border: `1px solid ${NEON.borderSoft}` }}>
+      <div className="flex min-h-0 flex-1 flex-col rounded" style={{ background: "rgba(0,0,0,0.2)", border: `1px solid ${NEON.borderSoft}` }}>
         <div className="flex items-center gap-1.5 px-1.5 py-1">
           <span className="text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.cyan }}>Attached clips</span>
           <span className="text-[8px] tabular-nums" style={{ color: NEON.muted }}>{filmed}/{rows.length} frames filmed</span>
         </div>
-        <div className="max-h-[34vh] overflow-y-auto px-1 pb-1">
+        <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-1">
           {rows.map((r) => (
-            <div key={r.id} className="mb-0.5 rounded px-1 py-0.5" style={{ background: r.id === qId ? "rgba(252,163,17,0.14)" : "transparent" }}>
+            <div key={r.id} ref={(el) => { if (el && r.id === qId) el.scrollIntoView({ block: "nearest" }); }} className="mb-0.5 rounded px-1 py-0.5" style={{ background: r.id === qId ? "rgba(252,163,17,0.14)" : "transparent" }}>
               <button className="flex w-full items-center gap-1 text-left" onClick={() => setQId(r.id)} title={r.stem}>
                 {r.noteOnly && <FileText className="h-3 w-3 shrink-0" style={{ color: NEON.yellow }} />}
                 <span className="shrink-0 text-[9px] font-bold uppercase tabular-nums" style={{ color: r.id === qId ? NEON.yellow : NEON.muted }}>{r.label}</span>
@@ -1385,6 +1410,41 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     if (deck?.outro) m.set(deck.outro.path, deck.outro);
     return m;
   }, [questions, rf, deck]);
+
+  /** takePath → frame id, so the pipeline player can scope "this CEQ" even on
+   *  saved recipes whose items predate per-item ceqId stamping. */
+  const ceqOfPath = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const q of questions) for (const t of cardClips(rf.getNode(q.id)?.data as unknown as CeqCard | undefined)) m.set(t.path, q.id);
+    return m;
+  }, [questions, rf]);
+
+  /** PIPELINE (P1): the ONE cut the inline player plays — the saved set recipe
+   *  when there is one, with takes it does not yet reference AUTO-JOINED at
+   *  their spine position, so a fresh keep is in the very next play without a
+   *  save. DERIVED ONLY — previewing must never write; saving still goes
+   *  through saveStitch. */
+  const pipelineStitch = useMemo(() => {
+    if (!deck) return null;
+    const spine: StitchItem[] = [];
+    if (deck.intro) spine.push({ takePath: deck.intro.path });
+    for (const q of questions) for (const t of cardClips(rf.getNode(q.id)?.data as unknown as CeqCard | undefined)) spine.push({ takePath: t.path, ceqId: q.id });
+    for (const w of deck.wrap ?? []) spine.push({ takePath: w.path });
+    if (deck.outro) spine.push({ takePath: deck.outro.path });
+    if (!spine.length) return null;
+    const saved = (deck.stitches ?? []).find((x) => x.id === setStitchId(deck.id));
+    if (!saved) return newStitch(setStitchId(deck.id), { kind: "set" }, spine, "set cut");
+    const known = new Set(saved.items.map((i) => i.takePath));
+    const fresh = spine.filter((i) => !known.has(i.takePath));
+    if (!fresh.length) return saved;
+    const items = [...saved.items];
+    for (const f of fresh) {
+      let at = -1;
+      if (f.ceqId) for (let i = items.length - 1; i >= 0; i--) if (items[i].ceqId === f.ceqId) { at = i; break; }
+      items.splice(at >= 0 ? at + 1 : items.length, 0, f);
+    }
+    return { ...saved, items };
+  }, [deck, questions, rf]);
 
   /** Open the preview for a CEQ (or the whole set). An existing stitch is used
    *  as-is; otherwise one is DERIVED from the clip stack and previewed WITHOUT
@@ -2745,8 +2805,8 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
             tabs (this Studio's collapsed rail and the canvas route's fixed edge tab). The
             library still opens as the same right-side panel, still defaults CLOSED, and
             still has its own ✕ — this is just the handle. */}
-        <button className="ml-2 flex items-center gap-1.5 rounded px-3 py-1 text-[10px] font-black uppercase tracking-wider" style={{ color: filming ? "#0B1322" : "#FF8B9E", background: filming ? "#FF5A6E" : "transparent", border: `1px solid ${filming ? "#FF5A6E" : "rgba(255,90,110,0.55)"}` }} onClick={() => { const v = !filming; setFilming(v); localStorage.setItem("sa-filming-mode", v ? "1" : "0"); setNote(v ? "FILMING MODE — spine, take rail, status. Authoring chrome is hidden, not changed; nothing was written to this set." : "AUTHORING MODE — everything back."); }} title="Switch the whole workspace between AUTHORING (everything) and FILMING (spine + take rail + status). A container change only — no set data is touched either way.">
-          <Clapperboard className="h-3.5 w-3.5" /> {filming ? "Filming" : "Authoring"}
+        <button className="ml-2 flex items-center gap-1.5 rounded px-3 py-1 text-[10px] font-black uppercase tracking-wider" style={{ color: filming ? "#0B1322" : "#FF8B9E", background: filming ? "#FF5A6E" : "transparent", border: `1px solid ${filming ? "#FF5A6E" : "rgba(255,90,110,0.55)"}` }} onClick={() => { const v = !filming; setFilming(v); localStorage.setItem("sa-filming-mode", v ? "1" : "0"); setNote(v ? "PIPELINE — spine, capture, cut player, clip stack, take rail. Authoring chrome is hidden, not changed; nothing was written to this set." : "AUTHORING MODE — everything back."); }} title="Switch the whole workspace between AUTHORING (everything) and PIPELINE (spine + capture + cut player + take rail). A container change only — no set data is touched either way.">
+          <Clapperboard className="h-3.5 w-3.5" /> {filming ? "Pipeline" : "Authoring"}
         </button>
         {topTab !== "preview" && !filming && (<>
           <button className="ml-2 flex items-center gap-1 rounded px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ color: libOpen ? "#0B1322" : NEON.cyan, background: libOpen ? NEON.cyan : "transparent", border: `1px solid ${libOpen ? NEON.cyan : NEON.borderSoft}` }} onClick={() => setLibOpen((v) => !v)} title={libOpen ? "Close Elements" : "Elements — the memo library: search, quick-add, and drag memos onto choices"}>
@@ -2856,6 +2916,9 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
               {PLATFORM_LABEL[pf]}
             </button>
           ))}
+          {/* CAPTURE WINDOW launch, on the strip (P1) — dispatches to the previewer’s
+              ONE toggleFilm, so this chip and the transport button can never drift. */}
+          <button className="rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider" style={{ color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.5)" }} onClick={() => window.dispatchEvent(new Event("sa-launch-capture"))} title="CAPTURE WINDOW — the film popout snapped to exactly 1920×1080 physical pixels for OBS window-capture. Same launcher as the previewer’s 🎯 Capture button.">🎯 capture</button>
           <span className="ml-auto text-[9px] uppercase" style={{ color: NEON.muted }}>F9 roll · F10 keep · F8 trash <span title="F10 and F8 are APP keys — this window needs focus. Only OBS\u2019s F9 is global.">(app focus)</span></span>
         </div>
       )}
@@ -3110,6 +3173,27 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   </div>
                 </div>
               )}
+              {/* PIPELINE CENTER (P1) — the cut player over the clip stack. order-last
+                  puts it after the editor like the rail; being BEFORE the rail in the
+                  DOM keeps it to the rail's left. Hidden (never unmounted) while
+                  Recording Mode owns the screen — and hiding also STOPS the player,
+                  so preview audio can never bleed into a take. */}
+              {filming && (
+                <div className="order-last ml-2 flex h-full w-[400px] min-w-0 shrink-0 flex-col overflow-hidden rounded-lg p-1.5" style={{ display: recording ? "none" : undefined, background: "rgba(9,14,26,0.92)", border: `1px solid ${NEON.borderSoft}` }}>
+                  <PipelinePlayer
+                    stitch={pipelineStitch}
+                    takes={takesByPath}
+                    currentCeqId={qId && qId !== LAYOUT_Q0 ? qId : null}
+                    currentLabel={qId && qId !== LAYOUT_Q0 ? spineLabelOf(qId) : undefined}
+                    ceqOfPath={ceqOfPath}
+                    hidden={recording}
+                    onTrueRender={() => { if (qId && qId !== LAYOUT_Q0) runStitch(qId); }}
+                    renderPhase={stitchJob?.phase ?? null}
+                    renderBusy={!!stitchJob?.running}
+                  />
+                  {clipsPanel}
+                </div>
+              )}
               {/* P0 (workflow-found): Recording Mode used to UNMOUNT the inbox,
                   which closed the OBS websocket mid-session — record start/stop
                   events during actual filming were never received (no coverage,
@@ -3129,7 +3213,6 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                     saveRoomTone({ date: isoDay(), url: st.url, path: st.path, name: file.name });
                     setNote("Room tone set for " + isoDay() + " from that take — dissect stitches today fill their gaps with it.");
                   }}
-                  clipsPanel={filming ? clipsPanel : undefined}
                   onClose={() => setTakesOpen(false)}
                   armed={armedTarget}
                   onDisarm={() => { setArmedTarget(null); setNote("Uploads disarmed — new takes land unattached."); }}

@@ -5,7 +5,7 @@
 // armed badge and the countdown are all status, and NOTHING status-related may
 // exist anywhere OBS captures. CeqStudio gates every one of them on !recording
 // and renders them outside the film portal.
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, FolderOpen, Loader2, Mic, Play, RefreshCw, RotateCcw, Trash2, X } from "lucide-react";
 
 import { connectObs, OBS_DEFAULT_ADDRESS, baseName, type ObsStatus } from "./obs-bridge";
@@ -34,9 +34,6 @@ export interface TakesInboxProps {
    *  floating drawer. Same component — the mode switch re-arranges surfaces, it
    *  does not fork them. */
   inline?: boolean;
-  /** The per-CEQ attached-clip list, merged in above the queues. Supplied by the
-   *  Studio so the clip logic lives in exactly one place. */
-  clipsPanel?: ReactNode;
   /** The frame open RIGHT NOW — the seed for a take's coverage window. The
    *  visited log itself lives in coverage-log.ts and is fed by the studio's
    *  navigation effect; this is only the starting frame at record-start. */
@@ -59,7 +56,7 @@ export interface TakesInboxProps {
 
 type Dir = Awaited<ReturnType<typeof savedTakesFolder>>;
 
-export function TakesInbox({ onClose, armed, onDisarm, onUpload, openFrameId, coverageChip, onObsState, onRecordStart, onRecycle, onRoomTone, inline, clipsPanel, hidden }: TakesInboxProps) {
+export function TakesInbox({ onClose, armed, onDisarm, onUpload, openFrameId, coverageChip, onObsState, onRecordStart, onRecycle, onRoomTone, inline, hidden }: TakesInboxProps) {
   const [takes, setTakes] = useState<TakeRecord[]>(() => currentTakes());
   const [dir, setDir] = useState<Dir>(null);
   const [status, setStatus] = useState<ObsStatus>("off");
@@ -297,10 +294,6 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, openFrameId, co
 
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {playing && <video src={playing.url} controls autoPlay className="mb-2 max-h-[190px] w-full rounded" />}
-        {/* MERGED RAIL (F2): the per-CEQ attached clips sit ABOVE the queues —
-            they were two lists answering the same question ("what video exists
-            for this CEQ?"). The Studio supplies this so clip logic isn't forked. */}
-        {clipsPanel}
         <div className="pb-0.5 text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.yellow }}>Pending · {pending.length}</div>
         {pending.length === 0 && <div className="px-1 py-1 text-[9.5px] italic" style={{ color: NEON.muted }}>Nothing waiting. Roll F9 in OBS — takes land here.</div>}
         {pending.map(row)}

@@ -5,7 +5,7 @@
 // Dashboard v1 chrome (old toolbar + drawer) — nothing was deleted, only gated.
 // Authoring-only: the route renders it when `chrome && v2`; film mode never sees it.
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Archive, ChevronDown, Download, Eraser, Eye, FilePlus2, FolderOpen, Home as HomeIcon, Keyboard, ListOrdered, Plus, RotateCcw, Save, Sprout, Upload } from "lucide-react";
+import { Archive, ChevronDown, Clapperboard, Download, Eraser, Eye, FilePlus2, FolderOpen, Home as HomeIcon, Keyboard, ListOrdered, Plus, RotateCcw, Save, Sprout, Upload } from "lucide-react";
 
 import { NEON } from "./theme";
 
@@ -23,7 +23,7 @@ function NavMenuRow({ icon, label, danger, onClick }: { icon: ReactNode; label: 
   );
 }
 
-export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSaveAs, onLoad, onExport, onImport, onNewTab, onReset, onSeedSets, onCleanNames, onHotkeys, onOpenStudio, onViewV1, onHome, homeActive, poolMode, onSeedExam1, onShorthandBackfill }: {
+export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSaveAs, onLoad, onExport, onImport, onNewTab, onReset, onSeedSets, onCleanNames, onHotkeys, onOpenStudio, onPipeline, onViewV1, onHome, homeActive, poolMode, onSeedExam1, onShorthandBackfill }: {
   onHome: () => void; homeActive: boolean;
   sceneName: string;
   setSceneName: (v: string) => void;
@@ -39,6 +39,8 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
   onCleanNames: () => void;
   onHotkeys: () => void;
   onOpenStudio: () => void;
+  /** PIPELINE (P1) — open the Studio already in Pipeline (filming) mode. */
+  onPipeline: () => void;
   onViewV1: () => void;
   /** SET-POOL mode (frames rename): the Studio is the surface; the free-pan canvas
    *  is parked behind "Open canvas view — experimental"; sets rename in the outline. */
@@ -116,6 +118,18 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
           </div>
         )}
       </div>
+
+      {/* PIPELINE (P1) — the filming room, one click from anywhere: spine · capture ·
+          cut player · take rail. Prominent by design: this is the button Lee hits when
+          he sits down to film. */}
+      <button
+        className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[12px] font-black uppercase tracking-wide"
+        style={{ color: "#FF8B9E", border: "1px solid rgba(255,90,110,0.55)" }}
+        onClick={onPipeline}
+        title="PIPELINE — the filming room: spine, capture window, cut player, take rail. Opens the Studio already in Pipeline mode."
+      >
+        <Clapperboard className="h-3.5 w-3.5" /> Pipeline
+      </button>
 
       {/* Name — pool mode shows the fixed "Sets" surface label (sets rename in the
           outline); canvas view keeps the editable name input. Home shows neither. */}

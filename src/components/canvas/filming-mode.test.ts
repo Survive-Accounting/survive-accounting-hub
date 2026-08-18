@@ -58,10 +58,10 @@ describe("the inbox learned a shape, it did not fork", () => {
     expect(inbox).toContain('className={inline ? "order-last ml-2 flex h-full w-[380px]');
     expect(inbox).toContain("{!inline && <button className=\"ml-auto grid h-5 w-5"); // no ✕ on a docked rail
   });
-  test("the merged clip list is supplied by the Studio — clip logic lives in one place", () => {
-    expect(inbox).toContain("{clipsPanel}");
+  test("the clip stack lives in the pipeline column — the rail never learns about clips (P1)", () => {
+    expect(inbox).not.toContain("clipsPanel"); // the F2 prop is gone, not orphaned
     expect(inbox).not.toContain("cardClips"); // the inbox never learns about clips itself
-    expect(studio).toContain("clipsPanel={filming ? clipsPanel : undefined}");
+    expect(studio).toContain("{clipsPanel}"); // rendered in the pipeline center column
   });
   test("the merged list is read-only — a filming pass is never one mis-click from dropping a take", () => {
     const panel = studio.slice(studio.indexOf("const clipsPanel = useMemo"), studio.indexOf("}, [questions, rf, qId, takePreview]);"));

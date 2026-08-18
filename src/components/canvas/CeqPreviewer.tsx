@@ -1633,6 +1633,14 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   const captureRef = useRef(false);
   /** Why the capture window could NOT hit 1920×1080 (null = it did). */
   const [captureNote, setCaptureNote] = useState<string | null>(null);
+  // PIPELINE (P1): the top strip's 🎯 chip launches the capture window from
+  // OUTSIDE this component via this event — same toggleFilm as the transport
+  // button (undefined, true), so there is exactly one launcher.
+  useEffect(() => {
+    const on = () => toggleFilmRef.current(undefined, true);
+    window.addEventListener("sa-launch-capture", on);
+    return () => window.removeEventListener("sa-launch-capture", on);
+  }, []);
   const toggleFilm = (v2?: boolean, capture?: boolean) => {
     if (filmWin) { try { filmWin.close(); } catch { /* ignore */ } setFilmWin(null); captureRef.current = false; return; }
     if (v2 !== undefined) setFilmMode(v2);
@@ -1642,6 +1650,8 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     const w = openPopoutWindow(capture ? "ceqcapture" : "ceqfilm", css?.w ?? 1000, css?.h ?? 600);
     if (w) { setFilmWin(w); if (capture) { window.setTimeout(() => snapCaptureSize(w, (ok, why) => setCaptureNote(ok ? null : why ?? null), o), 200); } }
   };
+  const toggleFilmRef = useRef(toggleFilm);
+  toggleFilmRef.current = toggleFilm;
   // ELEMENT FULLSCREEN (C1): fullscreen targets THIS stable wrapper — it never
   // unmounts (frames swap INSIDE it; the arrival-gap fix guarantees the
   // interior), so spacewalking a whole set in fullscreen can never blank or
