@@ -35,6 +35,12 @@ export function useCutPlayer(segments: SeqSegment[], resetKey?: unknown): CutPla
   useEffect(() => { seqRef.current = seq; }, [seq]);
   const gapTimer = useRef<number | undefined>(undefined);
   const stallTimer = useRef<number | undefined>(undefined);
+  // GENERATION GUARD: a clip's loadedmetadata can arrive AFTER stop() — pausing
+  // doesn't abort an in-flight load. Every stop bumps this; a pending begin()/
+  // fail() captured the old value and bails, so a load that resolves post-stop
+  // can never seek+play (which, while Recording Mode hides the player, would
+  // bleed a raw untrimmed take's audio into the live OBS take).
+  const genRef = useRef(0);
   const segsRef = useRef<SeqSegment[]>(segments);
   segsRef.current = segments;
 
@@ -43,7 +49,7 @@ export function useCutPlayer(segments: SeqSegment[], resetKey?: unknown): CutPla
     if (stallTimer.current != null) window.clearTimeout(stallTimer.current);
     gapTimer.current = stallTimer.current = undefined;
   };
-  const stop = () => { clearTimers(); vidRef.current?.pause(); setSeq(seqIdle()); };
+  const stop = () => { genRef.current += 1; clearTimers(); vidRef.current?.pause(); setSeq(seqIdle()); };
   useEffect(() => stop, []); // eslint-disable-line react-hooks/exhaustive-deps
   // The cut changed under the player (edit, re-order, new clip) — stop rather
   // than play something that moved.
@@ -62,12 +68,14 @@ export function useCutPlayer(segments: SeqSegment[], resetKey?: unknown): CutPla
     if (!v) return;
     if (stallTimer.current != null) window.clearTimeout(stallTimer.current);
     stallTimer.current = window.setTimeout(() => run(seqClipFailed(segsRef.current, seqRef.current, a.index, "stalled loading")), STALL_TIMEOUT_MS);
+    const myGen = genRef.current;
     const begin = () => {
+      if (genRef.current !== myGen) return; // stopped or superseded while loading
       if (stallTimer.current != null) { window.clearTimeout(stallTimer.current); stallTimer.current = undefined; }
       v.currentTime = a.seekS;
-      void v.play().catch((err) => run(seqClipFailed(segsRef.current, seqRef.current, a.index, err instanceof Error ? err.message : "play() refused")));
+      void v.play().catch((err) => { if (genRef.current === myGen) run(seqClipFailed(segsRef.current, seqRef.current, a.index, err instanceof Error ? err.message : "play() refused")); });
     };
-    const fail = () => run(seqClipFailed(segsRef.current, seqRef.current, a.index, "media error"));
+    const fail = () => { if (genRef.current === myGen) run(seqClipFailed(segsRef.current, seqRef.current, a.index, "media error")); };
     if (v.src !== a.url) {
       v.src = a.url;
       v.addEventListener("loadedmetadata", begin, { once: true });

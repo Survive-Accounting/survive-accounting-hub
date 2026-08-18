@@ -42,7 +42,7 @@ import { attachTargets, currentTakes, keepTakeTo, saveTake, triageLatest, type T
 import { clipAudio } from "./waveform-peaks";
 import { subscribeSlate, type SlateState } from "./film-slate";
 import { coverageLabel, logCoverageFrame } from "./coverage-log";
-import { classifyEdit, editLogState, exportEditLog, logEditEvent, startEditLog } from "./edit-telemetry";
+import { classifyEdit, editLogState, exportEditLog, logEditEvent, startEditLog, subscribeEditLog } from "./edit-telemetry";
 import { DEFAULT_POST_ROLL_MS, DEFAULT_PRE_ROLL_MS, detectSpeech, proposeTrim, TRIM_RULE_VERSION } from "./landmarks";
 import { PLATFORM_LABEL, VERTICAL_PLATFORMS, frameSize, geomField, isVertical, layoutField, layoutOf, type Orientation, type VerticalPlatform } from "./orientation";
 import { setOrientation, subscribeOrientation } from "./orientation-store";
@@ -347,6 +347,14 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   // P4: the edit log drains its local-first queue from the moment the Studio
   // exists — not just when a trim happens.
   useEffect(() => { startEditLog(); }, []);
+  // FAIL LOUD (P4 contract): surface a NEW sync error once — the missing-0117
+  // hint especially — instead of computing it and throwing it away. Deduped so a
+  // 30s retry loop can't spam the note.
+  const lastEditErrRef = useRef<string | null>(null);
+  useEffect(() => subscribeEditLog((s) => {
+    if (s.error && s.error !== lastEditErrRef.current && !s.error.startsWith("offline")) { lastEditErrRef.current = s.error; setNote("EDIT LOG SYNC: " + s.error); }
+    if (!s.error) lastEditErrRef.current = null;
+  }), []);
   const [binStat, setBinStat] = useState({ count: 0, bytes: 0 });
   // ONE COUNTDOWN (F1): the slate store is the single source — the capture window
   // renders it IN FRAME and the studio MIRRORS it here. There used to be a second,
@@ -1169,6 +1177,11 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     }
     return { ...saved, items };
   }, [deck, questions, rf]);
+  // LIVE snapshot for async writers: PROPOSE TRIMS awaits audio decode for tens
+  // of seconds, during which trims/reorders keep persisting. Building its write
+  // from the closure-captured memo would revert every edit made in that window.
+  const pipelineStitchRef = useRef(pipelineStitch);
+  pipelineStitchRef.current = pipelineStitch;
 
   /** Persist a stitch WITHOUT opening the preview overlay — the trim handles
    *  write through here on every drag/nudge, and popping the modal each time
@@ -1225,7 +1238,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     dl(`sa-edit-log-${day}.json`, "application/json", json);
     dl(`sa-edit-log-${day}.csv`, "text/csv", csv);
     const st = editLogState();
-    setNote(`Exported ${count} edit event${count === 1 ? "" : "s"} (${scope}${st.pending ? ` · ${st.pending} not yet synced — they never drop; sync retries on its own` : ""}). JSON on the clipboard; both files downloaded.`);
+    const pend = st.pending ? ` · ${st.pending} not yet synced${st.error ? ` (${st.error})` : " — they never drop; sync retries on its own"}` : "";
+    setNote(`Exported ${count} edit event${count === 1 ? "" : "s"} (${scope}${pend}). JSON on the clipboard; both files downloaded.`);
   };
   /** P2: the door every HAND trim walks through — the strips call only this.
    *  It writes the RECIPE item (non-destructive by construction; the media
@@ -1236,6 +1250,12 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     const prev = pipelineStitch.items.find((i) => i.takePath === takePath);
     const items = pipelineStitch.items.map((i) => (i.takePath === takePath ? { ...i, trimInS: Math.round(inS * 1000) / 1000, trimOutS: Math.round(outS * 1000) / 1000, autoTrim: undefined } : i));
     persistStitch(recut(pipelineStitch, { items }));
+    // The proposal baseline: this session's proposedRef, else the item's still-set
+    // autoTrim (which this write is about to clear). KNOWN LOW-SEV GAP: if the
+    // PROPOSE happened in a PRIOR session, only the first nudge recovers the
+    // baseline — it clears autoTrim, so a second nudge logs as 'overridden'.
+    // Accepted: persisting proposals or keeping autoTrim past the first
+    // adjustment would break the P2 "amber clears on hand-adjust" contract.
     const proposed = proposedRef.current.get(takePath) ?? (prev?.autoTrim && prev.trimInS != null && prev.trimOutS != null ? { inS: prev.trimInS, outS: prev.trimOutS } : null);
     logTrim(takePath, { inS, outS }, how, proposed);
   };
@@ -1265,12 +1285,19 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
         setNote(`Proposing trims… ${Math.min(at + 4, targets.length)}/${targets.length} clips analyzed`);
       }
       if (!found.size) { setNote("No trims proposed — no untrimmed clip had detectable speech (or audio failed to decode)."); return; }
-      const items = pipelineStitch.items.map((i) => { const p = found.get(i.takePath); return p ? { ...i, trimInS: Math.round(p.inS * 1000) / 1000, trimOutS: Math.round(p.outS * 1000) / 1000, autoTrim: true } : i; });
-      persistStitch(recut(pipelineStitch, { items }));
-      // P4: one "proposed" event per clip — the baseline every later hand
-      // adjustment is measured against.
-      for (const [path, p] of found) { proposedRef.current.set(path, p); logTrim(path, p, "propose", p, spans.get(path)); }
-      setNote(`PROPOSED ${found.size} trim${found.size === 1 ? "" : "s"} (in = onset − ${preRollMs}ms · out = offset + ${postRollMs}ms). Amber handles = auto — drag or nudge to adjust; nothing rendered.`);
+      // Write against the LIVE recipe, not the click-time snapshot: any trim or
+      // reorder made while we decoded is preserved, and a clip hand-trimmed in
+      // that window (now has trimInS/Out) is NOT overwritten by its proposal.
+      const live = pipelineStitchRef.current;
+      if (!live) { setProposeBusy(false); return; }
+      const applied: string[] = [];
+      const items = live.items.map((i) => { const p = found.get(i.takePath); if (p && i.trimInS == null && i.trimOutS == null && !i.muted) { applied.push(i.takePath); return { ...i, trimInS: Math.round(p.inS * 1000) / 1000, trimOutS: Math.round(p.outS * 1000) / 1000, autoTrim: true }; } return i; });
+      if (!applied.length) { setNote("Proposals ready, but every target was hand-trimmed while analyzing — nothing overwritten."); return; }
+      persistStitch(recut(live, { items }));
+      // P4: one "proposed" event per clip actually written — the baseline every
+      // later hand adjustment is measured against.
+      for (const path of applied) { const p = found.get(path)!; proposedRef.current.set(path, p); logTrim(path, p, "propose", p, spans.get(path)); }
+      setNote(`PROPOSED ${applied.length} trim${applied.length === 1 ? "" : "s"} (in = onset − ${preRollMs}ms · out = offset + ${postRollMs}ms). Amber handles = auto — drag or nudge to adjust; nothing rendered.`);
     } finally { setProposeBusy(false); }
   })(); };
   /** P3: an attachable TakeRef from a KEPT record — same recipe as attachLatestKept. */

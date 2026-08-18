@@ -84,7 +84,7 @@ describe("every trim door logs", () => {
   test("drag/nudge log through applyTrim, proposals log in the propose loop", () => {
     const apply = studio.slice(studio.indexOf("const applyTrim = "), studio.indexOf("/** PROPOSE TRIMS (P2)"));
     expect(apply).toContain("logTrim(takePath, { inS, outS }, how, proposed);");
-    expect(studio).toContain('for (const [path, p] of found) { proposedRef.current.set(path, p); logTrim(path, p, "propose", p, spans.get(path)); }');
+    expect(studio).toContain('for (const path of applied) { const p = found.get(path)!; proposedRef.current.set(path, p); logTrim(path, p, "propose", p, spans.get(path)); }');
   });
   test("the proposal baseline survives the nudge that clears autoTrim", () => {
     expect(studio).toContain("const proposed = proposedRef.current.get(takePath) ?? (prev?.autoTrim");
@@ -123,6 +123,32 @@ describe("the export", () => {
   });
   test("no dashboards — the button and the log are the whole feature", () => {
     expect((studio.match(/doExportEditLog/g) ?? []).length).toBe(2); // definition + the one button
+  });
+});
+
+describe("review fixes (adversarial pass, 08-18)", () => {
+  test("flush chunks against the 500-cap — a queue past 500 can't wedge forever", () => {
+    const fl = tele.slice(tele.indexOf("export async function flushEditLog"), tele.indexOf("export function startEditLog"));
+    expect(fl).toContain("queue.slice(0, MAX_BATCH)");
+    expect(fl).toContain("for (let queue = pendingEvents(events); queue.length; queue = pendingEvents(events))");
+    expect(fl).toContain("if (!acked.length) break;"); // never spins when the server acks nothing
+    expect(tele).toContain("const MAX_BATCH = 500;");
+  });
+  test("sync errors SURFACE — the studio subscribes and shows a new one once", () => {
+    expect(tele).toContain("export function subscribeEditLog(");
+    expect(studio).toContain('setNote("EDIT LOG SYNC: " + s.error)');
+    expect(studio).toContain("s.error !== lastEditErrRef.current"); // deduped, not spammed
+  });
+  test("saveLocal merges with the disk copy — two tabs can't clobber unsynced events", () => {
+    const sl = tele.slice(tele.indexOf("const saveLocal ="), tele.indexOf("export interface EditLogState"));
+    expect(sl).toContain("const byId = new Map(list.map((e) => [e.id, e]));");
+    expect(sl).toContain("if (!mine || (!mine.syncedAt && d.syncedAt)) byId.set(d.id, d);");
+    expect(tele).toContain('window.addEventListener("storage",');
+  });
+  test("listEditEvents is PAGED — the export can't silently stop at 1000", () => {
+    const fns = read("../../lib/edit-events.functions.ts");
+    expect(fns).toContain(".range(from, from + PAGE - 1)");
+    expect(fns).toContain("if (rows.length < PAGE) break;");
   });
 });
 

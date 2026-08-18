@@ -45,12 +45,22 @@ const rowSchema = z.object({
 
 export type EditEventRow = z.infer<typeof rowSchema> & { created_at: string };
 
-/** Everything, oldest first — the export merges this with the local queue. */
+/** Everything, oldest first — the export merges this with the local queue.
+ *  PAGED: PostgREST caps an unranged select at 1000 rows, and the log's whole
+ *  point is the >1000 regime, so an unpaged read would silently export only the
+ *  oldest 1000 while claiming completeness. */
 export const listEditEvents = createServerFn({ method: "POST" }).handler(async (): Promise<EditEventRow[]> => {
   const db = await admin();
-  const { data, error } = await db.from("edit_events").select(SELECT).order("at", { ascending: true });
-  if (error) rethrow(error);
-  return (data ?? []) as EditEventRow[];
+  const PAGE = 1000;
+  const out: EditEventRow[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await db.from("edit_events").select(SELECT).order("at", { ascending: true }).range(from, from + PAGE - 1);
+    if (error) rethrow(error);
+    const rows = (data ?? []) as EditEventRow[];
+    out.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  return out;
 });
 
 /** Push a batch. Upsert on the client-minted id — a retry after a timeout that

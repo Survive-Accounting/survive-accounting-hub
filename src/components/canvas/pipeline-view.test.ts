@@ -90,4 +90,13 @@ describe("film-safe", () => {
     expect(studio).toContain('style={{ display: recording ? "none" : undefined, background: "rgba(9,14,26,0.92)"');
     expect(player).toContain("if (hidden) stopRef.current();");
   });
+  test("stop() cancels an in-flight clip load — a post-stop load can't seek+play (audio bleed)", () => {
+    // The generation guard: stop() bumps genRef; a begin()/fail() captured the
+    // old value and bails, so metadata arriving after stop never plays audio
+    // over a live take. This was a CONFIRMED high-sev finding.
+    expect(hook).toContain("const genRef = useRef(0);");
+    expect(hook).toContain("const stop = () => { genRef.current += 1;");
+    expect(hook).toContain("const myGen = genRef.current;");
+    expect(hook).toContain("if (genRef.current !== myGen) return;"); // begin bails
+  });
 });

@@ -60,6 +60,9 @@ const KEY = "sa-edit-events-v1";
 /** Prune bounds: only SYNCED events are ever dropped, oldest first. */
 const PRUNE_AT = 4000;
 const PRUNE_TO = 3000;
+/** The server validator caps a batch at 500 — flush chunks to match, or a queue
+ *  past 500 would be rejected whole and wedge forever, growing without bound. */
+const MAX_BATCH = 500;
 
 let events: EditEvent[] = [];
 let syncing = false;
@@ -68,6 +71,17 @@ let started = false;
 let timer: ReturnType<typeof setInterval> | undefined;
 
 const online = (): boolean => (typeof navigator === "undefined" ? true : navigator.onLine !== false);
+
+const subs = new Set<(s: EditLogState) => void>();
+const emit = (): void => { const s = editLogState(); subs.forEach((f) => f(s)); };
+/** Surface state (esp. sync errors — the missing-migration hint) so the UI can
+ *  honour this module's fail-loud contract instead of computing errors and
+ *  discarding them. */
+export function subscribeEditLog(fn: (s: EditLogState) => void): () => void {
+  subs.add(fn);
+  fn(editLogState());
+  return () => { subs.delete(fn); };
+}
 
 export const pendingEvents = (list: EditEvent[]): EditEvent[] => list.filter((e) => !e.syncedAt);
 
@@ -87,7 +101,27 @@ const loadLocal = (): EditEvent[] => {
     return raw ? (JSON.parse(raw) as EditEvent[]) : [];
   } catch { return []; }
 };
-const saveLocal = (list: EditEvent[]): void => { localStorage.setItem(KEY, JSON.stringify(list)); };
+/** Write, but MERGE with whatever another studio tab wrote since we loaded —
+ *  events are immutable and keyed by id, so union-by-id can't lose one; a synced
+ *  copy wins so a concurrent ack isn't undone. Without this, two tabs' blind
+ *  last-writer-wins overwrites drop each other's unsynced events (rule 3). Also
+ *  refreshes our in-memory `events` to the merged truth. */
+const saveLocal = (list: EditEvent[]): void => {
+  let merged = list;
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) {
+      const byId = new Map(list.map((e) => [e.id, e]));
+      for (const d of JSON.parse(raw) as EditEvent[]) {
+        const mine = byId.get(d.id);
+        if (!mine || (!mine.syncedAt && d.syncedAt)) byId.set(d.id, d);
+      }
+      if (byId.size !== list.length) merged = [...byId.values()].sort((a, b) => a.at.localeCompare(b.at));
+    }
+  } catch { /* corrupt disk copy — our list still writes */ }
+  events = merged;
+  localStorage.setItem(KEY, JSON.stringify(merged));
+};
 
 export interface EditLogState { count: number; pending: number; syncing: boolean; error: string | null }
 export const editLogState = (): EditLogState => ({ count: events.length, pending: pendingEvents(events).length, syncing, error });
@@ -103,23 +137,30 @@ export function logEditEvent(ev: Omit<EditEvent, "id" | "at">): void {
   void flushEditLog();
 }
 
-/** Push everything unacknowledged. Re-entrant calls drop; failure keeps the queue. */
+/** Push everything unacknowledged, in ≤500 chunks. Re-entrant calls drop;
+ *  failure keeps the queue and surfaces the error. */
 export async function flushEditLog(): Promise<void> {
   if (syncing) return;
-  const queue = pendingEvents(events);
-  if (!queue.length) { error = null; return; }
-  if (!online()) { error = "offline — queued"; return; }
+  if (!pendingEvents(events).length) { if (error) { error = null; emit(); } return; }
+  if (!online()) { if (error !== "offline — queued") { error = "offline — queued"; emit(); } return; }
   syncing = true;
+  emit();
   try {
-    const acked = await upsertEditEvents({ data: { events: queue.map(toRow) } });
-    const ackAt = new Map(acked.map((r) => [r.id, r.created_at]));
-    events = events.map((e) => (ackAt.has(e.id) ? { ...e, syncedAt: ackAt.get(e.id) as string } : e));
-    saveLocal(events);
+    // Chunk against the 500-cap: one over-cap batch is rejected whole, nothing
+    // acks, and the queue only grows — a permanent, self-reinforcing wedge.
+    for (let queue = pendingEvents(events); queue.length; queue = pendingEvents(events)) {
+      const acked = await upsertEditEvents({ data: { events: queue.slice(0, MAX_BATCH).map(toRow) } });
+      if (!acked.length) break; // server acked nothing — don't spin
+      const ackAt = new Map(acked.map((r) => [r.id, r.created_at]));
+      events = events.map((e) => (ackAt.has(e.id) ? { ...e, syncedAt: ackAt.get(e.id) as string } : e));
+      saveLocal(events);
+    }
     error = null;
   } catch (e) {
     error = e instanceof Error ? e.message : String(e);
   } finally {
     syncing = false;
+    emit();
   }
 }
 
@@ -128,10 +169,14 @@ export function startEditLog(): void {
   if (started) return;
   started = true;
   events = loadLocal();
+  emit();
   void flushEditLog();
   if (typeof window !== "undefined") {
     window.addEventListener("online", () => { error = null; void flushEditLog(); });
     window.addEventListener("focus", () => void flushEditLog());
+    // Another studio tab wrote — adopt its events (merge, never overwrite) so a
+    // tab that goes quiet still holds the whole log for export.
+    window.addEventListener("storage", (e) => { if (e.key === KEY) { saveLocal(events); emit(); } });
     if (timer) clearInterval(timer);
     timer = setInterval(() => void flushEditLog(), 30_000);
   }

@@ -132,6 +132,17 @@ describe("non-destructive by construction", () => {
   });
 });
 
+describe("PROPOSE TRIMS writes against the LIVE recipe (review fix, 08-18)", () => {
+  test("the post-await write reads the ref, not the click-time snapshot", () => {
+    const pt = studio.slice(studio.indexOf("const proposeTrims = "), studio.indexOf("} finally { setProposeBusy(false); }"));
+    expect(pt).toContain("const live = pipelineStitchRef.current;");
+    expect(pt).toContain("persistStitch(recut(live, { items }));");
+    // a clip hand-trimmed DURING the analysis window is not overwritten
+    expect(pt).toContain("if (p && i.trimInS == null && i.trimOutS == null && !i.muted)");
+    expect(studio).toContain("const pipelineStitchRef = useRef(pipelineStitch);");
+  });
+});
+
 describe("PROPOSE TRIMS never auto-runs", () => {
   test("exactly one caller: its button", () => {
     // definition + the single onClick — a third occurrence means someone wired
