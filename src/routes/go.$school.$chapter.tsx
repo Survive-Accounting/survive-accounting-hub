@@ -18,6 +18,7 @@ import { useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { ChapterFinder } from "@/components/site/ChapterFinder";
+import { RoleFork, useChapterRole } from "@/components/site/RoleFork";
 import { ClaimChapter } from "@/components/site/ClaimChapter";
 import { getGoChapter, listGoSchools, tagChapterMember } from "@/lib/greek-go.functions";
 import { LandingPage } from "./landing";
@@ -38,16 +39,27 @@ function GoChapterPage() {
     staleTime: 300_000,
   });
   const ch = q.data ?? null;
+
+  // ROLE FORK. Asked once per chapter and remembered; a logged-in user with a known role never
+  // sees it. accountRole is null until sign-in carries a chapter role — the hook already prefers
+  // it over storage, so wiring that later needs no change here.
+  const { role, choose, resolving } = useChapterRole(school, chapter, null);
   return (
     <>
       <LandingPage
         initialCampusId={ch?.campusId ?? undefined}
         chapterBanner={ch ? ch.chapterName : undefined}
         goChapter={ch ? { schoolSlug: ch.schoolSlug, chapterSlug: ch.chapterSlug } : undefined}
-        // TOP OF PAGE, under the banner. Execs are a tiny fraction of this page's traffic but
-        // they are the only visitor who can act on it, and they were the one group being asked
-        // to scroll past the entire document to find their control.
-        chapterClaim={ch ? <ClaimChapter schoolSlug={ch.schoolSlug} chapterSlug={ch.chapterSlug} chapterName={ch.chapterName} claimStatus={ch.claimStatus} /> : undefined}
+        // ONE SLOT, THREE STATES, directly under the banner — the first thing an arriving
+        // visitor sees. Unknown role asks the question; an exec gets the claim control; a
+        // member gets nothing here and goes straight to studying, which is the point: the
+        // chapter's claim status is an exec concern and must never gate a student.
+        chapterClaim={
+          !ch ? undefined
+            : !resolving && !role ? <RoleFork chapterName={ch.chapterName} onChoose={choose} />
+            : role === "exec" ? <ClaimChapter schoolSlug={ch.schoolSlug} chapterSlug={ch.chapterSlug} chapterName={ch.chapterName} claimStatus={ch.claimStatus} />
+            : undefined
+        }
       />
       {/* Self-report stays at the foot: it is a STUDENT correction ("I'm in a different house"),
           worth offering but never worth interrupting the reason they came. */}
