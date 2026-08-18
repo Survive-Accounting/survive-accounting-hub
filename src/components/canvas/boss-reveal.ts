@@ -8,12 +8,13 @@
 //   0ms    the 808 hits ON the flash (not after it)
 //   ~700ms it SETTLES: bolt and label fade, the card keeps boss styling
 //
-// THE HARD CONSTRAINT, and the reason this file exists rather than a few inline
-// styles: nothing in the reveal may cover the stem or the choices, at any point.
-// This is a question a student has to read. So the flash lives in the MARGIN
-// beside the card, and `revealZone` computes that margin per orientation — a
-// 9:16 frame is much narrower, and a flash sized for landscape would sit on top
-// of the text there.
+// CENTRE STAGE + SCRIM (Lee, 08-17). The reveal takes the middle of the frame and
+// dims the card behind it for the beat it lives. The earlier design kept the
+// flash out in a free margin so it could never overlap the question — correct on
+// paper, but it read as an afterthought stuck to the side of the card. The rule
+// it protected still holds, by a better route: the question is obscured for
+// ~760ms and fully legible the instant the scrim lifts, so nobody reads through
+// a flash.
 
 import { isVertical, type Orientation } from "./orientation";
 
@@ -24,7 +25,9 @@ export const FLASH_MS = 260;
 /** The drop must land ON the flash. Anything above ~40ms reads as a mistimed cue. */
 export const DROP_OFFSET_MS = 0;
 
-export type BossLabel = "BOSS" | "FINAL BOSS";
+/** LABEL (Lee, 08-17): "Boss Question!" reads as a callout; B O S S alone read
+ *  as a logo. FINAL stays automatic on the last CEQ of the set. */
+export type BossLabel = "Boss Question!" | "FINAL Boss Question!";
 
 /** FINAL BOSS is automatic, never a separate control: the last CEQ in the set is
  *  the final boss by definition, and a manual flag would be one more thing to
@@ -32,44 +35,40 @@ export type BossLabel = "BOSS" | "FINAL BOSS";
  *  Pure. */
 export function bossLabel(ceqId: string, ceqOrder: string[]): BossLabel {
   const last = ceqOrder[ceqOrder.length - 1];
-  return last && last === ceqId ? "FINAL BOSS" : "BOSS";
+  return last && last === ceqId ? "FINAL Boss Question!" : "Boss Question!";
 }
 
 export interface Rect { x: number; y: number; w: number; h: number }
 
-/** WHERE THE FLASH IS ALLOWED TO LIVE — the margin outside the card, never over
- *  it. Returns null when there is no room, and the caller then skips the flash
- *  rather than drawing it across the question.
+/** CENTRE STAGE, WITH A SCRIM (Lee, 08-17).
  *
- *  Landscape: the card sits centred with room either side, so the flash takes the
- *  right margin. Vertical: the card spans nearly the full width, so the only safe
- *  band is ABOVE it — which is also where the eye already is when a card deals. */
-export function revealZone(frame: { w: number; h: number }, card: Rect, o: Orientation): Rect | null {
-  const MIN = 90; // below this a flash is a smudge, not a callout
-  if (isVertical(o)) {
-    const band = card.y;                       // the gap above the card
-    if (band < MIN) return null;
-    return { x: 0, y: 0, w: frame.w, h: band };
-  }
-  const rightEdge = card.x + card.w;
-  const right = frame.w - rightEdge;
-  if (right >= MIN) return { x: rightEdge, y: card.y, w: right, h: card.h };
-  if (card.x >= MIN) return { x: 0, y: card.y, w: card.x, h: card.h };  // try the left
-  return null;
+ *  SUPERSEDES the margin rule this file was built around. The original brief
+ *  said the reveal must never overlap the stem or the choices, so the flash was
+ *  banished to whatever margin was free — and in practice it read as an
+ *  afterthought stuck to the side of the card, which is what Lee saw.
+ *
+ *  The constraint is now satisfied a better way: the reveal takes the CENTRE and
+ *  a scrim dims what is behind it for the ~760ms it lives. The question is
+ *  deliberately obscured for that beat and fully readable the moment the scrim
+ *  lifts, so no student ever has to read through a flash. That is the outcome
+ *  the old rule was protecting; the margin was only one way to get it.
+ *
+ *  Same in both orientations — a centred callout needs no per-shape special
+ *  case, which is why the null-zone fallback is gone too. */
+export function revealZone(frame: { w: number; h: number }): Rect {
+  return { x: 0, y: 0, w: frame.w, h: frame.h };
 }
 
-/** Does a proposed flash rect keep clear of the card? The test that encodes the
- *  hard constraint — if this ever returns false, the reveal is covering text. */
-export function clearsCard(zone: Rect, card: Rect): boolean {
-  return zone.x + zone.w <= card.x || zone.x >= card.x + card.w
-    || zone.y + zone.h <= card.y || zone.y >= card.y + card.h;
-}
-
+/** How dark the scrim goes at its peak. Enough to push the card back without
+ *  blacking the frame — the viewer should still see a question is under there. */
+export const SCRIM_ALPHA = 0.72;
 /** The label's size for an orientation. It has to read like a game callout, so
  *  it is big — but a vertical frame's safe band is short, so it steps down. */
 export function labelSize(o: Orientation, zone: Rect): number {
-  const base = isVertical(o) ? Math.min(zone.h * 0.42, zone.w * 0.13) : Math.min(zone.w * 0.34, zone.h * 0.16);
-  return Math.max(22, Math.round(base));
+  // Centred, so it sizes off the frame's WIDTH — the label is one line and the
+  // narrow vertical frame is what constrains it.
+  const base = isVertical(o) ? zone.w * 0.115 : zone.w * 0.075;
+  return Math.max(28, Math.round(base));
 }
 
 /** The CSS keyframes. Kept here beside the timings so the two can't drift —
@@ -86,8 +85,14 @@ export const BOSS_REVEAL_CSS = `
   100% { opacity: 1; transform: none;                        letter-spacing: 0.16em; }
 }
 @keyframes sa-boss-settle { to { opacity: 0; transform: scale(0.86); } }
+@keyframes sa-boss-scrim { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sa-boss-unscrim { to { opacity: 0; } }
+/* The scrim fades UP fast with the flash, then all the way out — the question
+   is obscured for the beat and fully legible the instant it clears. */
 .sa-boss-flash { animation: sa-boss-flash ${FLASH_MS}ms cubic-bezier(0.16,1,0.3,1) both,
                             sa-boss-settle 220ms ${REVEAL_MS - 220}ms ease-in both; }
+.sa-boss-scrim { animation: sa-boss-scrim 140ms ease-out both,
+                            sa-boss-unscrim 260ms ${REVEAL_MS - 260}ms ease-in both; }
 .sa-boss-label { animation: sa-boss-label ${FLASH_MS}ms cubic-bezier(0.16,1,0.3,1) both,
                             sa-boss-settle 220ms ${REVEAL_MS - 220}ms ease-in both; }
 `;

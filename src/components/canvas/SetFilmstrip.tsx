@@ -119,6 +119,8 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
     fillDownRuns?: () => void;
     /** F3 — play the open frame's cut locally, with its math, before any upload. */
     previewStitch?: () => void;
+    /** Stamp this frame's placement onto every other frame, in the ACTIVE orientation only. */
+    applyPlacementToAll?: () => void;
     /** DISSECT (P5): open the moments editor for the open frame. */
     dissect?: () => void;
     /** SET PROFILE (P6): open the production-profile panel. */
@@ -322,6 +324,14 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
                       onClick={() => { setMenuOpen(false); actions.fillDownRuns?.(); }}
                       title="Every unlettered frame takes the letter of the frame above it — mark the split points, then finish the set in one click. A set with no letters at all becomes one run: A."
                     >⤓ Fill down the set</button>
+                  )}
+                  {actions.applyPlacementToAll && (
+                    <button
+                      className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10"
+                      style={{ color: NEON.yellow }}
+                      onClick={() => { setMenuOpen(false); actions.applyPlacementToAll?.(); }}
+                      title="Place this frame once, then stamp its position and size onto every other frame in the set. Only the ACTIVE orientation is touched, and 📐 opt-outs are skipped. One Ctrl+Z undoes all of it."
+                    >⧉ All CEQs here</button>
                   )}
                   {actions.previewStitch && (
                     <button

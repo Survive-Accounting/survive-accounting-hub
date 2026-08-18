@@ -47,9 +47,9 @@ import { CALLOUT_KINDS, CalloutBody, calloutKindForCategory, nextCalloutKind } f
 import { CAPTURE_H, CAPTURE_W, captureCssSize, captureFeasibility, isCaptureExact, physicalSize, snapCaptureSize } from "./capture-window";
 import { clearExhibitHighlights } from "./exhibit-highlights";
 import { NOTE_EYEBROW } from "./frame-copy";
-import { BOSS_REVEAL_CSS, REVEAL_MS, bossLabel, labelSize, revealZone } from "./boss-reveal";
+import { BOSS_REVEAL_CSS, REVEAL_MS, SCRIM_ALPHA, bossLabel, labelSize, revealZone } from "./boss-reveal";
 import { unlockSfx } from "./sfx";
-import { captureSize } from "./orientation";
+import { captureSize, geomOf } from "./orientation";
 import { orientation, subscribeOrientation } from "./orientation-store";
 import { subscribeSlate, type SlateState } from "./film-slate";
 import { triageLatest } from "./takes-store";
@@ -877,17 +877,22 @@ const EMPTY_SPOTS: SpotSets = { regular: new Set(), superKey: null, superTone: "
 function BossReveal({ label, zone, o }: { label: string; zone: { x: number; y: number; w: number; h: number }; o: "16:9" | "9:16" }) {
   const size = labelSize(o, zone);
   return (
-    <div style={{ position: "absolute", left: zone.x, top: zone.y, width: zone.w, height: zone.h, zIndex: 60, pointerEvents: "none", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: Math.round(size * 0.22) }}>
-      <span className="sa-boss-flash" style={{ display: "block", height: size * 1.9, width: Math.round(size * 1.9 * BOLT_RATIO), filter: "drop-shadow(0 0 26px rgba(252,163,17,0.95))" }}>
-        <Bolt c1="#FCA311" c2="#E0284A" />
-      </span>
-      <span className="sa-boss-label" style={{ fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: size, lineHeight: 1, letterSpacing: "0.16em", color: "#F4EFE6", textAlign: "center", textShadow: "0 0 24px rgba(252,163,17,0.8), 0 4px 18px rgba(0,0,0,0.85)", whiteSpace: "nowrap" }}>
-        {label}
-      </span>
+    <div style={{ position: "absolute", left: zone.x, top: zone.y, width: zone.w, height: zone.h, zIndex: 60, pointerEvents: "none" }}>
+      {/* THE SCRIM — the card is deliberately obscured for the beat, and fully
+          legible the instant this lifts. It fades; it must not scale, or the dim
+          itself reads as a zoom. */}
+      <div className="sa-boss-scrim" style={{ position: "absolute", inset: 0, background: `rgba(6,10,20,${SCRIM_ALPHA})` }} />
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: Math.round(size * 0.3) }}>
+        <span className="sa-boss-flash" style={{ display: "block", height: size * 2.1, width: Math.round(size * 2.1 * BOLT_RATIO), filter: "drop-shadow(0 0 34px rgba(252,163,17,0.95))" }}>
+          <Bolt c1="#FCA311" c2="#E0284A" />
+        </span>
+        <span className="sa-boss-label" style={{ fontFamily: BRAND_DISPLAY, fontWeight: 900, fontSize: size, lineHeight: 1, letterSpacing: "0.16em", color: "#F4EFE6", textAlign: "center", textShadow: "0 0 30px rgba(252,163,17,0.85), 0 6px 22px rgba(0,0,0,0.9)", whiteSpace: "nowrap", textTransform: "uppercase" }}>
+          {label}
+        </span>
+      </div>
     </div>
   );
 }
-
 /** THE SLATE (F1) — the countdown, IN FRAME. The one status-ish thing allowed
  *  inside the capture window, because it isn't status: it's a slate, and its
  *  end is the take's deterministic head-trim point. Everything else (dot,
@@ -1079,11 +1084,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     // and would otherwise play this into silence (see sfx.unlockSfx).
     unlockOnce();
     playSfx("cramLaunch");
-    const cs = resolveCardSpot(cd?.geom, templateFor(cd?.ignoreLayout, baseline), frameW, frameH);
-    const cardW = ((cd as { cardW?: number } | undefined)?.cardW ?? CARD_W) * cs.scale;
-    const cardH = CARD_H * cs.scale;
-    const zone = revealZone({ w: frameW, h: frameH }, { x: cs.x, y: cs.y, w: cardW, h: cardH }, orientation());
-    setReveal({ label: bossLabel(ceqId, deckCeqIds ?? []), zone });
+    setReveal({ label: bossLabel(ceqId, deckCeqIds ?? []), zone: revealZone({ w: frameW, h: frameH }) });
     if (revealTimer.current != null) window.clearTimeout(revealTimer.current);
     revealTimer.current = window.setTimeout(() => setReveal(null), REVEAL_MS);
   };
@@ -1206,9 +1207,9 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   };
   /** THE REVEAL (Lee, 08-17). Session-only: it fires, it settles, it is gone.
    *  `zone` is resolved at fire time from the card's actual spot, so a card that
-   *  has been dragged still gets a flash in free margin rather than over its own
-   *  text. Null zone ⇒ no room ⇒ no flash (the styling and the 808 still land). */
-  const [reveal, setReveal] = useState<{ label: string; zone: { x: number; y: number; w: number; h: number } | null } | null>(null);
+   *  is the whole frame — the reveal is CENTRED behind a scrim now, so there is
+   *  no margin to find and no case where it has nowhere to go. */
+  const [reveal, setReveal] = useState<{ label: string; zone: { x: number; y: number; w: number; h: number } } | null>(null);
   const revealTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => { if (revealTimer.current != null) window.clearTimeout(revealTimer.current); }, []);
   /** AUTOPLAY UNLOCK (Lee, 08-17). An AudioContext created without a user gesture
@@ -1384,7 +1385,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     // to centre mid-transition.
     // INSTANCE ?? TEMPLATE. In Question 0 there is no instance by construction — the
     // stage IS the template — so Q0 always shows the template exactly as saved.
-    const cs = resolveCardSpot(layoutMode ? undefined : cd?.geom, layoutMode ? baseline : templateFor(cd?.ignoreLayout, baseline), frameW, frameH);
+    const cs = resolveCardSpot(layoutMode ? undefined : geomOf(cd, orientation()), layoutMode ? baseline : templateFor(cd?.ignoreLayout, baseline), frameW, frameH);
     // qNum = this question's DECK position (what the Studio rows and take filenames
     // use). Q0/layout is not in deckCeqIds → 0 → the overlay doesn't render.
     const qNum = layoutMode ? 0 : Math.max(0, (deckCeqIds?.indexOf(ceqId) ?? -1) + 1);
@@ -1433,7 +1434,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       const slotIdx = viewChoice != null ? w.chainPos : i;
       const geom = layoutMode
         ? (rs ? { x: rs.x, y: rs.y, scale: rs.scale ?? 1 } : { ...defaultMemoPos(frameW, frameH, i), scale: 1 })
-        : resolveMemoSpot(cd?.geom, templateFor(cd?.ignoreLayout, baseline), slotIdx, frameW, frameH);
+        : resolveMemoSpot(geomOf(cd, orientation()), templateFor(cd?.ignoreLayout, baseline), slotIdx, frameW, frameH);
       return { w, geom };
     });
     const memoNodes = memoGeoms.map(({ w, geom }) => ({ id: w.memoNodeId, type: "memoPreview", position: { x: Math.round(geom.x), y: Math.round(yOff + geom.y) }, data: { label: w.label, walkNum: w.num, choice: w.choice, scale: geom.scale, hideChoiceLabel: w.hideChoiceLabel, hideArrow: w.hideArrow, sound: w.sound, slotOff: w.slotOff }, draggable: true, zIndex: 5 }));
@@ -1486,13 +1487,13 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       // the overview shows every question's TRUE layout — after "apply to all" they
       // all conform; before, each reads honestly (fix: neighbours used the active
       // card's x, making the active question look like the odd one out).
-      const ocs = resolveCardSpot(od?.geom, templateFor(od?.ignoreLayout, baseline), frameW, frameH);
+      const ocs = resolveCardSpot(geomOf(od, orientation()), templateFor(od?.ignoreLayout, baseline), frameW, frameH);
       others.push({ id: `ov:${qid}`, type: "ovCeq", position: { x: Math.round(ocs.x), y: Math.round(y + ocs.y) }, data: { qid, num: k + 1, stem: od?.prompt ?? "", choices: od?.choices ?? [], scale: ocs.scale, cardW: od?.cardW }, draggable: false, selectable: false, zIndex: 1 });
       // ALL-CHAINS: the other questions' chained memos, at their resolved instance
       // spots — static, non-interactive, ovm:-prefixed (excluded from film + save).
       let mi = 0;
       for (const ch of (od?.choices ?? [])) for (const it of (ch.chain ?? [])) {
-        const sp = resolveMemoSpot(od?.geom, templateFor(od?.ignoreLayout, baseline), mi, frameW, frameH);
+        const sp = resolveMemoSpot(geomOf(od, orientation()), templateFor(od?.ignoreLayout, baseline), mi, frameW, frameH);
         others.push({ id: `ovm:${qid}:${mi}`, type: "ovMemo", position: { x: Math.round(sp.x), y: Math.round(y + sp.y) }, data: { label: it.label, scale: sp.scale }, draggable: false, selectable: false, zIndex: 5 });
         mi++;
       }
@@ -1763,7 +1764,10 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     }
     if (layoutMode) { if (onSaveBaseline) { skipSeedRef.current = true; saveBaseline(); } return; }
     if (!onSaveInstance) return;
-    let g: CeqInstanceGeom | undefined = cd?.geom;
+    // PER-ORIENTATION (Lee, 08-17): a drag in vertical writes the VERTICAL spots
+    // and leaves landscape untouched. geomOf/geomField are the only way either is
+    // reached, so the two compositions cannot bleed into each other.
+    let g: CeqInstanceGeom | undefined = geomOf(cd, orientation());
     const card = nodes.find((n) => n.id === ceqId);
     if (card) g = withInstanceSpot(g, undefined, { x: card.position.x, y: card.position.y - activeYOff, scale: (card.data as { scale?: number }).scale ?? 1 });
     walk.forEach((w, i) => {
@@ -1982,7 +1986,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       // Mirror the live ceqNode's data EXACTLY (same spot resolution, same student
       // overlay) so the activation flip changes practice/animation state only —
       // identical pixels means an invisible handover.
-      const ocs = resolveCardSpot(od.geom, templateFor(od.ignoreLayout, baseline), frameW, frameH);
+      const ocs = resolveCardSpot(geomOf(od, orientation()), templateFor(od.ignoreLayout, baseline), frameW, frameH);
       const pIdx = cIds.indexOf(qid);
       const progress = viewStudent && pIdx >= 0 && cIds.length > 1 ? { x: pIdx + 1, y: cIds.length } : null;
       out.push({ id: qid, type: "ceqPreview", position: { x: Math.round(ocs.x), y: Math.round(y + ocs.y) }, data: { stem: od.prompt, choices: od.choices, scale: ocs.scale, progress, topic: od.noteOnly ? NOTE_EYEBROW : viewStudent && topicName ? topicName : null, enterAnim: "none", enterAnimName: "none", inert: true, boss: od.boss, cardW: od.cardW, callout: od.callout, calloutMemos: calloutMemosOf(od) }, draggable: false, selectable: false, zIndex: 1 } as Node);
@@ -2475,7 +2479,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                     </ReactFlowProvider>
                     {/* No in-app film watermark for now (Lee) — the brand watermark will be
                         added later in the actual HTML player, not baked into the take. */}
-                    {reveal?.zone && <BossReveal label={reveal.label} zone={reveal.zone} o={orientation()} />}
+                    {reveal && <BossReveal label={reveal.label} zone={reveal.zone} o={orientation()} />}
                     <FilmSlate />
                     {captureRef.current && filmWin && <CaptureBadge win={filmWin} note={captureNote} />}
                     <PerfArrowLayer arrows={perfArrows} add={addPerfArrow} sel={selPerf} setSel={setSelPerf} />

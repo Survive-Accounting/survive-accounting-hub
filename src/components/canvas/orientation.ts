@@ -65,11 +65,17 @@ export interface VerticalBands {
   camera: number;
 }
 
-export const DEFAULT_VERTICAL_BANDS: VerticalBands = { card: 0.6, camera: 0.4 };
+// CAMERA IN THE BOTTOM THIRD (Lee, 08-17 — supersedes the earlier 55–65% brief).
+// He talks UPWARD to the content rather than sitting hidden in a corner, so the
+// cutout takes the bottom ~1/3 and the CEQ owns the two-thirds above it.
+export const DEFAULT_VERTICAL_BANDS: VerticalBands = { card: 0.67, camera: 0.33 };
 
 /** Lee's stated range — a card band outside it is a mistake, not a preference:
  *  too tall and the cutout has no room, too short and the CEQ can't be read. */
-export const CARD_BAND_RANGE = { min: 0.55, max: 0.65 } as const;
+/** The range the band may be dragged to. Widened past the original 55–65% so
+ *  the bottom-third camera Lee actually wants is reachable; the ceiling still
+ *  guarantees the cutout a usable quarter of the frame. */
+export const CARD_BAND_RANGE = { min: 0.55, max: 0.75 } as const;
 
 export function clampBands(b: Partial<VerticalBands> | undefined): VerticalBands {
   const card = Math.min(CARD_BAND_RANGE.max, Math.max(CARD_BAND_RANGE.min, b?.card ?? DEFAULT_VERTICAL_BANDS.card));
@@ -142,4 +148,84 @@ export function exhibitFit(natural: { w: number; h: number }, o: Orientation, ba
   if (natural.w <= 0 || natural.h <= 0) return 1;
   const s = Math.min((band.w * margin) / natural.w, (band.h * margin) / natural.h);
   return Math.min(1, Math.round(s * 1000) / 1000);
+}
+
+// -------------------------------------------------- per-orientation geometry
+
+/** WHICH GEOMETRY FIELD an orientation writes to (Lee, 08-17).
+ *
+ *  A 9:16 frame is a different composition, not the same one squeezed, so it
+ *  keeps its OWN card and memo spots. Editing in vertical must never move
+ *  anything in landscape, and vice versa.
+ *
+ *  Landscape stays on the original `geom`/`layout` names, so every set authored
+ *  before vertical existed reads back exactly as it did. Pure. */
+export const geomField = (o: Orientation): "geom" | "geomV" => (isVertical(o) ? "geomV" : "geom");
+export const layoutField = (o: Orientation): "layout" | "layoutV" => (isVertical(o) ? "layoutV" : "layout");
+
+/** Read the spots for an orientation off a card-ish object. */
+export function geomOf<T>(card: { geom?: T; geomV?: T } | null | undefined, o: Orientation): T | undefined {
+  return card?.[geomField(o)];
+}
+
+/** Read the set template for an orientation. */
+export function layoutOf<T>(deck: { layout?: T; layoutV?: T } | null | undefined, o: Orientation): T | undefined {
+  return deck?.[layoutField(o)];
+}
+
+// -------------------------------------------------------- platform guides
+
+/** The vertical platforms Lee posts to. Their chrome sits in different places,
+ *  and a punchline under a caption is a wasted take — so the guides switch. */
+export type VerticalPlatform = "tiktok" | "reels" | "shorts";
+export const VERTICAL_PLATFORMS: readonly VerticalPlatform[] = ["tiktok", "reels", "shorts"] as const;
+export const PLATFORM_LABEL: Record<VerticalPlatform, string> = {
+  tiktok: "TikTok",
+  reels: "Reels",
+  shorts: "YT Shorts",
+};
+
+/** Fractions of the 1080x1920 frame each platform's own UI covers. Measured from
+ *  the published safe-area guidance, kept as fractions so they survive any frame
+ *  size. `right` is the action rail (like/comment/share), `bottom` the caption
+ *  and handle, `top` the status/搜索 chrome.
+ *
+ *  These are DELIBERATELY generous: being 40px too careful costs nothing, being
+ *  40px too brave costs a re-shoot. */
+export const PLATFORM_CHROME: Record<VerticalPlatform, { top: number; bottom: number; right: number }> = {
+  // Caption + handle sit high on TikTok, and the rail is the tallest of the three.
+  tiktok: { top: 0.06, bottom: 0.22, right: 0.19 },
+  // Reels keeps a shorter caption block but reserves more at the very bottom.
+  reels: { top: 0.06, bottom: 0.24, right: 0.17 },
+  // Shorts has the lightest overlay and no persistent right rail while playing.
+  shorts: { top: 0.05, bottom: 0.18, right: 0.13 },
+};
+
+/** The rect that is actually SAFE for a given platform — everything inside it
+ *  clears that platform's own UI. Pure. */
+export function platformSafe(o: Orientation, p: VerticalPlatform): Rect {
+  const { w, h } = frameSize(o);
+  if (!isVertical(o)) return { x: 0, y: 0, w, h };   // platform chrome is a vertical concern
+  const c = PLATFORM_CHROME[p];
+  const top = Math.round(h * c.top);
+  const bottom = Math.round(h * c.bottom);
+  const right = Math.round(w * c.right);
+  return { x: 0, y: top, w: w - right, h: h - top - bottom };
+}
+
+/** Does a rect clear a platform's chrome entirely? */
+export function clearsPlatform(r: Rect, o: Orientation, p: VerticalPlatform): boolean {
+  const s = platformSafe(o, p);
+  return r.x >= s.x && r.y >= s.y && r.x + r.w <= s.x + s.w && r.y + r.h <= s.y + s.h;
+}
+
+/** The tightest safe rect across ALL platforms — what to compose inside if the
+ *  same short goes everywhere, which it does. */
+export function platformSafeAll(o: Orientation): Rect {
+  const rs = VERTICAL_PLATFORMS.map((p) => platformSafe(o, p));
+  const x = Math.max(...rs.map((r) => r.x));
+  const y = Math.max(...rs.map((r) => r.y));
+  const right = Math.min(...rs.map((r) => r.x + r.w));
+  const bottom = Math.min(...rs.map((r) => r.y + r.h));
+  return { x, y, w: right - x, h: bottom - y };
 }

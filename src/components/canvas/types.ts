@@ -469,6 +469,12 @@ export interface CeqCard extends CardBase {
    *  {@link CeqInstanceGeom}. Absent ⇒ the set template governs (pre-split
    *  behaviour). Additive scene JSON: no DB column, no SQL. */
   geom?: CeqInstanceGeom;
+  /** VERTICAL INSTANCE GEOMETRY (Lee, 08-17). A 9:16 frame is a different
+   *  composition, not the same one squeezed — so it gets its OWN spots. Editing
+   *  in vertical never moves anything in landscape and vice versa; `geom` stays
+   *  the landscape field, so every set authored before today is untouched.
+   *  Resolved through geomField() — never read directly. */
+  geomV?: CeqInstanceGeom;
   /** FREE cut (CEQ Studio) — include this question in the FREE stitch list (the FULL
    *  list is every clip-bearing CEQ). Additive; the stitch order stays deck-derived. */
   free?: boolean;
@@ -1405,6 +1411,9 @@ export interface DeckDef {
    *  played AFTER the last question clip and BEFORE the outro in the stitch. Additive;
    *  rides in SceneDoc.decks. */
   wrap?: TakeRef[];
+  /** VERTICAL SET TEMPLATE (Lee, 08-17) — the base frame for 9:16, separate
+   *  from `layout`. Applying a layout only ever touches its own orientation. */
+  layoutV?: DeckLayout;
   /** STITCHES (08-16) — the EDITS on this set: ordered take references plus their
    *  trim/gap/loudness decisions, scoped to a CEQ, a run, or the whole set. A recipe
    *  over immutable takes, never a destructive bake. See stitch-defs.ts. Additive. */

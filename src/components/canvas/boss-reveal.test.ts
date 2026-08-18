@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
 import {
-  BOSS_REVEAL_CSS, DROP_OFFSET_MS, FLASH_MS, REVEAL_MS, bossLabel, clearsCard, labelSize, revealZone,
+  BOSS_REVEAL_CSS, DROP_OFFSET_MS, FLASH_MS, REVEAL_MS, SCRIM_ALPHA, bossLabel, labelSize, revealZone,
 } from "./boss-reveal";
 import { frameSize } from "./orientation";
 import { MAX_GAIN, SFX_DEFAULT } from "./sfx";
@@ -47,63 +47,52 @@ describe("the timing", () => {
 describe("FINAL BOSS is automatic", () => {
   const order = ["q1", "q2", "q3"];
   test("the last CEQ in the set is the final boss, with no separate control", () => {
-    expect(bossLabel("q3", order)).toBe("FINAL BOSS");
+    expect(bossLabel("q3", order)).toBe("FINAL Boss Question!");
   });
-  test("anything else is just BOSS", () => {
-    expect(bossLabel("q1", order)).toBe("BOSS");
-    expect(bossLabel("q2", order)).toBe("BOSS");
+  test("anything else is just the boss callout", () => {
+    expect(bossLabel("q1", order)).toBe("Boss Question!");
+    expect(bossLabel("q2", order)).toBe("Boss Question!");
   });
-  test("an empty or unknown set degrades to BOSS rather than throwing mid-take", () => {
-    expect(bossLabel("q1", [])).toBe("BOSS");
-    expect(bossLabel("nope", order)).toBe("BOSS");
+  test("an empty or unknown set degrades gracefully rather than throwing mid-take", () => {
+    expect(bossLabel("q1", [])).toBe("Boss Question!");
+    expect(bossLabel("nope", order)).toBe("Boss Question!");
+  });
+  test("the label reads as a callout, not a logo", () => {
+    // "B O S S" alone read as branding; Lee asked for the exclamation.
+    expect(bossLabel("q1", order)).toContain("Question!");
   });
 });
 
-describe("THE HARD CONSTRAINT — the reveal never covers the question", () => {
-  const land = frameSize("16:9");
-  const vert = frameSize("9:16");
-  // a landscape card, centred with margin either side
-  const landCard = { x: 380, y: 180, w: 700, h: 520 };
-  // a vertical card, nearly full width with a band above it
-  const vertCard = { x: 40, y: 200, w: 820, h: 700 };
-
-  test("landscape puts the flash in the RIGHT margin, clear of the card", () => {
-    const z = revealZone(land, landCard, "16:9")!;
-    expect(z).toBeTruthy();
-    expect(clearsCard(z, landCard)).toBe(true);
-    expect(z.x).toBeGreaterThanOrEqual(landCard.x + landCard.w);
-  });
-  test("vertical puts it ABOVE the card — the only safe band in a narrow frame", () => {
-    const z = revealZone(vert, vertCard, "9:16")!;
-    expect(z).toBeTruthy();
-    expect(clearsCard(z, vertCard)).toBe(true);
-    expect(z.y + z.h).toBeLessThanOrEqual(vertCard.y);
-  });
-  test("it falls back to the LEFT margin when the right has no room", () => {
-    const hugRight = { x: 300, y: 100, w: 1290, h: 600 };  // 10px of right margin
-    const z = revealZone(land, hugRight, "16:9")!;
-    expect(clearsCard(z, hugRight)).toBe(true);
-    expect(z.x + z.w).toBeLessThanOrEqual(hugRight.x);
-  });
-  test("NO ROOM ⇒ null, and the caller skips the flash rather than drawing over text", () => {
-    const fullBleed = { x: 5, y: 0, w: 1590, h: 900 };
-    expect(revealZone(land, fullBleed, "16:9")).toBeNull();
-    const tallVert = { x: 0, y: 10, w: 900, h: 1580 };
-    expect(revealZone(vert, tallVert, "9:16")).toBeNull();
-  });
-  test("clearsCard actually catches an overlap — the guard is not vacuous", () => {
-    expect(clearsCard({ x: 400, y: 200, w: 200, h: 200 }, landCard)).toBe(false);
-  });
-  test("the label fits its zone in both orientations, and stays readable", () => {
-    for (const [frame, card, o] of [[land, landCard, "16:9"], [vert, vertCard, "9:16"]] as const) {
-      const z = revealZone(frame, card, o)!;
-      const size = labelSize(o, z);
-      expect(size).toBeGreaterThanOrEqual(22);   // a game callout, not fine print
-      expect(size).toBeLessThanOrEqual(z.h);     // and it fits
+describe("CENTRE STAGE — the constraint is met by the scrim, not by margins", () => {
+  // SUPERSEDES the margin model. The question is obscured for the beat and fully
+  // legible the instant the scrim lifts, which is what the old rule protected.
+  test("the zone is the WHOLE frame, in both orientations", () => {
+    for (const o of ["16:9", "9:16"] as const) {
+      const f = frameSize(o);
+      expect(revealZone(f)).toEqual({ x: 0, y: 0, w: f.w, h: f.h });
     }
   });
+  test("the scrim is dark enough to push the card back, but never blacks the frame", () => {
+    expect(SCRIM_ALPHA).toBeGreaterThan(0.5);
+    expect(SCRIM_ALPHA).toBeLessThan(0.9);
+  });
+  test("the scrim FADES and never scales — a scaling dim reads as a zoom", () => {
+    expect(BOSS_REVEAL_CSS).toContain("sa-boss-unscrim");
+    const rule = BOSS_REVEAL_CSS.slice(BOSS_REVEAL_CSS.indexOf(".sa-boss-scrim"));
+    expect(rule.slice(0, rule.indexOf("}"))).not.toContain("sa-boss-settle");
+  });
+  test("the scrim lifts BEFORE the reveal window closes, so the card is readable again", () => {
+    expect(BOSS_REVEAL_CSS).toContain(`${REVEAL_MS - 260}ms`);
+  });
+  test("the label is sized off the frame width and stays big in vertical", () => {
+    const land = labelSize("16:9", frameSize("16:9"));
+    const vert = labelSize("9:16", frameSize("9:16"));
+    expect(land).toBeGreaterThanOrEqual(28);
+    expect(vert).toBeGreaterThanOrEqual(28);
+    // one line has to fit across a 900-wide frame with the tracking applied
+    expect(vert).toBeLessThan(frameSize("9:16").w / 6);
+  });
 });
-
 describe("the 808 can actually be heard", () => {
   test("gain is no longer clamped to 1 — that cap WAS the quiet bug", () => {
     expect(MAX_GAIN).toBeGreaterThan(1);
@@ -150,16 +139,25 @@ describe("the reveal is wired, and it exits", () => {
   });
   test("the drop fires in the SAME tick as the flash — no setTimeout between them", () => {
     const fn = previewer.slice(previewer.indexOf("const toggleBossFlag ="), previewer.indexOf("const [emph, setEmph]"));
-    expect(fn).toContain("unlockOnce();\n    playSfx(\"cramLaunch\");");
-    expect(fn).toContain("setReveal({ label: bossLabel(ceqId, deckCeqIds ?? []), zone });");
+    expect(fn).toContain("unlockOnce();");
+    expect(fn).toContain('playSfx("cramLaunch");');
+    expect(fn).toContain("setReveal({ label: bossLabel(ceqId, deckCeqIds ?? []), zone: revealZone({ w: frameW, h: frameH }) });");
     // the only timer here is the SETTLE, never a delay before the sound
     expect((fn.match(/setTimeout/g) ?? []).length).toBe(1);
   });
-  test("the zone is resolved from the card's ACTUAL spot, so a dragged card still gets clear margin", () => {
-    expect(previewer).toContain("const zone = revealZone({ w: frameW, h: frameH }, { x: cs.x, y: cs.y, w: cardW, h: cardH }, orientation());");
+  test("the reveal is CENTRED on the frame — it no longer hunts for a free margin", () => {
+    expect(previewer).toContain("zone: revealZone({ w: frameW, h: frameH })");
+    // The margin hunt is gone: the trigger no longer measures the card at all.
+    const fn = previewer.slice(previewer.indexOf("const toggleBossFlag ="), previewer.indexOf("const [emph, setEmph]"));
+    expect(fn).not.toContain("cardW");
+    expect(fn).not.toContain("resolveCardSpot");
   });
-  test("no room ⇒ no flash: the reveal only renders when a zone was found", () => {
-    expect(previewer).toContain("{reveal?.zone && <BossReveal label={reveal.label} zone={reveal.zone} o={orientation()} />}");
+  test("the scrim renders behind the flash, and fades rather than scaling", () => {
+    expect(previewer).toContain('<div className="sa-boss-scrim"');
+    expect(previewer).toContain("background: `rgba(6,10,20,${SCRIM_ALPHA})`");
+  });
+  test("it always renders when armed — there is no no-room case any more", () => {
+    expect(previewer).toContain("{reveal && <BossReveal label={reveal.label} zone={reveal.zone} o={orientation()} />}");
   });
   test("it self-dismisses on REVEAL_MS — Lee talks over a calm card", () => {
     expect(previewer).toContain("revealTimer.current = window.setTimeout(() => setReveal(null), REVEAL_MS);");

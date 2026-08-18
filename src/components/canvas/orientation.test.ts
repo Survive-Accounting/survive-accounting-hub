@@ -10,8 +10,10 @@ import { describe, expect, test } from "bun:test";
 import { captureCssSize, isCaptureExact, physicalSize } from "./capture-window";
 import {
   CARD_BAND_RANGE, DEFAULT_ORIENTATION, DEFAULT_VERTICAL_BANDS, MIN_TYPE, ORIENTATIONS, TYPE_SCALE,
-  captureSize, clampBands, clearsEndScreen, exhibitFit, frameSize, isVertical, safeZones, typeSize,
-  verticalZones,
+  PLATFORM_LABEL, VERTICAL_PLATFORMS,
+  captureSize, clampBands, clearsEndScreen, clearsPlatform, exhibitFit, frameSize, geomField, geomOf,
+  isVertical, layoutField, layoutOf, platformSafe, platformSafeAll, safeZones, typeSize, verticalZones,
+  type VerticalPlatform,
 } from "./orientation";
 
 describe("the two shapes", () => {
@@ -58,7 +60,7 @@ describe("the vertical composition", () => {
     expect(z.camera.y).toBe(z.card.h);
     expect(z.card.h + z.camera.h).toBe(h);       // no gap, no overlap
   });
-  test("the card band sits in Lee's 55–65% range by default", () => {
+  test("the default band sits inside the allowed range", () => {
     expect(DEFAULT_VERTICAL_BANDS.card).toBeGreaterThanOrEqual(CARD_BAND_RANGE.min);
     expect(DEFAULT_VERTICAL_BANDS.card).toBeLessThanOrEqual(CARD_BAND_RANGE.max);
   });
@@ -232,5 +234,84 @@ describe("exhibit reflow is wired into the SHARED shell", () => {
   });
   test("the outer box reports the SCALED size, so neighbours don't overlap it", () => {
     expect(base).toContain("style={fit < 1 ? { width: Math.round(width * fit), minHeight: Math.round(minHeight * fit) } : { width, minHeight }}");
+  });
+});
+
+describe("vertical edits never touch landscape (Lee, 08-17)", () => {
+  test("each orientation owns its OWN geometry field", () => {
+    expect(geomField("16:9")).toBe("geom");
+    expect(geomField("9:16")).toBe("geomV");
+    expect(layoutField("16:9")).toBe("layout");
+    expect(layoutField("9:16")).toBe("layoutV");
+  });
+  test("landscape keeps the ORIGINAL names — every set authored before today reads back unchanged", () => {
+    // If vertical had taken `geom`, every existing set would have silently
+    // become "the vertical one" and landscape would have read as unplaced.
+    expect(geomField("16:9")).toBe("geom");
+    expect(layoutField("16:9")).toBe("layout");
+  });
+  test("reading one orientation never returns the other's spots", () => {
+    const card = { geom: { card: { x: 1, y: 1, scale: 1 } }, geomV: { card: { x: 9, y: 9, scale: 2 } } };
+    expect(geomOf(card, "16:9")).toEqual({ card: { x: 1, y: 1, scale: 1 } });
+    expect(geomOf(card, "9:16")).toEqual({ card: { x: 9, y: 9, scale: 2 } });
+  });
+  test("a card placed in ONE orientation reads as unplaced in the other", () => {
+    const onlyLandscape = { geom: { card: { x: 1, y: 1, scale: 1 } } };
+    expect(geomOf(onlyLandscape, "9:16")).toBeUndefined();   // falls back to the template
+  });
+  test("a missing card or deck is undefined, not a crash mid-take", () => {
+    expect(geomOf(undefined, "9:16")).toBeUndefined();
+    expect(layoutOf(null, "16:9")).toBeUndefined();
+  });
+});
+
+describe("platform guides", () => {
+  test("all three platforms are covered, and named the way Lee says them", () => {
+    expect([...VERTICAL_PLATFORMS]).toEqual(["tiktok", "reels", "shorts"]);
+    expect(PLATFORM_LABEL.shorts).toBe("YT Shorts");
+  });
+  test("every safe area sits INSIDE the frame and leaves room for the chrome", () => {
+    const f = frameSize("9:16");
+    for (const p of VERTICAL_PLATFORMS) {
+      const s = platformSafe("9:16", p);
+      expect(s.y).toBeGreaterThan(0);                 // clear of the status bar
+      expect(s.x + s.w).toBeLessThan(f.w);            // clear of the action rail
+      expect(s.y + s.h).toBeLessThan(f.h);            // clear of the caption
+    }
+  });
+  test("TikTok is the tightest and Shorts the most generous — the reason to switch at all", () => {
+    const area = (p: VerticalPlatform) => { const s = platformSafe("9:16", p); return s.w * s.h; };
+    expect(area("tiktok")).toBeLessThan(area("shorts"));
+  });
+  test("the ALL-PLATFORMS band is the intersection — compose inside it and one cut goes everywhere", () => {
+    const all = platformSafeAll("9:16");
+    for (const p of VERTICAL_PLATFORMS) {
+      expect(clearsPlatform(all, "9:16", p)).toBe(true);
+    }
+  });
+  test("clearsPlatform actually catches an overlap — the guard is not vacuous", () => {
+    const f = frameSize("9:16");
+    const inCaption = { x: 0, y: Math.round(f.h * 0.92), w: f.w, h: 80 };
+    expect(clearsPlatform(inCaption, "9:16", "tiktok")).toBe(false);
+  });
+  test("landscape has no platform chrome — the whole frame is safe", () => {
+    const f = frameSize("16:9");
+    expect(platformSafe("16:9", "tiktok")).toEqual({ x: 0, y: 0, w: f.w, h: f.h });
+  });
+});
+
+describe("the camera sits in the bottom third (Lee, 08-17)", () => {
+  test("the default gives the cutout roughly a third, and the CEQ the rest", () => {
+    expect(DEFAULT_VERTICAL_BANDS.camera).toBeGreaterThan(0.3);
+    expect(DEFAULT_VERTICAL_BANDS.camera).toBeLessThan(0.36);
+  });
+  test("the band range reaches the bottom third — the old 65% ceiling did not", () => {
+    expect(CARD_BAND_RANGE.max).toBeGreaterThanOrEqual(DEFAULT_VERTICAL_BANDS.card);
+  });
+  test("the camera band is at the BOTTOM, so Lee talks upward to the content", () => {
+    const z = verticalZones("9:16");
+    const f = frameSize("9:16");
+    expect(z.camera.y + z.camera.h).toBe(f.h);
+    expect(z.camera.y).toBeGreaterThan(f.h / 2);
   });
 });

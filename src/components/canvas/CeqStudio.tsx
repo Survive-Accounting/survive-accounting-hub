@@ -38,7 +38,7 @@ import { TakesInbox } from "./TakesInbox";
 import { type ObsStatus } from "./obs-bridge";
 import { attachTargets, currentTakes, saveTake, type TakeRecord, type TakeTarget } from "./takes-store";
 import { subscribeSlate, type SlateState } from "./film-slate";
-import { frameSize, isVertical, type Orientation } from "./orientation";
+import { PLATFORM_LABEL, VERTICAL_PLATFORMS, frameSize, geomField, isVertical, layoutField, layoutOf, type Orientation, type VerticalPlatform } from "./orientation";
 import { setOrientation, subscribeOrientation } from "./orientation-store";
 import { assignRunTo, fillDownRuns, normRun, type RunChange } from "./film-runs";
 import { isoDay, saveRoomTone, todaysRoomTone } from "./room-tone";
@@ -339,6 +339,10 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   /** ORIENTATION (vertical filming) — workspace state, not per-set: Lee films a
    *  whole pass in one shape. Layout only; the CEQ, memos and spine are identical. */
   const [orient, setOrient] = useState<Orientation>("16:9");
+  /** WHICH PLATFORM'S CHROME to draw guides for (Lee, 08-17). The same short goes
+   *  to all three, but their captions and rails sit in different places — and a
+   *  punchline under a TikTok caption is a wasted take. Remembered per machine. */
+  const [platform, setPlatform] = useState<VerticalPlatform>(() => (localStorage.getItem("sa-vplatform") as VerticalPlatform) || "tiktok");
   useEffect(() => subscribeOrientation(setOrient), []);
   const [slate, setSlate] = useState<SlateState>({ count: null, speak: false });
   useEffect(() => subscribeSlate(setSlate), []);
@@ -350,6 +354,34 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     if (!obsState.recording || !qId || qId === LAYOUT_Q0) return;
     if (!coveredRef.current.includes(qId)) coveredRef.current = [...coveredRef.current, qId];
   }, [qId, obsState.recording]);
+  /** "ALL CEQs HERE" (Lee, 08-17) — place ONE frame, then stamp its placement
+   *  onto every other frame in the set. The fast path for a vertical pass: the
+   *  composition is the same for all of them, so sculpting it once and copying
+   *  beats dragging thirty cards.
+   *
+   *  ORIENTATION-SCOPED: it reads and writes only the ACTIVE orientation's
+   *  spots, so stamping a vertical layout never disturbs the landscape one.
+   *  One composite command ⇒ one Ctrl+Z puts every frame back.
+   */
+  const applyPlacementToAll = (sourceId: string) => {
+    const key = geomField(orient);
+    const src = (rf.getNode(sourceId)?.data as unknown as Record<string, unknown> | undefined)?.[key] as CeqInstanceGeom | undefined;
+    if (!src) { setNote(`Place this frame first — drag or resize it in ${orient}, then apply it to the rest.`); return; }
+    let optedOut = 0;
+    const cmds = questions
+      .filter((q) => q.id !== sourceId)
+      .map((q) => {
+        const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined;
+        if (d?.ignoreLayout) { optedOut++; return null; }   // 📐 opt-out is respected
+        return patchDataCmd(rfl, q.id, { [key]: src }, "apply placement");
+      })
+      .filter((c): c is NonNullable<typeof c> => !!c);
+    if (!cmds.length) { setNote("Nothing to apply to."); return; }
+    const cmd = compositeCmd(cmds, `apply ${orient} placement to ${cmds.length} frames`);
+    if (cmd) bus.dispatch(cmd);
+    setNote(`Stamped this ${orient} placement onto ${cmds.length} frame${cmds.length === 1 ? "" : "s"}${optedOut ? ` (${optedOut} opted out with 📐)` : ""}. The other orientation is untouched — one Ctrl+Z undoes all of it.`);
+  };
+
   /** Arm from the spine selection (or the open frame) — T2. */
   const armFromSelection = () => {
     const ids = qSel.size ? questions.filter((q) => qSel.has(q.id)).map((q) => q.id) : qId && qId !== LAYOUT_Q0 ? [qId] : [];
@@ -1297,15 +1329,19 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
    *  of drags is one undo step; a no-op write (drag back to the same spot) is skipped
    *  entirely so it never pollutes the stack. */
   const saveBaselineLayout = (deckId: string, layout: DeckLayout) => {
-    const before = decks.find((d) => d.id === deckId)?.layout;
+    // PER ORIENTATION (Lee, 08-17): saving a vertical base frame must not move
+    // the landscape one. `layout` stays the landscape field, so every set
+    // authored before vertical existed reads back unchanged.
+    const key = layoutField(orient);
+    const before = layoutOf(decks.find((d) => d.id === deckId), orient);
     if (JSON.stringify(before ?? null) === JSON.stringify(layout ?? null)) return;
     bus.dispatch({
       label: "baseline layout",
-      do: () => setDecks((prev) => updateDeck(prev, deckId, { layout })),
-      undo: () => setDecks((prev) => updateDeck(prev, deckId, { layout: before })),
-      coalesceKey: `baseline:${deckId}`,
+      do: () => setDecks((prev) => updateDeck(prev, deckId, { [key]: layout })),
+      undo: () => setDecks((prev) => updateDeck(prev, deckId, { [key]: before })),
+      coalesceKey: `baseline:${deckId}:${key}`,
     });
-    setNote("Saved as the set's baseline layout — every question deals here now.");
+    setNote(`Saved as this set's ${orient} baseline — every ${orient} frame deals here now. The other orientation is untouched.`);
   };
 
   /** INSTANCE GEOMETRY write — one question's own card/memo spots. Rides the bus like
@@ -1313,9 +1349,10 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
    *  never pollutes the stack, and coalesces per question so a sculpting burst is ONE
    *  undo step. NEVER touches deck.layout: the template is Question 0's business. */
   const saveInstanceGeom = (questionId: string, g: CeqInstanceGeom) => {
-    const before = (rf.getNode(questionId)?.data as unknown as CeqCard | undefined)?.geom;
+    const key = geomField(orient);
+    const before = (rf.getNode(questionId)?.data as unknown as Record<string, unknown> | undefined)?.[key] as CeqInstanceGeom | undefined;
     if (JSON.stringify(before ?? null) === JSON.stringify(g ?? null)) return;
-    const c = patchDataCmd(rfl, questionId, { geom: g }, "move CEQ geometry", `geom:${questionId}`);
+    const c = patchDataCmd(rfl, questionId, { [key]: g }, "move CEQ geometry", `${key}:${questionId}`);
     if (c) bus.dispatch(c);
   };
 
@@ -2566,7 +2603,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   </>) : null;
 
   const renderPreviewer = (recMode: boolean) => (
-    <CeqPreviewer transportLeft={transportClips} transportRight={transportFlags} ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={isVertical(orient) ? frameSize(orient).w : frameW} frameH={isVertical(orient) ? frameSize(orient).h : frameH} chainEdges={previewEdges} baseline={deck?.layout} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSaveInstance={(g) => { if (qId && qId !== LAYOUT_Q0) saveInstanceGeom(qId, g); }} layoutOn={deck?.layoutMode !== false} onSetLayoutMode={setLayoutMode} onApplyLayoutToAll={() => { const n = questions.length; if (n > 0 && window.confirm(`Re-stamp all ${n} question${n === 1 ? "" : "s"} from the layout?
+    <CeqPreviewer transportLeft={transportClips} transportRight={transportFlags} ceqId={qId} mainRf={rf} mainSig={ceqSig} frameW={isVertical(orient) ? frameSize(orient).w : frameW} frameH={isVertical(orient) ? frameSize(orient).h : frameH} chainEdges={previewEdges} baseline={layoutOf(deck, orient)} world={deck?.world} worldIntensity={deck?.worldIntensity} worldMotion={deck?.worldMotion} onSaveBaseline={(l) => { if (deck) saveBaselineLayout(deck.id, l); }} onSaveInstance={(g) => { if (qId && qId !== LAYOUT_Q0) saveInstanceGeom(qId, g); }} layoutOn={deck?.layoutMode !== false} onSetLayoutMode={setLayoutMode} onApplyLayoutToAll={() => { const n = questions.length; if (n > 0 && window.confirm(`Re-stamp all ${n} question${n === 1 ? "" : "s"} from the layout?
 
 This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undoes all of it.`)) applyLayoutToAll(); }} onSetWorld={(w) => { if (deck) { setDecks((prev) => updateDeck(prev, deck.id, { world: w })); setNote(w ? `Visual world set for this set — shows in the previewer + film mode.` : "Cleared the set's visual world."); } }} onPatchChainItem={(memoNodeId, patch) => { if (qId) patchChainItem(qId, memoNodeId, patch); }} onReorderChainMemo={reorderChainByMemo} onAttachMemo={(choiceId, memoId) => { if (qId) attachMemoToChoice(qId, choiceId, memoId); }} deckCeqIds={deckCeqIds} counterIds={counterIds} stageSig={stagedHere.map((e) => `${e.id}:${e.hidden ? 1 : 0}`).join(",")} onSelectQuestion={(id) => { setQId(id); setExpandedQ((s) => new Set(s).add(id)); }} onCopyItems={copyItems} onPasteItems={pasteItems} hasItemsClip={itemsClip.length} onSendToStarred={sendToStarred} onCopyStyleToSet={applyStyleToSet} starredCount={starCount} layoutMode={qId === LAYOUT_Q0} onAddMemoAtChoice={(choiceId, text, category) => { if (qId && qId !== LAYOUT_Q0) createMemoChained(qId, choiceId, text, category); }} onAddMemoAt={addMemoAt} onRenameMemo={renameMemoEverywhere} onEditStem={(cid, text) => patchQ(cid, { prompt: text }, `q:${cid}:prompt`)} onDuplicateMemo={(mid) => { if (qId && qId !== LAYOUT_Q0) duplicateChainMemo(qId, mid); }} onSetMemoCategory={setMemoCategory} onDeleteMemo={deleteMemosGuarded} onSetMisconception={setMemoMisconception} misconceptionSlugs={misconceptionDefs.map((d) => d.slug)} onSelectMemo={setPreviewSelMemo} onNextQuestion={() => gotoQuestion(1)} onPrevQuestion={() => gotoQuestion(-1)} showProgress={deck?.showProgress} onSetShowProgress={(b) => { if (deck) setDecks((prev) => updateDeck(prev, deck.id, { showProgress: b })); }} bossAutoArm={deck?.bossAutoArm} onOpenMemoLib={(id) => { setLibOpen(true); setPreviewSelMemo(id); }} topicName={(() => { const rows = spineRows(deck); return rows ? topicLabel(rows.topic).replace(/^ch\s*\d+\s*[·.\-:]\s*/i, "").replace(/\s*\(archived\)\s*$/i, "").trim() : undefined; })()} recording={recMode} onToggleBoss={(cid) => { const cur = !!(rf.getNode(cid)?.data as unknown as CeqCard | undefined)?.boss; patchQ(cid, { boss: !cur }); setNote(cur ? "Boss mark removed." : "👑 Marked as a BOSS — it joins the boss compilation pool."); }} revealAnswers={deck?.revealAnswers} onEditLayout={enterLayoutEdit} onSelectStageEl={setSelStageEl} onExitRecording={() => { setRecording(false); setRehearse(false); setRunCard(null); }} />
   );
@@ -2797,6 +2834,15 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
               {o === "9:16" ? "▯ 9:16" : "▭ 16:9"}
             </button>
           ))}
+          {/* PLATFORM GUIDES — vertical only; landscape has no social chrome. */}
+          {isVertical(orient) && VERTICAL_PLATFORMS.map((pf) => (
+            <button key={pf} className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase"
+              style={{ color: platform === pf ? "#0B1322" : NEON.muted, background: platform === pf ? "#B79CFF" : "transparent", border: `1px solid ${NEON.borderSoft}` }}
+              onClick={() => { setPlatform(pf); localStorage.setItem("sa-vplatform", pf); setNote(`Guides now show ${PLATFORM_LABEL[pf]}'s safe area — keep the stem and the answer out of the shaded bands.`); }}
+              title={`Draw ${PLATFORM_LABEL[pf]}'s caption and action-rail zones as guides. The tightest-of-all-three band is always shown too, so one composition can go everywhere.`}>
+              {PLATFORM_LABEL[pf]}
+            </button>
+          ))}
           <span className="ml-auto text-[9px] uppercase" style={{ color: NEON.muted }}>F9 roll · F10 keep · F8 trash <span title="F10 and F8 are APP keys — this window needs focus. Only OBS\u2019s F9 is global.">(app focus)</span></span>
         </div>
       )}
@@ -3015,6 +3061,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   revealAnswersOn: deck?.revealAnswers,
                   ignoreLayout: () => { const ids = qSel.size ? [...qSel] : qId && qId !== LAYOUT_Q0 ? [qId] : []; if (!ids.length) return; const allOn = ids.every((iid) => !!(rf.getNode(iid)?.data as unknown as CeqCard | undefined)?.ignoreLayout); const cmds = ids.map((iid) => patchDataCmd(rfl, iid, { ignoreLayout: !allOn }, "layout opt-out")).filter((c): c is NonNullable<typeof c> => !!c); const cmd = compositeCmd(cmds, "layout opt-out"); if (cmd) bus.dispatch(cmd); setNote(ids.length + " frame" + (ids.length === 1 ? "" : "s") + (allOn ? " back on the set layout" : " now IGNORE the set layout") + "."); },
                   fillDownRuns: fillRunsDown,
+                  applyPlacementToAll: () => { if (qId && qId !== LAYOUT_Q0) applyPlacementToAll(qId); else setNote("Open a frame first — its placement is what gets copied."); },
                   previewStitch: () => { if (qId && qId !== LAYOUT_Q0) openStitchPreview({ kind: "ceq", ceqId: qId }); else setNote("Open a frame first — the stitch preview is per CEQ (or use Publish ▸ Preview cut for the whole set)."); },
                 }}
               />
