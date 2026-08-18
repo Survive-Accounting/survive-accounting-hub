@@ -22,7 +22,7 @@ import { describe, expect, test } from "bun:test";
 
 import { activeSlots, dealCentre, defaultMemoPos, paletteSlots, rackOf } from "./ceq-geom";
 
-const read = (f: string) => readFileSync(join(import.meta.dir, f), "utf8");
+const read = (f: string) => readFileSync(join(import.meta.dir, f), "utf8").split("\r\n").join("\n");
 
 /** Module-scope `const NAME = (…)` / `= function` — i.e. a callable in a dead
  *  zone. Indented (in-component) declarations are fine: those run after mount. */

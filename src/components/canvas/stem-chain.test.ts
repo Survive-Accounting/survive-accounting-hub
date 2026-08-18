@@ -4,9 +4,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
-const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8");
-const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8");
-const types = readFileSync(join(import.meta.dir, "types.ts"), "utf8");
+const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8").split("\r\n").join("\n");
+const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8").split("\r\n").join("\n");
+const types = readFileSync(join(import.meta.dir, "types.ts"), "utf8").split("\r\n").join("\n");
 
 describe("stem chain — the question is a chain target", () => {
   test("the card carries stemChain (additive scene JSON)", () => {

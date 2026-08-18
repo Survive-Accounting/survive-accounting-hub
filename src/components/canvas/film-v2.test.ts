@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
-const src = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8");
+const src = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8").split("\r\n").join("\n");
 
 describe("film v2", () => {
   test("V2 disables the stack — one stationary frame (recording/rehearse keeps V1)", () => {

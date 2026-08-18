@@ -6,9 +6,9 @@ import { describe, expect, test } from "bun:test";
 import { declaredAdjacent, type ExhibitDeclaration } from "./exhibit-base";
 import { EXHIBIT_GLOW } from "./exhibit-highlights";
 
-const cycleSrc = readFileSync(join(import.meta.dir, "cards", "CycleNode.tsx"), "utf8");
-const baseSrc = readFileSync(join(import.meta.dir, "exhibit-base.tsx"), "utf8");
-const demoSrc = readFileSync(join(import.meta.dir, "..", "..", "routes", "exhibit-demo.tsx"), "utf8");
+const cycleSrc = readFileSync(join(import.meta.dir, "cards", "CycleNode.tsx"), "utf8").split("\r\n").join("\n");
+const baseSrc = readFileSync(join(import.meta.dir, "exhibit-base.tsx"), "utf8").split("\r\n").join("\n");
+const demoSrc = readFileSync(join(import.meta.dir, "..", "..", "routes", "exhibit-demo.tsx"), "utf8").split("\r\n").join("\n");
 
 describe("declaredAdjacent — adjacency from declarations", () => {
   const ring: ExhibitDeclaration = { minWidth: 1, minHeight: 1, nodes: ["a", "b", "c"], adjacency: "ring" };
@@ -61,7 +61,7 @@ describe("the layer's laws (source pins)", () => {
     expect(stub).not.toMatch(/addEventListener|useFilm|useExhibitHighlights|toggle\(/);
   });
   test("the checklist exists where the next builder will find it", () => {
-    const checklist = readFileSync(join(import.meta.dir, "..", "..", "..", "docs", "NEW-EXHIBIT-CHECKLIST.md"), "utf8");
+    const checklist = readFileSync(join(import.meta.dir, "..", "..", "..", "docs", "NEW-EXHIBIT-CHECKLIST.md"), "utf8").split("\r\n").join("\n");
     expect(checklist).toContain("What a card must NEVER implement");
     expect(checklist).toContain("exhibit-base.test.ts");
   });

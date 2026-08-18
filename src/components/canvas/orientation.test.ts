@@ -157,7 +157,7 @@ describe("the capture window is pixel-exact in BOTH orientations", () => {
 });
 
 describe("orientation is layout, never a content fork", () => {
-  const src = readFileSync(join(import.meta.dir, "orientation.ts"), "utf8");
+  const src = readFileSync(join(import.meta.dir, "orientation.ts"), "utf8").split("\r\n").join("\n");
   test("the model touches geometry and type only — it knows nothing about CEQ content", () => {
     for (const forbidden of ["choices", "stem:", "memo", "prompt", "correct"]) {
       expect(src.toLowerCase()).not.toContain(forbidden.toLowerCase() + " =");
@@ -173,10 +173,10 @@ describe("orientation is layout, never a content fork", () => {
 
 // ---------------------------------------------------------------- wiring pins
 describe("the workspace wiring", () => {
-  const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8");
-  const inbox = readFileSync(join(import.meta.dir, "TakesInbox.tsx"), "utf8");
-  const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8");
-  const store = readFileSync(join(import.meta.dir, "orientation-store.ts"), "utf8");
+  const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8").split("\r\n").join("\n");
+  const inbox = readFileSync(join(import.meta.dir, "TakesInbox.tsx"), "utf8").split("\r\n").join("\n");
+  const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8").split("\r\n").join("\n");
+  const store = readFileSync(join(import.meta.dir, "orientation-store.ts"), "utf8").split("\r\n").join("\n");
 
   test("one store, subscribed — the studio and the capture popout can never disagree", () => {
     // They are ONE React tree (PanelPopout), so a prop would have to thread
@@ -210,12 +210,12 @@ describe("the workspace wiring", () => {
 });
 
 describe("exhibit reflow is wired into the SHARED shell", () => {
-  const base = readFileSync(join(import.meta.dir, "exhibit-base.tsx"), "utf8");
+  const base = readFileSync(join(import.meta.dir, "exhibit-base.tsx"), "utf8").split("\r\n").join("\n");
 
   test("every exhibit card inherits the fit by using the shell — no per-card code", () => {
     expect(base).toContain('const fit = isVertical(o) ? exhibitFit({ w: width, h: minHeight }, o) : 1;');
     // CycleNode still declares and paints; it must not learn about orientation.
-    const cycle = readFileSync(join(import.meta.dir, "cards", "CycleNode.tsx"), "utf8");
+    const cycle = readFileSync(join(import.meta.dir, "cards", "CycleNode.tsx"), "utf8").split("\r\n").join("\n");
     expect(cycle).not.toContain("orientation");
     expect(cycle).not.toContain("exhibitFit");
   });

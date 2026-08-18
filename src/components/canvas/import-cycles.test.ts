@@ -43,7 +43,7 @@ function resolveSpec(from: string, spec: string): string | null {
 function runtimeGraph(): Map<string, string[]> {
   const g = new Map<string, string[]>();
   for (const f of sourceFiles(ROOT)) {
-    const src = readFileSync(f, "utf8");
+    const src = readFileSync(f, "utf8").split("\r\n").join("\n");
     const deps = new Set<string>();
     const re = /import\s+(?!type\s)([\s\S]*?)\s*from\s*["']([^"']+)["']/g;
     let m: RegExpExecArray | null;
@@ -107,5 +107,36 @@ describe("the import graph", () => {
     const types = [...g.keys()].find((f) => f.endsWith("/canvas/types.ts"))!;
     // types.ts imports stitch-defs type-only; stitch-defs imports types type-only.
     expect((g.get(types) ?? []).some((d) => d.endsWith("/stitch-defs.ts"))).toBe(false);
+  });
+});
+
+describe("source-pin tests are line-ending proof", () => {
+  // WHY (Lee's landing session found this, 08-17): a source-pin test reads a .tsx
+  // as raw text and asserts on multi-line snippets written with plain \n. Git
+  // leaves CRLF on a Windows checkout, so those assertions failed against code
+  // that was exactly right — the suite was RED on this machine and GREEN on
+  // another, for the same commit. It cost a bad push to find.
+  //
+  // Every such test now normalises at read. This keeps it that way.
+  test("every test that reads source normalises CRLF at read", () => {
+    const dir = import.meta.dir;
+    const offenders: string[] = [];
+    for (const f of readdirSync(dir)) {
+      if (!f.endsWith(".test.ts")) continue;
+      const src = readFileSync(join(dir, f), "utf8").split("\r\n").join("\n");
+      if (!src.includes("readFileSync")) continue;
+      // NO REGEX, and no escape literals. A test about an escaping bug is the
+      // last place to depend on escaping surviving a shell, a script and a
+      // replacement string — plain string scanning cannot be mangled.
+      const TAIL = '"utf8")';
+      for (const seg of src.split("readFileSync(").slice(1)) {
+        const close = seg.indexOf(TAIL);
+        if (close < 0) continue;                       // not a utf8 read
+        const after = seg.slice(close + TAIL.length, close + TAIL.length + 10);
+        if (!after.startsWith(".split(")) { offenders.push(f); break; }
+      }
+    }
+    // Named, not counted — a failure should say which file to fix.
+    expect(offenders).toEqual([]);
   });
 });

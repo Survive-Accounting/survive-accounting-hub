@@ -4,11 +4,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
-const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8");
-const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8");
-const route = readFileSync(join(import.meta.dir, "..", "..", "routes", "study_.canvas.tsx"), "utf8");
-const elements = readFileSync(join(import.meta.dir, "cards", "elements.tsx"), "utf8");
-const filmLock = readFileSync(join(import.meta.dir, "film-lock.ts"), "utf8");
+const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8").split("\r\n").join("\n");
+const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8").split("\r\n").join("\n");
+const route = readFileSync(join(import.meta.dir, "..", "..", "routes", "study_.canvas.tsx"), "utf8").split("\r\n").join("\n");
+const elements = readFileSync(join(import.meta.dir, "cards", "elements.tsx"), "utf8").split("\r\n").join("\n");
+const filmLock = readFileSync(join(import.meta.dir, "film-lock.ts"), "utf8").split("\r\n").join("\n");
 
 describe("one typing guard, shared", () => {
   test("isTypingTarget lives in the keyboard-law home", () => {

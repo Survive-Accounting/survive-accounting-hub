@@ -11,8 +11,8 @@ import { describe, expect, test } from "bun:test";
 import { SLATE_CHOICES, SPEAK_MS, __setLastSlateEnd, slateEndOffsetMs, subscribeSlate } from "./film-slate";
 import { attachTargets, type TakeRecord } from "./takes-store";
 
-const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8");
-const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8");
+const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8").split("\r\n").join("\n");
+const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8").split("\r\n").join("\n");
 
 const take = (over: Partial<TakeRecord> = {}): TakeRecord => ({
   id: "t1", fileName: "a.mkv", sizeBytes: 10, mtimeMs: 1, recordedAt: "2026-08-16T00:00:00.000Z", status: "pending", ...over,

@@ -6,8 +6,8 @@ import { describe, expect, test } from "bun:test";
 
 import { EXHIBIT_GLOW, toggleLit } from "./exhibit-highlights";
 
-const cycleSrc = readFileSync(join(import.meta.dir, "cards", "CycleNode.tsx"), "utf8");
-const previewerSrc = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8");
+const cycleSrc = readFileSync(join(import.meta.dir, "cards", "CycleNode.tsx"), "utf8").split("\r\n").join("\n");
+const previewerSrc = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8").split("\r\n").join("\n");
 
 describe("toggleLit — multi-select is the whole teaching tool", () => {
   test("toggling on, on, on lights a 3-node run", () => {

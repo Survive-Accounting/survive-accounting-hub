@@ -10,9 +10,9 @@ import { describe, expect, test } from "bun:test";
 import { EXHIBIT_GLOW, STATE_CYCLE, cycleState, toggleLit, type ExhibitStates } from "./exhibit-highlights";
 import { NOTE_EYEBROW } from "./frame-copy";
 
-const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8");
-const cycleCard = readFileSync(join(import.meta.dir, "cards", "CycleNode.tsx"), "utf8");
-const base = readFileSync(join(import.meta.dir, "exhibit-base.tsx"), "utf8");
+const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8").split("\r\n").join("\n");
+const cycleCard = readFileSync(join(import.meta.dir, "cards", "CycleNode.tsx"), "utf8").split("\r\n").join("\n");
+const base = readFileSync(join(import.meta.dir, "exhibit-base.tsx"), "utf8").split("\r\n").join("\n");
 
 const m = (pairs: [string, "lit" | "blurred"][] = []): ExhibitStates => new Map(pairs);
 
@@ -106,7 +106,7 @@ describe("what the states LOOK like on camera", () => {
   });
   test("blurring alone does not dim the other steps — only LIT drives the recede", () => {
     // `any` counts lit nodes only.
-    const src = readFileSync(join(import.meta.dir, "exhibit-highlights.ts"), "utf8");
+    const src = readFileSync(join(import.meta.dir, "exhibit-highlights.ts"), "utf8").split("\r\n").join("\n");
     expect(src).toContain("any: lit.size > 0,");
   });
 });
@@ -133,12 +133,12 @@ describe("the keys", () => {
   test("0 does not collide: no digit key is bound anywhere else in the canvas", () => {
     // The audit that chose this binding, kept executable (CHANGES.md records it).
     const dir = join(import.meta.dir);
-    const files = readFileSync(join(dir, "CeqStudio.tsx"), "utf8") + previewer;
+    const files = readFileSync(join(dir, "CeqStudio.tsx"), "utf8").split("\r\n").join("\n") + previewer;
     const digitBinds = [...files.matchAll(/e\.key === "([1-9])"/g)].map((x) => x[1]);
     expect(digitBinds).toEqual([]);
   });
   test("tease state is session-only — nothing persists it", () => {
-    const src = readFileSync(join(import.meta.dir, "exhibit-highlights.ts"), "utf8");
+    const src = readFileSync(join(import.meta.dir, "exhibit-highlights.ts"), "utf8").split("\r\n").join("\n");
     expect(src).not.toContain("localStorage");
     expect(src).not.toContain("sessionStorage");
     expect(src).not.toContain("update(");   // no card-data write ⇒ nothing reaches the DB

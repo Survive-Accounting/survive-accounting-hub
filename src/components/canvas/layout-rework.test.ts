@@ -7,8 +7,8 @@ import { describe, expect, test } from "bun:test";
 
 import { templateFor } from "./ceq-geom";
 
-const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8");
-const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8");
+const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8").split("\r\n").join("\n");
+const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8").split("\r\n").join("\n");
 
 describe("templateFor — the one opt-out gate", () => {
   const layout = { card: { x: 1, y: 2 } };

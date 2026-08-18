@@ -5,8 +5,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
-const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8");
-const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8");
+const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8").split("\r\n").join("\n");
+const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8").split("\r\n").join("\n");
 
 describe("perf arrows — two ways, one result, everything persists", () => {
   test("drag mode persists on release (no Shift-to-keep mode anymore)", () => {

@@ -8,7 +8,7 @@ import { describe, expect, test } from "bun:test";
 
 import { FILM_LOCK_CSS, filmDragAllowed } from "./film-lock";
 
-const previewerSrc = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8");
+const previewerSrc = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8").split("\r\n").join("\n");
 
 describe("filmDragAllowed — what may move on camera", () => {
   test("arrow heads stay live (dragging an arrow is a performance tool)", () => {

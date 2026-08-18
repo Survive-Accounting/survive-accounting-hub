@@ -165,8 +165,8 @@ describe("the preview does not overclaim", () => {
 // ---------------------------------------------------------------- source pins
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-const panel = readFileSync(join(import.meta.dir, "StitchPreview.tsx"), "utf8");
-const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8");
+const panel = readFileSync(join(import.meta.dir, "StitchPreview.tsx"), "utf8").split("\r\n").join("\n");
+const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8").split("\r\n").join("\n");
 
 describe("nothing publishes from the preview (F3 source pins)", () => {
   test("the panel uploads, renders and publishes NOTHING — approving is a callback", () => {

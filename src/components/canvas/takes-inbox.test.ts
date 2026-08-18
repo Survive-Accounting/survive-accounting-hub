@@ -8,10 +8,10 @@ import { describe, expect, test } from "bun:test";
 import { baseName, closeDiagnosis, obsAuthString, parseRecordEvent } from "./obs-bridge";
 import { fileKey, fmtBytes, latestPending, makeRecord, missingRecords, newFiles, type TakeRecord } from "./takes-store";
 
-const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8");
-const inbox = readFileSync(join(import.meta.dir, "TakesInbox.tsx"), "utf8");
-const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8");
-const folder = readFileSync(join(import.meta.dir, "takes-folder.ts"), "utf8");
+const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8").split("\r\n").join("\n");
+const inbox = readFileSync(join(import.meta.dir, "TakesInbox.tsx"), "utf8").split("\r\n").join("\n");
+const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8").split("\r\n").join("\n");
+const folder = readFileSync(join(import.meta.dir, "takes-folder.ts"), "utf8").split("\r\n").join("\n");
 
 describe("obs-websocket v5 auth (known-answer)", () => {
   test("base64(sha256(base64(sha256(password+salt)) + challenge)) — verified against node crypto", async () => {
@@ -122,7 +122,7 @@ describe("OBS failure diagnosis (the flashing bug + honest errors)", () => {
     expect(closeDiagnosis(4205, "nope").text).toContain("4205");
   });
   test("THE FLASHING BUG: the OBS effect depends only on explicit dial signals", () => {
-    const src = readFileSync(join(import.meta.dir, "TakesInbox.tsx"), "utf8");
+    const src = readFileSync(join(import.meta.dir, "TakesInbox.tsx"), "utf8").split("\r\n").join("\n");
     expect(src).toContain("}, [obsOn, connectTick, ingest]);");
     // render-unstable props must be read through refs, never depended on
     expect(src).toContain("liveFramesRef.current()");

@@ -6,8 +6,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
-const src = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8");
-const types = readFileSync(join(import.meta.dir, "types.ts"), "utf8");
+const src = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8").split("\r\n").join("\n");
+const types = readFileSync(join(import.meta.dir, "types.ts"), "utf8").split("\r\n").join("\n");
 
 describe("navigate / select", () => {
   test("elemNav ranges over the stem (-1) through the choices, wrapping", () => {

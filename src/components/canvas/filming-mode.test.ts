@@ -7,9 +7,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
-const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8");
-const inbox = readFileSync(join(import.meta.dir, "TakesInbox.tsx"), "utf8");
-const filmstrip = readFileSync(join(import.meta.dir, "SetFilmstrip.tsx"), "utf8");
+const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8").split("\r\n").join("\n");
+const inbox = readFileSync(join(import.meta.dir, "TakesInbox.tsx"), "utf8").split("\r\n").join("\n");
+const filmstrip = readFileSync(join(import.meta.dir, "SetFilmstrip.tsx"), "utf8").split("\r\n").join("\n");
 
 describe("the mode switch", () => {
   test("it persists, and the toggle is never hidden by the mode it toggles", () => {

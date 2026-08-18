@@ -5,7 +5,7 @@ import { describe, expect, test } from "bun:test";
 
 import { CAPTURE_H, CAPTURE_W, captureCssSize, isCaptureExact, physicalSize } from "./capture-window";
 
-const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8");
+const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8").split("\r\n").join("\n");
 
 describe("capture sizing math (C1)", () => {
   test("common Windows scalings divide to exact 1920x1080 physical", () => {
