@@ -1,3 +1,135 @@
+# Landing Pass 8 — link preview, hero simplification, mobile player, materials break
+
+Branch: `landing-pass-8`, on top of `main` @ `34207001`. Landing page only — no Greek, no studio,
+no filming code.
+
+> Both sessions write this file, so this entry STACKS on top of Pass 7 rather than replacing it.
+
+---
+
+## 1. Link preview (the outreach bug)
+
+**Was:** sharing `surviveaccounting.com` rendered `lee-stadium.webp` — a personal photo, nearly
+square, so link previews centre-cropped it to 1.91:1 and it arrived as a headless torso. `.webp` is
+also not reliably decoded by iMessage, which is where most of these links land.
+
+**Now:** `public/og-card.png`, purpose-built at 1200×630 — navy `#14213D`, the wordmark with the
+split red/blue bolt as the "i", `ACCOUNTING`, and `Cram what's on your exam.`
+
+The card is **generated, not drawn**: `scripts/og-card.mjs` builds it from the same geometry the
+site renders — `BOLT_OUTER` / `BOLT_RIGHT` from `brand.tsx`, and `SurviveWordmark`'s 0.8 bolt
+scale, 0.13 baseline drop, −0.015/+0.03 kerning and 2° rotation about 100%/51%. Tracing it by hand
+would have produced a share card that quietly stopped matching the logo.
+
+The generator is a **one-off, not a build step** — it needs a rasteriser and a TTF, neither of which
+the app uses. Run instructions are in the file header; it uses `npx` so `@resvg/resvg-js` never
+enters `package.json`.
+
+> An `npm i -D` of the rasteriser was reverted before committing: it rewrote `package-lock.json`
+> (+2,409 lines) while this repo installs with **bun**. `bun install` restored the tree.
+
+Meta wired in **both** routes, because both were serving the photo:
+
+| | `__root.tsx` | `index.tsx` |
+|---|---|---|
+| `og:image` / `twitter:image` | photo → card | photo → card (**`twitter:image` was missing entirely**, so this route silently inherited the photo from `__root` despite setting its own `og:image`) |
+| `og:image:width/height/type/alt` | added | added |
+| `og:title` / `og:description` | spec copy | spec copy |
+| `twitter:title` / `twitter:description` | **restored** — I dropped them while replacing the image block, then caught it | inherits `__root` (now matching) |
+
+Both now read `Survive Accounting — Cram what's on your exam.` and `On-demand tutoring videos for
+your first accounting course. Exam 1 is free.`
+
+**Flagged, not changed:** `__root.tsx`'s `name="description"` still carries the retired
+custom-video pitch ("Send Lee your toughest homework problems… Free to request."). That is the
+Google snippet for every page and it now contradicts the OG copy — but it is SEO text outside this
+brief, so I left it and am naming it here rather than changing it silently.
+
+**Caching:** the image is a new URL, so scrapers won't serve a stale file. Twitter/Facebook cache
+per *page* URL though — re-scrape in their debuggers if the old photo persists.
+
+---
+
+## 2. Hero → bolt only
+
+Removed: the navy card, the course code, the university name, the faint exam hint rows and answer
+bubbles, and the red check. `ExamPaper` renders the bolt and nothing else.
+
+The bolt still cycles school **colourways** (~4s), so the graphic keeps its local nod without type
+asserting anything. Reduced motion now shows the **brand red/blue**, not `stops[0]` — freezing on
+the first school would leave one campus's colours permanently on the hero for those users.
+
+The caption is horizontal. Its `rotate(-4deg)` and `-10px` negative margin existed to sit parallel
+to the tilted card and close the gap that rotation opened; with no card, both were leftover
+geometry — type at an angle for no reason reads as a mistake, not a flourish.
+
+`paperStops` no longer filters on `codeVerified`. That filter existed because the card *printed*
+the code and inventing one would have put a fabricated fact on the page. With nothing printed it
+would now be silently shrinking the colour cycle to enforce a rule about text nobody renders.
+
+**Mobile decision — the bolt is KEPT** (the brief asked which was chosen). Measured at 390×844:
+
+| | before (card) | after (bolt) |
+|---|---|---|
+| graphic | ~380 × ~430 | **132 × 178** |
+| CTA bottom | — | **627** (fold 844) |
+
+217px of headroom, so the omit-on-mobile branch wasn't needed.
+
+`exam-paper.test.ts` was **rewritten, not deleted**. The honesty rules it guarded are obsolete (no
+text ⇒ no claim to be wrong about) and the inverse rule replaces them, plus a new guard that a stop
+carries **only** `{id, c1, c2}` — so nobody re-introduces `stop.name` "just for the alt text".
+
+---
+
+## 3. Mobile player
+
+**Exam tabs — two lines.** As `EXAM 1 — $50` each tab needed 92px, so at 390px the fourth sat
+behind a horizontal scroll and the Final's *price* was the hidden half. Stacked, a tab needs 64px.
+Verified at 390: all four visible, `scrollWidth === clientWidth`, prices on screen.
+
+**Semester Pass `×`.** The dismiss control is absolutely positioned right; the centred text ran
+under it once the line wrapped. The text button is now `block w-full px-7` — equal padding, so it
+stays centred *and* clear (one-sided `pr-7` would have shifted it off centre). Measured: text ink
+ends at **327**, `×` starts at **335** — 8px clearance, no overlap, 2 lines. Copy shortened to
+`Or grab the Semester Pass — everything, all semester, for $150.`
+
+**Right-panel dead space.** `--sa-panel-min` is **300px on mobile** (was 340), restored to 340 at
+≥1024px, and both chooser states tightened `py-8 → py-6`. The min-height exists to stop the
+two-column player card resizing between states — a desktop problem; on a phone the panel is full
+width with nothing beside it.
+
+| state (390×844) | panel before | panel after | content |
+|---|---|---|---|
+| 1 · school picker | 340 | **300** | 158 |
+| 2 · professor list | 406 | 406 | 406 |
+| 3 · materials gate | 340 | **300** | 254–276 |
+
+**Known limitation, stated rather than smoothed over:** state 2 is 406px and *already* exceeded the
+340px min before this pass — the panel jumps 300→406→300 as you advance. Its professor list is
+already capped at 190px and scrolls; getting it under 300 would leave ~2 visible rows. Holding all
+three at 406 instead would have made the empty states worse, which is the opposite of this item. So
+dead space is down on the two short states, and the jump is **unchanged, not fixed**.
+
+---
+
+## 4. Materials header
+
+`Prof. Lastname's Exam 1.` is wrapped in `whitespace-nowrap`, so the line breaks *before* `Prof.`
+rather than stranding it at the end of a line. Verified: 2 lines, break lands before `Prof.`
+
+---
+
+## Verification
+
+- `tsc --noEmit` clean.
+- `bun test` — **1180 pass, 0 fail**, run without a pipe (a pipe masked the exit code in an earlier
+  pass and pushed a red suite).
+- Measured in the browser at 390×844 and 1280×900; no console errors.
+- **Screenshots still not delivered** — 8th pass running. The Browser pane does not composite
+  frames, so `screenshot` times out. Every number above is a DOM measurement instead.
+
+---
 # Landing Pass 7 — hero illustration, player stacking fix, FAQ collapse, footer + CTA
 
 Branch: `landing-pass-7`, on top of `main` @ `20b41094`. Landing page only — no Greek, no studio,
