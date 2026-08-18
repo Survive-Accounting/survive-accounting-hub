@@ -77,7 +77,11 @@
      thing being fixed, and a min-height is the only way to hold four differently-sized states
      still. Deliberately below the 16:9 content height: state 4 is allowed to be taller, because
      by then the student is watching, not choosing. */
-  --sa-panel-min: 340px;
+  --sa-panel-min: 300px;
+  /* MOBILE IS TIGHTER (Pass 8). Measured at 390x844: the school-picker state is 174px of
+     content, so a 340px box left 166px of empty navy under two short lines. 300px keeps the
+     shared-height invariant above while cutting that reserve; the desktop value is restored in
+     the 1024px block, where the two-column card is the thing being held still. */
 
   /* The player ROW. The right panel alone was not enough: the LEFT column also changes height as
      the school's real topic map replaces the Starter Map (392px for 7 topics -> 258px for 3), and
@@ -532,14 +536,22 @@ html.sa-navy body {
    with display:none rather than shrinking it into illegibility.
    --------------------------------------------------------------------------- */
 .sa-hero3 { min-height: calc(78vh - var(--sa-header-h, 54px)); }
-.sa-hero3-paper { width: 58vw; max-width: 300px; }
+.sa-hero3-paper { width: 132px; }
 
 @media (min-width: 1024px) {
   /* Tuned by MEASUREMENT, not guess: at 62vh the tab row landed at y=672 on a 1080 viewport,
      exposing ~400px of the player — not a peek. 80vh puts the tabs near y=918, so the row is
      visible as a scroll cue while the card stays mostly below the fold. */
   .sa-hero3 { min-height: calc(80vh - var(--sa-header-h, 54px)); }
-  .sa-hero3-paper { width: 100%; max-width: 380px; }
+  .sa-hero3-paper { width: 176px; max-width: none; }
+}
+
+/* DESKTOP restores the taller shared panel height. Two columns sit side by side from 1024px, so
+   the right panel changing state resizes the whole player CARD — including the outline beside it.
+   That is the jump --sa-panel-min exists to stop, and it is a desktop-only problem: on a phone the
+   panel is full width with nothing next to it, so the smaller mobile reserve costs nothing. */
+@media (min-width: 1024px) {
+  :root { --sa-panel-min: 340px; }
 }
 
 /* ---------------------------------------------------------------------------

@@ -1,6 +1,16 @@
-// Guards the hero cycle's two honesty rules, which are easy to break by accident and impossible
-// to check reliably in a browser (the graphic starts cycling before a test script can attach, so
-// timing-based checks keep catching it mid-rotation).
+// Guards the hero cycle, which is impossible to check reliably in a browser (the graphic starts
+// cycling before a test script can attach, so timing-based checks keep catching it mid-rotation).
+//
+// THE RULE THESE TESTS ENFORCE CHANGED IN PASS 8, so it is worth saying what happened rather than
+// leaving a reader to wonder why the old assertions vanished. The hero used to PRINT a course code
+// and a campus name on the card, so the suite guarded an honesty rule: never show a code that
+// isn't verified, and drop any school that hasn't confirmed one rather than inventing a plausible
+// "ACCY 201". Pass 8 deleted the card and all of its type — the graphic is now the bolt alone.
+//
+// With no text, there is no claim to be wrong about, and that filter would now be silently
+// shrinking the colour cycle to enforce a rule about something nobody renders. So the honesty
+// tests are not weakened here, they are OBSOLETE, and the rule that replaces them is the inverse:
+// every school is in, and a stop carries colours and nothing else.
 import { describe, expect, it } from "bun:test";
 
 import { paperStops } from "./ExamPaper";
@@ -23,11 +33,11 @@ describe("paperStops", () => {
       bolt,
     );
     expect(stops.map((s) => s.id)).toEqual(["ole-miss", "lsu", "tennessee", "alabama", "arkansas"]);
-    // the FIRST stop is what a reduced-motion visitor sees, permanently
-    expect(stops[0].code).toBe("ACCY 201");
   });
 
-  it("drops schools whose course code is not verified rather than inventing one", () => {
+  it("keeps EVERY school, verified course code or not — colours are not a claim", () => {
+    // The exact case the old suite required to be dropped. A school with no confirmed code still
+    // has official colours, and the hero no longer says anything about its course.
     const stops = paperStops(
       [
         S("ole-miss", "Ole Miss", "ACCY 201", true),
@@ -36,15 +46,22 @@ describe("paperStops", () => {
       ],
       bolt,
     );
-    expect(stops.map((s) => s.id)).toEqual(["ole-miss"]);
+    expect(stops.map((s) => s.id)).toEqual(["ole-miss", "lsu", "tennessee"]);
   });
 
-  it("carries the school's own bolt colourway so the header and bolt cannot disagree", () => {
+  it("carries the school's own bolt colourway", () => {
     const [first] = paperStops([S("ole-miss", "Ole Miss", "ACCY 201", true)], bolt);
-    expect(first).toMatchObject({ code: "ACCY 201", c1: "c1-ole-miss", c2: "c2-ole-miss" });
+    expect(first).toMatchObject({ id: "ole-miss", c1: "c1-ole-miss", c2: "c2-ole-miss" });
   });
 
-  it("returns nothing when no school has a confirmed code, so the hero renders no graphic", () => {
-    expect(paperStops([S("ole-miss", "Ole Miss", undefined, false)], bolt)).toEqual([]);
+  it("carries NO text — a stop cannot leak a course code or campus name back onto the card", () => {
+    // A regression here would not throw or look broken; it would quietly re-enable the thing Pass 8
+    // removed the moment someone renders `stop.name` "just for the alt text".
+    const [first] = paperStops([S("ole-miss", "Ole Miss", "ACCY 201", true)], bolt);
+    expect(Object.keys(first).sort()).toEqual(["c1", "c2", "id"]);
+  });
+
+  it("returns nothing only when there are no schools at all", () => {
+    expect(paperStops([], bolt)).toEqual([]);
   });
 });

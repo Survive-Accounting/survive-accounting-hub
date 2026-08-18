@@ -180,8 +180,8 @@ export function LandingPage({ initialCampusId, chapterBanner, goChapter, chapter
     return SCHOOLS.map((s) => { const code = m.get(s.campusId); return code ? { ...s, code, codeVerified: true } : { ...s, code: undefined, codeVerified: false }; });
   }, [codesQ.data]);
 
-  // The hero cycle reads the code-enriched list, so the header can only ever show a VERIFIED
-  // course code — paperStops drops any school without one rather than inventing a plausible code.
+  // The hero cycles school COLOURWAYS only — no course code, no campus name (Pass 8). It still
+  // reads the code-enriched list so the two stay in sync if the graphic ever shows type again.
   const stops = useMemo(() => paperStops(schoolsWithCodes, boltFor), [schoolsWithCodes]);
 
   const treeQ = useQuery({ queryKey: ["landing-tree", school?.campusId ?? null], queryFn: () => fetchStudentTree({ data: school ? { campusId: school.campusId } : {} }), networkMode: "always", staleTime: 300_000 });
@@ -369,13 +369,13 @@ function Hero({ onStart, stops }: { onStart: () => void; stops: PaperStop[] }) {
         </div>
       </div>
 
-      {/* THE GRAPHIC. `order-first` on mobile puts it above the H1 as specified; the width is
-          capped so it cannot push the CTA under the fold on a 390x844 phone — see .sa-hero3 in
-          styles.css, where the mobile size is set and the omit-vs-shrink decision is recorded. */}
+      {/* THE GRAPHIC — bolt only. `order-first` on mobile puts it above the H1 as specified; the
+          width is capped so it cannot push the CTA under the fold on a 390x844 phone. See
+          .sa-hero3-paper in styles.css, where the measured mobile decision is recorded. */}
       <div className="order-first flex flex-col items-center lg:order-none lg:items-end">
         {stops.length > 0 && <ExamPaper stops={stops} onActivate={onStart} className="sa-hero3-paper" />}
-        {/* The card names ONE school at a time, which could read as "only these schools". This
-            says the quiet part so a student from a school not in the cycle doesn't bounce. */}
+        {/* The bolt cycles SEC colourways, which can still read as "only these schools". One
+            line, doing the job the deleted campus-name text used to make necessary. */}
         {stops.length > 0 && (
           <p className="sa-paper-caption text-center text-[12px]" style={{ color: "var(--text-muted)" }}>
             Covers any intro accounting course, nationwide.
@@ -904,7 +904,7 @@ function MatchPanel({ school, professor, notListed, profDone, materialsDone, cov
   // STATE 1 — no school yet.
   if (!matched) {
     return (
-      <div className="grid h-full w-full place-items-center px-5 py-8" style={{ background: "var(--sa-surface-2)" }}>
+      <div className="grid h-full w-full place-items-center px-5 py-6" style={{ background: "var(--sa-surface-2)" }}>
         <div className="flex w-full max-w-sm flex-col items-center gap-3">
           <div className="w-full"><CampusSelector school={null} onPick={onPick} schools={schools} onNotListed={onNotListed} cue={cueSignal} /></div>
           {/* The marquee lives HERE and nowhere else — under the picker it answers "is my school
@@ -933,14 +933,14 @@ function MatchPanel({ school, professor, notListed, profDone, materialsDone, cov
   // top-left of the viewport; it is a centred panel state now, same as the two rungs before it.
   if (!materialsDone) {
     return (
-      <div className="grid h-full w-full place-items-center px-5 py-8" style={{ background: "var(--sa-surface-2)" }}>
+      <div className="grid h-full w-full place-items-center px-5 py-6" style={{ background: "var(--sa-surface-2)" }}>
         <div className="flex w-full max-w-sm flex-col items-center gap-3 text-center">
           {/* ONE header, carrying the coverage stat. The separate "Get your exam gameplan" title
               is gone — with the modal removed there is no second surface to title. The stat only
               renders when the resolver returned a real number; otherwise the honest general line. */}
           <p className="text-[16px] font-black leading-snug" style={{ color: "var(--brand-cream)" }}>
             {coveragePct != null && professor
-              ? <>This already covers <span style={{ color: "var(--accent)" }}>~{coveragePct}%</span> of Prof. {professor.last || professor.name}&apos;s Exam 1.</>
+              ? <>This already covers <span style={{ color: "var(--accent)" }}>~{coveragePct}%</span> of{" "}<span className="whitespace-nowrap">Prof. {professor.last || professor.name}&apos;s Exam 1.</span></>
               : coveragePct != null
                 ? <>This already covers <span style={{ color: "var(--accent)" }}>~{coveragePct}%</span> of most Exam 1s.</>
                 : <>This already covers most Exam 1s.</>}
@@ -1230,12 +1230,17 @@ function ExamTabs({ exams, activeNum, onSelect }: { exams: ExamTab[]; activeNum:
             role="tab"
             aria-selected={on}
             onClick={() => onSelect(e.num)}
-            className="shrink-0 grow basis-0 whitespace-nowrap px-3 py-3 text-center transition-opacity"
-            style={{ minWidth: 92, borderBottom: `2px solid ${on ? "var(--accent)" : "transparent"}`, opacity: on ? 1 : 0.62 }}
+            className="shrink-0 grow basis-0 whitespace-nowrap px-2 py-2.5 text-center transition-opacity"
+            style={{ minWidth: 64, borderBottom: `2px solid ${on ? "var(--accent)" : "transparent"}`, opacity: on ? 1 : 0.62 }}
           >
+            {/* TWO LINES, not one. As "EXAM 1 — $50" the row needed 92px a tab, so at 390px the
+                fourth tab sat off-screen behind a horizontal scroll and the Final's price — the
+                half of the label that actually does the selling — was the part hidden. Stacked,
+                a tab needs 64px and all four fit with the prices visible. */}
             <span className="block text-[11.5px] font-black uppercase tracking-wide" style={{ color: on ? "var(--accent)" : "var(--brand-cream)" }}>
               {e.label}
-              <span style={{ opacity: 0.55 }}>{" — "}</span>
+            </span>
+            <span className="mt-0.5 block text-[11px] font-black" style={{ color: on ? "var(--accent)" : "var(--brand-cream)", opacity: on ? 0.9 : 0.7 }}>
               {price}
             </span>
           </button>
@@ -1266,10 +1271,10 @@ function SemesterPassLine({ onPass }: { onPass: () => void }) {
   };
   return (
     <div className="sa-passline group relative px-3 py-2 text-center" style={{ background: "rgba(0,0,0,0.12)" }}>
-      <button onClick={onPass} className="text-[12.5px] hover:opacity-90" style={{ color: "var(--text-muted)" }}>
+      <button onClick={onPass} className="block w-full px-7 text-[12.5px] hover:opacity-90" style={{ color: "var(--text-muted)" }}>
         Or grab the{" "}
         <span className="font-bold" style={{ color: "var(--accent)" }}>Semester Pass</span>
-        {` — everything, all semester, $${SEMESTER_PASS_PRICE}.`}
+        {` — everything, all semester, for $${SEMESTER_PASS_PRICE}.`}
       </button>
       <button
         onClick={dismiss}
