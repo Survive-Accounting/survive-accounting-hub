@@ -1,3 +1,196 @@
+# Greek rework — bugs, positioning, role fork
+
+Branch: `greek-rework-1`. Landing/Greek only — no studio, no filming.
+
+> Both sessions write this file, so this entry STACKS on top of what follows.
+
+---
+
+## 1. The two blocking bugs
+
+### The banner was not a stacking bug
+
+At `scrollY 0` the banner sits at y=71, already clear of the 55px sticky navbar. **The page was
+scrolling itself ~74px on load.** The exam outline calls `scrollIntoView({block:"nearest"})` to
+reveal the active topic, and `nearest` does not mean "the nearest container" — the browser adjusts
+*every* scrollable ancestor, and the document is always one of them. The outline had no scrollable
+ancestor of its own, so the only thing left to scroll was the window.
+
+`src/lib/ui-scroll.ts` scrolls the nearest scrollable **ancestor** and nothing else, and does
+nothing when there isn't one. The CTA's deliberate scroll to `#exam1` is untouched.
+
+### The claim form had no way out at all
+
+No ×, no Esc, no click-outside — the only exit was a reload, which also discarded anything typed.
+All three added.
+
+`src/lib/use-dismiss.ts` is one hook rather than three hand-rolled handlers. Two details worth
+keeping:
+
+- It tracks where a press **started**. Selecting text inside a panel and releasing outside fires a
+  click on the backdrop; on `click` that closes the dialog and destroys the input.
+- `enabled` is not optional in practice. A closed overlay that keeps listening eats Escape from
+  whatever the visitor actually has open.
+
+### Modal audit — every overlay in the app
+
+| overlay | × | Esc | outside | action |
+|---|---|---|---|---|
+| `ClaimChapter` | ✗ | ✗ | ✗ | **all three added** — the reported bug |
+| `SignInDialog` (`/learn`) | ✗ | ✗ | ✓ | × + Esc added |
+| `ClaimModal` (banner) | ✓ | ✗ | ✓ | Esc added |
+| `NotifyModal`, `SyllabusModal` | ✓ | ✓ | ✓ | already complete |
+| `/learn` player + paywall | ✓ | ✓ | ✓ | already complete (one shared page-level handler) |
+| header menu | ✓ | ✓ | ✓ | already complete |
+| canvas / outreach overlays | — | ✓ | ✓ | **reported, not changed** — Lee-only surfaces, and `study_.canvas.tsx` is owned by the filming session |
+
+**One further finding, not fixed:** every backdrop uses `onClick`, so all of them share the
+text-selection-drag defect described above. Only `ClaimChapter` was migrated to the hook. Low
+severity (a stray drag closes a dialog), but it is real and it is app-wide.
+
+---
+
+## 2. School + chapter data
+
+### The nicknames were in the database, not the picker
+
+`listGoSchools` mapped `short_name || name`, and `campuses.short_name` is where `Bama`, `Mizzou`,
+`OU`, `Vandy`, `UT Austin`, `UF`, `UGA`, `UK`, `USC` live. The main site's list was already clean;
+the Greek picker was rendering a different column. It now resolves through `canonicalSchoolName`
+(see the campus-context entry), so all 16 read exactly as the landing picker does.
+
+**SEC scoping already worked** — `is_sec = true` is exactly the right 16.
+
+### Seed report — 1,107 chapters across 132 campuses
+
+| school | chapters | slugged | intro-1 code |
+|---|---|---|---|
+| Alabama | 72 | 71 | AC 210 |
+| Georgia | 68 | 67 | ACCT 2101 |
+| Texas | 65 | 64 | ACC 311 |
+| Florida | 64 | 63 | ACG 2021 |
+| Missouri | 63 | 62 | ACCTCY 2026 |
+| South Carolina | 59 | 58 | ACCT 225 |
+| Kentucky | 58 | 57 | ACC 201 |
+| Auburn | 56 | 55 | ACCT 2110 |
+| Texas A&M | 56 | 55 | ACCT 229 |
+| Tennessee | 50 | 50 | ACCT 200 |
+| Oklahoma | 49 | 48 | ACCT 2113 |
+| Arkansas | 48 | 47 | ACCT 2013 |
+| LSU | 46 | 45 | ACCT 2001 |
+| Mississippi State | 43 | 43 | ACC 2013 |
+| Vanderbilt | 40 | 39 | BUS 1100 |
+| Ole Miss | 38 | 37 | ACCY 201 |
+
+**875 chapters at the 16 SEC schools.** The other 116 campuses are non-SEC with 1–4 chapters each
+and mostly no course code; they are not offered in the Greek picker.
+
+**Malformed / nickname-style rows:** none in the campus NAMES — the DB stores proper full names
+(`University of Mississippi`). The nickname problem was entirely `short_name`, above.
+
+**Two real data findings:**
+
+1. **Duplicate campus.** `University of Tennessee, Knoxville` (50 chapters,
+   `university-of-tennessee-knoxville`) and `University of Tennessee Knoxville` (4 chapters,
+   `university-of-tennessee-knoxville-r`) are two rows for one school. No slug collision — the
+   backfill's `-r` suffix avoided it — but the 4 chapters on the second row are unreachable from
+   the picker, which only offers the `is_sec` row.
+2. **The unslugged tail.** 14 chapters across the SEC schools have no slug (the "slugged" column
+   above), deliberately: they are the duplicate `greek_orgs` rows the Phase-1 backfill declined to
+   give a second URL to. They have no `/go/` page by design.
+
+### Escape hatches
+
+Both `My school isn't listed →` and `My chapter isn't listed →` open a four-field capture
+(school, chapter, name, email-or-mobile) that texts Lee via `FOUNDER_ALERT_PHONE`.
+
+Deliberately **not** the existing `SignupFlow`: that creates a chapter and verifies an officer by
+SMS code, which is the wrong instrument for someone reporting a gap in the roster — and Twilio is
+**not configured in production**, so it would dead-end.
+
+> **Storage is a deliberate reuse, flagged.** Rows go to `referrals` behind a `[GREEK NOT LISTED]`
+> prefix rather than a table of their own, because a new table needs DDL against the Management API
+> and this machine has no PAT for it (the Vercel CLI is not authenticated, so the token cannot be
+> pulled). The SMS is the real delivery path; the prefix keeps the rows greppable and they migrate
+> later with a single `INSERT…SELECT`.
+
+---
+
+## 3. Greek landing — positioning
+
+Headline now names the **problem**, not the offer:
+
+> Intro accounting is quietly wrecking your chapter's GPA.
+
+**Removed entirely**, all of which explained our mechanics to someone still deciding whether the
+problem was real:
+
+- `Every chapter is already live — no signup needed to see yours.`
+- `One link, every member. Share it in the group chat… semester seats are $100/member (10 minimum).`
+- the numbered 1/2/3 `Find your chapter / Share your link / Watch it work` strip
+
+Pricing is out of the hero entirely. Three flat benefit statements replace the steps.
+
+**One entry card.** Two bare dropdowns and a button with an unrelated link floating underneath read
+as three loose controls; in a card with a `Find your chapter` header they read as one form. The
+chapter picker is disabled until a school is chosen and says `Pick your school first` rather than
+pretending to be ready.
+
+---
+
+## 4. Role fork
+
+A `/go/` page serves two people with almost nothing in common. The fork asks once, in the slot
+directly under the banner — **one slot, three states**: unknown role asks; an exec gets the claim
+control; a member gets nothing there.
+
+**The member path is never gated.** Exam 1 is free for everyone, so a member on an *unclaimed* page
+gets it immediately. The chapter's claim status is an exec concern and must never become a
+student's problem.
+
+**Stored per chapter**, not globally — the same person can be an exec of their own house and a
+member of a friend's. `accountRole` is threaded through and passed `null` today; the hook already
+prefers it over storage, so wiring sign-in later needs no change at the call site.
+
+---
+
+## 5. Chapter page copy — "courtesy" was a false claim
+
+`Free Exam 1, courtesy of [Chapter]` sat on **every unclaimed page**, crediting a chapter that had
+done nothing — Exam 1 is free for everyone, so the line was misleading wherever it appeared.
+
+Unclaimed pages now read `Cram videos for ACCY 201 — free Exam 1 for Alpha Chi Omega members.`,
+with the course code coming from campus context (generic prose for a school without one). The
+claim modal's success line still credits the chapter for the **attribution**, which is true, but
+not for the exam.
+
+**Not built:** the paid-chapter courtesy line (`Exams 2, 3 and the Final — courtesy of [Chapter].`)
+for members with an assigned seat. It needs the seat lookup from Greek Phase 2b, which is still on
+its own unmerged branch. The false claim is gone; the true one is not yet in.
+
+---
+
+## Verification
+
+- `tsc --noEmit` clean; `bun test` **1274 pass / 0 fail**.
+- `/go/university-of-mississippi/alpha-chi-omega`: `scrollY` 0 on load, banner at 71, claim link at
+  128, both clear of the 55px navbar.
+- Claim form closes by ×, Esc and outside-click, and **survives an inside-to-outside drag**.
+- `/chapters`: all 16 names canonical with zero nicknames, chapter picker disabled with the right
+  placeholder, both hatches present, every removed line confirmed absent.
+- Role fork: appears with both choices and no claim; member persists and keeps Exam 1 FREE with
+  2/3/Final priced; exec shows the claim; a different chapter still asks.
+- **Screenshots not delivered** — the Browser pane does not composite frames, so `screenshot` times
+  out. All of the above is DOM measurement.
+
+## Still open
+
+- Paid-chapter courtesy line (needs Phase 2b seats).
+- `TWILIO_*` unset in production, so neither the claim alert nor the not-listed alert can actually
+  send yet. Both save their row regardless.
+- Backdrop `onClick` drag defect on the remaining overlays.
+
+---
 # Campus context — one shared source for "whose school is this?"
 
 Branch: `campus-context`, on top of `main` @ `0277fa8f`.
