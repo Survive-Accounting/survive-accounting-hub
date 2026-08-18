@@ -43,10 +43,21 @@ function ChaptersPage() {
         <section className="flex flex-col items-center pt-16 pb-6 text-center sm:pt-24">
           {/* M1.2 — was a fixed 84px nowrap lockup, wider than a phone. */}
           <FitWordmark size={84} />
-          <h1 className="mt-6 text-[26px] font-black sm:text-[32px]" style={{ letterSpacing: "-0.01em" }}>Free Exam 1 for your whole chapter.</h1>
+          <h1 className="mt-6 text-[26px] font-black sm:text-[32px]" style={{ letterSpacing: "-0.01em" }}>Intro accounting is quietly wrecking your chapter&apos;s GPA.</h1>
           <p className="mt-4 max-w-lg text-[15px] leading-relaxed sm:text-[16px]" style={{ color: "var(--brand-cream)", opacity: 0.88, fontFamily: BRAND_SANS }}>
-            One link, every member. Share it in the group chat — I'll handle the rest. No cost, no contract. When you're ready, semester seats are $100/member (10 minimum).
+            Dozens of your members take it every semester — business, finance, and accounting majors all hitting the same wall at once. Give them a tutor, all at once.
           </p>
+          {/* BENEFITS, not steps. The numbered 1/2/3 strip described OUR process to someone still
+              deciding whether the problem is real. Three flat statements of what the chapter gets. */}
+          <div className="mt-8 flex w-full max-w-md flex-col gap-2 text-left" style={{ fontFamily: BRAND_SANS }}>
+            {["A real perk members actually use", "See who's using it — no guessing", "Exam 1 is free for your whole chapter"].map((b) => (
+              <div key={b} className="flex items-center gap-3 rounded-lg px-3 py-2" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
+                <span aria-hidden style={{ color: "var(--accent)" }}>⚡</span>
+                <span className="text-[13.5px]" style={{ color: "var(--brand-cream)" }}>{b}</span>
+              </div>
+            ))}
+          </div>
+
           {/* PHASE 1 — the chapter already exists. All 1,107 GreekIntel chapters have a live page
               now, so the first thing this page offers is the way TO one. The signup form below used
               to be the only door, which meant an exec had to type their own chapter into existence
@@ -54,16 +65,7 @@ function ChaptersPage() {
           <div className="mt-7 w-full max-w-sm">
             <FindMyChapter />
           </div>
-          <a href="#signup" className="mt-4 text-[12.5px] underline underline-offset-4" style={{ color: "var(--text-muted)", fontFamily: BRAND_SANS }}>My chapter isn&apos;t listed →</a>
 
-          <div className="mt-8 flex w-full max-w-md flex-col gap-2 text-left" style={{ fontFamily: BRAND_SANS }}>
-            {["Find your chapter — it's already listed", "Share your link — members get Exam 1 free", "Watch it work — you see who's using it"].map((b, i) => (
-              <div key={i} className="flex items-center gap-3 rounded-lg px-3 py-2" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
-                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full text-[12px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>{i + 1}</span>
-                <span className="text-[13.5px]" style={{ color: "var(--brand-cream)" }}>{b}</span>
-              </div>
-            ))}
-          </div>
         </section>
 
         <section id="signup" className="mx-auto mb-16 max-w-md scroll-mt-6">
@@ -101,9 +103,10 @@ function FindMyChapter() {
   return (
     <ChapterFinder
       schools={schoolsQ.data}
-      cta="Go to my chapter ⚡"
+      card
+      escapeHatches
+      cta="Go to my chapter page ⚡"
       onPick={(school, chapter) => void nav({ to: "/go/$school/$chapter", params: { school, chapter } })}
-      note="Every chapter is already live — no signup needed to see yours."
     />
   );
 }

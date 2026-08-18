@@ -1771,14 +1771,18 @@ function TestimonialsSlider() {
 }
 
 // ---- CHAPTER BANNER + CLAIM (on /go/<school>/<chapter> links) --------------------------------
-// "Free Exam 1, courtesy of [Chapter]" + an optional claim (name + phone → member row). Never gates:
+// The chapter strip + an optional claim (name + phone -> member row). Never gates:
 // the player already works; claiming just registers the member so the chapter dashboard counts them.
 function ChapterBanner({ name, go }: { name: string; go?: { schoolSlug: string; chapterSlug: string } }) {
   const [open, setOpen] = useState(false);
+  // COURTESY IS A PAID-CHAPTER CLAIM. "Free Exam 1, courtesy of <chapter>" was on every unclaimed
+  // page, crediting a chapter that had done nothing — Exam 1 is free for everyone, so the line was
+  // misleading wherever it appeared. It is reserved for chapters that actually bought seats.
+  const { courseLabel } = useCampus();
   return (
     <>
       <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-xl px-4 py-2 text-center text-[13px] font-bold" style={{ background: "rgba(252,163,17,0.12)", border: "1px solid rgba(252,163,17,0.4)", color: "var(--brand-cream)" }}>
-        <span>⚡ Free Exam 1, courtesy of {name}</span>
+        <span>⚡ Cram videos for {courseLabel} — free Exam 1 for {name} members.</span>
         {go && <button onClick={() => setOpen(true)} className="rounded-lg px-2.5 py-1 text-[12px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>Claim your free access →</button>}
       </div>
       {open && go && <ClaimModal go={go} chapter={name} onClose={() => setOpen(false)} />}
@@ -1811,7 +1815,7 @@ function ClaimModal({ go, chapter, onClose }: { go: { schoolSlug: string; chapte
         </div>
         {done ? (
           <div className="py-4 text-center">
-            <p className="text-[14.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>You're in — courtesy of {chapter}. Enjoy Exam 1, free.</p>
+            <p className="text-[14.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>You&apos;re in — Exam 1 is free, and you&apos;re counted with {chapter}.</p>
             <button onClick={onClose} className="mt-4 rounded-xl px-5 py-2.5 text-[13.5px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>Start studying ⚡</button>
           </div>
         ) : (

@@ -8,23 +8,35 @@
 //
 // One component, one `onPick`, because the pick is the same act either way — the difference is
 // what the caller does with it, not what the student does.
+//
+// `card` mode is the /chapters hero. The two dropdowns and the button used to sit bare on the page
+// with an unrelated link floating under them, which read as three loose controls rather than one
+// thing to do. In a card with a header they read as a form, and the escape hatches sit inside it
+// where someone who has just failed to find themselves will actually look.
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { BRAND_SANS } from "@/components/canvas/brand";
+import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
+import { NotListedForm } from "@/components/site/NotListedForm";
 import { listGoChapters } from "@/lib/greek-go.functions";
 
 export interface FinderSchool { slug: string; name: string }
 
-export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy = false, note }: {
+export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy = false, note, card = false, header = "Find your chapter", escapeHatches = false }: {
   schools: FinderSchool[];
   onPick: (schoolSlug: string, chapterSlug: string, chapterName: string) => void;
   cta?: string;
   busy?: boolean;
   note?: string;
+  /** Wrap in the panel styling used by "Set up your chapter". */
+  card?: boolean;
+  header?: string;
+  /** Offer "My school / chapter isn't listed" beneath the button. */
+  escapeHatches?: boolean;
 }) {
   const [school, setSchool] = useState("");
   const [chapter, setChapter] = useState("");
+  const [notListed, setNotListed] = useState<null | "school" | "chapter">(null);
 
   // Only fetched once a school exists: the chapter list is per-campus and there are 1,107 rows
   // overall, so there is no meaningful "all chapters" list to show first.
@@ -37,51 +49,80 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
   });
   const chapters = q.data ?? [];
   const picked = chapters.find((c) => c.slug === chapter);
+  const schoolName = schools.find((s) => s.slug === school)?.name;
+
+  const selectStyle = { minHeight: 46, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" } as const;
+
+  const body = (
+    <div className="flex w-full flex-col gap-2" style={{ fontFamily: BRAND_SANS }}>
+      {notListed ? (
+        <NotListedForm kind={notListed} school={notListed === "chapter" ? schoolName : undefined} onClose={() => setNotListed(null)} />
+      ) : (
+        <>
+          <select
+            value={school}
+            onChange={(e) => { setSchool(e.target.value); setChapter(""); }}
+            className="w-full rounded-xl px-3 text-[14px] outline-none"
+            style={selectStyle}
+          >
+            <option value="">Pick your school to start</option>
+            {schools.map((s) => <option key={s.slug} value={s.slug} style={{ color: "#0B1220" }}>{s.name}</option>)}
+          </select>
+
+          <select
+            value={chapter}
+            onChange={(e) => setChapter(e.target.value)}
+            disabled={!school || q.isLoading}
+            className="w-full rounded-xl px-3 text-[14px] outline-none disabled:opacity-45"
+            style={selectStyle}
+          >
+            <option value="">
+              {!school ? "Pick your school first" : q.isLoading ? "Loading chapters…" : chapters.length ? "Your chapter…" : "No chapters listed yet"}
+            </option>
+            {chapters.map((c) => <option key={c.slug} value={c.slug} style={{ color: "#0B1220" }}>{c.name}</option>)}
+          </select>
+
+          {/* An empty list is stated, not hidden. A school whose roster we don't have yet is a real
+              answer, and silently showing an empty dropdown reads as the page being broken. */}
+          {school && !q.isLoading && !chapters.length && (
+            <p className="text-[12.5px]" style={{ color: "var(--text-muted)" }}>
+              I don&apos;t have chapters listed for that school yet — tell me below and I&apos;ll add yours.
+            </p>
+          )}
+
+          <button
+            type="button"
+            disabled={!picked || busy}
+            onClick={() => picked && onPick(school, picked.slug, picked.name)}
+            className="w-full rounded-xl text-[15px] font-black transition-opacity disabled:opacity-40"
+            style={{ minHeight: 48, background: "var(--accent)", color: "#0B1220" }}
+          >
+            {busy ? "…" : cta}
+          </button>
+
+          {escapeHatches && (
+            <div className="mt-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+              <button type="button" onClick={() => setNotListed("school")} className="text-[12px] underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
+                My school isn&apos;t listed →
+              </button>
+              <button type="button" onClick={() => setNotListed("chapter")} className="text-[12px] underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
+                My chapter isn&apos;t listed →
+              </button>
+            </div>
+          )}
+
+          {note && <p className="text-center text-[12px]" style={{ color: "var(--text-muted)" }}>{note}</p>}
+        </>
+      )}
+    </div>
+  );
+
+  if (!card) return body;
 
   return (
-    <div className="flex w-full flex-col gap-2" style={{ fontFamily: BRAND_SANS }}>
-      <select
-        value={school}
-        onChange={(e) => { setSchool(e.target.value); setChapter(""); }}
-        className="w-full rounded-xl px-3 text-[14px] outline-none"
-        style={{ minHeight: 46, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }}
-      >
-        <option value="">Your school…</option>
-        {schools.map((s) => <option key={s.slug} value={s.slug} style={{ color: "#0B1220" }}>{s.name}</option>)}
-      </select>
-
-      <select
-        value={chapter}
-        onChange={(e) => setChapter(e.target.value)}
-        disabled={!school || q.isLoading}
-        className="w-full rounded-xl px-3 text-[14px] outline-none disabled:opacity-45"
-        style={{ minHeight: 46, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }}
-      >
-        <option value="">
-          {!school ? "Pick a school first…" : q.isLoading ? "Loading chapters…" : chapters.length ? "Your chapter…" : "No chapters listed yet"}
-        </option>
-        {chapters.map((c) => <option key={c.slug} value={c.slug} style={{ color: "#0B1220" }}>{c.name}</option>)}
-      </select>
-
-      {/* An empty list is stated, not hidden. A school whose roster we don't have yet is a real
-          answer, and silently showing an empty dropdown reads as the page being broken. */}
-      {school && !q.isLoading && !chapters.length && (
-        <p className="text-[12.5px]" style={{ color: "var(--text-muted)" }}>
-          I don&apos;t have chapters listed for that school yet — text me and I&apos;ll add yours.
-        </p>
-      )}
-
-      <button
-        type="button"
-        disabled={!picked || busy}
-        onClick={() => picked && onPick(school, picked.slug, picked.name)}
-        className="w-full rounded-xl text-[15px] font-black transition-opacity disabled:opacity-40"
-        style={{ minHeight: 48, background: "var(--accent)", color: "#0B1220" }}
-      >
-        {busy ? "…" : cta}
-      </button>
-
-      {note && <p className="text-center text-[12px]" style={{ color: "var(--text-muted)" }}>{note}</p>}
+    <div className="w-full rounded-2xl p-5" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)" }}>
+      <h2 className="mb-3 text-[17px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{header}</h2>
+      {body}
     </div>
   );
 }

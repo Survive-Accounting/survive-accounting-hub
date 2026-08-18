@@ -11,6 +11,7 @@
 // thing to change if the scheme ever moves again.
 //
 // Tables: 0115 (manual-apply) on top of 0111.
+import { canonicalSchoolName } from "@/lib/schools";
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
@@ -104,7 +105,11 @@ export const listGoSchools = createServerFn({ method: "GET" })
     const have = new Set(((rows ?? []) as Array<{ campus_id: string }>).map((r) => r.campus_id));
     return list
       .filter((c) => have.has(c.id))
-      .map((c) => ({ slug: c.slug, name: c.short_name || c.name }))
+      // CANONICAL NAME, not short_name. short_name holds nicknames — Bama, Mizzou, OU, Vandy,
+      // UT Austin — so the Greek picker spelled schools differently from the main site picker,
+      // and inconsistently between each other. canonicalSchoolName resolves the slug through the
+      // one school table; a non-SEC campus (none are offered here today) keeps its own name.
+      .map((c) => ({ slug: c.slug, name: canonicalSchoolName(c.slug, c.short_name || c.name) }))
       .sort((a, b) => a.name.localeCompare(b.name));
   });
 
