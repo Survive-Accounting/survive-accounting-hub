@@ -14,6 +14,7 @@ import { recut, type StitchDef } from "./stitch-defs";
 import {
   PREVIEW_CAVEAT, clearTrim, fmtT, moveItem, nudgeTrim, previewTimeline, setGap, toggleMuted,
 } from "./stitch-preview";
+import { STALL_TIMEOUT_MS, seqClipDone, seqClipFailed, seqGapDone, seqIdle, seqPastOut, seqStart, type SeqAction, type SeqSegment, type SeqState } from "./cut-sequencer";
 import { NEON } from "./theme";
 import type { TakeRef } from "./types";
 
@@ -36,49 +37,86 @@ const NUDGES = [-1, -0.25, 0.25, 1] as const;
 export function StitchPreview({ stitch, takes, onChange, onApprove, onClose, blockers }: StitchPreviewProps) {
   const tl = useMemo(() => previewTimeline(stitch, takes), [stitch, takes]);
   const vidRef = useRef<HTMLVideoElement | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [at, setAt] = useState(0);          // segment index being played
+  // P0 BUG 2 REBUILD: sequencing decisions live in cut-sequencer.ts (pure,
+  // 12-clip regression-tested); this component only executes actions against
+  // the one <video>. The old inline chain wedged three ways, all silent:
+  //   · outS defaults to the STORED take.duration, which is rounded to the
+  //     nearest 0.1s at stage time — when it rounds UP past the real media end,
+  //     the clip plays out, the last timeupdate never crosses outS−0.03, and
+  //     `ended` fired into NOTHING (no handler). Wedged on the final frame.
+  //     With p≈0.2 per clip, the expected wedge index is 5 — "stops at 5" was
+  //     the geometric distribution, not a constant.
+  //   · a bad src never fires loadedmetadata (no error listener, no timeout).
+  //   · v.play() rejections were swallowed — a wordless stop.
+  const [seq, setSeq] = useState<SeqState>(seqIdle());
+  const seqRef = useRef(seq);
+  useEffect(() => { seqRef.current = seq; }, [seq]);
   const gapTimer = useRef<number | undefined>(undefined);
-  const [inGap, setInGap] = useState(false);
+  const stallTimer = useRef<number | undefined>(undefined);
+  const segsRef = useRef<SeqSegment[]>([]);
+  segsRef.current = tl.segments.map((g) => ({ inS: g.inS, outS: g.outS, gapAfterMs: g.gapAfterMs, url: g.url, name: g.name }));
 
-  const stop = () => {
+  const clearTimers = () => {
     if (gapTimer.current != null) window.clearTimeout(gapTimer.current);
-    gapTimer.current = undefined;
-    vidRef.current?.pause();
-    setPlaying(false);
-    setInGap(false);
+    if (stallTimer.current != null) window.clearTimeout(stallTimer.current);
+    gapTimer.current = stallTimer.current = undefined;
   };
+  const stop = () => { clearTimers(); vidRef.current?.pause(); setSeq(seqIdle()); };
   useEffect(() => stop, []); // eslint-disable-line react-hooks/exhaustive-deps
   // Editing the cut mid-play would leave the sequencer pointing at a clip that
   // moved — stop rather than play something Lee didn't ask for.
-  useEffect(() => { stop(); setAt(0); }, [stitch.rev]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { stop(); }, [stitch.rev]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const playFrom = (i: number) => {
-    const seg = tl.segments[i];
+  /** Execute one sequencer action against the real <video>. */
+  const run = (r: { state: SeqState; action: SeqAction }) => {
+    setSeq(r.state);
+    const a = r.action;
+    if (a.kind === "done") { clearTimers(); vidRef.current?.pause(); return; }
+    if (a.kind === "gap") {
+      vidRef.current?.pause();
+      gapTimer.current = window.setTimeout(() => run(seqGapDone(segsRef.current, seqRef.current, a.nextIndex)), a.ms);
+      return;
+    }
+    // load: seek + play, with the guards the old player lacked.
     const v = vidRef.current;
-    if (!seg || !v) { stop(); return; }
-    setAt(i);
-    setInGap(false);
-    const start = () => { v.currentTime = seg.inS; void v.play().catch(() => setPlaying(false)); };
-    if (v.src !== seg.url) { v.src = seg.url; v.addEventListener("loadedmetadata", start, { once: true }); v.load(); }
-    else start();
-    setPlaying(true);
+    if (!v) return;
+    if (stallTimer.current != null) window.clearTimeout(stallTimer.current);
+    stallTimer.current = window.setTimeout(() => run(seqClipFailed(segsRef.current, seqRef.current, a.index, "stalled loading")), STALL_TIMEOUT_MS);
+    const begin = () => {
+      if (stallTimer.current != null) { window.clearTimeout(stallTimer.current); stallTimer.current = undefined; }
+      v.currentTime = a.seekS;
+      void v.play().catch((err) => run(seqClipFailed(segsRef.current, seqRef.current, a.index, err instanceof Error ? err.message : "play() refused")));
+    };
+    const fail = () => run(seqClipFailed(segsRef.current, seqRef.current, a.index, "media error"));
+    if (v.src !== a.url) {
+      v.src = a.url;
+      v.addEventListener("loadedmetadata", begin, { once: true });
+      v.addEventListener("error", fail, { once: true });
+      v.load();
+    } else begin();
   };
 
-  /** The tail watcher: stop at trimOut, hold the gap, roll the next clip. */
+  const playFrom = (i: number) => run(seqStart(segsRef.current, i));
+
+  /** The tail watcher: past the out point ⇒ next decision. */
   const onTime = () => {
-    const seg = tl.segments[at];
+    const st = seqRef.current;
+    const seg = segsRef.current[st.at];
     const v = vidRef.current;
-    if (!seg || !v || !playing || inGap) return;
-    if (v.currentTime < seg.outS - 0.03) return;
+    if (!seg || !v || !st.playing || st.inGap) return;
+    if (!seqPastOut(seg, v.currentTime)) return;
     v.pause();
-    const next = at + 1;
-    if (next >= tl.segments.length) { stop(); return; }
-    if (seg.gapAfterMs > 0) {
-      setInGap(true);
-      gapTimer.current = window.setTimeout(() => playFrom(next), seg.gapAfterMs);
-    } else playFrom(next);
+    run(seqClipDone(segsRef.current, st));
   };
+  // THE WEDGE FIX: a clip whose real media ends BEFORE its recipe out point
+  // (stored durations are rounded) must advance on `ended`, not freeze.
+  const onEnded = () => {
+    const st = seqRef.current;
+    if (st.at >= 0 && st.playing && !st.inGap) run(seqClipDone(segsRef.current, st));
+  };
+  const playing = seq.playing;
+  const at = seq.at;
+  const inGap = seq.inGap;
 
   const edit = (items: StitchDef["items"]) => onChange(recut(stitch, { items }));
   /** Map a visible segment back to its index in the FULL items array — muted
@@ -108,7 +146,7 @@ export function StitchPreview({ stitch, takes, onChange, onApprove, onClose, blo
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="relative">
-            <video ref={vidRef} playsInline preload="metadata" onTimeUpdate={onTime} className="w-full" style={{ background: "#000", aspectRatio: "16 / 9", maxHeight: 300 }} />
+            <video ref={vidRef} playsInline preload="metadata" onTimeUpdate={onTime} onEnded={onEnded} className="w-full" style={{ background: "#000", aspectRatio: "16 / 9", maxHeight: 300 }} />
             {inGap && (
               <div className="pointer-events-none absolute inset-0 grid place-items-center" style={{ background: "rgba(4,7,14,0.86)" }}>
                 <span className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider" style={{ color: NEON.yellow }}><Volume2 className="h-4 w-4" /> gap · {tl.segments[at]?.gapAfterMs}ms room tone</span>
@@ -126,6 +164,11 @@ export function StitchPreview({ stitch, takes, onChange, onApprove, onClose, blo
             {playing && <span className="text-[10px] font-bold" style={{ color: NEON.yellow }}>clip {at + 1}/{tl.segments.length}</span>}
           </div>
 
+          {seq.skipped.length > 0 && (
+            <div className="border-b px-3 py-1.5 text-[10px]" style={{ borderColor: NEON.borderSoft, color: "#FFB020" }}>
+              {seq.skipped.length} clip{seq.skipped.length === 1 ? "" : "s"} SKIPPED during playback — {seq.skipped.map((k) => k.name + " (" + k.reason + ")").join(", ")}. The cut kept going; fix the clip and replay.
+            </div>
+          )}
           {tl.missing.length > 0 && (
             <div className="border-b px-3 py-1.5 text-[10px]" style={{ borderColor: NEON.borderSoft, color: "#FF8B9E" }}>
               {tl.missing.length} clip{tl.missing.length === 1 ? "" : "s"} in this stitch could not be found and are NOT in the cut: {tl.missing.join(", ")}

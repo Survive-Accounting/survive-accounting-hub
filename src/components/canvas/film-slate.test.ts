@@ -13,6 +13,7 @@ import { attachTargets, type TakeRecord } from "./takes-store";
 
 const studio = readFileSync(join(import.meta.dir, "CeqStudio.tsx"), "utf8").split("\r\n").join("\n");
 const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8").split("\r\n").join("\n");
+const inbox = readFileSync(join(import.meta.dir, "TakesInbox.tsx"), "utf8").split("\r\n").join("\n");
 
 const take = (over: Partial<TakeRecord> = {}): TakeRecord => ({
   id: "t1", fileName: "a.mkv", sizeBytes: 10, mtimeMs: 1, recordedAt: "2026-08-16T00:00:00.000Z", status: "pending", ...over,
@@ -96,12 +97,20 @@ describe("the loop is wired end to end (F1 source pins)", () => {
     expect(studio).not.toContain("const runCountdown = useCallback");
     expect(studio).not.toContain('localStorage.getItem("sa-countdown")');
   });
-  test("run coverage accumulates every frame walked while OBS rolls", () => {
-    // Start-frame + stop-frame alone would attach a five-frame blast to two of
-    // them and silently drop the middle three.
-    expect(studio).toContain("if (!coveredRef.current.includes(qId)) coveredRef.current = [...coveredRef.current, qId];");
-    expect(studio).toContain("liveFrameIds={() => Array.from(new Set([...coveredRef.current,");
-    expect(studio).toContain("const onRecordStart = useCallback(() => { coveredRef.current = []; }, []);");
+  test("run coverage is the MODULE-LEVEL visited log (P0 rebuild, 08-18)", () => {
+    // The studio-owned accumulator is GONE: it captured live frames before its
+    // own reset, only fed the event ingest path, and its badge showed the armed
+    // target. The coverage log gates on its own open window, so this effect can
+    // fire on every navigation and between-take wandering is ignored.
+    expect(studio).toContain("useEffect(() => { if (qId && qId !== LAYOUT_Q0) logCoverageFrame(qId); }, [qId]);");
+    expect(studio).not.toContain("coveredRef");
+    expect(studio).toContain("openFrameId={() => (qId && qId !== LAYOUT_Q0 ? qId : null)}");
+    // record-start RESETS AND SEEDS in one call — the capture-before-reset
+    // ordering that polluted every take with its predecessor cannot recur.
+    expect(inbox).toContain("beginCoverage(openFrameRef.current());");
+    expect(inbox).toContain("const win = endCoverage();");
+    // and the SCAN path now matches late files to their recording window
+    expect(inbox).toContain("coverageForFile(f.lastModified)");
   });
 });
 

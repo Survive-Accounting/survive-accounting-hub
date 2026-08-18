@@ -91,9 +91,13 @@ describe("the laws (source pins)", () => {
     expect(studio).toContain('if (e.key !== "F7" || recording) return;');
     expect(studio).not.toContain('if (e.key !== "F8" || recording) return;');
   });
-  test("FILM-SAFE: the inbox, countdown and status never render while recording", () => {
-    // F2 docks the same inbox in Filming Mode — `!recording` still gates it.
-    expect(studio).toContain("{(takesOpen || filming) && !recording && (");
+  test("FILM-SAFE: the inbox, countdown and status never SHOW while recording", () => {
+    // P0 refinement: the law is about pixels, not processes. The inbox stays
+    // MOUNTED through Recording Mode (the OBS socket and F8/F10 triage live in
+    // it) and hides via display:none — unmounting it was how a whole session
+    // filmed with no coverage.
+    expect(studio).toContain("hidden={recording}");
+    expect(inbox).toContain("display: hidden ? \"none\" : undefined");
     // F1 moved the countdown into the capture window as a SLATE; the studio now
     // mirrors that one store, and its mirror still hides in Recording Mode.
     expect(studio).toContain("{(slate.count != null || slate.speak) && !recording && (");
@@ -125,7 +129,7 @@ describe("OBS failure diagnosis (the flashing bug + honest errors)", () => {
     const src = readFileSync(join(import.meta.dir, "TakesInbox.tsx"), "utf8").split("\r\n").join("\n");
     expect(src).toContain("}, [obsOn, connectTick, ingest]);");
     // render-unstable props must be read through refs, never depended on
-    expect(src).toContain("liveFramesRef.current()");
+    expect(src).toContain("openFrameRef.current()");   // renamed in P0: seed, not live list
     expect(src).toContain("onRecStartRef.current()");
     expect(src).not.toContain("[obsOn, addr, pass, ingest, liveFrameIds, onRecordStart]");
   });

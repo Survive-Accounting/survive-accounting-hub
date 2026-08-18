@@ -38,6 +38,7 @@ import { TakesInbox } from "./TakesInbox";
 import { type ObsStatus } from "./obs-bridge";
 import { attachTargets, currentTakes, saveTake, type TakeRecord, type TakeTarget } from "./takes-store";
 import { subscribeSlate, type SlateState } from "./film-slate";
+import { coverageLabel, logCoverageFrame } from "./coverage-log";
 import { PLATFORM_LABEL, VERTICAL_PLATFORMS, frameSize, geomField, isVertical, layoutField, layoutOf, type Orientation, type VerticalPlatform } from "./orientation";
 import { setOrientation, subscribeOrientation } from "./orientation-store";
 import { assignRunTo, fillDownRuns, normRun, type RunChange } from "./film-runs";
@@ -346,14 +347,14 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   useEffect(() => subscribeOrientation(setOrient), []);
   const [slate, setSlate] = useState<SlateState>({ count: null, speak: false });
   useEffect(() => subscribeSlate(setSlate), []);
-  /** RUN COVERAGE (F1): every frame walked while OBS rolls, so a blast across a run
-   *  attaches to ALL of them — not just where it started and where it stopped. */
-  const coveredRef = useRef<string[]>([]);
-  const onRecordStart = useCallback(() => { coveredRef.current = []; }, []);
-  useEffect(() => {
-    if (!obsState.recording || !qId || qId === LAYOUT_Q0) return;
-    if (!coveredRef.current.includes(qId)) coveredRef.current = [...coveredRef.current, qId];
-  }, [qId, obsState.recording]);
+  /** RUN COVERAGE (P0 rebuild): navigation feeds the module-level coverage log.
+   *  The log only listens while a recording window is open (beginCoverage in the
+   *  OBS record-start handler opens it), so this effect can fire on EVERY qId
+   *  change — between-take wandering is ignored by construction, and the studio
+   *  no longer owns an accumulator that a missed reset can poison. The capture
+   *  window is a portal of this same tree, so qId IS both windows' navigation. */
+  useEffect(() => { if (qId && qId !== LAYOUT_Q0) logCoverageFrame(qId); }, [qId]);
+  const onRecordStart = useCallback(() => { /* countdown mirrors the slate store; coverage begins in the OBS handler */ }, []);
   /** "ALL CEQs HERE" (Lee, 08-17) — place ONE frame, then stamp its placement
    *  onto every other frame in the set. The fast path for a vertical pass: the
    *  composition is the same for all of them, so sculpting it once and copying
@@ -1152,6 +1153,18 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       </div>
     );
   }, [questions, rf, qId, takePreview]);
+  /** Spine label for a frame id — Q-numbers for questions (notes never take a
+   *  number, same rule as the filmstrip), mode word for notes. Used by the
+   *  coverage chips and the pipeline clip stack. */
+  const spineLabelOf = (id: string): string | undefined => {
+    let i = 0;
+    for (const q of questions) {
+      const qd = rf.getNode(q.id)?.data as unknown as CeqCard | undefined;
+      if (!qd?.noteOnly) i++;
+      if (q.id === id) return qd?.noteOnly ? (qd.frameMode ?? "note").toUpperCase() : "Q" + i;
+    }
+    return undefined;
+  };
   /** The filmstrip's mini-card data — read once per nodes change. */
   const stripItems = useMemo<StripItem[]>(() => questions.map((q) => {
     const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined;
@@ -3097,8 +3110,15 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   </div>
                 </div>
               )}
-              {(takesOpen || filming) && !recording && (
+              {/* P0 (workflow-found): Recording Mode used to UNMOUNT the inbox,
+                  which closed the OBS websocket mid-session — record start/stop
+                  events during actual filming were never received (no coverage,
+                  no event ingest), and F10 fired triageLatest into a NULL handler.
+                  The film-safe law is about PIXELS, not processes: hide the
+                  surface, keep the machinery alive. */}
+              {(takesOpen || filming) && (
                 <TakesInbox
+                  hidden={recording}
                   inline={filming}
                   onRecycle={setBinStat}
                   onRoomTone={async (_t, file) => {
@@ -3113,7 +3133,8 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   onClose={() => setTakesOpen(false)}
                   armed={armedTarget}
                   onDisarm={() => { setArmedTarget(null); setNote("Uploads disarmed — new takes land unattached."); }}
-                  liveFrameIds={() => Array.from(new Set([...coveredRef.current, ...(qId && qId !== LAYOUT_Q0 ? [qId] : [])]))}
+                  openFrameId={() => (qId && qId !== LAYOUT_Q0 ? qId : null)}
+                  coverageChip={(t) => coverageLabel(t.coverage?.frameIds, questions.map((q) => q.id), spineLabelOf)}
                   onObsState={setObsState}
                   onRecordStart={onRecordStart}
                   onUpload={async (t: TakeRecord, file: File) => {

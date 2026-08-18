@@ -36,8 +36,11 @@ describe("what filming mode shows — and what it doesn't", () => {
     expect(studio).toContain('{topTab === "preview" || !libOpen || filming ? null : ('); // memo library
     expect(studio).toContain("{qd && !filming && (");                                // stem/choice editor
   });
-  test("the take rail is ALWAYS mounted while filming — one inbox, never two", () => {
-    expect(studio).toContain("{(takesOpen || filming) && !recording && (");
+  test("ONE inbox, mounted through Recording Mode — hidden, never unmounted (P0)", () => {
+    // Unmounting closed the OBS socket mid-session: record events during
+    // filming were lost (no coverage) and F10 fired into a null triage handler.
+    expect(studio).toContain("{(takesOpen || filming) && (");
+    expect(studio).toContain("hidden={recording}");
     expect((studio.match(/<TakesInbox/g) ?? []).length).toBe(1); // two mounts = two OBS sockets
   });
   test("the status strip carries the four signals and stays out of frame", () => {

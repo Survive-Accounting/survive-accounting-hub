@@ -10,6 +10,7 @@ import { Check, FolderOpen, Loader2, Mic, Play, RefreshCw, RotateCcw, Trash2, X 
 
 import { connectObs, OBS_DEFAULT_ADDRESS, baseName, type ObsStatus } from "./obs-bridge";
 import { cancelSlate, slateEndOffsetMs, slateSeconds, startSlate, SLATE_CHOICES, setSlateSeconds } from "./film-slate";
+import { beginCoverage, coverageForFile, endCoverage } from "./coverage-log";
 import { orientation } from "./orientation-store";
 import { fileUrl, fsaSupported, getFile, moveToRecycle, pickTakesFolder, probeDuration, recycleStats, restoreFromRecycle, savedTakesFolder, scanFolder } from "./takes-folder";
 import { currentTakes, dropTakeRecord, fmtBytes, latestPending, loadTakes, makeRecord, missingRecords, newFiles, saveTake, setTriageHandler, subscribeTakes, type TakeRecord, type TakeTarget } from "./takes-store";
@@ -23,6 +24,12 @@ export interface TakesInboxProps {
   /** Bank a kept take against its target: upload + attach. Resolves to the
    *  public URL, or throws — the record keeps the error and the file survives. */
   onUpload: (take: TakeRecord, file: File) => Promise<{ url: string; path: string }>;
+  /** HIDE THE PIXELS, KEEP THE PROCESS (P0, 08-18). While Recording Mode owns
+   *  the screen the inbox must not RENDER — but unmounting it closed the OBS
+   *  socket and unregistered the F8/F10 triage handler mid-session, which is
+   *  how a whole filming pass banked takes with no coverage. display:none
+   *  satisfies the film-safe law; the websocket and hotkeys stay live. */
+  hidden?: boolean;
   /** FILMING MODE (F2): render as a filling column inside the rail instead of a
    *  floating drawer. Same component — the mode switch re-arranges surfaces, it
    *  does not fork them. */
@@ -30,8 +37,14 @@ export interface TakesInboxProps {
   /** The per-CEQ attached-clip list, merged in above the queues. Supplied by the
    *  Studio so the clip logic lives in exactly one place. */
   clipsPanel?: ReactNode;
-  /** Frames on screen right now — the coverage hint for a live take. */
-  liveFrameIds: () => string[];
+  /** The frame open RIGHT NOW — the seed for a take's coverage window. The
+   *  visited log itself lives in coverage-log.ts and is fed by the studio's
+   *  navigation effect; this is only the starting frame at record-start. */
+  openFrameId: () => string | null;
+  /** Render a take's coverage as a spine label ("Q3", "Q3–Q6") — supplied by
+   *  the studio, which knows the spine. P0: the row badge shows COVERAGE now;
+   *  the armed target's label masquerading as coverage was half of bug 1. */
+  coverageChip?: (t: TakeRecord) => string | null;
   /** Mirror status up so the Studio can render the chip/dot/countdown. */
   onObsState: (s: { status: ObsStatus; recording: boolean; detail?: string }) => void;
   /** Fired on OBS record-start so the Studio can run the countdown. */
@@ -46,7 +59,7 @@ export interface TakesInboxProps {
 
 type Dir = Awaited<ReturnType<typeof savedTakesFolder>>;
 
-export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, onObsState, onRecordStart, onRecycle, onRoomTone, inline, clipsPanel }: TakesInboxProps) {
+export function TakesInbox({ onClose, armed, onDisarm, onUpload, openFrameId, coverageChip, onObsState, onRecordStart, onRecycle, onRoomTone, inline, clipsPanel, hidden }: TakesInboxProps) {
   const [takes, setTakes] = useState<TakeRecord[]>(() => currentTakes());
   const [dir, setDir] = useState<Dir>(null);
   const [status, setStatus] = useState<ObsStatus>("off");
@@ -60,7 +73,7 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
   const [addr, setAddr] = useState(() => localStorage.getItem("sa-obs-addr") ?? OBS_DEFAULT_ADDRESS);
   const [pass, setPass] = useState(() => localStorage.getItem("sa-obs-pass") ?? "");
   const [obsOn, setObsOn] = useState(() => localStorage.getItem("sa-obs-on") === "1");
-  const recStartRef = useRef<{ at: string; startedMs: number; frames: string[] } | null>(null);
+  const recStartRef = useRef<{ at: string; startedMs: number } | null>(null);
   const dirRef = useRef<Dir>(null);
   const armedRef = useRef<TakeTarget | null>(armed);
   useEffect(() => { armedRef.current = armed; }, [armed]);
@@ -69,12 +82,12 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
   // effect's deps, each failed connect wrote status, re-rendered the Studio,
   // re-ran the effect, closed the socket and reconnected: an infinite
   // connect/fail/flash loop that looked like OBS refusing us. Refs break it.
-  const liveFramesRef = useRef(liveFrameIds);
+  const openFrameRef = useRef(openFrameId);
   const onRecStartRef = useRef(onRecordStart);
   const addrRef = useRef(addr);
   const passRef = useRef(pass);
   const onRecycleRef = useRef(onRecycle);
-  useEffect(() => { liveFramesRef.current = liveFrameIds; onRecStartRef.current = onRecordStart; onRecycleRef.current = onRecycle; addrRef.current = addr; passRef.current = pass; });
+  useEffect(() => { openFrameRef.current = openFrameId; onRecStartRef.current = onRecordStart; onRecycleRef.current = onRecycle; addrRef.current = addr; passRef.current = pass; });
   /** Bumped by the Connect button — the ONLY thing that re-dials (typing a
    *  password no longer tears the socket down mid-keystroke). */
   const [connectTick, setConnectTick] = useState(0);
@@ -106,7 +119,12 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
       // Stamp the shape it was FILMED in at ingest — the only moment we can know
       // it for certain, and what lets the rail group and the publish gate refuse a
       // mixed 9:16 cut.
-      const rec = makeRecord(f, { orientation: orientation(), ...(armedRef.current ? { target: armedRef.current } : {}), ...(opts?.coverage ? { coverage: opts.coverage } : {}), ...(opts?.slateEndMs != null ? { slateEndMs: opts.slateEndMs } : {}) });
+      // P0 BUG 1, the scan-path hole: a take whose file finalized after the
+      // quick retries banked here with NO coverage, so attach fell through to
+      // the sticky armed target. Match the file's mtime to its recording
+      // window instead — coverage survives the slow finalize.
+      const matched = opts?.coverage ?? coverageForFile(f.lastModified) ?? undefined;
+      const rec = makeRecord(f, { orientation: orientation(), ...(armedRef.current ? { target: armedRef.current } : {}), ...(matched ? { coverage: matched } : {}), ...(opts?.slateEndMs != null ? { slateEndMs: opts.slateEndMs } : {}) });
       const file = await getFile(d, f.name);
       if (file) rec.durationS = await probeDuration(file);
       await saveTake(rec);
@@ -124,7 +142,12 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
         if (e.kind === "started") {
           setRecording(true);
           const startedMs = startSlate(); // the in-frame slate — see film-slate.ts
-          recStartRef.current = { at: new Date().toISOString(), startedMs, frames: liveFramesRef.current() };
+          // P0 BUG 1: the old code captured live frames BEFORE resetting the
+          // accumulator, so every take inherited the previous take's visited
+          // list. beginCoverage is reset-and-seed in ONE call — no ordering to
+          // get wrong, and navigation between takes can't accumulate at all.
+          beginCoverage(openFrameRef.current());
+          recStartRef.current = { at: new Date().toISOString(), startedMs };
           onRecStartRef.current();
           return;
         }
@@ -132,7 +155,8 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
         const started = recStartRef.current;
         recStartRef.current = null;
         cancelSlate();
-        const coverage = started ? { startedAt: started.at, stoppedAt: new Date().toISOString(), frameIds: Array.from(new Set([...started.frames, ...liveFramesRef.current()])) } : undefined;
+        const win = endCoverage();
+        const coverage = win ?? undefined;   // the visited list, this take only
         const slateEndMs = started ? (slateEndOffsetMs(started.startedMs) ?? undefined) : undefined;
         // OBS finishes the file just after the event — retry the scan briefly.
         const name = e.kind === "stopped" && e.path ? baseName(e.path) : undefined;
@@ -206,7 +230,13 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
         <span className="min-w-0 flex-1 truncate text-[10px]" style={{ color: NEON.text }} title={t.fileName}>{t.fileName}</span>
         {t.orientation === "9:16" && <span className="shrink-0 rounded px-1 text-[7.5px] font-black" style={{ color: "#0B1322", background: "#B79CFF" }} title="Filmed vertical">9:16</span>}
         {t.durationS ? <span className="shrink-0 text-[8.5px] tabular-nums" style={{ color: NEON.muted }}>{Math.round(t.durationS)}s</span> : null}
-        {t.target && <span className="shrink-0 rounded px-1 text-[7.5px] font-bold uppercase" style={{ color: "#B79CFF", border: `1px solid ${NEON.borderSoft}` }} title={t.target.ids.length + " frame(s)"}>{t.target.label ?? t.target.kind}</span>}
+        {/* P0: the badge is the take's COVERAGE — where it will attach. The old
+            badge rendered the armed target's label ("11 frames"), which is how a
+            stale whole-set arm masqueraded as coverage on every row. */}
+        {(() => { const c = coverageChip?.(t); return c
+          ? <span className="shrink-0 rounded px-1 text-[7.5px] font-black uppercase" style={{ color: "#0B1322", background: "#3BF5A0" }} title="Frames on screen while this take rolled — where a keep attaches">{c}</span>
+          : t.target ? <span className="shrink-0 rounded px-1 text-[7.5px] font-bold uppercase" style={{ color: "#B79CFF", border: `1px solid ${NEON.borderSoft}` }} title={"No coverage recorded — a keep falls back to the ARMED target (" + t.target.ids.length + " frame(s))"}>→ {t.target.label ?? t.target.kind}</span>
+          : null; })()}
         {up === "uploading" && <Loader2 className="h-3 w-3 shrink-0 animate-spin" style={{ color: NEON.cyan }} />}
         {up === "done" && <span className="shrink-0 text-[8px] font-bold" style={{ color: "#3BF5A0" }}>✓ up</span>}
         {up === "error" && <button className="shrink-0 text-[8px] font-bold" style={{ color: "#FF8B9E" }} title={t.upload?.error} onClick={() => void doKeep(t)}>retry</button>}
@@ -234,7 +264,7 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, liveFrameIds, o
   };
 
   return (
-    <div className={inline ? "order-last ml-2 flex h-full w-[380px] min-w-0 max-w-[42%] shrink-0 flex-col overflow-hidden rounded-lg" : "absolute inset-y-0 right-0 z-[74] flex w-[380px] max-w-[94vw] flex-col shadow-2xl"} style={{ background: NEON.panelSolid, border: inline ? `1px solid ${NEON.borderSoft}` : undefined, borderLeft: inline ? undefined : `1px solid ${NEON.border}` }}>
+    <div className={inline ? "order-last ml-2 flex h-full w-[380px] min-w-0 max-w-[42%] shrink-0 flex-col overflow-hidden rounded-lg" : "absolute inset-y-0 right-0 z-[74] flex w-[380px] max-w-[94vw] flex-col shadow-2xl"} style={{ display: hidden ? "none" : undefined, background: NEON.panelSolid, border: inline ? `1px solid ${NEON.borderSoft}` : undefined, borderLeft: inline ? undefined : `1px solid ${NEON.border}` }}>
       <div className="flex items-center gap-2 border-b px-3 py-2" style={{ borderColor: NEON.borderSoft }}>
         <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: "#3BF5A0" }}>Takes inbox</span>
         <button className="rounded px-1.5 py-0.5 text-[8.5px] font-bold uppercase" style={{ color: status === "connected" ? "#3BF5A0" : status === "error" ? "#FF8B9E" : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setShowObs((v) => !v)} title={detail || "OBS WebSocket — click for settings"}>OBS {status === "connected" ? "●" : "○"}</button>
