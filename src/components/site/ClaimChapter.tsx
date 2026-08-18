@@ -8,6 +8,7 @@ import { useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { CLAIM_POSITIONS, submitChapterClaim } from "@/lib/greek-claims.functions";
+import { useDismiss } from "@/lib/use-dismiss";
 
 const fmtPhone = (v: string) => {
   if (v.trim().startsWith("+")) return "+" + v.replace(/\D/g, "").slice(0, 15);
@@ -31,6 +32,9 @@ export function ClaimChapter({ schoolSlug, chapterSlug, chapterName, claimStatus
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // Esc + click-outside. Gated on `open` — an always-listening closed form would eat the Escape
+  // key from whatever overlay the visitor actually has in front of them.
+  const panelRef = useDismiss<HTMLDivElement>(() => setOpen(false), { enabled: open });
 
   // A claimed chapter says so instead of offering a button that can only fail. A PENDING one says
   // so too — the exec who submitted it an hour ago should see that it landed, not an unchanged form
@@ -67,8 +71,19 @@ export function ClaimChapter({ schoolSlug, chapterSlug, chapterName, claimStatus
       ) : claimStatus === "pending" ? (
         <p className="text-[12.5px]" style={{ color: "var(--text-muted)" }}>Someone from {chapterName} has already claimed this — Lee is reviewing it.</p>
       ) : open ? (
-        <div className="mx-auto max-w-sm rounded-xl p-4 text-left" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
-          <p className="mb-1 text-[13.5px] font-black" style={{ color: "var(--brand-cream)" }}>Claim {chapterName}</p>
+        // THREE WAYS OUT — x, Esc, and a click outside. This form previously had NONE: once it was
+        // open the only exit was reloading the page, which also threw away anything typed.
+        <div ref={panelRef} className="relative mx-auto max-w-sm rounded-xl p-4 text-left" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Close"
+            className="absolute right-1.5 top-1.5 grid place-items-center rounded-full hover:bg-white/10"
+            style={{ width: 32, height: 32, color: "var(--text-muted)", lineHeight: 1 }}
+          >
+            <span aria-hidden style={{ fontSize: 17 }}>×</span>
+          </button>
+          <p className="mb-1 pr-8 text-[13.5px] font-black" style={{ color: "var(--brand-cream)" }}>Claim {chapterName}</p>
           <p className="mb-3 text-[12px]" style={{ color: "var(--text-muted)" }}>Lee will text you back to set it up.</p>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="mb-2 w-full rounded-lg px-3 text-[14px] outline-none" style={{ minHeight: 44, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }} />
           <select value={position} onChange={(e) => setPosition(e.target.value)} className="mb-2 w-full rounded-lg px-3 text-[14px] outline-none" style={{ minHeight: 44, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }}>
