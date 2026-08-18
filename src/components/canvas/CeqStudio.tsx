@@ -42,7 +42,8 @@ import { attachTargets, currentTakes, keepTakeTo, saveTake, triageLatest, type T
 import { clipAudio } from "./waveform-peaks";
 import { subscribeSlate, type SlateState } from "./film-slate";
 import { coverageLabel, logCoverageFrame } from "./coverage-log";
-import { DEFAULT_POST_ROLL_MS, DEFAULT_PRE_ROLL_MS, detectSpeech, proposeTrim } from "./landmarks";
+import { classifyEdit, editLogState, exportEditLog, logEditEvent, startEditLog } from "./edit-telemetry";
+import { DEFAULT_POST_ROLL_MS, DEFAULT_PRE_ROLL_MS, detectSpeech, proposeTrim, TRIM_RULE_VERSION } from "./landmarks";
 import { PLATFORM_LABEL, VERTICAL_PLATFORMS, frameSize, geomField, isVertical, layoutField, layoutOf, type Orientation, type VerticalPlatform } from "./orientation";
 import { setOrientation, subscribeOrientation } from "./orientation-store";
 import { assignRunTo, fillDownRuns, normRun, type RunChange } from "./film-runs";
@@ -343,6 +344,9 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     window.addEventListener("sa-open-pipeline", on);
     return () => window.removeEventListener("sa-open-pipeline", on);
   }, []);
+  // P4: the edit log drains its local-first queue from the moment the Studio
+  // exists — not just when a trim happens.
+  useEffect(() => { startEditLog(); }, []);
   const [binStat, setBinStat] = useState({ count: 0, bytes: 0 });
   // ONE COUNTDOWN (F1): the slate store is the single source — the capture window
   // renders it IN FRAME and the studio MIRRORS it here. There used to be a second,
@@ -1179,14 +1183,61 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const [preRollMs, setPreRollMs] = useState<number>(() => { const v = Number(localStorage.getItem("sa-trim-preroll-ms")); return Number.isFinite(v) && v > 0 ? v : DEFAULT_PRE_ROLL_MS; });
   const [postRollMs, setPostRollMs] = useState<number>(() => { const v = Number(localStorage.getItem("sa-trim-postroll-ms")); return Number.isFinite(v) && v > 0 ? v : DEFAULT_POST_ROLL_MS; });
   const [proposeBusy, setProposeBusy] = useState(false);
+  /** P4: this session's proposals by take path — the baseline manual events are
+   *  measured against. Survives the autoTrim flag, which the first nudge clears. */
+  const proposedRef = useRef(new Map<string, { inS: number; outS: number }>());
+  /** P4: ONE logger for every trim door. Never blocks the edit path — the
+   *  landmark enrichment rides the audio cache's promise (usually already
+   *  resolved), and a localStorage failure SURFACES instead of dropping. */
+  const logTrim = (takePath: string, final: { inS: number; outS: number }, how: "propose" | "drag" | "nudge", proposed: { inS: number; outS: number } | null, span?: { onsetMs: number | null; offsetMs: number | null }) => {
+    if (!deck) return;
+    const t = takesByPath.get(takePath);
+    const base = {
+      setId: deck.id,
+      ceqId: ceqOfPath.get(takePath) ?? null,
+      takePath,
+      takeName: t?.name ?? null,
+      durationS: t?.duration ?? null,
+      slateEndMs: t?.slateEndMs ?? null,
+      proposedInS: proposed?.inS ?? null,
+      proposedOutS: proposed?.outS ?? null,
+      finalInS: final.inS,
+      finalOutS: final.outS,
+      how,
+      disposition: how === "propose" ? ("proposed" as const) : classifyEdit(proposed, final),
+      ruleVersion: TRIM_RULE_VERSION,
+      preRollMs,
+      postRollMs,
+    };
+    const write = (onsetMs: number | null, offsetMs: number | null) => { try { logEditEvent({ ...base, onsetMs, offsetMs }); } catch (err) { setNote("EDIT LOG WRITE FAILED (localStorage): " + (err instanceof Error ? err.message : String(err))); } };
+    if (span) { write(span.onsetMs, span.offsetMs); return; }
+    if (!t) { write(null, null); return; }
+    clipAudio(t.path, t.url).then((a) => { const sp = detectSpeech(a.rms, a.frameMs); write(sp.onsetMs, sp.offsetMs); }, () => write(null, null));
+  };
+  /** P4: EXPORT EDIT LOG — JSON + CSV, clipboard + download. Server rows merge
+   *  in when reachable; otherwise the note says LOCAL-ONLY instead of pretending. */
+  const doExportEditLog = async () => {
+    const { json, csv, count, scope } = await exportEditLog();
+    if (!count) { setNote("Edit log is empty — trim something first."); return; }
+    try { await navigator.clipboard.writeText(json); } catch { /* clipboard denied — the downloads still happen */ }
+    const dl = (name: string, mime: string, body: string) => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([body], { type: mime })); a.download = name; a.click(); URL.revokeObjectURL(a.href); };
+    const day = isoDay();
+    dl(`sa-edit-log-${day}.json`, "application/json", json);
+    dl(`sa-edit-log-${day}.csv`, "text/csv", csv);
+    const st = editLogState();
+    setNote(`Exported ${count} edit event${count === 1 ? "" : "s"} (${scope}${st.pending ? ` · ${st.pending} not yet synced — they never drop; sync retries on its own` : ""}). JSON on the clipboard; both files downloaded.`);
+  };
   /** P2: the door every HAND trim walks through — the strips call only this.
    *  It writes the RECIPE item (non-destructive by construction; the media
    *  file is never touched) and clears autoTrim so the amber marking stays
-   *  honest. `_how` is the P4 telemetry seam. */
-  const applyTrim = (takePath: string, inS: number, outS: number, _how: "drag" | "nudge") => {
+   *  honest. Every walk through logs an edit event (P4). */
+  const applyTrim = (takePath: string, inS: number, outS: number, how: "drag" | "nudge") => {
     if (!pipelineStitch) return;
+    const prev = pipelineStitch.items.find((i) => i.takePath === takePath);
     const items = pipelineStitch.items.map((i) => (i.takePath === takePath ? { ...i, trimInS: Math.round(inS * 1000) / 1000, trimOutS: Math.round(outS * 1000) / 1000, autoTrim: undefined } : i));
     persistStitch(recut(pipelineStitch, { items }));
+    const proposed = proposedRef.current.get(takePath) ?? (prev?.autoTrim && prev.trimInS != null && prev.trimOutS != null ? { inS: prev.trimInS, outS: prev.trimOutS } : null);
+    logTrim(takePath, { inS, outS }, how, proposed);
   };
   /** PROPOSE TRIMS (P2): for every clip in the cut WITHOUT a trim, in = onset − X,
    *  out = offset + Y — slate- and length-clamped, silent clips skipped, marked
@@ -1198,6 +1249,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     setProposeBusy(true);
     try {
       const found = new Map<string, { inS: number; outS: number }>();
+      const spans = new Map<string, { onsetMs: number | null; offsetMs: number | null }>();
       // Decode in small chunks — 40 clips of raw PCM at once is a memory spike.
       for (let at = 0; at < targets.length; at += 4) {
         await Promise.all(targets.slice(at, at + 4).map(async (i) => {
@@ -1205,8 +1257,9 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
           if (!t) return;
           try {
             const a = await clipAudio(t.path, t.url);
-            const p = proposeTrim(detectSpeech(a.rms, a.frameMs), { durationS: a.durationS, slateEndMs: t.slateEndMs, preRollMs, postRollMs });
-            if (p) found.set(i.takePath, p);
+            const sp = detectSpeech(a.rms, a.frameMs);
+            const p = proposeTrim(sp, { durationS: a.durationS, slateEndMs: t.slateEndMs, preRollMs, postRollMs });
+            if (p) { found.set(i.takePath, p); spans.set(i.takePath, sp); }
           } catch { /* undecodable — skipped; the final count stays honest */ }
         }));
         setNote(`Proposing trims… ${Math.min(at + 4, targets.length)}/${targets.length} clips analyzed`);
@@ -1214,6 +1267,9 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       if (!found.size) { setNote("No trims proposed — no untrimmed clip had detectable speech (or audio failed to decode)."); return; }
       const items = pipelineStitch.items.map((i) => { const p = found.get(i.takePath); return p ? { ...i, trimInS: Math.round(p.inS * 1000) / 1000, trimOutS: Math.round(p.outS * 1000) / 1000, autoTrim: true } : i; });
       persistStitch(recut(pipelineStitch, { items }));
+      // P4: one "proposed" event per clip — the baseline every later hand
+      // adjustment is measured against.
+      for (const [path, p] of found) { proposedRef.current.set(path, p); logTrim(path, p, "propose", p, spans.get(path)); }
       setNote(`PROPOSED ${found.size} trim${found.size === 1 ? "" : "s"} (in = onset − ${preRollMs}ms · out = offset + ${postRollMs}ms). Amber handles = auto — drag or nudge to adjust; nothing rendered.`);
     } finally { setProposeBusy(false); }
   })(); };
@@ -1342,6 +1398,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
               <input type="number" min={0} step={10} className="w-9 rounded bg-transparent px-0.5 text-[8px] tabular-nums outline-none" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={postRollMs} onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setPostRollMs(v); localStorage.setItem("sa-trim-postroll-ms", String(v)); }} />
             </label>
             <button className="rounded px-1.5 py-0.5 text-[8px] font-black uppercase disabled:opacity-50" style={{ color: "#FFB020", border: "1px solid rgba(255,176,32,0.5)" }} disabled={proposeBusy || !pipelineStitch} onClick={proposeTrims} title="PROPOSE TRIMS — for every clip WITHOUT a trim: in = speech onset − X, out = speech offset + Y (slate- and length-clamped; silent clips skipped). Marked AUTO (amber) until hand-adjusted. Proposals only: nothing plays, nothing renders, never runs on its own.">{proposeBusy ? "analyzing…" : "propose trims"}</button>
+            <button className="rounded px-1.5 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => void doExportEditLog()} title="EXPORT EDIT LOG — every trim decision: auto-proposed vs final in/out, accepted/nudged/overridden, rule versions. JSON + CSV both download; JSON also lands on the clipboard. Events sync to Supabase local-first and are never lost offline.">⇩ edit log</button>
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-1">

@@ -1,3 +1,77 @@
+# Pipeline View — P0–P4 (filming → cut → telemetry, one room)
+
+On `main` directly (vertical-filming → main), commits `c1b4460b`…`P4`. Studio/filming code only —
+no landing, no Greek.
+
+> Both sessions write this file, so this entry STACKS on top of Landing Pass 8 rather than replacing it.
+
+---
+
+## P0 — the two session-killers, root-caused first
+
+**"Everything says 11 FRAMES and attaches to Q2":** three stacked defects — the badge showed the
+sticky ARMED target's label (a one-time whole-set arm), Recording Mode UNMOUNTED the takes inbox
+(closing the OBS websocket mid-session: no record events, no coverage, F10 into a null handler),
+and record-start captured the visited-frames log BEFORE resetting it. Fixed with a module-level
+coverage log (`coverage-log.ts`: begin = reset+seed, log gated on an open window, closed windows
+retained so the Scan path matches late files by mtime), the inbox staying MOUNTED through Recording
+Mode (`display:none` — the film-safe law is about pixels, not processes), and badges that show
+COVERAGE ("Q3", "Q3–Q6") with an honest "→ armed-label" fallback.
+
+**"Preview stops at clip 5":** no literal 5 anywhere. Stored durations are rounded to 0.1s; when
+rounded UP past the real media end, the final timeupdate never crossed `outS−0.03` and `ended`
+fired into NOTHING — wedged. At p≈0.2 per clip the geometric expectation is… 5. Playback decisions
+now live in a PURE sequencer (`cut-sequencer.ts`, regression-tested with 12 clips): `ended`
+advances, errors and stalls SKIP WITH A SURFACED NOTICE, never a wedge.
+
+## P1 — the room
+
+**PIPELINE** button in the canvas navbar (next to File) opens the Studio already in Pipeline mode.
+Layout: spine · capture previewer · NEW center column (cut player over the clip stack) · take rail.
+Nothing rebuilt: the player runs the P0 sequencer via `use-cut-player.ts`; the cut is the EXISTING
+set-scope stitch recipe, derived read-only with fresh keeps auto-joined at their spine position;
+TRUE RENDER is the existing per-CEQ ffmpeg path. The clip stack is `clipsPanel` moved OUT of the
+rail — ONE takes surface (pinned by occurrence-counting tests). F10/F8 triage now also works in the
+Studio itself, guarded so the film keymaps can never double-fire.
+
+## P2 — waveforms, landmarks, trims
+
+Per-clip waveform strips (Web Audio peaks, cached per take path), landmark ticks (slate end ·
+speech onset · speech offset via RMS against the clip's own noise floor — **the 808 counts as
+audio**: pure energy, no spectral tricks), draggable handles with magnetic snap (80ms) and
+arrow/shift-arrow = 50/10ms nudges that never snap. Non-destructive by construction: a handle
+writes `trimInS/trimOutS` on the STITCH RECIPE item only. **PROPOSE TRIMS**: in = onset − X,
+out = offset + Y (X/Y are header settings, default 150/250ms), untrimmed clips only, marked amber
+`autoTrim` until hand-adjusted, and it NEVER runs on its own.
+
+## P3 — scratch lane + drag (the correction layer)
+
+Rail = PENDING · SCRATCH (kept, unattached) · RECYCLE; attached takes live in the stack, one home
+each. Rail rows drag onto a CEQ group or between clip rows — attach at that position; an explicit
+drop target beats coverage/armed, and a drop never moves the spine. Clip rows reorder within their
+group (the stack order IS the stitch order; a saved recipe permutes in-slot, trims riding along).
+DETACH ≠ TRASH, said on the buttons. Keyboard loop untouched.
+
+## P4 — edit telemetry
+
+Every trim decision logs an event: take/CEQ/set, durations, slate/onset/offset, auto-proposed vs
+final in/out, accepted (≤10ms) / nudged (≤300ms) / overridden, rule version + the X/Y that
+produced it. Local-first queue cloned from the Idea Bank (derived queue, retries, loud failures,
+prune-only-synced). **EXPORT EDIT LOG** = JSON + CSV, clipboard + download, honest about
+merged-vs-local-only scope. No dashboards.
+
+> **Lee: one SQL to apply** — `migration/supabase-migrations/0117_edit_events.sql` in the Supabase
+> SQL editor (deny-by-default, same shape as idea_notes). Until then the log queues locally and the
+> export says "local-only"; nothing is lost.
+
+## Not verified without OBS
+
+The full rehearsal (arm Q1 → F9/blast/F10 × ten frames → drag onto Q4 → reorder → Propose → nudge →
+play cut → TRUE RENDER → export) needs a real filming session — every piece is unit/pin-tested
+(1268 pass), but the OBS loop, real drags, and audio decoding on real takes are Lee's to confirm.
+
+---
+
 # Landing Pass 8 — link preview, hero simplification, mobile player, materials break
 
 Branch: `landing-pass-8`, on top of `main` @ `34207001`. Landing page only — no Greek, no studio,
