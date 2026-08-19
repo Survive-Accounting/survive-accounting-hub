@@ -54,8 +54,9 @@ export const transcribeTake = createServerFn({ method: "POST" })
     if (existing.error) rethrow(existing.error);
     if (existing.data) return existing.data as TranscriptRow;
 
-    const key = process.env.OPENAI_API_KEY;
-    if (!key) throw new Error("OPENAI_API_KEY is not configured on the server — set it in Vercel env to enable transcription");
+    // Lee's key lives in OPENAI_WHISPER; fall back to the conventional name.
+    const key = process.env.OPENAI_WHISPER || process.env.OPENAI_API_KEY;
+    if (!key) throw new Error("no OpenAI key on the server — set OPENAI_WHISPER (or OPENAI_API_KEY) in Vercel env to enable transcription");
     const model = process.env.WHISPER_MODEL || "whisper-1";
 
     const fileRes = await fetch(data.url);

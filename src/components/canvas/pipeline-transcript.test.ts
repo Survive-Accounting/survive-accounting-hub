@@ -77,7 +77,7 @@ describe("Whisper server function — word-level, not Mux", () => {
   test("the 25MB cap fails LOUD rather than silently truncating", () => {
     expect(fns).toContain("const MAX_BYTES = 25 * 1024 * 1024;");
     expect(fns).toContain("over Whisper's 25MB cap");
-    expect(fns).toContain("process.env.OPENAI_API_KEY");
+    expect(fns).toContain("process.env.OPENAI_WHISPER || process.env.OPENAI_API_KEY");
   });
   test("the store is deny-by-default, keyed by path", () => {
     expect(sql).toContain("take_path   text primary key");
