@@ -1395,7 +1395,16 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     // qNum = this question's DECK position (what the Studio rows and take filenames
     // use). Q0/layout is not in deckCeqIds → 0 → the overlay doesn't render.
     const qNum = layoutMode ? 0 : Math.max(0, (deckCeqIds?.indexOf(ceqId) ?? -1) + 1);
-    const frameNode = { id: "__frame__", type: "frameBg", position: { x: 0, y: yOff }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum, guides: recording ? false : guidesOn }, draggable: false, selectable: false, zIndex: -10 };
+    // SPACEWALK-FLASH FIX (08-19): in the film stack, the active frame's
+    // background must carry the SAME stable per-frame id the stand-ins use
+    // (`fbg:<qid>`) — NOT the shared `__frame__`. Before this, navigating swapped
+    // the arriving slot's background node id (fbg:<qid> stand-in → __frame__
+    // active), so React Flow tore down and rebuilt the FrameBgNode → WorldBackground
+    // remounted and its glow/drift animations restarted from frame 0: the "whole
+    // frame refreshes" flash. With a matching id the node is identical before and
+    // after the seed, so it never remounts. Outside the stack (authoring, no
+    // popout) there are no stand-ins, so the shared id stays.
+    const frameNode = { id: filmStack ? `fbg:${ceqId}` : "__frame__", type: "frameBg", position: { x: 0, y: yOff }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum, guides: recording ? false : guidesOn }, draggable: false, selectable: false, zIndex: -10 };
     // STUDENT OVERLAY (Lee) — filmed on the card, one toggle (showProgress):
     //   "X of Y" over the deck order + a fill bar, and the TOPIC name kicker
     //   (name only, no chapter number — Lee's call). Never on the Q0 stage.
@@ -1506,7 +1515,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     });
     return [...active, ...others] as typeof active;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, counterIds, stageSig, activeYOff, layoutMode, walk, viewChoice, guidesOn, viewStudent, topicName, recording, dealAnim, filmV2, filmWin]);
+  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, counterIds, stageSig, activeYOff, layoutMode, walk, viewChoice, guidesOn, viewStudent, topicName, recording, dealAnim, filmV2, filmWin, filmStack]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   // A drag/resize writeback (commitGeom → onSaveInstance) bumps mainSig, which would
@@ -1543,7 +1552,10 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   const fitRef = useRef<ReactFlowInstance | null>(null);
   // Fit to the ACTIVE frame; in overview that's the frame at its stack index, so a
   // question change SMOOTHLY glides the view to it. `fitAll` zooms out to every frame.
-  const fitActive = useCallback((duration = 0) => fitRef.current?.fitView({ nodes: [{ id: "__frame__" }], padding: 0.14, duration }), []);
+  // Fit to the ACTIVE frame's background — its id follows the spacewalk-flash fix
+  // (fbg:<qid> in the film stack, __frame__ otherwise), so the recording surface
+  // (film-stack via `recording`, no popout) still frames the right node.
+  const fitActive = useCallback((duration = 0) => fitRef.current?.fitView({ nodes: [{ id: filmStack ? `fbg:${ceqId}` : "__frame__" }], padding: 0.14, duration }), [filmStack, ceqId]);
   const fitAll = useCallback(() => fitRef.current?.fitView({ padding: 0.08, duration: 420 }), []);
   useEffect(() => { const t = window.setTimeout(() => fitActive(overviewOn ? 420 : 0), 40); return () => window.clearTimeout(t); }, [ceqId, frameW, frameH, overviewOn, fitActive]);
 
