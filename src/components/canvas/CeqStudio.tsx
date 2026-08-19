@@ -1105,13 +1105,57 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
 
   /** Detach a clip from a frame. The FILE and the take record both survive —
    *  this only breaks the link, and one Ctrl+Z puts it back. */
+  /** MIGRATION (Q0): a clip only reappears in the scratch lane after detach if a
+   *  KEPT take record backs its storage path. Clips attached before the take
+   *  store existed (or on another machine) have none, so detaching them used to
+   *  drop them into the void — "a blast with clips I can't remove". This
+   *  reconstructs the missing record from the clip itself (a real uploaded
+   *  url/path), keyed stably so re-running is idempotent. Returns true if it
+   *  created one. Files are NEVER touched. */
+  const ensureScratchRecord = async (clip: TakeRef): Promise<boolean> => {
+    if (!clip.path) return false;
+    if (currentTakes().some((t) => t.upload?.path === clip.path)) return false;
+    let h = 0; for (let i = 0; i < clip.path.length; i++) h = ((h << 5) - h + clip.path.charCodeAt(i)) | 0;
+    await saveTake({
+      id: `take-legacy-${Math.abs(h).toString(36)}`,
+      fileName: clip.name ?? clip.path.split("/").pop() ?? "clip",
+      sizeBytes: 0,
+      mtimeMs: 0, // sinks to the bottom of the newest-first scratch list
+      recordedAt: new Date(0).toISOString(),
+      status: "kept",
+      ...(clip.duration != null ? { durationS: clip.duration } : {}),
+      ...(clip.slateEndMs != null ? { slateEndMs: clip.slateEndMs } : {}),
+      ...(clip.orientation ? { orientation: clip.orientation } : {}),
+      upload: { state: "done", attempts: 1, url: clip.url, path: clip.path },
+    });
+    return true;
+  };
   const detachClip = (frameId: string, idx: number) => {
     const d = rf.getNode(frameId)?.data as unknown as CeqCard | undefined;
     const clips = cardClips(d);
     const gone = clips[idx];
     if (!gone) return;
     patchQ(frameId, { takes: clips.filter((_, i) => i !== idx) });
-    setNote(`Detached "${gone.name ?? "clip"}". The file and the take are untouched — Ctrl+Z re-attaches.`);
+    // Ensure it lands in scratch even if it predates the take store (legacy).
+    void ensureScratchRecord(gone).then((migrated) => setNote(`Detached "${gone.name ?? "clip"}" → scratch lane${migrated ? " (legacy clip migrated so it's re-attachable)" : ""}. File untouched; Ctrl+Z re-attaches.`));
+  };
+  /** CLEAR ALL CLIPS (Q0): detach every clip in the set back to scratch so a set
+   *  can be re-cut from zero. Never trashes a file. Each frame is its own undo
+   *  step. Migrates any legacy clips on the way out so they're all re-droppable. */
+  const clearAllClips = () => {
+    if (!deck) return;
+    const cards = questions
+      .map((q) => ({ id: q.id, clips: cardClips(rf.getNode(q.id)?.data as unknown as CeqCard | undefined) }))
+      .filter((c) => c.clips.length);
+    const total = cards.reduce((a, c) => a + c.clips.length, 0);
+    if (!total) { setNote("No clips attached — nothing to clear."); return; }
+    if (!window.confirm(`Detach all ${total} clip${total === 1 ? "" : "s"} in this set back to the scratch lane?\n\nThis only breaks the cut so you can re-assemble it — no files are trashed. Ctrl+Z undoes it frame by frame.`)) return;
+    void (async () => {
+      let migrated = 0;
+      for (const c of cards) for (const clip of c.clips) if (await ensureScratchRecord(clip)) migrated += 1;
+      for (const c of cards) patchQ(c.id, { takes: [] });
+      setNote(`Cleared ${total} clip${total === 1 ? "" : "s"} → scratch${migrated ? ` (${migrated} legacy migrated)` : ""}. Re-drop them onto the timeline in any order. No files trashed.`);
+    })();
   };
 
   /** Attach the most recent KEPT take to a frame — the "replace" half. Detach
@@ -3427,6 +3471,13 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                     renderPhase={stitchJob?.phase ?? null}
                     renderBusy={!!stitchJob?.running}
                   />
+                  {/* CLEAR ALL CLIPS (Q0) — lives OUTSIDE the memoized clipsPanel so it
+                      never closes over a stale set. Detaches everything to scratch;
+                      never trashes a file. */}
+                  <div className="mb-1 flex items-center gap-1">
+                    <span className="text-[8px] font-black uppercase tracking-wide" style={{ color: NEON.cyan }}>Clip stack</span>
+                    <button className="ml-auto rounded px-1.5 py-0.5 text-[8px] font-bold uppercase" style={{ color: "#FF8B9E", border: "1px solid rgba(255,139,158,0.5)" }} onClick={clearAllClips} title="CLEAR ALL CLIPS — detach every clip in this set back to the scratch lane so you can re-cut from zero. Files are never trashed.">clear all clips</button>
+                  </div>
                   {clipsPanel}
                 </div>
               )}

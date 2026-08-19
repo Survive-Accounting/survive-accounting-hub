@@ -69,6 +69,7 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, openFrameId, co
   const [scanning, setScanning] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [bin, setBin] = useState({ count: 0, bytes: 0 });
+  const [showRecycle, setShowRecycle] = useState(false); // Q0: recycle is a toggle, closed by default
   const [playing, setPlaying] = useState<{ id: string; url: string } | null>(null);
   const [showObs, setShowObs] = useState(false);
   const [addr, setAddr] = useState(() => localStorage.getItem("sa-obs-addr") ?? OBS_DEFAULT_ADDRESS);
@@ -320,13 +321,31 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, openFrameId, co
         {pending.map(row)}
         {keptUnattached.length > 0 && <div className="pb-0.5 pt-2 text-[8px] font-bold uppercase tracking-wide" style={{ color: "#3BF5A0" }} title="Kept, not attached to any frame yet — drag one onto a frame in the stack (attached clips live in the stack, not here)">Scratch — kept, unattached · {keptUnattached.length}</div>}
         {keptUnattached.map(row)}
-        {trashed.length > 0 && <div className="pb-0.5 pt-2 text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>Recycle · {trashed.length}</div>}
-        {trashed.map(row)}
+        {/* Q0: the Recycle list is no longer always-open here — it lives in the
+            toggle drawer below, closed by default. */}
       </div>
 
-      <div className="flex items-center gap-2 border-t px-3 py-1.5" style={{ borderColor: NEON.borderSoft }}>
-        <span className="text-[8.5px] font-bold uppercase" style={{ color: NEON.muted }}>Recycle: {bin.count} take{bin.count === 1 ? "" : "s"} · {fmtBytes(bin.bytes)}</span>
-        <button className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[8.5px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setNote(`Open your recordings folder ▸ "_trash" in Explorer to empty it — the app never deletes.`)} title="The app can't open Explorer directly; _trash inside your recordings folder is the bin"><FolderOpen className="h-3 w-3" /> open folder</button>
+      {/* RECYCLE DRAWER (Q0) — opens from the bin icon; restore + open folder live
+          inside. The file/size line moved OFF the main chrome into here. */}
+      {showRecycle && (
+        <div className="border-t px-3 py-2" style={{ borderColor: NEON.borderSoft, background: "rgba(0,0,0,0.35)" }}>
+          <div className="mb-1 flex items-center gap-2">
+            <span className="text-[9px] font-bold uppercase" style={{ color: NEON.muted }}>Recycle · {bin.count} file{bin.count === 1 ? "" : "s"} · {fmtBytes(bin.bytes)}</span>
+            <button className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[8.5px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setNote(`Open your recordings folder ▸ "_trash" in Explorer to empty it — the app never deletes.`)} title="The app can't open Explorer directly; _trash inside your recordings folder is the bin"><FolderOpen className="h-3 w-3" /> open folder</button>
+            <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => setShowRecycle(false)} title="Close"><X className="h-3 w-3" /></button>
+          </div>
+          <div className="max-h-[30vh] overflow-y-auto">
+            {trashed.length === 0
+              ? <div className="px-1 py-1 text-[9px] italic" style={{ color: NEON.muted }}>Nothing trashed this session. Any files already in _trash restore from Explorer.</div>
+              : trashed.map(row)}
+          </div>
+        </div>
+      )}
+      <div className="flex items-center border-t px-3 py-1.5" style={{ borderColor: NEON.borderSoft }}>
+        <button className="ml-auto flex items-center gap-1 rounded px-1.5 py-1" style={{ color: showRecycle ? "#0B1322" : NEON.muted, background: showRecycle ? NEON.muted : "transparent", border: `1px solid ${NEON.borderSoft}` }} onClick={() => setShowRecycle((v) => !v)} title="Recycle — takes moved to the _trash folder (never deleted). Open to restore or reach the folder.">
+          <Trash2 className="h-3.5 w-3.5" />
+          {bin.count > 0 && <span className="rounded-full px-1 text-[8px] font-black tabular-nums" style={{ color: "#0B1322", background: "#FF8B9E" }}>{bin.count}</span>}
+        </button>
       </div>
     </div>
   );

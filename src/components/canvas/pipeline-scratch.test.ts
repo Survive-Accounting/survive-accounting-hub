@@ -74,6 +74,35 @@ describe("DETACH is not TRASH", () => {
   });
 });
 
+describe("Q0 unblock — detach every clip + clear all + recycle toggle", () => {
+  test("legacy clips get a reconstructed scratch record so detach always works", () => {
+    const fn = studio.slice(studio.indexOf("const ensureScratchRecord ="), studio.indexOf("const detachClip ="));
+    expect(fn).toContain('if (currentTakes().some((t) => t.upload?.path === clip.path)) return false;'); // idempotent
+    expect(fn).toContain('status: "kept",');
+    expect(fn).toContain("upload: { state: \"done\", attempts: 1, url: clip.url, path: clip.path },");
+    expect(fn).toContain("id: `take-legacy-${Math.abs(h).toString(36)}`,"); // stable id, no dup on re-run
+    expect(fn).not.toContain("moveToRecycle"); // migration never trashes
+  });
+  test("CLEAR ALL detaches every clip to scratch, confirms, and never trashes", () => {
+    const fn = studio.slice(studio.indexOf("const clearAllClips ="), studio.indexOf("const clearTake ="));
+    expect(fn).toContain("window.confirm(");
+    expect(fn).toContain("if (await ensureScratchRecord(clip)) migrated += 1;");
+    expect(fn).toContain("patchQ(c.id, { takes: [] });");
+    expect(fn).not.toContain("moveToRecycle");
+    expect(fn).not.toContain("doTrash");
+    expect(studio).toContain("onClick={clearAllClips}"); // wired to a button
+  });
+  test("the recycle list is a TOGGLE, closed by default — no always-open list or size line in the chrome", () => {
+    expect(inbox).toContain("const [showRecycle, setShowRecycle] = useState(false);");
+    expect(inbox).toContain("{showRecycle && (");
+    expect(inbox).toContain("<Trash2 className=\"h-3.5 w-3.5\" />"); // the bin icon button
+    // the always-open list and the "Recycle: N takes · X MB" chrome line are gone
+    expect(inbox).not.toContain("Recycle: {bin.count} take");
+    // restore + open folder still reachable — inside the drawer
+    expect(inbox).toContain("open folder");
+  });
+});
+
 describe("a trim gesture can't start a row drag", () => {
   test("the strip blocks dragstart from bubbling into the draggable clip row", () => {
     expect(read("ClipTrimStrip.tsx")).toContain("draggable={false} onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}");

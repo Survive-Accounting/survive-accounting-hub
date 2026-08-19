@@ -144,11 +144,13 @@ describe("a kept take always has somewhere to go (Lee, 08-17)", () => {
 });
 
 describe("detach and replace (Lee, 08-17)", () => {
-  test("detach breaks the LINK only — the file and the take record survive", () => {
+  test("detach breaks the LINK only — the file survives, and the clip lands in scratch", () => {
     expect(studio).toContain("patchQ(frameId, { takes: clips.filter((_, i) => i !== idx) });");
-    expect(studio).toContain("The file and the take are untouched — Ctrl+Z re-attaches.");
-    // it must never call the folder or the take store's delete paths
-    const fn = studio.slice(studio.indexOf("const detachClip ="), studio.indexOf("const attachLatestKept ="));
+    expect(studio).toContain("File untouched; Ctrl+Z re-attaches.");
+    // Q0: detach now also guarantees a scratch record (migrates legacy clips) so
+    // every clip is re-attachable — but it must still never touch a file.
+    expect(studio).toContain("void ensureScratchRecord(gone).then");
+    const fn = studio.slice(studio.indexOf("const detachClip ="), studio.indexOf("const clearAllClips ="));
     expect(fn).not.toContain("moveToRecycle");
     expect(fn).not.toContain("dropTakeRecord");
   });
