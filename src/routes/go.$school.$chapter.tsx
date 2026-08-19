@@ -12,72 +12,101 @@
 //
 // Never gates and never 404s: an unknown school or chapter falls through to the plain landing page
 // rather than a dead end, because these URLs go on printed flyers and QR codes that outlive typos.
+//
+// ── THE OLD-PAGE FLASH, AND WHY IT IS A LOADER NOW ────────────────────────────────────────────
+//
+// This route used to fetch the chapter with a client-side useQuery. That meant `ch` was null for
+// the server render AND the first client paint, so the page fell back to the GENERIC student hero
+// ("Cram what's on your exam.") and swapped to the chapter version a moment later. It was not a
+// hydration mismatch or a cache artifact — the server was genuinely sending the wrong page. Proof
+// from production HTML before this change: "On-demand tutoring videos" appeared twice while
+// "Alpha Chi Omega", "ACCY 201" and the chapter headline appeared zero times.
+//
+// A loader fixes it at the source: the data is fetched during SSR, so the FIRST meaningful paint
+// is already this chapter's page. No timeout, and no skeleton needed in the common case.
+//
+// The same bug had a second half. CampusProvider was handed the school slug from the QUERY RESULT,
+// so campus was UNKNOWN during that window and the hero cycled other schools' colourways before
+// locking. The slug is in the URL and available synchronously — it is passed from params now, so
+// campus context is correct on the very first render even if the chapter lookup were slow.
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { ChapterFinder } from "@/components/site/ChapterFinder";
 import { ChapterTop } from "@/components/site/ChapterTop";
-import { useChapterRole, type ChapterRole } from "@/components/site/RoleFork";
-import { ClaimChapter } from "@/components/site/ClaimChapter";
+import { ChapterAccess } from "@/components/site/ChapterAccess";
 import { getGoChapter, listGoSchools, tagChapterMember } from "@/lib/greek-go.functions";
+import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { LandingPage } from "./landing";
 
+/** Where both hero buttons scroll to. Ids live here so the hero and the sections agree. */
+export const EXAM_ANCHOR = "exam1";
+export const ACCESS_ANCHOR = "chapter-access";
+
 export const Route = createFileRoute("/go/$school/$chapter")({
+  // The course code is fetched HERE too, not left to a client query. Without it the headline
+  // server-renders as "Intro Accounting is where..." and gains "(ACCY 201)" a moment later —
+  // a smaller version of the very flash this loader exists to remove.
+  loader: async ({ params }) => {
+    const chapter = await getGoChapter({ data: { schoolSlug: params.school, chapterSlug: params.chapter } });
+    if (!chapter) return { chapter: null, code: null };
+    const codes = await listCampusIntroCodes({ data: { ids: [chapter.campusId] } }).catch(() => []);
+    return { chapter, code: codes[0]?.code ?? null };
+  },
   // Indexable, unlike /c/ (which was noindex because each link belonged to one private chapter).
   // These are public chapter pages and searching "<chapter> <school> accounting" should find them.
-  head: () => ({ meta: [{ title: "⚡ Survive Accounting — Free Exam 1" }] }),
+  // Now that the chapter is loaded server-side, the title can name it — which is also what shows
+  // in a GroupMe or iMessage link preview, where most of these links are opened.
+  head: ({ loaderData }) => {
+    const ch = (loaderData as { chapter: Awaited<ReturnType<typeof getGoChapter>> } | undefined)?.chapter;
+    return { meta: [{ title: ch ? `⚡ ${ch.chapterName} — free Exam 1 cram videos` : "⚡ Survive Accounting — Free Exam 1" }] };
+  },
   component: GoChapterPage,
 });
 
 function GoChapterPage() {
   const { school, chapter } = Route.useParams();
-  const q = useQuery({
-    queryKey: ["go-chapter", school, chapter],
-    queryFn: () => getGoChapter({ data: { schoolSlug: school, chapterSlug: chapter } }),
-    networkMode: "always",
-    staleTime: 300_000,
-  });
-  const ch = q.data ?? null;
+  const { chapter: ch, code } = Route.useLoaderData();
 
-  // ROLE FORK. Asked once per chapter and remembered; a logged-in user with a known role never
-  // sees it. accountRole is null until sign-in carries a chapter role — the hook already prefers
-  // it over storage, so wiring that later needs no change here.
-  const { role, choose, resolving } = useChapterRole(school, chapter, null);
-
-  // TAG THE MEMBER ON THE CHOICE ITSELF.
-  //
-  // The banner used to carry a "Claim your free access" button opening a name + mobile form,
-  // which is what recorded a member against the chapter. Removing the banner removed that, and
-  // the member count is the number the exec dashboard is built on — so the attribution has to
-  // survive the redesign even though the form does not.
-  //
-  // Saying "I'm a member" on this chapter's own URL IS the attribution; asking for a name
-  // afterwards would be a form standing between a student and the free thing they came for.
-  // Fire-and-forget: a failed tag must never block access, so nothing awaits it or reports it.
-  const pickRole = (r: ChapterRole) => {
-    choose(r);
-    if (r === "member") void tagChapterMember({ data: { schoolSlug: school, chapterSlug: chapter, source: "link" } }).catch(() => {});
+  // Fire-and-forget member attribution. Saying "start Exam 1" on this chapter's own URL is the
+  // attribution; nothing is awaited, so a failed tag can never stand between a student and the
+  // free exam they came for.
+  const tagMember = () => {
+    void tagChapterMember({ data: { schoolSlug: school, chapterSlug: chapter, source: "link" } }).catch(() => {});
   };
+
   return (
     <>
       <LandingPage
         initialCampusId={ch?.campusId ?? undefined}
-        goChapter={ch ? { schoolSlug: ch.schoolSlug, chapterSlug: ch.chapterSlug } : undefined}
+        // FROM PARAMS, NOT FROM THE FETCHED CHAPTER — see the note at the top of this file.
+        campusSlug={school}
+        initialCourseCode={code}
+        goChapter={{ schoolSlug: school, chapterSlug: chapter }}
         chapterTop={ch ? (
           <ChapterTop
             chapterName={ch.chapterName}
-            role={role}
-            resolving={resolving}
-            onChoose={pickRole}
-            onExecFromMember={() => pickRole("exec")}
-            claimForm={<ClaimChapter schoolSlug={ch.schoolSlug} chapterSlug={ch.chapterSlug} chapterName={ch.chapterName} claimStatus={ch.claimStatus} />}
+            examAnchor={EXAM_ANCHOR}
+            accessAnchor={ACCESS_ANCHOR}
+            onStartExam={tagMember}
           />
         ) : undefined}
+        chapterAccess={ch ? (
+          <ChapterAccess
+            id={ACCESS_ANCHOR}
+            chapterName={ch.chapterName}
+            schoolSlug={ch.schoolSlug}
+            chapterSlug={ch.chapterSlug}
+            claimStatus={ch.claimStatus}
+          />
+        ) : undefined}
+        greekOrg={ch ? ch.chapterName : undefined}
       />
       {/* Self-report stays at the foot: it is a STUDENT correction ("I'm in a different house"),
-          worth offering but never worth interrupting the reason they came. */}
+          worth offering but never worth interrupting the reason they came. It is also the ONLY
+          chapter-discovery control left on a chapter page — the picker's "Change school" is gone,
+          because a visitor on FarmHouse · Oklahoma is already somewhere specific. */}
       {ch && <SelfReport current={ch.chapterName} />}
     </>
   );
@@ -97,7 +126,14 @@ function SelfReport({ current }: { current: string }) {
   const [open, setOpen] = useState(false);
   const [done, setDone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const schoolsQ = useQuery({ queryKey: ["go-schools"], queryFn: () => listGoSchools(), enabled: open, networkMode: "always", staleTime: 600_000 });
+  const [schools, setSchools] = useState<Array<{ slug: string; name: string }>>([]);
+
+  // Loaded on demand — this is a foot-of-page escape hatch almost nobody opens, and it should not
+  // cost every visitor a request.
+  const openIt = () => {
+    setOpen(true);
+    if (!schools.length) void listGoSchools().then(setSchools).catch(() => {});
+  };
 
   const pick = async (schoolSlug: string, chapterSlug: string, chapterName: string) => {
     setBusy(true);
@@ -114,10 +150,10 @@ function SelfReport({ current }: { current: string }) {
       ) : open ? (
         <div className="mx-auto max-w-sm rounded-xl p-4" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
           <p className="mb-3 text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>Which chapter are you actually in?</p>
-          <ChapterFinder schools={schoolsQ.data ?? []} onPick={(s, c, n) => void pick(s, c, n)} cta="That's mine" busy={busy} />
+          <ChapterFinder schools={schools} onPick={(s, c, n) => void pick(s, c, n)} cta="That&apos;s mine" busy={busy} />
         </div>
       ) : (
-        <button onClick={() => setOpen(true)} className="text-[12.5px] underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
+        <button onClick={openIt} className="text-[12.5px] underline underline-offset-4" style={{ color: "var(--text-muted)", minHeight: 44, paddingBlock: 6 }}>
           Not in {current}? Tell me which chapter you&apos;re in →
         </button>
       )}

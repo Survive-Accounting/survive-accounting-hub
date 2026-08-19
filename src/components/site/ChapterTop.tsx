@@ -1,84 +1,82 @@
-// THE TOP OF A CHAPTER PAGE — chapter-specific, and the only thing above the player.
+// THE CHAPTER HERO — the one and only place the Greek value proposition is made.
 //
-// A /go/ page used to open with the generic student hero ("Cram what's on your exam.") and a thin
-// banner above it. So the page that a chapter's own flyer points at led with a line written for an
-// anonymous visitor, and the fact that it was ABOUT that chapter was a strip of text you could
-// miss. This replaces that top: the chapter and its course are the headline, and the first thing
-// asked is the only question that changes what the page should show.
+// THE ROLE GATE IS GONE. This page used to open with a card asking "Are you on exec, or a member?"
+// before showing anything. Two things were wrong with it: an exec IS a member, so the question has
+// no correct answer for the person most likely to act on it; and it made a visitor answer a
+// question about themselves before they could see the product at all. Nobody arrives at a cram
+// site wanting to file themselves into a category.
 //
-// Everything here reads its school from CAMPUS CONTEXT — the course code and the bolt colourway
-// come from the resolved campus, never from a component's own guess. That is what stops a chapter
-// page from showing another school's branding.
-import { Bolt } from "@/components/canvas/brand";
-import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
-import { ChapterExecPitch } from "@/components/site/ChapterExecPitch";
-import { RoleFork, type ChapterRole } from "@/components/site/RoleFork";
+// It is replaced by INTENT, not identity: one primary button to the free product, one secondary to
+// the chapter offer. Both scroll; neither hides anything. The same person can do both, in either
+// order, which is what was actually true all along.
+//
+// This hero also absorbed the argument that used to be repeated further down the page ("Intro
+// accounting is quietly wrecking your chapter's GPA", plus its own subhead). Making the same case
+// twice on one page does not make it twice as convincing — it just moves the product further from
+// the fold.
+import { Bolt, BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { useCampus } from "@/lib/campus-context";
+import { scrollToId } from "@/lib/ui-scroll";
 
-export function ChapterTop({ chapterName, role, resolving, onChoose, onExecFromMember, claimForm }: {
+export function ChapterTop({ chapterName, examAnchor, accessAnchor, onStartExam }: {
   chapterName: string;
-  role: ChapterRole | null | undefined;
-  resolving: boolean;
-  onChoose: (r: ChapterRole) => void;
-  /** Member path escape hatch — switches this visitor to the exec view. */
-  onExecFromMember: () => void;
-  claimForm?: React.ReactNode;
+  examAnchor: string;
+  accessAnchor: string;
+  /** Fired alongside the scroll — the member attribution, not a navigation concern. */
+  onStartExam?: () => void;
 }) {
-  const { school, code, courseLabel } = useCampus();
+  const { school, code } = useCampus();
+
+  const startExam = () => { onStartExam?.(); scrollToId(examAnchor); };
 
   return (
-    <div style={{ fontFamily: BRAND_SANS }}>
-      <ChapterHeader chapterName={chapterName} schoolName={school?.name ?? null} code={code} courseLabel={courseLabel} />
-
-      {/* INLINE, in the page flow. The fork previously sat in a slot that floated it above the
-          hero, so it read as an interruption laid over a page rather than the page's first step. */}
-      {!resolving && !role && (
-        <RoleFork chapterName={chapterName} onChoose={onChoose} />
-      )}
-
-      {role === "exec" && <ChapterExecPitch chapterName={chapterName} claimForm={claimForm} />}
-
-      {/* MEMBER PATH IS SHORT. They came for videos; the player is directly below. One quiet line
-          for the rare member who is actually on exec, and nothing else. */}
-      {role === "member" && (
-        <div className="mx-auto w-full max-w-[640px] px-5 pt-3 text-center">
-          <button type="button" onClick={onExecFromMember} className="text-[12.5px] underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
-            On exec? Claim this chapter →
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ChapterHeader({ chapterName, schoolName, code, courseLabel }: {
-  chapterName: string;
-  schoolName: string | null;
-  code: string | null;
-  courseLabel: string;
-}) {
-  return (
-    <header className="mx-auto w-full max-w-[720px] px-5 pt-6 text-center sm:pt-8">
-      <div className="flex items-center justify-center gap-3">
-        {/* The bolt reads --sa-bolt-1/2, which the page sets from the resolved campus, so it is
-            this school's colourway with no per-component decision. */}
-        <span className="block shrink-0" style={{ width: 34 }} aria-hidden>
+    <header className="mx-auto w-full max-w-[720px] px-5 pt-8 text-center sm:pt-10" style={{ fontFamily: BRAND_SANS }}>
+      {/* WHERE AM I — answered in one line, above everything. */}
+      <div className="flex items-center justify-center gap-2.5">
+        <span className="block shrink-0" style={{ width: 28 }} aria-hidden>
           <Bolt c1="var(--sa-bolt-1)" c2="var(--sa-bolt-2)" />
         </span>
-        <span className="text-[12px] font-black uppercase tracking-[0.14em]" style={{ color: "var(--text-muted)" }}>
-          {[chapterName, schoolName].filter(Boolean).join(" · ")}
+        <span className="text-[12px] font-black uppercase tracking-[0.13em]" style={{ color: "var(--text-muted)" }}>
+          {[chapterName, school?.name].filter(Boolean).join(" · ")}
         </span>
       </div>
 
-      <h1 className="mt-4 text-[24px] font-black leading-[1.15] sm:text-[30px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.015em" }}>
-        {chapterName} — free Exam 1 cram videos for your members.
+      {/* WHAT IS THIS / WHY CARE. The course code is the hook: an exec skims this and sees the
+          class their members are actually failing. No verified code ⇒ the phrase degrades to plain
+          "Intro Accounting" rather than showing a plausible-looking wrong one. */}
+      <h1 className="mt-5 text-[26px] font-black leading-[1.12] sm:text-[34px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.015em" }}>
+        Intro Accounting{code ? <> (<span style={{ color: "var(--accent)" }}>{code}</span>)</> : null} is where chapter GPA takes a hit.
       </h1>
 
-      {/* The course code is the whole point of naming it: an exec skims this line and sees the
-          class their members are actually failing. A school with no verified code gets the generic
-          phrase rather than a plausible-looking wrong one. */}
-      <p className="mx-auto mt-3 max-w-lg text-[14.5px] leading-relaxed sm:text-[15.5px]" style={{ color: "var(--brand-cream)", opacity: 0.86 }}>
-        Intro accounting{code ? <> (<span className="font-bold" style={{ color: "var(--accent)" }}>{code}</span>)</> : <> — {courseLabel}</>} is where chapter GPA quietly takes its hit. Give every member a tutor at once.
+      <p className="mx-auto mt-4 max-w-[52ch] text-[15px] leading-relaxed sm:text-[16.5px]" style={{ color: "var(--brand-cream)", opacity: 0.86 }}>
+        Dozens of your members take it every year. Business, finance, and accounting majors all hit
+        the same wall. Give your whole chapter exam-specific cram videos from a tutor who
+        specializes in Intro Accounting.
+      </p>
+
+      {/* WHAT DO I CLICK. Primary is the free product; an exec can find the offer without being
+          asked to identify themselves first. */}
+      <div className="mt-7 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+        <button
+          type="button"
+          onClick={startExam}
+          className="w-full rounded-xl px-7 text-[16px] font-black transition-transform hover:scale-[1.02] sm:w-auto"
+          style={{ minHeight: 54, background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.6)" }}
+        >
+          Start Exam 1 free
+        </button>
+        <button
+          type="button"
+          onClick={() => scrollToId(accessAnchor)}
+          className="w-full rounded-xl px-6 text-[15px] font-bold sm:w-auto"
+          style={{ minHeight: 54, color: "var(--brand-cream)", background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.18)" }}
+        >
+          Set up chapter access →
+        </button>
+      </div>
+
+      <p className="mt-4 text-[12.5px]" style={{ color: "var(--text-muted)" }}>
+        Exam 1 is free for every member. No card required.
       </p>
     </header>
   );

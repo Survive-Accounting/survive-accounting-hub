@@ -15,6 +15,19 @@
 // does nothing at all — which is the correct behaviour, because "the row is already as visible as
 // its container can make it" should never be resolved by moving the whole page under the user.
 
+/** Smooth-scroll the PAGE to an element by id — the deliberate kind, for a CTA the visitor just
+ *  pressed. Distinct from revealInContainer below, which must never move the page.
+ *
+ *  Honours reduced-motion by jumping instead of animating; a long smooth scroll is exactly the
+ *  motion that setting exists to suppress. The element's own scroll-margin-top handles the sticky
+ *  navbar, so anchors stay correct without a magic offset here. */
+export function scrollToId(id: string): void {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  el.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+}
+
 /** The nearest ancestor that can actually scroll vertically, or null if only the page can. */
 function scrollParent(el: HTMLElement): HTMLElement | null {
   let p = el.parentElement;
