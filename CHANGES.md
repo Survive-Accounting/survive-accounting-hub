@@ -1,3 +1,102 @@
+# Greek council pages — IFC / Panhellenic / NPHC / MGC outreach
+
+Branch `greek-councils`. Private, unlisted, token-gated pages for council academics chairs.
+
+## Council assignment report
+
+**The council data already existed and is complete** — `campus_greek_chapters.council` was
+populated by the GreekIntel seed. Nothing needed assigning, and nothing needs manual cleanup.
+
+| value | chapters |
+|---|---|
+| `ifc` | 540 |
+| `panhellenic` | 319 |
+| `nphc` | 137 |
+| `mgc` | 107 |
+| `other` | 4 |
+| **unassigned (null)** | **0** |
+
+### Pages generated, per SEC school (slugged chapters only)
+
+| School | IFC | Panhellenic | NPHC | MGC | pages |
+|---|---|---|---|---|---|
+| Auburn University | 30 | 18 | 7 | — | 3 |
+| Louisiana State University | 20 | 12 | 9 | 4 | 4 |
+| Mississippi State University | 20 | 10 | 9 | 4 | 4 |
+| Texas A&M University | 22 | 14 | 8 | 11 | 4 |
+| University of Alabama | 34 | 18 | 9 | 10 | 4 |
+| University of Arkansas | 21 | 12 | 9 | 5 | 4 |
+| University of Florida | 27 | 18 | 8 | 10 | 4 |
+| University of Georgia | 29 | 19 | 8 | 11 | 4 |
+| University of Kentucky | 25 | 16 | 9 | 7 | 4 |
+| University of Mississippi | 17 | 11 | 9 | — | 3 |
+| University of Missouri | 29 | 17 | 9 | 7 | 4 |
+| University of Oklahoma | 19 | 12 | 9 | 8 | 4 |
+| University of South Carolina | 28 | 13 | 9 | 8 | 4 |
+| University of Tennessee, Knoxville | 23 | 14 | 7 | 6 | 4 |
+| University of Texas at Austin | 25 | 14 | 9 | 12 | 4 |
+| Vanderbilt University | 15 | 11 | 9 | 4 | 4 |
+
+**62 council pages.** Auburn and Ole Miss have no MGC chapters, so no MGC page is generated there —
+the "only councils with ≥1 chapter" rule doing its job rather than producing two empty boards.
+
+The 4 `other` chapters (all UT Austin) get **no page**: `other` is not a governing body anyone
+chairs, and a page for it would be a leaderboard with no audience.
+
+## Where the tokens live, and why it is not a table
+
+This needs mutable per-council state — token, rotation stamp, last-opened stamp, alert stamp for
+rate limiting. That is a table's job. **DDL still cannot be run from this machine** (the Vercel CLI
+is unauthenticated, so the Supabase Management PAT cannot be pulled — migration 0118, one line, is
+still waiting).
+
+Rather than ship a feature depending on a migration nobody can apply, state lives in the existing
+`site_settings` single row under `councilPages`. Ceiling is 16 × 4 = 64 entries, nothing for a JSON
+column. **The honest cost:** writes are read-modify-write on one row, so two admins rotating tokens
+in the same second could clobber each other. With one admin that is theoretical. If it stops being
+theoretical, this wants a real table.
+
+## What was built
+
+- **`/go/[school]/council/[slug]?k=[token]`** — `noindex, nofollow`; absent from `sitemap.xml`,
+  which is a static list of public routes. Bad/missing token renders a friendly pointer to
+  `/chapters` and leaks nothing about which part was wrong.
+- **Leaderboard** ranked by members, second column **"Joined / wk"**. Zero-signup chapters stay on
+  the board at the bottom with a `Send them the link` action — the gap between top and bottom is the
+  motivation, so hiding them would remove the reason a chair acts.
+- **Forward kit** — presidents email (with every chapter's own link inline), group-chat message,
+  per-chapter copy list, QR slide, flyer. Every action logged to `expand_events` under `council_*`.
+- **Twilio alerts** on first open and on copy actions, **rate-limited to one per council per hour**
+  — a chair opening the page then copying twice is three events in ninety seconds, and three texts
+  would train Lee to ignore them.
+- **`/outreach/councils`** — admin list with chapters, members, last opened, copy-link and rotate.
+
+## Two honesty notes
+
+**"Joined / wk", not "Active this week".** The existing chapter dashboard labels the same figure
+"Active this week", but the computation is `joined_at >= 7 days ago` — it is recent *signups*, not
+activity. The council page uses the accurate label. **The dashboard's label is still wrong** and is
+worth correcting separately.
+
+**No grades anywhere.** Participation only, and the data to build a grade leaderboard is not
+collected in the first place. The page says so out loud: *"Counts update as members sign up. Nothing
+here shows grades."*
+
+## Verification
+
+`tsc` clean, 1317 tests pass. Verified locally against real data:
+
+- Ole Miss **IFC = 17 chapters**, **Panhellenic = 11**, **zero overlap** — councils are separate.
+- Panhellenic shows **1 member**, which confirms counting through the shell row works (members hang
+  off `greek_chapters.id`, not `campus_greek_chapters.id` — counting the roster row directly would
+  have returned zero for every chapter).
+- Invalid token → friendly fallback, no leak, no error.
+- `noindex, nofollow` present.
+
+**Screenshots not delivered** — the Browser pane does not composite frames, so `screenshot` times
+out. All figures above are DOM measurements.
+
+---
 # Data audit — schools, course codes, professors (report only, 2026-08-19)
 
 Read-only. Nothing was written, no migration was run. Queried the live project `unvxagsledbsdoremqeb`.

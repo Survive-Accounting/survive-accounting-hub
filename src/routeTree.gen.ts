@@ -52,6 +52,7 @@ import { Route as OutreachLeadfinderBatchRouteImport } from './routes/outreach.l
 import { Route as OutreachLandingRouteImport } from './routes/outreach.landing'
 import { Route as OutreachGreekOrgsRouteImport } from './routes/outreach.greek-orgs'
 import { Route as OutreachGreekClaimsRouteImport } from './routes/outreach.greek-claims'
+import { Route as OutreachCouncilsRouteImport } from './routes/outreach.councils'
 import { Route as OutreachCampusesRouteImport } from './routes/outreach.campuses'
 import { Route as OutreachCampaignTargetsRouteImport } from './routes/outreach.campaign-targets'
 import { Route as OutreachCampaignMetricsRouteImport } from './routes/outreach.campaign-metrics'
@@ -76,6 +77,7 @@ import { Route as CeqIdEditRouteImport } from './routes/ceq.$id.edit'
 import { Route as CeqCourseSlugChapterSlugRouteImport } from './routes/ceq.$courseSlug.$chapterSlug'
 import { Route as ApiCronWeeklyDigestRouteImport } from './routes/api.cron.weekly-digest'
 import { Route as ApiCronBackupRouteImport } from './routes/api.cron.backup'
+import { Route as GoSchoolCouncilCouncilRouteImport } from './routes/go.$school.council.$council'
 import { Route as ChaptersKitSchoolChapterRouteImport } from './routes/chapters_.kit.$school.$chapter'
 
 const WelcomeRoute = WelcomeRouteImport.update({
@@ -296,6 +298,11 @@ const OutreachGreekClaimsRoute = OutreachGreekClaimsRouteImport.update({
   path: '/greek-claims',
   getParentRoute: () => OutreachRoute,
 } as any)
+const OutreachCouncilsRoute = OutreachCouncilsRouteImport.update({
+  id: '/councils',
+  path: '/councils',
+  getParentRoute: () => OutreachRoute,
+} as any)
 const OutreachCampusesRoute = OutreachCampusesRouteImport.update({
   id: '/campuses',
   path: '/campuses',
@@ -420,6 +427,11 @@ const ApiCronBackupRoute = ApiCronBackupRouteImport.update({
   path: '/api/cron/backup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GoSchoolCouncilCouncilRoute = GoSchoolCouncilCouncilRouteImport.update({
+  id: '/go/$school/council/$council',
+  path: '/go/$school/council/$council',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ChaptersKitSchoolChapterRoute =
   ChaptersKitSchoolChapterRouteImport.update({
     id: '/chapters_/kit/$school/$chapter',
@@ -463,6 +475,7 @@ export interface FileRoutesByFullPath {
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
+  '/outreach/councils': typeof OutreachCouncilsRoute
   '/outreach/greek-claims': typeof OutreachGreekClaimsRoute
   '/outreach/greek-orgs': typeof OutreachGreekOrgsRoute
   '/outreach/landing': typeof OutreachLandingRoute
@@ -496,6 +509,7 @@ export interface FileRoutesByFullPath {
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
   '/chapters/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
+  '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -532,6 +546,7 @@ export interface FileRoutesByTo {
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
+  '/outreach/councils': typeof OutreachCouncilsRoute
   '/outreach/greek-claims': typeof OutreachGreekClaimsRoute
   '/outreach/greek-orgs': typeof OutreachGreekOrgsRoute
   '/outreach/landing': typeof OutreachLandingRoute
@@ -565,6 +580,7 @@ export interface FileRoutesByTo {
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
   '/outreach/leadfinder': typeof OutreachLeadfinderIndexRoute
   '/chapters/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
+  '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -603,6 +619,7 @@ export interface FileRoutesById {
   '/outreach/campaign-metrics': typeof OutreachCampaignMetricsRoute
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
+  '/outreach/councils': typeof OutreachCouncilsRoute
   '/outreach/greek-claims': typeof OutreachGreekClaimsRoute
   '/outreach/greek-orgs': typeof OutreachGreekOrgsRoute
   '/outreach/landing': typeof OutreachLandingRoute
@@ -636,6 +653,7 @@ export interface FileRoutesById {
   '/study_/scenarios/$slug': typeof StudyScenariosSlugRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
   '/chapters_/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
+  '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -675,6 +693,7 @@ export interface FileRouteTypes {
     | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
+    | '/outreach/councils'
     | '/outreach/greek-claims'
     | '/outreach/greek-orgs'
     | '/outreach/landing'
@@ -708,6 +727,7 @@ export interface FileRouteTypes {
     | '/study/scenarios/$slug'
     | '/outreach/leadfinder/'
     | '/chapters/kit/$school/$chapter'
+    | '/go/$school/council/$council'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -744,6 +764,7 @@ export interface FileRouteTypes {
     | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
+    | '/outreach/councils'
     | '/outreach/greek-claims'
     | '/outreach/greek-orgs'
     | '/outreach/landing'
@@ -777,6 +798,7 @@ export interface FileRouteTypes {
     | '/study/scenarios/$slug'
     | '/outreach/leadfinder'
     | '/chapters/kit/$school/$chapter'
+    | '/go/$school/council/$council'
   id:
     | '__root__'
     | '/'
@@ -814,6 +836,7 @@ export interface FileRouteTypes {
     | '/outreach/campaign-metrics'
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
+    | '/outreach/councils'
     | '/outreach/greek-claims'
     | '/outreach/greek-orgs'
     | '/outreach/landing'
@@ -847,6 +870,7 @@ export interface FileRouteTypes {
     | '/study_/scenarios/$slug'
     | '/outreach/leadfinder/'
     | '/chapters_/kit/$school/$chapter'
+    | '/go/$school/council/$council'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -887,6 +911,7 @@ export interface RootRouteChildren {
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
   StudyScenariosSlugRoute: typeof StudyScenariosSlugRoute
   ChaptersKitSchoolChapterRoute: typeof ChaptersKitSchoolChapterRoute
+  GoSchoolCouncilCouncilRoute: typeof GoSchoolCouncilCouncilRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1192,6 +1217,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachGreekClaimsRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/outreach/councils': {
+      id: '/outreach/councils'
+      path: '/councils'
+      fullPath: '/outreach/councils'
+      preLoaderRoute: typeof OutreachCouncilsRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/outreach/campuses': {
       id: '/outreach/campuses'
       path: '/campuses'
@@ -1360,6 +1392,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronBackupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/go/$school/council/$council': {
+      id: '/go/$school/council/$council'
+      path: '/go/$school/council/$council'
+      fullPath: '/go/$school/council/$council'
+      preLoaderRoute: typeof GoSchoolCouncilCouncilRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/chapters_/kit/$school/$chapter': {
       id: '/chapters_/kit/$school/$chapter'
       path: '/chapters/kit/$school/$chapter'
@@ -1412,6 +1451,7 @@ interface OutreachRouteChildren {
   OutreachCampaignMetricsRoute: typeof OutreachCampaignMetricsRoute
   OutreachCampaignTargetsRoute: typeof OutreachCampaignTargetsRoute
   OutreachCampusesRoute: typeof OutreachCampusesRoute
+  OutreachCouncilsRoute: typeof OutreachCouncilsRoute
   OutreachGreekClaimsRoute: typeof OutreachGreekClaimsRoute
   OutreachGreekOrgsRoute: typeof OutreachGreekOrgsRoute
   OutreachLandingRoute: typeof OutreachLandingRoute
@@ -1440,6 +1480,7 @@ const OutreachRouteChildren: OutreachRouteChildren = {
   OutreachCampaignMetricsRoute: OutreachCampaignMetricsRoute,
   OutreachCampaignTargetsRoute: OutreachCampaignTargetsRoute,
   OutreachCampusesRoute: OutreachCampusesRoute,
+  OutreachCouncilsRoute: OutreachCouncilsRoute,
   OutreachGreekClaimsRoute: OutreachGreekClaimsRoute,
   OutreachGreekOrgsRoute: OutreachGreekOrgsRoute,
   OutreachLandingRoute: OutreachLandingRoute,
@@ -1504,6 +1545,7 @@ const rootRouteChildren: RootRouteChildren = {
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
   StudyScenariosSlugRoute: StudyScenariosSlugRoute,
   ChaptersKitSchoolChapterRoute: ChaptersKitSchoolChapterRoute,
+  GoSchoolCouncilCouncilRoute: GoSchoolCouncilCouncilRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
