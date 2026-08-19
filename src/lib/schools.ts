@@ -22,6 +22,8 @@
 // require a deploy — and a hardcoded copy would be a second source of truth for the exact fact this
 // module exists to have only one of.
 
+import { SEC_SCHOOLS as SEC_BOLT } from "@/components/canvas/brand";
+
 export type SecSchool = {
   /** Landing-picker id. Stable, short, used in stored preferences. */
   id: string;
@@ -64,4 +66,13 @@ export const schoolBySlug = (slug: string | null | undefined): SecSchool | null 
  *  Falls back to whatever the caller already had rather than inventing a name. */
 export function canonicalSchoolName(slug: string | null | undefined, fallback: string): string {
   return schoolBySlug(slug)?.name ?? fallback;
+}
+
+/** Bolt colours for a school, by /go/ slug. Falls back to the brand red/blue for anything not in
+ *  the table — the same rule the landing picker uses, so a Greek picker row and a landing picker
+ *  row show the same school in the same colours. */
+export function boltForSlug(slug: string | null | undefined): { c1: string; c2: string } {
+  const id = schoolBySlug(slug)?.id;
+  const hit = id ? SEC_BOLT.find((s) => s.id === id) : undefined;
+  return hit ? { c1: hit.c1, c2: hit.c2 } : { c1: "#C62828", c2: "#1565C0" };
 }

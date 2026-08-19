@@ -15,6 +15,7 @@
 import { useState } from "react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
+import { useCampus } from "@/lib/campus-context";
 import { ChapterAccessForm } from "@/components/site/ChapterAccessForm";
 import { ChapterShare } from "@/components/site/ChapterShare";
 
@@ -31,6 +32,7 @@ export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, claimS
   flyerUrl?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const { code } = useCampus();
 
   return (
     <section id={id} className="sa-anchor mx-auto w-full max-w-[640px] px-5 py-12" style={{ fontFamily: BRAND_SANS }}>
@@ -42,7 +44,7 @@ export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, claimS
         Send it to the group chat.
       </h2>
       <p className="mx-auto mt-2 max-w-[40ch] text-center text-[13.5px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-        Exam 1 is free for every member — no account, no card. Nothing to set up first.
+        Exam 1 is free for every member.
       </p>
       <div className="mt-5">
         <ChapterShare schoolSlug={schoolSlug} chapterSlug={chapterSlug} chapterName={chapterName} flyerUrl={flyerUrl} />
@@ -61,10 +63,15 @@ export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, claimS
 
         <div className="mt-7 text-center">
           <p className="text-[16px] font-black" style={{ color: "var(--brand-cream)" }}>
-            <span style={{ color: "var(--accent)" }}>${SEAT_PRICE}/member per semester</span> · {SEAT_MINIMUM}-seat minimum
-          </p>
-          <p className="mx-auto mt-2 max-w-[44ch] text-[13px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-            Exam 1 stays free for everyone. Chapter access unlocks Exams 2, 3 and the Final.
+          <span style={{ color: "var(--accent)" }}>${SEAT_PRICE} per seat, per semester</span>
+        </p>
+        <p className="mx-auto mt-2 max-w-[46ch] text-[13px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+          {/* SEATS, NOT MEMBERS. "$100/member" invites a 150-man chapter to multiply by 150,
+              get $15,000 and close the tab. Only the members actually taking the course need a
+              seat, and naming the usual range turns an unbounded per-head fee into a number an
+              academic budget can hold. */}
+          You only buy seats for the members taking {code ?? "the course"} — usually 15–30 in a chapter.
+          {SEAT_MINIMUM}-seat minimum, and Exam 1 stays free for everyone either way.
           </p>
         </div>
 

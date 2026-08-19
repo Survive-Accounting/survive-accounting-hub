@@ -17,6 +17,9 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
+import { Bolt } from "@/components/canvas/brand";
+import { boltForSlug, schoolBySlug, SEC_SCHOOL_TABLE } from "@/lib/schools";
+import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { SearchPicker } from "@/components/site/SearchPicker";
 import { NotListedForm } from "@/components/site/NotListedForm";
 import { listGoChapters } from "@/lib/greek-go.functions";
@@ -41,6 +44,18 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
 
   // Only fetched once a school exists: the chapter list is per-campus and there are 1,107 rows
   // overall, so there is no meaningful "all chapters" list to show first.
+  // Course codes for the picker rows. Same source as the landing picker, so a school shows the
+  // same code in both places or no code in both places — never one and not the other.
+  const codesQ = useQuery({
+    queryKey: ["campus-intro-codes"],
+    queryFn: () => listCampusIntroCodes({ data: { ids: SEC_SCHOOL_TABLE.map((x) => x.campusId) } }),
+    staleTime: 600_000, networkMode: "always",
+  });
+  const codeBySlug = (slug: string) => {
+    const campusId = schoolBySlug(slug)?.campusId;
+    return (codesQ.data ?? []).find((r) => r.campusId === campusId)?.code ?? "";
+  };
+
   const q = useQuery({
     queryKey: ["go-chapters", school],
     queryFn: () => listGoChapters({ data: { schoolSlug: school } }),
@@ -63,7 +78,14 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
           {/* The site's own picker, not a native <select>. A native dropdown renders as an OS
               list — white, system font, nothing to do with the page around it. */}
           <SearchPicker
-            items={schools.map((s) => ({ value: s.slug, label: s.name }))}
+            items={schools.map((s) => ({
+              value: s.slug,
+              label: s.name,
+              meta: codeBySlug(s.slug),
+              // The bolt is the school's own colourway — the row reads as that school at a
+              // glance rather than as a line of text in a list.
+              icon: <span className="block shrink-0" style={{ width: 15 }} aria-hidden><Bolt {...boltForSlug(s.slug)} /></span>,
+            }))}
             value={school || null}
             placeholder="Pick your school to start"
             searchPlaceholder={`Search ${schools.length} SEC schools…`}

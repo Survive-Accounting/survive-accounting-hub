@@ -20,6 +20,7 @@ import { getChapterNames, listCampusIntroCodes } from "@/lib/default-map.functio
 import { logSchoolDemand, submitExamAsk, submitSyllabus , submitNotify } from "@/lib/syllabus.functions";
 import { searchOrderProfessors, type ProfessorLite } from "@/lib/orders.functions";
 import { tagChapterMember } from "@/lib/greek-go.functions";
+import { SEAT_PRICE } from "@/components/site/ChapterAccess";
 import { revealInContainer } from "@/lib/ui-scroll";
 import { SearchPicker } from "@/components/site/SearchPicker";
 import { useDismiss } from "@/lib/use-dismiss";
@@ -1000,7 +1001,9 @@ const examStats = (tab: ExamTab): string => {
  *
  *  `onReset` clears school AND professor together. A half-reset — new school, professor left
  *  over from the old one — would silently attach a student to another campus's faculty. */
-function MatchPanel({ school, professor, notListed, profDone, coveragePct, schools, cueSignal, onPick, onNotListed, onPickProfessor, onProfNotListed, onMaterials, onReset }: {
+function MatchPanel({ gateActive, school, professor, notListed, profDone, coveragePct, schools, cueSignal, onPick, onNotListed, onPickProfessor, onProfNotListed, onMaterials, onReset }: {
+  /** True while the Greek gate is showing — the whole panel stands down. */
+  gateActive?: boolean;
   school: School | null;
   professor: ProfessorLite | null;
   notListed: boolean;
@@ -1037,6 +1040,11 @@ function MatchPanel({ school, professor, notListed, profDone, coveragePct, schoo
   }
 
   // STATE 2 — school known, professor rung unanswered. Centre stage, inline list.
+  // GREEK: the professor question waits until the video is unlocked. Before that the visitor
+  // has not agreed to anything, and asking which professor they have — a question only a
+  // student mid-decision cares about — sits in front of the thing they came for.
+  if (gateActive) return null;
+
   if (!profDone) {
     return (
       <div className="w-full px-5 py-6" style={{ background: "var(--sa-surface-2)" }}>
@@ -1260,7 +1268,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
             {/* ONE STATE AT A TIME. `flowDone` is the whole ladder, not its first rung — see the
                 note above sa-panel-min in styles.css for the height half of this. */}
             <div className="sa-panel-min relative w-full">
-              <MatchPanel school={school} professor={professor} notListed={notListed} profDone={profDone} coveragePct={active.coveragePct} schools={schools} cueSignal={focusSignal} onPick={onPick} onNotListed={onNotListed} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); }} onProfNotListed={() => setProfDone(true)} onMaterials={() => onSyllabus()} onReset={onReset} />
+              <MatchPanel gateActive={!!videoGate} school={school} professor={professor} notListed={notListed} profDone={profDone} coveragePct={active.coveragePct} schools={schools} cueSignal={focusSignal} onPick={onPick} onNotListed={onNotListed} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); }} onProfNotListed={() => setProfDone(true)} onMaterials={() => onSyllabus()} onReset={onReset} />
               {/* THE GATE STANDS IN FOR THE VIDEO, not for the page: tabs, topics and the
                   whole menu stay readable, because a visitor deciding whether to hand over an
                   email needs to see what they are unlocking. */}
@@ -1322,6 +1330,7 @@ export const PAID_EXAM_PRICE = 50;
  *  Horizontally scrollable rather than compressed: the price is the load-bearing half of each
  *  label, so at 320px the row scrolls instead of truncating '$50' away. */
 function ExamTabs({ exams, activeNum, onSelect, greek }: { exams: ExamTab[]; activeNum: number; onSelect: (n: number) => void; greek?: boolean }) {
+  const lockedSelected = !!exams.find((e) => e.num === activeNum)?.price;
   return (
     <>
     <div
@@ -1340,6 +1349,7 @@ function ExamTabs({ exams, activeNum, onSelect, greek }: { exams: ExamTab[]; act
         // offer read as two contradictory prices. The individual path still exists elsewhere.
         const locked = e.price != null;
         const price = !locked ? "FREE" : greek ? "🔒 CHAPTER" : `$${e.price}`;
+
         return (
           <button
             key={e.num}
@@ -1363,11 +1373,16 @@ function ExamTabs({ exams, activeNum, onSelect, greek }: { exams: ExamTab[]; act
         );
       })}
     </div>
-      {/* ONE line under the row rather than a note on each locked tab: the question "why is
-          that locked" is asked once, and the answer is the same for all three. */}
+      {/* NO PRICE HERE. This row is read by MEMBERS, and "$100/member per semester" on a page
+          that just promised a free exam reads as though the student personally owes $100 —
+          a bait-and-switch at exactly the moment we ask for their email. The member needs the
+          promise; the exec needs the maths, and gets it in the chapter-access section. */}
+      {/* The PRICE appears only once a locked exam is actually selected — see below. */}
       {greek && exams.some((e) => e.price != null) && (
         <p className="px-3 pb-2 pt-0.5 text-center text-[11.5px]" style={{ background: "rgba(0,0,0,0.22)", color: "var(--text-muted)" }}>
-          🔒 Exams 2, 3 and the Final unlock with chapter access — <span style={{ color: "var(--accent)", fontWeight: 800 }}>$100/member per semester</span>. Exam 1 is free either way.
+          {lockedSelected
+            ? <>🔒 Exams 2, 3 and the Final unlock with chapter access — <span style={{ color: "var(--accent)", fontWeight: 800 }}>${SEAT_PRICE} per seat, per semester</span>.</>
+            : <>🔒 Exams 2, 3 and the Final unlock when your chapter joins — Exam 1 is free either way.</>}
         </p>
       )}
     </>
