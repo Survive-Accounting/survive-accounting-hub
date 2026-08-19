@@ -29,7 +29,8 @@ import { buildSetExport } from "./ceq-export";
 import { ClipTrimStrip } from "./ClipTrimStrip";
 import { PipelineStage, type StageClip } from "./PipelineStage";
 import { TrimDetail } from "./TrimDetail";
-import { previewTimeline } from "./stitch-preview";
+import { startTranscription } from "./transcript-client";
+import { previewTimeline, splitAroundCut } from "./stitch-preview";
 import { SetFilmstrip, type StripItem } from "./SetFilmstrip";
 import { checkFilmReadiness, type ReadinessReport } from "./film-readiness";
 import { FILM_LOCK_CSS, FilmContext, isTypingTarget } from "./film-lock";
@@ -351,6 +352,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   // P4: the edit log drains its local-first queue from the moment the Studio
   // exists — not just when a trim happens.
   useEffect(() => { startEditLog(); }, []);
+  useEffect(() => { startTranscription(); }, []); // Q3: drain the transcription queue in the background
   // FAIL LOUD (P4 contract): surface a NEW sync error once — the missing-0117
   // hint especially — instead of computing it and throwing it away. Deduped so a
   // 30s retry loop can't spam the note.
@@ -1140,6 +1142,12 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     const gone = clips[idx];
     if (!gone) return;
     patchQ(frameId, { takes: clips.filter((_, i) => i !== idx) });
+    // Q3: keep the saved recipe in sync — strip every item for this path (an
+    // internal cut has two), so a detached clip (split or not) leaves no cruft.
+    if (deck) {
+      const saved = (deck.stitches ?? []).find((x) => x.id === setStitchId(deck.id));
+      if (saved) { const items = saved.items.filter((i) => i.takePath !== gone.path); if (items.length !== saved.items.length) persistStitch(recut(saved, { items })); }
+    }
     // Ensure it lands in scratch even if it predates the take store (legacy).
     void ensureScratchRecord(gone).then((migrated) => setNote(`Detached "${gone.name ?? "clip"}" → scratch lane${migrated ? " (legacy clip migrated so it's re-attachable)" : ""}. File untouched; Ctrl+Z re-attaches.`));
   };
@@ -1237,6 +1245,10 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const stageClips = useMemo((): StageClip[] => {
     if (!pipelineStitch) return [];
     const tl = previewTimeline(pipelineStitch, takesByPath);
+    // A path that appears more than once is an INTERNAL CUT (Q3) — its segments
+    // aren't individually reorderable (they'd desync from the single card clip).
+    const pathCount = new Map<string, number>();
+    for (const s of tl.segments) pathCount.set(s.takePath, (pathCount.get(s.takePath) ?? 0) + 1);
     return tl.segments.map((s, i) => {
       const fid = s.ceqId ?? ceqOfPath.get(s.takePath) ?? null;
       let label = "clip";
@@ -1247,7 +1259,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       } else if (deck?.intro?.path === s.takePath) label = "intro";
       else if (deck?.outro?.path === s.takePath) label = "outro";
       else if ((deck?.wrap ?? []).some((w) => w.path === s.takePath)) label = "wrap";
-      return { key: `${s.takePath}#${i}`, frameId: clipIndex >= 0 ? fid : null, clipIndex, label, path: s.takePath, url: s.url, name: s.name, inS: s.inS, outS: s.outS, gapAfterMs: s.gapAfterMs };
+      const split = (pathCount.get(s.takePath) ?? 0) > 1;
+      return { key: `${s.takePath}#${i}`, frameId: clipIndex >= 0 ? fid : null, clipIndex, label, path: s.takePath, url: s.url, name: s.name, inS: s.inS, outS: s.outS, gapAfterMs: s.gapAfterMs, split };
     });
   }, [pipelineStitch, takesByPath, ceqOfPath, rf, deck]);
   /** The set's frames as drop targets / author-switch chips (empty-timeline state). */
@@ -1268,6 +1281,27 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     const fid = sel?.frameId ?? (qId && qId !== LAYOUT_Q0 ? qId : stageClips.find((c) => c.frameId)?.frameId ?? null);
     if (fid) runStitch(fid);
     else setNote("Nothing to render — the cut is empty.");
+  };
+  /** Q3 INTERNAL CUT — remove a word span from a clip by SPLITTING its recipe
+   *  item into two ([in,cutStart] + [cutEnd,out]) around the removed span. Pure
+   *  recipe edit: non-destructive, re-editable, honored by preview + True
+   *  Render. The transcript-driven span is logged to the edit stream (Q3.5). */
+  const splitClipAt = (path: string, cutStartS: number, cutEndS: number) => {
+    if (!pipelineStitch) return;
+    const take = takesByPath.get(path);
+    if (!take) return;
+    let did = false;
+    const items: StitchItem[] = [];
+    for (const it of pipelineStitch.items) {
+      if (it.takePath !== path) { items.push(it); continue; }
+      const parts = splitAroundCut(it, take, cutStartS, cutEndS);
+      if (parts.length !== 1 || parts[0] !== it) did = true;
+      items.push(...parts);
+    }
+    if (!did) { setNote("Nothing to cut — that selection isn't inside a clip in the cut."); return; }
+    persistStitch(recut(pipelineStitch, { items }));
+    logTrim(path, { inS: cutStartS, outS: cutEndS }, "drag", null); // Q3.5: the CUT span, for filler-pattern learning
+    setNote(`Cut ${(cutEndS - cutStartS).toFixed(2)}s from the clip — internal cut (two segments). Recipe only; nothing baked until True Render.`);
   };
 
   /** Persist a stitch WITHOUT opening the preview overlay — the trim handles
@@ -3482,6 +3516,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                         trimOutS={item?.trimOutS}
                         autoTrim={item?.autoTrim}
                         onTrim={(inS, outS, how) => applyTrim(sel.path, inS, outS, how)}
+                        onCut={(cutStartS, cutEndS) => splitClipAt(sel.path, cutStartS, cutEndS)}
                         onClose={() => setStageSel(null)}
                       />
                     ) : null;

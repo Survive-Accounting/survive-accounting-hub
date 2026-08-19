@@ -12,10 +12,11 @@
 // NON-DESTRUCTIVE: the only output is onTrim → the stitch recipe. Nothing bakes
 // until True Render.
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pause, Play, X } from "lucide-react";
+import { Crop, Pause, Play, Scissors, X } from "lucide-react";
 
 import { detectSpeech, snapMs, type SpeechSpan } from "./landmarks";
 import { NEON } from "./theme";
+import { transcriptFor, type TranscriptWord } from "./transcript-client";
 import type { TakeRef } from "./types";
 import { clipAudio, type ClipAudio } from "./waveform-peaks";
 
@@ -31,13 +32,15 @@ const tc = (ms: number): string => {
   return `${m}:${String(sec).padStart(2, "0")}.${String(mmm).padStart(3, "0")}`;
 };
 
-export function TrimDetail({ take, label, trimInS, trimOutS, autoTrim, onTrim, onClose }: {
+export function TrimDetail({ take, label, trimInS, trimOutS, autoTrim, onTrim, onCut, onClose }: {
   take: TakeRef;
   label: string;
   trimInS?: number;
   trimOutS?: number;
   autoTrim?: boolean;
   onTrim: (inS: number, outS: number, how: "drag" | "nudge") => void;
+  /** Q3: remove a word span as an INTERNAL cut (recipe split). */
+  onCut: (cutStartS: number, cutEndS: number) => void;
   onClose: () => void;
 }) {
   const [audio, setAudio] = useState<ClipAudio | null>(null);
@@ -60,6 +63,17 @@ export function TrimDetail({ take, label, trimInS, trimOutS, autoTrim, onTrim, o
   const [active, setActive] = useState<"in" | "out">("in");
   const [scrubMs, setScrubMs] = useState<number | null>(null);
   const [playing, setPlaying] = useState(false);
+  // TRANSCRIPT (Q3): words for THIS clip, karaoke word, and a word selection.
+  const [words, setWords] = useState<TranscriptWord[] | null>(null);
+  const [tStatus, setTStatus] = useState<"loading" | "none" | "ready">("loading");
+  const [curWord, setCurWord] = useState(-1);
+  const [sel, setSel] = useState<{ a: number; b: number } | null>(null); // inclusive word indices
+  useEffect(() => {
+    let live = true; setWords(null); setTStatus("loading"); setSel(null); setCurWord(-1);
+    transcriptFor(take.path).then((r) => { if (!live) return; if (r && r.words.length) { setWords(r.words); setTStatus("ready"); } else setTStatus("none"); }, () => { if (live) setTStatus("none"); });
+    return () => { live = false; };
+  }, [take.path]);
+  const selRange = sel ? { a: Math.min(sel.a, sel.b), b: Math.max(sel.a, sel.b) } : null;
 
   // Zoom viewport, in ms. Defaults to the whole clip; wheel narrows it.
   const [view, setView] = useState<{ a: number; b: number } | null>(null);
@@ -113,10 +127,14 @@ export function TrimDetail({ take, label, trimInS, trimOutS, autoTrim, onTrim, o
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    const onTime = () => { if (v.currentTime * 1000 >= outMs) { v.pause(); setPlaying(false); } };
+    const onTime = () => {
+      if (v.currentTime * 1000 >= outMs) { v.pause(); setPlaying(false); }
+      // KARAOKE (Q3): the word whose [s,e] holds the playhead.
+      if (words) { const t = v.currentTime; const i = words.findIndex((w) => t >= w.s && t < w.e); setCurWord(i); }
+    };
     v.addEventListener("timeupdate", onTime);
     return () => v.removeEventListener("timeupdate", onTime);
-  }, [outMs]);
+  }, [outMs, words]);
   const previewFrom = (ms: number) => {
     const v = videoRef.current;
     if (!v) return;
@@ -215,6 +233,31 @@ export function TrimDetail({ take, label, trimInS, trimOutS, autoTrim, onTrim, o
         <span className="text-[8px] uppercase tracking-wide" style={{ color: NEON.muted }}>wheel = zoom · drag = pan · click = scrub</span>
         <button className="grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={onClose} title="Close the trim detail"><X className="h-3 w-3" /></button>
       </div>
+      <div className="flex gap-2">
+      {/* TRANSCRIPT (Q3) — click a word to seek, select a range to trim or cut. */}
+      <div className="flex w-[34%] min-w-0 flex-col rounded" style={{ background: "rgba(0,0,0,0.25)", border: `1px solid ${NEON.borderSoft}` }}>
+        <div className="flex items-center gap-1 border-b px-1.5 py-1" style={{ borderColor: NEON.borderSoft }}>
+          <span className="text-[8px] font-black uppercase tracking-wide" style={{ color: NEON.cyan }}>Transcript</span>
+          {tStatus === "loading" && <span className="text-[8px] italic" style={{ color: NEON.muted }}>loading…</span>}
+          {tStatus === "none" && <span className="text-[8px] italic" style={{ color: NEON.muted }}>not transcribed</span>}
+          {selRange && words && <span className="ml-auto text-[8px] tabular-nums" style={{ color: NEON.yellow }}>{selRange.b - selRange.a + 1}w</span>}
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-1.5 text-[11px] leading-relaxed" style={{ color: NEON.text, maxHeight: 200 }}>
+          {tStatus === "none" && <span className="text-[9px] italic" style={{ color: NEON.muted }}>Whisper transcribes kept takes in the background (toggle “✎ transcribe” in the take rail). Words appear here — click to seek, select a range to trim or cut.</span>}
+          {words?.map((w, i) => {
+            const inSel = selRange != null && i >= selRange.a && i <= selRange.b;
+            return <span key={i} onClick={(e) => { if (e.shiftKey && sel) setSel({ a: sel.a, b: i }); else { setSel({ a: i, b: i }); setScrubMs(w.s * 1000); previewFrom(w.s * 1000); } }} style={{ cursor: "pointer", borderRadius: 3, padding: "0 1px", background: inSel ? "rgba(252,163,17,0.4)" : i === curWord ? "rgba(59,245,160,0.4)" : "transparent" }}>{w.t}{" "}</span>;
+          })}
+        </div>
+        {selRange && words && (
+          <div className="flex items-center gap-1 border-t px-1.5 py-1" style={{ borderColor: NEON.borderSoft }}>
+            <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[8px] font-bold uppercase" style={{ color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.5)" }} onClick={() => { onTrim(words[selRange.a].s, words[selRange.b].e, "drag"); setSel(null); }} title="Set the clip's IN/OUT to this word span"><Crop className="h-2.5 w-2.5" /> trim to</button>
+            <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[8px] font-bold uppercase" style={{ color: "#FFB020", border: "1px solid rgba(255,176,32,0.5)" }} onClick={() => { onCut(words[selRange.a].s, words[selRange.b].e); setSel(null); }} title="Remove this span — an internal cut that splits the clip around the words"><Scissors className="h-2.5 w-2.5" /> cut</button>
+            <button className="ml-auto text-[8px] uppercase" style={{ color: NEON.muted }} onClick={() => setSel(null)}>clear</button>
+          </div>
+        )}
+      </div>
+      <div className="min-w-0 flex-1">
       <div className="relative w-full" style={{ height: H }}>
         <canvas ref={canvasRef} className="h-full w-full cursor-crosshair rounded" style={{ background: "rgba(0,0,0,0.35)", touchAction: "none" }} onWheel={onWheel} onPointerDown={onPointerDown} />
         {!audio && <div className="absolute inset-0 grid place-items-center text-[9px] italic" style={{ color: NEON.muted }}>decoding audio…</div>}
@@ -227,6 +270,8 @@ export function TrimDetail({ take, label, trimInS, trimOutS, autoTrim, onTrim, o
       {/* preview element — small, so you SEE the frame at the cut too */}
       <video ref={videoRef} src={take.url} playsInline preload="metadata" className="mt-1 w-full rounded" style={{ maxHeight: 120, background: "#000", aspectRatio: "16 / 9", objectFit: "contain" }} onClick={() => (playing ? (videoRef.current?.pause(), setPlaying(false)) : previewFrom(scrubMs ?? inMs))} />
       <div className="mt-0.5 text-[8px]" style={{ color: NEON.muted }}>Zoom {durMs ? Math.round(durMs / (viewB - viewA)) : 1}× · window {tc(viewA)}–{tc(viewB)} · every edit writes the recipe only — nothing bakes until True Render.</div>
+      </div>
+      </div>
     </div>
   );
 }

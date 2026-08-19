@@ -30,6 +30,9 @@ export interface StageClip {
   inS: number;
   outS: number;
   gapAfterMs: number;
+  /** Q3: part of an internal cut (the path appears more than once). Not
+   *  individually reorderable; still selectable + detachable. */
+  split?: boolean;
 }
 
 const PX_PER_S = 46;
@@ -43,14 +46,15 @@ function ClipTile({ clip, w, selected, underPlayhead, onSelect, onDetach, onDrag
 }) {
   const [thumb, setThumb] = useState<string | null>(null);
   useEffect(() => { let live = true; clipThumb(clip.url, clip.inS + 0.15).then((t) => { if (live) setThumb(t); }, () => {}); return () => { live = false; }; }, [clip.url, clip.inS]);
+  const canDrag = clip.frameId != null && !clip.split;
   return (
     <div
-      draggable={clip.frameId != null}
+      draggable={canDrag}
       onDragStart={onDragStart}
       onClick={onSelect}
       className="relative flex h-full shrink-0 flex-col overflow-hidden rounded"
-      style={{ width: w, cursor: clip.frameId != null ? "grab" : "default", border: `1.5px solid ${selected ? NEON.yellow : underPlayhead ? "#3BF5A0" : NEON.borderSoft}`, background: "#0b0f1e", boxShadow: selected ? `0 0 0 1px ${NEON.yellow}` : undefined }}
-      title={`${clip.label} · ${clip.name} · ${fmtDur(clip.outS - clip.inS)}`}
+      style={{ width: w, cursor: canDrag ? "grab" : "pointer", border: `1.5px solid ${selected ? NEON.yellow : underPlayhead ? "#3BF5A0" : clip.split ? "#B79CFF" : NEON.borderSoft}`, background: "#0b0f1e", boxShadow: selected ? `0 0 0 1px ${NEON.yellow}` : undefined }}
+      title={`${clip.label} · ${clip.name} · ${fmtDur(clip.outS - clip.inS)}${clip.split ? " · internal cut (select to re-edit; not draggable)" : ""}`}
     >
       <div className="relative flex-1" style={{ background: thumb ? `center/cover no-repeat url(${thumb})` : "linear-gradient(135deg,#12203a,#0b0f1e)" }}>
         {!thumb && <div className="absolute inset-0 grid place-items-center text-[9px]" style={{ color: NEON.muted }}><Play className="h-3 w-3" /></div>}
@@ -221,7 +225,7 @@ export function PipelineStage({ clips, frames, currentCeqId, hidden, selectedKey
                 <ClipTile key={c.key} clip={c} w={widths[i]} selected={c.key === selectedKey} underPlayhead={i === at}
                   onSelect={() => onSelectClip(c)}
                   onDetach={c.frameId != null ? () => onDetach(c.frameId as string, c.clipIndex) : null}
-                  onDragStart={(e) => { if (c.frameId == null) { e.preventDefault(); return; } e.dataTransfer.setData("application/x-sa-take", JSON.stringify({ kind: "clip", frameId: c.frameId, index: c.clipIndex })); e.dataTransfer.effectAllowed = "move"; }} />
+                  onDragStart={(e) => { if (c.frameId == null || c.split) { e.preventDefault(); return; } e.dataTransfer.setData("application/x-sa-take", JSON.stringify({ kind: "clip", frameId: c.frameId, index: c.clipIndex })); e.dataTransfer.effectAllowed = "move"; }} />
               ))}
             </div>
             {dropAt != null && <div className="pointer-events-none absolute top-1 bottom-1 w-0.5" style={{ left: 4 + (offsets[dropAt] ?? trackW), background: NEON.yellow }} />}

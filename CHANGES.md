@@ -1,3 +1,58 @@
+# Pipeline v2 — timeline, waveform zoom, transcript editing (Q0-Q3)
+
+On `main` (vertical-filming -> main). Studio/filming code only — no landing, no Greek.
+
+> Both sessions write this file; this entry STACKS on top of the Greek rework rather than replacing it.
+
+---
+
+## Q0 — Unblock a stuck set
+DETACH now works on EVERY clip, including ones attached before the take store existed:
+`ensureScratchRecord` reconstructs the missing kept-take record from the clip itself so it
+lands in the scratch lane (files never touched). CLEAR ALL CLIPS detaches a whole set back
+to scratch to re-cut from zero. RECYCLE is a bin ICON toggle now (count badge, drawer with
+restore + open folder) — the always-open list and the "Recycle: N takes" line are gone.
+
+## Q1 — Timeline rebuild
+The Pipeline is an EDITING room: the frame spine is dropped, the capture window is a
+pull-out MODAL (kept mounted so the OBS popout survives), and a large cut preview sits over
+a single HORIZONTAL timeline (PipelineStage). One track, clips in cut order sized by trimmed
+duration, thumbnails, drag-to-reorder, drag a scratch take to insert, detach -> scratch, a
+red playhead, click/scrub to seek (useCutPlayer gained playFromMs + a live position;
+cut-sequencer gained pure seekTarget/segmentStartsMs/seqSeek). A frame-marker row maps
+regions to CEQs; clicking one switches to AUTHORING on that frame. TRUE RENDER reads as the
+FINAL bake vs the instant inline preview.
+
+## Q2 — Waveform zoom + fine trim
+Selecting a clip opens a TRIM DETAIL: the waveform LARGE with landmarks (slate, onset,
+offset). Mouse-wheel zooms centered on the cursor (down to ~60ms — cut between two words);
+drag pans; click scrubs and plays so you HEAR the cut. Handles snap to landmarks; arrow =
+50ms, shift+arrow = 10ms nudge the selected handle; exact in/out timecodes show ms-precise.
+Recipe only; nothing bakes until True Render.
+
+## Q3 — Transcript-based editing (Whisper, word-level)
+Kept takes are transcribed in the background (OpenAI Whisper, verbose_json + word
+timestamps — NOT Mux), stored in Supabase keyed by storage path. The trim detail gains a
+transcript panel: karaoke highlight tracks playback, click a word to seek, select a word
+range to "trim to selection" or "cut selection". An internal cut splits the recipe into two
+segments of the same take around the removed words (non-destructive, honored by True Render);
+split segments are marked and not individually draggable. Transcript-driven cuts log to the
+edit-telemetry stream.
+
+> **Lee — two SQL files to apply** in the Supabase SQL editor (I cannot; the token is
+> write-only): `0117_edit_events.sql` (from the earlier telemetry work) and
+> `0118_take_transcripts.sql`. And set **OPENAI_API_KEY** in Vercel env to enable
+> transcription. Until then: the edit log queues locally + exports "local-only", and
+> transcription queues (words just do not appear yet). Nothing is lost. Whisper's 25MB
+> upload cap means very long takes fail loud (a worker audio-extract is the future fix).
+
+## Not verified without OBS + real data
+Every phase is unit/pin-tested (1308 pass), tsc + prod build clean. The full acceptance
+walkthrough (film -> drag -> zoom-cut -> transcript-cut -> scrub -> True Render) needs a
+live filming session; the Studio overlay also needs a displayed browser pane to composite,
+so headless driving was limited (no console errors observed).
+
+---
 # Greek rework Pass 2 — portal minimal, chapter page sells
 
 Branch: `greek-rework-2`, on top of `main` @ `230647a3`.

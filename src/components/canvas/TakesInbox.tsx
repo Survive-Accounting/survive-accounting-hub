@@ -13,6 +13,7 @@ import { cancelSlate, slateEndOffsetMs, slateSeconds, startSlate, SLATE_CHOICES,
 import { beginCoverage, coverageForFile, endCoverage } from "./coverage-log";
 import { orientation } from "./orientation-store";
 import { fileUrl, fsaSupported, getFile, moveToRecycle, pickTakesFolder, probeDuration, recycleStats, restoreFromRecycle, savedTakesFolder, scanFolder } from "./takes-folder";
+import { drainTranscriptions, enqueueTranscription, transcribeEnabled } from "./transcript-client";
 import { currentTakes, dropTakeRecord, fmtBytes, latestPending, loadTakes, makeRecord, missingRecords, newFiles, saveTake, setKeepToHandler, setTriageHandler, subscribeTakes, type TakeRecord, type TakeTarget } from "./takes-store";
 import { NEON } from "./theme";
 
@@ -70,6 +71,7 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, openFrameId, co
   const [note, setNote] = useState<string | null>(null);
   const [bin, setBin] = useState({ count: 0, bytes: 0 });
   const [showRecycle, setShowRecycle] = useState(false); // Q0: recycle is a toggle, closed by default
+  const [transcribeOn, setTranscribeOn] = useState<boolean>(() => transcribeEnabled()); // Q3
   const [playing, setPlaying] = useState<{ id: string; url: string } | null>(null);
   const [showObs, setShowObs] = useState(false);
   const [addr, setAddr] = useState(() => localStorage.getItem("sa-obs-addr") ?? OBS_DEFAULT_ADDRESS);
@@ -188,7 +190,9 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, openFrameId, co
     try {
       const { url, path } = await onUpload(t, file, over ? { ...(over.at != null ? { at: over.at } : {}), explicit: true } : undefined);
       await saveTake({ ...t, status: "kept", upload: { state: "done", attempts: 1, url, path } });
-      setNote(`Uploaded "${t.fileName}" → its target.`);
+      // Q3: transcribe in the BACKGROUND — queued, never blocks the film loop.
+      enqueueTranscription(path, url, t.fileName);
+      setNote(`Uploaded "${t.fileName}" → its target.${transcribeEnabled() ? " Transcribing in the background." : ""}`);
     } catch (err) {
       await saveTake({ ...t, status: "kept", upload: { state: "error", attempts: 1, error: err instanceof Error ? err.message : String(err) } });
       setNote("Upload failed — the local file is untouched; retry from the inbox.");
@@ -309,7 +313,10 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, openFrameId, co
       <div className="flex items-center gap-1 border-b px-3 py-1.5" style={{ borderColor: NEON.borderSoft }}>
         <button className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => void (async () => { const d = (await savedTakesFolder(true)) ?? (fsaSupported() ? await pickTakesFolder() : null); if (d) { setDir(d); setNote("Folder granted."); void refreshBin(d); } })()} title="Grant the OBS recordings folder once — takes are read locally, nothing uploads until you Keep">{dir ? "Folder ✓" : "Grant folder"}</button>
         <button className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase disabled:opacity-40" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} disabled={!dir || scanning} onClick={() => void (async () => { setScanning(true); const n = await ingest(dirRef.current); setScanning(false); setNote(n ? `${n} new take${n === 1 ? "" : "s"}.` : "No new takes."); })()} title="Scan the folder for new recordings (works with OBS disconnected)"><RefreshCw className={`h-3 w-3 ${scanning ? "animate-spin" : ""}`} /> Scan</button>
-        <span className="ml-auto text-[8.5px]" style={{ color: NEON.muted }}>F10 keep · F8 trash <span title="These are APP keys — the app window must have focus, unlike OBS's global F9.">(app focus)</span></span>
+        {/* Q3: transcription toggle — every kept take is Whisper-transcribed by
+            default (word timings for text-based editing); flip off to skip. */}
+        <button className="ml-auto rounded px-1.5 py-0.5 text-[8.5px] font-bold uppercase" style={{ color: transcribeOn ? "#0B1322" : NEON.muted, background: transcribeOn ? "#3BF5A0" : "transparent", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { const v = !transcribeOn; setTranscribeOn(v); localStorage.setItem("sa-transcribe-on", v ? "1" : "0"); if (v) void drainTranscriptions(); setNote(v ? "Transcription ON — kept takes get word-level transcripts for text editing." : "Transcription OFF — no new transcripts (existing ones stay)."); }} title="Transcribe kept takes with Whisper (word-level, ~$0.006/min) for transcript-based editing. Runs in the background on Keep.">✎ transcribe {transcribeOn ? "on" : "off"}</button>
+        <span className="text-[8.5px]" style={{ color: NEON.muted }}>F10 keep · F8 trash <span title="These are APP keys — the app window must have focus, unlike OBS's global F9.">(app focus)</span></span>
       </div>
 
       {note && <div className="px-3 py-1 text-[9px]" style={{ color: "#3BF5A0" }}>{note}</div>}

@@ -77,6 +77,22 @@ export function resolveItemTrim(item: StitchItem, take: TakeRef): { inS: number;
   return { inS, outS, manual, slated };
 }
 
+/** INTERNAL CUT (Q3): the segments that survive removing [cutStartS, cutEndS]
+ *  from one item. Returns the item unchanged if the cut misses it, else 1–2 new
+ *  items — [in, cutStart] (seamless, gap 0) and [cutEnd, out] (keeps the trailing
+ *  gap). Non-destructive: the source take is untouched; this only rewrites the
+ *  recipe. PURE. */
+export function splitAroundCut(item: StitchItem, take: TakeRef, cutStartS: number, cutEndS: number): StitchItem[] {
+  const { inS, outS } = resolveItemTrim(item, take);
+  const cs = Math.max(inS, cutStartS);
+  const ce = Math.min(outS, cutEndS);
+  if (ce - cs <= 0.02) return [item]; // the selection isn't inside this segment
+  const out: StitchItem[] = [];
+  if (cs - inS > 0.02) out.push({ ...item, trimInS: inS, trimOutS: cs, gapAfterMs: 0 });
+  if (outS - ce > 0.02) out.push({ ...item, trimInS: ce, trimOutS: outS });
+  return out.length ? out : [item]; // a cut that would erase the whole clip leaves it be
+}
+
 /** Build the whole timeline. `takes` maps storage path → the take, so a stitch
  *  can reference clips attached anywhere in the set. Pure. */
 export function previewTimeline(stitch: StitchDef, takes: Map<string, TakeRef>): PreviewTimeline {
