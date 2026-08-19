@@ -543,11 +543,12 @@ html.sa-navy body {
      exposing ~400px of the player — not a peek. 80vh puts the tabs near y=918, so the row is
      visible as a scroll cue while the card stays mostly below the fold. */
   .sa-hero3 { min-height: calc(80vh - var(--sa-header-h, 54px)); }
-  /* Bigger, and pulled IN from the right edge. The graphic column is right-aligned, so at 176px
-     the bolt's glow and its 2deg lean ran into the viewport edge and read as cropped. The
-     negative right margin borrows space from the column's own padding rather than moving the
-     column, so the two-column balance is unchanged. */
-  .sa-hero3-paper { width: 208px; max-width: none; margin-right: 3.5rem; }
+  /* THE BOLT IS THE RIGHT COLUMN'S ANCHOR, so it is sized to read as one: 208 -> 244px (+17%).
+     It is also pulled further IN from the right edge — the column is right-aligned, so at the
+     old margin the bolt hugged the viewport edge and the hero read as two things pushed apart
+     rather than one composition. The negative-ish margin borrows from the column's own padding,
+     so the two-column grid is untouched and the headline never loses width. */
+  .sa-hero3-paper { width: 244px; max-width: none; margin-right: 6rem; }
 }
 
 /* DESKTOP restores the taller shared panel height. Two columns sit side by side from 1024px, so

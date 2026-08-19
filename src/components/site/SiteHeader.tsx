@@ -199,6 +199,15 @@ function SiteMenu() {
  *  existed to keep exactly one interactive element above the fold when the hero carried the
  *  wordmark; now the navbar carries the lockup and is itself the brand statement, so hiding half
  *  of it on load would just make the page look unfinished for the first 80px of scroll. */
+/** Desktop-only inline links. Anchors rather than router links: #reviews and #lee are on the
+ *  landing page and carry scroll-margin for the sticky bar, so a same-page press lands correctly
+ *  and a press from elsewhere navigates home first. */
+const DESKTOP_LINKS = [
+  { label: "Reviews", href: "/#reviews" },
+  { label: "Meet your tutor", href: "/#lee" },
+  { label: "For Greeks", href: "/chapters" },
+] as const;
+
 export function SiteHeader({ wordmark = true }: { wordmark?: boolean } = {}) {
   const bar = useRef<HTMLElement>(null);
 
@@ -242,11 +251,40 @@ export function SiteHeader({ wordmark = true }: { wordmark?: boolean } = {}) {
           ? <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center" style={{ minHeight: 44, minWidth: 44 }}><CompactLockup /></a>
           : <span style={{ minHeight: 44, display: "inline-flex" }} />}
         <span className="flex-1" />
-        {/* SITE NAV (M2.2) — the BROWSE ▾ toggle that used to sit INSIDE the player card is
-            gone; broader navigation belongs in the page chrome, not in the content.
-            aria-hidden + inert while faded so it is not reachable by keyboard or screen reader
-            either — an invisible-but-focusable control is worse than a visible one. */}
-        <SiteMenu />
+
+        {/* DESKTOP INLINE LINKS (>=1024px). The bar carried a wordmark and a lone hamburger with
+            a wasteland between them; at this width there is room to just show the destinations.
+            Contact and FAQ are deliberately absent — Contact lives in the footer and the FAQ is
+            on the page itself, so putting either here would be a link to somewhere the visitor
+            already is. */}
+        <nav className="hidden items-center gap-7 lg:flex" aria-label="Primary">
+          {DESKTOP_LINKS.map((l) => (
+            <a
+              key={l.label}
+              href={l.href}
+              className="text-[13.5px] font-semibold transition-colors"
+              style={{ color: "var(--text-muted)", minHeight: 44, display: "inline-flex", alignItems: "center" }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = "var(--brand-cream)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = "var(--text-muted)"; }}
+            >
+              {l.label}
+            </a>
+          ))}
+        </nav>
+
+        {/* THE CTA survives to tablet; only the three links collapse into the hamburger there. */}
+        <a
+          href="/#exam1"
+          className="ml-5 hidden items-center rounded-xl px-4 text-[13.5px] font-black md:inline-flex"
+          style={{ background: "var(--accent)", color: "#0B1220", minHeight: 40 }}
+        >
+          Cram Exam 1 Free ⚡
+        </a>
+
+        {/* Hidden entirely at >=1024px — everything it holds is now inline. */}
+        <span className="ml-2 lg:hidden">
+          <SiteMenu />
+        </span>
       </div>
     </header>
   );
