@@ -1,4 +1,4 @@
--- 0119 — a real table for campus rep applications.
+-- 20260819_1432 — a real table for campus rep applications.
 --
 -- NOT REQUIRED FOR THE FEATURE TO WORK. Applications currently live as `referrals` rows whose
 -- raw_text is a JSON envelope behind a "[CAMPUS REP]" prefix, because DDL cannot be run from the

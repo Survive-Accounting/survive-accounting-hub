@@ -1,4 +1,4 @@
--- 0118 — allow entitlements.source = 'greek_seat'.
+-- 20260819_1046 — allow entitlements.source = 'greek_seat'.
 --
 -- THE BUG: Phase 2b's assignSeat writes an entitlement with source 'greek_seat' (and
 -- greek_chapter_id, which 0116 did add). entitlements carries a CHECK on `source` that 0116 never
