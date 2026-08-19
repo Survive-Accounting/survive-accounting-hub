@@ -115,6 +115,10 @@ export function WorldBackground({ worldId, intensity, motion, seed, animate }: {
   /** Opt into drift/glow motion without a `.film-mode` ancestor (frames outside the canvas). */
   animate?: boolean;
 }) {
+  // [FLASH-DIAG] TEMPORARY (spacewalk-flash diagnosis) — a MOUNT log here on every
+  // Space means the world (and its glow/drift animations) is restarting = the
+  // "whole frame refreshes" flash. Remove after diagnosis.
+  useEffect(() => { console.log(`[flash] WORLD MOUNT ${worldId} — CSS glow/drift restart from frame 0`); }, [worldId]);
   const w = worldById(worldId);
   const reduced = usePrefersReducedMotion();
   const inten = clampWorldIntensity(intensity, w?.defaultIntensity ?? 0.3);

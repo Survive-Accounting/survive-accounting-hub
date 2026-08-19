@@ -328,7 +328,10 @@ function GuidesOverlay({ w, h }: { w: number; h: number }) {
  *  color; watermark/overlays stay overlay-only. */
 const FILM_GRAIN_URI = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='128' height='128' filter='url(%23n)'/%3E%3C/svg%3E\")";
 
-function FrameBgNode({ data }: NodeProps) {
+function FrameBgNode({ id, data }: NodeProps) {
+  // [FLASH-DIAG] TEMPORARY (spacewalk-flash diagnosis) — proves whether the
+  // background subtree REMOUNTS on a Space navigation. Remove after diagnosis.
+  useEffect(() => { console.log(`[flash] BG MOUNT   ${id}`); return () => console.log(`[flash] BG UNMOUNT ${id}`); }, [id]);
   const film = useContext(FilmContext);
   const d = data as unknown as { w: number; h: number; world?: string; worldIntensity?: number; worldMotion?: number; qNum?: number; guides?: boolean };
   const world = d.world ? <WorldBackground worldId={d.world} intensity={d.worldIntensity} motion={d.worldMotion} /> : null;
@@ -369,6 +372,9 @@ function CeqPreviewNode({ id, data }: NodeProps) {
   // inert card always shows its clean base state. Same id + type as the live card,
   // so activation is a DATA FLIP (no remount → nothing can flash on camera).
   const inert = !!(data as { inert?: boolean }).inert;
+  // [FLASH-DIAG] TEMPORARY — proves the CARD does NOT remount on Space (its id is
+  // the stable qid). Contrast with BG mount/unmount above. Remove after diagnosis.
+  useEffect(() => { console.log(`[flash] CARD MOUNT   ${id}`); return () => console.log(`[flash] CARD UNMOUNT ${id}`); }, [id]);
   const prLive = useContext(PracticeContext);
   const pr = inert ? INERT_PRACTICE : prLive;
   const vc = useContext(ViewChoiceContext);
@@ -1510,6 +1516,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   const skipSeedRef = useRef(false);
   useEffect(() => {
     if (skipSeedRef.current) { skipSeedRef.current = false; return; }
+    console.log(`[flash] RE-SEED nodes (active=${ceqId}) — replaces the active-frame node array`); // [FLASH-DIAG] TEMPORARY
     setNodes(build() as unknown as Node[]);
   }, [build, setNodes]);
 
