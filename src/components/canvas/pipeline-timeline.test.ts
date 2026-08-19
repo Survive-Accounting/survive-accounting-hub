@@ -89,3 +89,19 @@ describe("the timeline is a single track, not an NLE", () => {
     expect(stage).toContain("final bake · lock timing first");
   });
 });
+
+describe("blast drop — one clip across many frames via checkboxes", () => {
+  test("a frame bar with per-frame checkboxes + an ALL toggle; drop requires a check", () => {
+    expect(stage).toContain("const [frameSel, setFrameSel] = useState<Set<string>>(new Set());");
+    expect(stage).toContain("setFrameSel(allChecked ? new Set() : new Set(frames.map((f) => f.id)))"); // ALL toggle
+    expect(stage).toContain("onClick={() => toggleFrame(f.id)}"); // per-frame checkbox
+    expect(stage).toContain("onDropTakeToFrames(p.id, [...frameSel])"); // drop → checked frames
+  });
+  test("the studio attaches it as ONE clip with coversFrameIds when >1 frame is checked", () => {
+    const fn = studio.slice(studio.indexOf("const dropTakeToFrames ="), studio.indexOf("const moveClip ="));
+    expect(fn).toContain("if (!ids.length) { setNote(\"Check at least one frame first"); // required
+    expect(fn).toContain("const clip = ids.length > 1 ? { ...ref, coversFrameIds: ids } : ref;");
+    expect(fn).toContain("patchQ(first, { takes: [...cardClips(d), clip] });"); // lives once, on the first frame
+    expect(studio).toContain("onDropTakeToFrames={(id, frameIds) => dropTakeToFrames(id, frameIds)}");
+  });
+});

@@ -69,7 +69,7 @@ function ClipTile({ clip, w, selected, underPlayhead, onSelect, onDetach, onDrag
   );
 }
 
-export function PipelineStage({ clips, frames, currentCeqId, hidden, selectedKey, onSelectClip, onMoveClip, onDropTake, onDetach, onAuthorFrame, onOpenCapture, onTrueRender, renderPhase, renderBusy }: {
+export function PipelineStage({ clips, frames, currentCeqId, hidden, selectedKey, onSelectClip, onMoveClip, onDropTake, onDropTakeToFrames, onDetach, onAuthorFrame, onOpenCapture, onTrueRender, renderPhase, renderBusy }: {
   clips: StageClip[];
   frames: { id: string; label: string }[];
   currentCeqId: string | null;
@@ -78,6 +78,8 @@ export function PipelineStage({ clips, frames, currentCeqId, hidden, selectedKey
   onSelectClip: (c: StageClip | null) => void;
   onMoveClip: (from: { frameId: string; index: number }, toFrameId: string, atIndex: number) => void;
   onDropTake: (takeId: string, toFrameId: string, atIndex: number) => void;
+  /** BLAST: attach one take across the CHECKED frames as a single clip. */
+  onDropTakeToFrames: (takeId: string, frameIds: string[]) => void;
   onDetach: (frameId: string, index: number) => void;
   onAuthorFrame: (frameId: string) => void;
   onOpenCapture: () => void;
@@ -109,6 +111,9 @@ export function PipelineStage({ clips, frames, currentCeqId, hidden, selectedKey
 
   const [dropAt, setDropAt] = useState<number | null>(null); // insertion index (flat) for the caret
   const [scrollLeft, setScrollLeft] = useState(0);           // so the marker row tracks the timeline scroll
+  const [frameSel, setFrameSel] = useState<Set<string>>(new Set()); // BLAST: frames a dropped take covers
+  const allChecked = frames.length > 0 && frameSel.size === frames.length;
+  const toggleFrame = (id: string) => setFrameSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const trackRef = useRef<HTMLDivElement | null>(null);
 
   const insertionIndex = (clientX: number): number => {
@@ -209,14 +214,8 @@ export function PipelineStage({ clips, frames, currentCeqId, hidden, selectedKey
       {/* THE TIMELINE — single horizontal track, cut order, drag to reorder. */}
       <div ref={trackRef} className="relative shrink-0 overflow-x-auto overflow-y-hidden rounded-lg" style={{ height: 78, background: "rgba(0,0,0,0.28)", border: `1px solid ${NEON.borderSoft}` }} onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)} onDragOver={onTrackDragOver} onDragLeave={() => setDropAt(null)} onDrop={onTrackDrop} onClick={(e) => { if (e.target === e.currentTarget || (e.target as HTMLElement).dataset?.track) seekToPx(e.clientX); }}>
         {clips.length === 0 ? (
-          <div className="flex h-full items-center gap-1 px-2" data-track="1">
-            <span className="text-[9px] italic" style={{ color: NEON.muted }}>Empty — drop a take onto a frame:</span>
-            {frames.map((f) => (
-              <div key={f.id} className="grid h-[60px] w-11 place-items-center rounded text-[8px] font-black uppercase" style={{ border: `1px dashed ${NEON.borderSoft}`, color: NEON.cyan }}
-                onDragOver={(e) => { if (e.dataTransfer.types.includes("application/x-sa-take")) e.preventDefault(); }}
-                onDrop={(e) => { const raw = e.dataTransfer.getData("application/x-sa-take"); if (!raw) return; e.preventDefault(); e.stopPropagation(); try { const p = JSON.parse(raw) as { kind: string; id?: string; frameId?: string; index?: number }; if (p.kind === "clip" && p.frameId != null && p.index != null) onMoveClip({ frameId: p.frameId, index: p.index }, f.id, 0); else if (p.id) onDropTake(p.id, f.id, 0); } catch { /* ignore */ } }}
-                onClick={() => onAuthorFrame(f.id)} title={`${f.label} — drop a take here to attach, or click to author`}>{f.label}</div>
-            ))}
+          <div className="flex h-full items-center justify-center px-3 text-center" data-track="1">
+            <span className="text-[9px] italic" style={{ color: NEON.muted }}>No clips yet — check the frames below, then drop a scratch take on the frame bar. Check ALL for a blast (one clip, whole set).</span>
           </div>
         ) : (
           <div className="relative h-full p-1" style={{ width: trackW + 8 }} data-track="1">
@@ -232,6 +231,26 @@ export function PipelineStage({ clips, frames, currentCeqId, hidden, selectedKey
             <div className="pointer-events-none absolute top-0 bottom-0 w-0.5" style={{ left: 4 + playheadPx, background: "#FF3B6B", boxShadow: "0 0 4px #FF3B6B" }} />
           </div>
         )}
+      </div>
+
+      {/* FRAME BAR (blast drop) — check the frames a clip covers, then drop a
+          scratch take here. One check = a normal single-frame clip; several (or
+          ALL) = ONE clip covering them (a blast). Dropping requires a check. */}
+      <div className="flex shrink-0 flex-wrap items-center gap-1 rounded-lg p-1.5" style={{ background: "rgba(0,0,0,0.28)", border: `1px solid ${frameSel.size ? "#3BF5A0" : NEON.borderSoft}` }}
+        onDragOver={(e) => { if (e.dataTransfer.types.includes("application/x-sa-take")) e.preventDefault(); }}
+        onDrop={(e) => { const raw = e.dataTransfer.getData("application/x-sa-take"); if (!raw) return; e.preventDefault(); e.stopPropagation(); try { const p = JSON.parse(raw) as { kind: string; id?: string }; if (p.kind === "clip" || !p.id) return; onDropTakeToFrames(p.id, [...frameSel]); } catch { /* ignore */ } }}>
+        <span className="text-[8px] font-black uppercase tracking-wide" style={{ color: NEON.cyan }}>Frames</span>
+        <button className="rounded px-1.5 py-0.5 text-[8.5px] font-black uppercase" style={{ color: allChecked ? "#0B1322" : NEON.muted, background: allChecked ? "#3BF5A0" : "transparent", border: `1px solid ${NEON.borderSoft}` }} onClick={() => setFrameSel(allChecked ? new Set() : new Set(frames.map((f) => f.id)))} title="Check every frame — a blast clip covers the whole set">{allChecked ? "☑" : "☐"} all</button>
+        {frames.map((f) => {
+          const on = frameSel.has(f.id);
+          return (
+            <span key={f.id} className="flex items-center gap-0.5 rounded px-1 py-0.5" style={{ border: `1px solid ${on ? "#3BF5A0" : NEON.borderSoft}`, background: on ? "rgba(59,245,160,0.12)" : "transparent" }}>
+              <button className="text-[10px] font-black leading-none" style={{ color: on ? "#3BF5A0" : NEON.muted }} onClick={() => toggleFrame(f.id)} title={`Include ${f.label} in the next drop`}>{on ? "☑" : "☐"}</button>
+              <button className="text-[8.5px] font-bold uppercase" style={{ color: NEON.cyan }} onClick={() => onAuthorFrame(f.id)} title={`${f.label} — click the box to include, the label to author this frame`}>{f.label}</button>
+            </span>
+          );
+        })}
+        <span className="ml-auto text-[8px]" style={{ color: frameSel.size ? "#3BF5A0" : NEON.muted }}>{frameSel.size ? `drop a take → 1 clip on ${frameSel.size} frame${frameSel.size > 1 ? "s" : ""}` : "check frames, then drop a take here"}</span>
       </div>
     </div>
   );

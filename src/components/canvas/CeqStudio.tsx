@@ -1451,6 +1451,25 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     patchQ(frameId, { takes: clips });
     setNote(`Attached "${t.fileName}" to ${spineLabelOf(frameId) ?? "the frame"}${at == null ? "" : ` at position ${at + 1}`}.`);
   };
+  /** BLAST DROP (08-19): one take covering MANY frames — the checkbox path. The
+   *  clip lives ONCE on the first checked frame's card with coversFrameIds so it
+   *  shows as a single segment on the timeline (a blast is one continuous clip
+   *  for the whole set), while coverage still knows every frame it spans. */
+  const dropTakeToFrames = (takeId: string, frameIds: string[]) => {
+    const ids = frameIds.filter(Boolean);
+    if (!ids.length) { setNote("Check at least one frame first — then drop the take to cover them."); return; }
+    const t = currentTakes().find((x) => x.id === takeId);
+    if (!t) { setNote("That take is gone from the store."); return; }
+    const ref = takeRefOf(t);
+    if (!ref) { keepTakeTo(takeId, ids[0]); return; } // not uploaded yet → single-frame keep path
+    const first = ids[0];
+    const d = rf.getNode(first)?.data as unknown as CeqCard | undefined;
+    const clip = ids.length > 1 ? { ...ref, coversFrameIds: ids } : ref;
+    patchQ(first, { takes: [...cardClips(d), clip] });
+    setNote(ids.length > 1
+      ? `Attached "${t.fileName}" as ONE clip covering ${ids.length} frames (${ids.map((id) => spineLabelOf(id)).filter(Boolean).join(", ")}).`
+      : `Attached "${t.fileName}" to ${spineLabelOf(first) ?? "the frame"}.`);
+  };
   /** P3: when a SAVED set recipe exists, a same-frame reorder permutes that
    *  frame's items IN THEIR OWN SLOTS (trims ride along) — the stack order IS
    *  the stitch order. No saved recipe ⇒ nothing to do: the derived cut
@@ -3496,6 +3515,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                     onSelectClip={(c) => { setStageSel(c?.key ?? null); if (c?.frameId) setQId(c.frameId); }}
                     onMoveClip={(from, toFrameId, at) => moveClip(from, toFrameId, at)}
                     onDropTake={(id, toFrameId, at) => dropTakeAt(id, toFrameId, at)}
+                    onDropTakeToFrames={(id, frameIds) => dropTakeToFrames(id, frameIds)}
                     onDetach={(frameId, index) => detachClip(frameId, index)}
                     onAuthorFrame={authorFrame}
                     onOpenCapture={() => setCaptureOpen(true)}
