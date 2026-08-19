@@ -1,3 +1,74 @@
+# Campus rep — interest pages (marketing + capture only)
+
+Branch `campus-rep-interest`.
+
+## Scope held
+
+Built: the per-campus ad page, the generic picker, the interest form with its decline path, the
+Twilio alert, the admin queue, and the footer link.
+
+**Not built, deliberately:** rep links, codes or attribution; rep dashboards; commission tracking or
+payouts; W-9 / 1099 handling; automated approval or onboarding email. None of these are stubbed
+either — a half-built payout column is worse than an empty one, because it looks finished.
+
+## Two findings that changed the plan
+
+**There are no campus pages.** The brief scopes the rep route to "every school with a published
+campus page", and `/ole-miss` and `/university-of-mississippi` both 404 in production. The rep pages
+are therefore keyed on the school table directly rather than hung off a campus page that does not
+exist.
+
+> This also means **the campus flyer's QR points at a dead page** — `/{school}?s=flyer` 404s. That is
+> a live bug in the flyer work shipped earlier today and is called out separately below.
+
+**The route accepts either namespace.** The brief writes `/ole-miss/rep` — the picker *id* — while
+`/go/` URLs use the campus *slug* (`university-of-mississippi`). Both resolve, because these links
+get typed and forwarded and a rep should not have to know which one we meant. Campus context is
+given the resolved slug, so the subhead shows the real course code (`ACCY 201`) either way.
+
+## Where applications are stored, and why not their own table
+
+They want a table — name, contact, school, year, pitch, a mutable status and a note. DDL still
+cannot be run from this machine, so a feature depending on a new table would ship not working.
+
+Two existing tables could hold it:
+
+- **`student_intake_submissions`** has nearly every field — and *drives Lee's onboarding*
+  (`routing_result`, `booking_link_shown`, `onboarding_*`). A rep application landing there risks
+  being routed into a student booking flow. **Rejected.**
+- **`referrals`** is thin free text, 0 rows, used only by the "not listed" capture behind its own
+  prefix, and nothing processes it automatically. **Chosen.**
+
+An application is one `referrals` row whose `raw_text` is a JSON envelope behind `[CAMPUS REP]`.
+Status and note live in the envelope; the admin does read-modify-write on a single row, which is
+fine at the volume a one-person business generates.
+
+**`0119` is written and NOT applied** — it creates the real table with a status CHECK, indexes and
+RLS denied by default, plus the `INSERT…SELECT` to migrate the interim rows. One code change in
+`campus-rep.functions.ts` follows when it lands.
+
+## The work-authorisation gate
+
+Required, and **enforced server-side as well as in the browser** — a required checkbox that only
+exists in the client is not a control. Unchecked, the form declines politely and **stores nothing**:
+no row, no alert. Verified: `referrals` still holds 0 rows after walking the decline path.
+
+Capturing someone we would have to turn down, and keeping their details on file, is worse for them
+than not asking. The decline copy says nothing was submitted, and still offers them the free exam.
+
+## Verified
+
+`tsc` clean, 1319 tests pass.
+
+- `/ole-miss/rep` — headline, subhead with **ACCY 201**, all three points, the honest line, all seven
+  fields, school pre-filled as "Ole Miss", submit disabled until valid + authorised.
+- Decline path — shown, reversible, form removed, **0 rows written**.
+- `/rep` — picker only, no duplicate pitch, "somewhere else" fallback line.
+- Footer link added to the navigate column; navbar and hamburger untouched.
+
+**Screenshots not delivered** — the Browser pane does not composite frames.
+
+---
 # Chapter flyers — dynamic generation, preview, download, print
 
 Branch `chapter-flyers`. One SVG template, ~1,100 chapters, rendered on demand.

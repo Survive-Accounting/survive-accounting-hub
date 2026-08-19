@@ -15,6 +15,7 @@ import { Route as ThankyouRouteImport } from './routes/thankyou'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as StudyRouteImport } from './routes/study'
 import { Route as StartRouteImport } from './routes/start'
+import { Route as RepRouteImport } from './routes/rep'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PreviewRouteImport } from './routes/preview'
 import { Route as OutreachRouteImport } from './routes/outreach'
@@ -41,6 +42,7 @@ import { Route as StudyCanvasRouteImport } from './routes/study_.canvas'
 import { Route as OutreachVideoArchiveRouteImport } from './routes/outreach.video-archive'
 import { Route as OutreachStudentsRouteImport } from './routes/outreach.students'
 import { Route as OutreachResearchRouteImport } from './routes/outreach.research'
+import { Route as OutreachRepsRouteImport } from './routes/outreach.reps'
 import { Route as OutreachRedditRouteImport } from './routes/outreach.reddit'
 import { Route as OutreachProfintelScheduleRouteImport } from './routes/outreach.profintel-schedule'
 import { Route as OutreachProfintelMetricsRouteImport } from './routes/outreach.profintel-metrics'
@@ -64,6 +66,7 @@ import { Route as JeSplatRouteImport } from './routes/je.$'
 import { Route as ChaptersDashboardRouteImport } from './routes/chapters_.dashboard'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
 import { Route as CSlugRouteImport } from './routes/c.$slug'
+import { Route as SchoolRepRouteImport } from './routes/$school.rep'
 import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.leadfinder.index'
 import { Route as StudyScenariosSlugRouteImport } from './routes/study_.scenarios.$slug'
 import { Route as OutreachSchoolSlugRouteImport } from './routes/outreach_.school.$slug'
@@ -109,6 +112,11 @@ const StudyRoute = StudyRouteImport.update({
 const StartRoute = StartRouteImport.update({
   id: '/start',
   path: '/start',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RepRoute = RepRouteImport.update({
+  id: '/rep',
+  path: '/rep',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -241,6 +249,11 @@ const OutreachResearchRoute = OutreachResearchRouteImport.update({
   path: '/research',
   getParentRoute: () => OutreachRoute,
 } as any)
+const OutreachRepsRoute = OutreachRepsRouteImport.update({
+  id: '/reps',
+  path: '/reps',
+  getParentRoute: () => OutreachRoute,
+} as any)
 const OutreachRedditRoute = OutreachRedditRouteImport.update({
   id: '/reddit',
   path: '/reddit',
@@ -359,6 +372,11 @@ const CSlugRoute = CSlugRouteImport.update({
   path: '/c/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SchoolRepRoute = SchoolRepRouteImport.update({
+  id: '/$school/rep',
+  path: '/$school/rep',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OutreachLeadfinderIndexRoute = OutreachLeadfinderIndexRouteImport.update({
   id: '/leadfinder/',
   path: '/leadfinder/',
@@ -464,12 +482,14 @@ export interface FileRoutesByFullPath {
   '/outreach': typeof OutreachRouteWithChildren
   '/preview': typeof PreviewRoute
   '/privacy': typeof PrivacyRoute
+  '/rep': typeof RepRoute
   '/start': typeof StartRoute
   '/study': typeof StudyRoute
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
   '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
+  '/$school/rep': typeof SchoolRepRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters/dashboard': typeof ChaptersDashboardRoute
@@ -493,6 +513,7 @@ export interface FileRoutesByFullPath {
   '/outreach/profintel-metrics': typeof OutreachProfintelMetricsRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
   '/outreach/reddit': typeof OutreachRedditRoute
+  '/outreach/reps': typeof OutreachRepsRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
@@ -536,12 +557,14 @@ export interface FileRoutesByTo {
   '/order': typeof OrderRouteWithChildren
   '/preview': typeof PreviewRoute
   '/privacy': typeof PrivacyRoute
+  '/rep': typeof RepRoute
   '/start': typeof StartRoute
   '/study': typeof StudyRoute
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
   '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
+  '/$school/rep': typeof SchoolRepRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters/dashboard': typeof ChaptersDashboardRoute
@@ -565,6 +588,7 @@ export interface FileRoutesByTo {
   '/outreach/profintel-metrics': typeof OutreachProfintelMetricsRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
   '/outreach/reddit': typeof OutreachRedditRoute
+  '/outreach/reps': typeof OutreachRepsRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
@@ -610,12 +634,14 @@ export interface FileRoutesById {
   '/outreach': typeof OutreachRouteWithChildren
   '/preview': typeof PreviewRoute
   '/privacy': typeof PrivacyRoute
+  '/rep': typeof RepRoute
   '/start': typeof StartRoute
   '/study': typeof StudyRoute
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
   '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
+  '/$school/rep': typeof SchoolRepRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters_/dashboard': typeof ChaptersDashboardRoute
@@ -639,6 +665,7 @@ export interface FileRoutesById {
   '/outreach/profintel-metrics': typeof OutreachProfintelMetricsRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
   '/outreach/reddit': typeof OutreachRedditRoute
+  '/outreach/reps': typeof OutreachRepsRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
@@ -685,12 +712,14 @@ export interface FileRouteTypes {
     | '/outreach'
     | '/preview'
     | '/privacy'
+    | '/rep'
     | '/start'
     | '/study'
     | '/terms'
     | '/thankyou'
     | '/waitlist'
     | '/welcome'
+    | '/$school/rep'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters/dashboard'
@@ -714,6 +743,7 @@ export interface FileRouteTypes {
     | '/outreach/profintel-metrics'
     | '/outreach/profintel-schedule'
     | '/outreach/reddit'
+    | '/outreach/reps'
     | '/outreach/research'
     | '/outreach/students'
     | '/outreach/video-archive'
@@ -757,12 +787,14 @@ export interface FileRouteTypes {
     | '/order'
     | '/preview'
     | '/privacy'
+    | '/rep'
     | '/start'
     | '/study'
     | '/terms'
     | '/thankyou'
     | '/waitlist'
     | '/welcome'
+    | '/$school/rep'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters/dashboard'
@@ -786,6 +818,7 @@ export interface FileRouteTypes {
     | '/outreach/profintel-metrics'
     | '/outreach/profintel-schedule'
     | '/outreach/reddit'
+    | '/outreach/reps'
     | '/outreach/research'
     | '/outreach/students'
     | '/outreach/video-archive'
@@ -830,12 +863,14 @@ export interface FileRouteTypes {
     | '/outreach'
     | '/preview'
     | '/privacy'
+    | '/rep'
     | '/start'
     | '/study'
     | '/terms'
     | '/thankyou'
     | '/waitlist'
     | '/welcome'
+    | '/$school/rep'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters_/dashboard'
@@ -859,6 +894,7 @@ export interface FileRouteTypes {
     | '/outreach/profintel-metrics'
     | '/outreach/profintel-schedule'
     | '/outreach/reddit'
+    | '/outreach/reps'
     | '/outreach/research'
     | '/outreach/students'
     | '/outreach/video-archive'
@@ -904,12 +940,14 @@ export interface RootRouteChildren {
   OutreachRoute: typeof OutreachRouteWithChildren
   PreviewRoute: typeof PreviewRoute
   PrivacyRoute: typeof PrivacyRoute
+  RepRoute: typeof RepRoute
   StartRoute: typeof StartRoute
   StudyRoute: typeof StudyRoute
   TermsRoute: typeof TermsRoute
   ThankyouRoute: typeof ThankyouRoute
   WaitlistRoute: typeof WaitlistRoute
   WelcomeRoute: typeof WelcomeRoute
+  SchoolRepRoute: typeof SchoolRepRoute
   CSlugRoute: typeof CSlugRoute
   ChaptersDashboardRoute: typeof ChaptersDashboardRoute
   OShortRefRoute: typeof OShortRefRoute
@@ -969,6 +1007,13 @@ declare module '@tanstack/react-router' {
       path: '/start'
       fullPath: '/start'
       preLoaderRoute: typeof StartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rep': {
+      id: '/rep'
+      path: '/rep'
+      fullPath: '/rep'
+      preLoaderRoute: typeof RepRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -1153,6 +1198,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachResearchRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/outreach/reps': {
+      id: '/outreach/reps'
+      path: '/reps'
+      fullPath: '/outreach/reps'
+      preLoaderRoute: typeof OutreachRepsRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/outreach/reddit': {
       id: '/outreach/reddit'
       path: '/reddit'
@@ -1312,6 +1364,13 @@ declare module '@tanstack/react-router' {
       path: '/c/$slug'
       fullPath: '/c/$slug'
       preLoaderRoute: typeof CSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/$school/rep': {
+      id: '/$school/rep'
+      path: '/$school/rep'
+      fullPath: '/$school/rep'
+      preLoaderRoute: typeof SchoolRepRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/outreach/leadfinder/': {
@@ -1483,6 +1542,7 @@ interface OutreachRouteChildren {
   OutreachProfintelMetricsRoute: typeof OutreachProfintelMetricsRoute
   OutreachProfintelScheduleRoute: typeof OutreachProfintelScheduleRoute
   OutreachRedditRoute: typeof OutreachRedditRoute
+  OutreachRepsRoute: typeof OutreachRepsRoute
   OutreachResearchRoute: typeof OutreachResearchRoute
   OutreachStudentsRoute: typeof OutreachStudentsRoute
   OutreachVideoArchiveRoute: typeof OutreachVideoArchiveRoute
@@ -1512,6 +1572,7 @@ const OutreachRouteChildren: OutreachRouteChildren = {
   OutreachProfintelMetricsRoute: OutreachProfintelMetricsRoute,
   OutreachProfintelScheduleRoute: OutreachProfintelScheduleRoute,
   OutreachRedditRoute: OutreachRedditRoute,
+  OutreachRepsRoute: OutreachRepsRoute,
   OutreachResearchRoute: OutreachResearchRoute,
   OutreachStudentsRoute: OutreachStudentsRoute,
   OutreachVideoArchiveRoute: OutreachVideoArchiveRoute,
@@ -1546,12 +1607,14 @@ const rootRouteChildren: RootRouteChildren = {
   OutreachRoute: OutreachRouteWithChildren,
   PreviewRoute: PreviewRoute,
   PrivacyRoute: PrivacyRoute,
+  RepRoute: RepRoute,
   StartRoute: StartRoute,
   StudyRoute: StudyRoute,
   TermsRoute: TermsRoute,
   ThankyouRoute: ThankyouRoute,
   WaitlistRoute: WaitlistRoute,
   WelcomeRoute: WelcomeRoute,
+  SchoolRepRoute: SchoolRepRoute,
   CSlugRoute: CSlugRoute,
   ChaptersDashboardRoute: ChaptersDashboardRoute,
   OShortRefRoute: OShortRefRoute,

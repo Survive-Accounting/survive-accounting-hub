@@ -1894,6 +1894,9 @@ const FOOTER_LINKS: { label: string; href: string }[] = [
   { label: "Reviews", href: "#reviews" },
   { label: "Meet your tutor", href: "#lee" },
   { label: "Contact", href: "#contact" },
+  // FOOTER ONLY, deliberately — not the navbar and not the hamburger. A commission ad in the
+  // primary nav would compete with the product for every student who is not going to apply.
+  { label: "Become a campus rep", href: "/rep" },
 ];
 
 export function Footer() {
