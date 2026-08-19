@@ -169,6 +169,41 @@ describe("the strip's contracts", () => {
   });
 });
 
+describe("Q2 — waveform zoom + fine trim detail", () => {
+  const detail = read("TrimDetail.tsx");
+  test("selecting a clip opens the trim detail with the clip's take + recipe trims", () => {
+    expect(studio).toContain("<TrimDetail");
+    expect(studio).toContain("const item = sel && pipelineStitch ? pipelineStitch.items.find((i) => i.takePath === sel.path) : undefined;");
+    expect(studio).toContain("onTrim={(inS, outS, how) => applyTrim(sel.path, inS, outS, how)}"); // writes the recipe only
+  });
+  test("mouse-wheel zooms the time axis centered on the cursor; drag pans", () => {
+    const wheel = detail.slice(detail.indexOf("const onWheel ="), detail.indexOf("const onPointerDown ="));
+    expect(wheel).toContain("const cursorMs = xToMs(e.clientX - rect.left);"); // centered on cursor
+    expect(wheel).toContain("const factor = e.deltaY < 0 ? 0.8 : 1.25;");      // in / out
+    expect(wheel).toContain("if (spanMs > durMs) { a = 0; b = durMs; }");       // never wider than the clip
+    expect(detail).toContain("if (!moved) { setScrubMs(ms0); previewFrom(ms0); }"); // click = scrub, drag = pan
+  });
+  test("handles snap to landmarks on drag; arrow nudges the ACTIVE handle 50/10ms", () => {
+    expect(detail).toContain("snapMs(raw, [slateMs, span.onsetMs, span.offsetMs])");
+    const nudge = detail.slice(detail.indexOf("const onKeyDown ="), detail.indexOf("const num ="));
+    expect(nudge).toContain("e.shiftKey ? 10 : 50");
+    expect(nudge).toContain('if (active === "in")');
+  });
+  test("exact in/out timecodes show numerically, ms-precise", () => {
+    expect(detail).toContain("const tc = (ms: number): string =>");
+    expect(detail).toContain("String(mmm).padStart(3, \"0\")"); // millisecond precision
+  });
+  test("a scrubber lets you HEAR the cut before committing — plays to the out point", () => {
+    expect(detail).toContain("const previewFrom = (ms: number) =>");
+    expect(detail).toContain("if (v.currentTime * 1000 >= outMs) { v.pause();"); // stops at the trim out
+  });
+  test("px↔ms uses the DECODED duration, and nothing bakes until True Render", () => {
+    expect(detail).toContain("(audio?.durationS ?? take.duration ?? 0) * 1000");
+    expect(detail).toContain("nothing bakes until True Render");
+    expect(detail).not.toContain("startDissectStitch"); // the detail never renders
+  });
+});
+
 describe("settings, not constants", () => {
   test("X and Y persist and feed the rule", () => {
     expect(studio).toContain('localStorage.getItem("sa-trim-preroll-ms")');

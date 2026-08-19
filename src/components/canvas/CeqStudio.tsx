@@ -28,6 +28,7 @@ import { autoClipName, buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, 
 import { buildSetExport } from "./ceq-export";
 import { ClipTrimStrip } from "./ClipTrimStrip";
 import { PipelineStage, type StageClip } from "./PipelineStage";
+import { TrimDetail } from "./TrimDetail";
 import { previewTimeline } from "./stitch-preview";
 import { SetFilmstrip, type StripItem } from "./SetFilmstrip";
 import { checkFilmReadiness, type ReadinessReport } from "./film-readiness";
@@ -1246,7 +1247,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       } else if (deck?.intro?.path === s.takePath) label = "intro";
       else if (deck?.outro?.path === s.takePath) label = "outro";
       else if ((deck?.wrap ?? []).some((w) => w.path === s.takePath)) label = "wrap";
-      return { key: `${s.takePath}#${i}`, frameId: clipIndex >= 0 ? fid : null, clipIndex, label, url: s.url, name: s.name, inS: s.inS, outS: s.outS, gapAfterMs: s.gapAfterMs };
+      return { key: `${s.takePath}#${i}`, frameId: clipIndex >= 0 ? fid : null, clipIndex, label, path: s.takePath, url: s.url, name: s.name, inS: s.inS, outS: s.outS, gapAfterMs: s.gapAfterMs };
     });
   }, [pipelineStitch, takesByPath, ceqOfPath, rf, deck]);
   /** The set's frames as drop targets / author-switch chips (empty-timeline state). */
@@ -3466,6 +3467,25 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                     renderPhase={stitchJob?.phase ?? null}
                     renderBusy={!!stitchJob?.running}
                   />
+                  {/* TRIM DETAIL (Q2) — the selected clip's zoomable waveform + fine
+                      handles, under the timeline. Writes the recipe only. */}
+                  {(() => {
+                    const sel = stageClips.find((c) => c.key === stageSel && c.frameId != null);
+                    const t = sel ? takesByPath.get(sel.path) : undefined;
+                    const item = sel && pipelineStitch ? pipelineStitch.items.find((i) => i.takePath === sel.path) : undefined;
+                    return sel && t ? (
+                      <TrimDetail
+                        key={sel.key}
+                        take={t}
+                        label={sel.label}
+                        trimInS={item?.trimInS}
+                        trimOutS={item?.trimOutS}
+                        autoTrim={item?.autoTrim}
+                        onTrim={(inS, outS, how) => applyTrim(sel.path, inS, outS, how)}
+                        onClose={() => setStageSel(null)}
+                      />
+                    ) : null;
+                  })()}
                 </div>
               )}
               {/* CAPTURE MODAL (Q1) — the previewer is a PULL-OUT, needed only while

@@ -23,6 +23,8 @@ export interface StageClip {
   /** Index within that frame's cardClips — what detach/move address. -1 for bookends. */
   clipIndex: number;
   label: string;
+  /** Storage path — the trim detail resolves the take + writes the recipe by this. */
+  path: string;
   url: string;
   name: string;
   inS: number;
