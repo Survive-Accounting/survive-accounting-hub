@@ -35,6 +35,29 @@ describe("the active frame's background id is stable per frame (no remount on Sp
     expect(previewer).toContain('fitRef.current?.fitView({ nodes: [{ id: filmStack ? `fbg:${ceqId}` : "__frame__" }]');
   });
   test("filmStack is in the seed build's deps, so the id updates when the mode toggles", () => {
-    expect(previewer).toContain("dealAnim, filmV2, filmWin, filmStack]);");
+    expect(previewer).toContain("dealAnim, filmV2, filmWin, filmStack, fadeMs]);");
+  });
+});
+
+describe("Step 3 — the transition is smooth, tunable, and GPU-only (opacity/transform)", () => {
+  test("one duration setting (fadeMs) with an instant option, persisted", () => {
+    expect(previewer).toContain('localStorage.getItem("sa-fade-ms")');
+    expect(previewer).toContain('localStorage.setItem("sa-fade-ms"');
+    expect(previewer).toContain("onClick={() => setFade(ms)}"); // the transport control
+    expect(previewer).toContain('["off", 0]'); // instant option
+  });
+  test("the STACK card never re-animates (no 1→0→1 blink) — the pan is the transition", () => {
+    // V1 stack card entrance is "none"; the camera glide carries the change.
+    expect(previewer).toContain('filmStack ? "none"');
+    expect(previewer).toContain("fitFilm(fadeMs <= 0 ? 0 : fadeMs);"); // the pan, duration = fadeMs
+  });
+  test("the pan is a viewport transform of tunable duration — instant when fadeMs 0", () => {
+    expect(previewer).toContain("const fitFilm = useCallback((duration = 0) =>");
+    expect(previewer).toContain("zoom }, { duration });");
+    // the recording surface pans too, via the main RF fit
+    expect(previewer).toContain("filmStack ? (fadeMs <= 0 ? 0 : fadeMs) : 0");
+  });
+  test("V2 stays a pure-opacity crossfade of the SAME tunable duration", () => {
+    expect(previewer).toContain("v2Film ? `sa-ceq-v2-fade ${fadeMs}ms ease-out both`");
   });
 });

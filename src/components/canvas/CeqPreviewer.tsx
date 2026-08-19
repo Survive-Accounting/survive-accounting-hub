@@ -329,9 +329,6 @@ function GuidesOverlay({ w, h }: { w: number; h: number }) {
 const FILM_GRAIN_URI = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='128' height='128' filter='url(%23n)'/%3E%3C/svg%3E\")";
 
 function FrameBgNode({ id, data }: NodeProps) {
-  // [FLASH-DIAG] TEMPORARY (spacewalk-flash diagnosis) — proves whether the
-  // background subtree REMOUNTS on a Space navigation. Remove after diagnosis.
-  useEffect(() => { console.log(`[flash] BG MOUNT   ${id}`); return () => console.log(`[flash] BG UNMOUNT ${id}`); }, [id]);
   const film = useContext(FilmContext);
   const d = data as unknown as { w: number; h: number; world?: string; worldIntensity?: number; worldMotion?: number; qNum?: number; guides?: boolean };
   const world = d.world ? <WorldBackground worldId={d.world} intensity={d.worldIntensity} motion={d.worldMotion} /> : null;
@@ -372,9 +369,6 @@ function CeqPreviewNode({ id, data }: NodeProps) {
   // inert card always shows its clean base state. Same id + type as the live card,
   // so activation is a DATA FLIP (no remount → nothing can flash on camera).
   const inert = !!(data as { inert?: boolean }).inert;
-  // [FLASH-DIAG] TEMPORARY — proves the CARD does NOT remount on Space (its id is
-  // the stable qid). Contrast with BG mount/unmount above. Remove after diagnosis.
-  useEffect(() => { console.log(`[flash] CARD MOUNT   ${id}`); return () => console.log(`[flash] CARD UNMOUNT ${id}`); }, [id]);
   const prLive = useContext(PracticeContext);
   const pr = inert ? INERT_PRACTICE : prLive;
   const vc = useContext(ViewChoiceContext);
@@ -1171,6 +1165,10 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   // V1 (the stack) stays the default until the experiment wins. Pref persists.
   const [filmV2, setFilmV2] = useState<boolean>(() => { try { return localStorage.getItem("sa-film-mode") === "v2"; } catch { return false; } });
   const setFilmMode = (v2: boolean) => { setFilmV2(v2); try { localStorage.setItem("sa-film-mode", v2 ? "v2" : "v1"); } catch { /* ignore */ } };
+  // FRAME CROSSFADE (Step 3): the Space-walk transition is a GPU opacity fade of
+  // this many ms (0 = instant). Persisted; tuned live from the film transport.
+  const [fadeMs, setFadeMs] = useState<number>(() => { try { const v = Number(localStorage.getItem("sa-fade-ms")); return Number.isFinite(v) && v >= 0 ? v : 150; } catch { return 150; } });
+  const setFade = (ms: number) => { setFadeMs(ms); try { localStorage.setItem("sa-fade-ms", String(ms)); } catch { /* ignore */ } };
   const filmStack = ((!!filmWin && !filmV2) || recording) && !!deckCeqIds && deckCeqIds.length > 1 && activeIdx >= 0;
   // The active frame's vertical offset in the stack (0 outside overview/film). Node
   // positions carry it; the baseline is FRAME-LOCAL, so persistence subtracts it back off.
@@ -1428,11 +1426,26 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     // Reduced-motion → instant (no animation) EXCEPT while recording — a filming surface must
     // always move (#3), so the reduced-motion check is skipped when recording.
     const reduceMotion = !recording && typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    const v2Film = filmV2 && !!filmWin; // V2: in-place crossfade, never a slide
-    const enterAnimName = v2Film ? "sa-ceq-v2-fade" : dealAnim === "pushDown" ? "sa-ceq-push-down" : dealAnim === "pushUp" ? "sa-ceq-push-up" : "sa-ceq-in";
-    const enterAnim = reduceMotion ? "none"
-      : v2Film ? "sa-ceq-v2-fade 140ms ease-out both"
-      : dealAnim === "pushDown" || dealAnim === "pushUp" ? `${enterAnimName} 180ms cubic-bezier(0.16,1,0.3,1) both`
+    // FRAME TRANSITION (Step 3) — one tunable duration (fadeMs), two shapes by mode:
+    //   · V2 (stationary): a GPU OPACITY crossfade in place — frames overlap.
+    //   · V1 (stack): the CARD must NOT re-animate (the stand-in already shows it,
+    //     so re-fading would blink it 1→0→1). The transition is the camera PAN
+    //     between slots (a transform, driven by fadeMs in the pan effects below).
+    //   · PageDown/Up keep their punchy directional push. Authoring keeps the slide.
+    // Opacity/transform only, so it holds at blast pace and composites clean in the
+    // capture window / OBS (9:16 too). Instant = fadeMs 0 (or reduced-motion off cam).
+    const v2Film = filmV2 && !!filmWin;
+    const isPush = dealAnim === "pushDown" || dealAnim === "pushUp";
+    const instant = reduceMotion || fadeMs <= 0;
+    const enterAnimName = instant ? "none"
+      : isPush ? (dealAnim === "pushDown" ? "sa-ceq-push-down" : "sa-ceq-push-up")
+      : v2Film ? "sa-ceq-v2-fade"
+      : filmStack ? "none"
+      : "sa-ceq-in";
+    const enterAnim = instant ? "none"
+      : isPush ? `${enterAnimName} 180ms cubic-bezier(0.16,1,0.3,1) both`
+      : v2Film ? `sa-ceq-v2-fade ${fadeMs}ms ease-out both`
+      : filmStack ? "none"
       : "sa-ceq-in 300ms cubic-bezier(0.22,1,0.36,1) both, sa-ceq-edge 460ms ease-out both";
     const ceqNode = { id: ceqId, type: "ceqPreview", position: { x: Math.round(cs.x), y: Math.round(yOff + cs.y) }, data: { stem: cd.prompt, choices: cd.choices, scale: cs.scale, layoutBadge: layoutMode, progress, topic, enterAnim, enterAnimName, boss: cd.boss, cardW: cd.cardW, callout: cd.callout, calloutMemos: calloutMemosOf(cd) }, draggable: true, zIndex: 1 };
     // PLACEMENT: in Question 0 each stage chip IS its slot (whole rack, so inactive
@@ -1515,7 +1528,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     });
     return [...active, ...others] as typeof active;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, counterIds, stageSig, activeYOff, layoutMode, walk, viewChoice, guidesOn, viewStudent, topicName, recording, dealAnim, filmV2, filmWin, filmStack]);
+  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, counterIds, stageSig, activeYOff, layoutMode, walk, viewChoice, guidesOn, viewStudent, topicName, recording, dealAnim, filmV2, filmWin, filmStack, fadeMs]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   // A drag/resize writeback (commitGeom → onSaveInstance) bumps mainSig, which would
@@ -1525,7 +1538,6 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   const skipSeedRef = useRef(false);
   useEffect(() => {
     if (skipSeedRef.current) { skipSeedRef.current = false; return; }
-    console.log(`[flash] RE-SEED nodes (active=${ceqId}) — replaces the active-frame node array`); // [FLASH-DIAG] TEMPORARY
     setNodes(build() as unknown as Node[]);
   }, [build, setNodes]);
 
@@ -1557,7 +1569,9 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   // (film-stack via `recording`, no popout) still frames the right node.
   const fitActive = useCallback((duration = 0) => fitRef.current?.fitView({ nodes: [{ id: filmStack ? `fbg:${ceqId}` : "__frame__" }], padding: 0.14, duration }), [filmStack, ceqId]);
   const fitAll = useCallback(() => fitRef.current?.fitView({ padding: 0.08, duration: 420 }), []);
-  useEffect(() => { const t = window.setTimeout(() => fitActive(overviewOn ? 420 : 0), 40); return () => window.clearTimeout(t); }, [ceqId, frameW, frameH, overviewOn, fitActive]);
+  // The recording surface (film-stack, no popout) fits via the main RF — pan it
+  // by fadeMs on navigation too so its transition matches the popout's (Step 3).
+  useEffect(() => { const t = window.setTimeout(() => fitActive(overviewOn ? 420 : filmStack ? (fadeMs <= 0 ? 0 : fadeMs) : 0), 40); return () => window.clearTimeout(t); }, [ceqId, frameW, frameH, overviewOn, filmStack, fadeMs, fitActive]);
 
   // FILM MODE (Lee) — a popout window on the 2nd monitor that MIRRORS this previewer
   // (same CEQ + memos + practice/spotlight state, since it's the same React tree), and
@@ -1600,7 +1614,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   // stays referentially stable across question changes as a bonus.
   const activeYOffRef = useRef(activeYOff);
   activeYOffRef.current = activeYOff;
-  const fitFilm = useCallback(() => {
+  const fitFilm = useCallback((duration = 0) => {
     const inst = filmFitRef.current; const win = filmWin;
     if (!inst || !win) return;
     // MEASURE THE PANE, NOT THE WINDOW (Lee's black-on-advance, 08-15). In
@@ -1614,7 +1628,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     const w = Math.round(r?.width || win.innerWidth), h = Math.round(r?.height || win.innerHeight);
     if (!w || !h) return;
     const zoom = Math.max(w / frameW, h / frameH);
-    inst.setViewport({ x: (w - frameW * zoom) / 2, y: (h - frameH * zoom) / 2 - activeYOffRef.current * zoom, zoom }, { duration: 0 });
+    inst.setViewport({ x: (w - frameW * zoom) / 2, y: (h - frameH * zoom) / 2 - activeYOffRef.current * zoom, zoom }, { duration });
   }, [filmWin, frameW, frameH]);
   useEffect(() => {
     if (!filmWin) return;
@@ -1645,7 +1659,17 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       doc.removeEventListener("fullscreenchange", settle);
       ro?.disconnect();
     };
-  }, [filmWin, ceqId, frameW, frameH, fitFilm]);
+    // ceqId is NOT a dep: navigation is handled by the pan effect below (a smooth
+    // fadeMs pan), so the settle timers must not re-fire an instant cut on Space.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filmWin, frameW, frameH, fitFilm]);
+  // FRAME PAN (Step 3): in the stack the transition IS a camera glide between
+  // slots — a viewport transform, GPU-composited, tunable via fadeMs (0 = instant
+  // cut). Reads activeYOffRef, so it always pans to the CURRENT slot.
+  useEffect(() => {
+    if (!filmWin || !filmStack) return;
+    fitFilm(fadeMs <= 0 ? 0 : fadeMs);
+  }, [activeYOff, fadeMs, filmWin, filmStack, fitFilm]);
   // CAPTURE WINDOW (C1): same film popout, but the window is snapped so the
   // INNER canvas is exactly 1920x1080 PHYSICAL pixels (dpr-aware) — OBS
   // window-capture at Reset Transform is 1:1 pixel-perfect.
@@ -2285,9 +2309,17 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                     practice timer and the "N/M shown" counter are GONE: none of them survived a
                     real film run (` still resets, Shift+` still sweeps). What's left is the row's
                     actual job — FILM, VIEW, this set's clip stack, and the per-CEQ flags. */}
-                {filmWin ? (
+                {filmWin ? (<>
                   <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#0B0F1E", background: "#FF8B9E", border: "1px solid #FF8B9E" }} onClick={() => toggleFilm()} title="Close the film window"><Clapperboard className="h-3.5 w-3.5" /> Filming{filmV2 ? " · V2" : ""}</button>
-                ) : (<>
+                  {/* FRAME CROSSFADE duration (Step 3) — the Space-walk transition, GPU
+                      opacity only. Instant removes it entirely for max snap. */}
+                  <span className="flex h-6 items-center gap-0.5 rounded px-1 text-[8.5px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} title="Frame crossfade — how long a Space walk fades the new question in. Opacity only (clean in OBS); Instant = hard cut.">
+                    fade
+                    {([["off", 0], ["120", 120], ["150", 150], ["180", 180]] as const).map(([lbl, ms]) => (
+                      <button key={ms} className="rounded px-1 text-[8.5px] font-black" style={{ color: fadeMs === ms ? "#0B0F1E" : NEON.text, background: fadeMs === ms ? "#B79CFF" : "transparent" }} onClick={() => setFade(ms)} title={ms === 0 ? "Instant — no fade (hard cut)" : `${ms}ms opacity crossfade`}>{lbl}</button>
+                    ))}
+                  </span>
+                </>) : (<>
                   <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#FF8B9E", border: "1px solid rgba(255,139,158,0.5)" }} onClick={() => toggleFilm(false)} title="FILM V1 — the stack: every frame mounted in a vertical strip, the camera pans between them. The proven mode."><Clapperboard className="h-3.5 w-3.5" /> Film V1</button>
                   <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#B79CFF", border: "1px solid rgba(183,156,255,0.5)" }} onClick={() => toggleFilm(true)} title="FILM V2 (EXPERIMENT) — ONE stationary frame, built for SPEED: the camera never moves (the black-flash class of glitches is structurally impossible), CEQs crossfade in place (140ms), memos spacewalk/enterwalk exactly as in V1.">V2 ⚡</button>
                   <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.5)" }} onClick={() => toggleFilm(undefined, true)} title="CAPTURE WINDOW — the film popout snapped so its inner canvas is EXACTLY 1920x1080 physical pixels (display-scaling aware). OBS window-capture at Reset Transform = pixel-perfect 1:1. A size badge verifies (auto-hides on your first keypress; window focus re-checks and re-snaps). Uses your V1/V2 preference; F = fullscreen.">🎯 Capture</button>

@@ -16,8 +16,8 @@ describe("film v2", () => {
     expect(src).toContain("V2 ⚡");
     expect(src).toContain('localStorage.getItem("sa-film-mode")');
   });
-  test("V2 transitions are a pure-opacity crossfade — zero movement", () => {
-    expect(src).toContain('v2Film ? "sa-ceq-v2-fade 140ms ease-out both"');
+  test("V2 transitions are a pure-opacity crossfade — zero movement, tunable duration (Step 3)", () => {
+    expect(src).toContain("v2Film ? `sa-ceq-v2-fade ${fadeMs}ms ease-out both`");
     const kf = src.slice(src.indexOf("@keyframes sa-ceq-v2-fade"), src.indexOf("/* BOSS MOMENT"));
     expect(kf).toContain("opacity");
     expect(kf).not.toMatch(/transform|translate|scale/);
