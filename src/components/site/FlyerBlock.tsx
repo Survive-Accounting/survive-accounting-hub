@@ -24,6 +24,7 @@ export function FlyerBlock({ schoolSlug, chapterSlug, chapterName }: {
   chapterName?: string;
 }) {
   const [failed, setFailed] = useState(false);
+  const [svg, setSvg] = useState<string | null>(null);
   const [isPhone, setIsPhone] = useState(false);
 
   // Read in an effect, never during render — this route is server-rendered and matchMedia during
@@ -34,6 +35,18 @@ export function FlyerBlock({ schoolSlug, chapterSlug, chapterName }: {
   const pdf = base;
   const png = `${base}?f=png`;
   const filename = `survive-${schoolSlug}-${chapterSlug}-flyer.pdf`;
+
+  // INLINE SVG, not <img src=...svg>. An SVG loaded through <img> is its own document and cannot
+  // reach the page's fonts, so the preview would render in a fallback face while the PDF used
+  // Poppins. Inlined, it uses the same Poppins the rest of the page already loaded.
+  useEffect(() => {
+    let live = true;
+    void fetch(`${base}?f=svg`)
+      .then((r) => (r.ok ? r.text() : Promise.reject(new Error(String(r.status)))))
+      .then((t) => { if (live) setSvg(t); })
+      .catch(() => { if (live) setFailed(true); });
+    return () => { live = false; };
+  }, [base]);
 
   const log = (action: "flyer_download" | "flyer_print") =>
     void logGreekEvent({ data: { kind: action === "flyer_download" ? "flyer_download" : "flyer_print", schoolSlug, chapterSlug } }).catch(() => {});
@@ -46,7 +59,7 @@ export function FlyerBlock({ schoolSlug, chapterSlug, chapterName }: {
     if (w) w.addEventListener("load", () => { try { w.print(); } catch { /* viewer handles it */ } });
   };
 
-  if (failed) return null;
+  if (failed || !svg) return null;
 
   const BTN: React.CSSProperties = {
     minHeight: 46, background: "rgba(245,239,230,0.06)",
@@ -55,15 +68,12 @@ export function FlyerBlock({ schoolSlug, chapterSlug, chapterName }: {
 
   return (
     <div className="mx-auto mt-3 w-full max-w-sm" style={{ fontFamily: BRAND_SANS }}>
-      <a href={pdf} target="_blank" rel="noreferrer" className="block" aria-label={`Open the ${chapterName ?? "campus"} flyer as a PDF`}>
-        <img
-          src={png}
-          alt={`Flyer for ${chapterName ?? schoolSlug}`}
-          onError={() => setFailed(true)}
-          loading="lazy"
-          className="mx-auto block w-auto rounded-lg"
-          style={{ height: 340, border: "1px solid rgba(245,239,230,0.18)", boxShadow: "0 18px 40px -18px rgba(0,0,0,0.7)" }}
-        />
+      <a href={pdf} target="_blank" rel="noreferrer" className="mx-auto block overflow-hidden rounded-lg"
+         aria-label={`Open the ${chapterName ?? "campus"} flyer as a PDF`}
+         style={{ width: 263, border: "1px solid rgba(245,239,230,0.18)", boxShadow: "0 18px 40px -18px rgba(0,0,0,0.7)" }}>
+        {/* The real generated artwork, not a mockup — a mockup drifts from the output the first
+            time the design changes. */}
+        <div aria-hidden dangerouslySetInnerHTML={{ __html: svg }} />
       </a>
 
       <div className="mt-2 grid grid-cols-2 gap-2">

@@ -18,7 +18,7 @@
 // the page.
 import { createFileRoute } from "@tanstack/react-router";
 
-import { flyerPdf, flyerPng, type FlyerInput } from "@/lib/flyer.server";
+import type { FlyerInput } from "@/lib/flyer.server";
 
 const CAMPUS = "campus";
 
@@ -56,11 +56,15 @@ async function resolve(school: string, chapter: string): Promise<FlyerInput | nu
 async function handle({ request, params }: { request: Request; params: { school: string; chapter: string } }): Promise<Response> {
   try {
     const url = new URL(request.url);
-    const format = url.searchParams.get("f") === "png" ? "png" : "pdf";
+    const format = url.searchParams.get("f") === "svg" ? "svg" : "pdf";
     const input = await resolve(params.school, params.chapter);
     if (!input) return new Response("Not found", { status: 404 });
 
-    const body = format === "png" ? await flyerPng(input) : await flyerPdf(input);
+    // Imported HERE, not at module scope: this file lives in the CLIENT route tree, and a static
+    // import drags pdf-lib and qrcode into the browser bundle — which is what produced the
+    // out-of-memory build. See the header of flyer.server.ts.
+    const { flyerSvg, flyerPdf } = await import("@/lib/flyer.server");
+    const body = format === "svg" ? Buffer.from(await flyerSvg(input), "utf8") : await flyerPdf(input);
 
     // The ETag carries everything that changes the artwork, so a course-code or colourway edit
     // invalidates by itself.
@@ -70,7 +74,7 @@ async function handle({ request, params }: { request: Request; params: { school:
     const filename = `survive-${params.school}-${params.chapter}-flyer.${format}`;
     return new Response(new Uint8Array(body), {
       headers: {
-        "content-type": format === "png" ? "image/png" : "application/pdf",
+        "content-type": format === "svg" ? "image/svg+xml; charset=utf-8" : "application/pdf",
         // inline: the download button supplies its own filename via the anchor's `download`
         // attribute, and Print needs the PDF to open in the viewer rather than save.
         "content-disposition": `inline; filename="${filename}"`,
