@@ -44,7 +44,16 @@ export async function stageTake(file: File): Promise<TakeRef> {
   const duration = await readDuration(file);
   const { path, token, publicUrl } = await createPipelineTestStagingUpload({ data: { ext, folder: CEQ_TAKES_FOLDER } });
   const { error } = await supabase.storage.from("canvas-media").uploadToSignedUrl(path, token, file, { contentType: file.type || "video/mp4" });
-  if (error) throw new Error(error.message);
+  if (error) {
+    // The take upload goes straight to Supabase Storage, so the only "too big"
+    // error is the bucket / project upload limit — surface WHAT to do, not just
+    // the raw "object exceeded the maximum allowed size".
+    if (/maximum allowed size|exceeded|too large|payload/i.test(error.message)) {
+      const mb = (file.size / 1048576).toFixed(0);
+      throw new Error(`Take is ${mb}MB — over the Supabase upload limit. Raise it: Storage → Settings → Upload file size limit (project), and the canvas-media bucket's file_size_limit. Then retry — the local file is untouched.`);
+    }
+    throw new Error(error.message);
+  }
   // 0.1s precision (was whole seconds): the preview's rendered-file seek and the
   // manifest offsets sum these — integer rounding drifted up to ±0.5s per clip.
   return { url: publicUrl, path, name: file.name, duration: Math.round(duration * 10) / 10 };
