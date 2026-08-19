@@ -39,25 +39,23 @@ describe("the active frame's background id is stable per frame (no remount on Sp
   });
 });
 
-describe("Step 3 — the transition is smooth, tunable, and GPU-only (opacity/transform)", () => {
-  test("one duration setting (fadeMs) with an instant option, persisted", () => {
+describe("Step 3 — V2 crossfades; V1 is a clean INSTANT CUT (animated pan black-screened)", () => {
+  test("a fade-duration setting with an instant option, persisted (drives the V2 crossfade)", () => {
     expect(previewer).toContain('localStorage.getItem("sa-fade-ms")');
     expect(previewer).toContain('localStorage.setItem("sa-fade-ms"');
-    expect(previewer).toContain("onClick={() => setFade(ms)}"); // the transport control
+    expect(previewer).toContain("onClick={() => setFade(ms)}");
     expect(previewer).toContain('["off", 0]'); // instant option
   });
-  test("the STACK card never re-animates (no 1→0→1 blink) — the pan is the transition", () => {
-    // V1 stack card entrance is "none"; the camera glide carries the change.
+  test("the STACK card never re-animates (no 1→0→1 blink)", () => {
     expect(previewer).toContain('filmStack ? "none"');
-    expect(previewer).toContain("fitFilm(fadeMs <= 0 ? 0 : fadeMs);"); // the pan, duration = fadeMs
   });
-  test("the pan is a viewport transform of tunable duration — instant when fadeMs 0", () => {
-    expect(previewer).toContain("const fitFilm = useCallback((duration = 0) =>");
-    expect(previewer).toContain("zoom }, { duration });");
-    // the recording surface pans too, via the main RF fit
-    expect(previewer).toContain("filmStack ? (fadeMs <= 0 ? 0 : fadeMs) : 0");
+  test("navigation re-fits the popout INSTANTLY — NO animated pan (it black-screened the capture window)", () => {
+    // The proven multi-fire settle re-frames on nav (ceqId in its deps), instant.
+    expect(previewer).toContain("}, [filmWin, ceqId, frameW, frameH, fitFilm]);");
+    expect(previewer).not.toContain("fitFilm(fadeMs"); // no animated nav pan
+    expect(previewer).toContain("fitActive(overviewOn ? 420 : 0)"); // recording surface cuts too
   });
-  test("V2 stays a pure-opacity crossfade of the SAME tunable duration", () => {
+  test("V2 stays a pure-opacity crossfade of the tunable duration", () => {
     expect(previewer).toContain("v2Film ? `sa-ceq-v2-fade ${fadeMs}ms ease-out both`");
   });
 });

@@ -1426,14 +1426,16 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     // Reduced-motion → instant (no animation) EXCEPT while recording — a filming surface must
     // always move (#3), so the reduced-motion check is skipped when recording.
     const reduceMotion = !recording && typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-    // FRAME TRANSITION (Step 3) — one tunable duration (fadeMs), two shapes by mode:
-    //   · V2 (stationary): a GPU OPACITY crossfade in place — frames overlap.
-    //   · V1 (stack): the CARD must NOT re-animate (the stand-in already shows it,
-    //     so re-fading would blink it 1→0→1). The transition is the camera PAN
-    //     between slots (a transform, driven by fadeMs in the pan effects below).
+    // FRAME TRANSITION — by mode:
+    //   · V2 (stationary): a GPU OPACITY crossfade in place (frames overlap),
+    //     tunable via fadeMs. This is the only mode that can truly "fade".
+    //   · V1 (stack): a clean INSTANT CUT. The card must NOT re-animate (the
+    //     stand-in already shows it, so re-fading blinks it 1→0→1), and an
+    //     ANIMATED camera pan black-screened the capture window (08-19) — so the
+    //     camera cuts between slots. The flash is gone via the stable per-frame
+    //     background id, not motion.
     //   · PageDown/Up keep their punchy directional push. Authoring keeps the slide.
-    // Opacity/transform only, so it holds at blast pace and composites clean in the
-    // capture window / OBS (9:16 too). Instant = fadeMs 0 (or reduced-motion off cam).
+    // Instant = fadeMs 0 (or reduced-motion off camera).
     const v2Film = filmV2 && !!filmWin;
     const isPush = dealAnim === "pushDown" || dealAnim === "pushUp";
     const instant = reduceMotion || fadeMs <= 0;
@@ -1569,9 +1571,10 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   // (film-stack via `recording`, no popout) still frames the right node.
   const fitActive = useCallback((duration = 0) => fitRef.current?.fitView({ nodes: [{ id: filmStack ? `fbg:${ceqId}` : "__frame__" }], padding: 0.14, duration }), [filmStack, ceqId]);
   const fitAll = useCallback(() => fitRef.current?.fitView({ padding: 0.08, duration: 420 }), []);
-  // The recording surface (film-stack, no popout) fits via the main RF — pan it
-  // by fadeMs on navigation too so its transition matches the popout's (Step 3).
-  useEffect(() => { const t = window.setTimeout(() => fitActive(overviewOn ? 420 : filmStack ? (fadeMs <= 0 ? 0 : fadeMs) : 0), 40); return () => window.clearTimeout(t); }, [ceqId, frameW, frameH, overviewOn, filmStack, fadeMs, fitActive]);
+  // Navigation re-fits INSTANTLY (duration 0). An animated fit black-screened the
+  // capture window (08-19) — the camera cuts between slots; Step 2's stable
+  // background id is what removed the flash, not a pan.
+  useEffect(() => { const t = window.setTimeout(() => fitActive(overviewOn ? 420 : 0), 40); return () => window.clearTimeout(t); }, [ceqId, frameW, frameH, overviewOn, fitActive]);
 
   // FILM MODE (Lee) — a popout window on the 2nd monitor that MIRRORS this previewer
   // (same CEQ + memos + practice/spotlight state, since it's the same React tree), and
@@ -1659,17 +1662,12 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       doc.removeEventListener("fullscreenchange", settle);
       ro?.disconnect();
     };
-    // ceqId is NOT a dep: navigation is handled by the pan effect below (a smooth
-    // fadeMs pan), so the settle timers must not re-fire an instant cut on Space.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filmWin, frameW, frameH, fitFilm]);
-  // FRAME PAN (Step 3): in the stack the transition IS a camera glide between
-  // slots — a viewport transform, GPU-composited, tunable via fadeMs (0 = instant
-  // cut). Reads activeYOffRef, so it always pans to the CURRENT slot.
-  useEffect(() => {
-    if (!filmWin || !filmStack) return;
-    fitFilm(fadeMs <= 0 ? 0 : fadeMs);
-  }, [activeYOff, fadeMs, filmWin, filmStack, fitFilm]);
+    // ceqId IS a dep: navigation re-fits the popout via the PROVEN multi-fire
+    // settle (instant, duration 0). An ANIMATED viewport pan here black-screened
+    // the capture window (08-19) — a single animated fit mis-times against the
+    // node re-seed and the frame ends off-screen. The camera CUTS between slots;
+    // the flash is already gone via the stable per-frame background id (Step 2).
+  }, [filmWin, ceqId, frameW, frameH, fitFilm]);
   // CAPTURE WINDOW (C1): same film popout, but the window is snapped so the
   // INNER canvas is exactly 1920x1080 PHYSICAL pixels (dpr-aware) — OBS
   // window-capture at Reset Transform is 1:1 pixel-perfect.
