@@ -46,6 +46,22 @@ describe("render-path helpers are hoisted, not dead-zoned", () => {
   });
 });
 
+describe("in-component render-time TDZ (08-19: opening a set crashed prod)", () => {
+  // The heuristic above only flags MODULE-scope arrows. But an IN-component const
+  // can dead-zone too: a useMemo factory runs DURING render, so if it calls a
+  // const declared LATER in the same component body, that const is still in its
+  // TDZ → "Cannot access X before initialization". stageFrames maps spineLabelOf
+  // over every question at render time, so any set with questions crashed on
+  // mount until spineLabelOf was hoisted above it.
+  test("CeqStudio.spineLabelOf is declared before its render-time callers", () => {
+    const s = read("CeqStudio.tsx");
+    const label = s.indexOf("const spineLabelOf");
+    expect(label).toBeGreaterThan(0);
+    expect(label).toBeLessThan(s.indexOf("const stageClips = useMemo"));
+    expect(label).toBeLessThan(s.indexOf("const stageFrames = useMemo"));
+  });
+});
+
 describe("hoisting changed the shape, not the behaviour", () => {
   test("dealCentre still centres a card in its frame", () => {
     expect(dealCentre(1920, 1080)).toEqual({ x: 680, y: 300 });

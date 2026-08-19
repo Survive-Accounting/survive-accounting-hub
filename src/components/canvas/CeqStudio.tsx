@@ -1239,6 +1239,20 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const pipelineStitchRef = useRef(pipelineStitch);
   pipelineStitchRef.current = pipelineStitch;
 
+  /** Spine label for a frame id — Q-numbers for questions (notes never take a
+   *  number, same rule as the filmstrip), mode word for notes. Used by the
+   *  coverage chips and the pipeline timeline. MUST be declared before stageClips
+   *  / stageFrames, which call it during render (useMemo) — a later `const` would
+   *  be a Temporal Dead Zone crash on mount of any set with questions. */
+  const spineLabelOf = (id: string): string | undefined => {
+    let i = 0;
+    for (const q of questions) {
+      const qd = rf.getNode(q.id)?.data as unknown as CeqCard | undefined;
+      if (!qd?.noteOnly) i++;
+      if (q.id === id) return qd?.noteOnly ? (qd.frameMode ?? "note").toUpperCase() : "Q" + i;
+    }
+    return undefined;
+  };
   /** Q1: the flat cut as timeline segments, in cut order, with trims resolved
    *  (previewTimeline) and each mapped back to (frameId, clipIndex) so the
    *  timeline's reorder/insert/detach reuse the P3 clip ops. */
@@ -1514,18 +1528,6 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   // Q1: the vertical clip stack (clipsPanel) was REPLACED by the horizontal
   // PipelineStage timeline. Its per-clip trim strip (ClipTrimStrip) returns in
   // Q2 as the trim-detail panel under the selected timeline clip.
-  /** Spine label for a frame id — Q-numbers for questions (notes never take a
-   *  number, same rule as the filmstrip), mode word for notes. Used by the
-   *  coverage chips and the pipeline clip stack. */
-  const spineLabelOf = (id: string): string | undefined => {
-    let i = 0;
-    for (const q of questions) {
-      const qd = rf.getNode(q.id)?.data as unknown as CeqCard | undefined;
-      if (!qd?.noteOnly) i++;
-      if (q.id === id) return qd?.noteOnly ? (qd.frameMode ?? "note").toUpperCase() : "Q" + i;
-    }
-    return undefined;
-  };
   /** The filmstrip's mini-card data — read once per nodes change. */
   const stripItems = useMemo<StripItem[]>(() => questions.map((q) => {
     const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined;
