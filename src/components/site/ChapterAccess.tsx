@@ -70,7 +70,7 @@ export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, claimS
               get $15,000 and close the tab. Only the members actually taking the course need a
               seat, and naming the usual range turns an unbounded per-head fee into a number an
               academic budget can hold. */}
-          You only buy seats for the members taking {code ?? "the course"} — usually 15–30 in a chapter.
+          You only buy seats for the members taking {code ?? "the course"} — usually 15–30 in a chapter.{" "}
           {SEAT_MINIMUM}-seat minimum, and Exam 1 stays free for everyone either way.
           </p>
         </div>
