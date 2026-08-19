@@ -1840,3 +1840,67 @@ The spec's "strongest set" is empty, and bucket A remains exactly the 16 SEC sch
 - Texas Christian University — 2 chapter(s)
 
 …and 48 more.
+
+---
+
+## Seed applied — 2026-08-19
+
+`campus-seed-FINAL.csv` (50 rows) and `national-greek-orgs.csv` (89 orgs), applied after the
+reconciliation report. **Zero campuses created — all 50 matched an existing row.** A naive
+upsert-by-slug would have created 22 duplicates.
+
+### What a slug-only match would have broken
+
+`miami-university-ohio` and `university-of-miami` are **different schools** (Miami University,
+Ohio, ACC 221, 4 chapters — vs University of Miami, Florida, ACC 211, 2 chapters). A normaliser
+that strips "University of" collapses them, and Ohio's course code would have landed on the
+Florida campus. The matcher folds dashes and diacritics only.
+
+### Three duplicate campus pairs, merged
+
+Each was split so one row held the chapters and the other held the course code — the same
+failure as the Tennessee merge, caused by an en-dash in the name:
+
+| school | kept (had chapters) | merged away |
+|---|---|---|
+| UCLA | `…los-angeles-r` | `…los-angeles` → MGMT 1A |
+| UCSB | `…santa-barbara-r` | `…santa-barbara` → ECON 3A |
+| Wisconsin–Madison | `…wisconsin-madison` | `…wisconsinmadison` → ACCT IS 100 |
+
+The code moved to the row with the chapters, because that row's `/go/` URLs may already be
+shared. The emptied row was archived with a `-merged` slug, never deleted — a delete cascades
+and would destroy the evidence.
+
+### 14 campuses un-archived
+
+718 of 945 campuses were archived on 2026-06-24 as `needs_review`, which is why they had no
+slug. A campus in the hand-verified seed is one Lee chose to publish, so the seed was treated as
+that review: Ohio State, Florida State, Oklahoma State, Kansas State, Miami (OH), Baylor,
+Northwestern, Kansas, James Madison, Iowa State, Delaware, Cincinnati, Oregon, Pittsburgh.
+Ids are in the commit for a clean undo.
+
+### Applied
+
+- 50/50 campuses: `short_name`, `color_primary`/`color_secondary`, `intro_1` code — verified complete
+- 15 NULL slugs filled from the seed; 6 existing slugs **kept** (Illinois, Nebraska, UNC, Georgia
+  Tech, Cal Poly, Oregon State) with the seed's slug becoming a search alias — those campuses have
+  chapters, so a slug change would break `/go/` URLs that may already be printed
+- Seed won all 4 course-code conflicts (Oregon State `BA 211Z`, Northwestern `ACCOUNT 201`,
+  Cincinnati `ACCT 2081`, Wisconsin `AIS 100`)
+- 21 further NULL slugs backfilled for archived campuses that have chapters (slug only — **not**
+  un-archived, since they are not in the seed)
+- `greek_orgs`: 87 enriched, 2 created (Beta Alpha Psi, Phi Chi Theta) — 89/89 now complete
+
+### Still needs SQL — `20260819_1615_campus_aliases_and_code_demand.sql`
+
+Colourways and short names needed **no DDL** (`campuses` already had `short_name`,
+`color_primary`, `color_secondary`). Only two things do: `search_aliases text[]`, and the
+`campus_code_demand` table. **50 alias rows are computed and waiting** on that column.
+
+### Council vocabulary mismatch (not a bug, but a mapping)
+
+`greek_orgs.council` uses the **national** bodies — NIC (53), NPC (26) — while campus councils
+and the council pages use **IFC** and **Panhellenic**. Existing records won, as specified, so the
+CSV did not overwrite. Council pages read `campus_greek_chapters.council` and are unaffected, but
+lazy chapter creation must map NIC→IFC and NPC→Panhellenic or new chapters will not appear on
+their council page.
