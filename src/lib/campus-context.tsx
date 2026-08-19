@@ -48,7 +48,10 @@ export type CampusContextValue = {
 
 const Ctx = createContext<CampusContextValue | null>(null);
 
-export function CampusProvider({ urlSchoolSlug, accountCampusId, children }: {
+export function CampusProvider({ urlSchoolSlug, accountCampusId, initialCode, children }: {
+  /** Course code already resolved on the server (route loader). Used until the client query
+   *  answers, so a server-rendered headline never gains its course code a beat later. */
+  initialCode?: string | null;
   urlSchoolSlug?: string | null;
   accountCampusId?: string | null;
   children: React.ReactNode;
@@ -97,8 +100,11 @@ export function CampusProvider({ urlSchoolSlug, accountCampusId, children }: {
     if (!resolved.school) return null;
     const hit = (codesQ.data ?? []).find((r) => r.campusId === resolved.school!.campusId);
     const c = (hit?.code ?? "").trim();
-    return c || null;
-  }, [codesQ.data, resolved.school]);
+    // Server value first, and only while the query has nothing — once the query answers it is
+    // authoritative, so an edited code still takes effect without a deploy.
+    if (c) return c;
+    return (initialCode ?? "").trim() || null;
+  }, [codesQ.data, resolved.school, initialCode]);
 
   const value = useMemo<CampusContextValue>(() => ({
     school: resolved.school,

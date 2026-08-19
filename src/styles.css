@@ -581,6 +581,10 @@ html.sa-navy body {
    by SiteHeader at runtime, so this tracks the real bar instead of a guessed number, and the
    extra 28px is the breathing room the brief asks for. */
 #exam1 { scroll-margin-top: calc(var(--sa-header-h, 54px) + 28px); }
+/* Same guarantee for any other scroll target. #exam1 got this fix in Pass 7 and then the chapter-
+   access section repeated the bug — landing at top:0 with its heading behind the sticky navbar.
+   A class rather than a second id rule, so the next anchor cannot rediscover it a third time. */
+.sa-anchor { scroll-margin-top: calc(var(--sa-header-h, 54px) + 28px); }
 
 /* THE ARRIVAL CUE — a soft amber breath on the school picker after a CTA scroll. Two beats, then
    it stops on its own: this is a nudge toward the next action, not an alarm. */
