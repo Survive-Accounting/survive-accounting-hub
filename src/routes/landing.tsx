@@ -102,7 +102,7 @@ type ResolvedTopic = { key: string; name: string; num: number | null; sets: Stud
 // PROVIDER SHELL. The /go/ route knows the school from the URL; everything under here reads it
 // from campus context rather than re-deriving it, which is what let the hero cycle through other
 // schools' colourways on a chapter page that named one school in its banner.
-export function LandingPage({ initialCampusId, chapterBanner, goChapter, chapterClaim }: {
+export function LandingPage({ initialCampusId, chapterBanner, goChapter, chapterClaim, chapterTop }: {
   initialCampusId?: string;
   chapterBanner?: string;
   goChapter?: { schoolSlug: string; chapterSlug: string };
@@ -110,15 +110,19 @@ export function LandingPage({ initialCampusId, chapterBanner, goChapter, chapter
    *  route file keeps knowing nothing about Greek claims — /go/ owns that concern and passes
    *  the component in. */
   chapterClaim?: React.ReactNode;
+  /** Replaces the generic student hero on a chapter page. A /go/ visitor arrived from THEIR
+   *  chapter's flyer, so leading with copy written for an anonymous student wastes the one
+   *  thing that page knows. Omitted everywhere else, so the normal landing page is unchanged. */
+  chapterTop?: React.ReactNode;
 } = {}) {
   return (
     <CampusProvider urlSchoolSlug={goChapter?.schoolSlug ?? null} accountCampusId={initialCampusId ?? null}>
-      <LandingPageInner initialCampusId={initialCampusId} chapterBanner={chapterBanner} goChapter={goChapter} chapterClaim={chapterClaim} />
+      <LandingPageInner initialCampusId={initialCampusId} chapterBanner={chapterBanner} goChapter={goChapter} chapterClaim={chapterClaim} chapterTop={chapterTop} />
     </CampusProvider>
   );
 }
 
-function LandingPageInner({ initialCampusId, chapterBanner, goChapter, chapterClaim }: {
+function LandingPageInner({ initialCampusId, chapterBanner, goChapter, chapterClaim, chapterTop }: {
   initialCampusId?: string;
   chapterBanner?: string;
   goChapter?: { schoolSlug: string; chapterSlug: string };
@@ -126,6 +130,7 @@ function LandingPageInner({ initialCampusId, chapterBanner, goChapter, chapterCl
    *  route file keeps knowing nothing about Greek claims — /go/ owns that concern and passes
    *  the component in. */
   chapterClaim?: React.ReactNode;
+  chapterTop?: React.ReactNode;
 }) {
   // M1.4 — paint html/body navy so Safari's overscroll rubber-band matches the page instead
   // of flashing the light default at the top and bottom edges.
@@ -135,6 +140,9 @@ function LandingPageInner({ initialCampusId, chapterBanner, goChapter, chapterCl
   // /c/<slug> pre-selects the chapter's school. If it's one of the 16 SEC schools we pre-pick it;
   // otherwise we drop into "not listed" (default map) so the player still unblurs and plays.
   const campus = useCampus();
+  // The resolved campus's bolt colours, published on the page root. One source; no component
+  // picks its own. Null when campus is unknown, which leaves the cycling hero to set its own.
+  const campusBolt = useMemo(() => (campus.school ? boltFor(campus.school.id) : null), [campus.school]);
   const preSchool = useMemo(() => (initialCampusId ? SCHOOLS.find((s) => s.campusId === initialCampusId) ?? null : null), [initialCampusId]);
   const [school, setSchool] = useState<School | null>(preSchool);
   // "My school isn't listed" — unblur with the DEFAULT map + brand navy (no school colors), plus an
@@ -308,7 +316,7 @@ function LandingPageInner({ initialCampusId, chapterBanner, goChapter, chapterCl
   };
 
   return (
-    <div style={{ ...frameThemeVars(theme), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "clip" }}>
+    <div style={{ ...frameThemeVars(theme), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "clip", ...(campusBolt ? { ["--sa-bolt-1"]: campusBolt.c1, ["--sa-bolt-2"]: campusBolt.c2 } as React.CSSProperties : {}) }}>
       <style>{EXAM_PAPER_CSS}</style>
       <style>{`
         @keyframes sa-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
@@ -346,7 +354,7 @@ function LandingPageInner({ initialCampusId, chapterBanner, goChapter, chapterCl
             chapter's page had no way to know the page was claimable without scrolling the whole
             document. */}
         {chapterClaim}
-        <Hero onStart={onStart} stops={stops} />
+        {chapterTop ?? <Hero onStart={onStart} stops={stops} />}
         <ExamPlayer exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); try { localStorage.setItem("sa-landing-school", "__notlisted__"); } catch { /* ignore */ } }} onReset={resetMatch} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(t) => setNotifyTopic(t)} />
 
         {/* Under the player: how it works, then the existing testimonials / tutor / footer.

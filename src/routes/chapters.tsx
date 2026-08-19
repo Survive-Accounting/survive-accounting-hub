@@ -40,36 +40,22 @@ function ChaptersPage() {
           Greek-chapter link was simply stranded here. */}
       <SiteHeader />
       <main style={{ position: "relative", zIndex: 1, maxWidth: 720, margin: "0 auto", padding: "0 20px", width: "100%" }}>
-        <section className="flex flex-col items-center pt-16 pb-6 text-center sm:pt-24">
+        {/* THE PORTAL IS A HALLWAY. Its only job is getting someone to their chapter page, so it
+            carries no argument of its own: no GPA headline, no benefit pills, no pricing, no
+            dashboard proof, no setup form. All of that was written for an EXEC deciding whether to
+            act, and an exec only reaches that decision on their own chapter's page — which is
+            where it now lives. A visitor here has not yet told us who they are or which chapter
+            they belong to, so anything persuasive is aimed at nobody in particular. */}
+        <section className="flex flex-col items-center pt-16 pb-16 text-center sm:pt-24">
           {/* M1.2 — was a fixed 84px nowrap lockup, wider than a phone. */}
           <FitWordmark size={84} />
-          <h1 className="mt-6 text-[26px] font-black sm:text-[32px]" style={{ letterSpacing: "-0.01em" }}>Intro accounting is quietly wrecking your chapter&apos;s GPA.</h1>
-          <p className="mt-4 max-w-lg text-[15px] leading-relaxed sm:text-[16px]" style={{ color: "var(--brand-cream)", opacity: 0.88, fontFamily: BRAND_SANS }}>
-            Dozens of your members take it every semester — business, finance, and accounting majors all hitting the same wall at once. Give them a tutor, all at once.
+          <h1 className="mt-6 text-[26px] font-black sm:text-[32px]" style={{ letterSpacing: "-0.01em" }}>Find your chapter.</h1>
+          <p className="mt-3 max-w-md text-[15px] leading-relaxed sm:text-[16px]" style={{ color: "var(--brand-cream)", opacity: 0.88, fontFamily: BRAND_SANS }}>
+            Free Exam 1 cram videos for your whole chapter.
           </p>
-          {/* BENEFITS, not steps. The numbered 1/2/3 strip described OUR process to someone still
-              deciding whether the problem is real. Three flat statements of what the chapter gets. */}
-          <div className="mt-8 flex w-full max-w-md flex-col gap-2 text-left" style={{ fontFamily: BRAND_SANS }}>
-            {["A real perk members actually use", "See who's using it — no guessing", "Exam 1 is free for your whole chapter"].map((b) => (
-              <div key={b} className="flex items-center gap-3 rounded-lg px-3 py-2" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
-                <span aria-hidden style={{ color: "var(--accent)" }}>⚡</span>
-                <span className="text-[13.5px]" style={{ color: "var(--brand-cream)" }}>{b}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* PHASE 1 — the chapter already exists. All 1,107 GreekIntel chapters have a live page
-              now, so the first thing this page offers is the way TO one. The signup form below used
-              to be the only door, which meant an exec had to type their own chapter into existence
-              before they could see anything at all. */}
           <div className="mt-7 w-full max-w-sm">
             <FindMyChapter />
           </div>
-
-        </section>
-
-        <section id="signup" className="mx-auto mb-16 max-w-md scroll-mt-6">
-          <SignupFlow />
         </section>
       </main>
     </div>

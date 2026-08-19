@@ -18,7 +18,8 @@ import { useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { ChapterFinder } from "@/components/site/ChapterFinder";
-import { RoleFork, useChapterRole } from "@/components/site/RoleFork";
+import { ChapterTop } from "@/components/site/ChapterTop";
+import { useChapterRole, type ChapterRole } from "@/components/site/RoleFork";
 import { ClaimChapter } from "@/components/site/ClaimChapter";
 import { getGoChapter, listGoSchools, tagChapterMember } from "@/lib/greek-go.functions";
 import { LandingPage } from "./landing";
@@ -44,22 +45,36 @@ function GoChapterPage() {
   // sees it. accountRole is null until sign-in carries a chapter role — the hook already prefers
   // it over storage, so wiring that later needs no change here.
   const { role, choose, resolving } = useChapterRole(school, chapter, null);
+
+  // TAG THE MEMBER ON THE CHOICE ITSELF.
+  //
+  // The banner used to carry a "Claim your free access" button opening a name + mobile form,
+  // which is what recorded a member against the chapter. Removing the banner removed that, and
+  // the member count is the number the exec dashboard is built on — so the attribution has to
+  // survive the redesign even though the form does not.
+  //
+  // Saying "I'm a member" on this chapter's own URL IS the attribution; asking for a name
+  // afterwards would be a form standing between a student and the free thing they came for.
+  // Fire-and-forget: a failed tag must never block access, so nothing awaits it or reports it.
+  const pickRole = (r: ChapterRole) => {
+    choose(r);
+    if (r === "member") void tagChapterMember({ data: { schoolSlug: school, chapterSlug: chapter, source: "link" } }).catch(() => {});
+  };
   return (
     <>
       <LandingPage
         initialCampusId={ch?.campusId ?? undefined}
-        chapterBanner={ch ? ch.chapterName : undefined}
         goChapter={ch ? { schoolSlug: ch.schoolSlug, chapterSlug: ch.chapterSlug } : undefined}
-        // ONE SLOT, THREE STATES, directly under the banner — the first thing an arriving
-        // visitor sees. Unknown role asks the question; an exec gets the claim control; a
-        // member gets nothing here and goes straight to studying, which is the point: the
-        // chapter's claim status is an exec concern and must never gate a student.
-        chapterClaim={
-          !ch ? undefined
-            : !resolving && !role ? <RoleFork chapterName={ch.chapterName} onChoose={choose} />
-            : role === "exec" ? <ClaimChapter schoolSlug={ch.schoolSlug} chapterSlug={ch.chapterSlug} chapterName={ch.chapterName} claimStatus={ch.claimStatus} />
-            : undefined
-        }
+        chapterTop={ch ? (
+          <ChapterTop
+            chapterName={ch.chapterName}
+            role={role}
+            resolving={resolving}
+            onChoose={pickRole}
+            onExecFromMember={() => pickRole("exec")}
+            claimForm={<ClaimChapter schoolSlug={ch.schoolSlug} chapterSlug={ch.chapterSlug} chapterName={ch.chapterName} claimStatus={ch.claimStatus} />}
+          />
+        ) : undefined}
       />
       {/* Self-report stays at the foot: it is a STUDENT correction ("I'm in a different house"),
           worth offering but never worth interrupting the reason they came. */}

@@ -25,6 +25,7 @@ import { Route as LearnRouteImport } from './routes/learn'
 import { Route as LandingRouteImport } from './routes/landing'
 import { Route as JeRouteImport } from './routes/je'
 import { Route as IntroOutroRouteImport } from './routes/intro-outro'
+import { Route as GreekRouteImport } from './routes/greek'
 import { Route as ExpandRouteImport } from './routes/expand'
 import { Route as ExhibitDemoRouteImport } from './routes/exhibit-demo'
 import { Route as ChaptersRouteImport } from './routes/chapters'
@@ -155,6 +156,11 @@ const JeRoute = JeRouteImport.update({
 const IntroOutroRoute = IntroOutroRouteImport.update({
   id: '/intro-outro',
   path: '/intro-outro',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GreekRoute = GreekRouteImport.update({
+  id: '/greek',
+  path: '/greek',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExpandRoute = ExpandRouteImport.update({
@@ -429,6 +435,7 @@ export interface FileRoutesByFullPath {
   '/chapters': typeof ChaptersRoute
   '/exhibit-demo': typeof ExhibitDemoRoute
   '/expand': typeof ExpandRoute
+  '/greek': typeof GreekRoute
   '/intro-outro': typeof IntroOutroRoute
   '/je': typeof JeRouteWithChildren
   '/landing': typeof LandingRoute
@@ -498,6 +505,7 @@ export interface FileRoutesByTo {
   '/chapters': typeof ChaptersRoute
   '/exhibit-demo': typeof ExhibitDemoRoute
   '/expand': typeof ExpandRoute
+  '/greek': typeof GreekRoute
   '/intro-outro': typeof IntroOutroRoute
   '/je': typeof JeRouteWithChildren
   '/landing': typeof LandingRoute
@@ -567,6 +575,7 @@ export interface FileRoutesById {
   '/chapters': typeof ChaptersRoute
   '/exhibit-demo': typeof ExhibitDemoRoute
   '/expand': typeof ExpandRoute
+  '/greek': typeof GreekRoute
   '/intro-outro': typeof IntroOutroRoute
   '/je': typeof JeRouteWithChildren
   '/landing': typeof LandingRoute
@@ -638,6 +647,7 @@ export interface FileRouteTypes {
     | '/chapters'
     | '/exhibit-demo'
     | '/expand'
+    | '/greek'
     | '/intro-outro'
     | '/je'
     | '/landing'
@@ -707,6 +717,7 @@ export interface FileRouteTypes {
     | '/chapters'
     | '/exhibit-demo'
     | '/expand'
+    | '/greek'
     | '/intro-outro'
     | '/je'
     | '/landing'
@@ -775,6 +786,7 @@ export interface FileRouteTypes {
     | '/chapters'
     | '/exhibit-demo'
     | '/expand'
+    | '/greek'
     | '/intro-outro'
     | '/je'
     | '/landing'
@@ -845,6 +857,7 @@ export interface RootRouteChildren {
   ChaptersRoute: typeof ChaptersRoute
   ExhibitDemoRoute: typeof ExhibitDemoRoute
   ExpandRoute: typeof ExpandRoute
+  GreekRoute: typeof GreekRoute
   IntroOutroRoute: typeof IntroOutroRoute
   JeRoute: typeof JeRouteWithChildren
   LandingRoute: typeof LandingRoute
@@ -988,6 +1001,13 @@ declare module '@tanstack/react-router' {
       path: '/intro-outro'
       fullPath: '/intro-outro'
       preLoaderRoute: typeof IntroOutroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/greek': {
+      id: '/greek'
+      path: '/greek'
+      fullPath: '/greek'
+      preLoaderRoute: typeof GreekRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/expand': {
@@ -1454,6 +1474,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChaptersRoute: ChaptersRoute,
   ExhibitDemoRoute: ExhibitDemoRoute,
   ExpandRoute: ExpandRoute,
+  GreekRoute: GreekRoute,
   IntroOutroRoute: IntroOutroRoute,
   JeRoute: JeRouteWithChildren,
   LandingRoute: LandingRoute,
