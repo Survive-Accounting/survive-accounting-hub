@@ -17,6 +17,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
+import { SearchPicker } from "@/components/site/SearchPicker";
 import { NotListedForm } from "@/components/site/NotListedForm";
 import { listGoChapters } from "@/lib/greek-go.functions";
 
@@ -59,28 +60,25 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
         <NotListedForm kind={notListed} school={notListed === "chapter" ? schoolName : undefined} onClose={() => setNotListed(null)} />
       ) : (
         <>
-          <select
-            value={school}
-            onChange={(e) => { setSchool(e.target.value); setChapter(""); }}
-            className="w-full rounded-xl px-3 text-[14px] outline-none"
-            style={selectStyle}
-          >
-            <option value="">Pick your school to start</option>
-            {schools.map((s) => <option key={s.slug} value={s.slug} style={{ color: "#0B1220" }}>{s.name}</option>)}
-          </select>
+          {/* The site's own picker, not a native <select>. A native dropdown renders as an OS
+              list — white, system font, nothing to do with the page around it. */}
+          <SearchPicker
+            items={schools.map((s) => ({ value: s.slug, label: s.name }))}
+            value={school || null}
+            placeholder="Pick your school to start"
+            searchPlaceholder={`Search ${schools.length} SEC schools…`}
+            onPick={(v) => { setSchool(v); setChapter(""); }}
+          />
 
-          <select
-            value={chapter}
-            onChange={(e) => setChapter(e.target.value)}
+          <SearchPicker
+            items={chapters.map((c) => ({ value: c.slug, label: c.name }))}
+            value={chapter || null}
+            placeholder={q.isLoading ? "Loading chapters…" : chapters.length ? "Your chapter…" : "No chapters listed yet"}
+            searchPlaceholder={`Search ${chapters.length} chapters…`}
             disabled={!school || q.isLoading}
-            className="w-full rounded-xl px-3 text-[14px] outline-none disabled:opacity-45"
-            style={selectStyle}
-          >
-            <option value="">
-              {!school ? "Pick your school first" : q.isLoading ? "Loading chapters…" : chapters.length ? "Your chapter…" : "No chapters listed yet"}
-            </option>
-            {chapters.map((c) => <option key={c.slug} value={c.slug} style={{ color: "#0B1220" }}>{c.name}</option>)}
-          </select>
+            disabledHint="Pick your school first"
+            onPick={setChapter}
+          />
 
           {/* An empty list is stated, not hidden. A school whose roster we don't have yet is a real
               answer, and silently showing an empty dropdown reads as the page being broken. */}

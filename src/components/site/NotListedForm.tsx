@@ -58,7 +58,7 @@ export function NotListedForm({ kind, school, onClose }: {
         </button>
       </div>
       <input value={schoolName} onChange={(e) => setSchoolName(e.target.value)} placeholder="School" className="mb-2 w-full rounded-lg px-3 text-[14px] outline-none" style={field} />
-      <input value={chapter} onChange={(e) => setChapter(e.target.value)} placeholder="Chapter (if you know it)" className="mb-2 w-full rounded-lg px-3 text-[14px] outline-none" style={field} />
+      <input value={chapter} onChange={(e) => setChapter(e.target.value)} placeholder="Greek chapter" className="mb-2 w-full rounded-lg px-3 text-[14px] outline-none" style={field} />
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="mb-2 w-full rounded-lg px-3 text-[14px] outline-none" style={field} />
       {/* 16px explicitly — under it iOS zooms the page on focus and never zooms back. */}
       <input value={contact} onChange={(e) => setContact(e.target.value)} placeholder="Email or mobile" className="w-full rounded-lg px-3 outline-none" style={{ ...field, fontSize: 16 }} />
@@ -68,7 +68,7 @@ export function NotListedForm({ kind, school, onClose }: {
         className="mt-3 w-full rounded-xl text-[15px] font-black transition-opacity disabled:opacity-40"
         style={{ minHeight: 48, background: "var(--accent)", color: "#0B1220" }}
       >
-        {busy ? "…" : "Send it to Lee ⚡"}
+        {busy ? "…" : "Send it in ⚡"}
       </button>
     </div>
   );

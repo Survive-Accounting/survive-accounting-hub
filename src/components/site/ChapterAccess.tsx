@@ -1,92 +1,91 @@
-// CHAPTER ACCESS — the exec offer, in one section, under one name.
+// CHAPTER ACCESS — share it now, buy it when you're ready.
 //
-// TERMINOLOGY. This concept was called four different things on one page: "Run FarmHouse",
-// "Claim this page", "Claim this chapter", "Claim Beta Sigma Psi". Three of those are the same
-// action and none of them say what you get. It is CHAPTER ACCESS everywhere now, and the button
-// says "Set up <Org> access" — a thing you buy for your chapter, not a page you lay claim to.
+// TERMINOLOGY. This concept was once called four things on one page: "Run FarmHouse", "Claim this
+// page", "Claim this chapter", "Claim Beta Sigma Psi". Three were the same action and none said
+// what you get. It is CHAPTER ACCESS everywhere now.
 //
-// This section no longer re-argues the case. The hero makes it once; repeating "Intro accounting
-// hurts chapter GPA" here only pushed the product further down. What is left is what an exec
-// actually needs after they have agreed: what the chapter gets, proof they can see it working,
-// the price, and the way to start.
+// TWO JOBS, IN THE ORDER PEOPLE DO THEM. Most visitors will never buy anything — they want to
+// paste the link in the group chat. That is the first thing here, ungated, because a chapter
+// spreading the link IS the product working. Buying comes second, for the one person in a hundred
+// who is ready.
+//
+// The three benefit bullets that used to sit at the top are gone. "A real perk members actually
+// use" is a claim; the dashboard underneath is the evidence, and showing the evidence is stronger
+// than asserting the claim above it.
 import { useState } from "react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { ChapterAccessForm } from "@/components/site/ChapterAccessForm";
+import { ChapterShare } from "@/components/site/ChapterShare";
 
 /** Per-seat, per-semester. One place, quoted by the section and the FAQ alike. */
 export const SEAT_PRICE = 100;
 export const SEAT_MINIMUM = 10;
 
-const INCLUDED = [
-  "A real perk members actually use",
-  "See who's using it — no guessing",
-  "Private roster, flyer & slide kit",
-];
-
-export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, claimStatus }: {
+export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, claimStatus, flyerUrl }: {
   id: string;
   chapterName: string;
   schoolSlug: string;
   chapterSlug: string;
   claimStatus: "unclaimed" | "pending" | "claimed";
+  flyerUrl?: string;
 }) {
   const [open, setOpen] = useState(false);
 
   return (
     <section id={id} className="sa-anchor mx-auto w-full max-w-[640px] px-5 py-12" style={{ fontFamily: BRAND_SANS }}>
+      {/* ── SHARE, ungated ─────────────────────────────────────────────────────────────────── */}
       <p className="text-center text-[11.5px] font-bold" style={{ color: "var(--text-muted)", letterSpacing: "0.16em" }}>
-        CHAPTER ACCESS
+        SHARE WITH {chapterName.toUpperCase()}
       </p>
-      <h2 className="mt-3 text-center text-[22px] font-black leading-[1.15] sm:text-[26px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.01em" }}>
-        Give the whole chapter the full semester.
+      <h2 className="mx-auto mt-3 max-w-[22ch] text-center text-[21px] font-black leading-[1.15] sm:text-[25px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.01em" }}>
+        Send it to the group chat.
       </h2>
-
-      {/* NO BOX. The brief asks for whitespace over containers, so these are lines with a bolt,
-          not three more cards inside a card. */}
-      <ul className="mx-auto mt-6 flex max-w-sm flex-col gap-2.5">
-        {INCLUDED.map((b) => (
-          <li key={b} className="flex items-start gap-2.5 text-[14px]" style={{ color: "var(--brand-cream)" }}>
-            <span aria-hidden className="shrink-0" style={{ color: "var(--accent)" }}>⚡</span>
-            <span>{b}</span>
-          </li>
-        ))}
-      </ul>
-
-      <DashboardPreview chapterName={chapterName} />
-
-      {/* THE PRICE, plainly, after the case. */}
-      <div className="mt-7 text-center">
-        <p className="text-[16px] font-black" style={{ color: "var(--brand-cream)" }}>
-          <span style={{ color: "var(--accent)" }}>${SEAT_PRICE}/member per semester</span> · {SEAT_MINIMUM}-seat minimum
-        </p>
-        <p className="mx-auto mt-2 max-w-[44ch] text-[13px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-          Exam 1 stays free for everyone. Chapter access unlocks the rest of the semester.
-        </p>
+      <p className="mx-auto mt-2 max-w-[40ch] text-center text-[13.5px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+        Exam 1 is free for every member — no account, no card. Nothing to set up first.
+      </p>
+      <div className="mt-5">
+        <ChapterShare schoolSlug={schoolSlug} chapterSlug={chapterSlug} chapterName={chapterName} flyerUrl={flyerUrl} />
       </div>
 
-      <div className="mt-6">
-        {claimStatus === "claimed" ? (
-          <p className="text-center text-[13px]" style={{ color: "var(--text-muted)" }}>{chapterName} already has chapter access. ⚡</p>
-        ) : claimStatus === "pending" ? (
-          <p className="text-center text-[13px]" style={{ color: "var(--text-muted)" }}>Someone from {chapterName} has already started this — Lee is reviewing it.</p>
-        ) : open ? (
-          <ChapterAccessForm
-            schoolSlug={schoolSlug}
-            chapterSlug={chapterSlug}
-            chapterName={chapterName}
-            onClose={() => setOpen(false)}
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="mx-auto block w-full max-w-sm rounded-xl px-7 text-[16px] font-black transition-transform hover:scale-[1.02]"
-            style={{ minHeight: 54, background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.6)" }}
-          >
-            Set up {chapterName} access
-          </button>
-        )}
+      {/* ── BUY, second ────────────────────────────────────────────────────────────────────── */}
+      <div className="mt-12 border-t pt-10" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
+        <p className="text-center text-[11.5px] font-bold" style={{ color: "var(--text-muted)", letterSpacing: "0.16em" }}>
+          CHAPTER ACCESS
+        </p>
+        <h2 className="mx-auto mt-3 max-w-[24ch] text-center text-[21px] font-black leading-[1.15] sm:text-[25px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.01em" }}>
+          Unlock the whole semester for the chapter.
+        </h2>
+
+        <DashboardPreview chapterName={chapterName} />
+
+        <div className="mt-7 text-center">
+          <p className="text-[16px] font-black" style={{ color: "var(--brand-cream)" }}>
+            <span style={{ color: "var(--accent)" }}>${SEAT_PRICE}/member per semester</span> · {SEAT_MINIMUM}-seat minimum
+          </p>
+          <p className="mx-auto mt-2 max-w-[44ch] text-[13px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+            Exam 1 stays free for everyone. Chapter access unlocks Exams 2, 3 and the Final.
+          </p>
+        </div>
+
+        <div className="mt-6">
+          {claimStatus === "claimed" ? (
+            <p className="text-center text-[13px]" style={{ color: "var(--text-muted)" }}>{chapterName} already has chapter access. ⚡</p>
+          ) : claimStatus === "pending" ? (
+            <p className="text-center text-[13px]" style={{ color: "var(--text-muted)" }}>A request for {chapterName} is already in — our team is reviewing it.</p>
+          ) : open ? (
+            <ChapterAccessForm schoolSlug={schoolSlug} chapterSlug={chapterSlug} chapterName={chapterName} onClose={() => setOpen(false)} />
+          ) : (
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="mx-auto block w-full max-w-sm rounded-xl px-7 text-[16px] font-black transition-transform hover:scale-[1.02]"
+              style={{ minHeight: 54, background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.6)" }}
+            >
+              Request access for {chapterName}
+            </button>
+          )}
+        </div>
       </div>
     </section>
   );
@@ -94,20 +93,23 @@ export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, claimS
 
 /** WHAT THE EXEC GETS TO SEE.
  *
- *  Mirrors the three figures /chapters/dashboard actually renders, so the promise and the product
- *  match. Values come in through `stats` — undefined today, which renders dashes and a PREVIEW
- *  badge. When real per-chapter history exists it can be passed straight in and this becomes a
- *  live panel with no redesign.
+ *  Mirrors what /chapters/dashboard actually renders, so the promise and the product match. Values
+ *  arrive through `stats` — undefined today, which renders dashes and a PREVIEW badge. When real
+ *  per-chapter history exists it can be passed straight in and this becomes a live panel.
  *
- *  NEVER SAMPLE NUMBERS. A plausible "47 members" on a page that names a real chapter is a claim
- *  about that chapter, and would be a lie to the one person who knows the true figure. */
-export type ChapterStats = { membersJoined: number; activeThisWeek: number; setsCompleted: number };
+ *  NEVER SAMPLE NUMBERS. A plausible "47 members" on a page naming a real chapter is a claim about
+ *  that chapter, and would be a lie to the one person who knows the true figure.
+ *
+ *  "Lessons completed", not "Sets completed": a set is our word, not a word an exec has ever used.
+ *  It is NOT "hours studied" — nothing in the app records watch time, and inventing an hours figure
+ *  would be exactly the fabrication the dashes exist to avoid. */
+export type ChapterStats = { membersJoined: number; activeThisWeek: number; lessonsCompleted: number };
 
 function DashboardPreview({ chapterName, stats }: { chapterName: string; stats?: ChapterStats }) {
   const ROWS: Array<{ label: string; value?: number }> = [
     { label: "Members joined", value: stats?.membersJoined },
     { label: "Active this week", value: stats?.activeThisWeek },
-    { label: "Sets completed", value: stats?.setsCompleted },
+    { label: "Lessons completed", value: stats?.lessonsCompleted },
   ];
   const isPreview = !stats;
   return (
@@ -131,7 +133,7 @@ function DashboardPreview({ chapterName, stats }: { chapterName: string; stats?:
         ))}
       </div>
       <p className="mt-3 text-[12px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-        Once {chapterName} is set up, exec gets the roster, sharing kit, and live usage numbers here.
+        Once {chapterName} is set up, exec can keep track of usage here.
       </p>
     </div>
   );

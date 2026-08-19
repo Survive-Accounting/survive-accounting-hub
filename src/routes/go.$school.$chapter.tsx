@@ -37,6 +37,7 @@ import { ChapterFinder } from "@/components/site/ChapterFinder";
 import { ChapterTop } from "@/components/site/ChapterTop";
 import { ChapterAccess } from "@/components/site/ChapterAccess";
 import { getGoChapter, listGoSchools, tagChapterMember } from "@/lib/greek-go.functions";
+import { getSiteSettings } from "@/lib/site-settings.functions";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { LandingPage } from "./landing";
 
@@ -50,9 +51,10 @@ export const Route = createFileRoute("/go/$school/$chapter")({
   // a smaller version of the very flash this loader exists to remove.
   loader: async ({ params }) => {
     const chapter = await getGoChapter({ data: { schoolSlug: params.school, chapterSlug: params.chapter } });
-    if (!chapter) return { chapter: null, code: null };
+    if (!chapter) return { chapter: null, code: null, flyerUrl: null };
     const codes = await listCampusIntroCodes({ data: { ids: [chapter.campusId] } }).catch(() => []);
-    return { chapter, code: codes[0]?.code ?? null };
+    const settings = await getSiteSettings().catch(() => null);
+    return { chapter, code: codes[0]?.code ?? null, flyerUrl: settings?.greekFlyerUrl || null };
   },
   // Indexable, unlike /c/ (which was noindex because each link belonged to one private chapter).
   // These are public chapter pages and searching "<chapter> <school> accounting" should find them.
@@ -67,7 +69,7 @@ export const Route = createFileRoute("/go/$school/$chapter")({
 
 function GoChapterPage() {
   const { school, chapter } = Route.useParams();
-  const { chapter: ch, code } = Route.useLoaderData();
+  const { chapter: ch, code, flyerUrl } = Route.useLoaderData();
 
   // Fire-and-forget member attribution. Saying "start Exam 1" on this chapter's own URL is the
   // attribution; nothing is awaited, so a failed tag can never stand between a student and the
@@ -96,6 +98,7 @@ function GoChapterPage() {
         ) : undefined}
         chapterAccess={ch ? (
           <ChapterAccess
+            flyerUrl={flyerUrl ?? undefined}
             id={ACCESS_ANCHOR}
             chapterName={ch.chapterName}
             schoolSlug={ch.schoolSlug}

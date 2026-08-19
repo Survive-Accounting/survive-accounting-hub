@@ -20,6 +20,11 @@ export type SiteSettings = {
    *  it up on next load). Empty = the branded bolt placeholder renders instead. Accepts any YouTube
    *  form (watch?v= / youtu.be / embed) — the page normalizes it. */
   expandVideoUrl: string;
+  /** Chapter flyer PDF. DATA, NOT CODE — same reason as expandVideoUrl: set
+   *  site_settings.settings->>'greekFlyerUrl' in Supabase and every chapter page offers the
+   *  download, with no deploy. Empty string = no flyer exists yet, and the button is not
+   *  rendered at all rather than linking somewhere broken. */
+  greekFlyerUrl: string;
 };
 
 export const DEFAULT_SITE_SETTINGS: SiteSettings = {
@@ -30,6 +35,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   },
   introVideo: { url: "", show: false },
   expandVideoUrl: "",
+  greekFlyerUrl: "",
 };
 
 /** Merge a stored (possibly partial) settings blob over the code defaults so new
@@ -50,6 +56,7 @@ export function mergeSettings(raw: unknown): SiteSettings {
       show: typeof iv.show === "boolean" ? iv.show : DEFAULT_SITE_SETTINGS.introVideo.show,
     },
     expandVideoUrl: typeof r.expandVideoUrl === "string" ? r.expandVideoUrl : DEFAULT_SITE_SETTINGS.expandVideoUrl,
+    greekFlyerUrl: typeof r.greekFlyerUrl === "string" ? r.greekFlyerUrl : DEFAULT_SITE_SETTINGS.greekFlyerUrl,
   };
 }
 

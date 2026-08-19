@@ -62,10 +62,10 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, onClos
   if (done) {
     return (
       <div className="mx-auto max-w-sm rounded-xl p-4 text-center" style={{ background: "rgba(252,163,17,0.08)", border: "1px solid rgba(252,163,17,0.35)", fontFamily: BRAND_SANS }}>
-        <p className="text-[14px] font-bold" style={{ color: "var(--brand-cream)" }}>Got it — Lee has your details.</p>
+        <p className="text-[14px] font-bold" style={{ color: "var(--brand-cream)" }}>Request received.</p>
         {/* Says what happens next and roughly when. "We'll be in touch" is what a form says when
             nobody is actually going to read it. */}
-        <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-muted)" }}>He reads these himself and usually replies the same day.</p>
+        <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-muted)" }}>Someone from our team will approve your chapter within 1 business day.</p>
       </div>
     );
   }
@@ -82,8 +82,8 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, onClos
         <span aria-hidden style={{ fontSize: 18 }}>×</span>
       </button>
 
-      <p className="mb-1 pr-10 text-[14px] font-black" style={{ color: "var(--brand-cream)" }}>Set up {chapterName} access</p>
-      <p className="mb-3 text-[12.5px]" style={{ color: "var(--text-muted)" }}>Lee will text you back to set it up.</p>
+      <p className="mb-1 pr-10 text-[14px] font-black" style={{ color: "var(--brand-cream)" }}>Request access for {chapterName}</p>
+      <p className="mb-3 text-[12.5px]" style={{ color: "var(--text-muted)" }}>Someone from our team will approve your chapter within 1 business day.</p>
 
       <label className="sr-only" htmlFor="ca-name">Your name</label>
       <input id="ca-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="mb-2 w-full rounded-lg px-3 outline-none focus:ring-2" style={FIELD} />
@@ -103,7 +103,7 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, onClos
       {err && <p className="mt-2 text-[12.5px]" role="alert" style={{ color: "#F3C6CC" }}>{err}</p>}
 
       <button onClick={() => void submit()} disabled={!ok || busy} className="mt-3 w-full rounded-xl text-[15px] font-black transition-opacity disabled:opacity-40" style={{ minHeight: 50, background: "var(--accent)", color: "#0B1220" }}>
-        {busy ? "…" : "Send to Lee ⚡"}
+        {busy ? "…" : "Request chapter access ⚡"}
       </button>
     </div>
   );
