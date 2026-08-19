@@ -1,3 +1,126 @@
+# Greek rework Pass 2 — portal minimal, chapter page sells
+
+Branch: `greek-rework-2`, on top of `main` @ `230647a3`.
+
+> Both sessions write this file, so this entry STACKS on top of what follows.
+
+---
+
+## The correction
+
+Pass 1 put the chapter-level pitch on the **portal**. That was the wrong room twice over: a visitor
+to `/chapters` has not said who they are or which chapter they belong to, so the argument was aimed
+at nobody in particular — and the exec it was written for only reaches that decision on their **own
+chapter's page**, where the numbers are about their house.
+
+## 1. Portal — a hallway
+
+Final contents: wordmark, `Find your chapter.`, one line, one card. Verified: **2 selects, 0 forms,
+zero sales copy**.
+
+Removed: the GPA headline, the "Dozens of your members…" subhead, the three benefit pills, pricing,
+and the second stacked form (`Set up your chapter`).
+
+`SignupFlow` is **kept in the file but no longer rendered**. `noUnusedLocals` is off so it compiles,
+and it is one line from being placed anywhere. Deleting a working SMS chapter-creation flow on an
+ambiguous instruction ("the claim/setup form still exists") seemed worse than parking it and saying
+so here.
+
+**`/greek` added as a redirect to `/chapters`** — the brief calls it the Greek portal and that URL
+404'd. A redirect rather than a rename: `/chapters` is printed on flyers, sits in sent SMS, and
+carries `/chapters/dashboard` beneath it.
+
+## 2. Chapter page — where the pitch lives
+
+The page no longer opens with the generic student hero. `LandingPage` gains a **`chapterTop` slot
+that replaces the hero**; every other route is untouched.
+
+The top is one ordered block:
+
+    chapter header (name · school, that school's bolt, that school's course code)
+      -> inline role fork
+        -> the chosen path
+
+**Exec path**, measured in the delivered order:
+
+| element | y |
+|---|---|
+| chapter headline | 148 |
+| `Intro accounting is quietly wrecking your chapter's GPA.` | 303 |
+| subhead | 378 |
+| first benefit pill | 462 |
+| dashboard preview | 634 |
+| `Seats are $100/member per semester, 10 minimum.` | 815 |
+| claim form | 890 |
+| (player) | 909 |
+
+**Member path** is short: no pitch, no claim form, one quiet `On exec? Claim this chapter →`, and
+the player starts at **y=317**.
+
+**The fork is inline now.** It previously rode in the claim slot, which floated it above the hero so
+it read as an interruption laid over a page rather than the page's first step.
+
+## 3. The dashboard preview is NEW, not moved
+
+There was **no mockup anywhere in the repo** — the brief said to move one, and there was nothing to
+move. It mirrors the three figures `/chapters/dashboard` actually renders (members joined, active
+this week, sets completed) rather than inventing prettier ones.
+
+It shows **em-dashes, not sample numbers**. A fake "47 members" on a page that names a real chapter
+is a claim *about that chapter*, and would be a lie to the one person who knows the true number.
+
+## 4. What the stray artifact turned out to be
+
+**It was the hero bolt.**
+
+With the claim modal's 72%-opaque backdrop over the page, the bolt — 176×237 at x 960–1136, carrying
+its own `drop-shadow` glow — was the one bright, isolated shape showing through, which reads as a
+floating thumbnail or preview panel. Confirmed by hit-testing that region with
+`document.elementsFromPoint`: the only element there was `button.sa-paper`.
+
+It is gone from chapter pages because the generic hero is. Nothing was added to hide it.
+
+## 5. Member attribution survived the redesign
+
+Worth recording, because it was nearly lost silently. Removing the banner also removed its
+`Claim your free access` form — which was the thing that **recorded a member against the chapter**,
+and that count is what the exec dashboard is built on.
+
+Choosing `I'm a member` on the chapter's own URL now *is* the attribution: `tagChapterMember` fires
+fire-and-forget, nothing awaited, so a failed tag can never block access to the free exam.
+
+**Lost in the trade:** the old form also captured name and mobile. The tag now records the member
+without them. That is the right call for a member path the brief says must be short, but it is a
+real reduction in what Lee learns about who joined.
+
+## Carried-in fixes
+
+- **Duplicate forms** — one card on the portal. ✓
+- **Fork placement** — inline in page flow. ✓
+- **Claim modal close controls** — re-verified on the new layout: ×, Esc, and click-outside all
+  close it, and it still survives an inside-to-outside drag. ✓
+- **Stray artifact** — identified and gone. ✓
+- **Campus context** — Ole Miss chapter: `ACCY 201`, bolt `#697183/#CE1126`. LSU chapter:
+  `ACCT 2001`, bolt `#FDD023/#896eab`. No cycling, no foreign branding. ✓
+
+> The only other-school names on a chapter page are testimonial attributions in `<figcaption>`
+> ("— …, Ole Miss") and the player's own school picker. Both are correct; noting it because a naive
+> text search flags them.
+
+## Now unrendered (flagged, not deleted)
+
+- `SignupFlow` — see above.
+- `ChapterBanner` and `ClaimModal` — still wired to `LandingPage`'s `chapterBanner` prop, which
+  `/go/` no longer passes (the chapter header states the chapter, school and course in type, so the
+  strip was the third place the same fact appeared). The prop still works if anything passes it.
+
+## Verification
+
+- `tsc --noEmit` clean; `bun test` **1274 pass / 0 fail**.
+- Every figure above is a DOM measurement — **screenshots still not delivered**, as the Browser pane
+  does not composite frames and `screenshot` times out.
+
+---
 # Greek rework — bugs, positioning, role fork
 
 Branch: `greek-rework-1`. Landing/Greek only — no studio, no filming.
