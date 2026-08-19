@@ -1,3 +1,109 @@
+# Chapter flyers — dynamic generation, preview, download, print
+
+Branch `chapter-flyers`. One SVG template, ~1,100 chapters, rendered on demand.
+
+## Prerequisite: the Tennessee merge landed first
+
+The brief was explicit that flyers must not be generated against a slug about to be
+merged — printed assets are permanent. Executed before any flyer work, dry run first:
+
+| | before | after |
+|---|---|---|
+| `University of Tennessee, Knoxville` (keeper, SEC, ACCT 200) | 50 chapters | **51** |
+| `University of Tennessee Knoxville` (`…-knoxville-r`) | 4 chapters | **row deleted** |
+| total chapters | 1,107 | **1,104** |
+| orphaned chapters | — | **0** |
+
+The merge was **not** a bulk reassign: 3 of the 4 slugs (`alpha-tau-omega`,
+`kappa-kappa-gamma`, `phi-kappa-tau`) already existed on the keeper and would have violated the
+`(campus_id, slug)` unique index. All four had **zero member activity** (re-checked at execution
+time, not just in the dry run), so the three duplicates were deleted and only `phi-kappa-psi` moved.
+
+## Font licence finding
+
+**No licence obstacle — but the premise of the brief was wrong.** The app has no self-hosted brand
+fonts; every face loads from the Google Fonts CDN at runtime, so there were no font *files* for a
+renderer to use.
+
+Poppins (the template's own family) is **SIL Open Font License 1.1**, which explicitly permits
+embedding and server-side rendering. Four faces are now vendored in `public/fonts/` —
+Regular/SemiBold/Bold/Italic, **668KB total** — taken from the Google Fonts OFL repository with
+`OFL.txt` alongside them.
+
+> Worth recording: the first render came out in a **system fallback, not Poppins**, because resvg
+> 2.6 takes `fontFiles`/`fontDirs`, not `fontBuffers` — the option was type-errored *and* silently
+> ignored at runtime. That is exactly the silent font substitution the brief said to report rather
+> than ship, caught by looking at the output rather than trusting a clean run.
+
+## QR
+
+Generated **locally** with `qrcode`, not through `api.qrserver.com` which the rest of the app uses.
+A screen can be reloaded; a flyer is permanent, and a third-party outage at generation time would be
+printed on paper.
+
+- Error correction **H**, `margin: 0` — the template's white card is the quiet zone, unshrunk.
+- Black `#000000` on white `#FFFFFF`, no colour, no logo overlay.
+- 600×600 inside the template (2in at 300 DPI).
+- Payload verified: `https://surviveaccounting.com/go/<school>/<chapter>?s=flyer`, and
+  `.../<school>?s=flyer` for campus flyers.
+
+**Scan test: NOT PERFORMED.** It requires a physical phone camera at printed size and I have no
+camera. The encoded payload is verified; the physical scan is still outstanding and is Lee's.
+
+## Cache strategy
+
+HTTP caching, no cache table:
+
+```
+cache-control: public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800
+etag: base64(school|chapter|courseCode|format|bytes)
+```
+
+The ETag carries the **course code**, so a school changing its code produces a different ETag and
+the old flyer is replaced rather than served stale. Colourway changes ship with a deploy, which
+rolls the edge cache anyway. Nothing to invalidate by hand and nothing to get out of step with the
+data. Generation is ~1.2s warm; ~1,100 chapters are never pre-generated.
+
+## Fallbacks used
+
+**Colourway contrast guard — this bit.** The flyer background is `#14213D`, which is *identical* to
+Ole Miss's `c1`. Rendered as-is, half the bolt disappeared into the paper. Any primary below 1.6:1
+against the background swaps to the school's own secondary; if both are too dark it falls back to
+brand red. Four of sixteen schools hit this:
+
+| school | was | draws as |
+|---|---|---|
+| Ole Miss | `#14213D` navy | `#CE1126` red |
+| Vanderbilt | `#1B1B1B` | `#C9A227` gold |
+| Auburn | `#0C2340` | `#E87722` orange |
+| Texas A&M | `#500000` | `#FFFFFF` white |
+
+Schools with **no** colourway (every campus outside the SEC 16) get brand red `#CE1126` / blue
+`#1D4E9E`, per the template.
+
+**Missing course code** → hero reads `INTRO ACCOUNTING`, never blank and never an invented code.
+79 of the 132 campuses with chapters have no code, so this path is well exercised.
+
+**Course-code sizing** verified against the longest real case: Missouri's `ACCTCY 2026` (11 chars)
+renders at font-size 200 and fits the artboard with margin — no overflow, no wrap.
+
+## Graceful failure
+
+Any render error returns **404, never 500**, and the on-page block removes itself via the image's
+`onError`. A chapter whose flyer cannot render shows nothing; the copy-link and copy-message buttons
+above it still work.
+
+## Verification
+
+`tsc` clean, 1319 tests pass. Endpoint checked live: PDF 200 `application/pdf`, PNG 200
+`image/png`, campus variant 200, unknown chapter **404**. On-page preview loads the real
+**2550×3300** image at 340px with the correct download filename
+(`survive-<school>-<chapter>-flyer.pdf`).
+
+**Screenshots not delivered** — the Browser pane does not composite frames. Sample PDFs were
+generated locally for Ole Miss, Vanderbilt, Missouri (long code) and an Ole Miss campus flyer.
+
+---
 # Greek council pages — IFC / Panhellenic / NPHC / MGC outreach
 
 Branch `greek-councils`. Private, unlisted, token-gated pages for council academics chairs.

@@ -13,6 +13,7 @@
 import { useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
+import { FlyerBlock } from "@/components/site/FlyerBlock";
 import { logGreekEvent } from "@/lib/greek-go.functions";
 
 /** One place, so the copied link and the printed flyer can never disagree. */
@@ -24,11 +25,10 @@ export const chapterUrl = (schoolSlug: string, chapterSlug: string) =>
 export const shareMessage = (chapterName: string, url: string) =>
   `Intro accounting is rough — ${chapterName} has free Exam 1 cram videos set up for us. Pick your professor and go: ${url}`;
 
-export function ChapterShare({ schoolSlug, chapterSlug, chapterName, flyerUrl }: {
+export function ChapterShare({ schoolSlug, chapterSlug, chapterName }: {
   schoolSlug: string;
   chapterSlug: string;
   chapterName: string;
-  flyerUrl?: string;
 }) {
   const [copied, setCopied] = useState<"link" | "text" | null>(null);
   const url = chapterUrl(schoolSlug, chapterSlug);
@@ -61,19 +61,9 @@ export function ChapterShare({ schoolSlug, chapterSlug, chapterName, flyerUrl }:
         <button type="button" onClick={() => void copy("text")} className="w-full rounded-xl px-4 text-[14px] font-bold" style={BTN}>
           {copied === "text" ? "Message copied ⚡" : "Copy a message for the group chat"}
         </button>
-        {flyerUrl && (
-          <a
-            href={flyerUrl}
-            target="_blank"
-            rel="noreferrer"
-            onClick={() => track("flyer_download")}
-            className="flex w-full items-center justify-center rounded-xl px-4 text-[14px] font-bold"
-            style={BTN}
-          >
-            Download the flyer (PDF)
-          </a>
-        )}
       </div>
+      {/* The real generated flyer — preview, download, print. Hides itself if it cannot render. */}
+      <FlyerBlock schoolSlug={schoolSlug} chapterSlug={chapterSlug} chapterName={chapterName} />
       {/* The URL in plain sight: clipboard access is blocked in some in-app browsers, and a link
           nobody can read is a dead end. */}
       <p className="mt-2 truncate text-center text-[11.5px]" style={{ color: "var(--text-muted)" }}>{url.replace("https://", "")}</p>
