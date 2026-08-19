@@ -17,22 +17,30 @@ import { useEffect, useRef, useState } from "react";
 
 import { BOLT_OUTER, BOLT_RATIO, BOLT_RIGHT, BOLT_VIEWBOX } from "./brand";
 
-/** Height of the bolt cursor, px. A touch larger than a real cursor so it reads
- *  on camera. */
-const H = 42;
+/** Height of the bolt cursor, px. Bigger than a real cursor so it reads on
+ *  camera. */
+const H = 56;
 const W = H * BOLT_RATIO;
-/** The bolt's TOP TIP in box-fraction (from BOLT_OUTER's first point, mapped
- *  through the viewBox) — this is the hotspot that sits under the mouse. */
+/** FLIP the bolt so its sharp tip points TOP-LEFT like a normal cursor (the raw
+ *  bolt's tip is upper-right). Mirror horizontally; the hotspot mirrors with it. */
+const FLIP = true;
+/** The bolt's sharp tip in box-fraction (BOLT_OUTER's first point through the
+ *  viewBox). After the flip the hotspot x mirrors to (1 − TIP_FX). */
 const TIP_FX = 0.862;
 const TIP_FY = 0.042;
-/** Lean, so the bolt reads as a pointer rather than standing straight up. */
-const LEAN = -14;
+const HX = FLIP ? 1 - TIP_FX : TIP_FX; // hotspot x-fraction under the mouse
+const HY = TIP_FY;
+/** Extra lean (deg) on top of the flip. 0 = the flipped bolt's natural NW point. */
+const LEAN = 0;
 /** Hold-to-boil cadence, ms. */
 const BOIL_EVERY = 240;
 
 const CURSOR_CSS = `
 @keyframes sa-cursor-boil { from { transform: translate(-50%,-50%) scale(0.18); opacity: 0.5; } to { transform: translate(-50%,-50%) scale(1); opacity: 0; } }
 .sa-cursor-ring { position: absolute; border-radius: 9999px; will-change: transform, opacity; }
+/* Hide the native cursor on the host AND every child (ReactFlow panes/nodes set
+   their own cursor, so the host alone isn't enough — that's the "two cursors"). */
+[data-sa-brand-cursor], [data-sa-brand-cursor] * { cursor: none !important; }
 `;
 
 interface Ring { id: number; x: number; y: number; c: string; d: number; s: number }
@@ -53,13 +61,13 @@ export function BrandCursor({ hostRef, c1 = "#CE1126", c2 = "#7FB2E8", keyline =
   const idRef = useRef(0);
   const holdRef = useRef<number | undefined>(undefined);
 
-  // Hide the native cursor on the host while enabled; always restore on cleanup.
+  // Hide the native cursor on the host AND all children (the CSS rule keys off
+  // this attribute). Removing it fully restores the native cursor when toggled off.
   useEffect(() => {
     const host = hostRef.current;
-    if (!host) return;
-    const prev = host.style.cursor;
-    host.style.cursor = enabled ? "none" : prev;
-    return () => { host.style.cursor = prev; };
+    if (!host || !enabled) return;
+    host.setAttribute("data-sa-brand-cursor", "");
+    return () => host.removeAttribute("data-sa-brand-cursor");
   }, [hostRef, enabled]);
 
   useEffect(() => {
@@ -80,7 +88,7 @@ export function BrandCursor({ hostRef, c1 = "#CE1126", c2 = "#7FB2E8", keyline =
     let raf = 0;
     const tick = () => {
       const b = boltRef.current, p = ptRef.current;
-      if (b && p) b.style.transform = `translate(${p.x - TIP_FX * W}px, ${p.y - TIP_FY * H}px) rotate(${LEAN}deg)`;
+      if (b && p) b.style.transform = `translate(${p.x - HX * W}px, ${p.y - HY * H}px) rotate(${LEAN}deg)`;
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
@@ -112,8 +120,8 @@ export function BrandCursor({ hostRef, c1 = "#CE1126", c2 = "#7FB2E8", keyline =
         <span key={r.id} className="sa-cursor-ring" onAnimationEnd={() => setRings((rs) => rs.filter((x) => x.id !== r.id))}
           style={{ left: r.x, top: r.y, width: r.s, height: r.s, border: `2px solid ${r.c}`, boxShadow: `0 0 10px ${r.c}`, animation: `sa-cursor-boil ${r.d}ms cubic-bezier(0.22,0.8,0.3,1) forwards` }} />
       ))}
-      <div ref={boltRef} style={{ position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: `${TIP_FX * W}px ${TIP_FY * H}px`, opacity: inside ? 1 : 0, transition: "opacity 120ms", filter: `drop-shadow(0 2px 5px rgba(0,0,0,0.55)) drop-shadow(0 0 ${down ? 14 : 8}px rgba(255,214,140,${down ? 0.6 : 0.4}))` }}>
-        <svg viewBox={BOLT_VIEWBOX} width={W} height={H} style={{ display: "block", transform: down ? "scale(0.9)" : "scale(1)", transformOrigin: `${TIP_FX * 100}% ${TIP_FY * 100}%`, transition: "transform 90ms ease-out" }}>
+      <div ref={boltRef} style={{ position: "absolute", left: 0, top: 0, width: W, height: H, transformOrigin: `${HX * W}px ${HY * H}px`, opacity: inside ? 1 : 0, transition: "opacity 120ms", filter: `drop-shadow(0 2px 5px rgba(0,0,0,0.55)) drop-shadow(0 0 ${down ? 14 : 8}px rgba(255,214,140,${down ? 0.6 : 0.4}))` }}>
+        <svg viewBox={BOLT_VIEWBOX} width={W} height={H} style={{ display: "block", transform: `${FLIP ? "scaleX(-1) " : ""}scale(${down ? 0.94 : 1})`, transformOrigin: "50% 50%", transition: "transform 90ms ease-out" }}>
           <path d={BOLT_OUTER} fill={c1} stroke={keyline} strokeWidth={7} strokeLinejoin="round" strokeLinecap="round" paintOrder="stroke" />
           <path d={BOLT_RIGHT} fill={c2} />
         </svg>
