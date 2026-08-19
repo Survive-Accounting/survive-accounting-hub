@@ -23,13 +23,12 @@ import { ChapterShare } from "@/components/site/ChapterShare";
 export const SEAT_PRICE = 100;
 export const SEAT_MINIMUM = 10;
 
-export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, claimStatus, flyerUrl }: {
+export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, claimStatus }: {
   id: string;
   chapterName: string;
   schoolSlug: string;
   chapterSlug: string;
   claimStatus: "unclaimed" | "pending" | "claimed";
-  flyerUrl?: string;
 }) {
   const [open, setOpen] = useState(false);
   const { code } = useCampus();
@@ -47,7 +46,7 @@ export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, claimS
         Exam 1 is free for every member.
       </p>
       <div className="mt-5">
-        <ChapterShare schoolSlug={schoolSlug} chapterSlug={chapterSlug} chapterName={chapterName} flyerUrl={flyerUrl} />
+        <ChapterShare schoolSlug={schoolSlug} chapterSlug={chapterSlug} chapterName={chapterName} />
       </div>
 
       {/* ── BUY, second ────────────────────────────────────────────────────────────────────── */}

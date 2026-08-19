@@ -79,6 +79,7 @@ import { Route as ApiCronWeeklyDigestRouteImport } from './routes/api.cron.weekl
 import { Route as ApiCronBackupRouteImport } from './routes/api.cron.backup'
 import { Route as GoSchoolCouncilCouncilRouteImport } from './routes/go.$school.council.$council'
 import { Route as ChaptersKitSchoolChapterRouteImport } from './routes/chapters_.kit.$school.$chapter'
+import { Route as ApiFlyerSchoolChapterRouteImport } from './routes/api.flyer.$school.$chapter'
 
 const WelcomeRoute = WelcomeRouteImport.update({
   id: '/welcome',
@@ -438,6 +439,11 @@ const ChaptersKitSchoolChapterRoute =
     path: '/chapters/kit/$school/$chapter',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiFlyerSchoolChapterRoute = ApiFlyerSchoolChapterRouteImport.update({
+  id: '/api/flyer/$school/$chapter',
+  path: '/api/flyer/$school/$chapter',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -508,6 +514,7 @@ export interface FileRoutesByFullPath {
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
+  '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/chapters/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
   '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
 }
@@ -579,6 +586,7 @@ export interface FileRoutesByTo {
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
   '/outreach/leadfinder': typeof OutreachLeadfinderIndexRoute
+  '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/chapters/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
   '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
 }
@@ -652,6 +660,7 @@ export interface FileRoutesById {
   '/outreach_/school/$slug': typeof OutreachSchoolSlugRoute
   '/study_/scenarios/$slug': typeof StudyScenariosSlugRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
+  '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/chapters_/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
   '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
 }
@@ -726,6 +735,7 @@ export interface FileRouteTypes {
     | '/outreach/school/$slug'
     | '/study/scenarios/$slug'
     | '/outreach/leadfinder/'
+    | '/api/flyer/$school/$chapter'
     | '/chapters/kit/$school/$chapter'
     | '/go/$school/council/$council'
   fileRoutesByTo: FileRoutesByTo
@@ -797,6 +807,7 @@ export interface FileRouteTypes {
     | '/outreach/school/$slug'
     | '/study/scenarios/$slug'
     | '/outreach/leadfinder'
+    | '/api/flyer/$school/$chapter'
     | '/chapters/kit/$school/$chapter'
     | '/go/$school/council/$council'
   id:
@@ -869,6 +880,7 @@ export interface FileRouteTypes {
     | '/outreach_/school/$slug'
     | '/study_/scenarios/$slug'
     | '/outreach/leadfinder/'
+    | '/api/flyer/$school/$chapter'
     | '/chapters_/kit/$school/$chapter'
     | '/go/$school/council/$council'
   fileRoutesById: FileRoutesById
@@ -910,6 +922,7 @@ export interface RootRouteChildren {
   GoSchoolChapterRoute: typeof GoSchoolChapterRoute
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
   StudyScenariosSlugRoute: typeof StudyScenariosSlugRoute
+  ApiFlyerSchoolChapterRoute: typeof ApiFlyerSchoolChapterRoute
   ChaptersKitSchoolChapterRoute: typeof ChaptersKitSchoolChapterRoute
   GoSchoolCouncilCouncilRoute: typeof GoSchoolCouncilCouncilRoute
 }
@@ -1406,6 +1419,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChaptersKitSchoolChapterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/flyer/$school/$chapter': {
+      id: '/api/flyer/$school/$chapter'
+      path: '/api/flyer/$school/$chapter'
+      fullPath: '/api/flyer/$school/$chapter'
+      preLoaderRoute: typeof ApiFlyerSchoolChapterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1544,6 +1564,7 @@ const rootRouteChildren: RootRouteChildren = {
   GoSchoolChapterRoute: GoSchoolChapterRoute,
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
   StudyScenariosSlugRoute: StudyScenariosSlugRoute,
+  ApiFlyerSchoolChapterRoute: ApiFlyerSchoolChapterRoute,
   ChaptersKitSchoolChapterRoute: ChaptersKitSchoolChapterRoute,
   GoSchoolCouncilCouncilRoute: GoSchoolCouncilCouncilRoute,
 }

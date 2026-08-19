@@ -242,7 +242,7 @@ export const resolveLegacyChapterSlug = createServerFn({ method: "POST" })
  *
  *  Best-effort by design — a failed log must never break a share — but the INSERT error is logged
  *  server-side rather than swallowed, so a broken pipe is discoverable. */
-export const GREEK_EVENT_KINDS = ["visit", "copy_link", "copy_message", "flyer_download"] as const;
+export const GREEK_EVENT_KINDS = ["visit", "copy_link", "copy_message", "flyer_download", "flyer_print"] as const;
 
 export const logGreekEvent = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({
