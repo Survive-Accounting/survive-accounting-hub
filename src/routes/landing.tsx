@@ -1917,63 +1917,12 @@ function TestimonialsSlider() {
 // ---- CHAPTER BANNER + CLAIM (on /go/<school>/<chapter> links) --------------------------------
 // The chapter strip + an optional claim (name + phone -> member row). Never gates:
 // the player already works; claiming just registers the member so the chapter dashboard counts them.
-function ChapterBanner({ name, go }: { name: string; go?: { schoolSlug: string; chapterSlug: string } }) {
-  const [open, setOpen] = useState(false);
-  // COURTESY IS A PAID-CHAPTER CLAIM. "Free Exam 1, courtesy of <chapter>" was on every unclaimed
-  // page, crediting a chapter that had done nothing — Exam 1 is free for everyone, so the line was
-  // misleading wherever it appeared. It is reserved for chapters that actually bought seats.
-  const { courseLabel } = useCampus();
-  return (
-    <>
-      <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 rounded-xl px-4 py-2 text-center text-[13px] font-bold" style={{ background: "rgba(252,163,17,0.12)", border: "1px solid rgba(252,163,17,0.4)", color: "var(--brand-cream)" }}>
-        <span>⚡ Cram videos for {courseLabel} — free Exam 1 for {name} members.</span>
-        {go && <button onClick={() => setOpen(true)} className="rounded-lg px-2.5 py-1 text-[12px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>Claim your free access →</button>}
-      </div>
-      {open && go && <ClaimModal go={go} chapter={name} onClose={() => setOpen(false)} />}
-    </>
-  );
-}
-
-function ClaimModal({ go, chapter, onClose }: { go: { schoolSlug: string; chapterSlug: string }; chapter: string; onClose: () => void }) {
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
-  // Esc. It had the x and the backdrop but not the key, so a keyboard user was stuck.
-  useDismiss<HTMLDivElement>(onClose, { outside: false });
-  const ok = name.trim().length > 1 && phone.replace(/\D/g, "").length >= 10;
-  const submit = async () => {
-    if (!ok || busy) return;
-    setBusy(true);
-    // source: "link" — this student arrived on the chapter's own URL. A self-report from the
-    // generic landing page writes the same row with source "self_report", so the two can be told
-    // apart later without a second table.
-    try { await tagChapterMember({ data: { schoolSlug: go.schoolSlug, chapterSlug: go.chapterSlug, name: name.trim(), phone: phone.trim(), source: "link" } }); setDone(true); } catch { setBusy(false); }
-  };
-  return (
-    <div className="fixed inset-0 z-[210] grid place-items-center p-4" style={{ background: "rgba(6,10,20,0.72)" }} onClick={onClose}>
-      <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", fontFamily: BRAND_SANS }} onClick={(e) => e.stopPropagation()}>
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <h3 className="text-[17px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Claim your free Exam 1</h3>
-          <button onClick={onClose} className="grid h-7 w-7 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--brand-cream)" }} aria-label="Close"><X className="h-4 w-4" /></button>
-        </div>
-        {done ? (
-          <div className="py-4 text-center">
-            <p className="text-[14.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>You&apos;re in — Exam 1 is free, and you&apos;re counted with {chapter}.</p>
-            <button onClick={onClose} className="mt-4 rounded-xl px-5 py-2.5 text-[13.5px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>Start studying ⚡</button>
-          </div>
-        ) : (
-          <>
-            <p className="mb-3 text-[12.5px]" style={{ color: "var(--text-muted)" }}>Just your name and mobile — no cost, no account.</p>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="mb-2 w-full rounded-xl px-4 py-2.5 text-[14px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }} />
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="Mobile number" className="w-full rounded-xl px-4 py-2.5 text-[14px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }} />
-            <button onClick={submit} disabled={!ok || busy} className="mt-4 w-full rounded-xl py-3 text-[15px] font-black transition-opacity disabled:opacity-40" style={{ background: "var(--accent)", color: "#0B1220" }}>{busy ? "…" : "Get free access"}</button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
+// ChapterBanner and ClaimModal were DELETED here.
+//
+// The banner repeated what the chapter header now says in type (chapter, school, course code),
+// and its "Claim your free access" modal was the only thing that opened ClaimModal. Member
+// attribution did not go with them — it moved to the "Start Exam 1 free" press, which is the
+// same signal without a form in front of the free product.
 
 // ---- SECTION RHYTHM — a quiet 1px breath between major sections (my-12 → ~96px gap) --------------
 function SectionDivider() {
