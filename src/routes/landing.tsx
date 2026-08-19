@@ -21,6 +21,7 @@ import { logSchoolDemand, submitExamAsk, submitSyllabus , submitNotify } from "@
 import { searchOrderProfessors, type ProfessorLite } from "@/lib/orders.functions";
 import { tagChapterMember } from "@/lib/greek-go.functions";
 import { revealInContainer } from "@/lib/ui-scroll";
+import { SearchPicker } from "@/components/site/SearchPicker";
 import { useDismiss } from "@/lib/use-dismiss";
 import { fetchCourseOptions } from "@/lib/je-api";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
@@ -102,13 +103,17 @@ type ResolvedTopic = { key: string; name: string; num: number | null; sets: Stud
 // PROVIDER SHELL. The /go/ route knows the school from the URL; everything under here reads it
 // from campus context rather than re-deriving it, which is what let the hero cycle through other
 // schools' colourways on a chapter page that named one school in its banner.
-export function LandingPage({ initialCampusId, goChapter, chapterTop, chapterAccess, campusSlug, greekOrg, initialCourseCode }: {
+export function LandingPage({ initialCampusId, goChapter, chapterTop, chapterAccess, campusSlug, greekOrg, initialCourseCode, videoGate }: {
   initialCampusId?: string;
   /** Campus slug straight from the URL. Resolves campus context on the FIRST render,
    *  before any chapter fetch — see the note atop go.$school.$chapter.tsx. */
   campusSlug?: string;
   /** Course code resolved server-side, so the headline never gains it a beat later. */
   initialCourseCode?: string | null;
+  /** Rendered INSTEAD of the video on Greek chapter pages until the visitor has an account.
+   *  A seat is an entitlement and an entitlement needs a user_id, so this is what makes the
+   *  paid product deliverable — not a marketing gate. Never set on the solo page. */
+  videoGate?: React.ReactNode;
   /** The chapter-access section, rendered after the player (never between a visitor and it). */
   chapterAccess?: React.ReactNode;
   /** Greek chapter name. Its presence IS the Greek variant switch. */
@@ -124,18 +129,22 @@ export function LandingPage({ initialCampusId, goChapter, chapterTop, chapterAcc
 } = {}) {
   return (
     <CampusProvider urlSchoolSlug={campusSlug ?? goChapter?.schoolSlug ?? null} accountCampusId={initialCampusId ?? null} initialCode={initialCourseCode ?? null}>
-      <LandingPageInner initialCampusId={initialCampusId} goChapter={goChapter} chapterTop={chapterTop} chapterAccess={chapterAccess} campusSlug={campusSlug} greekOrg={greekOrg} initialCourseCode={initialCourseCode} />
+      <LandingPageInner initialCampusId={initialCampusId} goChapter={goChapter} chapterTop={chapterTop} chapterAccess={chapterAccess} campusSlug={campusSlug} greekOrg={greekOrg} initialCourseCode={initialCourseCode} videoGate={videoGate} />
     </CampusProvider>
   );
 }
 
-function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAccess, campusSlug, greekOrg, initialCourseCode }: {
+function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAccess, campusSlug, greekOrg, initialCourseCode, videoGate }: {
   initialCampusId?: string;
   /** Campus slug straight from the URL. Resolves campus context on the FIRST render,
    *  before any chapter fetch — see the note atop go.$school.$chapter.tsx. */
   campusSlug?: string;
   /** Course code resolved server-side, so the headline never gains it a beat later. */
   initialCourseCode?: string | null;
+  /** Rendered INSTEAD of the video on Greek chapter pages until the visitor has an account.
+   *  A seat is an entitlement and an entitlement needs a user_id, so this is what makes the
+   *  paid product deliverable — not a marketing gate. Never set on the solo page. */
+  videoGate?: React.ReactNode;
   /** The chapter-access section, rendered after the player (never between a visitor and it). */
   chapterAccess?: React.ReactNode;
   /** Greek chapter name. Its presence IS the Greek variant switch. */
@@ -362,7 +371,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAcces
           used to push the document sideways. Clamping here contains it at the source. */}
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px", width: "100%", overflowX: "clip" }}>
         {chapterTop ?? <Hero onStart={onStart} stops={stops} />}
-        <ExamPlayer greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); try { localStorage.setItem("sa-landing-school", "__notlisted__"); } catch { /* ignore */ } }} onReset={resetMatch} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(t) => setNotifyTopic(t)} />
+        <ExamPlayer videoGate={videoGate} greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); try { localStorage.setItem("sa-landing-school", "__notlisted__"); } catch { /* ignore */ } }} onReset={resetMatch} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(t) => setNotifyTopic(t)} />
         {/* CHAPTER ACCESS sits AFTER the product, never before it: a visitor who pressed
             "Start Exam 1 free" must not land on a sales section. */}
         {chapterAccess}
@@ -551,28 +560,12 @@ const GREEK_FAQS: Array<{ q: string; a: string }> = [
     a: "That's the whole point. Members choose their school and professor, and I build the cram videos around what's actually being taught and tested. If I need something from your course, I'll ask for the syllabus, study guide, or exam topics.",
   },
   {
-    q: "Is Exam 1 really free for everyone?",
-    a: "Yes. Every member can use Exam 1 free with no card required. Your chapter can try it before spending anything.",
-  },
-  {
     q: "What does chapter access cost?",
     a: "$100 per member for the semester, with a 10-seat minimum. Exam 1 stays free either way. Chapter seats unlock Exams 2, 3 and the Final.",
   },
   {
     q: "Can we see whether members actually use it?",
     a: "Yes. Chapter access includes a private dashboard showing who joined, recent activity, and study progress — so you're not paying for a perk nobody uses.",
-  },
-  {
-    q: "When do the later exams come out?",
-    a: "I film throughout the semester ahead of each exam. Students can leave their email on an upcoming exam and I'll let them know when the cram videos are ready.",
-  },
-  {
-    q: "Is this allowed?",
-    a: "Yes. This is tutoring and exam preparation. I teach students how to solve the accounting problems themselves; students still take their own exams.",
-  },
-  {
-    q: "What if our professor or school isn't listed?",
-    a: "Members can tell me what's missing. Intro Accounting overlaps heavily across universities, and I prioritize new professor and course mappings based on student requests and course materials.",
   },
 ];
 
@@ -1094,120 +1087,41 @@ function MatchPanel({ school, professor, notListed, profDone, coveragePct, schoo
  *  Pass 4 removed "Skip this" on instruction: "My professor isn't listed" is the only alternate
  *  path, and it still reaches the same next step, so nobody is trapped. "Change school" is
  *  deliberately demoted to small muted text under the list — it is a correction, not a choice. */
-/** PROFESSOR COMBOBOX.
+/** PROFESSOR PICKER — the shared SearchPicker.
  *
- *  Was a search box above a permanently-open 190px scrolling list — a database dumped on screen
- *  before the visitor had watched anything. The list is now a POPUP that only exists once you
- *  type or focus, so the resting state is one field.
- *
- *  "Change school" is GONE. On /go/<school>/<chapter> the visitor is already somewhere specific;
- *  offering to change school there invites them out of the context the whole page is built on.
- *  The foot-of-page self-report ("Not in FarmHouse?") is the remaining, correctly-quiet path.
- *
- *  Keyboard: ArrowUp/Down move, Enter picks, Escape closes, Home/End jump. aria-activedescendant
- *  keeps screen readers on the highlighted option without moving DOM focus off the input. */
+ *  The hand-rolled combobox this replaces had two defects that only show up in place: its popup was
+ *  an absolute child inside the player card (`overflow-hidden rounded-2xl`), so the list was
+ *  CLIPPED at the card's edge; and clicking elsewhere left it open, which reads as broken. Both are
+ *  gone by using the shared component, which portals its popup and shares the dismissal hook. */
 function ProfessorStage({ school, onPick, onNotListed }: {
   school: School | null;
   onPick: (p: ProfessorLite) => void;
   onNotListed: () => void;
 }) {
-  const [q, setQ] = useState("");
-  const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(0);
-  const boxRef = useRef<HTMLDivElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
   const campusId = school?.campusId ?? null;
   const profQ = useQuery({
     queryKey: ["landing-profs", campusId],
     queryFn: () => searchOrderProfessors({ data: { campusId: campusId! } }),
     enabled: !!campusId, networkMode: "always", staleTime: 300_000,
   });
-  const roster = profQ.data ?? [];
-  const needle = q.trim().toLowerCase();
-  const results = useMemo(() => {
-    const sorted = roster.slice().sort((a, b) => (a.last || a.name).localeCompare(b.last || b.name) || (a.first || "").localeCompare(b.first || ""));
-    if (!needle) return sorted;
-    return sorted.filter((x) => {
-      const first = (x.first || "").toLowerCase(), last = (x.last || "").toLowerCase(), full = x.name.toLowerCase();
-      return full.includes(needle) || `${last}, ${first}`.includes(needle) || `${last} ${first}`.includes(needle);
-    });
-  }, [roster, needle]);
+  const roster = useMemo(() => profQ.data ?? [], [profQ.data]);
+  const sorted = useMemo(
+    () => roster.slice().sort((a, b) => (a.last || a.name).localeCompare(b.last || b.name) || (a.first || "").localeCompare(b.first || "")),
+    [roster],
+  );
 
-  // Clamp the highlight whenever the result set changes, so filtering can never leave it pointing
-  // past the end of the list.
-  useEffect(() => { setActive((i) => Math.min(i, Math.max(0, results.length - 1))); }, [results.length]);
-  useDismiss<HTMLDivElement>(() => setOpen(false), { enabled: open, esc: false });
-
-  const choose = (x: ProfessorLite) => { setOpen(false); setQ(""); onPick(x); };
-
-  const onKey = (e: React.KeyboardEvent) => {
-    if (e.key === "Escape") { setOpen(false); return; }
-    if (!open && (e.key === "ArrowDown" || e.key === "ArrowUp")) { setOpen(true); return; }
-    if (!open) return;
-    if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => Math.min(i + 1, results.length - 1)); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); }
-    else if (e.key === "Home") { e.preventDefault(); setActive(0); }
-    else if (e.key === "End") { e.preventDefault(); setActive(results.length - 1); }
-    else if (e.key === "Enter") { const x = results[active]; if (x) { e.preventDefault(); choose(x); } }
-  };
-
-  // Keep the highlighted row visible INSIDE the popup — revealInContainer never scrolls the page.
-  useEffect(() => {
-    if (!open) return;
-    const el = listRef.current?.querySelector<HTMLElement>('[data-active="1"]');
-    revealInContainer(el);
-  }, [active, open]);
-
-  const listId = "prof-listbox";
   return (
     <div className="mx-auto flex w-full max-w-sm flex-col items-stretch gap-2.5">
       <p className="text-center text-[16px] font-black" style={{ color: "var(--brand-cream)" }}>Pick your professor</p>
-
-      <div ref={boxRef} className="relative">
-        <input
-          value={q}
-          onChange={(e) => { setQ(e.target.value); setOpen(true); }}
-          onFocus={() => setOpen(true)}
-          onKeyDown={onKey}
-          role="combobox"
-          aria-expanded={open}
-          aria-controls={listId}
-          aria-autocomplete="list"
-          aria-activedescendant={open && results[active] ? `prof-opt-${results[active].id}` : undefined}
-          aria-label={`Search ${school?.name ?? "your school"} professors`}
-          placeholder={`Search ${school?.name ?? "your school"} professors`}
-          autoCorrect="off" autoCapitalize="none" spellCheck={false}
-          className="w-full rounded-lg px-3 outline-none focus:ring-2"
-          // 16px explicitly — under it iOS zooms the page on focus and never zooms back.
-          style={{ fontSize: 16, minHeight: 48, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }}
-        />
-        {open && (
-          <ul
-            id={listId}
-            ref={listRef}
-            role="listbox"
-            className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-[220px] overflow-y-auto rounded-lg py-1"
-            style={{ background: "var(--sa-surface-1, #1B2B4D)", border: "1px solid rgba(245,239,230,0.16)", boxShadow: "0 18px 40px rgba(0,0,0,0.45)" }}
-          >
-            {profQ.isLoading && <li className="px-3 py-2 text-[13px] italic" style={{ color: "var(--text-muted)" }}>Loading…</li>}
-            {results.map((x, i) => (
-              <li key={x.id} role="option" id={`prof-opt-${x.id}`} aria-selected={i === active} data-active={i === active ? "1" : undefined}>
-                <button
-                  type="button"
-                  onMouseEnter={() => setActive(i)}
-                  onClick={() => choose(x)}
-                  className="block w-full px-3 text-left text-[14px]"
-                  style={{ minHeight: 44, color: "var(--brand-cream)", background: i === active ? "rgba(252,163,17,0.14)" : "transparent" }}
-                >
-                  {profDisplay(x)}
-                </button>
-              </li>
-            ))}
-            {!profQ.isLoading && results.length === 0 && <li className="px-3 py-2 text-[13px] italic" style={{ color: "var(--text-muted)" }}>No matches.</li>}
-          </ul>
-        )}
-      </div>
-
+      <SearchPicker
+        items={sorted.map((x) => ({ value: x.id, label: profDisplay(x) }))}
+        value={null}
+        placeholder={profQ.isLoading ? "Loading professors…" : "Search your professor…"}
+        searchPlaceholder={`Search ${sorted.length} professors…`}
+        disabled={profQ.isLoading}
+        onPick={(id) => { const x = sorted.find((r) => r.id === id); if (x) onPick(x); }}
+        ariaLabel={`Search ${school?.name ?? "your school"} professors`}
+      />
       <button type="button" onClick={onNotListed} className="text-[14px] font-bold" style={{ minHeight: 44, color: "var(--accent)" }}>
         My professor isn&apos;t listed →
       </button>
@@ -1220,7 +1134,7 @@ function ProfessorStage({ school, onPick, onNotListed }: {
 // now lives in MatchPanel, inside the right panel, where the student is already looking.
 
 
-function ExamPlayer({ greekOrg, exams, school, onPick, focusSignal, schools, onSyllabus, professor, onPickProfessor, notListed, onNotListed, onReset, theater, onTheaterDone, onNotify }: { greekOrg?: string; exams: ExamTab[]; school: School | null; onPick: (s: School) => void; focusSignal: number; schools: School[]; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; notListed: boolean; onNotListed: () => void; onReset: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void; onNotify: (topic: string) => void }) {
+function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, schools, onSyllabus, professor, onPickProfessor, notListed, onNotListed, onReset, theater, onTheaterDone, onNotify }: { videoGate?: React.ReactNode; greekOrg?: string; exams: ExamTab[]; school: School | null; onPick: (s: School) => void; focusSignal: number; schools: School[]; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; notListed: boolean; onNotListed: () => void; onReset: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void; onNotify: (topic: string) => void }) {
   const [activeNum, setActiveNum] = useState(1);
   const [selById, setSelById] = useState<Record<number, Sel>>({});
   const [openTopics, setOpenTopics] = useState<Set<string>>(() => new Set());
@@ -1249,7 +1163,13 @@ function ExamPlayer({ greekOrg, exams, school, onPick, focusSignal, schools, onS
   const finishAsk = () => { setAskDone(true); try { localStorage.setItem("sa-two-set-ask", "done"); } catch { /* ignore */ } };
   // No longer conditioned on a school: a student who watched two sets earned the ask whether or
   // not they ever told us where they study.
-  const showAsk = completedSets.size >= 2 && !askDone;
+  // ONE video earns the ask. Two was a threshold most visitors never reached, so the only
+  // capture on the free flow almost never fired — and the moment someone finishes their first
+  // video is exactly when 'save your progress' is a favour rather than a toll.
+  //
+  // NEVER on a Greek chapter page: that flow already took an account at the door, and asking a
+  // signed-in member for their email again reads as a form that forgot it already met them.
+  const showAsk = !greekOrg && completedSets.size >= 1 && !askDone;
 
   // Default selection for a tab: first topic with a LIVE set → first topic with any set → first
   // topic (poster) → null.
@@ -1341,7 +1261,12 @@ function ExamPlayer({ greekOrg, exams, school, onPick, focusSignal, schools, onS
                 note above sa-panel-min in styles.css for the height half of this. */}
             <div className="sa-panel-min relative w-full">
               <MatchPanel school={school} professor={professor} notListed={notListed} profDone={profDone} coveragePct={active.coveragePct} schools={schools} cueSignal={focusSignal} onPick={onPick} onNotListed={onNotListed} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); }} onProfNotListed={() => setProfDone(true)} onMaterials={() => onSyllabus()} onReset={onReset} />
-              {flowDone && (
+              {/* THE GATE STANDS IN FOR THE VIDEO, not for the page: tabs, topics and the
+                  whole menu stay readable, because a visitor deciding whether to hand over an
+                  email needs to see what they are unlocking. */}
+              {videoGate ? (
+                <div className="relative w-full" style={{ aspectRatio: "16 / 9", background: "var(--sa-surface-2)" }}>{videoGate}</div>
+              ) : flowDone && (
                 <div className="relative w-full" style={{ aspectRatio: "16 / 9", background: "#000" }}>
                   {curSet?.playbackId ? (
                     <HeroVideo key={curSet.playbackId} playbackId={curSet.playbackId} onComplete={() => markComplete(curSet!.id)} />
@@ -1398,6 +1323,7 @@ export const PAID_EXAM_PRICE = 50;
  *  label, so at 320px the row scrolls instead of truncating '$50' away. */
 function ExamTabs({ exams, activeNum, onSelect, greek }: { exams: ExamTab[]; activeNum: number; onSelect: (n: number) => void; greek?: boolean }) {
   return (
+    <>
     <div
       className="flex items-stretch overflow-x-auto"
       style={{ background: "rgba(0,0,0,0.22)", scrollbarWidth: "none", borderBottom: "1px solid rgba(245,239,230,0.1)" }}
@@ -1410,7 +1336,10 @@ function ExamTabs({ exams, activeNum, onSelect, greek }: { exams: ExamTab[]; act
         // chapter offer made the page read as two contradictory prices for the same thing. The
         // individual purchase path still exists everywhere else — it is simply not what this
         // page is selling.
-        const price = e.price == null ? "FREE" : greek ? "CHAPTER ACCESS" : `$${e.price}`;
+        // GREEK PAGES DO NOT QUOTE $50 — per-exam student pricing beside a $100/member chapter
+        // offer read as two contradictory prices. The individual path still exists elsewhere.
+        const locked = e.price != null;
+        const price = !locked ? "FREE" : greek ? "🔒 CHAPTER" : `$${e.price}`;
         return (
           <button
             key={e.num}
@@ -1434,6 +1363,14 @@ function ExamTabs({ exams, activeNum, onSelect, greek }: { exams: ExamTab[]; act
         );
       })}
     </div>
+      {/* ONE line under the row rather than a note on each locked tab: the question "why is
+          that locked" is asked once, and the answer is the same for all three. */}
+      {greek && exams.some((e) => e.price != null) && (
+        <p className="px-3 pb-2 pt-0.5 text-center text-[11.5px]" style={{ background: "rgba(0,0,0,0.22)", color: "var(--text-muted)" }}>
+          🔒 Exams 2, 3 and the Final unlock with chapter access — <span style={{ color: "var(--accent)", fontWeight: 800 }}>$100/member per semester</span>. Exam 1 is free either way.
+        </p>
+      )}
+    </>
   );
 }
 
@@ -1638,10 +1575,10 @@ function TwoSetAsk({ school, professor, onDone }: { school: School | null; profe
   return (
     <div className="flex flex-col gap-2 border-t px-3 py-3 sm:flex-row sm:items-center" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(252,163,17,0.06)" }}>
       {sent ? (
-        <span className="text-[12.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>Got it — I'll be in touch. — Lee</span>
+        <span className="text-[12.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>Saved — I'll tell you when Exam 2 lands.</span>
       ) : (
         <>
-          <span className="min-w-0 flex-1 text-[12.5px]" style={{ color: "var(--brand-cream)" }}>Two down. What else is on your exam?</span>
+          <span className="min-w-0 flex-1 text-[12.5px]" style={{ color: "var(--brand-cream)" }}>Nice — save your progress and get told when Exam 2 lands?</span>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" className="rounded-lg px-3 py-1.5 text-[12.5px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)", minWidth: 0 }} />
           <button onClick={send} disabled={!ok || busy} className="shrink-0 rounded-lg px-3 py-1.5 text-[12.5px] font-black disabled:opacity-40" style={{ background: "var(--accent)", color: "#0B1220" }}>{busy ? "…" : "Send"}</button>
           <button onClick={onDone} className="grid h-6 w-6 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--text-muted)" }} aria-label="Dismiss"><X className="h-3.5 w-3.5" /></button>

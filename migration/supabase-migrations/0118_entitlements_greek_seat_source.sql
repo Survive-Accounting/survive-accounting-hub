@@ -1,33 +1,51 @@
 -- 0118 — allow entitlements.source = 'greek_seat'.
 --
--- THE BUG THIS FIXES, and how it was found.
---
--- Phase 2b's assignSeat writes an entitlement with source 'greek_seat' (and greek_chapter_id, which
--- 0116 did add). But entitlements carries a CHECK constraint on `source`, and 0116 never extended
--- it. Probing the live table shows the permitted set is exactly:
+-- THE BUG: Phase 2b's assignSeat writes an entitlement with source 'greek_seat' (and
+-- greek_chapter_id, which 0116 did add). entitlements carries a CHECK on `source` that 0116 never
+-- extended. Probing the live table shows the permitted set is exactly:
 --
 --     order, admin, promo
 --
--- so every seat grant fails with 23514 entitlements_source_check. The whole chapter-seat path is
--- dead against the live schema, and nobody noticed because there were no accounts to grant to and
--- no chapter had ever paid — the code was written and merged against a table it could not write to.
+-- so every seat grant fails 23514. The chapter-seat path is dead against the live schema, and
+-- nothing caught it because there are no accounts yet and no chapter has paid.
 --
--- assignSeat DOES return the error rather than swallowing it, so this surfaces as a visible failure
--- in the dashboard rather than a seat that silently does nothing. That is the one piece of luck
--- here; the fix is still the constraint.
+-- WHY A NEW VALUE RATHER THAN REUSING 'admin': unassign deletes on
+-- (greek_chapter_id, source = 'greek_seat'). That pair is what stops a chapter revoking a grant it
+-- did not pay for — a student's own purchase, or a comp. Folding chapter seats into 'admin' would
+-- make those indistinguishable.
 --
--- WHY A NEW VALUE RATHER THAN REUSING 'admin':
--- unassign deletes on (greek_chapter_id, source = 'greek_seat'). That pair is what stops a chapter
--- from revoking a grant it did not pay for — a student's own purchase, or a comp Lee handed out.
--- Folding chapter seats into 'admin' would make those indistinguishable and put someone else's
--- access one click away from deletion.
+-- ── V2, AFTER THE FIRST ATTEMPT DID NOT TAKE ─────────────────────────────────────────────────
 --
--- Idempotent: safe to re-run.
+-- The first version hard-coded the constraint name `entitlements_source_check`. If the real
+-- constraint is named anything else, `DROP CONSTRAINT IF EXISTS entitlements_source_check` is a
+-- silent no-op and the old rule survives — which is the most likely reason a run that looked
+-- successful changed nothing.
+--
+-- So this version finds EVERY check constraint on the table whose definition mentions `source`,
+-- drops each by its real name, and then adds ours. It also RAISES NOTICE with what it did and
+-- ends with a SELECT you can read, so a run that changes nothing cannot look like a run that
+-- worked. Idempotent: safe to re-run.
 
 BEGIN;
 
-ALTER TABLE public.entitlements
-  DROP CONSTRAINT IF EXISTS entitlements_source_check;
+DO $$
+DECLARE
+  c RECORD;
+  dropped INT := 0;
+BEGIN
+  FOR c IN
+    SELECT conname
+    FROM pg_constraint
+    WHERE conrelid = 'public.entitlements'::regclass
+      AND contype = 'c'
+      AND pg_get_constraintdef(oid) ILIKE '%source%'
+  LOOP
+    EXECUTE format('ALTER TABLE public.entitlements DROP CONSTRAINT %I', c.conname);
+    RAISE NOTICE 'dropped constraint %', c.conname;
+    dropped := dropped + 1;
+  END LOOP;
+  RAISE NOTICE 'dropped % source constraint(s)', dropped;
+END $$;
 
 ALTER TABLE public.entitlements
   ADD CONSTRAINT entitlements_source_check
@@ -35,7 +53,8 @@ ALTER TABLE public.entitlements
 
 COMMIT;
 
--- VERIFY (expects one row, with 'greek_seat' present in the definition):
---   SELECT conname, pg_get_constraintdef(oid)
---   FROM pg_constraint
---   WHERE conrelid = 'public.entitlements'::regclass AND conname = 'entitlements_source_check';
+-- READ THIS OUTPUT. It must show greek_seat. If the row is missing or lacks greek_seat, the
+-- migration did not commit and seat grants will still fail.
+SELECT conname, pg_get_constraintdef(oid) AS definition
+FROM pg_constraint
+WHERE conrelid = 'public.entitlements'::regclass AND contype = 'c';

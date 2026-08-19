@@ -30,13 +30,17 @@
 // locking. The slug is in the URL and available synchronously — it is passed from params now, so
 // campus context is correct on the very first render even if the chapter lookup were slow.
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { ChapterFinder } from "@/components/site/ChapterFinder";
+import { ChapterGate } from "@/components/site/ChapterGate";
+import { useChapterMember } from "@/lib/use-chapter-member";
+import { logExpandEvent } from "@/lib/referrals.functions";
 import { ChapterTop } from "@/components/site/ChapterTop";
 import { ChapterAccess } from "@/components/site/ChapterAccess";
 import { getGoChapter, listGoSchools, tagChapterMember } from "@/lib/greek-go.functions";
+import { getSiteSettings } from "@/lib/site-settings.functions";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { LandingPage } from "./landing";
 
@@ -50,9 +54,10 @@ export const Route = createFileRoute("/go/$school/$chapter")({
   // a smaller version of the very flash this loader exists to remove.
   loader: async ({ params }) => {
     const chapter = await getGoChapter({ data: { schoolSlug: params.school, chapterSlug: params.chapter } });
-    if (!chapter) return { chapter: null, code: null };
+    if (!chapter) return { chapter: null, code: null, flyerUrl: null };
     const codes = await listCampusIntroCodes({ data: { ids: [chapter.campusId] } }).catch(() => []);
-    return { chapter, code: codes[0]?.code ?? null };
+    const settings = await getSiteSettings().catch(() => null);
+    return { chapter, code: codes[0]?.code ?? null, flyerUrl: settings?.greekFlyerUrl || null };
   },
   // Indexable, unlike /c/ (which was noindex because each link belonged to one private chapter).
   // These are public chapter pages and searching "<chapter> <school> accounting" should find them.
@@ -67,7 +72,21 @@ export const Route = createFileRoute("/go/$school/$chapter")({
 
 function GoChapterPage() {
   const { school, chapter } = Route.useParams();
-  const { chapter: ch, code } = Route.useLoaderData();
+  const { chapter: ch, code, flyerUrl } = Route.useLoaderData();
+  const { signedIn } = useChapterMember(school, chapter);
+
+  // VISIT TRACKING. An exec should be able to see interest BEFORE anyone signs up — a chapter
+  // that shared the link and got 40 visits and 3 accounts is a different conversation from one
+  // that got 2 visits. Once per session, not per render: this is a log, not a pageview firehose.
+  useEffect(() => {
+    if (!ch) return;
+    const key = `sa-visit:${school}/${chapter}`;
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, "1");
+    } catch { /* private mode — log it and move on */ }
+    void logExpandEvent({ data: { event: `greek_visit:${school}/${chapter}` } }).catch(() => {});
+  }, [ch, school, chapter]);
 
   // Fire-and-forget member attribution. Saying "start Exam 1" on this chapter's own URL is the
   // attribution; nothing is awaited, so a failed tag can never stand between a student and the
@@ -96,6 +115,7 @@ function GoChapterPage() {
         ) : undefined}
         chapterAccess={ch ? (
           <ChapterAccess
+            flyerUrl={flyerUrl ?? undefined}
             id={ACCESS_ANCHOR}
             chapterName={ch.chapterName}
             schoolSlug={ch.schoolSlug}
@@ -103,6 +123,9 @@ function GoChapterPage() {
             claimStatus={ch.claimStatus}
           />
         ) : undefined}
+        // Gate the VIDEO until there is an account. `signedIn === null` means the session is
+        // still being read — showing the gate then would flash it at someone already signed in.
+        videoGate={ch && signedIn === false ? <ChapterGate chapterName={ch.chapterName} /> : undefined}
         greekOrg={ch ? ch.chapterName : undefined}
       />
       {/* Self-report stays at the foot: it is a STUDENT correction ("I'm in a different house"),
