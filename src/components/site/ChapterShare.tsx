@@ -13,7 +13,7 @@
 import { useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
-import { logExpandEvent } from "@/lib/referrals.functions";
+import { logGreekEvent } from "@/lib/greek-go.functions";
 
 /** One place, so the copied link and the printed flyer can never disagree. */
 export const chapterUrl = (schoolSlug: string, chapterSlug: string) =>
@@ -33,8 +33,8 @@ export function ChapterShare({ schoolSlug, chapterSlug, chapterName, flyerUrl }:
   const [copied, setCopied] = useState<"link" | "text" | null>(null);
   const url = chapterUrl(schoolSlug, chapterSlug);
 
-  const track = (what: string) => {
-    void logExpandEvent({ data: { event: `greek_share:${what}:${schoolSlug}/${chapterSlug}` } }).catch(() => {});
+  const track = (kind: "copy_link" | "copy_message" | "flyer_download") => {
+    void logGreekEvent({ data: { kind, schoolSlug, chapterSlug } }).catch(() => {});
   };
 
   const copy = async (kind: "link" | "text") => {

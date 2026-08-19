@@ -227,3 +227,38 @@ export const resolveLegacyChapterSlug = createServerFn({ method: "POST" })
     if (!roster?.slug) return null;
     return goPath(campus.slug, roster.slug);
   });
+
+/** GREEK PAGE EVENTS — visits and shares, on a chapter.
+ *
+ *  WHY NOT logExpandEvent: that one validates `event` against a CLOSED ENUM of five strings, so a
+ *  dynamic "greek_visit:<school>/<chapter>" fails validation and is rejected. The first version of
+ *  this tracking called it anyway and wrapped the call in .catch(() => {}), so every visit and every
+ *  share was silently recorded nowhere — the sessionStorage key was written, the request went out,
+ *  and nothing landed. Analytics that fail quietly are worse than no analytics: they read as data.
+ *
+ *  The client sends a KIND from a fixed list plus the slugs; the string is composed here. That keeps
+ *  the enum tight (no arbitrary text reaches the table from a browser) while still allowing the
+ *  per-chapter detail an exec actually wants.
+ *
+ *  Best-effort by design — a failed log must never break a share — but the INSERT error is logged
+ *  server-side rather than swallowed, so a broken pipe is discoverable. */
+export const GREEK_EVENT_KINDS = ["visit", "copy_link", "copy_message", "flyer_download"] as const;
+
+export const logGreekEvent = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    kind: z.enum(GREEK_EVENT_KINDS),
+    schoolSlug: z.string().trim().min(1).max(80),
+    chapterSlug: z.string().trim().min(1).max(60),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean }> => {
+    try {
+      const db = await admin();
+      const { error } = await db.from("expand_events")
+        .insert({ event: `greek_${data.kind}:${data.schoolSlug}/${data.chapterSlug}` });
+      if (error) { console.warn("logGreekEvent insert failed:", error.message); return { ok: false }; }
+      return { ok: true };
+    } catch (e) {
+      console.warn("logGreekEvent failed:", (e as Error).message);
+      return { ok: false };
+    }
+  });

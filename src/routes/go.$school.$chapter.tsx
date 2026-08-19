@@ -36,10 +36,9 @@ import { BRAND_SANS } from "@/components/canvas/brand";
 import { ChapterFinder } from "@/components/site/ChapterFinder";
 import { ChapterGate } from "@/components/site/ChapterGate";
 import { useChapterMember } from "@/lib/use-chapter-member";
-import { logExpandEvent } from "@/lib/referrals.functions";
 import { ChapterTop } from "@/components/site/ChapterTop";
 import { ChapterAccess } from "@/components/site/ChapterAccess";
-import { getGoChapter, listGoSchools, tagChapterMember } from "@/lib/greek-go.functions";
+import { getGoChapter, listGoSchools, tagChapterMember, logGreekEvent } from "@/lib/greek-go.functions";
 import { getSiteSettings } from "@/lib/site-settings.functions";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { LandingPage } from "./landing";
@@ -85,7 +84,7 @@ function GoChapterPage() {
       if (sessionStorage.getItem(key)) return;
       sessionStorage.setItem(key, "1");
     } catch { /* private mode — log it and move on */ }
-    void logExpandEvent({ data: { event: `greek_visit:${school}/${chapter}` } }).catch(() => {});
+    void logGreekEvent({ data: { kind: "visit", schoolSlug: school, chapterSlug: chapter } }).catch(() => {});
   }, [ch, school, chapter]);
 
   // Fire-and-forget member attribution. Saying "start Exam 1" on this chapter's own URL is the
