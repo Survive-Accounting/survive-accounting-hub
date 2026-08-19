@@ -66,7 +66,45 @@ export function seqStart(segments: SeqSegment[], index: number): { state: SeqSta
   };
 }
 
-/** The clip at `state.at` reached its out point (or ended). */
+/** Start at an index but seek to an EXACT point inside it (timeline scrub /
+ *  click-to-seek). Like seqStart, but the load seeks to seekS instead of inS —
+ *  clamped into the clip's trimmed span so a scrub can't land outside the cut. */
+export function seqSeek(segments: SeqSegment[], index: number, seekS: number): { state: SeqState; action: SeqAction } {
+  const seg = segments[index];
+  if (!seg) return { state: seqIdle(), action: { kind: "done" } };
+  const s = Math.max(seg.inS, Math.min(seekS, seg.outS));
+  return { state: { at: index, inGap: false, playing: true, skipped: [] }, action: { kind: "load", index, url: seg.url, seekS: s } };
+}
+
+/** Cumulative start (ms) of each segment on the flattened cut timeline —
+ *  trimmed clip lengths plus the gaps between them. PURE; drives the timeline
+ *  ruler, the playhead position, and click-to-seek. */
+export function segmentStartsMs(segments: SeqSegment[]): number[] {
+  const starts: number[] = [];
+  let acc = 0;
+  for (const s of segments) { starts.push(acc); acc += (s.outS - s.inS) * 1000 + s.gapAfterMs; }
+  return starts;
+}
+
+/** Map a global timeline ms → which segment and the seconds to seek to inside
+ *  it. A point landing in a trailing gap resolves to the START of the next
+ *  segment. PURE. */
+export function seekTarget(segments: SeqSegment[], globalMs: number): { index: number; seekS: number } | null {
+  if (!segments.length) return null;
+  const starts = segmentStartsMs(segments);
+  const clamped = Math.max(0, globalMs);
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    const contentMs = (seg.outS - seg.inS) * 1000;
+    const within = clamped - starts[i];
+    if (within < contentMs || i === segments.length - 1) {
+      return { index: i, seekS: seg.inS + Math.max(0, Math.min(within, contentMs)) / 1000 };
+    }
+    if (within < contentMs + seg.gapAfterMs) return { index: Math.min(i + 1, segments.length - 1), seekS: segments[Math.min(i + 1, segments.length - 1)].inS };
+  }
+  const last = segments.length - 1;
+  return { index: last, seekS: segments[last].inS };
+}
 export function seqClipDone(segments: SeqSegment[], state: SeqState): { state: SeqState; action: SeqAction } {
   const seg = segments[state.at];
   const next = state.at + 1;

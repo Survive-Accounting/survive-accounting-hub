@@ -126,7 +126,7 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
         className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[12px] font-black uppercase tracking-wide"
         style={{ color: "#FF8B9E", border: "1px solid rgba(255,90,110,0.55)" }}
         onClick={onPipeline}
-        title="PIPELINE — the filming room: spine, capture window, cut player, take rail. Opens the Studio already in Pipeline mode."
+        title="PIPELINE — the editing room: a large cut preview over a single horizontal timeline, the scratch lane, and a pull-out capture window. Opens the Studio already in Pipeline mode."
       >
         <Clapperboard className="h-3.5 w-3.5" /> Pipeline
       </button>

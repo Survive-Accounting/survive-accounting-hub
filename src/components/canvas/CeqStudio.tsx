@@ -27,7 +27,8 @@ import { resolveCardSpot, resolveMemoSpot, stampFromTemplate, templateFor, withI
 import { autoClipName, buildStitch, fmtDur, loadPrefs, readDuration, savePrefs, stageTake, stitchManifest, stitchRuntime, videoFromDrop, videosFromDrop, withPrev, type CeqStudioPrefs } from "./ceq-takes";
 import { buildSetExport } from "./ceq-export";
 import { ClipTrimStrip } from "./ClipTrimStrip";
-import { PipelinePlayer } from "./PipelinePlayer";
+import { PipelineStage, type StageClip } from "./PipelineStage";
+import { previewTimeline } from "./stitch-preview";
 import { SetFilmstrip, type StripItem } from "./SetFilmstrip";
 import { checkFilmReadiness, type ReadinessReport } from "./film-readiness";
 import { FILM_LOCK_CSS, FilmContext, isTypingTarget } from "./film-lock";
@@ -337,6 +338,8 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
    *  library, layout tools, tab strip) is simply not rendered. It writes NOTHING
    *  to any set — leaving it puts every surface back exactly as it was. */
   const [filming, setFilming] = useState<boolean>(() => localStorage.getItem("sa-filming-mode") === "1");
+  const [captureOpen, setCaptureOpen] = useState(false); // Q1: capture window is a pull-out modal, closed by default
+  const [stageSel, setStageSel] = useState<string | null>(null); // Q1: selected timeline clip key
   // PIPELINE (P1): the navbar button seeds localStorage for a FRESH mount, but a
   // Studio that is already open only hears this event.
   useEffect(() => {
@@ -1227,6 +1230,45 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   const pipelineStitchRef = useRef(pipelineStitch);
   pipelineStitchRef.current = pipelineStitch;
 
+  /** Q1: the flat cut as timeline segments, in cut order, with trims resolved
+   *  (previewTimeline) and each mapped back to (frameId, clipIndex) so the
+   *  timeline's reorder/insert/detach reuse the P3 clip ops. */
+  const stageClips = useMemo((): StageClip[] => {
+    if (!pipelineStitch) return [];
+    const tl = previewTimeline(pipelineStitch, takesByPath);
+    return tl.segments.map((s, i) => {
+      const fid = s.ceqId ?? ceqOfPath.get(s.takePath) ?? null;
+      let label = "clip";
+      let clipIndex = -1;
+      if (fid) {
+        label = spineLabelOf(fid) ?? "Q";
+        clipIndex = cardClips(rf.getNode(fid)?.data as unknown as CeqCard | undefined).findIndex((c) => c.path === s.takePath);
+      } else if (deck?.intro?.path === s.takePath) label = "intro";
+      else if (deck?.outro?.path === s.takePath) label = "outro";
+      else if ((deck?.wrap ?? []).some((w) => w.path === s.takePath)) label = "wrap";
+      return { key: `${s.takePath}#${i}`, frameId: clipIndex >= 0 ? fid : null, clipIndex, label, url: s.url, name: s.name, inS: s.inS, outS: s.outS, gapAfterMs: s.gapAfterMs };
+    });
+  }, [pipelineStitch, takesByPath, ceqOfPath, rf, deck]);
+  /** The set's frames as drop targets / author-switch chips (empty-timeline state). */
+  const stageFrames = useMemo(() => questions.map((q) => ({ id: q.id, label: spineLabelOf(q.id) ?? "•" })), [questions]);
+  /** Q1: a timeline frame-marker click leaves the cutting room for AUTHORING on
+   *  that frame — fix the stem/choices/layout, then hit Pipeline to come back. */
+  const authorFrame = (frameId: string) => {
+    setFilming(false);
+    localStorage.setItem("sa-filming-mode", "0");
+    setCaptureOpen(false);
+    setQId(frameId);
+    setExpandedQ((s) => new Set(s).add(frameId));
+    setNote(`Authoring ${spineLabelOf(frameId) ?? "frame"} — fix the stem / choices / layout, then click Pipeline to keep cutting.`);
+  };
+  /** TRUE RENDER target: the selected clip's frame, else the open frame. */
+  const stageTrueRender = () => {
+    const sel = stageClips.find((c) => c.key === stageSel);
+    const fid = sel?.frameId ?? (qId && qId !== LAYOUT_Q0 ? qId : stageClips.find((c) => c.frameId)?.frameId ?? null);
+    if (fid) runStitch(fid);
+    else setNote("Nothing to render — the cut is empty.");
+  };
+
   /** Persist a stitch WITHOUT opening the preview overlay — the trim handles
    *  write through here on every drag/nudge, and popping the modal each time
    *  would make the handles unusable. saveStitch (the panel's door) still opens it. */
@@ -1434,83 +1476,9 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       else if (p.id) dropTakeAt(p.id, frameId, at);
     } catch { /* not our payload */ }
   };
-  const clipsPanel = useMemo(() => {
-    // P2: the recipe's trims by take path — the strips read these; applyTrim writes them.
-    const trimOf = new Map((pipelineStitch?.items ?? []).map((i) => [i.takePath, i] as const));
-    // LABELS MATCH THE SPINE (Lee, 08-16): a truncated stem told you nothing at a
-    // glance. Notes get the note icon and their mode word; questions get Q1, Q2, …
-    // numbered exactly as the filmstrip numbers them — notes never take a number,
-    // so the two lists can never disagree about which frame is which.
-    let ceqN = 0;
-    const rows = questions.map((q) => {
-      const d = rf.getNode(q.id)?.data as unknown as CeqCard | undefined;
-      const noteOnly = !!d?.noteOnly;
-      if (!noteOnly) ceqN += 1;
-      return {
-        id: q.id,
-        run: d?.run,
-        clips: cardClips(d),
-        noteOnly,
-        label: noteOnly ? (d?.frameMode ?? "note") : `Q${ceqN}`,
-        stem: (d?.shorthand || d?.prompt || "frame").slice(0, 70), // the tooltip
-      };
-    });
-    const filmed = rows.filter((r) => r.clips.length).length;
-    return (
-      <div className="flex min-h-0 flex-1 flex-col rounded" style={{ background: "rgba(0,0,0,0.2)", border: `1px solid ${NEON.borderSoft}` }}>
-        <div className="flex items-center gap-1.5 px-1.5 py-1">
-          <span className="text-[8px] font-bold uppercase tracking-wide" style={{ color: NEON.cyan }}>Attached clips</span>
-          <span className="text-[8px] tabular-nums" style={{ color: NEON.muted }}>{filmed}/{rows.length} frames filmed</span>
-          <div className="ml-auto flex items-center gap-1">
-            <label className="flex items-center gap-0.5 text-[7.5px] font-bold uppercase" style={{ color: NEON.muted }} title="Pre-roll X — PROPOSE TRIMS sets in = speech onset − X ms">X
-              <input type="number" min={0} step={10} className="w-9 rounded bg-transparent px-0.5 text-[8px] tabular-nums outline-none" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={preRollMs} onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setPreRollMs(v); localStorage.setItem("sa-trim-preroll-ms", String(v)); }} />
-            </label>
-            <label className="flex items-center gap-0.5 text-[7.5px] font-bold uppercase" style={{ color: NEON.muted }} title="Post-roll Y — PROPOSE TRIMS sets out = speech offset + Y ms">Y
-              <input type="number" min={0} step={10} className="w-9 rounded bg-transparent px-0.5 text-[8px] tabular-nums outline-none" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={postRollMs} onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setPostRollMs(v); localStorage.setItem("sa-trim-postroll-ms", String(v)); }} />
-            </label>
-            <button className="rounded px-1.5 py-0.5 text-[8px] font-black uppercase disabled:opacity-50" style={{ color: "#FFB020", border: "1px solid rgba(255,176,32,0.5)" }} disabled={proposeBusy || !pipelineStitch} onClick={proposeTrims} title="PROPOSE TRIMS — for every clip WITHOUT a trim: in = speech onset − X, out = speech offset + Y (slate- and length-clamped; silent clips skipped). Marked AUTO (amber) until hand-adjusted. Proposals only: nothing plays, nothing renders, never runs on its own.">{proposeBusy ? "analyzing…" : "propose trims"}</button>
-            <button className="rounded px-1.5 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => void doExportEditLog()} title="EXPORT EDIT LOG — every trim decision: auto-proposed vs final in/out, accepted/nudged/overridden, rule versions. JSON + CSV both download; JSON also lands on the clipboard. Events sync to Supabase local-first and are never lost offline.">⇩ edit log</button>
-          </div>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-1 pb-1">
-          {rows.map((r) => (
-            <div key={r.id} ref={(el) => { if (el && r.id === qId) el.scrollIntoView({ block: "nearest" }); }} onDragOver={allowStackDrop} onDrop={onStackDrop(r.id)} className="mb-0.5 rounded px-1 py-0.5" style={{ background: r.id === qId ? "rgba(252,163,17,0.14)" : "transparent" }}>
-              <button className="flex w-full items-center gap-1 text-left" onClick={() => setQId(r.id)} title={r.stem}>
-                {r.noteOnly && <FileText className="h-3 w-3 shrink-0" style={{ color: NEON.yellow }} />}
-                <span className="shrink-0 text-[9px] font-bold uppercase tabular-nums" style={{ color: r.id === qId ? NEON.yellow : NEON.muted }}>{r.label}</span>
-                {r.run && <span className="shrink-0 rounded px-1 text-[7.5px] font-black" style={{ color: "#0B1322", background: NEON.cyan }} title={`Run ${r.run} — filmed in one take`}>{r.run}</span>}
-                <span className="ml-auto shrink-0 text-[8px] font-bold tabular-nums" style={{ color: r.clips.length ? "#3BF5A0" : NEON.muted }}>{r.clips.length ? `${r.clips.length} clip${r.clips.length === 1 ? "" : "s"}` : "—"}</span>
-              </button>
-              {r.id === qId && r.clips.map((t, ci) => (
-                <div key={t.path} className="ml-2 mt-0.5" draggable onDragStart={(e) => { e.dataTransfer.setData("application/x-sa-take", JSON.stringify({ kind: "clip", frameId: r.id, index: ci })); e.dataTransfer.effectAllowed = "move"; }} onDragOver={allowStackDrop} onDrop={onStackDrop(r.id, ci)} style={{ cursor: "grab" }}>
-                  <div className="flex w-full items-center gap-1 text-[9px]" style={{ color: NEON.muted }}>
-                    <button className="flex min-w-0 flex-1 items-center gap-1 text-left" onClick={() => setTakePreview((k) => (k === `${r.id}:${ci}` ? null : `${r.id}:${ci}`))} title="Preview this clip">
-                      <Play className="h-2.5 w-2.5 shrink-0" />
-                      <span className="min-w-0 flex-1 truncate">{ci + 1}. {t.name || "clip"}</span>
-                      <span className="shrink-0 tabular-nums">{fmtDur(t.duration)}</span>
-                      {t.slateEndMs != null && <span className="shrink-0" title="Filmed with the slate — this clip has a deterministic head trim">⏱</span>}
-                    </button>
-                    {/* DETACH — breaks the link only. The file stays on disk and the
-                        take stays in the rail, so a mis-click costs one Ctrl+Z. */}
-                    <button className="shrink-0" style={{ color: "#FF8B9E" }} title="DETACH — back to the rail's scratch lane, NOT trash: the file and the take survive untouched (Ctrl+Z re-attaches). Trash is F8 on the rail and moves the file to Recycle." onClick={() => detachClip(r.id, ci)}><X className="h-2.5 w-2.5" /></button>
-                  </div>
-                  {/* P2: waveform + landmarks + trim handles — the RECIPE item is the
-                      only thing a handle writes; the file is never touched. */}
-                  <ClipTrimStrip take={t} trimInS={trimOf.get(t.path)?.trimInS} trimOutS={trimOf.get(t.path)?.trimOutS} autoTrim={trimOf.get(t.path)?.autoTrim} onTrim={(inS, outS, how) => applyTrim(t.path, inS, outS, how)} />
-                  {takePreview === `${r.id}:${ci}` && <video src={t.url} controls playsInline preload="none" className="mt-0.5 w-full rounded" style={{ background: "#000", aspectRatio: "16 / 9", maxHeight: 150 }} />}
-                </div>
-              ))}
-              {/* ATTACH LATEST — the other half of "replace": detach the bad one,
-                  attach the take you just kept, without leaving the rail. */}
-              {r.id === qId && (
-                <button className="ml-2 mt-0.5 text-[8.5px] font-bold uppercase" style={{ color: NEON.cyan }} title="Attach the most recently KEPT take to this frame" onClick={() => attachLatestKept(r.id)}>+ attach latest kept</button>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }, [questions, rf, qId, takePreview, pipelineStitch, preRollMs, postRollMs, proposeBusy]);
+  // Q1: the vertical clip stack (clipsPanel) was REPLACED by the horizontal
+  // PipelineStage timeline. Its per-clip trim strip (ClipTrimStrip) returns in
+  // Q2 as the trim-detail panel under the selected timeline clip.
   /** Spine label for a frame id — Q-numbers for questions (notes never take a
    *  number, same rule as the filmstrip), mode word for notes. Used by the
    *  coverage chips and the pipeline clip stack. */
@@ -3366,6 +3334,9 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   frame 1 at top, scroll down; the selected frame renders large in the editor
                   beside it. The outline stays the cross-set list; this rail is the inside of
                   ONE set. Hover a gap → [+] → CEQ/Note chooser. */}
+              {/* Q1: the frame spine is an AUTHORING concern — dropped from the
+                  Pipeline (cutting) view to reclaim the space. */}
+              {!filming && (
               <SetFilmstrip
                 items={stripItems}
                 qId={qId === LAYOUT_Q0 ? null : qId}
@@ -3421,6 +3392,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   previewStitch: () => { if (qId && qId !== LAYOUT_Q0) openStitchPreview({ kind: "ceq", ceqId: qId }); else setNote("Open a frame first — the stitch preview is per CEQ (or use Publish ▸ Preview cut for the whole set)."); },
                 }}
               />
+              )}
               {/* (SET CLIPS moved to the Publish panel — one home for the publish path.) */}
               {/* READY TO FILM? panel — pass/fail list + counts; ✗ rows link to frames. */}
               {/* DISSECT MOMENTS EDITOR (P5) — the pre-filming shot list for one CEQ.
@@ -3458,27 +3430,58 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   DOM keeps it to the rail's left. Hidden (never unmounted) while
                   Recording Mode owns the screen — and hiding also STOPS the player,
                   so preview audio can never bleed into a take. */}
+              {/* PIPELINE (Q1) — the editing room: a large cut preview over a single
+                  horizontal timeline, main space (flex-1). The spine is gone, the
+                  capture previewer is a modal, and the vertical clip stack became the
+                  track below. Hidden (never unmounted) during Recording Mode so the
+                  cut player stops and can't bleed audio into a take. */}
               {filming && (
-                <div className="order-last ml-2 flex h-full w-[400px] min-w-0 shrink-0 flex-col overflow-hidden rounded-lg p-1.5" style={{ display: recording ? "none" : undefined, background: "rgba(9,14,26,0.92)", border: `1px solid ${NEON.borderSoft}` }}>
-                  <PipelinePlayer
-                    stitch={pipelineStitch}
-                    takes={takesByPath}
+                <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg p-1.5" style={{ display: recording ? "none" : undefined, background: "rgba(9,14,26,0.92)", border: `1px solid ${NEON.borderSoft}` }}>
+                  {/* Edit toolbar (extracted from the old clip-stack header). */}
+                  <div className="mb-1.5 flex items-center gap-1">
+                    <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: NEON.yellow }}>Pipeline</span>
+                    <button className="rounded px-1.5 py-0.5 text-[8px] font-bold uppercase" style={{ color: "#FF8B9E", border: "1px solid rgba(255,139,158,0.5)" }} onClick={clearAllClips} title="CLEAR ALL CLIPS — detach every clip in this set back to the scratch lane so you can re-cut from zero. Files are never trashed.">clear all</button>
+                    <label className="ml-auto flex items-center gap-0.5 text-[7.5px] font-bold uppercase" style={{ color: NEON.muted }} title="Pre-roll X — PROPOSE TRIMS sets in = speech onset − X ms">X
+                      <input type="number" min={0} step={10} className="w-9 rounded bg-transparent px-0.5 text-[8px] tabular-nums outline-none" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={preRollMs} onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setPreRollMs(v); localStorage.setItem("sa-trim-preroll-ms", String(v)); }} />
+                    </label>
+                    <label className="flex items-center gap-0.5 text-[7.5px] font-bold uppercase" style={{ color: NEON.muted }} title="Post-roll Y — PROPOSE TRIMS sets out = speech offset + Y ms">Y
+                      <input type="number" min={0} step={10} className="w-9 rounded bg-transparent px-0.5 text-[8px] tabular-nums outline-none" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={postRollMs} onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setPostRollMs(v); localStorage.setItem("sa-trim-postroll-ms", String(v)); }} />
+                    </label>
+                    <button className="rounded px-1.5 py-0.5 text-[8px] font-black uppercase disabled:opacity-50" style={{ color: "#FFB020", border: "1px solid rgba(255,176,32,0.5)" }} disabled={proposeBusy || !pipelineStitch} onClick={proposeTrims} title="PROPOSE TRIMS — for every clip WITHOUT a trim: in = speech onset − X, out = speech offset + Y. Marked AUTO until hand-adjusted; never runs on its own.">{proposeBusy ? "analyzing…" : "propose trims"}</button>
+                    <button className="rounded px-1.5 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => void doExportEditLog()} title="EXPORT EDIT LOG — every trim decision as JSON + CSV (clipboard + download).">⇩ edit log</button>
+                  </div>
+                  <PipelineStage
+                    clips={stageClips}
+                    frames={stageFrames}
                     currentCeqId={qId && qId !== LAYOUT_Q0 ? qId : null}
-                    currentLabel={qId && qId !== LAYOUT_Q0 ? spineLabelOf(qId) : undefined}
-                    ceqOfPath={ceqOfPath}
                     hidden={recording}
-                    onTrueRender={() => { if (qId && qId !== LAYOUT_Q0) runStitch(qId); }}
+                    selectedKey={stageSel}
+                    onSelectClip={(c) => { setStageSel(c?.key ?? null); if (c?.frameId) setQId(c.frameId); }}
+                    onMoveClip={(from, toFrameId, at) => moveClip(from, toFrameId, at)}
+                    onDropTake={(id, toFrameId, at) => dropTakeAt(id, toFrameId, at)}
+                    onDetach={(frameId, index) => detachClip(frameId, index)}
+                    onAuthorFrame={authorFrame}
+                    onOpenCapture={() => setCaptureOpen(true)}
+                    onTrueRender={stageTrueRender}
                     renderPhase={stitchJob?.phase ?? null}
                     renderBusy={!!stitchJob?.running}
                   />
-                  {/* CLEAR ALL CLIPS (Q0) — lives OUTSIDE the memoized clipsPanel so it
-                      never closes over a stale set. Detaches everything to scratch;
-                      never trashes a file. */}
-                  <div className="mb-1 flex items-center gap-1">
-                    <span className="text-[8px] font-black uppercase tracking-wide" style={{ color: NEON.cyan }}>Clip stack</span>
-                    <button className="ml-auto rounded px-1.5 py-0.5 text-[8px] font-bold uppercase" style={{ color: "#FF8B9E", border: "1px solid rgba(255,139,158,0.5)" }} onClick={clearAllClips} title="CLEAR ALL CLIPS — detach every clip in this set back to the scratch lane so you can re-cut from zero. Files are never trashed.">clear all clips</button>
+                </div>
+              )}
+              {/* CAPTURE MODAL (Q1) — the previewer is a PULL-OUT, needed only while
+                  rolling takes. Kept MOUNTED (display toggled) so the OBS capture
+                  window popout and the film keys survive an open/close, same lesson
+                  as the take inbox. Recording Mode takes over via its own portal. */}
+              {filming && !recording && (
+                <div style={{ position: "fixed", inset: 0, zIndex: 95, display: captureOpen ? "flex" : "none", flexDirection: "column", background: "rgba(4,7,14,0.94)", padding: 12 }}>
+                  <div className="mb-2 flex items-center gap-2">
+                    <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: "#FF8B9E" }}>Capture</span>
+                    <span className="text-[9px]" style={{ color: NEON.muted }}>Roll takes here — F9 record · F10 keep · F8 trash. Launch the OBS 1920×1080 window from 🎯 inside; keeps land in the scratch lane.</span>
+                    <button className="ml-auto rounded px-2.5 py-1 text-[10px] font-black uppercase" style={{ color: "#0B1322", background: NEON.yellow }} onClick={() => setCaptureOpen(false)}>Close</button>
                   </div>
-                  {clipsPanel}
+                  <div className="min-h-0 flex-1 overflow-hidden rounded-lg" style={{ border: `1px solid ${NEON.borderSoft}` }}>
+                    {renderPreviewer(false)}
+                  </div>
                 </div>
               )}
               {/* P0 (workflow-found): Recording Mode used to UNMOUNT the inbox,
@@ -3894,9 +3897,10 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   );
                 })()}
                 <div className="min-h-0 flex-1">
-                  {/* Authoring pane shows the previewer only when NOT recording — Recording
-                      Mode renders the SAME previewer in a full-window portal (below). */}
-                  {!recording && renderPreviewer(false)}
+                  {/* Authoring pane shows the previewer only when NOT recording and NOT
+                      filming — in the Pipeline (Q1) the previewer lives in the pull-out
+                      capture modal instead. Recording Mode uses the full-window portal. */}
+                  {!recording && !filming && renderPreviewer(false)}
                 </div>
                 {qd && !filming && (
                   <div className="shrink-0 border-t" style={{ borderColor: NEON.borderSoft }}>

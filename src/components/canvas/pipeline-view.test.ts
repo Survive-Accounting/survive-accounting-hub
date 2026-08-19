@@ -13,7 +13,7 @@ const read = (p: string) => readFileSync(join(import.meta.dir, p), "utf8").split
 const studio = read("CeqStudio.tsx");
 const inbox = read("TakesInbox.tsx");
 const navbar = read("CanvasNavbar.tsx");
-const player = read("PipelinePlayer.tsx");
+const player = read("PipelineStage.tsx"); // Q1: PipelineStage replaced PipelinePlayer as the live player
 const hook = read("use-cut-player.ts");
 const route = read("../../routes/study_.canvas.tsx");
 
@@ -49,7 +49,8 @@ describe("same pipes, no rebuilds", () => {
     expect(memo).not.toContain("saveStitch");                  // previewing must never write
   });
   test("TRUE RENDER is the existing per-CEQ render path, not a new one", () => {
-    expect(studio).toContain("onTrueRender={() => { if (qId && qId !== LAYOUT_Q0) runStitch(qId); }}");
+    expect(studio).toContain("onTrueRender={stageTrueRender}");
+    expect(studio).toContain("if (fid) runStitch(fid);"); // stageTrueRender routes to the existing render
     expect(player).not.toContain("startDissectStitch"); // the player only asks; the Studio renders
   });
 });
@@ -57,11 +58,8 @@ describe("same pipes, no rebuilds", () => {
 describe("one takes surface", () => {
   test("the rail kept the queues and lost the stack — no second clip list anywhere", () => {
     expect(inbox).not.toContain("clipsPanel");
-    expect((studio.match(/\{clipsPanel\}/g) ?? []).length).toBe(1); // exactly one home
-    expect((studio.match(/<PipelinePlayer/g) ?? []).length).toBe(1); // and one player
-  });
-  test("the stack follows the spine — the open frame's group scrolls into view", () => {
-    expect(studio).toContain('if (el && r.id === qId) el.scrollIntoView({ block: "nearest" });');
+    expect((studio.match(/\{clipsPanel\}/g) ?? []).length).toBe(0); // the vertical stack is gone (Q1)
+    expect((studio.match(/<PipelineStage/g) ?? []).length).toBe(1); // one stage (timeline + preview)
   });
 });
 

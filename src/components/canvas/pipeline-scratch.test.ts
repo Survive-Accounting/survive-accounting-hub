@@ -63,8 +63,12 @@ describe("reorder = stitch order", () => {
 });
 
 describe("DETACH is not TRASH", () => {
-  test("both buttons say exactly which one they are", () => {
-    expect(studio).toContain("DETACH — back to the rail's scratch lane, NOT trash");
+  test("both actions say exactly which one they are", () => {
+    // Q1: detach lives on the timeline tile; its note (and tile title) say scratch,
+    // file untouched. Trash stays on the rail and says Recycle.
+    expect(studio).toContain('→ scratch lane'); // detachClip note
+    expect(studio).toContain("File untouched; Ctrl+Z re-attaches.");
+    expect(read("PipelineStage.tsx")).toContain('title="Detach → scratch (file untouched)"');
     expect(inbox).toContain('title="Trash (F8) — moves the file to Recycle; never deleted"');
   });
   test("detach never touches a file — no recycle move anywhere near it", () => {

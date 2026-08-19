@@ -58,34 +58,10 @@ describe("the inbox learned a shape, it did not fork", () => {
     expect(inbox).toContain('className={inline ? "order-last ml-2 flex h-full w-[380px]');
     expect(inbox).toContain("{!inline && <button className=\"ml-auto grid h-5 w-5"); // no ✕ on a docked rail
   });
-  test("the clip stack lives in the pipeline column — the rail never learns about clips (P1)", () => {
+  test("the vertical clip stack became the horizontal timeline — one stage, rail never learns clips (Q1)", () => {
     expect(inbox).not.toContain("clipsPanel"); // the F2 prop is gone, not orphaned
     expect(inbox).not.toContain("cardClips"); // the inbox never learns about clips itself
-    expect(studio).toContain("{clipsPanel}"); // rendered in the pipeline center column
-  });
-  test("the merged list is read-only — a filming pass is never one mis-click from dropping a take", () => {
-    const panel = studio.slice(studio.indexOf("const clipsPanel = useMemo"), studio.indexOf("}, [questions, rf, qId, takePreview, pipelineStitch, preRollMs, postRollMs, proposeBusy]);"));
-    expect(panel).not.toContain("deleteClip");
-    expect(panel).not.toContain("clearTake");
-    expect(panel).toContain("<video");   // but it DOES preview, which is the point
-  });
-  test("a slate-filmed clip is marked, so a deterministic trim is visible at a glance", () => {
-    expect(studio).toContain("{t.slateEndMs != null && <span className=\"shrink-0\" title=\"Filmed with the slate");
-  });
-});
-
-describe("the merged list names frames the way the spine does (Lee, 08-16)", () => {
-  test("rows carry the spine label, not a truncated stem", () => {
-    expect(studio).toContain('label: noteOnly ? (d?.frameMode ?? "note") : `Q${ceqN}`,');
-    expect(studio).toContain('{r.noteOnly && <FileText className="h-3 w-3 shrink-0"');
-  });
-  test("notes never take a number — the two lists can never disagree about which frame is which", () => {
-    // Same rule as SetFilmstrip: ceqN advances only on non-note frames. If either
-    // side ever numbered notes, the rail would point at the wrong frame.
-    expect(studio).toContain("if (!noteOnly) ceqN += 1;");
-    expect(filmstrip).toContain("if (!it.noteOnly) ceqN += 1;");
-  });
-  test("the stem survives as the tooltip — dropped from the row, not lost", () => {
-    expect(studio).toContain("onClick={() => setQId(r.id)} title={r.stem}");
+    expect(studio).toContain("<PipelineStage"); // the timeline replaced the vertical stack
+    expect(studio).not.toContain("{clipsPanel}"); // the stack is gone, not double-rendered
   });
 });
