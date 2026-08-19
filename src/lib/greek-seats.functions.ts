@@ -262,3 +262,52 @@ export const listChapterTransfers = createServerFn({ method: "POST" })
       fromEmail: r.from_email, decidedBy: r.decided_by as string, createdAt: r.created_at as string,
     }));
   });
+
+/** DOES THE SIGNED-IN VISITOR HOLD A SEAT FROM THIS CHAPTER?
+ *
+ *  The one thing an exec who spent money gets to see working: their members open the chapter page
+ *  and it says the later exams are courtesy of the chapter. So this answers a deliberately narrow
+ *  question — not "is this user paid up" but "did THIS chapter pay for THIS user".
+ *
+ *  That distinction is the whole point. A member who bought the semester themselves must NOT see
+ *  "courtesy of Beta Sigma Psi": it would credit the chapter for something the student paid for,
+ *  which is the same class of overclaim as the old "Free Exam 1, courtesy of X" line on pages
+ *  where Exam 1 was free for everyone. Hence the filter on BOTH greek_chapter_id AND
+ *  source = 'greek_seat' — exactly the pair assignSeat writes and unassign deletes.
+ *
+ *  Returns false for signed-out visitors, unknown chapters and any error: the line is a bonus, and
+ *  an outage must never make a page claim something about a chapter. */
+export const getChapterSeatStatus = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    accessToken: z.string().min(10),
+    schoolSlug: z.string().trim().min(1).max(80),
+    chapterSlug: z.string().trim().min(1).max(60),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ seated: boolean }> => {
+    try {
+      const db = await admin();
+      const { data: auth } = await db.auth.getUser(data.accessToken);
+      const userId = (auth?.user as { id?: string } | null)?.id;
+      if (!userId) return { seated: false };
+
+      const { data: campus } = await db.from("campuses").select("id").eq("slug", data.schoolSlug).maybeSingle();
+      if (!campus?.id) return { seated: false };
+      const { data: ch } = await db.from("campus_greek_chapters")
+        .select("id").eq("campus_id", campus.id).eq("slug", data.chapterSlug).maybeSingle();
+      if (!ch?.id) return { seated: false };
+
+      const { data: ent } = await db.from("entitlements")
+        .select("expires_at")
+        .eq("user_id", userId)
+        .eq("greek_chapter_id", ch.id)
+        .eq("source", "greek_seat")
+        .maybeSingle();
+      if (!ent) return { seated: false };
+
+      // An expired seat is not a seat. Same rule the entitlement resolver applies.
+      if (ent.expires_at && ent.expires_at < new Date().toISOString()) return { seated: false };
+      return { seated: true };
+    } catch {
+      return { seated: false };
+    }
+  });
