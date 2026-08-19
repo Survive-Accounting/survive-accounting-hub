@@ -1737,3 +1737,106 @@ transitions freeze mid-flight so sampled colours are interpolated garbage rather
 values. Every visual claim above is measured DOM geometry and computed style, not a picture. The
 things that most need a human eye: the bolt-and-pencil composition at hero size, whether the pencil
 reads as clean or busy, and line 2's legibility on the light colourways (Vanderbilt, Tennessee).
+
+---
+
+## Part A — Non-SEC Greek outreach targets (read-only, 2026-08-19)
+
+**Read the caveat before using the ranking.** Non-SEC chapter counts are scrape depth, not
+Greek presence: SEC campuses average **54.8** chapters (min 38, max 72); non-SEC average **2.0**
+(max 4). Penn State and Indiana have far more than four chapters. Ordering by chapter count
+therefore ranks how much we happened to scrape, not how much Greek life is there.
+
+| metric | count |
+|---|---|
+| campuses total | 945 |
+| non-SEC with >=1 chapter | 115 |
+| ...and a course code (**near-term target set**) | 37 |
+| ...and a course code AND >=1 professor (**strongest set**) | **0** |
+| ...and a course code AND a usable slug (**buildable today**) | 25 |
+| non-SEC with a NULL slug (cannot host a page or /go/ URL) | 34 |
+| non-SEC with a colourway | 0 |
+| buckets | A=0 · B=37 · C=78 |
+
+**No non-SEC campus has a single pickable professor** (roster + RMP URL + not archived).
+The spec's "strongest set" is empty, and bucket A remains exactly the 16 SEC schools.
+
+### Buildable today — chapters + course code + slug (all 25)
+
+| # | Campus | Slug | Chapters | Course code | Profs | Colourway |
+|---|---|---|---|---|---|---|
+| 1 | Clemson University | `clemson-university` | 4 | ACCT 2010 | 0 | no |
+| 2 | Indiana University Bloomington | `indiana-university-bloomington` | 4 | BUS-A 201 | 0 | no |
+| 3 | Oregon State University | `oregon-state-university` | 4 | BA 211 | 0 | no |
+| 4 | Pennsylvania State University | `pennsylvania-state-university` | 4 | ACCTG 211 | 0 | no |
+| 5 | Texas Tech University | `texas-tech-university` | 4 | ACCT 2300 | 0 | no |
+| 6 | University of Arizona | `university-of-arizona` | 4 | ACCT 200 | 0 | no |
+| 7 | Arizona State University | `arizona-state-university` | 3 | ACC 231 | 0 | no |
+| 8 | North Carolina State University | `north-carolina-state-university` | 3 | ACC 210 | 0 | no |
+| 9 | University of Colorado Boulder | `university-of-colorado-boulder` | 3 | BCOR 2203 | 0 | no |
+| 10 | Southern Methodist University | `southern-methodist-university` | 2 | ACCT 2301 | 0 | no |
+| 11 | Syracuse University | `syracuse-university` | 2 | ACC 151 | 0 | no |
+| 12 | University of Iowa | `university-of-iowa` | 2 | ACCT:2100 | 0 | no |
+| 13 | University of Miami | `university-of-miami` | 2 | ACC 211 | 0 | no |
+| 14 | University of Minnesota | `university-of-minnesota` | 2 | ACCT 2051 | 0 | no |
+| 15 | University of Pennsylvania | `university-of-pennsylvania` | 2 | ACCT 1010 | 0 | no |
+| 16 | University of Southern California | `university-of-southern-california` | 2 | BUAD 280 | 0 | no |
+| 17 | Ball State University | `ball-state-university` | 1 | ACC 201 | 0 | no |
+| 18 | George Washington University | `george-washington-university` | 1 | ACCY 2001 | 0 | no |
+| 19 | Old Dominion University | `old-dominion-university` | 1 | ACCT 201 | 0 | no |
+| 20 | Sam Houston State University | `sam-houston-state-university` | 1 | ACCT 2301 | 0 | no |
+| 21 | San Diego State University | `san-diego-state-university` | 1 | ACCTG 201 | 0 | no |
+| 22 | University of Houston | `university-of-houston` | 1 | ACCT 2301 | 0 | no |
+| 23 | University of Idaho | `university-of-idaho` | 1 | ACCT 201 | 0 | no |
+| 24 | University of Louisville | `university-of-louisville` | 1 | ACCT 201 | 0 | no |
+| 25 | Western Kentucky University | `western-kentucky-university` | 1 | ACCT 200 | 0 | no |
+
+### Has a course code but NO slug — 12 (blocked; needs a slug backfill)
+
+- Kansas State University — 4 chapter(s), ACCTG 241
+- Miami University — 4 chapter(s), ACC 221
+- Oklahoma State University — 4 chapter(s), ACCT 2103
+- Northwestern University — 2 chapter(s), ACCOUNT 201-DL
+- University of Cincinnati — 2 chapter(s), ACCT 281
+- Eastern Kentucky University — 1 chapter(s), ACC 201
+- Johns Hopkins University — 1 chapter(s), EN.660.203
+- Kent State University — 1 chapter(s), ACCT 23020
+- Ohio Northern University — 1 chapter(s), BIZ 2101
+- Radford University — 1 chapter(s), ACTG 211
+- University of Connecticut — 1 chapter(s), ACCT 2001
+- University of New Mexico — 1 chapter(s), ACCT 2110
+
+### Has chapters but NO course code — 78 (bucket C; needs a code before a page means anything)
+
+- Colorado State University — 4 chapter(s)
+- Florida State University — 4 chapter(s)  *(also no slug)*
+- Michigan State University — 4 chapter(s)
+- Ohio State University — 4 chapter(s)  *(also no slug)*
+- Purdue University — 4 chapter(s)
+- University of California Berkeley — 4 chapter(s)
+- University of Central Florida — 4 chapter(s)
+- University of Illinois Urbana-Champaign — 4 chapter(s)
+- University of Nebraska-Lincoln — 4 chapter(s)
+- University of Wisconsin-Madison — 4 chapter(s)
+- Virginia Tech — 4 chapter(s)
+- Washington State University — 4 chapter(s)
+- West Virginia University — 4 chapter(s)
+- Cornell University — 3 chapter(s)  *(also no slug)*
+- Georgia Institute of Technology — 3 chapter(s)
+- Iowa State University — 3 chapter(s)  *(also no slug)*
+- University of Kansas — 3 chapter(s)  *(also no slug)*
+- University of Michigan — 3 chapter(s)
+- University of North Carolina at Chapel Hill — 3 chapter(s)
+- University of Oregon — 3 chapter(s)  *(also no slug)*
+- University of Virginia — 3 chapter(s)
+- University of Washington — 3 chapter(s)
+- Bowling Green State University — 2 chapter(s)
+- Bucknell University — 2 chapter(s)  *(also no slug)*
+- Case Western Reserve University — 2 chapter(s)
+- DePauw University — 2 chapter(s)
+- Duke University — 2 chapter(s)  *(also no slug)*
+- Ohio University — 2 chapter(s)  *(also no slug)*
+- Rensselaer Polytechnic Institute — 2 chapter(s)
+- Texas Christian University — 2 chapter(s)
+
+…and 48 more.
