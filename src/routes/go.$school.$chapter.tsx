@@ -86,6 +86,8 @@ function GoChapterPage() {
         goChapter={{ schoolSlug: school, chapterSlug: chapter }}
         chapterTop={ch ? (
           <ChapterTop
+            schoolSlug={school}
+            chapterSlug={chapter}
             chapterName={ch.chapterName}
             examAnchor={EXAM_ANCHOR}
             accessAnchor={ACCESS_ANCHOR}

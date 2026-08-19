@@ -134,7 +134,7 @@ function SiteMenu() {
   // is a ROUTE, not an anchor, so it sits under a divider — mixing "jump down this page" with
   // "leave this page" in one flat list is how people lose their place.
   const items: { label: string; href: string; route?: boolean; sub?: string }[] = [
-    { label: "Cram Exam 1 Free", href: "/#exam1" },
+    { label: "Start cramming", href: "/#exam1" },
     { label: "Reviews", href: "/#reviews" },
     { label: "Meet your tutor", href: "/#lee" },
     // Anchor, never mailto:/sms: — a scheme link can be claimed by an installed app, which is
@@ -176,6 +176,7 @@ function SiteMenu() {
                   // The rule belongs to the FIRST route item, so adding another anchor above it
                   // can never strand the divider in the wrong place.
                   borderTop: it.route && !items[i - 1]?.route ? "1px solid rgba(245,239,230,0.14)" : undefined,
+                  marginTop: it.route && !items[i - 1]?.route ? 8 : undefined,
                 }}
               >
                 <span className="flex flex-col">

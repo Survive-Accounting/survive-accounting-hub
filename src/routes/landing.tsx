@@ -440,11 +440,6 @@ function Hero({ onStart, stops }: { onStart: () => void; stops: PaperStop[] }) {
         {stops.length > 0 && <ExamPaper stops={stops} onActivate={onStart} className="sa-hero3-paper" />}
         {/* The bolt cycles SEC colourways, which can still read as "only these schools". One
             line, doing the job the deleted campus-name text used to make necessary. */}
-        {stops.length > 0 && (
-          <p className="sa-paper-caption text-center text-[12px]" style={{ color: "var(--text-muted)" }}>
-            Covers any intro accounting course, nationwide.
-          </p>
-        )}
       </div>
     </section>
   );
@@ -511,10 +506,6 @@ const FAQS: { q: string; a: string }[] = [
   {
     q: "Will this match my professor's exam?",
     a: "That's the whole point — pick your school and professor above, send what you've got, and I'll match my videos to your course.",
-  },
-  {
-    q: "Is Exam 1 really free?",
-    a: "Yep — every Exam 1 topic, completely free, no card required. If it helps, come back for Exam 2!",
   },
   {
     q: "Do you do 1-on-1 tutoring?",
@@ -592,14 +583,21 @@ function Faq({ greek }: { greek?: string }) {
   // whole program in one paragraph.
   const list = greek ? GREEK_FAQS : FAQS;
   const [open, setOpen] = useState(false);
-  const [first, ...rest] = list;
+  // Greek keeps one question up front; the student page shows two.
+  const upFront = greek ? 1 : 2;
+  const shown = list.slice(0, upFront);
+  const rest = list.slice(upFront);
   return (
     <section className="py-10">
       <p className="text-center text-[11.5px] font-bold" style={{ color: "var(--text-muted)", letterSpacing: "0.16em" }}>
         {greek ? "CHAPTER QUESTIONS" : "FREQUENTLY ASKED QUESTIONS"}
       </p>
       <div className="mx-auto mt-5 max-w-[640px] space-y-4">
-        <FaqCard f={first} defaultOpen />
+        {/* TWO questions up front, both CLOSED. The answer used to be expanded by default,
+            which is a paragraph nobody asked for; and one question alone read as though there
+            were only one. Greek pages still open their first answer — "How does this work?"
+            IS the program, and an exec needs it without a click. */}
+        {shown.map((f, i) => <FaqCard key={f.q} f={f} defaultOpen={!!greek && i === 0} />)}
         {open && rest.map((f) => <FaqCard key={f.q} f={f} />)}
         <div className="text-center">
           <button
@@ -1983,14 +1981,16 @@ export function Footer() {
         {/* COLUMN 3 — reach Lee. The ghost bolt that used to boil behind this block is gone: at
             column width it was a texture nobody could read as a bolt. */}
         <div id="contact" className="scroll-mt-16">
-          <p className="mb-2 hidden text-[11px] font-black uppercase sm:block" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>Reach Lee</p>
-          <p className="text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>Questions? Text me — I read every message myself.</p>
+          <p className="mb-2 hidden text-[11px] font-black uppercase sm:block" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>Questions?</p>
+          <p className="text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>Text me — I respond to every message.</p>
           <a href={`sms:${TEL}`} className="mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13.5px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>
             <MessageCircle className="h-4 w-4" /> Text Lee {PHONE}
           </a>
-          <a href="/chapters" className="mt-3 flex flex-col transition-colors hover:text-[var(--accent)]" style={{ color: "var(--brand-cream)" }}>
-            <span className="text-[13.5px] font-semibold">For Fraternities &amp; Sororities</span>
-            <span className="text-[11.5px] font-bold" style={{ color: "var(--accent)" }}>⚡ Boost chapter GPAs</span>
+          {/* Set apart from the text-me CTA by a rule: it is a different audience, not a
+              second way to reach Lee. The old two-line "For Fraternities & Sororities /
+              Boost chapter GPAs" pair said the same thing twice for one link. */}
+          <a href="/chapters" className="mt-4 inline-flex items-center gap-2 border-t pt-4 text-[13.5px] font-semibold transition-colors hover:text-[var(--accent)]" style={{ color: "var(--brand-cream)", borderColor: "rgba(245,239,230,0.12)" }}>
+            <span aria-hidden>🏛️</span> For Greek Orgs
           </a>
         </div>
       </div>
@@ -1998,7 +1998,7 @@ export function Footer() {
       {/* BOTTOM ROW — full width, centred. Text and ORDER unchanged: the memorial line is the last
           thing on the page and stays that way. */}
       <div className="mx-auto mt-6 flex max-w-[1040px] flex-col items-center gap-1 border-t px-5 pt-5 text-center sm:mt-9 sm:gap-1.5 sm:pt-6" style={{ borderColor: "rgba(245,239,230,0.08)" }}>
-        <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>surviveaccounting.com · Cram what&apos;s on your exam.</p>
+        <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>surviveaccounting.com</p>
         <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>© 2026 Earned Wisdom LLC</p>
         <p className="text-[11.5px] italic" style={{ color: "rgba(245,239,230,0.42)", letterSpacing: "0.01em" }}>In memory of Ben Ingram, 1993–2017</p>
       </div>

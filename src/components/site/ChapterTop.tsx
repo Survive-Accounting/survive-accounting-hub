@@ -15,10 +15,13 @@
 // twice on one page does not make it twice as convincing — it just moves the product further from
 // the fold.
 import { Bolt, BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
+import { CourtesyLine } from "@/components/site/CourtesyLine";
 import { useCampus } from "@/lib/campus-context";
 import { scrollToId } from "@/lib/ui-scroll";
 
-export function ChapterTop({ chapterName, examAnchor, accessAnchor, onStartExam }: {
+export function ChapterTop({ chapterName, schoolSlug, chapterSlug, examAnchor, accessAnchor, onStartExam }: {
+  schoolSlug: string;
+  chapterSlug: string;
   chapterName: string;
   examAnchor: string;
   accessAnchor: string;
@@ -78,6 +81,9 @@ export function ChapterTop({ chapterName, examAnchor, accessAnchor, onStartExam 
       <p className="mt-4 text-[12.5px]" style={{ color: "var(--text-muted)" }}>
         Exam 1 is free for every member. No card required.
       </p>
+
+      {/* Only renders for a member this chapter actually bought a seat for. */}
+      <CourtesyLine schoolSlug={schoolSlug} chapterSlug={chapterSlug} chapterName={chapterName} />
     </header>
   );
 }
