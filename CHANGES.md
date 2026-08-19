@@ -1,3 +1,325 @@
+# Data audit — schools, course codes, professors (report only, 2026-08-19)
+
+Read-only. Nothing was written, no migration was run. Queried the live project `unvxagsledbsdoremqeb`.
+Every count below was fetched with explicit `.range()` paging (PostgREST caps a response at 1,000
+rows regardless of `.limit()`), and cross-checked against `count: "exact"`.
+
+---
+
+## 1. Schools
+
+**946 campus records total.**
+
+| SEC flag | count |
+|---|---|
+| `is_sec = true` | **16** |
+| `is_sec = false` | 439 |
+| `is_sec IS NULL` | 491 |
+
+**How SEC status is determined:** a real boolean column, `campuses.is_sec`. It is reliable for the
+16 true rows — they match the intended SEC list exactly. But **491 rows are NULL rather than false**,
+so `is_sec` is *not* a clean two-state flag; treat `= true` as the only trustworthy test and never
+`!= true` or `= false` to mean "non-SEC".
+
+Slugs: **434 of 946 have no slug**; **0 duplicate slugs** among those that do.
+
+### The 16 SEC schools
+
+| short_name (DB) | canonical (code) | slug | intro_1 code | profs | colour | chapters |
+|---|---|---|---|---|---|---|
+| Auburn | auburn | auburn-university | ACCT 2110 | 19 | yes | 56 |
+| LSU | lsu | louisiana-state-university | ACCT 2001 | 15 | yes | 46 |
+| Mississippi State | mississippi-state | mississippi-state-university | ACC 2013 | 4 | yes | 43 |
+| Texas A&M | texas-am | texas-aandm-university | ACCT 229 | 29 | yes | 56 |
+| **Bama** | alabama | university-of-alabama | AC 210 | 21 | yes | 72 |
+| Arkansas | arkansas | university-of-arkansas | ACCT 2013 | 26 | yes | 48 |
+| **UF** | florida | university-of-florida | ACG 2021 | 8 | yes | 64 |
+| **UGA** | georgia | university-of-georgia | ACCT 2101 | 30 | yes | 68 |
+| **UK** | kentucky | university-of-kentucky | ACC 201 | 16 | yes | 58 |
+| Ole Miss | ole-miss | university-of-mississippi | ACCY 201 | 21 | yes | 38 |
+| **Mizzou** | missouri | university-of-missouri | ACCTCY 2026 | 12 | yes | 63 |
+| **OU** | oklahoma | university-of-oklahoma | ACCT 2113 | 22 | yes | 49 |
+| **USC** | south-carolina | university-of-south-carolina | ACCT 225 | 23 | yes | 59 |
+| **UT Knoxville** | tennessee | university-of-tennessee-knoxville | ACCT 200 | 16 | yes | 50 |
+| **UT Austin** | texas | university-of-texas-at-austin | ACC 311 | 7 | yes | 65 |
+| **Vandy** | vanderbilt | vanderbilt-university | BUS 1100 | 5 | yes | 40 |
+
+SEC totals: **274 pickable professors**, 2,166 raw lead rows, **875 chapters**.
+
+### Data-quality problems
+
+**Nicknames — 10 of 16 SEC rows.** `campuses.short_name` holds `Bama`, `UF`, `UGA`, `UK`, `Mizzou`,
+`OU`, `USC`, `UT Knoxville`, `UT Austin`, `Vandy`. **These are not rendered to students today** —
+`src/lib/schools.ts` is the canonical display name and the Greek picker was pointed at it. The DB
+column is still the hazard: any new surface that reads `short_name` re-introduces them.
+
+**Slug mismatch, school vs Greek `/go/`: NONE.** All 16 entries in `schools.ts` resolve to a slugged,
+`is_sec = true` campus, and **0 of 1,107 chapters** reference a campus id that doesn't exist. The two
+datasets already share one canonical slug — that was fixed when `schools.ts` was introduced.
+
+**Near-duplicate school records — 15 clusters.** Two touch SEC:
+
+- `University of Texas at Austin` **[SEC]** vs `The University of Texas at Austin`
+- `University of Tennessee, Knoxville` **[SEC, 50 chapters]** vs `University of Tennessee Knoxville`
+  (4 chapters, slug `…-knoxville-r`) — **the same school twice, and the 4 chapters on the duplicate
+  are unreachable from the picker.**
+
+The rest are non-SEC and mostly an abbreviated unslugged row beside a full one (`Case Western
+Reserve Univ` / `Case Western Reserve University`, `Univ of Central Florida` / `University of
+Central Florida`, …). Also two unicode-only pairs: `Wisconsin-Madison` vs `Wisconsin–Madison`
+(en-dash) and `King's` vs `King’s` (curly apostrophe).
+
+---
+
+## 2. Course codes
+
+**315 of 946 campuses have an `intro_1` code; 631 do not.** All 16 SEC schools have one — **no SEC
+school is missing a code.**
+
+**Structure — codes are already per-course, not per-school.** They live in
+`campuses.course_family_codes_json`, a JSON map keyed by course family:
+
+| key | campuses populated |
+|---|---|
+| `intro_1` | 315 |
+| `intro_2` | 302 |
+| `intermediate_1` | 300 |
+| `intermediate_2` | 291 |
+
+So the schema **already supports four courses per school** and the data is largely there. Only the
+app is single-course: `listCampusIntroCodes` reads `intro_1` and nothing else.
+
+**Placeholder / malformed codes — 2, both non-SEC:**
+
+- `"ACCT 209/229/640"` — Texas A&M University Coll (three codes in one field)
+- `"BNAC 260"` — Linfield College (probably a typo for BNAC/ACCT)
+
+The 631 missing are overwhelmingly small non-SEC campuses that were never enriched.
+
+---
+
+## 3. Colorways
+
+**Stored in CODE, not the database:** `SEC_SCHOOLS` in `src/components/canvas/brand.tsx`, as hex
+pairs `{ id, name, c1, c2 }`. **16 defined — exactly the SEC 16. Every other campus (930) has none**
+and falls back to the brand red/blue bolt.
+
+Note there are also `campuses.primary_hex` / `secondary_hex` columns (and a `campus_spirit` table
+with 1 row), but **nothing in the student-facing app reads them** — the code table is the live source.
+
+**Low contrast against the page navy `#0F1A2E`** (the bolt carries a permanent white keyline, so
+these still read — but they are the ones to inspect on a campus page):
+
+| school | colour | ratio |
+|---|---|---|
+| vanderbilt | `#1B1B1B` | **1.01:1** |
+| **ole-miss** | `#14213D` | **1.09:1** — *identical to `--brand-navy`* |
+| auburn | `#0C2340` | 1.10:1 |
+| texas-am | `#500000` | 1.11:1 |
+| georgia / missouri / south-carolina (c2) | `#000000` | 1.21:1 |
+| mississippi-state | `#660000` | 1.30:1 |
+| lsu | `#461D7C` | 1.43:1 |
+| south-carolina | `#73000A` | 1.44:1 |
+| florida | `#0021A5` | 1.46:1 |
+
+**Near-identical pairs** (RGB distance): `alabama #9E1B32` ≈ `arkansas #9D2235` (**distance 8 —
+effectively the same crimson**), `auburn #0C2340` ≈ `ole-miss #14213D` (9), `florida` ≈ `kentucky`
+(19), `mississippi-state` ≈ `south-carolina` (16).
+
+### University marks — one thing to flag
+
+**No logo, wordmark, crest or seal is stored or referenced anywhere.** `public/` contains only
+Survive Accounting brand assets and Lee's photos.
+
+**But mascot names and cheers ARE stored:** `campuses.mascot` is populated for **290 campuses**, with
+`campuses.cheer` holding things like `Hook 'em Horns`, `Woo Pig Sooie!`, `Geaux Tigers`, `Anchor
+Down`. `mascot_verified` is true for **1** row. There is also an unrendered component,
+`src/components/onboarding/SpiritMoment.tsx`, which would display `Go {mascot}!` — **it is not
+imported anywhere, so nothing reaches a student today.** Those cheers are university trademarks; the
+data exists and one import away from shipping.
+
+---
+
+## 4. Course structure — what multi-course would take
+
+Better than expected. The schema is **already course-aware in three of the four places**:
+
+| thing | linked to | ready for multi-course? |
+|---|---|---|
+| course codes | `campuses.course_family_codes_json` keyed by family | **yes** — 4 keys already populated |
+| courses | `courses` table: 5 rows (`intro-accounting-1`, `intro-accounting-2`, `intermediate-accounting-1`, `intermediate-accounting-2`, `accounting-foundations`), with `course_family`, `code`, `status` | **yes** |
+| professors | `campus_lead_suggestions` has `teaches_intro_1`, `teaches_intro_2`, `teaches_intermediate_1`, `teaches_intermediate_2` | **yes** — per-course booleans already exist |
+| topics/CEQs | `chapters.course_id` → `courses.id` | **yes** |
+
+**So school → course → professor is already expressible. Nothing is "assumed to belong to the single
+existing course" at the schema level.** What is hard-coded is the *application*:
+
+- `listCampusIntroCodes` reads only `intro_1`
+- `SEAT_COURSE_SLUG = "intro-accounting-1"` — seats grant one course
+- the landing player resolves one course's exam tabs
+- `campus-context` exposes a single `code`
+
+**Estimate: this is an application change, not a migration.** No new tables, no new columns. The work
+is threading a `courseFamily` through campus context, the code lookup, the player's tab resolution,
+and the seat grant — roughly the same shape and size as the campus-context pass, and with the same
+risk profile (one shared source, then remove per-component guesses). The professor picker would also
+need to filter on `teaches_<family>`, which today it ignores entirely.
+
+---
+
+## 5. Professors
+
+**There is no `professors` table.** They live in **`campus_lead_suggestions`** — the ProfIntel
+outreach lead table — which the picker filters down to a high-confidence roster:
+
+```
+active_roster IS NOT NULL  AND  rmp_profile_url IS NOT NULL  AND  archived_at IS NULL
+```
+
+| | count |
+|---|---|
+| raw rows | **16,085** |
+| **pickable** (passing all three filters) | **290** |
+| pickable at SEC schools | **274** |
+| rows with no `campus_id` | **0** |
+| rows pointing at a campus that doesn't exist | **0** |
+
+**Referential integrity is clean.** The gap is the filter: **1.8% of rows are pickable**, because
+the table is a scraping/outreach corpus first and a student-facing roster second.
+
+Schema is wide (~60 columns). The relevant groups: identity (`first_name`, `last_name`, `email`,
+`title`, `department`), **course teaching flags** (`teaches_intro_1/2`, `teaches_intermediate_1/2`,
+`courses_found`, `rmp_course_codes`), **RMP data** (`rmp_rating`, `rmp_num_ratings`,
+`rmp_difficulty`, `rmp_would_take_again`, `rmp_profile_url`, `rmp_checked_at`, plus target-course
+match JSON), Hasselback (`hasselback_match`, `hasselback_tenured`, `hasselback_areas`), lifecycle
+(`active_roster`, `archived_at`, `archived_reason`, `status`), and **mobility** (`mobility_status`,
+`moved_to_campus_id` — professors who changed schools).
+
+**Schools with zero pickable professors: 916 of 946.** Only 30 campuses have any, and 16 of those
+are the SEC schools.
+
+---
+
+## 6. Readiness
+
+Bucketed across **all 946 campuses**:
+
+| bucket | definition | count |
+|---|---|---|
+| **A — Full** | code + colourway + ≥1 professor | **16** |
+| **B — Partial** | code, but no colourway and/or no professors | **299** |
+| **C — Blocked** | no `intro_1` code | **631** |
+
+**A (16) — exactly the SEC schools:** alabama, arkansas, auburn, florida, georgia, kentucky, lsu,
+mississippi-state, missouri, ole-miss, oklahoma, south-carolina, tennessee, texas, texas-am,
+vanderbilt.
+
+**B (299)** — every one of these is missing the colourway (only 16 exist), so B is really "has a
+course code, no brand colours, almost certainly no professors". Sample: Elon University, Eastern
+Kentucky University, Delaware State University, Georgetown University, Indiana University, Gannon
+University, Fayetteville State Univ, Embry-Riddle Daytona, Univ of Alaska Southeast…
+
+**C (631)** — cannot publish a campus page without inventing a course code.
+
+The practical read: **A and "SEC" are the same 16 schools.** Campus pages beyond the SEC are a
+content problem (colourways, course codes, professor rosters), not an engineering one.
+
+---
+
+## 7. Testimonials
+
+**Not a database table.** Hard-coded as `TESTIMONIALS` in `src/routes/landing.tsx`, curated from a
+`testimonials.csv` that is not in the repo.
+
+- **10 testimonials.**
+- **All 10 tagged `school: "Ole Miss"`** — there is no other school represented.
+- The type is `{ name, school, long, quote, avatar?, code? }` — it **already has an optional `code`
+  for course attribution, and zero testimonials populate it.**
+
+**Can they support school attribution on a matching campus page?** Structurally yes — `school` is a
+field and filtering by it is trivial. **In practice no:** a campus page for any school other than
+Ole Miss would filter to zero testimonials. Course attribution is supported by the type and unused.
+
+Two of the ten mention courses in free text ("both intro courses", "first intermediate exam"), so
+the content for course tagging exists but has not been captured into the field.
+
+---
+
+## 8. Greek cross-check
+
+- **1,107 chapters** across **132 campuses**; 1,093 slugged.
+- **875 chapters (79%) sit at the 16 SEC schools.**
+- **Chapters whose campus doesn't exist: 0.** No orphans.
+- **Chapters whose school slug doesn't match a school record: 0.**
+
+**Campuses with chapters but NO `intro_1` code: 79 of the 132** (≈232 chapters). Their `/go/` pages
+work — the header degrades to plain "Intro Accounting" — but cannot show a course code. Largest:
+Florida State (4), Ohio State (4), Oklahoma State (4), Miami (4), Berkeley (4), Purdue (4),
+Michigan State (4), Nebraska (4), Virginia Tech (4), Kansas (3), Duke (2), Pittsburgh (2).
+
+---
+
+## Queries used
+
+All run read-only against `unvxagsledbsdoremqeb` via the service role. SQL equivalents for re-running
+in the Supabase editor:
+
+```sql
+-- 1. schools + SEC split + slug health
+select count(*) total,
+       count(*) filter (where is_sec)            sec_true,
+       count(*) filter (where is_sec = false)    sec_false,
+       count(*) filter (where is_sec is null)    sec_null,
+       count(*) filter (where slug is null)      no_slug
+from campuses;
+
+select slug, count(*) from campuses where slug is not null group by slug having count(*) > 1;
+
+-- 2. course codes, per family
+select count(*) filter (where course_family_codes_json->>'intro_1'         <> '') intro_1,
+       count(*) filter (where course_family_codes_json->>'intro_2'         <> '') intro_2,
+       count(*) filter (where course_family_codes_json->>'intermediate_1'  <> '') intermediate_1,
+       count(*) filter (where course_family_codes_json->>'intermediate_2'  <> '') intermediate_2
+from campuses;
+
+select name, course_family_codes_json->>'intro_1' code
+from campuses where is_sec order by name;
+
+-- 5. professors: raw vs pickable, and orphans
+select count(*) raw,
+       count(*) filter (where active_roster is not null
+                          and rmp_profile_url is not null
+                          and archived_at is null) pickable
+from campus_lead_suggestions;
+
+select count(*) from campus_lead_suggestions p
+  left join campuses c on c.id = p.campus_id where c.id is null;   -- orphans (0)
+
+select c.name, count(*) profs
+from campus_lead_suggestions p join campuses c on c.id = p.campus_id
+where p.active_roster is not null and p.rmp_profile_url is not null and p.archived_at is null
+group by c.name order by profs desc;
+
+-- 8. greek cross-check
+select c.name, count(*) chapters,
+       (c.course_family_codes_json->>'intro_1') code
+from campus_greek_chapters g join campuses c on c.id = g.campus_id
+group by c.name, code order by chapters desc;
+
+select count(*) from campus_greek_chapters g
+  left join campuses c on c.id = g.campus_id where c.id is null;   -- orphans (0)
+
+-- university marks held in data
+select count(*) filter (where mascot is not null) with_mascot,
+       count(*) filter (where mascot_verified)    verified,
+       count(*) filter (where cheer is not null)  with_cheer
+from campuses;
+```
+
+Colourways and testimonials are in code, not SQL:
+`src/components/canvas/brand.tsx` (`SEC_SCHOOLS`) and `src/routes/landing.tsx` (`TESTIMONIALS`).
+
+---
 # Pipeline v2 — timeline, waveform zoom, transcript editing (Q0-Q3)
 
 On `main` (vertical-filming -> main). Studio/filming code only — no landing, no Greek.
