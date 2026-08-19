@@ -103,13 +103,17 @@ type ResolvedTopic = { key: string; name: string; num: number | null; sets: Stud
 // PROVIDER SHELL. The /go/ route knows the school from the URL; everything under here reads it
 // from campus context rather than re-deriving it, which is what let the hero cycle through other
 // schools' colourways on a chapter page that named one school in its banner.
-export function LandingPage({ initialCampusId, goChapter, chapterTop, chapterAccess, campusSlug, greekOrg, initialCourseCode }: {
+export function LandingPage({ initialCampusId, goChapter, chapterTop, chapterAccess, campusSlug, greekOrg, initialCourseCode, videoGate }: {
   initialCampusId?: string;
   /** Campus slug straight from the URL. Resolves campus context on the FIRST render,
    *  before any chapter fetch — see the note atop go.$school.$chapter.tsx. */
   campusSlug?: string;
   /** Course code resolved server-side, so the headline never gains it a beat later. */
   initialCourseCode?: string | null;
+  /** Rendered INSTEAD of the video on Greek chapter pages until the visitor has an account.
+   *  A seat is an entitlement and an entitlement needs a user_id, so this is what makes the
+   *  paid product deliverable — not a marketing gate. Never set on the solo page. */
+  videoGate?: React.ReactNode;
   /** The chapter-access section, rendered after the player (never between a visitor and it). */
   chapterAccess?: React.ReactNode;
   /** Greek chapter name. Its presence IS the Greek variant switch. */
@@ -125,18 +129,22 @@ export function LandingPage({ initialCampusId, goChapter, chapterTop, chapterAcc
 } = {}) {
   return (
     <CampusProvider urlSchoolSlug={campusSlug ?? goChapter?.schoolSlug ?? null} accountCampusId={initialCampusId ?? null} initialCode={initialCourseCode ?? null}>
-      <LandingPageInner initialCampusId={initialCampusId} goChapter={goChapter} chapterTop={chapterTop} chapterAccess={chapterAccess} campusSlug={campusSlug} greekOrg={greekOrg} initialCourseCode={initialCourseCode} />
+      <LandingPageInner initialCampusId={initialCampusId} goChapter={goChapter} chapterTop={chapterTop} chapterAccess={chapterAccess} campusSlug={campusSlug} greekOrg={greekOrg} initialCourseCode={initialCourseCode} videoGate={videoGate} />
     </CampusProvider>
   );
 }
 
-function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAccess, campusSlug, greekOrg, initialCourseCode }: {
+function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAccess, campusSlug, greekOrg, initialCourseCode, videoGate }: {
   initialCampusId?: string;
   /** Campus slug straight from the URL. Resolves campus context on the FIRST render,
    *  before any chapter fetch — see the note atop go.$school.$chapter.tsx. */
   campusSlug?: string;
   /** Course code resolved server-side, so the headline never gains it a beat later. */
   initialCourseCode?: string | null;
+  /** Rendered INSTEAD of the video on Greek chapter pages until the visitor has an account.
+   *  A seat is an entitlement and an entitlement needs a user_id, so this is what makes the
+   *  paid product deliverable — not a marketing gate. Never set on the solo page. */
+  videoGate?: React.ReactNode;
   /** The chapter-access section, rendered after the player (never between a visitor and it). */
   chapterAccess?: React.ReactNode;
   /** Greek chapter name. Its presence IS the Greek variant switch. */
@@ -363,7 +371,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAcces
           used to push the document sideways. Clamping here contains it at the source. */}
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px", width: "100%", overflowX: "clip" }}>
         {chapterTop ?? <Hero onStart={onStart} stops={stops} />}
-        <ExamPlayer greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); try { localStorage.setItem("sa-landing-school", "__notlisted__"); } catch { /* ignore */ } }} onReset={resetMatch} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(t) => setNotifyTopic(t)} />
+        <ExamPlayer videoGate={videoGate} greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); try { localStorage.setItem("sa-landing-school", "__notlisted__"); } catch { /* ignore */ } }} onReset={resetMatch} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(t) => setNotifyTopic(t)} />
         {/* CHAPTER ACCESS sits AFTER the product, never before it: a visitor who pressed
             "Start Exam 1 free" must not land on a sales section. */}
         {chapterAccess}
@@ -1126,7 +1134,7 @@ function ProfessorStage({ school, onPick, onNotListed }: {
 // now lives in MatchPanel, inside the right panel, where the student is already looking.
 
 
-function ExamPlayer({ greekOrg, exams, school, onPick, focusSignal, schools, onSyllabus, professor, onPickProfessor, notListed, onNotListed, onReset, theater, onTheaterDone, onNotify }: { greekOrg?: string; exams: ExamTab[]; school: School | null; onPick: (s: School) => void; focusSignal: number; schools: School[]; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; notListed: boolean; onNotListed: () => void; onReset: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void; onNotify: (topic: string) => void }) {
+function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, schools, onSyllabus, professor, onPickProfessor, notListed, onNotListed, onReset, theater, onTheaterDone, onNotify }: { videoGate?: React.ReactNode; greekOrg?: string; exams: ExamTab[]; school: School | null; onPick: (s: School) => void; focusSignal: number; schools: School[]; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; notListed: boolean; onNotListed: () => void; onReset: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void; onNotify: (topic: string) => void }) {
   const [activeNum, setActiveNum] = useState(1);
   const [selById, setSelById] = useState<Record<number, Sel>>({});
   const [openTopics, setOpenTopics] = useState<Set<string>>(() => new Set());
@@ -1155,7 +1163,13 @@ function ExamPlayer({ greekOrg, exams, school, onPick, focusSignal, schools, onS
   const finishAsk = () => { setAskDone(true); try { localStorage.setItem("sa-two-set-ask", "done"); } catch { /* ignore */ } };
   // No longer conditioned on a school: a student who watched two sets earned the ask whether or
   // not they ever told us where they study.
-  const showAsk = completedSets.size >= 2 && !askDone;
+  // ONE video earns the ask. Two was a threshold most visitors never reached, so the only
+  // capture on the free flow almost never fired — and the moment someone finishes their first
+  // video is exactly when 'save your progress' is a favour rather than a toll.
+  //
+  // NEVER on a Greek chapter page: that flow already took an account at the door, and asking a
+  // signed-in member for their email again reads as a form that forgot it already met them.
+  const showAsk = !greekOrg && completedSets.size >= 1 && !askDone;
 
   // Default selection for a tab: first topic with a LIVE set → first topic with any set → first
   // topic (poster) → null.
@@ -1247,7 +1261,12 @@ function ExamPlayer({ greekOrg, exams, school, onPick, focusSignal, schools, onS
                 note above sa-panel-min in styles.css for the height half of this. */}
             <div className="sa-panel-min relative w-full">
               <MatchPanel school={school} professor={professor} notListed={notListed} profDone={profDone} coveragePct={active.coveragePct} schools={schools} cueSignal={focusSignal} onPick={onPick} onNotListed={onNotListed} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); }} onProfNotListed={() => setProfDone(true)} onMaterials={() => onSyllabus()} onReset={onReset} />
-              {flowDone && (
+              {/* THE GATE STANDS IN FOR THE VIDEO, not for the page: tabs, topics and the
+                  whole menu stay readable, because a visitor deciding whether to hand over an
+                  email needs to see what they are unlocking. */}
+              {videoGate ? (
+                <div className="relative w-full" style={{ aspectRatio: "16 / 9", background: "var(--sa-surface-2)" }}>{videoGate}</div>
+              ) : flowDone && (
                 <div className="relative w-full" style={{ aspectRatio: "16 / 9", background: "#000" }}>
                   {curSet?.playbackId ? (
                     <HeroVideo key={curSet.playbackId} playbackId={curSet.playbackId} onComplete={() => markComplete(curSet!.id)} />
@@ -1556,10 +1575,10 @@ function TwoSetAsk({ school, professor, onDone }: { school: School | null; profe
   return (
     <div className="flex flex-col gap-2 border-t px-3 py-3 sm:flex-row sm:items-center" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(252,163,17,0.06)" }}>
       {sent ? (
-        <span className="text-[12.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>Got it — I'll be in touch. — Lee</span>
+        <span className="text-[12.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>Saved — I'll tell you when Exam 2 lands.</span>
       ) : (
         <>
-          <span className="min-w-0 flex-1 text-[12.5px]" style={{ color: "var(--brand-cream)" }}>Two down. What else is on your exam?</span>
+          <span className="min-w-0 flex-1 text-[12.5px]" style={{ color: "var(--brand-cream)" }}>Nice — save your progress and get told when Exam 2 lands?</span>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" className="rounded-lg px-3 py-1.5 text-[12.5px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)", minWidth: 0 }} />
           <button onClick={send} disabled={!ok || busy} className="shrink-0 rounded-lg px-3 py-1.5 text-[12.5px] font-black disabled:opacity-40" style={{ background: "var(--accent)", color: "#0B1220" }}>{busy ? "…" : "Send"}</button>
           <button onClick={onDone} className="grid h-6 w-6 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--text-muted)" }} aria-label="Dismiss"><X className="h-3.5 w-3.5" /></button>
