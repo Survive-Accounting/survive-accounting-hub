@@ -86,7 +86,7 @@ const normalize = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[\u2
 
 /** Search across canonical names AND aliases. Aliases are matched, never displayed, so typing
  *  "Bama", "UIUC" or "Mississippi" lands on the school under the name the rest of the app uses. */
-export function searchSchools(query: string, pool: School[] = ALL_SCHOOLS): School[] {
+export function searchSchools<T extends { name: string; aliases: string[] }>(query: string, pool: T[] = ALL_SCHOOLS as unknown as T[]): T[] {
   const q = normalize(query);
   if (!q) return pool;
   const scored = pool.map((s) => {

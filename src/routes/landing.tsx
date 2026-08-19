@@ -7,7 +7,7 @@
 // silent IntroSting pre-roll. Picking a school recolors the bolt (full takeover on the first pick
 // this visit, a short beat after) and flips the campus status strip once a map exists (campus_exams,
 // 0105). No checkout exists yet — paid exams show topics + a mapping-gated line, not purchasable.
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
@@ -29,6 +29,8 @@ import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/componen
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { FitWordmark, SiteHeader, SITE_NAVY, useNavyDocument } from "@/components/site/SiteHeader";
 import { PickerSheet } from "@/components/site/PickerSheet";
+import { logCampusCodeDemand } from "@/lib/campus-demand.functions";
+import { ALL_SCHOOLS, searchSchools } from "@/lib/schools";
 import { ExamPaper, EXAM_PAPER_CSS, paperStops, type PaperStop } from "@/components/site/ExamPaper";
 import { CampusProvider, useCampus } from "@/lib/campus-context";
 import { contactKind, LAUNCH_LINE, LAUNCH_WINDOW } from "@/lib/launch";
@@ -42,31 +44,39 @@ export const Route = createFileRoute("/landing")({
   beforeLoad: () => { throw redirect({ to: "/", statusCode: 301 }); },
 });
 
+// The exam section's anchor. Shared so a campus-page navigation lands at the player rather
+// than the top of a page the student has already read.
+const EXAM_ANCHOR_ID = "exam1";
 const PHONE = "(662) 565-8818";
 const TEL = "+16625658818";
 
-// SEC-16 in build priority (Ole Miss · LSU first). campusId = the real campus row; colors come from
-// SEC_SCHOOLS by slug. `code` renders ONLY when `codeVerified` — never guess a course code.
-export type School = { campusId: string; id: string; name: string; code?: string; codeVerified?: boolean };
-export const SCHOOLS: School[] = [
-  { campusId: "7b92a320-b196-43f2-a241-77a0805816fe", id: "ole-miss", name: "Ole Miss" },
-  { campusId: "698dd98f-dd92-46c1-8f28-e930568cb15d", id: "lsu", name: "LSU" },
-  { campusId: "b3af67c6-99a5-4677-83d5-aa7d11a89c17", id: "alabama", name: "Alabama" },
-  { campusId: "9c4775be-7d82-4a3e-840c-349c5e15d8e8", id: "tennessee", name: "Tennessee" },
-  { campusId: "e631c8de-37a3-4aae-a948-a64bd20ea4c5", id: "arkansas", name: "Arkansas" },
-  { campusId: "5f5bd18d-b92f-4d56-aced-23bce4c983d5", id: "south-carolina", name: "South Carolina" },
-  { campusId: "3f570e37-5394-4058-baab-508948befedb", id: "georgia", name: "Georgia" },
-  { campusId: "ae339230-577e-4569-a7d1-d1e45d1cfe91", id: "kentucky", name: "Kentucky" },
-  { campusId: "e330e87c-5467-4c05-9d3d-6cd2398de036", id: "auburn", name: "Auburn" },
-  { campusId: "95246fc8-1ce6-409e-b454-d03c82766719", id: "mississippi-state", name: "Mississippi State" },
-  { campusId: "f16686c2-edc6-43f8-9638-6890f52c829a", id: "missouri", name: "Missouri" },
-  { campusId: "91e62f9c-43b0-41f3-a84d-002824754da6", id: "oklahoma", name: "Oklahoma" },
-  { campusId: "92e4a5d9-eeb3-4065-ac8a-5a4390fbc584", id: "texas-am", name: "Texas A&M" },
-  { campusId: "4c5126b1-3fe0-48fe-a1db-1e41d06e4642", id: "florida", name: "Florida" },
-  { campusId: "faad6039-be72-4f5c-8ad5-ca7b95e2889f", id: "texas", name: "Texas" },
-  { campusId: "972451c3-bc5e-48d7-9f88-868a55378efa", id: "vanderbilt", name: "Vanderbilt" },
-];
-const COLOR_BY_ID = new Map(SEC_SCHOOLS.map((s: { id: string; c1: string; c2: string }) => [s.id, s]));
+// THE SCHOOL LIST — derived from the generated table, never hand-maintained here.
+//
+// This was a third hardcoded copy of the SEC 16, alongside schools.ts and brand.tsx, and the three
+// drifted: this one still called Missouri "Missouri" after the canonical name became "Mizzou".
+// One source now — src/lib/schools.ts, generated from the campuses table.
+//
+// WHY NOT ALL 945 CAMPUSES: the list is the SEC 16 plus the hand-verified seed. A student who
+// picks a school with no course code gets a worse experience than one asked to tell us about it,
+// so everything else goes through "My school isn't listed".
+export type School = {
+  campusId: string; id: string; name: string; slug: string; isSec: boolean;
+  /** Matched in search, NEVER displayed. */
+  aliases: string[];
+  code?: string; codeVerified?: boolean;
+};
+export const SCHOOLS: School[] = ALL_SCHOOLS.map((s) => ({
+  campusId: s.campusId, id: s.id, name: s.name, slug: s.slug, isSec: s.isSec, aliases: s.aliases,
+  // The generated code is a build snapshot shown immediately; listCampusIntroCodes still
+  // overrides it at runtime, so a mid-semester change never needs a deploy.
+  code: s.courseCode ?? undefined, codeVerified: !!s.courseCode,
+}));
+// SEC colours come from brand.tsx (SEC_SCHOOLS); the seeded campuses carry their own from the
+// database. Falling back to brand red/blue rather than inventing a colour for an unknown id.
+const COLOR_BY_ID = new Map<string, { c1: string; c2: string }>([
+  ...SEC_SCHOOLS.map((s: { id: string; c1: string; c2: string }) => [s.id, { c1: s.c1, c2: s.c2 }] as const),
+  ...ALL_SCHOOLS.filter((s) => s.c1 && s.c2).map((s) => [s.id, { c1: s.c1!, c2: s.c2! }] as const),
+]);
 const schoolColors = (id: string) => COLOR_BY_ID.get(id) ?? { c1: BRAND_RED, c2: BRAND_BLUE };
 
 // Bolt colors must READ on the navy page. Dark school primaries (Ole Miss navy #14213D, Auburn,
@@ -159,6 +169,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAcces
   // M1.4 — paint html/body navy so Safari's overscroll rubber-band matches the page instead
   // of flashing the light default at the top and bottom edges.
   useNavyDocument();
+  const navigate = useNavigate();
   // M2.3 — which topic the notify modal was opened from (null = closed).
   const [notifyTopic, setNotifyTopic] = useState<string | null>(null);
   // /c/<slug> pre-selects the chapter's school. If it's one of the 16 SEC schools we pre-pick it;
@@ -333,6 +344,22 @@ function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAcces
     if (school?.id !== s.id) resetProfessor(); // new school → professor line resets (spec: ladder resets with school)
     setSchool(s);
     campus.setSessionSchool(s.id);   // persists AND raises campus context to session priority
+
+    // A SCHOOL WITH NO COURSE CODE IS A DEMAND SIGNAL, not an error. It is a student telling us
+    // which code to find next, so it is logged before anything else happens — and best-effort,
+    // because a logging failure must never cost someone their exam.
+    if (!s.codeVerified || !s.code) {
+      void logCampusCodeDemand({ data: { campusId: s.campusId, campusSlug: s.slug, campusName: s.name, source: campusSlug ? "campus-page" : "landing" } }).catch(() => {});
+    }
+
+    // NAVIGATE TO THE CAMPUS PAGE when we are not already on it. That page is this same player
+    // with the school applied, plus a headline naming their course — so the pick lands somewhere
+    // shareable and indexable rather than in a state only this tab knows about.
+    if (s.slug && campusSlug !== s.slug) {
+      void navigate({ to: "/$school", params: { school: s.slug }, hash: EXAM_ANCHOR_ID });
+      return;
+    }
+
     if (reduce) return; // instant swap, no takeover
     const mode = firstPick.current ? "short" : "full";
     firstPick.current = true;
@@ -372,7 +399,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAcces
           used to push the document sideways. Clamping here contains it at the source. */}
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px", width: "100%", overflowX: "clip" }}>
         {chapterTop ?? <Hero onStart={onStart} stops={stops} />}
-        <ExamPlayer videoGate={videoGate} greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); try { localStorage.setItem("sa-landing-school", "__notlisted__"); } catch { /* ignore */ } }} onReset={resetMatch} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(t) => setNotifyTopic(t)} />
+        <ExamPlayer videoGate={videoGate} greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); void logCampusCodeDemand({ data: { source: "write-in" } }).catch(() => {}); try { localStorage.setItem("sa-landing-school", "__notlisted__"); } catch { /* ignore */ } }} onReset={resetMatch} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(t) => setNotifyTopic(t)} />
         {/* CHAPTER ACCESS sits AFTER the product, never before it: a visitor who pressed
             "Start Exam 1 free" must not land on a sales section. */}
         {chapterAccess}
@@ -694,11 +721,25 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
     return () => window.clearTimeout(t);
   }, [cue, school]);
 
-  // Match on the name, the slug, and the course code — but only a code the student can
-  // actually SEE, or searching "ACCY 201" would surface a school whose row shows no code.
+  // SEARCH ACROSS NAMES AND ALIASES, ignoring grouping — typing "purd" finds Purdue, "Bama"
+  // finds Alabama, "UIUC" finds Illinois. Aliases are matched, never rendered: a student who
+  // typed a nickname still sees the school under the one name the rest of the app uses.
+  // The course code is matched too, but only a code the student can actually SEE, or searching
+  // "ACCY 201" would surface a school whose row shows no code.
   const needle = q.trim().toLowerCase();
-  const results = schools.filter((s) =>
-    s.name.toLowerCase().includes(needle) || s.id.includes(needle) || (!!s.codeVerified && !!s.code && s.code.toLowerCase().includes(needle)));
+  const matched = searchSchools(q, schools);
+  const results = needle
+    ? (matched.length ? matched
+       : schools.filter((s) => !!s.codeVerified && !!s.code && s.code.toLowerCase().includes(needle)))
+    : schools;
+
+  // GROUPING. Ole Miss is pinned above the headers as the launch campus, and is NOT repeated
+  // inside SEC — one row per school, so the count in the placeholder and the rows on screen
+  // agree. Headers survive filtering, so a search result still says which group it came from.
+  const PINNED = "ole-miss";
+  const pinned = results.filter((s) => s.id === PINNED);
+  const secGroup = results.filter((s) => s.id !== PINNED && s.isSec);
+  const otherGroup = results.filter((s) => s.id !== PINNED && !s.isSec);
 
   return (
     <div className="relative">
@@ -724,17 +765,33 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
           label="Pick your school"
           // The count is `schools.length`, never a literal — the list can be overridden by
           // the caller, and a hardcoded 16 becomes a lie the moment it is.
-          search={{ value: q, onChange: setQ, placeholder: `Search ${schools.length} SEC schools…` }}
+          search={{ value: q, onChange: setQ, placeholder: `Search ${schools.length} schools…` }}
           footer={onNotListed ? (
             <button type="button" className="sa-row sa-row--plain" onClick={() => { onNotListed(); close(); }}>
               <span className="sa-row-name" style={{ color: "var(--accent)", fontSize: 15 }}>My school isn&apos;t listed →</span>
             </button>
           ) : undefined}
         >
-          {results.length === 0 && <p className="sa-picker-empty">No SEC school by that name.</p>}
-          {results.map((s) => { const c = boltFor(s.id); return (
-            // The code cell is ALWAYS rendered, empty string and all: it holds its grid track
-            // open so the row does not jump sideways when listCampusIntroCodes resolves.
+          {results.length === 0 && <p className="sa-picker-empty">No school by that name — try &ldquo;My school isn&rsquo;t listed&rdquo; below.</p>}
+          {/* The code cell is ALWAYS rendered, empty string and all: it holds its grid track
+              open so the row does not jump sideways when listCampusIntroCodes resolves. */}
+          {pinned.map((s) => { const c = boltFor(s.id); return (
+            <button key={s.id} type="button" className="sa-row" onClick={() => { onPick(s); close(); }}>
+              <span className="sa-row-bolt" aria-hidden><Bolt c1={c.c1} c2={c.c2} /></span>
+              <span className="sa-row-name">{s.name}</span>
+              <span className="sa-row-code">{s.codeVerified && s.code ? s.code : ""}</span>
+            </button>
+          ); })}
+          {secGroup.length > 0 && <p className="sa-picker-group">SEC</p>}
+          {secGroup.map((s) => { const c = boltFor(s.id); return (
+            <button key={s.id} type="button" className="sa-row" onClick={() => { onPick(s); close(); }}>
+              <span className="sa-row-bolt" aria-hidden><Bolt c1={c.c1} c2={c.c2} /></span>
+              <span className="sa-row-name">{s.name}</span>
+              <span className="sa-row-code">{s.codeVerified && s.code ? s.code : ""}</span>
+            </button>
+          ); })}
+          {otherGroup.length > 0 && <p className="sa-picker-group">Other schools</p>}
+          {otherGroup.map((s) => { const c = boltFor(s.id); return (
             <button key={s.id} type="button" className="sa-row" onClick={() => { onPick(s); close(); }}>
               <span className="sa-row-bolt" aria-hidden><Bolt c1={c.c1} c2={c.c2} /></span>
               <span className="sa-row-name">{s.name}</span>

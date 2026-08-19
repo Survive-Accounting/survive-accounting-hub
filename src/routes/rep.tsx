@@ -8,7 +8,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Bolt, BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { SearchPicker } from "@/components/site/SearchPicker";
 import { SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
-import { boltForSlug, SEC_SCHOOL_TABLE } from "@/lib/schools";
+import { ALL_SCHOOLS, boltForSlug } from "@/lib/schools";
 
 export const Route = createFileRoute("/rep")({
   head: () => ({ meta: [{ title: "Become a campus rep — Survive Accounting" }] }),
@@ -33,14 +33,15 @@ function RepPicker() {
 
         <div className="mx-auto mt-8 max-w-sm text-left">
           <SearchPicker
-            items={SEC_SCHOOL_TABLE.map((s) => ({
+            items={ALL_SCHOOLS.map((s) => ({
               value: s.slug,
               label: s.name,
+              aliases: s.aliases,
               icon: <span className="block shrink-0" style={{ width: 15 }} aria-hidden><Bolt {...boltForSlug(s.slug)} /></span>,
             }))}
             value={null}
             placeholder="Pick your school"
-            searchPlaceholder={`Search ${SEC_SCHOOL_TABLE.length} schools…`}
+            searchPlaceholder={`Search ${ALL_SCHOOLS.length} schools…`}
             onPick={(slug) => void navigate({ to: "/$school/rep", params: { school: slug } })}
           />
         </div>

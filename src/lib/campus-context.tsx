@@ -25,7 +25,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
-import { SEC_SCHOOL_TABLE, schoolByCampusId, schoolById, schoolBySlug, type SecSchool } from "@/lib/schools";
+import { ALL_SCHOOLS, schoolByCampusId, schoolById, schoolBySlug, type SecSchool } from "@/lib/schools";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 
 const STORE_KEY = "sa-landing-school";
@@ -91,7 +91,7 @@ export function CampusProvider({ urlSchoolSlug, accountCampusId, initialCode, ch
   // refetching, and the codes are the same list the picker already loads.
   const codesQ = useQuery({
     queryKey: ["campus-intro-codes"],
-    queryFn: () => listCampusIntroCodes({ data: { ids: SEC_SCHOOL_TABLE.map((s) => s.campusId) } }),
+    queryFn: () => listCampusIntroCodes({ data: { ids: ALL_SCHOOLS.map((s) => s.campusId) } }),
     staleTime: 600_000,
     networkMode: "always",
   });

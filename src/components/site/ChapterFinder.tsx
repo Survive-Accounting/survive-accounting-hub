@@ -18,7 +18,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { Bolt } from "@/components/canvas/brand";
-import { boltForSlug, schoolBySlug, SEC_SCHOOL_TABLE } from "@/lib/schools";
+import { ALL_SCHOOLS, boltForSlug, schoolBySlug } from "@/lib/schools";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { SearchPicker } from "@/components/site/SearchPicker";
 import { NotListedForm } from "@/components/site/NotListedForm";
@@ -48,7 +48,7 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
   // same code in both places or no code in both places — never one and not the other.
   const codesQ = useQuery({
     queryKey: ["campus-intro-codes"],
-    queryFn: () => listCampusIntroCodes({ data: { ids: SEC_SCHOOL_TABLE.map((x) => x.campusId) } }),
+    queryFn: () => listCampusIntroCodes({ data: { ids: ALL_SCHOOLS.map((x) => x.campusId) } }),
     staleTime: 600_000, networkMode: "always",
   });
   const codeBySlug = (slug: string) => {

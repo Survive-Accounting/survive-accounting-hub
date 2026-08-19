@@ -1904,3 +1904,69 @@ and the council pages use **IFC** and **Panhellenic**. Existing records won, as 
 CSV did not overwrite. Council pages read `campus_greek_chapters.council` and are unaffected, but
 lazy chapter creation must map NIC→IFC and NPC→Panhellenic or new chapters will not appear on
 their council page.
+
+---
+
+## Part B — picker rework (branch `school-picker-all`)
+
+### Canonical names and aliases
+
+66 selectable schools: the SEC 16 plus the 50 seeded campuses. Everything else goes through
+"My school isn't listed →", per the scope override — a student picking a school with no course
+code gets a worse experience than one asked to tell us about it.
+
+**One canonical display name per school**, generated from `campuses.short_name` and used
+everywhere. 149 aliases are matched and never rendered.
+
+**Naming collisions found and resolved:**
+
+| collision | resolution |
+|---|---|
+| `USC` — University of **Southern California** and University of **South Carolina** both had `short_name = "USC"` | Trojans keep **USC** (common usage); Gamecocks take **South Carolina**, which every surface already displayed. `USC` is a search alias on both, so either still finds it. |
+| `Miami` — **Miami University** (Ohio) vs **University of Miami** (Florida) | Distinct schools, distinct rows, distinct codes (ACC 221 / ACC 211). Displayed as **Miami (OH)** and **Miami**. This nearly caused a data corruption — see the seed section. |
+| 8 SEC short names had drifted from what the app displays: `Bama`, `UGA`, `UK`, `OU`, `UF`, `UT Austin`, `UT Knoxville`, `Vandy` | DB synced to the canonical names; the drifted forms became search aliases. |
+| `Missouri` vs `Mizzou` | **Mizzou**, per the brief's explicit list. `Missouri` is an alias. |
+
+### Search ranking
+
+Exact name → name prefix → exact alias → word-prefix → substring. Without the tiers, "Miami"
+returned Miami (OH) and Miami in whatever order the sort happened to be stable in.
+
+**`Mississippi` → Ole Miss** is satisfied by the PIN, not by score: Mississippi State legitimately
+starts with "Mississippi" and outranks an alias match. Ole Miss is pinned above the group headers,
+so it is the first row regardless. Both appear, which is the honest result — they are two real
+schools a student could mean.
+
+### Verified live at 1280px and 375×812
+
+- Placeholder reads **"Search 66 schools…"**, from `schools.length`, never a literal
+- Ole Miss pinned first and **not** repeated inside SEC — one row per school, so the count and the
+  rows agree
+- `SEC` / `Other schools` headers, both alphabetical, and headers **survive filtering**
+- Alias search: `bama`→Alabama, `UIUC`→Illinois, `purd`→Purdue, `tOSU`→Ohio State,
+  `K-State`→Kansas State, `Pitt`→Pittsburgh, `A&M`→Texas A&M, `Vandy`→Vanderbilt
+- Aliases never render — rows show the canonical name and the course code only
+- `My school isn't listed →` last row in every state, including empty results
+- Selecting Purdue navigated to `/purdue-university#exam1`, H1 "ACCT 20000 at Purdue…"
+- Mobile: no horizontal overflow, 16px search input (iOS will not zoom), 56px rows
+
+**No virtualization.** 66 rows is not 900 — the scope override removed the reason for it, and
+virtualizing a list this size would add complexity and break the sticky group headers for nothing.
+If the list ever grows past a few hundred, revisit.
+
+### Demand logging
+
+Every selection of a school with no course code, and every "My school isn't listed", writes to
+`campus_code_demand` with its source (`landing`, `campus-page`, `write-in`). Best-effort and
+non-blocking — but it **reports** whether the row landed rather than assuming it, because the last
+best-effort logger returned 200 while writing nothing for a day.
+
+All 66 listed schools currently have a course code, so in practice this table fills from write-ins
+until the data drifts.
+
+### One source of truth
+
+`SCHOOLS` in landing.tsx was a **third** hardcoded copy of the SEC 16 (alongside schools.ts and
+brand.tsx) and had already drifted — it still said "Missouri". It, `ChapterFinder`, `/rep` and
+`campus-context` now all read the generated table. `campus-context` was fetching course codes for
+the SEC 16 only, so a non-SEC campus page could not have resolved its own code.
