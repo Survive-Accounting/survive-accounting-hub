@@ -36,6 +36,7 @@ import { frameCompositionGuides, SAFE_INSET_FRAC, type Guide } from "./frames";
 
 import { MEMO_CATEGORIES } from "./cards/MemoCardNode";
 import { FLAME_CSS } from "./FilmOverlays";
+import { BrandCursor } from "./BrandCursor";
 import { openPopoutWindow, PanelPopout } from "./PanelPopout";
 import { WorldBackground } from "./WorldBackground";
 import { WORLDS } from "./worlds";
@@ -1169,6 +1170,10 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   // this many ms (0 = instant). Persisted; tuned live from the film transport.
   const [fadeMs, setFadeMs] = useState<number>(() => { try { const v = Number(localStorage.getItem("sa-fade-ms")); return Number.isFinite(v) && v >= 0 ? v : 150; } catch { return 150; } });
   const setFade = (ms: number) => { setFadeMs(ms); try { localStorage.setItem("sa-fade-ms", String(ms)); } catch { /* ignore */ } };
+  // BRAND CURSOR (08-19): the split-bolt pointer + click-boil, on in the capture
+  // window by default (it's filmable). Toggle from the film transport.
+  const [cursorOn, setCursorOn] = useState<boolean>(() => { try { return localStorage.getItem("sa-brand-cursor") !== "0"; } catch { return true; } });
+  const setCursor = (on: boolean) => { setCursorOn(on); try { localStorage.setItem("sa-brand-cursor", on ? "1" : "0"); } catch { /* ignore */ } };
   const filmStack = ((!!filmWin && !filmV2) || recording) && !!deckCeqIds && deckCeqIds.length > 1 && activeIdx >= 0;
   // The active frame's vertical offset in the stack (0 outside overview/film). Node
   // positions carry it; the baseline is FRAME-LOCAL, so persistence subtracts it back off.
@@ -2317,6 +2322,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                       <button key={ms} className="rounded px-1 text-[8.5px] font-black" style={{ color: fadeMs === ms ? "#0B0F1E" : NEON.text, background: fadeMs === ms ? "#B79CFF" : "transparent" }} onClick={() => setFade(ms)} title={ms === 0 ? "Instant — no fade (hard cut)" : `${ms}ms opacity crossfade`}>{lbl}</button>
                     ))}
                   </span>
+                  <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9px] font-bold uppercase" style={{ color: cursorOn ? "#0B0F1E" : NEON.muted, background: cursorOn ? "#7FB2E8" : "transparent", border: `1px solid ${NEON.borderSoft}` }} onClick={() => setCursor(!cursorOn)} title="Brand cursor — the split-bolt pointer + click-boil, drawn in the page so OBS captures it. Turn OFF ‘Capture Cursor’ on your OBS source so the OS arrow doesn’t double up.">🖱 bolt {cursorOn ? "on" : "off"}</button>
                 </>) : (<>
                   <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#FF8B9E", border: "1px solid rgba(255,139,158,0.5)" }} onClick={() => toggleFilm(false)} title="FILM V1 — the stack: every frame mounted in a vertical strip, the camera pans between them. The proven mode."><Clapperboard className="h-3.5 w-3.5" /> Film V1</button>
                   <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#B79CFF", border: "1px solid rgba(183,156,255,0.5)" }} onClick={() => toggleFilm(true)} title="FILM V2 (EXPERIMENT) — ONE stationary frame, built for SPEED: the camera never moves (the black-flash class of glitches is structurally impossible), CEQs crossfade in place (140ms), memos spacewalk/enterwalk exactly as in V1.">V2 ⚡</button>
@@ -2549,6 +2555,10 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                         <div style={{ color: "rgba(230,236,255,0.5)", fontSize: 12, fontWeight: 800, letterSpacing: "0.28em", textTransform: "uppercase" }}>Preparing set…</div>
                       </div>
                     )}
+                    {/* BRAND CURSOR — the split-bolt pointer + click-boil, in the captured
+                        window. Native cursor is hidden; disable "Capture Cursor" on the OBS
+                        source so the OS arrow doesn't double up. */}
+                    <BrandCursor hostRef={filmRootRef} enabled={cursorOn} />
                   </div>
                 </FilmContext.Provider>
                 </RevealContext.Provider>
