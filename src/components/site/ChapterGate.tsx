@@ -22,6 +22,7 @@ import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { supabase } from "@/integrations/supabase/client";
 
 export function ChapterGate({ chapterName }: { chapterName: string }) {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [msg, setMsg] = useState("");
@@ -32,11 +33,22 @@ export function ChapterGate({ chapterName }: { chapterName: string }) {
   useEffect(() => { setRedirect(window.location.href); }, []);
 
   const send = async () => {
+    const n = name.trim();
     const e = email.trim();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) { setState("error"); setMsg("That email doesn't look right."); return; }
     setState("sending"); setMsg("");
     try {
-      const { error } = await supabase.auth.signInWithOtp({ email: e, options: { emailRedirectTo: redirect } });
+      // NAME RIDES ALONG ON THE ACCOUNT. Split into first/last so a text can say "Hey Jane"
+      // rather than "Hey Jane Doe" — and so the exec roster, the Twilio alert and the
+      // thank-you message all get a person instead of an email fragment.
+      const [first, ...restName] = n.split(/s+/).filter(Boolean);
+      const { error } = await supabase.auth.signInWithOtp({
+        email: e,
+        options: {
+          emailRedirectTo: redirect,
+          data: { full_name: n, first_name: first ?? "", last_name: restName.join(" ") },
+        },
+      });
       if (error) { setState("error"); setMsg(error.message); return; }
       setState("sent");
     } catch { setState("error"); setMsg("Couldn't reach the server — try again in a moment."); }
@@ -64,6 +76,20 @@ export function ChapterGate({ chapterName }: { chapterName: string }) {
               Enter your email and I&apos;ll unlock it.
             </p>
 
+            {/* NAME FIRST. It is the lower-commitment field, and leading with email makes the
+                whole thing read as a signup form. DELIBERATELY UNVALIDATED — no required last
+                name, no format rule. Anything that stops a student reaching the video costs more
+                than a tidy roster gains. */}
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") void send(); }}
+              autoComplete="name"
+              placeholder="Your name"
+              aria-label="Your name"
+              className="mt-4 w-full rounded-xl px-3.5 text-center outline-none focus:ring-2"
+              style={{ fontSize: 16, minHeight: 50, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.18)", color: "var(--brand-cream)" }}
+            />
             <input
               value={email}
               onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("idle"); }}
@@ -76,7 +102,7 @@ export function ChapterGate({ chapterName }: { chapterName: string }) {
               spellCheck={false}
               placeholder="you@school.edu"
               aria-label="Your email"
-              className="mt-4 w-full rounded-xl px-3.5 text-center outline-none focus:ring-2"
+              className="mt-2 w-full rounded-xl px-3.5 text-center outline-none focus:ring-2"
               // 16px explicitly — under it iOS zooms the page on focus and never zooms back.
               style={{ fontSize: 16, minHeight: 50, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.18)", color: "var(--brand-cream)" }}
             />

@@ -134,14 +134,21 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
       </button>
 
       {open && rect && typeof document !== "undefined" && createPortal(
+        <>
+          {/* The scrim is what separates the menu from the page. Non-interactive: dismissal is
+              already handled by useDismiss, and a clickable scrim would double-fire it. */}
+          <div className="fixed inset-0 z-[239]" style={{ background: "rgba(5,8,16,0.55)" }} aria-hidden />
         <div
           ref={panelRef}
           className="fixed z-[240] flex flex-col overflow-hidden rounded-xl"
           style={{
             left: rect.left, top: rect.top, width: rect.width, maxHeight: rect.maxH, fontFamily: BRAND_SANS,
-            background: "var(--sa-surface-1, #1B2B4D)",
-            border: "1px solid rgba(245,239,230,0.18)",
-            boxShadow: "0 26px 60px -12px rgba(0,0,0,0.7)",
+            // #0B1220 and a scrim, matching PickerSheet. --sa-surface-1 (#1B2B4D) is LIGHTER
+            // than the page, so with nothing behind it the popup read as a washed-out grey
+            // slab floating on navy rather than a menu sitting above the page.
+            background: "#0B1220",
+            border: "1px solid rgba(245,239,230,0.14)",
+            boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)",
           }}
         >
           <input
@@ -181,7 +188,7 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
             {!results.length && <li className="px-3.5 py-3 text-[13px] italic" style={{ color: "var(--text-muted)" }}>No matches.</li>}
           </ul>
         </div>,
-        document.body,
+        </>, document.body,
       )}
     </>
   );
