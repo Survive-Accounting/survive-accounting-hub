@@ -1970,3 +1970,57 @@ until the data drifts.
 brand.tsx) and had already drifted — it still said "Missouri". It, `ChapterFinder`, `/rep` and
 `campus-context` now all read the generated table. `campus-context` was fetching course codes for
 the SEC 16 only, so a non-SEC campus page could not have resolved its own code.
+
+---
+
+## Lazy chapter creation
+
+"My chapter isn't listed" used to be a contact form — name, email, and a wait. That asks the
+person trying to watch a free video to identify themselves and come back later, which is the
+opposite order of what they came to do.
+
+Now they pick their org from the 89-strong national list and land on their chapter's `/go/` page
+immediately. The row is created `pending` with `discovery_source = "member_self_serve"` and
+appears in an admin queue, but **nothing about pending blocks them**: the `/go/` resolver keys on
+campus + slug and filters on neither status nor `archived_at`. A queue that made someone wait to
+watch a free video would be protecting nothing.
+
+**No DDL required** — `campus_greek_chapters` already had `status`, `claim_status`, `council`,
+`letters`, `discovery_source` and `needs_verification`.
+
+### The council mapping that would have broken it silently
+
+`greek_orgs.council` holds the **national** bodies (NIC, NPC); campus chapters and the council
+pages use the **campus** councils (IFC, Panhellenic). A self-created chapter carrying `NIC` would
+never have appeared on its IFC council page — and nothing would have errored. Creation maps
+NIC→IFC and NPC→Panhellenic, and the picker displays the mapped value so it cannot disagree with
+what it writes.
+
+### Existing records win
+
+If a chapter for that campus and org already exists it is returned untouched, including one
+already claimed or renamed by an exec. Verified: running the flow twice returned the same slug
+and left exactly one row.
+
+### Verified end-to-end on the dev server
+
+Clemson → "My chapter isn't listed" → searched **"SigEp"** (a nickname alias) → Sigma Phi Epsilon
+→ navigated to `/go/clemson-university/sigma-phi-epsilon`, a working page reading
+"SIGMA PHI EPSILON · CLEMSON" with ACCT 2010. The row: `status=pending`, `council=IFC`,
+`letters=ΣΦΕ`, `needs_verification=true`, `claim_status=unclaimed`. **Test row deleted afterwards**
+— it was mine, not a member's, and nobody had been given the URL.
+
+### Admin queue — `/outreach/chapters`
+
+Member-created rows only; a list that also held the ~1,100 scraped chapters would be the table,
+not a queue. Admin-gated, and returns `null` rather than `[]` for a non-admin so the page can tell
+"you may not see this" from "there is nothing here".
+
+**Remove archives rather than deletes.** The `/go/` URL may already be in a group chat, and
+deleting would turn a link somebody sent their whole house into a dead end.
+
+### Also
+
+`/chapters` listed only schools that already had scraped chapters, which locked out exactly the
+members lazy creation exists for. It now lists all 66 seeded schools, and its search placeholder
+no longer claims "SEC schools".

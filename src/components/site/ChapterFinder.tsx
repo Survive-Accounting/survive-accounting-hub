@@ -21,6 +21,7 @@ import { Bolt } from "@/components/canvas/brand";
 import { ALL_SCHOOLS, boltForSlug, schoolBySlug } from "@/lib/schools";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { SearchPicker } from "@/components/site/SearchPicker";
+import { ChapterSelfCreate } from "@/components/site/ChapterSelfCreate";
 import { NotListedForm } from "@/components/site/NotListedForm";
 import { listGoChapters } from "@/lib/greek-go.functions";
 
@@ -72,7 +73,13 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
   const body = (
     <div className="flex w-full flex-col gap-2" style={{ fontFamily: BRAND_SANS }}>
       {notListed ? (
-        <NotListedForm kind={notListed} school={notListed === "chapter" ? schoolName : undefined} onClose={() => setNotListed(null)} />
+        // A chapter needs a campus, so self-creation is offered only once a school is chosen.
+        // Without one we fall back to the plain write-in, which can at least capture who asked.
+        notListed === "chapter" && school ? (
+          <ChapterSelfCreate schoolSlug={school} schoolName={schoolName} onClose={() => setNotListed(null)} />
+        ) : (
+          <NotListedForm kind={notListed} school={notListed === "chapter" ? schoolName : undefined} onClose={() => setNotListed(null)} />
+        )
       ) : (
         <>
           {/* The site's own picker, not a native <select>. A native dropdown renders as an OS
@@ -88,7 +95,7 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
             }))}
             value={school || null}
             placeholder="Pick your school to start"
-            searchPlaceholder={`Search ${schools.length} SEC schools…`}
+            searchPlaceholder={`Search ${schools.length} schools…`}
             onPick={(v) => { setSchool(v); setChapter(""); }}
           />
 
