@@ -79,14 +79,52 @@ describe("the timeline is a single track, not an NLE", () => {
     expect(studio).toContain("onMoveClip={(from, toFrameId, at) => moveClip(from, toFrameId, at)}");
     expect(studio).toContain("onDetach={(frameId, index) => detachClip(frameId, index)}");
   });
-  test("a frame marker click switches to AUTHORING on that frame", () => {
-    expect(stage).toContain("onClick={() => r.frameId && onAuthorFrame(r.frameId)}");
+  test("the frame-bar label is the door to AUTHORING (the marker row is gone — 08-20)", () => {
+    expect(stage).toContain("onClick={() => onAuthorFrame(f.id)}");
+    expect(stage).not.toContain("markerRuns"); // the redundant strip under the scrubber
     const fn = studio.slice(studio.indexOf("const authorFrame ="), studio.indexOf("const stageTrueRender ="));
     expect(fn).toContain("setFilming(false);");
     expect(fn).toContain("setQId(frameId);");
   });
   test("TRUE RENDER reads as the FINAL bake, not the iteration loop", () => {
     expect(stage).toContain("final bake · lock timing first");
+  });
+});
+
+describe("the editing room reshaped (Lee, 08-20)", () => {
+  test("segments are PADDED apart, and offsets/playhead/seek all share the gapped space", () => {
+    expect(stage).toContain("const GAP_PX = 10;");
+    expect(stage).toContain("o.push(a); a += w + GAP_PX;"); // gaps live in the ONE offsets array
+  });
+  test("edge handles trim ON RELEASE, no confirmation — through the studio's applyTrim door", () => {
+    expect(stage).toContain('const startHandle = (which: "in" | "out") =>');
+    expect(stage).toContain("if (Math.abs(v - base) > 0.005) onTrim("); // release commits; drag back = revert
+    expect(stage).toContain("onTrim={c.split ? null : (inS, outS) => onTrimClip(c.path, inS, outS)}"); // split clips: handles off (path-keyed trims would clobber both halves)
+    expect(studio).toContain('onTrimClip={(path, inS, outS) => applyTrim(path, inS, outS, "drag")}');
+    // OUT can extend past the current trim, bounded by the SOURCE duration
+    expect(stage).toContain("durS: number;");
+  });
+  test("hovering a tile pulls its neighbours apart so either edge is easy to pick", () => {
+    expect(stage).toContain("shift={hoverIdx == null || i === hoverIdx ? 0 : i < hoverIdx ? -5 : 5}");
+  });
+  test("each segment draws its own waveform from the shared audio cache", () => {
+    expect(stage).toContain("function ClipWave(");
+    expect(stage).toContain("clipAudio(path, url)");
+  });
+  test("the transcript panel lives in the stage: click seeks the CUT player, Delete cuts", () => {
+    expect(stage).toContain("function TranscriptPanel(");
+    expect(stage).toContain("transcriptFor(path)");
+    expect(stage).toContain('if ((e.key === "Delete" || e.key === "Backspace") && range)');
+    expect(studio).toContain("onCutClip={(path, a, b) => splitClipAt(path, a, b)}");
+    // words the trims already dropped render struck-through, not clickable
+    expect(stage).toContain("const gone = w.e <= clip.inS + 0.001 || w.s >= clip.outS - 0.001;");
+  });
+  test("fine trim is OPT-IN; the toolbar and the take rail both collapse for focus", () => {
+    expect(studio).toContain("return fineTrimOpen && sel && t ? (");
+    expect(studio).toContain('localStorage.getItem("sa-pipe-tools")');
+    expect(studio).toContain('localStorage.getItem("sa-inbox-collapsed")');
+    // the collapsed rail is VISUAL — the inbox component never unmounts (P0 law)
+    expect(read("TakesInbox.tsx")).toContain("{inline && collapsed ? (");
   });
 });
 

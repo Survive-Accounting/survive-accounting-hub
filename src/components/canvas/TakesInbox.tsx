@@ -6,7 +6,7 @@
 // exist anywhere OBS captures. CeqStudio gates every one of them on !recording
 // and renders them outside the film portal.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, FolderOpen, Loader2, Mic, Play, RefreshCw, RotateCcw, Trash2, X } from "lucide-react";
+import { Check, ChevronsLeft, ChevronsRight, FolderOpen, Loader2, Mic, Play, RefreshCw, RotateCcw, Trash2, X } from "lucide-react";
 
 import { connectObs, OBS_DEFAULT_ADDRESS, baseName, type ObsStatus } from "./obs-bridge";
 import { cancelSlate, slateEndOffsetMs, slateSeconds, startSlate, SLATE_CHOICES, setSlateSeconds } from "./film-slate";
@@ -39,6 +39,11 @@ export interface TakesInboxProps {
    *  floating drawer. Same component — the mode switch re-arranges surfaces, it
    *  does not fork them. */
   inline?: boolean;
+  /** COLLAPSE (Lee, 08-20): fold the docked rail to a slim strip so the preview
+   *  and timeline get the room. VISUAL only — the component stays mounted, so
+   *  the OBS socket, triage hotkeys and upload queue all stay live (P0 law). */
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
   /** The frame open RIGHT NOW — the seed for a take's coverage window. The
    *  visited log itself lives in coverage-log.ts and is fed by the studio's
    *  navigation effect; this is only the starting frame at record-start. */
@@ -61,7 +66,7 @@ export interface TakesInboxProps {
 
 type Dir = Awaited<ReturnType<typeof savedTakesFolder>>;
 
-export function TakesInbox({ onClose, armed, onDisarm, onUpload, openFrameId, coverageChip, onObsState, onRecordStart, onRecycle, onRoomTone, inline, hidden, attachedPaths }: TakesInboxProps) {
+export function TakesInbox({ onClose, armed, onDisarm, onUpload, openFrameId, coverageChip, onObsState, onRecordStart, onRecycle, onRoomTone, inline, hidden, collapsed, onToggleCollapse, attachedPaths }: TakesInboxProps) {
   const [takes, setTakes] = useState<TakeRecord[]>(() => currentTakes());
   const [dir, setDir] = useState<Dir>(null);
   const [status, setStatus] = useState<ObsStatus>("off");
@@ -298,11 +303,22 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, openFrameId, co
   };
 
   return (
-    <div className={inline ? "order-last ml-2 flex h-full w-[380px] min-w-0 max-w-[42%] shrink-0 flex-col overflow-hidden rounded-lg" : "absolute inset-y-0 right-0 z-[74] flex w-[380px] max-w-[94vw] flex-col shadow-2xl"} style={{ display: hidden ? "none" : undefined, background: NEON.panelSolid, border: inline ? `1px solid ${NEON.borderSoft}` : undefined, borderLeft: inline ? undefined : `1px solid ${NEON.border}` }}>
+    <div className={inline ? "order-last ml-2 flex h-full w-[380px] min-w-0 max-w-[42%] shrink-0 flex-col overflow-hidden rounded-lg" : "absolute inset-y-0 right-0 z-[74] flex w-[380px] max-w-[94vw] flex-col shadow-2xl"} style={{ display: hidden ? "none" : undefined, ...(inline && collapsed ? { width: 34, minWidth: 34, maxWidth: 34 } : {}), background: NEON.panelSolid, border: inline ? `1px solid ${NEON.borderSoft}` : undefined, borderLeft: inline ? undefined : `1px solid ${NEON.border}` }}>
+      {inline && collapsed ? (
+        // COLLAPSED RAIL — pixels folded away, machinery alive (the component
+        // never unmounts; OBS + F8/F10 + uploads keep running behind this strip).
+        <button className="flex h-full w-full flex-col items-center gap-2 py-2" style={{ color: NEON.muted }} onClick={onToggleCollapse} title="Expand the takes inbox — OBS, triage and uploads kept running while collapsed">
+          <ChevronsLeft className="h-3.5 w-3.5" />
+          <span style={{ writingMode: "vertical-rl", fontSize: 9, fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase", color: "#3BF5A0" }}>Takes</span>
+          {pending.length > 0 && <span className="rounded-full px-1 text-[8px] font-black tabular-nums" style={{ color: "#0B1322", background: NEON.yellow }}>{pending.length}</span>}
+          <span className="mt-auto text-[10px]" style={{ color: status === "connected" ? "#3BF5A0" : status === "error" ? "#FF8B9E" : NEON.muted }} title={`OBS ${status}`}>●</span>
+        </button>
+      ) : (<>
       <div className="flex items-center gap-2 border-b px-3 py-2" style={{ borderColor: NEON.borderSoft }}>
         <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: "#3BF5A0" }}>Takes inbox</span>
         <button className="rounded px-1.5 py-0.5 text-[8.5px] font-bold uppercase" style={{ color: status === "connected" ? "#3BF5A0" : status === "error" ? "#FF8B9E" : NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setShowObs((v) => !v)} title={detail || "OBS WebSocket — click for settings"}>OBS {status === "connected" ? "●" : "○"}</button>
         {armed && <span className="rounded px-1.5 py-0.5 text-[8.5px] font-bold uppercase" style={{ color: "#0B1322", background: "#B79CFF" }} title={armed.ids.length + " frame(s) armed"}>armed: {armed.label ?? armed.kind}<button className="ml-1" onClick={onDisarm} title="Disarm">✕</button></span>}
+        {inline && onToggleCollapse && <button className="ml-auto grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={onToggleCollapse} title="Collapse the inbox to a slim rail — OBS, triage and uploads keep running"><ChevronsRight className="h-3 w-3" /></button>}
         {!inline && <button className="ml-auto grid h-5 w-5 place-items-center rounded" style={{ color: NEON.muted }} onClick={onClose}><X className="h-3 w-3" /></button>}
       </div>
 
@@ -365,6 +381,7 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, openFrameId, co
           {bin.count > 0 && <span className="rounded-full px-1 text-[8px] font-black tabular-nums" style={{ color: "#0B1322", background: "#FF8B9E" }}>{bin.count}</span>}
         </button>
       </div>
+      </>)}
     </div>
   );
 }

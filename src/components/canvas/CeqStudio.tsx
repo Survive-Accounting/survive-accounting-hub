@@ -1277,7 +1277,9 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       else if (deck?.outro?.path === s.takePath) label = "outro";
       else if ((deck?.wrap ?? []).some((w) => w.path === s.takePath)) label = "wrap";
       const split = (pathCount.get(s.takePath) ?? 0) > 1;
-      return { key: `${s.takePath}#${i}`, frameId: clipIndex >= 0 ? fid : null, clipIndex, label, path: s.takePath, url: s.url, name: s.name, inS: s.inS, outS: s.outS, gapAfterMs: s.gapAfterMs, split };
+      // durS: the SOURCE take's full length — the bound when a timeline trim
+      // handle drags OUTWARD to bring footage back.
+      return { key: `${s.takePath}#${i}`, frameId: clipIndex >= 0 ? fid : null, clipIndex, label, path: s.takePath, url: s.url, name: s.name, inS: s.inS, outS: s.outS, durS: takesByPath.get(s.takePath)?.duration ?? s.outS, gapAfterMs: s.gapAfterMs, split };
     });
   }, [pipelineStitch, takesByPath, ceqOfPath, rf, deck]);
   /** The set's frames as drop targets / author-switch chips (empty-timeline state). */
@@ -1330,6 +1332,14 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     const has = list.some((x) => x.id === next.id);
     setDecks((prev) => updateDeck(prev, deck.id, { stitches: has ? list.map((x) => (x.id === next.id ? next : x)) : [...list, next] }));
   };
+  // FOCUS CHROME (Lee, 08-20): the edit toolbar and the take rail both collapse
+  // so the room is transcript + preview + timeline and nothing else. States
+  // persist; the rail stays MOUNTED when collapsed (OBS socket + triage live).
+  const [pipeTools, setPipeTools] = useState<boolean>(() => localStorage.getItem("sa-pipe-tools") !== "0");
+  const [inboxCollapsed, setInboxCollapsed] = useState<boolean>(() => localStorage.getItem("sa-inbox-collapsed") === "1");
+  // FINE TRIM is opt-in now — selecting a clip feeds the transcript panel and the
+  // edge handles; the zoomable waveform opens only from its button.
+  const [fineTrimOpen, setFineTrimOpen] = useState(false);
   // PRE/POST-ROLL (P2): the X and Y of the propose rule — settings, not constants.
   const [preRollMs, setPreRollMs] = useState<number>(() => { const v = Number(localStorage.getItem("sa-trim-preroll-ms")); return Number.isFinite(v) && v > 0 ? v : DEFAULT_PRE_ROLL_MS; });
   const [postRollMs, setPostRollMs] = useState<number>(() => { const v = Number(localStorage.getItem("sa-trim-postroll-ms")); return Number.isFinite(v) && v > 0 ? v : DEFAULT_POST_ROLL_MS; });
@@ -3496,9 +3506,12 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   cut player stops and can't bleed audio into a take. */}
               {filming && (
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg p-1.5" style={{ display: recording ? "none" : undefined, background: "rgba(9,14,26,0.92)", border: `1px solid ${NEON.borderSoft}` }}>
-                  {/* Edit toolbar (extracted from the old clip-stack header). */}
+                  {/* Edit toolbar — COLLAPSIBLE (Lee, 08-20): fold everything but the
+                      name away so the room is transcript + preview + timeline. */}
                   <div className="mb-1.5 flex items-center gap-1">
                     <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: NEON.yellow }}>Pipeline</span>
+                    <button className="rounded px-1 py-0.5 text-[9px] font-black leading-none" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { const v = !pipeTools; setPipeTools(v); localStorage.setItem("sa-pipe-tools", v ? "1" : "0"); }} title={pipeTools ? "Collapse the edit tools — focus on trim + publish" : "Show the edit tools (clear all · X/Y · propose trims · fine trim · edit log)"}>{pipeTools ? "▾" : "▸"}</button>
+                    {pipeTools && (<>
                     <button className="rounded px-1.5 py-0.5 text-[8px] font-bold uppercase" style={{ color: "#FF8B9E", border: "1px solid rgba(255,139,158,0.5)" }} onClick={clearAllClips} title="CLEAR ALL CLIPS — detach every clip in this set back to the scratch lane so you can re-cut from zero. Files are never trashed.">clear all</button>
                     <label className="ml-auto flex items-center gap-0.5 text-[7.5px] font-bold uppercase" style={{ color: NEON.muted }} title="Pre-roll X — PROPOSE TRIMS sets in = speech onset − X ms">X
                       <input type="number" min={0} step={10} className="w-9 rounded bg-transparent px-0.5 text-[8px] tabular-nums outline-none" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={preRollMs} onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setPreRollMs(v); localStorage.setItem("sa-trim-preroll-ms", String(v)); }} />
@@ -3507,7 +3520,9 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                       <input type="number" min={0} step={10} className="w-9 rounded bg-transparent px-0.5 text-[8px] tabular-nums outline-none" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={postRollMs} onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setPostRollMs(v); localStorage.setItem("sa-trim-postroll-ms", String(v)); }} />
                     </label>
                     <button className="rounded px-1.5 py-0.5 text-[8px] font-black uppercase disabled:opacity-50" style={{ color: "#FFB020", border: "1px solid rgba(255,176,32,0.5)" }} disabled={proposeBusy || !pipelineStitch} onClick={proposeTrims} title="PROPOSE TRIMS — for every clip WITHOUT a trim: in = speech onset − X, out = speech offset + Y. Marked AUTO until hand-adjusted; never runs on its own.">{proposeBusy ? "analyzing…" : "propose trims"}</button>
+                    <button className="rounded px-1.5 py-0.5 text-[8px] font-bold uppercase disabled:opacity-50" style={{ color: fineTrimOpen ? "#0B1322" : NEON.cyan, background: fineTrimOpen ? NEON.cyan : "transparent", border: `1px solid ${NEON.borderSoft}` }} disabled={!stageSel} onClick={() => setFineTrimOpen((v) => !v)} title="FINE TRIM — the selected clip's zoomable waveform: wheel zoom, landmark snapping, 10ms nudges. The timeline's edge handles cover the everyday trim.">fine trim</button>
                     <button className="rounded px-1.5 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => void doExportEditLog()} title="EXPORT EDIT LOG — every trim decision as JSON + CSV (clipboard + download).">⇩ edit log</button>
+                    </>)}
                   </div>
                   <PipelineStage
                     clips={stageClips}
@@ -3520,6 +3535,8 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                     onDropTake={(id, toFrameId, at) => dropTakeAt(id, toFrameId, at)}
                     onDropTakeToFrames={(id, frameIds) => dropTakeToFrames(id, frameIds)}
                     onDetach={(frameId, index) => detachClip(frameId, index)}
+                    onTrimClip={(path, inS, outS) => applyTrim(path, inS, outS, "drag")}
+                    onCutClip={(path, a, b) => splitClipAt(path, a, b)}
                     onAuthorFrame={authorFrame}
                     onOpenCapture={() => setCaptureOpen(true)}
                     onTrueRender={stageTrueRender}
@@ -3527,12 +3544,14 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                     renderBusy={!!stitchJob?.running}
                   />
                   {/* TRIM DETAIL (Q2) — the selected clip's zoomable waveform + fine
-                      handles, under the timeline. Writes the recipe only. */}
+                      handles, under the timeline. Writes the recipe only. OPT-IN
+                      now (08-20): the timeline's edge handles are the everyday
+                      trim; this opens from the "fine trim" toolbar button. */}
                   {(() => {
                     const sel = stageClips.find((c) => c.key === stageSel && c.frameId != null);
                     const t = sel ? takesByPath.get(sel.path) : undefined;
                     const item = sel && pipelineStitch ? pipelineStitch.items.find((i) => i.takePath === sel.path) : undefined;
-                    return sel && t ? (
+                    return fineTrimOpen && sel && t ? (
                       <TrimDetail
                         key={sel.key}
                         take={t}
@@ -3542,7 +3561,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                         autoTrim={item?.autoTrim}
                         onTrim={(inS, outS, how) => applyTrim(sel.path, inS, outS, how)}
                         onCut={(cutStartS, cutEndS) => splitClipAt(sel.path, cutStartS, cutEndS)}
-                        onClose={() => setStageSel(null)}
+                        onClose={() => setFineTrimOpen(false)}
                       />
                     ) : null;
                   })()}
@@ -3574,6 +3593,8 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                 <TakesInbox
                   hidden={recording}
                   inline={filming}
+                  collapsed={filming && inboxCollapsed}
+                  onToggleCollapse={() => { const v = !inboxCollapsed; setInboxCollapsed(v); localStorage.setItem("sa-inbox-collapsed", v ? "1" : "0"); }}
                   onRecycle={setBinStat}
                   onRoomTone={async (_t, file) => {
                     // Same destination as the Publish-panel picker — one room tone
