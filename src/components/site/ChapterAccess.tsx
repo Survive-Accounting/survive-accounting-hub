@@ -39,13 +39,15 @@ export type ChapterUsageStats = {
 
 type ClaimState = "unclaimed" | "pending" | "claimed";
 
-export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, letters, claimStatus }: {
+export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, letters, nickname, claimStatus }: {
   id: string;
   chapterName: string;
   schoolSlug: string;
   chapterSlug: string;
   /** Roster shorthand ("ATO") when GreekIntel has it — feeds the claimed GroupMe message. */
   letters?: string | null;
+  /** Roster nickname ("ADPi") — what students call the chapter; preferred in share copy. */
+  nickname?: string | null;
   claimStatus: ClaimState;
 }) {
   // THE claim source of truth for this page. Seeded from the loader's value and advanced locally
@@ -66,6 +68,7 @@ export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, letter
           chapterSlug={chapterSlug}
           chapterName={chapterName}
           letters={letters}
+          nickname={nickname}
           claimed={claim === "claimed"}
           courseLabel={courseLabel}
         />

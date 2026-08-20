@@ -42,15 +42,28 @@ async function resolve(school: string, chapter: string): Promise<FlyerInput | nu
 
   if (chapter === CAMPUS) return { schoolSlug: school, schoolName, courseCode };
 
-  const { data: ch } = await db.from("campus_greek_chapters")
-    .select("greek_org_id").eq("campus_id", campus.id).eq("slug", chapter).maybeSingle();
+  // nickname preferred for the "Shared by" line — it is what students call the chapter ("ADPi"),
+  // and the flyer hangs in their house. Falls back to the org's display name; NEVER the
+  // chapter_designation, which is store-only. The nickname select degrades pre-migration
+  // (20260820_1209) so a deploy order mistake can't 404 every flyer.
+  let ch: { greek_org_id: string | null; nickname?: string | null } | null = null;
+  {
+    const r1 = await db.from("campus_greek_chapters")
+      .select("greek_org_id,nickname").eq("campus_id", campus.id).eq("slug", chapter).maybeSingle();
+    if (r1.error) {
+      const r2 = await db.from("campus_greek_chapters")
+        .select("greek_org_id").eq("campus_id", campus.id).eq("slug", chapter).maybeSingle();
+      ch = r2.data ?? null;
+    } else ch = r1.data ?? null;
+  }
   if (!ch) return null;
   let chapterName = chapter;
   if (ch.greek_org_id) {
     const { data: org } = await db.from("greek_orgs").select("name").eq("id", ch.greek_org_id).maybeSingle();
     chapterName = ((org?.name ?? "") as string).trim() || chapter;
   }
-  return { schoolSlug: school, schoolName, courseCode, chapterSlug: chapter, chapterName };
+  const sharedBy = (ch.nickname ?? "").trim() || chapterName;
+  return { schoolSlug: school, schoolName, courseCode, chapterSlug: chapter, chapterName: sharedBy };
 }
 
 async function handle({ request, params }: { request: Request; params: { school: string; chapter: string } }): Promise<Response> {

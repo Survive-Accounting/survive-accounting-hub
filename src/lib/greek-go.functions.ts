@@ -34,10 +34,15 @@ export interface GoChapter {
   schoolName: string;
   chapterSlug: string;
   chapterName: string;
-  /** e.g. "Mississippi Alpha" — the chapter's own Greek designation, when GreekIntel has it. */
-  designation: string | null;
+  // chapter_designation is deliberately NOT here. It is store-only ("Lambda Pi") and nothing on
+  // the student side uses it — returning it serialized it into every page's hydration payload,
+  // which is exactly the student-facing leak the import spec forbids (sweep_go_pages.ts asserts
+  // its absence in the raw HTML). Admin surfaces read it straight from GreekIntel instead.
   /** The chapter's letters shorthand from the roster (e.g. "ATO"), when GreekIntel has it. */
   letters: string | null;
+  /** What students actually call the chapter ("ADPi", "Pike") — the 66-campus roster import
+   *  fills this; share copy and flyers prefer it over the formal organization name. */
+  nickname: string | null;
   council: string | null;
   claimStatus: "unclaimed" | "pending" | "claimed";
   /** Members banked against this chapter so far. Real count or 0 — never a decorative number. */
@@ -57,9 +62,21 @@ export const getGoChapter = createServerFn({ method: "POST" })
     const { data: campus } = await db.from("campuses").select("id,slug,name,short_name").eq("slug", data.schoolSlug).maybeSingle();
     if (!campus?.id) return null;
 
-    const { data: row } = await db.from("campus_greek_chapters")
-      .select("id,campus_id,greek_org_id,slug,chapter_designation,letters,council,claim_status")
-      .eq("campus_id", campus.id).eq("slug", data.chapterSlug).maybeSingle();
+    // nickname arrives with 20260820_1209 (manual-apply). The fallback select keeps every /go/
+    // page alive if this code deploys before Lee applies the migration — a 42703 on a bonus
+    // column must never blank 2,000 live chapter pages.
+    let row: { id: string; campus_id: string; greek_org_id: string | null; slug: string; letters: string | null; nickname?: string | null; council: string | null; claim_status: string | null } | null = null;
+    {
+      const r1 = await db.from("campus_greek_chapters")
+        .select("id,campus_id,greek_org_id,slug,letters,nickname,council,claim_status")
+        .eq("campus_id", campus.id).eq("slug", data.chapterSlug).maybeSingle();
+      if (r1.error) {
+        const r2 = await db.from("campus_greek_chapters")
+          .select("id,campus_id,greek_org_id,slug,letters,council,claim_status")
+          .eq("campus_id", campus.id).eq("slug", data.chapterSlug).maybeSingle();
+        row = r2.data ?? null;
+      } else row = r1.data ?? null;
+    }
     if (!row?.id) return null;
 
     const { data: org } = row.greek_org_id
@@ -82,8 +99,8 @@ export const getGoChapter = createServerFn({ method: "POST" })
       schoolName: campus.short_name || campus.name,
       chapterSlug: row.slug,
       chapterName: (org?.name ?? "").trim() || "Chapter",
-      designation: row.chapter_designation ?? null,
       letters: row.letters ?? null,
+      nickname: row.nickname ?? null,
       council: row.council ?? null,
       claimStatus: (row.claim_status ?? "unclaimed") as GoChapter["claimStatus"],
       members,
@@ -98,40 +115,84 @@ export const getGoChapter = createServerFn({ method: "POST" })
 export const listGoSchools = createServerFn({ method: "GET" })
   .handler(async (): Promise<Array<{ slug: string; name: string }>> => {
     const db = await admin();
-    const { data: camps } = await db.from("campuses").select("id,slug,name,short_name").eq("is_sec", true).not("slug", "is", null);
+    // ALL live campuses, not just SEC — the 66-campus roster import put chapters on 50 non-SEC
+    // campuses, and a picker that filtered is_sec would hide every one of them. "Has at least
+    // one slugged chapter" is still the gate: a school whose roster has no reachable /go/ page
+    // would be a dropdown entry that leads nowhere.
+    const { data: camps } = await db.from("campuses").select("id,slug,name,short_name").is("archived_at", null).not("slug", "is", null);
     const list = (camps ?? []) as Array<{ id: string; slug: string; name: string; short_name: string | null }>;
     if (!list.length) return [];
-    // Only schools with at least one slugged chapter — offering a school whose roster has no
-    // reachable /go/ page yet would be a dropdown entry that leads nowhere.
-    const { data: rows } = await db.from("campus_greek_chapters")
-      .select("campus_id").in("campus_id", list.map((c) => c.id)).not("slug", "is", null).limit(2000);
-    const have = new Set(((rows ?? []) as Array<{ campus_id: string }>).map((r) => r.campus_id));
+    // PAGED, not .limit(): PostgREST caps any response at 1,000 rows, and there are 3,000+
+    // slugged chapters after the import — a single read would silently drop the campuses whose
+    // rows landed past the cap.
+    const have = new Set<string>();
+    for (let from = 0; ; from += 1000) {
+      const { data: rows } = await db.from("campus_greek_chapters")
+        .select("campus_id").not("slug", "is", null).range(from, from + 999);
+      const page = (rows ?? []) as Array<{ campus_id: string }>;
+      for (const r of page) have.add(r.campus_id);
+      if (page.length < 1000) break;
+    }
     return list
       .filter((c) => have.has(c.id))
       // CANONICAL NAME, not short_name. short_name holds nicknames — Bama, Mizzou, OU, Vandy,
       // UT Austin — so the Greek picker spelled schools differently from the main site picker,
       // and inconsistently between each other. canonicalSchoolName resolves the slug through the
-      // one school table; a non-SEC campus (none are offered here today) keeps its own name.
+      // one school table; a campus not in that table keeps its own name.
       .map((c) => ({ slug: c.slug, name: canonicalSchoolName(c.slug, c.short_name || c.name) }))
       .sort((a, b) => a.name.localeCompare(b.name));
   });
 
-/** Every chapter at one school — the self-report picker and the school index both read this. */
+/** One chapter row as the pickers see it. nickname + letters exist so search can match what a
+ *  student actually types ("ADPi", "ΑΔΠ") — they are search aliases, displayed nowhere. */
+export interface GoChapterListItem {
+  slug: string;
+  name: string;
+  council: string | null;
+  nickname: string | null;
+  letters: string | null;
+}
+
+/** Every chapter at one school — the self-report picker and the school index both read this.
+ *  ALL councils, always: IFC, Panhellenic, NPHC, MGC and Other chapters are one roster here,
+ *  and nothing in this function may filter by council. */
 export const listGoChapters = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ schoolSlug: z.string().trim().min(1).max(80) }).parse(d))
-  .handler(async ({ data }): Promise<Array<{ slug: string; name: string; council: string | null }>> => {
+  .handler(async ({ data }): Promise<GoChapterListItem[]> => {
     const db = await admin();
     const { data: campus } = await db.from("campuses").select("id").eq("slug", data.schoolSlug).maybeSingle();
     if (!campus?.id) return [];
-    const { data: rows } = await db.from("campus_greek_chapters")
-      .select("slug,greek_org_id,council").eq("campus_id", campus.id).not("slug", "is", null).limit(600);
-    const list = (rows ?? []) as Array<{ slug: string; greek_org_id: string | null; council: string | null }>;
+    // nickname is a 20260820_1209 column — fall back without it pre-migration (see getGoChapter).
+    let list: Array<{ slug: string; greek_org_id: string | null; council: string | null; nickname?: string | null; letters: string | null }> = [];
+    {
+      const r1 = await db.from("campus_greek_chapters")
+        .select("slug,greek_org_id,council,nickname,letters").eq("campus_id", campus.id).not("slug", "is", null).limit(600);
+      if (r1.error) {
+        const r2 = await db.from("campus_greek_chapters")
+          .select("slug,greek_org_id,council,letters").eq("campus_id", campus.id).not("slug", "is", null).limit(600);
+        list = (r2.data ?? []) as typeof list;
+      } else list = (r1.data ?? []) as typeof list;
+    }
     const ids = [...new Set(list.map((r) => r.greek_org_id).filter(Boolean))] as string[];
     if (!ids.length) return [];
-    const { data: orgs } = await db.from("greek_orgs").select("id,name").in("id", ids);
-    const byId = new Map<string, string>((orgs ?? []).map((o: { id: string; name: string | null }) => [o.id, (o.name ?? "").trim()]));
+    // Org nickname backs up the chapter's own: the catalog carries "Phi Psi"/"KD"-style
+    // nicknames for about half the national orgs, and a chapter row imported without one
+    // should still be findable by what students call it.
+    const { data: orgs } = await db.from("greek_orgs").select("id,name,nickname").in("id", ids);
+    const byId = new Map<string, { name: string; nickname: string | null }>(
+      (orgs ?? []).map((o: { id: string; name: string | null; nickname: string | null }) => [o.id, { name: (o.name ?? "").trim(), nickname: o.nickname?.trim() || null }]),
+    );
     return list
-      .map((r) => ({ slug: r.slug, name: r.greek_org_id ? (byId.get(r.greek_org_id) ?? "") : "", council: r.council }))
+      .map((r) => {
+        const org = r.greek_org_id ? byId.get(r.greek_org_id) : undefined;
+        return {
+          slug: r.slug,
+          name: org?.name ?? "",
+          council: r.council,
+          nickname: r.nickname?.trim() || org?.nickname || null,
+          letters: r.letters?.trim() || null,
+        };
+      })
       .filter((r) => r.name)
       .sort((a, b) => a.name.localeCompare(b.name));
   });

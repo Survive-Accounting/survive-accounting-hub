@@ -1,3 +1,82 @@
+# Chapter import — 66 campuses (branch `chapter-import-66`)
+
+Imports `chapters-66-FINAL.csv` (2,060 pre-cleaned chapters) and makes every share/search surface
+nickname-aware. **Two gates are Lee's:** applying `20260820_1209_chapter_import_flags.sql` (DDL is
+hand-pasted; the importer refuses `--apply` until the columns exist), and confirming the dry-run
+counts below before the write.
+
+## Dry run (read-only, run 2026-08-20 against live)
+
+**create 1,180 · update 880 · skip 0** (sums to 2,060) · 0 CSV-internal dupes · 0 slug collisions ·
+**all 66 campus display names matched, none auto-created** (incl. Miami ≠ Miami (OH) — the
+full-name tiebreak catches the trap) · 44 local/regional orgs need `greek_orgs` catalog rows.
+
+Per-campus plan (+create / ~update):
+Alabama +0/~63 · Arizona +13/~0 · Arizona State +27/~1 · Arkansas +0/~47 · Auburn +0/~53 ·
+Baylor +33/~1 · Cal Poly +12/~0 · Cincinnati +41/~2 · Clemson +44/~4 · Colorado +13/~0 ·
+Colorado State +5/~0 · Delaware +53/~0 · Florida +0/~62 · Florida State +26/~1 · Georgia +0/~66 ·
+Georgia Tech +12/~0 · Houston +8/~0 · Illinois +9/~0 · Indiana +28/~1 · Iowa +25/~2 ·
+Iowa State +7/~0 · James Madison +46/~0 · Kansas +36/~1 · Kansas State +10/~0 · Kentucky +0/~57 ·
+Louisville +17/~0 · LSU +0/~43 · Maryland +47/~0 · Miami +12/~0 · Miami (OH) +15/~0 ·
+Michigan State +10/~0 · Minnesota +10/~0 · Mississippi State +0/~41 · Mizzou +0/~62 ·
+NC State +31/~2 · Nebraska +24/~0 · North Carolina +30/~0 · Northwestern +24/~0 · Ohio State +41/~2 ·
+Oklahoma +0/~47 · Oklahoma State +27/~3 · Ole Miss +0/~37 · Oregon +14/~2 · Oregon State +43/~3 ·
+Penn State +16/~1 · Pittsburgh +23/~0 · Purdue +20/~0 · Rutgers +17/~0 · San Diego State +25/~0 ·
+SMU +24/~1 · South Carolina +0/~57 · Syracuse +42/~1 · TCU +9/~0 · Tennessee +0/~50 · Texas +0/~61 ·
+Texas A&M +0/~55 · Texas Tech +22/~1 · UCF +36/~2 · USC +18/~1 · Utah +10/~0 · Vanderbilt +0/~38 ·
+Virginia +39/~2 · Virginia Tech +18/~2 · Washington +25/~1 · West Virginia +26/~3 · Wisconsin +17/~1
+
+Incomplete rosters (14, flagged `roster_status=incomplete`, surfaced in /outreach/chapters):
+Colorado State 5 · Iowa State 7 · Houston 8 · Illinois 9 · TCU 9 · Kansas State 10 ·
+Michigan State 10 · Minnesota 10 · Utah 10 · Miami 12 · Georgia Tech 12 · Cal Poly 12 ·
+Colorado 13 · Arizona 13
+
+## How the import behaves
+
+Upsert key is (campus, `greekChapterSlug(organization)`) — the same normalizer the URLs use, so
+suffixed/bare org-name duplicates resolve to one chapter, and the update targets the SLUGGED row
+(the live URL). Existing rows: flags overwritten, council normalized, slug/letters/designation
+fill-if-null only; `claim_status`, members and existing slugs never touched; nothing deleted.
+New rows: slug from the org slug (locals use the same clean generator), status `active`,
+`claim_status` `unclaimed`. Local orgs get minimal `greek_orgs` rows ({name, nickname}) — campus
+councils are never written to `greek_orgs.council` (it holds national bodies).
+
+## Code (deploy-safe pre-migration: every new-column select has a 42703 fallback)
+
+* `getGoChapter` returns `nickname`; share copy (`chapterShortName`) prefers it; the flyer's
+  "Shared by" line uses it. `chapter_designation` remains store-only — the sweep asserts it
+  never appears in page HTML.
+* `listGoSchools` widened from `is_sec` to every live campus with a slugged chapter, with the
+  1,000-row cap paged (a single `.limit()` read would drop campuses after the import).
+* `listGoChapters` returns `nickname` + `letters`; the /chapters picker matches them as search
+  aliases ("ADPi", "Alpha Chi", "ΑΔΠ") while displaying the org name. No council is filtered.
+* /outreach/chapters gains the incomplete-roster worklist (admin-gated, count + as-of per campus).
+* `migration/supabase-migrations/import_chapters_66.ts` (dry-run default, `--apply` gated) and
+  `sweep_go_pages.ts` (fetches every slugged /go/ page; fails on non-200, wrong-campus render,
+  missing course code, generic-landing fallback, or designation leak).
+
+## Page sweep
+
+EXECUTED 2026-08-20 after Lee applied 20260820_1209 and confirmed the counts. Write matched the
+dry run exactly: 44 orgs created, 1,180 chapters created, 880 updated, 0 failed. Post-write
+verify: 2,284 chapter rows total; exactly 2,060 carry as_of; all 2,060 imported chapters have
+live /go/ pages across all 66 campuses; 140 rows / 14 campuses flagged roster_status=incomplete
+(matches the spec list) and surface in /outreach/chapters.
+
+SWEEP (post-import): all 2,270 slugged pages fetched — 0 404s, 0 wrong-campus renders, 0 missing
+course codes, 0 designation leaks. (Baseline pre-import: 1,090/1,090 after fixing a real find —
+getGoChapter shipped chapter_designation in every page's hydration payload; removed from the
+client payload entirely.)
+
+SHARE SAMPLE (spec §5): 198 chapters — 3 per campus, every NPHC and MGC chapter included where
+present — all pass: canonical links, QR targets (?s=flyer), flyers render "Shared by
+<nickname>" (verified live: Delaware ADPi), designation nowhere. Portal search verified in-browser:
+"ADPi"→Alpha Delta Pi and "Pike"→Pi Kappa Alpha at Delaware (53 chapters listed), "Phi Psi"→Phi
+Kappa Psi at Ole Miss, selection routes to the correct /go/ page. Remaining human checks: QR
+scan on a physical phone; screenshots (Browser pane was hidden throughout the session).
+
+---
+
 # Campus rep — interest pages (marketing + capture only)
 
 Branch `campus-rep-interest`.

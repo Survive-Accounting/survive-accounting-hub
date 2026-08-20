@@ -100,7 +100,14 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
           />
 
           <SearchPicker
-            items={chapters.map((c) => ({ value: c.slug, label: c.name }))}
+            items={chapters.map((c) => ({
+              value: c.slug,
+              label: c.name,
+              // Search aliases, never displayed: a student types "ADPi", "Alpha Chi" or the
+              // Greek letters ("ΑΔΠ") and still lands on the one canonical row. The full org
+              // name stays the label so every chapter reads the same shape in the list.
+              aliases: [c.nickname, c.letters].filter(Boolean) as string[],
+            }))}
             value={chapter || null}
             placeholder={q.isLoading ? "Loading chapters…" : chapters.length ? "Your chapter…" : "No chapters listed yet"}
             searchPlaceholder={`Search ${chapters.length} chapters…`}

@@ -6,6 +6,13 @@ import { describe, expect, test } from "bun:test";
 import { chapterShortName, chapterUrl, groupMeMessage } from "./ChapterShare";
 
 describe("chapterShortName", () => {
+  test("roster nickname wins outright — it is what students actually call the chapter", () => {
+    expect(chapterShortName("Alpha Delta Pi", "ΑΔΠ", "ADPi")).toBe("ADPi");
+    expect(chapterShortName("Pi Kappa Alpha", null, "Pike")).toBe("Pike");
+    expect(chapterShortName("Alpha Chi Omega", "AXO", "Alpha Chi")).toBe("Alpha Chi");
+    // empty/whitespace nickname falls through to the letters rule
+    expect(chapterShortName("Alpha Tau Omega", "ATO", "  ")).toBe("ATO");
+  });
   test("roster letters win when clean ASCII", () => {
     expect(chapterShortName("Alpha Tau Omega", "ATO")).toBe("ATO");
     expect(chapterShortName("Alpha Tau Omega", "ato")).toBe("ATO");
