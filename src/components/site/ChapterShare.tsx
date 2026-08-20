@@ -34,14 +34,19 @@ const GREEK_INITIAL: Record<string, string> = {
 
 /** The chapter's natural short name for a text message.
  *
- *  Roster `letters` wins when it is short plain ASCII — including the multi-word forms the
- *  roster really stores ("Phi Psi", "Phi Tau"), which are used verbatim; a single lowercase
+ *  The roster `nickname` — what students actually call the chapter ("ADPi", "Pike"), collected
+ *  per-chapter by the 66-campus import — wins outright when present.
+ *
+ *  Otherwise roster `letters` wins when it is short plain ASCII — including the multi-word forms
+ *  the roster really stores ("Phi Psi", "Phi Tau"), which are used verbatim; a single lowercase
  *  token ("ato") is uppercased because that is how initialisms are written. Without usable
  *  letters, a 3+-word name made only of safely-initialed Greek words initials itself (Alpha Tau
  *  Omega → ATO, Kappa Kappa Gamma → KKG); anything else — two-word names ("Sigma Nu"),
  *  Phi/Psi names, FarmHouse, Acacia — reads better in full than under an invented abbreviation,
  *  so it stays the display name. */
-export function chapterShortName(chapterName: string, letters?: string | null): string {
+export function chapterShortName(chapterName: string, letters?: string | null, nickname?: string | null): string {
+  const nick = (nickname ?? "").trim();
+  if (nick) return nick;
   const l = (letters ?? "").trim();
   if (/^[A-Za-z]{2,8}$/.test(l)) return l === l.toLowerCase() || l === l.toUpperCase() ? l.toUpperCase() : l;
   if (/^[A-Za-z]{2,10}(?: [A-Za-z]{2,10}){1,2}$/.test(l)) return l;
@@ -60,11 +65,13 @@ export function groupMeMessage(opts: { claimed: boolean; shortName: string; cour
     : `For anyone taking ${courseLabel} — Survive Accounting has free cram videos + practice exams to help you ace your exams. Go check them out!\nStart studying here:\n${url}`;
 }
 
-export function ChapterShare({ schoolSlug, chapterSlug, chapterName, letters, claimed, courseLabel }: {
+export function ChapterShare({ schoolSlug, chapterSlug, chapterName, letters, nickname, claimed, courseLabel }: {
   schoolSlug: string;
   chapterSlug: string;
   chapterName: string;
   letters?: string | null;
+  /** Roster nickname ("ADPi") — the preferred short name in all share copy. */
+  nickname?: string | null;
   /** Approved chapters get the partnership GroupMe copy; pending stays on the unclaimed copy. */
   claimed: boolean;
   /** The course code when verified ("ACG 2021"), else a plain-English fallback. */
@@ -80,7 +87,7 @@ export function ChapterShare({ schoolSlug, chapterSlug, chapterName, letters, cl
   const copy = async (kind: "link" | "text") => {
     const text = kind === "link"
       ? url
-      : groupMeMessage({ claimed, shortName: chapterShortName(chapterName, letters), courseLabel, url });
+      : groupMeMessage({ claimed, shortName: chapterShortName(chapterName, letters, nickname), courseLabel, url });
     try {
       await navigator.clipboard.writeText(text);
       setCopied(kind);

@@ -122,6 +122,7 @@ function GoChapterPage() {
             schoolSlug={ch.schoolSlug}
             chapterSlug={ch.chapterSlug}
             letters={ch.letters}
+            nickname={ch.nickname}
             claimStatus={ch.claimStatus}
           />
         ) : undefined}

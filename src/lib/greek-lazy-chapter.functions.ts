@@ -156,6 +156,41 @@ export const listPendingChapters = createServerFn({ method: "POST" })
     });
   });
 
+export type IncompleteRosterCampus = { schoolName: string; schoolSlug: string; chapters: number; asOf: string | null };
+
+/** Campuses whose imported Greek roster is KNOWN to be partial (roster_status = 'incomplete',
+ *  stamped by the 66-campus import). This is the re-collection worklist: the pages work, but the
+ *  chapter counts are implausibly low for these Greek systems.
+ *
+ *  ADMIN-GATED like the queue above; null = not an admin. Degrades to [] before 20260820_1209
+ *  is applied (the column doesn't exist yet, which also means nothing has been flagged). */
+export const listIncompleteRosterCampuses = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ accessToken: z.string().min(10) }).parse(d))
+  .handler(async ({ data }): Promise<IncompleteRosterCampus[] | null> => {
+    const db = await admin();
+    if (!(await isAdmin(db, data.accessToken))) return null;
+    const { data: rows, error } = await db.from("campus_greek_chapters")
+      .select("campus_id,as_of").eq("roster_status", "incomplete").limit(1000);
+    if (error) return []; // pre-migration: no column, nothing flagged
+    const list = (rows ?? []) as Array<{ campus_id: string; as_of: string | null }>;
+    if (!list.length) return [];
+    const byCampus = new Map<string, { chapters: number; asOf: string | null }>();
+    for (const r of list) {
+      const v = byCampus.get(r.campus_id) ?? { chapters: 0, asOf: null };
+      v.chapters++;
+      if (r.as_of && (!v.asOf || r.as_of > v.asOf)) v.asOf = r.as_of;
+      byCampus.set(r.campus_id, v);
+    }
+    const { data: campuses } = await db.from("campuses").select("id,name,short_name,slug").in("id", [...byCampus.keys()]);
+    const cById = new Map(((campuses ?? []) as any[]).map((c) => [c.id, c]));
+    return [...byCampus.entries()]
+      .map(([id, v]) => {
+        const c = cById.get(id);
+        return { schoolName: c?.short_name || c?.name || "—", schoolSlug: c?.slug ?? "", chapters: v.chapters, asOf: v.asOf };
+      })
+      .sort((a, b) => a.chapters - b.chapters || a.schoolName.localeCompare(b.schoolName));
+  });
+
 /** Approve or remove one member-created chapter.
  *
  *  APPROVE clears needs_verification and marks it active. REMOVE archives rather than deletes: the

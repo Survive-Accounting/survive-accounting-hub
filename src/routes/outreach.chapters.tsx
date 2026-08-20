@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { supabase } from "@/integrations/supabase/client";
-import { listPendingChapters, setPendingChapterStatus, type PendingChapter } from "@/lib/greek-lazy-chapter.functions";
+import { listIncompleteRosterCampuses, listPendingChapters, setPendingChapterStatus, type IncompleteRosterCampus, type PendingChapter } from "@/lib/greek-lazy-chapter.functions";
 
 export const Route = createFileRoute("/outreach/chapters")({
   head: () => ({ meta: [{ title: "Member-created chapters — outreach" }, { name: "robots", content: "noindex, nofollow" }] }),
@@ -23,6 +23,7 @@ export const Route = createFileRoute("/outreach/chapters")({
 function PendingChaptersAdmin() {
   useNavyDocument();
   const [rows, setRows] = useState<PendingChapter[] | null>(null);
+  const [incomplete, setIncomplete] = useState<IncompleteRosterCampus[]>([]);
   const [denied, setDenied] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -34,6 +35,9 @@ function PendingChaptersAdmin() {
     // null means "not an admin" — different from an empty queue, and shown differently.
     if (r === null) { setDenied(true); return; }
     setRows(r);
+    // The re-collection worklist rides on the same page load; a failure here must never take
+    // down the queue, so it degrades to an empty list silently.
+    try { setIncomplete((await listIncompleteRosterCampuses({ data: { accessToken: token } })) ?? []); } catch { /* section hides */ }
   };
   useEffect(() => { void load(); }, []);
 
@@ -111,6 +115,33 @@ function PendingChaptersAdmin() {
           <p className="mt-6 text-[13px]" style={{ color: "var(--text-muted)" }}>
             No member-created chapters yet.
           </p>
+        )}
+
+        {/* INCOMPLETE ROSTERS — the re-collection worklist from the 66-campus import. These
+            campuses' pages all work; their chapter counts are just known to be partial. */}
+        {incomplete.length > 0 && (
+          <div className="mt-10">
+            <h2 className="text-[17px] font-black" style={{ fontFamily: BRAND_DISPLAY }}>Incomplete rosters</h2>
+            <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-muted)" }}>
+              {incomplete.length} campuses whose imported Greek roster is known to be partial — counts
+              are implausibly low for these systems. Pages work; re-collect when possible.
+            </p>
+            <div className="mt-3 flex flex-col gap-1.5">
+              {incomplete.map((c) => (
+                <div key={c.schoolSlug || c.schoolName} className="flex items-center gap-3 rounded-lg px-3 py-2" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
+                  <span className="min-w-0 flex-1 text-[13.5px] font-bold">{c.schoolName}</span>
+                  <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>
+                    {c.chapters} chapter{c.chapters === 1 ? "" : "s"}{c.asOf ? ` · as of ${c.asOf}` : ""}
+                  </span>
+                  {c.schoolSlug && (
+                    <a href={`/${c.schoolSlug}`} target="_blank" rel="noreferrer" className="text-[12px] font-bold" style={{ color: "var(--accent)" }}>
+                      campus ↗
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </div>
