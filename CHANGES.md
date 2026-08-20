@@ -57,12 +57,23 @@ councils are never written to `greek_orgs.council` (it holds national bodies).
 
 ## Page sweep
 
-BASELINE (branch code, pre-import): swept all 1,090 existing pages — 0 failures. The first run
-caught a real leak: getGoChapter returned chapter_designation, which TanStack serialized into
-every page's hydration payload (269 pages) — fixed by removing it from the payload entirely.
-Six false positives (designations that are substrings of the org/school name, e.g. "Gamma Phi"
-inside "Gamma Phi Beta") refined out of the check. POST-IMPORT run (~3,150 pages) pending the
-migration + confirmed write.
+EXECUTED 2026-08-20 after Lee applied 20260820_1209 and confirmed the counts. Write matched the
+dry run exactly: 44 orgs created, 1,180 chapters created, 880 updated, 0 failed. Post-write
+verify: 2,284 chapter rows total; exactly 2,060 carry as_of; all 2,060 imported chapters have
+live /go/ pages across all 66 campuses; 140 rows / 14 campuses flagged roster_status=incomplete
+(matches the spec list) and surface in /outreach/chapters.
+
+SWEEP (post-import): all 2,270 slugged pages fetched — 0 404s, 0 wrong-campus renders, 0 missing
+course codes, 0 designation leaks. (Baseline pre-import: 1,090/1,090 after fixing a real find —
+getGoChapter shipped chapter_designation in every page's hydration payload; removed from the
+client payload entirely.)
+
+SHARE SAMPLE (spec §5): 198 chapters — 3 per campus, every NPHC and MGC chapter included where
+present — all pass: canonical links, QR targets (?s=flyer), flyers render "Shared by
+<nickname>" (verified live: Delaware ADPi), designation nowhere. Portal search verified in-browser:
+"ADPi"→Alpha Delta Pi and "Pike"→Pi Kappa Alpha at Delaware (53 chapters listed), "Phi Psi"→Phi
+Kappa Psi at Ole Miss, selection routes to the correct /go/ page. Remaining human checks: QR
+scan on a physical phone; screenshots (Browser pane was hidden throughout the session).
 
 ---
 
