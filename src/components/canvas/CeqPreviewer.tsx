@@ -50,8 +50,9 @@ import { clearExhibitHighlights } from "./exhibit-highlights";
 import { NOTE_EYEBROW } from "./frame-copy";
 import { BOSS_REVEAL_CSS, REVEAL_MS, SCRIM_ALPHA, bossLabel, labelSize, revealZone } from "./boss-reveal";
 import { unlockSfx } from "./sfx";
-import { captureSize, geomOf } from "./orientation";
+import { captureSize, geomOf, isVertical, platformSafe, PLATFORM_LABEL, VERTICAL_PLATFORMS, type VerticalPlatform } from "./orientation";
 import { orientation, subscribeOrientation } from "./orientation-store";
+import { platform as platformStore, platformGuidesOn as platformGuidesOnStore, setPlatform as setPlatformStore, setPlatformGuides, subscribePlatform, subscribePlatformGuides } from "./platform-store";
 import { subscribeSlate, type SlateState } from "./film-slate";
 import { triageLatest } from "./takes-store";
 import { FILM_LOCK_CSS, FilmContext, filmDragAllowed, isTypingTarget } from "./film-lock";
@@ -329,9 +330,33 @@ function GuidesOverlay({ w, h }: { w: number; h: number }) {
  *  color; watermark/overlays stay overlay-only. */
 const FILM_GRAIN_URI = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='128' height='128'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='128' height='128' filter='url(%23n)'/%3E%3C/svg%3E\")";
 
+/** SHORTS SAFE-ZONES (08-19) — draws a platform's own UI (top chrome · bottom
+ *  caption · right action-rail) as shaded no-go bands, plus the safe rect, IN
+ *  FRAME COORDINATES so ReactFlow scales it with the frame. Authoring only:
+ *  never on the film frame (guides are off there), so it can't reach a take.
+ *  Keep the CEQ inside the outlined box and it clears that platform. */
+function PlatformGuides({ w, h, platform }: { w: number; h: number; platform: VerticalPlatform }) {
+  const o = w < h ? "9:16" as const : "16:9" as const;
+  if (!isVertical(o)) return null;
+  const s = platformSafe(o, platform);
+  const shade = "rgba(255,90,110,0.16)";
+  const line = "rgba(255,120,140,0.75)";
+  const lbl = (t: string): React.CSSProperties => ({ position: "absolute", fontSize: Math.round(h * 0.016), fontWeight: 900, letterSpacing: "0.14em", textTransform: "uppercase", color: "rgba(255,150,168,0.85)" });
+  return (
+    <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+      {s.y > 0 && <div style={{ position: "absolute", left: 0, top: 0, width: w, height: s.y, background: shade }} />}
+      {h - (s.y + s.h) > 0 && <div style={{ position: "absolute", left: 0, top: s.y + s.h, width: w, height: h - (s.y + s.h), background: shade }}><span style={{ ...lbl(""), left: 12, top: 10 }}>Caption</span></div>}
+      {w - (s.x + s.w) > 0 && <div style={{ position: "absolute", left: s.x + s.w, top: 0, width: w - (s.x + s.w), height: h, background: shade }}><span style={{ ...lbl(""), transform: "rotate(90deg)", transformOrigin: "left top", left: Math.round((w - (s.x + s.w)) / 2), top: 12 }}>Rail</span></div>}
+      <div style={{ position: "absolute", left: s.x, top: s.y, width: s.w, height: s.h, border: `${Math.max(2, Math.round(h * 0.002))}px dashed ${line}` }}>
+        <span style={{ ...lbl(""), left: 12, top: 10, color: "rgba(255,150,168,0.95)" }}>{PLATFORM_LABEL[platform]} safe</span>
+      </div>
+    </div>
+  );
+}
+
 function FrameBgNode({ id, data }: NodeProps) {
   const film = useContext(FilmContext);
-  const d = data as unknown as { w: number; h: number; world?: string; worldIntensity?: number; worldMotion?: number; qNum?: number; guides?: boolean };
+  const d = data as unknown as { w: number; h: number; world?: string; worldIntensity?: number; worldMotion?: number; qNum?: number; guides?: boolean; platform?: VerticalPlatform; platformGuides?: boolean };
   const world = d.world ? <WorldBackground worldId={d.world} intensity={d.worldIntensity} motion={d.worldMotion} /> : null;
   // FILM: clean stage + a soft cinematic EDGE GLOW (like the canvas film frame) —
   // a faint outer bloom into the letterbox + an inner vignette over the world. The
@@ -354,6 +379,7 @@ function FrameBgNode({ id, data }: NodeProps) {
           is belt-and-braces if this ever mounts under a .film-mode root. */}
       {!!d.qNum && <span data-frame-chrome style={{ position: "absolute", top: 26, left: 12, fontSize: 92, fontWeight: 900, lineHeight: 1, letterSpacing: "-0.03em", color: "rgba(244,239,230,0.10)", pointerEvents: "none", userSelect: "none" }}>Q{d.qNum}</span>}
       {d.guides && <GuidesOverlay w={d.w} h={d.h} />}
+      {d.platformGuides && d.platform && <PlatformGuides w={d.w} h={d.h} platform={d.platform} />}
     </div>
   );
 }
@@ -1327,6 +1353,12 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   // laying out the CEQ card and its memo slots. Toggle persists across sessions.
   const [guidesOn, setGuidesOn] = useState<boolean>(() => { try { return localStorage.getItem("sa-ceq-guides") === "1"; } catch { return false; } });
   const toggleGuides = () => setGuidesOn((v) => { const nv = !v; try { localStorage.setItem("sa-ceq-guides", nv ? "1" : "0"); } catch { /* ignore */ } return nv; });
+  // SHORTS SAFE-ZONES (08-19): which platform + whether the overlay is on, from
+  // the shared store so the pipeline strip and the View-menu picker stay in sync.
+  const [vplatform, setVplatform] = useState<VerticalPlatform>(platformStore());
+  const [platformGuides, setPlatformGuidesState] = useState<boolean>(platformGuidesOnStore());
+  useEffect(() => subscribePlatform(setVplatform), []);
+  useEffect(() => subscribePlatformGuides(setPlatformGuidesState), []);
   const [dragGuides, setDragGuides] = useState<{ v: Guide[]; h: Guide[] }>({ v: [], h: [] });
   useEffect(() => { setViewChoice(null); }, [ceqId]);
   // ANSWERS REVEALED (Lee, set-level): a recap-style set deals every CEQ with
@@ -1407,7 +1439,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     // frame refreshes" flash. With a matching id the node is identical before and
     // after the seed, so it never remounts. Outside the stack (authoring, no
     // popout) there are no stand-ins, so the shared id stays.
-    const frameNode = { id: filmStack ? `fbg:${ceqId}` : "__frame__", type: "frameBg", position: { x: 0, y: yOff }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum, guides: recording ? false : guidesOn }, draggable: false, selectable: false, zIndex: -10 };
+    const frameNode = { id: filmStack ? `fbg:${ceqId}` : "__frame__", type: "frameBg", position: { x: 0, y: yOff }, data: { w: frameW, h: frameH, world, worldIntensity, worldMotion, qNum, guides: recording ? false : guidesOn, platform: vplatform, platformGuides: !recording && platformGuides && frameW < frameH }, draggable: false, selectable: false, zIndex: -10 };
     // STUDENT OVERLAY (Lee) — filmed on the card, one toggle (showProgress):
     //   "X of Y" over the deck order + a fill bar, and the TOPIC name kicker
     //   (name only, no chapter number — Lee's call). Never on the Q0 stage.
@@ -1535,7 +1567,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     });
     return [...active, ...others] as typeof active;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, counterIds, stageSig, activeYOff, layoutMode, walk, viewChoice, guidesOn, viewStudent, topicName, recording, dealAnim, filmV2, filmWin, filmStack, fadeMs]);
+  }, [ceqId, mainSig, frameW, frameH, baseline, world, worldIntensity, worldMotion, overviewOn, deckCeqIds, counterIds, stageSig, activeYOff, layoutMode, walk, viewChoice, guidesOn, viewStudent, topicName, recording, dealAnim, filmV2, filmWin, filmStack, fadeMs, vplatform, platformGuides]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   // A drag/resize writeback (commitGeom → onSaveInstance) bumps mainSig, which would
@@ -2350,6 +2382,20 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                         <button className="flex items-center gap-2 rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: guidesOn ? "#7EF3C0" : NEON.muted }} onClick={toggleGuides} title="Rule-of-thirds + safe zones, with drag-to-snap (Alt = free placement)">
                           <span className="w-3 text-center">{guidesOn ? "✓" : ""}</span> Guides
                         </button>
+                        {/* SHORTS SAFE-ZONES — 9:16 only. Toggle the overlay, then pick the
+                            platform whose caption/rail you're composing around. */}
+                        {frameW < frameH && (<>
+                          <button className="flex items-center gap-2 rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: platformGuides ? "#FF8B9E" : NEON.muted }} onClick={() => setPlatformGuides(!platformGuides)} title="Shade each platform's caption + action-rail zones so the CEQ never lands under them. Authoring only — never on the filmed frame.">
+                            <span className="w-3 text-center">{platformGuides ? "✓" : ""}</span> Shorts safe zone
+                          </button>
+                          {platformGuides && (
+                            <div className="flex items-center gap-1 px-1.5 pb-1">
+                              {VERTICAL_PLATFORMS.map((pf) => (
+                                <button key={pf} className="flex-1 rounded px-1 py-0.5 text-[9px] font-black uppercase" style={{ color: vplatform === pf ? "#0B1322" : NEON.muted, background: vplatform === pf ? "#FF8B9E" : "transparent", border: `1px solid ${NEON.borderSoft}` }} onClick={() => setPlatformStore(pf)} title={`Show ${PLATFORM_LABEL[pf]}'s safe area`}>{PLATFORM_LABEL[pf]}</button>
+                              ))}
+                            </div>
+                          )}
+                        </>)}
                         {onEditLayout && !layoutMode && (
                           <button className="flex items-center gap-2 rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: NEON.yellow }} onClick={onEditLayout} title="Open the set's BASE FRAME — the master layout every frame deals from. You'll get the apply choice when you're done.">
                             <span className="w-3 text-center">▦</span> Edit set layout…

@@ -35,7 +35,7 @@ describe("the active frame's background id is stable per frame (no remount on Sp
     expect(previewer).toContain('fitRef.current?.fitView({ nodes: [{ id: filmStack ? `fbg:${ceqId}` : "__frame__" }]');
   });
   test("filmStack is in the seed build's deps, so the id updates when the mode toggles", () => {
-    expect(previewer).toContain("dealAnim, filmV2, filmWin, filmStack, fadeMs]);");
+    expect(previewer).toContain("filmStack, fadeMs, vplatform, platformGuides]);");
   });
 });
 
