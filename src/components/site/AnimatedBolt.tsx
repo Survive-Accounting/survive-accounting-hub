@@ -81,24 +81,35 @@ export function AnimatedBoltHero({ stops, onActivate, className, ariaLabel = "Cr
         <svg viewBox={BOLT_VIEWBOX} width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
           <defs>
             <clipPath id={clipId}><path d={BOLT_OUTER} /></clipPath>
-            {/* Doubled-height sheet: stops repeat so y∈[0,h] equals y∈[h,2h]; translating up by
-                exactly one height is invisible — the seam cannot show. */}
+            {/* Doubled-height sheet: the stop pattern has period h (half the sheet), so y∈[0,h]
+                equals y∈[h,2h] and translating up by exactly one height is invisible — the seam
+                cannot show. SOLID BANDS, not one long blend: each colour holds a wide plateau
+                with a short blend zone between, so the school colours read as THEIR colours
+                rather than a muddy mix of the two. */}
             <linearGradient id={gradId} gradientUnits="userSpaceOnUse" x1="0" y1={VB.y} x2="0" y2={VB.y + VB.h * 2}>
               <stop offset="0" className="ab-stop-a" />
+              <stop offset="0.14" className="ab-stop-a" />
               <stop offset="0.25" className="ab-stop-b" />
+              <stop offset="0.39" className="ab-stop-b" />
               <stop offset="0.5" className="ab-stop-a" />
+              <stop offset="0.64" className="ab-stop-a" />
               <stop offset="0.75" className="ab-stop-b" />
+              <stop offset="0.89" className="ab-stop-b" />
               <stop offset="1" className="ab-stop-a" />
             </linearGradient>
           </defs>
+          {/* THE KEYLINE GOES UNDER THE FILL — same trick as the brand Bolt's paint-order:
+              stroke. A stroke straddles its path, so painting it first and letting the clipped
+              gradient cover the inner half leaves ~3.5 units of visible white instead of the
+              full 7 — the outline frames the colours instead of drowning them. */}
+          <path d={BOLT_OUTER} fill="none" stroke="#FFFFFF" strokeWidth="7" strokeLinejoin="round" strokeLinecap="round" />
           {/* the flowing fill, clipped to the exact brand silhouette */}
           <g clipPath={`url(#${clipId})`}>
             <rect className="ab-flow" x={VB.x} y={VB.y} width={VB.w} height={VB.h * 2} fill={`url(#${gradId})`} />
-            {/* the signature right-half split — static shade over the moving colour */}
-            <path d={BOLT_RIGHT} fill="#0A1020" opacity="0.34" />
+            {/* the signature right-half split — a LIGHT static shade over the moving colour;
+                heavier and it greys the school colours out of recognition */}
+            <path d={BOLT_RIGHT} fill="#0A1020" opacity="0.22" />
           </g>
-          {/* the identity anchor: white keyline OUTSIDE the mask, never animated */}
-          <path d={BOLT_OUTER} fill="none" stroke="#FFFFFF" strokeWidth="7" strokeLinejoin="round" strokeLinecap="round" />
         </svg>
       </span>
 
