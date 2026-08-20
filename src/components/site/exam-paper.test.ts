@@ -54,11 +54,17 @@ describe("paperStops", () => {
     expect(first).toMatchObject({ id: "ole-miss", c1: "c1-ole-miss", c2: "c2-ole-miss" });
   });
 
-  it("carries NO text — a stop cannot leak a course code or campus name back onto the card", () => {
-    // A regression here would not throw or look broken; it would quietly re-enable the thing Pass 8
-    // removed the moment someone renders `stop.name` "just for the alt text".
-    const [first] = paperStops([S("ole-miss", "Ole Miss", "ACCY 201", true)], bolt);
-    expect(Object.keys(first).sort()).toEqual(["c1", "c2", "id"]);
+  it("carries name + code for the PLATE — but never a code the school hasn't verified", () => {
+    // The rule moved again with the animated-bolt hero: text is back, but OUTSIDE the bolt, on
+    // the plate beneath it ("for ACCY 201 · OLE MISS"). The honesty rule survives in its
+    // original form: schoolsWithCodes leaves `code` undefined unless verified, and paperStops
+    // must pass that through as null rather than inventing a plausible one. The bolt shape
+    // itself still renders zero text — that invariant lives in AnimatedBolt, not here.
+    const [withCode] = paperStops([S("ole-miss", "Ole Miss", "ACCY 201", true)], bolt);
+    expect(withCode).toMatchObject({ id: "ole-miss", name: "Ole Miss", code: "ACCY 201" });
+    const [noCode] = paperStops([S("tennessee", "Tennessee", undefined, true)], bolt);
+    expect(noCode).toMatchObject({ id: "tennessee", name: "Tennessee", code: null });
+    expect(Object.keys(withCode).sort()).toEqual(["c1", "c2", "code", "id", "name"]);
   });
 
   it("returns nothing only when there are no schools at all", () => {

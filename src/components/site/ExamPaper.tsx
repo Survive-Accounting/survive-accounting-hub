@@ -19,8 +19,9 @@ import { useEffect, useState } from "react";
 import { Bolt, BRAND_BLUE, BRAND_RED } from "@/components/canvas/brand";
 import type { School } from "@/routes/landing";
 
-/** One stop in the colour cycle. No text: the graphic draws colours, not claims. */
-export type PaperStop = { id: string; c1: string; c2: string };
+/** One stop in the colour cycle. name/code exist for the animated bolt's PLATE (the small
+ *  "for ACCY 201 · OLE MISS" line under the mark) — the graphic itself still draws only colours. */
+export type PaperStop = { id: string; c1: string; c2: string; name?: string; code?: string | null };
 
 /** ~4s per school, per the brief. */
 const DWELL_MS = 4000;
@@ -135,5 +136,7 @@ export function paperStops(schools: School[], boltFor: (id: string) => { c1: str
   return schools
     .slice()
     .sort((a, b) => rank(a.id) - rank(b.id))
-    .map((s) => ({ id: s.id, ...boltFor(s.id) }));
+    // code rides along ONLY when verified (schoolsWithCodes leaves it undefined otherwise), so
+    // the plate can never print a plausible-looking wrong course code.
+    .map((s) => ({ id: s.id, name: s.name, code: s.code ?? null, ...boltFor(s.id) }));
 }

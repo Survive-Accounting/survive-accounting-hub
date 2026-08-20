@@ -7,10 +7,17 @@
 // alone. This block is the unique, indexable content: the school's name, their course code, and
 // copy that only makes sense on their campus.
 //
-// NO CODE ⇒ NO CODE. When a campus has no verified intro_1 the headline degrades to "your
-// accounting course" rather than showing a plausible-looking wrong one. A student who reads a
-// course code that is not theirs learns this is not actually for them.
-import { Bolt, BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
+// LAYOUT = THE HOMEPAGE HERO'S. Same two-column grid, same graphic footprint — but the animated
+// bolt is PINNED to this campus from the first frame (their colours, their course code on the
+// plate, no rotation). The old mini-bolt "OLE MISS" eyebrow is gone on every viewport: the bolt
+// wears the school's colours and the plate names the campus, so the eyebrow said the same thing
+// a third time.
+//
+// NO CODE ⇒ NO CODE. When a campus has no verified intro_1 the headline degrades to "Intro
+// accounting at X" rather than showing a plausible-looking wrong one, and the plate shows only
+// the campus name.
+import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
+import { AnimatedBoltHero } from "@/components/site/AnimatedBolt";
 import { useCampus } from "@/lib/campus-context";
 import { scrollToId } from "@/lib/ui-scroll";
 
@@ -21,57 +28,66 @@ export function CampusTop({ schoolName, courseCode, chapterCount, examAnchor }: 
   chapterCount: number;
   examAnchor: string;
 }) {
-  const { code } = useCampus();
+  const { school, code } = useCampus();
   // Campus context wins when present; the loader's value is the server-rendered fallback so the
   // crawler and the first paint both see a code.
   const shown = code ?? courseCode;
+  // COLOURS COME FROM THE PAGE ROOT, not a second lookup. LandingPage already publishes this
+  // campus's colourway as --sa-bolt-1/2 (via its readability-ordered boltFor), and the schools.ts
+  // table disagrees for at least Ole Miss (colours reversed in the DB). Two sources means the
+  // hero bolt and the rest of the page could wear different colours; inheriting the vars makes
+  // that impossible.
+  const colors = { c1: "var(--sa-bolt-1)", c2: "var(--sa-bolt-2)" };
 
   return (
-    <header className="mx-auto w-full max-w-[720px] px-5 pt-8 text-center sm:pt-10" style={{ fontFamily: BRAND_SANS }}>
-      <div className="flex items-center justify-center gap-2.5">
-        <span className="block shrink-0" style={{ width: 28 }} aria-hidden>
-          <Bolt c1="var(--sa-bolt-1)" c2="var(--sa-bolt-2)" />
-        </span>
-        <span className="text-[12px] font-black uppercase tracking-[0.13em]" style={{ color: "var(--text-muted)" }}>
-          {schoolName}
-        </span>
-      </div>
+    <section className="sa-hero3 grid items-center gap-10 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12 lg:py-14" style={{ fontFamily: BRAND_SANS }}>
+      <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
+        <h1 className="text-[28px] font-black leading-[1.1] sm:text-[38px] lg:text-[44px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.015em" }}>
+          {shown ? <><span style={{ color: "var(--accent)" }}>{shown}</span> at {schoolName}</> : <>Intro accounting at {schoolName}</>}
+          {/* The space belongs BEFORE the break. Without it the extracted text reads "Penn Stateis"
+              -- the line break is a visual boundary, not a word boundary, and a crawler sees the
+              two words joined. */}
+          {" "}is where GPAs quietly slip.
+        </h1>
 
-      <h1 className="mt-5 text-[26px] font-black leading-[1.12] sm:text-[34px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.015em" }}>
-        {shown ? <><span style={{ color: "var(--accent)" }}>{shown}</span> at {schoolName}</> : <>Intro accounting at {schoolName}</>}
-        {/* The space belongs BEFORE the break. Without it the extracted text reads "Penn Stateis"
-            -- the line break is a visual boundary, not a word boundary, and a crawler sees the
-            two words joined. */}
-        {" "}<br />is where GPAs quietly slip.
-      </h1>
+        <p className="mt-4 max-w-[24ch] text-[16px] leading-snug sm:max-w-[42ch] sm:text-[18px]" style={{ color: "var(--brand-cream)", opacity: 0.66 }}>
+          Cram videos + practice exams built for {shown ? <span className="font-bold" style={{ opacity: 1 }}>{shown}</span> : "your first accounting course"}. Pick up easy points. Score higher.
+        </p>
 
-      <p className="mx-auto mt-4 max-w-[52ch] text-[15px] leading-relaxed sm:text-[16.5px]" style={{ color: "var(--brand-cream)", opacity: 0.86 }}>
-        Cram videos built for {shown ? <span className="font-bold">{shown}</span> : "your accounting course"} — every
-        question type walked start to finish by a tutor who teaches nothing else. Exam 1 is free,
-        no account needed.
-      </p>
-
-      <div className="mt-7 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-        <button
-          type="button"
-          onClick={() => scrollToId(examAnchor)}
-          className="w-full rounded-xl px-7 text-[16px] font-black transition-transform hover:scale-[1.02] sm:w-auto"
-          style={{ minHeight: 54, background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.6)" }}
-        >
-          Cram Exam 1 free ⚡
-        </button>
-        {/* Shown only where there are chapters to talk to. On a campus with none this would be an
-            invitation to a page that lists nothing. */}
-        {chapterCount > 0 && (
-          <a
-            href="/chapters"
-            className="flex w-full items-center justify-center rounded-xl px-6 text-[15px] font-bold sm:w-auto"
-            style={{ minHeight: 54, color: "var(--brand-cream)", background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.18)" }}
+        <div className="mt-8 flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row lg:justify-start">
+          <button
+            type="button"
+            onClick={() => scrollToId(examAnchor)}
+            className="w-full rounded-xl px-7 text-[16px] font-black transition-transform hover:scale-[1.02] sm:w-auto"
+            style={{ minHeight: 54, background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.6)" }}
           >
-            For fraternities &amp; sororities →
-          </a>
-        )}
+            Cram Exam 1 free ⚡
+          </button>
+          {/* Shown only where there are chapters to talk to. On a campus with none this would be an
+              invitation to a page that lists nothing. */}
+          {chapterCount > 0 && (
+            <a
+              href="/chapters"
+              className="flex w-full items-center justify-center rounded-xl px-6 text-[15px] font-bold sm:w-auto"
+              style={{ minHeight: 54, color: "var(--brand-cream)", background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.18)" }}
+            >
+              For fraternities &amp; sororities →
+            </a>
+          )}
+        </div>
       </div>
-    </header>
+
+      {/* THE GRAPHIC — the animated bolt PINNED to this campus: one stop, no rotation, their
+          colours from frame one. Same footprint + mobile order as the homepage hero, so the two
+          pages read as one design. The plate under the bolt names the course and campus. */}
+      <div className="order-first flex flex-col items-center lg:order-none lg:items-end">
+        <AnimatedBoltHero
+          stops={[{ id: school?.id ?? schoolName, c1: colors.c1, c2: colors.c2, name: schoolName, code: shown }]}
+          onActivate={() => scrollToId(examAnchor)}
+          className="sa-hero3-paper"
+          ariaLabel="Cram Exam 1 free"
+        />
+      </div>
+    </section>
   );
 }

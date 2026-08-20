@@ -31,7 +31,8 @@ import { FitWordmark, SiteHeader, SITE_NAVY, useNavyDocument } from "@/component
 import { PickerSheet } from "@/components/site/PickerSheet";
 import { logCampusCodeDemand } from "@/lib/campus-demand.functions";
 import { ALL_SCHOOLS, searchSchools } from "@/lib/schools";
-import { ExamPaper, EXAM_PAPER_CSS, paperStops, type PaperStop } from "@/components/site/ExamPaper";
+import { paperStops, type PaperStop } from "@/components/site/ExamPaper";
+import { AnimatedBoltHero, ANIMATED_BOLT_CSS } from "@/components/site/AnimatedBolt";
 import { CampusProvider, useCampus } from "@/lib/campus-context";
 import { contactKind, LAUNCH_LINE, LAUNCH_WINDOW } from "@/lib/launch";
 import { Bolt, BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS, SEC_SCHOOLS } from "@/components/canvas/brand";
@@ -379,7 +380,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAcces
 
   return (
     <div style={{ ...frameThemeVars(theme), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "clip", ...(campusBolt ? { ["--sa-bolt-1"]: campusBolt.c1, ["--sa-bolt-2"]: campusBolt.c2 } as React.CSSProperties : {}) }}>
-      <style>{EXAM_PAPER_CSS}</style>
+      <style>{ANIMATED_BOLT_CSS}</style>
       <style>{`
         @keyframes sa-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
         .sa-marquee-track { animation: sa-marquee 42s linear infinite; }
@@ -460,7 +461,7 @@ function Hero({ onStart, stops }: { onStart: () => void; stops: PaperStop[] }) {
         </h1>
 
         <p className="mt-4 max-w-[22ch] text-[16px] leading-snug sm:max-w-[42ch] sm:text-[18px]" style={{ color: "var(--brand-cream)", opacity: 0.66 }}>
-          On-demand tutoring videos for your first accounting course. Built for last-minute strugglers and anyone chasing easy extra points.
+          Cram videos + practice exams built for your first accounting course. Pick up easy points. Score higher.
         </p>
 
         <button
@@ -484,13 +485,14 @@ function Hero({ onStart, stops }: { onStart: () => void; stops: PaperStop[] }) {
         </div>
       </div>
 
-      {/* THE GRAPHIC — bolt only. `order-first` on mobile puts it above the H1 as specified; the
-          width is capped so it cannot push the CTA under the fold on a 390x844 phone. See
-          .sa-hero3-paper in styles.css, where the measured mobile decision is recorded. */}
+      {/* THE GRAPHIC — the ANIMATED bolt: school colours flow upward through the brand mark,
+          with the campus plate beneath it. `order-first` on mobile puts bolt + plate above the
+          H1 as specified; the width is capped so it cannot push the CTA under the fold on a
+          390x844 phone. See .sa-hero3-paper in styles.css for the measured mobile decision.
+          When the campus is known (URL or a returning visitor's stored pick), `stops` is already
+          locked to one entry upstream, so the bolt pins to their school from the first frame. */}
       <div className="order-first flex flex-col items-center lg:order-none lg:items-end">
-        {stops.length > 0 && <ExamPaper stops={stops} onActivate={onStart} className="sa-hero3-paper" />}
-        {/* The bolt cycles SEC colourways, which can still read as "only these schools". One
-            line, doing the job the deleted campus-name text used to make necessary. */}
+        {stops.length > 0 && <AnimatedBoltHero stops={stops} onActivate={onStart} className="sa-hero3-paper" />}
       </div>
     </section>
   );
