@@ -57,7 +57,12 @@ councils are never written to `greek_orgs.council` (it holds national bodies).
 
 ## Page sweep
 
-PENDING — runs after Lee applies the migration and confirms the write. Results land here.
+BASELINE (branch code, pre-import): swept all 1,090 existing pages — 0 failures. The first run
+caught a real leak: getGoChapter returned chapter_designation, which TanStack serialized into
+every page's hydration payload (269 pages) — fixed by removing it from the payload entirely.
+Six false positives (designations that are substrings of the org/school name, e.g. "Gamma Phi"
+inside "Gamma Phi Beta") refined out of the check. POST-IMPORT run (~3,150 pages) pending the
+migration + confirmed write.
 
 ---
 

@@ -91,8 +91,13 @@ const main = async () => {
     }
     if (!inHtml(html, display)) fails.push({ url, why: `campus name "${display}" absent — wrong-campus render` });
     if (expectCode && !inHtml(html, expectCode)) fails.push({ url, why: `course code "${expectCode}" missing` });
-    if (ch.chapter_designation && ch.chapter_designation.trim().length > 2 && inHtml(html, ch.chapter_designation.trim())) {
-      fails.push({ url, why: `DESIGNATION LEAK: "${ch.chapter_designation}" appears in student-facing HTML` });
+    // Designation leak — skipped when the designation is a SUBSTRING of content that belongs on
+    // the page anyway (the org name or the school name): "Gamma Phi" inside "Gamma Phi Beta",
+    // "Auburn" on Auburn's own page. Those aren't leaks, they're the page's own words.
+    const desig = (ch.chapter_designation ?? "").trim();
+    const legit = `${orgName} ${display} ${campus.name}`.toLowerCase();
+    if (desig.length > 2 && !legit.includes(desig.toLowerCase()) && inHtml(html, desig)) {
+      fails.push({ url, why: `DESIGNATION LEAK: "${desig}" appears in student-facing HTML` });
     }
     ok++;
   };
