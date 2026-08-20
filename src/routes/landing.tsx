@@ -283,9 +283,15 @@ function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAcces
   // THE RESOLVER (map system) — the ONE path that answers "what are this student's exams/topics":
   // professor map → campus map → Starter Map, resolved server-side. No landing code queries
   // campus_exams / default_exam_units directly anymore.
+  //
+  // A WRITE-IN professor (a campus with no faculty listed yet) carries a non-uuid id ("") so it can
+  // never own a map — only a real, uuid faculty row does. The resolver validates professorId as a
+  // uuid, so sending "" would throw; strip any non-uuid id to null here and let it resolve at the
+  // campus/starter level, which is exactly right for a professor we don't have a map for.
+  const profMapId = professor && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(professor.id) ? professor.id : null;
   const mapQ = useQuery({
-    queryKey: ["landing-map", school?.campusId ?? null, professor?.id ?? null],
-    queryFn: () => resolveStudentMap({ data: { campusId: school?.campusId ?? null, professorId: professor?.id ?? null } }),
+    queryKey: ["landing-map", school?.campusId ?? null, profMapId],
+    queryFn: () => resolveStudentMap({ data: { campusId: school?.campusId ?? null, professorId: profMapId } }),
     networkMode: "always", staleTime: 120_000,
   });
   const resolvedMap = mapQ.data ?? null;
@@ -1152,12 +1158,24 @@ function MatchPanel({ gateActive, school, professor, notListed, profDone, covera
  *  Pass 4 removed "Skip this" on instruction: "My professor isn't listed" is the only alternate
  *  path, and it still reaches the same next step, so nobody is trapped. "Change school" is
  *  deliberately demoted to small muted text under the list — it is a correction, not a choice. */
-/** PROFESSOR PICKER — the shared SearchPicker.
+/** A WRITE-IN professor — a campus with no faculty rows yet, or a student whose professor isn't in
+ *  the list. It personalizes labels and capture (Notify/exam-ask read professor.name) exactly like a
+ *  picked one, but its id is deliberately NON-uuid ("") so it can never be mistaken for a real
+ *  faculty row and never owns a map — see profMapId in the route. */
+const writeInProfessor = (name: string): ProfessorLite => ({ id: "", name, first: "", last: name });
+
+/** PROFESSOR PICKER — the shared SearchPicker, with a free-text WRITE-IN fallback.
  *
  *  The hand-rolled combobox this replaces had two defects that only show up in place: its popup was
  *  an absolute child inside the player card (`overflow-hidden rounded-2xl`), so the list was
  *  CLIPPED at the card's edge; and clicking elsewhere left it open, which reads as broken. Both are
- *  gone by using the shared component, which portals its popup and shares the dismissal hook. */
+ *  gone by using the shared component, which portals its popup and shares the dismissal hook.
+ *
+ *  WRITE-IN: many campuses have no faculty listed yet, so the picker would open onto "0 professors /
+ *  No matches" — a dead end. When the roster is empty we show a free-text field instead of the empty
+ *  picker; when the roster has names but not theirs, "My professor isn't listed" reveals the same
+ *  field. Either way the typed name is captured as a write-in professor. A muted skip stays available
+ *  so nobody is trapped by a field they can't (or won't) fill. */
 function ProfessorStage({ school, onPick, onNotListed }: {
   school: School | null;
   onPick: (p: ProfessorLite) => void;
@@ -1175,21 +1193,71 @@ function ProfessorStage({ school, onPick, onNotListed }: {
     [roster],
   );
 
+  // The roster is empty once loading finishes with no names — that campus has no faculty yet, so
+  // the list would be a dead end and we go straight to write-in.
+  const rosterEmpty = !profQ.isLoading && sorted.length === 0;
+  const [manual, setManual] = useState(false);
+  const [name, setName] = useState("");
+  // A new campus starts fresh: never carry one school's typed name or write-in mode to the next.
+  useEffect(() => { setManual(false); setName(""); }, [campusId]);
+  const writeIn = rosterEmpty || manual;
+  const submit = () => { const n = name.trim(); if (n) onPick(writeInProfessor(n)); };
+
   return (
     <div className="mx-auto flex w-full max-w-sm flex-col items-stretch gap-2.5">
       <p className="text-center text-[16px] font-black" style={{ color: "var(--brand-cream)" }}>Pick your professor</p>
-      <SearchPicker
-        items={sorted.map((x) => ({ value: x.id, label: profDisplay(x) }))}
-        value={null}
-        placeholder={profQ.isLoading ? "Loading professors…" : "Search your professor…"}
-        searchPlaceholder={`Search ${sorted.length} professors…`}
-        disabled={profQ.isLoading}
-        onPick={(id) => { const x = sorted.find((r) => r.id === id); if (x) onPick(x); }}
-        ariaLabel={`Search ${school?.name ?? "your school"} professors`}
-      />
-      <button type="button" onClick={onNotListed} className="text-[14px] font-bold" style={{ minHeight: 44, color: "var(--accent)" }}>
-        My professor isn&apos;t listed →
-      </button>
+      {writeIn ? (
+        <>
+          {rosterEmpty && (
+            <p className="text-center text-[13px]" style={{ color: "var(--text-muted)" }}>
+              No professors listed for {school?.name ?? "your school"} yet — type yours in.
+            </p>
+          )}
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } }}
+            placeholder="Type your professor's name"
+            autoCorrect="off" autoCapitalize="words" spellCheck={false}
+            aria-label="Type your professor's name"
+            className="w-full rounded-xl px-3.5 outline-none focus-visible:ring-2"
+            // 16px keeps iOS from zooming the page on focus (matches SearchPicker's input).
+            style={{ fontSize: 16, minHeight: 52, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }}
+          />
+          <button
+            type="button"
+            onClick={submit}
+            disabled={!name.trim()}
+            className="w-full rounded-xl text-[14.5px] font-black transition-opacity disabled:opacity-45"
+            style={{ minHeight: 48, background: "var(--accent)", color: "#0B1220" }}
+          >
+            Use this professor
+          </button>
+          {!rosterEmpty && (
+            <button type="button" onClick={() => setManual(false)} className="text-[13px] font-bold" style={{ minHeight: 40, color: "var(--text-muted)" }}>
+              ← Back to the list
+            </button>
+          )}
+          <button type="button" onClick={onNotListed} className="text-[13px] font-bold" style={{ minHeight: 40, color: "var(--text-muted)" }}>
+            Skip for now →
+          </button>
+        </>
+      ) : (
+        <>
+          <SearchPicker
+            items={sorted.map((x) => ({ value: x.id, label: profDisplay(x) }))}
+            value={null}
+            placeholder={profQ.isLoading ? "Loading professors…" : "Search your professor…"}
+            searchPlaceholder={`Search ${sorted.length} professors…`}
+            disabled={profQ.isLoading}
+            onPick={(id) => { const x = sorted.find((r) => r.id === id); if (x) onPick(x); }}
+            ariaLabel={`Search ${school?.name ?? "your school"} professors`}
+          />
+          <button type="button" onClick={() => setManual(true)} className="text-[14px] font-bold" style={{ minHeight: 44, color: "var(--accent)" }}>
+            My professor isn&apos;t listed →
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -1434,12 +1502,12 @@ function ExamTabs({ exams, activeNum, onSelect, greek }: { exams: ExamTab[]; act
           that just promised a free exam reads as though the student personally owes $100 —
           a bait-and-switch at exactly the moment we ask for their email. The member needs the
           promise; the exec needs the maths, and gets it in the chapter-access section. */}
-      {/* The PRICE appears only once a locked exam is actually selected — see below. */}
-      {greek && exams.some((e) => e.price != null) && (
+      {/* The PRICE line appears ONLY when a locked exam (2/3/Final) is actually selected. On the
+          default Exam-1 tab there is NO line: its own tab already says FREE, so the old
+          "unlock when your chapter joins — Exam 1 is free either way" reminder was redundant. */}
+      {greek && lockedSelected && exams.some((e) => e.price != null) && (
         <p className="px-3 pb-2 pt-0.5 text-center text-[11.5px]" style={{ background: "rgba(0,0,0,0.22)", color: "var(--text-muted)" }}>
-          {lockedSelected
-            ? <>🔒 Exams 2, 3 and the Final unlock with chapter access — <span style={{ color: "var(--accent)", fontWeight: 800 }}>${SEAT_PRICE} per seat, per semester</span>.</>
-            : <>🔒 Exams 2, 3 and the Final unlock when your chapter joins — Exam 1 is free either way.</>}
+          🔒 Exams 2, 3 and the Final unlock with chapter access — <span style={{ color: "var(--accent)", fontWeight: 800 }}>${SEAT_PRICE} per seat, per semester</span>.
         </p>
       )}
     </>
