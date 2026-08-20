@@ -53,8 +53,9 @@ function HeroCta() {
   return (
     <div className="flex w-full flex-col items-center gap-4">
       <div className="flex flex-col items-center gap-3 sm:flex-row">
-        <a href="/order" className={RED_BTN_CLASS} style={RED_BTN_STYLE}>
-          <span style={{ fontWeight: 800 }}>Join the waitlist</span>
+        {/* /order is deprecated — the homepage player carries the notify capture now. */}
+        <a href="/" className={RED_BTN_CLASS} style={RED_BTN_STYLE}>
+          <span style={{ fontWeight: 800 }}>Start for free</span>
           <span className="transition-transform group-hover:translate-x-0.5">→</span>
         </a>
       </div>
@@ -255,10 +256,10 @@ function Home() {
               </figure>
 
               <div className="mt-8">
-                <a href="/order"
+                <a href="/"
                   className="group inline-flex items-center justify-center gap-2 rounded-2xl px-8 py-3.5 text-[15px] font-bold text-white transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110"
                   style={{ background: `linear-gradient(180deg, ${RED} 0%, #A8101F 100%)`, boxShadow: "0 10px 28px rgba(206,17,38,0.35)" }}>
-                  Join the waitlist <span className="transition-transform group-hover:translate-x-0.5">→</span>
+                  Start for free <span className="transition-transform group-hover:translate-x-0.5">→</span>
                 </a>
               </div>
             </div>

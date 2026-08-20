@@ -83,7 +83,7 @@ export default function SiteFooter(_props: SiteFooterProps = {}) {
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={faint}>Explore</p>
             <nav className="mt-3 flex flex-col gap-2">
-              <a href="/order" className={linkClass} style={muted}>Join waitlist</a>
+              {/* /order is deprecated — nothing to link but Press here now. */}
               <button onClick={() => setPressOpen(true)} className={`${linkClass} text-left`} style={muted}>Press</button>
             </nav>
           </div>

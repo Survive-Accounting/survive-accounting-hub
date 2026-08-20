@@ -20,6 +20,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { ChevronDown, ChevronRight, Circle, CircleCheck, CircleDot, ListTree, Lock, LogOut, Mail, Play, X, Loader2, Zap } from "lucide-react";
 
 import { useDismiss } from "@/lib/use-dismiss";
+import { joinPricingWaitlist } from "@/lib/pricing-api";
 import { fetchStudentTree, type StudentCourse, type StudentSet, type StudentTopic } from "@/lib/student.functions";
 import { listOverrideCampuses, type CampusOpt } from "@/lib/campus-overrides.functions";
 import { claimMyOrders, fetchMyUnlockedTopics, getSetPlayback } from "@/lib/entitlements.functions";
@@ -339,18 +340,53 @@ function SetPoster({ set, topicChip, accent, prog, unlocked, demo, onOpen }: { s
   );
 }
 
-function Paywall({ topic, onClose, onRestore, restoring }: { topic: StudentTopic; onClose: () => void; onRestore?: () => void; restoring?: boolean }) {
+// NOTIFY-NOT-PAY (2026-08-20): there is no checkout yet (/order is deprecated), so a locked
+// topic captures an email into the SAME pricing waitlist the homepage's paid tabs use
+// (campus_waitlist, tier test_pass) instead of pointing at a dead payment page.
+function Paywall({ topic, campusName, demo, onClose, onRestore, restoring }: { topic: StudentTopic; campusName: string | null; demo: boolean; onClose: () => void; onRestore?: () => void; restoring?: boolean }) {
   const n = topic.sets.length;
+  const key = `sa-notify-topic-${topic.id}`;
+  const [email, setEmail] = useState("");
+  const [state, setState] = useState<"open" | "busy" | "done" | "error">(() => { try { return localStorage.getItem(key) === "done" ? "done" : "open"; } catch { return "open"; } });
+  const submit = async () => {
+    const e = email.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) || state === "busy") return;
+    setState("busy");
+    try {
+      // Demo never writes a real waitlist row — it only exercises the flow.
+      if (!demo) await joinPricingWaitlist({ email: e, campus: campusName, course: topic.name, tier: "test_pass" });
+      setState("done"); try { localStorage.setItem(key, "done"); } catch { /* ignore */ }
+    } catch { setState("error"); }
+  };
   return (
     <div className="fixed inset-0 z-[100] grid place-items-center p-4" style={{ background: "rgba(4,7,14,0.9)" }} onClick={onClose}>
       <div className="w-full max-w-md rounded-2xl p-6" style={{ background: "#0b1020", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} onClick={(e) => e.stopPropagation()}>
-        <div className="mb-2 flex items-center gap-2"><Lock className="h-4 w-4" style={{ color: "#F0B24A" }} /><span className="text-[14px] font-black uppercase tracking-wide">Unlock {topic.name}</span></div>
+        <div className="mb-2 flex items-center gap-2"><Lock className="h-4 w-4" style={{ color: "#F0B24A" }} /><span className="text-[14px] font-black uppercase tracking-wide">{topic.name} is coming</span></div>
         {/* Specific, not "unlock full access": the topic name + what's behind the lock. */}
         <p className="text-[12.5px] leading-relaxed" style={{ color: NEON.muted }}>
           {n} cram {n === 1 ? "video" : "videos"} in <b style={{ color: NEON.text }}>{topic.name}</b>{topic.sets.slice(0, 3).length > 0 && <> — including {topic.sets.slice(0, 3).map((s) => s.name).join(", ")}{n > 3 ? `, +${n - 3} more` : ""}</>}.
         </p>
-        <button className="mt-4 w-full rounded-xl px-3 py-2.5 text-[12.5px] font-black uppercase tracking-wide" style={{ color: "#0B1322", background: NEON.yellow }} onClick={() => { window.location.assign("/order"); }}>Get access →</button>
-        {onRestore && <button className="mt-2 w-full rounded-xl px-3 py-2 text-[11px] font-bold disabled:opacity-50" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} disabled={restoring} onClick={onRestore}>{restoring ? "Checking…" : "Already purchased? Restore access"}</button>}
+        <div className="mt-4 rounded-xl px-3 py-2.5" style={{ border: "1px solid rgba(252,163,17,0.35)", background: "rgba(252,163,17,0.06)" }}>
+          {state === "done" ? (
+            <p className="text-[11.5px] font-semibold">✓ You're on the list — I'll email you the day {topic.name} opens.</p>
+          ) : (
+            <>
+              <p className="text-[11.5px] font-bold">Get notified once {topic.name} is ready</p>
+              <div className="mt-1.5 flex gap-1.5">
+                <input
+                  value={email} onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("open"); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") void submit(); }}
+                  type="email" inputMode="email" autoComplete="email" placeholder="you@school.edu"
+                  className="min-w-0 flex-1 rounded-lg px-2.5 py-1.5 text-[12px] outline-none"
+                  style={{ background: "#0e131b", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}
+                />
+                <button onClick={() => void submit()} disabled={state === "busy"} className="shrink-0 rounded-lg px-3 py-1.5 text-[11.5px] font-black disabled:opacity-50" style={{ background: NEON.yellow, color: "#0B1322" }}>{state === "busy" ? "…" : "Notify me"}</button>
+              </div>
+              {state === "error" && <p className="mt-1 text-[10.5px]" style={{ color: "#F3C6CC" }}>Couldn't save that — try again in a moment.</p>}
+            </>
+          )}
+        </div>
+        {onRestore && <button className="mt-2 w-full rounded-xl px-3 py-2 text-[11px] font-bold disabled:opacity-50" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} disabled={restoring} onClick={onRestore}>{restoring ? "Checking…" : "Already have access? Restore it"}</button>}
         <button className="mt-2 w-full rounded-xl px-3 py-2 text-[11px] font-bold" style={{ color: NEON.muted }} onClick={onClose}>Keep browsing</button>
       </div>
     </div>
@@ -742,7 +778,7 @@ function LearnShell() {
           onPlayNext={() => { if (nextPlayable) void openSet(playing.topic, nextPlayable); }}
         />
       )}
-      {paywallTopic && <Paywall topic={paywallTopic} onClose={() => setPaywallTopic(null)} onRestore={userId ? restore : undefined} restoring={restoring} />}
+      {paywallTopic && <Paywall topic={paywallTopic} campusName={campuses.find((c) => c.id === campusId)?.name ?? null} demo={demo} onClose={() => setPaywallTopic(null)} onRestore={userId ? restore : undefined} restoring={restoring} />}
       {signInOpen && <SignInDialog onClose={() => setSignInOpen(false)} />}
       {/* HONEST-PAYWALL: retryable fetch-failure toast — the honest alternative to a false paywall. */}
       {fetchNote && (
