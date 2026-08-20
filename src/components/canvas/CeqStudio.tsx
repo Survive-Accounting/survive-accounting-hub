@@ -48,6 +48,7 @@ import { coverageLabel, logCoverageFrame } from "./coverage-log";
 import { classifyEdit, editLogState, exportEditLog, logEditEvent, startEditLog, subscribeEditLog } from "./edit-telemetry";
 import { DEFAULT_POST_ROLL_MS, DEFAULT_PRE_ROLL_MS, detectSpeech, proposeTrim, TRIM_RULE_VERSION } from "./landmarks";
 import { PLATFORM_LABEL, VERTICAL_PLATFORMS, frameSize, geomField, isVertical, layoutField, layoutOf, type Orientation, type VerticalPlatform } from "./orientation";
+import { platform as platformStore, setPlatform as setPlatformStore, setPlatformGuides, subscribePlatform } from "./platform-store";
 import { setOrientation, subscribeOrientation } from "./orientation-store";
 import { assignRunTo, fillDownRuns, normRun, type RunChange } from "./film-runs";
 import { isoDay, saveRoomTone, todaysRoomTone } from "./room-tone";
@@ -372,7 +373,9 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
   /** WHICH PLATFORM'S CHROME to draw guides for (Lee, 08-17). The same short goes
    *  to all three, but their captions and rails sit in different places — and a
    *  punchline under a TikTok caption is a wasted take. Remembered per machine. */
-  const [platform, setPlatform] = useState<VerticalPlatform>(() => (localStorage.getItem("sa-vplatform") as VerticalPlatform) || "tiktok");
+  // Platform lives in the shared store (the authoring View-menu picker sets it too).
+  const [platform, setPlatform] = useState<VerticalPlatform>(platformStore());
+  useEffect(() => subscribePlatform(setPlatform), []);
   useEffect(() => subscribeOrientation(setOrient), []);
   const [slate, setSlate] = useState<SlateState>({ count: null, speak: false });
   useEffect(() => subscribeSlate(setSlate), []);
@@ -3215,7 +3218,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
           {isVertical(orient) && VERTICAL_PLATFORMS.map((pf) => (
             <button key={pf} className="rounded px-1.5 py-0.5 text-[9px] font-bold uppercase"
               style={{ color: platform === pf ? "#0B1322" : NEON.muted, background: platform === pf ? "#B79CFF" : "transparent", border: `1px solid ${NEON.borderSoft}` }}
-              onClick={() => { setPlatform(pf); localStorage.setItem("sa-vplatform", pf); setNote(`Guides now show ${PLATFORM_LABEL[pf]}'s safe area — keep the stem and the answer out of the shaded bands.`); }}
+              onClick={() => { setPlatformStore(pf); setPlatformGuides(true); setNote(`Shorts safe zone → ${PLATFORM_LABEL[pf]}. Turn it on in the previewer's View menu too; keep the stem + answer out of the shaded bands.`); }}
               title={`Draw ${PLATFORM_LABEL[pf]}'s caption and action-rail zones as guides. The tightest-of-all-three band is always shown too, so one composition can go everywhere.`}>
               {PLATFORM_LABEL[pf]}
             </button>
