@@ -8,6 +8,7 @@
 // school appears with a token already generated, so there is never a "create page" step between
 // deciding to send and sending.
 import { createFileRoute } from "@tanstack/react-router";
+import { frameThemeVars } from "@/components/frames/frame-theme";
 import { useNavyDocument } from "@/components/site/SiteHeader";
 import { useEffect, useState } from "react";
 
@@ -57,14 +58,14 @@ function CouncilsAdmin() {
 
   if (denied) {
     return (
-      <div className="grid min-h-screen place-items-center px-5" style={{ background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_SANS }}>
+      <div className="grid min-h-screen place-items-center px-5" style={{ ...frameThemeVars(), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_SANS }}>
         <p className="text-[14px]" style={{ color: "var(--text-muted)" }}>Sign in as an admin to view council pages.</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen px-5 py-10" style={{ background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_SANS }}>
+    <div className="min-h-screen px-5 py-10" style={{ ...frameThemeVars(), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_SANS }}>
       <div className="mx-auto w-full max-w-[1000px]">
         <h1 className="text-[22px] font-black" style={{ fontFamily: BRAND_DISPLAY }}>Council pages</h1>
         <p className="mt-1 text-[13px]" style={{ color: "var(--text-muted)" }}>

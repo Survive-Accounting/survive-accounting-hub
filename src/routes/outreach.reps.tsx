@@ -3,6 +3,7 @@
 // Status and a note, and nothing else. No rep accounts, no links, no commission fields: those are
 // a later pass, and a half-built payout column is worse than an empty one because it looks done.
 import { createFileRoute } from "@tanstack/react-router";
+import { frameThemeVars } from "@/components/frames/frame-theme";
 import { useNavyDocument } from "@/components/site/SiteHeader";
 import { useEffect, useState } from "react";
 
@@ -49,14 +50,14 @@ function RepsAdmin() {
 
   if (denied) {
     return (
-      <div className="grid min-h-screen place-items-center px-5" style={{ background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_SANS }}>
+      <div className="grid min-h-screen place-items-center px-5" style={{ ...frameThemeVars(), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_SANS }}>
         <p className="text-[14px]" style={{ color: "var(--text-muted)" }}>Sign in as an admin to view rep applications.</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen px-5 py-10" style={{ background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_SANS }}>
+    <div className="min-h-screen px-5 py-10" style={{ ...frameThemeVars(), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_SANS }}>
       <div className="mx-auto w-full max-w-[900px]">
         <h1 className="text-[22px] font-black" style={{ fontFamily: BRAND_DISPLAY }}>Campus reps</h1>
         <p className="mt-1 text-[13px]" style={{ color: "var(--text-muted)" }}>

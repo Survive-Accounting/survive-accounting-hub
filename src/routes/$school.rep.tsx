@@ -8,6 +8,7 @@
 // An unknown slug falls through to the generic /rep rather than 404ing — these links get typed and
 // forwarded, and a dead end costs more than a school picker.
 import { createFileRoute, redirect } from "@tanstack/react-router";
+import { frameThemeVars } from "@/components/frames/frame-theme";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
@@ -39,7 +40,7 @@ function CampusRepPage() {
 
   return (
     <CampusProvider urlSchoolSlug={s.slug}>
-      <div style={{ background: "var(--brand-navy)", color: "var(--brand-cream)", minHeight: "100vh", fontFamily: BRAND_SANS }}>
+      <div style={{ ...frameThemeVars(), background: "var(--brand-navy)", color: "var(--brand-cream)", minHeight: "100vh", fontFamily: BRAND_SANS }}>
         <SiteHeader />
         <RepInterest schoolSlug={s.slug} schoolName={s.name} />
       </div>

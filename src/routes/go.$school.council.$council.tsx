@@ -13,6 +13,7 @@
 // the single fastest way to make Greek life stop trusting us, and the data to build one is not
 // collected in the first place.
 import { createFileRoute } from "@tanstack/react-router";
+import { frameThemeVars } from "@/components/frames/frame-theme";
 import { useNavyDocument } from "@/components/site/SiteHeader";
 import { useState } from "react";
 
@@ -48,6 +49,8 @@ function CouncilPage() {
   return (
     <div
       style={{
+        ...frameThemeVars(),
+
         background: "var(--brand-navy)", color: "var(--brand-cream)", minHeight: "100vh",
         fontFamily: BRAND_SANS,
         ["--sa-bolt-1" as string]: bolt.c1, ["--sa-bolt-2" as string]: bolt.c2,
@@ -153,7 +156,7 @@ function Leaderboard({ page, token }: { page: CouncilPage; token?: string }) {
 /** Wrong or missing token. Friendly, and deliberately uninformative about why. */
 function NotForYou() {
   return (
-    <div className="grid min-h-screen place-items-center px-5" style={{ background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_SANS }}>
+    <div className="grid min-h-screen place-items-center px-5" style={{ ...frameThemeVars(), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_SANS }}>
       <div className="w-full max-w-sm text-center">
         <p className="text-[19px] font-black" style={{ fontFamily: BRAND_DISPLAY }}>This link isn&apos;t active.</p>
         <p className="mx-auto mt-3 max-w-[36ch] text-[14px] leading-relaxed" style={{ color: "var(--text-muted)" }}>

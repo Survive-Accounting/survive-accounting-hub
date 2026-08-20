@@ -4,6 +4,7 @@
 // campus page would make the same argument twice; picking a school takes one press and the page
 // they land on is the one written for them.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { frameThemeVars } from "@/components/frames/frame-theme";
 
 import { Bolt, BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { SearchPicker } from "@/components/site/SearchPicker";
@@ -20,7 +21,7 @@ function RepPicker() {
   const navigate = useNavigate();
 
   return (
-    <div style={{ background: "var(--brand-navy)", color: "var(--brand-cream)", minHeight: "100vh", fontFamily: BRAND_SANS }}>
+    <div style={{ ...frameThemeVars(), background: "var(--brand-navy)", color: "var(--brand-cream)", minHeight: "100vh", fontFamily: BRAND_SANS }}>
       <SiteHeader />
       <main className="mx-auto w-full max-w-[520px] px-5 py-16 text-center">
         <h1 className="text-[27px] font-black leading-[1.14] sm:text-[32px]" style={{ fontFamily: BRAND_DISPLAY, letterSpacing: "-0.015em" }}>
