@@ -14,6 +14,7 @@ import { Clapperboard, Film, Loader2, Play, Scissors, Square, X } from "lucide-r
 
 import { fmtDur } from "./ceq-takes";
 import { segmentStartsMs, type SeqSegment } from "./cut-sequencer";
+import { snapMs, speechSpans } from "./landmarks";
 import { NEON } from "./theme";
 import { transcriptFor, type TranscriptWord } from "./transcript-client";
 import { useCutPlayer } from "./use-cut-player";
@@ -59,11 +60,10 @@ const tcS = (s: number): string => {
 
 /** WAVEFORM IN THE TILE (Lee, 08-20) — each timeline segment draws its own
  *  trimmed window of peaks, from the same per-path audio cache the landmarks
- *  use, so silence is VISIBLE right where you trim it. */
-function ClipWave({ path, url, inS, outS }: { path: string; url: string; inS: number; outS: number }) {
+ *  use, so silence is VISIBLE right where you trim it. The audio is loaded by
+ *  the TILE (the trim handles snap on the same decode). */
+function ClipWave({ audio, inS, outS }: { audio: ClipAudio | null; inS: number; outS: number }) {
   const ref = useRef<HTMLCanvasElement | null>(null);
-  const [audio, setAudio] = useState<ClipAudio | null>(null);
-  useEffect(() => { let live = true; clipAudio(path, url).then((a) => { if (live) setAudio(a); }, () => {}); return () => { live = false; }; }, [path, url]);
   useEffect(() => {
     const c = ref.current;
     if (!c || !audio) return;
@@ -99,6 +99,13 @@ function ClipTile({ clip, w, selected, underPlayhead, shift, onHover, onSelect, 
   const canDrag = clip.frameId != null && !clip.split;
   const [drag, setDrag] = useState<{ which: "in" | "out"; valS: number } | null>(null);
   const pxPerS = w / Math.max(MIN_CLIP_S, clip.outS - clip.inS);
+  // ONE decode per tile: the waveform draws it and the handles snap on it.
+  const [audio, setAudio] = useState<ClipAudio | null>(null);
+  useEffect(() => { let live = true; clipAudio(clip.path, clip.url).then((a) => { if (live) setAudio(a); }, () => {}); return () => { live = false; }; }, [clip.path, clip.url]);
+  // Every speech boundary in the SOURCE (ms) — a released handle within the
+  // snap radius lands exactly on one (Lee #7, 08-20). Drag stays free; only
+  // the release snaps, so precision is never fought mid-gesture.
+  const snapLandmarksMs = useMemo(() => (audio ? speechSpans(audio.rms, audio.frameMs).flatMap((s) => [s.startMs, s.endMs]) : []), [audio]);
   const startHandle = (which: "in" | "out") => (e: React.PointerEvent) => {
     if (!onTrim) return;
     e.preventDefault();
@@ -112,7 +119,8 @@ function ClipTile({ clip, w, selected, underPlayhead, shift, onHover, onSelect, 
     const up = (ev: PointerEvent) => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
-      const v = clampV(base + (ev.clientX - x0) / pxPerS);
+      const raw = clampV(base + (ev.clientX - x0) / pxPerS);
+      const v = clampV(snapMs(raw * 1000, snapLandmarksMs) / 1000);
       setDrag(null);
       if (Math.abs(v - base) > 0.005) onTrim(which === "in" ? v : clip.inS, which === "in" ? clip.outS : v);
     };
@@ -132,7 +140,7 @@ function ClipTile({ clip, w, selected, underPlayhead, shift, onHover, onSelect, 
       title={`${clip.label} · ${clip.name} · ${fmtDur(clip.outS - clip.inS)}${clip.split ? " · internal cut (select to re-edit; not draggable)" : ""}${onTrim ? " · drag an edge to trim" : ""}`}
     >
       <div className="relative min-h-0 flex-1">
-        <ClipWave path={clip.path} url={clip.url} inS={clip.inS} outS={clip.outS} />
+        <ClipWave audio={audio} inS={clip.inS} outS={clip.outS} />
         <span className="absolute left-1 top-0.5 rounded px-1 text-[8px] font-black uppercase tabular-nums" style={{ color: "#0B1322", background: NEON.yellow }}>{clip.label}</span>
         {onDetach && <button className="absolute right-1 top-0.5 grid h-3.5 w-3.5 place-items-center rounded opacity-0 transition-opacity group-hover:opacity-100" style={{ background: "rgba(0,0,0,0.6)", color: "#FF8B9E" }} title="Detach → scratch (file untouched)" onClick={(e) => { e.stopPropagation(); onDetach(); }}><X className="h-2.5 w-2.5" /></button>}
         {/* Live drag feedback: shade what the release will trim away + the exact timecode. */}
@@ -291,16 +299,31 @@ export function PipelineStage({ clips, frames, currentCeqId, hidden, selectedKey
   playFromMsRef.current = player.playFromMs;
   const clipsLenRef = useRef(clips.length);
   clipsLenRef.current = clips.length;
-  // SPACE = play/pause from the cursor. Window-level, bubble phase: the film
-  // controller's capture-phase handlers preventDefault first, so this can never
-  // steal Space from filming; typing targets are skipped the same way the
-  // studio's F10/F8 listener does it.
+  const totalMsRef = useRef(player.totalMs);
+  totalMsRef.current = player.totalMs;
+  // SPACE = play/pause from the cursor; ←/→ NUDGE the parked cursor 50ms
+  // (shift = 500ms) for keyboard-only cut hunting (Lee #5, 08-20). Window-level,
+  // bubble phase: the film controller's capture-phase handlers preventDefault
+  // first, so this can never steal keys from filming (or the fine-trim panel,
+  // which preventDefaults its own arrows); typing targets are skipped the same
+  // way the studio's F10/F8 listener does it.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (hidden || e.key !== " " || e.defaultPrevented || e.repeat) return;
+      if (hidden || e.defaultPrevented) return;
+      const isSpace = e.key === " ";
+      const isArrow = e.key === "ArrowLeft" || e.key === "ArrowRight";
+      if (!isSpace && !isArrow) return;
+      if (isSpace && e.repeat) return;
       const t = e.target as HTMLElement | null;
       if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
       if (!clipsLenRef.current) return;
+      if (isArrow) {
+        if (playingRef.current) return; // arrows park-hunt; playback keeps its clock
+        e.preventDefault();
+        const step = (e.shiftKey ? 500 : 50) * (e.key === "ArrowLeft" ? -1 : 1);
+        setCursorMs((m) => Math.max(0, Math.min(totalMsRef.current, m + step)));
+        return;
+      }
       e.preventDefault();
       if (playingRef.current) { setCursorMs(posRef.current); stopRef.current(); }
       else playFromMsRef.current(cursorRef.current);

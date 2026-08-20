@@ -109,7 +109,9 @@ describe("the editing room reshaped (Lee, 08-20)", () => {
   });
   test("each segment draws its own waveform from the shared audio cache", () => {
     expect(stage).toContain("function ClipWave(");
-    expect(stage).toContain("clipAudio(path, url)");
+    // ONE decode per tile since #7: the tile loads it, the wave and the
+    // snap landmarks both read it.
+    expect(stage).toContain("clipAudio(clip.path, clip.url)");
   });
   test("the transcript panel lives in the stage: click seeks the CUT player, Delete cuts", () => {
     expect(stage).toContain("function TranscriptPanel(");
@@ -122,7 +124,8 @@ describe("the editing room reshaped (Lee, 08-20)", () => {
   test("clicking the track PARKS the cursor; Space plays/pauses from it (08-20)", () => {
     expect(stage).toContain("const positionAtPx = (clientX: number) => {");
     expect(stage).toContain("setCursorMs(startsMs[i] + within * contentMs);"); // park, don't play
-    expect(stage).toContain('if (hidden || e.key !== " " || e.defaultPrevented || e.repeat) return;');
+    expect(stage).toContain("if (hidden || e.defaultPrevented) return;");
+    expect(stage).toContain("if (isSpace && e.repeat) return;");
     expect(stage).toContain("if (playingRef.current) { setCursorMs(posRef.current); stopRef.current(); }");
     expect(stage).toContain("else playFromMsRef.current(cursorRef.current);");
     // ONE line: live playhead while playing, parked cursor while not
@@ -130,6 +133,45 @@ describe("the editing room reshaped (Lee, 08-20)", () => {
   });
   test("the dead middle is gone: the authoring column never renders during filming", () => {
     expect(studio).toContain("{!filming && (\n              <div className=\"flex min-h-0 flex-1 flex-col\">");
+  });
+  test("arrows nudge the PARKED cursor (50ms / shift 500ms); playback keeps its clock", () => {
+    expect(stage).toContain('const isArrow = e.key === "ArrowLeft" || e.key === "ArrowRight";');
+    expect(stage).toContain("if (playingRef.current) return; // arrows park-hunt; playback keeps its clock");
+    expect(stage).toContain('const step = (e.shiftKey ? 500 : 50) * (e.key === "ArrowLeft" ? -1 : 1);');
+  });
+  test("a released edge handle SNAPS to the nearest speech boundary; the drag stays free", () => {
+    expect(stage).toContain("const snapLandmarksMs = useMemo(() => (audio ? speechSpans(audio.rms, audio.frameMs).flatMap((s) => [s.startMs, s.endMs]) : []), [audio]);");
+    expect(stage).toContain("const v = clampV(snapMs(raw * 1000, snapLandmarksMs) / 1000);");
+    const move = stage.slice(stage.indexOf("const move = (ev: PointerEvent) => setDrag"), stage.indexOf("const up = (ev: PointerEvent) => {"));
+    expect(move).not.toContain("snapMs"); // mid-drag stays free — only the release snaps
+  });
+  test("SILENCE SWEEP cuts through the ONE split door, against the live recipe, undoable", () => {
+    const sweep = studio.slice(studio.indexOf("const sweepSilences = "), studio.indexOf("const undoSweep = "));
+    expect(sweep).toContain("silenceCuts(spans, { inS, outS, minSilenceMs: minSilenceS * 1000, preRollMs, postRollMs })");
+    expect(sweep).toContain("parts.flatMap((p) => splitAroundCut(p, take, c.startS, c.endS))");
+    expect(sweep).toContain("const live = pipelineStitchRef.current;"); // never the click-time snapshot
+    expect(sweep).toContain("sweepBackupRef.current = live.items;");    // one-click undo
+    expect(sweep).not.toContain("moveToRecycle"); // recipe only, never a file op
+  });
+  test("AUTO-TRANSCRIBE: timeline clips without words are enqueued once, via the toggle-gated queue", () => {
+    expect(studio).toContain("void transcriptFor(c.path).then((r) => { if (!r) enqueueTranscription(c.path, c.url, c.name); }");
+    expect(studio).toContain("txSweepRef.current.add(c.path);"); // once per session, not per render
+  });
+  test("PUBLISH FROM THE PIPELINE renders the RECIPE through the trim-aware worker door", () => {
+    const pub = studio.slice(studio.indexOf("const doPipePublish = "), studio.indexOf("/** P3: an attachable TakeRef"));
+    expect(pub).toContain("trims: tl.segments.map((s) => ({ start: s.inS, end: s.outS }))"); // trims + silence cuts reach the render
+    expect(pub).toContain("startDissectStitch(");
+    expect(pub).toContain("startPipelineTestAuphonic({ data: { fileUrl } });"); // mastered, same pipeline as publish
+    expect(pub).toContain('const lessonId = targetLesson(access)!;');            // site kinds attach to the lesson → Videos
+    expect(pub).toContain('savePub({ ...pub, stitchRev, state: "shipped"');      // the publication record, kind-first
+    expect(pub).toContain('savePub({ ...pub, stitchRev, state: "rendered"');     // a short stops at the mastered file
+  });
+  test("publish gates run the REAL publishGate — shorts must be vertical, site needs a lesson", () => {
+    const gatesFn = studio.slice(studio.indexOf("const pipeGates = "), studio.indexOf("const doPipePublish = "));
+    expect(gatesFn).toContain("publishGate(pub, pipelineStitch, {");
+    expect(gatesFn).toContain("clipOrientations: ors,");
+    expect(studio).toContain('destinations: kind === "short" ? ["youtube"] : ["site"],');
+    expect(studio).toContain('framing: kind === "short" ? "9:16" : "16:9",');
   });
   test("fine trim is OPT-IN; the toolbar and the take rail both collapse for focus", () => {
     expect(studio).toContain("return fineTrimOpen && sel && t ? (");

@@ -63,6 +63,62 @@ export function proposeTrim(span: SpeechSpan, opts: { durationS: number; slateEn
   return outS - inS > 0.05 ? { inS, outS } : null;
 }
 
+/** ALL sustained-speech spans (ms) — the silence sweep and the timeline handle
+ *  snapping need every boundary, not just the first onset / last offset. Same
+ *  threshold model as detectSpeech; spans closer than mergeMs fuse, so the gap
+ *  between two words never reads as a silence. Pure. */
+export function speechSpans(rms: ArrayLike<number>, frameMs: number, opts?: { floor?: number; ratio?: number; sustainMs?: number; mergeMs?: number }): { startMs: number; endMs: number }[] {
+  const floor = opts?.floor ?? 0.01;
+  const ratio = opts?.ratio ?? 4;
+  const sustainMs = opts?.sustainMs ?? 60;
+  const mergeMs = opts?.mergeMs ?? 300;
+  const n = rms.length;
+  if (!n) return [];
+  const sorted = Array.from(rms as ArrayLike<number> as number[]).sort((a, b) => a - b);
+  const noise = sorted[Math.floor(n * 0.15)] ?? 0;
+  const thr = Math.max(floor, noise * ratio);
+  const need = Math.max(1, Math.round(sustainMs / frameMs));
+  const raw: { startMs: number; endMs: number }[] = [];
+  let runStart = -1;
+  for (let i = 0; i <= n; i++) {
+    const loud = i < n && rms[i] >= thr;
+    if (loud && runStart < 0) runStart = i;
+    if (!loud && runStart >= 0) {
+      if (i - runStart >= need) raw.push({ startMs: runStart * frameMs, endMs: i * frameMs });
+      runStart = -1;
+    }
+  }
+  const out: { startMs: number; endMs: number }[] = [];
+  for (const s of raw) {
+    const prev = out[out.length - 1];
+    if (prev && s.startMs - prev.endMs < mergeMs) prev.endMs = s.endMs;
+    else out.push({ ...s });
+  }
+  return out;
+}
+
+/** SILENCE SWEEP (Lee, 08-20): the internal cuts that remove every silence
+ *  longer than minSilenceMs inside a clip's trimmed window — head and tail
+ *  silences included (splitAroundCut turns those into plain trims). Each cut
+ *  keeps postRoll after the speech before it and preRoll before the speech
+ *  after it, so deliveries keep their natural edges. A cut that the pads
+ *  shrink under 300ms isn't worth a split. Pure; cuts in ascending order. */
+export function silenceCuts(spans: { startMs: number; endMs: number }[], opts: { inS: number; outS: number; minSilenceMs: number; preRollMs: number; postRollMs: number }): { startS: number; endS: number }[] {
+  const inMs = opts.inS * 1000, outMs = opts.outS * 1000;
+  const win = spans
+    .filter((s) => s.endMs > inMs && s.startMs < outMs)
+    .map((s) => ({ startMs: Math.max(s.startMs, inMs), endMs: Math.min(s.endMs, outMs) }));
+  if (!win.length) return []; // an all-silent window is a take problem, not a sweep
+  const cuts: { startS: number; endS: number }[] = [];
+  const push = (aMs: number, bMs: number) => { if (bMs - aMs >= 300) cuts.push({ startS: aMs / 1000, endS: bMs / 1000 }); };
+  if (win[0].startMs - inMs > opts.minSilenceMs) push(inMs, win[0].startMs - opts.preRollMs);
+  for (let i = 0; i < win.length - 1; i++) {
+    if (win[i + 1].startMs - win[i].endMs > opts.minSilenceMs) push(win[i].endMs + opts.postRollMs, win[i + 1].startMs - opts.preRollMs);
+  }
+  if (outMs - win[win.length - 1].endMs > opts.minSilenceMs) push(win[win.length - 1].endMs + opts.postRollMs, outMs);
+  return cuts;
+}
+
 /** Magnetic snap: the nearest landmark within the radius wins; otherwise the
  *  position is returned untouched. PURE. */
 export function snapMs(ms: number, landmarks: Array<number | null | undefined>, radiusMs = SNAP_RADIUS_MS): number {

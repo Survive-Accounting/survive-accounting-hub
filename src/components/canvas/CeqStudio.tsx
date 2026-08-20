@@ -29,13 +29,13 @@ import { buildSetExport } from "./ceq-export";
 import { ClipTrimStrip } from "./ClipTrimStrip";
 import { PipelineStage, type StageClip } from "./PipelineStage";
 import { TrimDetail } from "./TrimDetail";
-import { startTranscription, transcribeSmart } from "./transcript-client";
-import { previewTimeline, splitAroundCut } from "./stitch-preview";
+import { enqueueTranscription, startTranscription, transcribeSmart, transcriptFor } from "./transcript-client";
+import { previewTimeline, resolveItemTrim, splitAroundCut } from "./stitch-preview";
 import { SetFilmstrip, type StripItem } from "./SetFilmstrip";
 import { checkFilmReadiness, type ReadinessReport } from "./film-readiness";
 import { FILM_LOCK_CSS, FilmContext, isTypingTarget } from "./film-lock";
 import { MEMO_KIND_META, MEMO_KIND_ORDER, kindFromCategory, type PlaybookKind } from "./memo-kinds";
-import { applyToDeck, ceqStitchId, gateBlocks, itemsFromTakes, migrationPlan, newStitch, planReport, publishGate, recut, setStitchId, type MigrationInput, type MigrationPlan, type StitchDef, type StitchItem } from "./stitch-defs";
+import { applyToDeck, ceqStitchId, gateBlocks, itemsFromTakes, migrationPlan, newStitch, planReport, publishGate, recut, setStitchId, type GateItem, type MigrationInput, type MigrationPlan, type PublicationDef, type PublicationKind, type StitchDef, type StitchItem } from "./stitch-defs";
 import { StitchPreview } from "./StitchPreview";
 import { applyTemplate, loadTemplates, saveTemplate, templateFromDeck, type SetTemplate } from "./set-profile";
 import { IdeaBank } from "./IdeaBank";
@@ -46,7 +46,7 @@ import { clipAudio } from "./waveform-peaks";
 import { subscribeSlate, type SlateState } from "./film-slate";
 import { coverageLabel, logCoverageFrame } from "./coverage-log";
 import { classifyEdit, editLogState, exportEditLog, logEditEvent, startEditLog, subscribeEditLog } from "./edit-telemetry";
-import { DEFAULT_POST_ROLL_MS, DEFAULT_PRE_ROLL_MS, detectSpeech, proposeTrim, TRIM_RULE_VERSION } from "./landmarks";
+import { DEFAULT_POST_ROLL_MS, DEFAULT_PRE_ROLL_MS, detectSpeech, proposeTrim, silenceCuts, speechSpans, TRIM_RULE_VERSION } from "./landmarks";
 import { PLATFORM_LABEL, VERTICAL_PLATFORMS, frameSize, geomField, isVertical, layoutField, layoutOf, type Orientation, type VerticalPlatform } from "./orientation";
 import { platform as platformStore, setPlatform as setPlatformStore, setPlatformGuides, subscribePlatform } from "./platform-store";
 import { setOrientation, subscribeOrientation } from "./orientation-store";
@@ -1447,6 +1447,201 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
       for (const path of applied) { const p = found.get(path)!; proposedRef.current.set(path, p); logTrim(path, p, "propose", p, spans.get(path)); }
       setNote(`PROPOSED ${applied.length} trim${applied.length === 1 ? "" : "s"} (in = onset − ${preRollMs}ms · out = offset + ${postRollMs}ms). Amber handles = auto — drag or nudge to adjust; nothing rendered.`);
     } finally { setProposeBusy(false); }
+  })(); };
+  // ---- SILENCE SWEEP (#3, Lee-approved 08-20) -------------------------------
+  // One click removes every silence longer than N seconds from the whole cut —
+  // head/tail silences become trims, middles become internal cuts (both via
+  // splitAroundCut, the same door the transcript Delete uses). Recipe-only;
+  // "undo sweep" restores the exact pre-sweep items.
+  const [sweepBusy, setSweepBusy] = useState(false);
+  const [minSilenceS, setMinSilenceS] = useState<number>(() => { const v = Number(localStorage.getItem("sa-sweep-min-s")); return Number.isFinite(v) && v > 0 ? v : 2; });
+  const sweepBackupRef = useRef<StitchItem[] | null>(null);
+  const [sweepUndoable, setSweepUndoable] = useState(false);
+  const sweepSilences = () => { void (async () => {
+    if (!pipelineStitch || sweepBusy) return;
+    setSweepBusy(true);
+    try {
+      const paths = [...new Set(pipelineStitch.items.filter((i) => !i.muted).map((i) => i.takePath))].filter((p) => takesByPath.has(p));
+      const spansByPath = new Map<string, { startMs: number; endMs: number }[]>();
+      // Decode in small chunks — same memory discipline as PROPOSE TRIMS.
+      for (let at = 0; at < paths.length; at += 3) {
+        await Promise.all(paths.slice(at, at + 3).map(async (p) => {
+          const t = takesByPath.get(p)!;
+          try { const a = await clipAudio(t.path, t.url); spansByPath.set(p, speechSpans(a.rms, a.frameMs)); } catch { /* undecodable — that clip is skipped */ }
+        }));
+        setNote(`Silence sweep — analyzing… ${Math.min(at + 3, paths.length)}/${paths.length} take${paths.length === 1 ? "" : "s"}`);
+      }
+      // Write against the LIVE recipe (the PROPOSE TRIMS lesson — decode takes
+      // tens of seconds and Lee edits during it).
+      const live = pipelineStitchRef.current;
+      if (!live) return;
+      let cutCount = 0;
+      let removedS = 0;
+      const items = live.items.flatMap((it) => {
+        if (it.muted) return [it];
+        const take = takesByPath.get(it.takePath);
+        const spans = spansByPath.get(it.takePath);
+        if (!take || !spans) return [it];
+        const { inS, outS } = resolveItemTrim(it, take);
+        const cuts = silenceCuts(spans, { inS, outS, minSilenceMs: minSilenceS * 1000, preRollMs, postRollMs });
+        if (!cuts.length) return [it];
+        let parts: StitchItem[] = [it];
+        for (const c of cuts) parts = parts.flatMap((p) => splitAroundCut(p, take, c.startS, c.endS));
+        if (parts.length !== 1 || parts[0] !== it) { cutCount += cuts.length; removedS += cuts.reduce((s, c) => s + (c.endS - c.startS), 0); }
+        return parts;
+      });
+      if (!cutCount) { setNote(`Silence sweep — nothing longer than ${minSilenceS}s found. The cut is untouched.`); return; }
+      sweepBackupRef.current = live.items;
+      setSweepUndoable(true);
+      persistStitch(recut(live, { items }));
+      setNote(`SILENCE SWEEP: ${cutCount} cut${cutCount === 1 ? "" : "s"} — ${removedS.toFixed(1)}s of silence removed. Recipe only ("undo sweep" restores; nothing bakes until render).`);
+    } finally { setSweepBusy(false); }
+  })(); };
+  const undoSweep = () => {
+    const live = pipelineStitchRef.current;
+    const backup = sweepBackupRef.current;
+    if (!live || !backup) return;
+    persistStitch(recut(live, { items: backup }));
+    sweepBackupRef.current = null;
+    setSweepUndoable(false);
+    setNote("Silence sweep undone — the recipe is the pre-sweep cut again (hand edits made AFTER the sweep are gone with it).");
+  };
+  // ---- AUTO-TRANSCRIBE (#4, Lee-approved 08-20) -----------------------------
+  // Anything ON the timeline gets words without a click: any clip whose path has
+  // no stored transcript is enqueued once per session. The queue is the existing
+  // background drain (toggle-gated, idempotent, big takes ride the WAV sidecar).
+  const txSweepRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (!filming) return;
+    for (const c of stageClips) {
+      if (txSweepRef.current.has(c.path)) continue;
+      txSweepRef.current.add(c.path);
+      void transcriptFor(c.path).then((r) => { if (!r) enqueueTranscription(c.path, c.url, c.name); }, () => { /* offline — the drain retries on its own */ });
+    }
+  }, [stageClips, filming]);
+  // ---- PUBLISH FROM THE PIPELINE (#1/#2, Lee-approved 08-20) ----------------
+  // KIND IS FIRST-CLASS: blast (site FREE teaser) · lookback (site PAID
+  // walkthrough) · short (9:16 file for YouTube). The pipeline's cut IS the
+  // recipe — trims, silence cuts, order — so the render goes through the
+  // TRIM-AWARE worker door (startDissectStitch), NOT publishStitch's whole-file
+  // concat. Site kinds then ride the existing Auphonic → Mux → lesson-attach
+  // pipeline; a short stops at the mastered Mux asset (YouTube upload stays a
+  // human act). Every publish writes/updates the deck's PublicationDef, so the
+  // record of what shipped from which stitch rev exists (staleness works).
+  const [pubPanel, setPubPanel] = useState<PublicationKind | null>(null);
+  const [pubChecks, setPubChecks] = useState<Set<string>>(new Set());
+  const [pubBusy, setPubBusy] = useState<PublicationKind | null>(null);
+  useEffect(() => { setPubChecks(new Set()); }, [pubPanel]);
+  const pubIdOf = (kind: PublicationKind) => `pb:set:${deck?.id}:${kind}`;
+  /** The set's publication for a kind — existing row, else a sane draft. */
+  const pipePublication = (kind: PublicationKind): PublicationDef => {
+    const existing = (deck?.publications ?? []).find((p) => p.id === pubIdOf(kind));
+    if (existing) return existing;
+    return {
+      id: pubIdOf(kind),
+      stitchId: setStitchId(deck?.id ?? "?"),
+      kind,
+      destinations: kind === "short" ? ["youtube"] : ["site"],
+      framing: kind === "short" ? "9:16" : "16:9",
+      state: "draft",
+      meta: { title: `${deck?.name ?? "Set"} — ${kind}`, ...(kind === "short" ? { description: "Full walkthrough at surviveaccounting.com" } : {}) },
+    };
+  };
+  const savePub = (pub: PublicationDef) => {
+    if (!deck) return;
+    const list = deck.publications ?? [];
+    const has = list.some((p) => p.id === pub.id);
+    setDecks((prev) => updateDeck(prev, deck.id, { publications: has ? list.map((p) => (p.id === pub.id ? pub : p)) : [...list, pub] }));
+  };
+  const pipeGates = (kind: PublicationKind): GateItem[] => {
+    if (!deck || !pipelineStitch) return [{ id: "all/no-cut", level: "block", text: "no cut open" }];
+    const tl = previewTimeline(pipelineStitch, takesByPath);
+    const ors = tl.segments.map((s) => takesByPath.get(s.takePath)?.orientation).filter((o): o is "16:9" | "9:16" => !!o);
+    const access = kind === "blast" ? ("FREE" as const) : kind === "lookback" ? ("PAID" as const) : null;
+    const pub = pipePublication(kind);
+    const out = publishGate(pub, pipelineStitch, {
+      totalS: tl.totalS,
+      lessonId: pub.destinations.includes("site") && access ? targetLesson(access) : null,
+      access,
+      clipOrientations: ors,
+      bakesWatermark: false,
+    });
+    if (tl.missing.length) out.unshift({ id: "all/missing-takes", level: "block", text: `${tl.missing.length} clip(s) in the recipe have no take attached` });
+    if (!tl.segments.length) out.unshift({ id: "all/empty", level: "block", text: "the cut is empty — attach takes first" });
+    return out;
+  };
+  const doPipePublish = (kind: PublicationKind) => { void (async () => {
+    if (!deck || !pipelineStitch || pubBusy) return;
+    const gates = pipeGates(kind);
+    if (gates.some((g) => g.level === "block")) { setNote("Publish blocked — fix the ✗ items first."); return; }
+    if (gates.some((g) => g.level === "confirm" && !pubChecks.has(g.id))) { setNote("Tick the confirm boxes first — they exist because the machine can't verify those."); return; }
+    const pub = pipePublication(kind);
+    const stitchRev = pipelineStitch.rev;
+    setPubBusy(kind);
+    try {
+      const tl = previewTimeline(pipelineStitchRef.current ?? pipelineStitch, takesByPath);
+      // 1) RENDER the recipe — trims + silence cuts honored, room-tone gaps.
+      const rt = todaysRoomTone();
+      setNote(`Publishing ${kind} — rendering the cut (${tl.segments.length} segment${tl.segments.length === 1 ? "" : "s"}, ${fmtDur(tl.totalS)})…`);
+      const { jobId, path, machineId } = await startDissectStitch({ data: { urls: tl.segments.map((s) => s.url), trims: tl.segments.map((s) => ({ start: s.inS, end: s.outS })), ...(rt ? { roomToneUrl: rt.url } : {}) } });
+      let fileUrl: string | null = null;
+      for (let i = 0; i < 900 && !fileUrl; i++) {
+        await new Promise((r) => window.setTimeout(r, 2500));
+        const r = await resolveWorkerRender({ data: { jobId, path, machineId } });
+        if (r.state === "error") throw new Error(r.error ?? "worker error");
+        if (r.state === "done" && r.fileUrl) { fileUrl = r.fileUrl; break; }
+        setNote(`Render worker: ${r.note || r.state}`);
+      }
+      if (!fileUrl) throw new Error("timed out waiting for the render");
+      // 2) MASTER + INGEST: Auphonic → Supabase → Mux (the existing staged pipeline).
+      const rows = spineRows(deck);
+      const course = rows?.course.course_name || deck.course || "Course";
+      const topic = rows ? `Ch ${rows.topic.number}` : (deck.chapter || "Topic");
+      const sanitize = (s: string) => s.replace(/\//g, "-").trim();
+      const passthrough = `${sanitize(course)}/${sanitize(topic)}/${sanitize(deck.name)}/${kind}`.slice(0, 250);
+      const title = pub.meta.title ?? `${deck.name} — ${kind}`;
+      const { auphonicUuid } = await startPipelineTestAuphonic({ data: { fileUrl } });
+      let muxAssetId: string | null = null;
+      let final: string | null = null;
+      for (let i = 0; i < 240 && !final; i++) {
+        const r: Awaited<ReturnType<typeof resolvePipelineTestAuphonic>> = await resolvePipelineTestAuphonic({ data: { auphonicUuid, muxAssetId, passthrough, title } });
+        muxAssetId = r.muxAssetId;
+        if (r.stage === "errored") throw new Error(r.error ?? "Auphonic/Mux pipeline errored");
+        if (r.stage === "ready") { final = r.playbackId; break; }
+        setNote(r.stage === "auphonic" ? `Auphonic: ${r.auphonicStatus ?? "processing"}…` : "Mux ingesting the mastered file…");
+        await new Promise((res) => window.setTimeout(res, 5000));
+      }
+      if (!final) throw new Error("timed out waiting for the final Mux asset");
+      const durationS = Math.round(tl.totalS);
+      // 3) SITE kinds attach to the lesson (+ per-CEQ manifest from the recipe:
+      //    trimmed lengths + the SAME gaps the dissect render inserted).
+      if (kind !== "short") {
+        const access = kind === "blast" ? ("FREE" as const) : ("PAID" as const);
+        const lessonId = targetLesson(access)!; // gated above
+        const r2 = (x: number) => Math.round(x * 1000) / 1000;
+        const manifest = (() => {
+          const out: { ceqId?: string; clip?: number; kind?: "ceq" | "wrap" | "intro"; start: number; end: number }[] = [];
+          let cum = 0;
+          for (const s of tl.segments) {
+            if (s.ceqId) out.push({ ceqId: s.ceqId, clip: 0, kind: "ceq", start: r2(cum), end: r2(cum + s.trimmedS) });
+            cum += s.trimmedS + s.gapAfterMs / 1000;
+          }
+          return out;
+        })();
+        const ld = rf.getNode(lessonId)?.data as unknown as LessonBox | undefined;
+        const prevAsset = ld?.muxAssetId ?? null;
+        rf.updateNodeData(lessonId, { muxAssetId, muxPlaybackId: final, status: "PUBLISHED", ceqManifest: manifest, muxPublishedAt: Date.now(), muxDurationS: durationS, videoCourse: course, videoChapter: topic });
+        savePub({ ...pub, stitchRev, state: "shipped", render: { at: Date.now(), muxAssetId: muxAssetId ?? undefined, muxPlaybackId: final, durationS }, shipped: { at: Date.now(), lessonId, access } });
+        setNote(`Published ${kind.toUpperCase()} ✓ → the ${access} lesson (${manifest.length} CEQs indexed, ${fmtDur(durationS)}). It's in Videos now.${prevAsset ? ` Old Mux asset ${prevAsset} superseded — delete it in Mux manually.` : ""}`);
+      } else {
+        savePub({ ...pub, stitchRev, state: "rendered", render: { at: Date.now(), muxAssetId: muxAssetId ?? undefined, muxPlaybackId: final, durationS } });
+        const watch = `https://stream.mux.com/${final}.m3u8`;
+        try { await navigator.clipboard.writeText(watch); } catch { /* clipboard denied — the note still shows it */ }
+        setNote(`SHORT rendered + mastered ✓ (${fmtDur(durationS)}). Mux playback ${final} (stream URL on the clipboard). Download the mastered MP4 from Mux (asset ${muxAssetId}) and upload to YouTube — that step stays yours.`);
+      }
+      setPubPanel(null);
+    } catch (e) { setNote(`Publish ${kind} failed: ${e instanceof Error ? e.message : String(e)} — nothing attached; retry when fixed.`); }
+    finally { setPubBusy(null); }
   })(); };
   /** P3: an attachable TakeRef from a KEPT record — same recipe as attachLatestKept. */
   const takeRefOf = (t: TakeRecord): TakeRef | null => (t.upload?.url && t.upload?.path ? { url: t.upload.url, path: t.upload.path, name: t.fileName, ...(t.durationS ? { duration: t.durationS } : {}), ...(t.slateEndMs != null ? { slateEndMs: t.slateEndMs } : {}), ...(t.orientation ? { orientation: t.orientation } : {}) } : null);
@@ -3520,10 +3715,52 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                       <input type="number" min={0} step={10} className="w-9 rounded bg-transparent px-0.5 text-[8px] tabular-nums outline-none" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={postRollMs} onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setPostRollMs(v); localStorage.setItem("sa-trim-postroll-ms", String(v)); }} />
                     </label>
                     <button className="rounded px-1.5 py-0.5 text-[8px] font-black uppercase disabled:opacity-50" style={{ color: "#FFB020", border: "1px solid rgba(255,176,32,0.5)" }} disabled={proposeBusy || !pipelineStitch} onClick={proposeTrims} title="PROPOSE TRIMS — for every clip WITHOUT a trim: in = speech onset − X, out = speech offset + Y. Marked AUTO until hand-adjusted; never runs on its own.">{proposeBusy ? "analyzing…" : "propose trims"}</button>
+                    <label className="flex items-center gap-0.5 text-[7.5px] font-bold uppercase" style={{ color: NEON.muted }} title="Silence sweep threshold — pauses longer than this get cut">✂ &gt;
+                      <input type="number" min={0.5} step={0.5} className="w-9 rounded bg-transparent px-0.5 text-[8px] tabular-nums outline-none" style={{ border: `1px solid ${NEON.borderSoft}`, color: NEON.text }} value={minSilenceS} onChange={(e) => { const v = Math.max(0.5, Number(e.target.value) || 2); setMinSilenceS(v); localStorage.setItem("sa-sweep-min-s", String(v)); }} />s
+                    </label>
+                    <button className="rounded px-1.5 py-0.5 text-[8px] font-black uppercase disabled:opacity-50" style={{ color: "#FF8B9E", border: "1px solid rgba(255,139,158,0.5)" }} disabled={sweepBusy || !pipelineStitch} onClick={sweepSilences} title={`SILENCE SWEEP — cut every pause longer than ${minSilenceS}s across the whole cut, keeping X of lead-in and Y of tail around each phrase. Recipe only; one click undoes it.`}>{sweepBusy ? "sweeping…" : "cut silences"}</button>
+                    {sweepUndoable && <button className="rounded px-1.5 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.yellow, border: `1px solid ${NEON.border}` }} onClick={undoSweep} title="Restore the exact pre-sweep recipe">undo sweep</button>}
                     <button className="rounded px-1.5 py-0.5 text-[8px] font-bold uppercase disabled:opacity-50" style={{ color: fineTrimOpen ? "#0B1322" : NEON.cyan, background: fineTrimOpen ? NEON.cyan : "transparent", border: `1px solid ${NEON.borderSoft}` }} disabled={!stageSel} onClick={() => setFineTrimOpen((v) => !v)} title="FINE TRIM — the selected clip's zoomable waveform: wheel zoom, landmark snapping, 10ms nudges. The timeline's edge handles cover the everyday trim.">fine trim</button>
                     <button className="rounded px-1.5 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => void doExportEditLog()} title="EXPORT EDIT LOG — every trim decision as JSON + CSV (clipboard + download).">⇩ edit log</button>
                     </>)}
+                    {/* PUBLISH (#1/#2) — always visible: the whole point of the room.
+                        Each kind opens its gate panel; GO renders the RECIPE (trims +
+                        silence cuts) through the trim-aware worker, then ships. */}
+                    <span className="mx-1 h-4 w-px shrink-0" style={{ background: NEON.borderSoft }} />
+                    {(["blast", "lookback", "short"] as const).map((k) => (
+                      <button key={k} className="rounded px-1.5 py-0.5 text-[8px] font-black uppercase disabled:opacity-50" style={{ color: pubPanel === k ? "#0B1322" : "#3BF5A0", background: pubPanel === k ? "#3BF5A0" : "transparent", border: "1px solid rgba(59,245,160,0.5)" }} disabled={!!pubBusy || !pipelineStitch} onClick={() => setPubPanel((p) => (p === k ? null : k))}
+                        title={k === "blast" ? "BLAST → the FREE site lesson (the website player's teaser). Renders THIS cut — trims and silence cuts included." : k === "lookback" ? "LOOKBACK → the PAID site lesson (the full walkthrough). Renders THIS cut." : "SHORT → a mastered 9:16 file for YouTube (filmed vertical — no crop path). Upload to YT stays a human act."}>
+                        {pubBusy === k ? <Loader2 className="inline h-3 w-3 animate-spin" /> : null} {k}
+                      </button>
+                    ))}
                   </div>
+                  {/* PUBLISH GATE PANEL — blocks are red ✗ rows; confirms are the
+                      checkboxes the machine genuinely can't verify. GO stays dead
+                      until both are clear. */}
+                  {pubPanel && (() => {
+                    const gates = pipeGates(pubPanel);
+                    const blocks = gates.filter((g) => g.level === "block");
+                    const confirms = gates.filter((g) => g.level === "confirm");
+                    const ready = !blocks.length && confirms.every((g) => pubChecks.has(g.id));
+                    return (
+                      <div className="mb-1.5 shrink-0 rounded-lg px-2 py-1.5" style={{ background: "rgba(0,0,0,0.35)", border: `1px solid ${ready ? "rgba(59,245,160,0.5)" : blocks.length ? "rgba(255,90,110,0.55)" : NEON.borderSoft}` }}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: "#3BF5A0" }}>Publish {pubPanel}</span>
+                          <span className="text-[8.5px]" style={{ color: NEON.muted }}>{pubPanel === "blast" ? "→ FREE site lesson" : pubPanel === "lookback" ? "→ PAID site lesson" : "→ mastered 9:16 file for YouTube"}</span>
+                          <button className="ml-auto rounded px-2 py-0.5 text-[9px] font-black uppercase disabled:opacity-40" style={{ color: "#0B1322", background: "#3BF5A0" }} disabled={!ready || !!pubBusy} onClick={() => doPipePublish(pubPanel)} title={ready ? "Render this cut and ship it" : "Blocked — clear the ✗ rows and tick the confirms first"}>{pubBusy ? "publishing…" : "go"}</button>
+                          <button className="grid h-4 w-4 place-items-center rounded" style={{ color: NEON.muted }} onClick={() => setPubPanel(null)}><X className="h-3 w-3" /></button>
+                        </div>
+                        {gates.length === 0 && <div className="pt-0.5 text-[8.5px]" style={{ color: "#3BF5A0" }}>All gates clear — go.</div>}
+                        {blocks.map((g) => <div key={g.id} className="pt-0.5 text-[8.5px]" style={{ color: "#FF8B9E" }}>✗ {g.text}</div>)}
+                        {confirms.map((g) => (
+                          <label key={g.id} className="flex cursor-pointer items-start gap-1 pt-0.5 text-[8.5px]" style={{ color: pubChecks.has(g.id) ? "#3BF5A0" : NEON.text }}>
+                            <input type="checkbox" className="mt-0.5" checked={pubChecks.has(g.id)} onChange={() => setPubChecks((s) => { const n = new Set(s); if (n.has(g.id)) n.delete(g.id); else n.add(g.id); return n; })} />
+                            <span>{g.text}</span>
+                          </label>
+                        ))}
+                      </div>
+                    );
+                  })()}
                   <PipelineStage
                     clips={stageClips}
                     frames={stageFrames}

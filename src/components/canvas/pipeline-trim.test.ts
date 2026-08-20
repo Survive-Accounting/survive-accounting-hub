@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
-import { detectSpeech, proposeTrim, snapMs, SNAP_RADIUS_MS } from "./landmarks";
+import { detectSpeech, proposeTrim, silenceCuts, snapMs, SNAP_RADIUS_MS, speechSpans } from "./landmarks";
 import { frameAudio } from "./waveform-peaks";
 
 const read = (p: string) => readFileSync(join(import.meta.dir, p), "utf8").split("\r\n").join("\n");
@@ -71,6 +71,48 @@ describe("detectSpeech", () => {
     // the same 0.1 level over a QUIET floor is unmistakable
     const quiet = track(100, [[20, 80]], 0.1, 0.002);
     expect(detectSpeech(quiet, 20).onsetMs).toBe(400);
+  });
+});
+
+// ---- speechSpans + silenceCuts: the silence sweep (Lee, 08-20) ------------
+
+describe("speechSpans", () => {
+  test("every sustained span is found; a word gap under mergeMs fuses", () => {
+    // 20ms frames: speech 10–40, tiny 200ms gap, speech 50–80 → ONE span; then
+    // a real 2s silence; speech 180–190 → a second span.
+    const rms = track(200, [[10, 40], [50, 80], [180, 190]]);
+    expect(speechSpans(rms, 20)).toEqual([
+      { startMs: 200, endMs: 1600 },
+      { startMs: 3600, endMs: 3800 },
+    ]);
+  });
+  test("a single crackle is not a span; empty audio has none", () => {
+    expect(speechSpans(track(100, [[50, 51]]), 20)).toEqual([]);
+    expect(speechSpans(new Float32Array(0), 20)).toEqual([]);
+  });
+});
+
+describe("silenceCuts", () => {
+  const spans = [{ startMs: 5000, endMs: 8000 }, { startMs: 12000, endMs: 15000 }];
+  const base = { inS: 0, outS: 20, minSilenceMs: 2000, preRollMs: 150, postRollMs: 250 };
+  test("head, middle and tail silences all cut, padded by X/Y", () => {
+    expect(silenceCuts(spans, base)).toEqual([
+      { startS: 0, endS: 4.85 },        // head: up to first speech − X
+      { startS: 8.25, endS: 11.85 },    // middle: prev + Y → next − X
+      { startS: 15.25, endS: 20 },      // tail: last speech + Y → out
+    ]);
+  });
+  test("a pause shorter than the threshold survives — pacing is not silence", () => {
+    const tight = [{ startMs: 5000, endMs: 8000 }, { startMs: 9500, endMs: 15000 }]; // 1.5s gap
+    const cuts = silenceCuts(tight, { ...base, inS: 4.8, outS: 15 });
+    expect(cuts).toEqual([]); // no head (only 200ms), no middle (under 2s), no tail
+  });
+  test("cuts respect the TRIMMED window, not the raw clip", () => {
+    const cuts = silenceCuts(spans, { ...base, inS: 6, outS: 13 });
+    expect(cuts).toEqual([{ startS: 8.25, endS: 11.85 }]); // head/tail outside the window
+  });
+  test("an all-silent window proposes nothing — that's a take problem, not a sweep", () => {
+    expect(silenceCuts(spans, { ...base, inS: 8.5, outS: 11.5 })).toEqual([]);
   });
 });
 
