@@ -39,11 +39,18 @@ describe("drag is the correction layer", () => {
     expect(studio).toContain("// AUTO-ADVANCE (F1) — but a dissect CEQ");
   });
   test("drops route by upload state: attached directly, or keep+upload via the drop bus", () => {
-    expect(studio).toContain("if (!ref) { keepTakeTo(takeId, frameId, at); return; }");
+    expect(studio).toContain("if (!ref) { keepTakeTo(takeId, [frameId], at); return; }");
     expect(store).toContain("export const keepTakeTo = ");
-    expect(inbox).toContain("setKeepToHandler((takeId, frameId, at) => {");
+    expect(inbox).toContain("setKeepToHandler((takeId, frameIds, at) => {");
     // and the bus override rides doKeep — ONE keep path, not a fork
-    expect(inbox).toContain('const t: TakeRecord = over ? { ...t0, target: { kind: "ceq", ids: [over.frameId], label: "dropped" } } : t0;');
+    expect(inbox).toContain("const t: TakeRecord = over?.frameIds.length");
+  });
+  test("a scratch take dropped on N checked frames keeps the WHOLE range (08-20)", () => {
+    // the blast fallback used to collapse to ids[0]; the bus now carries the array
+    expect(studio).toContain("if (!ref) { keepTakeTo(takeId, ids); return; }");
+    expect(store).toContain("type KeepToFn = (takeId: string, frameIds: string[], at?: number) => void;");
+    // >1 frame ⇒ a range target, so the explicit-drop upload spans them all
+    expect(inbox).toContain('kind: over.frameIds.length > 1 ? "range" : "ceq"');
   });
 });
 

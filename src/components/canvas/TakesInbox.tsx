@@ -24,7 +24,7 @@ export interface TakesInboxProps {
   onDisarm: () => void;
   /** Bank a kept take against its target: upload + attach. Resolves to the
    *  public URL, or throws — the record keeps the error and the file survives. */
-  onUpload: (take: TakeRecord, file: File, opts?: { at?: number; explicit?: boolean }) => Promise<{ url: string; path: string }>;
+  onUpload: (take: TakeRecord, file: File, opts?: { at?: number; explicit?: boolean; onProgress?: (frac: number) => void }) => Promise<{ url: string; path: string }>;
   /** P3: storage paths already attached somewhere in the set. Kept takes NOT
    *  in it are the rail's SCRATCH lane; attached ones live in the stack — one
    *  home each, or it's the two-UIs bug again. */
@@ -178,24 +178,35 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, openFrameId, co
   }, [obsOn, connectTick, ingest]);
 
   // P3: `over` is the DROP override — a rail row dragged onto the stack keeps
-  // straight to that frame. Explicit beats coverage: drag is the correction layer.
-  const doKeep = useCallback(async (t0: TakeRecord, over?: { frameId: string; at?: number }) => {
-    const t: TakeRecord = over ? { ...t0, target: { kind: "ceq", ids: [over.frameId], label: "dropped" } } : t0;
+  // straight to those frames (ONE frame from the stack, a RANGE from the frame
+  // checkboxes). Explicit beats coverage: drag is the correction layer.
+  const doKeep = useCallback(async (t0: TakeRecord, over?: { frameIds: string[]; at?: number }) => {
+    const t: TakeRecord = over?.frameIds.length
+      ? { ...t0, target: { kind: over.frameIds.length > 1 ? "range" : "ceq", ids: over.frameIds, label: over.frameIds.length > 1 ? `dropped·${over.frameIds.length}` : "dropped" } }
+      : t0;
     const d = dirRef.current;
     await saveTake({ ...t, status: "kept", upload: t.target ? { state: "queued", attempts: 0 } : t.upload });
     if (!t.target || !d) { setNote(t.target ? "Kept — folder not granted, upload deferred." : "Kept (unattached — attach it from the target picker)."); return; }
     const file = await getFile(d, t.fileName);
     if (!file) { await saveTake({ ...t, status: "kept", upload: { state: "error", attempts: 1, error: "file not found in the folder" } }); return; }
     await saveTake({ ...t, status: "kept", upload: { state: "uploading", attempts: 1 } });
+    const mb = (file.size / 1048576).toFixed(0);
     try {
-      const { url, path } = await onUpload(t, file, over ? { ...(over.at != null ? { at: over.at } : {}), explicit: true } : undefined);
+      const { url, path } = await onUpload(t, file, {
+        ...(over ? { ...(over.at != null ? { at: over.at } : {}), explicit: true } : {}),
+        // Live percent in the note — a 60MB+ take used to sit on a silent
+        // spinner for its whole transfer, which read as a hang.
+        onProgress: (frac) => setNote(`Uploading "${t.fileName}" — ${Math.min(99, Math.round(frac * 100))}% of ${mb}MB…`),
+      });
       await saveTake({ ...t, status: "kept", upload: { state: "done", attempts: 1, url, path } });
       // Q3: transcribe in the BACKGROUND — queued, never blocks the film loop.
       enqueueTranscription(path, url, t.fileName);
       setNote(`Uploaded "${t.fileName}" → its target.${transcribeEnabled() ? " Transcribing in the background." : ""}`);
     } catch (err) {
       await saveTake({ ...t, status: "kept", upload: { state: "error", attempts: 1, error: err instanceof Error ? err.message : String(err) } });
-      setNote("Upload failed — the local file is untouched; retry from the inbox.");
+      // The WHY, in the note — it used to hide in the retry button's tooltip,
+      // so a 50MB-limit rejection just read as "upload failed".
+      setNote(`Upload FAILED: ${err instanceof Error ? err.message : String(err)} — the local file is untouched; retry from the inbox.`);
     }
   }, [onUpload]);
 
@@ -229,10 +240,10 @@ export function TakesInbox({ onClose, armed, onDisarm, onUpload, openFrameId, co
   // DROP ATTACH (P3) — registered like the triage bus: the studio's stack
   // fires with a frame + position, this owns the keep + upload.
   useEffect(() => {
-    setKeepToHandler((takeId, frameId, at) => {
+    setKeepToHandler((takeId, frameIds, at) => {
       const t = currentTakes().find((x) => x.id === takeId);
       if (!t) { setNote("That take is gone from the store."); return; }
-      void doKeep(t, { frameId, ...(at != null ? { at } : {}) });
+      void doKeep(t, { frameIds, ...(at != null ? { at } : {}) });
     });
     return () => setKeepToHandler(null);
   }, [doKeep]);

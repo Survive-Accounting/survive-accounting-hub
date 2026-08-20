@@ -201,9 +201,11 @@ export const setTriageHandler = (fn: TriageFn | null): void => { triageHandler =
 export const triageLatest = (action: "keep" | "trash"): void => { triageHandler?.(action); };
 
 // ---- the drop bus (P3): a rail row dragged onto the clip stack ------------
-type KeepToFn = (takeId: string, frameId: string, at?: number) => void;
+// Carries the FULL frame range (08-20): a scratch take dropped on N checked
+// frames used to collapse to frames[0] here, so the blast lost its span.
+type KeepToFn = (takeId: string, frameIds: string[], at?: number) => void;
 let keepToHandler: KeepToFn | null = null;
 /** The inbox registers the real handler (it owns the folder handle and the
  *  upload path); the studio's drop target just fires. */
 export const setKeepToHandler = (fn: KeepToFn | null): void => { keepToHandler = fn; };
-export const keepTakeTo = (takeId: string, frameId: string, at?: number): void => { keepToHandler?.(takeId, frameId, at); };
+export const keepTakeTo = (takeId: string, frameIds: string[], at?: number): void => { keepToHandler?.(takeId, frameIds, at); };

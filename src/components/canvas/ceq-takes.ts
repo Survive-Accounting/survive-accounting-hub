@@ -3,7 +3,6 @@
 // slot uses (canvas-media). Metadata (url/path/duration) rides on the scene JSON
 // (CeqCard.take, DeckDef.intro/outro) or panel prefs (wrap toggle + shared
 // transition) — no SQL. Staging path: canvas-media/ceq-takes/raw-<uid>.<ext>.
-import { supabase } from "@/integrations/supabase/client";
 import { createPipelineTestStagingUpload } from "@/lib/publish.functions";
 import type { TakeRef, TakeRole } from "./types";
 
@@ -37,22 +36,49 @@ export function readDuration(file: File): Promise<number> {
   });
 }
 
+/** PUT the bytes straight onto the signed Storage URL with an XHR — the one
+ *  browser primitive that reports UPLOAD progress (fetch and supabase-js's
+ *  uploadToSignedUrl are both fire-and-wait, which read as a hang on a 60MB+
+ *  take). Same endpoint supabase-js builds internally: PUT
+ *  /storage/v1/object/upload/sign/<bucket>/<path>?token=…  Resolves null on
+ *  success, or the server's error message. */
+function putSignedUpload(path: string, token: string, file: File, onProgress?: (frac: number) => void): Promise<string | null> {
+  const base = (import.meta.env.VITE_SUPABASE_URL as string).replace(/\/+$/, "");
+  return new Promise((resolve) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", `${base}/storage/v1/object/upload/sign/canvas-media/${path}?token=${encodeURIComponent(token)}`);
+    xhr.setRequestHeader("content-type", file.type || "video/mp4");
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable && e.total > 0) onProgress?.(e.loaded / e.total); };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) return resolve(null);
+      let msg = `upload rejected (HTTP ${xhr.status})`;
+      try { const j = JSON.parse(xhr.responseText) as { message?: string; error?: string }; msg = j.message || j.error || msg; } catch { /* non-JSON body — keep the status line */ }
+      resolve(xhr.status === 413 ? `Payload too large — ${msg}` : msg);
+    };
+    xhr.onerror = () => resolve("network error mid-upload — the connection dropped (or the server cut a too-large body short)");
+    xhr.ontimeout = () => resolve("upload timed out");
+    xhr.send(file);
+  });
+}
+
 /** Upload a raw clip to the Supabase staging bucket and return a durable TakeRef
- *  (duration read at attach). Same mechanism as the lesson video slot. */
-export async function stageTake(file: File): Promise<TakeRef> {
+ *  (duration read at attach). Same mechanism as the lesson video slot.
+ *  `knownDurationS` skips the metadata re-probe (the inbox already probed at
+ *  ingest — the re-read cost up to 8s on every keep); `onProgress` gets 0..1. */
+export async function stageTake(file: File, opts?: { knownDurationS?: number; onProgress?: (frac: number) => void }): Promise<TakeRef> {
   const ext = file.name.includes(".") ? file.name.split(".").pop()! : "mp4";
-  const duration = await readDuration(file);
+  const duration = opts?.knownDurationS && opts.knownDurationS > 0 ? opts.knownDurationS : await readDuration(file);
   const { path, token, publicUrl } = await createPipelineTestStagingUpload({ data: { ext, folder: CEQ_TAKES_FOLDER } });
-  const { error } = await supabase.storage.from("canvas-media").uploadToSignedUrl(path, token, file, { contentType: file.type || "video/mp4" });
-  if (error) {
+  const errMsg = await putSignedUpload(path, token, file, opts?.onProgress);
+  if (errMsg) {
     // The take upload goes straight to Supabase Storage, so the only "too big"
     // error is the bucket / project upload limit — surface WHAT to do, not just
     // the raw "object exceeded the maximum allowed size".
-    if (/maximum allowed size|exceeded|too large|payload/i.test(error.message)) {
+    if (/maximum allowed size|exceeded|too large|payload/i.test(errMsg)) {
       const mb = (file.size / 1048576).toFixed(0);
       throw new Error(`Take is ${mb}MB — over the Supabase upload limit. Raise it: Storage → Settings → Upload file size limit (project), and the canvas-media bucket's file_size_limit. Then retry — the local file is untouched.`);
     }
-    throw new Error(error.message);
+    throw new Error(errMsg);
   }
   // 0.1s precision (was whole seconds): the preview's rendered-file seek and the
   // manifest offsets sum these — integer rounding drifted up to ±0.5s per clip.

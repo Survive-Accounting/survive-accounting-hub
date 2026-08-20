@@ -1447,7 +1447,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     const t = currentTakes().find((x) => x.id === takeId);
     if (!t) { setNote("That take is gone from the store."); return; }
     const ref = takeRefOf(t);
-    if (!ref) { keepTakeTo(takeId, frameId, at); return; }
+    if (!ref) { keepTakeTo(takeId, [frameId], at); return; }
     const d = rf.getNode(frameId)?.data as unknown as CeqCard | undefined;
     const clips = [...cardClips(d)];
     clips.splice(at == null ? clips.length : Math.min(at, clips.length), 0, ref);
@@ -1464,7 +1464,7 @@ export function CeqStudio({ decks, setDecks, globalClips, setGlobalClips, initia
     const t = currentTakes().find((x) => x.id === takeId);
     if (!t) { setNote("That take is gone from the store."); return; }
     const ref = takeRefOf(t);
-    if (!ref) { keepTakeTo(takeId, ids[0]); return; } // not uploaded yet → single-frame keep path
+    if (!ref) { keepTakeTo(takeId, ids); return; } // not uploaded yet → keep+upload with the WHOLE range (the drop bus carries it)
     const first = ids[0];
     const d = rf.getNode(first)?.data as unknown as CeqCard | undefined;
     const clip = ids.length > 1 ? { ...ref, coversFrameIds: ids } : ref;
@@ -3591,7 +3591,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   coverageChip={(t) => coverageLabel(t.coverage?.frameIds, questions.map((q) => q.id), spineLabelOf)}
                   onObsState={setObsState}
                   onRecordStart={onRecordStart}
-                  onUpload={async (t: TakeRecord, file: File, opts?: { at?: number; explicit?: boolean }) => {
+                  onUpload={async (t: TakeRecord, file: File, opts?: { at?: number; explicit?: boolean; onProgress?: (frac: number) => void }) => {
                     // AUTO-ATTACH (F1): the frames that were ON SCREEN while this
                     // take rolled win; the armed target is the fallback. Several
                     // frames ⇒ run coverage across them (coversFrameIds).
@@ -3599,7 +3599,9 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                     // drag is the correction layer over coverage/armed.
                     const ids = opts?.explicit && t.target?.ids.length ? t.target.ids : attachTargets(t, questions.map((q) => q.id), qId && qId !== LAYOUT_Q0 ? qId : null);
                     if (!ids.length) throw new Error("nothing to attach to — open a frame in the spine first (a kept take attaches to whatever frame is selected)");
-                    const staged = await stageTake(file);
+                    // knownDurationS: the inbox probed it at ingest — re-probing a
+                    // 60MB file here burned up to 8s before the upload even began.
+                    const staged = await stageTake(file, { ...(t.durationS ? { knownDurationS: t.durationS } : {}), ...(opts?.onProgress ? { onProgress: opts.onProgress } : {}) });
                     const first = ids[0];
                     const d0 = rf.getNode(first)?.data as unknown as CeqCard | undefined;
                     // FILMED IN — tagged from the take record, which was stamped at
