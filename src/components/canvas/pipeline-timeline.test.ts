@@ -119,6 +119,18 @@ describe("the editing room reshaped (Lee, 08-20)", () => {
     // words the trims already dropped render struck-through, not clickable
     expect(stage).toContain("const gone = w.e <= clip.inS + 0.001 || w.s >= clip.outS - 0.001;");
   });
+  test("clicking the track PARKS the cursor; Space plays/pauses from it (08-20)", () => {
+    expect(stage).toContain("const positionAtPx = (clientX: number) => {");
+    expect(stage).toContain("setCursorMs(startsMs[i] + within * contentMs);"); // park, don't play
+    expect(stage).toContain('if (hidden || e.key !== " " || e.defaultPrevented || e.repeat) return;');
+    expect(stage).toContain("if (playingRef.current) { setCursorMs(posRef.current); stopRef.current(); }");
+    expect(stage).toContain("else playFromMsRef.current(cursorRef.current);");
+    // ONE line: live playhead while playing, parked cursor while not
+    expect(stage).toContain("const headPx = player.state.playing ? playheadPx : cursorPx;");
+  });
+  test("the dead middle is gone: the authoring column never renders during filming", () => {
+    expect(studio).toContain("{!filming && (\n              <div className=\"flex min-h-0 flex-1 flex-col\">");
+  });
   test("fine trim is OPT-IN; the toolbar and the take rail both collapse for focus", () => {
     expect(studio).toContain("return fineTrimOpen && sel && t ? (");
     expect(studio).toContain('localStorage.getItem("sa-pipe-tools")');

@@ -72,7 +72,8 @@ describe("Whisper server function — word-level, not Mux", () => {
   test("it hits Whisper directly (not Mux), and it's idempotent (re-keeping never re-bills)", () => {
     expect(fns).toContain("https://api.openai.com/v1/audio/transcriptions");
     expect(fns).not.toContain("mux.server"); // no Mux API — scratch takes never go there
-    expect(fns).toContain("if (existing.data) return existing.data as TranscriptRow;");
+    // force (08-20) is the RE-RUN button's door — without it, idempotency wins
+    expect(fns).toContain("if (existing.data && !data.force) return existing.data as TranscriptRow;");
   });
   test("the 25MB cap fails LOUD rather than silently truncating", () => {
     expect(fns).toContain("const MAX_BYTES = 25 * 1024 * 1024;");
@@ -98,6 +99,36 @@ describe("the transcript panel — karaoke, click-seek, select → trim / cut", 
   test("a selection can TRIM to the span or CUT it (internal cut)", () => {
     expect(detail).toContain("onClick={() => { onTrim(words[selRange.a].s, words[selRange.b].e, \"drag\"); setSel(null); }}");
     expect(detail).toContain("onClick={() => { onCut(words[selRange.a].s, words[selRange.b].e); setSel(null); }}");
+  });
+});
+
+describe("big takes transcribe via the AUDIO SIDECAR (Lee, 08-20)", () => {
+  test("over ~24MB the client extracts 16kHz mono WAV and hands Whisper that file", () => {
+    expect(client).toContain("export async function transcribeSmart(");
+    expect(client).toContain("if (size > 24 * 1024 * 1024) {");
+    expect(client).toContain('await import("./transcribe-audio")');
+    // the row stays keyed by the TAKE's path even when the url is the sidecar
+    expect(client).toContain("const row = await transcribeTake({ data: { path, url: sendUrl,");
+  });
+  test("the background queue rides the same door — a 60MB blast no longer wedges it", () => {
+    const drain = client.slice(client.indexOf("export async function drainTranscriptions"), client.indexOf("export function startTranscription"));
+    expect(drain).toContain("await transcribeSmart(item.path, item.url, item.name);");
+  });
+  test("the transcript panel has a ↻ button wired through the studio's one door", () => {
+    const stage = read("PipelineStage.tsx");
+    expect(stage).toContain('{busy ? "transcribing…" : status === "none" ? "↻ transcribe" : "↻ re-run"}');
+    expect(studio).toContain("onRetranscribe={(c) => transcribeSmart(c.path, c.url, c.name, { force: true, onNote: setNote })");
+  });
+  test("wavBlob packs a valid 16-bit mono PCM header", async () => {
+    const { wavBlob } = await import("./transcribe-audio");
+    const blob = wavBlob(new Float32Array([0, 0.5, -0.5, 1]), 16000);
+    expect(blob.size).toBe(44 + 4 * 2);
+    const dv = new DataView(await blob.arrayBuffer());
+    expect(String.fromCharCode(dv.getUint8(0), dv.getUint8(1), dv.getUint8(2), dv.getUint8(3))).toBe("RIFF");
+    expect(dv.getUint16(22, true)).toBe(1);      // mono
+    expect(dv.getUint32(24, true)).toBe(16000);  // sample rate
+    expect(dv.getUint16(34, true)).toBe(16);     // bit depth
+    expect(dv.getInt16(44 + 6, true)).toBe(0x7fff); // full-scale sample
   });
 });
 

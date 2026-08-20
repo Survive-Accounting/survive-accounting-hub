@@ -27,6 +27,37 @@ export function transcriptFor(path: string): Promise<TranscriptRow | null> {
 /** Seed the cache from a fresh transcription result so the panel shows it at once. */
 export function primeTranscript(row: TranscriptRow): void { cache.set(row.take_path, Promise.resolve(row)); }
 
+/** THE ONE TRANSCRIBE DOOR (Lee, 08-20). Whisper caps uploads at 25MB and a
+ *  blast take is 60MB+ of video — so for big takes we transcribe the AUDIO:
+ *  decode in the browser, resample to 16kHz mono WAV (~2MB/min), stage it in
+ *  canvas-media, and hand Whisper THAT file (the row stays keyed by the take's
+ *  own path). Small takes go straight through. `force` re-runs an existing
+ *  row — the RE-RUN button's path. */
+export async function transcribeSmart(path: string, url: string, name?: string, opts?: { force?: boolean; onNote?: (s: string) => void }): Promise<TranscriptRow> {
+  const note = opts?.onNote ?? (() => { /* silent */ });
+  let size = 0;
+  try { const h = await fetch(url, { method: "HEAD" }); size = Number(h.headers.get("content-length")) || 0; } catch { /* size unknown — try the direct path */ }
+  let sendUrl = url;
+  let sendName = name;
+  if (size > 24 * 1024 * 1024) {
+    note(`Take is ${(size / 1048576).toFixed(0)}MB — over Whisper's 25MB cap. Extracting the audio…`);
+    const { extractWavFromUrl } = await import("./transcribe-audio");
+    const wav = await extractWavFromUrl(url);
+    note(`Uploading ${(wav.size / 1048576).toFixed(1)}MB of audio for transcription…`);
+    const { createPipelineTestStagingUpload } = await import("@/lib/publish.functions");
+    const { putSignedUpload } = await import("./ceq-takes");
+    const staged = await createPipelineTestStagingUpload({ data: { ext: "wav", folder: "transcribe-audio" } });
+    const err = await putSignedUpload(staged.path, staged.token, new File([wav], "audio.wav", { type: "audio/wav" }));
+    if (err) throw new Error(err);
+    sendUrl = staged.publicUrl;
+    sendName = (name ?? "take").replace(/\.\w+$/, "") + ".wav";
+  }
+  note("Transcribing…");
+  const row = await transcribeTake({ data: { path, url: sendUrl, ...(sendName ? { name: sendName } : {}), ...(opts?.force ? { force: true } : {}) } });
+  primeTranscript(row);
+  return row;
+}
+
 // ---- the background transcription queue -----------------------------------
 
 const QKEY = "sa-transcribe-queue";
@@ -61,8 +92,9 @@ export async function drainTranscriptions(): Promise<void> {
     while (q.length) {
       const item = q[0];
       try {
-        const row = await transcribeTake({ data: { path: item.path, url: item.url, ...(item.name ? { name: item.name } : {}) } });
-        primeTranscript(row);
+        // transcribeSmart: big takes go via the audio sidecar — before this, a
+        // >25MB blast take sat at the head of the queue failing forever.
+        await transcribeSmart(item.path, item.url, item.name);
         q = loadQ().filter((i) => i.path !== item.path);
         saveQ(q);
       } catch {

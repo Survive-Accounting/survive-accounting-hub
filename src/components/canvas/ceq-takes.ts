@@ -42,7 +42,7 @@ export function readDuration(file: File): Promise<number> {
  *  take). Same endpoint supabase-js builds internally: PUT
  *  /storage/v1/object/upload/sign/<bucket>/<path>?token=…  Resolves null on
  *  success, or the server's error message. */
-function putSignedUpload(path: string, token: string, file: File, onProgress?: (frac: number) => void): Promise<string | null> {
+export function putSignedUpload(path: string, token: string, file: File, onProgress?: (frac: number) => void): Promise<string | null> {
   const base = (import.meta.env.VITE_SUPABASE_URL as string).replace(/\/+$/, "");
   return new Promise((resolve) => {
     const xhr = new XMLHttpRequest();

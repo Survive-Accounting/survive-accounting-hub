@@ -29,7 +29,7 @@ import { buildSetExport } from "./ceq-export";
 import { ClipTrimStrip } from "./ClipTrimStrip";
 import { PipelineStage, type StageClip } from "./PipelineStage";
 import { TrimDetail } from "./TrimDetail";
-import { startTranscription } from "./transcript-client";
+import { startTranscription, transcribeSmart } from "./transcript-client";
 import { previewTimeline, splitAroundCut } from "./stitch-preview";
 import { SetFilmstrip, type StripItem } from "./SetFilmstrip";
 import { checkFilmReadiness, type ReadinessReport } from "./film-readiness";
@@ -3510,7 +3510,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                       name away so the room is transcript + preview + timeline. */}
                   <div className="mb-1.5 flex items-center gap-1">
                     <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: NEON.yellow }}>Pipeline</span>
-                    <button className="rounded px-1 py-0.5 text-[9px] font-black leading-none" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { const v = !pipeTools; setPipeTools(v); localStorage.setItem("sa-pipe-tools", v ? "1" : "0"); }} title={pipeTools ? "Collapse the edit tools — focus on trim + publish" : "Show the edit tools (clear all · X/Y · propose trims · fine trim · edit log)"}>{pipeTools ? "▾" : "▸"}</button>
+                    <button className="rounded px-1.5 py-0.5 text-[8px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { const v = !pipeTools; setPipeTools(v); localStorage.setItem("sa-pipe-tools", v ? "1" : "0"); }} title={pipeTools ? "Collapse the edit tools — focus on trim + publish" : "Show the edit tools (clear all · X/Y · propose trims · fine trim · edit log)"}>{pipeTools ? "hide tools ▴" : "tools ▾"}</button>
                     {pipeTools && (<>
                     <button className="rounded px-1.5 py-0.5 text-[8px] font-bold uppercase" style={{ color: "#FF8B9E", border: "1px solid rgba(255,139,158,0.5)" }} onClick={clearAllClips} title="CLEAR ALL CLIPS — detach every clip in this set back to the scratch lane so you can re-cut from zero. Files are never trashed.">clear all</button>
                     <label className="ml-auto flex items-center gap-0.5 text-[7.5px] font-bold uppercase" style={{ color: NEON.muted }} title="Pre-roll X — PROPOSE TRIMS sets in = speech onset − X ms">X
@@ -3537,6 +3537,10 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                     onDetach={(frameId, index) => detachClip(frameId, index)}
                     onTrimClip={(path, inS, outS) => applyTrim(path, inS, outS, "drag")}
                     onCutClip={(path, a, b) => splitClipAt(path, a, b)}
+                    onRetranscribe={(c) => transcribeSmart(c.path, c.url, c.name, { force: true, onNote: setNote }).then(
+                      (r) => setNote(`Transcribed "${c.name}" — ${r.words.length} words. Click a word to seek; select + Delete cuts.`),
+                      (err) => { setNote("TRANSCRIBE FAILED: " + (err instanceof Error ? err.message : String(err))); throw err; },
+                    )}
                     onAuthorFrame={authorFrame}
                     onOpenCapture={() => setCaptureOpen(true)}
                     onTrueRender={stageTrueRender}
@@ -3958,7 +3962,12 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   </div>
                 </div>
               )}
-              {/* WYSIWYG previewer (top) + collapsible stem/choices editor (bottom) */}
+              {/* WYSIWYG previewer (top) + collapsible stem/choices editor (bottom).
+                  GATED OFF while FILMING (Lee, 08-20): everything inside is
+                  authoring chrome that's already filming-gated, so in the
+                  Pipeline this column rendered EMPTY at flex-1 — a dead band
+                  eating the middle of the editing room. */}
+              {!filming && (
               <div className="flex min-h-0 flex-1 flex-col">
                 {/* CLIP STACK for the OPEN question — the list column's per-row stack, re-hosted in
                     the editor (Studio Consolidation D). Toggled by the strip's Clips chip; the whole
@@ -4085,6 +4094,7 @@ This overwrites any hand-placed card/memo positions in this set. One Ctrl+Z undo
                   </div>
                 )}
               </div>
+              )}
             </div>
           )}
           </>)}

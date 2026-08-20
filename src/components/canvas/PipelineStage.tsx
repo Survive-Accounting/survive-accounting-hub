@@ -93,7 +93,7 @@ function ClipTile({ clip, w, selected, underPlayhead, shift, onHover, onSelect, 
   /** Hover pull-apart: px this tile slides so a neighbour's edges open up. */
   shift: number;
   onHover: (on: boolean) => void;
-  onSelect: () => void; onDetach: (() => void) | null; onDragStart: (e: React.DragEvent) => void;
+  onSelect: (e: React.MouseEvent) => void; onDetach: (() => void) | null; onDragStart: (e: React.DragEvent) => void;
   onTrim: ((inS: number, outS: number) => void) | null;
 }) {
   const canDrag = clip.frameId != null && !clip.split;
@@ -164,17 +164,21 @@ function ClipTile({ clip, w, selected, underPlayhead, shift, onHover, onSelect, 
  *  clip's Whisper words: click seeks the CUT player, shift-click extends a
  *  selection, Delete removes the selected span as an internal cut. Words the
  *  trims already dropped render struck-through, so the text mirrors the cut. */
-function TranscriptPanel({ clip, sourcePosS, onSeek, onCut }: {
+function TranscriptPanel({ clip, sourcePosS, onSeek, onCut, onRetranscribe }: {
   clip: StageClip | null;
   /** The playhead as SOURCE seconds inside this clip (null when it's elsewhere). */
   sourcePosS: number | null;
   onSeek: (sourceS: number) => void;
   onCut: (cutStartS: number, cutEndS: number) => void;
+  /** RE-RUN (Lee, 08-20): missed/failed takes get a button, not a mystery. */
+  onRetranscribe?: () => Promise<unknown>;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [words, setWords] = useState<TranscriptWord[] | null>(null);
   const [status, setStatus] = useState<"loading" | "none" | "ready">("loading");
   const [sel, setSel] = useState<{ a: number; b: number } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [tick, setTick] = useState(0); // bumped after a re-run so the fetch effect re-reads the primed cache
   const path = clip?.path ?? null;
   useEffect(() => {
     let live = true;
@@ -183,7 +187,8 @@ function TranscriptPanel({ clip, sourcePosS, onSeek, onCut }: {
     setStatus("loading");
     transcriptFor(path).then((r) => { if (!live) return; if (r && r.words.length) { setWords(r.words); setStatus("ready"); } else setStatus("none"); }, () => { if (live) setStatus("none"); });
     return () => { live = false; };
-  }, [path]);
+  }, [path, tick]);
+  const rerun = () => { if (!onRetranscribe || busy) return; setBusy(true); onRetranscribe().then(() => setTick((t) => t + 1), () => { /* the studio note carries the error */ }).finally(() => setBusy(false)); };
   const range = sel ? { a: Math.min(sel.a, sel.b), b: Math.max(sel.a, sel.b) } : null;
   const cur = useMemo(() => (words && sourcePosS != null ? words.findIndex((w) => sourcePosS >= w.s && sourcePosS < w.e) : -1), [words, sourcePosS]);
   const doCut = () => { if (!range || !words) return; onCut(words[range.a].s, words[range.b].e); setSel(null); };
@@ -194,6 +199,12 @@ function TranscriptPanel({ clip, sourcePosS, onSeek, onCut }: {
         <span className="text-[8px] font-black uppercase tracking-wide" style={{ color: NEON.cyan }}>Transcript</span>
         {clip && <span className="rounded px-1 text-[8px] font-black uppercase" style={{ color: "#0B1322", background: NEON.yellow }}>{clip.label}</span>}
         {status === "loading" && <span className="text-[8px] italic" style={{ color: NEON.muted }}>loading…</span>}
+        {clip && onRetranscribe && status !== "loading" && (
+          <button className="rounded px-1.5 py-0.5 text-[8px] font-bold uppercase disabled:opacity-50" style={{ color: status === "none" ? "#0B1322" : NEON.muted, background: status === "none" ? "#3BF5A0" : "transparent", border: `1px solid ${NEON.borderSoft}` }} disabled={busy} onClick={rerun}
+            title={status === "none" ? "Transcribe this take now — big takes go via a browser-extracted audio file (Whisper's 25MB cap can't stop them)" : "Re-run the transcript for this take (overwrites the stored one)"}>
+            {busy ? "transcribing…" : status === "none" ? "↻ transcribe" : "↻ re-run"}
+          </button>
+        )}
         {range && words && (
           <button className="ml-auto flex items-center gap-1 rounded px-1.5 py-0.5 text-[8px] font-black uppercase" style={{ color: "#0B1322", background: "#FFB020" }} onClick={doCut} title="Remove the selected words — an internal cut in the recipe (Delete does the same)"><Scissors className="h-2.5 w-2.5" /> cut · Del</button>
         )}
@@ -216,7 +227,7 @@ function TranscriptPanel({ clip, sourcePosS, onSeek, onCut }: {
   );
 }
 
-export function PipelineStage({ clips, frames, currentCeqId, hidden, selectedKey, onSelectClip, onMoveClip, onDropTake, onDropTakeToFrames, onDetach, onTrimClip, onCutClip, onAuthorFrame, onOpenCapture, onTrueRender, renderPhase, renderBusy }: {
+export function PipelineStage({ clips, frames, currentCeqId, hidden, selectedKey, onSelectClip, onMoveClip, onDropTake, onDropTakeToFrames, onDetach, onTrimClip, onCutClip, onRetranscribe, onAuthorFrame, onOpenCapture, onTrueRender, renderPhase, renderBusy }: {
   clips: StageClip[];
   frames: { id: string; label: string }[];
   currentCeqId: string | null;
@@ -232,6 +243,8 @@ export function PipelineStage({ clips, frames, currentCeqId, hidden, selectedKey
   onTrimClip: (path: string, inS: number, outS: number) => void;
   /** Transcript Delete → the studio's splitClipAt door (internal cut). */
   onCutClip: (path: string, cutStartS: number, cutEndS: number) => void;
+  /** Transcript ↻ — (re)transcribe the active clip (big takes ride the audio sidecar). */
+  onRetranscribe?: (clip: StageClip) => Promise<unknown>;
   onAuthorFrame: (frameId: string) => void;
   onOpenCapture: () => void;
   onTrueRender: () => void;
@@ -264,6 +277,37 @@ export function PipelineStage({ clips, frames, currentCeqId, hidden, selectedKey
 
   const [dropAt, setDropAt] = useState<number | null>(null); // insertion index (flat) for the caret
   const [hoverIdx, setHoverIdx] = useState<number | null>(null); // pull-apart hover
+  // THE CURSOR (Lee, 08-20): clicking the timeline PARKS the playhead — it does
+  // not start playback. Space plays from the parked point; Space again pauses
+  // and the cursor keeps the spot. Content-space ms, same clock as positionMs.
+  const [cursorMs, setCursorMs] = useState(0);
+  const cursorRef = useRef(cursorMs);
+  cursorRef.current = cursorMs;
+  const playingRef = useRef(player.state.playing);
+  playingRef.current = player.state.playing;
+  const posRef = useRef(player.positionMs);
+  posRef.current = player.positionMs;
+  const playFromMsRef = useRef(player.playFromMs);
+  playFromMsRef.current = player.playFromMs;
+  const clipsLenRef = useRef(clips.length);
+  clipsLenRef.current = clips.length;
+  // SPACE = play/pause from the cursor. Window-level, bubble phase: the film
+  // controller's capture-phase handlers preventDefault first, so this can never
+  // steal Space from filming; typing targets are skipped the same way the
+  // studio's F10/F8 listener does it.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (hidden || e.key !== " " || e.defaultPrevented || e.repeat) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable)) return;
+      if (!clipsLenRef.current) return;
+      e.preventDefault();
+      if (playingRef.current) { setCursorMs(posRef.current); stopRef.current(); }
+      else playFromMsRef.current(cursorRef.current);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [hidden]);
   const [frameSel, setFrameSel] = useState<Set<string>>(new Set()); // BLAST: frames a dropped take covers
   const allChecked = frames.length > 0 && frameSel.size === frames.length;
   const toggleFrame = (id: string) => setFrameSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
@@ -305,7 +349,8 @@ export function PipelineStage({ clips, frames, currentCeqId, hidden, selectedKey
     } catch { /* not our payload */ }
   };
 
-  const seekToPx = (clientX: number) => {
+  // A track click PARKS the cursor (no playback) — Space plays from it.
+  const positionAtPx = (clientX: number) => {
     const el = trackRef.current;
     if (!el || !clips.length) return;
     const x = clientX - el.getBoundingClientRect().left + el.scrollLeft;
@@ -313,8 +358,21 @@ export function PipelineStage({ clips, frames, currentCeqId, hidden, selectedKey
     if (i < 0) i = clips.length - 1;
     const within = Math.max(0, Math.min(1, (x - offsets[i]) / widths[i]));
     const contentMs = (clips[i].outS - clips[i].inS) * 1000;
-    player.playFromMs(startsMs[i] + within * contentMs);
+    setCursorMs(startsMs[i] + within * contentMs);
   };
+  // The parked cursor, mapped onto the gapped track (same space as playheadPx).
+  const cursorPx = useMemo(() => {
+    for (let i = 0; i < clips.length; i++) {
+      const contentMs = (clips[i].outS - clips[i].inS) * 1000;
+      if (cursorMs < startsMs[i] + contentMs || i === clips.length - 1) {
+        const within = contentMs > 0 ? Math.max(0, Math.min(1, (cursorMs - startsMs[i]) / contentMs)) : 0;
+        return offsets[i] + within * widths[i];
+      }
+    }
+    return 0;
+  }, [cursorMs, clips, startsMs, offsets, widths]);
+  // ONE line on the track: live playhead while playing, parked cursor while not.
+  const headPx = player.state.playing ? playheadPx : cursorPx;
 
   // TRANSCRIPT TARGET — the selected clip, else the clip under the playhead,
   // else the first clip of the cut. One panel, always showing something useful.
@@ -333,7 +391,9 @@ export function PipelineStage({ clips, frames, currentCeqId, hidden, selectedKey
   const seekSource = (s: number) => {
     if (!txClip) return;
     const withinS = Math.max(0, Math.min(txClip.outS - txClip.inS, s - txClip.inS));
-    player.playFromMs(startsMs[txIdx] + withinS * 1000);
+    const ms = startsMs[txIdx] + withinS * 1000;
+    setCursorMs(ms); // a Space pause after a word-seek keeps the spot
+    player.playFromMs(ms);
   };
 
   return (
@@ -341,7 +401,7 @@ export function PipelineStage({ clips, frames, currentCeqId, hidden, selectedKey
       {/* TOP ZONE (Lee, 08-20) — transcript top-left, the cut preview beside the
           take rail. The timeline owns the full width below. */}
       <div className="flex min-h-0 flex-1 gap-1.5">
-        <TranscriptPanel clip={txClip} sourcePosS={sourcePosS} onSeek={seekSource} onCut={(a, b) => txClip && onCutClip(txClip.path, a, b)} />
+        <TranscriptPanel clip={txClip} sourcePosS={sourcePosS} onSeek={seekSource} onCut={(a, b) => txClip && onCutClip(txClip.path, a, b)} onRetranscribe={txClip && onRetranscribe ? () => onRetranscribe(txClip) : undefined} />
         <div className="relative min-w-0 flex-1 overflow-hidden rounded-lg" style={{ background: "#000", border: `1px solid ${NEON.borderSoft}` }}>
           <video {...player.videoProps} playsInline preload="metadata" className="h-full w-full" style={{ objectFit: "contain", background: "#000" }} onClick={() => (player.state.playing ? player.stop() : player.playFrom(0))} />
           {!player.state.playing && !clips.length && <div className="absolute inset-0 grid place-items-center text-[11px] italic" style={{ color: NEON.muted }}>No clips in the cut — drop takes from scratch onto a frame below.</div>}
@@ -361,7 +421,7 @@ export function PipelineStage({ clips, frames, currentCeqId, hidden, selectedKey
           </div>
         </div>
         {/* scrub bar over the whole cut */}
-        <div className="relative h-2 cursor-pointer rounded-full" style={{ background: "rgba(255,255,255,0.08)" }} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); player.playFromMs(((e.clientX - r.left) / r.width) * player.totalMs); }} title="Scrub the whole cut">
+        <div className="relative h-2 cursor-pointer rounded-full" style={{ background: "rgba(255,255,255,0.08)" }} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); const ms = ((e.clientX - r.left) / r.width) * player.totalMs; setCursorMs(ms); player.playFromMs(ms); }} title="Scrub the whole cut (plays immediately — the timeline below parks instead)">
           <div className="absolute top-0 h-full rounded-full" style={{ width: `${player.totalMs ? (player.positionMs / player.totalMs) * 100 : 0}%`, background: "#3BF5A0" }} />
         </div>
       </div>
@@ -370,7 +430,7 @@ export function PipelineStage({ clips, frames, currentCeqId, hidden, selectedKey
           frame-marker row is gone: the frame bar below is the authoring door).
           Drag a tile to reorder; drag an EDGE to trim; hovering a tile pulls its
           neighbours apart so either edge is easy to pick. */}
-      <div ref={trackRef} className="relative shrink-0 overflow-x-auto overflow-y-hidden rounded-lg" style={{ height: 96, background: "rgba(0,0,0,0.28)", border: `1px solid ${NEON.borderSoft}` }} onDragOver={onTrackDragOver} onDragLeave={() => setDropAt(null)} onDrop={onTrackDrop} onClick={(e) => { if (e.target === e.currentTarget || (e.target as HTMLElement).dataset?.track) seekToPx(e.clientX); }}>
+      <div ref={trackRef} className="relative shrink-0 overflow-x-auto overflow-y-hidden rounded-lg" style={{ height: 96, background: "rgba(0,0,0,0.28)", border: `1px solid ${NEON.borderSoft}` }} onDragOver={onTrackDragOver} onDragLeave={() => setDropAt(null)} onDrop={onTrackDrop} onClick={(e) => { if (e.target === e.currentTarget || (e.target as HTMLElement).dataset?.track) positionAtPx(e.clientX); }} title="Click to park the playhead — Space plays/pauses from it">
         {clips.length === 0 ? (
           <div className="flex h-full items-center justify-center px-3 text-center" data-track="1">
             <span className="text-[9px] italic" style={{ color: NEON.muted }}>No clips yet — check the frames below, then drop a scratch take on the frame bar. Check ALL for a blast (one clip, whole set).</span>
@@ -382,14 +442,21 @@ export function PipelineStage({ clips, frames, currentCeqId, hidden, selectedKey
                 <ClipTile key={c.key} clip={c} w={widths[i]} selected={c.key === selectedKey} underPlayhead={i === at}
                   shift={hoverIdx == null || i === hoverIdx ? 0 : i < hoverIdx ? -5 : 5}
                   onHover={(on) => setHoverIdx((h) => (on ? i : h === i ? null : h))}
-                  onSelect={() => onSelectClip(c)}
+                  onSelect={(e) => {
+                    // Clicking a clip SELECTS it and PARKS the cursor at the click
+                    // point — one gesture, then Space plays from exactly there.
+                    onSelectClip(c);
+                    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                    const frac = Math.max(0, Math.min(1, (e.clientX - r.left) / Math.max(1, r.width)));
+                    setCursorMs(startsMs[i] + frac * (c.outS - c.inS) * 1000);
+                  }}
                   onDetach={c.frameId != null ? () => onDetach(c.frameId as string, c.clipIndex) : null}
                   onTrim={c.split ? null : (inS, outS) => onTrimClip(c.path, inS, outS)}
                   onDragStart={(e) => { if (c.frameId == null || c.split) { e.preventDefault(); return; } e.dataTransfer.setData("application/x-sa-take", JSON.stringify({ kind: "clip", frameId: c.frameId, index: c.clipIndex })); e.dataTransfer.effectAllowed = "move"; }} />
               ))}
             </div>
             {dropAt != null && <div className="pointer-events-none absolute top-1 bottom-1 w-0.5" style={{ left: 4 + (offsets[dropAt] ?? trackW), background: NEON.yellow }} />}
-            <div className="pointer-events-none absolute top-0 bottom-0 w-0.5" style={{ left: 4 + playheadPx, background: "#FF3B6B", boxShadow: "0 0 4px #FF3B6B" }} />
+            <div className="pointer-events-none absolute top-0 bottom-0 w-0.5" style={{ left: 4 + headPx, background: "#FF3B6B", boxShadow: "0 0 4px #FF3B6B" }} />
           </div>
         )}
       </div>

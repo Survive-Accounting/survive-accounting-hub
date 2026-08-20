@@ -44,15 +44,18 @@ export const getTranscript = createServerFn({ method: "POST" })
     return (row ?? null) as TranscriptRow | null;
   });
 
-/** Transcribe a kept take (idempotent). Returns the stored row. */
+/** Transcribe a kept take (idempotent; `force` re-runs and overwrites — the
+ *  RE-RUN button's door, and the only way past a bad stored row). The `url`
+ *  may point at an audio SIDECAR (client-extracted WAV) rather than the take
+ *  itself — the row is still keyed by the take's storage path. */
 export const transcribeTake = createServerFn({ method: "POST" })
-  .inputValidator((d: unknown) => z.object({ path: z.string().min(1).max(500), url: z.string().url(), name: z.string().max(300).optional() }).parse(d))
+  .inputValidator((d: unknown) => z.object({ path: z.string().min(1).max(500), url: z.string().url(), name: z.string().max(300).optional(), force: z.boolean().optional() }).parse(d))
   .handler(async ({ data }): Promise<TranscriptRow> => {
     const db = await admin();
     // Idempotent: never re-bill a take that's already transcribed.
     const existing = await db.from("take_transcripts").select(SELECT).eq("take_path", data.path).maybeSingle();
     if (existing.error) rethrow(existing.error);
-    if (existing.data) return existing.data as TranscriptRow;
+    if (existing.data && !data.force) return existing.data as TranscriptRow;
 
     // Lee's key lives in OPENAI_WHISPER; fall back to the conventional name.
     const key = process.env.OPENAI_WHISPER || process.env.OPENAI_API_KEY;
