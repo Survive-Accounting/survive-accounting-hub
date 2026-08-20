@@ -14,6 +14,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
+import { scrollToId } from "@/lib/ui-scroll";
 
 /** The page navy. One constant so the CSS, the meta theme-color and any inline use agree —
  *  Safari samples this for its toolbar, and a mismatch reads as a rendering bug. */
@@ -117,10 +118,47 @@ export function CompactLockup({ size = 19 }: { size?: number } = {}) {
     </span>
   );
 }
+/** A nav destination. `href` starting with "#" is a SAME-PAGE anchor: it smooth-scrolls in place
+ *  (honouring reduced motion via scrollToId) instead of navigating, so on /go/ chapter pages the
+ *  navbar never yanks the visitor back to the homepage. */
+type NavItem = { label: string; href: string; route?: boolean; sub?: string };
+
+/** Chapter pages contextualize the whole navbar (see chapterNav on SiteHeader). */
+export interface ChapterNav {
+  examAnchor: string;
+  accessAnchor: string;
+}
+
+const chapterLinks = (nav: ChapterNav): NavItem[] => [
+  { label: "Exam 1 Free", href: `#${nav.examAnchor}` },
+  { label: "Chapter Access", href: `#${nav.accessAnchor}` },
+  { label: "Reviews", href: "#reviews" },
+  { label: "Meet Lee", href: "#lee" },
+];
+
+/** Smooth-scroll same-page anchors; let everything else navigate normally. The href stays on the
+ *  element so middle-click, no-JS and screen readers keep the real destination.
+ *
+ *  Focus moves WITH the scroll: native anchor navigation hands sequential focus to the target,
+ *  and preventDefault silently loses that — a keyboard user pressing Enter on "Chapter Access"
+ *  would see the page move while their next Tab continued from the navbar. tabindex="-1" makes
+ *  the (div) target programmatically focusable without adding it to the tab order. */
+const onNavClick = (href: string) => (e: React.MouseEvent) => {
+  if (!href.startsWith("#")) return;
+  e.preventDefault();
+  const id = href.slice(1);
+  scrollToId(id);
+  const el = document.getElementById(id);
+  if (el) {
+    if (!el.hasAttribute("tabindex")) el.setAttribute("tabindex", "-1");
+    el.focus({ preventScroll: true });
+  }
+};
+
 /** The site menu (M2.2). Holds the broad navigation that used to have nowhere to live —
  *  and specifically NOT the topic switcher, which belongs inside the card next to the
  *  content it switches. Closes on Escape, on tap-outside, and on choosing anything. */
-function SiteMenu() {
+function SiteMenu({ items }: { items: NavItem[] }) {
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (!open) return;
@@ -128,21 +166,6 @@ function SiteMenu() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
-
-  // Pass 2 order. The first item repeats the page CTA on purpose: the navbar is sticky, so once
-  // the hero has scrolled away this is the only Cram-Exam-1 door still on screen. The Greek link
-  // is a ROUTE, not an anchor, so it sits under a divider — mixing "jump down this page" with
-  // "leave this page" in one flat list is how people lose their place.
-  const items: { label: string; href: string; route?: boolean; sub?: string }[] = [
-    { label: "Start cramming", href: "/#exam1" },
-    { label: "Reviews", href: "/#reviews" },
-    { label: "Meet your tutor", href: "/#lee" },
-    // Anchor, never mailto:/sms: — a scheme link can be claimed by an installed app, which is
-    // what made tapping Contact raise "Open in inDrive?" on iOS. The deliberate sms: CTA in the
-    // contact section is a different thing and keeps its scheme.
-    { label: "Contact", href: "/#contact" },
-    { label: "For Fraternities & Sororities", href: "/chapters", route: true, sub: "⚡ Boost chapter GPAs" },
-  ];
 
   return (
     <>
@@ -168,7 +191,7 @@ function SiteMenu() {
               <a
                 key={it.label}
                 href={it.href}
-                onClick={() => setOpen(false)}
+                onClick={(e) => { onNavClick(it.href)(e); setOpen(false); }}
                 className="flex items-center px-4 text-[14px] font-semibold hover:bg-white/10"
                 style={{
                   minHeight: 46,
@@ -202,14 +225,37 @@ function SiteMenu() {
 /** Desktop-only inline links. Anchors rather than router links: #reviews and #lee are on the
  *  landing page and carry scroll-margin for the sticky bar, so a same-page press lands correctly
  *  and a press from elsewhere navigates home first. */
-const DESKTOP_LINKS = [
+const DESKTOP_LINKS: NavItem[] = [
   { label: "Reviews", href: "/#reviews" },
   { label: "Meet your tutor", href: "/#lee" },
   { label: "For Greeks", href: "/chapters" },
-] as const;
+];
 
-export function SiteHeader({ wordmark = true }: { wordmark?: boolean } = {}) {
+// Pass 2 order. The first item repeats the page CTA on purpose: the navbar is sticky, so once
+// the hero has scrolled away this is the only Cram-Exam-1 door still on screen. The Greek link
+// is a ROUTE, not an anchor, so it sits under a divider — mixing "jump down this page" with
+// "leave this page" in one flat list is how people lose their place.
+// (Contact stays an anchor, never mailto:/sms: — a scheme link can be claimed by an installed
+// app, which is what made tapping Contact raise "Open in inDrive?" on iOS.)
+const MENU_LINKS: NavItem[] = [
+  { label: "Start cramming", href: "/#exam1" },
+  { label: "Reviews", href: "/#reviews" },
+  { label: "Meet your tutor", href: "/#lee" },
+  { label: "Contact", href: "/#contact" },
+  { label: "For Fraternities & Sororities", href: "/chapters", route: true, sub: "⚡ Boost chapter GPAs" },
+];
+
+export function SiteHeader({ wordmark = true, chapterNav }: { wordmark?: boolean; chapterNav?: ChapterNav } = {}) {
   const bar = useRef<HTMLElement>(null);
+  // A Greek chapter page contextualizes the whole bar: same-page anchors (Exam 1, Chapter
+  // Access, Reviews, Meet Lee) and an exec-facing CTA. Generic homepage links ("For Greeks",
+  // Contact) are deliberately absent there — a visitor on a chapter page is already somewhere
+  // specific, and every link that navigates away is a door out of the funnel.
+  const links = chapterNav ? chapterLinks(chapterNav) : DESKTOP_LINKS;
+  const menuItems = chapterNav ? chapterLinks(chapterNav) : MENU_LINKS;
+  const cta: NavItem = chapterNav
+    ? { label: "Set Up Chapter Access →", href: `#${chapterNav.accessAnchor}` }
+    : { label: "Cram Exam 1 Free ⚡", href: "/#exam1" };
 
   // PUBLISH THE HEADER HEIGHT as --sa-header-h so a full-viewport hero can subtract exactly the
   // right amount. Hardcoding 48px is wrong on a notched phone, where safe-area-inset-top adds
@@ -258,10 +304,11 @@ export function SiteHeader({ wordmark = true }: { wordmark?: boolean } = {}) {
             on the page itself, so putting either here would be a link to somewhere the visitor
             already is. */}
         <nav className="hidden items-center gap-7 lg:flex" aria-label="Primary">
-          {DESKTOP_LINKS.map((l) => (
+          {links.map((l) => (
             <a
               key={l.label}
               href={l.href}
+              onClick={onNavClick(l.href)}
               className="text-[13.5px] font-semibold transition-colors"
               style={{ color: "var(--text-muted)", minHeight: 44, display: "inline-flex", alignItems: "center" }}
               onMouseEnter={(e) => { e.currentTarget.style.color = "var(--brand-cream)"; }}
@@ -272,18 +319,19 @@ export function SiteHeader({ wordmark = true }: { wordmark?: boolean } = {}) {
           ))}
         </nav>
 
-        {/* THE CTA survives to tablet; only the three links collapse into the hamburger there. */}
+        {/* THE CTA survives to tablet; only the links collapse into the hamburger there. */}
         <a
-          href="/#exam1"
+          href={cta.href}
+          onClick={onNavClick(cta.href)}
           className="ml-5 hidden items-center rounded-xl px-4 text-[13.5px] font-black md:inline-flex"
           style={{ background: "var(--accent)", color: "#0B1220", minHeight: 40 }}
         >
-          Cram Exam 1 Free ⚡
+          {cta.label}
         </a>
 
         {/* Hidden entirely at >=1024px — everything it holds is now inline. */}
         <span className="ml-2 lg:hidden">
-          <SiteMenu />
+          <SiteMenu items={menuItems} />
         </span>
       </div>
     </header>

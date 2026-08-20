@@ -41,7 +41,7 @@ export function ChapterGate({ chapterName }: { chapterName: string }) {
       // NAME RIDES ALONG ON THE ACCOUNT. Split into first/last so a text can say "Hey Jane"
       // rather than "Hey Jane Doe" — and so the exec roster, the Twilio alert and the
       // thank-you message all get a person instead of an email fragment.
-      const [first, ...restName] = n.split(/s+/).filter(Boolean);
+      const [first, ...restName] = n.split(/\s+/).filter(Boolean);
       const { error } = await supabase.auth.signInWithOtp({
         email: e,
         options: {

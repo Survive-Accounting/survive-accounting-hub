@@ -36,6 +36,8 @@ export interface GoChapter {
   chapterName: string;
   /** e.g. "Mississippi Alpha" — the chapter's own Greek designation, when GreekIntel has it. */
   designation: string | null;
+  /** The chapter's letters shorthand from the roster (e.g. "ATO"), when GreekIntel has it. */
+  letters: string | null;
   council: string | null;
   claimStatus: "unclaimed" | "pending" | "claimed";
   /** Members banked against this chapter so far. Real count or 0 — never a decorative number. */
@@ -56,7 +58,7 @@ export const getGoChapter = createServerFn({ method: "POST" })
     if (!campus?.id) return null;
 
     const { data: row } = await db.from("campus_greek_chapters")
-      .select("id,campus_id,greek_org_id,slug,chapter_designation,council,claim_status")
+      .select("id,campus_id,greek_org_id,slug,chapter_designation,letters,council,claim_status")
       .eq("campus_id", campus.id).eq("slug", data.chapterSlug).maybeSingle();
     if (!row?.id) return null;
 
@@ -81,6 +83,7 @@ export const getGoChapter = createServerFn({ method: "POST" })
       chapterSlug: row.slug,
       chapterName: (org?.name ?? "").trim() || "Chapter",
       designation: row.chapter_designation ?? null,
+      letters: row.letters ?? null,
       council: row.council ?? null,
       claimStatus: (row.claim_status ?? "unclaimed") as GoChapter["claimStatus"],
       members,

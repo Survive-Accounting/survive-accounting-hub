@@ -20,7 +20,7 @@ import { getChapterNames, listCampusIntroCodes } from "@/lib/default-map.functio
 import { logSchoolDemand, submitExamAsk, submitSyllabus , submitNotify } from "@/lib/syllabus.functions";
 import { searchOrderProfessors, type ProfessorLite } from "@/lib/orders.functions";
 import { tagChapterMember } from "@/lib/greek-go.functions";
-import { SEAT_PRICE } from "@/components/site/ChapterAccess";
+import { SEAT_MINIMUM, SEAT_PRICE } from "@/components/site/ChapterAccess";
 import { revealInContainer } from "@/lib/ui-scroll";
 import { SearchPicker } from "@/components/site/SearchPicker";
 import { useDismiss } from "@/lib/use-dismiss";
@@ -114,7 +114,7 @@ type ResolvedTopic = { key: string; name: string; num: number | null; sets: Stud
 // PROVIDER SHELL. The /go/ route knows the school from the URL; everything under here reads it
 // from campus context rather than re-deriving it, which is what let the hero cycle through other
 // schools' colourways on a chapter page that named one school in its banner.
-export function LandingPage({ initialCampusId, goChapter, chapterTop, chapterAccess, campusSlug, greekOrg, initialCourseCode, videoGate }: {
+export function LandingPage({ initialCampusId, goChapter, chapterTop, chapterAccess, campusSlug, greekOrg, greekNav, initialCourseCode, videoGate }: {
   initialCampusId?: string;
   /** Campus slug straight from the URL. Resolves campus context on the FIRST render,
    *  before any chapter fetch — see the note atop go.$school.$chapter.tsx. */
@@ -129,6 +129,9 @@ export function LandingPage({ initialCampusId, goChapter, chapterTop, chapterAcc
   chapterAccess?: React.ReactNode;
   /** Greek chapter name. Its presence IS the Greek variant switch. */
   greekOrg?: string;
+  /** Chapter-page navbar: same-page anchors + the exec CTA. The /go/ route passes its own
+   *  anchor ids here so the navbar and the sections can never disagree about them. */
+  greekNav?: { examAnchor: string; accessAnchor: string };
   goChapter?: { schoolSlug: string; chapterSlug: string };
   /** Rendered directly beneath the chapter banner. A SLOT rather than an import, so this
    *  route file keeps knowing nothing about Greek claims — /go/ owns that concern and passes
@@ -140,12 +143,12 @@ export function LandingPage({ initialCampusId, goChapter, chapterTop, chapterAcc
 } = {}) {
   return (
     <CampusProvider urlSchoolSlug={campusSlug ?? goChapter?.schoolSlug ?? null} accountCampusId={initialCampusId ?? null} initialCode={initialCourseCode ?? null}>
-      <LandingPageInner initialCampusId={initialCampusId} goChapter={goChapter} chapterTop={chapterTop} chapterAccess={chapterAccess} campusSlug={campusSlug} greekOrg={greekOrg} initialCourseCode={initialCourseCode} videoGate={videoGate} />
+      <LandingPageInner initialCampusId={initialCampusId} goChapter={goChapter} chapterTop={chapterTop} chapterAccess={chapterAccess} campusSlug={campusSlug} greekOrg={greekOrg} greekNav={greekNav} initialCourseCode={initialCourseCode} videoGate={videoGate} />
     </CampusProvider>
   );
 }
 
-function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAccess, campusSlug, greekOrg, initialCourseCode, videoGate }: {
+function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAccess, campusSlug, greekOrg, greekNav, initialCourseCode, videoGate }: {
   initialCampusId?: string;
   /** Campus slug straight from the URL. Resolves campus context on the FIRST render,
    *  before any chapter fetch — see the note atop go.$school.$chapter.tsx. */
@@ -160,6 +163,8 @@ function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAcces
   chapterAccess?: React.ReactNode;
   /** Greek chapter name. Its presence IS the Greek variant switch. */
   greekOrg?: string;
+  /** Chapter-page navbar contextualization — see LandingPage. */
+  greekNav?: { examAnchor: string; accessAnchor: string };
   goChapter?: { schoolSlug: string; chapterSlug: string };
   /** Rendered directly beneath the chapter banner. A SLOT rather than an import, so this
    *  route file keeps knowing nothing about Greek claims — /go/ owns that concern and passes
@@ -397,8 +402,9 @@ function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAcces
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
 
       {/* M1.5 — the persistent way home. On / it is the brand anchor; on /c/<slug> and the
-          other pages that reuse LandingPage it is the only route back. */}
-      <SiteHeader />
+          other pages that reuse LandingPage it is the only route back. Chapter pages swap the
+          homepage links for same-page anchors via greekNav. */}
+      <SiteHeader chapterNav={greekNav} />
 
       {/* maxWidth + overflow-x guard (M1.1): `padding: 0 20px` on a 1040-wide box is fine on
           desktop, but any child that ignores the box (a nowrap lockup, a fixed-width panel)
@@ -414,11 +420,13 @@ function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAcces
             asks before the operational questions). The student page keeps its existing order. */}
         {greekOrg ? null : <Faq greek={undefined} />}
         <SectionDivider />
-        <div id="reviews" className="scroll-mt-20" />
+        {/* sa-anchor (not a hardcoded scroll-mt): the offset tracks the real measured header
+            height via --sa-header-h, same as #exam1 and #chapter-access. */}
+        <div id="reviews" className="sa-anchor" />
         <TestimonialsSlider />
         <SectionDivider />
         {greekOrg ? <Faq greek={greekOrg} /> : null}
-        <div id="lee" className="scroll-mt-16" />
+        <div id="lee" className="sa-anchor" />
         <LeeSection />
         <SectionDivider />
         <Footer />
@@ -595,7 +603,7 @@ const GREEK_FAQS: Array<{ q: string; a: string }> = [
   },
   {
     q: "What does chapter access cost?",
-    a: "$100 per member for the semester, with a 10-seat minimum. Exam 1 stays free either way. Chapter seats unlock Exams 2, 3 and the Final.",
+    a: `$${SEAT_PRICE} per member, per semester, with a ${SEAT_MINIMUM}-seat minimum. Exam 1 stays free either way. Chapter seats unlock Exams 2, 3 and the Final.`,
   },
   {
     q: "Can we see whether members actually use it?",
@@ -1507,7 +1515,7 @@ function ExamTabs({ exams, activeNum, onSelect, greek }: { exams: ExamTab[]; act
           "unlock when your chapter joins — Exam 1 is free either way" reminder was redundant. */}
       {greek && lockedSelected && exams.some((e) => e.price != null) && (
         <p className="px-3 pb-2 pt-0.5 text-center text-[11.5px]" style={{ background: "rgba(0,0,0,0.22)", color: "var(--text-muted)" }}>
-          🔒 Exams 2, 3 and the Final unlock with chapter access — <span style={{ color: "var(--accent)", fontWeight: 800 }}>${SEAT_PRICE} per seat, per semester</span>.
+          🔒 Exams 2, 3 and the Final unlock with chapter access — <span style={{ color: "var(--accent)", fontWeight: 800 }}>${SEAT_PRICE} per member, per semester</span>.
         </p>
       )}
     </>

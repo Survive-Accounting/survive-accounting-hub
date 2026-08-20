@@ -36,7 +36,8 @@ import { BRAND_SANS } from "@/components/canvas/brand";
 import { ChapterFinder } from "@/components/site/ChapterFinder";
 import { ChapterGate } from "@/components/site/ChapterGate";
 import { useChapterMember } from "@/lib/use-chapter-member";
-import { ChapterTop } from "@/components/site/ChapterTop";
+import { ChapterStickyCta } from "@/components/site/ChapterStickyCta";
+import { ChapterTop, CHAPTER_HERO_ID } from "@/components/site/ChapterTop";
 import { ChapterAccess } from "@/components/site/ChapterAccess";
 import { getGoChapter, listGoSchools, tagChapterMember, logGreekEvent } from "@/lib/greek-go.functions";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
@@ -100,11 +101,15 @@ function GoChapterPage() {
         campusSlug={school}
         initialCourseCode={code}
         goChapter={{ schoolSlug: school, chapterSlug: chapter }}
+        // The chapter navbar variant — same-page anchors + the exec CTA. Passed from here (not
+        // derived inside landing.tsx) because this route owns both anchor ids.
+        greekNav={ch ? { examAnchor: EXAM_ANCHOR, accessAnchor: ACCESS_ANCHOR } : undefined}
         chapterTop={ch ? (
           <ChapterTop
             schoolSlug={school}
             chapterSlug={chapter}
             chapterName={ch.chapterName}
+            schoolName={ch.schoolName}
             examAnchor={EXAM_ANCHOR}
             accessAnchor={ACCESS_ANCHOR}
             onStartExam={tagMember}
@@ -116,6 +121,7 @@ function GoChapterPage() {
             chapterName={ch.chapterName}
             schoolSlug={ch.schoolSlug}
             chapterSlug={ch.chapterSlug}
+            letters={ch.letters}
             claimStatus={ch.claimStatus}
           />
         ) : undefined}
@@ -129,6 +135,14 @@ function GoChapterPage() {
           chapter-discovery control left on a chapter page — the picker's "Change school" is gone,
           because a visitor on FarmHouse · Oklahoma is already somewhere specific. */}
       {ch && <SelfReport current={ch.chapterName} />}
+      {ch && (
+        <>
+          {/* Spacer so the fixed bar can never sit on top of the page's last content (the
+              self-report link) when scrolled to the bottom. Same breakpoint as the bar. */}
+          <div aria-hidden className="h-16 md:hidden" />
+          <ChapterStickyCta heroId={CHAPTER_HERO_ID} examAnchor={EXAM_ANCHOR} accessAnchor={ACCESS_ANCHOR} onStartExam={tagMember} />
+        </>
+      )}
     </>
   );
 }

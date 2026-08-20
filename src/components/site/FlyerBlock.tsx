@@ -17,11 +17,15 @@ import { useEffect, useState } from "react";
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { logGreekEvent } from "@/lib/greek-go.functions";
 
-export function FlyerBlock({ schoolSlug, chapterSlug, chapterName }: {
+export function FlyerBlock({ schoolSlug, chapterSlug, chapterName, title, subtitle }: {
   schoolSlug: string;
   /** "campus" for the campus-wide flyer. */
   chapterSlug: string;
   chapterName?: string;
+  /** Optional heading rendered above the preview — hides with the block, so a label can never
+   *  point at a flyer that failed to render. */
+  title?: string;
+  subtitle?: string;
 }) {
   const [failed, setFailed] = useState(false);
   const [svg, setSvg] = useState<string | null>(null);
@@ -68,6 +72,12 @@ export function FlyerBlock({ schoolSlug, chapterSlug, chapterName }: {
 
   return (
     <div className="mx-auto mt-3 w-full max-w-sm" style={{ fontFamily: BRAND_SANS }}>
+      {title && (
+        <div className="mb-2.5 mt-4 text-center">
+          <p className="text-[14px] font-black" style={{ color: "var(--brand-cream)" }}>{title}</p>
+          {subtitle && <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-muted)" }}>{subtitle}</p>}
+        </div>
+      )}
       <a href={pdf} target="_blank" rel="noreferrer" className="mx-auto block overflow-hidden rounded-lg"
          aria-label={`Open the ${chapterName ?? "campus"} flyer as a PDF`}
          style={{ width: 263, border: "1px solid rgba(245,239,230,0.18)", boxShadow: "0 18px 40px -18px rgba(0,0,0,0.7)" }}>
@@ -104,7 +114,7 @@ export function FlyerBlock({ schoolSlug, chapterSlug, chapterName }: {
       </div>
 
       <p className="mt-2 text-center text-[11.5px]" style={{ color: "var(--text-muted)" }}>
-        Print it for the house, or send it to the group chat.
+        Print it and post it in the chapter house — the QR goes straight to this page.
       </p>
     </div>
   );

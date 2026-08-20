@@ -39,7 +39,20 @@ async function adminEmailFromToken(db: DB, accessToken: string): Promise<string 
   return email && ADMIN_EMAILS.includes(email) ? email : null;
 }
 
-const POSITIONS = ["President", "Treasurer", "Academic chair", "Scholarship chair", "Advisor", "Other"] as const;
+// Greek-specific roles, in the order a house's exec board is usually listed. Stored as a plain
+// string in greek_chapter_claims.position (≤60 chars), so extending this list never needs SQL —
+// old rows keep whatever label they were submitted under.
+const POSITIONS = [
+  "President",
+  "Vice President",
+  "Treasurer",
+  "Academic / Scholarship Chair",
+  "Secretary",
+  "Recruitment Chair",
+  "New Member Educator",
+  "Chapter / House Advisor",
+  "Other Exec / Advisor",
+] as const;
 export const CLAIM_POSITIONS: readonly string[] = POSITIONS;
 
 // ── SUBMIT (public) ───────────────────────────────────────────────────────────────────────────
