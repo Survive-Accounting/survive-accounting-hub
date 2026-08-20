@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
-import { CAPTURE_H, CAPTURE_W, captureCssSize, isCaptureExact, physicalSize } from "./capture-window";
+import { CAPTURE_H, CAPTURE_W, captureAcceptable, captureCssSize, isCaptureExact, isNineSixteen, maxVerticalCssSize, physicalSize } from "./capture-window";
 
 const previewer = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8").split("\r\n").join("\n");
 
@@ -36,7 +36,9 @@ describe("the stable-wrapper fullscreen + capture window (C1 source pins)", () =
     // orientation-aware since vertical filming: the snap target is 1080x1920 in 9:16
     expect(previewer).toContain("snapCaptureSize(w, (ok, why) => setCaptureNote(ok ? null : why ?? null), o)");
     expect(previewer).toContain('const onKey = () => setHidden(true);');
-    expect(previewer).toContain("if (!isCaptureExact(win.innerWidth, win.innerHeight, win.devicePixelRatio || 1, o)) { snapCaptureSize(win, undefined, o);");
+    // ACCEPTABLE, not exact (08-20): a windowed vertical capture is judged by
+    // aspect, so the focus re-snap must not fight a perfectly good 9:16 window.
+    expect(previewer).toContain("if (!captureAcceptable(win.innerWidth, win.innerHeight, win.devicePixelRatio || 1, o)) { snapCaptureSize(win, undefined, o);");
   });
   test("the capture window gets its OWN name — never inherits a stale film window's size", () => {
     expect(previewer).toContain('openPopoutWindow(capture ? "ceqcapture" : "ceqfilm"');
@@ -52,6 +54,39 @@ describe("the stable-wrapper fullscreen + capture window (C1 source pins)", () =
     const rec = previewer.slice(previewer.indexOf("if (recording) {"), previewer.indexOf("// RECORDING MODE = the FILM POP-OUT"));
     expect(rec).not.toContain("requestFullscreen");
     expect(rec).not.toContain("CaptureBadge");
+  });
+});
+
+describe("windowed vertical capture — Lee's crop-and-scale recipe (08-20)", () => {
+  test("the tallest 9:16 client that fits the work area (chrome accounted)", () => {
+    // 1440-tall screen, ~90px of chrome: h = 1350, w = round(1350*9/16) = 759
+    expect(maxVerticalCssSize(2560, 1440, 16, 90)).toEqual({ w: 759, h: 1350 });
+    // narrow screen: width binds instead, height follows at 16/9
+    expect(maxVerticalCssSize(500, 1440, 16, 90)).toEqual({ w: 484, h: 860 });
+  });
+  test("9:16 aspect within one CSS pixel; a landscape client is never 9:16", () => {
+    expect(isNineSixteen(759, 1350)).toBe(true);
+    expect(isNineSixteen(759, 1349)).toBe(true);   // 1 px of slack — rounding, not drift
+    expect(isNineSixteen(759, 1300)).toBe(false);
+    expect(isNineSixteen(1920, 1080)).toBe(false);
+  });
+  test("acceptable = exact physical (both orientations) OR exact 9:16 aspect (vertical only)", () => {
+    expect(captureAcceptable(1536, 864, 1.25, "16:9")).toBe(true);   // landscape exact
+    expect(captureAcceptable(1535, 864, 1.25, "16:9")).toBe(false);  // landscape near-miss stays red
+    expect(captureAcceptable(720, 1280, 1.5, "9:16")).toBe(true);    // vertical exact
+    expect(captureAcceptable(759, 1350, 1, "9:16")).toBe(true);      // vertical windowed recipe
+    expect(captureAcceptable(759, 1300, 1, "9:16")).toBe(false);     // wrong aspect
+  });
+  test("the film camera is WIDTH-FIT + TOP-ANCHORED in vertical — content starts at client row 0", () => {
+    expect(previewer).toContain("const vertical = frameH > frameW;");
+    expect(previewer).toContain("const zoom = vertical ? w / frameW : Math.max(w / frameW, h / frameH);");
+    expect(previewer).toContain("(vertical ? 0 : (h - frameH * zoom) / 2) - activeYOffRef.current * zoom");
+  });
+  test("the badge judges the ACTIVE orientation and shows the OBS crop recipe when windowed", () => {
+    expect(previewer).not.toContain("size.w === CAPTURE_W && size.h === CAPTURE_H"); // the never-green vertical bug
+    expect(previewer).toContain("const exact = size.w === t.w && size.h === t.h;");
+    expect(previewer).toContain("{ok && !exact && <span");
+    expect(previewer).toContain("verticalObsNote(win)");
   });
 });
 

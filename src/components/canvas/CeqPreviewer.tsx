@@ -45,7 +45,7 @@ import { renderInline } from "./inline-md";
 import { activeSlots, CARD_H, CARD_W, dealCentre, defaultMemoPos, PALETTE_N, paletteSlots, rackOf, resolveCardSpot, resolveMemoSpot, templateFor, withInstanceSpot } from "./ceq-geom";
 export { activeSlots, dealCentre, defaultMemoPos, PALETTE_N, paletteSlots, rackOf } from "./ceq-geom";
 import { CALLOUT_KINDS, CalloutBody, calloutKindForCategory, nextCalloutKind } from "./cards/CalloutCard";
-import { CAPTURE_H, CAPTURE_W, captureCssSize, captureFeasibility, isCaptureExact, physicalSize, snapCaptureSize } from "./capture-window";
+import { captureAcceptable, captureCssSize, captureFeasibility, physicalSize, snapCaptureSize, verticalObsNote } from "./capture-window";
 import { clearExhibitHighlights } from "./exhibit-highlights";
 import { NOTE_EYEBROW } from "./frame-copy";
 import { BOSS_REVEAL_CSS, REVEAL_MS, SCRIM_ALPHA, bossLabel, labelSize, revealZone } from "./boss-reveal";
@@ -956,19 +956,29 @@ function CaptureBadge({ win, note }: { win: Window; note?: string | null }) {
     const measure = () => setSize(physicalSize(win.innerWidth, win.innerHeight, win.devicePixelRatio || 1));
     measureRef.current = measure;
     const onKey = () => setHidden(true);
-    const onFocus = () => { measure(); setHidden(false); if (!isCaptureExact(win.innerWidth, win.innerHeight, win.devicePixelRatio || 1, o)) { snapCaptureSize(win, undefined, o); window.setTimeout(measure, 200); } };
+    // ACCEPTABLE, not exact: in vertical the windowed truth is "exact 9:16
+    // aspect" (crop-and-scale in OBS) — judging it against 1080×1920 physical
+    // re-snapped a perfectly good window on every focus.
+    const onFocus = () => { measure(); setHidden(false); if (!captureAcceptable(win.innerWidth, win.innerHeight, win.devicePixelRatio || 1, o)) { snapCaptureSize(win, undefined, o); window.setTimeout(measure, 200); } };
     win.addEventListener("resize", measure);
     win.addEventListener("keydown", onKey, true);
     win.addEventListener("focus", onFocus);
     return () => { win.removeEventListener("resize", measure); win.removeEventListener("keydown", onKey, true); win.removeEventListener("focus", onFocus); };
   }, [win]);
   if (hidden) return null;
-  const ok = size.w === CAPTURE_W && size.h === CAPTURE_H;
+  // Judged against the ACTIVE orientation's target (the old check compared a
+  // vertical window to 1920×1080 — it could never read green). Vertical is
+  // also green at exact 9:16 aspect: the windowed crop-and-scale recipe, with
+  // the OBS one-liner shown right on the badge.
+  const t = captureSize(o);
+  const exact = size.w === t.w && size.h === t.h;
+  const ok = exact || captureAcceptable(win.innerWidth, win.innerHeight, win.devicePixelRatio || 1, o);
   return (
     <div style={{ position: "absolute", top: 10, right: 10, zIndex: 60, display: "flex", alignItems: "center", gap: 6, borderRadius: 8, padding: "4px 8px", background: "rgba(5,7,13,0.85)", border: '1px solid ' + (ok ? "rgba(59,245,160,0.6)" : "rgba(255,80,110,0.7)") }}>
-      <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: "0.06em", color: ok ? "#3BF5A0" : "#FF5A6E", fontVariantNumeric: "tabular-nums" }}>{size.w}×{size.h}{ok ? " ✓" : ""}</span>
-      {!ok && <button style={{ fontSize: 9, fontWeight: 900, letterSpacing: "0.08em", color: "#0B1322", background: "#3BF5A0", borderRadius: 5, padding: "2px 6px", border: "none", cursor: "pointer" }} onClick={() => snapCaptureSize(win, () => measureNow(), o)} title={`Resize the window so the inner canvas is exactly ${captureSize(o).w}×${captureSize(o).h} physical pixels`}>SNAP</button>}
-      {!ok && <span style={{ fontSize: 8.5, color: "#FFD23F", fontWeight: 700, maxWidth: 300 }}>{note ?? captureFeasibility(win).reason ?? "press F for exact fullscreen 1:1"}</span>}
+      <span style={{ fontSize: 11, fontWeight: 900, letterSpacing: "0.06em", color: ok ? "#3BF5A0" : "#FF5A6E", fontVariantNumeric: "tabular-nums" }}>{size.w}×{size.h}{exact ? " ✓" : ok ? " · 9:16 ✓" : ""}</span>
+      {!ok && <button style={{ fontSize: 9, fontWeight: 900, letterSpacing: "0.08em", color: "#0B1322", background: "#3BF5A0", borderRadius: 5, padding: "2px 6px", border: "none", cursor: "pointer" }} onClick={() => snapCaptureSize(win, () => measureNow(), o)} title={o === "9:16" ? "Resize the window to the tallest exact 9:16 client this screen allows" : `Resize the window so the inner canvas is exactly ${t.w}×${t.h} physical pixels`}>SNAP</button>}
+      {!ok && <span style={{ fontSize: 8.5, color: "#FFD23F", fontWeight: 700, maxWidth: 300 }}>{note ?? captureFeasibility(win, o).reason ?? "press F for exact fullscreen 1:1"}</span>}
+      {ok && !exact && <span style={{ fontSize: 8.5, color: "#FFD23F", fontWeight: 700, maxWidth: 340 }}>{verticalObsNote(win)}</span>}
       <span style={{ fontSize: 8.5, color: "rgba(230,236,255,0.5)", fontWeight: 700 }}>hides on first key</span>
     </div>
   );
@@ -1667,8 +1677,15 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     const r = filmRootRef.current?.getBoundingClientRect();
     const w = Math.round(r?.width || win.innerWidth), h = Math.round(r?.height || win.innerHeight);
     if (!w || !h) return;
-    const zoom = Math.max(w / frameW, h / frameH);
-    inst.setViewport({ x: (w - frameW * zoom) / 2, y: (h - frameH * zoom) / 2 - activeYOffRef.current * zoom, zoom }, { duration });
+    // VERTICAL = WIDTH-FIT + TOP-ANCHOR (Lee's OBS recipe, 08-20). Cover-centre
+    // in a window that isn't exactly 9:16 crops the frame's top AND bottom —
+    // unusable for window-capture. Width-fit from row 0 means the content
+    // always starts immediately below the browser chrome and spans the full
+    // client width: the OBS crop is "the chrome off the top", nothing else.
+    // In an exact-9:16 client the two are identical. Landscape keeps cover.
+    const vertical = frameH > frameW;
+    const zoom = vertical ? w / frameW : Math.max(w / frameW, h / frameH);
+    inst.setViewport({ x: (w - frameW * zoom) / 2, y: (vertical ? 0 : (h - frameH * zoom) / 2) - activeYOffRef.current * zoom, zoom }, { duration });
   }, [filmWin, frameW, frameH]);
   useEffect(() => {
     if (!filmWin) return;
@@ -1725,7 +1742,12 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
     captureRef.current = !!capture;
     const o = orientation();
     const css = capture ? captureCssSize(window.devicePixelRatio || 1, o) : null;
-    const w = openPopoutWindow(capture ? "ceqcapture" : "ceqfilm", css?.w ?? 1000, css?.h ?? 600);
+    // A plain vertical film popout opens 9:16-shaped (as tall as the screen
+    // reasonably allows) — a 1000×600 landscape default under width-fit+top
+    // showed only the frame's upper band. The capture path snaps precisely
+    // 200ms later regardless of what it opened at.
+    const vh = Math.max(480, Math.min((window.screen?.availHeight ?? 1000) - 120, 1200));
+    const w = openPopoutWindow(capture ? "ceqcapture" : "ceqfilm", css?.w ?? (isVertical(o) ? Math.round(vh * 9 / 16) : 1000), css?.h ?? (isVertical(o) ? vh : 600));
     if (w) { setFilmWin(w); if (capture) { window.setTimeout(() => snapCaptureSize(w, (ok, why) => setCaptureNote(ok ? null : why ?? null), o), 200); } }
   };
   const toggleFilmRef = useRef(toggleFilm);
