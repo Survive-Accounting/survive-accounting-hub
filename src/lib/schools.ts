@@ -1,4 +1,4 @@
-// THE SCHOOL TABLE — one row per SEC school, and the only place these facts live.
+// THE SCHOOL TABLE — one row per selectable school, and the only place these facts live.
 //
 // There were three namespaces for "which school is this" and nothing tying them together:
 //
@@ -7,22 +7,28 @@
 //   * the Greek picker printed short_name — "Bama", "Mizzou", "OU", "Vandy", "UT Austin"
 //
 // So /go/ole-miss/... resolved to nothing (the slug is university-of-mississippi), and the same
-// school was called three different things depending on which control you were looking at. Every
-// mapping below was verified against the campuses table rather than inferred from the names: all
-// sixteen resolve to a slugged campus with is_sec = true.
+// school was called three different things depending on which control you were looking at.
 //
-// NAME IS THE LANDING PICKER'S NAME. That is the canonical display name everywhere, Greek pages
-// included — a student who picked "Ole Miss" on the front page should not meet "University of
-// Mississippi" two clicks later and wonder whether it's the same list. The DB keeps its formal
-// `name` for records and its `short_name` nicknames for whatever else wants them; neither is
-// rendered to students any more.
+// NAME IS THE CANONICAL DISPLAY NAME everywhere — picker, campus pages, /go/ pages, flyers, admin.
+// A student who picked "Ole Miss" on the front page should not meet "University of Mississippi"
+// two clicks later and wonder whether it's the same list. Formal names and nicknames survive as
+// SEARCH ALIASES, which are matched but never rendered.
 //
-// COURSE CODES ARE NOT HERE ON PURPOSE. They live in campuses.course_family_codes_json.intro_1 and
-// are fetched at runtime (listCampusIntroCodes), because a code that changes mid-semester must not
-// require a deploy — and a hardcoded copy would be a second source of truth for the exact fact this
-// module exists to have only one of.
+// THE ROWS ARE GENERATED from the campuses table — see schools.generated.ts and the generator at
+// migration/supabase-migrations/gen_schools.ts. The database is the source of truth; the generated
+// file exists so the picker can render 66 schools synchronously on the first paint, in SSR and on
+// a bad phone connection, where a fetch would mean a spinner where a list should be.
+//
+// WHY NOT EVERY CAMPUS: the table is the SEC 16 plus the hand-verified seed. A student who picks a
+// school with no course code gets a worse experience than one asked to tell us about it, so the
+// rest of the 945 campuses go through "My school isn't listed" instead.
+//
+// COURSE CODES ARE HERE NOW, unlike before, because they are part of what makes a campus page
+// publishable and the picker needs them to decide which schools it may list. They remain fetched
+// at runtime wherever a mid-semester change must not require a deploy (listCampusIntroCodes); this
+// copy is the build-time snapshot the picker and the generated pages read.
 
-import { SEC_SCHOOLS as SEC_BOLT } from "@/components/canvas/brand";
+import { GENERATED_SCHOOLS, type GeneratedSchool } from "./schools.generated";
 
 export type SecSchool = {
   /** Landing-picker id. Stable, short, used in stored preferences. */
@@ -35,32 +41,28 @@ export type SecSchool = {
   name: string;
 };
 
-export const SEC_SCHOOL_TABLE: SecSchool[] = [
-  { id: "ole-miss",          campusId: "7b92a320-b196-43f2-a241-77a0805816fe", slug: "university-of-mississippi",        name: "Ole Miss" },
-  { id: "lsu",               campusId: "698dd98f-dd92-46c1-8f28-e930568cb15d", slug: "louisiana-state-university",       name: "LSU" },
-  { id: "alabama",           campusId: "b3af67c6-99a5-4677-83d5-aa7d11a89c17", slug: "university-of-alabama",            name: "Alabama" },
-  { id: "tennessee",         campusId: "9c4775be-7d82-4a3e-840c-349c5e15d8e8", slug: "university-of-tennessee-knoxville", name: "Tennessee" },
-  { id: "arkansas",          campusId: "e631c8de-37a3-4aae-a948-a64bd20ea4c5", slug: "university-of-arkansas",           name: "Arkansas" },
-  { id: "south-carolina",    campusId: "5f5bd18d-b92f-4d56-aced-23bce4c983d5", slug: "university-of-south-carolina",     name: "South Carolina" },
-  { id: "georgia",           campusId: "3f570e37-5394-4058-baab-508948befedb", slug: "university-of-georgia",            name: "Georgia" },
-  { id: "kentucky",          campusId: "ae339230-577e-4569-a7d1-d1e45d1cfe91", slug: "university-of-kentucky",           name: "Kentucky" },
-  { id: "auburn",            campusId: "e330e87c-5467-4c05-9d3d-6cd2398de036", slug: "auburn-university",                name: "Auburn" },
-  { id: "mississippi-state", campusId: "95246fc8-1ce6-409e-b454-d03c82766719", slug: "mississippi-state-university",     name: "Mississippi State" },
-  { id: "missouri",          campusId: "f16686c2-edc6-43f8-9638-6890f52c829a", slug: "university-of-missouri",           name: "Missouri" },
-  { id: "oklahoma",          campusId: "91e62f9c-43b0-41f3-a84d-002824754da6", slug: "university-of-oklahoma",           name: "Oklahoma" },
-  { id: "texas-am",          campusId: "92e4a5d9-eeb3-4065-ac8a-5a4390fbc584", slug: "texas-aandm-university",           name: "Texas A&M" },
-  { id: "florida",           campusId: "4c5126b1-3fe0-48fe-a1db-1e41d06e4642", slug: "university-of-florida",            name: "Florida" },
-  { id: "texas",             campusId: "faad6039-be72-4f5c-8ad5-ca7b95e2889f", slug: "university-of-texas-at-austin",     name: "Texas" },
-  { id: "vanderbilt",        campusId: "972451c3-bc5e-48d7-9f88-868a55378efa", slug: "vanderbilt-university",            name: "Vanderbilt" },
-];
+export type School = GeneratedSchool;
 
-const BY_ID = new Map(SEC_SCHOOL_TABLE.map((s) => [s.id, s]));
-const BY_CAMPUS = new Map(SEC_SCHOOL_TABLE.map((s) => [s.campusId, s]));
-const BY_SLUG = new Map(SEC_SCHOOL_TABLE.map((s) => [s.slug, s]));
+/** Every selectable school: the SEC 16 plus the seeded campuses. */
+export const ALL_SCHOOLS: School[] = GENERATED_SCHOOLS;
 
-export const schoolById = (id: string | null | undefined): SecSchool | null => (id ? BY_ID.get(id) ?? null : null);
-export const schoolByCampusId = (id: string | null | undefined): SecSchool | null => (id ? BY_CAMPUS.get(id) ?? null : null);
-export const schoolBySlug = (slug: string | null | undefined): SecSchool | null => (slug ? BY_SLUG.get(slug) ?? null : null);
+/** The SEC 16 alone, for surfaces that group by conference. */
+export const SEC_SCHOOL_TABLE: SecSchool[] = GENERATED_SCHOOLS.filter((s) => s.isSec);
+
+/** Non-SEC seeded schools, alphabetical. */
+export const OTHER_SCHOOLS: School[] = GENERATED_SCHOOLS.filter((s) => !s.isSec);
+
+const BY_ID = new Map(ALL_SCHOOLS.map((s) => [s.id, s]));
+const BY_CAMPUS = new Map(ALL_SCHOOLS.map((s) => [s.campusId, s]));
+const BY_SLUG = new Map(ALL_SCHOOLS.map((s) => [s.slug, s]));
+
+export const schoolById = (id: string | null | undefined): School | null => (id ? BY_ID.get(id) ?? null : null);
+export const schoolByCampusId = (id: string | null | undefined): School | null => (id ? BY_CAMPUS.get(id) ?? null : null);
+export const schoolBySlug = (slug: string | null | undefined): School | null => (slug ? BY_SLUG.get(slug) ?? null : null);
+
+/** Resolve either namespace — picker id OR campus slug. Links get typed and forwarded, and there
+ *  is no reason a reader should have to know which form we meant. */
+export const schoolByAny = (v: string | null | undefined): School | null => schoolById(v) ?? schoolBySlug(v);
 
 /** Canonical name for a campus slug, for surfaces that only carry the slug (Greek pages).
  *  Falls back to whatever the caller already had rather than inventing a name. */
@@ -72,7 +74,34 @@ export function canonicalSchoolName(slug: string | null | undefined, fallback: s
  *  the table — the same rule the landing picker uses, so a Greek picker row and a landing picker
  *  row show the same school in the same colours. */
 export function boltForSlug(slug: string | null | undefined): { c1: string; c2: string } {
-  const id = schoolBySlug(slug)?.id;
-  const hit = id ? SEC_BOLT.find((s) => s.id === id) : undefined;
-  return hit ? { c1: hit.c1, c2: hit.c2 } : { c1: "#C62828", c2: "#1565C0" };
+  const s = schoolBySlug(slug);
+  return s?.c1 && s.c2 ? { c1: s.c1, c2: s.c2 } : { c1: "#C62828", c2: "#1565C0" };
+}
+
+/** Course code for a slug, or null. Callers must render "your accounting course" for null rather
+ *  than inventing a code. */
+export const courseCodeForSlug = (slug: string | null | undefined): string | null => schoolBySlug(slug)?.courseCode ?? null;
+
+const normalize = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[\u2010-\u2015]/g, "-").replace(/[^a-z0-9]+/g, " ").trim();
+
+/** Search across canonical names AND aliases. Aliases are matched, never displayed, so typing
+ *  "Bama", "UIUC" or "Mississippi" lands on the school under the name the rest of the app uses. */
+export function searchSchools<T extends { name: string; aliases: string[] }>(query: string, pool: T[] = ALL_SCHOOLS as unknown as T[]): T[] {
+  const q = normalize(query);
+  if (!q) return pool;
+  const scored = pool.map((s) => {
+    const name = normalize(s.name);
+    const hay = [name, ...s.aliases.map(normalize)];
+    // Rank: exact name, name prefix, alias prefix, then any substring. Without this "Miami"
+    // ranks Miami (OH) and Miami identically and the order is whatever sort was stable.
+    let score = -1;
+    if (name === q) score = 0;
+    else if (name.startsWith(q)) score = 1;
+    else if (hay.some((h) => h === q)) score = 2;
+    else if (hay.some((h) => h.startsWith(q) || h.split(" ").some((w) => w.startsWith(q)))) score = 3;
+    else if (hay.some((h) => h.includes(q))) score = 4;
+    return { s, score };
+  }).filter((x) => x.score >= 0);
+  scored.sort((a, b) => a.score - b.score || a.s.name.localeCompare(b.s.name));
+  return scored.map((x) => x.s);
 }

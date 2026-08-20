@@ -18,9 +18,10 @@ import { useQuery } from "@tanstack/react-query";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { Bolt } from "@/components/canvas/brand";
-import { boltForSlug, schoolBySlug, SEC_SCHOOL_TABLE } from "@/lib/schools";
+import { ALL_SCHOOLS, boltForSlug, schoolBySlug } from "@/lib/schools";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { SearchPicker } from "@/components/site/SearchPicker";
+import { ChapterSelfCreate } from "@/components/site/ChapterSelfCreate";
 import { NotListedForm } from "@/components/site/NotListedForm";
 import { listGoChapters } from "@/lib/greek-go.functions";
 
@@ -48,7 +49,7 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
   // same code in both places or no code in both places — never one and not the other.
   const codesQ = useQuery({
     queryKey: ["campus-intro-codes"],
-    queryFn: () => listCampusIntroCodes({ data: { ids: SEC_SCHOOL_TABLE.map((x) => x.campusId) } }),
+    queryFn: () => listCampusIntroCodes({ data: { ids: ALL_SCHOOLS.map((x) => x.campusId) } }),
     staleTime: 600_000, networkMode: "always",
   });
   const codeBySlug = (slug: string) => {
@@ -72,7 +73,13 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
   const body = (
     <div className="flex w-full flex-col gap-2" style={{ fontFamily: BRAND_SANS }}>
       {notListed ? (
-        <NotListedForm kind={notListed} school={notListed === "chapter" ? schoolName : undefined} onClose={() => setNotListed(null)} />
+        // A chapter needs a campus, so self-creation is offered only once a school is chosen.
+        // Without one we fall back to the plain write-in, which can at least capture who asked.
+        notListed === "chapter" && school ? (
+          <ChapterSelfCreate schoolSlug={school} schoolName={schoolName} onClose={() => setNotListed(null)} />
+        ) : (
+          <NotListedForm kind={notListed} school={notListed === "chapter" ? schoolName : undefined} onClose={() => setNotListed(null)} />
+        )
       ) : (
         <>
           {/* The site's own picker, not a native <select>. A native dropdown renders as an OS
@@ -88,7 +95,7 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
             }))}
             value={school || null}
             placeholder="Pick your school to start"
-            searchPlaceholder={`Search ${schools.length} SEC schools…`}
+            searchPlaceholder={`Search ${schools.length} schools…`}
             onPick={(v) => { setSchool(v); setChapter(""); }}
           />
 

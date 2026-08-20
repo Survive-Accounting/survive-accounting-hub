@@ -34,6 +34,8 @@ export type PickerItem = {
   meta?: string;
   /** Optional leading node, e.g. a school's bolt. */
   icon?: React.ReactNode;
+  /** Matched in search, NEVER displayed — nicknames, formal names, abbreviations. */
+  aliases?: string[];
 };
 
 export function SearchPicker({ items, value, placeholder, searchPlaceholder, disabled, disabledHint, onPick, ariaLabel }: {
@@ -59,7 +61,14 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
 
   const needle = q.trim().toLowerCase();
   const results = useMemo(
-    () => (needle ? items.filter((i) => i.label.toLowerCase().includes(needle) || (i.meta ?? "").toLowerCase().includes(needle)) : items),
+    () => (needle
+      ? items.filter((i) =>
+          i.label.toLowerCase().includes(needle)
+          || (i.meta ?? "").toLowerCase().includes(needle)
+          // Aliases are matched but never rendered, so typing "Bama" or "UIUC" finds the school
+          // and still shows it under the one name the rest of the app uses.
+          || (i.aliases ?? []).some((x) => x.toLowerCase().includes(needle)))
+      : items),
     [items, needle],
   );
   const current = items.find((i) => i.value === value) ?? null;

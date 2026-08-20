@@ -1737,3 +1737,290 @@ transitions freeze mid-flight so sampled colours are interpolated garbage rather
 values. Every visual claim above is measured DOM geometry and computed style, not a picture. The
 things that most need a human eye: the bolt-and-pencil composition at hero size, whether the pencil
 reads as clean or busy, and line 2's legibility on the light colourways (Vanderbilt, Tennessee).
+
+---
+
+## Part A — Non-SEC Greek outreach targets (read-only, 2026-08-19)
+
+**Read the caveat before using the ranking.** Non-SEC chapter counts are scrape depth, not
+Greek presence: SEC campuses average **54.8** chapters (min 38, max 72); non-SEC average **2.0**
+(max 4). Penn State and Indiana have far more than four chapters. Ordering by chapter count
+therefore ranks how much we happened to scrape, not how much Greek life is there.
+
+| metric | count |
+|---|---|
+| campuses total | 945 |
+| non-SEC with >=1 chapter | 115 |
+| ...and a course code (**near-term target set**) | 37 |
+| ...and a course code AND >=1 professor (**strongest set**) | **0** |
+| ...and a course code AND a usable slug (**buildable today**) | 25 |
+| non-SEC with a NULL slug (cannot host a page or /go/ URL) | 34 |
+| non-SEC with a colourway | 0 |
+| buckets | A=0 · B=37 · C=78 |
+
+**No non-SEC campus has a single pickable professor** (roster + RMP URL + not archived).
+The spec's "strongest set" is empty, and bucket A remains exactly the 16 SEC schools.
+
+### Buildable today — chapters + course code + slug (all 25)
+
+| # | Campus | Slug | Chapters | Course code | Profs | Colourway |
+|---|---|---|---|---|---|---|
+| 1 | Clemson University | `clemson-university` | 4 | ACCT 2010 | 0 | no |
+| 2 | Indiana University Bloomington | `indiana-university-bloomington` | 4 | BUS-A 201 | 0 | no |
+| 3 | Oregon State University | `oregon-state-university` | 4 | BA 211 | 0 | no |
+| 4 | Pennsylvania State University | `pennsylvania-state-university` | 4 | ACCTG 211 | 0 | no |
+| 5 | Texas Tech University | `texas-tech-university` | 4 | ACCT 2300 | 0 | no |
+| 6 | University of Arizona | `university-of-arizona` | 4 | ACCT 200 | 0 | no |
+| 7 | Arizona State University | `arizona-state-university` | 3 | ACC 231 | 0 | no |
+| 8 | North Carolina State University | `north-carolina-state-university` | 3 | ACC 210 | 0 | no |
+| 9 | University of Colorado Boulder | `university-of-colorado-boulder` | 3 | BCOR 2203 | 0 | no |
+| 10 | Southern Methodist University | `southern-methodist-university` | 2 | ACCT 2301 | 0 | no |
+| 11 | Syracuse University | `syracuse-university` | 2 | ACC 151 | 0 | no |
+| 12 | University of Iowa | `university-of-iowa` | 2 | ACCT:2100 | 0 | no |
+| 13 | University of Miami | `university-of-miami` | 2 | ACC 211 | 0 | no |
+| 14 | University of Minnesota | `university-of-minnesota` | 2 | ACCT 2051 | 0 | no |
+| 15 | University of Pennsylvania | `university-of-pennsylvania` | 2 | ACCT 1010 | 0 | no |
+| 16 | University of Southern California | `university-of-southern-california` | 2 | BUAD 280 | 0 | no |
+| 17 | Ball State University | `ball-state-university` | 1 | ACC 201 | 0 | no |
+| 18 | George Washington University | `george-washington-university` | 1 | ACCY 2001 | 0 | no |
+| 19 | Old Dominion University | `old-dominion-university` | 1 | ACCT 201 | 0 | no |
+| 20 | Sam Houston State University | `sam-houston-state-university` | 1 | ACCT 2301 | 0 | no |
+| 21 | San Diego State University | `san-diego-state-university` | 1 | ACCTG 201 | 0 | no |
+| 22 | University of Houston | `university-of-houston` | 1 | ACCT 2301 | 0 | no |
+| 23 | University of Idaho | `university-of-idaho` | 1 | ACCT 201 | 0 | no |
+| 24 | University of Louisville | `university-of-louisville` | 1 | ACCT 201 | 0 | no |
+| 25 | Western Kentucky University | `western-kentucky-university` | 1 | ACCT 200 | 0 | no |
+
+### Has a course code but NO slug — 12 (blocked; needs a slug backfill)
+
+- Kansas State University — 4 chapter(s), ACCTG 241
+- Miami University — 4 chapter(s), ACC 221
+- Oklahoma State University — 4 chapter(s), ACCT 2103
+- Northwestern University — 2 chapter(s), ACCOUNT 201-DL
+- University of Cincinnati — 2 chapter(s), ACCT 281
+- Eastern Kentucky University — 1 chapter(s), ACC 201
+- Johns Hopkins University — 1 chapter(s), EN.660.203
+- Kent State University — 1 chapter(s), ACCT 23020
+- Ohio Northern University — 1 chapter(s), BIZ 2101
+- Radford University — 1 chapter(s), ACTG 211
+- University of Connecticut — 1 chapter(s), ACCT 2001
+- University of New Mexico — 1 chapter(s), ACCT 2110
+
+### Has chapters but NO course code — 78 (bucket C; needs a code before a page means anything)
+
+- Colorado State University — 4 chapter(s)
+- Florida State University — 4 chapter(s)  *(also no slug)*
+- Michigan State University — 4 chapter(s)
+- Ohio State University — 4 chapter(s)  *(also no slug)*
+- Purdue University — 4 chapter(s)
+- University of California Berkeley — 4 chapter(s)
+- University of Central Florida — 4 chapter(s)
+- University of Illinois Urbana-Champaign — 4 chapter(s)
+- University of Nebraska-Lincoln — 4 chapter(s)
+- University of Wisconsin-Madison — 4 chapter(s)
+- Virginia Tech — 4 chapter(s)
+- Washington State University — 4 chapter(s)
+- West Virginia University — 4 chapter(s)
+- Cornell University — 3 chapter(s)  *(also no slug)*
+- Georgia Institute of Technology — 3 chapter(s)
+- Iowa State University — 3 chapter(s)  *(also no slug)*
+- University of Kansas — 3 chapter(s)  *(also no slug)*
+- University of Michigan — 3 chapter(s)
+- University of North Carolina at Chapel Hill — 3 chapter(s)
+- University of Oregon — 3 chapter(s)  *(also no slug)*
+- University of Virginia — 3 chapter(s)
+- University of Washington — 3 chapter(s)
+- Bowling Green State University — 2 chapter(s)
+- Bucknell University — 2 chapter(s)  *(also no slug)*
+- Case Western Reserve University — 2 chapter(s)
+- DePauw University — 2 chapter(s)
+- Duke University — 2 chapter(s)  *(also no slug)*
+- Ohio University — 2 chapter(s)  *(also no slug)*
+- Rensselaer Polytechnic Institute — 2 chapter(s)
+- Texas Christian University — 2 chapter(s)
+
+…and 48 more.
+
+---
+
+## Seed applied — 2026-08-19
+
+`campus-seed-FINAL.csv` (50 rows) and `national-greek-orgs.csv` (89 orgs), applied after the
+reconciliation report. **Zero campuses created — all 50 matched an existing row.** A naive
+upsert-by-slug would have created 22 duplicates.
+
+### What a slug-only match would have broken
+
+`miami-university-ohio` and `university-of-miami` are **different schools** (Miami University,
+Ohio, ACC 221, 4 chapters — vs University of Miami, Florida, ACC 211, 2 chapters). A normaliser
+that strips "University of" collapses them, and Ohio's course code would have landed on the
+Florida campus. The matcher folds dashes and diacritics only.
+
+### Three duplicate campus pairs, merged
+
+Each was split so one row held the chapters and the other held the course code — the same
+failure as the Tennessee merge, caused by an en-dash in the name:
+
+| school | kept (had chapters) | merged away |
+|---|---|---|
+| UCLA | `…los-angeles-r` | `…los-angeles` → MGMT 1A |
+| UCSB | `…santa-barbara-r` | `…santa-barbara` → ECON 3A |
+| Wisconsin–Madison | `…wisconsin-madison` | `…wisconsinmadison` → ACCT IS 100 |
+
+The code moved to the row with the chapters, because that row's `/go/` URLs may already be
+shared. The emptied row was archived with a `-merged` slug, never deleted — a delete cascades
+and would destroy the evidence.
+
+### 14 campuses un-archived
+
+718 of 945 campuses were archived on 2026-06-24 as `needs_review`, which is why they had no
+slug. A campus in the hand-verified seed is one Lee chose to publish, so the seed was treated as
+that review: Ohio State, Florida State, Oklahoma State, Kansas State, Miami (OH), Baylor,
+Northwestern, Kansas, James Madison, Iowa State, Delaware, Cincinnati, Oregon, Pittsburgh.
+Ids are in the commit for a clean undo.
+
+### Applied
+
+- 50/50 campuses: `short_name`, `color_primary`/`color_secondary`, `intro_1` code — verified complete
+- 15 NULL slugs filled from the seed; 6 existing slugs **kept** (Illinois, Nebraska, UNC, Georgia
+  Tech, Cal Poly, Oregon State) with the seed's slug becoming a search alias — those campuses have
+  chapters, so a slug change would break `/go/` URLs that may already be printed
+- Seed won all 4 course-code conflicts (Oregon State `BA 211Z`, Northwestern `ACCOUNT 201`,
+  Cincinnati `ACCT 2081`, Wisconsin `AIS 100`)
+- 21 further NULL slugs backfilled for archived campuses that have chapters (slug only — **not**
+  un-archived, since they are not in the seed)
+- `greek_orgs`: 87 enriched, 2 created (Beta Alpha Psi, Phi Chi Theta) — 89/89 now complete
+
+### Still needs SQL — `20260819_1615_campus_aliases_and_code_demand.sql`
+
+Colourways and short names needed **no DDL** (`campuses` already had `short_name`,
+`color_primary`, `color_secondary`). Only two things do: `search_aliases text[]`, and the
+`campus_code_demand` table. **50 alias rows are computed and waiting** on that column.
+
+### Council vocabulary mismatch (not a bug, but a mapping)
+
+`greek_orgs.council` uses the **national** bodies — NIC (53), NPC (26) — while campus councils
+and the council pages use **IFC** and **Panhellenic**. Existing records won, as specified, so the
+CSV did not overwrite. Council pages read `campus_greek_chapters.council` and are unaffected, but
+lazy chapter creation must map NIC→IFC and NPC→Panhellenic or new chapters will not appear on
+their council page.
+
+---
+
+## Part B — picker rework (branch `school-picker-all`)
+
+### Canonical names and aliases
+
+66 selectable schools: the SEC 16 plus the 50 seeded campuses. Everything else goes through
+"My school isn't listed →", per the scope override — a student picking a school with no course
+code gets a worse experience than one asked to tell us about it.
+
+**One canonical display name per school**, generated from `campuses.short_name` and used
+everywhere. 149 aliases are matched and never rendered.
+
+**Naming collisions found and resolved:**
+
+| collision | resolution |
+|---|---|
+| `USC` — University of **Southern California** and University of **South Carolina** both had `short_name = "USC"` | Trojans keep **USC** (common usage); Gamecocks take **South Carolina**, which every surface already displayed. `USC` is a search alias on both, so either still finds it. |
+| `Miami` — **Miami University** (Ohio) vs **University of Miami** (Florida) | Distinct schools, distinct rows, distinct codes (ACC 221 / ACC 211). Displayed as **Miami (OH)** and **Miami**. This nearly caused a data corruption — see the seed section. |
+| 8 SEC short names had drifted from what the app displays: `Bama`, `UGA`, `UK`, `OU`, `UF`, `UT Austin`, `UT Knoxville`, `Vandy` | DB synced to the canonical names; the drifted forms became search aliases. |
+| `Missouri` vs `Mizzou` | **Mizzou**, per the brief's explicit list. `Missouri` is an alias. |
+
+### Search ranking
+
+Exact name → name prefix → exact alias → word-prefix → substring. Without the tiers, "Miami"
+returned Miami (OH) and Miami in whatever order the sort happened to be stable in.
+
+**`Mississippi` → Ole Miss** is satisfied by the PIN, not by score: Mississippi State legitimately
+starts with "Mississippi" and outranks an alias match. Ole Miss is pinned above the group headers,
+so it is the first row regardless. Both appear, which is the honest result — they are two real
+schools a student could mean.
+
+### Verified live at 1280px and 375×812
+
+- Placeholder reads **"Search 66 schools…"**, from `schools.length`, never a literal
+- Ole Miss pinned first and **not** repeated inside SEC — one row per school, so the count and the
+  rows agree
+- `SEC` / `Other schools` headers, both alphabetical, and headers **survive filtering**
+- Alias search: `bama`→Alabama, `UIUC`→Illinois, `purd`→Purdue, `tOSU`→Ohio State,
+  `K-State`→Kansas State, `Pitt`→Pittsburgh, `A&M`→Texas A&M, `Vandy`→Vanderbilt
+- Aliases never render — rows show the canonical name and the course code only
+- `My school isn't listed →` last row in every state, including empty results
+- Selecting Purdue navigated to `/purdue-university#exam1`, H1 "ACCT 20000 at Purdue…"
+- Mobile: no horizontal overflow, 16px search input (iOS will not zoom), 56px rows
+
+**No virtualization.** 66 rows is not 900 — the scope override removed the reason for it, and
+virtualizing a list this size would add complexity and break the sticky group headers for nothing.
+If the list ever grows past a few hundred, revisit.
+
+### Demand logging
+
+Every selection of a school with no course code, and every "My school isn't listed", writes to
+`campus_code_demand` with its source (`landing`, `campus-page`, `write-in`). Best-effort and
+non-blocking — but it **reports** whether the row landed rather than assuming it, because the last
+best-effort logger returned 200 while writing nothing for a day.
+
+All 66 listed schools currently have a course code, so in practice this table fills from write-ins
+until the data drifts.
+
+### One source of truth
+
+`SCHOOLS` in landing.tsx was a **third** hardcoded copy of the SEC 16 (alongside schools.ts and
+brand.tsx) and had already drifted — it still said "Missouri". It, `ChapterFinder`, `/rep` and
+`campus-context` now all read the generated table. `campus-context` was fetching course codes for
+the SEC 16 only, so a non-SEC campus page could not have resolved its own code.
+
+---
+
+## Lazy chapter creation
+
+"My chapter isn't listed" used to be a contact form — name, email, and a wait. That asks the
+person trying to watch a free video to identify themselves and come back later, which is the
+opposite order of what they came to do.
+
+Now they pick their org from the 89-strong national list and land on their chapter's `/go/` page
+immediately. The row is created `pending` with `discovery_source = "member_self_serve"` and
+appears in an admin queue, but **nothing about pending blocks them**: the `/go/` resolver keys on
+campus + slug and filters on neither status nor `archived_at`. A queue that made someone wait to
+watch a free video would be protecting nothing.
+
+**No DDL required** — `campus_greek_chapters` already had `status`, `claim_status`, `council`,
+`letters`, `discovery_source` and `needs_verification`.
+
+### The council mapping that would have broken it silently
+
+`greek_orgs.council` holds the **national** bodies (NIC, NPC); campus chapters and the council
+pages use the **campus** councils (IFC, Panhellenic). A self-created chapter carrying `NIC` would
+never have appeared on its IFC council page — and nothing would have errored. Creation maps
+NIC→IFC and NPC→Panhellenic, and the picker displays the mapped value so it cannot disagree with
+what it writes.
+
+### Existing records win
+
+If a chapter for that campus and org already exists it is returned untouched, including one
+already claimed or renamed by an exec. Verified: running the flow twice returned the same slug
+and left exactly one row.
+
+### Verified end-to-end on the dev server
+
+Clemson → "My chapter isn't listed" → searched **"SigEp"** (a nickname alias) → Sigma Phi Epsilon
+→ navigated to `/go/clemson-university/sigma-phi-epsilon`, a working page reading
+"SIGMA PHI EPSILON · CLEMSON" with ACCT 2010. The row: `status=pending`, `council=IFC`,
+`letters=ΣΦΕ`, `needs_verification=true`, `claim_status=unclaimed`. **Test row deleted afterwards**
+— it was mine, not a member's, and nobody had been given the URL.
+
+### Admin queue — `/outreach/chapters`
+
+Member-created rows only; a list that also held the ~1,100 scraped chapters would be the table,
+not a queue. Admin-gated, and returns `null` rather than `[]` for a non-admin so the page can tell
+"you may not see this" from "there is nothing here".
+
+**Remove archives rather than deletes.** The `/go/` URL may already be in a group chat, and
+deleting would turn a link somebody sent their whole house into a dead end.
+
+### Also
+
+`/chapters` listed only schools that already had scraped chapters, which locked out exactly the
+members lazy creation exists for. It now lists all 66 seeded schools, and its search placeholder
+no longer claims "SEC schools".

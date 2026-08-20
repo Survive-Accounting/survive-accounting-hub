@@ -428,6 +428,22 @@ html.sa-navy body {
   color: var(--text-muted);
 }
 
+/* GROUP HEADER in the school picker. Sticky, so scrolling 50 "Other schools" never leaves you
+   without a label for what you are looking at. Not a button and not focusable: it is a label,
+   and putting it in the tab order would make keyboard users pass through it to reach a school. */
+.sa-picker-group {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 10px 16px 6px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: #0b1220;
+}
+
 /* ROW — a GRID, not a flex row. The `max-content` code track resolves BEFORE
    free space is distributed, and `minmax(0,1fr)` is the only track allowed to
    go under its content width, so the NAME yields and the course code can never

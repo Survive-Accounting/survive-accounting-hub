@@ -1,0 +1,90 @@
+org_name,slug,greek_letters,abbrev,type,council
+Acacia,acacia,Acacia,Acacia,fraternity,IFC
+Alpha Delta Phi,alpha-delta-phi,ΑΔΦ,ADPhi,fraternity,IFC
+Alpha Epsilon Pi,alpha-epsilon-pi,ΑΕΠ,AEPi,fraternity,IFC
+Alpha Gamma Rho,alpha-gamma-rho,ΑΓΡ,AGR,fraternity,IFC
+Alpha Sigma Phi,alpha-sigma-phi,ΑΣΦ,Alpha Sig,fraternity,IFC
+Alpha Tau Omega,alpha-tau-omega,ΑΤΩ,ATO,fraternity,IFC
+Beta Theta Pi,beta-theta-pi,ΒΘΠ,Beta,fraternity,IFC
+Chi Phi,chi-phi,ΧΦ,Chi Phi,fraternity,IFC
+Chi Psi,chi-psi,ΧΨ,Chi Psi,fraternity,IFC
+Delta Chi,delta-chi,ΔΧ,Delta Chi,fraternity,IFC
+Delta Kappa Epsilon,delta-kappa-epsilon,ΔΚΕ,DKE,fraternity,IFC
+Delta Sigma Phi,delta-sigma-phi,ΔΣΦ,Delta Sig,fraternity,IFC
+Delta Tau Delta,delta-tau-delta,ΔΤΔ,Delt,fraternity,IFC
+Delta Upsilon,delta-upsilon,ΔΥ,DU,fraternity,IFC
+FarmHouse,farmhouse,FarmHouse,FarmHouse,fraternity,IFC
+Kappa Alpha Order,kappa-alpha-order,ΚΑ,KA,fraternity,IFC
+Kappa Delta Rho,kappa-delta-rho,ΚΔΡ,KDR,fraternity,IFC
+Kappa Sigma,kappa-sigma,ΚΣ,Kappa Sig,fraternity,IFC
+Lambda Chi Alpha,lambda-chi-alpha,ΛΧΑ,Lambda Chi,fraternity,IFC
+Phi Delta Theta,phi-delta-theta,ΦΔΘ,Phi Delt,fraternity,IFC
+Phi Gamma Delta,phi-gamma-delta,ΦΓΔ,FIJI,fraternity,IFC
+Phi Kappa Psi,phi-kappa-psi,ΦΚΨ,Phi Psi,fraternity,IFC
+Phi Kappa Sigma,phi-kappa-sigma,ΦΚΣ,Skulls,fraternity,IFC
+Phi Kappa Tau,phi-kappa-tau,ΦΚΤ,Phi Tau,fraternity,IFC
+Phi Kappa Theta,phi-kappa-theta,ΦΚΘ,Phi Kap,fraternity,IFC
+Phi Sigma Kappa,phi-sigma-kappa,ΦΣΚ,Phi Sig,fraternity,IFC
+Pi Kappa Alpha,pi-kappa-alpha,ΠΚΑ,Pike,fraternity,IFC
+Pi Kappa Phi,pi-kappa-phi,ΠΚΦ,Pi Kapp,fraternity,IFC
+Pi Lambda Phi,pi-lambda-phi,ΠΛΦ,Pilam,fraternity,IFC
+Psi Upsilon,psi-upsilon,ΨΥ,Psi U,fraternity,IFC
+Sigma Alpha Epsilon,sigma-alpha-epsilon,ΣΑΕ,SAE,fraternity,IFC
+Sigma Alpha Mu,sigma-alpha-mu,ΣΑΜ,Sammy,fraternity,IFC
+Sigma Chi,sigma-chi,ΣΧ,Sigma Chi,fraternity,IFC
+Sigma Nu,sigma-nu,ΣΝ,Sigma Nu,fraternity,IFC
+Sigma Phi Epsilon,sigma-phi-epsilon,ΣΦΕ,SigEp,fraternity,IFC
+Sigma Pi,sigma-pi,ΣΠ,Sigma Pi,fraternity,IFC
+Sigma Tau Gamma,sigma-tau-gamma,ΣΤΓ,Sig Tau,fraternity,IFC
+Tau Kappa Epsilon,tau-kappa-epsilon,ΤΚΕ,TKE,fraternity,IFC
+Theta Chi,theta-chi,ΘΧ,Theta Chi,fraternity,IFC
+Theta Xi,theta-xi,ΘΞ,Theta Xi,fraternity,IFC
+Triangle,triangle,Triangle,Triangle,fraternity,IFC
+Zeta Beta Tau,zeta-beta-tau,ΖΒΤ,ZBT,fraternity,IFC
+Zeta Psi,zeta-psi,ΖΨ,Zete,fraternity,IFC
+Alpha Chi Omega,alpha-chi-omega,ΑΧΩ,AChiO,sorority,Panhellenic
+Alpha Delta Pi,alpha-delta-pi,ΑΔΠ,ADPi,sorority,Panhellenic
+Alpha Epsilon Phi,alpha-epsilon-phi,ΑΕΦ,AEPhi,sorority,Panhellenic
+Alpha Gamma Delta,alpha-gamma-delta,ΑΓΔ,Alpha Gam,sorority,Panhellenic
+Alpha Omicron Pi,alpha-omicron-pi,ΑΟΠ,AOPi,sorority,Panhellenic
+Alpha Phi,alpha-phi,ΑΦ,A Phi,sorority,Panhellenic
+Alpha Sigma Alpha,alpha-sigma-alpha,ΑΣΑ,ASA,sorority,Panhellenic
+Alpha Sigma Tau,alpha-sigma-tau,ΑΣΤ,AST,sorority,Panhellenic
+Alpha Xi Delta,alpha-xi-delta,ΑΞΔ,AZD,sorority,Panhellenic
+Chi Omega,chi-omega,ΧΩ,Chi O,sorority,Panhellenic
+Delta Delta Delta,delta-delta-delta,ΔΔΔ,Tri Delta,sorority,Panhellenic
+Delta Gamma,delta-gamma,ΔΓ,DG,sorority,Panhellenic
+Delta Phi Epsilon,delta-phi-epsilon,ΔΦΕ,DPhiE,sorority,Panhellenic
+Delta Zeta,delta-zeta,ΔΖ,DZ,sorority,Panhellenic
+Gamma Phi Beta,gamma-phi-beta,ΓΦΒ,Gamma Phi,sorority,Panhellenic
+Kappa Alpha Theta,kappa-alpha-theta,ΚΑΘ,Theta,sorority,Panhellenic
+Kappa Delta,kappa-delta,ΚΔ,KD,sorority,Panhellenic
+Kappa Kappa Gamma,kappa-kappa-gamma,ΚΚΓ,Kappa,sorority,Panhellenic
+Phi Mu,phi-mu,ΦΜ,Phi Mu,sorority,Panhellenic
+Phi Sigma Sigma,phi-sigma-sigma,ΦΣΣ,Phi Sig,sorority,Panhellenic
+Pi Beta Phi,pi-beta-phi,ΠΒΦ,Pi Phi,sorority,Panhellenic
+Sigma Delta Tau,sigma-delta-tau,ΣΔΤ,SDT,sorority,Panhellenic
+Sigma Kappa,sigma-kappa,ΣΚ,Sig Kap,sorority,Panhellenic
+Sigma Sigma Sigma,sigma-sigma-sigma,ΣΣΣ,Tri Sigma,sorority,Panhellenic
+Theta Phi Alpha,theta-phi-alpha,ΘΦΑ,Theta Phi,sorority,Panhellenic
+Zeta Tau Alpha,zeta-tau-alpha,ΖΤΑ,ZTA,sorority,Panhellenic
+Alpha Phi Alpha,alpha-phi-alpha,ΑΦΑ,Alphas,fraternity,NPHC
+Kappa Alpha Psi,kappa-alpha-psi,ΚΑΨ,Kappas,fraternity,NPHC
+Omega Psi Phi,omega-psi-phi,ΩΨΦ,Ques,fraternity,NPHC
+Phi Beta Sigma,phi-beta-sigma,ΦΒΣ,Sigmas,fraternity,NPHC
+Iota Phi Theta,iota-phi-theta,ΙΦΘ,Iotas,fraternity,NPHC
+Alpha Kappa Alpha,alpha-kappa-alpha,ΑΚΑ,AKA,sorority,NPHC
+Delta Sigma Theta,delta-sigma-theta,ΔΣΘ,Deltas,sorority,NPHC
+Zeta Phi Beta,zeta-phi-beta,ΖΦΒ,Zetas,sorority,NPHC
+Sigma Gamma Rho,sigma-gamma-rho,ΣΓΡ,SGRho,sorority,NPHC
+Lambda Theta Alpha,lambda-theta-alpha,ΛΘΑ,LTA,sorority,MGC
+Lambda Theta Phi,lambda-theta-phi,ΛΘΦ,LTP,fraternity,MGC
+Sigma Lambda Beta,sigma-lambda-beta,ΣΛΒ,SLB,fraternity,MGC
+Sigma Lambda Gamma,sigma-lambda-gamma,ΣΛΓ,SLG,sorority,MGC
+Lambda Upsilon Lambda,lambda-upsilon-lambda,ΛΥΛ,LUL,fraternity,MGC
+Kappa Delta Chi,kappa-delta-chi,ΚΔΧ,KDChi,sorority,MGC
+Delta Lambda Phi,delta-lambda-phi,ΔΛΦ,DLP,fraternity,MGC
+Alpha Kappa Psi,alpha-kappa-psi,ΑΚΨ,AKPsi,professional,Professional
+Beta Alpha Psi,beta-alpha-psi,ΒΑΨ,BAP,professional,Professional
+Delta Sigma Pi,delta-sigma-pi,ΔΣΠ,DSP,professional,Professional
+Phi Chi Theta,phi-chi-theta,ΦΧΘ,PCT,professional,Professional

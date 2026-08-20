@@ -1,0 +1,51 @@
+campus_name,slug,short_display_name,aliases,is_sec,course_code_intro_1,color_c1_hex,color_c2_hex,notes
+Indiana University Bloomington,indiana-university-bloomington,Indiana,IU;Indiana University,False,BUS-A 201,#990000,#FFFFFF,Verified 2026-08-19
+Pennsylvania State University,pennsylvania-state-university,Penn State,PSU;Penn St,False,ACCTG 211,#001E44,#FFFFFF,Verified 2026-08-19
+Clemson University,clemson-university,Clemson,,False,ACCT 2010,#F56600,#522D80,Verified 2026-08-19
+Texas Tech University,texas-tech-university,Texas Tech,TTU,False,ACCT 2300,#E90802,#000000,Verified 2026-08-19
+University of Arizona,university-of-arizona,Arizona,U of A,False,ACCT 200,#AB0520,#FFFFFF,Colors adjusted for bolt contrast on navy
+Arizona State University,arizona-state-university,Arizona State,ASU,False,ACC 231,#8C1D40,#FFC627,Verified 2026-08-19
+North Carolina State University,north-carolina-state-university,NC State,NCSU,False,ACC 210,#CC0000,#FFFFFF,Verified 2026-08-19
+University of Colorado Boulder,university-of-colorado-boulder,Colorado,CU Boulder,False,BCOR 2203,#CFB87C,#000000,Verified 2026-08-19
+Southern Methodist University,southern-methodist-university,SMU,,False,ACCT 2301,#CC0035,#FFFFFF,Colors adjusted for bolt contrast on navy
+Syracuse University,syracuse-university,Syracuse,,False,ACC 151,#F76900,#000E54,Verified 2026-08-19
+University of Iowa,university-of-iowa,Iowa,,False,ACCT:2100,#FFCD00,#000000,Verified 2026-08-19
+University of Miami,university-of-miami,Miami,Miami FL,False,ACC 211,#F47321,#005030,Verified 2026-08-19
+University of Minnesota,university-of-minnesota,Minnesota,UMN,False,ACCT 2051,#7A0019,#FFCC33,Verified 2026-08-19
+University of Southern California,university-of-southern-california,USC,Southern Cal,False,BUAD 280,#990000,#FFCC00,Verified 2026-08-19
+University of Louisville,university-of-louisville,Louisville,UofL,False,ACCT 201,#AD0000,#FFFFFF,Colors adjusted for bolt contrast on navy
+University of Houston,university-of-houston,Houston,UH,False,ACCT 2301,#C8102E,#FFFFFF,Verified 2026-08-19
+Oregon State University,oregon-state-university,Oregon State,,False,BA 211Z,#D73F09,#000000,Verified 2026-08-19; current catalog uses BA 211Z (renumbered from BA 211).
+Ohio State University,ohio-state-university,Ohio State,tOSU,False,ACCTMIS 2200,#BA0C2F,#A7B1B7,Verified 2026-08-19
+Florida State University,florida-state-university,Florida State,FSU,False,ACG 2021,#782F40,#CEB888,Verified 2026-08-19
+Oklahoma State University,oklahoma-state-university,Oklahoma State,Okie State,False,ACCT 2103,#FE5C00,#000000,Verified 2026-08-19
+Kansas State University,kansas-state-university,Kansas State,K-State,False,ACCTG 241,#512888,#FFFFFF,Verified 2026-08-19; ACCTG 241 is the financial course; ACCTG 231 is managerial.
+Miami University,miami-university-ohio,Miami (OH),Miami Ohio,False,ACC 221,#C8102E,#FFFFFF,Verified 2026-08-19
+Baylor University,baylor-university,Baylor,BU,False,ACC 2303,#154734,#FFB81C,Verified 2026-08-19
+Northwestern University,northwestern-university,Northwestern,NU,False,ACCOUNT 201,#4E2A84,#FFFFFF,Verified 2026-08-19; undergraduate SPS financial-accounting course.
+Purdue University,purdue-university,Purdue,,False,ACCT 20000,#CFB991,#000000,HIGH PRIORITY - big Greek system | Verified 2026-08-19; current prefix is ACCT (formerly MGMT).
+University of Kansas,university-of-kansas,Kansas,KU,False,ACCT 200,#0051BA,#E8000D,HIGH PRIORITY - big Greek system | Verified 2026-08-19
+University of Illinois Urbana-Champaign,university-of-illinois,Illinois,UIUC;U of I,False,ACCY 201,#FF5F05,#13294B,HIGH PRIORITY - big Greek system | Verified 2026-08-19
+Michigan State University,michigan-state-university,Michigan State,,False,ACC 201,#18453B,#FFFFFF,HIGH PRIORITY - big Greek system | Verified 2026-08-19
+University of Wisconsin-Madison,university-of-wisconsin,Wisconsin,,False,AIS 100,#C5050C,#FFFFFF,HIGH PRIORITY - big Greek system | Verified 2026-08-19
+Texas Christian University,texas-christian-university,TCU,,False,ACCT 20353,#4D1979,#FFFFFF,HIGH PRIORITY - big Greek system | Verified 2026-08-19
+Virginia Tech,virginia-tech,Virginia Tech,,False,ACIS 2115,#861F41,#E5751F,HIGH PRIORITY - big Greek system | Verified 2026-08-19
+James Madison University,james-madison-university,James Madison,JMU,False,COB 241,#450084,#CBB677,HIGH PRIORITY - big Greek system | Verified 2026-08-19
+Iowa State University,iowa-state-university,Iowa State,,False,ACCT 2840,#C8102E,#F1BE48,HIGH PRIORITY - big Greek system | Verified 2026-08-19; current number is ACCT 2840.
+University of Nebraska-Lincoln,university-of-nebraska,Nebraska,,False,ACCT 201,#D00000,#F5F1E7,HIGH PRIORITY - big Greek system | Verified 2026-08-19
+University of Delaware,university-of-delaware,Delaware,,False,ACCT 207,#00539F,#FFD200,HIGH PRIORITY - big Greek system | Verified 2026-08-19
+Colorado State University,colorado-state-university,Colorado State,,False,ACT 210,#1E4D2B,#C8C372,HIGH PRIORITY - big Greek system | Verified 2026-08-19
+San Diego State University,san-diego-state-university,San Diego State,SDSU,False,ACCTG 201,#A6192E,#FFFFFF,Colors adjusted for bolt contrast on navy
+West Virginia University,west-virginia-university,West Virginia,WVU,False,ACCT 201,#002855,#EAAA00,HIGH PRIORITY - big Greek system | Verified 2026-08-19; ACCT 201 is the first course in the sequence.
+University of Cincinnati,university-of-cincinnati,Cincinnati,,False,ACCT 2081,#E00122,#000000,MEDIUM | Verified 2026-08-19
+University of Central Florida,university-of-central-florida,UCF,,False,ACG 2021,#000000,#FFC904,MEDIUM | Verified 2026-08-19
+University of Maryland,university-of-maryland,Maryland,UMD,False,BMGT 220,#E21833,#FFD200,MEDIUM | Verified 2026-08-19
+University of Washington,university-of-washington,Washington,,False,ACCTG 215,#4B2E83,#B7A57A,MEDIUM | Verified 2026-08-19
+University of Oregon,university-of-oregon,Oregon,UO,False,BA 211Z,#007030,#FEE11A,MEDIUM | Verified 2026-08-19; current catalog uses BA 211Z.
+University of Virginia,university-of-virginia,Virginia,UVA,False,COMM 2010,#E57200,#232D4B,MEDIUM | Verified 2026-08-19
+University of North Carolina at Chapel Hill,university-of-north-carolina,North Carolina,UNC,False,BUSI 407,#4B9CD3,#13294B,MEDIUM | Verified 2026-08-19
+Georgia Institute of Technology,georgia-tech,Georgia Tech,,False,ACCT 2101,#B3A369,#003057,MEDIUM | Verified 2026-08-19
+University of Pittsburgh,university-of-pittsburgh,Pittsburgh,Pitt,False,BUSACC 0030,#003594,#FFB81C,MEDIUM | Verified 2026-08-19
+Rutgers University,rutgers-university,Rutgers,,False,33:010:272,#CC0033,#FFFFFF,MEDIUM | Verified 2026-08-19
+University of Utah,university-of-utah,Utah,,False,ACCTG 2600,#BE0000,#FFFFFF,MEDIUM | Verified 2026-08-19
+California Polytechnic State University,cal-poly-san-luis-obispo,Cal Poly,Cal Poly SLO,False,BUS 2214,#154734,#BD8B13,MEDIUM | Verified 2026-08-19; current 2026-28 catalog uses BUS 2214.

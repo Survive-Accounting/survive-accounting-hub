@@ -11,6 +11,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import { ALL_SCHOOLS } from "@/lib/schools";
 import { ChapterFinder } from "@/components/site/ChapterFinder";
 import { listGoSchools } from "@/lib/greek-go.functions";
 
@@ -21,6 +22,8 @@ import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { CampusSelector, type School } from "./landing";
 import { supabase } from "@/integrations/supabase/client";
 import { createGreekChapter, resendChapterCode, searchChapterOrgs, verifyChapterPhone } from "@/lib/greek-chapters.functions";
+
+const FINDER_SCHOOLS = ALL_SCHOOLS.map((x) => ({ slug: x.slug, name: x.name }));
 
 export const Route = createFileRoute("/chapters")({
   head: () => ({ meta: [{ title: "⚡ Free Exam 1 for your whole chapter — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
@@ -88,7 +91,10 @@ function FindMyChapter() {
 
   return (
     <ChapterFinder
-      schools={schoolsQ.data}
+      // EVERY seeded school, not only those that already have chapters. A member at a campus
+      // with no chapters yet is exactly who lazy creation exists for -- restricting the list to
+      // schools we already scraped would lock out the people most worth hearing from.
+      schools={FINDER_SCHOOLS}
       card
       escapeHatches
       cta="Go to my chapter page ⚡"

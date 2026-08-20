@@ -48,3 +48,4 @@ data/*
 # values. The committed rule above is exactly ".env", which does NOT match it —
 # so widen it. (.vercel/ is already covered further up.)
 .env*
+scratch/
