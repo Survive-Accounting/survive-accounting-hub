@@ -7,6 +7,7 @@
 // rather than release. So the primary action is the link: look at the page a real person is
 // using before deciding anything about it.
 import { createFileRoute } from "@tanstack/react-router";
+import { useNavyDocument } from "@/components/site/SiteHeader";
 import { useEffect, useState } from "react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
@@ -19,6 +20,7 @@ export const Route = createFileRoute("/outreach/chapters")({
 });
 
 function PendingChaptersAdmin() {
+  useNavyDocument();
   const [rows, setRows] = useState<PendingChapter[] | null>(null);
   const [denied, setDenied] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);

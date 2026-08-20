@@ -265,6 +265,31 @@ html.sa-navy body {
   background-color: #0F1A2E;
 }
 
+/* BRAND PALETTE FOR EVERY NAVY PAGE.
+ *
+ * These used to exist ONLY as inline vars from frameThemeVars() on the landing page's root, so a
+ * navy page that did not apply them rendered with:
+ *   * --accent  = #CE1126, the SHADCN token from :root — a red button where amber belongs
+ *   * --brand-cream and --text-muted UNDEFINED — headings and nav links with no colour at all,
+ *     which on navy is invisible rather than merely wrong.
+ * That is what happened to /rep and /<school>/rep.
+ *
+ * The name collision is the real trap: shadcn's --accent (light admin surfaces) and the brand's
+ * amber --accent (navy public pages) are different things sharing one name. Defining the brand
+ * values on html.sa-navy scopes them to exactly the pages that opted into navy, and leaves the
+ * shadcn tokens untouched everywhere else.
+ *
+ * frameThemeVars() still wins where it is applied — an inline style beats a class selector — so
+ * per-school colourways keep overriding these defaults. These are the floor, not a replacement.
+ */
+html.sa-navy {
+  --brand-cream: #F5EFE6;
+  --text-muted: rgba(226, 232, 240, 0.6);
+  --accent: #FCA311;
+  --bolt-primary: #C62828;
+  --bolt-secondary: #1565C0;
+}
+
 /* HORIZONTAL OVERFLOW BACKSTOP (M1.1).
 
    The real offenders are fixed first — the oversized nowrap wordmark and the

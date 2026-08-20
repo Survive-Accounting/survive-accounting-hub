@@ -13,6 +13,7 @@
 // the single fastest way to make Greek life stop trusting us, and the data to build one is not
 // collected in the first place.
 import { createFileRoute } from "@tanstack/react-router";
+import { useNavyDocument } from "@/components/site/SiteHeader";
 import { useState } from "react";
 
 import { Bolt, BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
@@ -36,6 +37,7 @@ export const Route = createFileRoute("/go/$school/council/$council")({
 });
 
 function CouncilPage() {
+  useNavyDocument();
   const page = Route.useLoaderData();
   const { k } = Route.useSearch();
   const { school } = Route.useParams();

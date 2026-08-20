@@ -3,6 +3,7 @@
 // Status and a note, and nothing else. No rep accounts, no links, no commission fields: those are
 // a later pass, and a half-built payout column is worse than an empty one because it looks done.
 import { createFileRoute } from "@tanstack/react-router";
+import { useNavyDocument } from "@/components/site/SiteHeader";
 import { useEffect, useState } from "react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
@@ -19,6 +20,7 @@ const TONE: Record<RepStatus, string> = {
 };
 
 function RepsAdmin() {
+  useNavyDocument();
   const [rows, setRows] = useState<RepApplication[] | null>(null);
   const [denied, setDenied] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);

@@ -8,6 +8,7 @@
 // school appears with a token already generated, so there is never a "create page" step between
 // deciding to send and sending.
 import { createFileRoute } from "@tanstack/react-router";
+import { useNavyDocument } from "@/components/site/SiteHeader";
 import { useEffect, useState } from "react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
@@ -20,6 +21,7 @@ export const Route = createFileRoute("/outreach/councils")({
 });
 
 function CouncilsAdmin() {
+  useNavyDocument();
   const [rows, setRows] = useState<CouncilAdminRow[] | null>(null);
   const [denied, setDenied] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
