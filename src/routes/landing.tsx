@@ -262,7 +262,13 @@ function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAcces
   // code in campuses.course_family_codes_json.intro_1 simply renders no code (never a guess).
   const codesQ = useQuery({ queryKey: ["landing-campus-codes"], queryFn: () => listCampusIntroCodes({ data: { ids: SCHOOLS.map((s) => s.campusId) } }), staleTime: 600_000, networkMode: "always" });
   const schoolsWithCodes = useMemo<School[]>(() => {
-    const m = new Map((codesQ.data ?? []).map((r) => [r.campusId, r.code]));
+    // UNTIL THE LIVE ANSWER ARRIVES, THE STATIC SNAPSHOT STANDS. The old version mapped every
+    // school to `code: undefined` while the query was in flight, which wiped the generated
+    // build-time codes for one render — the hero plate visibly flashed "for · OLE MISS" and
+    // grew its course code a beat later. Once codesQ.data EXISTS its absence is authoritative
+    // (a code removed from the DB should vanish); while it is loading, absence means nothing.
+    if (!codesQ.data) return SCHOOLS;
+    const m = new Map(codesQ.data.map((r) => [r.campusId, r.code]));
     return SCHOOLS.map((s) => { const code = m.get(s.campusId); return code ? { ...s, code, codeVerified: true } : { ...s, code: undefined, codeVerified: false }; });
   }, [codesQ.data]);
 

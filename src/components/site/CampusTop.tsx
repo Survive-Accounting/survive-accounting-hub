@@ -67,7 +67,9 @@ export function CampusTop({ schoolName, courseCode, chapterCount, examAnchor }: 
               invitation to a page that lists nothing. */}
           {chapterCount > 0 && (
             <a
-              href="/chapters"
+              // The campus rides along, so the finder opens with this school already selected —
+              // the visitor picks their CHAPTER, not the school the page already named.
+              href={school ? `/chapters?school=${encodeURIComponent(school.slug)}` : "/chapters"}
               className="flex w-full items-center justify-center rounded-xl px-6 text-[15px] font-bold sm:w-auto"
               style={{ minHeight: 54, color: "var(--brand-cream)", background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.18)" }}
             >

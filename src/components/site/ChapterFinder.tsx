@@ -27,7 +27,7 @@ import { listGoChapters } from "@/lib/greek-go.functions";
 
 export interface FinderSchool { slug: string; name: string }
 
-export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy = false, note, card = false, header = "Find your chapter", escapeHatches = false }: {
+export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy = false, note, card = false, header = "Find your chapter", escapeHatches = false, initialSchool }: {
   schools: FinderSchool[];
   onPick: (schoolSlug: string, chapterSlug: string, chapterName: string) => void;
   cta?: string;
@@ -38,8 +38,12 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
   header?: string;
   /** Offer "My school / chapter isn't listed" beneath the button. */
   escapeHatches?: boolean;
+  /** Pre-selected school slug. A campus page's "For fraternities & sororities" link arrives
+   *  already knowing the school, so making the visitor find it again in a dropdown is a step
+   *  that exists only to be redone. Ignored unless it matches a listed school. */
+  initialSchool?: string;
 }) {
-  const [school, setSchool] = useState("");
+  const [school, setSchool] = useState(() => (initialSchool && schools.some((s) => s.slug === initialSchool) ? initialSchool : ""));
   const [chapter, setChapter] = useState("");
   const [notListed, setNotListed] = useState<null | "school" | "chapter">(null);
 

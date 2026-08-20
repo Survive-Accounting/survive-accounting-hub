@@ -39,6 +39,10 @@ export const Route = createFileRoute("/chapters")({
       { name: "robots", content: "noindex" },
     ],
   }),
+  // ?school=<campus-slug> pre-selects the school in the finder — campus pages link here with
+  // their own slug so a visitor never re-finds a school the link already named.
+  validateSearch: (s: Record<string, unknown>): { school?: string } =>
+    typeof s.school === "string" && s.school ? { school: s.school } : {},
   component: ChaptersPage,
 });
 
@@ -84,6 +88,7 @@ function ChaptersPage() {
  *  isn't listed" rather than being the hero CTA. */
 function FindMyChapter() {
   const nav = useNavigate();
+  const { school: preselect } = Route.useSearch();
   const schoolsQ = useQuery({ queryKey: ["go-schools"], queryFn: () => listGoSchools(), networkMode: "always", staleTime: 600_000 });
 
   // DEGRADE TO THE OLD DOOR. listGoSchools reads campus_greek_chapters.slug, which does not exist
@@ -110,6 +115,7 @@ function FindMyChapter() {
       card
       escapeHatches
       cta="Go to my chapter page ⚡"
+      initialSchool={preselect}
       onPick={(school, chapter) => void nav({ to: "/go/$school/$chapter", params: { school, chapter } })}
     />
   );
