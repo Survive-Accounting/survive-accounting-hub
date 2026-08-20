@@ -19,14 +19,23 @@ import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { FitWordmark, SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { getSiteSettings } from "@/lib/site-settings.functions";
+import { ogMeta } from "@/lib/og";
 import { logExpandEvent, submitReferral, type ExpandEvent } from "@/lib/referrals.functions";
 import { Footer } from "./landing";
 
 export const Route = createFileRoute("/expand")({
-  head: () => ({ meta: [
-    { title: "⚡ Help Survive Accounting grow" },
-    { name: "robots", content: "noindex, nofollow" },
-  ] }),
+  // Unlisted (noindex) but heavily FORWARDED — this page exists to be texted to alumni, so its
+  // card matters more than its ranking. Copy mirrors the page's own hero ask.
+  head: () => ({
+    meta: [
+      ...ogMeta({
+        title: "Help me get this to the students who need it.",
+        description: "You knew Survive Accounting back when. See what it's become — and send it to a student taking intro accounting. Takes 30 seconds.",
+        path: "/expand",
+      }),
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
   loader: () => getSiteSettings(),
   component: ExpandPage,
 });

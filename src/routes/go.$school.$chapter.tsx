@@ -39,8 +39,11 @@ import { useChapterMember } from "@/lib/use-chapter-member";
 import { ChapterStickyCta } from "@/components/site/ChapterStickyCta";
 import { ChapterTop, CHAPTER_HERO_ID } from "@/components/site/ChapterTop";
 import { ChapterAccess } from "@/components/site/ChapterAccess";
-import { getGoChapter, listGoSchools, tagChapterMember, logGreekEvent } from "@/lib/greek-go.functions";
+import { getGoChapter, goPath, listGoSchools, tagChapterMember, logGreekEvent } from "@/lib/greek-go.functions";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
+import { chapterShortName } from "@/components/site/ChapterShare";
+import { canonicalSchoolName } from "@/lib/schools";
+import { HOME_OG, ogMeta } from "@/lib/og";
 import { LandingPage } from "./landing";
 
 /** Where both hero buttons scroll to. Ids live here so the hero and the sections agree. */
@@ -59,11 +62,26 @@ export const Route = createFileRoute("/go/$school/$chapter")({
   },
   // Indexable, unlike /c/ (which was noindex because each link belonged to one private chapter).
   // These are public chapter pages and searching "<chapter> <school> accounting" should find them.
-  // Now that the chapter is loaded server-side, the title can name it — which is also what shows
-  // in a GroupMe or iMessage link preview, where most of these links are opened.
-  head: ({ loaderData }) => {
-    const ch = (loaderData as { chapter: Awaited<ReturnType<typeof getGoChapter>> } | undefined)?.chapter;
-    return { meta: [{ title: ch ? `⚡ ${ch.chapterName} — free Exam 1 cram videos` : "⚡ Survive Accounting — Free Exam 1" }] };
+  // The full og/twitter set matters MORE here than anywhere: these links live in GroupMe and
+  // iMessage, where the card IS the first impression. Tokens come from the same loader the page
+  // body renders from — shorthand via chapterShortName (nickname → letters → derivation), campus
+  // via the canonical school table, course code degrading to "Intro Accounting" exactly like the
+  // hero headline does. An unresolvable chapter falls back to the HOME card.
+  head: ({ loaderData, params }) => {
+    const data = loaderData as { chapter: Awaited<ReturnType<typeof getGoChapter>>; code: string | null } | undefined;
+    const ch = data?.chapter;
+    if (!ch) return { meta: ogMeta({ ...HOME_OG, path: goPath(params.school, params.chapter) }) };
+    const short = chapterShortName(ch.chapterName, ch.letters, ch.nickname);
+    const campus = canonicalSchoolName(ch.schoolSlug, ch.schoolName);
+    const course = data?.code ?? "Intro Accounting";
+    return {
+      meta: ogMeta({
+        title: `${short} at ${campus} — get ${course} help.`,
+        description: `Cram videos + practice exams for every ${short} member. Instant access. Exam 1 is free.`,
+        path: goPath(ch.schoolSlug, ch.chapterSlug),
+        image: `https://surviveaccounting.com/api/og/${ch.schoolSlug}/${ch.chapterSlug}`,
+      }),
+    };
   },
   component: GoChapterPage,
 });

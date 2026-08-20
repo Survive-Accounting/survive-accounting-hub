@@ -18,6 +18,7 @@ import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { CampusTop } from "@/components/site/CampusTop";
 import { getCampusPage } from "@/lib/campus-page.functions";
+import { campusOgImage, HOME_OG, ogMeta } from "@/lib/og";
 import { schoolBySlug } from "@/lib/schools";
 import { LandingPage } from "./landing";
 
@@ -30,28 +31,17 @@ export const Route = createFileRoute("/$school/")({
   loader: ({ params }) => getCampusPage({ data: { slug: params.school } }),
   head: ({ loaderData: d }) => {
     if (!d) return {};
-    const course = d.courseCode ?? "intro accounting";
-    const title = `${course} at ${d.name} — free Exam 1 cram videos | Survive Accounting`;
-    const description = d.courseCode
-      ? `Cram ${d.courseCode} at ${d.name}. Exam 1 is free — full videos walking every question type, built for your course.`
-      : `Cram intro accounting at ${d.name}. Exam 1 is free — full videos walking every question type.`;
-    const url = `${ORIGIN}/${d.slug}`;
+    // Missing course code ⇒ HOME copy rather than an empty token; the campus-colorway card still
+    // applies because the campus itself is known.
+    const copy = d.courseCode
+      ? {
+          title: `Survive your ${d.courseCode} exams.`,
+          description: `Cram videos + practice exams built for ${d.courseCode}. Get help from a tutor who's helped 1,000+ students. Start for free, no account needed.`,
+        }
+      : HOME_OG;
     return {
-      meta: [
-        { title },
-        { name: "description", content: description },
-        { property: "og:title", content: title },
-        { property: "og:description", content: description },
-        { property: "og:type", content: "website" },
-        { property: "og:url", content: url },
-        { property: "og:image", content: `${ORIGIN}/og-card.png` },
-        { property: "og:image:width", content: "1200" },
-        { property: "og:image:height", content: "630" },
-        { name: "twitter:card", content: "summary_large_image" },
-        { name: "twitter:title", content: title },
-        { name: "twitter:description", content: description },
-      ],
-      links: [{ rel: "canonical", href: url }],
+      meta: ogMeta({ ...copy, path: `/${d.slug}`, image: campusOgImage(d.slug) }),
+      links: [{ rel: "canonical", href: `${ORIGIN}/${d.slug}` }],
     };
   },
   component: CampusPage,

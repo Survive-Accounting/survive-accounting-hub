@@ -9,10 +9,17 @@ import { frameThemeVars } from "@/components/frames/frame-theme";
 import { Bolt, BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { SearchPicker } from "@/components/site/SearchPicker";
 import { SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
+import { ogMeta } from "@/lib/og";
 import { ALL_SCHOOLS, boltForSlug } from "@/lib/schools";
 
 export const Route = createFileRoute("/rep")({
-  head: () => ({ meta: [{ title: "Become a campus rep — Survive Accounting" }] }),
+  head: () => ({
+    meta: ogMeta({
+      title: "Be the Survive Accounting rep at your school.",
+      description: "Share Survive Accounting with fraternities & sororities on your campus. Get a 10% commission for every sale. Easiest side gig imaginable.",
+      path: "/rep",
+    }),
+  }),
   component: RepPicker,
 });
 

@@ -14,6 +14,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ALL_SCHOOLS } from "@/lib/schools";
 import { ChapterFinder } from "@/components/site/ChapterFinder";
 import { listGoSchools } from "@/lib/greek-go.functions";
+import { ogMeta } from "@/lib/og";
 
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
@@ -26,7 +27,18 @@ import { createGreekChapter, resendChapterCode, searchChapterOrgs, verifyChapter
 const FINDER_SCHOOLS = ALL_SCHOOLS.map((x) => ({ slug: x.slug, name: x.name }));
 
 export const Route = createFileRoute("/chapters")({
-  head: () => ({ meta: [{ title: "⚡ Free Exam 1 for your whole chapter — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
+  // noindex is deliberate (outreach funnel, not an SEO surface) and does NOT affect link
+  // previews — iMessage/GroupMe read og tags regardless of robots.
+  head: () => ({
+    meta: [
+      ...ogMeta({
+        title: "Fraternities & sororities: find your chapter.",
+        description: "Chapter seats for every member who needs intro accounting help. Find your chapter and claim it in 30 seconds.",
+        path: "/chapters",
+      }),
+      { name: "robots", content: "noindex" },
+    ],
+  }),
   component: ChaptersPage,
 });
 

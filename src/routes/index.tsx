@@ -9,6 +9,7 @@
 // The previous Fall-2026 waitlist homepage is preserved at /waitlist (noindex, still linking /order).
 import { createFileRoute } from "@tanstack/react-router";
 
+import { HOME_OG, ogMeta } from "@/lib/og";
 import { LandingPage } from "./landing";
 
 // Organization + EducationalOrganization + WebSite JSON-LD (rendered into the home DOM so it SSRs
@@ -40,25 +41,7 @@ const ORG_JSONLD = {
 
 export const Route = createFileRoute("/")({
   head: () => ({
-    meta: [
-      { title: "Survive Accounting — Cram what's on your exam" },
-      {
-        name: "description",
-        content:
-          "Free cram videos for Intro Financial Accounting, built around the questions your exam actually asks. Pick your school and start Exam 1 free — no signup.",
-      },
-      { property: "og:title", content: "Survive Accounting — Cram what's on your exam." },
-      { property: "og:description", content: "On-demand tutoring videos for your first accounting course. Exam 1 is free." },
-      { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://surviveaccounting.com/" },
-      { property: "og:image", content: "https://surviveaccounting.com/og-card.png" },
-      { property: "og:image:width", content: "1200" },
-      { property: "og:image:height", content: "630" },
-      { property: "og:image:type", content: "image/png" },
-      { property: "og:image:alt", content: "Survive Accounting — cram what's on your exam." },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:image", content: "https://surviveaccounting.com/og-card.png" },
-    ],
+    meta: ogMeta({ ...HOME_OG, path: "/" }),
     links: [{ rel: "canonical", href: "https://surviveaccounting.com/" }],
   }),
   component: Home,
