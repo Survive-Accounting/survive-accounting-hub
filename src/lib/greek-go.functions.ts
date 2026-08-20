@@ -34,9 +34,10 @@ export interface GoChapter {
   schoolName: string;
   chapterSlug: string;
   chapterName: string;
-  /** e.g. "Mississippi Alpha" — the chapter's own Greek designation. STORE-ONLY: this must never
-   *  appear in student-facing output (pages, flyers, share copy). */
-  designation: string | null;
+  // chapter_designation is deliberately NOT here. It is store-only ("Lambda Pi") and nothing on
+  // the student side uses it — returning it serialized it into every page's hydration payload,
+  // which is exactly the student-facing leak the import spec forbids (sweep_go_pages.ts asserts
+  // its absence in the raw HTML). Admin surfaces read it straight from GreekIntel instead.
   /** The chapter's letters shorthand from the roster (e.g. "ATO"), when GreekIntel has it. */
   letters: string | null;
   /** What students actually call the chapter ("ADPi", "Pike") — the 66-campus roster import
@@ -64,14 +65,14 @@ export const getGoChapter = createServerFn({ method: "POST" })
     // nickname arrives with 20260820_1209 (manual-apply). The fallback select keeps every /go/
     // page alive if this code deploys before Lee applies the migration — a 42703 on a bonus
     // column must never blank 2,000 live chapter pages.
-    let row: { id: string; campus_id: string; greek_org_id: string | null; slug: string; chapter_designation: string | null; letters: string | null; nickname?: string | null; council: string | null; claim_status: string | null } | null = null;
+    let row: { id: string; campus_id: string; greek_org_id: string | null; slug: string; letters: string | null; nickname?: string | null; council: string | null; claim_status: string | null } | null = null;
     {
       const r1 = await db.from("campus_greek_chapters")
-        .select("id,campus_id,greek_org_id,slug,chapter_designation,letters,nickname,council,claim_status")
+        .select("id,campus_id,greek_org_id,slug,letters,nickname,council,claim_status")
         .eq("campus_id", campus.id).eq("slug", data.chapterSlug).maybeSingle();
       if (r1.error) {
         const r2 = await db.from("campus_greek_chapters")
-          .select("id,campus_id,greek_org_id,slug,chapter_designation,letters,council,claim_status")
+          .select("id,campus_id,greek_org_id,slug,letters,council,claim_status")
           .eq("campus_id", campus.id).eq("slug", data.chapterSlug).maybeSingle();
         row = r2.data ?? null;
       } else row = r1.data ?? null;
@@ -98,7 +99,6 @@ export const getGoChapter = createServerFn({ method: "POST" })
       schoolName: campus.short_name || campus.name,
       chapterSlug: row.slug,
       chapterName: (org?.name ?? "").trim() || "Chapter",
-      designation: row.chapter_designation ?? null,
       letters: row.letters ?? null,
       nickname: row.nickname ?? null,
       council: row.council ?? null,
