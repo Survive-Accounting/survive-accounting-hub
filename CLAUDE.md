@@ -40,6 +40,8 @@ Per-item pass/fail/stubbed · SQL LEE MUST RUN · anything ambiguous you decided
 and how. No narrative unless RISKY.
 
 ## Reference docs
+`docs/SESSION-CONTEXT.md` — READ FIRST when several sessions run at once, or for any
+public-web work: migration naming, what a green build does not prove, data gotchas.
 `docs/UI-AUDIT.md` (control inventory + file:line for the whole canvas),
 membership diagnosis in session scratchpad. Use these instead of re-exploring.
 
