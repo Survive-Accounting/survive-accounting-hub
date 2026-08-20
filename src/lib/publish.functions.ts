@@ -289,8 +289,16 @@ export const resolveLessonPublish = createServerFn({ method: "POST" })
         if (asset.status === "errored") return fail(`Final Mux asset failed: ${asset.errors?.messages?.join("; ") ?? "unknown"}`);
         if (asset.status !== "ready") return row;
         const pb = asset.playback_ids?.find((p: { policy: string }) => p.policy === "public")?.id ?? asset.playback_ids?.[0]?.id ?? null;
+        // duration rides the same Mux GET — powers the student grid's runtime badge.
+        // Degrades to a plain ready-flip if 20260820_1500 (duration_sec) isn't applied.
+        const dur = Number.isFinite(asset.duration) ? Math.round(asset.duration as number) : null;
         // point the lesson at the newest version (this row IS the newest)
-        return save({ stage: "ready", playback_id: pb });
+        try {
+          return await save({ stage: "ready", playback_id: pb, ...(dur != null ? { duration_sec: dur } : {}) });
+        } catch (e) {
+          if (dur != null && /duration_sec/i.test(e instanceof Error ? e.message : String(e))) return save({ stage: "ready", playback_id: pb });
+          throw e;
+        }
       }
       return row;
     } catch (e) {
