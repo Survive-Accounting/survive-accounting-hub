@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { scrollToId } from "@/lib/ui-scroll";
+import { openClaimStep } from "@/components/site/ChapterAccess";
 
 export function ChapterStickyCta({ heroId, examAnchor, accessAnchor, onStartExam }: {
   /** The hero element to watch — the bar shows only after it leaves the viewport. */
@@ -86,7 +87,7 @@ export function ChapterStickyCta({ heroId, examAnchor, accessAnchor, onStartExam
         </button>
         <button
           type="button"
-          onClick={() => scrollToId(accessAnchor)}
+          onClick={() => { openClaimStep(); scrollToId(accessAnchor); }}
           className={BTN}
           style={{ minHeight: 48, color: "var(--brand-cream)", background: "rgba(245,239,230,0.08)", border: "1px solid rgba(245,239,230,0.2)" }}
         >

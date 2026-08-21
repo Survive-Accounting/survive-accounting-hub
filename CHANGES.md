@@ -1,3 +1,93 @@
+# UX audit — implementation pass (branch `ux-audit-pass`, 2026-08-21)
+
+Implements the findings from the self-audit below (`45fe64be`, pushed to `main` first as asked).
+Two things were settled before work started and are honoured here: **videos are not in
+production yet** (finding #3 is an unpublished-content state, designed in §1 — nothing was built to
+"fix" missing videos), and **the magic-link round-trip on `/go/` chapter links is unchanged**
+(seats are entitlements keyed to a `user_id`).
+
+Verified in a rendering headless Chrome (new headless; rAF / IntersectionObserver / transitions
+run) at 1280×820 and 390×844, plus SSR curls with and without cookies — not the hidden in-app pane.
+
+## What shipped, per finding
+
+| Audit # | Finding | What shipped |
+|---|---|---|
+| **#2** (root cause) | URL-derived campus never persisted | `lib/campus-prefs.ts` + `campus-prefs.functions.ts`: a one-year `sa-school` cookie (picker id or the `__skipped__` / `__notlisted__` sentinel) written by `CampusProvider` whenever the campus resolves from the URL, the loader or the picker, mirrored to the old `sa-landing-school` localStorage key so every existing reader keeps working. Route loaders (`/`, `/<school>`, `/go/…`, `/chapters`, `/rep`) read it on the **server**, so a returning visitor's first byte already carries the campus version — `<title>` included. `clearSchool()` (Reset) forgets cookie + storage together. Verified: campus page → home = "ACCY 201 at Ole Miss" hero, campus-matched player, `<title>Survive your ACCY 201 exams.</title>` in the SSR HTML; `/go/` → home same; campus → `/chapters` = school preselected in SSR; campus → `/rep` = 307 to `/university-of-mississippi/rep`; refresh survives on every one (cookie); Reset returns everything to generic with empty cookie + storage. |
+| **#1** | Campus-page nav dumped visitors on the generic home | `SiteHeader` takes `onLanding`: on the landing layout (home + every campus page) the nav and hamburger links are same-page anchors (`#exam1 #reviews #lee #contact`), handled by the existing `scrollToId` + `scroll-margin`. Verified on `/university-of-mississippi`: "Cram Exam 1 Free ⚡", "Reviews", "Meet your tutor" stay on the page and land 83px below the top (55px sticky bar + margin). "For Greeks" / footer Greek + rep links are campus-scoped from the one campus source (`/chapters?school=…`, `/<slug>/rep`). |
+| **#3 → §1** | Title card read as a broken player | The unpublished-video state (`Poster`): school-colour bolt, topic pill, one plain line ("Videos for *X* are coming — Lee is filming this set now." / paid tabs: "Exam 2 videos open Fall 2026 — *X* is on the list.") and the notify field **inside the media panel**, so it is visible at every breakpoint. The panel drops the fixed 16:9 box in this state (it could not hold the copy at phone width). The sidebar copy of the notify box now renders only on paid tabs — it was the one hidden in the collapsed mobile drawer. |
+| **#10** | Mistyped `/go/` URLs rendered the generic page silently | Loader throws `notFound()`; `notFoundComponent` renders "We couldn't find that chapter." with the finder (opened on the URL's school when that half is real — "The link named Ole Miss but no chapter matched the rest of it") and a link to the Greek portal. **Real 404 status** now (`/go/university-of-mississippi/sigma-chii` → 404, `/go/ole-miss/sigma-chi` → 404, real chapter → 200). |
+| **#5** | Professor "Skip for now" not remembered | `sa-prof-skip=<schoolId>` cookie (+ localStorage), read by the loaders and seeded into the player's `profDone`, so the returning skipper server-renders straight onto the content — no overlay for a frame. Keyed to the school: a skip at Ole Miss never silences the question at LSU. Cleared by Reset, by "+ Add professor", and by a school change. |
+| **#4 → §7** | Generic home demanded a school | Muted **"Skip for now →"** under the school picker. Skipping writes the `__skipped__` sentinel, serves the Starter Map's Exam 1 topics with generic copy ("Intro accounting is where…", "Your school" in the bar, "your accounting course"), brand red/blue bolt; persists across reload; the picker stays reachable via **Reset** in the confirmed bar. Lightweight escape hatch only — school-optional serving was not rebuilt. |
+| **#7** | `/chapters` and `/rep` ignored the stored school | Both read the cookie in their loaders. `/chapters` preselects the school in the **server** render; `/rep` redirects straight to the school's rep page (`/rep?all` keeps the picker reachable). |
+| **#8** | Greek portal needed a redundant "Go" | `ChapterFinder` gained `autoPick`: choosing the chapter navigates. The portal and the new not-found page use it; the chapter-page self-report keeps its deliberate button. |
+| **#9** | Claim took 4 clicks + fields | Hero / sticky "Set up access" CTAs dispatch `openClaimStep()` and the section opens **step 02 with the form already expanded**. "Claim This Page" is gone (the form opens by default; the form's × still collapses it). Fields unchanged — name, role, email, **mobile (`type="tel"`)** — the Twilio `sms:` alert depends on the number. |
+| **#12** | Tap targets under 44px | Trust chips 32→44h; Skip 40→44; "+ Add professor", "~80% covered", **Reset** 44; Semester-Pass row taller + its × 28→44; topic/set rows taller; review prev/next 44×44, dots 44px-tall buttons on sm+ and a "3 / 10" counter below sm (ten 44px dots are 440px — wider than a phone); ticker names 44×44 min; footer links / "Text Lee" / "For Greek Orgs" / "Learn more about Lee" / escape links / `/rep` text link all ≥44. **Measured at 390px after the pass: 0 interactive elements under 44×44 on the home page.** |
+| **#17** | Body copy 12–13.5px | FAQ answers, testimonials, tutor card, plate line, Semester-Pass row, topic/set rows, notify box, modals, footer and memorial line → 14px. Small-caps labels, tab prices and the topic pill stay as labels. |
+| **#14** | Phone inputs `type="text"` | Both (`ChapterAccessForm`, `RepInterest`) → `type="tel"` (+ `autocomplete="tel"`). |
+| **#18** | `/expand` dead footer anchors | `Footer` takes `onLanding`; off the landing layout the links are `/#exam1` etc. Verified on `/expand`. |
+| **#21** | `/rep` fallback not tappable | "Text Lee at (662) 565-8818" is an `sms:` link, 44px. |
+| Pass-6 §4 | Duplicate "Pick your school to start" | Heading removed; the dropdown label carries it. See the regression answer below. |
+
+## Pass 6 — regressed or never shipped?
+
+**Regressed.** Pass 6 §4 shipped on `531a82c` (2026-08-17) and was DOM-verified then ("picker
+heading gone and button relabelled"). The heading came back on 2026-08-20 with the marketing
+template / player entry-overlay rewrite, which built the new `.sa-entry-card` overlay with its own
+"Pick your school to start" heading above the same dropdown. Removed again here, with a comment
+naming the rule so it is not re-added a third time.
+
+The rest of Pass 6 was checked and is intact: **surface ladder** — the right panel and both of its
+media states (video box, unpublished Poster) paint `var(--sa-surface-2)`; **clickable ticker** — 66
+`.sa-tick-item` buttons, click selects (now 44×44); **per-tab sidebar headers** — "WHAT'S ON EXAM 1"
+present, composed from `tab.label` (the Final sentinel is still respected); **menu labels** — "Meet
+your tutor" and "⚡ Boost chapter GPAs" in both the hamburger and the footer; **footer columns** —
+three columns on desktop, brand block + labels hidden below `sm`.
+
+## New click counts (cold load, excluding typing)
+
+| Journey | Before | Now |
+|---|---|---|
+| Home → watch a topic (no school) | 4 | **2** — CTA → "Skip for now →" (or 4 via the picker, then never re-asked) |
+| Campus page → watch a topic | 1–2 | **1** first visit (Skip) · **0** on return (skip remembered) |
+| Returning visitor → content | 2 | **0** — server-rendered onto the matched player |
+| Chapter link → watch | 3 + email hop | unchanged by design (entitlements need an account) |
+| Exec → claim | 4 + 4 fields | **1 + 4 fields** |
+| Visitor → Greek portal → chapter page | 6 cold / 4 with campus | **5 cold / 3 with campus** (no "Go" button; school preselected from the cookie) |
+| Rep interest form | 3 + fields | **1 + fields** (`/rep` redirects to the known campus) |
+| `/chapters` / `/rep` after any campus visit | re-asked | **not asked** |
+
+## Sticky elements — verified in a rendering browser
+
+- **Desktop sticky footer** (`StickyFooterBar`, 1280×820, campus page): hidden at the top
+  (`top 825 > viewport 820`); after scrolling past the hero it slides in (`transform: none`, bar top
+  767, 53px tall, bottom-aligned); at the very bottom, once `#site-footer` enters the viewport, it
+  hides again (top 825). Behaves exactly as designed.
+- **Mobile chapter sticky CTA** (`ChapterStickyCta`, 390×844, `/go/…/alpha-tau-omega`): absent
+  while the hero is on screen; after scrolling, a 67px bar ("Exam 1 Free" · "Chapter Access")
+  pinned to the bottom edge (top 777 / viewport 844); at the end of the page the self-report link
+  bottoms out at 724, above the bar — the spacer works, nothing is covered.
+
+## Also fixed while verifying
+
+- `AnimatedBoltHero` clip ids now derive from the bolt's props (the earlier `useId` fix did not hold
+  across the lazy route boundary and still logged a hydration mismatch on every hero). *(Landed on
+  main in `10580803` with the Reset / `/chapters` fixes.)*
+- The confirmed bar wraps at phone width — with three 44px controls the identity line had been
+  truncated to nothing.
+
+## Verification
+
+`tsc` clean · 1,354 tests pass · production build green · eslint: only the pre-existing
+prettier/CRLF baseline plus fast-refresh warnings on files that already exported constants. Mobile
+390px after the pass: `scrollWidth === 390` on home, campus, chapter, portal and not-found pages;
+hero CTA bottom at y=360; 0 interactive elements under 44×44 on the home page; 0 body-copy runs under
+14px outside labels/pills.
+
+**Not changed:** magic-link gate on `/go/`; any video-serving logic.
+
+---
+
 # Self-audit — click efficiency & campus-context persistence (2026-08-21, audit only)
 
 Audit of production code at `main` 38b023dc, run against the dev build (localhost:5234) at

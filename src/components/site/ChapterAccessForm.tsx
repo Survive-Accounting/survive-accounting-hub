@@ -101,7 +101,7 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, onClos
       <input id="ca-email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="you@school.edu" className="mb-2 w-full rounded-lg px-3 outline-none focus:ring-2" style={FIELD} />
 
       <label className="sr-only" htmlFor="ca-phone">Your mobile</label>
-      <input id="ca-phone" value={phone} onChange={(e) => setPhone(fmtPhone(e.target.value))} inputMode="tel" placeholder="(662) 555-0134" className="w-full rounded-lg px-3 outline-none focus:ring-2" style={FIELD} />
+      <input id="ca-phone" value={phone} onChange={(e) => setPhone(fmtPhone(e.target.value))} type="tel" autoComplete="tel" inputMode="tel" placeholder="(662) 555-0134" className="w-full rounded-lg px-3 outline-none focus:ring-2" style={FIELD} />
 
       {err && <p className="mt-2 text-[12.5px]" role="alert" style={{ color: "#F3C6CC" }}>{err}</p>}
 

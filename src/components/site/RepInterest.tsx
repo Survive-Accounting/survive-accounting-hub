@@ -117,7 +117,7 @@ export function RepInterest({ schoolSlug, schoolName }: { schoolSlug: string; sc
             <input id="rep-email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="you@school.edu" autoComplete="email" className="mb-2 w-full rounded-lg px-3 outline-none focus:ring-2" style={FIELD} />
 
             <label className="sr-only" htmlFor="rep-phone">Phone</label>
-            <input id="rep-phone" value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="Mobile number" autoComplete="tel" className="mb-2 w-full rounded-lg px-3 outline-none focus:ring-2" style={FIELD} />
+            <input id="rep-phone" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" placeholder="Mobile number" autoComplete="tel" className="mb-2 w-full rounded-lg px-3 outline-none focus:ring-2" style={FIELD} />
 
             {/* Pre-filled from campus context, still editable — a rep at a school we do not list yet
                 is exactly the person worth hearing from. */}

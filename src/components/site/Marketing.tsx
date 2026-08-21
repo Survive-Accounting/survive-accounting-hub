@@ -140,7 +140,7 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
 
         {/* Exec login is a UTILITY, never a hero CTA — claimed chapters only. */}
         {greek?.claimed && (
-          <a href="/chapters/dashboard" className="mt-2.5 text-[12.5px] underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
+          <a href="/chapters/dashboard" className="mt-2.5 text-[14px] underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
             Chapter exec? Log in →
           </a>
         )}
@@ -179,8 +179,8 @@ export function TrustChips({ onBio, onReviews, onPlayer }: { onBio: () => void; 
           key={c.label}
           type="button"
           onClick={c.onClick}
-          className="sa-trust-chip rounded-full px-3 py-1.5 text-[12px] font-semibold focus-visible:ring-2"
-          style={{ background: "rgba(245,239,230,0.07)", border: "1px solid rgba(245,239,230,0.13)", color: "var(--brand-cream)", minHeight: 32 }}
+          className="sa-trust-chip rounded-full px-3 py-1.5 text-[14px] font-semibold focus-visible:ring-2"
+          style={{ background: "rgba(245,239,230,0.07)", border: "1px solid rgba(245,239,230,0.13)", color: "var(--brand-cream)", minHeight: 44 }}
         >
           {c.label}
         </button>
@@ -218,7 +218,7 @@ export function FeatureValueStrip({ code }: { code: string | null }) {
         <div key={title} className="rounded-2xl p-4" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
           <Icon className="h-5 w-5" style={{ color: "var(--accent)" }} aria-hidden />
           <p className="mt-2.5 text-[15px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{title}</p>
-          <p className="mt-1 text-[13px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>{body}</p>
+          <p className="mt-1 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>{body}</p>
         </div>
       ))}
     </section>
@@ -277,16 +277,16 @@ export function TutorCard({ onMore }: { onMore: () => void }) {
         <LeePortrait width={112} caption={false} />
         <div className="min-w-0" style={{ color: "var(--brand-cream)" }}>
           <p className="text-[16px] font-bold">Lee Ingram</p>
-          <p className="mt-1 text-[13px] leading-snug" style={{ opacity: 0.75 }}>Two accounting degrees from Ole Miss</p>
-          <p className="mt-1 text-[13px] leading-snug" style={{ opacity: 0.75 }}>Tutor since 2015 · Ole Miss adjunct</p>
-          <p className="mt-1 text-[13px] leading-snug" style={{ opacity: 0.75 }}>1,000+ students helped</p>
+          <p className="mt-1 text-[14px] leading-snug" style={{ opacity: 0.75 }}>Two accounting degrees from Ole Miss</p>
+          <p className="mt-1 text-[14px] leading-snug" style={{ opacity: 0.75 }}>Tutor since 2015 · Ole Miss adjunct</p>
+          <p className="mt-1 text-[14px] leading-snug" style={{ opacity: 0.75 }}>1,000+ students helped</p>
         </div>
       </div>
       <button
         type="button"
         onClick={onMore}
-        className="mt-4 inline-flex items-center text-[13.5px] font-bold focus-visible:ring-2"
-        style={{ color: "var(--accent)", minHeight: 40 }}
+        className="mt-4 inline-flex items-center text-[14px] font-bold focus-visible:ring-2"
+        style={{ color: "var(--accent)", minHeight: 44 }}
       >
         Learn more about Lee →
       </button>
@@ -378,12 +378,12 @@ export function StickyFooterBar({ heroId, links, tel, phone }: {
         <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center" tabIndex={show ? 0 : -1}><CompactLockup size={16} /></a>
         <nav className="flex items-center gap-5" aria-label="Page">
           {links.map((l) => (
-            <a key={l.label} href={l.href} onClick={onNav(l.href)} tabIndex={show ? 0 : -1} className="text-[13px] font-semibold" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>{l.label}</a>
+            <a key={l.label} href={l.href} onClick={onNav(l.href)} tabIndex={show ? 0 : -1} className="text-[14px] font-semibold" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>{l.label}</a>
           ))}
         </nav>
         <span className="flex-1" />
-        <span className="text-[13px] font-semibold" style={{ color: "var(--brand-cream)", opacity: 0.75 }}>Questions? Text Lee</span>
-        <a href={`sms:${tel}`} tabIndex={show ? 0 : -1} className="inline-flex items-center gap-2 rounded-full px-4 text-[13px] font-black" style={{ background: "var(--accent)", color: "#0B1220", minHeight: 36 }}>
+        <span className="text-[14px] font-semibold" style={{ color: "var(--brand-cream)", opacity: 0.75 }}>Questions? Text Lee</span>
+        <a href={`sms:${tel}`} tabIndex={show ? 0 : -1} className="inline-flex items-center gap-2 rounded-full px-4 text-[14px] font-black" style={{ background: "var(--accent)", color: "#0B1220", minHeight: 36 }}>
           <span aria-hidden>💬</span> {phone}
         </a>
       </div>
@@ -401,7 +401,7 @@ export function MarketingUtilityLinks({ kind, onProfessorAsk }: {
   onProfessorAsk?: () => void;
 }) {
   const [schoolForm, setSchoolForm] = useState(false);
-  const LINK = "text-[13px] font-bold underline underline-offset-4 focus-visible:ring-2";
+  const LINK = "text-[14px] font-bold underline underline-offset-4 focus-visible:ring-2";
   return (
     <section className="mx-auto flex w-full max-w-[640px] flex-col items-center gap-2 px-5 py-8 text-center" style={{ fontFamily: BRAND_SANS }}>
       {kind === "general" && (schoolForm

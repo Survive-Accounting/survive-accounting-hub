@@ -55,6 +55,15 @@ export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, letter
   // page re-derives claim state.
   const [claim, setClaim] = useState<ClaimState>(claimStatus);
   const [open, setOpen] = useState(0); // step index; -1 = all collapsed
+  // THE HERO’S "SET UP ACCESS" CTA LANDS ON THE CLAIM STEP, FORM OPEN. It used to scroll here with
+  // step 01 (Share) expanded, so an exec who had just said "set me up" had to find step 02, open
+  // it, then press "Claim This Page" before seeing a field: three clicks for one intent. The CTAs
+  // dispatch OPEN_CLAIM_EVENT (see openClaimStep) and this section answers it.
+  useEffect(() => {
+    const onOpen = () => setOpen(1);
+    window.addEventListener(OPEN_CLAIM_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_CLAIM_EVENT, onOpen);
+  }, []);
   const { code } = useCampus();
   const courseLabel = code ?? "Intro Accounting";
 
@@ -197,6 +206,10 @@ function StepCard({ n, title, desc, status, open, onToggle, children }: {
   );
 }
 
+/** Fired by the hero / sticky "Set up access" CTAs: scroll happens in the caller, this opens step 02. */
+export const OPEN_CLAIM_EVENT = "sa:open-claim";
+export const openClaimStep = () => { if (typeof window !== "undefined") window.dispatchEvent(new Event(OPEN_CLAIM_EVENT)); };
+
 /** STEP 2 — claim. NOT a purchase gate: claiming is free and the pricing is secondary context so
  *  an exec knows what the later conversation costs before giving their number. */
 function ClaimStep({ chapterName, schoolSlug, chapterSlug, claim, onPending }: {
@@ -206,7 +219,10 @@ function ClaimStep({ chapterName, schoolSlug, chapterSlug, claim, onPending }: {
   claim: ClaimState;
   onPending: () => void;
 }) {
-  const [formOpen, setFormOpen] = useState(false);
+  // THE FORM IS OPEN BY DEFAULT. "Claim This Page" was a button whose only job was to reveal four
+  // fields that fit on the screen anyway — a click that confirmed the click before it. The × on
+  // the form still collapses it back to the button for anyone who opened the step to read.
+  const [formOpen, setFormOpen] = useState(true);
   // Whether THIS visitor submitted the claim: their pending state keeps the form's own "you're
   // almost set" card; someone else's pending claim gets the third-person line instead.
   const [submitted, setSubmitted] = useState(false);
