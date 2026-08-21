@@ -1,3 +1,177 @@
+# Self-audit — click efficiency & campus-context persistence (2026-08-21, audit only)
+
+Audit of production code at `main` 38b023dc, run against the dev build (localhost:5234) at
+1280×800 and 390×844 plus SSR curls. **Nothing was changed in this pass** — every item below is a
+finding with a proposed fix, ranked by severity. Measurements were taken from the DOM (the
+in-app browser cannot composite frames, so IntersectionObserver-driven pieces — the desktop
+sticky footer and the mobile chapter sticky CTA — are noted as *unverified* rather than passed).
+
+Severity key: **B** = blocks a user · **F** = adds friction · **C** = cosmetic.
+
+## Ranked findings (all sections)
+
+| # | Sev | Finding | Where |
+|---|-----|---------|-------|
+| 1 | B | Campus-page header nav sends a direct-landed visitor to the **generic homepage** — "Cram Exam 1 Free ⚡" → `/#exam1`, "Reviews" → `/#reviews`, "Meet your tutor" → `/#lee`. Verified: on `/university-of-mississippi` the nav CTA lands on `/#exam1` with h1 "Intro accounting…" and the player asking "Pick your school to start". The campus is lost because URL-derived context is never written to storage (see #2). | `SiteHeader.tsx:229-244`, `:258` |
+| 2 | B | **URL-derived campus is never persisted.** Landing on `/university-of-mississippi` or `/go/…` writes nothing (`localStorage` empty after load). Only the picker/ticker (`setSessionSchool`) writes `sa-landing-school`. Any hop to a generic route (logo, nav, footer, `/chapters`, `/rep`) forgets the school. | `campus-context.tsx:60-76` |
+| 3 | B | Every journey to a video ends at a **title card with no play control** on this build: after picking a school + Skip, `#exam1` contains no `<video>`, no play button, and the "Notify me" row is 0×0 inside the collapsed mobile topic drawer. If production `lesson_videos` is still empty (memory: 60 decks draft), Journeys 1–4 and 9 cannot complete anywhere, and on mobile the visitor is not even told why. *Confirm on prod.* | `landing.tsx` ExamPlayer / Poster / PaidNotifyRow |
+| 4 | F | Generic homepage **requires a school before Exam 1 plays** although the Starter Map serves Exam 1 with `campusId null`. The gate is a product choice, but a visitor who only wants to watch has no "just play it" path short of "My school isn't listed". Cold path = 4 clicks (CTA → Pick your school → row → Skip for now). | `landing.tsx` MatchPanel `flowDone` |
+| 5 | F | **"Skip for now" is not remembered** — the professor overlay returns on every reload and every return visit (verified: reload after Skip shows "Pick your professor to start"). The legacy skip key was deliberately removed when the rung was dropped; the rung is back without persistence. | `landing.tsx:195`, `:231-236` |
+| 6 | F | Chapter-link visitors must **leave the page for a magic-link email** before the free Exam 1 plays (name + email → "Unlock Exam 1" → inbox → return). Entitlements need a user id for paid exams, but Exam 1 is free; every other surface plays it with no account. Severity is F not B only because the round-trip works. | `ChapterGate.tsx`, `go.$school.$chapter.tsx:147` |
+| 7 | F | `/chapters` and `/rep` **ignore a known campus**: with `sa-landing-school=ole-miss` stored, `/chapters` shows "Pick your school to start" and `/rep` shows "Pick your school". Only the campus hero passes `?school=`; the footer "🏛️ For Greek Orgs", the header "For Greeks" and "Become a campus rep" all link bare. | `chapters.tsx`, `rep.tsx`, `Marketing.tsx` footer, `SiteHeader.tsx:231,245` |
+| 8 | F | Greek portal needs **6 clicks cold / 4 with campus** (home → For Greeks → school → row → chapter → row → "Go to my chapter page"). Picking a chapter does not navigate; the Go button is a redundant step. | `chapters.tsx` ChapterFinder |
+| 9 | F | Exec claim needs **4 clicks + 4 fields**: "Set up ΑΤΩ access →" (scrolls; step 01 open) → step 02 header → "Claim This Page ⚡" → form. The hero CTA says "set up access" but opens on *Share*, not *Claim*. | `Marketing.tsx` hero, `ChapterAccess.tsx` |
+| 10 | F | `/go/<typo>/<typo>` and `/go/ole-miss/sigma-chi` return **200 with the generic homepage and HOME meta, no message** — a mistyped flyer URL looks like "the site doesn't know my chapter". `/ole-miss` (picker-id form) 307s home while `/ole-miss/rep` resolves ids — inconsistent slug tolerance. | `go.$school.$chapter.tsx:13`, `$school.index.tsx:27`, `$school.rep.tsx` |
+| 11 | F | Materials upload has **no path from the generic homepage**: `MarketingUtilityLinks` shows the school-request form for `kind="general"` and the syllabus modal only for `kind="campus"`; the "~80% covered" chip appears only when coverage exists. Journey 5 from home = pick school (navigates) → Skip → chip/utility link → modal → file + email → send (5 clicks + 2 fields). | `Marketing.tsx:398-421`, `landing.tsx:188,469` |
+| 12 | F | Mobile tap targets under 44px on every marketing page: trust chips 32h, "Skip for now" 40h, "+ Add professor" 32h, "~80% covered" 32h, **"Reset" 33×18**, topic rows 32h (desktop), review dots **8×8**, prev/next 32×32, Semester-Pass row 38h (974×19 on desktop) with a 28×28 dismiss, "Learn more about Lee" 40h, footer links 16h, SchoolTicker names **19h** (66 of them), `/chapters` "My school/chapter isn't listed" 18h, SyllabusModal close 28×28. | `Marketing.tsx`, `landing.tsx` |
+| 13 | F | Mobile topic drawer collapses the Exam 1 topic list behind "The Accounting Cycle ▾" (40h): changing topic = 2 taps, and per-topic state ("Notify me", runtimes) is invisible until opened. | `landing.tsx` ExamPlayer mobile rail |
+| 14 | F | Claim-form phone input is `type="text"` (no `tel` keypad); rep form phone is also `type="text"` but has `inputmode="tel"`. | `ChapterAccessForm.tsx`, `$school.rep.tsx` |
+| 15 | C | Homepage `<title>`/OG stay generic for a returning visitor whose hero is tailored ("Survive your Intro Accounting exams." with h1 "ACCY 201 at Ole Miss…"). Storage is client-only so SSR cannot know; visible as a one-frame generic→campus hero swap too. | `index.tsx`, `campus-context.tsx` |
+| 16 | C | Player sidebar/poster never names the course: poster reads "THE ACCOUNTING CYCLE" only; tab strip "Exam 2 $50"; FAQ answers say "your professor/your school" with no code interpolation (0 of 8 FAQ answers use `${}`); `/chapters?school=…` h1 stays "Find your chapter."; `/rep` generic; NotifyModal/TwoSetAsk copy generic. | `landing.tsx` Poster, FAQS, `chapters.tsx:71` |
+| 17 | C | Text under 14px in body copy on 390px: testimonials 13.5px, plate/topic rows 13px, Semester-Pass row + ticker 12.5px, trust chips 12px, exam-tab labels 11.5px, tab prices 10.5px; 7px "Accounting" is the SVG wordmark (fine). | `Marketing.tsx`, `landing.tsx` |
+| 18 | C | `/expand` footer carries dead same-page anchors `#exam1`, `#reviews`, `#lee` (no such ids on that page). All other swept pages: 0 dead anchors, 0 broken internal links. | `expand.tsx` (shared Footer) |
+| 19 | C | Logo and header links are plain `<a>` (full reload, `performance.navigation.type === "navigate"`) rather than router links; `pickSchool` also hard-navigates. Works, but every hop re-downloads the app. | `SiteHeader.tsx:297`, `landing.tsx:369+` |
+| 20 | C | A11y/dismiss gaps: NotifyModal and SyllabusModal have no `role="dialog"`/focus trap and do not lock background scroll (TutorBioModal and PickerSheet do); `/chapters` school button keeps `aria-label="Pick your school to start"` after Ole Miss is chosen; disabled chapter button reads "No chapters listed yet" before a school is picked. | `landing.tsx:820-960`, `chapters.tsx` |
+| 21 | C | `/rep` "Somewhere else? Text Lee at (662) 565-8818" is plain text, not an `sms:` link, on the one page whose only other control is the picker. | `rep.tsx` |
+
+---
+
+## 1. Click-path audit
+
+Counts are clicks/taps from a cold load (no storage), excluding typing. Mobile = 390×844; scroll
+is noted where the target is below the fold (hero CTA bottom sits at y≈360 on mobile, so all
+hero CTAs are above the fold; the player starts at y≈1,083 mobile / 696 desktop).
+
+| # | Journey | Desktop | Mobile | Redundant steps | Shortest possible |
+|---|---------|---------|--------|-----------------|-------------------|
+| 1 | Home → watch a topic (no school) | **4** — "Cram Exam 1 Free" (scroll) → "Pick your school to start" → row → "Skip for now" → poster (no video on this build, #3) | **4** + drawer tap to change topic (#13) | School pick when the Starter Map can serve Exam 1 without one (#4); professor rung (#5) | 1 (CTA autoplays Starter Map; picker offered as an overlay chip) |
+| 2 | Home → tailored (school + professor) | **5** — CTA → picker → row (hard-navigates to campus page, #19) → "Search your professor…" → row | **5** | Navigation reload between school and professor; professor search could pre-open | 3 |
+| 3 | Campus page → watch a topic | **1–2** — "Skip for now" (or click a topic = skip) | **2** — CTA/scroll → Skip | — | 1 (remember the skip, #5) |
+| 4 | Chapter link (group chat) → watch | **3 + email hop** — name → email → "Unlock Exam 1" → open inbox → tap link → page reloads signed in | same, plus the inbox app switch | Account before a free video (#6) | 1 |
+| 5 | Student → upload materials | From campus page: **3** (Skip → "~80% covered" chip *or* "Don't see your professor" utility link → modal) + file + email; from home: **5** (#11) | same +scroll | School pick from home; email required before the upload button enables | 2 |
+| 6 | Exec → claim chapter | **4 + 4 fields** (#9) | **4 + 4 fields** | Step-02 header and "Claim This Page" are two reveals for one intent | 1 + fields |
+| 7 | Visitor → Greek portal → chapter page | **6** cold / **4** from a campus page (`?school=`) / **6** from home even with a stored school (#7) | same | School re-pick; "Go to my chapter page" (#8) | 3 cold / 2 with campus |
+| 8 | Rep interest form | **3 + 7 fields** — footer "Become a campus rep" → "Pick your school" → row → `/…/rep` form (school prefilled ✓, checkbox label 40h) | same | School picker when campus is known (#7) | 1 + fields |
+| 9 | Returning visitor (stored school) | **2** — CTA → "Skip for now" (again, #5); with a stored professor: **1** | **2** | Re-asking the professor | 1 |
+
+## 2. Campus-context persistence
+
+Mechanisms found: `localStorage.sa-landing-school` (picker id, e.g. `ole-miss`; written only by
+`setSessionSchool` and the landing restore effect; cleared by Reset), `localStorage.sa-landing-prof`
+(JSON professor; global, not per-school; cleared on school change ✓), `sa-two-set-ask`,
+`sa-pass-dismiss`, per-notify `done` keys; `sessionStorage.sa-visit:<school>/<chapter>` (visit log
+dedupe). Resolution order in `CampusProvider`: account → session (picker) → URL → stored.
+`?school=` on `/chapters` is the only query-string carrier.
+
+| Case | Result | Mechanism |
+|------|--------|-----------|
+| `/ole-miss` → home | ✗ `/ole-miss` 307s to `/` (id, not slug) → generic (#10); `/university-of-mississippi` → logo → generic hero + "Pick your school" (#2) | URL source only; nothing stored |
+| `/go/<school>/<chapter>` → home | ✗ generic | same |
+| Home → picker → Ole Miss → `/chapters` | ✗ "Pick your school to start" (#7) | `/chapters` reads `?school=` only |
+| Home → picker → `/rep` | ✗ "Pick your school" (#7) | `/rep` does not read context |
+| Returning visitor (stored school) | ✓ hero tailored ("ACCY 201 at Ole Miss…"), player pre-matched; ✗ `<title>` generic (#15); ✗ professor re-asked unless one was chosen (#5) | `sa-landing-school` restore |
+| Refresh | ✓ stored school survives; ✓ URL pages survive; ✗ professor skip lost; ✓ chosen professor survives | localStorage |
+| New tab | ✓ stored school/professor (localStorage is per-origin); visit-log key not shared (sessionStorage, by design) | — |
+| Campus page → Reset | ✓ returns to school picker, clears school + professor + code (manualReset) | `resetMatch` |
+| Back button | ✓ anchors use `preventDefault` + scroll (no history spam); ✓ picker/modals add no entries; pickSchool hard-navigates so Back returns to home, which by then has the stored school ✓ | — |
+
+## 3. Tailoring visibility (campus known)
+
+Tailored today ✓: campus/chapter `<title>`, description, OG image and canonical; hero headline,
+promise, built-for line, bolt colourway and plate; confirmed bar "✓ Ole Miss · ACCY 201";
+"Course preset: ACCY 201 at Ole Miss"; campus hero "For fraternities & sororities" →
+`/chapters?school=`; `/…/rep` headline + prefilled School; flyer (code + colourway + "Shared by
+ATO"); chapter OG card; claim SMS/email copy (chapter + school).
+
+Still generic where the campus is known:
+
+- Header nav + CTA on campus pages (#1) and footer "For Greek Orgs"/"Become a campus rep" (#7).
+- Home `<title>`/OG/first paint for a returning visitor (#15).
+- Player: poster title only, no course/exam label; tab strip; "Semester Pass — everything, all
+  semester, for $150"; NotifyModal "I'll tell you the moment X is up" (#16).
+- FAQ: all 8 answers generic ("your professor", "your school"); Greek FAQ generic.
+- `/chapters?school=…` heading and `/rep` copy.
+- Emails: the magic-link email is the Supabase default template (generic subject/body; not
+  branded or chapter-named) — *verify in the Supabase dashboard*; notify/syllabus confirmations are
+  internal only.
+
+## 4. Dead ends & traps
+
+- **Modals/sheets** — TutorBioModal: × + Escape + scrim + scroll lock ✓. PickerSheet: × + Escape +
+  scrim + swipe ✓. SearchPicker popup: Escape + outside click + focus return ✓. NotifyModal: "No
+  thanks" + Escape + scrim ✓, no ×, no scroll lock, no `role="dialog"` (#20). SyllabusModal: × (28px)
+  + Escape + scrim ✓, no scroll lock (#20). ChapterAccessForm: × only (inline; by design after the
+  useDismiss wipe). SiteHeader menu: Escape + outside ✓.
+- **Forms** — empty submit is blocked everywhere checked (claim, rep, gate, notify, syllabus,
+  TwoSetAsk buttons disabled until valid ✓); errors keep field values ✓ (`setErr` paths). Claim
+  phone keypad (#14). Syllabus requires an email before the send button enables — a student with a
+  file and no wish to be contacted cannot upload.
+- **Anchors** — all landing-page anchors resolve (`#exam1 #reviews #lee #contact #chapter-access`,
+  `scroll-margin` respected); `/expand` footer anchors dead (#18).
+- **404s** — 0 broken internal links across `/`, campus, chapter, `/chapters`, `/rep`, `/…/rep`,
+  `/expand`, `/chapters/dashboard`, `/waitlist`; `/order` 307 → `/`. Unknown school slugs 307 home
+  silently; unknown chapters render the generic page silently (#10).
+- **Unlisted school/professor/chapter** — school: "My school isn't listed →" → Starter Map + capture
+  ✓; professor: write-in free text ✓; chapter: self-create ✓; "Not in ATO? Tell me which chapter"
+  at the chapter-page foot ✓. `/rep` for an unlisted school is plain text (#21).
+- **Back button** — no traps found (see §2). Hard navigations on logo/nav/pickSchool (#19) mean
+  Back re-renders a full page rather than restoring state, but nothing is lost.
+- **Chapter gate** — magic link returns to the same chapter URL (`emailRedirectTo`) ✓; visitor who
+  mistypes their email has no "resend/change email" affordance until the page is reloaded — *verify*.
+
+## 5. Mobile (390×844)
+
+- **Tap targets < 44px** — see #12 (per page: home 80+ small targets incl. 66 ticker names; campus
+  17; chapter 24; `/chapters` 2; `/rep` 0; `/…/rep` 0 besides the 18px checkbox inside a 40h label).
+- **Horizontal scroll** — none (`scrollWidth === 390` on `/`, campus, chapter, `/chapters`, `/rep`,
+  `/…/rep`).
+- **CTA fold** — primary hero CTA bottom at y=360 (home/campus) and 456 for the second chapter CTA
+  ✓; `/chapters` finder at y=389 ✓; `/rep` picker at y=267 ✓. The player itself is below the fold
+  everywhere (y≈1,083), so the first tap is always a scroll.
+- **Text < 14px** — see #17.
+- **Fixed/sticky elements** — sticky header 55h ✓; full-screen fixed background layer (decorative,
+  `pointer-events` none) ✓; ChapterStickyCta + 64px spacer on chapter pages (IO-driven, *unverified*
+  here); StickyFooterBar is md+ only ✓. PickerSheet is `position:fixed` full-width bottom sheet with
+  16px inputs (no iOS zoom) ✓.
+
+## Proposed fixes (mapped to findings)
+
+1. (#1, #7) Make header/footer links context-aware: on campus/chapter pages use same-page anchors
+   (`#exam1 #reviews #lee`) exactly as `greekNav` already does, and scope "For Greeks" →
+   `/chapters?school=<slug>` and "Become a campus rep" → `/<slug>/rep` whenever `campus.school` is
+   known (home included).
+2. (#2) Persist URL-derived campus: in `CampusProvider`, when `source === "url"` write
+   `sa-landing-school` (or mirror to a `sa-school` cookie so SSR can tailor `<title>` and the first
+   paint — also solves #15). Keep the precedence order; a later explicit pick still wins.
+3. (#3) Confirm production video state; if empty, show an honest "Exam 1 videos land <date>"
+   state in the media area (not only inside the drawer) with the notify field visible on mobile.
+4. (#4) Let the Starter Map play on first tap; render the school picker as a non-blocking chip over
+   the video ("Watching the general Exam 1 — pick your school for your professor's version").
+5. (#5) Persist the skip per school (`sa-landing-prof-skip:<schoolId>`), cleared by Reset/school
+   change; keep "+ Add professor" as the way back.
+6. (#6) Product call: gate only Exams 2–4 on chapter pages; play Exam 1 immediately and ask for the
+   email after the first topic (the existing TwoSetAsk pattern) so attribution still lands.
+7. (#8) Navigate on chapter pick (drop the Go button) and preselect from campus context; (#9) have
+   "Set up access →" open step 02 with the form expanded.
+8. (#10) On an unresolvable `/go/` URL render a one-line "We couldn't find that chapter — find it
+   here" banner above the finder (still 200, still no dead end); accept picker ids in
+   `$school.index` the way `$school.rep` does.
+9. (#11) Offer "Send your syllabus / materials" in the general utility row too (modal already takes
+   `school=null`); make the email optional when a file is attached.
+10. (#12, #13, #17) Raise min tap size to 44 on chips, Skip, Add professor, Reset, review controls,
+    ticker rows and the Semester-Pass row; on mobile show the topic list expanded by default (or a
+    horizontal chip rail) with the notify row outside the drawer; lift 12–13.5px body copy to 14px.
+11. (#14) `type="tel"` + `autocomplete="tel"` on both phone inputs.
+12. (#16) Interpolate `code` into poster ("ACCY 201 · Exam 1"), FAQ answers, `/chapters` heading and
+    NotifyModal copy via `useCampus()` (already available on every page).
+13. (#18) Give `/expand` its own footer links (or `/#…` absolute anchors). (#19) Switch logo/nav to
+    router `<Link>` and `pickSchool` to `navigate()`. (#20) Add `role="dialog"`, focus trap and
+    scroll lock to NotifyModal/SyllabusModal; update the `/chapters` aria-labels. (#21) Make the
+    `/rep` fallback an `sms:` link.
+
+
+---
+
 # Chapter import — 66 campuses (branch `chapter-import-66`)
 
 Imports `chapters-66-FINAL.csv` (2,060 pre-cleaned chapters) and makes every share/search surface
