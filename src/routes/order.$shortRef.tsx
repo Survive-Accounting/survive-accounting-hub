@@ -2,7 +2,7 @@
 // magic-link → httpOnly session cookie (a shared URL alone can't view the data).
 // A lightweight "pizza tracker": receipt + stage stepper + upload/notes.
 import { useEffect, useRef, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Toaster, toast } from "sonner";
 import { Check, Loader2, Upload } from "lucide-react";
@@ -51,13 +51,10 @@ const examLabel = (o: StudentOrder) =>
     : o.exam_timeframe === "this_week" ? "This week"
     : o.exam_timeframe === "next_week" ? "Next week" : "—";
 
+// DEPRECATED (2026-08-20, Lee): the order flow is retired with /order — no orders exist to
+// track. Bounces home; the tracker code below is kept intact in case the flow is revived.
 export const Route = createFileRoute("/order/$shortRef")({
-  head: () => ({
-    meta: [
-      { title: "Track your Help Video — Survive Accounting" },
-      { name: "robots", content: "noindex" },
-    ],
-  }),
+  beforeLoad: () => { throw redirect({ to: "/", replace: true }); },
   component: TrackerPage,
 });
 

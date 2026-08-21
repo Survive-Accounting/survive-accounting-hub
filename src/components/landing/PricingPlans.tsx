@@ -28,7 +28,8 @@ const RED_BTN_STYLE: React.CSSProperties = {
 };
 
 export default function PricingPlans({
-  bookHref = "/order",
+  // /order is deprecated (2026-08-20) — default to the homepage player.
+  bookHref = "/",
   className,
   onSelectPlan,
 }: {
@@ -38,7 +39,7 @@ export default function PricingPlans({
   onSelectPlan?: (plan: PricingPlanKey) => void;
 }) {
   void onSelectPlan;
-  const href = bookHref || "/order";
+  const href = bookHref || "/";
   return (
     <div className={className}>
       <div className="mx-auto max-w-md text-center">

@@ -8,7 +8,7 @@
 // WIZARD (sticky nav + progress + one compact step at a time, tuned so mobile
 // needs almost no scrolling). Copy is intentionally hardcoded.
 import { useEffect, useRef, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { Toaster, toast } from "sonner";
 import { Check, ChevronLeft, ChevronRight, Loader2, Paperclip, Pencil, UploadCloud, X } from "lucide-react";
@@ -51,20 +51,12 @@ const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const UPLOAD_ACCEPT = "image/*,.pdf,.doc,.docx,.txt,.csv,.xls,.xlsx,.ppt,.pptx";
 type Attachment = { name: string; path: string; size: number };
 
+// DEPRECATED (2026-08-20, Lee): the request-a-video order flow is retired — no checkout
+// exists and paid interest is captured by the notify waitlist on the homepage tabs and the
+// /learn paywall instead. The route now bounces home; the wizard code below is kept intact
+// in case the flow is revived.
 export const Route = createFileRoute("/order")({
-  head: () => ({
-    meta: [
-      { title: "Exam prep built for your exact class — Survive Accounting" },
-      { name: "description", content: "Free to request. I quote before I build. You only pay once you approve and receive your exam prep video — made for your exact course." },
-      // NOTE: /order is currently noindex (pre-existing). It is therefore omitted from
-      // sitemap.xml. Flip both together if you want /order indexed.
-      { name: "robots", content: "noindex" },
-      { property: "og:title", content: "Exam prep built for your exact class" },
-      { property: "og:description", content: "Free to request. I quote before I build — you only pay once you approve your video." },
-      { property: "og:url", content: "https://surviveaccounting.com/order" },
-    ],
-    links: [{ rel: "canonical", href: "https://surviveaccounting.com/order" }],
-  }),
+  beforeLoad: () => { throw redirect({ to: "/", replace: true }); },
   component: OrderPage,
 });
 

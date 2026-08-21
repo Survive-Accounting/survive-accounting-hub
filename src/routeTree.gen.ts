@@ -70,6 +70,7 @@ import { Route as CeqCreateRouteImport } from './routes/ceq.create'
 import { Route as CSlugRouteImport } from './routes/c.$slug'
 import { Route as SchoolRepRouteImport } from './routes/$school.rep'
 import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.leadfinder.index'
+import { Route as GoSchoolIndexRouteImport } from './routes/go.$school.index'
 import { Route as StudyScenariosSlugRouteImport } from './routes/study_.scenarios.$slug'
 import { Route as OutreachSchoolSlugRouteImport } from './routes/outreach_.school.$slug'
 import { Route as OutreachLeadfinderCampusIdRouteImport } from './routes/outreach.leadfinder.$campusId'
@@ -395,6 +396,11 @@ const OutreachLeadfinderIndexRoute = OutreachLeadfinderIndexRouteImport.update({
   path: '/leadfinder/',
   getParentRoute: () => OutreachRoute,
 } as any)
+const GoSchoolIndexRoute = GoSchoolIndexRouteImport.update({
+  id: '/go/$school/',
+  path: '/go/$school/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StudyScenariosSlugRoute = StudyScenariosSlugRouteImport.update({
   id: '/study_/scenarios/$slug',
   path: '/study/scenarios/$slug',
@@ -554,6 +560,7 @@ export interface FileRoutesByFullPath {
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
+  '/go/$school/': typeof GoSchoolIndexRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
@@ -632,6 +639,7 @@ export interface FileRoutesByTo {
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
+  '/go/$school': typeof GoSchoolIndexRoute
   '/outreach/leadfinder': typeof OutreachLeadfinderIndexRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
@@ -712,6 +720,7 @@ export interface FileRoutesById {
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach_/school/$slug': typeof OutreachSchoolSlugRoute
   '/study_/scenarios/$slug': typeof StudyScenariosSlugRoute
+  '/go/$school/': typeof GoSchoolIndexRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
@@ -793,6 +802,7 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder/$campusId'
     | '/outreach/school/$slug'
     | '/study/scenarios/$slug'
+    | '/go/$school/'
     | '/outreach/leadfinder/'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
@@ -871,6 +881,7 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder/$campusId'
     | '/outreach/school/$slug'
     | '/study/scenarios/$slug'
+    | '/go/$school'
     | '/outreach/leadfinder'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
@@ -950,6 +961,7 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder/$campusId'
     | '/outreach_/school/$slug'
     | '/study_/scenarios/$slug'
+    | '/go/$school/'
     | '/outreach/leadfinder/'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
@@ -997,6 +1009,7 @@ export interface RootRouteChildren {
   GoSchoolChapterRoute: typeof GoSchoolChapterRoute
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
   StudyScenariosSlugRoute: typeof StudyScenariosSlugRoute
+  GoSchoolIndexRoute: typeof GoSchoolIndexRoute
   ApiFlyerSchoolChapterRoute: typeof ApiFlyerSchoolChapterRoute
   ApiOgSchoolChapterRoute: typeof ApiOgSchoolChapterRoute
   ChaptersKitSchoolChapterRoute: typeof ChaptersKitSchoolChapterRoute
@@ -1432,6 +1445,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachLeadfinderIndexRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/go/$school/': {
+      id: '/go/$school/'
+      path: '/go/$school'
+      fullPath: '/go/$school/'
+      preLoaderRoute: typeof GoSchoolIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/study_/scenarios/$slug': {
       id: '/study_/scenarios/$slug'
       path: '/study/scenarios/$slug'
@@ -1689,6 +1709,7 @@ const rootRouteChildren: RootRouteChildren = {
   GoSchoolChapterRoute: GoSchoolChapterRoute,
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
   StudyScenariosSlugRoute: StudyScenariosSlugRoute,
+  GoSchoolIndexRoute: GoSchoolIndexRoute,
   ApiFlyerSchoolChapterRoute: ApiFlyerSchoolChapterRoute,
   ApiOgSchoolChapterRoute: ApiOgSchoolChapterRoute,
   ChaptersKitSchoolChapterRoute: ChaptersKitSchoolChapterRoute,

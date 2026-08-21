@@ -16,7 +16,7 @@ export interface StudentSet {
   orientation: "landscape" | "portrait"; // 16:9 lesson vs 9:16 lookback — player switches aspect
   playbackId: string | null; // null = live set with no published video yet ("coming soon")
   ceqCount: number; // # of CEQ question cards in the set (the "N questions" line on the outline row)
-  runtimeSec: number | null; // set runtime in seconds when known — null today (no duration source wired yet)
+  runtimeSec: number | null; // set runtime in seconds — lesson_videos.duration_sec (null until a publish writes it)
   /** First question's stem — the outline row TEASER. For PAID sets, author-marked blurRanges are
    *  redacted SERVER-SIDE into ░ blocks before this ever leaves the server (the hidden words never
    *  reach an unentitled client). Free sets carry the full stem. Null = set has no CEQ yet. */
@@ -88,9 +88,17 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
   //    means "no videos yet" — degrade to null, never crash the shell.
   const lessonIds = [...new Set(live.map((d) => d.lessonId).filter((x): x is string => !!x))];
   const pb = new Map<string, string>();
+  const dur = new Map<string, number>(); // lesson_id → duration_sec (the runtime badge)
   if (lessonIds.length) {
-    const { data: vids } = await admin.from("lesson_videos").select("lesson_id,playback_id,version,stage").in("lesson_id", lessonIds).eq("stage", "ready").order("version", { ascending: false });
-    for (const v of (vids ?? []) as { lesson_id: string; playback_id: string | null }[]) if (v.playback_id && !pb.has(v.lesson_id)) pb.set(v.lesson_id, v.playback_id);
+    // duration_sec ships in 20260820_1500 (manual-apply) — degrade to the old select until applied.
+    let r = await admin.from("lesson_videos").select("lesson_id,playback_id,version,stage,duration_sec").in("lesson_id", lessonIds).eq("stage", "ready").order("version", { ascending: false });
+    if (r.error && /duration_sec|column/i.test(String(r.error.message ?? ""))) r = await admin.from("lesson_videos").select("lesson_id,playback_id,version,stage").in("lesson_id", lessonIds).eq("stage", "ready").order("version", { ascending: false });
+    for (const v of (r.data ?? []) as { lesson_id: string; playback_id: string | null; duration_sec?: number | null }[]) {
+      if (v.playback_id && !pb.has(v.lesson_id)) {
+        pb.set(v.lesson_id, v.playback_id);
+        if (v.duration_sec != null) dur.set(v.lesson_id, v.duration_sec);
+      }
+    }
   }
 
   // 3) Topics (chapters) + their courses.
@@ -126,7 +134,8 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
     // WITHHOLD the playback id for PAID sets (#Prompt 4) — the tree never carries a locked
     // video's id. The client fetches it via getSetPlayback, which re-checks the entitlement.
     const paid = d.access === "paid";
-    topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: "landscape", playbackId: paid ? null : ((d.lessonId && pb.get(d.lessonId)) || null), ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: null, firstStem: stemFor(d.id, paid) });
+    // runtimeSec is served even for paid sets — it teases length, never content.
+    topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: "landscape", playbackId: paid ? null : ((d.lessonId && pb.get(d.lessonId)) || null), ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: (d.lessonId ? dur.get(d.lessonId) : undefined) ?? null, firstStem: stemFor(d.id, paid) });
   }
 
   const ordered = [...courses.values()].sort((a, b) => courseRank(a.name) - courseRank(b.name) || a.name.localeCompare(b.name));

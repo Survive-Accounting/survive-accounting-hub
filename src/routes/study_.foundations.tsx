@@ -77,8 +77,8 @@ function FoundationsLanding() {
           <Link to="/study" className="rounded-md px-3 py-2 text-sm font-semibold text-white" style={{ background: NAVY }}>
             Open the interactive tool →
           </Link>
-          <a href="/order" className="rounded-md border border-border px-3 py-2 text-sm font-semibold hover:border-foreground">
-            Get personalized help
+          <a href="/" className="rounded-md border border-border px-3 py-2 text-sm font-semibold hover:border-foreground">
+            Explore the cram videos
           </a>
         </div>
 
