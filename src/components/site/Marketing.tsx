@@ -121,7 +121,7 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
               <a
                 href={secondaryHref}
                 className="flex w-full items-center justify-center rounded-xl px-6 text-[15px] font-bold focus-visible:ring-2 sm:w-auto"
-                style={{ minHeight: 54, color: "var(--brand-cream)", background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.18)" }}
+                style={{ minHeight: 54, color: "var(--brand-cream)", background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}
               >
                 {secondaryLabel}
               </a>
@@ -130,7 +130,7 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
                 type="button"
                 onClick={onSecondary}
                 className="w-full rounded-xl px-6 text-[15px] font-bold focus-visible:ring-2 sm:w-auto"
-                style={{ minHeight: 54, color: "var(--brand-cream)", background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.18)" }}
+                style={{ minHeight: 54, color: "var(--brand-cream)", background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}
               >
                 {secondaryLabel}
               </button>
@@ -180,7 +180,7 @@ export function TrustChips({ onBio, onReviews, onPlayer }: { onBio: () => void; 
           type="button"
           onClick={c.onClick}
           className="sa-trust-chip rounded-full px-3 py-1.5 text-[14px] font-semibold focus-visible:ring-2"
-          style={{ background: "rgba(245,239,230,0.07)", border: "1px solid rgba(245,239,230,0.13)", color: "var(--brand-cream)", minHeight: 44 }}
+          style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)", minHeight: 44 }}
         >
           {c.label}
         </button>
@@ -192,7 +192,7 @@ export function TrustChips({ onBio, onReviews, onPlayer }: { onBio: () => void; 
 /** Chip hover/focus styling — subtle brightness + a hair of lift, quick, reduced-motion safe. */
 export const MARKETING_CSS = `
 .sa-trust-chip { opacity: 0.8; transition: opacity 140ms, border-color 140ms, background 140ms, transform 140ms; cursor: pointer; }
-.sa-trust-chip:hover { opacity: 1; background: rgba(245,239,230,0.12); border-color: rgba(245,239,230,0.28); transform: translateY(-1px); }
+.sa-trust-chip:hover { opacity: 1; background: var(--bg-overlay); border-color: var(--accent-info); transform: translateY(-1px); }
 .sa-trust-chip:focus-visible { opacity: 1; outline: 2px solid var(--accent); outline-offset: 2px; }
 .sa-sticky-footer { transition: transform 320ms cubic-bezier(.2,.8,.2,1); }
 @media (prefers-reduced-motion: reduce) { .sa-sticky-footer { transition: none; } }
@@ -215,7 +215,7 @@ export function FeatureValueStrip({ code }: { code: string | null }) {
   return (
     <section className="mx-auto grid w-full max-w-[880px] gap-3 px-1 py-10 sm:grid-cols-3" style={{ fontFamily: BRAND_SANS }}>
       {CARDS.map(({ icon: Icon, title, body }) => (
-        <div key={title} className="rounded-2xl p-4" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
+        <div key={title} className="rounded-2xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
           <Icon className="h-5 w-5" style={{ color: "var(--accent)" }} aria-hidden />
           <p className="mt-2.5 text-[15px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{title}</p>
           <p className="mt-1 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>{body}</p>
@@ -272,7 +272,7 @@ export function LeePortrait({ width = 200, caption = true }: { width?: number; c
 /** The COMPACT tutor card — facts only, one door to the full bio. Sits beside the reviews. */
 export function TutorCard({ onMore }: { onMore: () => void }) {
   return (
-    <div className="rounded-2xl p-5 sm:p-6" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)", fontFamily: BRAND_SANS }}>
+    <div className="rounded-2xl p-5 sm:p-6" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", fontFamily: BRAND_SANS }}>
       <div className="flex items-start gap-5">
         <LeePortrait width={112} caption={false} />
         <div className="min-w-0" style={{ color: "var(--brand-cream)" }}>
@@ -310,7 +310,7 @@ export function TutorBioModal({ onClose }: { onClose: () => void }) {
   );
   return (
     <div className="fixed inset-0 z-[300] grid place-items-center overflow-y-auto p-4" style={{ background: "rgba(5,8,16,0.72)" }} role="dialog" aria-modal="true" aria-label="About Lee Ingram">
-      <div ref={panelRef} className="relative w-full max-w-[560px] rounded-3xl p-6 sm:p-8" style={{ background: "#0F1A2E", border: "1px solid rgba(245,239,230,0.16)", fontFamily: BRAND_SANS, boxShadow: "0 40px 90px -30px rgba(0,0,0,0.9)" }}>
+      <div ref={panelRef} className="relative w-full max-w-[560px] rounded-3xl p-6 sm:p-8" style={{ background: "var(--bg-page)", border: "1px solid var(--border-default)", fontFamily: BRAND_SANS, boxShadow: "0 40px 90px -30px rgba(0,0,0,0.9)" }}>
         <button
           type="button"
           onClick={onClose}
@@ -370,7 +370,7 @@ export function StickyFooterBar({ heroId, links, tel, phone }: {
         transform: show ? "translateY(0)" : "translateY(110%)",
         background: "color-mix(in srgb, var(--sa-surface-nav, #0F1A2E) 94%, transparent)",
         backdropFilter: "blur(8px)",
-        borderTop: "1px solid rgba(245,239,230,0.12)",
+        borderTop: "1px solid var(--border-default)",
         fontFamily: BRAND_SANS,
       }}
     >

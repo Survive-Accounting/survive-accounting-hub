@@ -86,7 +86,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       // theme-color is what iOS Safari samples for its toolbar. Without it the bar renders
       // white against our navy page and reads as a broken render. Matches SITE_NAVY.
-      { name: "theme-color", content: "#0F1A2E" },
+      { name: "theme-color", content: "#0D1730" },
       { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
       { name: "author", content: "Survive Accounting" },
       // SITE-WIDE DEFAULT CARD — the HOME copy + the generated og-card.png (scripts/og-cards.mjs

@@ -147,7 +147,7 @@ function StepCard({ n, title, desc, status, open, onToggle, children }: {
         // Slightly elevated navy over the page, per the surface ladder; the open card gains a
         // restrained orange edge so the active step reads at a glance without shouting.
         background: "var(--sa-surface-2, rgba(245,239,230,0.05))",
-        border: `1px solid ${open ? "rgba(252,163,17,0.45)" : "rgba(245,239,230,0.12)"}`,
+        border: `1px solid ${open ? "rgba(252,163,17,0.45)" : "var(--border-default)"}`,
         transition: "border-color 160ms",
       }}
     >
@@ -241,7 +241,7 @@ function ClaimStep({ chapterName, schoolSlug, chapterSlug, claim, onPending }: {
 
   if (claim === "pending" && !submitted) {
     return (
-      <div className="mx-auto max-w-sm rounded-xl p-4 text-center" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.14)" }}>
+      <div className="mx-auto max-w-sm rounded-xl p-4 text-center" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
         <p className="text-[14px] font-black" style={{ color: "var(--brand-cream)" }}>A claim is in review.</p>
         <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-muted)" }}>
           Someone from {chapterName} already claimed this page — we&apos;re verifying their chapter role now.
@@ -262,7 +262,7 @@ function ClaimStep({ chapterName, schoolSlug, chapterSlug, claim, onPending }: {
           </p>
 
           {/* Pricing is SECONDARY — context for the later seats conversation, not a checkout. */}
-          <div className="rounded-xl px-4 py-3.5 text-center" style={{ background: "rgba(0,0,0,0.18)", border: "1px solid rgba(245,239,230,0.1)" }}>
+          <div className="rounded-xl px-4 py-3.5 text-center" style={{ background: "rgba(0,0,0,0.18)", border: "1px solid var(--border-default)" }}>
             <p className="text-[11.5px] font-black uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Full-semester chapter access</p>
             <p className="mt-1.5 text-[16px] font-black" style={{ color: "var(--accent)" }}>${SEAT_PRICE} per member, per semester</p>
             <p className="mt-0.5 text-[12px] font-bold" style={{ color: "var(--text-muted)" }}>{SEAT_MINIMUM}-seat minimum</p>
@@ -345,7 +345,7 @@ function UsageStep({ chapterName, schoolSlug, chapterSlug, claimed, active }: {
 
   return (
     <div className="mx-auto max-w-sm">
-      <div className="rounded-2xl p-4" style={{ background: "rgba(0,0,0,0.18)", border: "1px solid rgba(245,239,230,0.12)" }}>
+      <div className="rounded-2xl p-4" style={{ background: "rgba(0,0,0,0.18)", border: "1px solid var(--border-default)" }}>
         <div className="mb-3 flex items-center justify-between gap-2">
           <span className="text-[12px] font-black uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Exec dashboard</span>
           <span className="rounded-full px-2 py-0.5 text-[10.5px] font-black uppercase tracking-wide" style={{ background: "rgba(252,163,17,0.14)", color: "var(--accent)" }}>
@@ -354,7 +354,7 @@ function UsageStep({ chapterName, schoolSlug, chapterSlug, claimed, active }: {
         </div>
         <div className="grid grid-cols-3 gap-2">
           {ROWS.map((r) => (
-            <div key={r.label} className="rounded-xl px-2 py-3 text-center" style={{ background: "rgba(245,239,230,0.05)" }}>
+            <div key={r.label} className="rounded-xl px-2 py-3 text-center" style={{ background: "var(--bg-surface)" }}>
               <div className="text-[20px] font-black leading-none" style={{ color: "var(--brand-cream)", opacity: r.value == null ? 0.4 : 1 }}>
                 {r.value == null ? <span aria-label={r.note ?? "no data yet"}>—</span> : r.value.toLocaleString()}
               </div>

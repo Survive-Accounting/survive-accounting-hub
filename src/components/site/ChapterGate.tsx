@@ -88,7 +88,7 @@ export function ChapterGate({ chapterName }: { chapterName: string }) {
               placeholder="Your name"
               aria-label="Your name"
               className="mt-4 w-full rounded-xl px-3.5 text-center outline-none focus:ring-2"
-              style={{ fontSize: 16, minHeight: 50, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.18)", color: "var(--brand-cream)" }}
+              style={{ fontSize: 16, minHeight: 50, background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
             />
             <input
               value={email}
@@ -104,7 +104,7 @@ export function ChapterGate({ chapterName }: { chapterName: string }) {
               aria-label="Your email"
               className="mt-2 w-full rounded-xl px-3.5 text-center outline-none focus:ring-2"
               // 16px explicitly — under it iOS zooms the page on focus and never zooms back.
-              style={{ fontSize: 16, minHeight: 50, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.18)", color: "var(--brand-cream)" }}
+              style={{ fontSize: 16, minHeight: 50, background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
             />
 
             {state === "error" && <p className="mt-2 text-[12.5px]" role="alert" style={{ color: "#F3C6CC" }}>{msg}</p>}
