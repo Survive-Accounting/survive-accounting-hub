@@ -11,7 +11,7 @@ import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, GraduationCap, Lock, MessageCircle, Plus, X } from "lucide-react";
+import { ChevronDown, GraduationCap, Lock, MessageCircle, X } from "lucide-react";
 
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
 import { resolveStudentMap, type MapLevel } from "@/lib/map-resolver.functions";
@@ -21,7 +21,8 @@ import { logSchoolDemand, submitExamAsk, submitSyllabus , submitNotify } from "@
 import { searchOrderProfessors, type ProfessorLite } from "@/lib/orders.functions";
 import { tagChapterMember } from "@/lib/greek-go.functions";
 import { SEAT_MINIMUM, SEAT_PRICE } from "@/components/site/ChapterAccess";
-import { revealInContainer } from "@/lib/ui-scroll";
+import { revealInContainer, scrollToId } from "@/lib/ui-scroll";
+import { CourtesyLine } from "@/components/site/CourtesyLine";
 import { SearchPicker } from "@/components/site/SearchPicker";
 import { useDismiss } from "@/lib/use-dismiss";
 import { fetchCourseOptions } from "@/lib/je-api";
@@ -31,8 +32,11 @@ import { FitWordmark, SiteHeader, SITE_NAVY, useNavyDocument } from "@/component
 import { PickerSheet } from "@/components/site/PickerSheet";
 import { logCampusCodeDemand } from "@/lib/campus-demand.functions";
 import { ALL_SCHOOLS, searchSchools } from "@/lib/schools";
-import { paperStops, type PaperStop } from "@/components/site/ExamPaper";
-import { AnimatedBoltHero, ANIMATED_BOLT_CSS } from "@/components/site/AnimatedBolt";
+import { ANIMATED_BOLT_CSS } from "@/components/site/AnimatedBolt";
+import {
+  FeatureValueStrip, MARKETING_CSS, MarketingHero, MarketingUtilityLinks,
+  SocialProofSection, TutorBioModal, TutorCard, type GreekMarketing,
+} from "@/components/site/Marketing";
 import { CampusProvider, useCampus } from "@/lib/campus-context";
 import { contactKind, LAUNCH_LINE, LAUNCH_WINDOW } from "@/lib/launch";
 import { Bolt, BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS, SEC_SCHOOLS } from "@/components/canvas/brand";
@@ -115,7 +119,7 @@ type ResolvedTopic = { key: string; name: string; num: number | null; sets: Stud
 // PROVIDER SHELL. The /go/ route knows the school from the URL; everything under here reads it
 // from campus context rather than re-deriving it, which is what let the hero cycle through other
 // schools' colourways on a chapter page that named one school in its banner.
-export function LandingPage({ initialCampusId, goChapter, chapterTop, chapterAccess, campusSlug, greekOrg, greekNav, initialCourseCode, videoGate }: {
+interface LandingProps {
   initialCampusId?: string;
   /** Campus slug straight from the URL. Resolves campus context on the FIRST render,
    *  before any chapter fetch — see the note atop go.$school.$chapter.tsx. */
@@ -130,48 +134,31 @@ export function LandingPage({ initialCampusId, goChapter, chapterTop, chapterAcc
   chapterAccess?: React.ReactNode;
   /** Greek chapter name. Its presence IS the Greek variant switch. */
   greekOrg?: string;
+  /** Greek marketing context — org name, display letters, claim state, access anchor. Replaces
+   *  the old chapterTop hero SLOT: the /go/ route passes DATA and the ONE configurable
+   *  MarketingHero renders it, so greek pages can never grow a separately designed hero again. */
+  greek?: GreekMarketing;
+  /** Greek member attribution, fired from the hero CTAs (was ChapterTop's onStartExam). */
+  onStartExam?: () => void;
   /** Chapter-page navbar: same-page anchors + the exec CTA. The /go/ route passes its own
    *  anchor ids here so the navbar and the sections can never disagree about them. */
   greekNav?: { examAnchor: string; accessAnchor: string };
   goChapter?: { schoolSlug: string; chapterSlug: string };
-  /** Rendered directly beneath the chapter banner. A SLOT rather than an import, so this
-   *  route file keeps knowing nothing about Greek claims — /go/ owns that concern and passes
-   *  the component in. */
-  /** Replaces the generic student hero on a chapter page. A /go/ visitor arrived from THEIR
-   *  chapter's flyer, so leading with copy written for an anonymous student wastes the one
-   *  thing that page knows. Omitted everywhere else, so the normal landing page is unchanged. */
-  chapterTop?: React.ReactNode;
-} = {}) {
+  /** Greek chapters known at this campus — drives the "For fraternities & sororities" secondary
+   *  CTA on campus pages (hidden at 0, where it would invite people to an empty list). */
+  chapterCount?: number;
+}
+
+export function LandingPage(props: LandingProps = {}) {
+  const { campusSlug, goChapter, initialCampusId, initialCourseCode } = props;
   return (
     <CampusProvider urlSchoolSlug={campusSlug ?? goChapter?.schoolSlug ?? null} accountCampusId={initialCampusId ?? null} initialCode={initialCourseCode ?? null}>
-      <LandingPageInner initialCampusId={initialCampusId} goChapter={goChapter} chapterTop={chapterTop} chapterAccess={chapterAccess} campusSlug={campusSlug} greekOrg={greekOrg} greekNav={greekNav} initialCourseCode={initialCourseCode} videoGate={videoGate} />
+      <LandingPageInner {...props} />
     </CampusProvider>
   );
 }
 
-function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAccess, campusSlug, greekOrg, greekNav, initialCourseCode, videoGate }: {
-  initialCampusId?: string;
-  /** Campus slug straight from the URL. Resolves campus context on the FIRST render,
-   *  before any chapter fetch — see the note atop go.$school.$chapter.tsx. */
-  campusSlug?: string;
-  /** Course code resolved server-side, so the headline never gains it a beat later. */
-  initialCourseCode?: string | null;
-  /** Rendered INSTEAD of the video on Greek chapter pages until the visitor has an account.
-   *  A seat is an entitlement and an entitlement needs a user_id, so this is what makes the
-   *  paid product deliverable — not a marketing gate. Never set on the solo page. */
-  videoGate?: React.ReactNode;
-  /** The chapter-access section, rendered after the player (never between a visitor and it). */
-  chapterAccess?: React.ReactNode;
-  /** Greek chapter name. Its presence IS the Greek variant switch. */
-  greekOrg?: string;
-  /** Chapter-page navbar contextualization — see LandingPage. */
-  greekNav?: { examAnchor: string; accessAnchor: string };
-  goChapter?: { schoolSlug: string; chapterSlug: string };
-  /** Rendered directly beneath the chapter banner. A SLOT rather than an import, so this
-   *  route file keeps knowing nothing about Greek claims — /go/ owns that concern and passes
-   *  the component in. */
-  chapterTop?: React.ReactNode;
-}) {
+function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlug, greek, onStartExam, chapterCount, greekOrg, greekNav, videoGate }: LandingProps) {
   // M1.4 — paint html/body navy so Safari's overscroll rubber-band matches the page instead
   // of flashing the light default at the top and bottom edges.
   useNavyDocument();
@@ -198,6 +185,11 @@ function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAcces
   // later — the student sees the thing before being asked anything about themselves.
   const [focusSignal, setFocusSignal] = useState(0);
   const onStart = () => { document.getElementById("exam1")?.scrollIntoView({ behavior: "smooth" }); setFocusSignal((f) => f + 1); };
+  // The hero primary CTA also carries greek member attribution (the /go/ route's tagMember —
+  // saying "start Exam 1" on a chapter's own URL IS the attribution, exactly as before).
+  const heroStart = () => { onStartExam?.(); onStart(); };
+  // The full Lee bio — a modal now, opened by the "pro tutor" trust chip and the tutor card.
+  const [bioOpen, setBioOpen] = useState(false);
   const [syllabusOpen, setSyllabusOpen] = useState(false);
   // Optional custom lead line for the syllabus modal (e.g. the unlisted-professor follow-up:
   // "Don't see Prof. X yet — send me anything from the class and I'll map it."). Null = default copy.
@@ -272,17 +264,14 @@ function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAcces
     return SCHOOLS.map((s) => { const code = m.get(s.campusId); return code ? { ...s, code, codeVerified: true } : { ...s, code: undefined, codeVerified: false }; });
   }, [codesQ.data]);
 
-  // The hero cycles school COLOURWAYS only — no course code, no campus name (Pass 8). It still
-  // reads the code-enriched list so the two stay in sync if the graphic ever shows type again.
-  // HERO LOCK. One stop means no cycle — ExamPaper only starts its interval at stops.length >= 2,
-  // so a known campus pins the bolt to its own colourway with no extra machinery. Unknown campus
-  // still gets the full rotation, which is the whole point of the rotation.
-  const stops = useMemo(() => {
-    const all = paperStops(schoolsWithCodes, boltFor);
-    if (!campus.school) return all;
-    const mine = all.find((x) => x.id === campus.school!.id);
-    return mine ? [mine] : all;
-  }, [schoolsWithCodes, campus.school]);
+  // MARKETING CONTEXT — which of the three page kinds this render is, and the code/school the
+  // copy interpolates. Greek wins; a known campus (URL, account, or a returning visitor's stored
+  // pick) reads as a campus page; otherwise general. The hero bolt colourway follows the same
+  // rule via the page root's --sa-bolt vars — the rotation experiment is gone: general pages
+  // wear the default brand red/blue, campus pages their school's own colours.
+  const heroSchoolName = school?.name ?? campus.school?.name ?? null;
+  const heroKind: "general" | "campus" | "greek" = greek ? "greek" : heroSchoolName ? "campus" : "general";
+  const heroCode = campus.code ?? (school?.codeVerified && school.code ? school.code : null);
 
   const treeQ = useQuery({ queryKey: ["landing-tree", school?.campusId ?? null], queryFn: () => fetchStudentTree({ data: school ? { campusId: school.campusId } : {} }), networkMode: "always", staleTime: 300_000 });
   const intro1 = useMemo(() => (treeQ.data ?? []).find((c) => c.family === "intro_1" || c.name.trim().toLowerCase() === "intro 1") ?? null, [treeQ.data]);
@@ -387,9 +376,12 @@ function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAcces
   return (
     <div style={{ ...frameThemeVars(theme), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "clip", ...(campusBolt ? { ["--sa-bolt-1"]: campusBolt.c1, ["--sa-bolt-2"]: campusBolt.c2 } as React.CSSProperties : {}) }}>
       <style>{ANIMATED_BOLT_CSS}</style>
+      <style>{MARKETING_CSS}</style>
       <style>{`
         @keyframes sa-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-        .sa-marquee-track { animation: sa-marquee 42s linear infinite; }
+        /* AMBIENT, not attention-grabbing: 96s per loop under the entry overlay — slow enough to
+           be ignorable, still alive. Hover/focus pause + edge fade masks are already on it. */
+        .sa-marquee-track { animation: sa-marquee 96s linear infinite; }
         .sa-marquee:hover .sa-marquee-track { animation-play-state: paused; }
         /* Pause on FOCUS too, not just hover: a keyboard user tabbing into a moving strip would
            otherwise be chasing the thing they are focused on. */
@@ -404,7 +396,13 @@ function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAcces
         @media (hover: none) { .sa-chg { opacity: 1; } }
         @keyframes sa-meter-in { from { transform: translateY(-6px); opacity: 0; } to { transform: none; opacity: 1; } }
         .sa-meter-in { animation: sa-meter-in 200ms ease; }
-        @media (prefers-reduced-motion: reduce) { .sa-meter-in { animation: none; } }
+        /* ENTRY OVERLAY → CONTENT: the revealed player fades in rather than snapping. */
+        @keyframes sa-reveal { from { opacity: 0; } to { opacity: 1; } }
+        .sa-reveal { animation: sa-reveal 420ms ease; }
+        /* The entry overlay card — floats over the preview media, dark enough to stay readable
+           when the placeholder becomes real footage. */
+        .sa-entry-card { background: rgba(11,18,32,0.86); border: 1px solid rgba(245,239,230,0.16); border-radius: 16px; padding: 18px 16px; box-shadow: 0 24px 60px -24px rgba(0,0,0,0.8); backdrop-filter: blur(6px); }
+        @media (prefers-reduced-motion: reduce) { .sa-meter-in, .sa-reveal { animation: none; } }
       `}</style>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
 
@@ -417,10 +415,28 @@ function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAcces
           desktop, but any child that ignores the box (a nowrap lockup, a fixed-width panel)
           used to push the document sideways. Clamping here contains it at the source. */}
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px", width: "100%", overflowX: "clip" }}>
-        {chapterTop ?? <Hero onStart={onStart} stops={stops} />}
+        {/* ONE HERO for every marketing page — the kind + context select the copy and CTAs.
+            heroStart = the primary CTA, the bolt, AND the "Built for exam week" chip: scroll to
+            the player, plus greek member attribution when the route wired it. */}
+        <MarketingHero
+          kind={heroKind}
+          code={heroCode}
+          schoolShort={heroSchoolName}
+          greek={greek}
+          onStart={heroStart}
+          secondaryLabel={greek ? (greek.claimed ? `Use ${greek.letters} access →` : `Set up ${greek.letters} access →`) : "For fraternities & sororities →"}
+          secondaryHref={greek ? undefined : school ? `/chapters?school=${encodeURIComponent(school.slug)}` : "/chapters"}
+          onSecondary={greek ? () => scrollToId(greek.claimed ? EXAM_ANCHOR_ID : greek.accessAnchor) : undefined}
+          showSecondary={greek ? true : heroKind !== "campus" || (chapterCount ?? 0) > 0}
+          onOpenBio={() => setBioOpen(true)}
+          courtesy={greek && goChapter ? <CourtesyLine schoolSlug={goChapter.schoolSlug} chapterSlug={goChapter.chapterSlug} chapterName={greek.orgName} /> : undefined}
+        />
         <ExamPlayer videoGate={videoGate} greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); void logCampusCodeDemand({ data: { source: "write-in" } }).catch(() => {}); try { localStorage.setItem("sa-landing-school", "__notlisted__"); } catch { /* ignore */ } }} onReset={resetMatch} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(t) => setNotifyTopic(t)} />
-        {/* CHAPTER ACCESS sits AFTER the product, never before it: a visitor who pressed
-            "Start Exam 1 free" must not land on a sales section. */}
+
+        {/* Value strip AFTER the player: the product proves the claims, the strip reinforces. */}
+        <FeatureValueStrip code={heroCode} />
+
+        {/* CHAPTER ACCESS still after the product, never before it. */}
         {chapterAccess}
 
         {/* Greek pages put proof before the FAQ (reviews answer "is this real?", which an exec
@@ -428,16 +444,25 @@ function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAcces
         {greekOrg ? null : <Faq greek={undefined} />}
         <SectionDivider />
         {/* sa-anchor (not a hardcoded scroll-mt): the offset tracks the real measured header
-            height via --sa-header-h, same as #exam1 and #chapter-access. */}
+            height via --sa-header-h, same as #exam1 and #chapter-access. The #lee anchor lives
+            on the tutor column inside the row. */}
         <div id="reviews" className="sa-anchor" />
-        <TestimonialsSlider />
+        <SocialProofSection
+          testimonials={<TestimonialsSlider />}
+          tutor={<TutorCard onMore={() => setBioOpen(true)} />}
+        />
         <SectionDivider />
         {greekOrg ? <Faq greek={greekOrg} /> : null}
-        <div id="lee" className="sa-anchor" />
-        <LeeSection />
-        <SectionDivider />
+        {/* Utility requests live at the FOOT of the persuasion flow — after proof, before the
+            footer — instead of interrupting the pitch mid-page. */}
+        <MarketingUtilityLinks
+          kind={heroKind}
+          onProfessorAsk={() => openSyllabus("Don't see your professor? Tell me who teaches your class and I'll map them.")}
+        />
         <Footer />
       </main>
+
+      {bioOpen && <TutorBioModal onClose={() => setBioOpen(false)} />}
 
       {syllabusOpen && <SyllabusModal school={school} framing={syllabusFraming} onClose={() => { setSyllabusOpen(false); setSyllabusFraming(null); }} />}
       {notifyTopic !== null && <NotifyModal topic={notifyTopic} school={school} professorName={professor ? (professor.last || professor.name) : null} onClose={() => setNotifyTopic(null)} />}
@@ -445,64 +470,9 @@ function LandingPageInner({ initialCampusId, goChapter, chapterTop, chapterAcces
   );
 }
 
-// ---- HERO — EXACTLY FOUR THINGS: headline, subhead, CTA, trust badges.
-//
-// Pass 2 removes the wordmark from here. The navbar's compact lockup is now the ONLY wordmark
-// on the page, so repeating it 200px below was the same brand statement twice — and it was the
-// single tallest thing on the first screen, pushing the actual promise down.
-//
-// The badges are the only new element. They answer the question the headline provokes ("says
-// who?") without a paragraph, and they are the reason the subhead can stay one line.
-const TRUST_BADGES = ["Created by a pro tutor", "1,000+ students helped"];
-
-function Hero({ onStart, stops }: { onStart: () => void; stops: PaperStop[] }) {
-  return (
-    // Pass 3: two columns from 1024px, single centred column below it. The vertical padding is
-    // deliberately short of a full viewport now — the player's tab row should PEEK at the bottom
-    // on a 1080p screen, because a half-visible control is a better scroll cue than any arrow.
-    <section className="sa-hero3 grid items-center gap-10 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12 lg:py-14">
-      <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
-        <h1 className="text-[30px] font-black leading-[1.08] sm:text-[42px] lg:text-[52px]" style={{ letterSpacing: "-0.015em" }}>
-          Cram what&apos;s on your exam.
-        </h1>
-
-        <p className="mt-4 max-w-[22ch] text-[16px] leading-snug sm:max-w-[42ch] sm:text-[18px]" style={{ color: "var(--brand-cream)", opacity: 0.66 }}>
-          Cram videos + practice exams built for your first accounting course. Pick up easy points. Score higher.
-        </p>
-
-        <button
-          onClick={onStart}
-          className="mt-8 inline-flex items-center gap-2 rounded-xl px-7 py-4 text-[16px] font-black transition-transform hover:scale-[1.03]"
-          style={{ background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.6)", minHeight: 52 }}
-        >
-          Cram Exam 1 Free ⚡
-        </button>
-
-        <div className="mt-7 flex flex-wrap items-center justify-center gap-2 lg:justify-start">
-          {TRUST_BADGES.map((b) => (
-            <span
-              key={b}
-              className="rounded-full px-3 py-1.5 text-[12px] font-semibold"
-              style={{ background: "rgba(245,239,230,0.07)", border: "1px solid rgba(245,239,230,0.13)", color: "var(--brand-cream)", opacity: 0.8 }}
-            >
-              {b}
-            </span>
-          ))}
-        </div>
-      </div>
-
-      {/* THE GRAPHIC — the ANIMATED bolt: school colours flow upward through the brand mark,
-          with the campus plate beneath it. `order-first` on mobile puts bolt + plate above the
-          H1 as specified; the width is capped so it cannot push the CTA under the fold on a
-          390x844 phone. See .sa-hero3-paper in styles.css for the measured mobile decision.
-          When the campus is known (URL or a returning visitor's stored pick), `stops` is already
-          locked to one entry upstream, so the bolt pins to their school from the first frame. */}
-      <div className="order-first flex flex-col items-center lg:order-none lg:items-end">
-        {stops.length > 0 && <AnimatedBoltHero stops={stops} onActivate={onStart} className="sa-hero3-paper" />}
-      </div>
-    </section>
-  );
-}
+// The old Hero / CampusTop / ChapterTop trio is GONE — MarketingHero in components/site/Marketing
+// renders the one configurable hero for all three page kinds. See that file for the layout rules
+// (mobile bolt-below-CTA order, promise-over-description weighting, greek eyebrow).
 
 // Slow marquee of SEC school names in build-priority order. Muted, pausable on hover; reduced-motion
 // collapses to a static first-three line. Track duplicates the row and slides -50% for a seamless loop.
@@ -1072,6 +1042,29 @@ const examStats = (tab: ExamTab): string => {
 // `type MatchStep` lived here to drive MatchSheet's step machine. MatchSheet is gone and the rungs
 // is a plain boolean on MatchPanel now (profDone), so the type went with it.
 
+/** THE PREVIEW SURFACE — the right panel's media stage, with the entry overlay floating on it.
+ *
+ *  Layered deliberately for the future: MEDIA (a branded placeholder today — swap the first
+ *  child for a `<video muted autoPlay loop playsInline>` when the silent preview loop exists) →
+ *  SCRIM (keeps the overlay readable over any future footage) → CONTENT (the entry card +
+ *  marquee). Nothing above the media layer needs to change when real preview video lands. */
+function PreviewSurface({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="relative grid h-full w-full place-items-center overflow-hidden px-5 py-8" style={{ background: "var(--sa-surface-2)" }}>
+      {/* MEDIA LAYER (placeholder): a deep navy field with the brand bolt as a faint watermark —
+          reads as a player at rest, not an empty box. */}
+      <div aria-hidden className="absolute inset-0" style={{ background: "linear-gradient(155deg, #101A31 0%, #0B1220 55%, #0D1526 100%)" }}>
+        <div className="absolute" style={{ right: "-6%", top: "-12%", width: "58%", opacity: 0.07, transform: "rotate(8deg)" }}>
+          <Bolt c1="var(--sa-bolt-1)" c2="var(--sa-bolt-2)" />
+        </div>
+      </div>
+      {/* SCRIM — between media and controls, so overlay text stays readable on future video. */}
+      <div aria-hidden className="absolute inset-0" style={{ background: "radial-gradient(ellipse at center, rgba(5,8,16,0.25) 0%, rgba(5,8,16,0.55) 100%)" }} />
+      <div className="relative z-[1] flex w-full max-w-sm flex-col items-center gap-4">{children}</div>
+    </div>
+  );
+}
+
 /** THE MATCH PANEL — Pass 4 moves the professor step onto CENTRE STAGE.
  *
  *  Every action now happens where the video will play, as sequential states, instead of hanging
@@ -1104,21 +1097,25 @@ function MatchPanel({ gateActive, school, professor, notListed, profDone, covera
   const matched = !!school || notListed;
   const code = school?.codeVerified && school.code ? school.code : null;
 
-  // STATE 1 — no school yet.
+  // STATE 1 — no school yet: the ENTRY OVERLAY on the preview surface. The overlay card floats
+  // over the (placeholder) preview media; the marquee sits beneath it, ambient.
   if (!matched) {
     return (
-      <div className="grid h-full w-full place-items-center px-5 py-6" style={{ background: "var(--sa-surface-2)" }}>
-        <div className="flex w-full max-w-sm flex-col items-center gap-3">
-          <div className="w-full"><CampusSelector school={null} onPick={onPick} schools={schools} onNotListed={onNotListed} cue={cueSignal} /></div>
-          {/* The marquee lives HERE and nowhere else — under the picker it answers "is my school
-              here?" at the moment the question is asked. */}
-          <SchoolTicker onPick={onPick} />
+      <PreviewSurface>
+        <div className="sa-entry-card w-full max-w-sm">
+          <p className="mb-3 text-center text-[16px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
+            Pick your school to start
+          </p>
+          <CampusSelector school={null} onPick={onPick} schools={schools} onNotListed={onNotListed} cue={cueSignal} />
         </div>
-      </div>
+        {/* The marquee lives HERE and nowhere else — under the picker it answers "is my school
+            here?" at the moment the question is asked. Ambient by design (96s loop). */}
+        <SchoolTicker onPick={onPick} />
+      </PreviewSurface>
     );
   }
 
-  // STATE 2 — school known, professor rung unanswered. Centre stage, inline list.
+  // STATE 2 — school known, professor rung unanswered: same surface, professor overlay.
   // GREEK: the professor question waits until the video is unlocked. Before that the visitor
   // has not agreed to anything, and asking which professor they have — a question only a
   // student mid-decision cares about — sits in front of the thing they came for.
@@ -1126,13 +1123,22 @@ function MatchPanel({ gateActive, school, professor, notListed, profDone, covera
 
   if (!profDone) {
     return (
-      <div className="w-full px-5 py-6" style={{ background: "var(--sa-surface-2)" }}>
-        <ProfessorStage
-          school={school}
-          onPick={onPickProfessor}
-          onNotListed={onProfNotListed}
-        />
-      </div>
+      <PreviewSurface>
+        <div className="sa-entry-card w-full max-w-sm">
+          <ProfessorStage
+            school={school}
+            onPick={onPickProfessor}
+            onNotListed={onProfNotListed}
+          />
+        </div>
+        {/* The course is PRESET by the page — stated quietly so nobody looks for a course
+            selector that deliberately isn't there. */}
+        {code && school && (
+          <p className="text-center text-[11.5px]" style={{ color: "var(--text-muted)" }}>
+            Course preset: {code} at {school.name}
+          </p>
+        )}
+      </PreviewSurface>
     );
   }
 
@@ -1221,7 +1227,7 @@ function ProfessorStage({ school, onPick, onNotListed }: {
 
   return (
     <div className="mx-auto flex w-full max-w-sm flex-col items-stretch gap-2.5">
-      <p className="text-center text-[16px] font-black" style={{ color: "var(--brand-cream)" }}>Pick your professor</p>
+      <p className="text-center text-[16px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Pick your professor to start</p>
       {writeIn ? (
         <>
           {rosterEmpty && (
@@ -1271,6 +1277,11 @@ function ProfessorStage({ school, onPick, onNotListed }: {
           />
           <button type="button" onClick={() => setManual(true)} className="text-[14px] font-bold" style={{ minHeight: 44, color: "var(--accent)" }}>
             My professor isn&apos;t listed →
+          </button>
+          {/* Professor selection is OPTIONAL — the explicit low-friction way past the question,
+              in the list state too (the write-in state already had one). */}
+          <button type="button" onClick={onNotListed} className="text-[13px] font-bold" style={{ minHeight: 40, color: "var(--text-muted)" }}>
+            Skip for now →
           </button>
         </>
       )}
@@ -1416,7 +1427,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
               {videoGate ? (
                 <div className="relative w-full" style={{ aspectRatio: "16 / 9", background: "var(--sa-surface-2)" }}>{videoGate}</div>
               ) : flowDone && (
-                <div className="relative w-full" style={{ aspectRatio: "16 / 9", background: "#000" }}>
+                <div className="sa-reveal relative w-full" style={{ aspectRatio: "16 / 9", background: "#000" }}>
                   {curSet?.playbackId ? (
                     <HeroVideo key={curSet.playbackId} playbackId={curSet.playbackId} onComplete={() => markComplete(curSet!.id)} />
                   ) : (
@@ -1602,11 +1613,12 @@ function ExamOutline({ tab, school, stats, isPaid, curSetId, curTopicKey, openTo
       ))}
       {/* the quiet sum — where the eye lands after scanning the list, not a headline */}
       <div className="mt-2 border-t px-1 pt-2 text-[10.5px]" style={{ borderColor: "rgba(245,239,230,0.08)", color: "var(--text-muted)" }}>{stats}</div>
-      {/* PAID-TAB-CAPTURE: the persistent next step at the moment of maximum purchase intent */}
-      {/* Pass 3: the notify box is on ALL four tabs. Exam 1 used to advertise its launch state
-          twice — a line on the poster AND a link — while collecting nothing. Same box, same
-          shape, one place to leave an email, whichever exam the student came for. */}
-      <PaidNotifyRow exam={tab} school={school} pulse={notifyPulse} />
+      {/* PAID-TAB-CAPTURE stays on paid tabs (peak purchase intent) and on tabs with nothing
+          live yet. It is GONE from a content-ready free tab: once the product exists, a waitlist
+          box under it is clutter apologising for a problem the tab no longer has. */}
+      {(isPaid || !tab.topics.some((t) => t.sets.some((s) => s.playbackId))) && (
+        <PaidNotifyRow exam={tab} school={school} pulse={notifyPulse} />
+      )}
     </div>
   );
 }
@@ -1658,17 +1670,29 @@ function PaidNotifyRow({ exam, school, pulse }: { exam: ExamTab; school: School 
   );
 }
 
+/** PLACEHOLDER runtime for topics with no built sets. There is NO real duration source yet
+ *  (student.functions runtimeSec is null until the Mux duration backfill lands) — these are
+ *  deliberately estimates, deterministic per topic name so they never flicker between renders,
+ *  in the honest 11–22 min band real sets run. REPLACE THE BODY with real data when durations
+ *  exist; every caller already renders whatever number this returns. */
+const estTopicMin = (name: string): number => {
+  let h = 0;
+  for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return 11 + (h % 12);
+};
+
 function TopicRow({ topic, isPaid, price, open, onToggle, curSetId, curTopicKey, activeRef, onPickSet, onPaidClick }: { topic: ResolvedTopic; isPaid: boolean; price: number | null; open: boolean; onToggle: () => void; curSetId: string | null; curTopicKey: string | null; activeRef: RefObject<HTMLButtonElement | null>; onPickSet: (topicKey: string, setId: string | null) => void; onPaidClick: () => void }) {
   const built = topic.sets.length > 0;
   const totalCeq = topic.sets.reduce((a, s) => a + s.ceqCount, 0);
   const posterActive = curTopicKey === topic.key && !curSetId;
   if (!built) {
-    // Unbuilt topic — muted, "(coming)", selectable → poster state.
+    // Unbuilt topic — muted, estimated runtime, selectable → poster state. "coming" told a
+    // student nothing about the product's shape; a runtime says what studying this topic costs.
     return (
       <button ref={posterActive ? activeRef : undefined} onClick={() => onPickSet(topic.key, null)} className="mb-0.5 flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left hover:bg-white/5" style={{ opacity: 0.55, background: posterActive ? "rgba(252,163,17,0.12)" : "transparent" }}>
         <span className="h-3.5 w-3.5 shrink-0" />
         <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: posterActive ? "var(--accent)" : "var(--brand-cream)" }}>{topic.name}</span>
-        <span className="shrink-0 text-[11px]" style={{ color: "var(--text-muted)" }}>coming</span>
+        <span className="shrink-0 text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }}>~{estTopicMin(topic.name)} min</span>
       </button>
     );
   }
@@ -1808,101 +1832,8 @@ function Poster({ school, topicName, stem }: { school: School | null; topicName:
 // Collapsed by default: photo + "Why I built Survive Accounting" + the two student quotes stay
 // visible; a "Read more" toggle expands the rest in place. Expanded state persists for the browser
 // session; prefers-reduced-motion gets an instant (un-animated) expand.
-function LeeSection() {
-  const [open, setOpen] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return window.sessionStorage.getItem("lee-bio-open") === "1";
-  });
-  const [reduce, setReduce] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    setReduce(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
-  }, []);
-  const toggle = () => setOpen((v) => { const next = !v; try { window.sessionStorage.setItem("lee-bio-open", next ? "1" : "0"); } catch { /* private mode */ } return next; });
-
-  return (
-    <section className="mx-auto max-w-3xl rounded-3xl p-7 sm:p-10" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
-      <div className="flex flex-col gap-7 sm:flex-row sm:items-start">
-        <div className="shrink-0"><LeePortrait /></div>
-        {/* Body uses the UI/text face (Rubik is a display face — headlines only). */}
-        <div className="min-w-0" style={{ fontFamily: BRAND_SANS, color: "var(--brand-cream)", maxWidth: "54ch" }}>
-          {/* Student-facing header. "Why I built Survive Accounting" is about ME; a stranger
-              scanning this page is looking for who is going to teach them. The story keeps its
-              name as a sub-heading inside the expanded body. */}
-          <h2 style={{ fontFamily: BRAND_DISPLAY, fontWeight: 800, fontSize: 20, lineHeight: 1.15, color: "var(--brand-cream)", marginBottom: 16 }}>Meet your tutor</h2>
-
-          {/* two student voices — heavier, H3-scale (always visible) */}
-          <div className="space-y-1.5">
-            <h3 style={{ fontWeight: 700, fontSize: 17.5, lineHeight: 1.3, color: "var(--brand-cream)" }}>“My exam looked nothing like my notes.”</h3>
-            <h3 style={{ fontWeight: 700, fontSize: 17.5, lineHeight: 1.3, color: "var(--brand-cream)" }}>“I studied for weeks and still failed.”</h3>
-          </div>
-
-          {/* the one headline moment — stays visible in the collapsed state, right above Read more */}
-          <p style={{ marginTop: 16, fontWeight: 600, fontSize: 18, color: "var(--brand-cream)" }}>Sound familiar?</p>
-
-          {/* collapsible remainder — max-height clip animates height (grid-rows fr transitions are
-              unreliable in some engines); reduced-motion skips the animation. 640px comfortably
-              clears the content; it's only a ceiling, so the box still sits at its natural height. */}
-          <div style={{ overflow: "hidden", maxHeight: open ? 640 : 0, opacity: open ? 1 : 0, transition: reduce ? "none" : "max-height 340ms ease, opacity 260ms ease" }}>
-            <div>
-              {/* The story keeps its name HERE, as a sub-heading — the section header above is
-                  student-facing ("Meet your tutor"), which is what a stranger is actually
-                  scanning for. Both can be true without competing. */}
-              <p style={{ marginTop: 14, fontSize: 12.5, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", opacity: 0.55 }}>
-                Why I built Survive Accounting
-              </p>
-
-              <p style={{ marginTop: 10, marginBottom: 16, fontWeight: 400, fontSize: 16, lineHeight: 1.5, color: "var(--brand-cream)" }}>
-                Lectures teach you <i>about</i> accounting. Exams test whether you can <i>do</i> it.
-              </p>
-
-              <p style={{ fontWeight: 400, fontSize: 15, lineHeight: 1.6, opacity: 0.88 }}>
-                So my cram videos are real exam-style questions, worked start to finish — you walk
-                into the exam having already done the problems.
-              </p>
-
-              <p style={{ marginTop: 14, fontWeight: 400, fontSize: 15, lineHeight: 1.6, opacity: 0.88 }}>
-                This course is tough. So are you. Exam 1 is free — see for yourself.
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={toggle}
-            aria-expanded={open}
-            className="mt-4 inline-flex items-center gap-1.5 text-[13.5px] font-bold transition-colors hover:text-[var(--accent)]"
-            style={{ color: "var(--accent)" }}
-          >
-            <Plus className="h-3.5 w-3.5 transition-transform" style={{ transform: open ? "rotate(45deg)" : "none" }} />
-            {open ? "Show less" : "Read more"}
-          </button>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// Lee's real photo — a 4:5 crop centered on the face, rounded + cream border + a slight tilt, with
-// a small caption. No cutout / edge blur / filters. (The old cream SVG portrait is retired here and
-// reserved for the video intro/outro frames.)
-function LeePortrait() {
-  return (
-    <figure className="mx-auto sm:mx-0" style={{ width: 200, transform: "rotate(1.5deg)" }}>
-      {/* Clip frame + scaled image = zoom into the face (crops the long arm + thighs). */}
-      <div style={{ width: 200, aspectRatio: "4 / 5", borderRadius: 16, border: "3px solid var(--brand-cream)", overflow: "hidden" }}>
-        <img
-          src="/lee-beach.webp" alt="Lee Ingram"
-          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 20%", transform: "scale(1.42)", transformOrigin: "50% 22%", display: "block" }}
-        />
-      </div>
-      <figcaption className="mt-3 text-center" style={{ fontFamily: BRAND_SANS }}>
-        <span className="block" style={{ fontWeight: 600, fontSize: 16, color: "var(--brand-cream)" }}>Lee Ingram</span>
-        <span className="mt-0.5 block text-[12px]" style={{ fontWeight: 400, opacity: 0.6, color: "var(--brand-cream)" }}>Ole Miss accounting grad</span>
-        <span className="block text-[12px]" style={{ fontWeight: 400, opacity: 0.6, color: "var(--brand-cream)" }}>Tutor since 2015</span>
-      </figcaption>
-    </figure>
-  );
-}
+// LeeSection + LeePortrait moved to components/site/Marketing (TutorCard + TutorBioModal + the
+// portrait). The bio is a MODAL now — opened by the pro-tutor trust chip and the tutor card.
 
 // ---- TESTIMONIALS (own slider — navy/cream/bolt; no white cards / stars / verified badges) ----
 // Curated top-10 from testimonials.csv, best-first. long=1 → truncate + "show more". Auto-advances

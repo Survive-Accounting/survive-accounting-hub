@@ -1,0 +1,347 @@
+// THE MARKETING TEMPLATE — one configurable set of sections shared by every marketing page:
+// general homepage, campus/course pages, and Greek chapter pages.
+//
+// Before this file, those three surfaces had three separately designed heroes (Hero in
+// landing.tsx, CampusTop, ChapterTop) drifting apart one copy tweak at a time. Now the page KIND
+// plus a handful of context fields (course code, school short name, Greek letters, claim state)
+// select copy and CTAs inside ONE structure: navbar → hero → CTAs → trust chips → player →
+// value strip → social proof (testimonials + tutor) → utility links → footer.
+//
+// DELIBERATELY NOT IMPORTED FROM ./routes/landing — landing imports THIS module, and a cycle
+// through a route file is exactly what trips the TanStack code-splitter. Anything landing owns
+// (TestimonialsSlider, the player) arrives through slots/props instead.
+import { useEffect, useState } from "react";
+import { ClipboardCheck, Play, Target } from "lucide-react";
+
+import { BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS } from "@/components/canvas/brand";
+import { AnimatedBoltHero, type BoltHeroStop } from "@/components/site/AnimatedBolt";
+import { NotListedForm } from "@/components/site/NotListedForm";
+import { scrollToId } from "@/lib/ui-scroll";
+import { useDismiss } from "@/lib/use-dismiss";
+
+/** The greek slice of marketing context. Claim state comes from getGoChapter — never hardcoded. */
+export interface GreekMarketing {
+  orgName: string;
+  /** Display letters ("ΑΤΩ") — roster letters preferred, shorthand fallback resolved upstream. */
+  letters: string;
+  claimed: boolean;
+  /** The chapter-access section's anchor id — "Set up ΑΤΩ access →" scrolls here. */
+  accessAnchor: string;
+}
+
+/** The hero-page id the mobile sticky CTA bar observes (was CHAPTER_HERO_ID on ChapterTop). */
+export const MARKETING_HERO_ID = "marketing-hero";
+
+// ── HERO ──────────────────────────────────────────────────────────────────────────────────────
+/** One hero, three configurations. Copy is selected by context, never by page-specific markup:
+ *
+ *    general:  "Intro accounting is where GPAs quietly slip."
+ *    campus:   "{code} at {school} is where GPAs quietly slip."
+ *    greek:    eyebrow "{ORG} • {SCHOOL}" over the same campus headline.
+ *
+ *  Under the headline, the universal promise ("Practice what gets tested. Score higher.") carries
+ *  MORE weight than the built-for line beneath it — benefit first, description second, never one
+ *  long grey paragraph.
+ *
+ *  MOBILE ORDER: headline → promise → built-for → CTAs → trust chips → bolt. The bolt is
+ *  branding, not content — it comes from natural DOM order (no order-first), so it can never
+ *  push the CTA out of the first viewport. Desktop keeps it as the right column. */
+export function MarketingHero({ kind, code, schoolShort, greek, onStart, secondaryHref, onSecondary, secondaryLabel, showSecondary = true, onOpenBio, courtesy }: {
+  kind: "general" | "campus" | "greek";
+  /** Verified course code or null — a null degrades copy, never invents a code. */
+  code: string | null;
+  schoolShort: string | null;
+  greek?: GreekMarketing;
+  /** Primary CTA + "Built for exam week" chip target — scrolls to the player (and tags Greek
+   *  members upstream, where attribution belongs). */
+  onStart: () => void;
+  /** Secondary CTA: href for navigation ("/chapters?school=…"), onClick for scroll (greek). */
+  secondaryHref?: string;
+  onSecondary?: () => void;
+  secondaryLabel?: string;
+  showSecondary?: boolean;
+  onOpenBio: () => void;
+  /** CourtesyLine slot on greek pages — "courtesy of {chapter}" for seated members. */
+  courtesy?: React.ReactNode;
+}) {
+  // General pages wear the brand's own red/blue — the default Survive treatment, no plate.
+  // Campus/greek pages inherit the page root's campus colourway vars (the ONE colour source;
+  // schools.ts disagrees for Ole Miss) and carry the "for CODE · CAMPUS" plate.
+  const stops: BoltHeroStop[] = kind === "general"
+    ? [{ id: "brand", c1: BRAND_RED, c2: BRAND_BLUE }]
+    : [{ id: schoolShort ?? "campus", c1: "var(--sa-bolt-1)", c2: "var(--sa-bolt-2)", name: schoolShort ?? undefined, code }];
+
+  const headline = code && schoolShort
+    ? <><span style={{ color: "var(--accent)" }}>{code}</span> at {schoolShort} is where GPAs quietly slip.</>
+    : <>Intro accounting is where GPAs quietly slip.</>;
+
+  const builtFor = code ?? "Intro Accounting";
+
+  return (
+    <section id={MARKETING_HERO_ID} className="sa-hero3 grid items-center gap-8 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12 lg:py-14" style={{ fontFamily: BRAND_SANS }}>
+      <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
+        {greek && (
+          <p className="mb-3 text-[12px] font-black uppercase tracking-[0.13em]" style={{ color: "var(--text-muted)" }}>
+            {greek.orgName} <span aria-hidden style={{ opacity: 0.5 }}>•</span> {schoolShort}
+          </p>
+        )}
+
+        <h1 className="text-[28px] font-black leading-[1.1] sm:text-[38px] lg:text-[44px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.015em" }}>
+          {headline}
+        </h1>
+
+        {/* THE PROMISE — the benefit line, weighted ABOVE the description. */}
+        <p className="mt-5 text-[19px] font-extrabold leading-snug sm:text-[22px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
+          Practice what gets tested. Score higher.
+        </p>
+        <p className="mt-2 max-w-[24ch] text-[15px] leading-snug sm:max-w-[42ch] sm:text-[16.5px]" style={{ color: "var(--brand-cream)", opacity: 0.66 }}>
+          Cram videos + practice exams built for {builtFor}.
+        </p>
+
+        <div className="mt-7 flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row lg:justify-start">
+          <button
+            type="button"
+            onClick={onStart}
+            className="w-full rounded-xl px-7 text-[16px] font-black transition-transform hover:scale-[1.02] focus-visible:ring-2 sm:w-auto"
+            style={{ minHeight: 54, background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.6)" }}
+          >
+            Cram Exam 1 Free ⚡
+          </button>
+          {showSecondary && secondaryLabel && (
+            secondaryHref ? (
+              <a
+                href={secondaryHref}
+                className="flex w-full items-center justify-center rounded-xl px-6 text-[15px] font-bold focus-visible:ring-2 sm:w-auto"
+                style={{ minHeight: 54, color: "var(--brand-cream)", background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.18)" }}
+              >
+                {secondaryLabel}
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={onSecondary}
+                className="w-full rounded-xl px-6 text-[15px] font-bold focus-visible:ring-2 sm:w-auto"
+                style={{ minHeight: 54, color: "var(--brand-cream)", background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.18)" }}
+              >
+                {secondaryLabel}
+              </button>
+            )
+          )}
+        </div>
+
+        {/* Exec login is a UTILITY, never a hero CTA — claimed chapters only. */}
+        {greek?.claimed && (
+          <a href="/chapters/dashboard" className="mt-2.5 text-[12.5px] underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
+            Chapter exec? Log in →
+          </a>
+        )}
+
+        <TrustChips onBio={onOpenBio} onReviews={() => scrollToId("reviews")} onPlayer={onStart} />
+
+        {courtesy}
+      </div>
+
+      {/* THE BOLT — after the copy in DOM order, so mobile reads headline→CTA→chips first. */}
+      <div className="flex flex-col items-center lg:items-end">
+        <AnimatedBoltHero stops={stops} onActivate={onStart} className="sa-hero3-paper" ariaLabel="Cram Exam 1 Free" />
+      </div>
+    </section>
+  );
+}
+
+// ── TRUST CHIPS ───────────────────────────────────────────────────────────────────────────────
+/** Three small credibility chips, whole-chip clickable — no visible "→ Reviews" explainers.
+ *  They are trust badges, not CTAs: quiet by default, a shade brighter on hover, clear focus. */
+export function TrustChips({ onBio, onReviews, onPlayer }: { onBio: () => void; onReviews: () => void; onPlayer: () => void }) {
+  const CHIPS: Array<{ label: string; onClick: () => void }> = [
+    { label: "Created by a pro tutor", onClick: onBio },
+    { label: "1,000+ students helped", onClick: onReviews },
+    { label: "Built for exam week", onClick: onPlayer },
+  ];
+  return (
+    <div className="mt-6 flex flex-wrap items-center justify-center gap-2 lg:justify-start">
+      {CHIPS.map((c) => (
+        <button
+          key={c.label}
+          type="button"
+          onClick={c.onClick}
+          className="sa-trust-chip rounded-full px-3 py-1.5 text-[12px] font-semibold focus-visible:ring-2"
+          style={{ background: "rgba(245,239,230,0.07)", border: "1px solid rgba(245,239,230,0.13)", color: "var(--brand-cream)", minHeight: 32 }}
+        >
+          {c.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Chip hover/focus styling — subtle brightness + a hair of lift, quick, reduced-motion safe. */
+export const MARKETING_CSS = `
+.sa-trust-chip { opacity: 0.8; transition: opacity 140ms, border-color 140ms, background 140ms, transform 140ms; cursor: pointer; }
+.sa-trust-chip:hover { opacity: 1; background: rgba(245,239,230,0.12); border-color: rgba(245,239,230,0.28); transform: translateY(-1px); }
+.sa-trust-chip:focus-visible { opacity: 1; outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .sa-trust-chip, .sa-trust-chip:hover { transform: none; } }
+`;
+
+// ── FEATURE VALUE STRIP ───────────────────────────────────────────────────────────────────────
+/** Three scannable value cards, AFTER the player (the product proves the claims; the strip
+ *  reinforces, it doesn't preface). Card 3 is context-dynamic. */
+export function FeatureValueStrip({ code }: { code: string | null }) {
+  const CARDS = [
+    { icon: Play, title: "Quick cram videos", body: "Made for exams, not lectures." },
+    { icon: ClipboardCheck, title: "Practice exams", body: "See the problems that matter." },
+    {
+      icon: Target,
+      title: `Built for ${code ?? "Intro Accounting"}`,
+      body: code ? "Coverage matched to your exact class." : "Coverage matched to your course.",
+    },
+  ];
+  return (
+    <section className="mx-auto grid w-full max-w-[880px] gap-3 px-1 py-10 sm:grid-cols-3" style={{ fontFamily: BRAND_SANS }}>
+      {CARDS.map(({ icon: Icon, title, body }) => (
+        <div key={title} className="rounded-2xl p-4" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
+          <Icon className="h-5 w-5" style={{ color: "var(--accent)" }} aria-hidden />
+          <p className="mt-2.5 text-[15px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{title}</p>
+          <p className="mt-1 text-[13px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>{body}</p>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+// ── SOCIAL PROOF: testimonials + tutor in one row ────────────────────────────────────────────
+/** Desktop: ~60/40 row — reviews left, tutor card right. Mobile: stacked, reviews first.
+ *  Content arrives as slots so this module never imports from the landing route. */
+export function SocialProofSection({ testimonials, tutor }: { testimonials: React.ReactNode; tutor: React.ReactNode }) {
+  return (
+    <section className="mx-auto grid w-full max-w-[1040px] items-start gap-8 lg:grid-cols-[3fr_2fr]" style={{ fontFamily: BRAND_SANS }}>
+      <div className="min-w-0">{testimonials}</div>
+      <div className="min-w-0" id="lee">{tutor}</div>
+    </section>
+  );
+}
+
+// ── TUTOR CARD + FULL BIO ────────────────────────────────────────────────────────────────────
+// Lee's real photo — 4:5 crop centered on the face (moved here from landing.tsx unchanged; the
+// old cream SVG portrait stays retired for video frames).
+export function LeePortrait({ width = 200, caption = true }: { width?: number; caption?: boolean }) {
+  return (
+    <figure className="mx-auto sm:mx-0" style={{ width, transform: "rotate(1.5deg)" }}>
+      <div style={{ width, aspectRatio: "4 / 5", borderRadius: 16, border: "3px solid var(--brand-cream)", overflow: "hidden" }}>
+        <img
+          src="/lee-beach.webp" alt="Lee Ingram"
+          style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "50% 20%", transform: "scale(1.42)", transformOrigin: "50% 22%", display: "block" }}
+        />
+      </div>
+      {caption && (
+        <figcaption className="mt-3 text-center" style={{ fontFamily: BRAND_SANS }}>
+          <span className="block" style={{ fontWeight: 600, fontSize: 16, color: "var(--brand-cream)" }}>Lee Ingram</span>
+        </figcaption>
+      )}
+    </figure>
+  );
+}
+
+/** The COMPACT tutor card — facts only, one door to the full bio. Sits beside the reviews. */
+export function TutorCard({ onMore }: { onMore: () => void }) {
+  return (
+    <div className="rounded-3xl p-6 sm:p-7" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)", fontFamily: BRAND_SANS }}>
+      <h2 className="mb-5 text-[20px] font-extrabold" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Meet your tutor</h2>
+      <div className="flex items-start gap-5">
+        <LeePortrait width={112} caption={false} />
+        <div className="min-w-0" style={{ color: "var(--brand-cream)" }}>
+          <p className="text-[16px] font-bold">Lee Ingram</p>
+          <p className="mt-1 text-[13px] leading-snug" style={{ opacity: 0.75 }}>Two accounting degrees from Ole Miss</p>
+          <p className="mt-1 text-[13px] leading-snug" style={{ opacity: 0.75 }}>Tutor since 2015 · Ole Miss adjunct</p>
+          <p className="mt-1 text-[13px] leading-snug" style={{ opacity: 0.75 }}>1,000+ students helped</p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onMore}
+        className="mt-5 inline-flex items-center text-[13.5px] font-bold focus-visible:ring-2"
+        style={{ color: "var(--accent)", minHeight: 40 }}
+      >
+        Learn more about Lee →
+      </button>
+    </div>
+  );
+}
+
+/** The full bio, verbatim, in a modal — a chip or "Learn more" opens it; nothing navigates away. */
+export function TutorBioModal({ onClose }: { onClose: () => void }) {
+  const panelRef = useDismiss<HTMLDivElement>(onClose, { enabled: true });
+  // Modal is appended late — lock page scroll on the documentElement (body is a no-op under
+  // html.sa-navy) and restore on close.
+  useEffect(() => {
+    const el = document.documentElement;
+    const prev = el.style.overflow;
+    el.style.overflow = "hidden";
+    return () => { el.style.overflow = prev; };
+  }, []);
+  const P = ({ children }: { children: React.ReactNode }) => (
+    <p style={{ marginTop: 12, fontSize: 15, lineHeight: 1.6, color: "var(--brand-cream)", opacity: 0.9 }}>{children}</p>
+  );
+  return (
+    <div className="fixed inset-0 z-[300] grid place-items-center overflow-y-auto p-4" style={{ background: "rgba(5,8,16,0.72)" }} role="dialog" aria-modal="true" aria-label="About Lee Ingram">
+      <div ref={panelRef} className="relative w-full max-w-[560px] rounded-3xl p-6 sm:p-8" style={{ background: "#0F1A2E", border: "1px solid rgba(245,239,230,0.16)", fontFamily: BRAND_SANS, boxShadow: "0 40px 90px -30px rgba(0,0,0,0.9)" }}>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-3 top-3 grid place-items-center rounded-full hover:bg-white/10 focus-visible:ring-2"
+          style={{ width: 40, height: 40, color: "var(--text-muted)" }}
+        >
+          <span aria-hidden style={{ fontSize: 20 }}>×</span>
+        </button>
+        <div className="flex items-start gap-5">
+          <LeePortrait width={104} caption={false} />
+          <h2 className="text-[24px] font-black leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", marginTop: 8 }}>
+            Hey, I&apos;m Lee.
+          </h2>
+        </div>
+        <div className="mt-2">
+          <P>I earned two accounting degrees from Ole Miss and have tutored intro accounting every semester since 2015. I also teach entrepreneurship and QuickBooks as an adjunct at Ole Miss.</P>
+          <P>I keep coming back to intro accounting because it&apos;s one of those classes where good students can study hard and still get surprised by the exam.</P>
+          <P>That&apos;s why I built Survive Accounting: to turn ten years of tutoring experience into focused, $50-per-exam prep. The biggest thing I&apos;ve learned is simple—students do better when they&apos;ve already practiced the kinds of problems they&apos;re likely to see before exam day.</P>
+          <P>I genuinely love teaching this stuff. Accounting is the language of business, and once it clicks, it&apos;s a pretty powerful thing to understand.</P>
+          <P>Outside of teaching, I&apos;m usually traveling, playing music, or working on Survive.</P>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── UTILITY LINKS ─────────────────────────────────────────────────────────────────────────────
+/** The "don't see your X?" requests, MOVED out of the persuasion flow to just above the footer.
+ *  Reuses the existing capture paths: the school write-in form inline, the syllabus/professor
+ *  modal via callback, and the /chapters finder (which owns chapter self-creation). */
+export function MarketingUtilityLinks({ kind, onProfessorAsk }: {
+  kind: "general" | "campus" | "greek";
+  /** Campus pages: opens the existing syllabus modal with professor framing. */
+  onProfessorAsk?: () => void;
+}) {
+  const [schoolForm, setSchoolForm] = useState(false);
+  const LINK = "text-[13px] font-bold underline underline-offset-4 focus-visible:ring-2";
+  return (
+    <section className="mx-auto flex w-full max-w-[640px] flex-col items-center gap-2 px-5 py-8 text-center" style={{ fontFamily: BRAND_SANS }}>
+      {kind === "general" && (schoolForm
+        ? <NotListedForm kind="school" onClose={() => setSchoolForm(false)} />
+        : (
+          <button type="button" onClick={() => setSchoolForm(true)} className={LINK} style={{ color: "var(--text-muted)", minHeight: 44 }}>
+            Don&apos;t see your school? Request it →
+          </button>
+        ))}
+      {kind === "campus" && (
+        <button type="button" onClick={onProfessorAsk} className={LINK} style={{ color: "var(--text-muted)", minHeight: 44 }}>
+          Don&apos;t see your professor? Tell us who teaches it →
+        </button>
+      )}
+      {kind === "greek" && (
+        <a href="/chapters" className={LINK} style={{ color: "var(--text-muted)", minHeight: 44, display: "inline-flex", alignItems: "center" }}>
+          Don&apos;t see your school or chapter? Request it →
+        </a>
+      )}
+    </section>
+  );
+}

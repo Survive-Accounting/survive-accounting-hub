@@ -16,7 +16,6 @@
 // catches typos and dead links; a school picker is a better answer than an error page.
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
-import { CampusTop } from "@/components/site/CampusTop";
 import { getCampusPage } from "@/lib/campus-page.functions";
 import { campusOgImage, HOME_OG, ogMeta } from "@/lib/og";
 import { schoolBySlug } from "@/lib/schools";
@@ -68,18 +67,13 @@ function CampusPage() {
   return (
     <>
       {jsonLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />}
+      {/* No bespoke hero any more — LandingPage derives the campus variant of the ONE
+          MarketingHero from campus context; chapterCount only gates the Greek secondary CTA. */}
       <LandingPage
         campusSlug={school}
         initialCampusId={d.campusId}
         initialCourseCode={d.courseCode}
-        chapterTop={
-          <CampusTop
-            schoolName={d.name}
-            courseCode={d.courseCode}
-            chapterCount={d.chapterCount}
-            examAnchor="exam1"
-          />
-        }
+        chapterCount={d.chapterCount}
       />
     </>
   );

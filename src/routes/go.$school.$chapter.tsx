@@ -37,7 +37,7 @@ import { ChapterFinder } from "@/components/site/ChapterFinder";
 import { ChapterGate } from "@/components/site/ChapterGate";
 import { useChapterMember } from "@/lib/use-chapter-member";
 import { ChapterStickyCta } from "@/components/site/ChapterStickyCta";
-import { ChapterTop, CHAPTER_HERO_ID } from "@/components/site/ChapterTop";
+import { MARKETING_HERO_ID } from "@/components/site/Marketing";
 import { ChapterAccess } from "@/components/site/ChapterAccess";
 import { getGoChapter, goPath, listGoSchools, tagChapterMember, logGreekEvent } from "@/lib/greek-go.functions";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
@@ -122,17 +122,15 @@ function GoChapterPage() {
         // The chapter navbar variant — same-page anchors + the exec CTA. Passed from here (not
         // derived inside landing.tsx) because this route owns both anchor ids.
         greekNav={ch ? { examAnchor: EXAM_ANCHOR, accessAnchor: ACCESS_ANCHOR } : undefined}
-        chapterTop={ch ? (
-          <ChapterTop
-            schoolSlug={school}
-            chapterSlug={chapter}
-            chapterName={ch.chapterName}
-            schoolName={ch.schoolName}
-            examAnchor={EXAM_ANCHOR}
-            accessAnchor={ACCESS_ANCHOR}
-            onStartExam={tagMember}
-          />
-        ) : undefined}
+        // GREEK MARKETING CONTEXT — data, not a hero element. The shared MarketingHero renders
+        // the eyebrow + letters CTAs from this; claim state comes straight from getGoChapter.
+        greek={ch ? {
+          orgName: ch.chapterName,
+          letters: (ch.letters ?? "").trim() || chapterShortName(ch.chapterName, ch.letters, ch.nickname),
+          claimed: ch.claimStatus === "claimed",
+          accessAnchor: ACCESS_ANCHOR,
+        } : undefined}
+        onStartExam={tagMember}
         chapterAccess={ch ? (
           <ChapterAccess
             id={ACCESS_ANCHOR}
@@ -159,7 +157,7 @@ function GoChapterPage() {
           {/* Spacer so the fixed bar can never sit on top of the page's last content (the
               self-report link) when scrolled to the bottom. Same breakpoint as the bar. */}
           <div aria-hidden className="h-16 md:hidden" />
-          <ChapterStickyCta heroId={CHAPTER_HERO_ID} examAnchor={EXAM_ANCHOR} accessAnchor={ACCESS_ANCHOR} onStartExam={tagMember} />
+          <ChapterStickyCta heroId={MARKETING_HERO_ID} examAnchor={EXAM_ANCHOR} accessAnchor={ACCESS_ANCHOR} onStartExam={tagMember} />
         </>
       )}
     </>
