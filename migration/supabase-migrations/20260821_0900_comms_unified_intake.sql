@@ -107,12 +107,12 @@ alter table public.campus_exam_dates enable row level security;
 -- 7) Migrate the two retired write targets IN, preserving timestamps ------------------------
 --    (a) syllabus_submissions → kind by source: landing-notify → notify_exam, two_set_ask →
 --        save_progress, everything else (file uploads) → syllabus.
-insert into public.campus_waitlist (name, email, phone, campus_id, campus_text, topic, note, file_paths, source, kind, channel, created_at, legacy_table, legacy_id)
+insert into public.campus_waitlist (name, email, phone, campus_id, campus_text, professor, topic, note, file_paths, source, kind, channel, created_at, legacy_table, legacy_id)
 select
   null,
   case when position('@' in coalesce(s.email, '')) > 0 then s.email else null end,
   case when position('@' in coalesce(s.email, '')) = 0 and coalesce(s.email, '') <> '' then s.email else null end,
-  s.campus_id, s.campus_name,
+  s.campus_id, s.campus_name, s.professor_name,
   nullif(substring(coalesce(s.note, '') from 'topic: (.*)$'), ''),
   s.note, s.file_paths,
   'legacy:syllabus_submissions:' || coalesce(s.source, 'syllabus'),
@@ -122,16 +122,16 @@ select
 from public.syllabus_submissions s
 where not exists (select 1 from public.campus_waitlist w where w.legacy_table = 'syllabus_submissions' and w.legacy_id = s.id::text);
 
---    (b) outreach_waitlist_signups → kind outreach_page.
-insert into public.campus_waitlist (name, email, phone, campus_id, course_text, note, file_paths, source, kind, channel, created_at, legacy_table, legacy_id)
+--    (b) outreach_waitlist_signups → kind outreach_page. The LIVE table is the older shape
+--        (id, name, email, course, need_help_with, school_id) — no phone/campus/files.
+insert into public.campus_waitlist (name, email, course_text, course_code, note, source, kind, channel, created_at, legacy_table, legacy_id)
 select
-  o.name, o.email, o.phone, o.campus_id, coalesce(o.course, o.course_family), o.notes,
-  case when o.syllabus_file_path is not null then array[o.syllabus_file_path] else null end,
-  'legacy:outreach_waitlist_signups', 'outreach_page',
-  case when o.email is not null and o.phone is not null then 'both' when o.phone is not null then 'phone' else 'email' end,
-  o.created_at, 'outreach_waitlist_signups', o.id::text
+  o.name, o.email, o.course, o.course, o.need_help_with,
+  'legacy:outreach_waitlist_signups' || case when o.school_id is not null then ':school=' || o.school_id::text else '' end,
+  'outreach_page', 'email', o.created_at, 'outreach_waitlist_signups', o.id::text
 from public.outreach_waitlist_signups o
-where not exists (select 1 from public.campus_waitlist w where w.legacy_table = 'outreach_waitlist_signups' and w.legacy_id = o.id::text);
+where o.email is not null
+  and not exists (select 1 from public.campus_waitlist w where w.legacy_table = 'outreach_waitlist_signups' and w.legacy_id = o.id::text);
 
 --    (c) Backfill kind/channel/exam on pre-existing campus_waitlist rows from their source tag.
 update public.campus_waitlist set

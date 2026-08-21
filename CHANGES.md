@@ -3,7 +3,7 @@
 Implements the "one intake, one trigger, two directions" plan from the capture-point audit
 (2026-08-21). Every web capture now writes ONE row and sends the student a first-person
 confirmation; Lee gets one consolidated alert format; sequences, broadcast, suppression, and a
-test harness sit on top. **Two gates are Lee's** (this machine has no Supabase PAT):
+test harness sit on top. **All three gates were executed on 2026-08-21** (DDL applied via Management API, SMTP + magic-link template set, webhook redeployed — verify_jwt stays false). Recipes kept for reference:
 
 1. **Apply the DDL:** `bun run migration/supabase-migrations/run_sql.ts migration/supabase-migrations/20260821_0900_comms_unified_intake.sql --apply`
 2. **Point auth email at Resend:** `bun run migration/supabase-migrations/set_auth_smtp.ts --apply`
@@ -56,10 +56,10 @@ scroll to the page's real form / course list. **Fixed:** `/chapters` fallback CT
 
 ### Migration counts (live DB, counted 2026-08-21 before apply)
 - `syllabus_submissions` → `campus_waitlist`: **1 row** (source `landing-notify` → kind notify_exam; 0 two_set_ask; 0 with files)
-- `outreach_waitlist_signups` → `campus_waitlist`: **0 rows**
+- `outreach_waitlist_signups` → `campus_waitlist`: **0 rows** (the live table is the older shape — name/email/course/need_help_with/school_id — the migration maps those)
 - Pre-existing `campus_waitlist`: **6 rows** back-filled to kind notify_exam + channel + exam (from the source tag)
 - Left in place read-only: `tutoring_requests` (0), `referrals` (0). Timestamps are preserved; migrated rows carry `legacy_table`/`legacy_id` so the move is idempotent and auditable.
-- **Verify after apply:** `select kind, count(*) from campus_waitlist group by 1;` should show 7 rows total (6 + 1).
+- **Verified after apply:** 7 rows — 6 native + 1 migrated (`legacy_table=syllabus_submissions`); all 5 new tables present.
 
 ## 2. Compliance
 - `SmsConsentNote` (in `SmsConsentBanner.tsx`) renders **beside every phone field**: NotListedForm, ChapterAccessForm, RepInterest, `/start`, onboarding step 1, CourseWaitlistModal, the landing Notify modal. Copy states what, how often (1–4/month), rates, STOP/HELP, Privacy/Terms. A submitted phone beside the note stores `consent_sms_at`; the send layer refuses student SMS without it.
