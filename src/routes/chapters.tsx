@@ -31,6 +31,7 @@ import { ogMeta } from "@/lib/og";
 
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { FitWordmark, SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
+import { Footer } from "@/components/site/SiteFooter";
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 
 const FINDER_SCHOOLS = ALL_SCHOOLS.map((x) => ({ slug: x.slug, name: x.name }));
@@ -109,6 +110,7 @@ function ChaptersPage() {
           </div>
         </section>
       </main>
+      <Footer />
     </div>
   );
 }

@@ -21,7 +21,7 @@ import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { getSiteSettings } from "@/lib/site-settings.functions";
 import { ogMeta } from "@/lib/og";
 import { logExpandEvent, submitReferral, type ExpandEvent } from "@/lib/referrals.functions";
-import { Footer } from "./landing";
+import { Footer } from "@/components/site/SiteFooter";
 
 export const Route = createFileRoute("/expand")({
   // Unlisted (noindex) but heavily FORWARDED — this page exists to be texted to alumni, so its

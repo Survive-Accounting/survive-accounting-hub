@@ -9,6 +9,7 @@ import { frameThemeVars } from "@/components/frames/frame-theme";
 import { Bolt, BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { SearchPicker } from "@/components/site/SearchPicker";
 import { SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
+import { Footer } from "@/components/site/SiteFooter";
 import { ogMeta } from "@/lib/og";
 import { ALL_SCHOOLS, boltForSlug, schoolById } from "@/lib/schools";
 import { readCampusPrefs } from "@/lib/campus-prefs.functions";
@@ -72,6 +73,7 @@ function RepPicker() {
           {" "}and tell him where you go.
         </p>
       </main>
+      <Footer />
     </div>
   );
 }

@@ -39,6 +39,8 @@ import {
 } from "@/components/site/Marketing";
 import { CampusProvider, useCampus } from "@/lib/campus-context";
 import { readStoredCampus, rememberCampus, rememberProfSkip, SKIPPED, NOT_LISTED } from "@/lib/campus-prefs";
+import { Footer } from "@/components/site/SiteFooter";
+import { TestimonialsSlider } from "@/components/site/Testimonials";
 import { contactKind, LAUNCH_LINE, LAUNCH_WINDOW } from "@/lib/launch";
 import { Bolt, BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS, SEC_SCHOOLS } from "@/components/canvas/brand";
 
@@ -1924,150 +1926,9 @@ function Poster({ school, exam, topicName, stem }: { school: School | null; exam
 // LeeSection + LeePortrait moved to components/site/Marketing (TutorCard + TutorBioModal + the
 // portrait). The bio is a MODAL now — opened by the pro-tutor trust chip and the tutor card.
 
-// ---- TESTIMONIALS (own slider — navy/cream/bolt; no white cards / stars / verified badges) ----
-// Curated top-10 from testimonials.csv, best-first. long=1 → truncate + "show more". Auto-advances
-// 6s; ANY interaction stops it permanently; reduced-motion = manual only. `avatar` is our RE-HOSTED
-// Supabase URL (testimonial-avatars bucket) — the original testimonial.to Firebase avatars are never
-// hotlinked; a person with no source avatar (or a broken load) falls back to initials.
-const AV = "https://unvxagsledbsdoremqeb.supabase.co/storage/v1/object/public/testimonial-avatars";
-// `code` is the student's OWN course code, optional. None of the current rows have one, so they
-// all render campus-only. Do NOT backfill it from the campus: the code a student took in 2019 is
-// not necessarily the code that campus uses now, and that is a fact about a real person.
-type Testimonial = { name: string; school: string; long: boolean; quote: string; avatar?: string; code?: string };
-const TESTIMONIALS: Testimonial[] = [
-  { name: "Zach Parker", school: "Ole Miss", long: false, quote: "Lee your videos saved me on multiple choice. Everything you thought would be on there was." },
-  { name: "George L.", school: "Ole Miss", long: false, quote: "If it weren’t for Lee, I wouldn’t have made A’s in both intro courses.", avatar: `${AV}/george-l.jpg` },
-  { name: "Tyler K.", school: "Ole Miss", long: false, quote: "Lee's exam prep videos are better than any tutor I’ve ever had.", avatar: `${AV}/tyler-k.jpg` },
-  { name: "James L.", school: "Ole Miss", long: false, quote: "Feel like I got an A purely because of Lee's videos." },
-  { name: "Claire Ficek", school: "Ole Miss", long: false, quote: "Survive Accounting is literally the only reason that I got through Accounting 201! A bunch of my friends used it and said it was so helpful." },
-  { name: "Ryan M.", school: "Ole Miss", long: false, quote: "Lee's videos were a lifesaver. I would've failed without them.", avatar: `${AV}/ryan-m.jpg` },
-  { name: "Nic Ripson", school: "Ole Miss", long: false, quote: "Survive Accounting helped me better understand the content I needed to learn. My quiz average was a 45% and after using this platform to study I got an 84.5% on my first intermediate exam." },
-  { name: "Brace R.", school: "Ole Miss", long: false, quote: "I enjoyed how he broke everything down to very simple terms that weren’t necessarily explained in class.", avatar: `${AV}/brace-r.jpg` },
-  { name: "Nate K.", school: "Ole Miss", long: true, quote: "Survive accounting is the sole reason that I got through both accounting courses at ole miss. Lee does an exceptional job breaking every little piece down as much as possible and makes it super easy to follow along. He is very enthusiastic and not only is he a great accounting tutor but he is also a genuinely great guy. If you need assistance in your accounting class I highly recommend Survive Accounting.", avatar: `${AV}/nate-k.jpg` },
-  { name: "Daniel B.", school: "Ole Miss", long: true, quote: "Survive Accounting helped with my homework, test preparation, and the overall understanding of accounting. Having the ability to see how Lee went step by step in problems helped me grasp super confusing concepts. He was also very friendly over email and even gave me specific pointers about assignments I emailed to him which was a huge help. If you are going to dedicate time to studying, I would highly recommend using Survive Accounting to optimize your understanding of the material and give yourself a greater chance of receiving a high grade in the class!", avatar: `${AV}/daniel-b.jpg` },
-];
-const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+// Testimonials moved to components/site/Testimonials — the partner pages show the same student
+// proof, and a route file cannot be imported by a component.
 
-// Avatar: our re-hosted image when present, initials otherwise (and on any load error — never a
-// hotlink, never a broken image).
-function TestimonialAvatar({ name, src }: { name: string; src?: string }) {
-  const [broken, setBroken] = useState(false);
-  if (src && !broken) {
-    // Eager (not lazy): the slider translates cards off-screen, and lazy never fires for a
-    // transformed off-screen <img>. These are 2–5KB each, so eager load is cheap and reliable.
-    return <img src={src} alt={name} onError={() => setBroken(true)} className="h-12 w-12 shrink-0 rounded-full object-cover" style={{ border: "1px solid var(--border-default)" }} />;
-  }
-  return <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full text-[14px] font-black" style={{ background: "var(--bg-overlay)", border: "1px solid var(--border-default)", color: "var(--accent)" }}>{initialsOf(name)}</span>;
-}
-
-/** THREE-UP review cards (one-up below sm), paged. The heading lives in SocialProofSection so it
- *  sits on the same baseline as "Meet your tutor" beside it. Auto-advances by PAGE every 7s;
- *  any interaction stops it for good; reduced motion never starts it. No star RATING is quoted —
- *  five brand stars + the real "1,000+ students helped" number, nothing invented. */
-function TestimonialsSlider() {
-  const reduce = useMemo(() => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches, []);
-  const n = TESTIMONIALS.length;
-  // Per-page count is read in an effect (SSR renders 3-up; a phone drops to 1-up after mount).
-  const [per, setPer] = useState(3);
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 639px)");
-    const apply = () => setPer(mq.matches ? 1 : 3);
-    apply(); mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
-  }, []);
-  // NEVER A LONE CARD. 10 testimonials three-up left the last page showing one card and two empty
-  // slots. The track is padded by wrapping the FIRST cards back onto the end, so the final page is
-  // a full row that loops around (…, 9, 1, 2) instead of a single orphan. Exact multiples pad
-  // nothing, and the one-up phone layout never needs it.
-  const track = useMemo(() => {
-    const rem = n % per;
-    return rem === 0 ? TESTIMONIALS : [...TESTIMONIALS, ...TESTIMONIALS.slice(0, per - rem)];
-  }, [per, n]);
-  const total = track.length;
-  const pages = Math.ceil(n / per);
-  const [page, setPage] = useState(0);
-  const [auto, setAuto] = useState(!reduce);
-  const [hover, setHover] = useState(false);
-  const stop = () => setAuto(false);
-  const go = (d: -1 | 1) => setPage((p) => (p + d + pages) % pages);
-  useEffect(() => { setPage((p) => Math.min(p, pages - 1)); }, [pages]);
-  useEffect(() => {
-    if (!auto || hover || reduce || pages < 2) return;
-    const t = window.setInterval(() => setPage((p) => (p + 1) % pages), 7000);
-    return () => window.clearInterval(t);
-  }, [auto, hover, reduce, pages]);
-
-  // pointer drag / swipe; past threshold advances AND stops auto-play.
-  const start = useRef<number | null>(null);
-  const [dx, setDx] = useState(0);
-  const onDown = (e: RPointerEvent) => { start.current = e.clientX; };
-  const onMove = (e: RPointerEvent) => { if (start.current != null) setDx(e.clientX - start.current); };
-  const end = () => { const d = dx; start.current = null; setDx(0); if (Math.abs(d) > 40) { go(d < 0 ? 1 : -1); stop(); } };
-
-  return (
-    <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-      <div className="mb-4 flex items-center gap-2 text-[14px]" style={{ color: "var(--brand-cream)" }}>
-        <span aria-hidden style={{ color: "var(--accent)", letterSpacing: "0.08em" }}>★★★★★</span>
-        <span style={{ opacity: 0.7 }}>1,000+ students helped</span>
-      </div>
-
-      <div className="relative select-none overflow-hidden" style={{ touchAction: "pan-y" }}
-        onPointerDown={onDown} onPointerMove={onMove} onPointerUp={end} onPointerLeave={() => { if (start.current != null) { start.current = null; setDx(0); } }}>
-        <div className="flex" style={{ width: `${(total / per) * 100}%`, transform: `translateX(calc(-${page * (per / total) * 100}% + ${dx}px))`, transition: start.current != null ? "none" : "transform 420ms ease" }}>
-          {track.map((t, i) => (
-            // Index in the key: a wrapped card appears twice in the track and names are not unique.
-            <figure key={`${t.name}-${i}`} className="px-1.5" style={{ width: `${100 / total}%` }} aria-hidden={i >= n ? true : undefined}>
-              <div className="flex h-full flex-col rounded-2xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", minHeight: 168 }}>
-                <blockquote className="text-[14px] leading-relaxed" style={{ color: "var(--brand-cream)", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>
-                  “{t.quote}”
-                </blockquote>
-                <figcaption className="mt-auto flex items-center gap-2.5 pt-3">
-                  <TestimonialAvatar name={t.name} src={t.avatar} />
-                  <span className="min-w-0 text-left">
-                    <span className="block truncate text-[14px] font-bold" style={{ color: "var(--brand-cream)" }}>{t.name}</span>
-                    <span className="block text-[11.5px]" style={{ color: "var(--text-muted)" }}>{[t.school, t.code].filter(Boolean).join(" · ")}</span>
-                  </span>
-                </figcaption>
-              </div>
-            </figure>
-          ))}
-        </div>
-      </div>
-
-      {/* controls — every one stops auto-play permanently */}
-      {pages > 1 && (
-        <div className="mt-4 flex items-center gap-3">
-          <button onClick={() => { go(-1); stop(); }} className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-[20px] hover:bg-white/5" style={{ color: "var(--brand-cream)", border: "1px solid var(--border-default)" }} aria-label="Previous reviews">‹</button>
-          {/* Each dot is an 8px mark inside a 44px button — the target is thumb-sized, the
-              indicator stays a dot. Dots are 24px apart so ten of them fit a phone. */}
-          {/* Below sm the pager is a counter: ten thumb-sized dots are 440px wide, which a phone
-              cannot hold, and 8px dots were the smallest targets on the page. */}
-          <span className="text-[14px] font-bold tabular-nums sm:hidden" style={{ color: "var(--text-muted)" }} aria-live="polite">{page + 1} / {pages}</span>
-          <div className="hidden items-center sm:flex">
-            {Array.from({ length: pages }, (_, i) => (
-              <button key={i} onClick={() => { setPage(i); stop(); }} aria-label={`Go to reviews page ${i + 1}`} aria-current={i === page ? "true" : undefined} className="grid place-items-center" style={{ width: i === page ? 34 : 24, height: 44 }}>
-                <span className="block h-2 rounded-full transition-all" style={{ width: i === page ? 18 : 8, background: i === page ? "var(--accent)" : "rgba(245,239,230,0.3)" }} />
-              </button>
-            ))}
-          </div>
-          <button onClick={() => { go(1); stop(); }} className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-[20px] hover:bg-white/5" style={{ color: "var(--brand-cream)", border: "1px solid var(--border-default)" }} aria-label="Next reviews">›</button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ---- CHAPTER BANNER + CLAIM (on /go/<school>/<chapter> links) --------------------------------
-// The chapter strip + an optional claim (name + phone -> member row). Never gates:
-// the player already works; claiming just registers the member so the chapter dashboard counts them.
-// ChapterBanner and ClaimModal were DELETED here.
-//
-// The banner repeated what the chapter header now says in type (chapter, school, course code),
-// and its "Claim your free access" modal was the only thing that opened ClaimModal. Member
-// attribution did not go with them — it moved to the "Start Exam 1 free" press, which is the
-// same signal without a form in front of the free product.
-
-// ---- SECTION RHYTHM — a quiet 1px breath between major sections (my-12 → ~96px gap) --------------
 function SectionDivider() {
   return <div aria-hidden className="mx-auto my-12 h-px w-full max-w-[200px]" style={{ background: "var(--bg-surface)" }} />;
 }
@@ -2082,84 +1943,7 @@ function SectionDivider() {
  *  drift apart. */
 /** Column 2 of the footer. Four in-page anchors; the Greek link is its own thing and lives in
  *  column 3, next to the other "reach a human" routes. */
-// `base` = "" on the landing layout (the anchors are on this page), "/" elsewhere — /expand
-// rendered these as bare "#exam1" links to sections it does not have, which went nowhere.
-const footerLinks = (base: string, repHref: string): { label: string; href: string }[] => [
-  { label: "Cram Exam 1 Free", href: `${base}#exam1` },
-  { label: "Reviews", href: `${base}#reviews` },
-  { label: "Meet your tutor", href: `${base}#lee` },
-  { label: "Contact", href: `${base}#contact` },
-  // FOOTER ONLY, deliberately — not the navbar and not the hamburger. A commission ad in the
-  // primary nav would compete with the product for every student who is not going to apply.
-  { label: "Become a campus rep", href: repHref },
-];
-
-export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
-  // Campus-scoped destinations from the ONE campus source: a visitor the site has placed goes to
-  // their school's rep page and their school's chapter list, never back to a picker.
-  const campus = useCampus();
-  const slug = campus.school?.slug ?? null;
-  const FOOTER_LINKS = footerLinks(onLanding ? "" : "/", slug ? `/${slug}/rep` : "/rep");
-  const greekHref = slug ? `/chapters?school=${slug}` : "/chapters";
-  return (
-    <footer id="site-footer" className="border-t pt-8 pb-6 sm:pt-10 sm:pb-8" style={{ borderColor: "var(--border-default)", background: "var(--bg-nav)", fontFamily: BRAND_SANS }}>
-      {/* PASS 6 — three columns instead of one tall centred stack. The old footer ran ~3 screens of
-          scrolling on a phone to say four things; a student who reached the bottom looking for a
-          phone number had to scroll past the whole nav to find it. Columns also let the "reach
-          Lee" block sit at the same level as navigation rather than above it, which is what it
-          actually is: one option among several, not a headline. */}
-      <div className="mx-auto grid max-w-[1040px] gap-6 px-5 sm:grid-cols-3 sm:gap-8">
-
-        {/* COLUMN 1 — brand. Hidden below sm: the header already shows the wordmark a swipe away,
-            and this tagline is repeated VERBATIM in the bottom row, so on a phone the two would sit
-            a few hundred pixels apart saying the same sentence twice. */}
-        <div className="hidden sm:block">
-          {/* FitWordmark hard-centres (alignItems: "center") because that is right in a navbar.
-              In a footer COLUMN it put the mark 83px right of the tagline under it and out of line
-              with NAVIGATE / REACH LEE. The component spreads `style` last, so overriding the
-              alignment is the whole fix — no wrapper, and the navbar lockup is untouched. */}
-          <FitWordmark size={54} style={{ alignItems: "flex-start" }} />
-          <p className="mt-2 text-[14px]" style={{ color: "var(--text-muted)" }}>Cram what&apos;s on your exam.</p>
-        </div>
-
-        {/* COLUMN 2 — navigate */}
-        <nav>
-          <p className="mb-2 hidden text-[11px] font-black uppercase sm:block" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>Navigate</p>
-          <ul>
-            {FOOTER_LINKS.map((it) => (
-              <li key={it.label}>
-                <a href={it.href} className="inline-flex items-center text-[14px] font-semibold transition-colors hover:text-[var(--accent)]" style={{ color: "var(--brand-cream)", minHeight: 44 }}>{it.label}</a>
-              </li>
-            ))}
-          </ul>
-        </nav>
-
-        {/* COLUMN 3 — reach Lee. The ghost bolt that used to boil behind this block is gone: at
-            column width it was a texture nobody could read as a bolt. */}
-        <div id="contact" className="scroll-mt-16">
-          <p className="mb-2 hidden text-[11px] font-black uppercase sm:block" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>Questions?</p>
-          <p className="text-[14px] font-bold" style={{ color: "var(--brand-cream)" }}>Text me — I respond to every message.</p>
-          <a href={`sms:${TEL}`} className="mt-3 inline-flex items-center gap-2 rounded-xl px-4 text-[14px] font-black" style={{ background: "var(--accent)", color: "#0B1220", minHeight: 44 }}>
-            <MessageCircle className="h-4 w-4" /> Text Lee {PHONE}
-          </a>
-          {/* Set apart from the text-me CTA by a rule: it is a different audience, not a
-              second way to reach Lee. The old two-line "For Fraternities & Sororities /
-              Boost chapter GPAs" pair said the same thing twice for one link. */}
-          <a href={greekHref} className="mt-4 inline-flex items-center gap-2 border-t pt-4 text-[14px] font-semibold transition-colors hover:text-[var(--accent)]" style={{ minHeight: 48, color: "var(--brand-cream)", borderColor: "var(--border-default)" }}>
-            <span aria-hidden>🏛️</span> For Greek Orgs
-          </a>
-        </div>
-      </div>
-
-      {/* BOTTOM ROW — full width, centred. Text and ORDER unchanged: the memorial line is the last
-          thing on the page and stays that way. */}
-      <div className="mx-auto mt-6 flex max-w-[1040px] flex-col items-center gap-1 border-t px-5 pt-5 text-center sm:mt-9 sm:gap-1.5 sm:pt-6" style={{ borderColor: "var(--border-subtle)" }}>
-        <p className="text-[14px]" style={{ color: "var(--text-muted)" }}>surviveaccounting.com</p>
-        <p className="text-[14px]" style={{ color: "var(--text-muted)" }}>© 2026 Earned Wisdom LLC</p>
-        <p className="text-[14px] italic" style={{ color: "var(--text-tertiary)", letterSpacing: "0.01em" }}>In memory of Ben Ingram, 1993–2017</p>
-      </div>
-    </footer>
-  );
-}
+// The FOOTER lives in components/site/SiteFooter — every marketing page needs it, including the
+// partner pages, and a route file is the wrong home for something imported that widely.
 
 
