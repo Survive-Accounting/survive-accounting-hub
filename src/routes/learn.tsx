@@ -21,7 +21,9 @@ import { ChevronDown, ChevronRight, Circle, CircleCheck, CircleDot, ListTree, Lo
 
 import { useDismiss } from "@/lib/use-dismiss";
 import { joinPricingWaitlist } from "@/lib/pricing-api";
-import { fetchStudentTree, type StudentCourse, type StudentSet, type StudentTopic } from "@/lib/student.functions";
+import { fetchStudentTree, type PracticeQuestion, type StudentCourse, type StudentSet, type StudentTopic } from "@/lib/student.functions";
+import { nextStep, setIndexOf, stagesOf, type SetStage } from "@/lib/set-flow";
+import { PracticeStage } from "@/components/site/PracticeStage";
 import { listOverrideCampuses, type CampusOpt } from "@/lib/campus-overrides.functions";
 import { claimMyOrders, fetchMyUnlockedTopics, getSetPlayback } from "@/lib/entitlements.functions";
 import { NEON } from "@/components/canvas/theme";
@@ -36,12 +38,15 @@ type ProgressState = "unstarted" | "in_progress" | "complete";
  *  student_set_progress (position columns degrade gracefully until 20260820_1500 applies). */
 type Prog = { state: ProgressState; positionSec: number; durationSec: number | null; updatedAt: number };
 
-type LearnSearch = { campus?: string; topic?: string; demo?: boolean };
+type LearnSearch = { campus?: string; topic?: string; set?: string; stage?: SetStage; demo?: boolean };
 
 export const Route = createFileRoute("/learn")({
   validateSearch: (s: Record<string, unknown>): LearnSearch => ({
     campus: typeof s.campus === "string" && s.campus ? s.campus : undefined,
     topic: typeof s.topic === "string" && s.topic ? s.topic : undefined,
+    // DEEP LINK into a set/stage — what "Continue where you left off" hands off to.
+    set: typeof s.set === "string" && s.set ? s.set : undefined,
+    stage: s.stage === "cram" || s.stage === "practice" || s.stage === "review" ? s.stage : undefined,
     demo: s.demo === true || s.demo === 1 || s.demo === "1" || s.demo === "true" ? true : undefined,
   }),
   head: () => ({ meta: [{ title: "⚡ Learn — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
@@ -58,8 +63,20 @@ const muxThumb = (playbackId: string) => `https://image.mux.com/${playbackId}/th
 // ---- DEMO TREE (?demo=1) — placeholder content so the shell can be previewed populated.
 //      Pure client-side stand-in: demo set ids never reach the DB and "videos" are stubs. ------
 const DEMO_PLAYBACK = "__demo__";
+// Canned practice questions for demo sets — the same shape fetchSetPractice serves.
+const DEMO_QUESTIONS: PracticeQuestion[] = [
+  { id: "dq1", prompt: "A company pays $1,200 on Oct 1 for a 12-month insurance policy. What does the Oct 1 entry debit?", shorthand: "Prepaid → expense", choices: [
+    { id: "a", text: "Insurance Expense", correct: false, feedback: "Not yet — nothing is used up on day one. Watch for the word 'pays in advance'." },
+    { id: "b", text: "Prepaid Insurance", correct: true, feedback: "Paying in advance buys an ASSET; it becomes expense as months pass." },
+    { id: "c", text: "Cash", correct: false, feedback: "Cash is the CREDIT here — it's what leaves." },
+  ] },
+  { id: "dq2", prompt: "Which pair keeps the accounting equation in balance after buying supplies on account?", shorthand: "A = L + E", choices: [
+    { id: "a", text: "Assets up, Liabilities up", correct: true, feedback: "Supplies (asset) rise, Accounts Payable (liability) rises — balanced." },
+    { id: "b", text: "Assets up, Equity up", correct: false, feedback: "'On account' means a payable, not owner money." },
+  ] },
+];
 function demoTree(): StudentCourse[] {
-  const set = (id: string, name: string, o: Partial<StudentSet> = {}): StudentSet => ({ id: `demo-${id}`, name, access: "free", orientation: "landscape", playbackId: DEMO_PLAYBACK, ceqCount: 0, runtimeSec: null, firstStem: null, ...o });
+  const set = (id: string, name: string, o: Partial<StudentSet> = {}): StudentSet => ({ id: `demo-${id}`, name, access: "free", orientation: "landscape", playbackId: DEMO_PLAYBACK, ceqCount: 0, runtimeSec: null, hasReview: false, reviewPlaybackId: null, reviewRuntimeSec: null, firstStem: null, ...o });
   return [
     {
       id: "demo-intro1", name: "Intro 1", family: "intro",
@@ -68,7 +85,8 @@ function demoTree(): StudentCourse[] {
           id: "demo-exam1", name: "Exam 1",
           topics: [
             { id: "demo-t1", name: "The Accounting Cycle", shortLabel: "Cycle", number: 1, sets: [
-              set("s1", "The Big Picture", { runtimeSec: 312, ceqCount: 6 }),
+              // Set 1 has a REVIEW; sets 2–3 don't — exercises both flow shapes.
+              set("s1", "The Big Picture", { runtimeSec: 312, ceqCount: 6, hasReview: true, reviewPlaybackId: DEMO_PLAYBACK, reviewRuntimeSec: 940 }),
               set("s2", "Assets = Liabilities + Equity", { runtimeSec: 428, ceqCount: 9 }),
               set("s3", "The Cycle, Start to Finish", { runtimeSec: 517, ceqCount: 7 }),
             ] },
@@ -120,52 +138,73 @@ function PreRoll({ chipText, onDone }: { chipText: string; onDone: () => void })
   );
 }
 
-// ---- UP NEXT — after a video ends, offer the topic's next playable set on a countdown. ------
-function UpNextCard({ next, onPlay, onDismiss }: { next: StudentSet; onPlay: () => void; onDismiss: () => void }) {
-  const [left, setLeft] = useState(5);
+// ---- END CARD — the forward step when a stage finishes. Cram → "Practice this set →" (no
+//      countdown: practice is a doing, not a watching), video → video gets the 5s countdown. --
+function EndCard({ kicker, name, sub, ctaLabel, countdown, onGo, onDismiss }: { kicker: string; name: string; sub?: string | null; ctaLabel: string; countdown: boolean; onGo: () => void; onDismiss: () => void }) {
+  const [left, setLeft] = useState(countdown ? 5 : null as number | null);
   useEffect(() => {
-    const iv = window.setInterval(() => setLeft((n) => n - 1), 1000);
+    if (left == null) return;
+    const iv = window.setInterval(() => setLeft((n) => (n == null ? n : n - 1)), 1000);
     return () => window.clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  useEffect(() => { if (left <= 0) onPlay(); }, [left, onPlay]);
+  useEffect(() => { if (left != null && left <= 0) onGo(); }, [left, onGo]);
   return (
     <div className="absolute inset-0 z-20 grid place-items-center" style={{ background: "rgba(4,7,14,0.88)" }}>
       <div className="w-full max-w-xs rounded-2xl p-5 text-center" style={{ background: "#0b1020", border: `1px solid ${NEON.borderSoft}` }}>
-        <div className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: NEON.muted }}>Up next in {Math.max(0, left)}…</div>
-        <div className="mt-1.5 text-[14px] font-black" style={{ color: NEON.text }}>{next.name}</div>
-        {next.runtimeSec != null && <div className="mt-0.5 text-[10.5px] font-bold" style={{ color: NEON.muted }}>{fmtRuntime(next.runtimeSec)}</div>}
-        <button className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-black uppercase tracking-wide" style={{ color: "#0B1322", background: NEON.yellow }} onClick={onPlay}><Play className="h-3.5 w-3.5" /> Play now</button>
+        <div className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: NEON.muted }}>{kicker}{left != null ? ` in ${Math.max(0, left)}…` : ""}</div>
+        <div className="mt-1.5 text-[14px] font-black" style={{ color: NEON.text }}>{name}</div>
+        {sub && <div className="mt-0.5 text-[10.5px] font-bold" style={{ color: NEON.muted }}>{sub}</div>}
+        <button className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-black uppercase tracking-wide" style={{ color: "#0B1322", background: NEON.yellow }} onClick={onGo}><Play className="h-3.5 w-3.5" /> {ctaLabel}</button>
         <button className="mt-1.5 w-full rounded-xl px-3 py-1.5 text-[11px] font-bold" style={{ color: NEON.muted }} onClick={onDismiss}>Not now</button>
       </div>
     </div>
   );
 }
 
-// ---- Mux/HLS player (reuse the app's hls.js path; @mux/mux-player isn't a dep) ------------
-function VideoPlayer({ set, chipText, startAt, next, demo, onClose, onStarted, onComplete, onPosition, onPlayNext }: {
-  set: StudentSet; chipText: string; startAt: number; next: StudentSet | null; demo: boolean;
+// ---- SET PLAYER — one modal walks a set's stages: Cram Blast → Practice → Review. The video
+//      element is the app's hls.js path (@mux/mux-player isn't a dep) and is the SAME for cram
+//      and review — the stage decides which playback id it gets and where "done" leads. --------
+function SetPlayer({ set, sets, stage, chipText, startAt, demo, onClose, onStarted, onComplete, onPosition, onGoto }: {
+  set: StudentSet; sets: StudentSet[]; stage: SetStage; chipText: string; startAt: number; demo: boolean;
   onClose: () => void; onStarted: () => void; onComplete: () => void;
-  onPosition: (positionSec: number, durationSec: number | null) => void; onPlayNext: () => void;
+  onPosition: (positionSec: number, durationSec: number | null) => void;
+  /** Move within the flow — same set another stage, or the next set's cram. */
+  onGoto: (setId: string, stage: SetStage) => void;
 }) {
   const ref = useRef<HTMLVideoElement>(null);
   const [err, setErr] = useState(false);
-  const [preroll, setPreroll] = useState(true);
+  // The silent branded pre-roll belongs to the CRAM entrance only (the caller keys this
+  // component by set+stage, so the initial value is per-stage-correct).
+  const [preroll, setPreroll] = useState(stage === "cram");
   const [ended, setEnded] = useState(false);
   const lastWrite = useRef(0);
   const portrait = set.orientation === "portrait";
-  const isDemo = demo || set.playbackId === DEMO_PLAYBACK;
+  const isCram = stage === "cram";
+  const pid = stage === "review" ? set.reviewPlaybackId : set.playbackId;
+  const isDemo = demo || pid === DEMO_PLAYBACK;
+  const stages = stagesOf(set);
+  const { n, of } = setIndexOf(sets, set.id);
+  const after = nextStep(sets, set.id, stage);
+  const nextSet = after && after.setId !== set.id ? sets.find((s) => s.id === after.setId) ?? null : null;
+  // The forward step, described for the end card / practice CTA.
+  const forward = after
+    ? after.setId === set.id
+      ? { label: after.stage === "practice" ? "Practice this set →" : "Review with Lee →", kicker: after.stage === "practice" ? "Try it yourself" : "Watch Lee work it", name: after.stage === "practice" ? `${set.ceqCount} questions` : set.name, sub: after.stage === "review" && set.reviewRuntimeSec != null ? fmtRuntime(set.reviewRuntimeSec) : null, countdown: after.stage === "review" }
+      : { label: "Next set →", kicker: "Next set", name: nextSet?.name ?? "Next set", sub: nextSet?.runtimeSec != null ? fmtRuntime(nextSet.runtimeSec) : null, countdown: true }
+    : null;
   // DEMO: opening a video simulates being ~40% through it, so the continue-watching rail,
   // watched strips, and Resume labels are all exercisable before any real stream exists.
   const started = useRef(false);
   useEffect(() => {
-    if (!isDemo || started.current) return;
+    if (!isDemo || !isCram || started.current) return;
     started.current = true;
     onStarted();
     if (set.runtimeSec) onPosition(Math.round(set.runtimeSec * 0.4), set.runtimeSec);
-  }, [isDemo, set.runtimeSec, onStarted, onPosition]);
+  }, [isDemo, isCram, set.runtimeSec, onStarted, onPosition]);
   useEffect(() => {
-    const v = ref.current, pid = set.playbackId;
-    if (isDemo || !v || !pid) return;
+    const v = ref.current;
+    if (stage === "practice" || isDemo || !v || !pid) return;
     const src = `https://stream.mux.com/${pid}.m3u8`;
     let hls: { destroy: () => void } | null = null;
     if (v.canPlayType("application/vnd.apple.mpegurl")) { v.src = src; return; }
@@ -176,54 +215,89 @@ function VideoPlayer({ set, chipText, startAt, next, demo, onClose, onStarted, o
       else { ref.current.src = src; }
     }).catch(() => setErr(true));
     return () => { cancelled = true; hls?.destroy(); };
-  }, [set.playbackId, set.orientation, isDemo]);
+  }, [pid, stage, isDemo]);
   // The video autoplays only AFTER the silent pre-roll ends (so the pre-roll stays silent).
-  // RESUME: seek to the saved position first — but never into the last 10s (that's "rewatch").
+  // RESUME (cram only): seek to the saved position — but never into the last 10s ("rewatch").
   useEffect(() => {
-    if (preroll || isDemo) return;
+    if (preroll || isDemo || stage === "practice") return;
     const v = ref.current;
     if (!v) return;
-    if (startAt > 5) {
+    if (isCram && startAt > 5) {
       const seek = () => { if (!v.duration || startAt < v.duration - 10) v.currentTime = startAt; };
       if (v.readyState >= 1) seek(); else v.addEventListener("loadedmetadata", seek, { once: true });
     }
     void v.play().catch(() => { /* user can hit play */ });
-  }, [preroll, startAt, isDemo]);
-  // Write the position on unmount too — the classic "closed the player" resume case.
-  useEffect(() => () => { const v = ref.current; if (v && !isDemo && v.currentTime > 0) onPosition(Math.floor(v.currentTime), v.duration ? Math.floor(v.duration) : null); }, [isDemo, onPosition]);
-  const flush = () => { const v = ref.current; if (v) onPosition(Math.floor(v.currentTime), v.duration ? Math.floor(v.duration) : null); };
+  }, [preroll, startAt, isDemo, isCram, stage]);
+  // Write the position on unmount too — the classic "closed the player" resume case. CRAM ONLY:
+  // a review position must never overwrite the cram resume point on the same progress row.
+  useEffect(() => () => { const v = ref.current; if (v && !isDemo && isCram && v.currentTime > 0) onPosition(Math.floor(v.currentTime), v.duration ? Math.floor(v.duration) : null); }, [isDemo, isCram, onPosition]);
+  const flush = () => { const v = ref.current; if (v && isCram) onPosition(Math.floor(v.currentTime), v.duration ? Math.floor(v.duration) : null); };
+  const stagePill = (st: SetStage) => (
+    <button
+      key={st}
+      className="rounded-full px-2 py-0.5 text-[9.5px] font-black uppercase tracking-wider"
+      style={{ color: st === stage ? "#0B1322" : NEON.muted, background: st === stage ? NEON.yellow : "transparent", border: `1px solid ${st === stage ? NEON.yellow : NEON.borderSoft}` }}
+      onClick={() => onGoto(set.id, st)}
+      title={st === "cram" ? "Cram Blast — see what's coming" : st === "practice" ? "Practice — try it yourself" : "Review — watch Lee work it"}
+    >
+      {st === "cram" ? "Cram" : st === "practice" ? "Practice" : "Review"}
+    </button>
+  );
   return (
     <div className="fixed inset-0 z-[100] grid place-items-center p-4" style={{ background: "rgba(4,7,14,0.92)" }} onClick={onClose}>
       <div className="relative w-full" style={{ maxWidth: portrait ? 460 : 1100 }} onClick={(e) => e.stopPropagation()}>
         <button className="absolute -top-9 right-0 grid h-8 w-8 place-items-center rounded-full" style={{ color: "#e8ecf5", border: "1px solid rgba(255,255,255,0.2)" }} onClick={onClose} title="Close (Esc)"><X className="h-4 w-4" /></button>
-        <div className="text-[13px] font-bold" style={{ color: "#e8ecf5", marginBottom: 8 }}>{set.name}</div>
-        {err ? (
+        {/* SET SHELL STRIP — where the student IS: set number + the stage walk. */}
+        <div className="mb-2 flex items-center gap-2">
+          <span className="min-w-0 truncate text-[13px] font-bold" style={{ color: "#e8ecf5" }}>{set.name}</span>
+          <span className="shrink-0 text-[9.5px] font-black uppercase tracking-[0.12em]" style={{ color: NEON.muted }}>Set {n} of {of}</span>
+          <span className="ml-auto flex shrink-0 items-center gap-1">{stages.map(stagePill)}</span>
+        </div>
+        {stage === "practice" ? (
+          <div className="overflow-hidden rounded-xl" style={{ background: "#0b1020", border: `1px solid ${NEON.borderSoft}`, aspectRatio: portrait ? "9 / 16" : "16 / 9", minHeight: 320 }}>
+            <PracticeStage
+              setId={set.id}
+              questions={isDemo ? DEMO_QUESTIONS : undefined}
+              doneLabel={forward?.label ?? "Done →"}
+              onDone={() => { if (after) onGoto(after.setId, after.stage); else onClose(); }}
+            />
+          </div>
+        ) : err ? (
           <div className="grid place-items-center rounded-xl text-[12px]" style={{ aspectRatio: portrait ? "9 / 16" : "16 / 9", background: "#0b1020", border: "1px solid rgba(255,92,110,0.4)", color: "#F3C6CC" }}>Couldn't load this video. Try again shortly.</div>
         ) : (
           // DOM watermark (bolt only) overlays the video — burned-in stays out of the file.
           <div className="relative overflow-hidden rounded-xl" style={{ background: "#000", aspectRatio: portrait ? "9 / 16" : "16 / 9" }}>
             {isDemo ? (
               // DEMO STAND-IN — no stream exists yet; the box states what will live here and
-              // offers a fake "finish" so the up-next + progress flows can be exercised.
+              // offers a fake "finish" so the stage-walk + progress flows can be exercised.
               <div className="grid h-full w-full place-items-center text-center" style={{ background: "#05080f" }}>
                 <div>
                   <div className="mx-auto mb-3 inline-block"><BoltBoil height={56} /></div>
-                  <div className="text-[12px] font-bold" style={{ color: NEON.muted, fontFamily: "monospace" }}>[ video plays here — publish via Pipeline ]</div>
-                  {!ended && <button className="mt-4 rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wide" style={{ color: "#0B1322", background: NEON.yellow }} onClick={() => { onComplete(); setEnded(true); }}>Finish video (demo)</button>}
+                  <div className="text-[12px] font-bold" style={{ color: NEON.muted, fontFamily: "monospace" }}>{isCram ? "[ Cram Blast plays here — publish via Pipeline ]" : "[ Review video plays here — publish via Pipeline ]"}</div>
+                  {!ended && <button className="mt-4 rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-wide" style={{ color: "#0B1322", background: NEON.yellow }} onClick={() => { if (isCram) onComplete(); setEnded(true); }}>Finish video (demo)</button>}
                 </div>
               </div>
             ) : (
               <video
                 ref={ref} controls playsInline className="h-full w-full" style={{ objectFit: "contain", background: "#000" }}
-                onPlay={() => { setEnded(false); onStarted(); }}
+                onPlay={() => { setEnded(false); if (isCram) onStarted(); }}
                 onPause={flush}
                 onTimeUpdate={() => { const now = Date.now(); if (now - lastWrite.current > 5000) { lastWrite.current = now; flush(); } }}
-                onEnded={() => { onComplete(); setEnded(true); }}
+                onEnded={() => { if (isCram) onComplete(); setEnded(true); }}
               />
             )}
             <span className="pointer-events-none absolute right-3 top-3 inline-block h-6 w-4 opacity-80"><Bolt c1={BRAND_RED} c2={BRAND_BLUE} /></span>
-            {preroll && !isDemo && <PreRoll chipText={chipText} onDone={() => setPreroll(false)} />}
-            {ended && next && <UpNextCard next={next} onPlay={onPlayNext} onDismiss={() => setEnded(false)} />}
+            {preroll && !isDemo && isCram && <PreRoll chipText={chipText} onDone={() => setPreroll(false)} />}
+            {ended && forward && <EndCard kicker={forward.kicker} name={forward.name} sub={forward.sub} ctaLabel={forward.label} countdown={forward.countdown} onGo={() => { if (after) onGoto(after.setId, after.stage); }} onDismiss={() => setEnded(false)} />}
+            {ended && !forward && (
+              <div className="absolute inset-0 z-20 grid place-items-center" style={{ background: "rgba(4,7,14,0.88)" }}>
+                <div className="w-full max-w-xs rounded-2xl p-5 text-center" style={{ background: "#0b1020", border: `1px solid ${NEON.borderSoft}` }}>
+                  <div className="text-[13px] font-black" style={{ color: NEON.text }}>Topic finished ✓</div>
+                  <p className="mt-1 text-[11px]" style={{ color: NEON.muted }}>Pick your next topic from the course map.</p>
+                  <button className="mt-3 w-full rounded-xl px-3 py-2 text-[12px] font-black uppercase tracking-wide" style={{ color: "#0B1322", background: NEON.yellow }} onClick={onClose}>Back to topics</button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -423,7 +497,8 @@ function LearnShell() {
   const isError = !demo && q.isError;
   const [openCourse, setOpenCourse] = useState<string | null>(null);
   const [topicId, setTopicId] = useState<string | null>(() => { if (search.topic) return search.topic; try { return localStorage.getItem(LAST_TOPIC_KEY); } catch { return null; } });
-  const [playing, setPlaying] = useState<{ set: StudentSet; topic: StudentTopic } | null>(null);
+  // CURRENT POSITION in a topic's flow: the open set AND its stage (cram / practice / review).
+  const [playing, setPlaying] = useState<{ set: StudentSet; topic: StudentTopic; stage: SetStage } | null>(null);
   const [paywallTopic, setPaywallTopic] = useState<StudentTopic | null>(null);
   const isNarrow = useIsNarrow();
   const [mapOpen, setMapOpen] = useState(false);
@@ -518,38 +593,46 @@ function LearnShell() {
   // HONEST-PAYWALL: the paywall shows ONLY on an explicit "locked" answer from the server.
   // Network/server failures get a retryable toast — never "you haven't paid" over a wifi blip.
   const [fetchNote, setFetchNote] = useState<{ msg: string; retry?: () => void } | null>(null);
-  const openSet = async (t: StudentTopic, s: StudentSet) => {
+  // EVERY SET STARTS AT CRAM (see-what's-coming → try-it → watch-Lee-work-it); other stages
+  // are reached through the flow or a deep link. Paid sets fetch their withheld id PER STAGE.
+  const openSet = async (t: StudentTopic, s: StudentSet, stage: SetStage = "cram") => {
+    if (stage === "practice") {
+      // Practice needs no playback id — fetchSetPractice does its own server-side gate.
+      if (s.access === "paid" && !unlockedTopics.has(t.id)) { setPaywallTopic(t); return; }
+      setPlaying({ set: s, topic: t, stage });
+      return;
+    }
     if (s.access === "paid") {
       if (!unlockedTopics.has(t.id)) { setPaywallTopic(t); return; }
       // Unlocked paid set — fetch the withheld playback id securely (server re-checks the grant).
       try {
-        const r = await getSetPlayback({ data: { setId: s.id } });
+        const r = await getSetPlayback({ data: { setId: s.id, stage } });
         setFetchNote(null);
-        if (r.status === "ok") setPlaying({ set: { ...s, playbackId: r.playbackId }, topic: t });
+        if (r.status === "ok") setPlaying({ set: stage === "review" ? { ...s, reviewPlaybackId: r.playbackId } : { ...s, playbackId: r.playbackId }, topic: t, stage });
         else if (r.status === "locked") setPaywallTopic(t);
         else if (r.status === "unpublished") setFetchNote({ msg: "This video isn't published yet — check back soon." });
         else setFetchNote({ msg: "Couldn't find that video — refresh and try again." });
-      } catch { setFetchNote({ msg: "Couldn't reach the server — check your connection.", retry: () => void openSet(t, s) }); }
+      } catch { setFetchNote({ msg: "Couldn't reach the server — check your connection.", retry: () => void openSet(t, s, stage) }); }
       return;
     }
-    if (!s.playbackId) { setFetchNote({ msg: "This video isn't published yet — check back soon." }); return; }
-    setPlaying({ set: s, topic: t });
+    const pid = stage === "review" ? s.reviewPlaybackId : s.playbackId;
+    if (!pid) { setFetchNote({ msg: "This video isn't published yet — check back soon." }); return; }
+    setPlaying({ set: s, topic: t, stage });
   };
 
-  // UP NEXT — the next playable set after the current one in its topic (free w/ video, or
-  // unlocked paid). Locked and unpublished free sets are skipped; openSet does the secure fetch.
-  const nextPlayable = useMemo(() => {
-    if (!playing) return null;
-    const sets = playing.topic.sets;
-    const i = sets.findIndex((s) => s.id === playing.set.id);
-    if (i < 0) return null;
-    for (const s of sets.slice(i + 1)) {
-      const locked = s.access === "paid" && !unlockedTopics.has(playing.topic.id);
-      if (locked) continue;
-      if (s.access === "paid" || s.playbackId) return s;
-    }
-    return null;
-  }, [playing, unlockedTopics]);
+  // DEEP LINK (?topic&set&stage) — consumed ONCE when the tree is ready: land exactly where
+  // "continue where you left off" pointed. Invalid ids fall through to normal topic entry.
+  const deepLinked = useRef(false);
+  useEffect(() => {
+    if (deepLinked.current || !search.set || !courses.length) return;
+    const hit = allTopics.find((x) => x.t.sets.some((s) => s.id === search.set));
+    if (!hit) return;
+    deepLinked.current = true;
+    const s = hit.t.sets.find((x) => x.id === search.set)!;
+    setTopicId(hit.t.id);
+    void openSet(hit.t, s, search.stage ?? "cram");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courses, allTopics, search.set, search.stage]);
 
   // Per-course / per-unit completion — the outline's progress bars.
   const doneOf = (sets: StudentSet[]) => sets.filter((s) => progress[s.id]?.state === "complete").length;
@@ -764,18 +847,22 @@ function LearnShell() {
       )}
 
       {playing && (
-        <VideoPlayer
-          key={playing.set.id}
+        <SetPlayer
+          key={`${playing.set.id}:${playing.stage}`}
           set={playing.set}
+          sets={playing.topic.sets}
+          stage={playing.stage}
           chipText={chip(playing.topic)}
-          startAt={progress[playing.set.id]?.state === "in_progress" ? (progress[playing.set.id]?.positionSec ?? 0) : 0}
-          next={nextPlayable}
+          startAt={playing.stage === "cram" && progress[playing.set.id]?.state === "in_progress" ? (progress[playing.set.id]?.positionSec ?? 0) : 0}
           demo={demo}
           onClose={() => setPlaying(null)}
           onStarted={() => markProgress(playing.set.id, "in_progress")}
           onComplete={() => markProgress(playing.set.id, "complete")}
           onPosition={(pos, dur) => markPosition(playing.set.id, pos, dur)}
-          onPlayNext={() => { if (nextPlayable) void openSet(playing.topic, nextPlayable); }}
+          onGoto={(setId, stage) => {
+            const target = playing.topic.sets.find((s) => s.id === setId);
+            if (target) void openSet(playing.topic, target, stage);
+          }}
         />
       )}
       {paywallTopic && <Paywall topic={paywallTopic} campusName={campuses.find((c) => c.id === campusId)?.name ?? null} demo={demo} onClose={() => setPaywallTopic(null)} onRestore={userId ? restore : undefined} restoring={restoring} />}

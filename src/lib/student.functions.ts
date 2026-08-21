@@ -9,14 +9,28 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
+/** A SET is one Cram Blast → Practice → Review sequence (the product model, 08-20).
+ *
+ *  Stage sources, all already authored per set:
+ *   - CRAM   = the set's shipped `blast` publication (DeckDef.publications), falling back to
+ *              the legacy lesson_videos path. Carried in `playbackId`/`runtimeSec` so every
+ *              existing consumer keeps reading the cram video unchanged.
+ *   - PRACTICE = the set's CEQ cards (fetchSetPractice) — `ceqCount` is the count.
+ *   - REVIEW = the set's shipped `lookback` publication. OPTIONAL by design — most sets have
+ *              none yet; `hasReview` is the flag, ids are never invented.
+ *  Paid sets have ALL playback ids withheld (getSetPlayback re-checks the grant per stage). */
 export interface StudentSet {
   id: string; // DeckDef.id
   name: string;
   access: "free" | "paid";
   orientation: "landscape" | "portrait"; // 16:9 lesson vs 9:16 lookback — player switches aspect
-  playbackId: string | null; // null = live set with no published video yet ("coming soon")
-  ceqCount: number; // # of CEQ question cards in the set (the "N questions" line on the outline row)
-  runtimeSec: number | null; // set runtime in seconds — lesson_videos.duration_sec (null until a publish writes it)
+  playbackId: string | null; // CRAM video; null = live set with no published cram yet ("coming soon")
+  ceqCount: number; // # of CEQ question cards in the set (notes excluded) — the practice stage size
+  runtimeSec: number | null; // cram runtime in seconds (blast publication, else lesson_videos.duration_sec)
+  /** REVIEW stage — Lee working the questions. Shipped for only some sets; never faked. */
+  hasReview: boolean;
+  reviewPlaybackId: string | null; // withheld for paid sets even when hasReview
+  reviewRuntimeSec: number | null;
   /** First question's stem — the outline row TEASER. For PAID sets, author-marked blurRanges are
    *  redacted SERVER-SIDE into ░ blocks before this ever leaves the server (the hidden words never
    *  reach an unentitled client). Free sets carry the full stem. Null = set has no CEQ yet. */
@@ -30,7 +44,14 @@ const COURSE_ORDER = ["Start Here", "Intro 1", "Intro 2", "IA1", "IA2"];
 const courseRank = (n: string) => { const i = COURSE_ORDER.findIndex((o) => o.toLowerCase() === n.trim().toLowerCase()); return i < 0 ? COURSE_ORDER.length + 1 : i; };
 const setName = (n?: string) => (n ?? "Set").replace(/^\s*ch\s*\d+\s*·\s*/i, "").trim() || "Set";
 
-type RawDeck = { id: string; name?: string; payloadType?: string; status?: string; access?: string; lessonId?: string | null; topicId?: string | null; courseId?: string | null; parked?: boolean };
+/** A shipped per-set publication (DeckDef.publications) — `blast` = cram, `lookback` = review. */
+export type RawPub = { id?: string; kind?: string; state?: string; render?: { muxPlaybackId?: string | null; durationS?: number | null } };
+type RawDeck = { id: string; name?: string; payloadType?: string; status?: string; access?: string; lessonId?: string | null; topicId?: string | null; courseId?: string | null; parked?: boolean; sortOrder?: number; publications?: RawPub[] };
+/** The set's shipped publication of a kind, or null. state must be "shipped" WITH a playback id —
+ *  a rendered-but-never-shipped cut is not student content. */
+export const shippedPub = (d: { publications?: RawPub[] }, kind: "blast" | "lookback"): RawPub | null =>
+  (d.publications ?? []).find((p) => p?.kind === kind && p?.state === "shipped" && p?.render?.muxPlaybackId) ?? null;
+const pubDur = (p: RawPub | null): number | null => (p?.render?.durationS != null ? Math.round(p.render.durationS) : null);
 
 export const fetchStudentTree = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => z.object({ campusId: z.string().uuid().optional() }).parse(d ?? {}))
@@ -48,12 +69,15 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
   const ceqCountByDeck = new Map<string, number>();
   // FIRST STEM per deck (lowest stageOrder) — the outline teaser, with its blur ranges for paid redaction.
   const firstCeqByDeck = new Map<string, { order: number; prompt: string; blur: { s: number; e: number }[] }>();
-  type RawCeqData = { deckId?: string; stageOrder?: number; prompt?: string; blurRanges?: { s: number; e: number }[] };
+  type RawCeqData = { deckId?: string; stageOrder?: number; prompt?: string; blurRanges?: { s: number; e: number }[]; noteOnly?: boolean };
   for (const s of (scenes ?? []) as { nodes_json?: { decks?: RawDeck[]; nodes?: { type?: string; data?: RawCeqData }[] } }[]) {
     // PARKED sets are authoring-only — never served, regardless of status (same law as parked topics).
     for (const d of s.nodes_json?.decks ?? []) if (d.status === "live" && d.payloadType === "cards" && d.parked !== true) live.push(d);
     for (const n of s.nodes_json?.nodes ?? []) {
       if (n?.type !== "ceq") continue;
+      // NOTE frames are film chrome, not questions — excluded from the counter AND practice,
+      // per the CeqCard contract ("excluded from the student question counter").
+      if (n.data?.noteOnly) continue;
       const did = n.data?.deckId;
       if (!did) continue;
       ceqCountByDeck.set(did, (ceqCountByDeck.get(did) ?? 0) + 1);
@@ -120,6 +144,9 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
   // 4) Build course → topic → sets. A set with no resolvable course is dropped (unplaceable).
   const courses = new Map<string, StudentCourse>();
   const topics = new Map<string, StudentTopic>();
+  // Set order WITHIN a topic = DeckDef.sortOrder (outline drag-order), name as the tiebreak —
+  // "Set 1 → Set 2 → Set 3" must match the authored outline, not scene-scan order.
+  const setOrderKey = new Map<string, number>();
   const ensureCourse = (id: string, name: string, family: string | null): StudentCourse => { let c = courses.get(id); if (!c) { c = { id, name, family, units: [], topics: [] }; courses.set(id, c); } return c; };
   const ensureTopic = (course: StudentCourse, t: { id: string; name: string | null; short: string | null; number: number | null }): StudentTopic => {
     let top = topics.get(t.id); if (!top) { top = { id: t.id, name: t.name ?? "Topic", shortLabel: t.short, number: t.number, sets: [] }; topics.set(t.id, top); course.topics.push(top); } return top;
@@ -134,9 +161,18 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
     // WITHHOLD the playback id for PAID sets (#Prompt 4) — the tree never carries a locked
     // video's id. The client fetches it via getSetPlayback, which re-checks the entitlement.
     const paid = d.access === "paid";
-    // runtimeSec is served even for paid sets — it teases length, never content.
-    topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: "landscape", playbackId: paid ? null : ((d.lessonId && pb.get(d.lessonId)) || null), ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: (d.lessonId ? dur.get(d.lessonId) : undefined) ?? null, firstStem: stemFor(d.id, paid) });
+    // CRAM = shipped blast publication, else the legacy lesson_videos path. REVIEW = shipped
+    // lookback publication or nothing. Runtimes serve even for paid sets — they tease length,
+    // never content; playback ids are withheld for paid (getSetPlayback re-checks per stage).
+    const blast = shippedPub(d, "blast");
+    const look = shippedPub(d, "lookback");
+    const cramPid = blast?.render?.muxPlaybackId ?? ((d.lessonId && pb.get(d.lessonId)) || null);
+    const cramDur = pubDur(blast) ?? ((d.lessonId ? dur.get(d.lessonId) : undefined) ?? null);
+    setOrderKey.set(d.id, d.sortOrder ?? Number.MAX_SAFE_INTEGER);
+    topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: "landscape", playbackId: paid ? null : cramPid, ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: cramDur, hasReview: !!look, reviewPlaybackId: paid ? null : (look?.render?.muxPlaybackId ?? null), reviewRuntimeSec: pubDur(look), firstStem: stemFor(d.id, paid) });
   }
+
+  for (const t of topics.values()) t.sets.sort((a, b) => (setOrderKey.get(a.id) ?? 0) - (setOrderKey.get(b.id) ?? 0) || a.name.localeCompare(b.name));
 
   const ordered = [...courses.values()].sort((a, b) => courseRank(a.name) - courseRank(b.name) || a.name.localeCompare(b.name));
 
@@ -195,3 +231,54 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
 
   return ordered;
 });
+
+// ---- PRACTICE STAGE (server) — a set's questions, served to students -----------------------
+//
+// The practice questions ARE the set's authored CEQ cards (data.deckId membership, stageOrder
+// order) — no duplicate store. Choices ship with `correct` + `feedback` so the client can grade
+// locally; that is acceptable for FREE sets (the same answers are in the free video). PAID sets
+// return `locked` unauthenticated-or-not for now: this fn deliberately carries NO auth
+// middleware so signed-out students can practice free sets, and entitled paid practice rides
+// the checkout pass later (mirror getSetPlayback's grant check then).
+export interface PracticeChoice { id: string; text: string; correct: boolean; feedback: string | null }
+export interface PracticeQuestion { id: string; prompt: string; shorthand: string | null; choices: PracticeChoice[] }
+export type SetPracticeResult =
+  | { status: "ok"; setName: string; questions: PracticeQuestion[] }
+  | { status: "locked" }
+  | { status: "empty" }
+  | { status: "not_found" };
+
+export const fetchSetPractice = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => z.object({ setId: z.string() }).parse(d))
+  .handler(async ({ data }): Promise<SetPracticeResult> => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const admin = supabaseAdmin as unknown as { from: (t: string) => any };
+    const { data: scenes, error } = await admin.from("canvas_scenes").select("nodes_json");
+    if (error) throw new Error(error.message);
+    type RawChoice = { id?: string; text?: string; correct?: boolean; feedback?: string };
+    type RawCard = { deckId?: string; stageOrder?: number; prompt?: string; shorthand?: string; noteOnly?: boolean; choices?: RawChoice[] };
+    let deck: RawDeck | undefined;
+    let cards: RawCard[] = [];
+    for (const s of (scenes ?? []) as { nodes_json?: { decks?: RawDeck[]; nodes?: { type?: string; data?: RawCard }[] } }[]) {
+      const d = (s.nodes_json?.decks ?? []).find((x) => x.id === data.setId && x.status === "live" && x.payloadType === "cards" && x.parked !== true);
+      if (!d) continue;
+      deck = d;
+      cards = (s.nodes_json?.nodes ?? [])
+        .filter((n) => n?.type === "ceq" && n.data?.deckId === data.setId && !n.data?.noteOnly)
+        .map((n) => n.data!);
+      break;
+    }
+    if (!deck) return { status: "not_found" };
+    if (deck.access === "paid") return { status: "locked" };
+    const questions: PracticeQuestion[] = cards
+      .sort((a, b) => (a.stageOrder ?? 0) - (b.stageOrder ?? 0))
+      .map((c, i) => ({
+        id: `${data.setId}:${c.stageOrder ?? i}`,
+        prompt: (c.prompt ?? "").trim(),
+        shorthand: c.shorthand?.trim() || null,
+        choices: (c.choices ?? []).map((ch, j) => ({ id: ch.id ?? String(j), text: (ch.text ?? "").trim(), correct: !!ch.correct, feedback: ch.feedback?.trim() || null })),
+      }))
+      // A card with no prompt or fewer than 2 choices can't be practiced — skip, never crash.
+      .filter((q) => q.prompt && q.choices.length >= 2);
+    return questions.length ? { status: "ok", setName: setName(deck.name), questions } : { status: "empty" };
+  });
