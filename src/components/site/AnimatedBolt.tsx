@@ -26,7 +26,7 @@
 // transform write is compositor-cheap.
 //
 // prefers-reduced-motion: no loop, no rotation — a static two-colour bolt in the first campus.
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { BOLT_OUTER, BOLT_RIGHT, BOLT_VIEWBOX, BRAND_DISPLAY } from "@/components/canvas/brand";
 
@@ -149,7 +149,17 @@ export function AnimatedBoltHero({ stops, onActivate, className, ariaLabel = "Cr
   className?: string;
   ariaLabel?: string;
 }) {
-  const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
+  // CLIP IDS ARE DERIVED, NOT GENERATED. useId() here produced different values on the server and
+  // the client (the hero sits under a lazy route boundary, and React's tree-position ids did not
+  // line up across it), which logged a hydration mismatch on every page with a hero. The id only
+  // has to be unique per bolt on one page, so it is built from what the bolt IS — its label and
+  // the campuses it streams — which both renders agree on by construction.
+  const uid = useMemo(() => {
+    const seed = `${ariaLabel}|${stops.map((s) => s.id).join(",")}`;
+    let h = 0;
+    for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+    return h.toString(36);
+  }, [ariaLabel, stops]);
   const [reduce, setReduce] = useState(false);
   // Read in an effect, never during render: this route is server-rendered, and calling matchMedia
   // while rendering makes the server and a reduced-motion client disagree on the first paint.

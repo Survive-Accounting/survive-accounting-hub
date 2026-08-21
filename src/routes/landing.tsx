@@ -201,12 +201,20 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   // otherwise hand the school straight back (URL / stored pick) and leave the player stuck on
   // the professor rung. The flag clears on the next explicit pick.
   const [manualReset, setManualReset] = useState(false);
+  //
+  // RESET IS SITE-WIDE, NOT PLAYER-WIDE. It used to clear only the player's own school while the
+  // hero, bolt and headline kept reading "ACCY 201 at Ole Miss" from campus context — a page half
+  // about a school the visitor had just said they were not at. Now it clears campus context too
+  // (session + stored + storage key), so the whole page drops to the generic version in one step.
+  // On a page whose URL names the school (/<school>, /go/…) the URL would simply re-assert it, so
+  // that case goes home — the generic page is the only honest "no school" there is.
   const resetMatch = () => {
     setManualReset(true);
     setSchool(null);
     setNotListed(false);
     resetProfessor();
-    try { localStorage.removeItem("sa-landing-school"); } catch { /* ignore */ }
+    campus.clearSchool();
+    if (campusSlug) void navigate({ to: "/", hash: EXAM_ANCHOR_ID });
   };
   // ADOPT THE URL'S SCHOOL. preSchool is derived from initialCampusId, which arrives from the
   // chapter QUERY — so on a /go/ page it is still null during the first render, and

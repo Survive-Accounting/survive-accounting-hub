@@ -13,13 +13,13 @@
 // with an unrelated link floating under them, which read as three loose controls rather than one
 // thing to do. In a card with a header they read as a form, and the escape hatches sit inside it
 // where someone who has just failed to find themselves will actually look.
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { Bolt } from "@/components/canvas/brand";
 import { ALL_SCHOOLS, boltForSlug, schoolBySlug } from "@/lib/schools";
-import { listCampusIntroCodes } from "@/lib/default-map.functions";
+import { listCampusIntroCodes, type CampusIntroCode } from "@/lib/default-map.functions";
 import { SearchPicker } from "@/components/site/SearchPicker";
 import { ChapterSelfCreate } from "@/components/site/ChapterSelfCreate";
 import { NotListedForm } from "@/components/site/NotListedForm";
@@ -27,7 +27,7 @@ import { listGoChapters } from "@/lib/greek-go.functions";
 
 export interface FinderSchool { slug: string; name: string }
 
-export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy = false, note, card = false, header = "Find your chapter", escapeHatches = false, initialSchool }: {
+export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy = false, note, card = false, header, escapeHatches = false, initialSchool, codes }: {
   schools: FinderSchool[];
   onPick: (schoolSlug: string, chapterSlug: string, chapterName: string) => void;
   cta?: string;
@@ -35,7 +35,12 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
   note?: string;
   /** Wrap in the panel styling used by "Set up your chapter". */
   card?: boolean;
+  /** Optional heading inside the card. /chapters passes none: the page headline already says
+   *  "Find your chapter." and repeating it inside the card was one heading too many. */
   header?: string;
+  /** Course codes resolved by the caller (route loader) so the rows carry them on first paint.
+   *  The client query below still runs and wins once it answers. */
+  codes?: CampusIntroCode[];
   /** Offer "My school / chapter isn't listed" beneath the button. */
   escapeHatches?: boolean;
   /** Pre-selected school slug. A campus page's "For fraternities & sororities" link arrives
@@ -51,15 +56,15 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
   // overall, so there is no meaningful "all chapters" list to show first.
   // Course codes for the picker rows. Same source as the landing picker, so a school shows the
   // same code in both places or no code in both places — never one and not the other.
+  // Caller-supplied codes seed the cache, so a route that loaded them on the server never refetches
+  // them on mount and the rows never flip from "no code" to "code".
   const codesQ = useQuery({
     queryKey: ["campus-intro-codes"],
     queryFn: () => listCampusIntroCodes({ data: { ids: ALL_SCHOOLS.map((x) => x.campusId) } }),
     staleTime: 600_000, networkMode: "always",
+    initialData: codes,
   });
-  const codeBySlug = (slug: string) => {
-    const campusId = schoolBySlug(slug)?.campusId;
-    return (codesQ.data ?? []).find((r) => r.campusId === campusId)?.code ?? "";
-  };
+  const codeData = useMemo(() => codesQ.data ?? codes ?? [], [codesQ.data, codes]);
 
   const q = useQuery({
     queryKey: ["go-chapters", school],
@@ -68,11 +73,31 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
     networkMode: "always",
     staleTime: 300_000,
   });
-  const chapters = q.data ?? [];
+  const chapters = useMemo(() => q.data ?? [], [q.data]);
   const picked = chapters.find((c) => c.slug === chapter);
   const schoolName = schools.find((s) => s.slug === school)?.name;
 
-  const selectStyle = { minHeight: 46, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" } as const;
+  // The option lists are built once per data change, not per keystroke: each school row carries a
+  // Bolt element, and SearchPicker filters the SAME array reference on every character typed.
+  const schoolItems = useMemo(() => {
+    const codeByCampus = new Map(codeData.map((r) => [r.campusId, r.code]));
+    return schools.map((s) => ({
+      value: s.slug,
+      label: s.name,
+      meta: codeByCampus.get(schoolBySlug(s.slug)?.campusId ?? "") ?? "",
+      // The bolt is the school's own colourway — the row reads as that school at a glance
+      // rather than as a line of text in a list.
+      icon: <span className="block shrink-0" style={{ width: 15 }} aria-hidden><Bolt {...boltForSlug(s.slug)} /></span>,
+    }));
+  }, [schools, codeData]);
+  const chapterItems = useMemo(() => chapters.map((c) => ({
+    value: c.slug,
+    label: c.name,
+    // Search aliases, never displayed: a student types "ADPi", "Alpha Chi" or the Greek letters
+    // ("ΑΔΠ") and still lands on the one canonical row. The full org name stays the label so
+    // every chapter reads the same shape in the list.
+    aliases: [c.nickname, c.letters].filter(Boolean) as string[],
+  })), [chapters]);
 
   const body = (
     <div className="flex w-full flex-col gap-2" style={{ fontFamily: BRAND_SANS }}>
@@ -89,31 +114,20 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
           {/* The site's own picker, not a native <select>. A native dropdown renders as an OS
               list — white, system font, nothing to do with the page around it. */}
           <SearchPicker
-            items={schools.map((s) => ({
-              value: s.slug,
-              label: s.name,
-              meta: codeBySlug(s.slug),
-              // The bolt is the school's own colourway — the row reads as that school at a
-              // glance rather than as a line of text in a list.
-              icon: <span className="block shrink-0" style={{ width: 15 }} aria-hidden><Bolt {...boltForSlug(s.slug)} /></span>,
-            }))}
+            items={schoolItems}
             value={school || null}
             placeholder="Pick your school to start"
             searchPlaceholder={`Search ${schools.length} schools…`}
             onPick={(v) => { setSchool(v); setChapter(""); }}
           />
 
+          {/* The control stays mounted and in place while its options load — only its label
+              changes. Before a school exists it says so, rather than claiming there are no
+              chapters. */}
           <SearchPicker
-            items={chapters.map((c) => ({
-              value: c.slug,
-              label: c.name,
-              // Search aliases, never displayed: a student types "ADPi", "Alpha Chi" or the
-              // Greek letters ("ΑΔΠ") and still lands on the one canonical row. The full org
-              // name stays the label so every chapter reads the same shape in the list.
-              aliases: [c.nickname, c.letters].filter(Boolean) as string[],
-            }))}
+            items={chapterItems}
             value={chapter || null}
-            placeholder={q.isLoading ? "Loading chapters…" : chapters.length ? "Your chapter…" : "No chapters listed yet"}
+            placeholder={!school ? "Pick your school first" : q.isLoading ? "Loading chapters…" : chapters.length ? "Your chapter…" : "No chapters listed yet"}
             searchPlaceholder={`Search ${chapters.length} chapters…`}
             disabled={!school || q.isLoading}
             disabledHint="Pick your school first"
@@ -159,7 +173,7 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
 
   return (
     <div className="w-full rounded-2xl p-5" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)" }}>
-      <h2 className="mb-3 text-[17px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{header}</h2>
+      {header && <h2 className="mb-3 text-[17px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{header}</h2>}
       {body}
     </div>
   );

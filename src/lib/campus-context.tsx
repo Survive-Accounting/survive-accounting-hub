@@ -44,6 +44,11 @@ export type CampusContextValue = {
   courseLabel: string;
   /** Set the session-level school (picker, ticker). Pass null to clear back to lower priorities. */
   setSessionSchool: (id: string | null) => void;
+  /** FORGET THE SCHOOL EVERYWHERE this tab can reach: session pick, stored pick and the storage
+   *  key behind it. Only account and URL sources survive, because neither is a choice the visitor
+   *  made here. Player "Reset" calls this so the hero, bolt and copy fall back to generic together
+   *  with the player instead of the page staying branded for a school the visitor just rejected. */
+  clearSchool: () => void;
 };
 
 const Ctx = createContext<CampusContextValue | null>(null);
@@ -73,6 +78,12 @@ export function CampusProvider({ urlSchoolSlug, accountCampusId, initialCode, ch
     try {
       if (id) localStorage.setItem(STORE_KEY, id);
     } catch { /* private mode */ }
+  }, []);
+
+  const clearSchool = useCallback(() => {
+    setSessionId(null);
+    setStoredId(null);
+    try { localStorage.removeItem(STORE_KEY); } catch { /* private mode */ }
   }, []);
 
   const resolved = useMemo<{ school: SecSchool | null; source: CampusSource }>(() => {
@@ -116,7 +127,8 @@ export function CampusProvider({ urlSchoolSlug, accountCampusId, initialCode, ch
     // reads past it.
     courseLabel: code ?? "your accounting course",
     setSessionSchool,
-  }), [resolved.school, resolved.source, code, setSessionSchool]);
+    clearSchool,
+  }), [resolved.school, resolved.source, code, setSessionSchool, clearSchool]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
@@ -126,6 +138,6 @@ export function CampusProvider({ urlSchoolSlug, accountCampusId, initialCode, ch
 export function useCampus(): CampusContextValue {
   return useContext(Ctx) ?? {
     school: null, source: null, known: false, code: null,
-    courseLabel: "your accounting course", setSessionSchool: () => {},
+    courseLabel: "your accounting course", setSessionSchool: () => {}, clearSchool: () => {},
   };
 }
