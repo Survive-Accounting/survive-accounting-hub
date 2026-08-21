@@ -18,11 +18,14 @@ export interface FrameTheme {
 
 export const DEFAULT_FRAME_THEME: Required<FrameTheme> = {
   navy: BRAND_NAVY,
-  cream: BRAND_CREAM,
+  // These three read the semantic tokens on navy pages (styles.css, html.sa-navy) and fall back
+  // to the brand literals everywhere else (canvas / film frames have no token layer). Inline
+  // vars beat the class selector, so without the var() the tokens could never reach the page.
+  cream: "var(--text-primary, " + BRAND_CREAM + ")",
   boltPrimary: BRAND_RED,
   boltSecondary: BRAND_BLUE,
-  muted: "rgba(226,232,240,0.6)",
-  accent: "#FCA311",
+  muted: "var(--text-secondary, rgba(226,232,240,0.6))",
+  accent: "var(--accent-primary, #FCA311)",
 };
 
 /** The theme as CSS custom properties — apply as inline style on a frame's root; every frame

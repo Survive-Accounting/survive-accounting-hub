@@ -27,8 +27,8 @@ const fmtPhone = (v: string) => {
 
 const FIELD: React.CSSProperties = {
   minHeight: 48,
-  background: "rgba(245,239,230,0.06)",
-  border: "1px solid rgba(245,239,230,0.16)",
+  background: "var(--bg-surface)",
+  border: "1px solid var(--border-default)",
   color: "var(--brand-cream)",
   // 16px explicitly — under it iOS zooms the page on focus and never zooms back.
   fontSize: 16,
@@ -75,7 +75,7 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, onClos
   }
 
   return (
-    <div className="relative mx-auto max-w-sm rounded-xl p-4 text-left" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)", fontFamily: BRAND_SANS }}>
+    <div className="relative mx-auto max-w-sm rounded-xl p-4 text-left" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", fontFamily: BRAND_SANS }}>
       <button
         type="button"
         onClick={onClose}
@@ -102,7 +102,7 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, onClos
       <input id="ca-email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="you@school.edu" className="mb-2 w-full rounded-lg px-3 outline-none focus:ring-2" style={FIELD} />
 
       <label className="sr-only" htmlFor="ca-phone">Your mobile</label>
-      <input id="ca-phone" value={phone} onChange={(e) => setPhone(fmtPhone(e.target.value))} inputMode="tel" placeholder="(662) 555-0134" className="w-full rounded-lg px-3 outline-none focus:ring-2" style={FIELD} />
+      <input id="ca-phone" value={phone} onChange={(e) => setPhone(fmtPhone(e.target.value))} type="tel" autoComplete="tel" inputMode="tel" placeholder="(662) 555-0134" className="w-full rounded-lg px-3 outline-none focus:ring-2" style={FIELD} />
       <SmsConsentNote />
 
       {err && <p className="mt-2 text-[12.5px]" role="alert" style={{ color: "#F3C6CC" }}>{err}</p>}

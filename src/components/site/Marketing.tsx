@@ -121,7 +121,7 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
               <a
                 href={secondaryHref}
                 className="flex w-full items-center justify-center rounded-xl px-6 text-[15px] font-bold focus-visible:ring-2 sm:w-auto"
-                style={{ minHeight: 54, color: "var(--brand-cream)", background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.18)" }}
+                style={{ minHeight: 54, color: "var(--brand-cream)", background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}
               >
                 {secondaryLabel}
               </a>
@@ -130,7 +130,7 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
                 type="button"
                 onClick={onSecondary}
                 className="w-full rounded-xl px-6 text-[15px] font-bold focus-visible:ring-2 sm:w-auto"
-                style={{ minHeight: 54, color: "var(--brand-cream)", background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.18)" }}
+                style={{ minHeight: 54, color: "var(--brand-cream)", background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}
               >
                 {secondaryLabel}
               </button>
@@ -140,7 +140,7 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
 
         {/* Exec login is a UTILITY, never a hero CTA — claimed chapters only. */}
         {greek?.claimed && (
-          <a href="/chapters/dashboard" className="mt-2.5 text-[12.5px] underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
+          <a href="/chapters/dashboard" className="mt-2.5 text-[14px] underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
             Chapter exec? Log in →
           </a>
         )}
@@ -172,16 +172,21 @@ export function TrustChips({ onBio, onReviews, onPlayer }: { onBio: () => void; 
     { label: "1,000+ students helped", onClick: onReviews },
     { label: "Built for exam week", onClick: onPlayer },
   ];
+  // A PROOF STRIP, NOT A THIRD ROW OF BUTTONS. One hierarchy step below both hero CTAs: smaller
+  // type, thinner border, muted fill, no lift, default cursor. They stay activatable (each one
+  // jumps to the section that backs the claim) and keyboard-focusable, and the 44px touch target
+  // is restored by an invisible ::after rather than by a 44px-tall pill — see MARKETING_CSS.
   return (
-    <div className="mt-6 flex flex-wrap items-center justify-center gap-2 lg:justify-start">
+    <div className="sa-proof-row mt-5 flex flex-wrap items-center justify-center gap-2 lg:flex-nowrap lg:justify-start">
       {CHIPS.map((c) => (
         <button
           key={c.label}
           type="button"
           onClick={c.onClick}
-          className="sa-trust-chip rounded-full px-3 py-1.5 text-[12px] font-semibold focus-visible:ring-2"
-          style={{ background: "rgba(245,239,230,0.07)", border: "1px solid rgba(245,239,230,0.13)", color: "var(--brand-cream)", minHeight: 32 }}
+          className="sa-trust-chip relative rounded-full text-[13px] font-semibold focus-visible:ring-2"
+          style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)", height: 33, paddingInline: 11, whiteSpace: "nowrap" }}
         >
+          <span aria-hidden className="sa-proof-tick">✓</span>
           {c.label}
         </button>
       ))}
@@ -191,9 +196,25 @@ export function TrustChips({ onBio, onReviews, onPlayer }: { onBio: () => void; 
 
 /** Chip hover/focus styling — subtle brightness + a hair of lift, quick, reduced-motion safe. */
 export const MARKETING_CSS = `
-.sa-trust-chip { opacity: 0.8; transition: opacity 140ms, border-color 140ms, background 140ms, transform 140ms; cursor: pointer; }
-.sa-trust-chip:hover { opacity: 1; background: rgba(245,239,230,0.12); border-color: rgba(245,239,230,0.28); transform: translateY(-1px); }
-.sa-trust-chip:focus-visible { opacity: 1; outline: 2px solid var(--accent); outline-offset: 2px; }
+/* PROOF STRIP. Quieter than every CTA: no lift, no glow, default cursor, muted text. The hover
+   is a bare half-step of contrast so the badge is not dead to the pointer, nothing more. */
+.sa-trust-chip { display: inline-flex; align-items: center; gap: 5px; cursor: default; transition: color 140ms, border-color 140ms; }
+.sa-trust-chip:hover { color: var(--brand-cream); border-color: var(--border-default); }
+.sa-trust-chip:focus-visible { color: var(--brand-cream); outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Touch target stays 44px tall while the pill reads 33px — the badges are still real controls. */
+.sa-trust-chip::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+/* The tick is a quiet mark, not a success badge: brand amber at half strength, one step down in size. */
+.sa-proof-tick { font-size: 11px; line-height: 1; color: var(--accent); opacity: 0.65; }
+/* At the narrowest desktop the three badges are ~6px wider than the hero column; the type drops a
+   half-step there rather than wrapping to a second line. */
+@media (min-width: 1024px) and (max-width: 1150px) {
+  .sa-proof-row .sa-trust-chip { font-size: 12px; padding-inline: 9px; }
+}
+/* Phone: 2 + 1 rather than three stacked lines. At 13px the first two badges are 368px wide in a
+   350px column, so the half-step down is what buys the pairing — still a readable badge size. */
+@media (max-width: 639px) {
+  .sa-proof-row .sa-trust-chip { font-size: 12px; padding-inline: 9px; }
+}
 .sa-sticky-footer { transition: transform 320ms cubic-bezier(.2,.8,.2,1); }
 @media (prefers-reduced-motion: reduce) { .sa-sticky-footer { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .sa-trust-chip, .sa-trust-chip:hover { transform: none; } }
@@ -215,10 +236,10 @@ export function FeatureValueStrip({ code }: { code: string | null }) {
   return (
     <section className="mx-auto grid w-full max-w-[880px] gap-3 px-1 py-10 sm:grid-cols-3" style={{ fontFamily: BRAND_SANS }}>
       {CARDS.map(({ icon: Icon, title, body }) => (
-        <div key={title} className="rounded-2xl p-4" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
+        <div key={title} className="rounded-2xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
           <Icon className="h-5 w-5" style={{ color: "var(--accent)" }} aria-hidden />
           <p className="mt-2.5 text-[15px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{title}</p>
-          <p className="mt-1 text-[13px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>{body}</p>
+          <p className="mt-1 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>{body}</p>
         </div>
       ))}
     </section>
@@ -272,21 +293,21 @@ export function LeePortrait({ width = 200, caption = true }: { width?: number; c
 /** The COMPACT tutor card — facts only, one door to the full bio. Sits beside the reviews. */
 export function TutorCard({ onMore }: { onMore: () => void }) {
   return (
-    <div className="rounded-2xl p-5 sm:p-6" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)", fontFamily: BRAND_SANS }}>
+    <div className="rounded-2xl p-5 sm:p-6" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", fontFamily: BRAND_SANS }}>
       <div className="flex items-start gap-5">
         <LeePortrait width={112} caption={false} />
         <div className="min-w-0" style={{ color: "var(--brand-cream)" }}>
           <p className="text-[16px] font-bold">Lee Ingram</p>
-          <p className="mt-1 text-[13px] leading-snug" style={{ opacity: 0.75 }}>Two accounting degrees from Ole Miss</p>
-          <p className="mt-1 text-[13px] leading-snug" style={{ opacity: 0.75 }}>Tutor since 2015 · Ole Miss adjunct</p>
-          <p className="mt-1 text-[13px] leading-snug" style={{ opacity: 0.75 }}>1,000+ students helped</p>
+          <p className="mt-1 text-[14px] leading-snug" style={{ opacity: 0.75 }}>Two accounting degrees from Ole Miss</p>
+          <p className="mt-1 text-[14px] leading-snug" style={{ opacity: 0.75 }}>Tutor since 2015 · Ole Miss adjunct</p>
+          <p className="mt-1 text-[14px] leading-snug" style={{ opacity: 0.75 }}>1,000+ students helped</p>
         </div>
       </div>
       <button
         type="button"
         onClick={onMore}
-        className="mt-4 inline-flex items-center text-[13.5px] font-bold focus-visible:ring-2"
-        style={{ color: "var(--accent)", minHeight: 40 }}
+        className="mt-4 inline-flex items-center text-[14px] font-bold focus-visible:ring-2"
+        style={{ color: "var(--accent)", minHeight: 44 }}
       >
         Learn more about Lee →
       </button>
@@ -310,7 +331,7 @@ export function TutorBioModal({ onClose }: { onClose: () => void }) {
   );
   return (
     <div className="fixed inset-0 z-[300] grid place-items-center overflow-y-auto p-4" style={{ background: "rgba(5,8,16,0.72)" }} role="dialog" aria-modal="true" aria-label="About Lee Ingram">
-      <div ref={panelRef} className="relative w-full max-w-[560px] rounded-3xl p-6 sm:p-8" style={{ background: "#0F1A2E", border: "1px solid rgba(245,239,230,0.16)", fontFamily: BRAND_SANS, boxShadow: "0 40px 90px -30px rgba(0,0,0,0.9)" }}>
+      <div ref={panelRef} className="relative w-full max-w-[560px] rounded-3xl p-6 sm:p-8" style={{ background: "var(--bg-page)", border: "1px solid var(--border-default)", fontFamily: BRAND_SANS, boxShadow: "0 40px 90px -30px rgba(0,0,0,0.9)" }}>
         <button
           type="button"
           onClick={onClose}
@@ -370,7 +391,7 @@ export function StickyFooterBar({ heroId, links, tel, phone }: {
         transform: show ? "translateY(0)" : "translateY(110%)",
         background: "color-mix(in srgb, var(--sa-surface-nav, #0F1A2E) 94%, transparent)",
         backdropFilter: "blur(8px)",
-        borderTop: "1px solid rgba(245,239,230,0.12)",
+        borderTop: "1px solid var(--border-default)",
         fontFamily: BRAND_SANS,
       }}
     >
@@ -378,12 +399,12 @@ export function StickyFooterBar({ heroId, links, tel, phone }: {
         <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center" tabIndex={show ? 0 : -1}><CompactLockup size={16} /></a>
         <nav className="flex items-center gap-5" aria-label="Page">
           {links.map((l) => (
-            <a key={l.label} href={l.href} onClick={onNav(l.href)} tabIndex={show ? 0 : -1} className="text-[13px] font-semibold" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>{l.label}</a>
+            <a key={l.label} href={l.href} onClick={onNav(l.href)} tabIndex={show ? 0 : -1} className="text-[14px] font-semibold" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>{l.label}</a>
           ))}
         </nav>
         <span className="flex-1" />
-        <span className="text-[13px] font-semibold" style={{ color: "var(--brand-cream)", opacity: 0.75 }}>Questions? Text Lee</span>
-        <a href={`sms:${tel}`} tabIndex={show ? 0 : -1} className="inline-flex items-center gap-2 rounded-full px-4 text-[13px] font-black" style={{ background: "var(--accent)", color: "#0B1220", minHeight: 36 }}>
+        <span className="text-[14px] font-semibold" style={{ color: "var(--brand-cream)", opacity: 0.75 }}>Questions? Text Lee</span>
+        <a href={`sms:${tel}`} tabIndex={show ? 0 : -1} className="inline-flex items-center gap-2 rounded-full px-4 text-[14px] font-black" style={{ background: "var(--accent)", color: "#0B1220", minHeight: 36 }}>
           <span aria-hidden>💬</span> {phone}
         </a>
       </div>
@@ -401,10 +422,11 @@ export function MarketingUtilityLinks({ kind, onProfessorAsk }: {
   onProfessorAsk?: () => void;
 }) {
   const [schoolForm, setSchoolForm] = useState(false);
-  const LINK = "text-[13px] font-bold underline underline-offset-4 focus-visible:ring-2";
+  const LINK = "text-[14px] font-bold underline underline-offset-4 focus-visible:ring-2";
   return (
     <section className="mx-auto flex w-full max-w-[640px] flex-col items-center gap-2 px-5 py-8 text-center" style={{ fontFamily: BRAND_SANS }}>
       {kind === "general" && (schoolForm
+        // Solo-student surface: school only. The Greek chapter field belongs to /chapters.
         ? <NotListedForm kind="school" onClose={() => setSchoolForm(false)} />
         : (
           <button type="button" onClick={() => setSchoolForm(true)} className={LINK} style={{ color: "var(--text-muted)", minHeight: 44 }}>

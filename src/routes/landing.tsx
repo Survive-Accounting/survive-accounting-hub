@@ -22,7 +22,7 @@ import { getChapterNames, listCampusIntroCodes } from "@/lib/default-map.functio
 import { logSchoolDemand, submitExamAsk, submitSyllabus , submitNotify } from "@/lib/syllabus.functions";
 import { searchOrderProfessors, type ProfessorLite } from "@/lib/orders.functions";
 import { tagChapterMember } from "@/lib/greek-go.functions";
-import { SEAT_MINIMUM, SEAT_PRICE } from "@/components/site/ChapterAccess";
+import { openClaimStep, SEAT_MINIMUM, SEAT_PRICE } from "@/components/site/ChapterAccess";
 import { revealInContainer, scrollToId } from "@/lib/ui-scroll";
 import { CourtesyLine } from "@/components/site/CourtesyLine";
 import { SearchPicker } from "@/components/site/SearchPicker";
@@ -41,6 +41,7 @@ import {
   SocialProofSection, StickyFooterBar, TutorBioModal, TutorCard, type GreekMarketing,
 } from "@/components/site/Marketing";
 import { CampusProvider, useCampus } from "@/lib/campus-context";
+import { readStoredCampus, rememberCampus, rememberProfSkip, SKIPPED, NOT_LISTED } from "@/lib/campus-prefs";
 import { contactKind, LAUNCH_LINE, LAUNCH_WINDOW } from "@/lib/launch";
 import { Bolt, BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS, SEC_SCHOOLS } from "@/components/canvas/brand";
 
@@ -141,18 +142,25 @@ interface LandingProps {
   /** Greek chapters known at this campus — drives the "For fraternities & sororities" secondary
    *  CTA on campus pages (hidden at 0, where it would invite people to an empty list). */
   chapterCount?: number;
+  /** The visitor's remembered campus, read from the request cookie by the route loader (a picker
+   *  id, or the SKIPPED / NOT_LISTED sentinel). Lets the SERVER render the returning visitor's
+   *  page — campus hero, pre-matched player, right <title> — instead of swapping to it after
+   *  hydration. See lib/campus-prefs.ts. */
+  storedCampusId?: string | null;
+  /** School id whose professor question this visitor already skipped (cookie). */
+  profSkipFor?: string | null;
 }
 
 export function LandingPage(props: LandingProps = {}) {
-  const { campusSlug, goChapter, initialCampusId, initialCourseCode } = props;
+  const { campusSlug, goChapter, initialCampusId, initialCourseCode, storedCampusId } = props;
   return (
-    <CampusProvider urlSchoolSlug={campusSlug ?? goChapter?.schoolSlug ?? null} accountCampusId={initialCampusId ?? null} initialCode={initialCourseCode ?? null}>
+    <CampusProvider urlSchoolSlug={campusSlug ?? goChapter?.schoolSlug ?? null} accountCampusId={initialCampusId ?? null} initialCode={initialCourseCode ?? null} initialStoredId={storedCampusId ?? null}>
       <LandingPageInner {...props} />
     </CampusProvider>
   );
 }
 
-function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlug, greek, onStartExam, chapterCount, greekOrg, greekNav, videoGate }: LandingProps) {
+function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlug, greek, onStartExam, chapterCount, greekOrg, greekNav, videoGate, storedCampusId, profSkipFor }: LandingProps) {
   // M1.4 — paint html/body navy so Safari's overscroll rubber-band matches the page instead
   // of flashing the light default at the top and bottom edges.
   useNavyDocument();
@@ -166,10 +174,15 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   // picks its own. Null when campus is unknown, which leaves the cycling hero to set its own.
   const campusBolt = useMemo(() => (campus.school ? boltFor(campus.school.id) : null), [campus.school]);
   const preSchool = useMemo(() => (initialCampusId ? SCHOOLS.find((s) => s.campusId === initialCampusId) ?? null : null), [initialCampusId]);
-  const [school, setSchool] = useState<School | null>(preSchool);
-  // "My school isn't listed" — unblur with the DEFAULT map + brand navy (no school colors), plus an
-  // optional "what school?" demand field. Everything else behaves like an unmapped-campus session.
-  const [notListed, setNotListed] = useState(!!initialCampusId && !preSchool);
+  // INITIAL SCHOOL IS WHATEVER THE SERVER ALREADY KNOWS — the URL's campus or the cookie's stored
+  // one, both of which campus context resolved before this render on BOTH sides. Initialising
+  // from it (instead of null + an effect) is what lets a returning visitor's first paint show the
+  // matched player rather than "Pick your school" for a frame.
+  const [school, setSchool] = useState<School | null>(() => preSchool ?? (campus.school ? SCHOOLS.find((s) => s.id === campus.school!.id) ?? null : null));
+  // "My school isn't listed" / "Skip for now" — unblur with the DEFAULT map + brand navy (no school
+  // colors). Everything else behaves like an unmapped-campus session. The cookie sentinels seed it
+  // so a skipper's return visit server-renders the generic player, not the school question again.
+  const [notListed, setNotListed] = useState((!!initialCampusId && !preSchool) || storedCampusId === SKIPPED || storedCampusId === NOT_LISTED);
   const [theater, setTheater] = useState<{ school: School; mode: "full" | "short" } | null>(null);
   const firstPick = useRef(false);
   // A single monotonic "pulse" the Try-Exam-1 CTA bumps: scrolls to the player and rings the gate
@@ -204,12 +217,21 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   // otherwise hand the school straight back (URL / stored pick) and leave the player stuck on
   // the professor rung. The flag clears on the next explicit pick.
   const [manualReset, setManualReset] = useState(false);
+  //
+  // RESET IS SITE-WIDE, NOT PLAYER-WIDE. It used to clear only the player's own school while the
+  // hero, bolt and headline kept reading "ACCY 201 at Ole Miss" from campus context — a page half
+  // about a school the visitor had just said they were not at. Now it clears campus context too
+  // (session + stored + storage key), so the whole page drops to the generic version in one step.
+  // On a page whose URL names the school (/<school>, /go/…) the URL would simply re-assert it, so
+  // that case goes home — the generic page is the only honest "no school" there is.
   const resetMatch = () => {
     setManualReset(true);
     setSchool(null);
     setNotListed(false);
     resetProfessor();
-    try { localStorage.removeItem("sa-landing-school"); } catch { /* ignore */ }
+    rememberProfSkip(null);
+    campus.clearSchool();
+    if (campusSlug) void navigate({ to: "/", hash: EXAM_ANCHOR_ID });
   };
   // ADOPT THE URL'S SCHOOL. preSchool is derived from initialCampusId, which arrives from the
   // chapter QUERY — so on a /go/ page it is still null during the first render, and
@@ -231,8 +253,8 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   useEffect(() => {
     if (initialCampusId) return; // chapter-link sessions keep their own preselection
     try {
-      const id = localStorage.getItem("sa-landing-school");
-      if (id === "__notlisted__") setNotListed(true);
+      const id = readStoredCampus();
+      if (id === NOT_LISTED || id === SKIPPED) setNotListed(true);
       else if (id) { const s = SCHOOLS.find((x) => x.id === id); if (s) { setSchool(s); firstPick.current = true; } } // change → short beat
       const rawProf = localStorage.getItem("sa-landing-prof") ?? sessionStorage.getItem("sa-landing-prof");
       if (rawProf) setProfessor(JSON.parse(rawProf) as ProfessorLite);
@@ -384,7 +406,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   };
 
   return (
-    <div style={{ ...frameThemeVars(theme), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "clip", ...(campusBolt ? { ["--sa-bolt-1"]: campusBolt.c1, ["--sa-bolt-2"]: campusBolt.c2 } as React.CSSProperties : {}) }}>
+    <div style={{ ...frameThemeVars(theme), background: "var(--bg-page)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "clip", ...(campusBolt ? { ["--sa-bolt-1"]: campusBolt.c1, ["--sa-bolt-2"]: campusBolt.c2 } as React.CSSProperties : {}) }}>
       <style>{ANIMATED_BOLT_CSS}</style>
       <style>{MARKETING_CSS}</style>
       <style>{`
@@ -396,7 +418,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
         /* Pause on FOCUS too, not just hover: a keyboard user tabbing into a moving strip would
            otherwise be chasing the thing they are focused on. */
         .sa-marquee:focus-within .sa-marquee-track { animation-play-state: paused; }
-        .sa-tick-item { cursor: pointer; background: none; border: 0; padding: 0 1px; border-radius: 4px; transition: color 140ms, text-shadow 140ms; }
+        .sa-tick-item { cursor: pointer; background: none; border: 0; padding: 0 4px; min-height: 44px; min-width: 44px; border-radius: 4px; transition: color 140ms, text-shadow 140ms; }
         .sa-tick-item:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
         .sa-tick-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; color: var(--accent); }
         /* sa-picker-pulse moved to styles.css — it was defined only here, so the ring was
@@ -411,7 +433,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
         .sa-reveal { animation: sa-reveal 420ms ease; }
         /* The entry overlay card — floats over the preview media, dark enough to stay readable
            when the placeholder becomes real footage. */
-        .sa-entry-card { background: rgba(11,18,32,0.86); border: 1px solid rgba(245,239,230,0.16); border-radius: 16px; padding: 18px 16px; box-shadow: 0 24px 60px -24px rgba(0,0,0,0.8); backdrop-filter: blur(6px); }
+        .sa-entry-card { background: color-mix(in srgb, var(--bg-overlay) 94%, transparent); border: 1px solid var(--border-default); border-radius: 16px; padding: 18px 16px; box-shadow: 0 24px 60px -24px rgba(0,0,0,0.8); backdrop-filter: blur(6px); }
         @media (prefers-reduced-motion: reduce) { .sa-meter-in, .sa-reveal { animation: none; } }
       `}</style>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
@@ -419,7 +441,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
       {/* M1.5 — the persistent way home. On / it is the brand anchor; on /c/<slug> and the
           other pages that reuse LandingPage it is the only route back. Chapter pages swap the
           homepage links for same-page anchors via greekNav. */}
-      <SiteHeader chapterNav={greekNav} />
+      <SiteHeader chapterNav={greekNav} onLanding />
 
       {/* maxWidth + overflow-x guard (M1.1): `padding: 0 20px` on a 1040-wide box is fine on
           desktop, but any child that ignores the box (a nowrap lockup, a fixed-width panel)
@@ -438,12 +460,12 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
           onStart={heroStart}
           secondaryLabel={greek ? (greek.claimed ? `Use ${greek.letters} access →` : `Set up ${greek.letters} access →`) : "For fraternities & sororities →"}
           secondaryHref={greek ? undefined : school ? `/chapters?school=${encodeURIComponent(school.slug)}` : "/chapters"}
-          onSecondary={greek ? () => scrollToId(greek.claimed ? EXAM_ANCHOR_ID : greek.accessAnchor) : undefined}
+          onSecondary={greek ? () => { if (greek.claimed) scrollToId(EXAM_ANCHOR_ID); else { openClaimStep(); scrollToId(greek.accessAnchor); } } : undefined}
           showSecondary={greek ? true : heroKind !== "campus" || (chapterCount ?? 0) > 0}
           onOpenBio={() => setBioOpen(true)}
           courtesy={greek && goChapter ? <CourtesyLine schoolSlug={goChapter.schoolSlug} chapterSlug={goChapter.chapterSlug} chapterName={greek.orgName} /> : undefined}
         />
-        <ExamPlayer videoGate={videoGate} greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); void logCampusCodeDemand({ data: { source: "write-in" } }).catch(() => {}); try { localStorage.setItem("sa-landing-school", "__notlisted__"); } catch { /* ignore */ } }} onReset={resetMatch} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(t) => setNotifyTopic(t)} />
+        <ExamPlayer videoGate={videoGate} greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); void logCampusCodeDemand({ data: { source: "write-in" } }).catch(() => {}); rememberCampus(NOT_LISTED); }} onSkipSchool={() => { setNotListed(true); rememberCampus(SKIPPED); }} schoolSkipped={notListed && !school} initialProfSkipped={!!school && !!profSkipFor && profSkipFor === school.id} onReset={resetMatch} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(t) => setNotifyTopic(t)} />
 
         {/* Value strip AFTER the player: the product proves the claims, the strip reinforces. */}
         <FeatureValueStrip code={heroCode} />
@@ -471,8 +493,11 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
           kind={heroKind}
           onProfessorAsk={() => openSyllabus("Don't see your professor? Tell me who teaches your class and I'll map them.")}
         />
-        <Footer />
       </main>
+      {/* OUTSIDE <main> on purpose: the footer surface is full-bleed, its CONTENT is centred by
+          the footer's own max-w-[1040px] rows. Inside main it inherited main's max width and the
+          navy band stopped 20px short of each edge. */}
+      <Footer onLanding />
 
       {bioOpen && <TutorBioModal onClose={() => setBioOpen(false)} />}
       {/* The sticky footer slides up once the hero is gone and away again at the real footer. */}
@@ -503,7 +528,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
 // `reduce` is read in an EFFECT, never during render. Calling matchMedia while rendering is a real
 // hydration hazard on this SSR'd route: the server always takes the animated branch while a
 // reduced-motion client takes the static one, so the two trees disagree on the first paint.
-function SchoolTicker({ size = 12.5, className = "mt-3 w-full max-w-md", onPick }: { size?: number; className?: string; onPick?: (s: School) => void } = {}) {
+function SchoolTicker({ size = 14, className = "mt-3 w-full max-w-md", onPick }: { size?: number; className?: string; onPick?: (s: School) => void } = {}) {
   const [reduce, setReduce] = useState(false);
   useEffect(() => { setReduce(!!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches); }, []);
 
@@ -573,8 +598,8 @@ const FAQS: { q: string; a: string }[] = [
     a: "Yes — this is tutoring, same as any campus tutor or study guide. I teach you how to do the problems; exam day is still all you.",
   },
   {
-    q: "What if my school isn't listed?",
-    a: "Intro accounting is nearly the same course everywhere, so these videos will still carry you — and I add schools as students ask. Hit \"My school isn't listed\" and tell me.",
+    q: "What if you don't have my school?",
+    a: "Intro accounting is nearly the same course everywhere, so these videos will still carry you — and I add schools as students ask. Hit \"Don't see your school?\" and tell me.",
   },
   {
     q: "What if I watch everything and still feel lost?",
@@ -641,7 +666,7 @@ function Faq({ greek }: { greek?: string }) {
             type="button"
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
-            className="text-[13px] font-bold"
+            className="text-[14px] font-bold"
             style={{ minHeight: 44, color: "var(--accent)" }}
           >
             {open ? "× Show less" : `+ Show more (${rest.length})`}
@@ -663,7 +688,7 @@ function FaqCard({ f, defaultOpen = false }: { f: { q: string; a: string }; defa
   const [open, setOpen] = useState(defaultOpen);
   const id = `faq-${f.q.replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 40)}`;
   return (
-    <div className="rounded-xl" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.09)" }}>
+    <div className="rounded-xl" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)" }}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -676,7 +701,7 @@ function FaqCard({ f, defaultOpen = false }: { f: { q: string; a: string }; defa
         <span aria-hidden className="shrink-0 transition-transform" style={{ color: "var(--accent)", transform: open ? "rotate(180deg)" : "none", fontSize: 12 }}>▾</span>
       </button>
       {open && (
-        <p id={id} className="px-4 pb-3.5 text-[13.5px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.72 }}>{f.a}</p>
+        <p id={id} className="px-4 pb-3.5 text-[14px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.72 }}>{f.a}</p>
       )}
     </div>
   );
@@ -767,7 +792,7 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
         aria-haspopup="dialog"
         aria-expanded={open}
         className={`flex w-full items-center gap-3 rounded-2xl px-5 py-4 text-left transition-transform hover:scale-[1.01]${cued ? " sa-cue" : ""}`}
-        style={{ background: "rgba(245,239,230,0.06)", border: `2px solid ${school ? "var(--bolt-primary)" : "var(--accent)"}`, boxShadow: "0 20px 55px -22px rgba(0,0,0,0.7)", animation: ring ? "sa-picker-pulse 0.9s ease" : undefined, borderRadius: 16 }}
+        style={{ background: "var(--bg-surface)", border: `2px solid ${school ? "var(--bolt-primary)" : "var(--accent)"}`, boxShadow: "0 20px 55px -22px rgba(0,0,0,0.7)", animation: ring ? "sa-picker-pulse 0.9s ease" : undefined, borderRadius: 16 }}
       >
         <GraduationCap className="h-6 w-6 shrink-0" style={{ color: "var(--accent)" }} />
         <span className="min-w-0 flex-1 text-[17px] font-bold" style={{ color: "var(--brand-cream)" }}>{school ? school.name : "Pick your school to start"}</span>
@@ -784,7 +809,7 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
           search={{ value: q, onChange: setQ, placeholder: `Search ${schools.length} schools…` }}
           footer={onNotListed ? (
             <button type="button" className="sa-row sa-row--plain" onClick={() => { onNotListed(); close(); }}>
-              <span className="sa-row-name" style={{ color: "var(--accent)", fontSize: 15 }}>My school isn&apos;t listed →</span>
+              <span className="sa-row-name" style={{ color: "var(--accent)", fontSize: 15 }}>Don&apos;t see your school?</span>
             </button>
           ) : undefined}
         >
@@ -853,18 +878,18 @@ function NotifyModal({ topic, school, professorName, onClose }: { topic: string 
     <div className="fixed inset-0 z-[240] grid place-items-center px-4" style={{ ...frameThemeVars(DEFAULT_FRAME_THEME), background: "rgba(5,8,16,0.72)" }} onClick={onClose}>
       <div
         className="w-full max-w-[380px] rounded-2xl p-5"
-        style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)", paddingBottom: "max(20px, env(safe-area-inset-bottom, 0px))" }}
+        style={{ background: "var(--bg-overlay)", border: "1px solid var(--border-default)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)", paddingBottom: "max(20px, env(safe-area-inset-bottom, 0px))" }}
         onClick={(e) => e.stopPropagation()}
       >
         {done ? (
           <div className="py-4 text-center">
             <p className="text-[17px] font-black" style={{ color: "var(--brand-cream)" }}>You&apos;re on the list. ⚡</p>
-            <button onClick={onClose} className="mt-4 w-full rounded-xl text-[13.5px] font-black" style={{ minHeight: 46, background: "rgba(245,239,230,0.12)", color: "var(--brand-cream)" }}>Close</button>
+            <button onClick={onClose} className="mt-4 w-full rounded-xl text-[13.5px] font-black" style={{ minHeight: 46, background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}>Close</button>
           </div>
         ) : (
           <>
             <p className="text-[16px] font-black" style={{ color: "var(--brand-cream)" }}>{LAUNCH_LINE}</p>
-            <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-muted)" }}>
+            <p className="mt-1 text-[14px]" style={{ color: "var(--text-muted)" }}>
               {topic ? `I'll tell you the moment ${topic} is up.` : "I'll tell you the moment it's up."}
             </p>
             <input
@@ -874,12 +899,12 @@ function NotifyModal({ topic, school, professorName, onClose }: { topic: string 
               onKeyDown={(e) => { if (e.key === "Enter") void send(); }}
               placeholder="Email or phone"
               className="mt-3 w-full rounded-xl px-3 text-[15px] outline-none"
-              style={{ minHeight: 46, background: "rgba(0,0,0,0.35)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }}
+              style={{ minHeight: 46, background: "rgba(0,0,0,0.35)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
             />
             {/* A2P: the field accepts a phone, so the consent essentials sit right under it; the
                 full disclosure is one tap away under "Message terms". */}
             <SmsConsentNote compact />
-            {err && <p className="mt-2 text-[12px]" style={{ color: "#FF8B9E" }}>{err}</p>}
+            {err && <p className="mt-2 text-[14px]" style={{ color: "#FF8B9E" }}>{err}</p>}
             <button
               onClick={() => void send()}
               disabled={!valid || busy}
@@ -888,7 +913,7 @@ function NotifyModal({ topic, school, professorName, onClose }: { topic: string 
             >
               {busy ? "Sending…" : "Get notified"}
             </button>
-            <button onClick={onClose} className="mt-2 w-full text-[12.5px]" style={{ minHeight: 44, color: "var(--text-muted)" }}>No thanks</button>
+            <button onClick={onClose} className="mt-2 w-full text-[14px]" style={{ minHeight: 44, color: "var(--text-muted)" }}>No thanks</button>
           </>
         )}
       </div>
@@ -945,7 +970,7 @@ function SyllabusModal({ school, framing, onClose }: { school: School | null; fr
 
   return (
     <div className="fixed inset-0 z-[210] grid place-items-center p-4" style={{ background: "rgba(6,10,20,0.72)" }} onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl p-6" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 40px 90px -30px rgba(0,0,0,0.9)", fontFamily: BRAND_SANS }} onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-md rounded-2xl p-6" style={{ background: "var(--bg-overlay)", border: "1px solid var(--border-default)", boxShadow: "0 40px 90px -30px rgba(0,0,0,0.9)", fontFamily: BRAND_SANS }} onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-start justify-between gap-3">
           <h3 className="text-[18px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Send everything you've got.</h3>
           <button onClick={onClose} className="grid h-7 w-7 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--brand-cream)" }} aria-label="Close"><X className="h-4 w-4" /></button>
@@ -953,13 +978,13 @@ function SyllabusModal({ school, framing, onClose }: { school: School | null; fr
 
         {done ? (
           <div className="py-6 text-center">
-            <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full text-[24px]" style={{ background: "rgba(59,245,160,0.14)" }}>⚡</div>
+            <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full text-[24px]" style={{ background: "rgba(0,107,166,0.25)" }}>⚡</div>
             <p className="text-[15px] font-semibold" style={{ color: "var(--brand-cream)" }}>Got it. You'll hear from me soon — Lee.</p>
             <button onClick={onClose} className="mt-5 rounded-xl px-5 py-2.5 text-[13.5px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>Done</button>
           </div>
         ) : (
           <>
-            <p className="mb-3 text-[13px] leading-relaxed" style={{ color: framing ? "var(--brand-cream)" : "var(--text-muted)" }}>{framing ?? "Syllabus, study guides, old homework, notes — the more you send, the tighter I can match your exam. I review every submission myself."}</p>
+            <p className="mb-3 text-[14px] leading-relaxed" style={{ color: framing ? "var(--brand-cream)" : "var(--text-muted)" }}>{framing ?? "Syllabus, study guides, old homework, notes — the more you send, the tighter I can match your exam. I review every submission myself."}</p>
 
             <div
               onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
@@ -967,9 +992,9 @@ function SyllabusModal({ school, framing, onClose }: { school: School | null; fr
               onDrop={(e) => { e.preventDefault(); setDrag(false); void addFiles(e.dataTransfer.files); }}
               onClick={() => inputRef.current?.click()}
               className="cursor-pointer rounded-xl px-4 py-6 text-center transition-colors"
-              style={{ border: `2px dashed ${drag ? "var(--accent)" : "rgba(245,239,230,0.25)"}`, background: drag ? "rgba(252,163,17,0.08)" : "rgba(245,239,230,0.03)" }}
+              style={{ border: `2px dashed ${drag ? "var(--accent)" : "var(--border-default)"}`, background: drag ? "rgba(252,163,17,0.08)" : "var(--bg-input)" }}
             >
-              <p className="text-[13.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>Add files from your class</p>
+              <p className="text-[14px] font-semibold" style={{ color: "var(--brand-cream)" }}>Add files from your class</p>
               <p className="mt-1 text-[11.5px]" style={{ color: "var(--text-muted)" }}>Syllabus or study guide · PDF, Word, or a photo</p>
               <input ref={inputRef} type="file" multiple accept={ACCEPT} className="hidden" onChange={(e) => void addFiles(e.target.files)} />
             </div>
@@ -977,7 +1002,7 @@ function SyllabusModal({ school, framing, onClose }: { school: School | null; fr
             {files.length > 0 && (
               <ul className="mt-3 space-y-1.5">
                 {files.map((f, i) => (
-                  <li key={`${f.name}-${i}`} className="flex items-center gap-2 rounded-lg px-3 py-2 text-[12.5px]" style={{ background: "rgba(245,239,230,0.05)", color: "var(--brand-cream)" }}>
+                  <li key={`${f.name}-${i}`} className="flex items-center gap-2 rounded-lg px-3 py-2 text-[14px]" style={{ background: "var(--bg-surface)", color: "var(--brand-cream)" }}>
                     <span className="min-w-0 flex-1 truncate">{f.name}</span>
                     <span className="shrink-0 text-[11px]" style={{ color: "var(--text-muted)" }}>{(f.size / 1024 / 1024).toFixed(1)}MB</span>
                     <button onClick={() => setFiles((cur) => cur.filter((_, j) => j !== i))} className="grid h-5 w-5 shrink-0 place-items-center rounded-full hover:bg-white/10" aria-label={`Remove ${f.name}`}><X className="h-3 w-3" /></button>
@@ -989,10 +1014,10 @@ function SyllabusModal({ school, framing, onClose }: { school: School | null; fr
             <input
               type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com"
               className="mt-3 w-full rounded-xl px-4 py-3 text-[14px] outline-none"
-              style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }}
+              style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
             />
 
-            {err && <p className="mt-2 text-[12.5px]" style={{ color: "#F3C6CC" }}>{err}</p>}
+            {err && <p className="mt-2 text-[14px]" style={{ color: "#F3C6CC" }}>{err}</p>}
 
             <button onClick={send} disabled={!canSend} className="mt-4 w-full rounded-xl py-3 text-[15px] font-black transition-opacity disabled:opacity-40" style={{ background: "var(--accent)", color: "#0B1220" }}>
               {busy ? "Sending…" : "Send it"}
@@ -1103,7 +1128,7 @@ function PreviewSurface({ children }: { children: React.ReactNode }) {
  *
  *  `onReset` clears school AND professor together. A half-reset — new school, professor left
  *  over from the old one — would silently attach a student to another campus's faculty. */
-function MatchPanel({ gateActive, school, professor, notListed, profDone, coveragePct, schools, cueSignal, onPick, onNotListed, onPickProfessor, onProfNotListed, onAddProfessor, onMaterials, onReset }: {
+function MatchPanel({ gateActive, school, professor, notListed, profDone, coveragePct, schools, cueSignal, onPick, onNotListed, onSkipSchool, onPickProfessor, onProfNotListed, onAddProfessor, onMaterials, onReset }: {
   /** True while the Greek gate is showing — the whole panel stands down. */
   gateActive?: boolean;
   school: School | null;
@@ -1119,6 +1144,8 @@ function MatchPanel({ gateActive, school, professor, notListed, profDone, covera
   schools: School[];
   onPick: (s: School) => void;
   onNotListed: () => void;
+  /** The school question is OPTIONAL: skipping serves the Starter Map's Exam 1 with generic copy. */
+  onSkipSchool: () => void;
   onPickProfessor: (p: ProfessorLite) => void;
   onProfNotListed: () => void;
   /** Reopens the professor rung from the confirmed bar — for a student who skipped it. */
@@ -1135,10 +1162,14 @@ function MatchPanel({ gateActive, school, professor, notListed, profDone, covera
     return (
       <PreviewSurface>
         <div className="sa-entry-card w-full max-w-sm">
-          <p className="mb-3 text-center text-[16px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
-            Pick your school to start
-          </p>
+          {/* ONE INSTRUCTION, ONCE (Pass 6 §4, restored). The heading that used to sit here said
+              the same sentence as the dropdown's own label directly beneath it. */}
           <CampusSelector school={null} onPick={onPick} schools={schools} onNotListed={onNotListed} cue={cueSignal} />
+          {/* The school is OPTIONAL. A muted way past the question: the Starter Map serves Exam 1
+              with generic copy, and the picker stays one tap away in the confirmed bar. */}
+          <button type="button" onClick={onSkipSchool} className="mt-1 w-full text-[14px] font-bold" style={{ minHeight: 44, color: "var(--text-muted)" }}>
+            Skip for now →
+          </button>
         </div>
         {/* The marquee lives HERE and nowhere else — under the picker it answers "is my school
             here?" at the moment the question is asked. Ambient by design (96s loop). */}
@@ -1190,7 +1221,7 @@ function MatchPanel({ gateActive, school, professor, notListed, profDone, covera
 
 /** The professor rung, rendered inline on the stage rather than in a sheet.
  *
- *  Pass 4 removed "Skip this" on instruction: "My professor isn't listed" is the only alternate
+ *  Pass 4 removed "Skip this" on instruction: "Don't see your professor?" is the only alternate
  *  path, and it still reaches the same next step, so nobody is trapped. "Change school" is
  *  deliberately demoted to small muted text under the list — it is a correction, not a choice. */
 /** A WRITE-IN professor — a campus with no faculty rows yet, or a student whose professor isn't in
@@ -1208,7 +1239,7 @@ const writeInProfessor = (name: string): ProfessorLite => ({ id: "", name, first
  *
  *  WRITE-IN: many campuses have no faculty listed yet, so the picker would open onto "0 professors /
  *  No matches" — a dead end. When the roster is empty we show a free-text field instead of the empty
- *  picker; when the roster has names but not theirs, "My professor isn't listed" reveals the same
+ *  picker; when the roster has names but not theirs, "Don't see your professor?" reveals the same
  *  field. Either way the typed name is captured as a write-in professor. A muted skip stays available
  *  so nobody is trapped by a field they can't (or won't) fill. */
 function ProfessorStage({ school, onPick, onNotListed }: {
@@ -1244,7 +1275,7 @@ function ProfessorStage({ school, onPick, onNotListed }: {
       {writeIn ? (
         <>
           {rosterEmpty && (
-            <p className="text-center text-[13px]" style={{ color: "var(--text-muted)" }}>
+            <p className="text-center text-[14px]" style={{ color: "var(--text-muted)" }}>
               No professors listed for {school?.name ?? "your school"} yet — type yours in.
             </p>
           )}
@@ -1257,7 +1288,7 @@ function ProfessorStage({ school, onPick, onNotListed }: {
             aria-label="Type your professor's name"
             className="w-full rounded-xl px-3.5 outline-none focus-visible:ring-2"
             // 16px keeps iOS from zooming the page on focus (matches SearchPicker's input).
-            style={{ fontSize: 16, minHeight: 52, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }}
+            style={{ fontSize: 16, minHeight: 52, background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
           />
           <button
             type="button"
@@ -1269,11 +1300,11 @@ function ProfessorStage({ school, onPick, onNotListed }: {
             Use this professor
           </button>
           {!rosterEmpty && (
-            <button type="button" onClick={() => setManual(false)} className="text-[13px] font-bold" style={{ minHeight: 40, color: "var(--text-muted)" }}>
+            <button type="button" onClick={() => setManual(false)} className="text-[14px] font-bold" style={{ minHeight: 44, color: "var(--text-muted)" }}>
               ← Back to the list
             </button>
           )}
-          <button type="button" onClick={onNotListed} className="text-[13px] font-bold" style={{ minHeight: 40, color: "var(--text-muted)" }}>
+          <button type="button" onClick={onNotListed} className="text-[14px] font-bold" style={{ minHeight: 44, color: "var(--text-muted)" }}>
             Skip for now →
           </button>
         </>
@@ -1289,11 +1320,11 @@ function ProfessorStage({ school, onPick, onNotListed }: {
             ariaLabel={`Search ${school?.name ?? "your school"} professors`}
           />
           <button type="button" onClick={() => setManual(true)} className="text-[14px] font-bold" style={{ minHeight: 44, color: "var(--accent)" }}>
-            My professor isn&apos;t listed →
+            Don&apos;t see your professor?
           </button>
           {/* Professor selection is OPTIONAL — the explicit low-friction way past the question,
               in the list state too (the write-in state already had one). */}
-          <button type="button" onClick={onNotListed} className="text-[13px] font-bold" style={{ minHeight: 40, color: "var(--text-muted)" }}>
+          <button type="button" onClick={onNotListed} className="text-[14px] font-bold" style={{ minHeight: 44, color: "var(--text-muted)" }}>
             Skip for now →
           </button>
         </>
@@ -1307,7 +1338,7 @@ function ProfessorStage({ school, onPick, onNotListed }: {
 // now lives in MatchPanel, inside the right panel, where the student is already looking.
 
 
-function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, schools, onSyllabus, professor, onPickProfessor, notListed, onNotListed, onReset, theater, onTheaterDone, onNotify }: { videoGate?: React.ReactNode; greekOrg?: string; exams: ExamTab[]; school: School | null; onPick: (s: School) => void; focusSignal: number; schools: School[]; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; notListed: boolean; onNotListed: () => void; onReset: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void; onNotify: (topic: string) => void }) {
+function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, schools, onSyllabus, professor, onPickProfessor, notListed, onNotListed, onSkipSchool, schoolSkipped, initialProfSkipped, onReset, theater, onTheaterDone, onNotify }: { videoGate?: React.ReactNode; greekOrg?: string; exams: ExamTab[]; school: School | null; onPick: (s: School) => void; focusSignal: number; schools: School[]; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; notListed: boolean; onNotListed: () => void; onSkipSchool: () => void; /** No school named (skipped / not listed): the professor rung is moot and the player goes straight to content. */ schoolSkipped: boolean; /** The cookie says this visitor already skipped the professor question for this school. */ initialProfSkipped: boolean; onReset: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void; onNotify: (topic: string) => void }) {
   const [activeNum, setActiveNum] = useState(1);
   const [selById, setSelById] = useState<Record<number, Sel>>({});
   const [openTopics, setOpenTopics] = useState<Set<string>>(() => new Set());
@@ -1317,9 +1348,17 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
   // rung is answered and clears when the student acts on it either way.
   // The professor rung is "answered" once a professor is picked OR declared unlisted. Without
   // this the stage would sit on the professor step forever for anyone who has no listed prof.
-  const [profDone, setProfDone] = useState(false);
+  // Seeded from the cookie (server-known) so a returning skipper is not asked again — and not
+  // shown the question for a frame before an effect hides it.
+  const [profDone, setProfDone] = useState(() => initialProfSkipped || schoolSkipped);
   useEffect(() => { if (professor) setProfDone(true); }, [professor]);
-  useEffect(() => { setProfDone(false); }, [school?.id]);
+  useEffect(() => { if (schoolSkipped) setProfDone(true); }, [schoolSkipped]);
+  // A CHANGE of school re-asks; the mount does not (the initial value above already answered it).
+  const prevSchoolId = useRef(school?.id);
+  useEffect(() => { if (prevSchoolId.current !== school?.id) { prevSchoolId.current = school?.id; setProfDone(false); } }, [school?.id]);
+  // "Skip for now" on the professor rung is REMEMBERED per school — asking a returning student the
+  // same optional question on every visit was the most-repeated step in the whole flow.
+  const skipProfessor = () => { setProfDone(true); rememberProfSkip(school?.id ?? null); };
   const chipRef = useRef<HTMLButtonElement>(null);
   // WARM THE ROSTER on the SAME query key the match sheet reads, the moment a school exists.
   // Without this the sheet step 2 opens empty and fills a second later - the prefetch used to
@@ -1412,12 +1451,12 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
             opens is populated by the Starter Map from the very first paint, so hiding the
             switcher until a school existed only hid working navigation. */}
         <div className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 sm:hidden" style={{ background: "rgba(0,0,0,0.2)" }}>
-          <span className="text-[13px]" style={{ color: "var(--text-muted)" }}>Topic</span>
+          <span className="text-[14px]" style={{ color: "var(--text-muted)" }}>Topic</span>
           <button
             onClick={() => setDrawerOpen((v) => !v)}
             aria-expanded={drawerOpen}
-            className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-bold"
-            style={{ minHeight: 40, background: "rgba(245,239,230,0.08)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }}
+            className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2.5 text-[14px] font-bold"
+            style={{ minHeight: 44, background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
           >
             <span className="min-w-0 truncate">{curTopic?.name ?? active.label}</span>
             <span className="shrink-0" style={{ color: "var(--accent)" }}>{drawerOpen ? "▴" : "▾"}</span>
@@ -1425,7 +1464,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
         </div>
 
         <div className="sa-player-min sm:flex">
-          <div className={`${drawerOpen ? "block" : "hidden"} border-b sm:block sm:w-[42%] sm:max-w-[360px] sm:border-b-0 sm:border-r`} style={{ borderColor: "rgba(245,239,230,0.1)" }}>
+          <div className={`${drawerOpen ? "block" : "hidden"} border-b sm:block sm:w-[42%] sm:max-w-[360px] sm:border-b-0 sm:border-r`} style={{ borderColor: "var(--border-default)", background: "var(--bg-player-sidebar)" }}>
             <ExamOutline tab={active} school={school} professor={professor} flowDone={flowDone} coveragePct={active.coveragePct} onAddProfessor={() => setProfDone(false)} onMaterials={() => onSyllabus()} onReset={onReset} stats={examStats(active)} isPaid={isPaid} curSetId={curSet?.id ?? null} curTopicKey={cur?.topicKey ?? null} openTopics={openTopics} onToggleTopic={toggleTopic} onPickSet={pickSet} />
           </div>
 
@@ -1436,7 +1475,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
             {/* ONE STATE AT A TIME. `flowDone` is the whole ladder, not its first rung — see the
                 note above sa-panel-min in styles.css for the height half of this. */}
             <div className="sa-panel-min relative w-full flex-1">
-              <MatchPanel gateActive={!!videoGate} school={school} professor={professor} notListed={notListed} profDone={profDone} coveragePct={active.coveragePct} schools={schools} cueSignal={focusSignal} onPick={onPick} onNotListed={onNotListed} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); }} onProfNotListed={() => setProfDone(true)} onAddProfessor={() => setProfDone(false)} onMaterials={() => onSyllabus()} onReset={onReset} />
+              <MatchPanel gateActive={!!videoGate} school={school} professor={professor} notListed={notListed} profDone={profDone} coveragePct={active.coveragePct} schools={schools} cueSignal={focusSignal} onPick={onPick} onNotListed={onNotListed} onSkipSchool={onSkipSchool} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); }} onProfNotListed={skipProfessor} onAddProfessor={() => { setProfDone(false); rememberProfSkip(null); }} onMaterials={() => onSyllabus()} onReset={onReset} />
               {/* THE GATE STANDS IN FOR THE VIDEO, not for the page: tabs, topics and the
                   whole menu stay readable, because a visitor deciding whether to hand over an
                   email needs to see what they are unlocking. */}
@@ -1448,8 +1487,10 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
                   // set-flow model — same walk as /learn, homepage-sized shell around it).
                   <SetFlowPanel key={curSet.id} topic={curTopic} set={curSet} school={school} surface={greekOrg ? "greek" : school ? "campus" : "home"} onCramComplete={() => markComplete(curSet!.id)} onPickSet={(sid) => pickSet(curTopic!.key, sid)} />
                 ) : (
-                  <div className="sa-reveal relative w-full" style={{ aspectRatio: "16 / 9", background: "#000" }}>
-                    <Poster school={school} topicName={curTopic?.name ?? active.label} stem={curSet?.firstStem ?? null} />
+                  // NOT A FIXED 16:9 BOX. The unpublished state carries a line of copy and the
+                  // notify field, which a phone-width 16:9 panel (~190px tall) cannot hold.
+                  <div className="sa-reveal relative w-full" style={{ minHeight: "min(56.25vw, 300px)" }}>
+                    <Poster school={school} exam={active} topicName={curTopic?.name ?? active.label} stem={curSet?.firstStem ?? null} />
                   </div>
                 )
               )}
@@ -1505,7 +1546,7 @@ function ExamTabs({ exams, activeNum, onSelect, greek }: { exams: ExamTab[]; act
     <>
     <div
       className="flex items-stretch overflow-x-auto"
-      style={{ background: "rgba(0,0,0,0.22)", scrollbarWidth: "none", borderBottom: "1px solid rgba(245,239,230,0.1)" }}
+      style={{ background: "rgba(0,0,0,0.22)", scrollbarWidth: "none", borderBottom: "1px solid var(--border-default)" }}
       role="tablist"
       aria-label="Choose an exam"
     >
@@ -1580,7 +1621,7 @@ function SemesterPassLine({ onPass }: { onPass: () => void }) {
   };
   return (
     <div className="sa-passline group relative px-3 py-2 text-center" style={{ background: "rgba(0,0,0,0.12)" }}>
-      <button onClick={onPass} className="block w-full px-7 text-[12.5px] hover:opacity-90" style={{ color: "var(--text-muted)" }}>
+      <button onClick={onPass} className="block w-full py-2 px-7 text-[14px] hover:opacity-90" style={{ color: "var(--text-muted)" }}>
         Or grab the{" "}
         <span className="font-bold" style={{ color: "var(--accent)" }}>Semester Pass</span>
         {` — everything, all semester, for $${SEMESTER_PASS_PRICE}.`}
@@ -1588,8 +1629,8 @@ function SemesterPassLine({ onPass }: { onPass: () => void }) {
       <button
         onClick={dismiss}
         aria-label="Dismiss the Semester Pass offer"
-        className="sa-passline-x absolute right-1.5 top-1/2 grid -translate-y-1/2 place-items-center rounded"
-        style={{ width: 28, height: 28, color: "var(--text-muted)" }}
+        className="sa-passline-x absolute right-0 top-1/2 grid -translate-y-1/2 place-items-center rounded"
+        style={{ width: 44, height: 44, color: "var(--text-muted)" }}
       >
         <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>×</span>
       </button>
@@ -1668,13 +1709,14 @@ function ExamOutline({ tab, school, professor, flowDone, coveragePct, onAddProfe
         <TopicRow key={t.key} topic={t} isPaid={isPaid} price={tab.price} open={openTopics.has(t.key)} onToggle={() => onToggleTopic(t.key)} curSetId={curSetId} curTopicKey={curTopicKey} activeRef={activeRef} onPickSet={onPickSet} onPaidClick={() => setNotifyPulse((p) => p + 1)} />
       ))}
       {/* the quiet sum — where the eye lands after scanning the list, not a headline */}
-      <div className="mt-2 border-t px-1 pt-2 text-[10.5px]" style={{ borderColor: "rgba(245,239,230,0.08)", color: "var(--text-muted)" }}>{stats}</div>
+      <div className="mt-2 border-t px-1 pt-2 text-[10.5px]" style={{ borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>{stats}</div>
       {/* PAID-TAB-CAPTURE stays on paid tabs (peak purchase intent) and on tabs with nothing
           live yet. It is GONE from a content-ready free tab: once the product exists, a waitlist
           box under it is clutter apologising for a problem the tab no longer has. */}
-      {(isPaid || !tab.topics.some((t) => t.sets.some((s) => s.playbackId))) && (
-        <PaidNotifyRow exam={tab} school={school} pulse={notifyPulse} />
-      )}
+      {/* On a FREE tab with nothing published the box lives in the Poster instead — inside the
+          media panel, where it is visible on every breakpoint. Here it would be hidden inside the
+          collapsed mobile topic drawer, which is exactly where it used to be. */}
+      {isPaid && <PaidNotifyRow exam={tab} school={school} pulse={notifyPulse} />}
     </div>
   );
 }
@@ -1711,15 +1753,16 @@ function PaidNotifyRow({ exam, school, pulse }: { exam: ExamTab; school: School 
        grows past the video beside it. */
     <div ref={boxRef} className="mt-2 rounded-xl px-2.5 py-2" style={{ border: `1px solid ${flash ? "var(--accent)" : "rgba(252,163,17,0.35)"}`, background: flash ? "rgba(252,163,17,0.14)" : "rgba(252,163,17,0.06)", transition: "background 300ms, border-color 300ms" }}>
       {state === "done" ? (
-        <p className="text-[11px] font-semibold" style={{ color: "var(--brand-cream)" }}>✓ You're on the list — I'll email you the day {exam.label} opens.</p>
+        <p className="text-[14px] font-semibold" style={{ color: "var(--brand-cream)" }}>✓ You're on the list — I'll email you the day {exam.label} opens.</p>
       ) : (
         <>
-          <p className="text-[11px] font-bold" style={{ color: "var(--brand-cream)" }}>Get notified once {exam.label} is ready</p>
-          <div className="mt-1 flex gap-1.5">
-            <input value={email} onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("open"); }} onKeyDown={(e) => { if (e.key === "Enter") void submit(); }} type="email" placeholder="you@school.edu" className="min-w-0 flex-1 rounded-lg px-2.5 py-1.5 text-[12px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }} />
-            <button onClick={() => void submit()} disabled={state === "busy"} className="shrink-0 rounded-lg px-3 py-1.5 text-[11.5px] font-black disabled:opacity-50" style={{ background: "var(--accent)", color: "#0B1220" }}>{state === "busy" ? "…" : "Notify me"}</button>
+          <p className="text-[14px] font-bold" style={{ color: "var(--brand-cream)" }}>Get notified once {exam.label} is ready</p>
+          <div className="mt-1.5 flex gap-1.5">
+            {/* 16px input: iOS zooms the page on focus below that. 44px controls: thumb-sized. */}
+            <input value={email} onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("open"); }} onKeyDown={(e) => { if (e.key === "Enter") void submit(); }} type="email" inputMode="email" autoComplete="email" placeholder="you@school.edu" className="min-w-0 flex-1 rounded-lg px-3 outline-none" style={{ fontSize: 16, minHeight: 44, background: "var(--bg-input)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }} />
+            <button onClick={() => void submit()} disabled={state === "busy"} className="shrink-0 rounded-lg px-3 text-[14px] font-black disabled:opacity-50" style={{ minHeight: 44, background: "var(--accent)", color: "#0B1220" }}>{state === "busy" ? "…" : "Notify me"}</button>
           </div>
-          {state === "error" && <p className="mt-1 text-[10.5px]" style={{ color: "#F3C6CC" }}>Couldn't save that — try again in a moment.</p>}
+          {state === "error" && <p className="mt-1 text-[14px]" style={{ color: "#F3C6CC" }}>Couldn't save that — try again in a moment.</p>}
         </>
       )}
     </div>
@@ -1745,18 +1788,18 @@ function TopicRow({ topic, isPaid, price, open, onToggle, curSetId, curTopicKey,
     // Unbuilt topic — muted, estimated runtime, selectable → poster state. "coming" told a
     // student nothing about the product's shape; a runtime says what studying this topic costs.
     return (
-      <button ref={posterActive ? activeRef : undefined} onClick={() => onPickSet(topic.key, null)} className="mb-0.5 flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left hover:bg-white/5" style={{ opacity: 0.55, background: posterActive ? "rgba(252,163,17,0.12)" : "transparent" }}>
+      <button ref={posterActive ? activeRef : undefined} onClick={() => onPickSet(topic.key, null)} className="mb-0.5 flex w-full items-center gap-1.5 rounded-lg px-2 py-2.5 text-left hover:bg-white/5" style={{ opacity: 0.55, background: posterActive ? "rgba(0,107,166,0.28)" : "transparent" }}>
         <span className="h-3.5 w-3.5 shrink-0" />
-        <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: posterActive ? "var(--accent)" : "var(--brand-cream)" }}>{topic.name}</span>
+        <span className="min-w-0 flex-1 truncate text-[14px] font-bold" style={{ color: posterActive ? "var(--accent-info-text)" : "var(--brand-cream)" }}>{topic.name}</span>
         <span className="shrink-0 text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }}>~{estTopicMin(topic.name)} min</span>
       </button>
     );
   }
   return (
     <div className="mb-1">
-      <button onClick={onToggle} className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left hover:bg-white/5">
+      <button onClick={onToggle} className="flex w-full items-center gap-1.5 rounded-lg px-2 py-2.5 text-left hover:bg-white/5">
         <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "" : "-rotate-90"}`} style={{ color: "var(--text-muted)" }} />
-        <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>{topic.name}</span>
+        <span className="min-w-0 flex-1 truncate text-[14px] font-bold" style={{ color: "var(--brand-cream)" }}>{topic.name}</span>
         <span className="shrink-0 text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }}>{totalCeq} Qs</span>
       </button>
       {open && (
@@ -1785,9 +1828,9 @@ function SetRow({ set, refLabel, isPaid, active, activeRef, onPick, onPaidClick 
   // the same slot free rows wear ▶. PAID-TAB-CAPTURE: tapping one points at the notify panel.
   const onClick = () => { if (isPaid) { onPaidClick(); return; } onPick(); };
   return (
-    <button ref={active ? activeRef : undefined} onClick={onClick} className="relative flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/5" style={{ background: active ? "rgba(252,163,17,0.12)" : "transparent", opacity: !isPaid && !live ? 0.7 : 1 }}>
+    <button ref={active ? activeRef : undefined} onClick={onClick} className="relative flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-white/5" style={{ background: active ? "rgba(0,107,166,0.28)" : "transparent", opacity: !isPaid && !live ? 0.7 : 1 }}>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[12.5px] font-semibold" style={{ color: active ? "var(--accent)" : "var(--brand-cream)" }}>{tease}</span>
+        <span className="block truncate text-[14px] font-semibold" style={{ color: active ? "var(--accent-info-text)" : "var(--brand-cream)" }}>{tease}</span>
         <span className="block text-[10.5px]" style={{ color: "var(--text-muted)" }}>{meta}{!live && !isPaid ? " · coming" : ""}</span>
         {/* COVERAGE (questions attempted), never accuracy — progress, not a score. */}
         {frac > 0 && <span className="mt-1 block h-[3px] overflow-hidden rounded-full" style={{ background: "rgba(245,239,230,0.1)" }}><span className="block h-full rounded-full" style={{ width: `${Math.round(frac * 100)}%`, background: frac >= 1 ? "#3BF5A0" : "var(--accent)" }} /></span>}
@@ -1828,14 +1871,14 @@ function TwoSetAsk({ school, professor, onDone }: { school: School | null; profe
     catch { setBusy(false); }
   };
   return (
-    <div className="flex flex-col gap-2 border-t px-3 py-3 sm:flex-row sm:items-center" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(252,163,17,0.06)" }}>
+    <div className="flex flex-col gap-2 border-t px-3 py-3 sm:flex-row sm:items-center" style={{ borderColor: "var(--border-default)", background: "rgba(252,163,17,0.06)" }}>
       {sent ? (
-        <span className="text-[12.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>Saved — I'll tell you when Exam 2 lands.</span>
+        <span className="text-[14px] font-semibold" style={{ color: "var(--brand-cream)" }}>Saved — I'll tell you when Exam 2 lands.</span>
       ) : (
         <>
-          <span className="min-w-0 flex-1 text-[12.5px]" style={{ color: "var(--brand-cream)" }}>Nice — save your progress and get told when Exam 2 lands?</span>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" className="rounded-lg px-3 py-1.5 text-[12.5px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)", minWidth: 0 }} />
-          <button onClick={send} disabled={!ok || busy} className="shrink-0 rounded-lg px-3 py-1.5 text-[12.5px] font-black disabled:opacity-40" style={{ background: "var(--accent)", color: "#0B1220" }}>{busy ? "…" : "Send"}</button>
+          <span className="min-w-0 flex-1 text-[14px]" style={{ color: "var(--brand-cream)" }}>Nice — save your progress and get told when Exam 2 lands?</span>
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" className="rounded-lg px-3 py-2.5 text-[14px] outline-none" style={{ background: "var(--bg-input)", border: "1px solid var(--border-default)", color: "var(--brand-cream)", minWidth: 0 }} />
+          <button onClick={send} disabled={!ok || busy} className="shrink-0 rounded-lg px-3 py-2.5 text-[14px] font-black disabled:opacity-40" style={{ background: "var(--accent)", color: "#0B1220" }}>{busy ? "…" : "Send"}</button>
           <button onClick={onDone} className="grid h-6 w-6 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--text-muted)" }} aria-label="Dismiss"><X className="h-3.5 w-3.5" /></button>
         </>
       )}
@@ -1877,7 +1920,7 @@ function HeroVideo({ playbackId, onComplete }: { playbackId: string; onComplete?
         <button
           onClick={() => { const v = ref.current; if (v) { v.muted = false; void v.play().catch(() => { /* keep state */ }); } dismissChip(); }}
           className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-bold"
-          style={{ background: "rgba(11,18,32,0.82)", border: "1px solid rgba(245,239,230,0.28)", color: "var(--brand-cream)", opacity: chipFading ? 0 : 1, transition: "opacity 320ms ease", pointerEvents: chipFading ? "none" : "auto" }}
+          style={{ background: "rgba(11,18,32,0.82)", border: "1px solid var(--border-default)", color: "var(--brand-cream)", opacity: chipFading ? 0 : 1, transition: "opacity 320ms ease", pointerEvents: chipFading ? "none" : "auto" }}
         >
           <span aria-hidden>🔊</span> Tap for sound
         </button>
@@ -1985,18 +2028,28 @@ function SetFlowPanel({ topic, set, school, surface, onCramComplete, onPickSet }
   );
 }
 
-function Poster({ school, topicName, stem }: { school: School | null; topicName: string; stem?: string | null }) {
+/** THE UNPUBLISHED-VIDEO STATE. Until a set's video is published this is what a topic opens onto,
+ *  so it has to read as a deliberate "not yet", never as a player that failed to load: the bolt in
+ *  the school's colours, the topic name, one plain line saying the videos for this set are coming,
+ *  and the notify field — the only action there is until they publish — right here in the media
+ *  panel on every breakpoint (the sidebar copy of it was invisible inside the mobile drawer). */
+function Poster({ school, exam, topicName, stem }: { school: School | null; exam: ExamTab; topicName: string; stem?: string | null }) {
   const c = school ? boltFor(school.id) : { c1: BRAND_RED, c2: BRAND_BLUE };
   return (
-    <div className="grid h-full w-full place-items-center" style={{ background: "var(--sa-surface-2)" }}>
-      <div className="flex flex-col items-center gap-3 px-6 text-center">
+    <div className="grid h-full w-full place-items-center py-5" style={{ background: "var(--sa-surface-2)" }}>
+      <div className="flex w-full max-w-sm flex-col items-center gap-3 px-5 text-center">
         <span className="inline-block h-16 w-11"><Bolt c1={c.c1} c2={c.c2} /></span>
         <span className="rounded-full px-3 py-1 text-[12px] font-bold uppercase tracking-wide" style={{ background: "var(--accent)", color: "#0B1220" }}>{topicName}</span>
         {/* the FULL stem — the outline row's 40ch truncation is the tease, this is the payoff */}
-        {stem && <p className="max-w-md text-[13.5px] font-semibold leading-snug" style={{ color: "var(--brand-cream)" }}>{stem}</p>}
-        {/* Pass 3 removed the launch line and the Get-notified link from here. Both now live in
-            the sidebar notify box, which actually captures the email — the poster was announcing
-            the same fact a second time and sending the student somewhere else to act on it. */}
+        {stem && <p className="max-w-md text-[14px] font-semibold leading-snug" style={{ color: "var(--brand-cream)" }}>{stem}</p>}
+        <p className="text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>
+          {exam.price != null
+            ? `${exam.label} videos open ${LAUNCH_WINDOW} — ${topicName} is on the list.`
+            : `Videos for ${topicName} are coming — Lee is filming this set now.`}
+        </p>
+        <div className="w-full text-left">
+          <PaidNotifyRow exam={exam} school={school} pulse={0} />
+        </div>
       </div>
     </div>
   );
@@ -2040,9 +2093,9 @@ function TestimonialAvatar({ name, src }: { name: string; src?: string }) {
   if (src && !broken) {
     // Eager (not lazy): the slider translates cards off-screen, and lazy never fires for a
     // transformed off-screen <img>. These are 2–5KB each, so eager load is cheap and reliable.
-    return <img src={src} alt={name} onError={() => setBroken(true)} className="h-12 w-12 shrink-0 rounded-full object-cover" style={{ border: "1px solid rgba(245,239,230,0.18)" }} />;
+    return <img src={src} alt={name} onError={() => setBroken(true)} className="h-12 w-12 shrink-0 rounded-full object-cover" style={{ border: "1px solid var(--border-default)" }} />;
   }
-  return <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full text-[14px] font-black" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.18)", color: "var(--accent)" }}>{initialsOf(name)}</span>;
+  return <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full text-[14px] font-black" style={{ background: "var(--bg-overlay)", border: "1px solid var(--border-default)", color: "var(--accent)" }}>{initialsOf(name)}</span>;
 }
 
 /** THREE-UP review cards (one-up below sm), paged. The heading lives in SocialProofSection so it
@@ -2060,6 +2113,15 @@ function TestimonialsSlider() {
     apply(); mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
   }, []);
+  // NEVER A LONE CARD. 10 testimonials three-up left the last page showing one card and two empty
+  // slots. The track is padded by wrapping the FIRST cards back onto the end, so the final page is
+  // a full row that loops around (…, 9, 1, 2) instead of a single orphan. Exact multiples pad
+  // nothing, and the one-up phone layout never needs it.
+  const track = useMemo(() => {
+    const rem = n % per;
+    return rem === 0 ? TESTIMONIALS : [...TESTIMONIALS, ...TESTIMONIALS.slice(0, per - rem)];
+  }, [per, n]);
+  const total = track.length;
   const pages = Math.ceil(n / per);
   const [page, setPage] = useState(0);
   const [auto, setAuto] = useState(!reduce);
@@ -2082,24 +2144,25 @@ function TestimonialsSlider() {
 
   return (
     <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-      <div className="mb-4 flex items-center gap-2 text-[13px]" style={{ color: "var(--brand-cream)" }}>
+      <div className="mb-4 flex items-center gap-2 text-[14px]" style={{ color: "var(--brand-cream)" }}>
         <span aria-hidden style={{ color: "var(--accent)", letterSpacing: "0.08em" }}>★★★★★</span>
         <span style={{ opacity: 0.7 }}>1,000+ students helped</span>
       </div>
 
       <div className="relative select-none overflow-hidden" style={{ touchAction: "pan-y" }}
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={end} onPointerLeave={() => { if (start.current != null) { start.current = null; setDx(0); } }}>
-        <div className="flex" style={{ width: `${(n / per) * 100}%`, transform: `translateX(calc(-${page * (per / n) * 100}% + ${dx}px))`, transition: start.current != null ? "none" : "transform 420ms ease" }}>
-          {TESTIMONIALS.map((t) => (
-            <figure key={t.name} className="px-1.5" style={{ width: `${100 / n}%` }}>
-              <div className="flex h-full flex-col rounded-2xl p-4" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)", minHeight: 168 }}>
-                <blockquote className="text-[13.5px] leading-relaxed" style={{ color: "var(--brand-cream)", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>
+        <div className="flex" style={{ width: `${(total / per) * 100}%`, transform: `translateX(calc(-${page * (per / total) * 100}% + ${dx}px))`, transition: start.current != null ? "none" : "transform 420ms ease" }}>
+          {track.map((t, i) => (
+            // Index in the key: a wrapped card appears twice in the track and names are not unique.
+            <figure key={`${t.name}-${i}`} className="px-1.5" style={{ width: `${100 / total}%` }} aria-hidden={i >= n ? true : undefined}>
+              <div className="flex h-full flex-col rounded-2xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", minHeight: 168 }}>
+                <blockquote className="text-[14px] leading-relaxed" style={{ color: "var(--brand-cream)", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>
                   “{t.quote}”
                 </blockquote>
                 <figcaption className="mt-auto flex items-center gap-2.5 pt-3">
                   <TestimonialAvatar name={t.name} src={t.avatar} />
                   <span className="min-w-0 text-left">
-                    <span className="block truncate text-[12.5px] font-bold" style={{ color: "var(--brand-cream)" }}>{t.name}</span>
+                    <span className="block truncate text-[14px] font-bold" style={{ color: "var(--brand-cream)" }}>{t.name}</span>
                     <span className="block text-[11.5px]" style={{ color: "var(--text-muted)" }}>{[t.school, t.code].filter(Boolean).join(" · ")}</span>
                   </span>
                 </figcaption>
@@ -2112,13 +2175,20 @@ function TestimonialsSlider() {
       {/* controls — every one stops auto-play permanently */}
       {pages > 1 && (
         <div className="mt-4 flex items-center gap-3">
-          <button onClick={() => { go(-1); stop(); }} className="grid h-8 w-8 place-items-center rounded-full text-[18px] hover:bg-white/5" style={{ color: "var(--brand-cream)", border: "1px solid rgba(245,239,230,0.2)" }} aria-label="Previous reviews">‹</button>
-          <div className="flex items-center gap-1.5">
+          <button onClick={() => { go(-1); stop(); }} className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-[20px] hover:bg-white/5" style={{ color: "var(--brand-cream)", border: "1px solid var(--border-default)" }} aria-label="Previous reviews">‹</button>
+          {/* Each dot is an 8px mark inside a 44px button — the target is thumb-sized, the
+              indicator stays a dot. Dots are 24px apart so ten of them fit a phone. */}
+          {/* Below sm the pager is a counter: ten thumb-sized dots are 440px wide, which a phone
+              cannot hold, and 8px dots were the smallest targets on the page. */}
+          <span className="text-[14px] font-bold tabular-nums sm:hidden" style={{ color: "var(--text-muted)" }} aria-live="polite">{page + 1} / {pages}</span>
+          <div className="hidden items-center sm:flex">
             {Array.from({ length: pages }, (_, i) => (
-              <button key={i} onClick={() => { setPage(i); stop(); }} aria-label={`Go to reviews page ${i + 1}`} className="h-2 rounded-full transition-all" style={{ width: i === page ? 18 : 8, background: i === page ? "var(--accent)" : "rgba(245,239,230,0.3)" }} />
+              <button key={i} onClick={() => { setPage(i); stop(); }} aria-label={`Go to reviews page ${i + 1}`} aria-current={i === page ? "true" : undefined} className="grid place-items-center" style={{ width: i === page ? 34 : 24, height: 44 }}>
+                <span className="block h-2 rounded-full transition-all" style={{ width: i === page ? 18 : 8, background: i === page ? "var(--accent)" : "rgba(245,239,230,0.3)" }} />
+              </button>
             ))}
           </div>
-          <button onClick={() => { go(1); stop(); }} className="grid h-8 w-8 place-items-center rounded-full text-[18px] hover:bg-white/5" style={{ color: "var(--brand-cream)", border: "1px solid rgba(245,239,230,0.2)" }} aria-label="Next reviews">›</button>
+          <button onClick={() => { go(1); stop(); }} className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-[20px] hover:bg-white/5" style={{ color: "var(--brand-cream)", border: "1px solid var(--border-default)" }} aria-label="Next reviews">›</button>
         </div>
       )}
     </div>
@@ -2137,7 +2207,7 @@ function TestimonialsSlider() {
 
 // ---- SECTION RHYTHM — a quiet 1px breath between major sections (my-12 → ~96px gap) --------------
 function SectionDivider() {
-  return <div aria-hidden className="mx-auto my-12 h-px w-full max-w-[200px]" style={{ background: "rgba(245,239,230,0.08)" }} />;
+  return <div aria-hidden className="mx-auto my-12 h-px w-full max-w-[200px]" style={{ background: "var(--bg-surface)" }} />;
 }
 
 // Four stacked layers, each on its own row so they collapse cleanly at 360px:
@@ -2150,19 +2220,27 @@ function SectionDivider() {
  *  drift apart. */
 /** Column 2 of the footer. Four in-page anchors; the Greek link is its own thing and lives in
  *  column 3, next to the other "reach a human" routes. */
-const FOOTER_LINKS: { label: string; href: string }[] = [
-  { label: "Cram Exam 1 Free", href: "#exam1" },
-  { label: "Reviews", href: "#reviews" },
-  { label: "Meet your tutor", href: "#lee" },
-  { label: "Contact", href: "#contact" },
+// `base` = "" on the landing layout (the anchors are on this page), "/" elsewhere — /expand
+// rendered these as bare "#exam1" links to sections it does not have, which went nowhere.
+const footerLinks = (base: string, repHref: string): { label: string; href: string }[] => [
+  { label: "Cram Exam 1 Free", href: `${base}#exam1` },
+  { label: "Reviews", href: `${base}#reviews` },
+  { label: "Meet your tutor", href: `${base}#lee` },
+  { label: "Contact", href: `${base}#contact` },
   // FOOTER ONLY, deliberately — not the navbar and not the hamburger. A commission ad in the
   // primary nav would compete with the product for every student who is not going to apply.
-  { label: "Become a campus rep", href: "/rep" },
+  { label: "Become a campus rep", href: repHref },
 ];
 
-export function Footer() {
+export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
+  // Campus-scoped destinations from the ONE campus source: a visitor the site has placed goes to
+  // their school's rep page and their school's chapter list, never back to a picker.
+  const campus = useCampus();
+  const slug = campus.school?.slug ?? null;
+  const FOOTER_LINKS = footerLinks(onLanding ? "" : "/", slug ? `/${slug}/rep` : "/rep");
+  const greekHref = slug ? `/chapters?school=${slug}` : "/chapters";
   return (
-    <footer id="site-footer" className="border-t pt-8 pb-6 sm:pt-10 sm:pb-8" style={{ borderColor: "rgba(245,239,230,0.1)", fontFamily: BRAND_SANS }}>
+    <footer id="site-footer" className="border-t pt-8 pb-6 sm:pt-10 sm:pb-8" style={{ borderColor: "var(--border-default)", background: "var(--bg-nav)", fontFamily: BRAND_SANS }}>
       {/* PASS 6 — three columns instead of one tall centred stack. The old footer ran ~3 screens of
           scrolling on a phone to say four things; a student who reached the bottom looking for a
           phone number had to scroll past the whole nav to find it. Columns also let the "reach
@@ -2179,16 +2257,16 @@ export function Footer() {
               with NAVIGATE / REACH LEE. The component spreads `style` last, so overriding the
               alignment is the whole fix — no wrapper, and the navbar lockup is untouched. */}
           <FitWordmark size={54} style={{ alignItems: "flex-start" }} />
-          <p className="mt-2 text-[12.5px]" style={{ color: "var(--text-muted)" }}>Cram what&apos;s on your exam.</p>
+          <p className="mt-2 text-[14px]" style={{ color: "var(--text-muted)" }}>Cram what&apos;s on your exam.</p>
         </div>
 
         {/* COLUMN 2 — navigate */}
         <nav>
           <p className="mb-2 hidden text-[11px] font-black uppercase sm:block" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>Navigate</p>
-          <ul className="space-y-1.5">
+          <ul>
             {FOOTER_LINKS.map((it) => (
               <li key={it.label}>
-                <a href={it.href} className="text-[13.5px] font-semibold transition-colors hover:text-[var(--accent)]" style={{ color: "var(--brand-cream)" }}>{it.label}</a>
+                <a href={it.href} className="inline-flex items-center text-[14px] font-semibold transition-colors hover:text-[var(--accent)]" style={{ color: "var(--brand-cream)", minHeight: 44 }}>{it.label}</a>
               </li>
             ))}
           </ul>
@@ -2198,14 +2276,14 @@ export function Footer() {
             column width it was a texture nobody could read as a bolt. */}
         <div id="contact" className="scroll-mt-16">
           <p className="mb-2 hidden text-[11px] font-black uppercase sm:block" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>Questions?</p>
-          <p className="text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>Text me — I respond to every message.</p>
-          <a href={`sms:${TEL}`} className="mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13.5px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>
+          <p className="text-[14px] font-bold" style={{ color: "var(--brand-cream)" }}>Text me — I respond to every message.</p>
+          <a href={`sms:${TEL}`} className="mt-3 inline-flex items-center gap-2 rounded-xl px-4 text-[14px] font-black" style={{ background: "var(--accent)", color: "#0B1220", minHeight: 44 }}>
             <MessageCircle className="h-4 w-4" /> Text Lee {PHONE}
           </a>
           {/* Set apart from the text-me CTA by a rule: it is a different audience, not a
               second way to reach Lee. The old two-line "For Fraternities & Sororities /
               Boost chapter GPAs" pair said the same thing twice for one link. */}
-          <a href="/chapters" className="mt-4 inline-flex items-center gap-2 border-t pt-4 text-[13.5px] font-semibold transition-colors hover:text-[var(--accent)]" style={{ color: "var(--brand-cream)", borderColor: "rgba(245,239,230,0.12)" }}>
+          <a href={greekHref} className="mt-4 inline-flex items-center gap-2 border-t pt-4 text-[14px] font-semibold transition-colors hover:text-[var(--accent)]" style={{ minHeight: 48, color: "var(--brand-cream)", borderColor: "var(--border-default)" }}>
             <span aria-hidden>🏛️</span> For Greek Orgs
           </a>
         </div>
@@ -2213,10 +2291,10 @@ export function Footer() {
 
       {/* BOTTOM ROW — full width, centred. Text and ORDER unchanged: the memorial line is the last
           thing on the page and stays that way. */}
-      <div className="mx-auto mt-6 flex max-w-[1040px] flex-col items-center gap-1 border-t px-5 pt-5 text-center sm:mt-9 sm:gap-1.5 sm:pt-6" style={{ borderColor: "rgba(245,239,230,0.08)" }}>
-        <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>surviveaccounting.com</p>
-        <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>© 2026 Earned Wisdom LLC</p>
-        <p className="text-[11.5px] italic" style={{ color: "rgba(245,239,230,0.42)", letterSpacing: "0.01em" }}>In memory of Ben Ingram, 1993–2017</p>
+      <div className="mx-auto mt-6 flex max-w-[1040px] flex-col items-center gap-1 border-t px-5 pt-5 text-center sm:mt-9 sm:gap-1.5 sm:pt-6" style={{ borderColor: "var(--border-subtle)" }}>
+        <p className="text-[14px]" style={{ color: "var(--text-muted)" }}>surviveaccounting.com</p>
+        <p className="text-[14px]" style={{ color: "var(--text-muted)" }}>© 2026 Earned Wisdom LLC</p>
+        <p className="text-[14px] italic" style={{ color: "var(--text-tertiary)", letterSpacing: "0.01em" }}>In memory of Ben Ingram, 1993–2017</p>
       </div>
     </footer>
   );

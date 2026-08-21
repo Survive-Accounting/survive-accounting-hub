@@ -17,6 +17,7 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 
 import { getCampusPage } from "@/lib/campus-page.functions";
+import { readCampusPrefs } from "@/lib/campus-prefs.functions";
 import { campusOgImage, HOME_OG, ogMeta } from "@/lib/og";
 import { schoolBySlug } from "@/lib/schools";
 import { LandingPage } from "./landing";
@@ -27,7 +28,13 @@ export const Route = createFileRoute("/$school/")({
   beforeLoad: ({ params }) => {
     if (!schoolBySlug(params.school)) throw redirect({ to: "/", replace: true });
   },
-  loader: ({ params }) => getCampusPage({ data: { slug: params.school } }),
+  loader: async ({ params }) => {
+    const [page, prefs] = await Promise.all([
+      getCampusPage({ data: { slug: params.school } }),
+      readCampusPrefs().catch(() => ({ campus: null, profSkip: null })),
+    ]);
+    return page ? { ...page, profSkip: prefs.profSkip } : page;
+  },
   head: ({ loaderData: d }) => {
     if (!d) return {};
     // Missing course code ⇒ HOME copy rather than an empty token; the campus-colorway card still
@@ -74,6 +81,7 @@ function CampusPage() {
         initialCampusId={d.campusId}
         initialCourseCode={d.courseCode}
         chapterCount={d.chapterCount}
+        profSkipFor={d.profSkip}
       />
     </>
   );

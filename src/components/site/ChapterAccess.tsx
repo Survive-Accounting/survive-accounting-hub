@@ -55,6 +55,15 @@ export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, letter
   // page re-derives claim state.
   const [claim, setClaim] = useState<ClaimState>(claimStatus);
   const [open, setOpen] = useState(0); // step index; -1 = all collapsed
+  // THE HERO’S "SET UP ACCESS" CTA LANDS ON THE CLAIM STEP, FORM OPEN. It used to scroll here with
+  // step 01 (Share) expanded, so an exec who had just said "set me up" had to find step 02, open
+  // it, then press "Claim This Page" before seeing a field: three clicks for one intent. The CTAs
+  // dispatch OPEN_CLAIM_EVENT (see openClaimStep) and this section answers it.
+  useEffect(() => {
+    const onOpen = () => setOpen(1);
+    window.addEventListener(OPEN_CLAIM_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_CLAIM_EVENT, onOpen);
+  }, []);
   const { code } = useCampus();
   const courseLabel = code ?? "Intro Accounting";
 
@@ -138,7 +147,7 @@ function StepCard({ n, title, desc, status, open, onToggle, children }: {
         // Slightly elevated navy over the page, per the surface ladder; the open card gains a
         // restrained orange edge so the active step reads at a glance without shouting.
         background: "var(--sa-surface-2, rgba(245,239,230,0.05))",
-        border: `1px solid ${open ? "rgba(252,163,17,0.45)" : "rgba(245,239,230,0.12)"}`,
+        border: `1px solid ${open ? "rgba(252,163,17,0.45)" : "var(--border-default)"}`,
         transition: "border-color 160ms",
       }}
     >
@@ -197,6 +206,10 @@ function StepCard({ n, title, desc, status, open, onToggle, children }: {
   );
 }
 
+/** Fired by the hero / sticky "Set up access" CTAs: scroll happens in the caller, this opens step 02. */
+export const OPEN_CLAIM_EVENT = "sa:open-claim";
+export const openClaimStep = () => { if (typeof window !== "undefined") window.dispatchEvent(new Event(OPEN_CLAIM_EVENT)); };
+
 /** STEP 2 — claim. NOT a purchase gate: claiming is free and the pricing is secondary context so
  *  an exec knows what the later conversation costs before giving their number. */
 function ClaimStep({ chapterName, schoolSlug, chapterSlug, claim, onPending }: {
@@ -206,7 +219,10 @@ function ClaimStep({ chapterName, schoolSlug, chapterSlug, claim, onPending }: {
   claim: ClaimState;
   onPending: () => void;
 }) {
-  const [formOpen, setFormOpen] = useState(false);
+  // THE FORM IS OPEN BY DEFAULT. "Claim This Page" was a button whose only job was to reveal four
+  // fields that fit on the screen anyway — a click that confirmed the click before it. The × on
+  // the form still collapses it back to the button for anyone who opened the step to read.
+  const [formOpen, setFormOpen] = useState(true);
   // Whether THIS visitor submitted the claim: their pending state keeps the form's own "you're
   // almost set" card; someone else's pending claim gets the third-person line instead.
   const [submitted, setSubmitted] = useState(false);
@@ -225,7 +241,7 @@ function ClaimStep({ chapterName, schoolSlug, chapterSlug, claim, onPending }: {
 
   if (claim === "pending" && !submitted) {
     return (
-      <div className="mx-auto max-w-sm rounded-xl p-4 text-center" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.14)" }}>
+      <div className="mx-auto max-w-sm rounded-xl p-4 text-center" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
         <p className="text-[14px] font-black" style={{ color: "var(--brand-cream)" }}>A claim is in review.</p>
         <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-muted)" }}>
           Someone from {chapterName} already claimed this page — we&apos;re verifying their chapter role now.
@@ -246,7 +262,7 @@ function ClaimStep({ chapterName, schoolSlug, chapterSlug, claim, onPending }: {
           </p>
 
           {/* Pricing is SECONDARY — context for the later seats conversation, not a checkout. */}
-          <div className="rounded-xl px-4 py-3.5 text-center" style={{ background: "rgba(0,0,0,0.18)", border: "1px solid rgba(245,239,230,0.1)" }}>
+          <div className="rounded-xl px-4 py-3.5 text-center" style={{ background: "rgba(0,0,0,0.18)", border: "1px solid var(--border-default)" }}>
             <p className="text-[11.5px] font-black uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Full-semester chapter access</p>
             <p className="mt-1.5 text-[16px] font-black" style={{ color: "var(--accent)" }}>${SEAT_PRICE} per member, per semester</p>
             <p className="mt-0.5 text-[12px] font-bold" style={{ color: "var(--text-muted)" }}>{SEAT_MINIMUM}-seat minimum</p>
@@ -329,7 +345,7 @@ function UsageStep({ chapterName, schoolSlug, chapterSlug, claimed, active }: {
 
   return (
     <div className="mx-auto max-w-sm">
-      <div className="rounded-2xl p-4" style={{ background: "rgba(0,0,0,0.18)", border: "1px solid rgba(245,239,230,0.12)" }}>
+      <div className="rounded-2xl p-4" style={{ background: "rgba(0,0,0,0.18)", border: "1px solid var(--border-default)" }}>
         <div className="mb-3 flex items-center justify-between gap-2">
           <span className="text-[12px] font-black uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Exec dashboard</span>
           <span className="rounded-full px-2 py-0.5 text-[10.5px] font-black uppercase tracking-wide" style={{ background: "rgba(252,163,17,0.14)", color: "var(--accent)" }}>
@@ -338,7 +354,7 @@ function UsageStep({ chapterName, schoolSlug, chapterSlug, claimed, active }: {
         </div>
         <div className="grid grid-cols-3 gap-2">
           {ROWS.map((r) => (
-            <div key={r.label} className="rounded-xl px-2 py-3 text-center" style={{ background: "rgba(245,239,230,0.05)" }}>
+            <div key={r.label} className="rounded-xl px-2 py-3 text-center" style={{ background: "var(--bg-surface)" }}>
               <div className="text-[20px] font-black leading-none" style={{ color: "var(--brand-cream)", opacity: r.value == null ? 0.4 : 1 }}>
                 {r.value == null ? <span aria-label={r.note ?? "no data yet"}>—</span> : r.value.toLocaleString()}
               </div>

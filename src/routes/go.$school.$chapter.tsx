@@ -29,10 +29,13 @@
 // so campus was UNKNOWN during that window and the hero cycled other schools' colourways before
 // locking. The slug is in the URL and available synchronously — it is passed from params now, so
 // campus context is correct on the very first render even if the chapter lookup were slow.
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
-import { BRAND_SANS } from "@/components/canvas/brand";
+import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
+import { FitWordmark, SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
+import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
+import { ALL_SCHOOLS, schoolBySlug } from "@/lib/schools";
 import { ChapterFinder } from "@/components/site/ChapterFinder";
 import { ChapterGate } from "@/components/site/ChapterGate";
 import { useChapterMember } from "@/lib/use-chapter-member";
@@ -41,6 +44,7 @@ import { MARKETING_HERO_ID } from "@/components/site/Marketing";
 import { ChapterAccess } from "@/components/site/ChapterAccess";
 import { getGoChapter, goPath, listGoSchools, tagChapterMember, logGreekEvent } from "@/lib/greek-go.functions";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
+import { readCampusPrefs } from "@/lib/campus-prefs.functions";
 import { chapterShortName } from "@/components/site/ChapterShare";
 import { canonicalSchoolName } from "@/lib/schools";
 import { HOME_OG, ogMeta } from "@/lib/og";
@@ -55,10 +59,16 @@ export const Route = createFileRoute("/go/$school/$chapter")({
   // server-renders as "Intro Accounting is where..." and gains "(ACCY 201)" a moment later —
   // a smaller version of the very flash this loader exists to remove.
   loader: async ({ params }) => {
-    const chapter = await getGoChapter({ data: { schoolSlug: params.school, chapterSlug: params.chapter } });
-    if (!chapter) return { chapter: null, code: null };
+    const [chapter, prefs] = await Promise.all([
+      getGoChapter({ data: { schoolSlug: params.school, chapterSlug: params.chapter } }),
+      readCampusPrefs().catch(() => ({ campus: null, profSkip: null })),
+    ]);
+    // A REAL 404, not a 200 that happens to say "not found": notFound() renders
+    // notFoundComponent below AND sets the status, so crawlers and link checkers see a typo as
+    // a typo. The component still offers the recovery path (finder + portal link).
+    if (!chapter) throw notFound();
     const codes = await listCampusIntroCodes({ data: { ids: [chapter.campusId] } }).catch(() => []);
-    return { chapter, code: codes[0]?.code ?? null };
+    return { chapter, code: codes[0]?.code ?? null, profSkip: prefs.profSkip };
   },
   // Indexable, unlike /c/ (which was noindex because each link belonged to one private chapter).
   // These are public chapter pages and searching "<chapter> <school> accounting" should find them.
@@ -84,11 +94,17 @@ export const Route = createFileRoute("/go/$school/$chapter")({
     };
   },
   component: GoChapterPage,
+  notFoundComponent: GoNotFoundRoute,
 });
+
+function GoNotFoundRoute() {
+  const { school } = Route.useParams();
+  return <GoNotFound schoolSlug={school} />;
+}
 
 function GoChapterPage() {
   const { school, chapter } = Route.useParams();
-  const { chapter: ch, code } = Route.useLoaderData();
+  const { chapter: ch, code, profSkip } = Route.useLoaderData();
   const { signedIn } = useChapterMember(school, chapter);
 
   // VISIT TRACKING. An exec should be able to see interest BEFORE anyone signs up — a chapter
@@ -111,6 +127,13 @@ function GoChapterPage() {
     void tagChapterMember({ data: { schoolSlug: school, chapterSlug: chapter, source: "link" } }).catch(() => {});
   };
 
+  // AN UNKNOWN CHAPTER IS SAID OUT LOUD (see notFoundComponent). These URLs go out in outreach; a
+  // typo used to render the generic homepage with no explanation, which to the exec who received
+  // it looked like the product did not know their chapter. The loader throws notFound(), so this
+  // branch only guards the type.
+  // (Placed after every hook so the hook order never depends on data.)
+  if (!ch) return <GoNotFound schoolSlug={school} />;
+
   return (
     <>
       <LandingPage
@@ -118,6 +141,7 @@ function GoChapterPage() {
         // FROM PARAMS, NOT FROM THE FETCHED CHAPTER — see the note at the top of this file.
         campusSlug={school}
         initialCourseCode={code}
+        profSkipFor={profSkip}
         goChapter={{ schoolSlug: school, chapterSlug: chapter }}
         // The chapter navbar variant — same-page anchors + the exec CTA. Passed from here (not
         // derived inside landing.tsx) because this route owns both anchor ids.
@@ -164,6 +188,46 @@ function GoChapterPage() {
   );
 }
 
+/** THE NOT-FOUND STATE for /go/<school>/<chapter>. Recoverable on the spot: if the school half of
+ *  the URL is real, the finder opens on that school's chapter list (the most likely fix is a
+ *  mistyped chapter); otherwise it starts from the school. Still a real page with the site
+ *  header, never a bare error — and the loader marks the response 404 for crawlers. */
+function GoNotFound({ schoolSlug }: { schoolSlug: string }) {
+  useNavyDocument();
+  const nav = useNavigate();
+  const known = schoolBySlug(schoolSlug);
+  return (
+    <div style={{ ...frameThemeVars(DEFAULT_FRAME_THEME), background: "var(--bg-page)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "hidden" }}>
+      <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
+      <SiteHeader />
+      <main style={{ position: "relative", zIndex: 1, maxWidth: 720, margin: "0 auto", padding: "0 20px", width: "100%" }}>
+        <section className="flex flex-col items-center pt-10 pb-16 text-center sm:pt-14">
+          <FitWordmark size={84} />
+          <h1 className="mt-5 text-[26px] font-black sm:text-[32px]" style={{ letterSpacing: "-0.01em" }}>We couldn&apos;t find that chapter.</h1>
+          <p className="mt-2 max-w-md text-[15px] leading-relaxed sm:text-[16px]" style={{ color: "var(--brand-cream)", opacity: 0.88, fontFamily: BRAND_SANS }}>
+            {known
+              ? `The link named ${known.name} but no chapter matched the rest of it. Pick yours below and it will take you straight there.`
+              : "That link doesn’t match a school or chapter we have. Find your chapter below, or start from the Greek portal."}
+          </p>
+          <div className="mt-6 w-full max-w-sm">
+            <ChapterFinder
+              schools={ALL_SCHOOLS.map((s) => ({ slug: s.slug, name: s.name }))}
+              card
+              escapeHatches
+              autoPick
+              initialSchool={known?.slug}
+              onPick={(s, c) => void nav({ to: "/go/$school/$chapter", params: { school: s, chapter: c } })}
+            />
+          </div>
+          <a href="/chapters" className="mt-5 inline-flex items-center text-[14px] font-bold underline underline-offset-4" style={{ color: "var(--text-muted)", minHeight: 44, fontFamily: BRAND_SANS }}>
+            Go to the Greek portal →
+          </a>
+        </section>
+      </main>
+    </div>
+  );
+}
+
 /** SELF-REPORT — "I'm actually in a different chapter."
  *
  *  Chapter links get forwarded. A student who lands here from a friend in another house is
@@ -200,7 +264,7 @@ function SelfReport({ current }: { current: string }) {
       {done ? (
         <p className="text-[13px]" style={{ color: "var(--text-muted)" }}>Got it — you&apos;re counted with {done}. ⚡</p>
       ) : open ? (
-        <div className="mx-auto max-w-sm rounded-xl p-4" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
+        <div className="mx-auto max-w-sm rounded-xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
           <p className="mb-3 text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>Which chapter are you actually in?</p>
           <ChapterFinder schools={schools} onPick={(s, c, n) => void pick(s, c, n)} cta="That&apos;s mine" busy={busy} />
         </div>

@@ -1,199 +1,194 @@
-// THE ANIMATED CAMPUS BOLT — two school-colour streams flowing upward forever inside the locked
-// brand bolt, with one campus flowing into the next.
+// THE ANIMATED CAMPUS BOLT — a solid two-colour brand bolt that HOLDS on one campus, then the next
+// campus's colours sweep UPWARD through it in one quick charge, then it holds again.
 //
 // THE SHAPE IS FIXED ARTWORK. BOLT_OUTER (silhouette), BOLT_RIGHT (the right interior — its edge
 // IS the internal zigzag dividing line) and BOLT_VIEWBOX are imported from brand.tsx, untouched.
+// One `d` — BOLT_OUTER — is used for the fill, the clip AND the white outline, so they cannot
+// disagree by a pixel.
 //
-// THE MENTAL MODEL — a conveyor of horizontal BANDS:
+// THE MODEL — a state machine, not a conveyor:
 //
-//   * The bolt interior is split permanently by the dividing line. LEFT = primary colour,
-//     RIGHT = secondary colour. They are two separately clipped layers (left clipped to the full
-//     silhouette, right clipped to BOLT_RIGHT and painted on top), so the split is exactly the
-//     brand geometry and the colours can never bleed across it.
-//   * Both layers draw the SAME queue of bands, each band knowing its campus palette and a tone
-//     (base / lighter / deeper — tonal depth of the SAME colour, never grey). Both layers share
-//     one upward offset, so the two lanes move in lockstep as one system.
-//   * The queue is a conveyor: every frame the offset grows; once it exceeds one band height the
-//     top band is dropped, a new band is appended at the BOTTOM, and the offset wraps — the
-//     content that was at slot k is now at slot k-1 at the identical pixel, so the loop is
-//     seamless by construction. No fade, no restart, no easing that stalls.
-//   * CAMPUS TRANSITION = changing which palette NEW bands are born with. The next campus enters
-//     from the bottom, rides up with the stream, and the old campus exits the top. The plate
-//     beneath the bolt names whichever campus owns the band at mid-height (the dominant one).
+//   HOLD (CAMPUS_HOLD_MS)  →  SWEEP (CAMPUS_TRANSITION_MS)  →  HOLD  →  …
 //
-// ONLY the band queue is React state (it changes ~3×/s). The per-frame offset is written straight
-// to the two <g> transforms from a requestAnimationFrame loop — no re-render per frame, and a
-// transform write is compositor-cheap.
+//   * HOLD: the bolt is a static two-colour object. LEFT = primary, RIGHT = secondary, exact school
+//     hex, full saturation. The only motion is a slow outer-glow breath.
+//   * SWEEP: the NEXT campus is painted as a second, identical two-colour bolt sitting on top of the
+//     current one, revealed through ONE mask — a tall gradient (transparent above, feathered
+//     TRANSITION_FEATHER units, opaque below), slightly angled, that translates from below the
+//     bolt to above it. Primary and secondary are two halves of one campus and share that mask,
+//     so they always cross the bolt together. A narrow soft highlight rides the front.
+//   * The plate (course · campus) switches at LABEL_SWITCH_PROGRESS of the sweep — when the new
+//     campus visually owns most of the bolt — with a 100ms fade.
 //
-// prefers-reduced-motion: no loop, no rotation — a static two-colour bolt in the first campus.
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+// The previous implementation (a queue of ~17 horizontal bands per lane, re-rendered ~3×/s and
+// translated every frame) is GONE: it read as scan lines. Nothing here re-renders during a
+// sweep except the one label switch; the sweep itself is two `transform` attribute writes per
+// frame for 900ms, then nothing at all until the next hold ends.
+//
+// PAINT ORDER (top of the SVG = bottom of the stack):
+//   1. glow (blurred silhouette, breathing)
+//   2. CURRENT campus: primary over the whole silhouette, secondary over BOLT_RIGHT
+//   3. NEXT campus: same two layers, both inside the sweep mask
+//   4. transition-front highlight, inside the same mask motion
+//   5. WHITE OUTLINE LAST — a stroke of BOLT_OUTER over everything
+//
+// SEAMS: the secondary is painted ON TOP of a full-silhouette primary (there is always colour under
+// the divider) and carries a SEAM_OVERLAP stroke in its own colour, clipped to the silhouette, so
+// anti-aliasing along the zigzag can never show navy through. The outline is centred on the
+// silhouette edge, so half its width always overlaps the fill — no fill/outline gap is possible.
+//
+// prefers-reduced-motion: static on the first campus — no sweep, no breath, no label changes.
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { BOLT_OUTER, BOLT_RIGHT, BOLT_VIEWBOX, BRAND_DISPLAY } from "@/components/canvas/brand";
 
 export type BoltHeroStop = { id: string; c1: string; c2: string; name?: string; code?: string | null };
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
-// TUNING — every knob in one place. Units are SVG user units unless stated (the bolt is ~147
-// units tall, so 30 units/s sweeps the whole bolt in ~5s).
+// TUNING — every knob in one place. Units are SVG user units (the bolt is ~147 tall) unless stated.
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
-/** Upward flow speed, units per second. Higher = faster current AND a quicker campus hand-over
- *  (the transition IS the sweep: one bolt-height ÷ STREAM_SPEED ≈ 4.9s at 30). */
-const STREAM_SPEED = 30;
-/** Band height — stream DENSITY. Smaller = finer, busier ribbon; larger = broad calm bands. */
-const BAND_H = 11;
-/** How long new bands keep being born in one campus before the feed moves to the next, ms.
- *  Each campus is therefore dominant for roughly HOLD_MS, with the hand-over riding the sweep. */
-const HOLD_MS = 5500;
-/** Slight diagonal character of the bands (degrees of skewX). 0 = flat horizontal bands. */
-const SKEW_DEG = -10;
-/** Tonal depth inside each lane — mix ratios toward white / toward black for the light and deep
- *  tones. The base tone is the EXACT school colour. Raise for more visible ribboning; 0/0 = flat. */
-const TONE_LIGHT = 0.16;
-const TONE_DEEP = 0.12;
-/** Tone sequence new bands cycle through (0 base, 1 light, 2 deep). */
-const TONE_SEQ = [0, 1, 0, 2] as const;
-/** White keyline width (brand Bolt uses 7; half of it shows because the fill paints over it). */
-const KEYLINE = 7;
-// Glow strength lives in ANIMATED_BOLT_CSS below (.ab-bolt filter) — see "GLOW".
+/** How long one campus rests before the next one sweeps in. */
+const CAMPUS_HOLD_MS = 4600;
+/** Duration of the upward sweep. */
+const CAMPUS_TRANSITION_MS = 900;
+/** Pause after a sweep completes before the hold clock starts (lets the front highlight fade). */
+const SETTLE_MS = 150;
+/** Height of the soft band between "old campus" and "new campus" at the sweep front. */
+const TRANSITION_FEATHER = 16;
+/** Tilt of the sweep front, degrees. Negative = rises left-to-right, complementing the bolt's lean. */
+const TRANSITION_ANGLE = -7;
+/** Sweep easing — ease-in-out so the front accelerates out of the bottom and settles at the top. */
+const TRANSITION_EASE = (t: number) => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+/** The plate switches campus at this fraction of the sweep (0.58 ≈ "new campus owns the bolt"). */
+const LABEL_SWITCH_PROGRESS = 0.58;
+/** Front highlight: height of the bright band and its peak opacity. Narrow, soft, not neon. */
+const FRONT_HEIGHT = 10;
+const FRONT_OPACITY = 0.55;
+/** Outer glow: blur radius (user units), resting opacity, and the breath's swing + cycle. */
+const GLOW_BLUR = 9;
+const GLOW_STRENGTH = 0.34;
+const GLOW_BREATH = 0.08;         // opacity swing, ±
+const GLOW_BREATH_MS = 4000;
+/** White outline: width centred on the silhouette edge (half overlaps the fill). Round joins
+ *  match the brand Bolt's keyline. */
+const OUTLINE_WIDTH = 6;
+const OUTLINE_COLOR = "#FFFFFF";
+/** Secondary-colour overlap across the internal divider (px at 1:1 — ~0.9 user units), so no
+ *  anti-aliased seam can show the navy behind. Invisible by design. */
+const SEAM_OVERLAP = 1.8;
 // ═══════════════════════════════════════════════════════════════════════════════════════════════
 
-/** viewBox numbers, needed for band placement. */
+/** viewBox numbers, needed to place the mask travel. */
 const VB = { x: -18.21, y: -2.26, w: 109.27, h: 146.96 };
-/** Bands in the queue: enough to cover the bolt plus one above (exiting) and one below (entering). */
-const BAND_COUNT = Math.ceil(VB.h / BAND_H) + 3;
-/** Bands are drawn wider than the bolt so the skew never exposes an edge. */
-const BAND_X = VB.x - 60, BAND_W = VB.w + 120;
+const CX = VB.x + VB.w / 2, CY = VB.y + VB.h / 2;
+/** The mask rect is wider than the bolt so the tilt never exposes an edge, and the travel has
+ *  margin beyond both ends so the bolt is fully hidden / fully shown at the extremes. */
+const MASK_X = VB.x - 120, MASK_W = VB.w + 240, MASK_H = VB.h * 3;
+const TRAVEL_MARGIN = 40;
+const WIPE_START_Y = VB.y + VB.h + TRAVEL_MARGIN;          // gradient top sits below the bolt → nothing shown
+const WIPE_END_Y = VB.y - TRANSITION_FEATHER - TRAVEL_MARGIN; // gradient top above the bolt → all shown
 
-type Band = { key: number; stop: BoltHeroStop; tone: 0 | 1 | 2 };
-
-// ── colour helpers ─────────────────────────────────────────────────────────────────────────────
-const hexToRgb = (hex: string): [number, number, number] | null => {
-  const m = hex.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
-  if (!m) return null;
-  const s = m[1].length === 3 ? m[1].split("").map((c) => c + c).join("") : m[1];
-  const n = parseInt(s, 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-};
-const toHex = (r: number, g: number, b: number) => "#" + [r, g, b].map((x) => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, "0")).join("");
-/** Tone of a colour: 0 = exact, 1 = toward white, 2 = toward black. Non-hex input (a CSS var
- *  that could not be resolved) is returned untouched — flat colour beats a broken one. */
-const shade = (color: string, tone: 0 | 1 | 2): string => {
-  if (tone === 0) return color;
-  const rgb = hexToRgb(color);
-  if (!rgb) return color;
-  const t = tone === 1 ? [255, 255, 255] : [0, 0, 0];
-  const k = tone === 1 ? TONE_LIGHT : TONE_DEEP;
-  return toHex(rgb[0] + (t[0] - rgb[0]) * k, rgb[1] + (t[1] - rgb[1]) * k, rgb[2] + (t[2] - rgb[2]) * k);
+/** The sweep front's `transform` for a given eased progress. Rotation is about the bolt centre so
+ *  the tilt stays symmetric; translation carries the feather edge from below to above. */
+const wipeTransform = (p: number) => {
+  const y = WIPE_START_Y + (WIPE_END_Y - WIPE_START_Y) * p;
+  return `rotate(${TRANSITION_ANGLE} ${CX} ${CY}) translate(0 ${y})`;
 };
 
-// ── the stream hook ────────────────────────────────────────────────────────────────────────────
-/** Owns the band queue, the feed (which campus new bands are born into), and the per-frame
- *  offset. Returns the bands to draw and refs for the two lane groups the loop translates. */
-function useBoltStream(stops: BoltHeroStop[], reduce: boolean) {
-  const stopsRef = useRef(stops);
-  stopsRef.current = stops;
-  const stopsKey = useMemo(() => stops.map((s) => s.id + ":" + s.c1 + ":" + s.c2).join("|"), [stops]);
-
-  const seed = (s: BoltHeroStop): Band[] => Array.from({ length: BAND_COUNT }, (_, i) => ({ key: i, stop: s, tone: TONE_SEQ[i % TONE_SEQ.length] }));
-  const [bands, setBands] = useState<Band[]>(() => seed(stops[0]));
-  const leftRef = useRef<SVGGElement>(null);
-  const rightRef = useRef<SVGGElement>(null);
-  const offsetRef = useRef(0);
-
-  // Apply the current offset to both lanes — also after every band shift, so the new DOM and the
-  // wrapped offset land in the same paint.
-  const paint = () => {
-    const t = "translate(0 " + (-offsetRef.current) + ") skewX(" + SKEW_DEG + ")";
-    leftRef.current?.setAttribute("transform", t);
-    rightRef.current?.setAttribute("transform", t);
-  };
-  useLayoutEffect(paint);
-
-  // A changed campus list (a picker choice, a page's campus resolving) reseeds instantly.
-  useEffect(() => { setBands(seed(stopsRef.current[0])); offsetRef.current = 0; }, [stopsKey]);
-
-  useEffect(() => {
-    if (reduce) return;
-    let raf = 0, last = performance.now(), feedIdx = 0, feedMs = 0, keyCounter = BAND_COUNT, toneCounter = 0;
-    const tick = (now: number) => {
-      const dt = Math.min(now - last, 100) / 1000; // clamp a background-tab gap so nothing leaps
-      last = now;
-      // feed rotation — only meaningful with 2+ campuses
-      const list = stopsRef.current;
-      if (list.length > 1) {
-        feedMs += dt * 1000;
-        if (feedMs >= HOLD_MS) { feedMs -= HOLD_MS; feedIdx = (feedIdx + 1) % list.length; }
-      } else feedIdx = 0;
-      offsetRef.current += STREAM_SPEED * dt;
-      if (offsetRef.current >= BAND_H) {
-        offsetRef.current -= BAND_H;
-        const born: Band = { key: keyCounter++, stop: list[feedIdx] ?? list[0], tone: TONE_SEQ[toneCounter++ % TONE_SEQ.length] };
-        setBands((b) => [...b.slice(1), born]);
-      }
-      paint();
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [reduce, stopsKey]);
-
-  return { bands, leftRef, rightRef };
-}
+type Phase = { cur: BoltHeroStop; next: BoltHeroStop | null; label: BoltHeroStop };
 
 // ── the component ──────────────────────────────────────────────────────────────────────────────
 export function AnimatedBoltHero({ stops, onActivate, className, ariaLabel = "Cram Exam 1 Free" }: {
   stops: BoltHeroStop[];
-  /** Receives the DOMINANT campus at the moment of the click — on the rotating home hero,
+  /** Receives the campus the plate names at the moment of the click — on the rotating home hero,
    *  pressing the bolt while the plate says "ACCY 201 · OLE MISS" means "that one". */
   onActivate: (stop: BoltHeroStop) => void;
   className?: string;
   ariaLabel?: string;
 }) {
-  const uid = useId().replace(/[^a-zA-Z0-9]/g, "");
+  // IDS ARE DERIVED, NOT GENERATED. useId() produced different values on the server and the
+  // client under the lazy route boundary and logged a hydration mismatch on every hero. The id
+  // only has to be unique per bolt on one page, so it is built from what the bolt IS.
+  const uid = useMemo(() => {
+    const seed = `${ariaLabel}|${stops.map((s) => s.id).join(",")}`;
+    let h = 0;
+    for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+    return h.toString(36);
+  }, [ariaLabel, stops]);
+  const id = (k: string) => `ab-${k}-${uid}`;
+
   const [reduce, setReduce] = useState(false);
   // Read in an effect, never during render: this route is server-rendered, and calling matchMedia
   // while rendering makes the server and a reduced-motion client disagree on the first paint.
   useEffect(() => { setReduce(!!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches); }, []);
 
-  // Campus pages hand in CSS vars ("var(--sa-bolt-1)") so the bolt can never disagree with the
-  // page's own colourway. Tones need literal hex, so resolve vars once from the bolt's own
-  // computed style; until then (and on the server) the vars paint flat, which is still correct.
   const hostRef = useRef<HTMLButtonElement>(null);
-  const [resolved, setResolved] = useState<Record<string, string>>({});
+  const wipeRef = useRef<SVGGElement>(null);   // the mask's gradient rect
+  const frontRef = useRef<SVGGElement>(null);  // the highlight band (same motion)
+
+  const stopsKey = useMemo(() => stops.map((s) => s.id + ":" + s.c1 + ":" + s.c2).join("|"), [stops]);
+  const [phase, setPhase] = useState<Phase>(() => ({ cur: stops[0], next: null, label: stops[0] }));
+  // A changed campus list (picker choice, page campus resolving) restarts on its first campus.
+  useEffect(() => { setPhase({ cur: stops[0], next: null, label: stops[0] }); }, [stopsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── THE STATE MACHINE ──────────────────────────────────────────────────────────────────────
+  // One timer during HOLD; one rAF loop during SWEEP that writes two transform attributes per
+  // frame and nothing else. Three React updates per campus change (sweep start, label, sweep end).
   useEffect(() => {
-    const el = hostRef.current; if (!el) return;
-    const cs = getComputedStyle(el);
-    const next: Record<string, string> = {};
-    for (const s of stops) for (const c of [s.c1, s.c2]) {
-      const m = c.match(/^var\((--[\w-]+)\)$/);
-      if (m) { const v = cs.getPropertyValue(m[1]).trim(); if (v) next[c] = v; }
-    }
-    if (Object.keys(next).length) setResolved((r) => ({ ...r, ...next }));
-  }, [stops]);
-  const lit = (c: string) => resolved[c] ?? c;
+    if (reduce || stops.length < 2) return;
+    let timer = 0, raf = 0, alive = true, i = 0;
+    const paint = (p: number) => {
+      const t = wipeTransform(p);
+      wipeRef.current?.setAttribute("transform", t);
+      frontRef.current?.setAttribute("transform", t);
+      if (frontRef.current) frontRef.current.style.opacity = String(p <= 0 || p >= 1 ? 0 : 1);
+    };
+    const hold = () => { timer = window.setTimeout(sweep, CAMPUS_HOLD_MS); };
+    const sweep = () => {
+      const from = stops[i % stops.length], to = stops[(i + 1) % stops.length];
+      i += 1;
+      paint(0);
+      setPhase({ cur: from, next: to, label: from });
+      let labelled = false;
+      const t0 = performance.now();
+      const tick = (now: number) => {
+        if (!alive) return;
+        const raw = Math.min(1, (now - t0) / CAMPUS_TRANSITION_MS);
+        paint(TRANSITION_EASE(raw));
+        if (!labelled && raw >= LABEL_SWITCH_PROGRESS) { labelled = true; setPhase((ph) => ({ ...ph, label: to })); }
+        if (raw < 1) { raf = requestAnimationFrame(tick); return; }
+        // Sweep complete: the next campus becomes the current one; the mask parks below the bolt.
+        setPhase({ cur: to, next: null, label: to });
+        paint(0);
+        timer = window.setTimeout(hold, SETTLE_MS);
+      };
+      raf = requestAnimationFrame(tick);
+    };
+    paint(0);
+    hold();
+    return () => { alive = false; clearTimeout(timer); cancelAnimationFrame(raf); };
+  }, [reduce, stopsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { bands, leftRef, rightRef } = useBoltStream(stops, reduce);
   if (!stops.length) return null;
+  const { cur, next, label } = phase;
+  const plate = label.code || label.name;
 
-  // The campus that owns the middle of the visible bolt is the one the plate names and the one
-  // a click means. Index 0 sits above the top edge, so mid-height is ~(BAND_COUNT-1)/2.
-  const dominant = (reduce ? stops[0] : bands[Math.floor((BAND_COUNT - 1) / 2)]?.stop) ?? stops[0];
-  const plate = dominant.code || dominant.name;
-  const clipAll = "ab-all-" + uid, clipRight = "ab-right-" + uid;
-
-  const lane = (ref: React.RefObject<SVGGElement | null>, side: "c1" | "c2") => (
-    <g ref={ref}>
-      {bands.map((b, i) => (
-        <rect key={b.key} x={BAND_X} y={VB.y - BAND_H + i * BAND_H} width={BAND_W} height={BAND_H + 0.5} fill={shade(lit(b.stop[side]), reduce ? 0 : b.tone)} />
-      ))}
-    </g>
+  /** One campus = primary over the whole silhouette + secondary over BOLT_RIGHT, overlapping the
+   *  divider by SEAM_OVERLAP in its own colour so the boundary is never a transparent line. */
+  const campusLayers = (s: BoltHeroStop) => (
+    <>
+      <path d={BOLT_OUTER} fill={s.c1} />
+      <g clipPath={`url(#${id("clip")})`}>
+        <path d={BOLT_RIGHT} fill={s.c2} stroke={s.c2} strokeWidth={SEAM_OVERLAP} strokeLinejoin="round" />
+      </g>
+    </>
   );
 
   return (
     <button
       ref={hostRef}
       type="button"
-      onClick={() => onActivate(dominant)}
+      onClick={() => onActivate(label)}
       aria-label={ariaLabel}
       className={"ab-hero group relative block " + (className ?? "")}
       style={{ WebkitTapHighlightColor: "transparent" }}
@@ -201,28 +196,64 @@ export function AnimatedBoltHero({ stops, onActivate, className, ariaLabel = "Cr
       <span className="ab-bolt" aria-hidden>
         <svg viewBox={BOLT_VIEWBOX} width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
           <defs>
-            <clipPath id={clipAll}><path d={BOLT_OUTER} /></clipPath>
-            <clipPath id={clipRight}><path d={BOLT_RIGHT} /></clipPath>
+            {/* THE ONE SILHOUETTE: same `d` as the fill below and the outline at the end. */}
+            <clipPath id={id("clip")}><path d={BOLT_OUTER} /></clipPath>
+            <filter id={id("glow")} x="-40%" y="-30%" width="180%" height="160%">
+              <feGaussianBlur stdDeviation={GLOW_BLUR} />
+            </filter>
+            {/* THE SWEEP MASK. userSpaceOnUse so the feather is in bolt units: transparent
+                (black) above the front, TRANSITION_FEATHER units of ramp, opaque (white) below.
+                The gradient pads, so everything below the ramp stays fully revealed. */}
+            <linearGradient id={id("wipe-grad")} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2={TRANSITION_FEATHER}>
+              <stop offset="0" stopColor="#000" />
+              <stop offset="1" stopColor="#fff" />
+            </linearGradient>
+            <mask id={id("wipe")} maskUnits="userSpaceOnUse" x={MASK_X} y={VB.y - MASK_H} width={MASK_W} height={MASK_H * 3}>
+              <g ref={wipeRef} transform={wipeTransform(0)}>
+                <rect x={MASK_X} y={0} width={MASK_W} height={MASK_H} fill={`url(#${id("wipe-grad")})`} />
+              </g>
+            </mask>
+            {/* The charge front: a narrow band that fades in and out vertically. */}
+            <linearGradient id={id("front-grad")} gradientUnits="userSpaceOnUse" x1="0" y1={TRANSITION_FEATHER / 2 - FRONT_HEIGHT} x2="0" y2={TRANSITION_FEATHER / 2 + FRONT_HEIGHT}>
+              <stop offset="0" stopColor="#fff" stopOpacity="0" />
+              <stop offset="0.5" stopColor="#fff" stopOpacity={FRONT_OPACITY} />
+              <stop offset="1" stopColor="#fff" stopOpacity="0" />
+            </linearGradient>
           </defs>
-          {/* KEYLINE UNDER THE FILL (the brand Bolt's paint-order:stroke): the lanes cover its inner
-              half, so ~3.5 units of white frame the colours instead of drowning them. */}
-          <path d={BOLT_OUTER} fill="none" stroke="#FFFFFF" strokeWidth={KEYLINE} strokeLinejoin="round" strokeLinecap="round" />
-          {/* LEFT LANE — primary colour, clipped to the whole silhouette… */}
-          <g clipPath={"url(#" + clipAll + ")"}>{lane(leftRef, "c1")}</g>
-          {/* …RIGHT LANE — secondary colour, clipped to BOLT_RIGHT and painted on top, so the
-              boundary between the two is EXACTLY the brand's internal dividing line. */}
-          <g clipPath={"url(#" + clipRight + ")"}>{lane(rightRef, "c2")}</g>
+
+          {/* 1. GLOW — the silhouette itself, blurred, breathing behind everything. */}
+          <path d={BOLT_OUTER} fill="#F5EFE6" filter={`url(#${id("glow")})`} className="ab-glow" style={{ opacity: GLOW_STRENGTH }} />
+
+          {/* 2. CURRENT campus — a solid two-colour bolt. */}
+          <g>{campusLayers(cur)}</g>
+
+          {/* 3. NEXT campus — identical layers, revealed from the bottom by the ONE shared mask. */}
+          {next && (
+            <g mask={`url(#${id("wipe")})`}>{campusLayers(next)}</g>
+          )}
+
+          {/* 4. TRANSITION FRONT — rides the same transform as the mask, clipped to the bolt. */}
+          {next && (
+            <g clipPath={`url(#${id("clip")})`}>
+              <g ref={frontRef} transform={wipeTransform(0)} style={{ opacity: 0, mixBlendMode: "screen" }}>
+                <rect x={MASK_X} y={TRANSITION_FEATHER / 2 - FRONT_HEIGHT} width={MASK_W} height={FRONT_HEIGHT * 2} fill={`url(#${id("front-grad")})`} />
+              </g>
+            </g>
+          )}
+
+          {/* 5. WHITE OUTLINE LAST — the same `d`, stroked over every fill. */}
+          <path d={BOLT_OUTER} fill="none" stroke={OUTLINE_COLOR} strokeWidth={OUTLINE_WIDTH} strokeLinejoin="round" strokeLinecap="round" />
         </svg>
       </span>
 
-      {/* THE PLATE — the words live here, never inside the bolt. Keyed on the dominant campus so
-          the hand-over re-runs the fade as the new colours take the middle of the bolt. */}
+      {/* THE PLATE — the words live here, never inside the bolt. Keyed on the labelled campus so
+          the switch (at LABEL_SWITCH_PROGRESS of the sweep) re-runs the short fade. */}
       {plate && (
-        <span key={dominant.id} className="ab-plate" style={{ fontFamily: BRAND_DISPLAY }}>
+        <span key={label.id} className="ab-plate" style={{ fontFamily: BRAND_DISPLAY }}>
           <span className="ab-plate-for">for </span>
-          {dominant.code ? <span className="ab-plate-em">{dominant.code}</span> : null}
-          {dominant.code && dominant.name ? <span className="ab-plate-dot"> · </span> : null}
-          {dominant.name ? <span className="ab-plate-em">{dominant.name.toUpperCase()}</span> : null}
+          {label.code ? <span className="ab-plate-em">{label.code}</span> : null}
+          {label.code && label.name ? <span className="ab-plate-dot"> · </span> : null}
+          {label.name ? <span className="ab-plate-em">{label.name.toUpperCase()}</span> : null}
         </span>
       )}
     </button>
@@ -248,18 +279,22 @@ export const ANIMATED_BOLT_CSS = `
 .ab-hero:hover { transform: scale(1.04); }
 .ab-hero:focus-visible { outline: 3px solid var(--accent); outline-offset: 10px; border-radius: 14px; }
 
-/* GLOW — neutral warm-white, outside the clip (it never moves with the stream). Tune the two
-   numbers: blur radius (32px) and strength (0.42). Keep it a support, not a haze. */
+/* The only shadow outside the SVG is the dark drop — the warm glow is the blurred silhouette
+   inside the SVG (.ab-glow), so it is derived from the exact shape and can breathe on its own. */
 .ab-bolt {
   display: block;
   width: 100%;
   pointer-events: none;
-  filter: drop-shadow(0 0 32px rgba(245, 239, 230, 0.42)) drop-shadow(0 10px 30px rgba(0, 0, 0, 0.5));
-  transition: filter 900ms ease;
+  filter: drop-shadow(0 10px 30px rgba(0, 0, 0, 0.5));
 }
-.ab-hero:hover .ab-bolt {
-  filter: drop-shadow(0 0 40px rgba(245, 239, 230, 0.55)) drop-shadow(0 10px 34px rgba(0, 0, 0, 0.55));
+/* GLOW BREATH — opacity only, ±GLOW_BREATH around GLOW_STRENGTH (values inlined from the TS
+   constants: 0.34 ± 0.08 over 4s). Subtle by design: the colours must stay readable. */
+.ab-glow { animation: ab-breathe ${GLOW_BREATH_MS}ms ease-in-out infinite; }
+@keyframes ab-breathe {
+  0%, 100% { opacity: ${(GLOW_STRENGTH - GLOW_BREATH).toFixed(2)}; }
+  50% { opacity: ${(GLOW_STRENGTH + GLOW_BREATH).toFixed(2)}; }
 }
+.ab-hero:hover .ab-glow { animation-play-state: paused; opacity: ${(GLOW_STRENGTH + GLOW_BREATH + 0.1).toFixed(2)} !important; }
 
 /* THE PLATE. Small and restrained — the bolt is the hero object; the plate supports it. */
 .ab-plate {
@@ -269,15 +304,16 @@ export const ANIMATED_BOLT_CSS = `
   letter-spacing: 0.08em;
   color: var(--brand-cream, #F5EFE6);
   white-space: nowrap;
-  animation: ab-plate-in 500ms ease;
+  animation: ab-plate-in 100ms ease-out;
 }
 .ab-plate-for { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; opacity: 0.55; text-transform: none; }
 .ab-plate-em { opacity: 0.92; }
 .ab-plate-dot { opacity: 0.45; }
-@keyframes ab-plate-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes ab-plate-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 
 @media (prefers-reduced-motion: reduce) {
   .ab-hero, .ab-hero:hover { transform: none; }
   .ab-plate { animation: none; }
+  .ab-glow { animation: none; }
 }
 `;

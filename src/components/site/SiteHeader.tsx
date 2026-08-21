@@ -15,10 +15,12 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { scrollToId } from "@/lib/ui-scroll";
+import { useCampus } from "@/lib/campus-context";
 
 /** The page navy. One constant so the CSS, the meta theme-color and any inline use agree —
  *  Safari samples this for its toolbar, and a mismatch reads as a rendering bug. */
-export const SITE_NAVY = "#0F1A2E";
+// TEST palette (branch test/lighter-color-system): page canvas #0D1730 — keep in sync with --bg-page.
+export const SITE_NAVY = "#0D1730";
 
 /** Wordmark that never exceeds its container. `size` is the IDEAL size; it shrinks when the
  *  viewport is too narrow and never grows past it.
@@ -185,7 +187,7 @@ function SiteMenu({ items }: { items: NavItem[] }) {
           <div className="fixed inset-0 z-[201]" style={{ background: "rgba(5,8,16,0.55)" }} onClick={() => setOpen(false)} aria-hidden />
           <div
             className="fixed right-2 z-[202] w-[252px] overflow-hidden rounded-xl"
-            style={{ top: "calc(52px + env(safe-area-inset-top, 0px))", background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)" }}
+            style={{ top: "calc(52px + env(safe-area-inset-top, 0px))", background: "var(--bg-overlay)", border: "1px solid var(--border-default)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)" }}
           >
             {items.map((it, i) => (
               <a
@@ -198,7 +200,7 @@ function SiteMenu({ items }: { items: NavItem[] }) {
                   color: "#F5EFE6",
                   // The rule belongs to the FIRST route item, so adding another anchor above it
                   // can never strand the divider in the wrong place.
-                  borderTop: it.route && !items[i - 1]?.route ? "1px solid rgba(245,239,230,0.14)" : undefined,
+                  borderTop: it.route && !items[i - 1]?.route ? "1px solid var(--border-default)" : undefined,
                   marginTop: it.route && !items[i - 1]?.route ? 8 : undefined,
                 }}
               >
@@ -225,10 +227,14 @@ function SiteMenu({ items }: { items: NavItem[] }) {
 /** Desktop-only inline links. Anchors rather than router links: #reviews and #lee are on the
  *  landing page and carry scroll-margin for the sticky bar, so a same-page press lands correctly
  *  and a press from elsewhere navigates home first. */
-const DESKTOP_LINKS: NavItem[] = [
-  { label: "Reviews", href: "/#reviews" },
-  { label: "Meet your tutor", href: "/#lee" },
-  { label: "For Greeks", href: "/chapters" },
+// `base` is "" on a page that HAS these sections (the homepage and every campus page render the
+// same landing layout) and "/" everywhere else. Before this the hrefs were hard-coded "/#reviews",
+// so on /university-of-mississippi the navbar's own "Cram Exam 1 Free" sent the visitor to the
+// GENERIC homepage and asked them to pick the school the URL had just named.
+const desktopLinks = (base: string, greekHref: string): NavItem[] => [
+  { label: "Reviews", href: `${base}#reviews` },
+  { label: "Meet your tutor", href: `${base}#lee` },
+  { label: "For Greeks", href: greekHref },
 ];
 
 // Pass 2 order. The first item repeats the page CTA on purpose: the navbar is sticky, so once
@@ -237,25 +243,30 @@ const DESKTOP_LINKS: NavItem[] = [
 // "leave this page" in one flat list is how people lose their place.
 // (Contact stays an anchor, never mailto:/sms: — a scheme link can be claimed by an installed
 // app, which is what made tapping Contact raise "Open in inDrive?" on iOS.)
-const MENU_LINKS: NavItem[] = [
-  { label: "Start cramming", href: "/#exam1" },
-  { label: "Reviews", href: "/#reviews" },
-  { label: "Meet your tutor", href: "/#lee" },
-  { label: "Contact", href: "/#contact" },
-  { label: "For Fraternities & Sororities", href: "/chapters", route: true, sub: "⚡ Boost chapter GPAs" },
+const menuLinks = (base: string, greekHref: string): NavItem[] => [
+  { label: "Start cramming", href: `${base}#exam1` },
+  { label: "Reviews", href: `${base}#reviews` },
+  { label: "Meet your tutor", href: `${base}#lee` },
+  { label: "Contact", href: `${base}#contact` },
+  { label: "For Fraternities & Sororities", href: greekHref, route: true, sub: "⚡ Boost chapter GPAs" },
 ];
 
-export function SiteHeader({ wordmark = true, chapterNav }: { wordmark?: boolean; chapterNav?: ChapterNav } = {}) {
+export function SiteHeader({ wordmark = true, chapterNav, onLanding = false }: { wordmark?: boolean; chapterNav?: ChapterNav; /** The page renders the landing sections (#exam1, #reviews, #lee, #contact), so nav anchors stay on THIS page. */ onLanding?: boolean } = {}) {
   const bar = useRef<HTMLElement>(null);
+  // The Greek link carries the known campus. One source (campus context), so the navbar can never
+  // name a different school from the hero beside it; pages outside a provider get the bare link.
+  const campus = useCampus();
+  const greekHref = campus.school?.slug ? `/chapters?school=${campus.school.slug}` : "/chapters";
+  const base = onLanding ? "" : "/";
   // A Greek chapter page contextualizes the whole bar: same-page anchors (Exam 1, Chapter
   // Access, Reviews, Meet Lee) and an exec-facing CTA. Generic homepage links ("For Greeks",
   // Contact) are deliberately absent there — a visitor on a chapter page is already somewhere
   // specific, and every link that navigates away is a door out of the funnel.
-  const links = chapterNav ? chapterLinks(chapterNav) : DESKTOP_LINKS;
-  const menuItems = chapterNav ? chapterLinks(chapterNav) : MENU_LINKS;
+  const links = chapterNav ? chapterLinks(chapterNav) : desktopLinks(base, greekHref);
+  const menuItems = chapterNav ? chapterLinks(chapterNav) : menuLinks(base, greekHref);
   const cta: NavItem = chapterNav
     ? { label: "Set Up Chapter Access →", href: `#${chapterNav.accessAnchor}` }
-    : { label: "Cram Exam 1 Free ⚡", href: "/#exam1" };
+    : { label: "Cram Exam 1 Free ⚡", href: `${base}#exam1` };
 
   // PUBLISH THE HEADER HEIGHT as --sa-header-h so a full-viewport hero can subtract exactly the
   // right amount. Hardcoding 48px is wrong on a notched phone, where safe-area-inset-top adds
@@ -282,7 +293,7 @@ export function SiteHeader({ wordmark = true, chapterNav }: { wordmark?: boolean
       style={{
         background: "color-mix(in srgb, var(--sa-surface-nav) 92%, transparent)",
         backdropFilter: "blur(8px)",
-        borderBottom: "1px solid rgba(245,239,230,0.10)",
+        borderBottom: "1px solid var(--border-default)",
         paddingTop: "env(safe-area-inset-top, 0px)",
         paddingLeft: "env(safe-area-inset-left, 0px)",
         paddingRight: "env(safe-area-inset-right, 0px)",

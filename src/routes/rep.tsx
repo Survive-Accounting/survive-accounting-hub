@@ -3,16 +3,27 @@
 // It is a school picker and nothing else. Showing the pitch here and then showing it again on the
 // campus page would make the same argument twice; picking a school takes one press and the page
 // they land on is the one written for them.
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { frameThemeVars } from "@/components/frames/frame-theme";
 
 import { Bolt, BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { SearchPicker } from "@/components/site/SearchPicker";
 import { SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { ogMeta } from "@/lib/og";
-import { ALL_SCHOOLS, boltForSlug } from "@/lib/schools";
+import { ALL_SCHOOLS, boltForSlug, schoolById } from "@/lib/schools";
+import { readCampusPrefs } from "@/lib/campus-prefs.functions";
 
 export const Route = createFileRoute("/rep")({
+  // A VISITOR WHOSE CAMPUS IS ALREADY KNOWN (cookie) goes straight to their school's rep page —
+  // the picker here exists only for someone the site has never placed. `?all` keeps the picker
+  // reachable on purpose (the school page's "not your school?" link uses it).
+  beforeLoad: async ({ search }) => {
+    if ((search as { all?: string }).all !== undefined) return;
+    const prefs = await readCampusPrefs().catch(() => ({ campus: null, profSkip: null }));
+    const s = schoolById(prefs.campus);
+    if (s?.slug) throw redirect({ to: "/$school/rep", params: { school: s.slug } });
+  },
+  validateSearch: (s: Record<string, unknown>): { all?: string } => ("all" in s ? { all: "" } : {}),
   head: () => ({
     meta: ogMeta({
       title: "Be the Survive Accounting rep at your school.",
@@ -28,7 +39,7 @@ function RepPicker() {
   const navigate = useNavigate();
 
   return (
-    <div style={{ ...frameThemeVars(), background: "var(--brand-navy)", color: "var(--brand-cream)", minHeight: "100vh", fontFamily: BRAND_SANS }}>
+    <div style={{ ...frameThemeVars(), background: "var(--bg-page)", color: "var(--brand-cream)", minHeight: "100vh", fontFamily: BRAND_SANS }}>
       <SiteHeader />
       <main className="mx-auto w-full max-w-[520px] px-5 py-16 text-center">
         <h1 className="text-[27px] font-black leading-[1.14] sm:text-[32px]" style={{ fontFamily: BRAND_DISPLAY, letterSpacing: "-0.015em" }}>
@@ -55,8 +66,10 @@ function RepPicker() {
         </div>
 
         {/* A school we do not list yet is still worth hearing from — Lee reads these himself. */}
-        <p className="mx-auto mt-5 max-w-[36ch] text-[12.5px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-          Somewhere else? Text Lee at (662) 565-8818 and tell him where you go.
+        <p className="mx-auto mt-5 max-w-[36ch] text-[14px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+          Somewhere else?{" "}
+          <a href="sms:+16625658818" className="font-bold underline underline-offset-4" style={{ color: "var(--brand-cream)", display: "inline-block", minHeight: 44, lineHeight: "44px" }}>Text Lee at (662) 565-8818</a>
+          {" "}and tell him where you go.
         </p>
       </main>
     </div>

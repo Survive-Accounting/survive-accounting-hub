@@ -49,7 +49,7 @@ function CampusRepPage() {
 
   return (
     <CampusProvider urlSchoolSlug={s.slug}>
-      <div style={{ ...frameThemeVars(), background: "var(--brand-navy)", color: "var(--brand-cream)", minHeight: "100vh", fontFamily: BRAND_SANS }}>
+      <div style={{ ...frameThemeVars(), background: "var(--bg-page)", color: "var(--brand-cream)", minHeight: "100vh", fontFamily: BRAND_SANS }}>
         <SiteHeader />
         <RepInterest schoolSlug={s.slug} schoolName={s.name} />
       </div>
