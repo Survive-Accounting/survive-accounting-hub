@@ -64,6 +64,7 @@ import { Route as OutreachBackupsRouteImport } from './routes/outreach.backups'
 import { Route as OutreachActiveRosterRouteImport } from './routes/outreach.active-roster'
 import { Route as OrderShortRefRouteImport } from './routes/order.$shortRef'
 import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
+import { Route as LabBoltRouteImport } from './routes/lab.bolt'
 import { Route as JeSplatRouteImport } from './routes/je.$'
 import { Route as ChaptersDashboardRouteImport } from './routes/chapters_.dashboard'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
@@ -366,6 +367,11 @@ const OShortRefRoute = OShortRefRouteImport.update({
   path: '/o/$shortRef',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LabBoltRoute = LabBoltRouteImport.update({
+  id: '/lab/bolt',
+  path: '/lab/bolt',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const JeSplatRoute = JeSplatRouteImport.update({
   id: '/$',
   path: '/$',
@@ -518,6 +524,7 @@ export interface FileRoutesByFullPath {
   '/ceq/create': typeof CeqCreateRoute
   '/chapters/dashboard': typeof ChaptersDashboardRoute
   '/je/$': typeof JeSplatRoute
+  '/lab/bolt': typeof LabBoltRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/order/$shortRef': typeof OrderShortRefRoute
   '/outreach/active-roster': typeof OutreachActiveRosterRoute
@@ -597,6 +604,7 @@ export interface FileRoutesByTo {
   '/ceq/create': typeof CeqCreateRoute
   '/chapters/dashboard': typeof ChaptersDashboardRoute
   '/je/$': typeof JeSplatRoute
+  '/lab/bolt': typeof LabBoltRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/order/$shortRef': typeof OrderShortRefRoute
   '/outreach/active-roster': typeof OutreachActiveRosterRoute
@@ -678,6 +686,7 @@ export interface FileRoutesById {
   '/ceq/create': typeof CeqCreateRoute
   '/chapters_/dashboard': typeof ChaptersDashboardRoute
   '/je/$': typeof JeSplatRoute
+  '/lab/bolt': typeof LabBoltRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/order/$shortRef': typeof OrderShortRefRoute
   '/outreach/active-roster': typeof OutreachActiveRosterRoute
@@ -760,6 +769,7 @@ export interface FileRouteTypes {
     | '/ceq/create'
     | '/chapters/dashboard'
     | '/je/$'
+    | '/lab/bolt'
     | '/o/$shortRef'
     | '/order/$shortRef'
     | '/outreach/active-roster'
@@ -839,6 +849,7 @@ export interface FileRouteTypes {
     | '/ceq/create'
     | '/chapters/dashboard'
     | '/je/$'
+    | '/lab/bolt'
     | '/o/$shortRef'
     | '/order/$shortRef'
     | '/outreach/active-roster'
@@ -919,6 +930,7 @@ export interface FileRouteTypes {
     | '/ceq/create'
     | '/chapters_/dashboard'
     | '/je/$'
+    | '/lab/bolt'
     | '/o/$shortRef'
     | '/order/$shortRef'
     | '/outreach/active-roster'
@@ -998,6 +1010,7 @@ export interface RootRouteChildren {
   SchoolRepRoute: typeof SchoolRepRoute
   CSlugRoute: typeof CSlugRoute
   ChaptersDashboardRoute: typeof ChaptersDashboardRoute
+  LabBoltRoute: typeof LabBoltRoute
   OShortRefRoute: typeof OShortRefRoute
   StudyCanvasRoute: typeof StudyCanvasRoute
   StudyDashboardRoute: typeof StudyDashboardRoute
@@ -1403,6 +1416,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OShortRefRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/lab/bolt': {
+      id: '/lab/bolt'
+      path: '/lab/bolt'
+      fullPath: '/lab/bolt'
+      preLoaderRoute: typeof LabBoltRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/je/$': {
       id: '/je/$'
       path: '/$'
@@ -1698,6 +1718,7 @@ const rootRouteChildren: RootRouteChildren = {
   SchoolRepRoute: SchoolRepRoute,
   CSlugRoute: CSlugRoute,
   ChaptersDashboardRoute: ChaptersDashboardRoute,
+  LabBoltRoute: LabBoltRoute,
   OShortRefRoute: OShortRefRoute,
   StudyCanvasRoute: StudyCanvasRoute,
   StudyDashboardRoute: StudyDashboardRoute,
