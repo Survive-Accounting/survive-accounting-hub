@@ -490,8 +490,11 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
           kind={heroKind}
           onProfessorAsk={() => openSyllabus("Don't see your professor? Tell me who teaches your class and I'll map them.")}
         />
-        <Footer onLanding />
       </main>
+      {/* OUTSIDE <main> on purpose: the footer surface is full-bleed, its CONTENT is centred by
+          the footer's own max-w-[1040px] rows. Inside main it inherited main's max width and the
+          navy band stopped 20px short of each edge. */}
+      <Footer onLanding />
 
       {bioOpen && <TutorBioModal onClose={() => setBioOpen(false)} />}
       {/* The sticky footer slides up once the hero is gone and away again at the real footer. */}
@@ -1972,6 +1975,15 @@ function TestimonialsSlider() {
     apply(); mq.addEventListener("change", apply);
     return () => mq.removeEventListener("change", apply);
   }, []);
+  // NEVER A LONE CARD. 10 testimonials three-up left the last page showing one card and two empty
+  // slots. The track is padded by wrapping the FIRST cards back onto the end, so the final page is
+  // a full row that loops around (…, 9, 1, 2) instead of a single orphan. Exact multiples pad
+  // nothing, and the one-up phone layout never needs it.
+  const track = useMemo(() => {
+    const rem = n % per;
+    return rem === 0 ? TESTIMONIALS : [...TESTIMONIALS, ...TESTIMONIALS.slice(0, per - rem)];
+  }, [per, n]);
+  const total = track.length;
   const pages = Math.ceil(n / per);
   const [page, setPage] = useState(0);
   const [auto, setAuto] = useState(!reduce);
@@ -2001,9 +2013,10 @@ function TestimonialsSlider() {
 
       <div className="relative select-none overflow-hidden" style={{ touchAction: "pan-y" }}
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={end} onPointerLeave={() => { if (start.current != null) { start.current = null; setDx(0); } }}>
-        <div className="flex" style={{ width: `${(n / per) * 100}%`, transform: `translateX(calc(-${page * (per / n) * 100}% + ${dx}px))`, transition: start.current != null ? "none" : "transform 420ms ease" }}>
-          {TESTIMONIALS.map((t) => (
-            <figure key={t.name} className="px-1.5" style={{ width: `${100 / n}%` }}>
+        <div className="flex" style={{ width: `${(total / per) * 100}%`, transform: `translateX(calc(-${page * (per / total) * 100}% + ${dx}px))`, transition: start.current != null ? "none" : "transform 420ms ease" }}>
+          {track.map((t, i) => (
+            // Index in the key: a wrapped card appears twice in the track and names are not unique.
+            <figure key={`${t.name}-${i}`} className="px-1.5" style={{ width: `${100 / total}%` }} aria-hidden={i >= n ? true : undefined}>
               <div className="flex h-full flex-col rounded-2xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", minHeight: 168 }}>
                 <blockquote className="text-[14px] leading-relaxed" style={{ color: "var(--brand-cream)", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>
                   “{t.quote}”

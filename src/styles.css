@@ -296,7 +296,18 @@ html.sa-navy body {
    navy family = structure · school colours (--sa-bolt-1/2, frame theme) = campus personalisation,
    which this block never touches.
    ═══════════════════════════════════════════════════════════════════════════════════════════ */
-html.sa-navy {
+/* THE PALETTE LIVES ON :root, NOT ON html.sa-navy.
+
+   .sa-navy is added by useNavyDocument in an EFFECT, i.e. only after hydration. While these
+   tokens were scoped to it, every navy page root (which paints background: var(--bg-page)) had
+   no value to resolve on the server render and the first client paint — so the page flashed the
+   light shadcn background until React mounted. The palette is inert everywhere else (nothing
+   outside the marketing pages reads --bg-*), so :root is the correct home for it.
+
+   Semantics: orange = action - blue = information/selected/progress - cream = reading -
+   navy family = structure - school colours (--sa-bolt-1/2, frame theme) = campus
+   personalisation, which this block never touches. */
+:root {
   /* surfaces */
   --bg-page: #0D1730;            /* marketing canvas */
   --bg-nav: #18294B;             /* navbar + footer + sticky bars */
@@ -317,8 +328,10 @@ html.sa-navy {
   /* lines */
   --border-default: #34486D;
   --border-subtle: rgba(52, 72, 109, 0.55);
+}
 
-  /* legacy names every component already reads — aliased, not duplicated */
+html.sa-navy {
+  /* legacy names every component already reads - aliased, not duplicated */
   --brand-cream: var(--text-primary);
   --text-muted: var(--text-secondary);
   --accent: var(--accent-primary);
@@ -327,7 +340,7 @@ html.sa-navy {
 }
 
 /* CURRENT production palette, for comparison only. */
-html.sa-navy[data-sa-theme="current"] {
+:root[data-sa-theme="current"] {
   --bg-page: #0F1A2E;
   --bg-nav: #182647;
   --bg-surface: #1B2B4D;

@@ -172,16 +172,21 @@ export function TrustChips({ onBio, onReviews, onPlayer }: { onBio: () => void; 
     { label: "1,000+ students helped", onClick: onReviews },
     { label: "Built for exam week", onClick: onPlayer },
   ];
+  // A PROOF STRIP, NOT A THIRD ROW OF BUTTONS. One hierarchy step below both hero CTAs: smaller
+  // type, thinner border, muted fill, no lift, default cursor. They stay activatable (each one
+  // jumps to the section that backs the claim) and keyboard-focusable, and the 44px touch target
+  // is restored by an invisible ::after rather than by a 44px-tall pill — see MARKETING_CSS.
   return (
-    <div className="mt-6 flex flex-wrap items-center justify-center gap-2 lg:justify-start">
+    <div className="sa-proof-row mt-5 flex flex-wrap items-center justify-center gap-2 lg:flex-nowrap lg:justify-start">
       {CHIPS.map((c) => (
         <button
           key={c.label}
           type="button"
           onClick={c.onClick}
-          className="sa-trust-chip rounded-full px-3 py-1.5 text-[14px] font-semibold focus-visible:ring-2"
-          style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)", minHeight: 44 }}
+          className="sa-trust-chip relative rounded-full text-[13px] font-semibold focus-visible:ring-2"
+          style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)", height: 33, paddingInline: 11, whiteSpace: "nowrap" }}
         >
+          <span aria-hidden className="sa-proof-tick">✓</span>
           {c.label}
         </button>
       ))}
@@ -191,9 +196,25 @@ export function TrustChips({ onBio, onReviews, onPlayer }: { onBio: () => void; 
 
 /** Chip hover/focus styling — subtle brightness + a hair of lift, quick, reduced-motion safe. */
 export const MARKETING_CSS = `
-.sa-trust-chip { opacity: 0.8; transition: opacity 140ms, border-color 140ms, background 140ms, transform 140ms; cursor: pointer; }
-.sa-trust-chip:hover { opacity: 1; background: var(--bg-overlay); border-color: var(--accent-info); transform: translateY(-1px); }
-.sa-trust-chip:focus-visible { opacity: 1; outline: 2px solid var(--accent); outline-offset: 2px; }
+/* PROOF STRIP. Quieter than every CTA: no lift, no glow, default cursor, muted text. The hover
+   is a bare half-step of contrast so the badge is not dead to the pointer, nothing more. */
+.sa-trust-chip { display: inline-flex; align-items: center; gap: 5px; cursor: default; transition: color 140ms, border-color 140ms; }
+.sa-trust-chip:hover { color: var(--brand-cream); border-color: var(--border-default); }
+.sa-trust-chip:focus-visible { color: var(--brand-cream); outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Touch target stays 44px tall while the pill reads 33px — the badges are still real controls. */
+.sa-trust-chip::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 44px; transform: translateY(-50%); }
+/* The tick is a quiet mark, not a success badge: brand amber at half strength, one step down in size. */
+.sa-proof-tick { font-size: 11px; line-height: 1; color: var(--accent); opacity: 0.65; }
+/* At the narrowest desktop the three badges are ~6px wider than the hero column; the type drops a
+   half-step there rather than wrapping to a second line. */
+@media (min-width: 1024px) and (max-width: 1150px) {
+  .sa-proof-row .sa-trust-chip { font-size: 12px; padding-inline: 9px; }
+}
+/* Phone: 2 + 1 rather than three stacked lines. At 13px the first two badges are 368px wide in a
+   350px column, so the half-step down is what buys the pairing — still a readable badge size. */
+@media (max-width: 639px) {
+  .sa-proof-row .sa-trust-chip { font-size: 12px; padding-inline: 9px; }
+}
 .sa-sticky-footer { transition: transform 320ms cubic-bezier(.2,.8,.2,1); }
 @media (prefers-reduced-motion: reduce) { .sa-sticky-footer { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .sa-trust-chip, .sa-trust-chip:hover { transform: none; } }

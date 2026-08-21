@@ -106,8 +106,9 @@ function ExpandPage() {
         {/* TIER 3 — THE FALLBACK. One box, unstructured on purpose. */}
         <ReferralForm />
 
-        <Footer />
       </main>
+      {/* full-bleed surface; the footer centres its own content (see landing.tsx) */}
+      <Footer />
     </div>
   );
 }
