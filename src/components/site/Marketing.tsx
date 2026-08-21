@@ -15,6 +15,7 @@ import { ClipboardCheck, Play, Target } from "lucide-react";
 
 import { BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS } from "@/components/canvas/brand";
 import { AnimatedBoltHero, type BoltHeroStop } from "@/components/site/AnimatedBolt";
+import { CompactLockup } from "@/components/site/SiteHeader";
 import { NotListedForm } from "@/components/site/NotListedForm";
 import { scrollToId } from "@/lib/ui-scroll";
 import { useDismiss } from "@/lib/use-dismiss";
@@ -46,7 +47,7 @@ export const MARKETING_HERO_ID = "marketing-hero";
  *  MOBILE ORDER: headline → promise → built-for → CTAs → trust chips → bolt. The bolt is
  *  branding, not content — it comes from natural DOM order (no order-first), so it can never
  *  push the CTA out of the first viewport. Desktop keeps it as the right column. */
-export function MarketingHero({ kind, code, schoolShort, greek, onStart, secondaryHref, onSecondary, secondaryLabel, showSecondary = true, onOpenBio, courtesy, rotationStops }: {
+export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltPick, secondaryHref, onSecondary, secondaryLabel, showSecondary = true, onOpenBio, courtesy, rotationStops }: {
   kind: "general" | "campus" | "greek";
   /** Verified course code or null — a null degrades copy, never invents a code. */
   code: string | null;
@@ -56,6 +57,9 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, seconda
    *  every one, continuously, ~5s each). Without it the bolt wears the plain
    *  brand red/blue. Campus/greek pages ignore this — they are pinned to their own school. */
   rotationStops?: BoltHeroStop[];
+  /** GENERAL pages: pressing the bolt while it shows a school means "that school" — the page
+   *  navigates to that campus with the player preset, instead of merely scrolling. */
+  onBoltPick?: (stopId: string) => void;
   /** Primary CTA + "Built for exam week" chip target — scrolls to the player (and tags Greek
    *  members upstream, where attribution belongs). */
   onStart: () => void;
@@ -148,7 +152,12 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, seconda
 
       {/* THE BOLT — after the copy in DOM order, so mobile reads headline→CTA→chips first. */}
       <div className="flex flex-col items-center lg:items-end">
-        <AnimatedBoltHero stops={stops} onActivate={onStart} className="sa-hero3-paper" ariaLabel="Cram Exam 1 Free" />
+        <AnimatedBoltHero
+          stops={stops}
+          onActivate={(s) => (kind === "general" && onBoltPick && s.id !== "brand" ? onBoltPick(s.id) : onStart())}
+          className="sa-hero3-paper"
+          ariaLabel="Cram Exam 1 Free"
+        />
       </div>
     </section>
   );
@@ -185,6 +194,8 @@ export const MARKETING_CSS = `
 .sa-trust-chip { opacity: 0.8; transition: opacity 140ms, border-color 140ms, background 140ms, transform 140ms; cursor: pointer; }
 .sa-trust-chip:hover { opacity: 1; background: rgba(245,239,230,0.12); border-color: rgba(245,239,230,0.28); transform: translateY(-1px); }
 .sa-trust-chip:focus-visible { opacity: 1; outline: 2px solid var(--accent); outline-offset: 2px; }
+.sa-sticky-footer { transition: transform 320ms cubic-bezier(.2,.8,.2,1); }
+@media (prefers-reduced-motion: reduce) { .sa-sticky-footer { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .sa-trust-chip, .sa-trust-chip:hover { transform: none; } }
 `;
 
@@ -218,10 +229,21 @@ export function FeatureValueStrip({ code }: { code: string | null }) {
 /** Desktop: ~60/40 row — reviews left, tutor card right. Mobile: stacked, reviews first.
  *  Content arrives as slots so this module never imports from the landing route. */
 export function SocialProofSection({ testimonials, tutor }: { testimonials: React.ReactNode; tutor: React.ReactNode }) {
+  // BOTH headings are rendered HERE, on one baseline — the column contents start level, which
+  // is what makes the row read as one section rather than two stacked boxes.
+  const H = ({ children }: { children: React.ReactNode }) => (
+    <h2 className="mb-4 text-[20px] font-extrabold" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.01em" }}>{children}</h2>
+  );
   return (
     <section className="mx-auto grid w-full max-w-[1040px] items-start gap-8 lg:grid-cols-[3fr_2fr]" style={{ fontFamily: BRAND_SANS }}>
-      <div className="min-w-0">{testimonials}</div>
-      <div className="min-w-0" id="lee">{tutor}</div>
+      <div className="min-w-0">
+        <H>What students are saying</H>
+        {testimonials}
+      </div>
+      <div className="min-w-0" id="lee">
+        <H>Meet your tutor</H>
+        {tutor}
+      </div>
     </section>
   );
 }
@@ -250,8 +272,7 @@ export function LeePortrait({ width = 200, caption = true }: { width?: number; c
 /** The COMPACT tutor card — facts only, one door to the full bio. Sits beside the reviews. */
 export function TutorCard({ onMore }: { onMore: () => void }) {
   return (
-    <div className="rounded-3xl p-6 sm:p-7" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)", fontFamily: BRAND_SANS }}>
-      <h2 className="mb-5 text-[20px] font-extrabold" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Meet your tutor</h2>
+    <div className="rounded-2xl p-5 sm:p-6" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)", fontFamily: BRAND_SANS }}>
       <div className="flex items-start gap-5">
         <LeePortrait width={112} caption={false} />
         <div className="min-w-0" style={{ color: "var(--brand-cream)" }}>
@@ -264,7 +285,7 @@ export function TutorCard({ onMore }: { onMore: () => void }) {
       <button
         type="button"
         onClick={onMore}
-        className="mt-5 inline-flex items-center text-[13.5px] font-bold focus-visible:ring-2"
+        className="mt-4 inline-flex items-center text-[13.5px] font-bold focus-visible:ring-2"
         style={{ color: "var(--accent)", minHeight: 40 }}
       >
         Learn more about Lee →
@@ -312,6 +333,59 @@ export function TutorBioModal({ onClose }: { onClose: () => void }) {
           <P>I genuinely love teaching this stuff. Accounting is the language of business, and once it clicks, it&apos;s a pretty powerful thing to understand.</P>
           <P>Outside of teaching, I&apos;m usually traveling, playing music, or working on Survive.</P>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── STICKY FOOTER BAR ─────────────────────────────────────────────────────────────────────────
+/** A compact bottom bar that slides up once the hero has scrolled away and slides back down when
+ *  the real footer is in view: wordmark home, the page's anchors, and "Questions? Text Lee". md+
+ *  only — phones keep their own bottom CTA (greek) or nothing; four links and a phone number do
+ *  not fit a 390px bar. transform-only slide, instant under reduced motion. */
+export function StickyFooterBar({ heroId, links, tel, phone }: {
+  heroId: string;
+  links: Array<{ label: string; href: string }>;
+  tel: string;
+  phone: string;
+}) {
+  const [pastHero, setPastHero] = useState(false);
+  const [footerSeen, setFooterSeen] = useState(false);
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const hero = document.getElementById(heroId);
+    const footer = document.getElementById("site-footer");
+    const ios: IntersectionObserver[] = [];
+    if (hero) { const io = new IntersectionObserver(([e]) => setPastHero(!e.isIntersecting), { threshold: 0 }); io.observe(hero); ios.push(io); }
+    if (footer) { const io = new IntersectionObserver(([e]) => setFooterSeen(e.isIntersecting), { threshold: 0 }); io.observe(footer); ios.push(io); }
+    return () => ios.forEach((io) => io.disconnect());
+  }, [heroId]);
+  const show = pastHero && !footerSeen;
+  const onNav = (href: string) => (e: React.MouseEvent) => { if (href.startsWith("#")) { e.preventDefault(); scrollToId(href.slice(1)); } };
+  return (
+    <div
+      aria-hidden={!show}
+      className="sa-sticky-footer fixed inset-x-0 bottom-0 z-[190] hidden md:block"
+      style={{
+        transform: show ? "translateY(0)" : "translateY(110%)",
+        background: "color-mix(in srgb, var(--sa-surface-nav, #0F1A2E) 94%, transparent)",
+        backdropFilter: "blur(8px)",
+        borderTop: "1px solid rgba(245,239,230,0.12)",
+        fontFamily: BRAND_SANS,
+      }}
+    >
+      <div className="mx-auto flex w-full max-w-[1200px] items-center gap-6 px-4" style={{ minHeight: 52 }}>
+        <a href="/" aria-label="Survive Accounting — home" className="inline-flex items-center" tabIndex={show ? 0 : -1}><CompactLockup size={16} /></a>
+        <nav className="flex items-center gap-5" aria-label="Page">
+          {links.map((l) => (
+            <a key={l.label} href={l.href} onClick={onNav(l.href)} tabIndex={show ? 0 : -1} className="text-[13px] font-semibold" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>{l.label}</a>
+          ))}
+        </nav>
+        <span className="flex-1" />
+        <span className="text-[13px] font-semibold" style={{ color: "var(--brand-cream)", opacity: 0.75 }}>Questions? Text Lee</span>
+        <a href={`sms:${tel}`} tabIndex={show ? 0 : -1} className="inline-flex items-center gap-2 rounded-full px-4 text-[13px] font-black" style={{ background: "var(--accent)", color: "#0B1220", minHeight: 36 }}>
+          <span aria-hidden>💬</span> {phone}
+        </a>
       </div>
     </div>
   );

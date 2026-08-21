@@ -34,7 +34,9 @@ const DWELL_MS = 5000;
 
 export function AnimatedBoltHero({ stops, onActivate, className, ariaLabel = "Cram Exam 1 Free" }: {
   stops: BoltHeroStop[];
-  onActivate: () => void;
+  /** Receives the stop showing at the moment of the click — on the rotating home hero, pressing
+   *  the bolt while it says "ACCY 201 · OLE MISS" means "that one", not just "scroll down". */
+  onActivate: (stop: BoltHeroStop) => void;
   className?: string;
   ariaLabel?: string;
 }) {
@@ -64,7 +66,7 @@ export function AnimatedBoltHero({ stops, onActivate, className, ariaLabel = "Cr
   return (
     <button
       type="button"
-      onClick={onActivate}
+      onClick={() => onActivate(stop)}
       aria-label={ariaLabel}
       className={`ab-hero group relative block ${className ?? ""}`}
       style={{

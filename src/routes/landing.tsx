@@ -34,8 +34,8 @@ import { logCampusCodeDemand } from "@/lib/campus-demand.functions";
 import { ALL_SCHOOLS, searchSchools } from "@/lib/schools";
 import { ANIMATED_BOLT_CSS, type BoltHeroStop } from "@/components/site/AnimatedBolt";
 import {
-  FeatureValueStrip, MARKETING_CSS, MarketingHero, MarketingUtilityLinks,
-  SocialProofSection, TutorBioModal, TutorCard, type GreekMarketing,
+  FeatureValueStrip, MARKETING_CSS, MARKETING_HERO_ID, MarketingHero, MarketingUtilityLinks,
+  SocialProofSection, StickyFooterBar, TutorBioModal, TutorCard, type GreekMarketing,
 } from "@/components/site/Marketing";
 import { CampusProvider, useCampus } from "@/lib/campus-context";
 import { contactKind, LAUNCH_LINE, LAUNCH_WINDOW } from "@/lib/launch";
@@ -197,7 +197,12 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   // clears school, the not-listed flag AND the professor together. A partial reset — new school,
   // professor left over from the old one — would silently attach a student to another campus's
   // faculty, which is a worse failure than being asked the question twice.
+  // A deliberate Reset must WIN over the campus-context adoption effect below, which would
+  // otherwise hand the school straight back (URL / stored pick) and leave the player stuck on
+  // the professor rung. The flag clears on the next explicit pick.
+  const [manualReset, setManualReset] = useState(false);
   const resetMatch = () => {
+    setManualReset(true);
     setSchool(null);
     setNotListed(false);
     resetProfessor();
@@ -212,10 +217,10 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   // is right on the very first render. Only fills an EMPTY choice: a visitor who picks a different
   // school in the player outranks the URL and must not be overwritten.
   useEffect(() => {
-    if (school || notListed || !campus.school) return;
+    if (school || notListed || manualReset || !campus.school) return;
     const s = SCHOOLS.find((x) => x.id === campus.school!.id);
     if (s) setSchool(s);
-  }, [campus.school, school, notListed]);
+  }, [campus.school, school, notListed, manualReset]);
 
   // RETURNING VISITOR — restore school (or "not listed") + professor + skip AFTER mount (never in an
   // initializer: this route SSRs, and a server/client mismatch there breaks hydration). A /c/<slug>
@@ -348,6 +353,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
 
   const pickSchool = (s: School) => {
     const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    setManualReset(false);
     setNotListed(false);
     if (school?.id !== s.id) resetProfessor(); // new school → professor line resets (spec: ladder resets with school)
     setSchool(s);
@@ -424,6 +430,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
           code={heroCode}
           schoolShort={heroSchoolName}
           rotationStops={rotationStops}
+          onBoltPick={(id) => { const s = schoolsWithCodes.find((x) => x.id === id); if (s) pickSchool(s); else onStart(); }}
           greek={greek}
           onStart={heroStart}
           secondaryLabel={greek ? (greek.claimed ? `Use ${greek.letters} access →` : `Set up ${greek.letters} access →`) : "For fraternities & sororities →"}
@@ -465,6 +472,18 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
       </main>
 
       {bioOpen && <TutorBioModal onClose={() => setBioOpen(false)} />}
+      {/* The sticky footer slides up once the hero is gone and away again at the real footer. */}
+      <StickyFooterBar
+        heroId={MARKETING_HERO_ID}
+        tel={TEL}
+        phone={PHONE}
+        links={[
+          { label: "Cram Exam 1 Free", href: "#exam1" },
+          { label: "Reviews", href: "#reviews" },
+          { label: "Meet your tutor", href: "#lee" },
+          greek ? { label: "Chapter Access", href: `#${greek.accessAnchor}` } : { label: "For Greeks", href: "/chapters" },
+        ]}
+      />
 
       {syllabusOpen && <SyllabusModal school={school} framing={syllabusFraming} onClose={() => { setSyllabusOpen(false); setSyllabusFraming(null); }} />}
       {notifyTopic !== null && <NotifyModal topic={notifyTopic} school={school} professorName={professor ? (professor.last || professor.name) : null} onClose={() => setNotifyTopic(null)} />}
@@ -1052,7 +1071,7 @@ const examStats = (tab: ExamTab): string => {
  *  marquee). Nothing above the media layer needs to change when real preview video lands. */
 function PreviewSurface({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative grid h-full w-full place-items-center overflow-hidden px-5 py-8" style={{ background: "var(--sa-surface-2)" }}>
+    <div className="relative grid w-full flex-1 place-items-center self-stretch overflow-hidden px-5 py-8" style={{ background: "var(--sa-surface-2)", minHeight: "var(--sa-panel-min)" }}>
       {/* MEDIA LAYER (placeholder): a deep navy field with the brand bolt as a faint watermark —
           reads as a player at rest, not an empty box. */}
       <div aria-hidden className="absolute inset-0" style={{ background: "linear-gradient(155deg, #101A31 0%, #0B1220 55%, #0D1526 100%)" }}>
@@ -1075,7 +1094,7 @@ function PreviewSurface({ children }: { children: React.ReactNode }) {
  *
  *  `onReset` clears school AND professor together. A half-reset — new school, professor left
  *  over from the old one — would silently attach a student to another campus's faculty. */
-function MatchPanel({ gateActive, school, professor, notListed, profDone, coveragePct, schools, cueSignal, onPick, onNotListed, onPickProfessor, onProfNotListed, onMaterials, onReset }: {
+function MatchPanel({ gateActive, school, professor, notListed, profDone, coveragePct, schools, cueSignal, onPick, onNotListed, onPickProfessor, onProfNotListed, onAddProfessor, onMaterials, onReset }: {
   /** True while the Greek gate is showing — the whole panel stands down. */
   gateActive?: boolean;
   school: School | null;
@@ -1093,6 +1112,8 @@ function MatchPanel({ gateActive, school, professor, notListed, profDone, covera
   onNotListed: () => void;
   onPickProfessor: (p: ProfessorLite) => void;
   onProfNotListed: () => void;
+  /** Reopens the professor rung from the confirmed bar — for a student who skipped it. */
+  onAddProfessor: () => void;
   onMaterials: () => void;
   onReset: () => void;
 }) {
@@ -1159,6 +1180,12 @@ function MatchPanel({ gateActive, school, professor, notListed, profDone, covera
       <span className="min-w-0 flex-1 truncate text-[12.5px] font-bold" style={{ color: "var(--brand-cream)" }}>
         {[school ? school.name : "Your school", code, professor ? `Prof. ${professor.last || professor.name}` : null].filter(Boolean).join(" · ")}
       </span>
+      {/* Skipped the professor? The door stays open, quietly, where the name would sit. */}
+      {school && !professor && (
+        <button type="button" onClick={onAddProfessor} className="shrink-0 text-[11.5px] font-bold" style={{ color: "var(--accent)", minHeight: 32 }}>
+          + Add professor
+        </button>
+      )}
       {/* COVERAGE, inspectable but never in the way. Only rendered when the resolver returned a
           real number — no percentage is invented to fill the slot. */}
       {coveragePct != null && (
@@ -1380,7 +1407,10 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
   // school and professor — which is everything the player actually needs to pick a map.
   const flowDone = (!!school || notListed) && profDone;
 
-  const pickSet = (topicKey: string, setId: string | null) => { setSelById((p) => ({ ...p, [active.num]: { topicKey, setId } })); setDrawerOpen(false); };
+  // Picking a topic while the professor overlay is up IS "skip for now" — the student has told
+  // us what they want to watch, and a question about their professor should not stand in front
+  // of it. The confirmed bar keeps an "+ Add professor" door for later.
+  const pickSet = (topicKey: string, setId: string | null) => { setSelById((p) => ({ ...p, [active.num]: { topicKey, setId } })); setDrawerOpen(false); setProfDone(true); };
   const toggleTopic = (k: string) => setOpenTopics((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
   return (
@@ -1415,14 +1445,14 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
             <ExamOutline tab={active} school={school} stats={examStats(active)} isPaid={isPaid} curSetId={curSet?.id ?? null} curTopicKey={cur?.topicKey ?? null} openTopics={openTopics} onToggleTopic={toggleTopic} onPickSet={pickSet} />
           </div>
 
-          <div className="min-w-0 flex-1" style={{ background: "var(--sa-surface-2)" }}>
+          <div className="flex min-w-0 flex-1 flex-col" style={{ background: "var(--sa-surface-2)" }}>
             {/* RIGHT PANEL. Until a school exists the panel IS the picker; after that it carries
                 the confirmed line above the content. The left outline stays populated the whole
                 time, so this asks a question without hiding the catalogue behind it. */}
             {/* ONE STATE AT A TIME. `flowDone` is the whole ladder, not its first rung — see the
                 note above sa-panel-min in styles.css for the height half of this. */}
-            <div className="sa-panel-min relative w-full">
-              <MatchPanel gateActive={!!videoGate} school={school} professor={professor} notListed={notListed} profDone={profDone} coveragePct={active.coveragePct} schools={schools} cueSignal={focusSignal} onPick={onPick} onNotListed={onNotListed} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); }} onProfNotListed={() => setProfDone(true)} onMaterials={() => onSyllabus()} onReset={onReset} />
+            <div className="sa-panel-min relative w-full flex-1">
+              <MatchPanel gateActive={!!videoGate} school={school} professor={professor} notListed={notListed} profDone={profDone} coveragePct={active.coveragePct} schools={schools} cueSignal={focusSignal} onPick={onPick} onNotListed={onNotListed} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); }} onProfNotListed={() => setProfDone(true)} onAddProfessor={() => setProfDone(false)} onMaterials={() => onSyllabus()} onReset={onReset} />
               {/* THE GATE STANDS IN FOR THE VIDEO, not for the page: tabs, topics and the
                   whole menu stay readable, because a visitor deciding whether to hand over an
                   email needs to see what they are unlocking. */}
@@ -1873,23 +1903,35 @@ function TestimonialAvatar({ name, src }: { name: string; src?: string }) {
   return <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full text-[14px] font-black" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.18)", color: "var(--accent)" }}>{initialsOf(name)}</span>;
 }
 
+/** THREE-UP review cards (one-up below sm), paged. The heading lives in SocialProofSection so it
+ *  sits on the same baseline as "Meet your tutor" beside it. Auto-advances by PAGE every 7s;
+ *  any interaction stops it for good; reduced motion never starts it. No star RATING is quoted —
+ *  five brand stars + the real "1,000+ students helped" number, nothing invented. */
 function TestimonialsSlider() {
   const reduce = useMemo(() => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches, []);
   const n = TESTIMONIALS.length;
-  const [idx, setIdx] = useState(0);
-  const [auto, setAuto] = useState(!reduce); // manual control always wins — never resume once stopped
-  const [hover, setHover] = useState(false);
-  const [expanded, setExpanded] = useState(false);
-  const stop = () => setAuto(false);
-  const go = (d: -1 | 1) => { setIdx((i) => (i + d + n) % n); };
-  useEffect(() => { setExpanded(false); }, [idx]);
+  // Per-page count is read in an effect (SSR renders 3-up; a phone drops to 1-up after mount).
+  const [per, setPer] = useState(3);
   useEffect(() => {
-    if (!auto || hover || reduce) return;
-    const t = window.setInterval(() => setIdx((i) => (i + 1) % n), 6000);
+    const mq = window.matchMedia("(max-width: 639px)");
+    const apply = () => setPer(mq.matches ? 1 : 3);
+    apply(); mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+  const pages = Math.ceil(n / per);
+  const [page, setPage] = useState(0);
+  const [auto, setAuto] = useState(!reduce);
+  const [hover, setHover] = useState(false);
+  const stop = () => setAuto(false);
+  const go = (d: -1 | 1) => setPage((p) => (p + d + pages) % pages);
+  useEffect(() => { setPage((p) => Math.min(p, pages - 1)); }, [pages]);
+  useEffect(() => {
+    if (!auto || hover || reduce || pages < 2) return;
+    const t = window.setInterval(() => setPage((p) => (p + 1) % pages), 7000);
     return () => window.clearInterval(t);
-  }, [auto, hover, reduce, n]);
+  }, [auto, hover, reduce, pages]);
 
-  // pointer drag / swipe (covers touch); a swipe past threshold advances AND stops auto-play.
+  // pointer drag / swipe; past threshold advances AND stops auto-play.
   const start = useRef<number | null>(null);
   const [dx, setDx] = useState(0);
   const onDown = (e: RPointerEvent) => { start.current = e.clientX; };
@@ -1897,44 +1939,47 @@ function TestimonialsSlider() {
   const end = () => { const d = dx; start.current = null; setDx(0); if (Math.abs(d) > 40) { go(d < 0 ? 1 : -1); stop(); } };
 
   return (
-    <section className="mx-auto mb-12 max-w-2xl" onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-      <h2 className="mb-6 text-center text-[22px] font-black sm:text-[26px]" style={{ color: "var(--brand-cream)", letterSpacing: "-0.01em" }}>What students are saying</h2>
+    <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      <div className="mb-4 flex items-center gap-2 text-[13px]" style={{ color: "var(--brand-cream)" }}>
+        <span aria-hidden style={{ color: "var(--accent)", letterSpacing: "0.08em" }}>★★★★★</span>
+        <span style={{ opacity: 0.7 }}>1,000+ students helped</span>
+      </div>
 
-      <div className="relative select-none overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)", touchAction: "pan-y" }}
+      <div className="relative select-none overflow-hidden" style={{ touchAction: "pan-y" }}
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={end} onPointerLeave={() => { if (start.current != null) { start.current = null; setDx(0); } }}>
-        <div className="flex" style={{ width: `${n * 100}%`, transform: `translateX(calc(-${idx * (100 / n)}% + ${dx}px))`, transition: start.current != null ? "none" : "transform 420ms ease" }}>
+        <div className="flex" style={{ width: `${(n / per) * 100}%`, transform: `translateX(calc(-${page * (per / n) * 100}% + ${dx}px))`, transition: start.current != null ? "none" : "transform 420ms ease" }}>
           {TESTIMONIALS.map((t) => (
-            <figure key={t.name} className="flex flex-col items-center justify-center px-6 py-7 text-center sm:px-8" style={{ width: `${100 / n}%`, minHeight: 210 }}>
-              <span aria-hidden className="mb-1 font-serif leading-none" style={{ color: "var(--brand-cream)", opacity: 0.16, fontSize: 44 }}>“</span>
-              <blockquote className="max-w-[52ch] text-[14.5px] leading-relaxed sm:text-[15.5px]" style={{ color: "var(--brand-cream)", ...(t.long && !expanded ? { display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" as const, overflow: "hidden" } : {}) }}>
-                {t.quote}
-              </blockquote>
-              {t.long && (
-                <button onClick={() => { setExpanded((v) => !v); stop(); }} className="mt-2 text-[12.5px] font-semibold" style={{ color: "var(--accent)", minHeight: 44, paddingBlock: 4 }}>{expanded ? "show less" : "+ show more"}</button>
-              )}
-              <figcaption className="mt-4 flex items-center gap-3">
-                <TestimonialAvatar name={t.name} src={t.avatar} />
-                <span className="text-left">
-                  <span className="block text-[13.5px] font-bold" style={{ color: "var(--brand-cream)" }}>{t.name}</span>
-                  <span className="block text-[12px]" style={{ color: "var(--text-muted)" }}>{[t.school, t.code].filter(Boolean).join(" · ")}</span>
-                </span>
-              </figcaption>
+            <figure key={t.name} className="px-1.5" style={{ width: `${100 / n}%` }}>
+              <div className="flex h-full flex-col rounded-2xl p-4" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)", minHeight: 168 }}>
+                <blockquote className="text-[13.5px] leading-relaxed" style={{ color: "var(--brand-cream)", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>
+                  “{t.quote}”
+                </blockquote>
+                <figcaption className="mt-auto flex items-center gap-2.5 pt-3">
+                  <TestimonialAvatar name={t.name} src={t.avatar} />
+                  <span className="min-w-0 text-left">
+                    <span className="block truncate text-[12.5px] font-bold" style={{ color: "var(--brand-cream)" }}>{t.name}</span>
+                    <span className="block text-[11.5px]" style={{ color: "var(--text-muted)" }}>{[t.school, t.code].filter(Boolean).join(" · ")}</span>
+                  </span>
+                </figcaption>
+              </div>
             </figure>
           ))}
         </div>
       </div>
 
       {/* controls — every one stops auto-play permanently */}
-      <div className="mt-4 flex items-center justify-center gap-4">
-        <button onClick={() => { go(-1); stop(); }} className="grid h-8 w-8 place-items-center rounded-full text-[18px] hover:bg-white/5" style={{ color: "var(--brand-cream)", border: "1px solid rgba(245,239,230,0.2)" }} aria-label="Previous testimonial">‹</button>
-        <div className="flex items-center gap-1.5">
-          {TESTIMONIALS.map((t, i) => (
-            <button key={t.name} onClick={() => { setIdx(i); stop(); }} aria-label={`Go to testimonial ${i + 1}`} className="h-2 rounded-full transition-all" style={{ width: i === idx ? 18 : 8, background: i === idx ? "var(--accent)" : "rgba(245,239,230,0.3)" }} />
-          ))}
+      {pages > 1 && (
+        <div className="mt-4 flex items-center gap-3">
+          <button onClick={() => { go(-1); stop(); }} className="grid h-8 w-8 place-items-center rounded-full text-[18px] hover:bg-white/5" style={{ color: "var(--brand-cream)", border: "1px solid rgba(245,239,230,0.2)" }} aria-label="Previous reviews">‹</button>
+          <div className="flex items-center gap-1.5">
+            {Array.from({ length: pages }, (_, i) => (
+              <button key={i} onClick={() => { setPage(i); stop(); }} aria-label={`Go to reviews page ${i + 1}`} className="h-2 rounded-full transition-all" style={{ width: i === page ? 18 : 8, background: i === page ? "var(--accent)" : "rgba(245,239,230,0.3)" }} />
+            ))}
+          </div>
+          <button onClick={() => { go(1); stop(); }} className="grid h-8 w-8 place-items-center rounded-full text-[18px] hover:bg-white/5" style={{ color: "var(--brand-cream)", border: "1px solid rgba(245,239,230,0.2)" }} aria-label="Next reviews">›</button>
         </div>
-        <button onClick={() => { go(1); stop(); }} className="grid h-8 w-8 place-items-center rounded-full text-[18px] hover:bg-white/5" style={{ color: "var(--brand-cream)", border: "1px solid rgba(245,239,230,0.2)" }} aria-label="Next testimonial">›</button>
-      </div>
-    </section>
+      )}
+    </div>
   );
 }
 
