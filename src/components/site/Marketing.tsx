@@ -14,7 +14,7 @@ import { useEffect, useState } from "react";
 import { ClipboardCheck, Play, Target } from "lucide-react";
 
 import { BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS } from "@/components/canvas/brand";
-import { AnimatedBoltHero, type BoltHeroStop } from "@/components/site/AnimatedBolt";
+import { AnimatedCampusBolt, type BoltCampus } from "@/components/site/bolt";
 import { CompactLockup } from "@/components/site/SiteHeader";
 import { NotListedForm } from "@/components/site/NotListedForm";
 import { scrollToId } from "@/lib/ui-scroll";
@@ -47,16 +47,24 @@ export const MARKETING_HERO_ID = "marketing-hero";
  *  MOBILE ORDER: headline → promise → built-for → CTAs → trust chips → bolt. The bolt is
  *  branding, not content — it comes from natural DOM order (no order-first), so it can never
  *  push the CTA out of the first viewport. Desktop keeps it as the right column. */
-export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltPick, secondaryHref, onSecondary, secondaryLabel, showSecondary = true, onOpenBio, courtesy, rotationStops }: {
+export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltPick, secondaryHref, onSecondary, secondaryLabel, showSecondary = true, onOpenBio, courtesy, rotationCampuses, campusBolt }: {
   kind: "general" | "campus" | "greek";
   /** Verified course code or null — a null degrades copy, never invents a code. */
   code: string | null;
   schoolShort: string | null;
   greek?: GreekMarketing;
-  /** GENERAL pages only: the school colourways the bolt cycles on load (AnimatedBoltHero rotates
-   *  every one, continuously, ~5s each). Without it the bolt wears the plain
-   *  brand red/blue. Campus/greek pages ignore this — they are pinned to their own school. */
-  rotationStops?: BoltHeroStop[];
+  /** GENERAL pages only: every school, ALREADY IN PLAY ORDER (landing runs orderCampuses over
+   *  CURATED_CAMPUS_ORDER). Without it the bolt wears the plain brand red/blue. Campus/greek pages
+   *  ignore this — they are pinned to their own school. */
+  rotationCampuses?: BoltCampus[];
+  /** CAMPUS/GREEK pages: that campus's own colours, as literal hex.
+   *
+   *  It used to be "var(--sa-bolt-1)" / "var(--sa-bolt-2)", read off the page root. The bolt has to
+   *  MEASURE the secondary now — a white or silver secondary is swapped for the school's accent —
+   *  and a CSS variable is not a colour until the browser resolves it, which is after first paint.
+   *  Passing the hex means a campus page paints the right colours on the very first frame, from
+   *  the same table the page root sets those variables from. */
+  campusBolt?: { c1: string; c2: string; accent?: string | null } | null;
   /** GENERAL pages: pressing the bolt while it shows a school means "that school" — the page
    *  navigates to that campus with the player preset, instead of merely scrolling. */
   onBoltPick?: (stopId: string) => void;
@@ -72,13 +80,19 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
   /** CourtesyLine slot on greek pages — "courtesy of {chapter}" for seated members. */
   courtesy?: React.ReactNode;
 }) {
-  // General pages ROTATE school colourways (rotationStops: every school, continuously, ~5s each
-  // — the breadth is the message), falling back to the brand
-  // red/blue when no list is supplied. Campus/greek pages inherit the page root's colourway vars
-  // (the ONE colour source; schools.ts disagrees for Ole Miss) and carry the campus plate.
-  const stops: BoltHeroStop[] = kind === "general"
-    ? (rotationStops?.length ? rotationStops : [{ id: "brand", c1: BRAND_RED, c2: BRAND_BLUE }])
-    : [{ id: schoolShort ?? "campus", c1: "var(--sa-bolt-1)", c2: "var(--sa-bolt-2)", name: schoolShort ?? undefined, code }];
+  // General pages FLOW through every school in the curated order (the breadth is the message),
+  // falling back to the brand red/blue when no list is supplied. Campus and greek pages hand in one
+  // campus and the conveyor runs on it alone — same component, same motion, one colourway.
+  const campuses: BoltCampus[] = kind === "general"
+    ? (rotationCampuses?.length ? rotationCampuses : [{ id: "brand", primary: BRAND_RED, secondary: BRAND_BLUE }])
+    : [{
+        id: schoolShort ?? "campus",
+        name: schoolShort ?? undefined,
+        code,
+        primary: campusBolt?.c1 ?? BRAND_RED,
+        secondary: campusBolt?.c2 ?? BRAND_BLUE,
+        accent: campusBolt?.accent ?? null,
+      }];
 
   const headline = code && schoolShort
     ? <><span style={{ color: "var(--accent)" }}>{code}</span> at {schoolShort} is where GPAs quietly slip.</>
@@ -152,9 +166,9 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
 
       {/* THE BOLT — after the copy in DOM order, so mobile reads headline→CTA→chips first. */}
       <div className="flex flex-col items-center lg:items-end">
-        <AnimatedBoltHero
-          stops={stops}
-          onActivate={(s) => (kind === "general" && onBoltPick && s.id !== "brand" ? onBoltPick(s.id) : onStart())}
+        <AnimatedCampusBolt
+          campuses={campuses}
+          onActivate={(c) => (kind === "general" && onBoltPick && c.id !== "brand" ? onBoltPick(c.id) : onStart())}
           className="sa-hero3-paper"
           ariaLabel="Cram Exam 1 Free"
         />

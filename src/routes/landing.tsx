@@ -32,7 +32,9 @@ import { FitWordmark, SiteHeader, useNavyDocument } from "@/components/site/Site
 import { PickerSheet } from "@/components/site/PickerSheet";
 import { logCampusCodeDemand } from "@/lib/campus-demand.functions";
 import { ALL_SCHOOLS, searchSchools } from "@/lib/schools";
-import { ANIMATED_BOLT_CSS, type BoltHeroStop } from "@/components/site/AnimatedBolt";
+import {
+  ANIMATED_CAMPUS_BOLT_CSS, BOLT_ACCENTS, orderCampuses, type BoltCampus,
+} from "@/components/site/bolt";
 import {
   FeatureValueStrip, MARKETING_CSS, MARKETING_HERO_ID, MarketingHero, MarketingUtilityLinks,
   SocialProofSection, StickyFooterBar, TutorBioModal, TutorCard, type GreekMarketing,
@@ -54,8 +56,6 @@ export const Route = createFileRoute("/landing")({
 const EXAM_ANCHOR_ID = "exam1";
 const PHONE = "(662) 565-8818";
 const TEL = "+16625658818";
-/** The home hero's colour-cycle leaders, in build-priority order (the brief's original trio). */
-const ROTATION_LEAD = ["ole-miss", "lsu", "tennessee"];
 
 // THE SCHOOL LIST — derived from the generated table, never hand-maintained here.
 //
@@ -161,7 +161,10 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   const campus = useCampus();
   // The resolved campus's bolt colours, published on the page root. One source; no component
   // picks its own. Null when campus is unknown, which leaves the cycling hero to set its own.
-  const campusBolt = useMemo(() => (campus.school ? boltFor(campus.school.id) : null), [campus.school]);
+  const campusBolt = useMemo(
+    () => (campus.school ? { ...boltFor(campus.school.id), accent: BOLT_ACCENTS[campus.school.id] ?? null } : null),
+    [campus.school],
+  );
   const preSchool = useMemo(() => (initialCampusId ? SCHOOLS.find((s) => s.campusId === initialCampusId) ?? null : null), [initialCampusId]);
   const [school, setSchool] = useState<School | null>(preSchool);
   // "My school isn't listed" — unblur with the DEFAULT map + brand navy (no school colors), plus an
@@ -276,16 +279,25 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   const heroKind: "general" | "campus" | "greek" = greek ? "greek" : heroSchoolName ? "campus" : "general";
   const heroCode = campus.code ?? (school?.codeVerified && school.code ? school.code : null);
 
-  // HOME ROTATION — Ole Miss, LSU and Tennessee lead (build-priority order), the rest follow in
-  // picker order; AnimatedBoltHero cycles through ALL of them continuously (~5s each).
+  // HOME ROTATION — every school, flowing upward through the bolt, one campus roughly every 3.6s.
+  //
+  // THE ORDER IS CURATED, NEVER ALPHABETICAL. It used to be "three leads, then whatever order the
+  // generated table happened to be in", which is alphabetical — so after Ole Miss/LSU/Tennessee the
+  // home page ran Alabama, Arizona, Arizona State, Arkansas, four reds in a row. The sequence now
+  // lives in CURATED_CAMPUS_ORDER (src/components/site/bolt/bolt-config.ts); orderCampuses applies
+  // it and appends anything the list does not name, so a new campus can never fall off the rotation.
+  //
   // Codes ride along ONLY when verified, so the plate can never print a plausible wrong one.
-  const rotationStops = useMemo<BoltHeroStop[]>(() => {
-    const rank = (id: string) => { const i = ROTATION_LEAD.indexOf(id); return i < 0 ? ROTATION_LEAD.length : i; };
-    return schoolsWithCodes
-      .slice()
-      .sort((a, b) => rank(a.id) - rank(b.id))
-      .map((s) => ({ id: s.id, name: s.name, code: s.code ?? null, ...boltFor(s.id) }));
-  }, [schoolsWithCodes]);
+  const rotationCampuses = useMemo<BoltCampus[]>(
+    () =>
+      orderCampuses(
+        schoolsWithCodes.map((s) => {
+          const c = boltFor(s.id);
+          return { id: s.id, name: s.name, code: s.code ?? null, primary: c.c1, secondary: c.c2, accent: BOLT_ACCENTS[s.id] ?? null };
+        }),
+      ),
+    [schoolsWithCodes],
+  );
 
   const treeQ = useQuery({ queryKey: ["landing-tree", school?.campusId ?? null], queryFn: () => fetchStudentTree({ data: school ? { campusId: school.campusId } : {} }), networkMode: "always", staleTime: 300_000 });
   const intro1 = useMemo(() => (treeQ.data ?? []).find((c) => c.family === "intro_1" || c.name.trim().toLowerCase() === "intro 1") ?? null, [treeQ.data]);
@@ -390,7 +402,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
 
   return (
     <div style={{ ...frameThemeVars(theme), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "clip", ...(campusBolt ? { ["--sa-bolt-1"]: campusBolt.c1, ["--sa-bolt-2"]: campusBolt.c2 } as React.CSSProperties : {}) }}>
-      <style>{ANIMATED_BOLT_CSS}</style>
+      <style>{ANIMATED_CAMPUS_BOLT_CSS}</style>
       <style>{MARKETING_CSS}</style>
       <style>{`
         @keyframes sa-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
@@ -437,7 +449,8 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
           kind={heroKind}
           code={heroCode}
           schoolShort={heroSchoolName}
-          rotationStops={rotationStops}
+          rotationCampuses={rotationCampuses}
+          campusBolt={campusBolt}
           onBoltPick={(id) => { const s = schoolsWithCodes.find((x) => x.id === id); if (s) pickSchool(s); else onStart(); }}
           greek={greek}
           onStart={heroStart}
