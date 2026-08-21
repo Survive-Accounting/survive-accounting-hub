@@ -3,6 +3,7 @@
 // Four fields, because Lee is going to reply to this person himself and a conversation answers
 // everything else better. Deliberately NOT the SMS-verified signup flow: this visitor is reporting
 // a gap in the roster, and demanding a verification code to do that would lose most of them.
+import { SmsConsentNote } from "@/components/landing/SmsConsentBanner";
 import { useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
@@ -62,6 +63,7 @@ export function NotListedForm({ kind, school, onClose }: {
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="mb-2 w-full rounded-lg px-3 text-[14px] outline-none" style={field} />
       {/* 16px explicitly — under it iOS zooms the page on focus and never zooms back. */}
       <input value={contact} onChange={(e) => setContact(e.target.value)} placeholder="Email or mobile" className="w-full rounded-lg px-3 outline-none" style={{ ...field, fontSize: 16 }} />
+      <SmsConsentNote />
       {err && <p className="mt-2 text-[12px]" style={{ color: "#F3C6CC" }}>{err}</p>}
       <button
         type="button" onClick={() => void send()} disabled={!ok || busy}

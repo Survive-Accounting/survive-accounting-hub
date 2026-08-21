@@ -190,6 +190,18 @@ const V1_SECTIONS: Section[] = [
   },
 ];
 
+// Comms — unified intake demand list + the test/broadcast console. Core ops, both modes.
+const COMMS_SECTION: Section = {
+  key: "comms",
+  label: "Comms",
+  icon: MessageSquare,
+  owns: (p) => p.startsWith("/outreach/comms") || p.startsWith("/outreach/demand"),
+  subtabs: [
+    { label: "Demand", to: "/outreach/demand" },
+    { label: "Comms console", to: "/outreach/comms" },
+  ],
+};
+
 /** A subtab is active on an exact match or when the path is nested beneath it. */
 function isSubtabActive(pathname: string, to: string): boolean {
   return pathname === to || pathname.startsWith(to + "/");
@@ -227,8 +239,8 @@ function OutreachShell() {
 
   const sections: Section[] =
     version === "v2"
-      ? [GREEK_SECTION, PROFINTEL_SECTION, REDDIT_SECTION, PARENT_GROUPS_SECTION, VIDEO_ARCHIVE_SECTION, BACKUPS_SECTION]
-      : [GREEK_SECTION, PROFINTEL_SECTION, REDDIT_SECTION, PARENT_GROUPS_SECTION, ...V1_SECTIONS, VIDEO_ARCHIVE_SECTION, BACKUPS_SECTION];
+      ? [COMMS_SECTION, GREEK_SECTION, PROFINTEL_SECTION, REDDIT_SECTION, PARENT_GROUPS_SECTION, VIDEO_ARCHIVE_SECTION, BACKUPS_SECTION]
+      : [COMMS_SECTION, GREEK_SECTION, PROFINTEL_SECTION, REDDIT_SECTION, PARENT_GROUPS_SECTION, ...V1_SECTIONS, VIDEO_ARCHIVE_SECTION, BACKUPS_SECTION];
   const activeSection = sections.find((s) => s.owns(pathname)) ?? sections[0];
   const activeSubtab = activeSection.subtabs.find((t) => isSubtabActive(pathname, t.to));
 

@@ -99,9 +99,11 @@ function FindMyChapter() {
   if (schoolsQ.isLoading) return <div style={{ minHeight: 148 }} />;
   if (!schoolsQ.data?.length) {
     return (
-      <a href="#signup" className="inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-[15.5px] font-black transition-transform hover:scale-[1.03]"
+      // The old "#signup" anchor pointed at a SignupFlow that no longer renders. With no chapters
+      // to find there is exactly one honest door: the free Exam 1 player.
+      <a href="/" className="inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-[15.5px] font-black transition-transform hover:scale-[1.03]"
         style={{ background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.6)", fontFamily: BRAND_SANS }}>
-        Get your chapter link
+        Start Exam 1 free →
       </a>
     );
   }

@@ -11,6 +11,7 @@
 // the step headers sit directly above and below it and the mobile sticky bar floats over it, so
 // "outside" taps are part of normally using the section — a document-wide dismiss listener was
 // silently wiping four typed fields. The × button is the one deliberate way out.
+import { SmsConsentNote } from "@/components/landing/SmsConsentBanner";
 import { useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
@@ -102,6 +103,7 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, onClos
 
       <label className="sr-only" htmlFor="ca-phone">Your mobile</label>
       <input id="ca-phone" value={phone} onChange={(e) => setPhone(fmtPhone(e.target.value))} inputMode="tel" placeholder="(662) 555-0134" className="w-full rounded-lg px-3 outline-none focus:ring-2" style={FIELD} />
+      <SmsConsentNote />
 
       {err && <p className="mt-2 text-[12.5px]" role="alert" style={{ color: "#F3C6CC" }}>{err}</p>}
 

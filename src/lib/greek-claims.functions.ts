@@ -95,23 +95,20 @@ export const submitChapterClaim = createServerFn({ method: "POST" })
 
     await db.from("campus_greek_chapters").update({ claim_status: "pending" }).eq("id", ch.campusGreekChapterId);
 
-    // THE ALERT. This is the whole point of 2a — it unblocks Lee's outreach replies, so the text
-    // has to carry enough to answer without opening a laptop: who, what chapter, how many members
-    // already banked, and a tappable number to call straight back.
-    const to = process.env.FOUNDER_ALERT_PHONE ?? "";
-    if (to) {
-      const body =
-        `⚡ CHAPTER CLAIM\n${ch.chapterName} — ${ch.schoolName}\n` +
-        `${data.name} (${data.position})\n${phone}  ${data.email}\n` +
-        `${ch.members} member${ch.members === 1 ? "" : "s"} already banked\n` +
-        `surviveaccounting.com${goPath(ch.schoolSlug, ch.chapterSlug)}`;
-      // Reported but not fatal: the claim is saved either way. Losing the row because a text failed
-      // would be strictly worse than Lee finding it in the approval queue instead.
-      const sms = await sendSms(to, body);
-      if (!sms.ok) console.warn("chapter-claim alert failed to send:", sms.error);
-    } else {
-      console.warn("FOUNDER_ALERT_PHONE not set — chapter claim saved, no alert sent");
-    }
+    // UNIFIED INTAKE (greek_claim — a PRIORITY kind): the exec gets "Got your claim for
+    // <Chapter>" with the members' link; Lee gets the consolidated priority alert (email + SMS,
+    // sms: deep link to the exec). The claim row above stays the approval queue's record.
+    // The mobile field sits beside the SmsConsentNote in ChapterAccessForm, so phone = consent.
+    try {
+      const { runIntake } = await import("@/lib/comms/intake.server");
+      await runIntake({
+        kind: "greek_claim", name: data.name, email: data.email, phone,
+        campusName: ch.schoolName, campusSlug: ch.schoolSlug, chapter: ch.chapterName,
+        chapterLink: `https://surviveaccounting.com${goPath(ch.schoolSlug, ch.chapterSlug)}`,
+        note: `${data.position} · ${ch.members} member${ch.members === 1 ? "" : "s"} banked`,
+        sourcePath: goPath(ch.schoolSlug, ch.chapterSlug), smsConsent: true,
+      });
+    } catch (e) { console.warn("claim intake failed (claim saved)", (e as Error).message); }
 
     return { ok: true };
   });

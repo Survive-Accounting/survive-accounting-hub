@@ -343,7 +343,7 @@ function SetPoster({ set, topicChip, accent, prog, unlocked, demo, onOpen }: { s
 // NOTIFY-NOT-PAY (2026-08-20): there is no checkout yet (/order is deprecated), so a locked
 // topic captures an email into the SAME pricing waitlist the homepage's paid tabs use
 // (campus_waitlist, tier test_pass) instead of pointing at a dead payment page.
-function Paywall({ topic, campusName, demo, onClose, onRestore, restoring }: { topic: StudentTopic; campusName: string | null; demo: boolean; onClose: () => void; onRestore?: () => void; restoring?: boolean }) {
+function Paywall({ topic, campusName, campusId, demo, onClose, onRestore, restoring }: { topic: StudentTopic; campusName: string | null; campusId: string | null; demo: boolean; onClose: () => void; onRestore?: () => void; restoring?: boolean }) {
   const n = topic.sets.length;
   const key = `sa-notify-topic-${topic.id}`;
   const [email, setEmail] = useState("");
@@ -354,7 +354,7 @@ function Paywall({ topic, campusName, demo, onClose, onRestore, restoring }: { t
     setState("busy");
     try {
       // Demo never writes a real waitlist row — it only exercises the flow.
-      if (!demo) await joinPricingWaitlist({ email: e, campus: campusName, course: topic.name, tier: "test_pass" });
+      if (!demo) await joinPricingWaitlist({ email: e, campus: campusName, campusId, course: topic.name, tier: "test_pass" });
       setState("done"); try { localStorage.setItem(key, "done"); } catch { /* ignore */ }
     } catch { setState("error"); }
   };
@@ -778,7 +778,7 @@ function LearnShell() {
           onPlayNext={() => { if (nextPlayable) void openSet(playing.topic, nextPlayable); }}
         />
       )}
-      {paywallTopic && <Paywall topic={paywallTopic} campusName={campuses.find((c) => c.id === campusId)?.name ?? null} demo={demo} onClose={() => setPaywallTopic(null)} onRestore={userId ? restore : undefined} restoring={restoring} />}
+      {paywallTopic && <Paywall topic={paywallTopic} campusName={campuses.find((c) => c.id === campusId)?.name ?? null} campusId={campusId} demo={demo} onClose={() => setPaywallTopic(null)} onRestore={userId ? restore : undefined} restoring={restoring} />}
       {signInOpen && <SignInDialog onClose={() => setSignInOpen(false)} />}
       {/* HONEST-PAYWALL: retryable fetch-failure toast — the honest alternative to a false paywall. */}
       {fetchNote && (

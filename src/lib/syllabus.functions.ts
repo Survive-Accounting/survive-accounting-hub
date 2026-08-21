@@ -39,18 +39,10 @@ export const submitExamAsk = createServerFn({ method: "POST" })
     }).parse(d),
   )
   .handler(async ({ data }): Promise<{ ok: true }> => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const db = supabaseAdmin as unknown as { from: (t: string) => { insert: (row: unknown) => Promise<{ error: { message: string } | null }> } };
-    const { error } = await db.from("syllabus_submissions").insert({
-      email: data.email,
-      campus_id: data.campusId ?? null,
-      campus_name: data.campusName ?? null,
-      professor_name: data.professorName ?? null,
-      source: data.source,
-      file_paths: [],
-      file_names: [],
-    });
-    if (error) throw new Error(error.message);
+    // UNIFIED INTAKE: the save-progress ask → kind save_progress (confirmation: "Saved — pick up
+    // where you left off"). syllabus_submissions is retired as a write target.
+    const { runIntake } = await import("@/lib/comms/intake.server");
+    await runIntake({ kind: "save_progress", email: data.email, campusId: data.campusId ?? null, campusName: data.campusName ?? null, professor: data.professorName ?? null, sourcePath: "/" });
     return { ok: true };
   });
 
@@ -88,16 +80,10 @@ export const submitSyllabus = createServerFn({ method: "POST" })
     // syllabus_submissions isn't in the generated Supabase types yet (0108 is manual-apply), so the
     // typed client rejects the table name — cast .from to a loose signature like the other new-table fns.
     const db = supabaseAdmin as unknown as { from: (t: string) => { insert: (row: unknown) => Promise<{ error: { message: string } | null }> } };
-    const { error } = await db.from("syllabus_submissions").insert({
-      id,
-      email: data.email,
-      campus_id: data.campusId ?? null,
-      campus_name: data.campusName ?? null,
-      note: data.note ?? null,
-      file_paths: paths,
-      file_names: names,
-    });
-    if (error) throw new Error(error.message);
+    // UNIFIED INTAKE: kind syllabus — the highest-intent capture. Confirmation + PRIORITY founder
+    // alert fire from the intake; the storage paths ride on the row (file_paths).
+    const { runIntake } = await import("@/lib/comms/intake.server");
+    await runIntake({ kind: "syllabus", email: data.email, campusId: data.campusId ?? null, campusName: data.campusName ?? null, note: data.note ?? null, filePaths: paths, sourcePath: "/" });
     // PROVENANCE LEDGER (0113) — dual-write into inbound_files so map edits can link "this map was
     // verified from this PDF". Best-effort: pre-0113 (table absent) the submission still succeeds.
     try {
@@ -142,18 +128,15 @@ export const submitNotify = createServerFn({ method: "POST" })
     const kind = contactKind(data.contact);
     if (kind === "unknown") throw new Error("That doesn't look like an email or a phone number.");
 
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const db = supabaseAdmin as unknown as { from: (t: string) => { insert: (row: unknown) => Promise<{ error: { message: string } | null }> } };
-    const { error } = await db.from("syllabus_submissions").insert({
-      email: data.contact,
-      campus_id: data.campusId ?? null,
-      campus_name: data.campusName ?? null,
-      professor_name: data.professorName ?? null,
-      source: NOTIFY_SOURCE,
-      note: `notify · ${kind}${data.topic ? ` · topic: ${data.topic}` : ""}`,
-      file_paths: [],
-      file_names: [],
+    // UNIFIED INTAKE: kind notify_exam, channel by what they typed. A phone here was captured
+    // beside the SmsConsentNote (the modal renders it), so smsConsent rides along.
+    const { runIntake } = await import("@/lib/comms/intake.server");
+    await runIntake({
+      kind: "notify_exam",
+      email: kind === "email" ? data.contact : null,
+      phone: kind === "phone" ? data.contact : null,
+      campusId: data.campusId ?? null, campusName: data.campusName ?? null, professor: data.professorName ?? null,
+      topic: data.topic ?? null, sourcePath: `/#${NOTIFY_SOURCE}`, smsConsent: kind === "phone",
     });
-    if (error) throw new Error(error.message);
     return { ok: true };
   });

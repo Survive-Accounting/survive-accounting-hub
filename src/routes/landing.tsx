@@ -24,6 +24,7 @@ import { SEAT_MINIMUM, SEAT_PRICE } from "@/components/site/ChapterAccess";
 import { revealInContainer, scrollToId } from "@/lib/ui-scroll";
 import { CourtesyLine } from "@/components/site/CourtesyLine";
 import { SearchPicker } from "@/components/site/SearchPicker";
+import { SmsConsentNote } from "@/components/landing/SmsConsentBanner";
 import { useDismiss } from "@/lib/use-dismiss";
 import { fetchCourseOptions } from "@/lib/je-api";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
@@ -873,6 +874,8 @@ function NotifyModal({ topic, school, professorName, onClose }: { topic: string 
               className="mt-3 w-full rounded-xl px-3 text-[15px] outline-none"
               style={{ minHeight: 46, background: "rgba(0,0,0,0.35)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }}
             />
+            {/* A2P: the field accepts a phone, so the consent disclosure sits right under it. */}
+            <SmsConsentNote />
             {err && <p className="mt-2 text-[12px]" style={{ color: "#FF8B9E" }}>{err}</p>}
             <button
               onClick={() => void send()}
@@ -1677,7 +1680,7 @@ function PaidNotifyRow({ exam, school, pulse }: { exam: ExamTab; school: School 
     try {
       // examNum is carried explicitly: all four tabs collect emails now, so "which exam did
       // this person ask for" is no longer inferable from the fact that a row exists at all.
-      await joinPricingWaitlist({ email: e, campus: school?.name ?? null, course: `${exam.label}${school?.code ? ` · ${school.code}` : ""}`, tier: "test_pass", examNum: exam.num });
+      await joinPricingWaitlist({ email: e, campus: school?.name ?? null, campusId: school?.campusId ?? null, campusSlug: school?.slug ?? null, course: `${exam.label}${school?.code ? ` · ${school.code}` : ""}`, tier: "test_pass", examNum: exam.num });
       setState("done"); try { localStorage.setItem(key, "done"); } catch { /* ignore */ }
     } catch { setState("error"); }
   };

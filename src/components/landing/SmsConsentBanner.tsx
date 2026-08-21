@@ -49,3 +49,20 @@ export function SmsConsentBanner() {
 }
 
 export default SmsConsentBanner;
+
+/** INLINE CONSENT NOTE — the A2P 10DLC disclosure that must sit beside EVERY phone field at the
+ *  point of capture (spec §2): what they'll get, how often, cost line, STOP/HELP, policy links.
+ *  Rendering this beside the field is what makes a submitted phone number a consented one
+ *  (the intake stores consent_sms_at). `tone` matches the surrounding surface. */
+export function SmsConsentNote({ tone = "dark", className = "" }: { tone?: "dark" | "light"; className?: string }) {
+  const color = tone === "dark" ? "rgba(245,239,230,0.62)" : "#6B7280";
+  return (
+    <p className={className} style={{ marginTop: 6, fontSize: 10.5, lineHeight: 1.45, color }} data-sms-consent>
+      By entering a mobile number you agree to get texts from Lee at Survive Accounting about your exam prep — a
+      confirmation now, then occasional updates (typically 1–4 msgs/month). Msg &amp; data rates may apply.
+      Reply STOP to cancel, HELP for help.{" "}
+      <a href="/privacy" style={{ color, textDecoration: "underline" }}>Privacy</a> ·{" "}
+      <a href="/terms" style={{ color, textDecoration: "underline" }}>Terms</a>
+    </p>
+  );
+}

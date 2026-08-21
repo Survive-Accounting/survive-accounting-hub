@@ -1779,18 +1779,23 @@ export async function submitCourseWaitlist(input: CourseWaitlistInput): Promise<
     if (upErr) throw upErr;
     syllabus_file_path = path;
   }
-  const row: Record<string, unknown> = {
-    campus_id: input.campus_id,
-    course_family: input.course_family,
+  // UNIFIED INTAKE (outreach_page): outreach_waitlist_signups is retired as a write target. The
+  // uploaded syllabus path rides on the lead row; a phone here sits beside the SmsConsentNote.
+  const { submitIntake } = await import("@/lib/intake.functions");
+  await submitIntake({ data: {
+    kind: "outreach_page",
     name: input.name.trim() || null,
     email: input.email.trim().toLowerCase() || null,
     phone: input.phone?.trim() || null,
-    course: input.course?.trim() || null,
-    notes: input.notes?.trim() || null,
-    syllabus_file_path,
-  };
-  const { error } = await (supabase.from("outreach_waitlist_signups" as never) as any).insert(row);
-  if (error) throw error;
+    campusId: input.campus_id,
+    campusName: input.school?.trim() || null,
+    courseCode: input.course?.trim() || null,
+    topic: input.course_family,
+    note: input.notes?.trim() || null,
+    filePaths: syllabus_file_path ? [`course-syllabi/${syllabus_file_path}`] : null,
+    sourcePath: typeof window !== "undefined" ? window.location.pathname : null,
+    smsConsent: !!input.phone?.trim(),
+  } });
 }
 
 
