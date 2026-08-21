@@ -97,8 +97,8 @@ export function ChapterShare({ schoolSlug, chapterSlug, chapterName, letters, ni
   };
 
   const BTN: React.CSSProperties = {
-    minHeight: 46, background: "rgba(245,239,230,0.06)",
-    border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)",
+    minHeight: 46, background: "var(--bg-surface)",
+    border: "1px solid var(--border-default)", color: "var(--brand-cream)",
   };
 
   return (

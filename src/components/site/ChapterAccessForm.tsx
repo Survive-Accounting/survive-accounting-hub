@@ -26,8 +26,8 @@ const fmtPhone = (v: string) => {
 
 const FIELD: React.CSSProperties = {
   minHeight: 48,
-  background: "rgba(245,239,230,0.06)",
-  border: "1px solid rgba(245,239,230,0.16)",
+  background: "var(--bg-surface)",
+  border: "1px solid var(--border-default)",
   color: "var(--brand-cream)",
   // 16px explicitly — under it iOS zooms the page on focus and never zooms back.
   fontSize: 16,
@@ -74,7 +74,7 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, onClos
   }
 
   return (
-    <div className="relative mx-auto max-w-sm rounded-xl p-4 text-left" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)", fontFamily: BRAND_SANS }}>
+    <div className="relative mx-auto max-w-sm rounded-xl p-4 text-left" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", fontFamily: BRAND_SANS }}>
       <button
         type="button"
         onClick={onClose}

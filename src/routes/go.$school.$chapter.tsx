@@ -200,7 +200,7 @@ function SelfReport({ current }: { current: string }) {
       {done ? (
         <p className="text-[13px]" style={{ color: "var(--text-muted)" }}>Got it — you&apos;re counted with {done}. ⚡</p>
       ) : open ? (
-        <div className="mx-auto max-w-sm rounded-xl p-4" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
+        <div className="mx-auto max-w-sm rounded-xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
           <p className="mb-3 text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>Which chapter are you actually in?</p>
           <ChapterFinder schools={schools} onPick={(s, c, n) => void pick(s, c, n)} cta="That&apos;s mine" busy={busy} />
         </div>

@@ -28,7 +28,7 @@ function RepPicker() {
   const navigate = useNavigate();
 
   return (
-    <div style={{ ...frameThemeVars(), background: "var(--brand-navy)", color: "var(--brand-cream)", minHeight: "100vh", fontFamily: BRAND_SANS }}>
+    <div style={{ ...frameThemeVars(), background: "var(--bg-page)", color: "var(--brand-cream)", minHeight: "100vh", fontFamily: BRAND_SANS }}>
       <SiteHeader />
       <main className="mx-auto w-full max-w-[520px] px-5 py-16 text-center">
         <h1 className="text-[27px] font-black leading-[1.14] sm:text-[32px]" style={{ fontFamily: BRAND_DISPLAY, letterSpacing: "-0.015em" }}>

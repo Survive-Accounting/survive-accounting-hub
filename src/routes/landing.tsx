@@ -389,7 +389,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   };
 
   return (
-    <div style={{ ...frameThemeVars(theme), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "clip", ...(campusBolt ? { ["--sa-bolt-1"]: campusBolt.c1, ["--sa-bolt-2"]: campusBolt.c2 } as React.CSSProperties : {}) }}>
+    <div style={{ ...frameThemeVars(theme), background: "var(--bg-page)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "clip", ...(campusBolt ? { ["--sa-bolt-1"]: campusBolt.c1, ["--sa-bolt-2"]: campusBolt.c2 } as React.CSSProperties : {}) }}>
       <style>{ANIMATED_BOLT_CSS}</style>
       <style>{MARKETING_CSS}</style>
       <style>{`
@@ -416,7 +416,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
         .sa-reveal { animation: sa-reveal 420ms ease; }
         /* The entry overlay card — floats over the preview media, dark enough to stay readable
            when the placeholder becomes real footage. */
-        .sa-entry-card { background: rgba(11,18,32,0.86); border: 1px solid rgba(245,239,230,0.16); border-radius: 16px; padding: 18px 16px; box-shadow: 0 24px 60px -24px rgba(0,0,0,0.8); backdrop-filter: blur(6px); }
+        .sa-entry-card { background: color-mix(in srgb, var(--bg-overlay) 94%, transparent); border: 1px solid var(--border-default); border-radius: 16px; padding: 18px 16px; box-shadow: 0 24px 60px -24px rgba(0,0,0,0.8); backdrop-filter: blur(6px); }
         @media (prefers-reduced-motion: reduce) { .sa-meter-in, .sa-reveal { animation: none; } }
       `}</style>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
@@ -668,7 +668,7 @@ function FaqCard({ f, defaultOpen = false }: { f: { q: string; a: string }; defa
   const [open, setOpen] = useState(defaultOpen);
   const id = `faq-${f.q.replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 40)}`;
   return (
-    <div className="rounded-xl" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.09)" }}>
+    <div className="rounded-xl" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)" }}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -772,7 +772,7 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
         aria-haspopup="dialog"
         aria-expanded={open}
         className={`flex w-full items-center gap-3 rounded-2xl px-5 py-4 text-left transition-transform hover:scale-[1.01]${cued ? " sa-cue" : ""}`}
-        style={{ background: "rgba(245,239,230,0.06)", border: `2px solid ${school ? "var(--bolt-primary)" : "var(--accent)"}`, boxShadow: "0 20px 55px -22px rgba(0,0,0,0.7)", animation: ring ? "sa-picker-pulse 0.9s ease" : undefined, borderRadius: 16 }}
+        style={{ background: "var(--bg-surface)", border: `2px solid ${school ? "var(--bolt-primary)" : "var(--accent)"}`, boxShadow: "0 20px 55px -22px rgba(0,0,0,0.7)", animation: ring ? "sa-picker-pulse 0.9s ease" : undefined, borderRadius: 16 }}
       >
         <GraduationCap className="h-6 w-6 shrink-0" style={{ color: "var(--accent)" }} />
         <span className="min-w-0 flex-1 text-[17px] font-bold" style={{ color: "var(--brand-cream)" }}>{school ? school.name : "Pick your school to start"}</span>
@@ -858,13 +858,13 @@ function NotifyModal({ topic, school, professorName, onClose }: { topic: string 
     <div className="fixed inset-0 z-[240] grid place-items-center px-4" style={{ ...frameThemeVars(DEFAULT_FRAME_THEME), background: "rgba(5,8,16,0.72)" }} onClick={onClose}>
       <div
         className="w-full max-w-[380px] rounded-2xl p-5"
-        style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)", paddingBottom: "max(20px, env(safe-area-inset-bottom, 0px))" }}
+        style={{ background: "var(--bg-overlay)", border: "1px solid var(--border-default)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)", paddingBottom: "max(20px, env(safe-area-inset-bottom, 0px))" }}
         onClick={(e) => e.stopPropagation()}
       >
         {done ? (
           <div className="py-4 text-center">
             <p className="text-[17px] font-black" style={{ color: "var(--brand-cream)" }}>You&apos;re on the list. ⚡</p>
-            <button onClick={onClose} className="mt-4 w-full rounded-xl text-[13.5px] font-black" style={{ minHeight: 46, background: "rgba(245,239,230,0.12)", color: "var(--brand-cream)" }}>Close</button>
+            <button onClick={onClose} className="mt-4 w-full rounded-xl text-[13.5px] font-black" style={{ minHeight: 46, background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}>Close</button>
           </div>
         ) : (
           <>
@@ -879,7 +879,7 @@ function NotifyModal({ topic, school, professorName, onClose }: { topic: string 
               onKeyDown={(e) => { if (e.key === "Enter") void send(); }}
               placeholder="Email or phone"
               className="mt-3 w-full rounded-xl px-3 text-[15px] outline-none"
-              style={{ minHeight: 46, background: "rgba(0,0,0,0.35)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }}
+              style={{ minHeight: 46, background: "rgba(0,0,0,0.35)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
             />
             {err && <p className="mt-2 text-[12px]" style={{ color: "#FF8B9E" }}>{err}</p>}
             <button
@@ -947,7 +947,7 @@ function SyllabusModal({ school, framing, onClose }: { school: School | null; fr
 
   return (
     <div className="fixed inset-0 z-[210] grid place-items-center p-4" style={{ background: "rgba(6,10,20,0.72)" }} onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl p-6" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 40px 90px -30px rgba(0,0,0,0.9)", fontFamily: BRAND_SANS }} onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-md rounded-2xl p-6" style={{ background: "var(--bg-overlay)", border: "1px solid var(--border-default)", boxShadow: "0 40px 90px -30px rgba(0,0,0,0.9)", fontFamily: BRAND_SANS }} onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-start justify-between gap-3">
           <h3 className="text-[18px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Send everything you've got.</h3>
           <button onClick={onClose} className="grid h-7 w-7 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--brand-cream)" }} aria-label="Close"><X className="h-4 w-4" /></button>
@@ -955,7 +955,7 @@ function SyllabusModal({ school, framing, onClose }: { school: School | null; fr
 
         {done ? (
           <div className="py-6 text-center">
-            <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full text-[24px]" style={{ background: "rgba(59,245,160,0.14)" }}>⚡</div>
+            <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full text-[24px]" style={{ background: "rgba(0,107,166,0.25)" }}>⚡</div>
             <p className="text-[15px] font-semibold" style={{ color: "var(--brand-cream)" }}>Got it. You'll hear from me soon — Lee.</p>
             <button onClick={onClose} className="mt-5 rounded-xl px-5 py-2.5 text-[13.5px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>Done</button>
           </div>
@@ -969,7 +969,7 @@ function SyllabusModal({ school, framing, onClose }: { school: School | null; fr
               onDrop={(e) => { e.preventDefault(); setDrag(false); void addFiles(e.dataTransfer.files); }}
               onClick={() => inputRef.current?.click()}
               className="cursor-pointer rounded-xl px-4 py-6 text-center transition-colors"
-              style={{ border: `2px dashed ${drag ? "var(--accent)" : "rgba(245,239,230,0.25)"}`, background: drag ? "rgba(252,163,17,0.08)" : "rgba(245,239,230,0.03)" }}
+              style={{ border: `2px dashed ${drag ? "var(--accent)" : "var(--border-default)"}`, background: drag ? "rgba(252,163,17,0.08)" : "var(--bg-input)" }}
             >
               <p className="text-[13.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>Add files from your class</p>
               <p className="mt-1 text-[11.5px]" style={{ color: "var(--text-muted)" }}>Syllabus or study guide · PDF, Word, or a photo</p>
@@ -979,7 +979,7 @@ function SyllabusModal({ school, framing, onClose }: { school: School | null; fr
             {files.length > 0 && (
               <ul className="mt-3 space-y-1.5">
                 {files.map((f, i) => (
-                  <li key={`${f.name}-${i}`} className="flex items-center gap-2 rounded-lg px-3 py-2 text-[12.5px]" style={{ background: "rgba(245,239,230,0.05)", color: "var(--brand-cream)" }}>
+                  <li key={`${f.name}-${i}`} className="flex items-center gap-2 rounded-lg px-3 py-2 text-[12.5px]" style={{ background: "var(--bg-surface)", color: "var(--brand-cream)" }}>
                     <span className="min-w-0 flex-1 truncate">{f.name}</span>
                     <span className="shrink-0 text-[11px]" style={{ color: "var(--text-muted)" }}>{(f.size / 1024 / 1024).toFixed(1)}MB</span>
                     <button onClick={() => setFiles((cur) => cur.filter((_, j) => j !== i))} className="grid h-5 w-5 shrink-0 place-items-center rounded-full hover:bg-white/10" aria-label={`Remove ${f.name}`}><X className="h-3 w-3" /></button>
@@ -991,7 +991,7 @@ function SyllabusModal({ school, framing, onClose }: { school: School | null; fr
             <input
               type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com"
               className="mt-3 w-full rounded-xl px-4 py-3 text-[14px] outline-none"
-              style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }}
+              style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
             />
 
             {err && <p className="mt-2 text-[12.5px]" style={{ color: "#F3C6CC" }}>{err}</p>}
@@ -1183,8 +1183,8 @@ function MatchPanel({ gateActive, school, professor, notListed, profDone, covera
 
   // STATE 4 — confirmed. The bar states what is TRUE and offers one way back.
   return (
-    <div className="flex items-center gap-2 border-b px-3 py-2" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.18)" }}>
-      <span className="shrink-0 text-[12px]" style={{ color: "#3BF5A0" }}>✓</span>
+    <div className="flex items-center gap-2 border-b px-3 py-2" style={{ borderColor: "var(--border-default)", background: "rgba(0,0,0,0.18)" }}>
+      <span className="shrink-0 text-[12px]" style={{ color: "var(--accent-info-text)" }}>✓</span>
       <span className="min-w-0 flex-1 truncate text-[12.5px] font-bold" style={{ color: "var(--brand-cream)" }}>
         {[school ? school.name : "Your school", code, professor ? `Prof. ${professor.last || professor.name}` : null].filter(Boolean).join(" · ")}
       </span>
@@ -1201,7 +1201,7 @@ function MatchPanel({ gateActive, school, professor, notListed, profDone, covera
           type="button"
           onClick={() => onMaterials()}
           className="shrink-0 rounded-full px-2.5 py-1 text-[11.5px] font-black"
-          style={{ background: "rgba(252,163,17,0.14)", color: "var(--accent)", minHeight: 32 }}
+          style={{ background: "rgba(0,107,166,0.28)", color: "var(--accent-info-text)", minHeight: 32 }}
         >
           ~{coveragePct}% covered
         </button>
@@ -1281,7 +1281,7 @@ function ProfessorStage({ school, onPick, onNotListed }: {
             aria-label="Type your professor's name"
             className="w-full rounded-xl px-3.5 outline-none focus-visible:ring-2"
             // 16px keeps iOS from zooming the page on focus (matches SearchPicker's input).
-            style={{ fontSize: 16, minHeight: 52, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }}
+            style={{ fontSize: 16, minHeight: 52, background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
           />
           <button
             type="button"
@@ -1441,7 +1441,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
             onClick={() => setDrawerOpen((v) => !v)}
             aria-expanded={drawerOpen}
             className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-bold"
-            style={{ minHeight: 40, background: "rgba(245,239,230,0.08)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }}
+            style={{ minHeight: 40, background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
           >
             <span className="min-w-0 truncate">{curTopic?.name ?? active.label}</span>
             <span className="shrink-0" style={{ color: "var(--accent)" }}>{drawerOpen ? "▴" : "▾"}</span>
@@ -1449,7 +1449,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
         </div>
 
         <div className="sa-player-min sm:flex">
-          <div className={`${drawerOpen ? "block" : "hidden"} border-b sm:block sm:w-[42%] sm:max-w-[360px] sm:border-b-0 sm:border-r`} style={{ borderColor: "rgba(245,239,230,0.1)" }}>
+          <div className={`${drawerOpen ? "block" : "hidden"} border-b sm:block sm:w-[42%] sm:max-w-[360px] sm:border-b-0 sm:border-r`} style={{ borderColor: "var(--border-default)", background: "var(--bg-player-sidebar)" }}>
             <ExamOutline tab={active} school={school} stats={examStats(active)} isPaid={isPaid} curSetId={curSet?.id ?? null} curTopicKey={cur?.topicKey ?? null} openTopics={openTopics} onToggleTopic={toggleTopic} onPickSet={pickSet} />
           </div>
 
@@ -1527,7 +1527,7 @@ function ExamTabs({ exams, activeNum, onSelect, greek }: { exams: ExamTab[]; act
     <>
     <div
       className="flex items-stretch overflow-x-auto"
-      style={{ background: "rgba(0,0,0,0.22)", scrollbarWidth: "none", borderBottom: "1px solid rgba(245,239,230,0.1)" }}
+      style={{ background: "rgba(0,0,0,0.22)", scrollbarWidth: "none", borderBottom: "1px solid var(--border-default)" }}
       role="tablist"
       aria-label="Choose an exam"
     >
@@ -1652,7 +1652,7 @@ function ExamOutline({ tab, school, stats, isPaid, curSetId, curTopicKey, openTo
         <TopicRow key={t.key} topic={t} isPaid={isPaid} price={tab.price} open={openTopics.has(t.key)} onToggle={() => onToggleTopic(t.key)} curSetId={curSetId} curTopicKey={curTopicKey} activeRef={activeRef} onPickSet={onPickSet} onPaidClick={() => setNotifyPulse((p) => p + 1)} />
       ))}
       {/* the quiet sum — where the eye lands after scanning the list, not a headline */}
-      <div className="mt-2 border-t px-1 pt-2 text-[10.5px]" style={{ borderColor: "rgba(245,239,230,0.08)", color: "var(--text-muted)" }}>{stats}</div>
+      <div className="mt-2 border-t px-1 pt-2 text-[10.5px]" style={{ borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>{stats}</div>
       {/* PAID-TAB-CAPTURE stays on paid tabs (peak purchase intent) and on tabs with nothing
           live yet. It is GONE from a content-ready free tab: once the product exists, a waitlist
           box under it is clutter apologising for a problem the tab no longer has. */}
@@ -1700,7 +1700,7 @@ function PaidNotifyRow({ exam, school, pulse }: { exam: ExamTab; school: School 
         <>
           <p className="text-[11px] font-bold" style={{ color: "var(--brand-cream)" }}>Get notified once {exam.label} is ready</p>
           <div className="mt-1 flex gap-1.5">
-            <input value={email} onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("open"); }} onKeyDown={(e) => { if (e.key === "Enter") void submit(); }} type="email" placeholder="you@school.edu" className="min-w-0 flex-1 rounded-lg px-2.5 py-1.5 text-[12px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }} />
+            <input value={email} onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("open"); }} onKeyDown={(e) => { if (e.key === "Enter") void submit(); }} type="email" placeholder="you@school.edu" className="min-w-0 flex-1 rounded-lg px-2.5 py-1.5 text-[12px] outline-none" style={{ background: "var(--bg-input)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }} />
             <button onClick={() => void submit()} disabled={state === "busy"} className="shrink-0 rounded-lg px-3 py-1.5 text-[11.5px] font-black disabled:opacity-50" style={{ background: "var(--accent)", color: "#0B1220" }}>{state === "busy" ? "…" : "Notify me"}</button>
           </div>
           {state === "error" && <p className="mt-1 text-[10.5px]" style={{ color: "#F3C6CC" }}>Couldn't save that — try again in a moment.</p>}
@@ -1729,9 +1729,9 @@ function TopicRow({ topic, isPaid, price, open, onToggle, curSetId, curTopicKey,
     // Unbuilt topic — muted, estimated runtime, selectable → poster state. "coming" told a
     // student nothing about the product's shape; a runtime says what studying this topic costs.
     return (
-      <button ref={posterActive ? activeRef : undefined} onClick={() => onPickSet(topic.key, null)} className="mb-0.5 flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left hover:bg-white/5" style={{ opacity: 0.55, background: posterActive ? "rgba(252,163,17,0.12)" : "transparent" }}>
+      <button ref={posterActive ? activeRef : undefined} onClick={() => onPickSet(topic.key, null)} className="mb-0.5 flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left hover:bg-white/5" style={{ opacity: 0.55, background: posterActive ? "rgba(0,107,166,0.28)" : "transparent" }}>
         <span className="h-3.5 w-3.5 shrink-0" />
-        <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: posterActive ? "var(--accent)" : "var(--brand-cream)" }}>{topic.name}</span>
+        <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: posterActive ? "var(--accent-info-text)" : "var(--brand-cream)" }}>{topic.name}</span>
         <span className="shrink-0 text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }}>~{estTopicMin(topic.name)} min</span>
       </button>
     );
@@ -1764,9 +1764,9 @@ function SetRow({ set, isPaid, active, activeRef, onPick, onPaidClick }: { set: 
   // the same slot free rows wear ▶. PAID-TAB-CAPTURE: tapping one points at the notify panel.
   const onClick = () => { if (isPaid) { onPaidClick(); return; } onPick(); };
   return (
-    <button ref={active ? activeRef : undefined} onClick={onClick} className="relative flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/5" style={{ background: active ? "rgba(252,163,17,0.12)" : "transparent", opacity: !isPaid && !live ? 0.7 : 1 }}>
+    <button ref={active ? activeRef : undefined} onClick={onClick} className="relative flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/5" style={{ background: active ? "rgba(0,107,166,0.28)" : "transparent", opacity: !isPaid && !live ? 0.7 : 1 }}>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[12.5px] font-semibold" style={{ color: active ? "var(--accent)" : "var(--brand-cream)" }}>{tease}</span>
+        <span className="block truncate text-[12.5px] font-semibold" style={{ color: active ? "var(--accent-info-text)" : "var(--brand-cream)" }}>{tease}</span>
         <span className="block text-[10.5px]" style={{ color: "var(--text-muted)" }}>{meta}{!live && !isPaid ? " · coming" : ""}</span>
       </span>
       {live && !isPaid && <span className="shrink-0 text-[11px]" style={{ color: "var(--accent)" }}>▶</span>}
@@ -1793,13 +1793,13 @@ function TwoSetAsk({ school, professor, onDone }: { school: School | null; profe
     catch { setBusy(false); }
   };
   return (
-    <div className="flex flex-col gap-2 border-t px-3 py-3 sm:flex-row sm:items-center" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(252,163,17,0.06)" }}>
+    <div className="flex flex-col gap-2 border-t px-3 py-3 sm:flex-row sm:items-center" style={{ borderColor: "var(--border-default)", background: "rgba(252,163,17,0.06)" }}>
       {sent ? (
         <span className="text-[12.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>Saved — I'll tell you when Exam 2 lands.</span>
       ) : (
         <>
           <span className="min-w-0 flex-1 text-[12.5px]" style={{ color: "var(--brand-cream)" }}>Nice — save your progress and get told when Exam 2 lands?</span>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" className="rounded-lg px-3 py-1.5 text-[12.5px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)", minWidth: 0 }} />
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" className="rounded-lg px-3 py-1.5 text-[12.5px] outline-none" style={{ background: "var(--bg-input)", border: "1px solid var(--border-default)", color: "var(--brand-cream)", minWidth: 0 }} />
           <button onClick={send} disabled={!ok || busy} className="shrink-0 rounded-lg px-3 py-1.5 text-[12.5px] font-black disabled:opacity-40" style={{ background: "var(--accent)", color: "#0B1220" }}>{busy ? "…" : "Send"}</button>
           <button onClick={onDone} className="grid h-6 w-6 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--text-muted)" }} aria-label="Dismiss"><X className="h-3.5 w-3.5" /></button>
         </>
@@ -1842,7 +1842,7 @@ function HeroVideo({ playbackId, onComplete }: { playbackId: string; onComplete?
         <button
           onClick={() => { const v = ref.current; if (v) { v.muted = false; void v.play().catch(() => { /* keep state */ }); } dismissChip(); }}
           className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-bold"
-          style={{ background: "rgba(11,18,32,0.82)", border: "1px solid rgba(245,239,230,0.28)", color: "var(--brand-cream)", opacity: chipFading ? 0 : 1, transition: "opacity 320ms ease", pointerEvents: chipFading ? "none" : "auto" }}
+          style={{ background: "rgba(11,18,32,0.82)", border: "1px solid var(--border-default)", color: "var(--brand-cream)", opacity: chipFading ? 0 : 1, transition: "opacity 320ms ease", pointerEvents: chipFading ? "none" : "auto" }}
         >
           <span aria-hidden>🔊</span> Tap for sound
         </button>
@@ -1906,9 +1906,9 @@ function TestimonialAvatar({ name, src }: { name: string; src?: string }) {
   if (src && !broken) {
     // Eager (not lazy): the slider translates cards off-screen, and lazy never fires for a
     // transformed off-screen <img>. These are 2–5KB each, so eager load is cheap and reliable.
-    return <img src={src} alt={name} onError={() => setBroken(true)} className="h-12 w-12 shrink-0 rounded-full object-cover" style={{ border: "1px solid rgba(245,239,230,0.18)" }} />;
+    return <img src={src} alt={name} onError={() => setBroken(true)} className="h-12 w-12 shrink-0 rounded-full object-cover" style={{ border: "1px solid var(--border-default)" }} />;
   }
-  return <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full text-[14px] font-black" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.18)", color: "var(--accent)" }}>{initialsOf(name)}</span>;
+  return <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full text-[14px] font-black" style={{ background: "var(--bg-overlay)", border: "1px solid var(--border-default)", color: "var(--accent)" }}>{initialsOf(name)}</span>;
 }
 
 /** THREE-UP review cards (one-up below sm), paged. The heading lives in SocialProofSection so it
@@ -1958,7 +1958,7 @@ function TestimonialsSlider() {
         <div className="flex" style={{ width: `${(n / per) * 100}%`, transform: `translateX(calc(-${page * (per / n) * 100}% + ${dx}px))`, transition: start.current != null ? "none" : "transform 420ms ease" }}>
           {TESTIMONIALS.map((t) => (
             <figure key={t.name} className="px-1.5" style={{ width: `${100 / n}%` }}>
-              <div className="flex h-full flex-col rounded-2xl p-4" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)", minHeight: 168 }}>
+              <div className="flex h-full flex-col rounded-2xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", minHeight: 168 }}>
                 <blockquote className="text-[13.5px] leading-relaxed" style={{ color: "var(--brand-cream)", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>
                   “{t.quote}”
                 </blockquote>
@@ -1978,13 +1978,13 @@ function TestimonialsSlider() {
       {/* controls — every one stops auto-play permanently */}
       {pages > 1 && (
         <div className="mt-4 flex items-center gap-3">
-          <button onClick={() => { go(-1); stop(); }} className="grid h-8 w-8 place-items-center rounded-full text-[18px] hover:bg-white/5" style={{ color: "var(--brand-cream)", border: "1px solid rgba(245,239,230,0.2)" }} aria-label="Previous reviews">‹</button>
+          <button onClick={() => { go(-1); stop(); }} className="grid h-8 w-8 place-items-center rounded-full text-[18px] hover:bg-white/5" style={{ color: "var(--brand-cream)", border: "1px solid var(--border-default)" }} aria-label="Previous reviews">‹</button>
           <div className="flex items-center gap-1.5">
             {Array.from({ length: pages }, (_, i) => (
               <button key={i} onClick={() => { setPage(i); stop(); }} aria-label={`Go to reviews page ${i + 1}`} className="h-2 rounded-full transition-all" style={{ width: i === page ? 18 : 8, background: i === page ? "var(--accent)" : "rgba(245,239,230,0.3)" }} />
             ))}
           </div>
-          <button onClick={() => { go(1); stop(); }} className="grid h-8 w-8 place-items-center rounded-full text-[18px] hover:bg-white/5" style={{ color: "var(--brand-cream)", border: "1px solid rgba(245,239,230,0.2)" }} aria-label="Next reviews">›</button>
+          <button onClick={() => { go(1); stop(); }} className="grid h-8 w-8 place-items-center rounded-full text-[18px] hover:bg-white/5" style={{ color: "var(--brand-cream)", border: "1px solid var(--border-default)" }} aria-label="Next reviews">›</button>
         </div>
       )}
     </div>
@@ -2003,7 +2003,7 @@ function TestimonialsSlider() {
 
 // ---- SECTION RHYTHM — a quiet 1px breath between major sections (my-12 → ~96px gap) --------------
 function SectionDivider() {
-  return <div aria-hidden className="mx-auto my-12 h-px w-full max-w-[200px]" style={{ background: "rgba(245,239,230,0.08)" }} />;
+  return <div aria-hidden className="mx-auto my-12 h-px w-full max-w-[200px]" style={{ background: "var(--bg-surface)" }} />;
 }
 
 // Four stacked layers, each on its own row so they collapse cleanly at 360px:
@@ -2028,7 +2028,7 @@ const FOOTER_LINKS: { label: string; href: string }[] = [
 
 export function Footer() {
   return (
-    <footer id="site-footer" className="border-t pt-8 pb-6 sm:pt-10 sm:pb-8" style={{ borderColor: "rgba(245,239,230,0.1)", fontFamily: BRAND_SANS }}>
+    <footer id="site-footer" className="border-t pt-8 pb-6 sm:pt-10 sm:pb-8" style={{ borderColor: "var(--border-default)", background: "var(--bg-nav)", fontFamily: BRAND_SANS }}>
       {/* PASS 6 — three columns instead of one tall centred stack. The old footer ran ~3 screens of
           scrolling on a phone to say four things; a student who reached the bottom looking for a
           phone number had to scroll past the whole nav to find it. Columns also let the "reach
@@ -2071,7 +2071,7 @@ export function Footer() {
           {/* Set apart from the text-me CTA by a rule: it is a different audience, not a
               second way to reach Lee. The old two-line "For Fraternities & Sororities /
               Boost chapter GPAs" pair said the same thing twice for one link. */}
-          <a href="/chapters" className="mt-4 inline-flex items-center gap-2 border-t pt-4 text-[13.5px] font-semibold transition-colors hover:text-[var(--accent)]" style={{ color: "var(--brand-cream)", borderColor: "rgba(245,239,230,0.12)" }}>
+          <a href="/chapters" className="mt-4 inline-flex items-center gap-2 border-t pt-4 text-[13.5px] font-semibold transition-colors hover:text-[var(--accent)]" style={{ color: "var(--brand-cream)", borderColor: "var(--border-default)" }}>
             <span aria-hidden>🏛️</span> For Greek Orgs
           </a>
         </div>
@@ -2079,10 +2079,10 @@ export function Footer() {
 
       {/* BOTTOM ROW — full width, centred. Text and ORDER unchanged: the memorial line is the last
           thing on the page and stays that way. */}
-      <div className="mx-auto mt-6 flex max-w-[1040px] flex-col items-center gap-1 border-t px-5 pt-5 text-center sm:mt-9 sm:gap-1.5 sm:pt-6" style={{ borderColor: "rgba(245,239,230,0.08)" }}>
+      <div className="mx-auto mt-6 flex max-w-[1040px] flex-col items-center gap-1 border-t px-5 pt-5 text-center sm:mt-9 sm:gap-1.5 sm:pt-6" style={{ borderColor: "var(--border-subtle)" }}>
         <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>surviveaccounting.com</p>
         <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>© 2026 Earned Wisdom LLC</p>
-        <p className="text-[11.5px] italic" style={{ color: "rgba(245,239,230,0.42)", letterSpacing: "0.01em" }}>In memory of Ben Ingram, 1993–2017</p>
+        <p className="text-[11.5px] italic" style={{ color: "var(--text-tertiary)", letterSpacing: "0.01em" }}>In memory of Ben Ingram, 1993–2017</p>
       </div>
     </footer>
   );

@@ -18,7 +18,8 @@ import { scrollToId } from "@/lib/ui-scroll";
 
 /** The page navy. One constant so the CSS, the meta theme-color and any inline use agree —
  *  Safari samples this for its toolbar, and a mismatch reads as a rendering bug. */
-export const SITE_NAVY = "#0F1A2E";
+// TEST palette (branch test/lighter-color-system): page canvas #0D1730 — keep in sync with --bg-page.
+export const SITE_NAVY = "#0D1730";
 
 /** Wordmark that never exceeds its container. `size` is the IDEAL size; it shrinks when the
  *  viewport is too narrow and never grows past it.
@@ -185,7 +186,7 @@ function SiteMenu({ items }: { items: NavItem[] }) {
           <div className="fixed inset-0 z-[201]" style={{ background: "rgba(5,8,16,0.55)" }} onClick={() => setOpen(false)} aria-hidden />
           <div
             className="fixed right-2 z-[202] w-[252px] overflow-hidden rounded-xl"
-            style={{ top: "calc(52px + env(safe-area-inset-top, 0px))", background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)" }}
+            style={{ top: "calc(52px + env(safe-area-inset-top, 0px))", background: "var(--bg-overlay)", border: "1px solid var(--border-default)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)" }}
           >
             {items.map((it, i) => (
               <a
@@ -198,7 +199,7 @@ function SiteMenu({ items }: { items: NavItem[] }) {
                   color: "#F5EFE6",
                   // The rule belongs to the FIRST route item, so adding another anchor above it
                   // can never strand the divider in the wrong place.
-                  borderTop: it.route && !items[i - 1]?.route ? "1px solid rgba(245,239,230,0.14)" : undefined,
+                  borderTop: it.route && !items[i - 1]?.route ? "1px solid var(--border-default)" : undefined,
                   marginTop: it.route && !items[i - 1]?.route ? 8 : undefined,
                 }}
               >
@@ -282,7 +283,7 @@ export function SiteHeader({ wordmark = true, chapterNav }: { wordmark?: boolean
       style={{
         background: "color-mix(in srgb, var(--sa-surface-nav) 92%, transparent)",
         backdropFilter: "blur(8px)",
-        borderBottom: "1px solid rgba(245,239,230,0.10)",
+        borderBottom: "1px solid var(--border-default)",
         paddingTop: "env(safe-area-inset-top, 0px)",
         paddingLeft: "env(safe-area-inset-left, 0px)",
         paddingRight: "env(safe-area-inset-right, 0px)",

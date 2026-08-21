@@ -45,10 +45,10 @@ export function NotListedForm({ kind, school, onClose }: {
     );
   }
 
-  const field = { minHeight: 44, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" } as const;
+  const field = { minHeight: 44, background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" } as const;
 
   return (
-    <div className="rounded-xl p-4 text-left" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)", fontFamily: BRAND_SANS }}>
+    <div className="rounded-xl p-4 text-left" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", fontFamily: BRAND_SANS }}>
       <div className="mb-3 flex items-start justify-between gap-3">
         <p className="text-[13.5px] font-black" style={{ color: "var(--brand-cream)" }}>
           {kind === "school" ? "Which school are you at?" : "Which chapter are you in?"}

@@ -67,10 +67,12 @@
   /* #0F1A2E, not #14213D — the page renders SITE_NAVY (SiteHeader.tsx), which is a shade darker
      than --brand-navy. A ladder whose bottom rung names a colour the page does not actually use is
      worse than no ladder: it reads as correct and measures wrong. */
-  --sa-surface-0: #0F1A2E;
-  --sa-surface-1: #1B2B4D;
-  --sa-surface-2: #223458;
-  --sa-surface-nav: #182647;
+  /* LIGHTER-COLOR-SYSTEM TEST (branch test/lighter-color-system): the ladder is now fed by the
+     semantic tokens declared on html.sa-navy below, so one switch re-themes every surface. */
+  --sa-surface-0: var(--bg-page, #0F1A2E);
+  --sa-surface-1: var(--bg-surface, #1B2B4D);
+  --sa-surface-2: var(--bg-player-main, #223458);
+  --sa-surface-nav: var(--bg-nav, #182647);
 
   /* The player's right panel. Sized to the TALLEST state (the professor list) so advancing the
      flow does not resize the player under the cursor — a control that moves as you use it is the
@@ -262,7 +264,7 @@
    --------------------------------------------------------------------------- */
 html.sa-navy,
 html.sa-navy body {
-  background-color: #0F1A2E;
+  background-color: var(--bg-page, #0F1A2E);
 }
 
 /* BRAND PALETTE FOR EVERY NAVY PAGE.
@@ -282,12 +284,66 @@ html.sa-navy body {
  * frameThemeVars() still wins where it is applied — an inline style beats a class selector — so
  * per-school colourways keep overriding these defaults. These are the floor, not a replacement.
  */
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+   SEMANTIC COLOUR TOKENS — the ONE place the marketing palette is declared.
+
+   TEST system (branch test/lighter-color-system) is the default below. The CURRENT production
+   values live in the [data-sa-theme="current"] block so the two can be compared without touching
+   a component: in DevTools run  document.documentElement.dataset.saTheme = "current"  (and delete
+   it to return to TEST). Dev-only — there is no user-facing toggle.
+
+   Semantics:  orange = action · blue = information / selected / progress · cream = reading ·
+   navy family = structure · school colours (--sa-bolt-1/2, frame theme) = campus personalisation,
+   which this block never touches.
+   ═══════════════════════════════════════════════════════════════════════════════════════════ */
 html.sa-navy {
-  --brand-cream: #F5EFE6;
-  --text-muted: rgba(226, 232, 240, 0.6);
-  --accent: #FCA311;
+  /* surfaces */
+  --bg-page: #0D1730;            /* marketing canvas */
+  --bg-nav: #18294B;             /* navbar + footer + sticky bars */
+  --bg-surface: #162443;         /* elevated cards, FAQ rows, testimonials, player shell */
+  --bg-player-sidebar: #243A63;  /* exam player topic rail */
+  --bg-player-main: #111D35;     /* video / preview pane */
+  --bg-overlay: #1A2948;         /* pickers, sheets, modals, entry-state overlay */
+  --bg-input: #111D35;           /* text fields inside cards */
+  /* text */
+  --text-primary: #F7F0E6;
+  --text-secondary: #AAB4C8;
+  --text-tertiary: #76839E;      /* metadata / legal lines only — never body copy */
+  /* accents */
+  --accent-primary: #FFA611;
+  --accent-primary-hover: #FFB82E;
+  --accent-info: #006BA6;        /* fills, borders, icons */
+  --accent-info-text: #62B6EA;   /* the same hue lifted for TEXT on navy (#006BA6 is 3.3:1 there) */
+  /* lines */
+  --border-default: #34486D;
+  --border-subtle: rgba(52, 72, 109, 0.55);
+
+  /* legacy names every component already reads — aliased, not duplicated */
+  --brand-cream: var(--text-primary);
+  --text-muted: var(--text-secondary);
+  --accent: var(--accent-primary);
   --bolt-primary: #C62828;
   --bolt-secondary: #1565C0;
+}
+
+/* CURRENT production palette, for comparison only. */
+html.sa-navy[data-sa-theme="current"] {
+  --bg-page: #0F1A2E;
+  --bg-nav: #182647;
+  --bg-surface: #1B2B4D;
+  --bg-player-sidebar: #1B2B4D;
+  --bg-player-main: #223458;
+  --bg-overlay: #0B1220;
+  --bg-input: rgba(245, 239, 230, 0.06);
+  --text-primary: #F5EFE6;
+  --text-secondary: rgba(226, 232, 240, 0.6);
+  --text-tertiary: rgba(226, 232, 240, 0.45);
+  --accent-primary: #FCA311;
+  --accent-primary-hover: #FCA311;
+  --accent-info: #3BF5A0;
+  --accent-info-text: #3BF5A0;
+  --border-default: rgba(245, 239, 230, 0.12);
+  --border-subtle: rgba(245, 239, 230, 0.08);
 }
 
 /* HORIZONTAL OVERFLOW BACKSTOP (M1.1).
@@ -487,7 +543,7 @@ html.sa-navy body {
   touch-action: manipulation;
 }
 .sa-row--plain { grid-template-columns: minmax(0, 1fr); }
-.sa-row:hover { background: rgba(255, 255, 255, 0.1); }
+.sa-row:hover { background: rgba(0, 107, 166, 0.22); }
 .sa-row-bolt { display: grid; place-items: center; height: 24px; }
 .sa-row-name {
   min-width: 0;
@@ -498,8 +554,8 @@ html.sa-navy body {
   font-weight: 600;
   color: #f5efe6;
 }
-.sa-row:hover .sa-row-name { color: var(--accent); }
-.sa-row--plain:hover .sa-row-name { color: var(--accent); }
+.sa-row:hover .sa-row-name { color: var(--accent-info-text, var(--accent)); }
+.sa-row--plain:hover .sa-row-name { color: var(--accent-info-text, var(--accent)); }
 .sa-row-code {
   justify-self: end;
   white-space: nowrap;

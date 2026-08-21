@@ -66,7 +66,7 @@ function ChaptersPage() {
   useNavyDocument();
   const theme = DEFAULT_FRAME_THEME;
   return (
-    <div style={{ ...frameThemeVars(theme), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "hidden" }}>
+    <div style={{ ...frameThemeVars(theme), background: "var(--bg-page)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "hidden" }}>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
       {/* M1.5 — this page had NO route back to the landing page. Anyone arriving on a shared
           Greek-chapter link was simply stranded here. */}

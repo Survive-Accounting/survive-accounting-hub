@@ -172,7 +172,7 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
   if (!card) return body;
 
   return (
-    <div className="w-full rounded-2xl p-5" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)" }}>
+    <div className="w-full rounded-2xl p-5" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
       {header && <h2 className="mb-3 text-[17px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{header}</h2>}
       {body}
     </div>
