@@ -72,14 +72,10 @@ export const getSetPlayback = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ setId: z.string(), stage: z.enum(["cram", "review"]).optional() }).parse(d))
   .handler(async ({ data, context }): Promise<SetPlaybackResult> => {
     const db = await admin();
-    const { data: scenes, error } = await db.from("canvas_scenes").select("nodes_json");
-    if (error) throw new Error(error.message);
-    type Deck = { id: string; status?: string; payloadType?: string; access?: string; topicId?: string | null; lessonId?: string | null; publications?: RawPub[] };
-    let deck: Deck | undefined;
-    for (const s of (scenes ?? []) as { nodes_json?: { decks?: Deck[] } }[]) {
-      deck = (s.nodes_json?.decks ?? []).find((d) => d.id === data.setId && d.status === "live" && d.payloadType === "cards");
-      if (deck) break;
-    }
+    // Same deduped loader as the tree — the per-set scene wins over the workspace duplicate.
+    const { loadDecksDeduped } = await import("@/lib/student.functions");
+    const o = (await loadDecksDeduped(db)).get(data.setId);
+    const deck = o && o.deck.status === "live" && o.deck.parked !== true ? (o.deck as { id: string; access?: string; topicId?: string | null; lessonId?: string | null; publications?: RawPub[] }) : undefined;
     if (!deck) return { status: "not_found" };
     if (deck.access === "paid") {
       const unlocked = await unlockedTopicIds(db, context.userId as string);

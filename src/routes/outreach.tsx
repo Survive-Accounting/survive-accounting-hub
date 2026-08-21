@@ -195,10 +195,11 @@ const COMMS_SECTION: Section = {
   key: "comms",
   label: "Comms",
   icon: MessageSquare,
-  owns: (p) => p.startsWith("/outreach/comms") || p.startsWith("/outreach/demand"),
+  owns: (p) => p.startsWith("/outreach/comms") || p.startsWith("/outreach/demand") || p.startsWith("/outreach/practice"),
   subtabs: [
     { label: "Demand", to: "/outreach/demand" },
     { label: "Comms console", to: "/outreach/comms" },
+    { label: "Practice analytics", to: "/outreach/practice" },
   ],
 };
 

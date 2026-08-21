@@ -53,6 +53,33 @@ export const shippedPub = (d: { publications?: RawPub[] }, kind: "blast" | "look
   (d.publications ?? []).find((p) => p?.kind === kind && p?.state === "shipped" && p?.render?.muxPlaybackId) ?? null;
 const pubDur = (p: RawPub | null): number | null => (p?.render?.durationS != null ? Math.round(p.render.durationS) : null);
 
+// ---- SCENE DEDUPE (launch blocker, 08-21) ------------------------------------------------------
+// Every set exists in TWO scenes: the 30-set workspace scene (08-14) and its own per-set scene
+// (edited 08-19/20). Ownership order: PER-SET scenes (exactly one card deck) first, then by
+// updated_at newest-first — so even if the workspace is touched later and becomes "newest", the
+// per-set copy still wins. A deck's cards are read only from its winning scene. Shared by the
+// tree, practice, and playback.
+export type RawNode = { id?: string; type?: string; data?: Record<string, unknown> };
+export interface OwnedDeck { deck: RawDeck; sceneId: string; nodes: RawNode[] }
+export async function loadDecksDeduped(admin: { from: (t: string) => any }): Promise<Map<string, OwnedDeck>> {
+  const { data: scenes, error } = await admin.from("canvas_scenes").select("id,updated_at,nodes_json").order("updated_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  const owned = new Map<string, OwnedDeck>();
+  const cardDecks = (s: { nodes_json?: { decks?: RawDeck[] } }) => (s.nodes_json?.decks ?? []).filter((d) => d.payloadType === "cards").length;
+  const ordered = ((scenes ?? []) as { id: string; nodes_json?: { decks?: RawDeck[]; nodes?: RawNode[] } }[]).slice().sort((a, b) => (cardDecks(a) === 1 ? 0 : 1) - (cardDecks(b) === 1 ? 0 : 1));
+  for (const s of ordered) {
+    const nodes = s.nodes_json?.nodes ?? [];
+    for (const d of s.nodes_json?.decks ?? []) {
+      if (d.payloadType !== "cards" || owned.has(d.id)) continue;
+      owned.set(d.id, { deck: d, sceneId: s.id, nodes: nodes.filter((n) => n?.type === "ceq" && n.data?.deckId === d.id) });
+    }
+  }
+  return owned;
+}
+/** Live, unparked card decks only — the student visibility gate, after dedupe. */
+export const liveDecks = (owned: Map<string, OwnedDeck>): OwnedDeck[] =>
+  [...owned.values()].filter((o) => o.deck.status === "live" && o.deck.parked !== true);
+
 export const fetchStudentTree = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => z.object({ campusId: z.string().uuid().optional() }).parse(d ?? {}))
   .handler(async ({ data: input }): Promise<StudentCourse[]> => {
@@ -60,9 +87,8 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const admin = supabaseAdmin as unknown as { from: (t: string) => any };
 
-  // 1) Every scene → LIVE card-decks only (the server-side visibility gate).
-  const { data: scenes, error: sErr } = await admin.from("canvas_scenes").select("nodes_json");
-  if (sErr) throw new Error(sErr.message);
+  // 1) Every scene → LIVE card-decks only (the server-side visibility gate), DEDUPED by deck id.
+  const owned = await loadDecksDeduped(admin);
   const live: RawDeck[] = [];
   // CEQ count per deck: a set's question count = nodes of type "ceq" whose data.deckId is the deck
   // (the same membership the Studio uses). Powers the "N questions" line on each outline set row.
@@ -70,10 +96,10 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
   // FIRST STEM per deck (lowest stageOrder) — the outline teaser, with its blur ranges for paid redaction.
   const firstCeqByDeck = new Map<string, { order: number; prompt: string; blur: { s: number; e: number }[] }>();
   type RawCeqData = { deckId?: string; stageOrder?: number; prompt?: string; blurRanges?: { s: number; e: number }[]; noteOnly?: boolean };
-  for (const s of (scenes ?? []) as { nodes_json?: { decks?: RawDeck[]; nodes?: { type?: string; data?: RawCeqData }[] } }[]) {
-    // PARKED sets are authoring-only — never served, regardless of status (same law as parked topics).
-    for (const d of s.nodes_json?.decks ?? []) if (d.status === "live" && d.payloadType === "cards" && d.parked !== true) live.push(d);
-    for (const n of s.nodes_json?.nodes ?? []) {
+  // PARKED sets are authoring-only — never served, regardless of status (same law as parked topics).
+  for (const o of liveDecks(owned)) {
+    live.push(o.deck);
+    for (const n of o.nodes as { type?: string; data?: RawCeqData }[]) {
       if (n?.type !== "ceq") continue;
       // NOTE frames are film chrome, not questions — excluded from the counter AND practice,
       // per the CeqCard contract ("excluded from the student question counter").
@@ -253,27 +279,20 @@ export const fetchSetPractice = createServerFn({ method: "GET" })
   .handler(async ({ data }): Promise<SetPracticeResult> => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as unknown as { from: (t: string) => any };
-    const { data: scenes, error } = await admin.from("canvas_scenes").select("nodes_json");
-    if (error) throw new Error(error.message);
     type RawChoice = { id?: string; text?: string; correct?: boolean; feedback?: string };
     type RawCard = { deckId?: string; stageOrder?: number; prompt?: string; shorthand?: string; noteOnly?: boolean; choices?: RawChoice[] };
-    let deck: RawDeck | undefined;
-    let cards: RawCard[] = [];
-    for (const s of (scenes ?? []) as { nodes_json?: { decks?: RawDeck[]; nodes?: { type?: string; data?: RawCard }[] } }[]) {
-      const d = (s.nodes_json?.decks ?? []).find((x) => x.id === data.setId && x.status === "live" && x.payloadType === "cards" && x.parked !== true);
-      if (!d) continue;
-      deck = d;
-      cards = (s.nodes_json?.nodes ?? [])
-        .filter((n) => n?.type === "ceq" && n.data?.deckId === data.setId && !n.data?.noteOnly)
-        .map((n) => n.data!);
-      break;
-    }
-    if (!deck) return { status: "not_found" };
+    const owned = await loadDecksDeduped(admin);
+    const o = owned.get(data.setId);
+    const deck = o && o.deck.status === "live" && o.deck.parked !== true ? o.deck : undefined;
+    if (!deck || !o) return { status: "not_found" };
     if (deck.access === "paid") return { status: "locked" };
+    // STABLE ids: the CEQ node id (never the position) — analytics key on it, so re-ordering or
+    // inserting a question never corrupts history. Display numbers are derived client-side.
+    const cards = o.nodes.filter((n) => !(n.data as RawCard | undefined)?.noteOnly).map((n) => ({ nodeId: n.id ?? "", ...(n.data as RawCard) }));
     const questions: PracticeQuestion[] = cards
       .sort((a, b) => (a.stageOrder ?? 0) - (b.stageOrder ?? 0))
       .map((c, i) => ({
-        id: `${data.setId}:${c.stageOrder ?? i}`,
+        id: c.nodeId || `${data.setId}:${c.stageOrder ?? i}`,
         prompt: (c.prompt ?? "").trim(),
         shorthand: c.shorthand?.trim() || null,
         choices: (c.choices ?? []).map((ch, j) => ({ id: ch.id ?? String(j), text: (ch.text ?? "").trim(), correct: !!ch.correct, feedback: ch.feedback?.trim() || null })),

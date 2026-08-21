@@ -14,8 +14,8 @@ import { createPortal } from "react-dom";
 import { ChevronDown, GraduationCap, Lock, MessageCircle, X } from "lucide-react";
 
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
-import { nextStep, setIndexOf, stagesOf, type SetStage } from "@/lib/set-flow";
-import { PracticeStage } from "@/components/site/PracticeStage";
+import { isPlayable, nextStep, setIndexOf, stagesOf, type SetStage } from "@/lib/set-flow";
+import { PracticeStage, readCoverage } from "@/components/site/PracticeStage";
 import { resolveStudentMap, type MapLevel } from "@/lib/map-resolver.functions";
 import { joinPricingWaitlist } from "@/lib/pricing-api";
 import { getChapterNames, listCampusIntroCodes } from "@/lib/default-map.functions";
@@ -1049,12 +1049,15 @@ const SHOW_CHAPTER_NUM = false;
 // wired yet). Updates automatically as sets go live.
 const examStats = (tab: ExamTab): string => {
   const topics = tab.topics.length;
+  const sets = tab.topics.reduce((a, t) => a + t.sets.length, 0);
   const questions = tab.topics.reduce((a, t) => a + t.sets.reduce((b, s) => b + s.ceqCount, 0), 0);
   const secs = tab.topics.reduce((a, t) => a + t.sets.reduce((b, s) => b + (s.runtimeSec ?? 0), 0), 0);
   const hrs = secs / 3600;
+  // COMPUTED, never hardcoded: "7 topics · 19 sets · 206 questions"; video hours appear only once true.
   const parts = [`${topics} topic${topics === 1 ? "" : "s"}`];
-  if (questions > 0) parts.push(`${questions} questions`);
-  if (hrs > 0) parts.push(`${hrs.toFixed(1)} hrs video time`);
+  if (sets > 0) parts.push(`${sets} set${sets === 1 ? "" : "s"}`);
+  if (questions > 0) parts.push(`${questions} question${questions === 1 ? "" : "s"}`);
+  if (hrs >= 0.1) parts.push(`~${hrs.toFixed(1)}h video`);
   return parts.join(" · ");
 };
 
@@ -1368,7 +1371,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
   // Default selection for a tab: first topic with a LIVE set → first topic with any set → first
   // topic (poster) → null.
   const firstLiveSel = (tab: ExamTab): Sel | null => {
-    for (const t of tab.topics) { const live = t.sets.find((s) => s.playbackId); if (live) return { topicKey: t.key, setId: live.id }; }
+    for (const t of tab.topics) { const live = t.sets.find((s) => isPlayable(s)); if (live) return { topicKey: t.key, setId: live.id }; }
     return null;
   };
   // Fresh default (NOT persisted): first live set → first topic with any set → first topic (poster).
@@ -1464,10 +1467,10 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
               {videoGate ? (
                 <div className="relative w-full" style={{ aspectRatio: "16 / 9", background: "var(--sa-surface-2)" }}>{videoGate}</div>
               ) : flowDone && (
-                curSet?.playbackId && curTopic ? (
+                curSet && isPlayable(curSet) && curTopic ? (
                   // A playable set walks its stages: Cram Blast → Practice → Review (shared
                   // set-flow model — same walk as /learn, homepage-sized shell around it).
-                  <SetFlowPanel key={curSet.id} topic={curTopic} set={curSet} onCramComplete={() => markComplete(curSet!.id)} onPickSet={(sid) => pickSet(curTopic!.key, sid)} />
+                  <SetFlowPanel key={curSet.id} topic={curTopic} set={curSet} school={school} surface={greekOrg ? "greek" : school ? "campus" : "home"} onCramComplete={() => markComplete(curSet!.id)} onPickSet={(sid) => pickSet(curTopic!.key, sid)} />
                 ) : (
                   <div className="sa-reveal relative w-full" style={{ aspectRatio: "16 / 9", background: "#000" }}>
                     <Poster school={school} topicName={curTopic?.name ?? active.label} stem={curSet?.firstStem ?? null} />
@@ -1739,12 +1742,12 @@ function TopicRow({ topic, isPaid, price, open, onToggle, curSetId, curTopicKey,
     <div className="mb-1">
       <button onClick={onToggle} className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left hover:bg-white/5">
         <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "" : "-rotate-90"}`} style={{ color: "var(--text-muted)" }} />
-        <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>{topic.name}{SHOW_CHAPTER_NUM && topic.num != null && <span className="ml-1 font-normal opacity-60">(Ch. {topic.num})</span>}</span>
-        <span className="shrink-0 text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }}>{totalCeq} question{totalCeq === 1 ? "" : "s"}</span>
+        <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>{topic.num != null && <span className="mr-1.5 tabular-nums" style={{ color: "var(--text-muted)" }}>{topic.num}</span>}{topic.name}</span>
+        <span className="shrink-0 text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }} title={`${totalCeq} questions`}>{topic.sets.length} set{topic.sets.length === 1 ? "" : "s"}</span>
       </button>
       {open && (
         <div className="ml-5 mt-0.5 space-y-0.5">
-          {topic.sets.map((s) => <SetRow key={s.id} set={s} isPaid={isPaid} price={price} active={s.id === curSetId} activeRef={activeRef} onPick={() => onPickSet(topic.key, s.id)} onPaidClick={onPaidClick} />)}
+          {topic.sets.map((s, i) => <SetRow key={s.id} set={s} refLabel={`${topic.num ?? "?"}.${i + 1}`} isPaid={isPaid} price={price} active={s.id === curSetId} activeRef={activeRef} onPick={() => onPickSet(topic.key, s.id)} onPaidClick={onPaidClick} />)}
         </div>
       )}
     </div>
@@ -1754,24 +1757,42 @@ function TopicRow({ topic, isPaid, price, open, onToggle, curSetId, curTopicKey,
 // The set row is the product shelf: the first question's STEM, truncated at ~40ch — the truncation
 // is the tease; the full stem shows in the player when selected. Paid-tab stems arrive from the
 // server already ░-redacted. Counts language: topics · questions · video time (never "sets"/"stems").
-function SetRow({ set, isPaid, active, activeRef, onPick, onPaidClick }: { set: StudentSet; isPaid: boolean; price: number | null; active: boolean; activeRef: RefObject<HTMLButtonElement | null>; onPick: () => void; onPaidClick: () => void }) {
-  const live = !!set.playbackId;
-  const stem = set.firstStem?.trim() || set.name;
-  const tease = stem.length > 40 ? `${stem.slice(0, 40).trimEnd()}…` : stem;
+function SetRow({ set, refLabel, isPaid, active, activeRef, onPick, onPaidClick }: { set: StudentSet; refLabel: string; isPaid: boolean; price: number | null; active: boolean; activeRef: RefObject<HTMLButtonElement | null>; onPick: () => void; onPaidClick: () => void }) {
+  // PLAYABLE = has a cram video OR questions (the CEQ release ships questions before videos).
+  const live = isPlayable(set);
+  // The BASE STEM is the set's title; the variations only ever appear one at a time in cram mode.
+  const stem = set.name.replace(/^"|"$/g, "");
+  const tease = stem.length > 44 ? `${stem.slice(0, 44).trimEnd()}…` : stem;
   const meta = `${set.ceqCount} question${set.ceqCount === 1 ? "" : "s"}${set.runtimeSec ? ` · ${fmtRuntime(set.runtimeSec)}` : ""}`;
+  const covered = useCoverage(set.id);
+  const frac = set.ceqCount > 0 ? Math.min(1, covered / set.ceqCount) : 0;
   // LOCK-NOT-BROKEN: paid rows keep FULL opacity (dim = disabled = "broken") and wear a lock in
   // the same slot free rows wear ▶. PAID-TAB-CAPTURE: tapping one points at the notify panel.
   const onClick = () => { if (isPaid) { onPaidClick(); return; } onPick(); };
   return (
     <button ref={active ? activeRef : undefined} onClick={onClick} className="relative flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/5" style={{ background: active ? "rgba(252,163,17,0.12)" : "transparent", opacity: !isPaid && !live ? 0.7 : 1 }}>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[12.5px] font-semibold" style={{ color: active ? "var(--accent)" : "var(--brand-cream)" }}>{tease}</span>
+        <span className="block truncate text-[12.5px] font-semibold" style={{ color: active ? "var(--accent)" : "var(--brand-cream)" }}><span className="mr-1.5 tabular-nums" style={{ color: "var(--text-muted)" }}>{refLabel}</span>{tease}</span>
         <span className="block text-[10.5px]" style={{ color: "var(--text-muted)" }}>{meta}{!live && !isPaid ? " · coming" : ""}</span>
+        {/* COVERAGE (questions attempted), never accuracy — progress, not a score. */}
+        {frac > 0 && <span className="mt-1 block h-[3px] overflow-hidden rounded-full" style={{ background: "rgba(245,239,230,0.1)" }}><span className="block h-full rounded-full" style={{ width: `${Math.round(frac * 100)}%`, background: frac >= 1 ? "#3BF5A0" : "var(--accent)" }} /></span>}
       </span>
       {live && !isPaid && <span className="shrink-0 text-[11px]" style={{ color: "var(--accent)" }}>▶</span>}
       {isPaid && <Lock className="h-3 w-3 shrink-0" style={{ color: "var(--accent)" }} />}
     </button>
   );
+}
+
+/** Questions attempted in a set (localStorage, updated live by cram mode). */
+function useCoverage(setId: string): number {
+  const [n, setN] = useState(() => (typeof window === "undefined" ? 0 : (readCoverage()[setId]?.length ?? 0)));
+  useEffect(() => {
+    const on = () => setN(readCoverage()[setId]?.length ?? 0);
+    on();
+    window.addEventListener("sa-coverage", on);
+    return () => window.removeEventListener("sa-coverage", on);
+  }, [setId]);
+  return n;
 }
 
 // "Last, First" display — students know last names; falls back to the full name when last is absent.
@@ -1858,8 +1879,11 @@ function HeroVideo({ playbackId, onComplete }: { playbackId: string; onComplete?
  *  video always used. Stage transitions are overlay CTAs, not new screens — this is still the
  *  low-friction discovery player, not a dashboard. Paid sets never reach here (no playbackId
  *  in the free tree), so there is no entitlement logic on this surface. */
-function SetFlowPanel({ topic, set, onCramComplete, onPickSet }: { topic: ResolvedTopic; set: StudentSet; onCramComplete: () => void; onPickSet: (setId: string) => void }) {
-  const [stage, setStage] = useState<SetStage>("cram");
+function SetFlowPanel({ topic, set, school, surface, onCramComplete, onPickSet }: { topic: ResolvedTopic; set: StudentSet; school: School | null; surface: "home" | "campus" | "greek"; onCramComplete: () => void; onPickSet: (setId: string) => void }) {
+  // Entry = the set's FIRST available stage: cram when its video exists, else straight to
+  // practice (the CEQ release ships questions before videos). The cram slot stays in the shell
+  // as a "coming soon" strip so a published video fills it with no layout change.
+  const [stage, setStage] = useState<SetStage>(() => stagesOf(set)[0]);
   // The end-of-video overlay per stage ("Practice this set →" / "Next set →").
   const [stageEnded, setStageEnded] = useState(false);
   const stages = stagesOf(set);
@@ -1890,10 +1914,29 @@ function SetFlowPanel({ topic, set, onCramComplete, onPickSet }: { topic: Resolv
         <span className="min-w-0 flex-1 truncate text-[12px] font-bold" style={{ color: "var(--brand-cream)" }}>{set.name}</span>
         <span className="flex shrink-0 items-center gap-1">{stages.map(pill)}</span>
       </div>
-      <div className="relative w-full" style={{ aspectRatio: "16 / 9", background: "#000" }}>
+      {/* VIDEO stages keep the 16:9 stage; PRACTICE takes its natural height (a question, four
+          choices, the coming-soon line and the ask box must never scroll inside a video box). */}
+      <div className="relative w-full" style={stage === "practice" ? { minHeight: 360, background: "#000" } : { aspectRatio: "16 / 9", background: "#000" }}>
         {stage === "practice" ? (
-          <div className="h-full w-full" style={{ background: "var(--sa-surface-2)" }}>
-            <PracticeStage setId={set.id} doneLabel={forwardLabel ?? "Done →"} onDone={() => goto(after)} />
+          <div className="flex w-full flex-col" style={{ background: "var(--sa-surface-2)", minHeight: 360 }}>
+            {!set.playbackId && (
+              <div className="flex shrink-0 items-center gap-2 px-3 py-1.5 text-[10.5px] font-bold" style={{ background: "rgba(0,0,0,0.22)", borderBottom: "1px solid rgba(245,239,230,0.08)", color: "var(--text-muted)" }}>
+                <span style={{ color: "var(--accent)" }}>▶</span> Cram Blast · coming soon — the practice questions are live now
+              </div>
+            )}
+            <div className="min-h-0 flex-1">
+              <PracticeStage
+                setId={set.id}
+                reference={{ topic: topic.num, set: n }}
+                setName={set.name.replace(/^"|"$/g, "")}
+                campusName={school?.name ?? null}
+                campusSlug={school?.slug ?? null}
+                surface={surface}
+                doneLabel={forwardLabel ?? "Done →"}
+                onDone={() => goto(after)}
+                onReview={set.reviewPlaybackId ? () => goto({ setId: set.id, stage: "review" }) : undefined}
+              />
+            </div>
           </div>
         ) : stage === "review" && !set.reviewPlaybackId ? (
           // Should be unreachable (the pill only renders when hasReview), but never dead-end.

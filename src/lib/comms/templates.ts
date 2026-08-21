@@ -9,7 +9,7 @@ import type { IntakeKind } from "@/lib/comms/kinds";
 export type TemplateKey =
   | "confirm_notify_exam" | "confirm_save_progress" | "confirm_syllabus" | "confirm_greek_member"
   | "confirm_greek_claim" | "confirm_rep" | "confirm_school_request" | "confirm_tutoring_request"
-  | "confirm_outreach_page"
+  | "confirm_outreach_page" | "confirm_question"
   | "seq_exam_t10" | "seq_exam_t3" | "seq_exam_t1" | "seq_post_exam1_d1" | "seq_post_exam1_d7" | "seq_meet_lee"
   | "broadcast_exam_live"
   | "founder_priority" | "founder_batched";
@@ -43,7 +43,7 @@ export interface TemplateCtx {
 }
 
 export const ORIGIN = "https://surviveaccounting.com";
-export const EXAM1_QUESTION_COUNT = 210; // authored Exam 1 practice questions (08-21)
+export const EXAM1_QUESTION_COUNT = 206; // live Exam 1 practice questions (08-21 flip; per-set scenes authoritative)
 
 type Block = string | { cta: string; href: string } | { sig: true };
 interface Rendered { subject: string; text: string; html: string; sms?: string }
@@ -171,6 +171,19 @@ function blocksFor(key: TemplateKey, c: TemplateCtx): { subject: string; blocks:
         sms: `You're on the list for ${code(c)} - I'll text the day the videos are live. Free practice now: ${smsLink(c)} - Lee`,
       };
 
+    case "confirm_question":
+      return {
+        subject: `Got your question on ${c.topic ?? "that problem"}`,
+        blocks: [
+          `Hey ${n},`,
+          `Got your question on ${c.topic ?? "that problem"}${c.chapter ? ` (${c.chapter})` : ""}. I'll answer it myself — usually same day, and if a few people are stuck on the same one it's the next thing I film.`,
+          c.note ? `You wrote: "${c.note.slice(0, 400)}"` : "",
+          `Keep cramming in the meantime — the questions you get wrong now are the ones you'll get right on the exam.`,
+          sig,
+        ].filter((b) => b !== ""),
+        sms: `Got your question on ${c.topic ?? "that problem"} - I'll answer it myself, usually same day. - Lee`,
+      };
+
     // ---- sequence A: exam-date triggered ---------------------------------------------------
     case "seq_exam_t10":
       return {
@@ -258,7 +271,7 @@ function blocksFor(key: TemplateKey, c: TemplateCtx): { subject: string; blocks:
 
     // ---- founder alerts ---------------------------------------------------------------------
     case "founder_priority": {
-      const kindLabel = ({ syllabus: "SYLLABUS", greek_claim: "CHAPTER CLAIM", rep: "CAMPUS REP", purchase: "PURCHASE" } as Record<string, string>)[c.kind ?? ""] ?? (c.kind ?? "LEAD").toUpperCase();
+      const kindLabel = ({ syllabus: "SYLLABUS", greek_claim: "CHAPTER CLAIM", rep: "CAMPUS REP", purchase: "PURCHASE", question: `QUESTION ${c.topic ?? ""}`.trim() } as Record<string, string>)[c.kind ?? ""] ?? (c.kind ?? "LEAD").toUpperCase();
       const line = [c.name, c.school, c.courseCode, c.professor ? `Prof. ${c.professor}` : null, c.chapter].filter(Boolean).join(" · ");
       const smsLine = [c.name, c.school, c.courseCode, c.professor ? `Prof. ${c.professor}` : null, c.chapter].filter(Boolean).join(", ");
       return {
@@ -353,6 +366,7 @@ export const confirmTemplateFor = (kind: IntakeKind): TemplateKey => {
     case "referral": return "confirm_school_request";
     case "tutoring_request": return "confirm_tutoring_request";
     case "outreach_page": return "confirm_outreach_page";
+    case "question": return "confirm_question";
   }
 };
 
@@ -367,6 +381,7 @@ export const ALL_TEMPLATES: { key: TemplateKey; label: string; group: "Confirmat
   { key: "confirm_school_request", label: "school_request / referral — Noted", group: "Confirmations", hasSms: true },
   { key: "confirm_tutoring_request", label: "tutoring_request — Got your request", group: "Confirmations", hasSms: true },
   { key: "confirm_outreach_page", label: "outreach_page — You're on the list", group: "Confirmations", hasSms: true },
+  { key: "confirm_question", label: "question — Got your question on 3.2.14", group: "Confirmations", hasSms: true },
   { key: "seq_exam_t10", label: "A · T-10 days", group: "Sequences", hasSms: false },
   { key: "seq_exam_t3", label: "A · T-3 days", group: "Sequences", hasSms: false },
   { key: "seq_exam_t1", label: "A · T-1 day (SMS only)", group: "Sequences", hasSms: true, smsOnly: true },

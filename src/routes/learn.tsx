@@ -22,7 +22,7 @@ import { ChevronDown, ChevronRight, Circle, CircleCheck, CircleDot, ListTree, Lo
 import { useDismiss } from "@/lib/use-dismiss";
 import { joinPricingWaitlist } from "@/lib/pricing-api";
 import { fetchStudentTree, type PracticeQuestion, type StudentCourse, type StudentSet, type StudentTopic } from "@/lib/student.functions";
-import { nextStep, setIndexOf, stagesOf, type SetStage } from "@/lib/set-flow";
+import { isPlayable, nextStep, setIndexOf, stagesOf, type SetStage } from "@/lib/set-flow";
 import { PracticeStage } from "@/components/site/PracticeStage";
 import { listOverrideCampuses, type CampusOpt } from "@/lib/campus-overrides.functions";
 import { claimMyOrders, fetchMyUnlockedTopics, getSetPlayback } from "@/lib/entitlements.functions";
@@ -165,8 +165,8 @@ function EndCard({ kicker, name, sub, ctaLabel, countdown, onGo, onDismiss }: { 
 // ---- SET PLAYER — one modal walks a set's stages: Cram Blast → Practice → Review. The video
 //      element is the app's hls.js path (@mux/mux-player isn't a dep) and is the SAME for cram
 //      and review — the stage decides which playback id it gets and where "done" leads. --------
-function SetPlayer({ set, sets, stage, chipText, startAt, demo, onClose, onStarted, onComplete, onPosition, onGoto }: {
-  set: StudentSet; sets: StudentSet[]; stage: SetStage; chipText: string; startAt: number; demo: boolean;
+function SetPlayer({ set, sets, stage, chipText, startAt, demo, topicNumber, campusName, onClose, onStarted, onComplete, onPosition, onGoto }: {
+  set: StudentSet; sets: StudentSet[]; stage: SetStage; chipText: string; startAt: number; demo: boolean; topicNumber: number | null; campusName: string | null;
   onClose: () => void; onStarted: () => void; onComplete: () => void;
   onPosition: (positionSec: number, durationSec: number | null) => void;
   /** Move within the flow — same set another stage, or the next set's cram. */
@@ -254,12 +254,18 @@ function SetPlayer({ set, sets, stage, chipText, startAt, demo, onClose, onStart
           <span className="ml-auto flex shrink-0 items-center gap-1">{stages.map(stagePill)}</span>
         </div>
         {stage === "practice" ? (
-          <div className="overflow-hidden rounded-xl" style={{ background: "#0b1020", border: `1px solid ${NEON.borderSoft}`, aspectRatio: portrait ? "9 / 16" : "16 / 9", minHeight: 320 }}>
+          <div className="overflow-hidden rounded-xl" style={{ background: "#0b1020", border: `1px solid ${NEON.borderSoft}`, minHeight: 420, maxHeight: "82vh", display: "flex", flexDirection: "column" }}>
             <PracticeStage
               setId={set.id}
               questions={isDemo ? DEMO_QUESTIONS : undefined}
+              reference={{ topic: topicNumber, set: n }}
+              setName={set.name}
+              campusName={campusName}
+              surface="learn"
+              isTest={isDemo}
               doneLabel={forward?.label ?? "Done →"}
               onDone={() => { if (after) onGoto(after.setId, after.stage); else onClose(); }}
+              onReview={stages.includes("review") ? () => onGoto(set.id, "review") : undefined}
             />
           </div>
         ) : err ? (
@@ -369,7 +375,7 @@ function SetPoster({ set, topicChip, accent, prog, unlocked, demo, onOpen }: { s
   const state: ProgressState = prog?.state ?? "unstarted";
   const locked = set.access === "paid" && !unlocked;
   // Paid sets have their playbackId WITHHELD from the tree, so "coming soon" applies to free only.
-  const comingSoon = set.access !== "paid" && !set.playbackId;
+  const comingSoon = !isPlayable(set);
   const hasThumb = !locked && !!set.playbackId && set.playbackId !== DEMO_PLAYBACK && !thumbErr;
   const footLabel = locked ? "Paid" : comingSoon ? "Soon" : state === "complete" ? "Done ✓" : state === "in_progress" ? "Resume" : set.access === "paid" ? "Unlocked" : "Free";
   const footColor = locked ? "#F0B24A" : comingSoon ? NEON.muted : state === "complete" ? "#3BF5A0" : state === "in_progress" ? NEON.cyan : "#3BF5A0";
@@ -595,7 +601,7 @@ function LearnShell() {
   const [fetchNote, setFetchNote] = useState<{ msg: string; retry?: () => void } | null>(null);
   // EVERY SET STARTS AT CRAM (see-what's-coming → try-it → watch-Lee-work-it); other stages
   // are reached through the flow or a deep link. Paid sets fetch their withheld id PER STAGE.
-  const openSet = async (t: StudentTopic, s: StudentSet, stage: SetStage = "cram") => {
+  const openSet = async (t: StudentTopic, s: StudentSet, stage: SetStage = stagesOf(s)[0]) => {
     if (stage === "practice") {
       // Practice needs no playback id — fetchSetPractice does its own server-side gate.
       if (s.access === "paid" && !unlockedTopics.has(t.id)) { setPaywallTopic(t); return; }
@@ -852,6 +858,8 @@ function LearnShell() {
           set={playing.set}
           sets={playing.topic.sets}
           stage={playing.stage}
+          topicNumber={playing.topic.number}
+          campusName={campuses.find((c) => c.id === campusId)?.name ?? null}
           chipText={chip(playing.topic)}
           startAt={playing.stage === "cram" && progress[playing.set.id]?.state === "in_progress" ? (progress[playing.set.id]?.positionSec ?? 0) : 0}
           demo={demo}

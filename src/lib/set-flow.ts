@@ -11,18 +11,26 @@ export type SetStage = "cram" | "practice" | "review";
 /** A student's position inside a topic — what "continue where you left off" needs. */
 export interface FlowPos { setId: string; stage: SetStage }
 
-/** The stages THIS set actually has, in order. Cram always leads; practice exists when the
- *  set has questions; review exists only when a review video actually shipped (hasReview) —
- *  never invented, so a review-less set flows Cram → Practice → next set gracefully. */
-export const stagesOf = (s: Pick<StudentSet, "ceqCount" | "hasReview">): SetStage[] => [
-  "cram",
-  ...(s.ceqCount > 0 ? (["practice"] as const) : []),
-  ...(s.hasReview ? (["review"] as const) : []),
-];
+/** Can a student enter this set at all? Free sets need a cram video OR questions (the CEQ
+ *  release ships questions before videos); paid sets are "playable" and the surface gates them. */
+export const isPlayable = (s: Pick<StudentSet, "playbackId" | "ceqCount" | "access">): boolean =>
+  s.access === "paid" || !!s.playbackId || s.ceqCount > 0;
+
+/** The stages THIS set actually has, in order. Cram leads WHEN its video exists (or the set is
+ *  paid — its id is withheld, not absent); practice when the set has questions; review only when
+ *  a review video actually shipped (hasReview) — never invented. A video-less free set starts at
+ *  practice with the cram slot shown as "coming soon" by the surface. */
+export const stagesOf = (s: Pick<StudentSet, "ceqCount" | "hasReview" | "playbackId" | "access">): SetStage[] => {
+  const out: SetStage[] = [];
+  if (s.playbackId || s.access === "paid") out.push("cram");
+  if (s.ceqCount > 0) out.push("practice");
+  if (s.hasReview) out.push("review");
+  return out.length ? out : ["cram"];
+};
 
 /** Where a topic starts: Set 1 → Cram (the entry point unless saved progress says otherwise). */
 export const firstEntry = (sets: StudentSet[]): FlowPos | null =>
-  sets[0] ? { setId: sets[0].id, stage: "cram" } : null;
+  sets[0] ? { setId: sets[0].id, stage: stagesOf(sets[0])[0] } : null;
 
 /** The step after (setId, stage): the set's next stage, else the NEXT set's Cram — each set
  *  begins with its own Cram Blast. Null = the topic is finished. Sets the current surface
@@ -34,7 +42,7 @@ export function nextStep(sets: StudentSet[], setId: string, stage: SetStage): Fl
   const at = stages.indexOf(stage);
   if (at >= 0 && at + 1 < stages.length) return { setId, stage: stages[at + 1] };
   for (const s of sets.slice(i + 1)) {
-    if (s.playbackId || s.ceqCount > 0 || s.access === "paid") return { setId: s.id, stage: "cram" };
+    if (isPlayable(s)) return { setId: s.id, stage: stagesOf(s)[0] };
   }
   return null;
 }

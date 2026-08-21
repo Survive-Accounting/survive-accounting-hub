@@ -50,6 +50,7 @@ import { Route as OutreachRedditRouteImport } from './routes/outreach.reddit'
 import { Route as OutreachProfintelScheduleRouteImport } from './routes/outreach.profintel-schedule'
 import { Route as OutreachProfintelMetricsRouteImport } from './routes/outreach.profintel-metrics'
 import { Route as OutreachProfintelRouteImport } from './routes/outreach.profintel'
+import { Route as OutreachPracticeRouteImport } from './routes/outreach.practice'
 import { Route as OutreachParentGroupsRouteImport } from './routes/outreach.parent-groups'
 import { Route as OutreachOrdersRouteImport } from './routes/outreach.orders'
 import { Route as OutreachLeadfinderLeaderboardRouteImport } from './routes/outreach.leadfinder-leaderboard'
@@ -298,6 +299,11 @@ const OutreachProfintelMetricsRoute =
 const OutreachProfintelRoute = OutreachProfintelRouteImport.update({
   id: '/profintel',
   path: '/profintel',
+  getParentRoute: () => OutreachRoute,
+} as any)
+const OutreachPracticeRoute = OutreachPracticeRouteImport.update({
+  id: '/practice',
+  path: '/practice',
   getParentRoute: () => OutreachRoute,
 } as any)
 const OutreachParentGroupsRoute = OutreachParentGroupsRouteImport.update({
@@ -566,6 +572,7 @@ export interface FileRoutesByFullPath {
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
   '/outreach/orders': typeof OutreachOrdersRoute
   '/outreach/parent-groups': typeof OutreachParentGroupsRoute
+  '/outreach/practice': typeof OutreachPracticeRoute
   '/outreach/profintel': typeof OutreachProfintelRoute
   '/outreach/profintel-metrics': typeof OutreachProfintelMetricsRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
@@ -650,6 +657,7 @@ export interface FileRoutesByTo {
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
   '/outreach/orders': typeof OutreachOrdersRoute
   '/outreach/parent-groups': typeof OutreachParentGroupsRoute
+  '/outreach/practice': typeof OutreachPracticeRoute
   '/outreach/profintel': typeof OutreachProfintelRoute
   '/outreach/profintel-metrics': typeof OutreachProfintelMetricsRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
@@ -736,6 +744,7 @@ export interface FileRoutesById {
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
   '/outreach/orders': typeof OutreachOrdersRoute
   '/outreach/parent-groups': typeof OutreachParentGroupsRoute
+  '/outreach/practice': typeof OutreachPracticeRoute
   '/outreach/profintel': typeof OutreachProfintelRoute
   '/outreach/profintel-metrics': typeof OutreachProfintelMetricsRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
@@ -823,6 +832,7 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder-leaderboard'
     | '/outreach/orders'
     | '/outreach/parent-groups'
+    | '/outreach/practice'
     | '/outreach/profintel'
     | '/outreach/profintel-metrics'
     | '/outreach/profintel-schedule'
@@ -907,6 +917,7 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder-leaderboard'
     | '/outreach/orders'
     | '/outreach/parent-groups'
+    | '/outreach/practice'
     | '/outreach/profintel'
     | '/outreach/profintel-metrics'
     | '/outreach/profintel-schedule'
@@ -992,6 +1003,7 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder-leaderboard'
     | '/outreach/orders'
     | '/outreach/parent-groups'
+    | '/outreach/practice'
     | '/outreach/profintel'
     | '/outreach/profintel-metrics'
     | '/outreach/profintel-schedule'
@@ -1368,6 +1380,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachProfintelRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/outreach/practice': {
+      id: '/outreach/practice'
+      path: '/practice'
+      fullPath: '/outreach/practice'
+      preLoaderRoute: typeof OutreachPracticeRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/outreach/parent-groups': {
       id: '/outreach/parent-groups'
       path: '/parent-groups'
@@ -1718,6 +1737,7 @@ interface OutreachRouteChildren {
   OutreachLeadfinderLeaderboardRoute: typeof OutreachLeadfinderLeaderboardRoute
   OutreachOrdersRoute: typeof OutreachOrdersRoute
   OutreachParentGroupsRoute: typeof OutreachParentGroupsRoute
+  OutreachPracticeRoute: typeof OutreachPracticeRoute
   OutreachProfintelRoute: typeof OutreachProfintelRoute
   OutreachProfintelMetricsRoute: typeof OutreachProfintelMetricsRoute
   OutreachProfintelScheduleRoute: typeof OutreachProfintelScheduleRoute
@@ -1751,6 +1771,7 @@ const OutreachRouteChildren: OutreachRouteChildren = {
   OutreachLeadfinderLeaderboardRoute: OutreachLeadfinderLeaderboardRoute,
   OutreachOrdersRoute: OutreachOrdersRoute,
   OutreachParentGroupsRoute: OutreachParentGroupsRoute,
+  OutreachPracticeRoute: OutreachPracticeRoute,
   OutreachProfintelRoute: OutreachProfintelRoute,
   OutreachProfintelMetricsRoute: OutreachProfintelMetricsRoute,
   OutreachProfintelScheduleRoute: OutreachProfintelScheduleRoute,
