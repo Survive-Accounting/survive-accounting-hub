@@ -53,7 +53,7 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, seconda
   schoolShort: string | null;
   greek?: GreekMarketing;
   /** GENERAL pages only: the school colourways the bolt cycles on load (AnimatedBoltHero rotates
-   *  the first three, then settles on the first and stops). Without it the bolt wears the plain
+   *  every one, continuously, ~5s each). Without it the bolt wears the plain
    *  brand red/blue. Campus/greek pages ignore this — they are pinned to their own school. */
   rotationStops?: BoltHeroStop[];
   /** Primary CTA + "Built for exam week" chip target — scrolls to the player (and tags Greek
@@ -68,8 +68,8 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, seconda
   /** CourtesyLine slot on greek pages — "courtesy of {chapter}" for seated members. */
   courtesy?: React.ReactNode;
 }) {
-  // General pages ROTATE school colourways (rotationStops: three schools, then settle on the
-  // first — "we serve many schools", said once, then out of the way), falling back to the brand
+  // General pages ROTATE school colourways (rotationStops: every school, continuously, ~5s each
+  // — the breadth is the message), falling back to the brand
   // red/blue when no list is supplied. Campus/greek pages inherit the page root's colourway vars
   // (the ONE colour source; schools.ts disagrees for Ole Miss) and carry the campus plate.
   const stops: BoltHeroStop[] = kind === "general"

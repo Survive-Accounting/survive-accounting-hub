@@ -28,7 +28,7 @@ import { useDismiss } from "@/lib/use-dismiss";
 import { fetchCourseOptions } from "@/lib/je-api";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
-import { FitWordmark, SiteHeader, SITE_NAVY, useNavyDocument } from "@/components/site/SiteHeader";
+import { FitWordmark, SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { PickerSheet } from "@/components/site/PickerSheet";
 import { logCampusCodeDemand } from "@/lib/campus-demand.functions";
 import { ALL_SCHOOLS, searchSchools } from "@/lib/schools";
@@ -86,24 +86,13 @@ const COLOR_BY_ID = new Map<string, { c1: string; c2: string }>([
 ]);
 const schoolColors = (id: string) => COLOR_BY_ID.get(id) ?? { c1: BRAND_RED, c2: BRAND_BLUE };
 
-// Bolt colors must READ on the navy page. Dark school primaries (Ole Miss navy #14213D, Auburn,
-// Georgia) blend into the background, so lift any low-contrast color toward white until it's
-// visible, preserving hue (navy → steel-blue, still "their color").
-const PAGE_NAVY = SITE_NAVY; // ONE navy — must equal the meta theme-color (M3)
-function hx(hex: string): [number, number, number] { const h = hex.replace("#", ""); const s = h.length === 3 ? h.split("").map((c) => c + c).join("") : h; const n = parseInt(s, 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
-function toHex(r: number, g: number, b: number) { const t = (x: number) => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, "0"); return `#${t(r)}${t(g)}${t(b)}`; }
-function lum([r, g, b]: [number, number, number]) { const f = (c: number) => { const x = c / 255; return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4); }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); }
-function contrast(a: [number, number, number], b: [number, number, number]) { const la = lum(a) + 0.05, lb = lum(b) + 0.05; return la > lb ? la / lb : lb / la; }
-function readable(hex: string, min = 2.6): string {
-  const bg = hx(PAGE_NAVY), rgb = hx(hex);
-  if (contrast(rgb, bg) >= min) return hex;
-  for (let t = 0.18; t <= 1.0001; t += 0.18) {
-    const m: [number, number, number] = [rgb[0] + (255 - rgb[0]) * t, rgb[1] + (255 - rgb[1]) * t, rgb[2] + (255 - rgb[2]) * t];
-    if (contrast(m, bg) >= min) return toHex(m[0], m[1], m[2]);
-  }
-  return "#E8ECF5";
-}
-const boltFor = (id: string) => { const c = schoolColors(id); const a = readable(c.c1), b = readable(c.c2); return lum(hx(b)) > lum(hx(a)) ? { c1: b, c2: a } : { c1: a, c2: b }; };
+// EXACT BRAND HEX, nothing else. An earlier version pushed every low-contrast colour toward
+// white (Ole Miss navy #14213D became slate #697183, Auburn navy and Georgia black went grey) and
+// then reordered c1/c2 by brightness so light secondaries became the main fill — on the theory
+// that a dark bolt would vanish into the navy page. The white keyline and the two-colour banded
+// gradient make that unnecessary, and Lee could see the colours were wrong. A school's colours
+// are its colours.
+const boltFor = (id: string) => schoolColors(id);
 
 // Static fallbacks when live data isn't published yet (the menu IS the marketing).
 const STATIC_EXAM1 = ["Types of Accounts", "A = L + E", "Debits & Credits", "Journal Entries", "Adjusting Entries", "Closing Entries"];
@@ -269,13 +258,13 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   // MARKETING CONTEXT — which of the three page kinds this render is, and the code/school the
   // copy interpolates. Greek wins; a known campus (URL, account, or a returning visitor's stored
   // pick) reads as a campus page; otherwise general. Campus/greek bolts inherit the page root's
-  // --sa-bolt vars; the GENERAL hero rotates school colourways (below) and settles on Ole Miss.
+  // --sa-bolt vars; the GENERAL hero rotates through every school colourway (below).
   const heroSchoolName = school?.name ?? campus.school?.name ?? null;
   const heroKind: "general" | "campus" | "greek" = greek ? "greek" : heroSchoolName ? "campus" : "general";
   const heroCode = campus.code ?? (school?.codeVerified && school.code ? school.code : null);
 
   // HOME ROTATION — Ole Miss, LSU and Tennessee lead (build-priority order), the rest follow in
-  // picker order; AnimatedBoltHero cycles the first three then settles on the first and stops.
+  // picker order; AnimatedBoltHero cycles through ALL of them continuously (~5s each).
   // Codes ride along ONLY when verified, so the plate can never print a plausible wrong one.
   const rotationStops = useMemo<BoltHeroStop[]>(() => {
     const rank = (id: string) => { const i = ROTATION_LEAD.indexOf(id); return i < 0 ? ROTATION_LEAD.length : i; };

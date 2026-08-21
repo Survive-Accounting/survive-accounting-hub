@@ -11,9 +11,8 @@
 // NO TEXT INSIDE THE BOLT — ever. The PLATE below it ("for ACCY 201 · OLE MISS") carries the
 // words, in the site's own display face, cross-fading in lockstep with the colour cycle.
 //
-// ROTATION (home): cycle the first three schools, then SETTLE on the first and stop — constant
-// motion competes with the headline; the rotation's job is to plant "many schools" and get out
-// of the way. A single stop (campus page, or a returning visitor whose school the picker stored)
+// ROTATION (home): cycle every school in the list, continuously, ~5s each — the breadth IS the
+// message. A single stop (campus page, or a returning visitor whose school the picker stored)
 // pins from the first frame: one bolt, one campus, their colours.
 //
 // prefers-reduced-motion: the gradient freezes at its midpoint (colours + plate still shown),
@@ -28,9 +27,10 @@ export type BoltHeroStop = { id: string; c1: string; c2: string; name?: string; 
 /** viewBox numbers, needed for the gradient sheet's user-space coordinates. */
 const VB = { x: -18.21, y: -2.26, w: 109.27, h: 146.96 };
 
-/** ~6.5s per school; three schools ≈ a 20s load cycle before settling. */
-const DWELL_MS = 6500;
-const ROTATE_COUNT = 3;
+/** ~5s per school. The general hero cycles EVERY school in the list (66 today) continuously —
+ *  a lap is ~5½ minutes, so no visit sees a repeat, and the breadth is the point. Campus and
+ *  greek pages pass a single stop and never rotate. */
+const DWELL_MS = 5000;
 
 export function AnimatedBoltHero({ stops, onActivate, className, ariaLabel = "Cram Exam 1 Free" }: {
   stops: BoltHeroStop[];
@@ -46,15 +46,11 @@ export function AnimatedBoltHero({ stops, onActivate, className, ariaLabel = "Cr
   // while rendering makes the server and a reduced-motion client disagree on the first paint.
   useEffect(() => { setReduce(!!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches); }, []);
 
-  // Cycle through the first ROTATE_COUNT schools once, then settle on the first — no forever-loop.
+  // Cycle through every stop, continuously. Reduced motion never starts the timer (stops[0]
+  // stays); a single stop (campus/greek/stored school) never rotates.
   useEffect(() => {
     if (reduce || stops.length < 2) return;
-    let ticks = 0;
-    const t = window.setInterval(() => {
-      ticks++;
-      if (ticks >= ROTATE_COUNT) { setI(0); window.clearInterval(t); return; }
-      setI(ticks % Math.min(ROTATE_COUNT, stops.length));
-    }, DWELL_MS);
+    const t = window.setInterval(() => setI((n) => (n + 1) % stops.length), DWELL_MS);
     return () => window.clearInterval(t);
   }, [reduce, stops.length]);
 
