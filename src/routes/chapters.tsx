@@ -23,7 +23,7 @@
 // Navy/bolt/cream. Krug: one decision per screen, no field we don't need today.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import { ALL_SCHOOLS, schoolById } from "@/lib/schools";
+import { ALL_SCHOOLS, schoolById, schoolBySlug } from "@/lib/schools";
 import { ChapterFinder } from "@/components/site/ChapterFinder";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { readCampusPrefs } from "@/lib/campus-prefs.functions";
@@ -73,6 +73,15 @@ function ChaptersPage() {
   // M1.4 — navy overscroll, matching the meta theme-color.
   useNavyDocument();
   const theme = DEFAULT_FRAME_THEME;
+  // THE SUBHEAD NAMES THEIR COURSE once the campus is known (?school= from a campus page, or the
+  // remembered campus cookie). "Exam 1" is what we say to someone we cannot place; to a chapter at
+  // a campus we HAVE mapped, the course code is the more specific promise. Never a guessed code —
+  // a campus with no verified code keeps the generic line.
+  const { school: preselect } = Route.useSearch();
+  const { codes, storedSlug } = Route.useLoaderData();
+  const slug = preselect ?? storedSlug ?? null;
+  const campusId = slug ? schoolBySlug(slug)?.campusId : undefined;
+  const code = (campusId && codes.find((c) => c.campusId === campusId)?.code) || null;
   return (
     <div style={{ ...frameThemeVars(theme), background: "var(--bg-page)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "hidden" }}>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
@@ -91,7 +100,9 @@ function ChaptersPage() {
           <FitWordmark size={84} />
           <h1 className="mt-5 text-[26px] font-black sm:text-[32px]" style={{ letterSpacing: "-0.01em" }}>Find your chapter.</h1>
           <p className="mt-2 max-w-md text-[15px] leading-relaxed sm:text-[16px]" style={{ color: "var(--brand-cream)", opacity: 0.88, fontFamily: BRAND_SANS }}>
-            Free Exam 1 cram videos for your whole chapter.
+            {code
+              ? `Free ${code} cram videos + practice exams for your whole chapter.`
+              : "Free Exam 1 cram videos for your whole chapter."}
           </p>
           <div className="mt-6 w-full max-w-sm">
             <FindMyChapter />

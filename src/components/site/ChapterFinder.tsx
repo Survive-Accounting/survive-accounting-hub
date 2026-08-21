@@ -41,7 +41,7 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
   /** Course codes resolved by the caller (route loader) so the rows carry them on first paint.
    *  The client query below still runs and wins once it answers. */
   codes?: CampusIntroCode[];
-  /** Offer "My school / chapter isn't listed" beneath the button. */
+  /** Offer the "Don't see your school or chapter?" write-in beneath the controls. */
   escapeHatches?: boolean;
   /** Pre-selected school slug. A campus page's "For fraternities & sororities" link arrives
    *  already knowing the school, so making the visitor find it again in a dropdown is a step
@@ -109,9 +109,18 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
         // A chapter needs a campus, so self-creation is offered only once a school is chosen.
         // Without one we fall back to the plain write-in, which can at least capture who asked.
         notListed === "chapter" && school ? (
+          // A school IS picked, so the strongest answer is not a form: they pick their org from
+          // the national list and land on a working /go/ page for it.
           <ChapterSelfCreate schoolSlug={school} schoolName={schoolName} onClose={() => setNotListed(null)} />
         ) : (
-          <NotListedForm kind={notListed} school={notListed === "chapter" ? schoolName : undefined} onClose={() => setNotListed(null)} />
+          // No school picked — one form covers both halves of "don't see your school or chapter".
+          <NotListedForm
+            kind={notListed}
+            school={notListed === "chapter" ? schoolName : undefined}
+            askChapter
+            title="Which school and chapter?"
+            onClose={() => setNotListed(null)}
+          />
         )
       ) : (
         <>
@@ -161,13 +170,14 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
             </button>
           )}
 
+          {/* ONE escape hatch, not two. The pair said the same thing twice and stacked on a phone;
+              this is a single quiet line, and what it opens depends on how far they got: a school
+              already picked means the gap is the CHAPTER (self-create), otherwise the write-in
+              takes both. Smaller than the controls above it — it is the exception, not the path. */}
           {escapeHatches && (
-            <div className="mt-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
-              <button type="button" onClick={() => setNotListed("school")} className="px-1 text-[14px] underline underline-offset-4" style={{ color: "var(--text-muted)", minHeight: 44 }}>
-                My school isn&apos;t listed →
-              </button>
-              <button type="button" onClick={() => setNotListed("chapter")} className="px-1 text-[14px] underline underline-offset-4" style={{ color: "var(--text-muted)", minHeight: 44 }}>
-                My chapter isn&apos;t listed →
+            <div className="mt-1 flex items-center justify-center">
+              <button type="button" onClick={() => setNotListed(school ? "chapter" : "school")} className="px-1 text-[13px] underline underline-offset-4" style={{ color: "var(--text-muted)", minHeight: 44 }}>
+                Don&apos;t see your school or chapter?
               </button>
             </div>
           )}

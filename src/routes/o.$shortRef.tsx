@@ -900,7 +900,7 @@ function SchoolPicker({
           )}
           <button type="button" className="mt-2 text-xs text-gray-600 underline"
             onClick={() => { onTypeOther(""); setOpen(false); }}>
-            My school isn&apos;t listed
+            Don&apos;t see your school?
           </button>
         </>
       )}
@@ -983,7 +983,7 @@ function CoursePicker({
             className="mt-2 text-xs text-gray-600 underline"
             onClick={() => onTypeOther(" ")}
           >
-            My course isn&apos;t listed
+            Don&apos;t see your course?
           </button>
         </>
       )}

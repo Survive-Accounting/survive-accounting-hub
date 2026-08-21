@@ -8,11 +8,17 @@ import { useState } from "react";
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { submitNotListed } from "@/lib/greek-notlisted.functions";
 
-export function NotListedForm({ kind, school, onClose }: {
+export function NotListedForm({ kind, school, onClose, askChapter, title }: {
   kind: "school" | "chapter";
   /** Prefilled when they got as far as picking a school before falling out. */
   school?: string;
   onClose: () => void;
+  /** Ask for the Greek chapter too. Defaults to the Greek surfaces; the solo-student form on the
+   *  homepage does NOT ask (a student who cannot find their school has no reason to be asked
+   *  which fraternity they are in). */
+  askChapter?: boolean;
+  /** Heading override — the /chapters form covers school AND chapter in one go. */
+  title?: string;
 }) {
   const [schoolName, setSchoolName] = useState(school ?? "");
   const [chapter, setChapter] = useState("");
@@ -51,14 +57,16 @@ export function NotListedForm({ kind, school, onClose }: {
     <div className="rounded-xl p-4 text-left" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", fontFamily: BRAND_SANS }}>
       <div className="mb-3 flex items-start justify-between gap-3">
         <p className="text-[13.5px] font-black" style={{ color: "var(--brand-cream)" }}>
-          {kind === "school" ? "Which school are you at?" : "Which chapter are you in?"}
+          {title ?? (kind === "school" ? "Which school are you at?" : "Which chapter are you in?")}
         </p>
         <button type="button" onClick={onClose} aria-label="Close" className="grid h-7 w-7 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--text-muted)" }}>
           <span aria-hidden style={{ fontSize: 16, lineHeight: 1 }}>×</span>
         </button>
       </div>
       <input value={schoolName} onChange={(e) => setSchoolName(e.target.value)} placeholder="School" className="mb-2 w-full rounded-lg px-3 text-[14px] outline-none" style={field} />
-      <input value={chapter} onChange={(e) => setChapter(e.target.value)} placeholder="Greek chapter" className="mb-2 w-full rounded-lg px-3 text-[14px] outline-none" style={field} />
+      {(askChapter ?? kind === "chapter") && (
+        <input value={chapter} onChange={(e) => setChapter(e.target.value)} placeholder="Greek chapter" className="mb-2 w-full rounded-lg px-3 text-[14px] outline-none" style={field} />
+      )}
       <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="mb-2 w-full rounded-lg px-3 text-[14px] outline-none" style={field} />
       {/* 16px explicitly — under it iOS zooms the page on focus and never zooms back. */}
       <input value={contact} onChange={(e) => setContact(e.target.value)} placeholder="Email or mobile" className="w-full rounded-lg px-3 outline-none" style={{ ...field, fontSize: 16 }} />

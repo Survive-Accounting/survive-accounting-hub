@@ -595,8 +595,8 @@ const FAQS: { q: string; a: string }[] = [
     a: "Yes — this is tutoring, same as any campus tutor or study guide. I teach you how to do the problems; exam day is still all you.",
   },
   {
-    q: "What if my school isn't listed?",
-    a: "Intro accounting is nearly the same course everywhere, so these videos will still carry you — and I add schools as students ask. Hit \"My school isn't listed\" and tell me.",
+    q: "What if you don't have my school?",
+    a: "Intro accounting is nearly the same course everywhere, so these videos will still carry you — and I add schools as students ask. Hit \"Don't see your school?\" and tell me.",
   },
   {
     q: "What if I watch everything and still feel lost?",
@@ -806,7 +806,7 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
           search={{ value: q, onChange: setQ, placeholder: `Search ${schools.length} schools…` }}
           footer={onNotListed ? (
             <button type="button" className="sa-row sa-row--plain" onClick={() => { onNotListed(); close(); }}>
-              <span className="sa-row-name" style={{ color: "var(--accent)", fontSize: 15 }}>My school isn&apos;t listed →</span>
+              <span className="sa-row-name" style={{ color: "var(--accent)", fontSize: 15 }}>Don&apos;t see your school?</span>
             </button>
           ) : undefined}
         >
@@ -1239,7 +1239,7 @@ function MatchPanel({ gateActive, school, professor, notListed, profDone, covera
 
 /** The professor rung, rendered inline on the stage rather than in a sheet.
  *
- *  Pass 4 removed "Skip this" on instruction: "My professor isn't listed" is the only alternate
+ *  Pass 4 removed "Skip this" on instruction: "Don't see your professor?" is the only alternate
  *  path, and it still reaches the same next step, so nobody is trapped. "Change school" is
  *  deliberately demoted to small muted text under the list — it is a correction, not a choice. */
 /** A WRITE-IN professor — a campus with no faculty rows yet, or a student whose professor isn't in
@@ -1257,7 +1257,7 @@ const writeInProfessor = (name: string): ProfessorLite => ({ id: "", name, first
  *
  *  WRITE-IN: many campuses have no faculty listed yet, so the picker would open onto "0 professors /
  *  No matches" — a dead end. When the roster is empty we show a free-text field instead of the empty
- *  picker; when the roster has names but not theirs, "My professor isn't listed" reveals the same
+ *  picker; when the roster has names but not theirs, "Don't see your professor?" reveals the same
  *  field. Either way the typed name is captured as a write-in professor. A muted skip stays available
  *  so nobody is trapped by a field they can't (or won't) fill. */
 function ProfessorStage({ school, onPick, onNotListed }: {
@@ -1338,7 +1338,7 @@ function ProfessorStage({ school, onPick, onNotListed }: {
             ariaLabel={`Search ${school?.name ?? "your school"} professors`}
           />
           <button type="button" onClick={() => setManual(true)} className="text-[14px] font-bold" style={{ minHeight: 44, color: "var(--accent)" }}>
-            My professor isn&apos;t listed →
+            Don&apos;t see your professor?
           </button>
           {/* Professor selection is OPTIONAL — the explicit low-friction way past the question,
               in the list state too (the write-in state already had one). */}

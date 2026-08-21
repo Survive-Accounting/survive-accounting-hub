@@ -426,6 +426,7 @@ export function MarketingUtilityLinks({ kind, onProfessorAsk }: {
   return (
     <section className="mx-auto flex w-full max-w-[640px] flex-col items-center gap-2 px-5 py-8 text-center" style={{ fontFamily: BRAND_SANS }}>
       {kind === "general" && (schoolForm
+        // Solo-student surface: school only. The Greek chapter field belongs to /chapters.
         ? <NotListedForm kind="school" onClose={() => setSchoolForm(false)} />
         : (
           <button type="button" onClick={() => setSchoolForm(true)} className={LINK} style={{ color: "var(--text-muted)", minHeight: 44 }}>
