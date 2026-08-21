@@ -46,12 +46,16 @@ export const MARKETING_HERO_ID = "marketing-hero";
  *  MOBILE ORDER: headline → promise → built-for → CTAs → trust chips → bolt. The bolt is
  *  branding, not content — it comes from natural DOM order (no order-first), so it can never
  *  push the CTA out of the first viewport. Desktop keeps it as the right column. */
-export function MarketingHero({ kind, code, schoolShort, greek, onStart, secondaryHref, onSecondary, secondaryLabel, showSecondary = true, onOpenBio, courtesy }: {
+export function MarketingHero({ kind, code, schoolShort, greek, onStart, secondaryHref, onSecondary, secondaryLabel, showSecondary = true, onOpenBio, courtesy, rotationStops }: {
   kind: "general" | "campus" | "greek";
   /** Verified course code or null — a null degrades copy, never invents a code. */
   code: string | null;
   schoolShort: string | null;
   greek?: GreekMarketing;
+  /** GENERAL pages only: the school colourways the bolt cycles on load (AnimatedBoltHero rotates
+   *  the first three, then settles on the first and stops). Without it the bolt wears the plain
+   *  brand red/blue. Campus/greek pages ignore this — they are pinned to their own school. */
+  rotationStops?: BoltHeroStop[];
   /** Primary CTA + "Built for exam week" chip target — scrolls to the player (and tags Greek
    *  members upstream, where attribution belongs). */
   onStart: () => void;
@@ -64,11 +68,12 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, seconda
   /** CourtesyLine slot on greek pages — "courtesy of {chapter}" for seated members. */
   courtesy?: React.ReactNode;
 }) {
-  // General pages wear the brand's own red/blue — the default Survive treatment, no plate.
-  // Campus/greek pages inherit the page root's campus colourway vars (the ONE colour source;
-  // schools.ts disagrees for Ole Miss) and carry the "for CODE · CAMPUS" plate.
+  // General pages ROTATE school colourways (rotationStops: three schools, then settle on the
+  // first — "we serve many schools", said once, then out of the way), falling back to the brand
+  // red/blue when no list is supplied. Campus/greek pages inherit the page root's colourway vars
+  // (the ONE colour source; schools.ts disagrees for Ole Miss) and carry the campus plate.
   const stops: BoltHeroStop[] = kind === "general"
-    ? [{ id: "brand", c1: BRAND_RED, c2: BRAND_BLUE }]
+    ? (rotationStops?.length ? rotationStops : [{ id: "brand", c1: BRAND_RED, c2: BRAND_BLUE }])
     : [{ id: schoolShort ?? "campus", c1: "var(--sa-bolt-1)", c2: "var(--sa-bolt-2)", name: schoolShort ?? undefined, code }];
 
   const headline = code && schoolShort

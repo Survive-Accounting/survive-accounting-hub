@@ -32,7 +32,7 @@ import { FitWordmark, SiteHeader, SITE_NAVY, useNavyDocument } from "@/component
 import { PickerSheet } from "@/components/site/PickerSheet";
 import { logCampusCodeDemand } from "@/lib/campus-demand.functions";
 import { ALL_SCHOOLS, searchSchools } from "@/lib/schools";
-import { ANIMATED_BOLT_CSS } from "@/components/site/AnimatedBolt";
+import { ANIMATED_BOLT_CSS, type BoltHeroStop } from "@/components/site/AnimatedBolt";
 import {
   FeatureValueStrip, MARKETING_CSS, MarketingHero, MarketingUtilityLinks,
   SocialProofSection, TutorBioModal, TutorCard, type GreekMarketing,
@@ -54,6 +54,8 @@ export const Route = createFileRoute("/landing")({
 const EXAM_ANCHOR_ID = "exam1";
 const PHONE = "(662) 565-8818";
 const TEL = "+16625658818";
+/** The home hero's colour-cycle leaders, in build-priority order (the brief's original trio). */
+const ROTATION_LEAD = ["ole-miss", "lsu", "tennessee"];
 
 // THE SCHOOL LIST — derived from the generated table, never hand-maintained here.
 //
@@ -266,12 +268,22 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
 
   // MARKETING CONTEXT — which of the three page kinds this render is, and the code/school the
   // copy interpolates. Greek wins; a known campus (URL, account, or a returning visitor's stored
-  // pick) reads as a campus page; otherwise general. The hero bolt colourway follows the same
-  // rule via the page root's --sa-bolt vars — the rotation experiment is gone: general pages
-  // wear the default brand red/blue, campus pages their school's own colours.
+  // pick) reads as a campus page; otherwise general. Campus/greek bolts inherit the page root's
+  // --sa-bolt vars; the GENERAL hero rotates school colourways (below) and settles on Ole Miss.
   const heroSchoolName = school?.name ?? campus.school?.name ?? null;
   const heroKind: "general" | "campus" | "greek" = greek ? "greek" : heroSchoolName ? "campus" : "general";
   const heroCode = campus.code ?? (school?.codeVerified && school.code ? school.code : null);
+
+  // HOME ROTATION — Ole Miss, LSU and Tennessee lead (build-priority order), the rest follow in
+  // picker order; AnimatedBoltHero cycles the first three then settles on the first and stops.
+  // Codes ride along ONLY when verified, so the plate can never print a plausible wrong one.
+  const rotationStops = useMemo<BoltHeroStop[]>(() => {
+    const rank = (id: string) => { const i = ROTATION_LEAD.indexOf(id); return i < 0 ? ROTATION_LEAD.length : i; };
+    return schoolsWithCodes
+      .slice()
+      .sort((a, b) => rank(a.id) - rank(b.id))
+      .map((s) => ({ id: s.id, name: s.name, code: s.code ?? null, ...boltFor(s.id) }));
+  }, [schoolsWithCodes]);
 
   const treeQ = useQuery({ queryKey: ["landing-tree", school?.campusId ?? null], queryFn: () => fetchStudentTree({ data: school ? { campusId: school.campusId } : {} }), networkMode: "always", staleTime: 300_000 });
   const intro1 = useMemo(() => (treeQ.data ?? []).find((c) => c.family === "intro_1" || c.name.trim().toLowerCase() === "intro 1") ?? null, [treeQ.data]);
@@ -422,6 +434,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
           kind={heroKind}
           code={heroCode}
           schoolShort={heroSchoolName}
+          rotationStops={rotationStops}
           greek={greek}
           onStart={heroStart}
           secondaryLabel={greek ? (greek.claimed ? `Use ${greek.letters} access →` : `Set up ${greek.letters} access →`) : "For fraternities & sororities →"}
