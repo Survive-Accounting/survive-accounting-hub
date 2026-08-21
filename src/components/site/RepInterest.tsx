@@ -7,6 +7,7 @@
 // work, and this is an independent-contractor arrangement. Unchecked, the form declines politely and
 // STORES NOTHING — no record, no alert. Capturing a name we would have to turn down, and holding it
 // on file, is worse for them than not asking.
+import { SmsConsentNote } from "@/components/landing/SmsConsentBanner";
 import { useState } from "react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
@@ -118,6 +119,7 @@ export function RepInterest({ schoolSlug, schoolName }: { schoolSlug: string; sc
 
             <label className="sr-only" htmlFor="rep-phone">Phone</label>
             <input id="rep-phone" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" placeholder="Mobile number" autoComplete="tel" className="mb-2 w-full rounded-lg px-3 outline-none focus:ring-2" style={FIELD} />
+            <SmsConsentNote className="mb-2" />
 
             {/* Pre-filled from campus context, still editable — a rep at a school we do not list yet
                 is exactly the person worth hearing from. */}

@@ -252,6 +252,21 @@ export const tagChapterMember = createServerFn({ method: "POST" })
         chapter_id: chapterId, user_id: data.userId, name: data.name ?? null, phone: data.phone ?? null,
         source: data.source, tagged_at: new Date().toISOString(),
       }, { onConflict: "chapter_id,user_id" });
+      // UNIFIED INTAKE (greek_member): one "You're in — free Exam 1 for <Chapter>" per member
+      // (the intake de-dupes by email+kind). Email comes from the auth user behind the magic link.
+      try {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { data: u } = await supabaseAdmin.auth.admin.getUserById(data.userId);
+        const email = u?.user?.email ?? null;
+        if (email) {
+          const { runIntake } = await import("@/lib/comms/intake.server");
+          await runIntake({
+            kind: "greek_member", email, name: data.name ?? (u?.user?.user_metadata as { full_name?: string } | undefined)?.full_name ?? null,
+            campusName: ch.schoolName, campusSlug: ch.schoolSlug, chapter: ch.chapterName,
+            chapterLink: `https://surviveaccounting.com${goPath(ch.schoolSlug, ch.chapterSlug)}`, sourcePath: goPath(ch.schoolSlug, ch.chapterSlug),
+          });
+        }
+      } catch (e) { console.warn("greek_member intake failed (member tagged)", (e as Error).message); }
     } else {
       // No account yet. Without a user_id the unique index does not apply, so de-dupe on phone —
       // the only stable handle an anonymous student has — rather than banking the same person twice.

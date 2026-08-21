@@ -1,10 +1,12 @@
-// Public capture for the pricing page + the free-video lead magnet.
-// Both feed the SAME list (campus_waitlist) and the insert fires the existing
-// text-to-Lee trigger (campus_waitlist_notify). The tier is encoded in `source`
-// so capture works BEFORE migration 0028 (which adds a structured
-// `tier_interest` column) is applied. Routes/components call these — they do not
-// touch the Supabase client directly (per CONTEXT.md conventions).
-import { supabase } from "@/integrations/supabase/client";
+// Public capture helpers — the pricing/notify rows, onboarding, the free-video lead magnet.
+//
+// UNIFIED INTAKE (2026-08-21): every function here now routes through submitIntake
+// (src/lib/intake.functions.ts) → campus_waitlist with a proper `kind` + context. The
+// signatures are unchanged so the landing page, /learn, onboarding and the lead-magnet card
+// keep calling what they always called; what changed is that the student now gets a
+// confirmation and Lee's alerts come from one code path. No component touches the Supabase
+// client for captures any more (per CONTEXT.md conventions).
+import { submitIntake } from "@/lib/intake.functions";
 
 export type WaitlistTier = "test_pass" | "membership";
 
@@ -14,67 +16,55 @@ export type WaitlistTier = "test_pass" | "membership";
 export type OnboardingPlan = "test_pass" | "membership" | "prepay";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const path = () => (typeof window !== "undefined" ? window.location.pathname : null);
 
-async function insertWaitlist(row: {
-  email: string;
-  name?: string | null;
-  phone?: string | null;
-  campus?: string | null;
-  course?: string | null;
-  source: string;
-  tierInterest?: string | null;
-  accountingMajor?: string | null;
-}): Promise<void> {
-  const email = row.email.trim().toLowerCase();
-  if (!EMAIL_RE.test(email)) throw new Error("Please enter a valid email.");
-  // `as never`/`as any`: campus_waitlist isn't in the generated Database types.
-  const payload: Record<string, unknown> = {
-    email,
-    phone: row.phone?.trim() || null,
-    campus_text: row.campus?.trim() || null,
-    course_text: row.course?.trim() || null,
-    source: row.source,
-  };
-  if (row.name?.trim()) payload.name = row.name.trim();
-  if (row.tierInterest) payload.tier_interest = row.tierInterest;
-  // `accounting_major` is added in migration 0031 — only send it when set so
-  // capture still works (and degrades gracefully) before the column exists.
-  if (row.accountingMajor) payload.accounting_major = row.accountingMajor;
-  const { error } = await (supabase.from("campus_waitlist" as never) as any).insert(payload);
-  if (error) throw new Error(error.message);
-}
+/** Split the landing page's "Exam 2 · ACCY 201" course string back into its parts. */
+const splitCourse = (course?: string | null): { courseCode: string | null; topic: string | null } => {
+  const raw = (course ?? "").trim();
+  if (!raw) return { courseCode: null, topic: null };
+  const parts = raw.split("·").map((s) => s.trim()).filter(Boolean);
+  const codeLike = parts.find((p) => /^[A-Z]{2,5}\s?\d{3}/.test(p)) ?? null;
+  const rest = parts.filter((p) => p !== codeLike && !/^(exam\s*\d+|final)$/i.test(p));
+  return { courseCode: codeLike, topic: rest[0] ?? null };
+};
 
-/** Materials waitlist (test pass / semester membership).
+/** Materials waitlist (test pass / semester membership) → kind `notify_exam`.
  *
- *  `examNum` rides in the SOURCE tag rather than in a column of its own. All four exam tabs on the
- *  landing page collect emails now, so "which exam did this person ask for" has to be recorded
- *  somewhere — and a source suffix needs no migration. 99 is the Final, matching the exam
- *  numbering used everywhere else. Tier stays a real WaitlistTier: an exam is not a pricing tier,
- *  and widening that union to carry one would corrupt every existing tier_interest report. */
-export function joinPricingWaitlist(input: {
+ *  `examNum` is a real column now (campus_waitlist.exam). 99 is the Final, matching the exam
+ *  numbering used everywhere else. */
+export async function joinPricingWaitlist(input: {
   email: string;
   phone?: string | null;
   campus?: string | null;
+  campusId?: string | null;
+  campusSlug?: string | null;
+  professor?: string | null;
   course?: string | null;
   tier: WaitlistTier;
   examNum?: number | null;
+  smsConsent?: boolean;
 }): Promise<void> {
-  return insertWaitlist({
-    email: input.email,
-    phone: input.phone,
-    campus: input.campus,
-    course: input.course,
-    source: `pricing_page_${input.tier}${input.examNum != null ? `_exam${input.examNum}` : ""}`,
-    tierInterest: input.tier,
-  });
+  const email = input.email.trim().toLowerCase();
+  if (!EMAIL_RE.test(email)) throw new Error("Please enter a valid email.");
+  const { courseCode, topic } = splitCourse(input.course);
+  await submitIntake({ data: {
+    kind: "notify_exam",
+    email,
+    phone: input.phone?.trim() || null,
+    campusName: input.campus?.trim() || null,
+    campusId: input.campusId ?? null,
+    campusSlug: input.campusSlug ?? null,
+    professor: input.professor?.trim() || null,
+    courseCode,
+    topic: topic ?? (input.tier === "membership" ? "Semester Pass" : null),
+    exam: input.examNum ?? null,
+    sourcePath: path(),
+    smsConsent: !!input.smsConsent,
+  } });
 }
 
-/** Onboarding flow (/o/{short_ref}) — captures the waitlist signup into the same
- *  campus_waitlist list. `plan` is OPTIONAL interest data: when present, `source`
- *  = 'onboarding_<plan>' and `tier_interest` = the plan key; when absent, `source`
- *  = 'onboarding' with no tier. Name/phone/school/course + the optional
- *  accounting-major self-report ride along when provided. */
-export function joinOnboardingWaitlist(input: {
+/** Onboarding flow (/o/{short_ref}) — the same list; plan interest rides in `topic`. */
+export async function joinOnboardingWaitlist(input: {
   email: string;
   name?: string | null;
   phone?: string | null;
@@ -82,27 +72,26 @@ export function joinOnboardingWaitlist(input: {
   course?: string | null;
   accountingMajor?: string | null;
   plan?: OnboardingPlan | null;
+  smsConsent?: boolean;
 }): Promise<void> {
-  return insertWaitlist({
-    email: input.email,
-    name: input.name,
-    phone: input.phone,
-    campus: input.campus,
-    course: input.course,
-    accountingMajor: input.accountingMajor,
-    source: input.plan ? `onboarding_${input.plan}` : "onboarding",
-    tierInterest: input.plan ?? null,
-  });
+  const email = input.email.trim().toLowerCase();
+  if (!EMAIL_RE.test(email)) throw new Error("Please enter a valid email.");
+  await submitIntake({ data: {
+    kind: "notify_exam",
+    email,
+    name: input.name?.trim() || null,
+    phone: input.phone?.trim() || null,
+    campusName: input.campus?.trim() || null,
+    courseCode: input.course?.trim() || null,
+    topic: input.plan ? `plan:${input.plan}` : null,
+    note: input.accountingMajor ? `accounting major: ${input.accountingMajor}` : null,
+    sourcePath: path(),
+    smsConsent: !!input.smsConsent,
+  } });
 }
 
-/** Premium 1-on-1 prepay — captures the high-intent lead into campus_waitlist
- *  BEFORE the Stripe handoff, so an abandoner at checkout is still captured and
- *  Lee can follow up. We generate the row id client-side and return it so the
- *  caller can pass it to Stripe as `client_reference_id` (and prefill the email)
- *  — that ties the eventual payment back to this lead. The insert fires the
- *  existing campus_waitlist_notify trigger (email + Lee's personal-phone SMS),
- *  so Lee knows a $1,250 buyer is in the flow. `mode` distinguishes a true
- *  reservation (→ Stripe) from a sold-out waitlist signup. */
+/** Premium 1-on-1 prepay — captures the high-intent lead BEFORE any Stripe handoff so an
+ *  abandoner is still captured. Returns the row id (Stripe `client_reference_id` later). */
 export async function reservePrepayLead(input: {
   name?: string | null;
   email: string;
@@ -110,36 +99,27 @@ export async function reservePrepayLead(input: {
   campus?: string | null;
   course?: string | null;
   mode?: "reserve" | "waitlist";
+  smsConsent?: boolean;
 }): Promise<{ id: string }> {
   const email = input.email.trim().toLowerCase();
   if (!EMAIL_RE.test(email)) throw new Error("Please enter a valid email.");
-  const id =
-    (typeof crypto !== "undefined" && "randomUUID" in crypto)
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  const payload: Record<string, unknown> = {
-    id,
+  const r = await submitIntake({ data: {
+    kind: "tutoring_request",
     email,
     name: input.name?.trim() || null,
     phone: input.phone?.trim() || null,
-    campus_text: input.campus?.trim() || null,
-    course_text: input.course?.trim() || null,
-    source: input.mode === "waitlist" ? "prepay_1on1_waitlist" : "prepay_1on1",
-    tier_interest: "prepay",
-  };
-  const { error } = await (supabase.from("campus_waitlist" as never) as any).insert(payload);
-  if (error) throw new Error(error.message);
-  return { id };
+    campusName: input.campus?.trim() || null,
+    courseCode: input.course?.trim() || null,
+    topic: input.mode === "waitlist" ? "prepay:waitlist" : "prepay:reserve",
+    sourcePath: path(),
+    smsConsent: !!input.smsConsent,
+  } });
+  return { id: r.id };
 }
 
 /** Free-video lead magnet — same list, instant reveal (no email round-trip). */
-export function captureFreeVideoLead(input: {
-  email: string;
-  course?: string | null;
-}): Promise<void> {
-  return insertWaitlist({
-    email: input.email,
-    course: input.course,
-    source: "free_videos",
-  });
+export async function captureFreeVideoLead(input: { email: string; course?: string | null }): Promise<void> {
+  const email = input.email.trim().toLowerCase();
+  if (!EMAIL_RE.test(email)) throw new Error("Please enter a valid email.");
+  await submitIntake({ data: { kind: "notify_exam", email, courseCode: input.course?.trim() || null, exam: 1, sourcePath: path() } });
 }

@@ -186,6 +186,29 @@ export async function gatherDigest(now: Date = new Date()): Promise<DigestData> 
     sections.push({ label: "Suppression events", count: total, details: detail });
   }
 
+  // ── DEMAND (spec §7) — the unified intake this week: signups by kind, syllabi, referrals,
+  //    claims, top campuses. The batched founder kinds (notify_exam / save_progress /
+  //    school_request) surface HERE rather than as real-time alerts.
+  try {
+    const { data } = await sb.from("campus_waitlist").select("kind,campus_text,file_paths").eq("is_test", false).gte("created_at", startIso);
+    const rows = (data ?? []) as { kind: string | null; campus_text: string | null; file_paths: string[] | null }[];
+    const byKind = new Map<string, number>();
+    const byCampus = new Map<string, number>();
+    let syllabi = 0;
+    for (const r of rows) {
+      byKind.set(r.kind ?? "unknown", (byKind.get(r.kind ?? "unknown") ?? 0) + 1);
+      if (r.campus_text) byCampus.set(r.campus_text, (byCampus.get(r.campus_text) ?? 0) + 1);
+      if (r.file_paths?.length) syllabi++;
+    }
+    const kinds = [...byKind.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k} ${n}`).join(", ");
+    const campuses = [...byCampus.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([c, n]) => `${c} (${n})`).join(", ");
+    sections.push({ label: "Demand: signups", count: rows.length, details: kinds || "—" });
+    sections.push({ label: "Demand: syllabi received", count: syllabi, details: syllabi ? "files on the lead rows — /outreach/demand" : "—" });
+    sections.push({ label: "Demand: referrals", count: byKind.get("referral") ?? 0, details: "—" });
+    sections.push({ label: "Demand: chapter claims", count: byKind.get("greek_claim") ?? 0, details: "—" });
+    sections.push({ label: "Demand: top campuses", count: byCampus.size, details: campuses || "—" });
+  } catch { /* migration 20260821_0900 not applied yet — digest still sends without this section */ }
+
   return {
     windowStart: startIso,
     windowEnd: now.toISOString(),

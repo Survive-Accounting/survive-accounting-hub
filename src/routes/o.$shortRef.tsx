@@ -5,6 +5,7 @@
 // account wall. The legacy components further down (PricingStep/ExtrasStep/
 // BookingStep/SuccessScreen/CoursePicker) are retained for the booking flow but
 // no longer drive the wizard.
+import { SmsConsentNote } from "@/components/landing/SmsConsentBanner";
 import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
@@ -323,6 +324,7 @@ function InfoStep({
         <Field label="Phone">
           <Input type="tel" value={draft.phone} placeholder="optional — for a text when content drops"
             onChange={(e) => update("phone", e.target.value)} autoComplete="tel" />
+          <SmsConsentNote tone="light" />
         </Field>
       </div>
 

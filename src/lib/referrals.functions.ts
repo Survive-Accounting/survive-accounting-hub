@@ -28,6 +28,14 @@ export const submitReferral = createServerFn({ method: "POST" })
       ok_to_name: data.okToName,
     });
     if (error) throw new Error(error.message);
+    // UNIFIED INTAKE (referral): when the alum left an email they get "Thanks — noted"; Lee sees
+    // it in the Sunday Demand digest. The referrals row above stays the provenance record.
+    if (data.referrerEmail) {
+      try {
+        const { runIntake } = await import("@/lib/comms/intake.server");
+        await runIntake({ kind: "referral", email: data.referrerEmail, note: data.rawText, sourcePath: "/expand" });
+      } catch (e) { console.warn("referral intake failed (row saved)", (e as Error).message); }
+    }
     return { ok: true };
   });
 

@@ -1,4 +1,5 @@
 // Course-level waitlist + syllabus upload. Public form on the campus landing page.
+import { SmsConsentNote } from "@/components/landing/SmsConsentBanner";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -93,6 +94,7 @@ export default function CourseWaitlistModal({
             <div className="grid gap-1.5">
               <Label htmlFor="cwm-phone" className="text-xs">Phone <span className="text-muted-foreground">(optional)</span></Label>
               <Input id="cwm-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 555-5555" />
+              <SmsConsentNote tone="light" />
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="cwm-syllabus" className="text-xs">Syllabus <span className="text-muted-foreground">(PDF, optional)</span></Label>

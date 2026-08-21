@@ -1,5 +1,6 @@
 // /start — Syllabus-first tutoring request page.
 // Student uploads syllabus + basic contact info. Lee reviews manually before sending a booking link.
+import { SmsConsentNote } from "@/components/landing/SmsConsentBanner";
 import { useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Loader2, Upload, CheckCircle2, FileText, X } from "lucide-react";
@@ -9,7 +10,6 @@ import { z } from "zod";
 import SiteNavbar from "@/components/landing/SiteNavbar";
 import Hero from "@/components/landing/Hero";
 import SiteFooter from "@/components/landing/SiteFooter";
-import BookTutoringModal from "@/components/landing/BookTutoringModal";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,7 +44,6 @@ const requestSchema = z.object({
 
 function StartPage() {
   const navigate = useNavigate();
-  const [bookOpen, setBookOpen] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
 
   const scrollToForm = () =>
@@ -88,9 +87,8 @@ function StartPage() {
       <SiteFooter
         onScrollToContact={scrollToForm}
         onScrollToReviews={scrollToForm}
-        onBookTutoring={() => setBookOpen(true)}
+        onBookTutoring={scrollToForm}
       />
-      <BookTutoringModal open={bookOpen} onOpenChange={setBookOpen} />
       <Toaster position="top-center" richColors />
     </div>
   );
@@ -156,17 +154,20 @@ function RequestForm() {
         });
       if (upErr) throw new Error(`Upload failed: ${upErr.message}`);
 
-      const payload = {
+      // UNIFIED INTAKE (tutoring_request): the student gets "Got your request — I'll text you
+      // within a day"; the row IS the record (tutoring_requests had no reader and is retired).
+      // The phone field sits beside the SmsConsentNote, so phone = consent.
+      const { submitIntake } = await import("@/lib/intake.functions");
+      await submitIntake({ data: {
+        kind: "tutoring_request",
         name: parsed.data.name,
         phone: parsed.data.phone,
         email: parsed.data.email,
-        course_notes: parsed.data.course_notes || null,
-        syllabus_file_url: path,
-        status: "new",
-      };
-
-      const { error } = await (supabase.from("tutoring_requests" as never) as any).insert(payload);
-      if (error) throw new Error(error.message);
+        note: parsed.data.course_notes || null,
+        filePaths: [`student-syllabi/${path}`],
+        sourcePath: "/start",
+        smsConsent: true,
+      } });
 
       setDone(true);
     } catch (e: any) {
@@ -227,6 +228,7 @@ function RequestForm() {
               autoComplete="tel"
               placeholder="(555) 555-5555"
             />
+            <SmsConsentNote tone="light" />
           </Field>
           <Field label="Email" required err={fieldErr("email")}>
             <Input
