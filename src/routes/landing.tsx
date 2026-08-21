@@ -14,6 +14,8 @@ import { createPortal } from "react-dom";
 import { ChevronDown, GraduationCap, Lock, MessageCircle, X } from "lucide-react";
 
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
+import { nextStep, setIndexOf, stagesOf, type SetStage } from "@/lib/set-flow";
+import { PracticeStage } from "@/components/site/PracticeStage";
 import { resolveStudentMap, type MapLevel } from "@/lib/map-resolver.functions";
 import { joinPricingWaitlist } from "@/lib/pricing-api";
 import { getChapterNames, listCampusIntroCodes } from "@/lib/default-map.functions";
@@ -1462,13 +1464,15 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
               {videoGate ? (
                 <div className="relative w-full" style={{ aspectRatio: "16 / 9", background: "var(--sa-surface-2)" }}>{videoGate}</div>
               ) : flowDone && (
-                <div className="sa-reveal relative w-full" style={{ aspectRatio: "16 / 9", background: "#000" }}>
-                  {curSet?.playbackId ? (
-                    <HeroVideo key={curSet.playbackId} playbackId={curSet.playbackId} onComplete={() => markComplete(curSet!.id)} />
-                  ) : (
+                curSet?.playbackId && curTopic ? (
+                  // A playable set walks its stages: Cram Blast → Practice → Review (shared
+                  // set-flow model — same walk as /learn, homepage-sized shell around it).
+                  <SetFlowPanel key={curSet.id} topic={curTopic} set={curSet} onCramComplete={() => markComplete(curSet!.id)} onPickSet={(sid) => pickSet(curTopic!.key, sid)} />
+                ) : (
+                  <div className="sa-reveal relative w-full" style={{ aspectRatio: "16 / 9", background: "#000" }}>
                     <Poster school={school} topicName={curTopic?.name ?? active.label} stem={curSet?.firstStem ?? null} />
-                  )}
-                </div>
+                  </div>
+                )
               )}
             </div>
 
@@ -1842,6 +1846,86 @@ function HeroVideo({ playbackId, onComplete }: { playbackId: string; onComplete?
           <span aria-hidden>🔊</span> Tap for sound
         </button>
       )}
+    </div>
+  );
+}
+
+/** SET FLOW PANEL — the homepage-sized shell around the shared Cram → Practice → Review walk
+ *  (set-flow.ts, the same model /learn uses). Keyed by set id from the caller, so a new set
+ *  always mounts fresh at CRAM — each set begins with its own Cram Blast.
+ *
+ *  Kept deliberately small: a strip (SET n OF m + stage pills) over the same 16:9 stage the
+ *  video always used. Stage transitions are overlay CTAs, not new screens — this is still the
+ *  low-friction discovery player, not a dashboard. Paid sets never reach here (no playbackId
+ *  in the free tree), so there is no entitlement logic on this surface. */
+function SetFlowPanel({ topic, set, onCramComplete, onPickSet }: { topic: ResolvedTopic; set: StudentSet; onCramComplete: () => void; onPickSet: (setId: string) => void }) {
+  const [stage, setStage] = useState<SetStage>("cram");
+  // The end-of-video overlay per stage ("Practice this set →" / "Next set →").
+  const [stageEnded, setStageEnded] = useState(false);
+  const stages = stagesOf(set);
+  const { n, of } = setIndexOf(topic.sets, set.id);
+  const after = nextStep(topic.sets, set.id, stage);
+  const nextSetName = after && after.setId !== set.id ? (topic.sets.find((s) => s.id === after.setId)?.name ?? "Next set") : null;
+  const goto = (pos: { setId: string; stage: SetStage } | null) => {
+    if (!pos) return;
+    if (pos.setId === set.id) { setStage(pos.stage); setStageEnded(false); }
+    else onPickSet(pos.setId); // remount via key → the next set starts at its own Cram
+  };
+  const forwardLabel = after ? (after.setId === set.id ? (after.stage === "practice" ? "Practice this set →" : "Review with Lee →") : "Next set →") : null;
+  const pill = (st: SetStage) => (
+    <button
+      key={st}
+      onClick={() => { setStage(st); setStageEnded(false); }}
+      className="rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider"
+      style={{ minHeight: 24, color: st === stage ? "#0B1220" : "var(--text-muted)", background: st === stage ? "var(--accent)" : "transparent", border: `1px solid ${st === stage ? "var(--accent)" : "rgba(245,239,230,0.16)"}` }}
+      title={st === "cram" ? "Cram Blast — see what's coming" : st === "practice" ? "Practice — try it yourself" : "Review — watch Lee work it"}
+    >
+      {st === "cram" ? "Cram" : st === "practice" ? "Practice" : "Review"}
+    </button>
+  );
+  return (
+    <div className="sa-reveal w-full">
+      <div className="flex items-center gap-2 px-3 py-1.5" style={{ background: "rgba(0,0,0,0.24)", borderBottom: "1px solid rgba(245,239,230,0.08)" }}>
+        <span className="shrink-0 text-[10px] font-black uppercase tracking-[0.12em]" style={{ color: "var(--text-muted)" }}>Set {n} of {of}</span>
+        <span className="min-w-0 flex-1 truncate text-[12px] font-bold" style={{ color: "var(--brand-cream)" }}>{set.name}</span>
+        <span className="flex shrink-0 items-center gap-1">{stages.map(pill)}</span>
+      </div>
+      <div className="relative w-full" style={{ aspectRatio: "16 / 9", background: "#000" }}>
+        {stage === "practice" ? (
+          <div className="h-full w-full" style={{ background: "var(--sa-surface-2)" }}>
+            <PracticeStage setId={set.id} doneLabel={forwardLabel ?? "Done →"} onDone={() => goto(after)} />
+          </div>
+        ) : stage === "review" && !set.reviewPlaybackId ? (
+          // Should be unreachable (the pill only renders when hasReview), but never dead-end.
+          <div className="grid h-full w-full place-items-center px-6 text-center text-[12.5px]" style={{ background: "var(--sa-surface-2)", color: "var(--text-muted)" }}>
+            <div>
+              The review video for this set isn't published yet.
+              {after && <button className="mt-3 block w-full rounded-xl px-4 py-2 text-[12px] font-black uppercase tracking-wide" style={{ background: "var(--accent)", color: "#0B1220" }} onClick={() => goto(after)}>{forwardLabel}</button>}
+            </div>
+          </div>
+        ) : (
+          <>
+            <HeroVideo
+              key={`${stage}:${stage === "review" ? set.reviewPlaybackId : set.playbackId}`}
+              playbackId={(stage === "review" ? set.reviewPlaybackId : set.playbackId)!}
+              onComplete={() => { if (stage === "cram") onCramComplete(); setStageEnded(true); }}
+            />
+            {stageEnded && after && (
+              <div className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-2 px-3 py-2" style={{ background: "linear-gradient(0deg, rgba(5,8,16,0.92) 0%, rgba(5,8,16,0.0) 100%)" }}>
+                <span className="min-w-0 truncate text-[11.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>
+                  {after.setId === set.id ? (after.stage === "practice" ? "Now try it yourself" : "Now watch Lee work it") : `Up next: ${nextSetName}`}
+                </span>
+                <button className="shrink-0 rounded-xl px-3.5 py-1.5 text-[12px] font-black uppercase tracking-wide" style={{ background: "var(--accent)", color: "#0B1220" }} onClick={() => goto(after)}>{forwardLabel}</button>
+              </div>
+            )}
+            {stageEnded && !after && (
+              <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2 text-[11.5px] font-semibold" style={{ color: "var(--brand-cream)", background: "linear-gradient(0deg, rgba(5,8,16,0.92) 0%, rgba(5,8,16,0.0) 100%)" }}>
+                ✓ You finished {topic.name} — pick your next topic on the left.
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
