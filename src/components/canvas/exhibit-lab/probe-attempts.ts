@@ -65,11 +65,18 @@ export async function flushProbeAttempts(): Promise<void> {
   const q = loadQ();
   if (!q.length) return;
   flushing = true;
+  let more = false;
   try {
     const r = await logProbeAttempts({ data: { sessionId: probeSessionId(), isTest: probeIsTest(), events: q.slice(0, 200) } });
-    if (r.ok) saveQ(loadQ().slice(r.written));
+    if (r.ok) { saveQ(loadQ().slice(r.written)); more = loadQ().length > 0; }
   } catch { /* offline or table missing — the queue waits */ }
   finally { flushing = false; }
+  // TAIL DRAIN (08-22): an attempt recorded WHILE a flush was in flight hit the
+  // re-entrancy guard and returned early, so it sat in the queue until the next
+  // attempt or the next mount — the last answer of a session could lag for
+  // hours. Drain again, but ONLY after a success, so a failing server (or an
+  // unapplied migration) can never spin.
+  if (more) void flushProbeAttempts();
 }
 
 export const probeQueueLength = (): number => loadQ().length;
