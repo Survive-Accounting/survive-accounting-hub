@@ -1,92 +1,77 @@
-# CEQ Practice — cram mode, navigation & release (branch `ceq-practice`)
+# Student player: Reset/context, Q navigator, Cram·Practice·Review, one notify, Semester Pass (branch `player-reset-nav`)
 
-Releases the authored Exam 1 CEQs to students before the videos. Built on `notifications` (for
-the `question` intake) with `set-architecture` merged in (the Cram → Practice → Review model). The
-cram-video slot stays in the shell as a **Cram Blast · coming soon** strip, so publishing a set's
-video fills it with no layout change.
+Two focused UX/state passes on the student Exam/CEQ player. Marketing footer and authoring
+tools untouched.
 
-## 0. Pre-flight data — DONE on the live DB (2026-08-21)
+## 1. Reset respects route context (`src/routes/landing.tsx`)
+Precedence inside the player: **route-provided school/chapter → this session's pick → stored
+last-used → generic picker.** Route context is immutable: a stored campus never outranks a URL
+campus (campus-context already resolved url above stored; the player now keeps it through Reset).
+- `routeLocked = campusSlug || goChapter || greekOrg`. On a locked route the button reads
+  **Start over** and resets only the session: professor + the professor-skip cookie are cleared,
+  topic/set selection, open topics and the practice session (`resetSeq` in the SetFlowPanel key)
+  are dropped, school/course/chapter stay. Next state: "Pick your professor to start" with
+  "Skip for now →". No navigation home, no school picker.
+- On the generic homepage the button reads **Reset** and still returns to school selection.
+- Note: picking a school on the homepage navigates to `/<school>` (existing), so a wrong pick
+  lands on a locked page. The explicit exit is the new **Not your school?** link under the
+  professor step (`changeSchool` → forget stored campus → generic picker). That is a navigation,
+  never a Reset.
+- Professor persistence inspected, unchanged: localStorage `sa-landing-prof` + `sa-prof-skip`
+  cookie (both in `src/lib/campus-prefs.ts`).
 
-**Scene dedupe (launch blocker) — fixed in code, not by editing data.** Every set existed in the
-30-set workspace scene (`f103b5cd`, 08-14) and in its own per-set scene (edited 08-19/20). One
-shared loader (`loadDecksDeduped` in `student.functions.ts`) now serves the tree, practice, and
-playback: **per-set scenes (exactly one card deck) own their deck first, then newest `updated_at`**
-— so even if the workspace scene is touched later and becomes "newest", the per-set copy still
-wins, and a deck's cards are read only from its winning scene. The workspace scene was never
-written to (a write there could have flipped ownership). Verified: 30 unique decks, 0 duplicates
-served.
+## 2. `Q1 / 8` is a navigator (`src/components/site/PracticeStage.tsx`, shared with /learn)
+The chip is a button (`aria-haspopup="dialog"`, `aria-expanded`) opening `QuestionNav`: a tile
+per question — unattempted (neutral), correct (green + check), incorrect (red + ×), current
+outlined in gold independently of state; each tile is labelled "Question 3, correct[, current]";
+`done of N answered`; Escape / outside-click / × close it. Click any tile to jump (non-linear; a
+retry pass widens back to the full set if you jump outside the missed subset).
+**Answers persist**: `pickedBy` remembers the locked-in choice per question, so Q3 → Q7 → Q3
+shows Q3's result — no wipe, no silent resubmit (this also fixes the old back-arrow re-answer).
+Statuses come from the session's latest attempt; grading untouched.
 
-**Flipped live (`flip_exam1_live.ts --apply`, writes only to per-set scenes):** 19 Exam 1 sets →
-`status=live`, 6 missing `sortOrder` values filled by name order, the 5 untitled/0-question
-library stubs parked. **Exam 1 unit seeded**: `exam_units` "Exam 1" (Intro 1) with Ch 1, 2, 3, 6,
-7, 8, 9 → `/learn` groups under it; the homepage uses the Starter Map either way.
+## 3. Cram / Practice / Review pills (`src/components/site/StagePills.tsx`, new)
+Always-visible, compact stage control in the set strip: `SET n OF m · [⚡Cram] [☑Practice]
+[↺Review]`. Availability is **derived from the content model** (`set-flow.ts` inputs): Cram =
+`playbackId`, Practice = `ceqCount > 0`, Review = `hasReview` — no new flags, nothing hardcoded;
+a published video un-mutes its pill automatically. Unavailable stages stay visible and clickable
+at 62% with `· SOON` and a dashed ring. Mode colours are semantic only: Cram `#006BA6`, Practice
+`#FFA611`, Review `#8B7FC7` (violet exists nowhere else). The redundant PRACTICE status pill in
+the question header is dropped on this surface (`statusLabel=""`). Phones: the three pills wrap
+to their own row (26px tall, one row of three).
 
-**Final counts per topic (authoritative per-set scenes):**
+## 4. ONE notify interaction (`src/lib/notify-request.ts`, new)
+Every "tell me when it's ready" builds a `NotifyReq` (`want: cram|review|exam|pass` + exam,
+topic, set, headline/sub) and opens the single `NotifyModal` (bottom sheet on phones). Copy:
+"Cram Blast for The Accounting Cycle is coming soon. Want me to tell you when it lands?",
+"Review for this set is coming soon…", "Exam 2 is still being filmed. Opens Fall 2026…", plus a
+context line (school · course · professor · exam). `submitNotify` now carries `want`, `examNum`,
+`courseCode`, `note` ("wants:cram · exam:Exam 1 · topic:… · set:…") into the unified intake
+(`runIntake`, kind `notify_exam`, source_path `/#notify:cram`).
+**Removed**: `PaidNotifyRow` (the permanent email form in the sidebar AND the Poster) and its
+`joinPricingWaitlist` path in the player. Switching to Exam 2/3/Final just browses (topics,
+runtimes, "Opens Fall 2026"); the Poster shows one **Notify me when it's ready →** button; a
+locked set row opens the modal with that set as context.
 
-| Ch | Topic | Sets | Questions |
-|---|---|---|---|
-| 1 | The Accounting Cycle | 1 | **8** |
-| 2 | Analyzing Transactions | 2 | 48 |
-| 3 | Recording Journal Entries | 3 | 60 |
-| 6 | Trial Balances | 1 | 11 |
-| 7 | Adjusting Entries | 4 | 32 |
-| 8 | Financial Statements | 4 | 29 |
-| 9 | Closing Entries | 4 | 18 |
-| | **Total** | **19** | **206** |
+## 5. Semester Pass: line → bracket
+Expanded (first visit): "Save with the Semester Pass — Exams 2, 3 + Final for $150." with a
+44px always-visible ×. Dismissed (remembered in localStorage `sa-pass-line-dismissed`, the
+existing key): an 18px bracket under Exam 2 → Exam 3 → Final labelled `Semester Pass · $150`,
+clickable → the same modal. Never a banner again; tabs unobstructed at 390px.
 
-**206, not 210:** the stale workspace copy of the Accounting Cycle set had 12 questions; the
-authoritative per-set scene (edited 08-20) has 8. Either you cut four on purpose or they exist
-only in the workspace — check `f103b5cd` if you want them back. Excluded from release: Ch 4
-Receivables (8 Qs), Ch 5 Posting (24 Qs), Ch 10 Principles (14 Qs) — authored but not Exam 1
-topics, left `draft`; the 5 stubs (parked, no topic/0 questions). Note the **Ole Miss campus
-map** maps only Ch 1–3 to Exam 1, so that campus page shows `3 topics · 6 sets · 116 questions`;
-the default/Starter Map shows all seven.
+## Content-model note
+Availability is fully derivable for free sets. For **paid** sets `playbackId`/`reviewPlaybackId`
+are withheld server-side (entitlement), so Cram/Review availability cannot be read client-side
+for them — today they never reach the stage (locked rows open the notify), so nothing is wrong,
+but if paid sets ever render pills the server must send boolean `hasCram`/`hasReview` instead of
+ids. Also: no Exam 2+ topic currently has sets on the Ole Miss map, so the locked-set → notify
+path was verified by code, the Poster CTA path by browser.
 
-## Reference scheme
-`Topic.Set.Question` (e.g. `3.2.14`), displayed in the stage as `3.2 · Q14 / 24` with the
-question's shorthand as subtitle; set titles are the base stem. Numbers are derived at read
-time from `chapter_number` + `sortOrder` + `stageOrder`; **analytics key on the stable deck id +
-CEQ node id** (`fetchSetPractice` now returns node ids, not positions). The full reference is
-prefilled into "Ask me about this one" and carried on the lead (`topic` = reference,
-`source_path` = `ceq:<setId>:<ceqId>`).
-
-## Navigation (homepage/campus/Greek player)
-Rail: `3 Recording Journal Entries · 3 sets` → expands to `3.2 What is the journal entry… · 24
-questions` with a thin **coverage** bar (questions attempted, never accuracy; localStorage,
-updated live). Clicking a set enters cram at Q1. Variations never appear in the rail. Footer stat
-is computed: `7 topics · 19 sets · 206 questions` (`~Xh video` appends only when runtimes exist).
-Mobile: the rail collapses to the existing topic bar + drawer; the stage header carries
-`1.1 · Q1 / 8`. `/learn` uses the identical cram component inside its set modal (no redesign,
-per the earlier instruction to hold `/learn` until the HTML player).
-
-## Cram mode (`src/components/site/PracticeStage.tsx`, shared)
-Desktop: `↑/↓` highlight, `⏎` lock-in → green/red resolve with the filming-side sfx (`confirm` /
-`vinylScratch`), `⏎` advances, `←/→` step (skips logged), `Shift+→` next set; hint strip in the
-header; ~120 ms in-place swap; optional auto-advance after a **correct** answer only (toggle,
-off by default, persisted). Mobile: tap row to lock in, fixed thumb-reachable **Next →**, swipe
-left/right, 48 px rows; verified at 390×844 — no horizontal scroll, Next in viewport.
-Feedback: correct highlighted, wrong pick struck; `Lee works this one in the review video —
-coming soon.`; **Ask me about this one →** opens a box prefilled with the reference + shorthand →
-`kind=question` through the unified intake (priority founder alert, student confirmation
-"Got your question on 3.2.14"). Progress, not scores: no %, grade, or score anywhere; end of set
-shows `You've been through 24 of 24 · 8 to review` + elapsed, primary **Retry the 8 you missed →**
-(missed questions come back as pass 2+), then `Next set →` / `Review with Lee →` when it exists.
-Rough-pass copy: "First pass is always rough — that's the point. Run the missed ones again."
-
-## Analytics — `practice_attempts` (migration `20260821_1400`, applied)
-`set_id, ceq_id, event (answer|skip|abandon), choice_id, correct, ms (reveal→lock-in),
-attempt_number, session_id, user_id (nullable), campus, surface (home|campus|greek|learn),
-is_test, created_at`. Written per event via `logPracticeEvents` (no auth; Exam 1 is ungated);
-abandon = last question reached, written on unmount. **Admin:** `/outreach/practice` — per
-question: attempts, % missed, median time, skips, quit-here, asks; sortable; filter. Asks are
-highlighted — this is the filming priority queue. My test rows were deleted after verification.
-
-## Access
-Exam 1 practice is free and ungated on solo/campus pages (the school → professor gate stays,
-the Greek member gate on `/go/` stays — both sit before the stage). Paid exams stay locked behind
-the existing notify box (paid sets never carry questions or ids to the client).
+## Shared persistence the marketing code should use
+`src/lib/campus-prefs.ts` — `rememberCampus` / `readStoredCampus` / `rememberProfSkip` /
+`readStoredProfSkip` + the `sa-school` cookie; `useCampus()` (`campus-context.tsx`) for
+`setSessionSchool` / `clearSchool`. Marketing components were not edited here.
 
 ## Checks
-`bunx tsc --noEmit` clean · `bun test` 1,360 pass · `bun run build` OK. Screenshots in
-`docs/screenshots/ceq-practice/`: rail expanded · cram mid-question (desktop) · resolution with
-the ask box · end-of-set with retry · mobile cram at 390 (+ resolved/Next) · admin analytics.
+`bunx tsc --noEmit` clean · `bun test` 1,360 pass · `bun run build` OK · eslint: no new
+findings (baseline prettier/autocrlf noise only). Screenshots: `docs/screenshots/player-reset-nav/`.
