@@ -465,6 +465,19 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
           onSecondary={greek ? () => { if (greek.claimed) scrollToId(EXAM_ANCHOR_ID); else { openClaimStep(); scrollToId(greek.accessAnchor); } } : undefined}
           showSecondary={greek ? true : heroKind !== "campus" || (chapterCount ?? 0) > 0}
           onOpenBio={() => setBioOpen(true)}
+          // CHANGE SCHOOL. The stored campus is only "last used", so the honest way to change it
+          // is to leave a URL that names a campus: forget the campus and land on the generic page
+          // with the picker. A chapter page therefore leaves the chapter route rather than
+          // becoming a different campus wearing this chapter's banner.
+          onChangeSchool={heroKind === "general" ? undefined : () => {
+            resetProfessor();
+            rememberProfSkip(null);
+            campus.clearSchool();
+            setSchool(null);
+            setNotListed(false);
+            setManualReset(true);
+            void navigate({ to: "/", hash: EXAM_ANCHOR_ID });
+          }}
           courtesy={greek && goChapter ? <CourtesyLine schoolSlug={goChapter.schoolSlug} chapterSlug={goChapter.chapterSlug} chapterName={greek.orgName} /> : undefined}
         />
         <ExamPlayer videoGate={videoGate} greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); void logCampusCodeDemand({ data: { source: "write-in" } }).catch(() => {}); rememberCampus(NOT_LISTED); }} onSkipSchool={() => { setNotListed(true); rememberCampus(SKIPPED); }} schoolSkipped={notListed && !school} initialProfSkipped={!!school && !!profSkipFor && profSkipFor === school.id} onReset={resetMatch} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(t) => setNotifyTopic(t)} />
@@ -489,12 +502,12 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
         />
         <SectionDivider />
         {greekOrg ? <Faq greek={greekOrg} /> : null}
-        {/* Utility requests live at the FOOT of the persuasion flow — after proof, before the
-            footer — instead of interrupting the pitch mid-page. */}
-        <MarketingUtilityLinks
-          kind={heroKind}
-          onProfessorAsk={() => openSyllabus("Don't see your professor? Tell me who teaches your class and I'll map them.")}
-        />
+        {/* THE PRE-FOOTER UTILITY LINKS ARE GONE. "Don't see your professor?" and "Don't see your
+            school?" floated alone between the proof section and the footer, where they read as
+            orphaned error-state text rather than an offer. Both actions still exist where they are
+            actually needed: the professor write-in lives in the player's professor step, and the
+            school write-in is "Add your school" in the footer. The forms behind them are
+            untouched. */}
       </main>
       {/* OUTSIDE <main> on purpose: the footer surface is full-bleed, its CONTENT is centred by
           the footer's own max-w-[1040px] rows. Inside main it inherited main's max width and the

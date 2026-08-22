@@ -10,12 +10,16 @@
 // course code or colourway to display.
 //
 // PRIORITY, most trustworthy first:
-//   1. account   — the signed-in user's school (an explicit, durable statement)
-//   2. session   — picked in this session (picker, ticker); beats the URL because it is the more
-//                  recent deliberate act: a student on a chapter page who picks a different school
-//                  in the player means it
-//   3. url       — /go/<school>/<chapter> implies the school
-//   4. stored    — a previous visit's preference
+//   1. url      — /<school> and /go/<school>/<chapter> NAME a campus. The page is about that
+//                 campus, so nothing may override it: a visitor who last used Arizona and then
+//                 opens an Ole Miss page is on an Ole Miss page.
+//   2. session  — picked in this session (picker, ticker), on a page whose URL names no campus.
+//   3. account  — the signed-in user's school.
+//   4. stored   — LAST USED, not "current". A previous visit's campus is a good default for a
+//                 generic page and never an answer on a page that already has one.
+//
+// The url rung moved to the top on 2026-08-21. It used to sit third, under account and session,
+// which made a remembered campus authoritative everywhere — the bug this ordering exists to kill.
 // None of the above ⇒ UNKNOWN, and the app uses cycling/generic copy exactly as it does today.
 //
 // COURSE CODES come from campuses.course_family_codes_json.intro_1 via the same server fn the
@@ -88,12 +92,12 @@ export function CampusProvider({ urlSchoolSlug, accountCampusId, initialCode, in
   }, []);
 
   const resolved = useMemo<{ school: SecSchool | null; source: CampusSource }>(() => {
-    const account = schoolByCampusId(accountCampusId);
-    if (account) return { school: account, source: "account" };
-    const session = schoolById(sessionId);
-    if (session) return { school: session, source: "session" };
     const url = schoolBySlug(urlSchoolSlug);
     if (url) return { school: url, source: "url" };
+    const session = schoolById(sessionId);
+    if (session) return { school: session, source: "session" };
+    const account = schoolByCampusId(accountCampusId);
+    if (account) return { school: account, source: "account" };
     const stored = schoolById(storedId);
     if (stored) return { school: stored, source: "stored" };
     return { school: null, source: null };
