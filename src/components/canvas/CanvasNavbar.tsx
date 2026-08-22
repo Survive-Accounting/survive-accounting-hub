@@ -131,6 +131,19 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
         <Clapperboard className="h-3.5 w-3.5" /> Pipeline
       </button>
 
+      {/* EXHIBIT LAB (v2) — the authoring/filming zone for exhibits + probes.
+          A plain link to its own route: no canvas state, no scene writes. */}
+      <a
+        href="/exhibit-lab"
+        target="_blank"
+        rel="noreferrer"
+        className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[12px] font-black uppercase tracking-wide"
+        style={{ color: "#FCA311", border: "1px solid rgba(252,163,17,0.5)" }}
+        title="EXHIBIT LAB — summon a probe onto an exhibit, queue a filming sequence, step through it with the standard keys. Filming-side only."
+      >
+        ⚗ Exhibit Lab
+      </a>
+
       {/* Name — pool mode shows the fixed "Sets" surface label (sets rename in the
           outline); canvas view keeps the editable name input. Home shows neither. */}
       {!homeActive && poolMode && (<>

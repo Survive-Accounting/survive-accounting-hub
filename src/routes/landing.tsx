@@ -16,8 +16,9 @@ import { ChevronDown, GraduationCap, Lock, MessageCircle, X } from "lucide-react
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
 import { isPlayable, nextStep, setIndexOf, stagesOf, type SetStage } from "@/lib/set-flow";
 import { PracticeStage, readCoverage } from "@/components/site/PracticeStage";
+import { StagePills } from "@/components/site/StagePills";
+import { cramRequest, examRequest, notifyNote, passRequest, reviewRequest, type NotifyReq } from "@/lib/notify-request";
 import { resolveStudentMap, type MapLevel } from "@/lib/map-resolver.functions";
-import { joinPricingWaitlist } from "@/lib/pricing-api";
 import { getChapterNames, listCampusIntroCodes } from "@/lib/default-map.functions";
 import { logSchoolDemand, submitExamAsk, submitSyllabus , submitNotify } from "@/lib/syllabus.functions";
 import { searchOrderProfessors, type ProfessorLite } from "@/lib/orders.functions";
@@ -168,7 +169,11 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   useNavyDocument();
   const navigate = useNavigate();
   // M2.3 — which topic the notify modal was opened from (null = closed).
-  const [notifyTopic, setNotifyTopic] = useState<string | null>(null);
+  // THE ONE NOTIFY INTERACTION (08-21). Every "tell me when it's ready" in the player — a muted
+  // Cram/Review pill, a locked set on a future exam, the Poster CTA, the Semester Pass bracket —
+  // builds a NotifyReq and opens this single modal. There are no persistent email forms in the
+  // player any more; signup appears when the student expresses intent.
+  const [notifyReq, setNotifyReq] = useState<NotifyReq | null>(null);
   // /c/<slug> pre-selects the chapter's school. If it's one of the 16 SEC schools we pre-pick it;
   // otherwise we drop into "not listed" (default map) so the player still unblurs and plays.
   const campus = useCampus();
@@ -229,14 +234,41 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   // (session + stored + storage key), so the whole page drops to the generic version in one step.
   // On a page whose URL names the school (/<school>, /go/…) the URL would simply re-assert it, so
   // that case goes home — the generic page is the only honest "no school" there is.
+  //
+  // ROUTE CONTEXT IS IMMUTABLE (08-21). On /<school> or /go/<school>/<chapter> the URL named
+  // the school (and chapter/course); Reset must never send that visitor back to the school
+  // picker or off the page. There it resets ONLY the player session: professor + the
+  // professor-skip cookie are cleared (the next state is "Pick your professor to start", with
+  // Skip), the topic/set selection and the practice session are dropped via resetSeq, and
+  // school / course / chapter stay exactly as the route provided them. The generic homepage is
+  // the only place a Reset returns to school selection. Precedence everywhere: route-provided
+  // context → this session's pick → stored last-used → the generic picker.
+  const routeLocked = !!campusSlug || !!goChapter || !!greekOrg;
+  const [resetSeq, setResetSeq] = useState(0);
   const resetMatch = () => {
+    setResetSeq((n) => n + 1);
+    resetProfessor();
+    rememberProfSkip(null);
+    if (routeLocked) {
+      // Back to the route's own school — a stored or session pick never outranks the URL here.
+      setNotListed(false);
+      if (preSchool) setSchool(preSchool);
+      return;
+    }
     setManualReset(true);
     setSchool(null);
     setNotListed(false);
+    campus.clearSchool();
+  };
+  // "Not your school?" on a campus/chapter page. Picking a school on the homepage navigates to
+  // /<school>, so a wrong pick lands on a route-locked page where Reset keeps the school by
+  // design. This is the deliberate exit: forget the stored campus and go to the generic picker.
+  const changeSchool = () => {
+    setManualReset(true);
     resetProfessor();
     rememberProfSkip(null);
     campus.clearSchool();
-    if (campusSlug) void navigate({ to: "/", hash: EXAM_ANCHOR_ID });
+    void navigate({ to: "/", hash: EXAM_ANCHOR_ID });
   };
   // ADOPT THE URL'S SCHOOL. preSchool is derived from initialCampusId, which arrives from the
   // chapter QUERY — so on a /go/ page it is still null during the first render, and
@@ -493,7 +525,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
           }}
           courtesy={greek && goChapter ? <CourtesyLine schoolSlug={goChapter.schoolSlug} chapterSlug={goChapter.chapterSlug} chapterName={greek.orgName} /> : undefined}
         />
-        <ExamPlayer videoGate={videoGate} greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); void logCampusCodeDemand({ data: { source: "write-in" } }).catch(() => {}); rememberCampus(NOT_LISTED); }} onSkipSchool={() => { setNotListed(true); rememberCampus(SKIPPED); }} schoolSkipped={notListed && !school} initialProfSkipped={!!school && !!profSkipFor && profSkipFor === school.id} onReset={resetMatch} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(t) => setNotifyTopic(t)} />
+        <ExamPlayer videoGate={videoGate} greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); void logCampusCodeDemand({ data: { source: "write-in" } }).catch(() => {}); rememberCampus(NOT_LISTED); }} onSkipSchool={() => { setNotListed(true); rememberCampus(SKIPPED); }} schoolSkipped={notListed && !school} initialProfSkipped={!!school && !!profSkipFor && profSkipFor === school.id} onReset={resetMatch} resetSeq={resetSeq} resetLabel={routeLocked ? "Start over" : "Reset"} onChangeSchool={routeLocked ? changeSchool : undefined} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(r) => setNotifyReq(r)} />
 
         {/* Value strip AFTER the player: the product proves the claims, the strip reinforces. */}
         <FeatureValueStrip code={heroCode} />
@@ -542,7 +574,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
       />
 
       {syllabusOpen && <SyllabusModal school={school} framing={syllabusFraming} onClose={() => { setSyllabusOpen(false); setSyllabusFraming(null); }} />}
-      {notifyTopic !== null && <NotifyModal topic={notifyTopic} school={school} professorName={professor ? (professor.last || professor.name) : null} onClose={() => setNotifyTopic(null)} />}
+      {notifyReq && <NotifyModal req={notifyReq} school={school} professorName={professor ? (professor.last || professor.name) : null} onClose={() => setNotifyReq(null)} />}
     </div>
   );
 }
@@ -879,7 +911,8 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
  *  have committed to anything is friction for nothing. The topic they were looking at rides
  *  along, so the eventual "it's live" message can be specific rather than a blast. Writes
  *  through submitNotify into the same private table every other landing capture uses. */
-function NotifyModal({ topic, school, professorName, onClose }: { topic: string | null; school: School | null; professorName?: string | null; onClose: () => void }) {
+function NotifyModal({ req, school, professorName, onClose }: { req: NotifyReq; school: School | null; professorName?: string | null; onClose: () => void }) {
+  const topic = req.topic;
   const [contact, setContact] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
@@ -896,16 +929,19 @@ function NotifyModal({ topic, school, professorName, onClose }: { topic: string 
     if (!valid || busy) return;
     setBusy(true); setErr(null);
     try {
-      await submitNotify({ data: { contact: contact.trim(), topic, campusId: school?.campusId ?? null, campusName: school?.name ?? null, professorName: professorName ?? null } });
+      await submitNotify({ data: { contact: contact.trim(), topic, campusId: school?.campusId ?? null, campusName: school?.name ?? null, professorName: professorName ?? null, want: req.want, examNum: req.examNum ?? null, courseCode: school?.codeVerified && school.code ? school.code : null, note: notifyNote(req) } });
       setDone(true);
     } catch (e) { setErr(e instanceof Error ? e.message : "That didn't send — try again?"); }
     finally { setBusy(false); }
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[240] grid place-items-center px-4" style={{ ...frameThemeVars(DEFAULT_FRAME_THEME), background: "rgba(5,8,16,0.72)" }} onClick={onClose}>
+    /* BOTTOM SHEET on phones (items-end), centred card from sm up — one component, one pattern. */
+    <div className="fixed inset-0 z-[240] flex items-end justify-center sm:items-center sm:px-4" style={{ ...frameThemeVars(DEFAULT_FRAME_THEME), background: "rgba(5,8,16,0.72)" }} onClick={onClose}>
       <div
-        className="w-full max-w-[380px] rounded-2xl p-5"
+        role="dialog"
+        aria-label={req.headline}
+        className="w-full max-w-[380px] rounded-t-2xl p-5 sm:rounded-2xl"
         style={{ background: "var(--bg-overlay)", border: "1px solid var(--border-default)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)", paddingBottom: "max(20px, env(safe-area-inset-bottom, 0px))" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -916,10 +952,14 @@ function NotifyModal({ topic, school, professorName, onClose }: { topic: string 
           </div>
         ) : (
           <>
-            <p className="text-[16px] font-black" style={{ color: "var(--brand-cream)" }}>{LAUNCH_LINE}</p>
-            <p className="mt-1 text-[14px]" style={{ color: "var(--text-muted)" }}>
-              {topic ? `I'll tell you the moment ${topic} is up.` : "I'll tell you the moment it's up."}
-            </p>
+            <p className="text-[16px] font-black leading-snug" style={{ color: "var(--brand-cream)" }}>{req.headline}</p>
+            <p className="mt-1 text-[14px]" style={{ color: "var(--text-muted)" }}>{req.sub}</p>
+            {/* the context line — so the student can see exactly what this signup is for */}
+            {(req.examLabel || school) && (
+              <p className="mt-1.5 text-[11.5px]" style={{ color: "var(--text-muted)", opacity: 0.8 }}>
+                {[school?.name, school?.codeVerified && school.code ? school.code : null, professorName ? `Prof. ${professorName}` : null, req.examLabel].filter(Boolean).join(" · ")}
+              </p>
+            )}
             <input
               autoFocus
               value={contact}
@@ -1156,7 +1196,7 @@ function PreviewSurface({ children }: { children: React.ReactNode }) {
  *
  *  `onReset` clears school AND professor together. A half-reset — new school, professor left
  *  over from the old one — would silently attach a student to another campus's faculty. */
-function MatchPanel({ gateActive, school, professor, notListed, profDone, coveragePct, schools, cueSignal, onPick, onNotListed, onSkipSchool, onPickProfessor, onProfNotListed, onAddProfessor, onMaterials, onReset }: {
+function MatchPanel({ gateActive, school, professor, notListed, profDone, coveragePct, schools, cueSignal, onPick, onNotListed, onSkipSchool, onPickProfessor, onProfNotListed, onAddProfessor, onMaterials, onReset, onChangeSchool }: {
   /** True while the Greek gate is showing — the whole panel stands down. */
   gateActive?: boolean;
   school: School | null;
@@ -1180,6 +1220,8 @@ function MatchPanel({ gateActive, school, professor, notListed, profDone, covera
   onAddProfessor: () => void;
   onMaterials: () => void;
   onReset: () => void;
+  /** Route-locked pages only: the explicit way to a different school (navigates home). */
+  onChangeSchool?: () => void;
 }) {
   const matched = !!school || notListed;
   const code = school?.codeVerified && school.code ? school.code : null;
@@ -1227,6 +1269,7 @@ function MatchPanel({ gateActive, school, professor, notListed, profDone, covera
         {code && school && (
           <p className="text-center text-[11.5px]" style={{ color: "var(--text-muted)" }}>
             Course preset: {code} at {school.name}
+            {onChangeSchool && <> · <button type="button" onClick={onChangeSchool} className="underline underline-offset-2" style={{ color: "var(--text-muted)", minHeight: 28 }}>Not your school?</button></>}
           </p>
         )}
       </PreviewSurface>
@@ -1366,7 +1409,7 @@ function ProfessorStage({ school, onPick, onNotListed }: {
 // now lives in MatchPanel, inside the right panel, where the student is already looking.
 
 
-function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, schools, onSyllabus, professor, onPickProfessor, notListed, onNotListed, onSkipSchool, schoolSkipped, initialProfSkipped, onReset, theater, onTheaterDone, onNotify }: { videoGate?: React.ReactNode; greekOrg?: string; exams: ExamTab[]; school: School | null; onPick: (s: School) => void; focusSignal: number; schools: School[]; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; notListed: boolean; onNotListed: () => void; onSkipSchool: () => void; /** No school named (skipped / not listed): the professor rung is moot and the player goes straight to content. */ schoolSkipped: boolean; /** The cookie says this visitor already skipped the professor question for this school. */ initialProfSkipped: boolean; onReset: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void; onNotify: (topic: string) => void }) {
+function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, schools, onSyllabus, professor, onPickProfessor, notListed, onNotListed, onSkipSchool, schoolSkipped, initialProfSkipped, onReset, resetSeq, resetLabel, onChangeSchool, theater, onTheaterDone, onNotify }: { resetSeq: number; resetLabel: string; onChangeSchool?: () => void; videoGate?: React.ReactNode; greekOrg?: string; exams: ExamTab[]; school: School | null; onPick: (s: School) => void; focusSignal: number; schools: School[]; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; notListed: boolean; onNotListed: () => void; onSkipSchool: () => void; /** No school named (skipped / not listed): the professor rung is moot and the player goes straight to content. */ schoolSkipped: boolean; /** The cookie says this visitor already skipped the professor question for this school. */ initialProfSkipped: boolean; onReset: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void; onNotify: (r: NotifyReq) => void }) {
   const [activeNum, setActiveNum] = useState(1);
   const [selById, setSelById] = useState<Record<number, Sel>>({});
   const [openTopics, setOpenTopics] = useState<Set<string>>(() => new Set());
@@ -1384,6 +1427,16 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
   // A CHANGE of school re-asks; the mount does not (the initial value above already answered it).
   const prevSchoolId = useRef(school?.id);
   useEffect(() => { if (prevSchoolId.current !== school?.id) { prevSchoolId.current = school?.id; setProfDone(false); } }, [school?.id]);
+  // RESET SIGNAL from the page. Drops the session — exam tab, topic/set selection, open topics,
+  // drawer — and re-asks the (skippable) professor question. On a route-locked page the school
+  // is untouched, so the school-change effect above never fires; this one does that work.
+  const prevReset = useRef(resetSeq);
+  useEffect(() => {
+    if (prevReset.current === resetSeq) return;
+    prevReset.current = resetSeq;
+    setActiveNum(1); setSelById({}); setOpenTopics(new Set()); setDrawerOpen(false);
+    setProfDone(schoolSkipped);
+  }, [resetSeq, schoolSkipped]);
   // "Skip for now" on the professor rung is REMEMBERED per school — asking a returning student the
   // same optional question on every visit was the most-repeated step in the whole flow.
   const skipProfessor = () => { setProfDone(true); rememberProfSkip(school?.id ?? null); };
@@ -1472,7 +1525,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
             student); beside a $100/member chapter offer it reads as a third, contradictory
             price for the same thing. It is untouched on the student page, where it is the only
             offer on screen. */}
-        {!greekOrg && <SemesterPassLine onPass={() => onNotify("Semester Pass")} />}
+        {!greekOrg && <SemesterPassLine onPass={() => onNotify(passRequest({ price: SEMESTER_PASS_PRICE, launchWindow: LAUNCH_WINDOW }))} />}
 
 
         {/* TOPIC ROW — the mobile topic switcher. No longer gated on a school: the outline it
@@ -1493,7 +1546,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
 
         <div className="sa-player-min sm:flex">
           <div className={`${drawerOpen ? "block" : "hidden"} border-b sm:block sm:w-[42%] sm:max-w-[360px] sm:border-b-0 sm:border-r`} style={{ borderColor: "var(--border-default)", background: "var(--bg-player-sidebar)" }}>
-            <ExamOutline tab={active} school={school} professor={professor} flowDone={flowDone} coveragePct={active.coveragePct} onAddProfessor={() => setProfDone(false)} onMaterials={() => onSyllabus()} onReset={onReset} stats={examStats(active)} isPaid={isPaid} curSetId={curSet?.id ?? null} curTopicKey={cur?.topicKey ?? null} openTopics={openTopics} onToggleTopic={toggleTopic} onPickSet={pickSet} />
+            <ExamOutline tab={active} school={school} professor={professor} flowDone={flowDone} coveragePct={active.coveragePct} onAddProfessor={() => setProfDone(false)} onMaterials={() => onSyllabus()} onReset={onReset} resetLabel={resetLabel} stats={examStats(active)} isPaid={isPaid} curSetId={curSet?.id ?? null} curTopicKey={cur?.topicKey ?? null} openTopics={openTopics} onToggleTopic={toggleTopic} onPickSet={pickSet} onNotify={onNotify} />
           </div>
 
           <div className="flex min-w-0 flex-1 flex-col" style={{ background: "var(--sa-surface-2)" }}>
@@ -1503,7 +1556,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
             {/* ONE STATE AT A TIME. `flowDone` is the whole ladder, not its first rung — see the
                 note above sa-panel-min in styles.css for the height half of this. */}
             <div className="sa-panel-min relative w-full flex-1">
-              <MatchPanel gateActive={!!videoGate} school={school} professor={professor} notListed={notListed} profDone={profDone} coveragePct={active.coveragePct} schools={schools} cueSignal={focusSignal} onPick={onPick} onNotListed={onNotListed} onSkipSchool={onSkipSchool} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); }} onProfNotListed={skipProfessor} onAddProfessor={() => { setProfDone(false); rememberProfSkip(null); }} onMaterials={() => onSyllabus()} onReset={onReset} />
+              <MatchPanel gateActive={!!videoGate} school={school} professor={professor} notListed={notListed} profDone={profDone} coveragePct={active.coveragePct} schools={schools} cueSignal={focusSignal} onPick={onPick} onNotListed={onNotListed} onSkipSchool={onSkipSchool} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); }} onProfNotListed={skipProfessor} onAddProfessor={() => { setProfDone(false); rememberProfSkip(null); }} onMaterials={() => onSyllabus()} onReset={onReset} onChangeSchool={onChangeSchool} />
               {/* THE GATE STANDS IN FOR THE VIDEO, not for the page: tabs, topics and the
                   whole menu stay readable, because a visitor deciding whether to hand over an
                   email needs to see what they are unlocking. */}
@@ -1513,12 +1566,12 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
                 curSet && isPlayable(curSet) && curTopic ? (
                   // A playable set walks its stages: Cram Blast → Practice → Review (shared
                   // set-flow model — same walk as /learn, homepage-sized shell around it).
-                  <SetFlowPanel key={curSet.id} topic={curTopic} set={curSet} school={school} surface={greekOrg ? "greek" : school ? "campus" : "home"} onCramComplete={() => markComplete(curSet!.id)} onPickSet={(sid) => pickSet(curTopic!.key, sid)} />
+                  <SetFlowPanel key={`${curSet.id}:${resetSeq}`} topic={curTopic} set={curSet} exam={active} school={school} surface={greekOrg ? "greek" : school ? "campus" : "home"} onCramComplete={() => markComplete(curSet!.id)} onPickSet={(sid) => pickSet(curTopic!.key, sid)} onNotify={onNotify} />
                 ) : (
                   // NOT A FIXED 16:9 BOX. The unpublished state carries a line of copy and the
                   // notify field, which a phone-width 16:9 panel (~190px tall) cannot hold.
                   <div className="sa-reveal relative w-full" style={{ minHeight: "min(56.25vw, 300px)" }}>
-                    <Poster school={school} exam={active} topicName={curTopic?.name ?? active.label} stem={curSet?.firstStem ?? null} />
+                    <Poster school={school} exam={active} topicName={curTopic?.name ?? active.label} stem={curSet?.firstStem ?? null} onNotify={() => onNotify(examRequest({ examNum: active.num, examLabel: active.label, topicName: curTopic?.name ?? null, setName: curSet?.name ?? null, launchWindow: LAUNCH_WINDOW, free: active.price == null }))} />
                   </div>
                 )
               )}
@@ -1628,39 +1681,60 @@ function ExamTabs({ exams, activeNum, onSelect, greek }: { exams: ExamTab[]; act
   );
 }
 
-/** The Semester Pass line, now dismissible.
+/** THE SEMESTER PASS, two states (08-21).
  *
- *  It is the only always-on upsell in the player, so a student who has decided against it should
- *  be able to put it away — and it should STAY away, or dismissing it is theatre. The x is
- *  hover-revealed on pointer devices and permanently visible (small, muted) on touch, where
- *  there is no hover to reveal it with.
+ *  EXPANDED (first visit): one quiet line — "Save with the Semester Pass — Exams 2, 3 + Final for
+ *  $150." — with a real, thumb-sized × (44px, always visible). It used to be a full strip that
+ *  competed with the exam tabs, and its × was hover-revealed and small.
  *
- *  Dismissal is a UI preference in localStorage, read in an effect: reading storage during
- *  render would make the server (always visible) and the client (maybe hidden) disagree. */
+ *  COLLAPSED (after dismissal, remembered in localStorage like the other UI preferences): a
+ *  subtle BRACKET under the three paid tabs — Exam 2 → Exam 3 → Final — labelled
+ *  "Semester Pass · $150". It is product architecture ("these three come together"), not an
+ *  advertisement: ~18px tall, never over the tabs, clickable (→ the notify modal), and it does
+ *  not come back as a banner. The expanded line and the bracket both open the same modal. */
 const PASS_DISMISS_KEY = "sa-pass-line-dismissed";
 
 function SemesterPassLine({ onPass }: { onPass: () => void }) {
-  const [gone, setGone] = useState(false);
-  useEffect(() => { try { if (localStorage.getItem(PASS_DISMISS_KEY) === "1") setGone(true); } catch { /* private mode */ } }, []);
-  if (gone) return null;
+  // null until the effect reads storage — the server and the first client paint must agree.
+  const [collapsed, setCollapsed] = useState<boolean | null>(null);
+  useEffect(() => { try { setCollapsed(localStorage.getItem(PASS_DISMISS_KEY) === "1"); } catch { setCollapsed(false); } }, []);
   const dismiss = () => {
-    setGone(true);
+    setCollapsed(true);
     try { localStorage.setItem(PASS_DISMISS_KEY, "1"); } catch { /* private mode */ }
   };
+  if (collapsed === null) return null;
+  if (collapsed) {
+    // THE BRACKET. Four equal columns mirror the four equal-width tabs above; the bracket
+    // occupies columns 2–4 (the paid exams). Exam 1 is free, so its column stays empty.
+    return (
+      <div className="grid px-0" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))", background: "rgba(0,0,0,0.22)" }} aria-hidden={false}>
+        <span />
+        <button
+          type="button"
+          onClick={onPass}
+          aria-label={`Semester Pass — Exams 2, 3 and the Final together for $${SEMESTER_PASS_PRICE}`}
+          className="relative col-span-3 mx-2 mb-1 flex items-start justify-center"
+          style={{ height: 18, borderLeft: "1px solid rgba(252,163,17,0.45)", borderRight: "1px solid rgba(252,163,17,0.45)", borderBottom: "1px solid rgba(252,163,17,0.45)", borderRadius: "0 0 6px 6px", marginTop: -1 }}
+        >
+          <span className="-translate-y-1/2 whitespace-nowrap rounded-full px-2 text-[9.5px] font-black uppercase tracking-[0.1em] leading-[14px]" style={{ background: "var(--sa-surface-1)", color: "var(--accent)", border: "1px solid rgba(252,163,17,0.35)", marginTop: 9 }}>
+            Semester Pass · ${SEMESTER_PASS_PRICE}
+          </span>
+        </button>
+      </div>
+    );
+  }
   return (
-    <div className="sa-passline group relative px-3 py-2 text-center" style={{ background: "rgba(0,0,0,0.12)" }}>
-      <button onClick={onPass} className="block w-full py-2 px-7 text-[14px] hover:opacity-90" style={{ color: "var(--text-muted)" }}>
-        Or grab the{" "}
-        <span className="font-bold" style={{ color: "var(--accent)" }}>Semester Pass</span>
-        {` — everything, all semester, for $${SEMESTER_PASS_PRICE}.`}
+    <div className="relative flex items-center gap-1 px-2 py-1" style={{ background: "rgba(0,0,0,0.12)" }}>
+      <button onClick={onPass} className="min-w-0 flex-1 truncate py-1.5 text-center text-[12.5px] hover:opacity-90" style={{ color: "var(--text-muted)", minHeight: 36 }}>
+        Save with the <span className="font-bold" style={{ color: "var(--accent)" }}>Semester Pass</span>{` — Exams 2, 3 + Final for $${SEMESTER_PASS_PRICE}.`}
       </button>
       <button
         onClick={dismiss}
-        aria-label="Dismiss the Semester Pass offer"
-        className="sa-passline-x absolute right-0 top-1/2 grid -translate-y-1/2 place-items-center rounded"
-        style={{ width: 44, height: 44, color: "var(--text-muted)" }}
+        aria-label="Dismiss the Semester Pass message"
+        className="grid shrink-0 place-items-center rounded-lg hover:bg-white/10"
+        style={{ width: 44, height: 40, color: "var(--brand-cream)" }}
       >
-        <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>×</span>
+        <X aria-hidden className="h-4 w-4" />
       </button>
     </div>
   );
@@ -1676,7 +1750,7 @@ const possessive = (p: ProfessorLite | null): string | null => {
 /** SIDEBAR CONTEXT — school · course, professor, coverage, reset. Moved here from the bar that
  *  used to sit above the question; the sidebar is where a student understands what's on the
  *  exam, so this is where "whose exam" belongs. Only renders once the flow is confirmed. */
-function SidebarContext({ school, professor, coveragePct, onAddProfessor, onMaterials, onReset }: { school: School | null; professor: ProfessorLite | null; coveragePct: number | null; onAddProfessor: () => void; onMaterials: () => void; onReset: () => void }) {
+function SidebarContext({ school, professor, coveragePct, onAddProfessor, onMaterials, onReset, resetLabel }: { school: School | null; professor: ProfessorLite | null; coveragePct: number | null; onAddProfessor: () => void; onMaterials: () => void; onReset: () => void; resetLabel: string }) {
   const code = school?.codeVerified && school.code ? school.code : null;
   return (
     <div className="mb-3 border-b px-1 pb-3" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
@@ -1689,8 +1763,9 @@ function SidebarContext({ school, professor, coveragePct, onAddProfessor, onMate
             <button type="button" onClick={onAddProfessor} className="text-[12px] font-bold" style={{ color: "var(--accent)", minHeight: 28 }}>+ Add professor</button>
           ) : null}
         </div>
-        {/* "Reset", not "Change": it returns to the very beginning, so the label should say so. */}
-        <button onClick={onReset} className="shrink-0 text-[11px]" style={{ color: "var(--text-muted)", minHeight: 28 }}>Reset</button>
+        {/* "Reset" on the generic page (back to the school picker); "Start over" on a campus or
+            chapter page, where the school stays and only professor + session restart. */}
+        <button onClick={onReset} className="shrink-0 text-[11px]" style={{ color: "var(--text-muted)", minHeight: 28 }}>{resetLabel}</button>
       </div>
       {/* COVERAGE, inspectable but never in the way. Only when the resolver returned a real number. */}
       {coveragePct != null && (
@@ -1702,14 +1777,13 @@ function SidebarContext({ school, professor, coveragePct, onAddProfessor, onMate
   );
 }
 
-function ExamOutline({ tab, school, professor, flowDone, coveragePct, onAddProfessor, onMaterials, onReset, stats, isPaid, curSetId, curTopicKey, openTopics, onToggleTopic, onPickSet }: { tab: ExamTab; school: School | null; professor: ProfessorLite | null; flowDone: boolean; coveragePct: number | null; onAddProfessor: () => void; onMaterials: () => void; onReset: () => void; stats: string; isPaid: boolean; curSetId: string | null; curTopicKey: string | null; openTopics: Set<string>; onToggleTopic: (k: string) => void; onPickSet: (topicKey: string, setId: string | null) => void }) {
+function ExamOutline({ tab, school, professor, flowDone, coveragePct, onAddProfessor, onMaterials, onReset, resetLabel, onNotify, stats, isPaid, curSetId, curTopicKey, openTopics, onToggleTopic, onPickSet }: { tab: ExamTab; school: School | null; professor: ProfessorLite | null; flowDone: boolean; coveragePct: number | null; onAddProfessor: () => void; onMaterials: () => void; onReset: () => void; resetLabel: string; onNotify: (r: NotifyReq) => void; stats: string; isPaid: boolean; curSetId: string | null; curTopicKey: string | null; openTopics: Set<string>; onToggleTopic: (k: string) => void; onPickSet: (topicKey: string, setId: string | null) => void }) {
   const activeRef = useRef<HTMLButtonElement>(null);
   // revealInContainer, NOT scrollIntoView: block:"nearest" also scrolls the DOCUMENT, which on a
   // /go/ page dragged the chapter banner under the sticky navbar on load. See lib/ui-scroll.ts.
   useEffect(() => { revealInContainer(activeRef.current); }, [curSetId, curTopicKey]);
-  // PAID-TAB-CAPTURE: a paid-row tap (peak intent) points at the persistent notify panel below
-  // instead of flashing a self-destructing tooltip.
-  const [notifyPulse, setNotifyPulse] = useState(0);
+  // A LOCKED ROW TAP (peak intent) opens the ONE notify modal with that exam/topic/set as its
+  // context. Browsing the tab itself never asks for anything.
   return (
     /* NO INTERNAL SCROLLBAR ON DESKTOP (Pass 5). This used to be a hard `sm:max-h-[380px]` cap, so
        once the outline grew past ~6 rows — or the notify box was added under the stats line — the
@@ -1719,7 +1793,7 @@ function ExamOutline({ tab, school, professor, flowDone, coveragePct, onAddProfe
        scrolls. Below sm the outline is a drop-down drawer stacked above the video, where capping
        it is correct — an unbounded drawer would push the video off-screen. */
     <div className="max-h-[60vh] overflow-y-auto p-3 sm:max-h-none sm:overflow-visible">
-      {flowDone && <SidebarContext school={school} professor={professor} coveragePct={coveragePct} onAddProfessor={onAddProfessor} onMaterials={onMaterials} onReset={onReset} />}
+      {flowDone && <SidebarContext school={school} professor={professor} coveragePct={coveragePct} onAddProfessor={onAddProfessor} onMaterials={onMaterials} onReset={onReset} resetLabel={resetLabel} />}
       {/* Sidebar header, restored in Pass 2. It was cut on the theory that the rows below already
           ARE the questions — true, but the header is also the only thing naming what the left
           column IS once the right panel stops being a video. On a locked tab it carries the
@@ -1734,65 +1808,12 @@ function ExamOutline({ tab, school, professor, flowDone, coveragePct, onAddProfe
         {isPaid && <span className="text-[10px] font-bold" style={{ color: "var(--accent)" }}>Opens {LAUNCH_WINDOW}</span>}
       </div>
       {tab.topics.map((t) => (
-        <TopicRow key={t.key} topic={t} isPaid={isPaid} price={tab.price} open={openTopics.has(t.key)} onToggle={() => onToggleTopic(t.key)} curSetId={curSetId} curTopicKey={curTopicKey} activeRef={activeRef} onPickSet={onPickSet} onPaidClick={() => setNotifyPulse((p) => p + 1)} />
+        <TopicRow key={t.key} topic={t} isPaid={isPaid} price={tab.price} open={openTopics.has(t.key)} onToggle={() => onToggleTopic(t.key)} curSetId={curSetId} curTopicKey={curTopicKey} activeRef={activeRef} onPickSet={onPickSet} onPaidClick={(setName) => onNotify(examRequest({ examNum: tab.num, examLabel: tab.label, topicName: t.name, setName, launchWindow: LAUNCH_WINDOW }))} />
       ))}
       {/* the quiet sum — where the eye lands after scanning the list, not a headline */}
       <div className="mt-2 border-t px-1 pt-2 text-[10.5px]" style={{ borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>{stats}</div>
-      {/* PAID-TAB-CAPTURE stays on paid tabs (peak purchase intent) and on tabs with nothing
-          live yet. It is GONE from a content-ready free tab: once the product exists, a waitlist
-          box under it is clutter apologising for a problem the tab no longer has. */}
-      {/* On a FREE tab with nothing published the box lives in the Poster instead — inside the
-          media panel, where it is visible on every breakpoint. Here it would be hidden inside the
-          collapsed mobile topic drawer, which is exactly where it used to be. */}
-      {isPaid && <PaidNotifyRow exam={tab} school={school} pulse={notifyPulse} />}
-    </div>
-  );
-}
-
-// PAID-TAB-CAPTURE — "Exam 2 · $50 — opens soon" + one email field into the existing pricing
-// waitlist (campus_waitlist, tier test_pass). Joined state persists per exam so it asks once.
-function PaidNotifyRow({ exam, school, pulse }: { exam: ExamTab; school: School | null; pulse: number }) {
-  const key = `sa-notify-exam-${exam.num}`;
-  const [email, setEmail] = useState("");
-  const [state, setState] = useState<"open" | "busy" | "done" | "error">(() => { try { return localStorage.getItem(key) === "done" ? "done" : "open"; } catch { return "open"; } });
-  const [flash, setFlash] = useState(false);
-  const boxRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!pulse) return;
-    revealInContainer(boxRef.current, "smooth");
-    setFlash(true);
-    const t = setTimeout(() => setFlash(false), 1200);
-    return () => clearTimeout(t);
-  }, [pulse]);
-  const submit = async () => {
-    const e = email.trim();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) || state === "busy") return;
-    setState("busy");
-    try {
-      // examNum is carried explicitly: all four tabs collect emails now, so "which exam did
-      // this person ask for" is no longer inferable from the fact that a row exists at all.
-      await joinPricingWaitlist({ email: e, campus: school?.name ?? null, campusId: school?.campusId ?? null, campusSlug: school?.slug ?? null, course: `${exam.label}${school?.code ? ` · ${school.code}` : ""}`, tier: "test_pass", examNum: exam.num });
-      setState("done"); try { localStorage.setItem(key, "done"); } catch { /* ignore */ }
-    } catch { setState("error"); }
-  };
-  return (
-    /* Compacted in Pass 5 (px-3 py-2.5 → px-2.5 py-2, 11.5px label → 11px, mt-1.5 → mt-1). It is the
-       last thing in a column that no longer scrolls, so every pixel it spends is a pixel the sidebar
-       grows past the video beside it. */
-    <div ref={boxRef} className="mt-2 rounded-xl px-2.5 py-2" style={{ border: `1px solid ${flash ? "var(--accent)" : "rgba(252,163,17,0.35)"}`, background: flash ? "rgba(252,163,17,0.14)" : "rgba(252,163,17,0.06)", transition: "background 300ms, border-color 300ms" }}>
-      {state === "done" ? (
-        <p className="text-[14px] font-semibold" style={{ color: "var(--brand-cream)" }}>✓ You're on the list — I'll email you the day {exam.label} opens.</p>
-      ) : (
-        <>
-          <p className="text-[14px] font-bold" style={{ color: "var(--brand-cream)" }}>Get notified once {exam.label} is ready</p>
-          <div className="mt-1.5 flex gap-1.5">
-            {/* 16px input: iOS zooms the page on focus below that. 44px controls: thumb-sized. */}
-            <input value={email} onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("open"); }} onKeyDown={(e) => { if (e.key === "Enter") void submit(); }} type="email" inputMode="email" autoComplete="email" placeholder="you@school.edu" className="min-w-0 flex-1 rounded-lg px-3 outline-none" style={{ fontSize: 16, minHeight: 44, background: "var(--bg-input)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }} />
-            <button onClick={() => void submit()} disabled={state === "busy"} className="shrink-0 rounded-lg px-3 text-[14px] font-black disabled:opacity-50" style={{ minHeight: 44, background: "var(--accent)", color: "#0B1220" }}>{state === "busy" ? "…" : "Notify me"}</button>
-          </div>
-          {state === "error" && <p className="mt-1 text-[14px]" style={{ color: "#F3C6CC" }}>Couldn't save that — try again in a moment.</p>}
-        </>
-      )}
+      {/* NO WAITLIST BOX HERE ANY MORE (08-21). The sidebar and the media panel each carried a
+          permanent email form; now the student asks by clicking the thing that isn't ready. */}
     </div>
   );
 }
@@ -1808,7 +1829,7 @@ const estTopicMin = (name: string): number => {
   return 11 + (h % 12);
 };
 
-function TopicRow({ topic, isPaid, price, open, onToggle, curSetId, curTopicKey, activeRef, onPickSet, onPaidClick }: { topic: ResolvedTopic; isPaid: boolean; price: number | null; open: boolean; onToggle: () => void; curSetId: string | null; curTopicKey: string | null; activeRef: RefObject<HTMLButtonElement | null>; onPickSet: (topicKey: string, setId: string | null) => void; onPaidClick: () => void }) {
+function TopicRow({ topic, isPaid, price, open, onToggle, curSetId, curTopicKey, activeRef, onPickSet, onPaidClick }: { topic: ResolvedTopic; isPaid: boolean; price: number | null; open: boolean; onToggle: () => void; curSetId: string | null; curTopicKey: string | null; activeRef: RefObject<HTMLButtonElement | null>; onPickSet: (topicKey: string, setId: string | null) => void; onPaidClick: (setName: string) => void }) {
   const built = topic.sets.length > 0;
   const totalCeq = topic.sets.reduce((a, s) => a + s.ceqCount, 0);
   const posterActive = curTopicKey === topic.key && !curSetId;
@@ -1832,7 +1853,7 @@ function TopicRow({ topic, isPaid, price, open, onToggle, curSetId, curTopicKey,
       </button>
       {open && (
         <div className="ml-5 mt-0.5 space-y-0.5">
-          {topic.sets.map((s, i) => <SetRow key={s.id} set={s} refLabel={`${topic.num ?? "?"}.${i + 1}`} isPaid={isPaid} price={price} active={s.id === curSetId} activeRef={activeRef} onPick={() => onPickSet(topic.key, s.id)} onPaidClick={onPaidClick} />)}
+          {topic.sets.map((s, i) => <SetRow key={s.id} set={s} refLabel={`${topic.num ?? "?"}.${i + 1}`} isPaid={isPaid} price={price} active={s.id === curSetId} activeRef={activeRef} onPick={() => onPickSet(topic.key, s.id)} onPaidClick={() => onPaidClick(s.name)} />)}
         </div>
       )}
     </div>
@@ -1965,7 +1986,7 @@ function HeroVideo({ playbackId, onComplete }: { playbackId: string; onComplete?
  *  video always used. Stage transitions are overlay CTAs, not new screens — this is still the
  *  low-friction discovery player, not a dashboard. Paid sets never reach here (no playbackId
  *  in the free tree), so there is no entitlement logic on this surface. */
-function SetFlowPanel({ topic, set, school, surface, onCramComplete, onPickSet }: { topic: ResolvedTopic; set: StudentSet; school: School | null; surface: "home" | "campus" | "greek"; onCramComplete: () => void; onPickSet: (setId: string) => void }) {
+function SetFlowPanel({ topic, set, exam, school, surface, onCramComplete, onPickSet, onNotify }: { topic: ResolvedTopic; set: StudentSet; exam: ExamTab; school: School | null; surface: "home" | "campus" | "greek"; onCramComplete: () => void; onPickSet: (setId: string) => void; onNotify: (r: NotifyReq) => void }) {
   // Entry = the set's FIRST available stage: cram when its video exists, else straight to
   // practice (the CEQ release ships questions before videos). The cram slot stays in the shell
   // as a "coming soon" strip so a published video fills it with no layout change.
@@ -1973,7 +1994,15 @@ function SetFlowPanel({ topic, set, school, surface, onCramComplete, onPickSet }
   // The end-of-video overlay per stage ("Practice this set →" / "Next set →").
   const [stageEnded, setStageEnded] = useState(false);
   const stages = stagesOf(set);
-  const { n } = setIndexOf(topic.sets, set.id);
+  // AVAILABILITY comes from the set itself (the content model), never a stored flag: a cram
+  // video → Cram, question cards → Practice, a shipped review video → Review. The moment a
+  // video is published the pill un-mutes on its own.
+  const available: Record<SetStage, boolean> = { cram: !!set.playbackId, practice: set.ceqCount > 0, review: set.hasReview };
+  const { n, of } = setIndexOf(topic.sets, set.id);
+  const askFor = (st: SetStage) => {
+    const a = { examNum: exam.num, examLabel: exam.label, topicName: topic.name, setName: set.name };
+    onNotify(st === "cram" ? cramRequest(a) : st === "review" ? reviewRequest(a) : examRequest({ ...a, launchWindow: LAUNCH_WINDOW, free: true }));
+  };
   const after = nextStep(topic.sets, set.id, stage);
   const nextSetName = after && after.setId !== set.id ? (topic.sets.find((s) => s.id === after.setId)?.name ?? "Next set") : null;
   const goto = (pos: { setId: string; stage: SetStage } | null) => {
@@ -1982,26 +2011,20 @@ function SetFlowPanel({ topic, set, school, surface, onCramComplete, onPickSet }
     else onPickSet(pos.setId); // remount via key → the next set starts at its own Cram
   };
   const forwardLabel = after ? (after.setId === set.id ? (after.stage === "practice" ? "Practice this set →" : "Review with Lee →") : "Next set →") : null;
-  const pill = (st: SetStage) => (
-    <button
-      key={st}
-      onClick={() => { setStage(st); setStageEnded(false); }}
-      className="rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider"
-      style={{ minHeight: 24, color: st === stage ? "#0B1220" : "var(--text-muted)", background: st === stage ? "var(--accent)" : "transparent", border: `1px solid ${st === stage ? "var(--accent)" : "rgba(245,239,230,0.16)"}` }}
-      title={st === "cram" ? "Cram Blast — see what's coming" : st === "practice" ? "Practice — try it yourself" : "Review — watch Lee work it"}
-    >
-      {st === "cram" ? "Cram" : st === "practice" ? "Practice" : "Review"}
-    </button>
-  );
+  void stages;
   return (
     <div className="sa-reveal w-full">
-      {/* The "SET n OF m · stem" strip is gone — the sidebar already names the set. The stage
-          switcher only appears once a set has MORE than one stage (i.e. a video exists). */}
-      {stages.length > 1 && (
-        <div className="flex items-center justify-end gap-1 px-3 py-1.5" style={{ background: "rgba(0,0,0,0.24)", borderBottom: "1px solid rgba(245,239,230,0.08)" }}>
-          {stages.map(pill)}
+      {/* THE STAGE STRIP — "SET n OF m" + Cram / Practice / Review, always. A stage without
+          content stays visible and clickable (muted, SOON) so the student reads Practice as
+          one step of a workflow: see what's coming → try it → watch Lee work it. */}
+      {/* flex-wrap: at phone widths the three pills drop to their own row (still one row of
+          three, easy to tap) instead of pushing the card wider than the screen. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-1.5" style={{ background: "rgba(0,0,0,0.24)", borderBottom: "1px solid rgba(245,239,230,0.08)" }}>
+        <span className="shrink-0 text-[10px] font-black uppercase tracking-[0.12em] tabular-nums" style={{ color: "var(--text-muted)" }}>Set {n} of {of}</span>
+        <div className="ml-auto">
+          <StagePills current={stage} available={available} onSelect={(st) => { setStage(st); setStageEnded(false); }} onUnavailable={askFor} />
         </div>
-      )}
+      </div>
       {/* VIDEO stages keep the 16:9 stage; PRACTICE takes its natural height (a question, four
           choices, the coming-soon line and the ask box must never scroll inside a video box). */}
       <div className="relative w-full" style={stage === "practice" ? { minHeight: 360, background: "#000" } : { aspectRatio: "16 / 9", background: "#000" }}>
@@ -2015,6 +2038,7 @@ function SetFlowPanel({ topic, set, school, surface, onCramComplete, onPickSet }
                 campusName={school?.name ?? null}
                 campusSlug={school?.slug ?? null}
                 surface={surface}
+                statusLabel=""
                 doneLabel={forwardLabel ?? "Done →"}
                 onDone={() => goto(after)}
                 onReview={set.reviewPlaybackId ? () => goto({ setId: set.id, stage: "review" }) : undefined}
@@ -2061,7 +2085,7 @@ function SetFlowPanel({ topic, set, school, surface, onCramComplete, onPickSet }
  *  the school's colours, the topic name, one plain line saying the videos for this set are coming,
  *  and the notify field — the only action there is until they publish — right here in the media
  *  panel on every breakpoint (the sidebar copy of it was invisible inside the mobile drawer). */
-function Poster({ school, exam, topicName, stem }: { school: School | null; exam: ExamTab; topicName: string; stem?: string | null }) {
+function Poster({ school, exam, topicName, stem, onNotify }: { school: School | null; exam: ExamTab; topicName: string; stem?: string | null; onNotify: () => void }) {
   const c = school ? boltFor(school.id) : { c1: BRAND_RED, c2: BRAND_BLUE };
   return (
     <div className="grid h-full w-full place-items-center py-5" style={{ background: "var(--sa-surface-2)" }}>
@@ -2072,12 +2096,14 @@ function Poster({ school, exam, topicName, stem }: { school: School | null; exam
         {stem && <p className="max-w-md text-[14px] font-semibold leading-snug" style={{ color: "var(--brand-cream)" }}>{stem}</p>}
         <p className="text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>
           {exam.price != null
-            ? `${exam.label} videos open ${LAUNCH_WINDOW} — ${topicName} is on the list.`
+            ? `${exam.label === "Final" ? "The Final" : exam.label} opens ${LAUNCH_WINDOW} — ${topicName} is on the list.`
             : `Videos for ${topicName} are coming — Lee is filming this set now.`}
         </p>
-        <div className="w-full text-left">
-          <PaidNotifyRow exam={exam} school={school} pulse={0} />
-        </div>
+        {/* ONE CTA → the ONE notify modal. No embedded form: browsing a future exam is allowed
+            without being asked for an email; the ask waits for a click. */}
+        <button type="button" onClick={onNotify} className="rounded-xl px-4 text-[13px] font-black" style={{ minHeight: 44, background: "var(--accent)", color: "#0B1220" }}>
+          Notify me when it&apos;s ready →
+        </button>
       </div>
     </div>
   );
