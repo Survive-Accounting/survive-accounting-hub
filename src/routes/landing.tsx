@@ -36,7 +36,9 @@ import { FitWordmark, SiteHeader, useNavyDocument } from "@/components/site/Site
 import { PickerSheet } from "@/components/site/PickerSheet";
 import { logCampusCodeDemand } from "@/lib/campus-demand.functions";
 import { ALL_SCHOOLS, searchSchools } from "@/lib/schools";
-import { ANIMATED_BOLT_CSS, type BoltHeroStop } from "@/components/site/AnimatedBolt";
+import {
+  ANIMATED_CAMPUS_BOLT_CSS, BOLT_ACCENTS, orderCampuses, type BoltCampus,
+} from "@/components/site/bolt";
 import {
   FeatureValueStrip, MARKETING_CSS, MARKETING_HERO_ID, MarketingHero, MarketingUtilityLinks,
   SocialProofSection, StickyFooterBar, TutorBioModal, TutorCard, type GreekMarketing,
@@ -61,8 +63,6 @@ export const Route = createFileRoute("/landing")({
 const EXAM_ANCHOR_ID = "exam1";
 const PHONE = "(662) 565-8818";
 const TEL = "+16625658818";
-/** The home hero's colour-cycle leaders, in build-priority order (the brief's original trio). */
-const ROTATION_LEAD = ["ole-miss", "lsu", "tennessee"];
 
 // THE SCHOOL LIST — derived from the generated table, never hand-maintained here.
 //
@@ -179,7 +179,10 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   const campus = useCampus();
   // The resolved campus's bolt colours, published on the page root. One source; no component
   // picks its own. Null when campus is unknown, which leaves the cycling hero to set its own.
-  const campusBolt = useMemo(() => (campus.school ? boltFor(campus.school.id) : null), [campus.school]);
+  const campusBolt = useMemo(
+    () => (campus.school ? { ...boltFor(campus.school.id), accent: BOLT_ACCENTS[campus.school.id] ?? null } : null),
+    [campus.school],
+  );
   const preSchool = useMemo(() => (initialCampusId ? SCHOOLS.find((s) => s.campusId === initialCampusId) ?? null : null), [initialCampusId]);
   // INITIAL SCHOOL IS WHATEVER THE SERVER ALREADY KNOWS — the URL's campus or the cookie's stored
   // one, both of which campus context resolved before this render on BOTH sides. Initialising
@@ -327,16 +330,25 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   const heroKind: "general" | "campus" | "greek" = greek ? "greek" : heroSchoolName ? "campus" : "general";
   const heroCode = campus.code ?? (school?.codeVerified && school.code ? school.code : null);
 
-  // HOME ROTATION — Ole Miss, LSU and Tennessee lead (build-priority order), the rest follow in
-  // picker order; AnimatedBoltHero cycles through ALL of them continuously (~5s each).
+  // HOME ROTATION — every school, flowing upward through the bolt, one campus roughly every 3.6s.
+  //
+  // THE ORDER IS CURATED, NEVER ALPHABETICAL. It used to be "three leads, then whatever order the
+  // generated table happened to be in", which is alphabetical — so after Ole Miss/LSU/Tennessee the
+  // home page ran Alabama, Arizona, Arizona State, Arkansas, four reds in a row. The sequence now
+  // lives in CURATED_CAMPUS_ORDER (src/components/site/bolt/bolt-config.ts); orderCampuses applies
+  // it and appends anything the list does not name, so a new campus can never fall off the rotation.
+  //
   // Codes ride along ONLY when verified, so the plate can never print a plausible wrong one.
-  const rotationStops = useMemo<BoltHeroStop[]>(() => {
-    const rank = (id: string) => { const i = ROTATION_LEAD.indexOf(id); return i < 0 ? ROTATION_LEAD.length : i; };
-    return schoolsWithCodes
-      .slice()
-      .sort((a, b) => rank(a.id) - rank(b.id))
-      .map((s) => ({ id: s.id, name: s.name, code: s.code ?? null, ...boltFor(s.id) }));
-  }, [schoolsWithCodes]);
+  const rotationCampuses = useMemo<BoltCampus[]>(
+    () =>
+      orderCampuses(
+        schoolsWithCodes.map((s) => {
+          const c = boltFor(s.id);
+          return { id: s.id, name: s.name, code: s.code ?? null, primary: c.c1, secondary: c.c2, accent: BOLT_ACCENTS[s.id] ?? null };
+        }),
+      ),
+    [schoolsWithCodes],
+  );
 
   const treeQ = useQuery({ queryKey: ["landing-tree", school?.campusId ?? null], queryFn: () => fetchStudentTree({ data: school ? { campusId: school.campusId } : {} }), networkMode: "always", staleTime: 300_000 });
   const intro1 = useMemo(() => (treeQ.data ?? []).find((c) => c.family === "intro_1" || c.name.trim().toLowerCase() === "intro 1") ?? null, [treeQ.data]);
@@ -441,7 +453,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
 
   return (
     <div style={{ ...frameThemeVars(theme), background: "var(--bg-page)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "clip", ...(campusBolt ? { ["--sa-bolt-1"]: campusBolt.c1, ["--sa-bolt-2"]: campusBolt.c2 } as React.CSSProperties : {}) }}>
-      <style>{ANIMATED_BOLT_CSS}</style>
+      <style>{ANIMATED_CAMPUS_BOLT_CSS}</style>
       <style>{MARKETING_CSS}</style>
       <style>{`
         @keyframes sa-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
@@ -488,7 +500,8 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
           kind={heroKind}
           code={heroCode}
           schoolShort={heroSchoolName}
-          rotationStops={rotationStops}
+          rotationCampuses={rotationCampuses}
+          campusBolt={campusBolt}
           onBoltPick={(id) => { const s = schoolsWithCodes.find((x) => x.id === id); if (s) pickSchool(s); else onStart(); }}
           greek={greek}
           onStart={heroStart}
@@ -497,6 +510,19 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
           onSecondary={greek ? () => { if (greek.claimed) scrollToId(EXAM_ANCHOR_ID); else { openClaimStep(); scrollToId(greek.accessAnchor); } } : undefined}
           showSecondary={greek ? true : heroKind !== "campus" || (chapterCount ?? 0) > 0}
           onOpenBio={() => setBioOpen(true)}
+          // CHANGE SCHOOL. The stored campus is only "last used", so the honest way to change it
+          // is to leave a URL that names a campus: forget the campus and land on the generic page
+          // with the picker. A chapter page therefore leaves the chapter route rather than
+          // becoming a different campus wearing this chapter's banner.
+          onChangeSchool={heroKind === "general" ? undefined : () => {
+            resetProfessor();
+            rememberProfSkip(null);
+            campus.clearSchool();
+            setSchool(null);
+            setNotListed(false);
+            setManualReset(true);
+            void navigate({ to: "/", hash: EXAM_ANCHOR_ID });
+          }}
           courtesy={greek && goChapter ? <CourtesyLine schoolSlug={goChapter.schoolSlug} chapterSlug={goChapter.chapterSlug} chapterName={greek.orgName} /> : undefined}
         />
         <ExamPlayer videoGate={videoGate} greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); void logCampusCodeDemand({ data: { source: "write-in" } }).catch(() => {}); rememberCampus(NOT_LISTED); }} onSkipSchool={() => { setNotListed(true); rememberCampus(SKIPPED); }} schoolSkipped={notListed && !school} initialProfSkipped={!!school && !!profSkipFor && profSkipFor === school.id} onReset={resetMatch} resetSeq={resetSeq} resetLabel={routeLocked ? "Start over" : "Reset"} onChangeSchool={routeLocked ? changeSchool : undefined} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(r) => setNotifyReq(r)} />
@@ -521,12 +547,12 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
         />
         <SectionDivider />
         {greekOrg ? <Faq greek={greekOrg} /> : null}
-        {/* Utility requests live at the FOOT of the persuasion flow — after proof, before the
-            footer — instead of interrupting the pitch mid-page. */}
-        <MarketingUtilityLinks
-          kind={heroKind}
-          onProfessorAsk={() => openSyllabus("Don't see your professor? Tell me who teaches your class and I'll map them.")}
-        />
+        {/* THE PRE-FOOTER UTILITY LINKS ARE GONE. "Don't see your professor?" and "Don't see your
+            school?" floated alone between the proof section and the footer, where they read as
+            orphaned error-state text rather than an offer. Both actions still exist where they are
+            actually needed: the professor write-in lives in the player's professor step, and the
+            school write-in is "Add your school" in the footer. The forms behind them are
+            untouched. */}
       </main>
       {/* OUTSIDE <main> on purpose: the footer surface is full-bleed, its CONTENT is centred by
           the footer's own max-w-[1040px] rows. Inside main it inherited main's max width and the

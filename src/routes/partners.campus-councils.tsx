@@ -13,6 +13,7 @@ import { SearchPicker } from "@/components/site/SearchPicker";
 import { COUNCILS } from "@/lib/greek-councils.functions";
 import { PARTNER_OFFER, problemHeadline } from "@/lib/partners";
 import { ALL_SCHOOLS, boltForSlug } from "@/lib/schools";
+import { boltCampusFor } from "@/components/site/bolt";
 import { Bolt } from "@/components/canvas/brand";
 import { ogMeta } from "@/lib/og";
 
@@ -46,11 +47,7 @@ function CampusCouncilsPage() {
         headline={problemHeadline()}
         subhead="Help every chapter on your campus get ahead of it."
         body={`${PARTNER_OFFER} for every member of every chapter you govern — matched to the intro accounting course your campus actually teaches. Free for the council, free for Exam 1, nothing to install.`}
-        bolt={SHOWCASE.map((slug) => {
-          const s = ALL_SCHOOLS.find((x) => x.slug === slug);
-          const b = boltForSlug(slug);
-          return { id: slug, c1: b.c1, c2: b.c2, name: s?.name ?? slug, code: null };
-        })}
+        bolt={SHOWCASE.map((slug) => boltCampusFor(slug, { code: null }))}
         boltLabel="Survive Accounting"
         actions={
           <>

@@ -10,7 +10,7 @@ import { PartnerPageShell } from "@/components/site/PartnerPage";
 import { PartnerEntityTable, PartnerHero, PartnerPrimary, PartnerRowAction, PartnerSecondary, PartnerSection } from "@/components/site/PartnerKit";
 import { listTopNationalPartners } from "@/lib/partners.functions";
 import { PARTNER_OFFER, problemHeadline } from "@/lib/partners";
-import { ALL_SCHOOLS, boltForSlug } from "@/lib/schools";
+import { boltCampusFor } from "@/components/site/bolt";
 import { ogMeta } from "@/lib/og";
 
 const ORIGIN = "https://surviveaccounting.com";
@@ -41,11 +41,7 @@ function NationalOrganizationsPage() {
         headline={problemHeadline()}
         subhead="Give your chapters free exam prep matched to their campus."
         body={`${PARTNER_OFFER} for every member, on every campus you're on — matched to the intro accounting course that campus actually teaches. Every chapter already has its own page.`}
-        bolt={SHOWCASE.map((slug) => {
-          const s = ALL_SCHOOLS.find((x) => x.slug === slug);
-          const b = boltForSlug(slug);
-          return { id: slug, c1: b.c1, c2: b.c2, name: s?.name ?? slug, code: null };
-        })}
+        bolt={SHOWCASE.map((slug) => boltCampusFor(slug, { code: null }))}
         boltLabel="Survive Accounting"
         actions={
           <>

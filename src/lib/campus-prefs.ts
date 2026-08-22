@@ -1,4 +1,8 @@
-// CAMPUS PREFERENCE COOKIES — the campus the visitor implied or chose, and the two "skip" answers.
+// CAMPUS PREFERENCE COOKIES — the LAST USED campus, and the two "skip" answers.
+//
+// "Last used", never "current". A page whose URL names a campus (/<school>, /go/<school>/<chapter>)
+// outranks anything stored here — see the priority list in campus-context.tsx. What this buys is a
+// sensible default on the pages that name no campus: the homepage, /chapters, /rep.
 //
 // WHY COOKIES AND NOT ONLY localStorage. The landing routes are server-rendered. localStorage is
 // invisible to the server, so a returning visitor's first paint was the GENERIC page (generic
@@ -39,7 +43,7 @@ const setStore = (key: string, value: string | null) => {
   try { if (value) localStorage.setItem(key, value); else localStorage.removeItem(key); } catch { /* private mode */ }
 };
 
-/** Remember the campus (picker id, or a sentinel). null forgets it everywhere. */
+/** Remember the LAST USED campus (picker id, or a sentinel). null forgets it everywhere. */
 export function rememberCampus(id: string | null) {
   setCookie(CAMPUS_COOKIE, id);
   setStore(CAMPUS_STORE_KEY, id);
@@ -52,7 +56,8 @@ export function rememberProfSkip(schoolId: string | null) {
   setStore(PROF_SKIP_STORE_KEY, schoolId);
 }
 
-/** Client-side read of the stored campus (cookie first, then localStorage for pre-cookie visitors). */
+/** Client-side read of the last-used campus (cookie first, then localStorage for pre-cookie
+ *  visitors). Callers must treat it as a DEFAULT — never as an override for a page's own campus. */
 export function readStoredCampus(): string | null {
   if (typeof document === "undefined") return null;
   try {

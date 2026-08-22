@@ -17,9 +17,8 @@ import {
 } from "@/components/site/PartnerKit";
 import { getNationalPartner } from "@/lib/partners.functions";
 import { PARTNER_OFFER, problemHeadline } from "@/lib/partners";
-import { boltForSlug } from "@/lib/schools";
 import { ogMeta } from "@/lib/og";
-import type { BoltHeroStop } from "@/components/site/AnimatedBolt";
+import { boltCampusFor, type BoltCampus } from "@/components/site/bolt";
 
 const ORIGIN = "https://surviveaccounting.com";
 
@@ -62,15 +61,12 @@ function NationalPartnerPage() {
   // ONE STOP PER CAMPUS, in the org's own campus order, deduped: the bolt sweeps through the
   // schools this org is actually on, wearing each school's colours and naming its real course
   // code. Never an invented code — a campus with none simply shows its name.
-  const stops: BoltHeroStop[] = (() => {
+  const stops: BoltCampus[] = (() => {
     const seen = new Set<string>();
     const all = d.campuses.filter((c) => (seen.has(c.schoolSlug) ? false : (seen.add(c.schoolSlug), true)));
     const list = pinned ? all.filter((c) => c.schoolSlug === pinned) : all;
     const use = (list.length ? list : all).slice(0, 12);
-    return use.map((c) => {
-      const b = boltForSlug(c.schoolSlug);
-      return { id: c.schoolSlug, c1: b.c1, c2: b.c2, name: c.schoolName, code: c.courseCode };
-    });
+    return use.map((c) => boltCampusFor(c.schoolSlug, { name: c.schoolName, code: c.courseCode }));
   })();
 
   const shareUrl = `${ORIGIN}/chapters`;
