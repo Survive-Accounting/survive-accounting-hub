@@ -49,3 +49,43 @@ export function SmsConsentBanner() {
 }
 
 export default SmsConsentBanner;
+
+/** INLINE CONSENT NOTE — the A2P 10DLC disclosure that must sit beside EVERY phone field at the
+ *  point of capture (spec §2): what they'll get, how often, cost line, STOP/HELP, policy links.
+ *  Rendering this beside the field is what makes a submitted phone number a consented one
+ *  (the intake stores consent_sms_at). `tone` matches the surrounding surface. */
+export function SmsConsentNote({ tone = "dark", className = "", compact = false }: { tone?: "dark" | "light"; className?: string; compact?: boolean }) {
+  const color = tone === "dark" ? "rgba(245,239,230,0.62)" : "#6B7280";
+  const [open, setOpen] = useState(false);
+  // COMPACT (the notify modal): the consent essentials stay visible at the point of capture —
+  // agreement to texts, rates, STOP — in one quiet line; the full disclosure + policy links sit
+  // behind "Message terms". Nothing required is removed, it is just not the loudest thing on screen.
+  if (compact) {
+    return (
+      <div className={className} style={{ marginTop: 6, fontSize: 10.5, lineHeight: 1.45, color }} data-sms-consent>
+        <span>Phone? You agree to texts from Lee about your exam prep. Msg &amp; data rates may apply. Reply STOP to cancel.</span>{" "}
+        <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} style={{ color, textDecoration: "underline", background: "none", border: 0, padding: 0, font: "inherit", cursor: "pointer" }}>
+          {open ? "Hide message terms" : "Message terms"}
+        </button>
+        {open && (
+          <p style={{ marginTop: 6 }}>
+            By entering a mobile number you agree to get texts from Lee at Survive Accounting about your exam prep — a
+            confirmation now, then occasional updates (typically 1–4 msgs/month). Msg &amp; data rates may apply.
+            Reply STOP to cancel, HELP for help.{" "}
+            <a href="/privacy" style={{ color, textDecoration: "underline" }}>Privacy</a> ·{" "}
+            <a href="/terms" style={{ color, textDecoration: "underline" }}>Terms</a>
+          </p>
+        )}
+      </div>
+    );
+  }
+  return (
+    <p className={className} style={{ marginTop: 6, fontSize: 10.5, lineHeight: 1.45, color }} data-sms-consent>
+      By entering a mobile number you agree to get texts from Lee at Survive Accounting about your exam prep — a
+      confirmation now, then occasional updates (typically 1–4 msgs/month). Msg &amp; data rates may apply.
+      Reply STOP to cancel, HELP for help.{" "}
+      <a href="/privacy" style={{ color, textDecoration: "underline" }}>Privacy</a> ·{" "}
+      <a href="/terms" style={{ color, textDecoration: "underline" }}>Terms</a>
+    </p>
+  );
+}

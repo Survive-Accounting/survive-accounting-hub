@@ -30,7 +30,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { sendSms } from "@/lib/greek-chapters.functions";
 
 type DB = { from: (t: string) => any };
 const admin = async () => {
@@ -88,12 +87,13 @@ export const submitRepInterest = createServerFn({ method: "POST" })
       // The row is the durable record — a failure here IS the failure, unlike the alert below.
       if (error) return { ok: false, error: error.message };
 
-      const to = process.env.FOUNDER_ALERT_PHONE ?? "";
-      if (to) {
-        // Best-effort: losing an application because a text failed would be strictly worse than
-        // Lee reading it in the admin list.
-        void sendSms(to, `⚡ CAMPUS REP\n${data.name} · ${data.schoolName}\nsurviveaccounting.com/outreach/reps`).catch(() => {});
-      }
+      // UNIFIED INTAKE (rep — a PRIORITY kind): the applicant gets "Got your campus rep
+      // application"; Lee gets the consolidated priority alert (email + SMS). The referrals
+      // envelope above stays the admin queue's record. Phone sits beside the SmsConsentNote.
+      try {
+        const { runIntake } = await import("@/lib/comms/intake.server");
+        await runIntake({ kind: "rep", name: data.name, email: data.email, phone: data.phone, campusName: data.schoolName, campusSlug: data.schoolSlug, note: [data.year, data.greek, data.pitch].filter(Boolean).join(" · ") || null, sourcePath: `/${data.schoolSlug}/rep`, smsConsent: true });
+      } catch (e) { console.warn("rep intake failed (application saved)", (e as Error).message); }
       return { ok: true };
     } catch (e) {
       return { ok: false, error: (e as Error).message };

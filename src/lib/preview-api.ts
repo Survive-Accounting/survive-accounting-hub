@@ -19,16 +19,9 @@ export async function capturePreviewTester(input: {
 }): Promise<void> {
   const email = input.email.trim().toLowerCase();
   if (!EMAIL_RE.test(email)) throw new Error("Please enter a valid email.");
-  const payload: Record<string, unknown> = {
-    email,
-    source: input.source ?? "preview_tester",
-    tier_interest: "preview",
-  };
-  if (input.name?.trim()) payload.name = input.name.trim();
-  if (input.campus?.trim()) payload.campus_text = input.campus.trim();
-  if (input.course?.trim()) payload.course_text = input.course.trim();
-  const { error } = await (supabase.from("campus_waitlist" as never) as any).insert(payload);
-  if (error) throw new Error(error.message);
+  // UNIFIED INTAKE: a tester is a notify_exam lead tagged by topic so Lee can tell them apart.
+  const { submitIntake } = await import("@/lib/intake.functions");
+  await submitIntake({ data: { kind: "notify_exam", email, name: input.name?.trim() || null, campusName: input.campus?.trim() || null, courseCode: input.course?.trim() || null, topic: `preview:${input.source ?? "preview_tester"}`, sourcePath: "/preview", skipConfirmation: true } });
 }
 
 /** Store a piece of tester feedback (a reaction and/or a comment), tied to the

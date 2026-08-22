@@ -8,7 +8,12 @@ import { describe, expect, test } from "bun:test";
 
 import { GENERATED_SCHOOLS } from "@/lib/schools.generated";
 
-import { allBoltCampuses, curatedBoltCampuses, orderCampuses } from "./bolt-campuses";
+import {
+  allBoltCampuses,
+  boltCampusFor,
+  curatedBoltCampuses,
+  orderCampuses,
+} from "./bolt-campuses";
 import { CURATED_CAMPUS_ORDER } from "./bolt-config";
 import {
   panelGradientAxis,
@@ -189,6 +194,25 @@ describe("curated rotation order", () => {
     const ids = curatedBoltCampuses().map((c) => c.id);
     expect(ids.length).toBe(GENERATED_SCHOOLS.length);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  test("boltCampusFor resolves BOTH namespaces to the same campus", () => {
+    // The partner index pages list picker ids ("ole-miss"); the council and Greek pages carry /go/
+    // slugs ("university-of-mississippi"). A helper that understood only one of them returned the
+    // house red/blue for the other, which is exactly how those pages lost their school colours.
+    const byId = boltCampusFor("ole-miss");
+    const bySlug = boltCampusFor("university-of-mississippi");
+    expect(byId).toEqual(bySlug);
+    expect(byId.primary).toBe("#14213D");
+    expect(byId.name).toBe("Ole Miss");
+    // Every id in the curated order must resolve to real colours, not the house fallback.
+    for (const id of CURATED_CAMPUS_ORDER) expect(boltCampusFor(id).name).not.toBe(id);
+  });
+
+  test("an unknown id still yields a usable campus rather than throwing", () => {
+    const miss = boltCampusFor("not-a-school");
+    expect(miss.primary).toBe("#C62828");
+    expect(miss.id).toBe("not-a-school");
   });
 
   test("campuses the array does not mention still play, after the ones it does", () => {

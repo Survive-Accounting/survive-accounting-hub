@@ -22,15 +22,16 @@
 //
 // Navy/bolt/cream. Krug: one decision per screen, no field we don't need today.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
 
-import { ALL_SCHOOLS, schoolById } from "@/lib/schools";
+import { ALL_SCHOOLS, schoolById, schoolBySlug } from "@/lib/schools";
 import { ChapterFinder } from "@/components/site/ChapterFinder";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
+import { readCampusPrefs } from "@/lib/campus-prefs.functions";
 import { ogMeta } from "@/lib/og";
 
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { FitWordmark, SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
+import { Footer } from "@/components/site/SiteFooter";
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 
 const FINDER_SCHOOLS = ALL_SCHOOLS.map((x) => ({ slug: x.slug, name: x.name }));
@@ -56,7 +57,15 @@ export const Route = createFileRoute("/chapters")({
   // them. Reference data that changes by hand, so ten minutes of route-level caching makes repeat
   // visits in the same session free. Best-effort: a code fetch failure costs the row its code,
   // never the page its form.
-  loader: () => listCampusIntroCodes({ data: { ids: ALL_SCHOOLS.map((s) => s.campusId) } }).catch(() => []),
+  // The stored campus (cookie) rides along so the school control is ALREADY filled in the server
+  // render — not filled in by an effect a beat after the form appears.
+  loader: async () => {
+    const [codes, prefs] = await Promise.all([
+      listCampusIntroCodes({ data: { ids: ALL_SCHOOLS.map((s) => s.campusId) } }).catch(() => []),
+      readCampusPrefs().catch(() => ({ campus: null, profSkip: null })),
+    ]);
+    return { codes, storedSlug: schoolById(prefs.campus)?.slug ?? null };
+  },
   staleTime: 600_000,
   component: ChaptersPage,
 });
@@ -65,8 +74,17 @@ function ChaptersPage() {
   // M1.4 — navy overscroll, matching the meta theme-color.
   useNavyDocument();
   const theme = DEFAULT_FRAME_THEME;
+  // THE SUBHEAD NAMES THEIR COURSE once the campus is known (?school= from a campus page, or the
+  // remembered campus cookie). "Exam 1" is what we say to someone we cannot place; to a chapter at
+  // a campus we HAVE mapped, the course code is the more specific promise. Never a guessed code —
+  // a campus with no verified code keeps the generic line.
+  const { school: preselect } = Route.useSearch();
+  const { codes, storedSlug } = Route.useLoaderData();
+  const slug = preselect ?? storedSlug ?? null;
+  const campusId = slug ? schoolBySlug(slug)?.campusId : undefined;
+  const code = (campusId && codes.find((c) => c.campusId === campusId)?.code) || null;
   return (
-    <div style={{ ...frameThemeVars(theme), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "hidden" }}>
+    <div style={{ ...frameThemeVars(theme), background: "var(--bg-page)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "hidden" }}>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
       {/* M1.5 — this page had NO route back to the landing page. Anyone arriving on a shared
           Greek-chapter link was simply stranded here. */}
@@ -83,13 +101,16 @@ function ChaptersPage() {
           <FitWordmark size={84} />
           <h1 className="mt-5 text-[26px] font-black sm:text-[32px]" style={{ letterSpacing: "-0.01em" }}>Find your chapter.</h1>
           <p className="mt-2 max-w-md text-[15px] leading-relaxed sm:text-[16px]" style={{ color: "var(--brand-cream)", opacity: 0.88, fontFamily: BRAND_SANS }}>
-            Free Exam 1 cram videos for your whole chapter.
+            {code
+              ? `Free ${code} cram videos + practice exams for your whole chapter.`
+              : "Free Exam 1 cram videos for your whole chapter."}
           </p>
           <div className="mt-6 w-full max-w-sm">
             <FindMyChapter />
           </div>
         </section>
       </main>
+      <Footer />
     </div>
   );
 }
@@ -102,27 +123,15 @@ function ChaptersPage() {
 function FindMyChapter() {
   const nav = useNavigate();
   const { school: preselect } = Route.useSearch();
-  const codes = Route.useLoaderData();
+  const { codes, storedSlug } = Route.useLoaderData();
 
   // A SCHOOL THE SITE ALREADY KNOWS IS NOT ASKED AGAIN. The URL's ?school= wins (a campus page
-  // sent them here naming itself); failing that, the school the visitor picked in the player on
-  // an earlier visit. Read in an effect, never during render — the server has no localStorage and
-  // would disagree with the client's first paint. The control is already on screen by then; only
-  // its value fills in.
-  const [stored, setStored] = useState<string | undefined>(undefined);
-  useEffect(() => {
-    if (preselect) return;
-    try {
-      const id = localStorage.getItem("sa-landing-school");
-      const slug = id ? schoolById(id)?.slug : undefined;
-      if (slug) setStored(slug);
-    } catch { /* private mode */ }
-  }, [preselect]);
+  // sent them here naming itself); failing that, the campus the visitor implied or picked on an
+  // earlier visit, read from the cookie by the loader so server and client agree.
+  const stored = storedSlug ?? undefined;
 
   return (
     <ChapterFinder
-      // Remount when a stored school arrives so the finder's initial pick picks it up; a visitor
-      // cannot have interacted yet (this runs on mount, before any real input is possible).
       key={preselect ?? stored ?? ""}
       // EVERY seeded school, not only those that already have chapters. A member at a campus
       // with no chapters yet is exactly who lazy creation exists for -- restricting the list to
@@ -131,7 +140,9 @@ function FindMyChapter() {
       codes={codes}
       card
       escapeHatches
-      cta="Go to my chapter page ⚡"
+      // NO "GO" BUTTON: choosing the chapter IS the decision, so the pick navigates. The button
+      // was a third click that confirmed the second one.
+      autoPick
       initialSchool={preselect ?? stored}
       onPick={(school, chapter) => void nav({ to: "/go/$school/$chapter", params: { school, chapter } })}
     />

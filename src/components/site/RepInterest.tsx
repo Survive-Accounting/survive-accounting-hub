@@ -7,6 +7,7 @@
 // work, and this is an independent-contractor arrangement. Unchecked, the form declines politely and
 // STORES NOTHING — no record, no alert. Capturing a name we would have to turn down, and holding it
 // on file, is worse for them than not asking.
+import { SmsConsentNote } from "@/components/landing/SmsConsentBanner";
 import { useState } from "react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
@@ -20,8 +21,8 @@ const POINTS = [
 ];
 
 const FIELD: React.CSSProperties = {
-  minHeight: 48, background: "rgba(245,239,230,0.06)",
-  border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)",
+  minHeight: 48, background: "var(--bg-surface)",
+  border: "1px solid var(--border-default)", color: "var(--brand-cream)",
   // 16px explicitly — under it iOS zooms the page on focus and never zooms back.
   fontSize: 16,
 };
@@ -95,7 +96,7 @@ export function RepInterest({ schoolSlug, schoolName }: { schoolSlug: string; sc
           </div>
         ) : authorized === false ? (
           // DECLINE PATH — nothing was submitted and nothing was stored.
-          <div className="rounded-xl p-5" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.12)" }}>
+          <div className="rounded-xl p-5" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
             <p className="text-[14.5px] font-bold" style={{ color: "var(--brand-cream)" }}>Thanks for your interest.</p>
             <p className="mt-2 text-[13.5px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
               This is a paid independent-contractor role, so I can only work with people authorized to
@@ -117,7 +118,8 @@ export function RepInterest({ schoolSlug, schoolName }: { schoolSlug: string; sc
             <input id="rep-email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="you@school.edu" autoComplete="email" className="mb-2 w-full rounded-lg px-3 outline-none focus:ring-2" style={FIELD} />
 
             <label className="sr-only" htmlFor="rep-phone">Phone</label>
-            <input id="rep-phone" value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" placeholder="Mobile number" autoComplete="tel" className="mb-2 w-full rounded-lg px-3 outline-none focus:ring-2" style={FIELD} />
+            <input id="rep-phone" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" placeholder="Mobile number" autoComplete="tel" className="mb-2 w-full rounded-lg px-3 outline-none focus:ring-2" style={FIELD} />
+            <SmsConsentNote className="mb-2" />
 
             {/* Pre-filled from campus context, still editable — a rep at a school we do not list yet
                 is exactly the person worth hearing from. */}
@@ -133,7 +135,7 @@ export function RepInterest({ schoolSlug, schoolName }: { schoolSlug: string; sc
             <label className="sr-only" htmlFor="rep-pitch">How would you get this in front of people?</label>
             <textarea id="rep-pitch" value={pitch} onChange={(e) => setPitch(e.target.value)} rows={3} placeholder="How would you get this in front of people?" className="mb-3 w-full rounded-lg px-3 py-2.5 outline-none focus:ring-2" style={{ ...FIELD, minHeight: 84 }} />
 
-            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg p-2.5" style={{ background: "rgba(245,239,230,0.04)" }}>
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg p-2.5" style={{ background: "var(--bg-surface)" }}>
               <input
                 type="checkbox"
                 checked={authorized === true}

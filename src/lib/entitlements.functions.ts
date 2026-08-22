@@ -6,6 +6,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { shippedPub, type RawPub } from "@/lib/student.functions";
 
 type DB = { from: (t: string) => any };
 const admin = async (): Promise<DB> => {
@@ -61,27 +62,29 @@ export type SetPlaybackResult =
   | { status: "unpublished" }
   | { status: "not_found" };
 
-/** SECURE per-set playback fetch. A paid set's id is never in the tree; the client asks for it
- *  here, and it's returned ONLY when the set is free or the caller holds a covering grant. */
+/** SECURE per-set playback fetch, now PER STAGE. A paid set's ids are never in the tree; the
+ *  client asks here, and an id is returned ONLY when the set is free or the caller holds a
+ *  covering grant. `stage` picks the video: "cram" (default) = the shipped blast publication
+ *  (legacy lesson_videos fallback), "review" = the shipped lookback publication — which most
+ *  sets don't have yet, so a missing review resolves `unpublished`, never an error. */
 export const getSetPlayback = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ setId: z.string() }).parse(d))
+  .inputValidator((d: unknown) => z.object({ setId: z.string(), stage: z.enum(["cram", "review"]).optional() }).parse(d))
   .handler(async ({ data, context }): Promise<SetPlaybackResult> => {
     const db = await admin();
-    const { data: scenes, error } = await db.from("canvas_scenes").select("nodes_json");
-    if (error) throw new Error(error.message);
-    type Deck = { id: string; status?: string; payloadType?: string; access?: string; topicId?: string | null; lessonId?: string | null };
-    let deck: Deck | undefined;
-    for (const s of (scenes ?? []) as { nodes_json?: { decks?: Deck[] } }[]) {
-      deck = (s.nodes_json?.decks ?? []).find((d) => d.id === data.setId && d.status === "live" && d.payloadType === "cards");
-      if (deck) break;
-    }
+    // Same deduped loader as the tree — the per-set scene wins over the workspace duplicate.
+    const { loadDecksDeduped } = await import("@/lib/student.functions");
+    const o = (await loadDecksDeduped(db)).get(data.setId);
+    const deck = o && o.deck.status === "live" && o.deck.parked !== true ? (o.deck as { id: string; access?: string; topicId?: string | null; lessonId?: string | null; publications?: RawPub[] }) : undefined;
     if (!deck) return { status: "not_found" };
     if (deck.access === "paid") {
       const unlocked = await unlockedTopicIds(db, context.userId as string);
       if (!deck.topicId || !unlocked.has(deck.topicId)) return { status: "locked" };
     }
-    if (!deck.lessonId) return { status: "unpublished" };
+    const pub = shippedPub(deck, data.stage === "review" ? "lookback" : "blast");
+    if (pub?.render?.muxPlaybackId) return { status: "ok", playbackId: pub.render.muxPlaybackId };
+    // Review has exactly one source; only cram falls through to the legacy lesson_videos path.
+    if (data.stage === "review" || !deck.lessonId) return { status: "unpublished" };
     const { data: vids } = await db.from("lesson_videos").select("playback_id,version,stage").eq("lesson_id", deck.lessonId).eq("stage", "ready").order("version", { ascending: false }).limit(1);
     const playbackId = ((vids?.[0] as { playback_id: string | null } | undefined)?.playback_id) ?? null;
     return playbackId ? { status: "ok", playbackId } : { status: "unpublished" };

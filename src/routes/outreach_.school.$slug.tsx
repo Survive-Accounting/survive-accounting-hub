@@ -10,7 +10,6 @@ import { Loader2 } from "lucide-react";
 import Hero from "@/components/landing/Hero";
 import Reviews from "@/components/landing/Reviews";
 import SiteFooter from "@/components/landing/SiteFooter";
-import BookTutoringModal from "@/components/landing/BookTutoringModal";
 import CourseCtaList from "@/components/landing/CourseCtaList";
 import { buildSchoolPalette, DEFAULT_PALETTE, type SchoolPalette } from "@/lib/schoolColorSafety";
 import { fetchCampusBySlug, fetchLeadByToken, formatPhonePretty, recordLandingEvent } from "@/lib/outreach-api";
@@ -163,7 +162,6 @@ function scrollToId(id: string) {
 function SchoolLandingPage() {
   const { slug } = Route.useParams();
   const { p: token, book } = Route.useSearch();
-  const [bookOpen, setBookOpen] = useState(false);
   const [campusPhone, setCampusPhone] = useState<string | null>(null);
 
   const campusQuery = useQuery({
@@ -187,7 +185,7 @@ function SchoolLandingPage() {
 
   // Auto-open the booking flow for short-link arrivals (/t/{slug}).
   useEffect(() => {
-    if (book === "1") setBookOpen(true);
+    if (book === "1") setTimeout(() => scrollToId("course-list"), 400);
   }, [book]);
 
   // Campus texting number, when provisioned.
@@ -216,7 +214,9 @@ function SchoolLandingPage() {
 
   const openBooking = () => {
     if (campus?.id) recordLandingEvent("click", campus.id, token, leadQuery.data?.id ?? null);
-    setBookOpen(true);
+    // BookTutoringModal is DELETED (it captured nothing). The course list below carries the real
+    // capture (CourseWaitlistModal → unified intake), so "book" scrolls there.
+    scrollToId("course-list");
   };
 
   if (campusQuery.isLoading) {
@@ -285,6 +285,7 @@ function SchoolLandingPage() {
       )}
       <Hero onBookTutoring={openBooking} onReadReviews={() => scrollToId("reviews-section")} />
       <CourseCodesStrip codes={campus.course_codes} palette={palette} />
+      <div id="course-list" />
       <CourseCtaList
         campusId={campus.id}
         schoolName={campus.name}
@@ -296,7 +297,6 @@ function SchoolLandingPage() {
         onScrollToReviews={() => scrollToId("reviews-section")}
         onBookTutoring={openBooking}
       />
-      <BookTutoringModal open={bookOpen} onOpenChange={setBookOpen} />
     </div>
   );
 }

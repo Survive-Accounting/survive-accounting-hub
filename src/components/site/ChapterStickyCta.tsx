@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { scrollToId } from "@/lib/ui-scroll";
+import { openClaimStep } from "@/components/site/ChapterAccess";
 
 export function ChapterStickyCta({ heroId, examAnchor, accessAnchor, onStartExam }: {
   /** The hero element to watch — the bar shows only after it leaves the viewport. */
@@ -72,7 +73,7 @@ export function ChapterStickyCta({ heroId, examAnchor, accessAnchor, onStartExam
         paddingBottom: "max(env(safe-area-inset-bottom, 0px), 10px)",
         background: "color-mix(in srgb, var(--sa-surface-nav, #0F1A2E) 94%, transparent)",
         backdropFilter: "blur(8px)",
-        borderTop: "1px solid rgba(245,239,230,0.12)",
+        borderTop: "1px solid var(--border-default)",
       }}
     >
       <div className="mx-auto flex w-full max-w-sm gap-2">
@@ -86,9 +87,9 @@ export function ChapterStickyCta({ heroId, examAnchor, accessAnchor, onStartExam
         </button>
         <button
           type="button"
-          onClick={() => scrollToId(accessAnchor)}
+          onClick={() => { openClaimStep(); scrollToId(accessAnchor); }}
           className={BTN}
-          style={{ minHeight: 48, color: "var(--brand-cream)", background: "rgba(245,239,230,0.08)", border: "1px solid rgba(245,239,230,0.2)" }}
+          style={{ minHeight: 48, color: "var(--brand-cream)", background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}
         >
           Chapter Access
         </button>

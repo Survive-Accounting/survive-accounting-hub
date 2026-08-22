@@ -21,7 +21,7 @@ import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { getSiteSettings } from "@/lib/site-settings.functions";
 import { ogMeta } from "@/lib/og";
 import { logExpandEvent, submitReferral, type ExpandEvent } from "@/lib/referrals.functions";
-import { Footer } from "./landing";
+import { Footer } from "@/components/site/SiteFooter";
 
 export const Route = createFileRoute("/expand")({
   // Unlisted (noindex) but heavily FORWARDED — this page exists to be texted to alumni, so its
@@ -64,7 +64,7 @@ function ExpandPage() {
   const settings = Route.useLoaderData();
   const embed = youtubeEmbed(settings.expandVideoUrl);
   return (
-    <div style={{ ...frameThemeVars(DEFAULT_FRAME_THEME), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "hidden" }}>
+    <div style={{ ...frameThemeVars(DEFAULT_FRAME_THEME), background: "var(--bg-page)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "hidden" }}>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.32} animate /></div>
       <SiteHeader />
       <main style={{ position: "relative", zIndex: 1, maxWidth: 760, margin: "0 auto", padding: "0 18px" }}>
@@ -106,8 +106,9 @@ function ExpandPage() {
         {/* TIER 3 — THE FALLBACK. One box, unstructured on purpose. */}
         <ReferralForm />
 
-        <Footer />
       </main>
+      {/* full-bleed surface; the footer centres its own content (see landing.tsx) */}
+      <Footer />
     </div>
   );
 }
@@ -115,8 +116,8 @@ function ExpandPage() {
 function VideoBlock({ embed }: { embed: string | null }) {
   const [playing, setPlaying] = useState(false);
   return (
-    <section className="overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(252,163,17,0.4)" }}>
-      <div className="relative w-full" style={{ aspectRatio: "16 / 9", background: "#0B1220" }}>
+    <section className="overflow-hidden rounded-2xl" style={{ background: "var(--bg-surface)", border: "1px solid rgba(252,163,17,0.4)" }}>
+      <div className="relative w-full" style={{ aspectRatio: "16 / 9", background: "var(--bg-overlay)" }}>
         {embed && playing ? (
           <iframe
             src={`${embed}&autoplay=1`}
@@ -167,9 +168,9 @@ function ForwardCard({ title, message, copyEvent, smsEvent }: { title: string; m
     } catch { setFailed(true); }
   };
   return (
-    <div className="flex flex-col rounded-2xl p-4 sm:p-5" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.13)", fontFamily: BRAND_SANS }}>
+    <div className="flex flex-col rounded-2xl p-4 sm:p-5" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", fontFamily: BRAND_SANS }}>
       <h3 className="text-[15px] font-black leading-snug" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{title}</h3>
-      <p className="mt-3 flex-1 rounded-xl px-3.5 py-3 text-[13.5px] leading-relaxed" style={{ background: "rgba(0,0,0,0.26)", border: "1px solid rgba(245,239,230,0.12)", color: "var(--brand-cream)" }}>
+      <p className="mt-3 flex-1 rounded-xl px-3.5 py-3 text-[13.5px] leading-relaxed" style={{ background: "rgba(0,0,0,0.26)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}>
         {message}
       </p>
       <button
@@ -208,14 +209,14 @@ function ReferralForm() {
       setState("done");
     } catch { setState("error"); }
   };
-  const inputStyle = { background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" } as const;
+  const inputStyle = { background: "var(--bg-input)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" } as const;
 
   return (
     <section className="mt-11" style={{ fontFamily: BRAND_SANS }}>
       <h2 className="text-center text-[17.5px] font-black sm:text-[19px]" style={{ fontFamily: BRAND_DISPLAY }}>
         Or, if you'd rather I reach out — who should I talk to?
       </h2>
-      <div className="mx-auto mt-4 max-w-lg rounded-2xl p-4 sm:p-5" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.13)" }}>
+      <div className="mx-auto mt-4 max-w-lg rounded-2xl p-4 sm:p-5" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
         {state === "done" ? (
           <p className="py-3 text-center text-[15px] font-bold" style={{ color: "var(--brand-cream)" }}>Got it — thank you.<br /><span style={{ color: "var(--accent)" }}>— Lee</span></p>
         ) : (

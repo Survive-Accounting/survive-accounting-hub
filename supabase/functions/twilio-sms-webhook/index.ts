@@ -372,6 +372,9 @@ Deno.serve(async (req) => {
 
     // Opt-out keywords — respect immediately, cancel anything queued.
     if (/^\s*(stop|stopall|unsubscribe|cancel|end|quit)\s*$/i.test(body)) {
+      // PERMANENT suppression across every send path (the comms layer checks this before any
+      // SMS), whether or not a conversation row exists yet. Idempotent on the phone unique index.
+      await admin.from("comms_suppressions").upsert({ phone: from, reason: "stop", source: "sms_webhook" }, { onConflict: "phone", ignoreDuplicates: true }).then(() => null, () => null);
       if (existing) {
         await admin.from("sms_conversations").update({ status: "opted_out" }).eq("id", existing.id);
         await admin.from("sms_outbox").update({ status: "canceled" }).eq("conversation_id", existing.id).eq("status", "queued");

@@ -10,6 +10,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { HOME_OG, ogMeta } from "@/lib/og";
+import { readCampusPrefs } from "@/lib/campus-prefs.functions";
+import { listCampusIntroCodes } from "@/lib/default-map.functions";
+import { schoolById } from "@/lib/schools";
 import { LandingPage } from "./landing";
 
 // Organization + EducationalOrganization + WebSite JSON-LD (rendered into the home DOM so it SSRs
@@ -40,18 +43,37 @@ const ORG_JSONLD = {
 };
 
 export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: ogMeta({ ...HOME_OG, path: "/" }),
+  // THE RETURNING VISITOR'S CAMPUS COMES FROM THE COOKIE, ON THE SERVER. Before this the homepage
+  // always server-rendered the generic page and swapped to "ACCY 201 at Ole Miss" after hydration
+  // — a visible flicker, and a <title> that stayed generic. The loader reads the campus
+  // preference cookie (see lib/campus-prefs.ts) and, when it names a school, its course code, so
+  // the first byte already carries the campus version. Best-effort: any failure is the generic
+  // page, never an error.
+  loader: async () => {
+    const prefs = await readCampusPrefs().catch(() => ({ campus: null, profSkip: null }));
+    const school = schoolById(prefs.campus);
+    const code = school
+      ? await listCampusIntroCodes({ data: { ids: [school.campusId] } }).then((r) => r[0]?.code ?? null).catch(() => null)
+      : null;
+    return { campus: prefs.campus, profSkip: prefs.profSkip, code };
+  },
+  // Per-visitor, so never cached across requests; within one session ten minutes is plenty.
+  staleTime: 600_000,
+  head: ({ loaderData }) => ({
+    // The OG card/description stay the HOME ones (the page a stranger would share), but the tab
+    // title names the course a returning student actually came back for.
+    meta: ogMeta({ ...HOME_OG, ...(loaderData?.code ? { title: `Survive your ${loaderData.code} exams.` } : {}), path: "/" }),
     links: [{ rel: "canonical", href: "https://surviveaccounting.com/" }],
   }),
   component: Home,
 });
 
 function Home() {
+  const d = Route.useLoaderData();
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG_JSONLD) }} />
-      <LandingPage />
+      <LandingPage storedCampusId={d?.campus ?? null} profSkipFor={d?.profSkip ?? null} />
     </>
   );
 }

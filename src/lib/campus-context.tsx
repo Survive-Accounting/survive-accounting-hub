@@ -27,8 +27,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 
 import { ALL_SCHOOLS, schoolByCampusId, schoolById, schoolBySlug, type SecSchool } from "@/lib/schools";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
-
-const STORE_KEY = "sa-landing-school";
+import { readStoredCampus, rememberCampus, SKIPPED, NOT_LISTED } from "@/lib/campus-prefs";
 
 export type CampusSource = "account" | "session" | "url" | "stored" | null;
 
@@ -53,7 +52,11 @@ export type CampusContextValue = {
 
 const Ctx = createContext<CampusContextValue | null>(null);
 
-export function CampusProvider({ urlSchoolSlug, accountCampusId, initialCode, children }: {
+export function CampusProvider({ urlSchoolSlug, accountCampusId, initialCode, initialStoredId, children }: {
+  /** The stored campus as read from the request COOKIE by the route loader. Seeds the stored
+   *  rung so the server render and the first client paint agree on a returning visitor's campus
+   *  (the client effect below still re-reads storage for pre-cookie visitors). */
+  initialStoredId?: string | null;
   /** Course code already resolved on the server (route loader). Used until the client query
    *  answers, so a server-rendered headline never gains its course code a beat later. */
   initialCode?: string | null;
@@ -62,28 +65,26 @@ export function CampusProvider({ urlSchoolSlug, accountCampusId, initialCode, ch
   children: React.ReactNode;
 }) {
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [storedId, setStoredId] = useState<string | null>(null);
+  const isSchoolId = (v: string | null | undefined) => !!v && v !== SKIPPED && v !== NOT_LISTED;
+  const [storedId, setStoredId] = useState<string | null>(() => (isSchoolId(initialStoredId) ? initialStoredId! : null));
 
-  // Read storage in an EFFECT, never during render: this route is server-rendered, and a server
-  // that knows nothing about localStorage would disagree with the client on the first paint.
+  // Re-read storage in an EFFECT, never during render: a visitor from before the cookie existed
+  // has only localStorage, which the server cannot see; picking it up after mount is the one case
+  // where the first paint is allowed to be generic.
   useEffect(() => {
-    try {
-      const v = localStorage.getItem(STORE_KEY);
-      if (v && v !== "__notlisted__") setStoredId(v);
-    } catch { /* private mode */ }
+    const v = readStoredCampus();
+    if (isSchoolId(v)) setStoredId(v);
   }, []);
 
   const setSessionSchool = useCallback((id: string | null) => {
     setSessionId(id);
-    try {
-      if (id) localStorage.setItem(STORE_KEY, id);
-    } catch { /* private mode */ }
+    if (id) rememberCampus(id);
   }, []);
 
   const clearSchool = useCallback(() => {
     setSessionId(null);
     setStoredId(null);
-    try { localStorage.removeItem(STORE_KEY); } catch { /* private mode */ }
+    rememberCampus(null);
   }, []);
 
   const resolved = useMemo<{ school: SecSchool | null; source: CampusSource }>(() => {
@@ -97,6 +98,16 @@ export function CampusProvider({ urlSchoolSlug, accountCampusId, initialCode, ch
     if (stored) return { school: stored, source: "stored" };
     return { school: null, source: null };
   }, [accountCampusId, sessionId, urlSchoolSlug, storedId]);
+
+  // A CAMPUS THE URL NAMED IS REMEMBERED EXACTLY LIKE A PICKED ONE. Landing on /<school> or
+  // /go/<school>/<chapter> is as clear a statement of "my school" as the picker, and before this
+  // the logo, the nav and every generic route forgot it one click later. Written on every resolve
+  // from a url/session source so the cookie always holds the most recent campus.
+  useEffect(() => {
+    if (!resolved.school) return;
+    // "account" included: the campus and /go/ routes hand their loader campus in as accountCampusId.
+    if (resolved.source !== "stored") rememberCampus(resolved.school.id);
+  }, [resolved.school, resolved.source]);
 
   // One query for all sixteen, cached: the resolved campus can change (picker, navigation) without
   // refetching, and the codes are the same list the picker already loads.

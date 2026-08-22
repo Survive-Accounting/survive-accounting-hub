@@ -14,16 +14,19 @@ import { createPortal } from "react-dom";
 import { ChevronDown, GraduationCap, Lock, MessageCircle, X } from "lucide-react";
 
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
+import { isPlayable, nextStep, setIndexOf, stagesOf, type SetStage } from "@/lib/set-flow";
+import { PracticeStage, readCoverage } from "@/components/site/PracticeStage";
 import { resolveStudentMap, type MapLevel } from "@/lib/map-resolver.functions";
 import { joinPricingWaitlist } from "@/lib/pricing-api";
 import { getChapterNames, listCampusIntroCodes } from "@/lib/default-map.functions";
 import { logSchoolDemand, submitExamAsk, submitSyllabus , submitNotify } from "@/lib/syllabus.functions";
 import { searchOrderProfessors, type ProfessorLite } from "@/lib/orders.functions";
 import { tagChapterMember } from "@/lib/greek-go.functions";
-import { SEAT_MINIMUM, SEAT_PRICE } from "@/components/site/ChapterAccess";
+import { openClaimStep, SEAT_MINIMUM, SEAT_PRICE } from "@/components/site/ChapterAccess";
 import { revealInContainer, scrollToId } from "@/lib/ui-scroll";
 import { CourtesyLine } from "@/components/site/CourtesyLine";
 import { SearchPicker } from "@/components/site/SearchPicker";
+import { SmsConsentNote } from "@/components/landing/SmsConsentBanner";
 import { useDismiss } from "@/lib/use-dismiss";
 import { fetchCourseOptions } from "@/lib/je-api";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
@@ -40,6 +43,9 @@ import {
   SocialProofSection, StickyFooterBar, TutorBioModal, TutorCard, type GreekMarketing,
 } from "@/components/site/Marketing";
 import { CampusProvider, useCampus } from "@/lib/campus-context";
+import { readStoredCampus, rememberCampus, rememberProfSkip, SKIPPED, NOT_LISTED } from "@/lib/campus-prefs";
+import { Footer } from "@/components/site/SiteFooter";
+import { TestimonialsSlider } from "@/components/site/Testimonials";
 import { contactKind, LAUNCH_LINE, LAUNCH_WINDOW } from "@/lib/launch";
 import { Bolt, BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS, SEC_SCHOOLS } from "@/components/canvas/brand";
 
@@ -138,18 +144,25 @@ interface LandingProps {
   /** Greek chapters known at this campus — drives the "For fraternities & sororities" secondary
    *  CTA on campus pages (hidden at 0, where it would invite people to an empty list). */
   chapterCount?: number;
+  /** The visitor's remembered campus, read from the request cookie by the route loader (a picker
+   *  id, or the SKIPPED / NOT_LISTED sentinel). Lets the SERVER render the returning visitor's
+   *  page — campus hero, pre-matched player, right <title> — instead of swapping to it after
+   *  hydration. See lib/campus-prefs.ts. */
+  storedCampusId?: string | null;
+  /** School id whose professor question this visitor already skipped (cookie). */
+  profSkipFor?: string | null;
 }
 
 export function LandingPage(props: LandingProps = {}) {
-  const { campusSlug, goChapter, initialCampusId, initialCourseCode } = props;
+  const { campusSlug, goChapter, initialCampusId, initialCourseCode, storedCampusId } = props;
   return (
-    <CampusProvider urlSchoolSlug={campusSlug ?? goChapter?.schoolSlug ?? null} accountCampusId={initialCampusId ?? null} initialCode={initialCourseCode ?? null}>
+    <CampusProvider urlSchoolSlug={campusSlug ?? goChapter?.schoolSlug ?? null} accountCampusId={initialCampusId ?? null} initialCode={initialCourseCode ?? null} initialStoredId={storedCampusId ?? null}>
       <LandingPageInner {...props} />
     </CampusProvider>
   );
 }
 
-function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlug, greek, onStartExam, chapterCount, greekOrg, greekNav, videoGate }: LandingProps) {
+function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlug, greek, onStartExam, chapterCount, greekOrg, greekNav, videoGate, storedCampusId, profSkipFor }: LandingProps) {
   // M1.4 — paint html/body navy so Safari's overscroll rubber-band matches the page instead
   // of flashing the light default at the top and bottom edges.
   useNavyDocument();
@@ -166,10 +179,15 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
     [campus.school],
   );
   const preSchool = useMemo(() => (initialCampusId ? SCHOOLS.find((s) => s.campusId === initialCampusId) ?? null : null), [initialCampusId]);
-  const [school, setSchool] = useState<School | null>(preSchool);
-  // "My school isn't listed" — unblur with the DEFAULT map + brand navy (no school colors), plus an
-  // optional "what school?" demand field. Everything else behaves like an unmapped-campus session.
-  const [notListed, setNotListed] = useState(!!initialCampusId && !preSchool);
+  // INITIAL SCHOOL IS WHATEVER THE SERVER ALREADY KNOWS — the URL's campus or the cookie's stored
+  // one, both of which campus context resolved before this render on BOTH sides. Initialising
+  // from it (instead of null + an effect) is what lets a returning visitor's first paint show the
+  // matched player rather than "Pick your school" for a frame.
+  const [school, setSchool] = useState<School | null>(() => preSchool ?? (campus.school ? SCHOOLS.find((s) => s.id === campus.school!.id) ?? null : null));
+  // "My school isn't listed" / "Skip for now" — unblur with the DEFAULT map + brand navy (no school
+  // colors). Everything else behaves like an unmapped-campus session. The cookie sentinels seed it
+  // so a skipper's return visit server-renders the generic player, not the school question again.
+  const [notListed, setNotListed] = useState((!!initialCampusId && !preSchool) || storedCampusId === SKIPPED || storedCampusId === NOT_LISTED);
   const [theater, setTheater] = useState<{ school: School; mode: "full" | "short" } | null>(null);
   const firstPick = useRef(false);
   // A single monotonic "pulse" the Try-Exam-1 CTA bumps: scrolls to the player and rings the gate
@@ -216,6 +234,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
     setSchool(null);
     setNotListed(false);
     resetProfessor();
+    rememberProfSkip(null);
     campus.clearSchool();
     if (campusSlug) void navigate({ to: "/", hash: EXAM_ANCHOR_ID });
   };
@@ -239,8 +258,8 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   useEffect(() => {
     if (initialCampusId) return; // chapter-link sessions keep their own preselection
     try {
-      const id = localStorage.getItem("sa-landing-school");
-      if (id === "__notlisted__") setNotListed(true);
+      const id = readStoredCampus();
+      if (id === NOT_LISTED || id === SKIPPED) setNotListed(true);
       else if (id) { const s = SCHOOLS.find((x) => x.id === id); if (s) { setSchool(s); firstPick.current = true; } } // change → short beat
       const rawProf = localStorage.getItem("sa-landing-prof") ?? sessionStorage.getItem("sa-landing-prof");
       if (rawProf) setProfessor(JSON.parse(rawProf) as ProfessorLite);
@@ -401,7 +420,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   };
 
   return (
-    <div style={{ ...frameThemeVars(theme), background: "var(--brand-navy)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "clip", ...(campusBolt ? { ["--sa-bolt-1"]: campusBolt.c1, ["--sa-bolt-2"]: campusBolt.c2 } as React.CSSProperties : {}) }}>
+    <div style={{ ...frameThemeVars(theme), background: "var(--bg-page)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "clip", ...(campusBolt ? { ["--sa-bolt-1"]: campusBolt.c1, ["--sa-bolt-2"]: campusBolt.c2 } as React.CSSProperties : {}) }}>
       <style>{ANIMATED_CAMPUS_BOLT_CSS}</style>
       <style>{MARKETING_CSS}</style>
       <style>{`
@@ -413,7 +432,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
         /* Pause on FOCUS too, not just hover: a keyboard user tabbing into a moving strip would
            otherwise be chasing the thing they are focused on. */
         .sa-marquee:focus-within .sa-marquee-track { animation-play-state: paused; }
-        .sa-tick-item { cursor: pointer; background: none; border: 0; padding: 0 1px; border-radius: 4px; transition: color 140ms, text-shadow 140ms; }
+        .sa-tick-item { cursor: pointer; background: none; border: 0; padding: 0 4px; min-height: 44px; min-width: 44px; border-radius: 4px; transition: color 140ms, text-shadow 140ms; }
         .sa-tick-item:hover { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
         .sa-tick-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; color: var(--accent); }
         /* sa-picker-pulse moved to styles.css — it was defined only here, so the ring was
@@ -428,7 +447,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
         .sa-reveal { animation: sa-reveal 420ms ease; }
         /* The entry overlay card — floats over the preview media, dark enough to stay readable
            when the placeholder becomes real footage. */
-        .sa-entry-card { background: rgba(11,18,32,0.86); border: 1px solid rgba(245,239,230,0.16); border-radius: 16px; padding: 18px 16px; box-shadow: 0 24px 60px -24px rgba(0,0,0,0.8); backdrop-filter: blur(6px); }
+        .sa-entry-card { background: color-mix(in srgb, var(--bg-overlay) 94%, transparent); border: 1px solid var(--border-default); border-radius: 16px; padding: 18px 16px; box-shadow: 0 24px 60px -24px rgba(0,0,0,0.8); backdrop-filter: blur(6px); }
         @media (prefers-reduced-motion: reduce) { .sa-meter-in, .sa-reveal { animation: none; } }
       `}</style>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
@@ -436,7 +455,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
       {/* M1.5 — the persistent way home. On / it is the brand anchor; on /c/<slug> and the
           other pages that reuse LandingPage it is the only route back. Chapter pages swap the
           homepage links for same-page anchors via greekNav. */}
-      <SiteHeader chapterNav={greekNav} />
+      <SiteHeader chapterNav={greekNav} onLanding />
 
       {/* maxWidth + overflow-x guard (M1.1): `padding: 0 20px` on a 1040-wide box is fine on
           desktop, but any child that ignores the box (a nowrap lockup, a fixed-width panel)
@@ -456,12 +475,12 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
           onStart={heroStart}
           secondaryLabel={greek ? (greek.claimed ? `Use ${greek.letters} access →` : `Set up ${greek.letters} access →`) : "For fraternities & sororities →"}
           secondaryHref={greek ? undefined : school ? `/chapters?school=${encodeURIComponent(school.slug)}` : "/chapters"}
-          onSecondary={greek ? () => scrollToId(greek.claimed ? EXAM_ANCHOR_ID : greek.accessAnchor) : undefined}
+          onSecondary={greek ? () => { if (greek.claimed) scrollToId(EXAM_ANCHOR_ID); else { openClaimStep(); scrollToId(greek.accessAnchor); } } : undefined}
           showSecondary={greek ? true : heroKind !== "campus" || (chapterCount ?? 0) > 0}
           onOpenBio={() => setBioOpen(true)}
           courtesy={greek && goChapter ? <CourtesyLine schoolSlug={goChapter.schoolSlug} chapterSlug={goChapter.chapterSlug} chapterName={greek.orgName} /> : undefined}
         />
-        <ExamPlayer videoGate={videoGate} greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); void logCampusCodeDemand({ data: { source: "write-in" } }).catch(() => {}); try { localStorage.setItem("sa-landing-school", "__notlisted__"); } catch { /* ignore */ } }} onReset={resetMatch} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(t) => setNotifyTopic(t)} />
+        <ExamPlayer videoGate={videoGate} greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); void logCampusCodeDemand({ data: { source: "write-in" } }).catch(() => {}); rememberCampus(NOT_LISTED); }} onSkipSchool={() => { setNotListed(true); rememberCampus(SKIPPED); }} schoolSkipped={notListed && !school} initialProfSkipped={!!school && !!profSkipFor && profSkipFor === school.id} onReset={resetMatch} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(t) => setNotifyTopic(t)} />
 
         {/* Value strip AFTER the player: the product proves the claims, the strip reinforces. */}
         <FeatureValueStrip code={heroCode} />
@@ -489,8 +508,11 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
           kind={heroKind}
           onProfessorAsk={() => openSyllabus("Don't see your professor? Tell me who teaches your class and I'll map them.")}
         />
-        <Footer />
       </main>
+      {/* OUTSIDE <main> on purpose: the footer surface is full-bleed, its CONTENT is centred by
+          the footer's own max-w-[1040px] rows. Inside main it inherited main's max width and the
+          navy band stopped 20px short of each edge. */}
+      <Footer onLanding />
 
       {bioOpen && <TutorBioModal onClose={() => setBioOpen(false)} />}
       {/* The sticky footer slides up once the hero is gone and away again at the real footer. */}
@@ -521,7 +543,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
 // `reduce` is read in an EFFECT, never during render. Calling matchMedia while rendering is a real
 // hydration hazard on this SSR'd route: the server always takes the animated branch while a
 // reduced-motion client takes the static one, so the two trees disagree on the first paint.
-function SchoolTicker({ size = 12.5, className = "mt-3 w-full max-w-md", onPick }: { size?: number; className?: string; onPick?: (s: School) => void } = {}) {
+function SchoolTicker({ size = 14, className = "mt-3 w-full max-w-md", onPick }: { size?: number; className?: string; onPick?: (s: School) => void } = {}) {
   const [reduce, setReduce] = useState(false);
   useEffect(() => { setReduce(!!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches); }, []);
 
@@ -591,8 +613,8 @@ const FAQS: { q: string; a: string }[] = [
     a: "Yes — this is tutoring, same as any campus tutor or study guide. I teach you how to do the problems; exam day is still all you.",
   },
   {
-    q: "What if my school isn't listed?",
-    a: "Intro accounting is nearly the same course everywhere, so these videos will still carry you — and I add schools as students ask. Hit \"My school isn't listed\" and tell me.",
+    q: "What if you don't have my school?",
+    a: "Intro accounting is nearly the same course everywhere, so these videos will still carry you — and I add schools as students ask. Hit \"Don't see your school?\" and tell me.",
   },
   {
     q: "What if I watch everything and still feel lost?",
@@ -659,7 +681,7 @@ function Faq({ greek }: { greek?: string }) {
             type="button"
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
-            className="text-[13px] font-bold"
+            className="text-[14px] font-bold"
             style={{ minHeight: 44, color: "var(--accent)" }}
           >
             {open ? "× Show less" : `+ Show more (${rest.length})`}
@@ -681,7 +703,7 @@ function FaqCard({ f, defaultOpen = false }: { f: { q: string; a: string }; defa
   const [open, setOpen] = useState(defaultOpen);
   const id = `faq-${f.q.replace(/[^a-z0-9]+/gi, "-").toLowerCase().slice(0, 40)}`;
   return (
-    <div className="rounded-xl" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.09)" }}>
+    <div className="rounded-xl" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-subtle)" }}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -694,7 +716,7 @@ function FaqCard({ f, defaultOpen = false }: { f: { q: string; a: string }; defa
         <span aria-hidden className="shrink-0 transition-transform" style={{ color: "var(--accent)", transform: open ? "rotate(180deg)" : "none", fontSize: 12 }}>▾</span>
       </button>
       {open && (
-        <p id={id} className="px-4 pb-3.5 text-[13.5px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.72 }}>{f.a}</p>
+        <p id={id} className="px-4 pb-3.5 text-[14px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.72 }}>{f.a}</p>
       )}
     </div>
   );
@@ -785,7 +807,7 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
         aria-haspopup="dialog"
         aria-expanded={open}
         className={`flex w-full items-center gap-3 rounded-2xl px-5 py-4 text-left transition-transform hover:scale-[1.01]${cued ? " sa-cue" : ""}`}
-        style={{ background: "rgba(245,239,230,0.06)", border: `2px solid ${school ? "var(--bolt-primary)" : "var(--accent)"}`, boxShadow: "0 20px 55px -22px rgba(0,0,0,0.7)", animation: ring ? "sa-picker-pulse 0.9s ease" : undefined, borderRadius: 16 }}
+        style={{ background: "var(--bg-surface)", border: `2px solid ${school ? "var(--bolt-primary)" : "var(--accent)"}`, boxShadow: "0 20px 55px -22px rgba(0,0,0,0.7)", animation: ring ? "sa-picker-pulse 0.9s ease" : undefined, borderRadius: 16 }}
       >
         <GraduationCap className="h-6 w-6 shrink-0" style={{ color: "var(--accent)" }} />
         <span className="min-w-0 flex-1 text-[17px] font-bold" style={{ color: "var(--brand-cream)" }}>{school ? school.name : "Pick your school to start"}</span>
@@ -802,7 +824,7 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
           search={{ value: q, onChange: setQ, placeholder: `Search ${schools.length} schools…` }}
           footer={onNotListed ? (
             <button type="button" className="sa-row sa-row--plain" onClick={() => { onNotListed(); close(); }}>
-              <span className="sa-row-name" style={{ color: "var(--accent)", fontSize: 15 }}>My school isn&apos;t listed →</span>
+              <span className="sa-row-name" style={{ color: "var(--accent)", fontSize: 15 }}>Don&apos;t see your school?</span>
             </button>
           ) : undefined}
         >
@@ -871,18 +893,18 @@ function NotifyModal({ topic, school, professorName, onClose }: { topic: string 
     <div className="fixed inset-0 z-[240] grid place-items-center px-4" style={{ ...frameThemeVars(DEFAULT_FRAME_THEME), background: "rgba(5,8,16,0.72)" }} onClick={onClose}>
       <div
         className="w-full max-w-[380px] rounded-2xl p-5"
-        style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)", paddingBottom: "max(20px, env(safe-area-inset-bottom, 0px))" }}
+        style={{ background: "var(--bg-overlay)", border: "1px solid var(--border-default)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)", paddingBottom: "max(20px, env(safe-area-inset-bottom, 0px))" }}
         onClick={(e) => e.stopPropagation()}
       >
         {done ? (
           <div className="py-4 text-center">
             <p className="text-[17px] font-black" style={{ color: "var(--brand-cream)" }}>You&apos;re on the list. ⚡</p>
-            <button onClick={onClose} className="mt-4 w-full rounded-xl text-[13.5px] font-black" style={{ minHeight: 46, background: "rgba(245,239,230,0.12)", color: "var(--brand-cream)" }}>Close</button>
+            <button onClick={onClose} className="mt-4 w-full rounded-xl text-[13.5px] font-black" style={{ minHeight: 46, background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}>Close</button>
           </div>
         ) : (
           <>
             <p className="text-[16px] font-black" style={{ color: "var(--brand-cream)" }}>{LAUNCH_LINE}</p>
-            <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-muted)" }}>
+            <p className="mt-1 text-[14px]" style={{ color: "var(--text-muted)" }}>
               {topic ? `I'll tell you the moment ${topic} is up.` : "I'll tell you the moment it's up."}
             </p>
             <input
@@ -892,9 +914,12 @@ function NotifyModal({ topic, school, professorName, onClose }: { topic: string 
               onKeyDown={(e) => { if (e.key === "Enter") void send(); }}
               placeholder="Email or phone"
               className="mt-3 w-full rounded-xl px-3 text-[15px] outline-none"
-              style={{ minHeight: 46, background: "rgba(0,0,0,0.35)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }}
+              style={{ minHeight: 46, background: "rgba(0,0,0,0.35)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
             />
-            {err && <p className="mt-2 text-[12px]" style={{ color: "#FF8B9E" }}>{err}</p>}
+            {/* A2P: the field accepts a phone, so the consent essentials sit right under it; the
+                full disclosure is one tap away under "Message terms". */}
+            <SmsConsentNote compact />
+            {err && <p className="mt-2 text-[14px]" style={{ color: "#FF8B9E" }}>{err}</p>}
             <button
               onClick={() => void send()}
               disabled={!valid || busy}
@@ -903,7 +928,7 @@ function NotifyModal({ topic, school, professorName, onClose }: { topic: string 
             >
               {busy ? "Sending…" : "Get notified"}
             </button>
-            <button onClick={onClose} className="mt-2 w-full text-[12.5px]" style={{ minHeight: 44, color: "var(--text-muted)" }}>No thanks</button>
+            <button onClick={onClose} className="mt-2 w-full text-[14px]" style={{ minHeight: 44, color: "var(--text-muted)" }}>No thanks</button>
           </>
         )}
       </div>
@@ -960,7 +985,7 @@ function SyllabusModal({ school, framing, onClose }: { school: School | null; fr
 
   return (
     <div className="fixed inset-0 z-[210] grid place-items-center p-4" style={{ background: "rgba(6,10,20,0.72)" }} onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl p-6" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.14)", boxShadow: "0 40px 90px -30px rgba(0,0,0,0.9)", fontFamily: BRAND_SANS }} onClick={(e) => e.stopPropagation()}>
+      <div className="w-full max-w-md rounded-2xl p-6" style={{ background: "var(--bg-overlay)", border: "1px solid var(--border-default)", boxShadow: "0 40px 90px -30px rgba(0,0,0,0.9)", fontFamily: BRAND_SANS }} onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-start justify-between gap-3">
           <h3 className="text-[18px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Send everything you've got.</h3>
           <button onClick={onClose} className="grid h-7 w-7 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--brand-cream)" }} aria-label="Close"><X className="h-4 w-4" /></button>
@@ -968,13 +993,13 @@ function SyllabusModal({ school, framing, onClose }: { school: School | null; fr
 
         {done ? (
           <div className="py-6 text-center">
-            <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full text-[24px]" style={{ background: "rgba(59,245,160,0.14)" }}>⚡</div>
+            <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full text-[24px]" style={{ background: "rgba(0,107,166,0.25)" }}>⚡</div>
             <p className="text-[15px] font-semibold" style={{ color: "var(--brand-cream)" }}>Got it. You'll hear from me soon — Lee.</p>
             <button onClick={onClose} className="mt-5 rounded-xl px-5 py-2.5 text-[13.5px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>Done</button>
           </div>
         ) : (
           <>
-            <p className="mb-3 text-[13px] leading-relaxed" style={{ color: framing ? "var(--brand-cream)" : "var(--text-muted)" }}>{framing ?? "Syllabus, study guides, old homework, notes — the more you send, the tighter I can match your exam. I review every submission myself."}</p>
+            <p className="mb-3 text-[14px] leading-relaxed" style={{ color: framing ? "var(--brand-cream)" : "var(--text-muted)" }}>{framing ?? "Syllabus, study guides, old homework, notes — the more you send, the tighter I can match your exam. I review every submission myself."}</p>
 
             <div
               onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
@@ -982,9 +1007,9 @@ function SyllabusModal({ school, framing, onClose }: { school: School | null; fr
               onDrop={(e) => { e.preventDefault(); setDrag(false); void addFiles(e.dataTransfer.files); }}
               onClick={() => inputRef.current?.click()}
               className="cursor-pointer rounded-xl px-4 py-6 text-center transition-colors"
-              style={{ border: `2px dashed ${drag ? "var(--accent)" : "rgba(245,239,230,0.25)"}`, background: drag ? "rgba(252,163,17,0.08)" : "rgba(245,239,230,0.03)" }}
+              style={{ border: `2px dashed ${drag ? "var(--accent)" : "var(--border-default)"}`, background: drag ? "rgba(252,163,17,0.08)" : "var(--bg-input)" }}
             >
-              <p className="text-[13.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>Add files from your class</p>
+              <p className="text-[14px] font-semibold" style={{ color: "var(--brand-cream)" }}>Add files from your class</p>
               <p className="mt-1 text-[11.5px]" style={{ color: "var(--text-muted)" }}>Syllabus or study guide · PDF, Word, or a photo</p>
               <input ref={inputRef} type="file" multiple accept={ACCEPT} className="hidden" onChange={(e) => void addFiles(e.target.files)} />
             </div>
@@ -992,7 +1017,7 @@ function SyllabusModal({ school, framing, onClose }: { school: School | null; fr
             {files.length > 0 && (
               <ul className="mt-3 space-y-1.5">
                 {files.map((f, i) => (
-                  <li key={`${f.name}-${i}`} className="flex items-center gap-2 rounded-lg px-3 py-2 text-[12.5px]" style={{ background: "rgba(245,239,230,0.05)", color: "var(--brand-cream)" }}>
+                  <li key={`${f.name}-${i}`} className="flex items-center gap-2 rounded-lg px-3 py-2 text-[14px]" style={{ background: "var(--bg-surface)", color: "var(--brand-cream)" }}>
                     <span className="min-w-0 flex-1 truncate">{f.name}</span>
                     <span className="shrink-0 text-[11px]" style={{ color: "var(--text-muted)" }}>{(f.size / 1024 / 1024).toFixed(1)}MB</span>
                     <button onClick={() => setFiles((cur) => cur.filter((_, j) => j !== i))} className="grid h-5 w-5 shrink-0 place-items-center rounded-full hover:bg-white/10" aria-label={`Remove ${f.name}`}><X className="h-3 w-3" /></button>
@@ -1004,10 +1029,10 @@ function SyllabusModal({ school, framing, onClose }: { school: School | null; fr
             <input
               type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com"
               className="mt-3 w-full rounded-xl px-4 py-3 text-[14px] outline-none"
-              style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }}
+              style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
             />
 
-            {err && <p className="mt-2 text-[12.5px]" style={{ color: "#F3C6CC" }}>{err}</p>}
+            {err && <p className="mt-2 text-[14px]" style={{ color: "#F3C6CC" }}>{err}</p>}
 
             <button onClick={send} disabled={!canSend} className="mt-4 w-full rounded-xl py-3 text-[15px] font-black transition-opacity disabled:opacity-40" style={{ background: "var(--accent)", color: "#0B1220" }}>
               {busy ? "Sending…" : "Send it"}
@@ -1065,12 +1090,15 @@ const SHOW_CHAPTER_NUM = false;
 // wired yet). Updates automatically as sets go live.
 const examStats = (tab: ExamTab): string => {
   const topics = tab.topics.length;
+  const sets = tab.topics.reduce((a, t) => a + t.sets.length, 0);
   const questions = tab.topics.reduce((a, t) => a + t.sets.reduce((b, s) => b + s.ceqCount, 0), 0);
   const secs = tab.topics.reduce((a, t) => a + t.sets.reduce((b, s) => b + (s.runtimeSec ?? 0), 0), 0);
   const hrs = secs / 3600;
+  // COMPUTED, never hardcoded: "7 topics · 19 sets · 206 questions"; video hours appear only once true.
   const parts = [`${topics} topic${topics === 1 ? "" : "s"}`];
-  if (questions > 0) parts.push(`${questions} questions`);
-  if (hrs > 0) parts.push(`${hrs.toFixed(1)} hrs video time`);
+  void sets; // sets are an internal unit — students see topics and questions
+  if (questions > 0) parts.push(`${questions} question${questions === 1 ? "" : "s"}`);
+  if (hrs >= 0.1) parts.push(`~${hrs.toFixed(1)}h video`);
   return parts.join(" · ");
 };
 
@@ -1115,7 +1143,7 @@ function PreviewSurface({ children }: { children: React.ReactNode }) {
  *
  *  `onReset` clears school AND professor together. A half-reset — new school, professor left
  *  over from the old one — would silently attach a student to another campus's faculty. */
-function MatchPanel({ gateActive, school, professor, notListed, profDone, coveragePct, schools, cueSignal, onPick, onNotListed, onPickProfessor, onProfNotListed, onAddProfessor, onMaterials, onReset }: {
+function MatchPanel({ gateActive, school, professor, notListed, profDone, coveragePct, schools, cueSignal, onPick, onNotListed, onSkipSchool, onPickProfessor, onProfNotListed, onAddProfessor, onMaterials, onReset }: {
   /** True while the Greek gate is showing — the whole panel stands down. */
   gateActive?: boolean;
   school: School | null;
@@ -1131,6 +1159,8 @@ function MatchPanel({ gateActive, school, professor, notListed, profDone, covera
   schools: School[];
   onPick: (s: School) => void;
   onNotListed: () => void;
+  /** The school question is OPTIONAL: skipping serves the Starter Map's Exam 1 with generic copy. */
+  onSkipSchool: () => void;
   onPickProfessor: (p: ProfessorLite) => void;
   onProfNotListed: () => void;
   /** Reopens the professor rung from the confirmed bar — for a student who skipped it. */
@@ -1147,10 +1177,14 @@ function MatchPanel({ gateActive, school, professor, notListed, profDone, covera
     return (
       <PreviewSurface>
         <div className="sa-entry-card w-full max-w-sm">
-          <p className="mb-3 text-center text-[16px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
-            Pick your school to start
-          </p>
+          {/* ONE INSTRUCTION, ONCE (Pass 6 §4, restored). The heading that used to sit here said
+              the same sentence as the dropdown's own label directly beneath it. */}
           <CampusSelector school={null} onPick={onPick} schools={schools} onNotListed={onNotListed} cue={cueSignal} />
+          {/* The school is OPTIONAL. A muted way past the question: the Starter Map serves Exam 1
+              with generic copy, and the picker stays one tap away in the confirmed bar. */}
+          <button type="button" onClick={onSkipSchool} className="mt-1 w-full text-[14px] font-bold" style={{ minHeight: 44, color: "var(--text-muted)" }}>
+            Skip for now →
+          </button>
         </div>
         {/* The marquee lives HERE and nowhere else — under the picker it answers "is my school
             here?" at the moment the question is asked. Ambient by design (96s loop). */}
@@ -1194,40 +1228,15 @@ function MatchPanel({ gateActive, school, professor, notListed, profDone, covera
   // worth blocking the product on. Both live in the confirmed bar below now: the coverage reads
   // as a chip, and pressing it opens the existing syllabus modal.
 
-  // STATE 4 — confirmed. The bar states what is TRUE and offers one way back.
-  return (
-    <div className="flex items-center gap-2 border-b px-3 py-2" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(0,0,0,0.18)" }}>
-      <span className="shrink-0 text-[12px]" style={{ color: "#3BF5A0" }}>✓</span>
-      <span className="min-w-0 flex-1 truncate text-[12.5px] font-bold" style={{ color: "var(--brand-cream)" }}>
-        {[school ? school.name : "Your school", code, professor ? `Prof. ${professor.last || professor.name}` : null].filter(Boolean).join(" · ")}
-      </span>
-      {/* Skipped the professor? The door stays open, quietly, where the name would sit. */}
-      {school && !professor && (
-        <button type="button" onClick={onAddProfessor} className="shrink-0 text-[11.5px] font-bold" style={{ color: "var(--accent)", minHeight: 32 }}>
-          + Add professor
-        </button>
-      )}
-      {/* COVERAGE, inspectable but never in the way. Only rendered when the resolver returned a
-          real number — no percentage is invented to fill the slot. */}
-      {coveragePct != null && (
-        <button
-          type="button"
-          onClick={() => onMaterials()}
-          className="shrink-0 rounded-full px-2.5 py-1 text-[11.5px] font-black"
-          style={{ background: "rgba(252,163,17,0.14)", color: "var(--accent)", minHeight: 32 }}
-        >
-          ~{coveragePct}% covered
-        </button>
-      )}
-      {/* "Reset", not "Change": it returns to the very beginning, so the label should say so. */}
-      <button onClick={onReset} className="shrink-0 text-[12px]" style={{ color: "var(--text-muted)" }}>Reset</button>
-    </div>
-  );
+  // STATE 4 — confirmed. The context (school · course · professor · coverage · reset) now lives
+  // at the TOP OF THE SIDEBAR (SidebarContext), so the question panel carries nothing but the
+  // question. This bar is gone.
+  return null;
 }
 
 /** The professor rung, rendered inline on the stage rather than in a sheet.
  *
- *  Pass 4 removed "Skip this" on instruction: "My professor isn't listed" is the only alternate
+ *  Pass 4 removed "Skip this" on instruction: "Don't see your professor?" is the only alternate
  *  path, and it still reaches the same next step, so nobody is trapped. "Change school" is
  *  deliberately demoted to small muted text under the list — it is a correction, not a choice. */
 /** A WRITE-IN professor — a campus with no faculty rows yet, or a student whose professor isn't in
@@ -1245,7 +1254,7 @@ const writeInProfessor = (name: string): ProfessorLite => ({ id: "", name, first
  *
  *  WRITE-IN: many campuses have no faculty listed yet, so the picker would open onto "0 professors /
  *  No matches" — a dead end. When the roster is empty we show a free-text field instead of the empty
- *  picker; when the roster has names but not theirs, "My professor isn't listed" reveals the same
+ *  picker; when the roster has names but not theirs, "Don't see your professor?" reveals the same
  *  field. Either way the typed name is captured as a write-in professor. A muted skip stays available
  *  so nobody is trapped by a field they can't (or won't) fill. */
 function ProfessorStage({ school, onPick, onNotListed }: {
@@ -1281,7 +1290,7 @@ function ProfessorStage({ school, onPick, onNotListed }: {
       {writeIn ? (
         <>
           {rosterEmpty && (
-            <p className="text-center text-[13px]" style={{ color: "var(--text-muted)" }}>
+            <p className="text-center text-[14px]" style={{ color: "var(--text-muted)" }}>
               No professors listed for {school?.name ?? "your school"} yet — type yours in.
             </p>
           )}
@@ -1294,7 +1303,7 @@ function ProfessorStage({ school, onPick, onNotListed }: {
             aria-label="Type your professor's name"
             className="w-full rounded-xl px-3.5 outline-none focus-visible:ring-2"
             // 16px keeps iOS from zooming the page on focus (matches SearchPicker's input).
-            style={{ fontSize: 16, minHeight: 52, background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }}
+            style={{ fontSize: 16, minHeight: 52, background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
           />
           <button
             type="button"
@@ -1306,11 +1315,11 @@ function ProfessorStage({ school, onPick, onNotListed }: {
             Use this professor
           </button>
           {!rosterEmpty && (
-            <button type="button" onClick={() => setManual(false)} className="text-[13px] font-bold" style={{ minHeight: 40, color: "var(--text-muted)" }}>
+            <button type="button" onClick={() => setManual(false)} className="text-[14px] font-bold" style={{ minHeight: 44, color: "var(--text-muted)" }}>
               ← Back to the list
             </button>
           )}
-          <button type="button" onClick={onNotListed} className="text-[13px] font-bold" style={{ minHeight: 40, color: "var(--text-muted)" }}>
+          <button type="button" onClick={onNotListed} className="text-[14px] font-bold" style={{ minHeight: 44, color: "var(--text-muted)" }}>
             Skip for now →
           </button>
         </>
@@ -1326,11 +1335,11 @@ function ProfessorStage({ school, onPick, onNotListed }: {
             ariaLabel={`Search ${school?.name ?? "your school"} professors`}
           />
           <button type="button" onClick={() => setManual(true)} className="text-[14px] font-bold" style={{ minHeight: 44, color: "var(--accent)" }}>
-            My professor isn&apos;t listed →
+            Don&apos;t see your professor?
           </button>
           {/* Professor selection is OPTIONAL — the explicit low-friction way past the question,
               in the list state too (the write-in state already had one). */}
-          <button type="button" onClick={onNotListed} className="text-[13px] font-bold" style={{ minHeight: 40, color: "var(--text-muted)" }}>
+          <button type="button" onClick={onNotListed} className="text-[14px] font-bold" style={{ minHeight: 44, color: "var(--text-muted)" }}>
             Skip for now →
           </button>
         </>
@@ -1344,7 +1353,7 @@ function ProfessorStage({ school, onPick, onNotListed }: {
 // now lives in MatchPanel, inside the right panel, where the student is already looking.
 
 
-function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, schools, onSyllabus, professor, onPickProfessor, notListed, onNotListed, onReset, theater, onTheaterDone, onNotify }: { videoGate?: React.ReactNode; greekOrg?: string; exams: ExamTab[]; school: School | null; onPick: (s: School) => void; focusSignal: number; schools: School[]; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; notListed: boolean; onNotListed: () => void; onReset: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void; onNotify: (topic: string) => void }) {
+function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, schools, onSyllabus, professor, onPickProfessor, notListed, onNotListed, onSkipSchool, schoolSkipped, initialProfSkipped, onReset, theater, onTheaterDone, onNotify }: { videoGate?: React.ReactNode; greekOrg?: string; exams: ExamTab[]; school: School | null; onPick: (s: School) => void; focusSignal: number; schools: School[]; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; notListed: boolean; onNotListed: () => void; onSkipSchool: () => void; /** No school named (skipped / not listed): the professor rung is moot and the player goes straight to content. */ schoolSkipped: boolean; /** The cookie says this visitor already skipped the professor question for this school. */ initialProfSkipped: boolean; onReset: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void; onNotify: (topic: string) => void }) {
   const [activeNum, setActiveNum] = useState(1);
   const [selById, setSelById] = useState<Record<number, Sel>>({});
   const [openTopics, setOpenTopics] = useState<Set<string>>(() => new Set());
@@ -1354,9 +1363,17 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
   // rung is answered and clears when the student acts on it either way.
   // The professor rung is "answered" once a professor is picked OR declared unlisted. Without
   // this the stage would sit on the professor step forever for anyone who has no listed prof.
-  const [profDone, setProfDone] = useState(false);
+  // Seeded from the cookie (server-known) so a returning skipper is not asked again — and not
+  // shown the question for a frame before an effect hides it.
+  const [profDone, setProfDone] = useState(() => initialProfSkipped || schoolSkipped);
   useEffect(() => { if (professor) setProfDone(true); }, [professor]);
-  useEffect(() => { setProfDone(false); }, [school?.id]);
+  useEffect(() => { if (schoolSkipped) setProfDone(true); }, [schoolSkipped]);
+  // A CHANGE of school re-asks; the mount does not (the initial value above already answered it).
+  const prevSchoolId = useRef(school?.id);
+  useEffect(() => { if (prevSchoolId.current !== school?.id) { prevSchoolId.current = school?.id; setProfDone(false); } }, [school?.id]);
+  // "Skip for now" on the professor rung is REMEMBERED per school — asking a returning student the
+  // same optional question on every visit was the most-repeated step in the whole flow.
+  const skipProfessor = () => { setProfDone(true); rememberProfSkip(school?.id ?? null); };
   const chipRef = useRef<HTMLButtonElement>(null);
   // WARM THE ROSTER on the SAME query key the match sheet reads, the moment a school exists.
   // Without this the sheet step 2 opens empty and fills a second later - the prefetch used to
@@ -1384,7 +1401,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
   // Default selection for a tab: first topic with a LIVE set → first topic with any set → first
   // topic (poster) → null.
   const firstLiveSel = (tab: ExamTab): Sel | null => {
-    for (const t of tab.topics) { const live = t.sets.find((s) => s.playbackId); if (live) return { topicKey: t.key, setId: live.id }; }
+    for (const t of tab.topics) { const live = t.sets.find((s) => isPlayable(s)); if (live) return { topicKey: t.key, setId: live.id }; }
     return null;
   };
   // Fresh default (NOT persisted): first live set → first topic with any set → first topic (poster).
@@ -1449,12 +1466,12 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
             opens is populated by the Starter Map from the very first paint, so hiding the
             switcher until a school existed only hid working navigation. */}
         <div className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 sm:hidden" style={{ background: "rgba(0,0,0,0.2)" }}>
-          <span className="text-[13px]" style={{ color: "var(--text-muted)" }}>Topic</span>
+          <span className="text-[14px]" style={{ color: "var(--text-muted)" }}>Topic</span>
           <button
             onClick={() => setDrawerOpen((v) => !v)}
             aria-expanded={drawerOpen}
-            className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2.5 text-[13px] font-bold"
-            style={{ minHeight: 40, background: "rgba(245,239,230,0.08)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }}
+            className="inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-lg px-2.5 text-[14px] font-bold"
+            style={{ minHeight: 44, background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
           >
             <span className="min-w-0 truncate">{curTopic?.name ?? active.label}</span>
             <span className="shrink-0" style={{ color: "var(--accent)" }}>{drawerOpen ? "▴" : "▾"}</span>
@@ -1462,8 +1479,8 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
         </div>
 
         <div className="sa-player-min sm:flex">
-          <div className={`${drawerOpen ? "block" : "hidden"} border-b sm:block sm:w-[42%] sm:max-w-[360px] sm:border-b-0 sm:border-r`} style={{ borderColor: "rgba(245,239,230,0.1)" }}>
-            <ExamOutline tab={active} school={school} stats={examStats(active)} isPaid={isPaid} curSetId={curSet?.id ?? null} curTopicKey={cur?.topicKey ?? null} openTopics={openTopics} onToggleTopic={toggleTopic} onPickSet={pickSet} />
+          <div className={`${drawerOpen ? "block" : "hidden"} border-b sm:block sm:w-[42%] sm:max-w-[360px] sm:border-b-0 sm:border-r`} style={{ borderColor: "var(--border-default)", background: "var(--bg-player-sidebar)" }}>
+            <ExamOutline tab={active} school={school} professor={professor} flowDone={flowDone} coveragePct={active.coveragePct} onAddProfessor={() => setProfDone(false)} onMaterials={() => onSyllabus()} onReset={onReset} stats={examStats(active)} isPaid={isPaid} curSetId={curSet?.id ?? null} curTopicKey={cur?.topicKey ?? null} openTopics={openTopics} onToggleTopic={toggleTopic} onPickSet={pickSet} />
           </div>
 
           <div className="flex min-w-0 flex-1 flex-col" style={{ background: "var(--sa-surface-2)" }}>
@@ -1473,20 +1490,24 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
             {/* ONE STATE AT A TIME. `flowDone` is the whole ladder, not its first rung — see the
                 note above sa-panel-min in styles.css for the height half of this. */}
             <div className="sa-panel-min relative w-full flex-1">
-              <MatchPanel gateActive={!!videoGate} school={school} professor={professor} notListed={notListed} profDone={profDone} coveragePct={active.coveragePct} schools={schools} cueSignal={focusSignal} onPick={onPick} onNotListed={onNotListed} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); }} onProfNotListed={() => setProfDone(true)} onAddProfessor={() => setProfDone(false)} onMaterials={() => onSyllabus()} onReset={onReset} />
+              <MatchPanel gateActive={!!videoGate} school={school} professor={professor} notListed={notListed} profDone={profDone} coveragePct={active.coveragePct} schools={schools} cueSignal={focusSignal} onPick={onPick} onNotListed={onNotListed} onSkipSchool={onSkipSchool} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); }} onProfNotListed={skipProfessor} onAddProfessor={() => { setProfDone(false); rememberProfSkip(null); }} onMaterials={() => onSyllabus()} onReset={onReset} />
               {/* THE GATE STANDS IN FOR THE VIDEO, not for the page: tabs, topics and the
                   whole menu stay readable, because a visitor deciding whether to hand over an
                   email needs to see what they are unlocking. */}
               {videoGate ? (
                 <div className="relative w-full" style={{ aspectRatio: "16 / 9", background: "var(--sa-surface-2)" }}>{videoGate}</div>
               ) : flowDone && (
-                <div className="sa-reveal relative w-full" style={{ aspectRatio: "16 / 9", background: "#000" }}>
-                  {curSet?.playbackId ? (
-                    <HeroVideo key={curSet.playbackId} playbackId={curSet.playbackId} onComplete={() => markComplete(curSet!.id)} />
-                  ) : (
-                    <Poster school={school} topicName={curTopic?.name ?? active.label} stem={curSet?.firstStem ?? null} />
-                  )}
-                </div>
+                curSet && isPlayable(curSet) && curTopic ? (
+                  // A playable set walks its stages: Cram Blast → Practice → Review (shared
+                  // set-flow model — same walk as /learn, homepage-sized shell around it).
+                  <SetFlowPanel key={curSet.id} topic={curTopic} set={curSet} school={school} surface={greekOrg ? "greek" : school ? "campus" : "home"} onCramComplete={() => markComplete(curSet!.id)} onPickSet={(sid) => pickSet(curTopic!.key, sid)} />
+                ) : (
+                  // NOT A FIXED 16:9 BOX. The unpublished state carries a line of copy and the
+                  // notify field, which a phone-width 16:9 panel (~190px tall) cannot hold.
+                  <div className="sa-reveal relative w-full" style={{ minHeight: "min(56.25vw, 300px)" }}>
+                    <Poster school={school} exam={active} topicName={curTopic?.name ?? active.label} stem={curSet?.firstStem ?? null} />
+                  </div>
+                )
               )}
             </div>
 
@@ -1540,7 +1561,7 @@ function ExamTabs({ exams, activeNum, onSelect, greek }: { exams: ExamTab[]; act
     <>
     <div
       className="flex items-stretch overflow-x-auto"
-      style={{ background: "rgba(0,0,0,0.22)", scrollbarWidth: "none", borderBottom: "1px solid rgba(245,239,230,0.1)" }}
+      style={{ background: "rgba(0,0,0,0.22)", scrollbarWidth: "none", borderBottom: "1px solid var(--border-default)" }}
       role="tablist"
       aria-label="Choose an exam"
     >
@@ -1615,7 +1636,7 @@ function SemesterPassLine({ onPass }: { onPass: () => void }) {
   };
   return (
     <div className="sa-passline group relative px-3 py-2 text-center" style={{ background: "rgba(0,0,0,0.12)" }}>
-      <button onClick={onPass} className="block w-full px-7 text-[12.5px] hover:opacity-90" style={{ color: "var(--text-muted)" }}>
+      <button onClick={onPass} className="block w-full py-2 px-7 text-[14px] hover:opacity-90" style={{ color: "var(--text-muted)" }}>
         Or grab the{" "}
         <span className="font-bold" style={{ color: "var(--accent)" }}>Semester Pass</span>
         {` — everything, all semester, for $${SEMESTER_PASS_PRICE}.`}
@@ -1623,8 +1644,8 @@ function SemesterPassLine({ onPass }: { onPass: () => void }) {
       <button
         onClick={dismiss}
         aria-label="Dismiss the Semester Pass offer"
-        className="sa-passline-x absolute right-1.5 top-1/2 grid -translate-y-1/2 place-items-center rounded"
-        style={{ width: 28, height: 28, color: "var(--text-muted)" }}
+        className="sa-passline-x absolute right-0 top-1/2 grid -translate-y-1/2 place-items-center rounded"
+        style={{ width: 44, height: 44, color: "var(--text-muted)" }}
       >
         <span aria-hidden style={{ fontSize: 14, lineHeight: 1 }}>×</span>
       </button>
@@ -1632,7 +1653,43 @@ function SemesterPassLine({ onPass }: { onPass: () => void }) {
   );
 }
 
-function ExamOutline({ tab, school, stats, isPaid, curSetId, curTopicKey, openTopics, onToggleTopic, onPickSet }: { tab: ExamTab; school: School | null; stats: string; isPaid: boolean; curSetId: string | null; curTopicKey: string | null; openTopics: Set<string>; onToggleTopic: (k: string) => void; onPickSet: (topicKey: string, setId: string | null) => void }) {
+/** "Barton's" — natural possessive from the professor's last name (Smith's, Jones'). */
+const possessive = (p: ProfessorLite | null): string | null => {
+  const last = (p?.last || p?.name || "").trim().split(/\s+/).pop() ?? "";
+  if (!last) return null;
+  return /s$/i.test(last) ? `${last}'` : `${last}'s`;
+};
+
+/** SIDEBAR CONTEXT — school · course, professor, coverage, reset. Moved here from the bar that
+ *  used to sit above the question; the sidebar is where a student understands what's on the
+ *  exam, so this is where "whose exam" belongs. Only renders once the flow is confirmed. */
+function SidebarContext({ school, professor, coveragePct, onAddProfessor, onMaterials, onReset }: { school: School | null; professor: ProfessorLite | null; coveragePct: number | null; onAddProfessor: () => void; onMaterials: () => void; onReset: () => void }) {
+  const code = school?.codeVerified && school.code ? school.code : null;
+  return (
+    <div className="mb-3 border-b px-1 pb-3" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[13px] font-black" style={{ color: "var(--brand-cream)" }}>{[school ? school.name : "Your school", code].filter(Boolean).join(" · ")}</div>
+          {professor ? (
+            <div className="text-[12px]" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>Prof. {professor.last || professor.name}</div>
+          ) : school ? (
+            <button type="button" onClick={onAddProfessor} className="text-[12px] font-bold" style={{ color: "var(--accent)", minHeight: 28 }}>+ Add professor</button>
+          ) : null}
+        </div>
+        {/* "Reset", not "Change": it returns to the very beginning, so the label should say so. */}
+        <button onClick={onReset} className="shrink-0 text-[11px]" style={{ color: "var(--text-muted)", minHeight: 28 }}>Reset</button>
+      </div>
+      {/* COVERAGE, inspectable but never in the way. Only when the resolver returned a real number. */}
+      {coveragePct != null && (
+        <button type="button" onClick={onMaterials} className="mt-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-black" style={{ background: "rgba(252,163,17,0.14)", color: "var(--accent)", minHeight: 28 }}>
+          ~{coveragePct}% covered
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ExamOutline({ tab, school, professor, flowDone, coveragePct, onAddProfessor, onMaterials, onReset, stats, isPaid, curSetId, curTopicKey, openTopics, onToggleTopic, onPickSet }: { tab: ExamTab; school: School | null; professor: ProfessorLite | null; flowDone: boolean; coveragePct: number | null; onAddProfessor: () => void; onMaterials: () => void; onReset: () => void; stats: string; isPaid: boolean; curSetId: string | null; curTopicKey: string | null; openTopics: Set<string>; onToggleTopic: (k: string) => void; onPickSet: (topicKey: string, setId: string | null) => void }) {
   const activeRef = useRef<HTMLButtonElement>(null);
   // revealInContainer, NOT scrollIntoView: block:"nearest" also scrolls the DOCUMENT, which on a
   // /go/ page dragged the chapter banner under the sticky navbar on load. See lib/ui-scroll.ts.
@@ -1649,6 +1706,7 @@ function ExamOutline({ tab, school, stats, isPaid, curSetId, curTopicKey, openTo
        scrolls. Below sm the outline is a drop-down drawer stacked above the video, where capping
        it is correct — an unbounded drawer would push the video off-screen. */
     <div className="max-h-[60vh] overflow-y-auto p-3 sm:max-h-none sm:overflow-visible">
+      {flowDone && <SidebarContext school={school} professor={professor} coveragePct={coveragePct} onAddProfessor={onAddProfessor} onMaterials={onMaterials} onReset={onReset} />}
       {/* Sidebar header, restored in Pass 2. It was cut on the theory that the rows below already
           ARE the questions — true, but the header is also the only thing naming what the left
           column IS once the right panel stops being a video. On a locked tab it carries the
@@ -1656,7 +1714,8 @@ function ExamOutline({ tab, school, stats, isPaid, curSetId, curTopicKey, openTo
       <div className="mb-2 flex items-center justify-between px-1">
         {/* "Common exam questions" was internal vocabulary (CEQ) leaking into student-facing UI.
             A student does not care what we call the format — they care what is ON the exam. */}
-        <span className="text-[10.5px] font-black uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>What&apos;s on {tab.label === "Final" ? "the Final" : tab.label}</span>
+        {/* DYNAMIC: "What's on Barton's Exam 1?" once a professor is picked; "What's on Exam 1?" otherwise. */}
+        <span className="text-[10.5px] font-black uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>What&apos;s on {possessive(professor) ? `${possessive(professor)} ` : ""}{tab.label === "Final" ? "the Final" : tab.label}?</span>
         {/* The "Filming this week!" label is gone: it belongs inside the video player, next to the
             thing being filmed, not in a list header. Not relocated here — see the brief. */}
         {isPaid && <span className="text-[10px] font-bold" style={{ color: "var(--accent)" }}>Opens {LAUNCH_WINDOW}</span>}
@@ -1665,13 +1724,14 @@ function ExamOutline({ tab, school, stats, isPaid, curSetId, curTopicKey, openTo
         <TopicRow key={t.key} topic={t} isPaid={isPaid} price={tab.price} open={openTopics.has(t.key)} onToggle={() => onToggleTopic(t.key)} curSetId={curSetId} curTopicKey={curTopicKey} activeRef={activeRef} onPickSet={onPickSet} onPaidClick={() => setNotifyPulse((p) => p + 1)} />
       ))}
       {/* the quiet sum — where the eye lands after scanning the list, not a headline */}
-      <div className="mt-2 border-t px-1 pt-2 text-[10.5px]" style={{ borderColor: "rgba(245,239,230,0.08)", color: "var(--text-muted)" }}>{stats}</div>
+      <div className="mt-2 border-t px-1 pt-2 text-[10.5px]" style={{ borderColor: "var(--border-subtle)", color: "var(--text-muted)" }}>{stats}</div>
       {/* PAID-TAB-CAPTURE stays on paid tabs (peak purchase intent) and on tabs with nothing
           live yet. It is GONE from a content-ready free tab: once the product exists, a waitlist
           box under it is clutter apologising for a problem the tab no longer has. */}
-      {(isPaid || !tab.topics.some((t) => t.sets.some((s) => s.playbackId))) && (
-        <PaidNotifyRow exam={tab} school={school} pulse={notifyPulse} />
-      )}
+      {/* On a FREE tab with nothing published the box lives in the Poster instead — inside the
+          media panel, where it is visible on every breakpoint. Here it would be hidden inside the
+          collapsed mobile topic drawer, which is exactly where it used to be. */}
+      {isPaid && <PaidNotifyRow exam={tab} school={school} pulse={notifyPulse} />}
     </div>
   );
 }
@@ -1698,7 +1758,7 @@ function PaidNotifyRow({ exam, school, pulse }: { exam: ExamTab; school: School 
     try {
       // examNum is carried explicitly: all four tabs collect emails now, so "which exam did
       // this person ask for" is no longer inferable from the fact that a row exists at all.
-      await joinPricingWaitlist({ email: e, campus: school?.name ?? null, course: `${exam.label}${school?.code ? ` · ${school.code}` : ""}`, tier: "test_pass", examNum: exam.num });
+      await joinPricingWaitlist({ email: e, campus: school?.name ?? null, campusId: school?.campusId ?? null, campusSlug: school?.slug ?? null, course: `${exam.label}${school?.code ? ` · ${school.code}` : ""}`, tier: "test_pass", examNum: exam.num });
       setState("done"); try { localStorage.setItem(key, "done"); } catch { /* ignore */ }
     } catch { setState("error"); }
   };
@@ -1708,15 +1768,16 @@ function PaidNotifyRow({ exam, school, pulse }: { exam: ExamTab; school: School 
        grows past the video beside it. */
     <div ref={boxRef} className="mt-2 rounded-xl px-2.5 py-2" style={{ border: `1px solid ${flash ? "var(--accent)" : "rgba(252,163,17,0.35)"}`, background: flash ? "rgba(252,163,17,0.14)" : "rgba(252,163,17,0.06)", transition: "background 300ms, border-color 300ms" }}>
       {state === "done" ? (
-        <p className="text-[11px] font-semibold" style={{ color: "var(--brand-cream)" }}>✓ You're on the list — I'll email you the day {exam.label} opens.</p>
+        <p className="text-[14px] font-semibold" style={{ color: "var(--brand-cream)" }}>✓ You're on the list — I'll email you the day {exam.label} opens.</p>
       ) : (
         <>
-          <p className="text-[11px] font-bold" style={{ color: "var(--brand-cream)" }}>Get notified once {exam.label} is ready</p>
-          <div className="mt-1 flex gap-1.5">
-            <input value={email} onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("open"); }} onKeyDown={(e) => { if (e.key === "Enter") void submit(); }} type="email" placeholder="you@school.edu" className="min-w-0 flex-1 rounded-lg px-2.5 py-1.5 text-[12px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)" }} />
-            <button onClick={() => void submit()} disabled={state === "busy"} className="shrink-0 rounded-lg px-3 py-1.5 text-[11.5px] font-black disabled:opacity-50" style={{ background: "var(--accent)", color: "#0B1220" }}>{state === "busy" ? "…" : "Notify me"}</button>
+          <p className="text-[14px] font-bold" style={{ color: "var(--brand-cream)" }}>Get notified once {exam.label} is ready</p>
+          <div className="mt-1.5 flex gap-1.5">
+            {/* 16px input: iOS zooms the page on focus below that. 44px controls: thumb-sized. */}
+            <input value={email} onChange={(e) => { setEmail(e.target.value); if (state === "error") setState("open"); }} onKeyDown={(e) => { if (e.key === "Enter") void submit(); }} type="email" inputMode="email" autoComplete="email" placeholder="you@school.edu" className="min-w-0 flex-1 rounded-lg px-3 outline-none" style={{ fontSize: 16, minHeight: 44, background: "var(--bg-input)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }} />
+            <button onClick={() => void submit()} disabled={state === "busy"} className="shrink-0 rounded-lg px-3 text-[14px] font-black disabled:opacity-50" style={{ minHeight: 44, background: "var(--accent)", color: "#0B1220" }}>{state === "busy" ? "…" : "Notify me"}</button>
           </div>
-          {state === "error" && <p className="mt-1 text-[10.5px]" style={{ color: "#F3C6CC" }}>Couldn't save that — try again in a moment.</p>}
+          {state === "error" && <p className="mt-1 text-[14px]" style={{ color: "#F3C6CC" }}>Couldn't save that — try again in a moment.</p>}
         </>
       )}
     </div>
@@ -1742,23 +1803,23 @@ function TopicRow({ topic, isPaid, price, open, onToggle, curSetId, curTopicKey,
     // Unbuilt topic — muted, estimated runtime, selectable → poster state. "coming" told a
     // student nothing about the product's shape; a runtime says what studying this topic costs.
     return (
-      <button ref={posterActive ? activeRef : undefined} onClick={() => onPickSet(topic.key, null)} className="mb-0.5 flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left hover:bg-white/5" style={{ opacity: 0.55, background: posterActive ? "rgba(252,163,17,0.12)" : "transparent" }}>
+      <button ref={posterActive ? activeRef : undefined} onClick={() => onPickSet(topic.key, null)} className="mb-0.5 flex w-full items-center gap-1.5 rounded-lg px-2 py-2.5 text-left hover:bg-white/5" style={{ opacity: 0.55, background: posterActive ? "rgba(0,107,166,0.28)" : "transparent" }}>
         <span className="h-3.5 w-3.5 shrink-0" />
-        <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: posterActive ? "var(--accent)" : "var(--brand-cream)" }}>{topic.name}</span>
+        <span className="min-w-0 flex-1 truncate text-[14px] font-bold" style={{ color: posterActive ? "var(--accent-info-text)" : "var(--brand-cream)" }}>{topic.name}</span>
         <span className="shrink-0 text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }}>~{estTopicMin(topic.name)} min</span>
       </button>
     );
   }
   return (
     <div className="mb-1">
-      <button onClick={onToggle} className="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left hover:bg-white/5">
+      <button onClick={onToggle} className="flex w-full items-center gap-1.5 rounded-lg px-2 py-2.5 text-left hover:bg-white/5">
         <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? "" : "-rotate-90"}`} style={{ color: "var(--text-muted)" }} />
-        <span className="min-w-0 flex-1 truncate text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>{topic.name}{SHOW_CHAPTER_NUM && topic.num != null && <span className="ml-1 font-normal opacity-60">(Ch. {topic.num})</span>}</span>
-        <span className="shrink-0 text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }}>{totalCeq} question{totalCeq === 1 ? "" : "s"}</span>
+        <span className="min-w-0 flex-1 truncate text-[14px] font-bold" style={{ color: "var(--brand-cream)" }}>{topic.name}</span>
+        <span className="shrink-0 text-[11px] tabular-nums" style={{ color: "var(--text-muted)" }}>{totalCeq} Qs</span>
       </button>
       {open && (
         <div className="ml-5 mt-0.5 space-y-0.5">
-          {topic.sets.map((s) => <SetRow key={s.id} set={s} isPaid={isPaid} price={price} active={s.id === curSetId} activeRef={activeRef} onPick={() => onPickSet(topic.key, s.id)} onPaidClick={onPaidClick} />)}
+          {topic.sets.map((s, i) => <SetRow key={s.id} set={s} refLabel={`${topic.num ?? "?"}.${i + 1}`} isPaid={isPaid} price={price} active={s.id === curSetId} activeRef={activeRef} onPick={() => onPickSet(topic.key, s.id)} onPaidClick={onPaidClick} />)}
         </div>
       )}
     </div>
@@ -1768,24 +1829,43 @@ function TopicRow({ topic, isPaid, price, open, onToggle, curSetId, curTopicKey,
 // The set row is the product shelf: the first question's STEM, truncated at ~40ch — the truncation
 // is the tease; the full stem shows in the player when selected. Paid-tab stems arrive from the
 // server already ░-redacted. Counts language: topics · questions · video time (never "sets"/"stems").
-function SetRow({ set, isPaid, active, activeRef, onPick, onPaidClick }: { set: StudentSet; isPaid: boolean; price: number | null; active: boolean; activeRef: RefObject<HTMLButtonElement | null>; onPick: () => void; onPaidClick: () => void }) {
-  const live = !!set.playbackId;
-  const stem = set.firstStem?.trim() || set.name;
-  const tease = stem.length > 40 ? `${stem.slice(0, 40).trimEnd()}…` : stem;
-  const meta = `${set.ceqCount} question${set.ceqCount === 1 ? "" : "s"}${set.runtimeSec ? ` · ${fmtRuntime(set.runtimeSec)}` : ""}`;
+function SetRow({ set, refLabel, isPaid, active, activeRef, onPick, onPaidClick }: { set: StudentSet; refLabel: string; isPaid: boolean; price: number | null; active: boolean; activeRef: RefObject<HTMLButtonElement | null>; onPick: () => void; onPaidClick: () => void }) {
+  // PLAYABLE = has a cram video OR questions (the CEQ release ships questions before videos).
+  const live = isPlayable(set);
+  // The BASE STEM is the set's title; the variations only ever appear one at a time in cram mode.
+  const stem = set.name.replace(/^"|"$/g, "");
+  const tease = stem.length > 44 ? `${stem.slice(0, 44).trimEnd()}…` : stem;
+  const meta = `${set.ceqCount} Q${set.ceqCount === 1 ? "" : "s"}${set.runtimeSec ? ` · ${fmtRuntime(set.runtimeSec)}` : ""}`;
+  void refLabel; // the curriculum reference stays in the data model; students don't see it
+  const covered = useCoverage(set.id);
+  const frac = set.ceqCount > 0 ? Math.min(1, covered / set.ceqCount) : 0;
   // LOCK-NOT-BROKEN: paid rows keep FULL opacity (dim = disabled = "broken") and wear a lock in
   // the same slot free rows wear ▶. PAID-TAB-CAPTURE: tapping one points at the notify panel.
   const onClick = () => { if (isPaid) { onPaidClick(); return; } onPick(); };
   return (
-    <button ref={active ? activeRef : undefined} onClick={onClick} className="relative flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-white/5" style={{ background: active ? "rgba(252,163,17,0.12)" : "transparent", opacity: !isPaid && !live ? 0.7 : 1 }}>
+    <button ref={active ? activeRef : undefined} onClick={onClick} className="relative flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-white/5" style={{ background: active ? "rgba(0,107,166,0.28)" : "transparent", opacity: !isPaid && !live ? 0.7 : 1 }}>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[12.5px] font-semibold" style={{ color: active ? "var(--accent)" : "var(--brand-cream)" }}>{tease}</span>
+        <span className="block truncate text-[14px] font-semibold" style={{ color: active ? "var(--accent-info-text)" : "var(--brand-cream)" }}>{tease}</span>
         <span className="block text-[10.5px]" style={{ color: "var(--text-muted)" }}>{meta}{!live && !isPaid ? " · coming" : ""}</span>
+        {/* COVERAGE (questions attempted), never accuracy — progress, not a score. */}
+        {frac > 0 && <span className="mt-1 block h-[3px] overflow-hidden rounded-full" style={{ background: "rgba(245,239,230,0.1)" }}><span className="block h-full rounded-full" style={{ width: `${Math.round(frac * 100)}%`, background: frac >= 1 ? "#3BF5A0" : "var(--accent)" }} /></span>}
       </span>
       {live && !isPaid && <span className="shrink-0 text-[11px]" style={{ color: "var(--accent)" }}>▶</span>}
       {isPaid && <Lock className="h-3 w-3 shrink-0" style={{ color: "var(--accent)" }} />}
     </button>
   );
+}
+
+/** Questions attempted in a set (localStorage, updated live by cram mode). */
+function useCoverage(setId: string): number {
+  const [n, setN] = useState(() => (typeof window === "undefined" ? 0 : (readCoverage()[setId]?.length ?? 0)));
+  useEffect(() => {
+    const on = () => setN(readCoverage()[setId]?.length ?? 0);
+    on();
+    window.addEventListener("sa-coverage", on);
+    return () => window.removeEventListener("sa-coverage", on);
+  }, [setId]);
+  return n;
 }
 
 // "Last, First" display — students know last names; falls back to the full name when last is absent.
@@ -1806,14 +1886,14 @@ function TwoSetAsk({ school, professor, onDone }: { school: School | null; profe
     catch { setBusy(false); }
   };
   return (
-    <div className="flex flex-col gap-2 border-t px-3 py-3 sm:flex-row sm:items-center" style={{ borderColor: "rgba(245,239,230,0.1)", background: "rgba(252,163,17,0.06)" }}>
+    <div className="flex flex-col gap-2 border-t px-3 py-3 sm:flex-row sm:items-center" style={{ borderColor: "var(--border-default)", background: "rgba(252,163,17,0.06)" }}>
       {sent ? (
-        <span className="text-[12.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>Saved — I'll tell you when Exam 2 lands.</span>
+        <span className="text-[14px] font-semibold" style={{ color: "var(--brand-cream)" }}>Saved — I'll tell you when Exam 2 lands.</span>
       ) : (
         <>
-          <span className="min-w-0 flex-1 text-[12.5px]" style={{ color: "var(--brand-cream)" }}>Nice — save your progress and get told when Exam 2 lands?</span>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" className="rounded-lg px-3 py-1.5 text-[12.5px] outline-none" style={{ background: "rgba(245,239,230,0.06)", border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)", minWidth: 0 }} />
-          <button onClick={send} disabled={!ok || busy} className="shrink-0 rounded-lg px-3 py-1.5 text-[12.5px] font-black disabled:opacity-40" style={{ background: "var(--accent)", color: "#0B1220" }}>{busy ? "…" : "Send"}</button>
+          <span className="min-w-0 flex-1 text-[14px]" style={{ color: "var(--brand-cream)" }}>Nice — save your progress and get told when Exam 2 lands?</span>
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" className="rounded-lg px-3 py-2.5 text-[14px] outline-none" style={{ background: "var(--bg-input)", border: "1px solid var(--border-default)", color: "var(--brand-cream)", minWidth: 0 }} />
+          <button onClick={send} disabled={!ok || busy} className="shrink-0 rounded-lg px-3 py-2.5 text-[14px] font-black disabled:opacity-40" style={{ background: "var(--accent)", color: "#0B1220" }}>{busy ? "…" : "Send"}</button>
           <button onClick={onDone} className="grid h-6 w-6 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--text-muted)" }} aria-label="Dismiss"><X className="h-3.5 w-3.5" /></button>
         </>
       )}
@@ -1855,7 +1935,7 @@ function HeroVideo({ playbackId, onComplete }: { playbackId: string; onComplete?
         <button
           onClick={() => { const v = ref.current; if (v) { v.muted = false; void v.play().catch(() => { /* keep state */ }); } dismissChip(); }}
           className="absolute right-3 top-3 z-10 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-bold"
-          style={{ background: "rgba(11,18,32,0.82)", border: "1px solid rgba(245,239,230,0.28)", color: "var(--brand-cream)", opacity: chipFading ? 0 : 1, transition: "opacity 320ms ease", pointerEvents: chipFading ? "none" : "auto" }}
+          style={{ background: "rgba(11,18,32,0.82)", border: "1px solid var(--border-default)", color: "var(--brand-cream)", opacity: chipFading ? 0 : 1, transition: "opacity 320ms ease", pointerEvents: chipFading ? "none" : "auto" }}
         >
           <span aria-hidden>🔊</span> Tap for sound
         </button>
@@ -1864,18 +1944,127 @@ function HeroVideo({ playbackId, onComplete }: { playbackId: string; onComplete?
   );
 }
 
-function Poster({ school, topicName, stem }: { school: School | null; topicName: string; stem?: string | null }) {
+/** SET FLOW PANEL — the homepage-sized shell around the shared Cram → Practice → Review walk
+ *  (set-flow.ts, the same model /learn uses). Keyed by set id from the caller, so a new set
+ *  always mounts fresh at CRAM — each set begins with its own Cram Blast.
+ *
+ *  Kept deliberately small: a strip (SET n OF m + stage pills) over the same 16:9 stage the
+ *  video always used. Stage transitions are overlay CTAs, not new screens — this is still the
+ *  low-friction discovery player, not a dashboard. Paid sets never reach here (no playbackId
+ *  in the free tree), so there is no entitlement logic on this surface. */
+function SetFlowPanel({ topic, set, school, surface, onCramComplete, onPickSet }: { topic: ResolvedTopic; set: StudentSet; school: School | null; surface: "home" | "campus" | "greek"; onCramComplete: () => void; onPickSet: (setId: string) => void }) {
+  // Entry = the set's FIRST available stage: cram when its video exists, else straight to
+  // practice (the CEQ release ships questions before videos). The cram slot stays in the shell
+  // as a "coming soon" strip so a published video fills it with no layout change.
+  const [stage, setStage] = useState<SetStage>(() => stagesOf(set)[0]);
+  // The end-of-video overlay per stage ("Practice this set →" / "Next set →").
+  const [stageEnded, setStageEnded] = useState(false);
+  const stages = stagesOf(set);
+  const { n } = setIndexOf(topic.sets, set.id);
+  const after = nextStep(topic.sets, set.id, stage);
+  const nextSetName = after && after.setId !== set.id ? (topic.sets.find((s) => s.id === after.setId)?.name ?? "Next set") : null;
+  const goto = (pos: { setId: string; stage: SetStage } | null) => {
+    if (!pos) return;
+    if (pos.setId === set.id) { setStage(pos.stage); setStageEnded(false); }
+    else onPickSet(pos.setId); // remount via key → the next set starts at its own Cram
+  };
+  const forwardLabel = after ? (after.setId === set.id ? (after.stage === "practice" ? "Practice this set →" : "Review with Lee →") : "Next set →") : null;
+  const pill = (st: SetStage) => (
+    <button
+      key={st}
+      onClick={() => { setStage(st); setStageEnded(false); }}
+      className="rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wider"
+      style={{ minHeight: 24, color: st === stage ? "#0B1220" : "var(--text-muted)", background: st === stage ? "var(--accent)" : "transparent", border: `1px solid ${st === stage ? "var(--accent)" : "rgba(245,239,230,0.16)"}` }}
+      title={st === "cram" ? "Cram Blast — see what's coming" : st === "practice" ? "Practice — try it yourself" : "Review — watch Lee work it"}
+    >
+      {st === "cram" ? "Cram" : st === "practice" ? "Practice" : "Review"}
+    </button>
+  );
+  return (
+    <div className="sa-reveal w-full">
+      {/* The "SET n OF m · stem" strip is gone — the sidebar already names the set. The stage
+          switcher only appears once a set has MORE than one stage (i.e. a video exists). */}
+      {stages.length > 1 && (
+        <div className="flex items-center justify-end gap-1 px-3 py-1.5" style={{ background: "rgba(0,0,0,0.24)", borderBottom: "1px solid rgba(245,239,230,0.08)" }}>
+          {stages.map(pill)}
+        </div>
+      )}
+      {/* VIDEO stages keep the 16:9 stage; PRACTICE takes its natural height (a question, four
+          choices, the coming-soon line and the ask box must never scroll inside a video box). */}
+      <div className="relative w-full" style={stage === "practice" ? { minHeight: 360, background: "#000" } : { aspectRatio: "16 / 9", background: "#000" }}>
+        {stage === "practice" ? (
+          <div className="flex w-full flex-col" style={{ background: "var(--sa-surface-2)", minHeight: 360 }}>
+            <div className="min-h-0 flex-1">
+              <PracticeStage
+                setId={set.id}
+                reference={{ topic: topic.num, set: n }}
+                setName={set.name.replace(/^"|"$/g, "")}
+                campusName={school?.name ?? null}
+                campusSlug={school?.slug ?? null}
+                surface={surface}
+                doneLabel={forwardLabel ?? "Done →"}
+                onDone={() => goto(after)}
+                onReview={set.reviewPlaybackId ? () => goto({ setId: set.id, stage: "review" }) : undefined}
+              />
+            </div>
+          </div>
+        ) : stage === "review" && !set.reviewPlaybackId ? (
+          // Should be unreachable (the pill only renders when hasReview), but never dead-end.
+          <div className="grid h-full w-full place-items-center px-6 text-center text-[12.5px]" style={{ background: "var(--sa-surface-2)", color: "var(--text-muted)" }}>
+            <div>
+              The review video for this set isn't published yet.
+              {after && <button className="mt-3 block w-full rounded-xl px-4 py-2 text-[12px] font-black uppercase tracking-wide" style={{ background: "var(--accent)", color: "#0B1220" }} onClick={() => goto(after)}>{forwardLabel}</button>}
+            </div>
+          </div>
+        ) : (
+          <>
+            <HeroVideo
+              key={`${stage}:${stage === "review" ? set.reviewPlaybackId : set.playbackId}`}
+              playbackId={(stage === "review" ? set.reviewPlaybackId : set.playbackId)!}
+              onComplete={() => { if (stage === "cram") onCramComplete(); setStageEnded(true); }}
+            />
+            {stageEnded && after && (
+              <div className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-2 px-3 py-2" style={{ background: "linear-gradient(0deg, rgba(5,8,16,0.92) 0%, rgba(5,8,16,0.0) 100%)" }}>
+                <span className="min-w-0 truncate text-[11.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>
+                  {after.setId === set.id ? (after.stage === "practice" ? "Now try it yourself" : "Now watch Lee work it") : `Up next: ${nextSetName}`}
+                </span>
+                <button className="shrink-0 rounded-xl px-3.5 py-1.5 text-[12px] font-black uppercase tracking-wide" style={{ background: "var(--accent)", color: "#0B1220" }} onClick={() => goto(after)}>{forwardLabel}</button>
+              </div>
+            )}
+            {stageEnded && !after && (
+              <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2 text-[11.5px] font-semibold" style={{ color: "var(--brand-cream)", background: "linear-gradient(0deg, rgba(5,8,16,0.92) 0%, rgba(5,8,16,0.0) 100%)" }}>
+                ✓ You finished {topic.name} — pick your next topic on the left.
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** THE UNPUBLISHED-VIDEO STATE. Until a set's video is published this is what a topic opens onto,
+ *  so it has to read as a deliberate "not yet", never as a player that failed to load: the bolt in
+ *  the school's colours, the topic name, one plain line saying the videos for this set are coming,
+ *  and the notify field — the only action there is until they publish — right here in the media
+ *  panel on every breakpoint (the sidebar copy of it was invisible inside the mobile drawer). */
+function Poster({ school, exam, topicName, stem }: { school: School | null; exam: ExamTab; topicName: string; stem?: string | null }) {
   const c = school ? boltFor(school.id) : { c1: BRAND_RED, c2: BRAND_BLUE };
   return (
-    <div className="grid h-full w-full place-items-center" style={{ background: "var(--sa-surface-2)" }}>
-      <div className="flex flex-col items-center gap-3 px-6 text-center">
+    <div className="grid h-full w-full place-items-center py-5" style={{ background: "var(--sa-surface-2)" }}>
+      <div className="flex w-full max-w-sm flex-col items-center gap-3 px-5 text-center">
         <span className="inline-block h-16 w-11"><Bolt c1={c.c1} c2={c.c2} /></span>
         <span className="rounded-full px-3 py-1 text-[12px] font-bold uppercase tracking-wide" style={{ background: "var(--accent)", color: "#0B1220" }}>{topicName}</span>
         {/* the FULL stem — the outline row's 40ch truncation is the tease, this is the payoff */}
-        {stem && <p className="max-w-md text-[13.5px] font-semibold leading-snug" style={{ color: "var(--brand-cream)" }}>{stem}</p>}
-        {/* Pass 3 removed the launch line and the Get-notified link from here. Both now live in
-            the sidebar notify box, which actually captures the email — the poster was announcing
-            the same fact a second time and sending the student somewhere else to act on it. */}
+        {stem && <p className="max-w-md text-[14px] font-semibold leading-snug" style={{ color: "var(--brand-cream)" }}>{stem}</p>}
+        <p className="text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>
+          {exam.price != null
+            ? `${exam.label} videos open ${LAUNCH_WINDOW} — ${topicName} is on the list.`
+            : `Videos for ${topicName} are coming — Lee is filming this set now.`}
+        </p>
+        <div className="w-full text-left">
+          <PaidNotifyRow exam={exam} school={school} pulse={0} />
+        </div>
       </div>
     </div>
   );
@@ -1888,135 +2077,11 @@ function Poster({ school, topicName, stem }: { school: School | null; topicName:
 // LeeSection + LeePortrait moved to components/site/Marketing (TutorCard + TutorBioModal + the
 // portrait). The bio is a MODAL now — opened by the pro-tutor trust chip and the tutor card.
 
-// ---- TESTIMONIALS (own slider — navy/cream/bolt; no white cards / stars / verified badges) ----
-// Curated top-10 from testimonials.csv, best-first. long=1 → truncate + "show more". Auto-advances
-// 6s; ANY interaction stops it permanently; reduced-motion = manual only. `avatar` is our RE-HOSTED
-// Supabase URL (testimonial-avatars bucket) — the original testimonial.to Firebase avatars are never
-// hotlinked; a person with no source avatar (or a broken load) falls back to initials.
-const AV = "https://unvxagsledbsdoremqeb.supabase.co/storage/v1/object/public/testimonial-avatars";
-// `code` is the student's OWN course code, optional. None of the current rows have one, so they
-// all render campus-only. Do NOT backfill it from the campus: the code a student took in 2019 is
-// not necessarily the code that campus uses now, and that is a fact about a real person.
-type Testimonial = { name: string; school: string; long: boolean; quote: string; avatar?: string; code?: string };
-const TESTIMONIALS: Testimonial[] = [
-  { name: "Zach Parker", school: "Ole Miss", long: false, quote: "Lee your videos saved me on multiple choice. Everything you thought would be on there was." },
-  { name: "George L.", school: "Ole Miss", long: false, quote: "If it weren’t for Lee, I wouldn’t have made A’s in both intro courses.", avatar: `${AV}/george-l.jpg` },
-  { name: "Tyler K.", school: "Ole Miss", long: false, quote: "Lee's exam prep videos are better than any tutor I’ve ever had.", avatar: `${AV}/tyler-k.jpg` },
-  { name: "James L.", school: "Ole Miss", long: false, quote: "Feel like I got an A purely because of Lee's videos." },
-  { name: "Claire Ficek", school: "Ole Miss", long: false, quote: "Survive Accounting is literally the only reason that I got through Accounting 201! A bunch of my friends used it and said it was so helpful." },
-  { name: "Ryan M.", school: "Ole Miss", long: false, quote: "Lee's videos were a lifesaver. I would've failed without them.", avatar: `${AV}/ryan-m.jpg` },
-  { name: "Nic Ripson", school: "Ole Miss", long: false, quote: "Survive Accounting helped me better understand the content I needed to learn. My quiz average was a 45% and after using this platform to study I got an 84.5% on my first intermediate exam." },
-  { name: "Brace R.", school: "Ole Miss", long: false, quote: "I enjoyed how he broke everything down to very simple terms that weren’t necessarily explained in class.", avatar: `${AV}/brace-r.jpg` },
-  { name: "Nate K.", school: "Ole Miss", long: true, quote: "Survive accounting is the sole reason that I got through both accounting courses at ole miss. Lee does an exceptional job breaking every little piece down as much as possible and makes it super easy to follow along. He is very enthusiastic and not only is he a great accounting tutor but he is also a genuinely great guy. If you need assistance in your accounting class I highly recommend Survive Accounting.", avatar: `${AV}/nate-k.jpg` },
-  { name: "Daniel B.", school: "Ole Miss", long: true, quote: "Survive Accounting helped with my homework, test preparation, and the overall understanding of accounting. Having the ability to see how Lee went step by step in problems helped me grasp super confusing concepts. He was also very friendly over email and even gave me specific pointers about assignments I emailed to him which was a huge help. If you are going to dedicate time to studying, I would highly recommend using Survive Accounting to optimize your understanding of the material and give yourself a greater chance of receiving a high grade in the class!", avatar: `${AV}/daniel-b.jpg` },
-];
-const initialsOf = (name: string) => name.split(/\s+/).filter(Boolean).map((w) => w[0]).join("").slice(0, 2).toUpperCase();
+// Testimonials moved to components/site/Testimonials — the partner pages show the same student
+// proof, and a route file cannot be imported by a component.
 
-// Avatar: our re-hosted image when present, initials otherwise (and on any load error — never a
-// hotlink, never a broken image).
-function TestimonialAvatar({ name, src }: { name: string; src?: string }) {
-  const [broken, setBroken] = useState(false);
-  if (src && !broken) {
-    // Eager (not lazy): the slider translates cards off-screen, and lazy never fires for a
-    // transformed off-screen <img>. These are 2–5KB each, so eager load is cheap and reliable.
-    return <img src={src} alt={name} onError={() => setBroken(true)} className="h-12 w-12 shrink-0 rounded-full object-cover" style={{ border: "1px solid rgba(245,239,230,0.18)" }} />;
-  }
-  return <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full text-[14px] font-black" style={{ background: "#0B1220", border: "1px solid rgba(245,239,230,0.18)", color: "var(--accent)" }}>{initialsOf(name)}</span>;
-}
-
-/** THREE-UP review cards (one-up below sm), paged. The heading lives in SocialProofSection so it
- *  sits on the same baseline as "Meet your tutor" beside it. Auto-advances by PAGE every 7s;
- *  any interaction stops it for good; reduced motion never starts it. No star RATING is quoted —
- *  five brand stars + the real "1,000+ students helped" number, nothing invented. */
-function TestimonialsSlider() {
-  const reduce = useMemo(() => typeof window !== "undefined" && !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches, []);
-  const n = TESTIMONIALS.length;
-  // Per-page count is read in an effect (SSR renders 3-up; a phone drops to 1-up after mount).
-  const [per, setPer] = useState(3);
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 639px)");
-    const apply = () => setPer(mq.matches ? 1 : 3);
-    apply(); mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
-  }, []);
-  const pages = Math.ceil(n / per);
-  const [page, setPage] = useState(0);
-  const [auto, setAuto] = useState(!reduce);
-  const [hover, setHover] = useState(false);
-  const stop = () => setAuto(false);
-  const go = (d: -1 | 1) => setPage((p) => (p + d + pages) % pages);
-  useEffect(() => { setPage((p) => Math.min(p, pages - 1)); }, [pages]);
-  useEffect(() => {
-    if (!auto || hover || reduce || pages < 2) return;
-    const t = window.setInterval(() => setPage((p) => (p + 1) % pages), 7000);
-    return () => window.clearInterval(t);
-  }, [auto, hover, reduce, pages]);
-
-  // pointer drag / swipe; past threshold advances AND stops auto-play.
-  const start = useRef<number | null>(null);
-  const [dx, setDx] = useState(0);
-  const onDown = (e: RPointerEvent) => { start.current = e.clientX; };
-  const onMove = (e: RPointerEvent) => { if (start.current != null) setDx(e.clientX - start.current); };
-  const end = () => { const d = dx; start.current = null; setDx(0); if (Math.abs(d) > 40) { go(d < 0 ? 1 : -1); stop(); } };
-
-  return (
-    <div onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
-      <div className="mb-4 flex items-center gap-2 text-[13px]" style={{ color: "var(--brand-cream)" }}>
-        <span aria-hidden style={{ color: "var(--accent)", letterSpacing: "0.08em" }}>★★★★★</span>
-        <span style={{ opacity: 0.7 }}>1,000+ students helped</span>
-      </div>
-
-      <div className="relative select-none overflow-hidden" style={{ touchAction: "pan-y" }}
-        onPointerDown={onDown} onPointerMove={onMove} onPointerUp={end} onPointerLeave={() => { if (start.current != null) { start.current = null; setDx(0); } }}>
-        <div className="flex" style={{ width: `${(n / per) * 100}%`, transform: `translateX(calc(-${page * (per / n) * 100}% + ${dx}px))`, transition: start.current != null ? "none" : "transform 420ms ease" }}>
-          {TESTIMONIALS.map((t) => (
-            <figure key={t.name} className="px-1.5" style={{ width: `${100 / n}%` }}>
-              <div className="flex h-full flex-col rounded-2xl p-4" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)", minHeight: 168 }}>
-                <blockquote className="text-[13.5px] leading-relaxed" style={{ color: "var(--brand-cream)", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" as const, overflow: "hidden" }}>
-                  “{t.quote}”
-                </blockquote>
-                <figcaption className="mt-auto flex items-center gap-2.5 pt-3">
-                  <TestimonialAvatar name={t.name} src={t.avatar} />
-                  <span className="min-w-0 text-left">
-                    <span className="block truncate text-[12.5px] font-bold" style={{ color: "var(--brand-cream)" }}>{t.name}</span>
-                    <span className="block text-[11.5px]" style={{ color: "var(--text-muted)" }}>{[t.school, t.code].filter(Boolean).join(" · ")}</span>
-                  </span>
-                </figcaption>
-              </div>
-            </figure>
-          ))}
-        </div>
-      </div>
-
-      {/* controls — every one stops auto-play permanently */}
-      {pages > 1 && (
-        <div className="mt-4 flex items-center gap-3">
-          <button onClick={() => { go(-1); stop(); }} className="grid h-8 w-8 place-items-center rounded-full text-[18px] hover:bg-white/5" style={{ color: "var(--brand-cream)", border: "1px solid rgba(245,239,230,0.2)" }} aria-label="Previous reviews">‹</button>
-          <div className="flex items-center gap-1.5">
-            {Array.from({ length: pages }, (_, i) => (
-              <button key={i} onClick={() => { setPage(i); stop(); }} aria-label={`Go to reviews page ${i + 1}`} className="h-2 rounded-full transition-all" style={{ width: i === page ? 18 : 8, background: i === page ? "var(--accent)" : "rgba(245,239,230,0.3)" }} />
-            ))}
-          </div>
-          <button onClick={() => { go(1); stop(); }} className="grid h-8 w-8 place-items-center rounded-full text-[18px] hover:bg-white/5" style={{ color: "var(--brand-cream)", border: "1px solid rgba(245,239,230,0.2)" }} aria-label="Next reviews">›</button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ---- CHAPTER BANNER + CLAIM (on /go/<school>/<chapter> links) --------------------------------
-// The chapter strip + an optional claim (name + phone -> member row). Never gates:
-// the player already works; claiming just registers the member so the chapter dashboard counts them.
-// ChapterBanner and ClaimModal were DELETED here.
-//
-// The banner repeated what the chapter header now says in type (chapter, school, course code),
-// and its "Claim your free access" modal was the only thing that opened ClaimModal. Member
-// attribution did not go with them — it moved to the "Start Exam 1 free" press, which is the
-// same signal without a form in front of the free product.
-
-// ---- SECTION RHYTHM — a quiet 1px breath between major sections (my-12 → ~96px gap) --------------
 function SectionDivider() {
-  return <div aria-hidden className="mx-auto my-12 h-px w-full max-w-[200px]" style={{ background: "rgba(245,239,230,0.08)" }} />;
+  return <div aria-hidden className="mx-auto my-12 h-px w-full max-w-[200px]" style={{ background: "var(--bg-surface)" }} />;
 }
 
 // Four stacked layers, each on its own row so they collapse cleanly at 360px:
@@ -2029,76 +2094,7 @@ function SectionDivider() {
  *  drift apart. */
 /** Column 2 of the footer. Four in-page anchors; the Greek link is its own thing and lives in
  *  column 3, next to the other "reach a human" routes. */
-const FOOTER_LINKS: { label: string; href: string }[] = [
-  { label: "Cram Exam 1 Free", href: "#exam1" },
-  { label: "Reviews", href: "#reviews" },
-  { label: "Meet your tutor", href: "#lee" },
-  { label: "Contact", href: "#contact" },
-  // FOOTER ONLY, deliberately — not the navbar and not the hamburger. A commission ad in the
-  // primary nav would compete with the product for every student who is not going to apply.
-  { label: "Become a campus rep", href: "/rep" },
-];
-
-export function Footer() {
-  return (
-    <footer id="site-footer" className="border-t pt-8 pb-6 sm:pt-10 sm:pb-8" style={{ borderColor: "rgba(245,239,230,0.1)", fontFamily: BRAND_SANS }}>
-      {/* PASS 6 — three columns instead of one tall centred stack. The old footer ran ~3 screens of
-          scrolling on a phone to say four things; a student who reached the bottom looking for a
-          phone number had to scroll past the whole nav to find it. Columns also let the "reach
-          Lee" block sit at the same level as navigation rather than above it, which is what it
-          actually is: one option among several, not a headline. */}
-      <div className="mx-auto grid max-w-[1040px] gap-6 px-5 sm:grid-cols-3 sm:gap-8">
-
-        {/* COLUMN 1 — brand. Hidden below sm: the header already shows the wordmark a swipe away,
-            and this tagline is repeated VERBATIM in the bottom row, so on a phone the two would sit
-            a few hundred pixels apart saying the same sentence twice. */}
-        <div className="hidden sm:block">
-          {/* FitWordmark hard-centres (alignItems: "center") because that is right in a navbar.
-              In a footer COLUMN it put the mark 83px right of the tagline under it and out of line
-              with NAVIGATE / REACH LEE. The component spreads `style` last, so overriding the
-              alignment is the whole fix — no wrapper, and the navbar lockup is untouched. */}
-          <FitWordmark size={54} style={{ alignItems: "flex-start" }} />
-          <p className="mt-2 text-[12.5px]" style={{ color: "var(--text-muted)" }}>Cram what&apos;s on your exam.</p>
-        </div>
-
-        {/* COLUMN 2 — navigate */}
-        <nav>
-          <p className="mb-2 hidden text-[11px] font-black uppercase sm:block" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>Navigate</p>
-          <ul className="space-y-1.5">
-            {FOOTER_LINKS.map((it) => (
-              <li key={it.label}>
-                <a href={it.href} className="text-[13.5px] font-semibold transition-colors hover:text-[var(--accent)]" style={{ color: "var(--brand-cream)" }}>{it.label}</a>
-              </li>
-            ))}
-          </ul>
-        </nav>
-
-        {/* COLUMN 3 — reach Lee. The ghost bolt that used to boil behind this block is gone: at
-            column width it was a texture nobody could read as a bolt. */}
-        <div id="contact" className="scroll-mt-16">
-          <p className="mb-2 hidden text-[11px] font-black uppercase sm:block" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>Questions?</p>
-          <p className="text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>Text me — I respond to every message.</p>
-          <a href={`sms:${TEL}`} className="mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-[13.5px] font-black" style={{ background: "var(--accent)", color: "#0B1220" }}>
-            <MessageCircle className="h-4 w-4" /> Text Lee {PHONE}
-          </a>
-          {/* Set apart from the text-me CTA by a rule: it is a different audience, not a
-              second way to reach Lee. The old two-line "For Fraternities & Sororities /
-              Boost chapter GPAs" pair said the same thing twice for one link. */}
-          <a href="/chapters" className="mt-4 inline-flex items-center gap-2 border-t pt-4 text-[13.5px] font-semibold transition-colors hover:text-[var(--accent)]" style={{ color: "var(--brand-cream)", borderColor: "rgba(245,239,230,0.12)" }}>
-            <span aria-hidden>🏛️</span> For Greek Orgs
-          </a>
-        </div>
-      </div>
-
-      {/* BOTTOM ROW — full width, centred. Text and ORDER unchanged: the memorial line is the last
-          thing on the page and stays that way. */}
-      <div className="mx-auto mt-6 flex max-w-[1040px] flex-col items-center gap-1 border-t px-5 pt-5 text-center sm:mt-9 sm:gap-1.5 sm:pt-6" style={{ borderColor: "rgba(245,239,230,0.08)" }}>
-        <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>surviveaccounting.com</p>
-        <p className="text-[12px]" style={{ color: "var(--text-muted)" }}>© 2026 Earned Wisdom LLC</p>
-        <p className="text-[11.5px] italic" style={{ color: "rgba(245,239,230,0.42)", letterSpacing: "0.01em" }}>In memory of Ben Ingram, 1993–2017</p>
-      </div>
-    </footer>
-  );
-}
+// The FOOTER lives in components/site/SiteFooter — every marketing page needs it, including the
+// partner pages, and a route file is the wrong home for something imported that widely.
 
 

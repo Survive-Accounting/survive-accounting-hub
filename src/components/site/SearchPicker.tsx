@@ -130,8 +130,8 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
         className="flex w-full items-center justify-between gap-2 rounded-xl px-3.5 text-left text-[14.5px] font-bold outline-none transition-opacity focus-visible:ring-2 disabled:opacity-45"
         style={{
           minHeight: 52, fontFamily: BRAND_SANS,
-          background: "rgba(245,239,230,0.06)",
-          border: `1px solid ${open ? "var(--accent)" : "rgba(245,239,230,0.16)"}`,
+          background: "var(--bg-surface)",
+          border: `1px solid ${open ? "var(--accent)" : "var(--border-default)"}`,
           color: current ? "var(--brand-cream)" : "var(--text-muted)",
         }}
       >
@@ -155,8 +155,8 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
             // #0B1220 and a scrim, matching PickerSheet. --sa-surface-1 (#1B2B4D) is LIGHTER
             // than the page, so with nothing behind it the popup read as a washed-out grey
             // slab floating on navy rather than a menu sitting above the page.
-            background: "#0B1220",
-            border: "1px solid rgba(245,239,230,0.14)",
+            background: "var(--bg-overlay)",
+            border: "1px solid var(--border-default)",
             boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)",
           }}
         >
@@ -174,7 +174,7 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
             autoCorrect="off" autoCapitalize="none" spellCheck={false}
             className="w-full border-b px-3.5 outline-none"
             // 16px explicitly — under it iOS zooms the page on focus and never zooms back.
-            style={{ fontSize: 16, minHeight: 48, background: "transparent", borderColor: "rgba(245,239,230,0.12)", color: "var(--brand-cream)" }}
+            style={{ fontSize: 16, minHeight: 48, background: "transparent", borderColor: "var(--border-default)", color: "var(--brand-cream)" }}
           />
           <ul id={listId} ref={listRef} role="listbox" className="min-h-0 flex-1 overflow-y-auto py-1">
             {results.map((it, i) => (

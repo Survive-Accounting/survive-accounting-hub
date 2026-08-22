@@ -20,7 +20,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { normalizePhoneE164, sendSms } from "@/lib/greek-chapters.functions";
+import { normalizePhoneE164 } from "@/lib/greek-chapters.functions";
 
 type DB = { from: (t: string) => { insert: (row: unknown) => Promise<{ error: { message: string } | null }> } };
 const admin = async (): Promise<DB> => {
@@ -64,15 +64,13 @@ export const submitNotListed = createServerFn({ method: "POST" })
     // The row is the durable record, so a failure here IS worth surfacing — unlike the alert below.
     if (error) throw new Error(error.message);
 
-    const to = process.env.FOUNDER_ALERT_PHONE ?? "";
-    if (to) {
-      const sms = await sendSms(to, `⚡ NOT LISTED\n${line.replace(`${NOT_LISTED_PREFIX} `, "")}`);
-      // Best-effort, matching submitChapterClaim: losing the lead because a text failed would be
-      // strictly worse than Lee reading it out of the table later.
-      if (!sms.ok) console.warn("not-listed alert failed to send:", sms.error);
-    } else {
-      console.warn("FOUNDER_ALERT_PHONE not set — not-listed lead saved, no alert sent");
-    }
+    // UNIFIED INTAKE (school_request): the student gets "Thanks — noted <School>"; Lee sees it in
+    // the Sunday Demand digest (school_request is a BATCHED kind — no immediate SMS, per spec §5).
+    // The phone field sits beside the SmsConsentNote in NotListedForm, so a phone = consent.
+    try {
+      const { runIntake } = await import("@/lib/comms/intake.server");
+      await runIntake({ kind: "school_request", name: data.name, email: isEmail ? data.contact : null, phone, campusName: data.school, chapter: data.chapter || null, note: line, sourcePath: "/", smsConsent: !!phone });
+    } catch (e) { console.warn("not-listed intake failed (referral row saved)", (e as Error).message); }
 
     return { ok: true };
   });

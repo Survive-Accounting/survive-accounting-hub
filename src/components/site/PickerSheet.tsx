@@ -268,7 +268,7 @@ export function PickerSheet({ anchor, onClose, label, search, footer, compact, c
           onPointerUp={(e) => end(e.clientY)}
           onPointerCancel={() => end(null)}
         >
-          <span style={{ width: 40, height: 4, borderRadius: 999, background: "rgba(245,239,230,0.28)" }} />
+          <span style={{ width: 40, height: 4, borderRadius: 999, background: "var(--border-default)" }} />
         </div>
 
         <div className="sa-picker-head">

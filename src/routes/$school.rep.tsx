@@ -13,6 +13,7 @@ import { frameThemeVars } from "@/components/frames/frame-theme";
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { RepInterest } from "@/components/site/RepInterest";
+import { Footer } from "@/components/site/SiteFooter";
 import { CampusProvider } from "@/lib/campus-context";
 import { campusOgImage, HOME_OG, ogMeta } from "@/lib/og";
 import { schoolById, schoolBySlug } from "@/lib/schools";
@@ -49,9 +50,10 @@ function CampusRepPage() {
 
   return (
     <CampusProvider urlSchoolSlug={s.slug}>
-      <div style={{ ...frameThemeVars(), background: "var(--brand-navy)", color: "var(--brand-cream)", minHeight: "100vh", fontFamily: BRAND_SANS }}>
+      <div style={{ ...frameThemeVars(), background: "var(--bg-page)", color: "var(--brand-cream)", minHeight: "100vh", fontFamily: BRAND_SANS }}>
         <SiteHeader />
         <RepInterest schoolSlug={s.slug} schoolName={s.name} />
+        <Footer />
       </div>
     </CampusProvider>
   );

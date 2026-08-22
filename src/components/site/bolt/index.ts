@@ -11,7 +11,12 @@ export {
   ANIMATED_CAMPUS_BOLT_CSS,
   type AnimatedCampusBoltProps,
 } from "./AnimatedCampusBolt";
-export { allBoltCampuses, curatedBoltCampuses, orderCampuses } from "./bolt-campuses";
+export {
+  allBoltCampuses,
+  boltCampusFor,
+  curatedBoltCampuses,
+  orderCampuses,
+} from "./bolt-campuses";
 export { getBoltPalette, type BoltCampus, type BoltPalette } from "./bolt-palette";
 export { useBoltRotation } from "./useBoltRotation";
 export {

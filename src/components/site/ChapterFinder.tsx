@@ -27,7 +27,7 @@ import { listGoChapters } from "@/lib/greek-go.functions";
 
 export interface FinderSchool { slug: string; name: string }
 
-export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy = false, note, card = false, header, escapeHatches = false, initialSchool, codes }: {
+export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy = false, note, card = false, header, escapeHatches = false, initialSchool, codes, autoPick = false }: {
   schools: FinderSchool[];
   onPick: (schoolSlug: string, chapterSlug: string, chapterName: string) => void;
   cta?: string;
@@ -41,12 +41,16 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
   /** Course codes resolved by the caller (route loader) so the rows carry them on first paint.
    *  The client query below still runs and wins once it answers. */
   codes?: CampusIntroCode[];
-  /** Offer "My school / chapter isn't listed" beneath the button. */
+  /** Offer the "Don't see your school or chapter?" write-in beneath the controls. */
   escapeHatches?: boolean;
   /** Pre-selected school slug. A campus page's "For fraternities & sororities" link arrives
    *  already knowing the school, so making the visitor find it again in a dropdown is a step
    *  that exists only to be redone. Ignored unless it matches a listed school. */
   initialSchool?: string;
+  /** Picking a chapter fires onPick immediately and the confirm button is not rendered. The
+   *  portal uses this: the chapter IS the decision. The self-report on a chapter page keeps the
+   *  button, because there the pick writes an attribution row and deserves a deliberate press. */
+  autoPick?: boolean;
 }) {
   const [school, setSchool] = useState(() => (initialSchool && schools.some((s) => s.slug === initialSchool) ? initialSchool : ""));
   const [chapter, setChapter] = useState("");
@@ -105,9 +109,18 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
         // A chapter needs a campus, so self-creation is offered only once a school is chosen.
         // Without one we fall back to the plain write-in, which can at least capture who asked.
         notListed === "chapter" && school ? (
+          // A school IS picked, so the strongest answer is not a form: they pick their org from
+          // the national list and land on a working /go/ page for it.
           <ChapterSelfCreate schoolSlug={school} schoolName={schoolName} onClose={() => setNotListed(null)} />
         ) : (
-          <NotListedForm kind={notListed} school={notListed === "chapter" ? schoolName : undefined} onClose={() => setNotListed(null)} />
+          // No school picked — one form covers both halves of "don't see your school or chapter".
+          <NotListedForm
+            kind={notListed}
+            school={notListed === "chapter" ? schoolName : undefined}
+            askChapter
+            title="Which school and chapter?"
+            onClose={() => setNotListed(null)}
+          />
         )
       ) : (
         <>
@@ -131,34 +144,40 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
             searchPlaceholder={`Search ${chapters.length} chapters…`}
             disabled={!school || q.isLoading}
             disabledHint="Pick your school first"
-            onPick={setChapter}
+            onPick={(v) => {
+              setChapter(v);
+              if (autoPick) { const c = chapters.find((x) => x.slug === v); if (c) onPick(school, c.slug, c.name); }
+            }}
           />
 
           {/* An empty list is stated, not hidden. A school whose roster we don't have yet is a real
               answer, and silently showing an empty dropdown reads as the page being broken. */}
           {school && !q.isLoading && !chapters.length && (
-            <p className="text-[12.5px]" style={{ color: "var(--text-muted)" }}>
+            <p className="text-[14px]" style={{ color: "var(--text-muted)" }}>
               I don&apos;t have chapters listed for that school yet — tell me below and I&apos;ll add yours.
             </p>
           )}
 
-          <button
-            type="button"
-            disabled={!picked || busy}
-            onClick={() => picked && onPick(school, picked.slug, picked.name)}
-            className="w-full rounded-xl text-[15px] font-black transition-opacity disabled:opacity-40"
-            style={{ minHeight: 48, background: "var(--accent)", color: "#0B1220" }}
-          >
-            {busy ? "…" : cta}
-          </button>
+          {!autoPick && (
+            <button
+              type="button"
+              disabled={!picked || busy}
+              onClick={() => picked && onPick(school, picked.slug, picked.name)}
+              className="w-full rounded-xl text-[15px] font-black transition-opacity disabled:opacity-40"
+              style={{ minHeight: 48, background: "var(--accent)", color: "#0B1220" }}
+            >
+              {busy ? "…" : cta}
+            </button>
+          )}
 
+          {/* ONE escape hatch, not two. The pair said the same thing twice and stacked on a phone;
+              this is a single quiet line, and what it opens depends on how far they got: a school
+              already picked means the gap is the CHAPTER (self-create), otherwise the write-in
+              takes both. Smaller than the controls above it — it is the exception, not the path. */}
           {escapeHatches && (
-            <div className="mt-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
-              <button type="button" onClick={() => setNotListed("school")} className="text-[12px] underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
-                My school isn&apos;t listed →
-              </button>
-              <button type="button" onClick={() => setNotListed("chapter")} className="text-[12px] underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
-                My chapter isn&apos;t listed →
+            <div className="mt-1 flex items-center justify-center">
+              <button type="button" onClick={() => setNotListed(school ? "chapter" : "school")} className="px-1 text-[13px] underline underline-offset-4" style={{ color: "var(--text-muted)", minHeight: 44 }}>
+                Don&apos;t see your school or chapter?
               </button>
             </div>
           )}
@@ -172,7 +191,7 @@ export function ChapterFinder({ schools, onPick, cta = "Go to my chapter", busy 
   if (!card) return body;
 
   return (
-    <div className="w-full rounded-2xl p-5" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)" }}>
+    <div className="w-full rounded-2xl p-5" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
       {header && <h2 className="mb-3 text-[17px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{header}</h2>}
       {body}
     </div>

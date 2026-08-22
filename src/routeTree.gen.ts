@@ -34,12 +34,16 @@ import { Route as CeqRouteImport } from './routes/ceq'
 import { Route as CalloutDemoRouteImport } from './routes/callout-demo'
 import { Route as BeyondRouteImport } from './routes/beyond'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as UIndexRouteImport } from './routes/u.index'
 import { Route as OutreachIndexRouteImport } from './routes/outreach.index'
 import { Route as SchoolIndexRouteImport } from './routes/$school.index'
+import { Route as UTokenRouteImport } from './routes/u.$token'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as StudyFoundationsRouteImport } from './routes/study_.foundations'
 import { Route as StudyDashboardRouteImport } from './routes/study_.dashboard'
 import { Route as StudyCanvasRouteImport } from './routes/study_.canvas'
+import { Route as PartnersNationalOrganizationsRouteImport } from './routes/partners.national-organizations'
+import { Route as PartnersCampusCouncilsRouteImport } from './routes/partners.campus-councils'
 import { Route as OutreachVideoArchiveRouteImport } from './routes/outreach.video-archive'
 import { Route as OutreachStudentsRouteImport } from './routes/outreach.students'
 import { Route as OutreachResearchRouteImport } from './routes/outreach.research'
@@ -48,6 +52,7 @@ import { Route as OutreachRedditRouteImport } from './routes/outreach.reddit'
 import { Route as OutreachProfintelScheduleRouteImport } from './routes/outreach.profintel-schedule'
 import { Route as OutreachProfintelMetricsRouteImport } from './routes/outreach.profintel-metrics'
 import { Route as OutreachProfintelRouteImport } from './routes/outreach.profintel'
+import { Route as OutreachPracticeRouteImport } from './routes/outreach.practice'
 import { Route as OutreachParentGroupsRouteImport } from './routes/outreach.parent-groups'
 import { Route as OutreachOrdersRouteImport } from './routes/outreach.orders'
 import { Route as OutreachLeadfinderLeaderboardRouteImport } from './routes/outreach.leadfinder-leaderboard'
@@ -55,7 +60,9 @@ import { Route as OutreachLeadfinderBatchRouteImport } from './routes/outreach.l
 import { Route as OutreachLandingRouteImport } from './routes/outreach.landing'
 import { Route as OutreachGreekOrgsRouteImport } from './routes/outreach.greek-orgs'
 import { Route as OutreachGreekClaimsRouteImport } from './routes/outreach.greek-claims'
+import { Route as OutreachDemandRouteImport } from './routes/outreach.demand'
 import { Route as OutreachCouncilsRouteImport } from './routes/outreach.councils'
+import { Route as OutreachCommsRouteImport } from './routes/outreach.comms'
 import { Route as OutreachChaptersRouteImport } from './routes/outreach.chapters'
 import { Route as OutreachCampusesRouteImport } from './routes/outreach.campuses'
 import { Route as OutreachCampaignTargetsRouteImport } from './routes/outreach.campaign-targets'
@@ -73,6 +80,7 @@ import { Route as SchoolRepRouteImport } from './routes/$school.rep'
 import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.leadfinder.index'
 import { Route as GoSchoolIndexRouteImport } from './routes/go.$school.index'
 import { Route as StudyScenariosSlugRouteImport } from './routes/study_.scenarios.$slug'
+import { Route as PartnersNationalOrgRouteImport } from './routes/partners.national.$org'
 import { Route as OutreachSchoolSlugRouteImport } from './routes/outreach_.school.$slug'
 import { Route as OutreachLeadfinderCampusIdRouteImport } from './routes/outreach.leadfinder.$campusId'
 import { Route as OutreachGreekOrgsVendorQueueRouteImport } from './routes/outreach.greek-orgs_.vendor-queue'
@@ -83,7 +91,9 @@ import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
 import { Route as CeqIdEditRouteImport } from './routes/ceq.$id.edit'
 import { Route as CeqCourseSlugChapterSlugRouteImport } from './routes/ceq.$courseSlug.$chapterSlug'
 import { Route as ApiCronWeeklyDigestRouteImport } from './routes/api.cron.weekly-digest'
+import { Route as ApiCronCommsSequencesRouteImport } from './routes/api.cron.comms-sequences'
 import { Route as ApiCronBackupRouteImport } from './routes/api.cron.backup'
+import { Route as PartnersCouncilSchoolCouncilRouteImport } from './routes/partners.council.$school.$council'
 import { Route as GoSchoolCouncilCouncilRouteImport } from './routes/go.$school.council.$council'
 import { Route as ChaptersKitSchoolChapterRouteImport } from './routes/chapters_.kit.$school.$chapter'
 import { Route as ApiOgSchoolChapterRouteImport } from './routes/api.og.$school.$chapter'
@@ -214,6 +224,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const UIndexRoute = UIndexRouteImport.update({
+  id: '/u/',
+  path: '/u/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OutreachIndexRoute = OutreachIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -222,6 +237,11 @@ const OutreachIndexRoute = OutreachIndexRouteImport.update({
 const SchoolIndexRoute = SchoolIndexRouteImport.update({
   id: '/$school/',
   path: '/$school/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UTokenRoute = UTokenRouteImport.update({
+  id: '/u/$token',
+  path: '/u/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TSlugRoute = TSlugRouteImport.update({
@@ -242,6 +262,17 @@ const StudyDashboardRoute = StudyDashboardRouteImport.update({
 const StudyCanvasRoute = StudyCanvasRouteImport.update({
   id: '/study_/canvas',
   path: '/study/canvas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PartnersNationalOrganizationsRoute =
+  PartnersNationalOrganizationsRouteImport.update({
+    id: '/partners/national-organizations',
+    path: '/partners/national-organizations',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const PartnersCampusCouncilsRoute = PartnersCampusCouncilsRouteImport.update({
+  id: '/partners/campus-councils',
+  path: '/partners/campus-councils',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OutreachVideoArchiveRoute = OutreachVideoArchiveRouteImport.update({
@@ -286,6 +317,11 @@ const OutreachProfintelRoute = OutreachProfintelRouteImport.update({
   path: '/profintel',
   getParentRoute: () => OutreachRoute,
 } as any)
+const OutreachPracticeRoute = OutreachPracticeRouteImport.update({
+  id: '/practice',
+  path: '/practice',
+  getParentRoute: () => OutreachRoute,
+} as any)
 const OutreachParentGroupsRoute = OutreachParentGroupsRouteImport.update({
   id: '/parent-groups',
   path: '/parent-groups',
@@ -322,9 +358,19 @@ const OutreachGreekClaimsRoute = OutreachGreekClaimsRouteImport.update({
   path: '/greek-claims',
   getParentRoute: () => OutreachRoute,
 } as any)
+const OutreachDemandRoute = OutreachDemandRouteImport.update({
+  id: '/demand',
+  path: '/demand',
+  getParentRoute: () => OutreachRoute,
+} as any)
 const OutreachCouncilsRoute = OutreachCouncilsRouteImport.update({
   id: '/councils',
   path: '/councils',
+  getParentRoute: () => OutreachRoute,
+} as any)
+const OutreachCommsRoute = OutreachCommsRouteImport.update({
+  id: '/comms',
+  path: '/comms',
   getParentRoute: () => OutreachRoute,
 } as any)
 const OutreachChaptersRoute = OutreachChaptersRouteImport.update({
@@ -412,6 +458,11 @@ const StudyScenariosSlugRoute = StudyScenariosSlugRouteImport.update({
   path: '/study/scenarios/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PartnersNationalOrgRoute = PartnersNationalOrgRouteImport.update({
+  id: '/partners/national/$org',
+  path: '/partners/national/$org',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OutreachSchoolSlugRoute = OutreachSchoolSlugRouteImport.update({
   id: '/outreach_/school/$slug',
   path: '/outreach/school/$slug',
@@ -466,11 +517,22 @@ const ApiCronWeeklyDigestRoute = ApiCronWeeklyDigestRouteImport.update({
   path: '/api/cron/weekly-digest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronCommsSequencesRoute = ApiCronCommsSequencesRouteImport.update({
+  id: '/api/cron/comms-sequences',
+  path: '/api/cron/comms-sequences',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronBackupRoute = ApiCronBackupRouteImport.update({
   id: '/api/cron/backup',
   path: '/api/cron/backup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PartnersCouncilSchoolCouncilRoute =
+  PartnersCouncilSchoolCouncilRouteImport.update({
+    id: '/partners/council/$school/$council',
+    path: '/partners/council/$school/$council',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const GoSchoolCouncilCouncilRoute = GoSchoolCouncilCouncilRouteImport.update({
   id: '/go/$school/council/$council',
   path: '/go/$school/council/$council',
@@ -533,7 +595,9 @@ export interface FileRoutesByFullPath {
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
   '/outreach/chapters': typeof OutreachChaptersRoute
+  '/outreach/comms': typeof OutreachCommsRoute
   '/outreach/councils': typeof OutreachCouncilsRoute
+  '/outreach/demand': typeof OutreachDemandRoute
   '/outreach/greek-claims': typeof OutreachGreekClaimsRoute
   '/outreach/greek-orgs': typeof OutreachGreekOrgsRoute
   '/outreach/landing': typeof OutreachLandingRoute
@@ -541,6 +605,7 @@ export interface FileRoutesByFullPath {
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
   '/outreach/orders': typeof OutreachOrdersRoute
   '/outreach/parent-groups': typeof OutreachParentGroupsRoute
+  '/outreach/practice': typeof OutreachPracticeRoute
   '/outreach/profintel': typeof OutreachProfintelRoute
   '/outreach/profintel-metrics': typeof OutreachProfintelMetricsRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
@@ -549,13 +614,18 @@ export interface FileRoutesByFullPath {
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
+  '/partners/campus-councils': typeof PartnersCampusCouncilsRoute
+  '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
   '/study/canvas': typeof StudyCanvasRoute
   '/study/dashboard': typeof StudyDashboardRoute
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
+  '/u/$token': typeof UTokenRoute
   '/$school/': typeof SchoolIndexRoute
   '/outreach/': typeof OutreachIndexRoute
+  '/u/': typeof UIndexRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
+  '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
@@ -566,6 +636,7 @@ export interface FileRoutesByFullPath {
   '/outreach/greek-orgs/vendor-queue': typeof OutreachGreekOrgsVendorQueueRoute
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
+  '/partners/national/$org': typeof PartnersNationalOrgRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
   '/go/$school/': typeof GoSchoolIndexRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
@@ -573,6 +644,7 @@ export interface FileRoutesByFullPath {
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
   '/chapters/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
   '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
+  '/partners/council/$school/$council': typeof PartnersCouncilSchoolCouncilRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -613,7 +685,9 @@ export interface FileRoutesByTo {
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
   '/outreach/chapters': typeof OutreachChaptersRoute
+  '/outreach/comms': typeof OutreachCommsRoute
   '/outreach/councils': typeof OutreachCouncilsRoute
+  '/outreach/demand': typeof OutreachDemandRoute
   '/outreach/greek-claims': typeof OutreachGreekClaimsRoute
   '/outreach/greek-orgs': typeof OutreachGreekOrgsRoute
   '/outreach/landing': typeof OutreachLandingRoute
@@ -621,6 +695,7 @@ export interface FileRoutesByTo {
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
   '/outreach/orders': typeof OutreachOrdersRoute
   '/outreach/parent-groups': typeof OutreachParentGroupsRoute
+  '/outreach/practice': typeof OutreachPracticeRoute
   '/outreach/profintel': typeof OutreachProfintelRoute
   '/outreach/profintel-metrics': typeof OutreachProfintelMetricsRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
@@ -629,13 +704,18 @@ export interface FileRoutesByTo {
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
+  '/partners/campus-councils': typeof PartnersCampusCouncilsRoute
+  '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
   '/study/canvas': typeof StudyCanvasRoute
   '/study/dashboard': typeof StudyDashboardRoute
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
+  '/u/$token': typeof UTokenRoute
   '/$school': typeof SchoolIndexRoute
   '/outreach': typeof OutreachIndexRoute
+  '/u': typeof UIndexRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
+  '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
@@ -646,6 +726,7 @@ export interface FileRoutesByTo {
   '/outreach/greek-orgs/vendor-queue': typeof OutreachGreekOrgsVendorQueueRoute
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
+  '/partners/national/$org': typeof PartnersNationalOrgRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
   '/go/$school': typeof GoSchoolIndexRoute
   '/outreach/leadfinder': typeof OutreachLeadfinderIndexRoute
@@ -653,6 +734,7 @@ export interface FileRoutesByTo {
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
   '/chapters/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
   '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
+  '/partners/council/$school/$council': typeof PartnersCouncilSchoolCouncilRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -695,7 +777,9 @@ export interface FileRoutesById {
   '/outreach/campaign-targets': typeof OutreachCampaignTargetsRoute
   '/outreach/campuses': typeof OutreachCampusesRoute
   '/outreach/chapters': typeof OutreachChaptersRoute
+  '/outreach/comms': typeof OutreachCommsRoute
   '/outreach/councils': typeof OutreachCouncilsRoute
+  '/outreach/demand': typeof OutreachDemandRoute
   '/outreach/greek-claims': typeof OutreachGreekClaimsRoute
   '/outreach/greek-orgs': typeof OutreachGreekOrgsRoute
   '/outreach/landing': typeof OutreachLandingRoute
@@ -703,6 +787,7 @@ export interface FileRoutesById {
   '/outreach/leadfinder-leaderboard': typeof OutreachLeadfinderLeaderboardRoute
   '/outreach/orders': typeof OutreachOrdersRoute
   '/outreach/parent-groups': typeof OutreachParentGroupsRoute
+  '/outreach/practice': typeof OutreachPracticeRoute
   '/outreach/profintel': typeof OutreachProfintelRoute
   '/outreach/profintel-metrics': typeof OutreachProfintelMetricsRoute
   '/outreach/profintel-schedule': typeof OutreachProfintelScheduleRoute
@@ -711,13 +796,18 @@ export interface FileRoutesById {
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
+  '/partners/campus-councils': typeof PartnersCampusCouncilsRoute
+  '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
   '/study_/canvas': typeof StudyCanvasRoute
   '/study_/dashboard': typeof StudyDashboardRoute
   '/study_/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
+  '/u/$token': typeof UTokenRoute
   '/$school/': typeof SchoolIndexRoute
   '/outreach/': typeof OutreachIndexRoute
+  '/u/': typeof UIndexRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
+  '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
@@ -728,6 +818,7 @@ export interface FileRoutesById {
   '/outreach/greek-orgs_/vendor-queue': typeof OutreachGreekOrgsVendorQueueRoute
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach_/school/$slug': typeof OutreachSchoolSlugRoute
+  '/partners/national/$org': typeof PartnersNationalOrgRoute
   '/study_/scenarios/$slug': typeof StudyScenariosSlugRoute
   '/go/$school/': typeof GoSchoolIndexRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
@@ -735,6 +826,7 @@ export interface FileRoutesById {
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
   '/chapters_/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
   '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
+  '/partners/council/$school/$council': typeof PartnersCouncilSchoolCouncilRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -778,7 +870,9 @@ export interface FileRouteTypes {
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
     | '/outreach/chapters'
+    | '/outreach/comms'
     | '/outreach/councils'
+    | '/outreach/demand'
     | '/outreach/greek-claims'
     | '/outreach/greek-orgs'
     | '/outreach/landing'
@@ -786,6 +880,7 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder-leaderboard'
     | '/outreach/orders'
     | '/outreach/parent-groups'
+    | '/outreach/practice'
     | '/outreach/profintel'
     | '/outreach/profintel-metrics'
     | '/outreach/profintel-schedule'
@@ -794,13 +889,18 @@ export interface FileRouteTypes {
     | '/outreach/research'
     | '/outreach/students'
     | '/outreach/video-archive'
+    | '/partners/campus-councils'
+    | '/partners/national-organizations'
     | '/study/canvas'
     | '/study/dashboard'
     | '/study/foundations'
     | '/t/$slug'
+    | '/u/$token'
     | '/$school/'
     | '/outreach/'
+    | '/u/'
     | '/api/cron/backup'
+    | '/api/cron/comms-sequences'
     | '/api/cron/weekly-digest'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
@@ -811,6 +911,7 @@ export interface FileRouteTypes {
     | '/outreach/greek-orgs/vendor-queue'
     | '/outreach/leadfinder/$campusId'
     | '/outreach/school/$slug'
+    | '/partners/national/$org'
     | '/study/scenarios/$slug'
     | '/go/$school/'
     | '/outreach/leadfinder/'
@@ -818,6 +919,7 @@ export interface FileRouteTypes {
     | '/api/og/$school/$chapter'
     | '/chapters/kit/$school/$chapter'
     | '/go/$school/council/$council'
+    | '/partners/council/$school/$council'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -858,7 +960,9 @@ export interface FileRouteTypes {
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
     | '/outreach/chapters'
+    | '/outreach/comms'
     | '/outreach/councils'
+    | '/outreach/demand'
     | '/outreach/greek-claims'
     | '/outreach/greek-orgs'
     | '/outreach/landing'
@@ -866,6 +970,7 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder-leaderboard'
     | '/outreach/orders'
     | '/outreach/parent-groups'
+    | '/outreach/practice'
     | '/outreach/profintel'
     | '/outreach/profintel-metrics'
     | '/outreach/profintel-schedule'
@@ -874,13 +979,18 @@ export interface FileRouteTypes {
     | '/outreach/research'
     | '/outreach/students'
     | '/outreach/video-archive'
+    | '/partners/campus-councils'
+    | '/partners/national-organizations'
     | '/study/canvas'
     | '/study/dashboard'
     | '/study/foundations'
     | '/t/$slug'
+    | '/u/$token'
     | '/$school'
     | '/outreach'
+    | '/u'
     | '/api/cron/backup'
+    | '/api/cron/comms-sequences'
     | '/api/cron/weekly-digest'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
@@ -891,6 +1001,7 @@ export interface FileRouteTypes {
     | '/outreach/greek-orgs/vendor-queue'
     | '/outreach/leadfinder/$campusId'
     | '/outreach/school/$slug'
+    | '/partners/national/$org'
     | '/study/scenarios/$slug'
     | '/go/$school'
     | '/outreach/leadfinder'
@@ -898,6 +1009,7 @@ export interface FileRouteTypes {
     | '/api/og/$school/$chapter'
     | '/chapters/kit/$school/$chapter'
     | '/go/$school/council/$council'
+    | '/partners/council/$school/$council'
   id:
     | '__root__'
     | '/'
@@ -939,7 +1051,9 @@ export interface FileRouteTypes {
     | '/outreach/campaign-targets'
     | '/outreach/campuses'
     | '/outreach/chapters'
+    | '/outreach/comms'
     | '/outreach/councils'
+    | '/outreach/demand'
     | '/outreach/greek-claims'
     | '/outreach/greek-orgs'
     | '/outreach/landing'
@@ -947,6 +1061,7 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder-leaderboard'
     | '/outreach/orders'
     | '/outreach/parent-groups'
+    | '/outreach/practice'
     | '/outreach/profintel'
     | '/outreach/profintel-metrics'
     | '/outreach/profintel-schedule'
@@ -955,13 +1070,18 @@ export interface FileRouteTypes {
     | '/outreach/research'
     | '/outreach/students'
     | '/outreach/video-archive'
+    | '/partners/campus-councils'
+    | '/partners/national-organizations'
     | '/study_/canvas'
     | '/study_/dashboard'
     | '/study_/foundations'
     | '/t/$slug'
+    | '/u/$token'
     | '/$school/'
     | '/outreach/'
+    | '/u/'
     | '/api/cron/backup'
+    | '/api/cron/comms-sequences'
     | '/api/cron/weekly-digest'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
@@ -972,6 +1092,7 @@ export interface FileRouteTypes {
     | '/outreach/greek-orgs_/vendor-queue'
     | '/outreach/leadfinder/$campusId'
     | '/outreach_/school/$slug'
+    | '/partners/national/$org'
     | '/study_/scenarios/$slug'
     | '/go/$school/'
     | '/outreach/leadfinder/'
@@ -979,6 +1100,7 @@ export interface FileRouteTypes {
     | '/api/og/$school/$chapter'
     | '/chapters_/kit/$school/$chapter'
     | '/go/$school/council/$council'
+    | '/partners/council/$school/$council'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1012,21 +1134,28 @@ export interface RootRouteChildren {
   ChaptersDashboardRoute: typeof ChaptersDashboardRoute
   LabBoltRoute: typeof LabBoltRoute
   OShortRefRoute: typeof OShortRefRoute
+  PartnersCampusCouncilsRoute: typeof PartnersCampusCouncilsRoute
+  PartnersNationalOrganizationsRoute: typeof PartnersNationalOrganizationsRoute
   StudyCanvasRoute: typeof StudyCanvasRoute
   StudyDashboardRoute: typeof StudyDashboardRoute
   StudyFoundationsRoute: typeof StudyFoundationsRoute
   TSlugRoute: typeof TSlugRoute
+  UTokenRoute: typeof UTokenRoute
   SchoolIndexRoute: typeof SchoolIndexRoute
+  UIndexRoute: typeof UIndexRoute
   ApiCronBackupRoute: typeof ApiCronBackupRoute
+  ApiCronCommsSequencesRoute: typeof ApiCronCommsSequencesRoute
   ApiCronWeeklyDigestRoute: typeof ApiCronWeeklyDigestRoute
   GoSchoolChapterRoute: typeof GoSchoolChapterRoute
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
+  PartnersNationalOrgRoute: typeof PartnersNationalOrgRoute
   StudyScenariosSlugRoute: typeof StudyScenariosSlugRoute
   GoSchoolIndexRoute: typeof GoSchoolIndexRoute
   ApiFlyerSchoolChapterRoute: typeof ApiFlyerSchoolChapterRoute
   ApiOgSchoolChapterRoute: typeof ApiOgSchoolChapterRoute
   ChaptersKitSchoolChapterRoute: typeof ChaptersKitSchoolChapterRoute
   GoSchoolCouncilCouncilRoute: typeof GoSchoolCouncilCouncilRoute
+  PartnersCouncilSchoolCouncilRoute: typeof PartnersCouncilSchoolCouncilRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1206,6 +1335,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/u/': {
+      id: '/u/'
+      path: '/u'
+      fullPath: '/u/'
+      preLoaderRoute: typeof UIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/outreach/': {
       id: '/outreach/'
       path: '/'
@@ -1218,6 +1354,13 @@ declare module '@tanstack/react-router' {
       path: '/$school'
       fullPath: '/$school/'
       preLoaderRoute: typeof SchoolIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/u/$token': {
+      id: '/u/$token'
+      path: '/u/$token'
+      fullPath: '/u/$token'
+      preLoaderRoute: typeof UTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/t/$slug': {
@@ -1246,6 +1389,20 @@ declare module '@tanstack/react-router' {
       path: '/study/canvas'
       fullPath: '/study/canvas'
       preLoaderRoute: typeof StudyCanvasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/partners/national-organizations': {
+      id: '/partners/national-organizations'
+      path: '/partners/national-organizations'
+      fullPath: '/partners/national-organizations'
+      preLoaderRoute: typeof PartnersNationalOrganizationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/partners/campus-councils': {
+      id: '/partners/campus-councils'
+      path: '/partners/campus-councils'
+      fullPath: '/partners/campus-councils'
+      preLoaderRoute: typeof PartnersCampusCouncilsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/outreach/video-archive': {
@@ -1304,6 +1461,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachProfintelRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/outreach/practice': {
+      id: '/outreach/practice'
+      path: '/practice'
+      fullPath: '/outreach/practice'
+      preLoaderRoute: typeof OutreachPracticeRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/outreach/parent-groups': {
       id: '/outreach/parent-groups'
       path: '/parent-groups'
@@ -1353,11 +1517,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachGreekClaimsRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/outreach/demand': {
+      id: '/outreach/demand'
+      path: '/demand'
+      fullPath: '/outreach/demand'
+      preLoaderRoute: typeof OutreachDemandRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/outreach/councils': {
       id: '/outreach/councils'
       path: '/councils'
       fullPath: '/outreach/councils'
       preLoaderRoute: typeof OutreachCouncilsRouteImport
+      parentRoute: typeof OutreachRoute
+    }
+    '/outreach/comms': {
+      id: '/outreach/comms'
+      path: '/comms'
+      fullPath: '/outreach/comms'
+      preLoaderRoute: typeof OutreachCommsRouteImport
       parentRoute: typeof OutreachRoute
     }
     '/outreach/chapters': {
@@ -1479,6 +1657,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudyScenariosSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/partners/national/$org': {
+      id: '/partners/national/$org'
+      path: '/partners/national/$org'
+      fullPath: '/partners/national/$org'
+      preLoaderRoute: typeof PartnersNationalOrgRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/outreach_/school/$slug': {
       id: '/outreach_/school/$slug'
       path: '/outreach/school/$slug'
@@ -1549,11 +1734,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronWeeklyDigestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/comms-sequences': {
+      id: '/api/cron/comms-sequences'
+      path: '/api/cron/comms-sequences'
+      fullPath: '/api/cron/comms-sequences'
+      preLoaderRoute: typeof ApiCronCommsSequencesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/backup': {
       id: '/api/cron/backup'
       path: '/api/cron/backup'
       fullPath: '/api/cron/backup'
       preLoaderRoute: typeof ApiCronBackupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/partners/council/$school/$council': {
+      id: '/partners/council/$school/$council'
+      path: '/partners/council/$school/$council'
+      fullPath: '/partners/council/$school/$council'
+      preLoaderRoute: typeof PartnersCouncilSchoolCouncilRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/go/$school/council/$council': {
@@ -1630,7 +1829,9 @@ interface OutreachRouteChildren {
   OutreachCampaignTargetsRoute: typeof OutreachCampaignTargetsRoute
   OutreachCampusesRoute: typeof OutreachCampusesRoute
   OutreachChaptersRoute: typeof OutreachChaptersRoute
+  OutreachCommsRoute: typeof OutreachCommsRoute
   OutreachCouncilsRoute: typeof OutreachCouncilsRoute
+  OutreachDemandRoute: typeof OutreachDemandRoute
   OutreachGreekClaimsRoute: typeof OutreachGreekClaimsRoute
   OutreachGreekOrgsRoute: typeof OutreachGreekOrgsRoute
   OutreachLandingRoute: typeof OutreachLandingRoute
@@ -1638,6 +1839,7 @@ interface OutreachRouteChildren {
   OutreachLeadfinderLeaderboardRoute: typeof OutreachLeadfinderLeaderboardRoute
   OutreachOrdersRoute: typeof OutreachOrdersRoute
   OutreachParentGroupsRoute: typeof OutreachParentGroupsRoute
+  OutreachPracticeRoute: typeof OutreachPracticeRoute
   OutreachProfintelRoute: typeof OutreachProfintelRoute
   OutreachProfintelMetricsRoute: typeof OutreachProfintelMetricsRoute
   OutreachProfintelScheduleRoute: typeof OutreachProfintelScheduleRoute
@@ -1661,7 +1863,9 @@ const OutreachRouteChildren: OutreachRouteChildren = {
   OutreachCampaignTargetsRoute: OutreachCampaignTargetsRoute,
   OutreachCampusesRoute: OutreachCampusesRoute,
   OutreachChaptersRoute: OutreachChaptersRoute,
+  OutreachCommsRoute: OutreachCommsRoute,
   OutreachCouncilsRoute: OutreachCouncilsRoute,
+  OutreachDemandRoute: OutreachDemandRoute,
   OutreachGreekClaimsRoute: OutreachGreekClaimsRoute,
   OutreachGreekOrgsRoute: OutreachGreekOrgsRoute,
   OutreachLandingRoute: OutreachLandingRoute,
@@ -1669,6 +1873,7 @@ const OutreachRouteChildren: OutreachRouteChildren = {
   OutreachLeadfinderLeaderboardRoute: OutreachLeadfinderLeaderboardRoute,
   OutreachOrdersRoute: OutreachOrdersRoute,
   OutreachParentGroupsRoute: OutreachParentGroupsRoute,
+  OutreachPracticeRoute: OutreachPracticeRoute,
   OutreachProfintelRoute: OutreachProfintelRoute,
   OutreachProfintelMetricsRoute: OutreachProfintelMetricsRoute,
   OutreachProfintelScheduleRoute: OutreachProfintelScheduleRoute,
@@ -1720,21 +1925,28 @@ const rootRouteChildren: RootRouteChildren = {
   ChaptersDashboardRoute: ChaptersDashboardRoute,
   LabBoltRoute: LabBoltRoute,
   OShortRefRoute: OShortRefRoute,
+  PartnersCampusCouncilsRoute: PartnersCampusCouncilsRoute,
+  PartnersNationalOrganizationsRoute: PartnersNationalOrganizationsRoute,
   StudyCanvasRoute: StudyCanvasRoute,
   StudyDashboardRoute: StudyDashboardRoute,
   StudyFoundationsRoute: StudyFoundationsRoute,
   TSlugRoute: TSlugRoute,
+  UTokenRoute: UTokenRoute,
   SchoolIndexRoute: SchoolIndexRoute,
+  UIndexRoute: UIndexRoute,
   ApiCronBackupRoute: ApiCronBackupRoute,
+  ApiCronCommsSequencesRoute: ApiCronCommsSequencesRoute,
   ApiCronWeeklyDigestRoute: ApiCronWeeklyDigestRoute,
   GoSchoolChapterRoute: GoSchoolChapterRoute,
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
+  PartnersNationalOrgRoute: PartnersNationalOrgRoute,
   StudyScenariosSlugRoute: StudyScenariosSlugRoute,
   GoSchoolIndexRoute: GoSchoolIndexRoute,
   ApiFlyerSchoolChapterRoute: ApiFlyerSchoolChapterRoute,
   ApiOgSchoolChapterRoute: ApiOgSchoolChapterRoute,
   ChaptersKitSchoolChapterRoute: ChaptersKitSchoolChapterRoute,
   GoSchoolCouncilCouncilRoute: GoSchoolCouncilCouncilRoute,
+  PartnersCouncilSchoolCouncilRoute: PartnersCouncilSchoolCouncilRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

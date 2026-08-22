@@ -28,6 +28,29 @@ export function allBoltCampuses(): BoltCampus[] {
   }));
 }
 
+/** One campus, addressed by EITHER namespace — the picker id ("ole-miss") or the /go/ slug
+ *  ("university-of-mississippi"). Both are in circulation: Greek and council pages carry slugs
+ *  from the database, while hand-written showcase lists are written in ids, and a helper that only
+ *  understood one of them silently returned the house red/blue for the other. That is exactly what
+ *  the partner index pages were doing — SHOWCASE lists ids, the lookup was by slug, so every bolt
+ *  on those pages wore brand colours and a plate reading "OLE-MISS".
+ *
+ *  `over` lets a caller supply a name or code it already resolved (a council page knows its own
+ *  school's verified code); anything it omits comes from the generated table. An id that matches
+ *  nothing still falls back to the house colourway rather than inventing one. */
+export function boltCampusFor(idOrSlug: string, over: Partial<BoltCampus> = {}): BoltCampus {
+  const s = GENERATED_SCHOOLS.find((x) => x.id === idOrSlug || x.slug === idOrSlug);
+  return {
+    id: s?.id ?? idOrSlug,
+    name: s?.name ?? idOrSlug,
+    code: s?.courseCode ?? null,
+    primary: s?.c1 ?? HOUSE.c1,
+    secondary: s?.c2 ?? HOUSE.c2,
+    accent: (s && BOLT_ACCENTS[s.id]) ?? null,
+    ...over,
+  };
+}
+
 /** Apply the curated sequence.
  *
  *  Named campuses play first, in the order the array lists them. Anything the array does not
