@@ -227,6 +227,15 @@ describe("seams built, consumers NOT built", () => {
     expect(fns).not.toContain(".select("); // no consumer
     expect(read("probe-attempts.ts")).toContain("NO READ PATH");
   });
+  test("the attempts queue drains its TAIL — an attempt recorded mid-flush is not stranded", () => {
+    const q = read("probe-attempts.ts");
+    expect(q).toContain("more = loadQ().length > 0;");
+    expect(q).toContain("if (more) void flushProbeAttempts();");
+    // only after a SUCCESS — a failing server (or an unapplied migration) must never spin
+    const drain = q.slice(q.indexOf("let flushing = false;"));
+    expect(drain.indexOf("more = loadQ().length > 0;")).toBeGreaterThan(drain.indexOf("if (r.ok)") - 1);
+    expect(drain).not.toContain("catch { void flushProbeAttempts");
+  });
   test("misconception_tag exists on CeqChoice and nothing consumes it", () => {
     const types = readFileSync(join(ROOT, "src", "components", "canvas", "types.ts"), "utf8");
     expect(types).toContain("misconception_tag?: string;");
