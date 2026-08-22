@@ -14,7 +14,7 @@ import { SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { Footer } from "@/components/site/SiteFooter";
 import { MARKETING_CSS, SocialProofSection, TutorBioModal, TutorCard } from "@/components/site/Marketing";
 import { TestimonialsSlider } from "@/components/site/Testimonials";
-import { ANIMATED_BOLT_CSS } from "@/components/site/AnimatedBolt";
+import { ANIMATED_CAMPUS_BOLT_CSS } from "@/components/site/bolt";
 
 /** A partner FAQ entry — same card treatment as the student FAQ. */
 export type PartnerFaq = { q: string; a: string };
@@ -38,7 +38,7 @@ export function PartnerPageShell({ boltVars, children, faqs, faqTitle = "Questio
       }}
     >
       <style>{MARKETING_CSS}</style>
-      <style>{ANIMATED_BOLT_CSS}</style>
+      <style>{ANIMATED_CAMPUS_BOLT_CSS}</style>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.3} animate /></div>
 
       <SiteHeader />

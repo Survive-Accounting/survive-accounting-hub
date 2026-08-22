@@ -18,6 +18,7 @@ import {
 import { getCouncilPartner } from "@/lib/partners.functions";
 import { PARTNER_OFFER, problemHeadline } from "@/lib/partners";
 import { boltForSlug } from "@/lib/schools";
+import { boltCampusFor } from "@/components/site/bolt";
 import { ogMeta } from "@/lib/og";
 
 const ORIGIN = "https://surviveaccounting.com";
@@ -84,7 +85,7 @@ function CouncilPartnerPage() {
         headline={problemHeadline(d.courseCode, d.schoolName)}
         subhead="Help every chapter get ahead of it."
         body={`Give your chapters free exam prep built specifically for ${course} at ${d.schoolName}. Exam 1 is free for every member, and every chapter already has its own page.`}
-        bolt={[{ id: d.schoolSlug, c1: "var(--sa-bolt-1)", c2: "var(--sa-bolt-2)", name: d.schoolName, code: d.courseCode }]}
+        bolt={[boltCampusFor(d.schoolSlug, { name: d.schoolName, code: d.courseCode })]}
         boltLabel={`${course} at ${d.schoolName}`}
         actions={
           <>

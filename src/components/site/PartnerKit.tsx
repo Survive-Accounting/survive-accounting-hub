@@ -14,7 +14,7 @@
 import { useState } from "react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
-import { AnimatedBoltHero, type BoltHeroStop } from "@/components/site/AnimatedBolt";
+import { AnimatedCampusBolt, type BoltCampus } from "@/components/site/bolt";
 
 // ── hero ───────────────────────────────────────────────────────────────────────────────────────
 export function PartnerHero({ eyebrow, headline, subhead, body, actions, bolt, boltLabel, onBolt }: {
@@ -26,10 +26,10 @@ export function PartnerHero({ eyebrow, headline, subhead, body, actions, bolt, b
   subhead: string;
   body: string;
   actions: React.ReactNode;
-  /** Campus colourways for the bolt. One stop = static; several = the campus sweep. */
-  bolt: BoltHeroStop[];
+  /** Campus colourways for the bolt. One campus = it flows on that one; several = the rotation. */
+  bolt: BoltCampus[];
   boltLabel?: string;
-  onBolt?: (stop: BoltHeroStop) => void;
+  onBolt?: (campus: BoltCampus) => void;
 }) {
   return (
     <section className="grid items-center gap-10 pt-10 pb-4 lg:grid-cols-[1.15fr_1fr] lg:pt-16">
@@ -45,7 +45,7 @@ export function PartnerHero({ eyebrow, headline, subhead, body, actions, bolt, b
       {/* THE SAME BOLT the student pages use — campus colours included, so a council page wears
           its own school and a national page can sweep through the campuses it covers. */}
       <div className="mx-auto w-[min(300px,70vw)] lg:w-[min(340px,100%)]">
-        <AnimatedBoltHero stops={bolt} ariaLabel={boltLabel ?? "Survive Accounting"} onActivate={(s) => onBolt?.(s)} />
+        <AnimatedCampusBolt campuses={bolt} ariaLabel={boltLabel ?? "Survive Accounting"} onActivate={(c) => onBolt?.(c)} />
       </div>
     </section>
   );

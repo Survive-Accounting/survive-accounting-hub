@@ -123,10 +123,17 @@ export const getCouncilPage = createServerFn({ method: "POST" })
       .select("id,name,course_family_codes_json").eq("slug", data.schoolSlug).maybeSingle();
     if (!campus?.id) return null;
 
+    // COUNCIL IS NOT STORED AS A SLUG. One campus carries "IFC", "Panhellenic", "panhellenic" and
+    // "NPHC" in the same column, so .eq("council", "ifc") matched only the rows that happened to
+    // be lowercase — a Panhellenic page built from 1 of 12 chapters, and an IFC page from none.
+    // Matched on a normalised form against the council's slug, name and full name instead.
     const { data: rows } = await db.from("campus_greek_chapters")
-      .select("id,slug,greek_org_id").eq("campus_id", campus.id).eq("council", data.councilSlug)
-      .not("slug", "is", null).limit(400);
-    const chs = (rows ?? []) as Array<{ id: string; slug: string; greek_org_id: string | null }>;
+      .select("id,slug,greek_org_id,council").eq("campus_id", campus.id)
+      .not("slug", "is", null).limit(500);
+    const normCouncil = (v: string | null | undefined) => (v ?? "").toLowerCase().replace(/[^a-z]/g, "");
+    const wantCouncil = new Set([normCouncil(council.slug), normCouncil(council.name), normCouncil(council.full)]);
+    const chs = ((rows ?? []) as Array<{ id: string; slug: string; greek_org_id: string | null; council: string | null }>)
+      .filter((c) => wantCouncil.has(normCouncil(c.council)));
     if (!chs.length) return null;
 
     const orgIds = [...new Set(chs.map((c) => c.greek_org_id).filter(Boolean))] as string[];
