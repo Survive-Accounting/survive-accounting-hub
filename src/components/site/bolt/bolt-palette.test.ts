@@ -27,6 +27,7 @@ import {
   chroma,
   deriveAccent,
   getBoltPalette,
+  hexToRgb,
   lightness,
   shade,
   whyTooLight,
@@ -135,6 +136,23 @@ describe("getBoltPalette", () => {
     expect(flagged).not.toContain("ole-miss");
     expect(flagged).not.toContain("florida-state");
     expect(flagged).not.toContain("georgia");
+  });
+
+  test("Alabama and Ohio State stay CRIMSON, never a neutral grey", () => {
+    // The right-hand region is the larger one, so whatever the accent is, the bolt reads as that
+    // colour. Both schools list a grey next to their red; a grey accent therefore produced an
+    // Alabama bolt that was not crimson. Chroma is the guard: their published greys sit at 0.05
+    // and 0.06, a red sits far above it.
+    for (const id of ["alabama", "ohio-state"]) {
+      const c = allBoltCampuses().find((x) => x.id === id)!;
+      const p = getBoltPalette(c);
+      expect(p.usedFallback).toBe(true);
+      expect(chroma(p.rightColor)!).toBeGreaterThan(0.3);
+      // …and it must still be a RED, not merely colourful: red is the dominant channel.
+      const [r, g, b] = hexToRgb(p.rightColor)!;
+      expect(r).toBeGreaterThan(g * 2);
+      expect(r).toBeGreaterThan(b * 2);
+    }
   });
 });
 

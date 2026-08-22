@@ -135,13 +135,18 @@ export const BOLT_ACCENTS: Record<string, string> = {
   "san-diego-state": "#FFC72C",
   // Arizona State's maroon/gold pair is already vivid, but keep the gold explicit for clarity.
   "arizona-state": "#FFC627",
-  // Alabama's third colour is the houndstooth GREY, and it is genuinely part of the identity. A
-  // tint of the crimson would come out pink, which is worse than accurate.
-  alabama: "#828A8F",
-  // Ohio State is scarlet + grey. Their published grey (#A7B1B7) is too light to sit beside the
-  // outline, so this is the same grey taken down to where it reads; a tint of the scarlet would be
-  // pink on scarlet, which barely separates.
-  "ohio-state": "#7A868C",
+  // ── THE TWO CRIMSON SCHOOLS ────────────────────────────────────────────────────────────────
+  // Both list a grey/silver alongside their red, and both greys are too light to sit beside the
+  // white outline. Their first fix was a DARKER GREY, which was accurate and wrong: the right
+  // region is the larger one, so a grey accent makes the whole bolt read grey — an Alabama bolt
+  // that is not crimson. The derived tint is no good either; lightening a crimson lands on pink
+  // (#DF425E / #E14967).
+  //
+  // So each one gets a second tone of ITS OWN red, chosen in the direction its identity actually
+  // runs: Alabama is a DEEP crimson, Ohio State is a BRIGHT scarlet. Either way the bolt reads as
+  // the school's colour, with the stored hex as the banding against it.
+  alabama: "#6B1222", // deep crimson under Alabama's own #9E1B32
+  "ohio-state": "#E31B3D", // bright scarlet over Ohio State's own #BA0C2F
 };
 
 /** ═══ ROTATION ORDER ═══════════════════════════════════════════════════════════════════════ */
