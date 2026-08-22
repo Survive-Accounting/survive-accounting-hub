@@ -375,6 +375,11 @@ export interface CeqChoice {
   /** How many chain items are currently revealed (0..chain.length). Transient teaching
    *  state (round-trips in scene JSON); 0 whenever the choice is not resolved. */
   chainShown?: number;
+  /** MISCONCEPTION TAG (Exhibit Lab v2, §7) — an optional label for WHY a
+   *  distractor is wrong (e.g. "sign-flip", "accrual-as-cash"). A SEAM: the
+   *  field exists so authoring can start tagging; NOTHING consumes it yet —
+   *  no routing, no remediation, no analytics. Additive; scene JSON only. */
+  misconception_tag?: string;
 }
 /** CEQ CHAIN TEMPLATE (prompt 1, part 5) — captured chain STRUCTURE keyed by choice
  *  index (0=A, 1=B, …): ordered kinds + labels, content EMPTY. Load applies empty

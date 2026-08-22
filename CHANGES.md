@@ -1,3 +1,76 @@
+# Exhibit Lab v2 — Cycle + Rubric, Probe Library, The Survive Method (branch `exhibit-lab-v2`)
+
+Filming-side only. No student-facing exhibit UI ships. T-Accounts, JE grid, F/S and Formulas
+exhibits are untouched. The canvas CycleNode card is untouched (the Lab's Cycle keeps its own
+copy of the oval geometry on purpose).
+
+## 1. Canvas audit — REMOVAL LIST (proposed; NOTHING DELETED, Lee approves each line)
+
+Structural fact: the canvas ships TWO chromes. `chromeV1` (`study_.canvas.tsx` ~1471, localStorage
+`sa-canvas-chrome`) is reachable only via File ▸ "View archive: Dashboard v1". Most "orphans" below
+are really v1-archive-only. Ranked safest first; line counts approximate.
+
+| # | Candidate | Lines | Why it looks dead | Risk |
+|---|---|---|---|---|
+| 1 | `canvas/PipelinePlayer.tsx` | 96 | zero importers; superseded by `PipelineStage` (`pipeline-view.test.ts:16`) | none |
+| 2 | `canvas/RecorderSpike.tsx` | 133 | zero importers; self-described "EXPERIMENT ONLY, not wired" | none |
+| 3 | `canvas/SurviveBackdrop.tsx` + `canvas/hub-layout.ts` | 174 | backdrop has zero importers; hub-layout imported only by it | low |
+| 4 | `canvas/GhostCellsLayer.tsx` | 72 | zero importers — but `docs/CANVAS-ROADMAP.md:302` calls it SHIPPED; may be a silently-unmounted feature, not dead code | **medium — confirm first** |
+| 5 | `canvas/clip-thumb.ts` | 42 | zero importers, zero mentions | none |
+| 6 | `canvas/cue-log.ts` (+test) | 178 | test-only — but roadmap still WANTS cue-log capture during film | **keep (parked)** |
+| 7 | `canvas/snake-layout.ts` (+test) | 131 | roadmap: "retired from the region scaffold"; `outline-snake.ts` is the live one | none |
+| 8 | dead import `ClipTrimStrip` in `CeqStudio.tsx:29` | 1 | imported, never rendered | drop the import only — two tests read the file by name |
+| 9 | spotlight index-cursor model `spotlight.ts:80-122` | 45 | already proposed in UI-AUDIT (B6); test-only | none |
+| 10 | `worldSeed` + "Seed ↻" no-op (`FrameNode.tsx`, `types.ts`) | ~10 | confirmed no-op (UI-AUDIT B2/D8) | none |
+| 11 | `sa-ctrl` ctrl-drag marquee (`study_.canvas.tsx`, `ArrowEdge.tsx`) | ~20 | live prop is `selectionKeyCode={["Shift"]}` (UI-AUDIT D9) | none |
+| 12 | the whole v1 archive chrome (`study_.canvas.tsx` 6203-6233, 6319, 6322-6737) + `BrandBar`, `Palette`, `LegendHud`, `LessonNavigator`, `PipelineTestPanel`, `LessonGridView`, `VisualMixPanel`, `StoryboardPanel` | ~1,800 | only reachable via the v1 archive | **a DECISION, not a cleanup** — Palette/Deck/Storyboard/Script/CueSheet/settings have no v2 home yet |
+
+Keep-but-consolidate (two of everything): cut-player executors (`use-cut-player` vs `StitchPreview`'s copy);
+trim UIs (`ClipTrimStrip` ⊂ `TrimDetail`); previewers (`CeqSetPreviewer` → outline spine + filmstrip);
+publish pipelines (frame/Mux `publish-pipeline.ts`+`lesson-publish`+`frame-takes` vs the stitch path —
+only the second has a v2 entry point); takes systems (Mux take board vs FS inbox); Film V1 vs V2 branches
+in `CeqPreviewer` (declared an experiment — pick the winner); three keymap mechanisms (register the
+film/studio keys so `?` stops lying); two highlight systems (retire the two LEGACY aliases in
+`exhibit-highlights.ts`); three script surfaces on one `frame.script`.
+
+Exhibit Lab zone: shipped as its own route `/exhibit-lab` (navbar "⚗ Exhibit Lab", next to Pipeline).
+Mounting it INSIDE the rebuilt canvas waits on the v1/v2 decision above.
+
+## 2. Probe schema
+
+`src/components/canvas/exhibit-lab/probes.ts` — `Probe { id: ProbeId; name; ask; student }`, ten seeded
+with STABLE ids: `four_questions · rewind · fast_forward · statement_check · year_end_cross ·
+accrual_or_deferral · date_check · what_if_we_dont · show_me_the_math · flip_it`. Exhibits registry:
+`cycle · rubric` only (deferred exhibits deliberately not registered).
+
+Run machine `probe-run.ts` — `RunStepDef { id; prompt; kind: choice|text|sign|order|confirm; options?;
+explain; data?; optional? }`, `ProbeRun { ref; steps; cursor; done }`. THE LAW is structural:
+`reveal(run)` is the ONLY door to `explain` and returns null until the step has a resolution
+(attempt or explicit skip); `next()` refuses to advance an unresolved step; the first answer stands;
+per-run toggles (`setStepEnabled`) only reach OPTIONAL steps ahead of the cursor.
+
+## 3. The exhibit + probe reference shape (addressable now, consumed by nothing)
+
+```ts
+interface ExhibitProbeRef { exhibit: "cycle" | "rubric"; probe: ProbeId; stepsOff?: string[]; seed?: Record<string, string|number|boolean> }
+refKey(ref) === "rubric:four_questions"   // parseRefKey round-trips; JSON-plain so it can ride in scene JSON later
+```
+The Lab's filming queue is the only reader. CEQs/Frames are NOT wired to it this pass.
+
+## 4. Seams (record, no consumers)
+
+- `probe_attempts` — `migration/supabase-migrations/20260822_0900_probe_attempts.sql` (manual-apply, NOT
+  applied by this branch). Writer: `src/lib/probe.functions.ts` `logProbeAttempts` (service role, fail-soft)
+  fed by the local-first queue in `exhibit-lab/probe-attempts.ts`. `is_test` defaults ON in the Lab. No read path.
+- `CeqChoice.misconception_tag?: string` in `types.ts` — additive, scene JSON only, nothing consumes it.
+- Session 3 note: no student-read shape changed; `misconception_tag` is optional on choices.
+
+## 5. Canon
+
+`SURVIVE-METHOD.md` at the repo root, seeded verbatim from the spec. Lee edits from there.
+
+---
+
 # CEQ Practice — cram mode, navigation & release (branch `ceq-practice`)
 
 Releases the authored Exam 1 CEQs to students before the videos. Built on `notifications` (for

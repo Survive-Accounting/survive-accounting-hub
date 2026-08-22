@@ -28,6 +28,7 @@ import { Route as JeRouteImport } from './routes/je'
 import { Route as IntroOutroRouteImport } from './routes/intro-outro'
 import { Route as GreekRouteImport } from './routes/greek'
 import { Route as ExpandRouteImport } from './routes/expand'
+import { Route as ExhibitLabRouteImport } from './routes/exhibit-lab'
 import { Route as ExhibitDemoRouteImport } from './routes/exhibit-demo'
 import { Route as ChaptersRouteImport } from './routes/chapters'
 import { Route as CeqRouteImport } from './routes/ceq'
@@ -191,6 +192,11 @@ const GreekRoute = GreekRouteImport.update({
 const ExpandRoute = ExpandRouteImport.update({
   id: '/expand',
   path: '/expand',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExhibitLabRoute = ExhibitLabRouteImport.update({
+  id: '/exhibit-lab',
+  path: '/exhibit-lab',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExhibitDemoRoute = ExhibitDemoRouteImport.update({
@@ -556,6 +562,7 @@ export interface FileRoutesByFullPath {
   '/ceq': typeof CeqRouteWithChildren
   '/chapters': typeof ChaptersRoute
   '/exhibit-demo': typeof ExhibitDemoRoute
+  '/exhibit-lab': typeof ExhibitLabRoute
   '/expand': typeof ExpandRoute
   '/greek': typeof GreekRoute
   '/intro-outro': typeof IntroOutroRoute
@@ -646,6 +653,7 @@ export interface FileRoutesByTo {
   '/ceq': typeof CeqRouteWithChildren
   '/chapters': typeof ChaptersRoute
   '/exhibit-demo': typeof ExhibitDemoRoute
+  '/exhibit-lab': typeof ExhibitLabRoute
   '/expand': typeof ExpandRoute
   '/greek': typeof GreekRoute
   '/intro-outro': typeof IntroOutroRoute
@@ -736,6 +744,7 @@ export interface FileRoutesById {
   '/ceq': typeof CeqRouteWithChildren
   '/chapters': typeof ChaptersRoute
   '/exhibit-demo': typeof ExhibitDemoRoute
+  '/exhibit-lab': typeof ExhibitLabRoute
   '/expand': typeof ExpandRoute
   '/greek': typeof GreekRoute
   '/intro-outro': typeof IntroOutroRoute
@@ -828,6 +837,7 @@ export interface FileRouteTypes {
     | '/ceq'
     | '/chapters'
     | '/exhibit-demo'
+    | '/exhibit-lab'
     | '/expand'
     | '/greek'
     | '/intro-outro'
@@ -918,6 +928,7 @@ export interface FileRouteTypes {
     | '/ceq'
     | '/chapters'
     | '/exhibit-demo'
+    | '/exhibit-lab'
     | '/expand'
     | '/greek'
     | '/intro-outro'
@@ -1007,6 +1018,7 @@ export interface FileRouteTypes {
     | '/ceq'
     | '/chapters'
     | '/exhibit-demo'
+    | '/exhibit-lab'
     | '/expand'
     | '/greek'
     | '/intro-outro'
@@ -1098,6 +1110,7 @@ export interface RootRouteChildren {
   CeqRoute: typeof CeqRouteWithChildren
   ChaptersRoute: typeof ChaptersRoute
   ExhibitDemoRoute: typeof ExhibitDemoRoute
+  ExhibitLabRoute: typeof ExhibitLabRoute
   ExpandRoute: typeof ExpandRoute
   GreekRoute: typeof GreekRoute
   IntroOutroRoute: typeof IntroOutroRoute
@@ -1278,6 +1291,13 @@ declare module '@tanstack/react-router' {
       path: '/expand'
       fullPath: '/expand'
       preLoaderRoute: typeof ExpandRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/exhibit-lab': {
+      id: '/exhibit-lab'
+      path: '/exhibit-lab'
+      fullPath: '/exhibit-lab'
+      preLoaderRoute: typeof ExhibitLabRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/exhibit-demo': {
@@ -1881,6 +1901,7 @@ const rootRouteChildren: RootRouteChildren = {
   CeqRoute: CeqRouteWithChildren,
   ChaptersRoute: ChaptersRoute,
   ExhibitDemoRoute: ExhibitDemoRoute,
+  ExhibitLabRoute: ExhibitLabRoute,
   ExpandRoute: ExpandRoute,
   GreekRoute: GreekRoute,
   IntroOutroRoute: IntroOutroRoute,
