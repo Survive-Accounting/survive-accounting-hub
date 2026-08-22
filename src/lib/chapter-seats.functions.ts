@@ -21,7 +21,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { makeTerm, termFromId, termId, priceCentsFor, SEAT_MINIMUM, type Term } from "@/lib/terms";
+import { makeTerm, termFromId, termId, priceCentsFor, PRESALE_DISCLOSURE, SEAT_MINIMUM, money, type Term } from "@/lib/terms";
+import { stripeCall, stripeReady } from "@/lib/stripe.server";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- same shape the other greek-* server modules use
 type DB = { from: (t: string) => any };
@@ -32,12 +33,18 @@ const admin = async () => {
 
 const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com"];
 
-/** PAYMENTS ARE OFF UNTIL TEST MODE EXISTS. The brief is explicit that chapter-seat payment logic
- *  must not be built against main without the Test Mode infrastructure (test-session detection,
- *  TEST_MODE_ENABLED, Stripe test/live key separation, is_test records, purge/re-seed). Until
- *  that lands, card and invoice creation FAIL CLOSED rather than reaching Stripe — a half-built
- *  payment path is the one thing worse than no payment path. Check + admin activation work today,
- *  which is exactly how seats have always been sold here. */
+/** PAYMENTS FOLLOW THE KEYS, AND THE KEYS ARE TEST-ONLY.
+ *
+ *  stripe.server refuses anything that is not sk_test_/pk_test_, so this is true by construction:
+ *  a card or invoice path can only ever run against Stripe test mode, and if no test key is
+ *  present the paths stay off rather than reaching for a live one. That is also the property the
+ *  eventual Test Mode work needs — when it lands it takes over WHICH keys are handed back here,
+ *  and nothing in this file changes.
+ *
+ *  Every record this creates carries is_test so the future purge can find it and so no test
+ *  purchase can ever count toward real revenue, rosters or council metrics. */
+export const paymentsEnabled = () => stripeReady();
+/** @deprecated read paymentsEnabled() — kept so callers compiled against the constant still work. */
 export const PAYMENTS_ENABLED = false;
 
 async function emailFromToken(db: DB, accessToken: string): Promise<string | null> {
@@ -209,7 +216,7 @@ export const startSeatPurchase = createServerFn({ method: "POST" })
 
     // FAIL CLOSED. No Stripe call is attempted, no pool is left half-created, and the exec is told
     // the truth rather than shown a broken checkout.
-    if ((data.method === "card" || data.method === "invoice") && !PAYMENTS_ENABLED) {
+    if ((data.method === "card" || data.method === "invoice") && !paymentsEnabled()) {
       return { ok: false, error: "Card and invoice checkout aren't switched on yet — text Lee and he'll invoice you directly." };
     }
 
@@ -231,7 +238,13 @@ export const startSeatPurchase = createServerFn({ method: "POST" })
         updated_at: new Date().toISOString(),
       }).eq("id", existing.id);
       if (error) return { ok: false, error: error.message };
-      return { ok: true, poolId: existing.id as string, status: (existing.status as string) === "active" ? "active" : status };
+      const topUp = await attachPayment(db, {
+        poolId: existing.id as string, chapterId: data.chapterId, chapterName: (actor.ch.chapter_name as string) ?? "Chapter",
+        term, seats: data.seats, amount, method: data.method,
+        treasurerName: data.treasurerName, treasurerEmail: data.treasurerEmail, isTest: !!data.isTest,
+      });
+      if (!topUp.ok) return topUp;
+      return { ok: true, poolId: existing.id as string, status: (existing.status as string) === "active" ? "active" : status, ...topUp.urls };
     }
 
     const { data: created, error } = await db.from("chapter_seat_pools").insert({
@@ -249,8 +262,135 @@ export const startSeatPurchase = createServerFn({ method: "POST" })
     }).select("id").maybeSingle();
     if (error || !created?.id) return { ok: false, error: error?.message ?? "Couldn't start that purchase." };
 
-    return { ok: true, poolId: created.id as string, status };
+    const paid = await attachPayment(db, {
+      poolId: created.id as string, chapterId: data.chapterId, chapterName: (actor.ch.chapter_name as string) ?? "Chapter",
+      term, seats: data.seats, amount, method: data.method,
+      treasurerName: data.treasurerName, treasurerEmail: data.treasurerEmail, isTest: !!data.isTest,
+    });
+    if (!paid.ok) return paid;
+
+    return { ok: true, poolId: created.id as string, status, ...paid.urls };
   });
+
+/** THE STRIPE HALF of a purchase, kept out of the pool bookkeeping above so a Stripe failure can
+ *  never leave a pool in a state that claims to be paid.
+ *
+ *    card    → a Checkout Session; the webhook activates the pool on completion.
+ *    invoice → a real Stripe Invoice, finalised and sent to the treasurer; the webhook activates
+ *              the pool when it is paid. No manual step for a paid Stripe invoice.
+ *    check   → the SAME invoice object, finalised but NOT sent, so the treasurer still gets a real
+ *              invoice number, amount and reference to write on the cheque. Activation is Lee's
+ *              explicit mark-paid.
+ *
+ *  Everything carries the term, the seat count and the expiry in its description and metadata, so
+ *  a chapter reading its invoice sees exactly what the dashboard says. The presale disclosure
+ *  rides along in the invoice footer — it must appear anywhere money is asked for. */
+async function attachPayment(db: DB, o: {
+  poolId: string; chapterId: string; chapterName: string;
+  term: Term; seats: number; amount: number;
+  method: "card" | "invoice" | "check";
+  treasurerName?: string; treasurerEmail?: string; isTest: boolean;
+}): Promise<{ ok: true; urls: { checkoutUrl?: string; invoiceUrl?: string } } | { ok: false; error: string }> {
+  const label = `${o.seats} seat${o.seats === 1 ? "" : "s"} · ${o.term.label} — access through ${o.term.expiresLabel}`;
+  const meta = {
+    pool_id: o.poolId, chapter_id: o.chapterId, term_id: termId(o.term),
+    seats: String(o.seats), is_test: String(o.isTest), kind: "chapter_seats",
+  };
+
+  if (o.method === "card") {
+    const origin = process.env.SITE_ORIGIN ?? "https://surviveaccounting.com";
+    const r = await stripeCall<{ id: string; url: string }>("checkout/sessions", {
+      mode: "payment",
+      success_url: `${origin}/chapters/dashboard?seats=paid&pool=${o.poolId}`,
+      cancel_url: `${origin}/chapters/dashboard?seats=cancelled`,
+      "line_items[0][quantity]": 1,
+      "line_items[0][price_data][currency]": "usd",
+      "line_items[0][price_data][unit_amount]": o.amount,
+      "line_items[0][price_data][product_data][name]": `${o.chapterName} — ${label}`,
+      "line_items[0][price_data][product_data][description]": PRESALE_DISCLOSURE,
+      metadata: meta,
+      "payment_intent_data[metadata]": meta,
+      idempotencyKey: `pool-${o.poolId}-card-${o.seats}`,
+    });
+    if (!r.ok) return { ok: false, error: r.error };
+    await db.from("chapter_seat_pools").update({ stripe_checkout_id: r.data.id, updated_at: new Date().toISOString() }).eq("id", o.poolId);
+    return { ok: true, urls: { checkoutUrl: r.data.url } };
+  }
+
+  // invoice + check share the invoice object; only "send" differs.
+  const email = o.treasurerEmail?.trim();
+  const cust = await stripeCall<{ id: string }>("customers", {
+    ...(email ? { email } : {}),
+    name: o.treasurerName?.trim() || o.chapterName,
+    description: `${o.chapterName} — chapter seats`,
+    metadata: meta,
+    idempotencyKey: `pool-${o.poolId}-customer`,
+  });
+  if (!cust.ok) return { ok: false, error: cust.error };
+
+  const inv = await stripeCall<{ id: string }>("invoices", {
+    customer: cust.data.id,
+    collection_method: "send_invoice",
+    days_until_due: 30,
+    description: `${o.chapterName} — ${label}`,
+    footer: `${PRESALE_DISCLOSURE}${o.method === "check" ? " · Pay by check: Earned Wisdom LLC. Seats activate when the check clears." : ""}`,
+    metadata: { ...meta, method: o.method },
+    idempotencyKey: `pool-${o.poolId}-invoice`,
+  });
+  if (!inv.ok) return { ok: false, error: inv.error };
+
+  const item = await stripeCall("invoiceitems", {
+    customer: cust.data.id, invoice: inv.data.id, amount: o.amount, currency: "usd",
+    description: `${label} (${money(o.amount)})`,
+    metadata: meta,
+    idempotencyKey: `pool-${o.poolId}-item-${o.seats}`,
+  });
+  if (!item.ok) return { ok: false, error: item.error };
+
+  // Finalise so the invoice gets a real number and a hosted URL — the reference a treasurer needs
+  // whether they pay it online or write a cheque against it.
+  const fin = await stripeCall<{ id: string; number: string; hosted_invoice_url: string; invoice_pdf: string; status: string }>(
+    `invoices/${inv.data.id}/finalize`, { auto_advance: o.method === "invoice" },
+  );
+  if (!fin.ok) return { ok: false, error: fin.error };
+
+  if (o.method === "invoice" && email) {
+    // Stripe emails it. In test mode Stripe does not deliver to real inboxes, which is exactly
+    // the isolation the test lifecycle needs.
+    const sent = await stripeCall(`invoices/${inv.data.id}/send`, {});
+    if (!sent.ok) return { ok: false, error: sent.error };
+  }
+
+  await db.from("chapter_seat_pools").update({
+    stripe_invoice_id: fin.data.id,
+    invoice_number: fin.data.number ?? null,
+    invoice_url: fin.data.hosted_invoice_url ?? null,
+    invoice_status: o.method === "check" ? "awaiting_check" : (fin.data.status ?? "open"),
+    updated_at: new Date().toISOString(),
+  }).eq("id", o.poolId);
+
+  return { ok: true, urls: { invoiceUrl: fin.data.hosted_invoice_url } };
+}
+
+/** Called by the Stripe webhook when a checkout completes or an invoice is paid. Activates the
+ *  pool named in the event metadata — the only automatic activation path, and the reason a paid
+ *  Stripe invoice needs no manual step. */
+export async function activatePoolFromStripe(poolId: string, method: "card" | "invoice", invoiceStatus?: string): Promise<boolean> {
+  try {
+    const db = await admin();
+    const { data: pool } = await db.from("chapter_seat_pools").select("id,status,expires_at").eq("id", poolId).maybeSingle();
+    if (!pool?.id) return false;
+    if (Date.parse(pool.expires_at as string) < Date.now()) return false;   // never activate a dead term
+    await db.from("chapter_seat_pools").update({
+      status: "active",
+      activated_at: (pool.status as string) === "active" ? undefined : new Date().toISOString(),
+      payment_method: method,
+      ...(invoiceStatus ? { invoice_status: invoiceStatus } : {}),
+      updated_at: new Date().toISOString(),
+    }).eq("id", poolId);
+    return true;
+  } catch { return false; }
+}
 
 /** ADMIN: mark a pool paid and activate it — the cheque cleared, or Lee is comping the term.
  *  This is the only activation path until the Stripe webhooks exist. */
@@ -384,3 +524,14 @@ export const defaultPurchaseTerm = createServerFn({ method: "GET" })
     const term = Date.parse(t.expiresAt) > Date.now() ? t : termFromId(termId(t))!;
     return { termId: termId(term), label: term.label, expiresLabel: term.expiresLabel };
   });
+
+/** Record what Stripe says an invoice's status is — sent / open / paid / void / uncollectible.
+ *  Reported verbatim on the dashboard rather than mapped into invented states. */
+export async function recordInvoiceStatus(poolId: string, status: string): Promise<void> {
+  try {
+    const db = await admin();
+    await db.from("chapter_seat_pools")
+      .update({ invoice_status: status, updated_at: new Date().toISOString() })
+      .eq("id", poolId);
+  } catch { /* status is a nicety; never fail a webhook over it */ }
+}
