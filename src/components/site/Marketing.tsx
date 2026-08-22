@@ -47,7 +47,7 @@ export const MARKETING_HERO_ID = "marketing-hero";
  *  MOBILE ORDER: headline → promise → built-for → CTAs → trust chips → bolt. The bolt is
  *  branding, not content — it comes from natural DOM order (no order-first), so it can never
  *  push the CTA out of the first viewport. Desktop keeps it as the right column. */
-export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltPick, secondaryHref, onSecondary, secondaryLabel, showSecondary = true, onOpenBio, courtesy, rotationCampuses, campusBolt }: {
+export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltPick, onChangeSchool, secondaryHref, onSecondary, secondaryLabel, showSecondary = true, onOpenBio, courtesy, rotationCampuses, campusBolt }: {
   kind: "general" | "campus" | "greek";
   /** Verified course code or null — a null degrades copy, never invents a code. */
   code: string | null;
@@ -68,6 +68,10 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
   /** GENERAL pages: pressing the bolt while it shows a school means "that school" — the page
    *  navigates to that campus with the player preset, instead of merely scrolling. */
   onBoltPick?: (stopId: string) => void;
+  /** CAMPUS + GREEK pages: the quiet way out of a campus the visitor is not at. Rendered under
+   *  the bolt plate ("for ACCY 201 • OLE MISS"), where the claim it corrects is made — and
+   *  deliberately small, because it must never compete with Cram Exam 1 Free. */
+  onChangeSchool?: () => void;
   /** Primary CTA + "Built for exam week" chip target — scrolls to the player (and tags Greek
    *  members upstream, where attribution belongs). */
   onStart: () => void;
@@ -172,6 +176,19 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
           className="sa-hero3-paper"
           ariaLabel="Cram Exam 1 Free"
         />
+        {/* Under the plate, not beside the CTA: this corrects "OLE MISS", so it belongs where
+            that word is. On a chapter page it leaves the chapter route entirely rather than
+            repainting this page as another campus — see landing.tsx. */}
+        {kind !== "general" && onChangeSchool && (
+          <button
+            type="button"
+            onClick={onChangeSchool}
+            className="mt-2 text-[13px] font-semibold underline underline-offset-4 transition-colors hover:text-[var(--brand-cream)]"
+            style={{ color: "var(--text-muted)", minHeight: 44, fontFamily: BRAND_SANS }}
+          >
+            Change school →
+          </button>
+        )}
       </div>
     </section>
   );
