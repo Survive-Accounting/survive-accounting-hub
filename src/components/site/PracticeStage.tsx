@@ -48,9 +48,13 @@ export interface PracticeStageProps {
   isTest?: boolean;
   /** Top-right status pill ("PRACTICE"). The only chrome the question header carries. */
   statusLabel?: string;
+  /** Auth state, controlled by the surface. When false, Save my progress is surfaced contextually
+   *  (a small chip next to Q# after the first answer + a link in the Q navigator). */
+  authed?: boolean;
+  onSaveProgress?: () => void;
 }
 
-export function PracticeStage({ setId, questions: override, onDone, doneLabel, onReview, reference, campusName, campusSlug, surface, isTest, statusLabel = "Practice" }: PracticeStageProps) {
+export function PracticeStage({ setId, questions: override, onDone, doneLabel, onReview, reference, campusName, campusSlug, surface, isTest, statusLabel = "Practice", authed = false, onSaveProgress }: PracticeStageProps) {
   const q = useQuery({ queryKey: ["set-practice", setId], queryFn: () => fetchSetPractice({ data: { setId } }), enabled: !override, staleTime: 300_000, networkMode: "always" });
   const questions = useMemo<PracticeQuestion[]>(() => override ?? (q.data?.status === "ok" ? q.data.questions : []), [override, q.data]);
 
@@ -215,8 +219,28 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
           <span aria-hidden style={{ fontSize: 9, marginLeft: 2 }}>{navOpen ? "▴" : "▾"}</span>
         </button>
         {pass > 1 && <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: C.muted }}>Retry · {pos + 1} of {total}</span>}
-        {/* Empty statusLabel = no pill (the landing player carries Cram / Practice / Review above). */}
+        {/* SAVE PROGRESS chip — signed-out students see it once they have something worth saving
+            (at least one answer in this session); a signed-in student sees a small green mark. */}
+        {onSaveProgress && Object.keys(pickedBy).length >= 1 && !authed && (
+          <button
+            type="button"
+            onClick={onSaveProgress}
+            aria-label="Save my progress"
+            className="ml-2 inline-flex items-center gap-1 rounded-full px-2 text-[10px] font-black uppercase tracking-wider"
+            style={{ minHeight: 24, color: C.yellow, border: `1px solid rgba(252,163,17,0.45)`, background: "rgba(252,163,17,0.08)" }}
+          >
+            <span aria-hidden>🔖</span>
+            <span>Save</span>
+          </button>
+        )}
+        {authed && Object.keys(pickedBy).length >= 1 && (
+          <span className="ml-2 inline-flex items-center gap-1 rounded-full px-2 text-[10px] font-black uppercase tracking-wider" title="Signed in — your progress saves automatically." style={{ minHeight: 24, color: C.green, background: "rgba(59,245,160,0.10)", border: `1px solid rgba(59,245,160,0.35)` }}>
+            <span aria-hidden>✓</span>
+            <span>Saved</span>
+          </span>
+        )}
         {statusLabel && <span className="ml-auto rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider" style={{ background: C.yellow, color: "#0B1322" }}>{statusLabel}</span>}
+        {!statusLabel && <span className="ml-auto" />}
       </div>
 
       {navOpen && (
@@ -227,6 +251,7 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
           answered={pickedBy}
           onJump={jumpTo}
           onClose={() => setNavOpen(false)}
+          onSaveProgress={!authed ? onSaveProgress : undefined}
         />
       )}
 
@@ -291,9 +316,9 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
 // ---- QUESTION NAVIGATOR — every position in the set, with the CURRENT SESSION's status:
 //      unattempted (neutral) · correct (green + check) · incorrect (red + X). Current question
 //      is outlined independently of its state. Click any tile to jump; never linear-only. ----------
-function QuestionNav({ questions, currentIndex, results, answered, onJump, onClose }: {
+function QuestionNav({ questions, currentIndex, results, answered, onJump, onClose, onSaveProgress }: {
   questions: PracticeQuestion[]; currentIndex: number; results: Record<string, boolean>; answered: Record<string, string>;
-  onJump: (qIndex: number) => void; onClose: () => void;
+  onJump: (qIndex: number) => void; onClose: () => void; onSaveProgress?: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -309,6 +334,15 @@ function QuestionNav({ questions, currentIndex, results, answered, onJump, onClo
         <span className="font-bold normal-case tracking-normal tabular-nums">{done} of {questions.length} answered</span>
         <button type="button" aria-label="Close" className="ml-auto grid h-7 w-7 place-items-center rounded-full hover:bg-white/10" style={{ color: C.muted }} onClick={onClose}><span aria-hidden style={{ fontSize: 16, lineHeight: 1 }}>×</span></button>
       </div>
+      {/* Save my progress → sits under the grid, right under the "N of M answered" line the student
+          just read. Kept small; the numbers stay the star of the panel. */}
+      {onSaveProgress && (
+        <div className="mb-2 flex items-center justify-end">
+          <button type="button" onClick={() => { onSaveProgress(); onClose(); }} className="rounded-lg px-2 py-1 text-[11.5px] font-black" style={{ minHeight: 32, color: C.yellow }}>
+            Save my progress →
+          </button>
+        </div>
+      )}
       <div className="grid gap-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(44px, 1fr))" }}>
         {questions.map((q, i) => {
           const state = answered[q.id] ? (results[q.id] ? "correct" : "incorrect") : "unattempted";

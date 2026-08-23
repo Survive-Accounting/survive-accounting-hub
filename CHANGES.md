@@ -1,3 +1,47 @@
+# Student player — simplification pass (branch `player-simplify`)
+
+Trim the header to campus-only, remove Semester Pass and coverage from the player, and surface
+Save my progress in the two places the student naturally reaches for it.
+
+## Removed
+* **Semester Pass** — the line + bracket + `SEMESTER_PASS_PRICE`/`SemesterPassLine` deleted from
+  the player. Coverage/`passRequest` still available if we resurface it later at checkout.
+* **Coverage UI** — `~80% covered` line, tiny bar, tooltip and the professor-vs-course variants
+  deleted from `PlayerIdentity`. The underlying data (`campus_exams.coverage_pct`, the resolver
+  `level`) is untouched — the other systems that read it keep working; this is presentation only.
+* **Save my progress from the header** — the persistent pill (and its `✓ Saved` twin) are gone
+  from `PlayerIdentity`. Nothing to save until the student has answered a question.
+* **Post-set "Nice — save this…" invitation** — deleted; the two contextual entry points below
+  replace it.
+* **`showAsk`/`askDone`/`sa-two-set-ask`** — the whole flow is gone; the localStorage key is now
+  orphaned and can be reclaimed later.
+
+## Save my progress — the two contextual entry points
+* **Chip beside Q#** — a small orange `🔖 SAVE` chip appears in the PracticeStage header once the
+  student has answered ≥ 1 question in the session (`Object.keys(pickedBy).length >= 1`).
+  Signed-in students see a green `✓ SAVED` mark instead. Opens the same `SaveProgressDialog`.
+* **Q navigator footer** — under `SET PROGRESS · N of M answered`, a `Save my progress →` link
+  (signed-out only), so the moment the student is literally looking at their progress they can
+  save it. Kept small; the number grid stays the star.
+
+Both are surfaces on `PracticeStage` and share the one dialog. Nothing auto-opens.
+
+## Overflow menu
+Signed out: **Save my progress** (new, top of menu) · Reset questions · Match/Change professor
+· Change school. Signed in: Save is omitted (autosave handles it); the rest is unchanged.
+
+## Save dialog copy
+Shorter — heading **Save your progress**, one-liner body *"Pick up right where you left off next
+time."*, primary **Email me a sign-in link**, secondary **Keep studying without saving**. Long
+"You can keep studying for free…" paragraph gone (the secondary CTA already says it).
+
+## No-block law
+Still: Exam 1 works signed out, without a professor, and without Save. Nothing auto-pops.
+
+## Checks
+`bunx tsc --noEmit` clean · `bun test` 1,423 pass · `bun run build` OK · screenshots in
+`docs/screenshots/player-simplify/`.
+
 # Student player — campus identity, no professor gate, Save my progress (branch `player-identity`)
 
 The player should feel immediately usable AND obviously built for this student's campus/course.
