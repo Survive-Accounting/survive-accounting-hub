@@ -189,11 +189,21 @@ system, flyer/OG generators, rep-recruitment flow.
 ## 10. Verification run
 
 - `bun install` — clean.
-- `bun run build` — see console output (regenerates the route tree; the four `/admin/reps` routes +
-  `/r/$code` compile).
-- `bun test tests/referral-commission.test.ts` — **9 pass / 0 fail.**
-- Type-safety: new tables are reached with `as any`/`as never` casts (repo convention — no typegen
-  for new tables), so `tsc` stays green without regenerating `src/integrations/supabase/types.ts`.
+- **`bun run build` — ✓ built in 1m 41s, zero errors.** Regenerates the route tree (the four
+  `/admin/reps` routes + `/r/$code` are registered) and bundles every new module. This is the gate
+  that caught (and now confirms fixed) the browser-graph trap: the redirect route drags
+  `referral.server.ts` into the client graph, so a `node:crypto` import broke the build → switched to
+  isomorphic Web Crypto and isolated `qrcode` in `referral-qr.server.ts`. Rebuild is green.
+- **`bun test` — 1469 pass / 0 fail** (whole suite, incl. `tests/referral-commission.test.ts`, 9
+  commission-math assertions). Nothing else regressed.
+- **Lint (new files only):** the only errors are `@typescript-eslint/no-explicit-any` from the repo's
+  own `as any`/`as never` untyped-table convention (the existing `orders-admin.functions.ts` has 20 of
+  the identical kind) plus one benign `react-refresh/only-export-components` warning every route file
+  emits. No new lint category introduced.
+- **Repo-wide `tsc --noEmit`:** started but ran extremely slowly tonight under CPU contention with the
+  concurrent Growth-Admin build and did not finish in-window. Partial runs reported **0 errors in the
+  new files**, and the full vite build (which transpiles all TS) is green. New tables are reached with
+  `as any`/`as never` casts (repo convention — no typegen), so no `types.ts` regen was needed.
 
 ---
 
