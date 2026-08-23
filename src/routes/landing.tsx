@@ -19,8 +19,12 @@ import { PracticeStage, readCoverage } from "@/components/site/PracticeStage";
 import { StagePills } from "@/components/site/StagePills";
 import { markStep as markTestStep, useTestMode } from "@/lib/test-mode";
 import { useStudentAuth } from "@/lib/use-student-auth";
+import { useMyEntitlements, bumpEntitlements, kindForExamNum } from "@/lib/use-entitlements";
+import { createCheckoutSession } from "@/lib/student-entitlements.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { SaveProgressDialog, saveSetProgress, takeResume, type ResumeContext } from "@/components/site/SaveProgress";
 import { cramRequest, examRequest, notifyNote, reviewRequest, type NotifyReq } from "@/lib/notify-request";
+import { STATIC_EXAM1, STATIC_EXAM2, STATIC_EXAM3, STATIC_FINAL, estTopicMin } from "@/lib/exam-preview";
 import { resolveStudentMap } from "@/lib/map-resolver.functions";
 import { getChapterNames, listCampusIntroCodes } from "@/lib/default-map.functions";
 import { logSchoolDemand, submitSyllabus , submitNotify } from "@/lib/syllabus.functions";
@@ -113,11 +117,10 @@ const schoolColors = (id: string) => COLOR_BY_ID.get(id) ?? { c1: BRAND_RED, c2:
 // are its colours.
 const boltFor = (id: string) => schoolColors(id);
 
-// Static fallbacks when live data isn't published yet (the menu IS the marketing).
-const STATIC_EXAM1 = ["Types of Accounts", "A = L + E", "Debits & Credits", "Journal Entries", "Adjusting Entries", "Closing Entries"];
-const STATIC_EXAM2 = ["Merchandising", "Inventory (FIFO / LIFO)", "Multi-step Income Statement", "Internal Controls", "Receivables"];
-const STATIC_EXAM3 = ["Long-Term Assets", "Current Liabilities", "Long-Term Liabilities", "Equity", "Statement of Cash Flows"];
-const STATIC_FINAL = ["Full Accounting Cycle", "Financial Statements", "Ratios & Analysis", "Comprehensive Problems"];
+// Static fallbacks when live data isn't published yet (the menu IS the marketing). These live in
+// lib/exam-preview so the partner "What your chapters get" preview shows the SAME outline the real
+// player does — one source, so the two can never claim different syllabi.
+// STATIC_EXAM1..FINAL imported above from "@/lib/exam-preview".
 
 // A resolved Exam topic: its display name/number + ALL its sets (the outline lists them; today one
 // set per topic, but the shape supports more). A topic with no sets is "coming" (poster).
@@ -740,7 +743,7 @@ const FAQS: { q: string; a: string }[] = [
 const GREEK_FAQS: Array<{ q: string; a: string }> = [
   {
     q: "How does this work?",
-    a: "Every member gets Exam 1 free. They choose their professor and start cramming. If your chapter wants full-semester access, chapter seats unlock Exams 2, 3 and the Final. Exec also gets a private roster, sharing tools, and a dashboard showing who is actually using it.",
+    a: "Every member gets Exam 1 free. They choose their professor and start cramming. If your chapter wants full-semester access, chapter seats unlock Exams 2, 3 and the Final. Exec also gets sharing tools and a dashboard showing members joined, aggregate activity and the seats your chapter provides.",
   },
   {
     q: "Will this match our professors?",
@@ -752,7 +755,7 @@ const GREEK_FAQS: Array<{ q: string; a: string }> = [
   },
   {
     q: "Can we see whether members actually use it?",
-    a: "Yes. Chapter access includes a private dashboard showing who joined, recent activity, and study progress — so you're not paying for a perk nobody uses.",
+    a: "Yes — at the chapter level. Your dashboard shows members joined, aggregate chapter activity and the seats your chapter provides, so you're not paying for a perk nobody uses. No individual member's viewing is tracked or shown.",
   },
 ];
 
@@ -1506,6 +1509,40 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
   useEffect(() => { if (isTest && school) markTestStep("school", { slug: school.slug ?? null, name: school.name ?? null }); }, [isTest, school?.id]);
   useEffect(() => { if (isTest && (professor || profDone)) markTestStep("professor", { picked: !!professor, name: professor ? (professor.last || professor.name) : null }); }, [isTest, professor, profDone]);
   const [userPicked, setUserPicked] = useState(false);
+  // ENTITLEMENTS — the client-side "which paid tabs are unlocked" set. Refreshes on auth
+  // change, focus, and after a Stripe checkout return (via bumpEntitlements).
+  const entitlements = useMyEntitlements();
+  // Handle ?checkout=success — Stripe returned. Bump entitlements a few times over ~6s so we
+  // catch the webhook lag; MarkStep step 8 once the row lands. Then strip the query params.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("checkout") !== "success") return;
+    const kind = url.searchParams.get("kind");
+    ["checkout", "kind"].forEach((k) => url.searchParams.delete(k));
+    window.history.replaceState({}, "", url.toString());
+    let n = 0;
+    const t = setInterval(() => {
+      bumpEntitlements();
+      n += 1;
+      if (n >= 6) clearInterval(t);
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+  useEffect(() => {
+    // Test Mode step 8: fire the moment the tester's entitlement set becomes non-empty.
+    if (!isTest) return;
+    if (entitlements.kinds.size === 0) return;
+    void (async () => { const { markStep } = await import("@/lib/test-mode"); markStep("buy", { kinds: [...entitlements.kinds] }); })();
+  }, [isTest, entitlements.kinds]);
+  const startCheckout = async (kind: "exam_2" | "exam_3" | "final" | "pass") => {
+    if (!auth.userId) { setSaveOpen(true); return; } // needs sign-in first
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token ?? "";
+    if (!token) { setSaveOpen(true); return; }
+    const r = await createCheckoutSession({ data: { accessToken: token, kind, returnPath: routePath, campusId: school?.campusId ?? null } });
+    if ("url" in r && r.url) window.location.assign(r.url);
+  };
   // RESUME: a student returning from their sign-in link lands where they left — exam, topic,
   // set. Consumed once, only once a session exists (that is what the link creates).
   const resumed = useRef(false);
@@ -1660,7 +1697,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
                   // NOT A FIXED 16:9 BOX. The unpublished state carries a line of copy and the
                   // notify field, which a phone-width 16:9 panel (~190px tall) cannot hold.
                   <div className="sa-reveal relative w-full" style={{ minHeight: "min(56.25vw, 300px)" }}>
-                    <Poster school={school} exam={active} topicName={curTopic?.name ?? active.label} stem={curSet?.firstStem ?? null} onNotify={() => onNotify(examRequest({ examNum: active.num, examLabel: active.label, topicName: curTopic?.name ?? null, setName: curSet?.name ?? null, launchWindow: LAUNCH_WINDOW, free: active.price == null }))} />
+                    <Poster school={school} exam={active} topicName={curTopic?.name ?? active.label} stem={curSet?.firstStem ?? null} onNotify={() => onNotify(examRequest({ examNum: active.num, examLabel: active.label, topicName: curTopic?.name ?? null, setName: curSet?.name ?? null, launchWindow: LAUNCH_WINDOW, free: active.price == null }))} entitled={(() => { const k = kindForExamNum(active.num); return !!k && entitlements.kinds.has(k); })()} onBuy={active.price != null ? (() => { const k = kindForExamNum(active.num); if (k) void startCheckout(k); }) : undefined} />
                   </div>
                 )
               )}
@@ -1896,16 +1933,8 @@ function ExamOutline({ tab, school, professor, flowDone, identity, onNotify, sta
   );
 }
 
-/** PLACEHOLDER runtime for topics with no built sets. There is NO real duration source yet
- *  (student.functions runtimeSec is null until the Mux duration backfill lands) — these are
- *  deliberately estimates, deterministic per topic name so they never flicker between renders,
- *  in the honest 11–22 min band real sets run. REPLACE THE BODY with real data when durations
- *  exist; every caller already renders whatever number this returns. */
-const estTopicMin = (name: string): number => {
-  let h = 0;
-  for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return 11 + (h % 12);
-};
+// estTopicMin (the deterministic 11–22 min per-topic estimate for unbuilt topics) now lives in
+// lib/exam-preview and is imported above, so the partner preview and the live player agree.
 
 function TopicRow({ topic, isPaid, price, open, onToggle, curSetId, curTopicKey, activeRef, onPickSet, onPaidClick }: { topic: ResolvedTopic; isPaid: boolean; price: number | null; open: boolean; onToggle: () => void; curSetId: string | null; curTopicKey: string | null; activeRef: RefObject<HTMLButtonElement | null>; onPickSet: (topicKey: string, setId: string | null) => void; onPaidClick: (setName: string) => void }) {
   const built = topic.sets.length > 0;
@@ -2141,7 +2170,7 @@ function SetFlowPanel({ topic, set, exam, school, surface, onSetComplete, onPick
  *  the school's colours, the topic name, one plain line saying the videos for this set are coming,
  *  and the notify field — the only action there is until they publish — right here in the media
  *  panel on every breakpoint (the sidebar copy of it was invisible inside the mobile drawer). */
-function Poster({ school, exam, topicName, stem, onNotify }: { school: School | null; exam: ExamTab; topicName: string; stem?: string | null; onNotify: () => void }) {
+function Poster({ school, exam, topicName, stem, onNotify, entitled, onBuy }: { school: School | null; exam: ExamTab; topicName: string; stem?: string | null; onNotify: () => void; entitled?: boolean; onBuy?: () => void }) {
   const c = school ? boltFor(school.id) : { c1: BRAND_RED, c2: BRAND_BLUE };
   return (
     <div className="grid h-full w-full place-items-center py-5" style={{ background: "var(--sa-surface-2)" }}>
@@ -2151,15 +2180,28 @@ function Poster({ school, exam, topicName, stem, onNotify }: { school: School | 
         {/* the FULL stem — the outline row's 40ch truncation is the tease, this is the payoff */}
         {stem && <p className="max-w-md text-[14px] font-semibold leading-snug" style={{ color: "var(--brand-cream)" }}>{stem}</p>}
         <p className="text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>
-          {exam.price != null
-            ? `${exam.label === "Final" ? "The Final" : exam.label} opens ${LAUNCH_WINDOW} — ${topicName} is on the list.`
-            : `Videos for ${topicName} are coming — Lee is filming this set now.`}
+          {entitled
+            ? `${exam.label === "Final" ? "The Final" : exam.label} unlocked. Videos are still being filmed — you'll get access the moment they land.`
+            : exam.price != null
+              ? `${exam.label === "Final" ? "The Final" : exam.label} — buy now for ${exam.price}, or get notified when it opens.`
+              : `Videos for ${topicName} are coming — Lee is filming this set now.`}
         </p>
-        {/* ONE CTA → the ONE notify modal. No embedded form: browsing a future exam is allowed
-            without being asked for an email; the ask waits for a click. */}
-        <button type="button" onClick={onNotify} className="rounded-xl px-4 text-[13px] font-black" style={{ minHeight: 44, background: "var(--accent)", color: "#0B1220" }}>
-          Notify me when it&apos;s ready →
-        </button>
+        {entitled ? (
+          <span className="inline-flex items-center gap-1 rounded-xl px-4 text-[13px] font-black" style={{ minHeight: 44, background: "rgba(59,245,160,0.14)", color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.35)" }}>✓ Unlocked</span>
+        ) : exam.price != null && onBuy ? (
+          <div className="flex w-full max-w-xs flex-col gap-2">
+            <button type="button" onClick={onBuy} className="rounded-xl px-4 text-[13px] font-black" style={{ minHeight: 44, background: "var(--accent)", color: "#0B1220" }}>
+              Buy for ${exam.price} →
+            </button>
+            <button type="button" onClick={onNotify} className="text-[12.5px] font-bold" style={{ minHeight: 40, color: "var(--text-muted)" }}>
+              Notify me when it&apos;s ready →
+            </button>
+          </div>
+        ) : (
+          <button type="button" onClick={onNotify} className="rounded-xl px-4 text-[13px] font-black" style={{ minHeight: 44, background: "var(--accent)", color: "#0B1220" }}>
+            Notify me when it&apos;s ready →
+          </button>
+        )}
       </div>
     </div>
   );

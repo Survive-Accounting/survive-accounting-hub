@@ -165,13 +165,16 @@ export const getNationalPartner = createServerFn({ method: "POST" })
     };
   });
 
-/** The national orgs with the widest campus coverage — the discovery page's examples, and the
- *  only place a visitor can find a national page without being sent one. */
+/** The national orgs a visitor can search on the discovery page. Returns the coverage-ranked list
+ *  (widest first) with the nickname carried for search — so "KKG" or "Kappa" finds Kappa Kappa
+ *  Gamma. Client-side search + a "browse all" fallback runs over this; 80 is well past what any
+ *  finder needs to feel complete without shipping the whole 600-org directory into the page. */
 export const listTopNationalPartners = createServerFn({ method: "GET" })
-  .handler(async (): Promise<Array<{ orgSlug: string; orgName: string; campuses: number }>> => {
+  .handler(async (): Promise<Array<{ orgSlug: string; orgName: string; orgShort: string; campuses: number }>> => {
     const db = await admin();
-    const { data: orgRows } = await db.from("greek_orgs").select("id,name").limit(3000);
-    const orgs = (orgRows ?? []) as Array<{ id: string; name: string | null }>;
+    const { data: orgRows } = await db.from("greek_orgs").select("id,name,nickname").limit(3000);
+    const orgs = (orgRows ?? []) as Array<{ id: string; name: string | null; nickname: string | null }>;
+    const nickById = new Map(orgs.map((o) => [o.id, (o.nickname ?? "").trim()]));
     const byId = new Map(orgs.map((o) => [o.id, (o.name ?? "").trim()]));
 
     // Paged: PostgREST caps a response at 1,000 rows and there are 3,000+ slugged chapters.
@@ -180,7 +183,7 @@ export const listTopNationalPartners = createServerFn({ method: "GET" })
     // for one organization used to produce two entries in this list, both pointing at pages built
     // from a fraction of the campuses each. Grouping by the slug the link is built from means the
     // list can never disagree with the page it links to.
-    const bySlug = new Map<string, { name: string; campuses: Set<string> }>();
+    const bySlug = new Map<string, { name: string; nickname: string; campuses: Set<string> }>();
     for (let from = 0; ; from += 1000) {
       const { data } = await db.from("campus_greek_chapters")
         .select("greek_org_id,campus_id").not("slug", "is", null).not("greek_org_id", "is", null)
@@ -190,9 +193,10 @@ export const listTopNationalPartners = createServerFn({ method: "GET" })
         const name = (byId.get(r.greek_org_id) ?? "").trim();
         const slug = orgSlugify(name);
         if (!name || !slug) continue;
-        const entry = bySlug.get(slug) ?? { name, campuses: new Set<string>() };
+        const entry = bySlug.get(slug) ?? { name, nickname: nickById.get(r.greek_org_id) ?? "", campuses: new Set<string>() };
         // Shortest name wins the label — the one without the legal suffix.
         if (name.length < entry.name.length) entry.name = name;
+        if (!entry.nickname) entry.nickname = nickById.get(r.greek_org_id) ?? "";
         entry.campuses.add(r.campus_id);
         bySlug.set(slug, entry);
       }
@@ -200,7 +204,7 @@ export const listTopNationalPartners = createServerFn({ method: "GET" })
     }
 
     return [...bySlug.entries()]
-      .map(([orgSlug, e]) => ({ orgSlug, orgName: e.name, campuses: e.campuses.size }))
+      .map(([orgSlug, e]) => ({ orgSlug, orgName: e.name, orgShort: e.nickname || e.name, campuses: e.campuses.size }))
       .sort((a, b) => b.campuses - a.campuses || a.orgName.localeCompare(b.orgName))
-      .slice(0, 12);
+      .slice(0, 80);
   });

@@ -4,12 +4,15 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 import { TestModeBar } from "@/components/test-mode/TestMode";
 import { bootstrapTestModeFromUrl } from "@/lib/test-mode";
+import { initAnalytics, capturePageview } from "@/lib/analytics";
+import { initSentry, setSentryRoute, captureError } from "@/lib/sentry";
 // NOTE: this is a TanStack Start (React) app, NOT Next.js — use the "/react"
 // entrypoints, not "@vercel/analytics/next".
 import { Analytics } from "@vercel/analytics/react";
@@ -46,6 +49,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
+    captureError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
   return (
@@ -136,7 +140,16 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
   useEffect(() => { bootstrapTestModeFromUrl(); }, []);
+  // PostHog (product analytics). No-op unless VITE_PUBLIC_POSTHOG_KEY is set;
+  // init resolves then captures the first pageview, and each route change after.
+  useEffect(() => { void initAnalytics().then(() => capturePageview(window.location.pathname)); }, []);
+  useEffect(() => { capturePageview(pathname); }, [pathname]);
+  // Sentry (error monitoring). No-op unless VITE_PUBLIC_SENTRY_DSN is set. Tag
+  // the route so errors group per page (feeds /admin/site-qa error attribution).
+  useEffect(() => { void initSentry().then(() => setSentryRoute(window.location.pathname)); }, []);
+  useEffect(() => { setSentryRoute(pathname); }, [pathname]);
   return (
     <QueryClientProvider client={queryClient}>
       <TestModeBar />

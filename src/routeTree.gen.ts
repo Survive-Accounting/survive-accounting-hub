@@ -78,6 +78,7 @@ import { Route as JeSplatRouteImport } from './routes/je.$'
 import { Route as ChaptersDashboardRouteImport } from './routes/chapters_.dashboard'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
 import { Route as CSlugRouteImport } from './routes/c.$slug'
+import { Route as AdminSiteQaRouteImport } from './routes/admin.site-qa'
 import { Route as AdminGrowthRouteImport } from './routes/admin.growth'
 import { Route as SchoolRepRouteImport } from './routes/$school.rep'
 import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.leadfinder.index'
@@ -94,6 +95,7 @@ import { Route as GoSchoolChapterRouteImport } from './routes/go.$school.$chapte
 import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
 import { Route as CeqIdEditRouteImport } from './routes/ceq.$id.edit'
 import { Route as CeqCourseSlugChapterSlugRouteImport } from './routes/ceq.$courseSlug.$chapterSlug'
+import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe.webhook'
 import { Route as ApiCronWeeklyDigestRouteImport } from './routes/api.cron.weekly-digest'
 import { Route as ApiCronCommsSequencesRouteImport } from './routes/api.cron.comms-sequences'
 import { Route as ApiCronBackupRouteImport } from './routes/api.cron.backup'
@@ -458,6 +460,11 @@ const CSlugRoute = CSlugRouteImport.update({
   path: '/c/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminSiteQaRoute = AdminSiteQaRouteImport.update({
+  id: '/admin/site-qa',
+  path: '/admin/site-qa',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminGrowthRoute = AdminGrowthRouteImport.update({
   id: '/admin/growth',
   path: '/admin/growth',
@@ -542,6 +549,11 @@ const CeqCourseSlugChapterSlugRoute =
     path: '/$courseSlug/$chapterSlug',
     getParentRoute: () => CeqRoute,
   } as any)
+const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
+  id: '/api/stripe/webhook',
+  path: '/api/stripe/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronWeeklyDigestRoute = ApiCronWeeklyDigestRouteImport.update({
   id: '/api/cron/weekly-digest',
   path: '/api/cron/weekly-digest',
@@ -644,6 +656,7 @@ export interface FileRoutesByFullPath {
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
   '/admin/growth': typeof AdminGrowthRouteWithChildren
+  '/admin/site-qa': typeof AdminSiteQaRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters/dashboard': typeof ChaptersDashboardRoute
@@ -696,6 +709,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
+  '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
@@ -743,6 +757,7 @@ export interface FileRoutesByTo {
   '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
+  '/admin/site-qa': typeof AdminSiteQaRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters/dashboard': typeof ChaptersDashboardRoute
@@ -795,6 +810,7 @@ export interface FileRoutesByTo {
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
+  '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
@@ -845,6 +861,7 @@ export interface FileRoutesById {
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
   '/admin/growth': typeof AdminGrowthRouteWithChildren
+  '/admin/site-qa': typeof AdminSiteQaRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters_/dashboard': typeof ChaptersDashboardRoute
@@ -897,6 +914,7 @@ export interface FileRoutesById {
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
+  '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
@@ -948,6 +966,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/$school/rep'
     | '/admin/growth'
+    | '/admin/site-qa'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters/dashboard'
@@ -1000,6 +1019,7 @@ export interface FileRouteTypes {
     | '/api/cron/backup'
     | '/api/cron/comms-sequences'
     | '/api/cron/weekly-digest'
+    | '/api/stripe/webhook'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
@@ -1047,6 +1067,7 @@ export interface FileRouteTypes {
     | '/waitlist'
     | '/welcome'
     | '/$school/rep'
+    | '/admin/site-qa'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters/dashboard'
@@ -1099,6 +1120,7 @@ export interface FileRouteTypes {
     | '/api/cron/backup'
     | '/api/cron/comms-sequences'
     | '/api/cron/weekly-digest'
+    | '/api/stripe/webhook'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
@@ -1148,6 +1170,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/$school/rep'
     | '/admin/growth'
+    | '/admin/site-qa'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters_/dashboard'
@@ -1200,6 +1223,7 @@ export interface FileRouteTypes {
     | '/api/cron/backup'
     | '/api/cron/comms-sequences'
     | '/api/cron/weekly-digest'
+    | '/api/stripe/webhook'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
@@ -1250,6 +1274,7 @@ export interface RootRouteChildren {
   WelcomeRoute: typeof WelcomeRoute
   SchoolRepRoute: typeof SchoolRepRoute
   AdminGrowthRoute: typeof AdminGrowthRouteWithChildren
+  AdminSiteQaRoute: typeof AdminSiteQaRoute
   CSlugRoute: typeof CSlugRoute
   ChaptersDashboardRoute: typeof ChaptersDashboardRoute
   LabBoltRoute: typeof LabBoltRoute
@@ -1266,6 +1291,7 @@ export interface RootRouteChildren {
   ApiCronBackupRoute: typeof ApiCronBackupRoute
   ApiCronCommsSequencesRoute: typeof ApiCronCommsSequencesRoute
   ApiCronWeeklyDigestRoute: typeof ApiCronWeeklyDigestRoute
+  ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
   GoSchoolChapterRoute: typeof GoSchoolChapterRoute
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
   PartnersNationalOrgRoute: typeof PartnersNationalOrgRoute
@@ -1763,6 +1789,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/site-qa': {
+      id: '/admin/site-qa'
+      path: '/admin/site-qa'
+      fullPath: '/admin/site-qa'
+      preLoaderRoute: typeof AdminSiteQaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/growth': {
       id: '/admin/growth'
       path: '/admin/growth'
@@ -1874,6 +1907,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/ceq/$courseSlug/$chapterSlug'
       preLoaderRoute: typeof CeqCourseSlugChapterSlugRouteImport
       parentRoute: typeof CeqRoute
+    }
+    '/api/stripe/webhook': {
+      id: '/api/stripe/webhook'
+      path: '/api/stripe/webhook'
+      fullPath: '/api/stripe/webhook'
+      preLoaderRoute: typeof ApiStripeWebhookRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/cron/weekly-digest': {
       id: '/api/cron/weekly-digest'
@@ -2139,6 +2179,7 @@ const rootRouteChildren: RootRouteChildren = {
   WelcomeRoute: WelcomeRoute,
   SchoolRepRoute: SchoolRepRoute,
   AdminGrowthRoute: AdminGrowthRouteWithChildren,
+  AdminSiteQaRoute: AdminSiteQaRoute,
   CSlugRoute: CSlugRoute,
   ChaptersDashboardRoute: ChaptersDashboardRoute,
   LabBoltRoute: LabBoltRoute,
@@ -2155,6 +2196,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronBackupRoute: ApiCronBackupRoute,
   ApiCronCommsSequencesRoute: ApiCronCommsSequencesRoute,
   ApiCronWeeklyDigestRoute: ApiCronWeeklyDigestRoute,
+  ApiStripeWebhookRoute: ApiStripeWebhookRoute,
   GoSchoolChapterRoute: GoSchoolChapterRoute,
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
   PartnersNationalOrgRoute: PartnersNationalOrgRoute,
