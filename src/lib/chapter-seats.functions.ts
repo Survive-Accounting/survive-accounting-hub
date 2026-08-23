@@ -388,6 +388,8 @@ export async function activatePoolFromStripe(poolId: string, method: "card" | "i
       ...(invoiceStatus ? { invoice_status: invoiceStatus } : {}),
       updated_at: new Date().toISOString(),
     }).eq("id", poolId);
+    // Only on the transition into active — a repeated webhook must not re-alert.
+    if ((pool.status as string) !== "active") void notifySeatActivation(db, poolId, method);
     return true;
   } catch { return false; }
 }
@@ -417,9 +419,69 @@ export const activateSeatPool = createServerFn({ method: "POST" })
       ...(data.note ? { note: data.note } : {}),
       updated_at: new Date().toISOString(),
     }).eq("id", data.poolId);
-    return error ? { ok: false, error: error.message } : { ok: true };
+    if (error) return { ok: false, error: error.message };
+    void notifySeatActivation(db, data.poolId, data.method ?? "check");
+    return { ok: true };
   });
 
+/** ACTIVATION NOTIFICATIONS — founder alert + exec confirmation, through the EXISTING comms
+ *  layer, never a second notification path.
+ *
+ *  That layer already owns the rules this feature has to obey: it applies the [TEST] prefix when
+ *  isTest is set, logs every send to comms_sends with is_test, rate-limits real founder alerts,
+ *  and keeps test sends out of suppression and marketing caps. So a test purchase can never
+ *  produce an unmarked production-style alert, and nothing here re-implements any of it.
+ *
+ *  Fire-and-forget: a notification failure must never leave a paid chapter without its seats.
+ */
+async function notifySeatActivation(db: DB, poolId: string, method: string): Promise<void> {
+  try {
+    const { data: pool } = await db.from("chapter_seat_pools").select("*").eq("id", poolId).maybeSingle();
+    if (!pool?.id) return;
+    const { data: ch } = await db.from("greek_chapters")
+      .select("chapter_name,school_name,admin_email,admin_name_role,slug,campus_id").eq("id", pool.chapter_id).maybeSingle();
+    const term = termFromId(pool.term_id as string);
+    const seats = (pool.seats_total as number) ?? 0;
+    const isTest = !!pool.is_test;
+
+    // The course code from the ONE source, for the alert line only — never invented.
+    let courseCode: string | null = null;
+    try {
+      if (ch?.campus_id) {
+        const { data: camp } = await db.from("campuses").select("course_family_codes_json").eq("id", ch.campus_id).maybeSingle();
+        const j = camp?.course_family_codes_json;
+        const o = typeof j === "string" ? JSON.parse(j || "{}") : (j ?? {});
+        courseCode = ((o?.intro_1 ?? "") as string).toString().trim() || null;
+      }
+    } catch { courseCode = null; }
+
+    const methodLabel = method === "card" ? "Stripe card" : method === "invoice" ? "Stripe invoice paid" : method === "check" ? "check cleared" : method;
+    // "Phi Delt · Ole Miss · Fall 2026 · 20 seats · $2,000 · Stripe invoice paid"
+    const line = [ch?.chapter_name, ch?.school_name, term?.label, `${seats} seats`, money((pool.amount_cents as number) ?? 0), methodLabel]
+      .filter(Boolean).join(" · ");
+
+    const comms = await import("@/lib/comms/send.server");
+    const ctx = {
+      name: (ch?.admin_name_role as string) ?? null,
+      email: (ch?.admin_email as string) ?? null,
+      chapter: (ch?.chapter_name as string) ?? null,
+      school: (ch?.school_name as string) ?? null,
+      courseCode,
+      term: term?.label ?? null,
+      expiresLabel: term?.expiresLabel ?? null,
+      seats,
+      kind: "purchase" as const,
+      note: line,
+      adminLink: "https://surviveaccounting.com/chapters/dashboard",
+      isTest,
+    };
+
+    await comms.founderAlert({ db, ctx, isTest }).catch(() => {});
+    if (ch?.admin_email) {
+      await comms.sendTemplateEmail({ db, key: "confirm_chapter_seats", ctx, to: ch.admin_email as string, isTest }).catch(() => {});
+    }
+  } catch { /* never block an activation on a notification */ }
+}
 // ── assignment ─────────────────────────────────────────────────────────────────────────────────
 /** Assign / unassign / reassign a seat inside ONE term's pool.
  *

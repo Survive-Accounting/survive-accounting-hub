@@ -9,7 +9,7 @@ import type { IntakeKind } from "@/lib/comms/kinds";
 export type TemplateKey =
   | "confirm_notify_exam" | "confirm_save_progress" | "confirm_syllabus" | "confirm_greek_member"
   | "confirm_greek_claim" | "confirm_rep" | "confirm_school_request" | "confirm_tutoring_request"
-  | "confirm_outreach_page" | "confirm_question"
+  | "confirm_outreach_page" | "confirm_question" | "confirm_chapter_seats"
   | "seq_exam_t10" | "seq_exam_t3" | "seq_exam_t1" | "seq_post_exam1_d1" | "seq_post_exam1_d7" | "seq_meet_lee"
   | "broadcast_exam_live"
   | "founder_priority" | "founder_batched";
@@ -33,13 +33,19 @@ export interface TemplateCtx {
   examDate?: string | null;      // ISO date for sequence A
   daysOut?: number | null;
   price?: number | null;         // paid exam price
-  kind?: IntakeKind | null;      // founder alerts
+  // "purchase" is a founder-alert LABEL, not an intake kind: the label map below already
+  // renders it, and widening INTAKE_KINDS would add a value the intake table has no use for.
+  kind?: IntakeKind | "purchase" | null;      // founder alerts
   adminLink?: string | null;     // founder alerts → /outreach/demand?lead=
   heldCount?: number | null;     // founder rate-limit: alerts held since the last one
   note?: string | null;          // free text the student left (syllabus notes, referral)
   unsubscribeLink?: string | null;
   preferencesLink?: string | null;
   isTest?: boolean;
+  /** Chapter seats: the term label ("Fall 2026"), its expiry ("Dec. 31, 2026") and the count. */
+  term?: string | null;
+  expiresLabel?: string | null;
+  seats?: number | null;
 }
 
 export const ORIGIN = "https://surviveaccounting.com";
@@ -122,6 +128,23 @@ function blocksFor(key: TemplateKey, c: TemplateCtx): { subject: string; blocks:
           sig,
         ],
         sms: `Got your ${c.chapter ?? "chapter"} claim - texting you today. Members start Exam 1 free: ${(c.chapterLink ?? startLink(c)).replace(/^https?:\/\//, "")} - Lee`,
+      };
+    // SEATS ACTIVATED. Sent to the exec the moment a term seat pool goes active (card, Stripe
+    // invoice paid, or Lee marking a check paid). It names the term and the exact expiry,
+    // because the whole point of the term model is that access ends on a date the chapter
+    // agreed to — a confirmation that omitted it would be the surprise this model exists to
+    // prevent.
+    case "confirm_chapter_seats":
+      return {
+        subject: `${c.chapter ?? "Your chapter"} is covered — ${c.term ?? "this term"}`,
+        blocks: [
+          `Hey ${n},`,
+          `${c.seats ?? "Your"} seat${c.seats === 1 ? "" : "s"} for ${c.chapter ?? "your chapter"} are active for ${c.term ?? "this term"}. Assigned members get Exam 2, Exam 3 and the Final through ${c.expiresLabel ?? "the end of the term"}.`,
+          `Assign your seats → ${c.adminLink ?? "https://surviveaccounting.com/chapters/dashboard"}`,
+          c.note ?? "",
+          sig,
+        ].filter(Boolean),
+        sms: `${c.chapter ?? "Your chapter"} is covered for ${c.term ?? "this term"} - assign seats: surviveaccounting.com/chapters/dashboard - Lee`,
       };
     case "confirm_rep":
       return {
