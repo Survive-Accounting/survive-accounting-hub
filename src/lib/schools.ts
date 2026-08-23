@@ -29,6 +29,7 @@
 // copy is the build-time snapshot the picker and the generated pages read.
 
 import { GENERATED_SCHOOLS, type GeneratedSchool } from "./schools.generated";
+import { TEST_CAMPUS_NAME, TEST_CAMPUS_SLUG, TEST_COURSE_CODE } from "./test-mode";
 
 export type SecSchool = {
   /** Landing-picker id. Stable, short, used in stored preferences. */
@@ -55,6 +56,28 @@ export const OTHER_SCHOOLS: School[] = GENERATED_SCHOOLS.filter((s) => !s.isSec)
 const BY_ID = new Map(ALL_SCHOOLS.map((s) => [s.id, s]));
 const BY_CAMPUS = new Map(ALL_SCHOOLS.map((s) => [s.campusId, s]));
 const BY_SLUG = new Map(ALL_SCHOOLS.map((s) => [s.slug, s]));
+
+// ── THE TEST FIXTURE: LOOKUPS ONLY ─────────────────────────────────────────────────────────────
+//
+// A tester walking the /go/test-university/test-chapter run sheet was shown "ACCY 201 at Ole Miss"
+// — the fixture campus is not a listed school, so every schoolBySlug() call fell through to the
+// default campus and the hero named a REAL university. That makes the fixture useless for the one
+// thing it exists for: telling test output apart from real output at a glance.
+//
+// So the row is registered in the lookup maps and NOWHERE ELSE. ALL_SCHOOLS, SEC_SCHOOL_TABLE,
+// OTHER_SCHOOLS and searchSchools() all read the generated array, which is untouched — the fixture
+// therefore cannot appear in a picker, a ticker, a sitemap or a search result. Resolution works;
+// enumeration does not. campusId stays empty on purpose: the real id lives in the database and is
+// carried by the loaders, and putting a guess here would collide with a real campus.
+const TEST_SCHOOL: School = {
+  id: TEST_CAMPUS_SLUG, campusId: "", slug: TEST_CAMPUS_SLUG, name: TEST_CAMPUS_NAME,
+  isSec: false, courseCode: TEST_COURSE_CODE,
+  // The fixture's own colourway, matching the campus page, so no test screenshot can be mistaken
+  // for a real school's.
+  c1: "#2E7D32", c2: "#00695C", aliases: [],
+};
+BY_ID.set(TEST_SCHOOL.id, TEST_SCHOOL);
+BY_SLUG.set(TEST_SCHOOL.slug, TEST_SCHOOL);
 
 export const schoolById = (id: string | null | undefined): School | null => (id ? BY_ID.get(id) ?? null : null);
 export const schoolByCampusId = (id: string | null | undefined): School | null => (id ? BY_CAMPUS.get(id) ?? null : null);

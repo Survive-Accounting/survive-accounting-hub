@@ -19,12 +19,20 @@ import {
   GREEK_LIFECYCLE, TEST_CAMPUS_URL, TEST_CHAPTER_URL, parseTestParams, readTestSession,
   restartTestRun, startTestSession, writeTestSession, type TestSession,
 } from "@/lib/test-mode";
-import { testModeStatus } from "@/lib/test-mode.functions";
+import {
+  getFixtureStatus, resetFixture, testApproveFixtureClaim, testModeStatus, type FixtureStatus,
+} from "@/lib/test-mode.functions";
 
 export function TestModeBar() {
   const [session, setSession] = useState<TestSession | null>(null);
   const [serverOn, setServerOn] = useState<boolean | null>(null);
   const [open, setOpen] = useState(false);
+  // THE PANEL. The fixture's live state, so the shortcuts can say what they will do rather than
+  // offering a button that cannot apply.
+  const [fx, setFx] = useState<FixtureStatus | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const loadFixture = () => { void getFixtureStatus().then(setFx).catch(() => setFx(null)); };
 
   // Adopt the URL params once, then live off the session so a tester can navigate the real site
   // without carrying ?testmode=1 on every link.
@@ -44,6 +52,9 @@ export function TestModeBar() {
       .catch(() => { if (alive) setServerOn(false); });
     return () => { alive = false; };
   }, [session]);
+
+  // Only when the panel is open: a closed panel has no reason to poll the database.
+  useEffect(() => { if (open && serverOn) loadFixture(); }, [open, serverOn]);
 
   if (!session || serverOn !== true) return null;
 
@@ -138,6 +149,77 @@ export function TestModeBar() {
               </li>
             ))}
           </ol>
+
+          {/* ── TEST PANEL ───────────────────────────────────────────────────────────────────
+              The shortcuts that keep a run moving: approve the claim without a trip to outreach,
+              and reset the fixture to walk it again. Both are hard-scoped to the test chapter on
+              the server — they cannot touch a real one — and both are dead unless
+              TEST_MODE_ENABLED is set. */}
+          <div className="mt-3 rounded-xl px-3 py-3" style={{ background: "rgba(122,46,18,0.18)", border: "1px solid #C2571F" }}>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-[11px] font-black uppercase" style={{ color: "#FFC9A3", letterSpacing: "0.12em" }}>Test panel</p>
+              <button type="button" onClick={loadFixture} className="text-[12px] font-bold underline underline-offset-4" style={{ color: "#FFC9A3" }}>Refresh</button>
+            </div>
+
+            <p className="mt-1.5 text-[12.5px]" style={{ color: "var(--text-secondary, #AAB4C8)" }}>
+              {fx?.ready
+                ? `Test Chapter · ${fx.claimStatus ?? "unclaimed"}${fx.pendingClaimId ? " · claim pending" : ""} · ${fx.members} member${fx.members === 1 ? "" : "s"}${fx.seatPools ? ` · ${fx.seatPools} seat pool${fx.seatPools === 1 ? "" : "s"}` : ""}`
+                : (fx?.note || "Reading the fixture…")}
+            </p>
+
+            <div className="mt-2 flex flex-wrap gap-2">
+              {/* Approve — offered only when there IS a pending claim to approve. */}
+              <button
+                type="button"
+                disabled={busy !== null || !fx?.pendingClaimId}
+                title={fx?.pendingClaimId ? `Approve the claim from ${fx.claimantEmail ?? "the exec"}` : "Submit a claim at step 3 first"}
+                onClick={async () => {
+                  setBusy("approve"); setMsg(null);
+                  try {
+                    const r = await testApproveFixtureClaim();
+                    setMsg(r.ok ? "Claim approved — the dashboard is now reachable." : (r.error ?? "Couldn't approve that."));
+                    loadFixture();
+                  } catch { setMsg("Couldn't reach the server."); }
+                  finally { setBusy(null); }
+                }}
+                className="rounded-lg px-3 text-[13px] font-black disabled:opacity-40"
+                style={{ minHeight: 40, background: "var(--accent, #FFA611)", color: "#0B1220" }}
+              >
+                {busy === "approve" ? "…" : "Approve claim"}
+              </button>
+
+              {/* Reset — the destructive one, so it says what it removes before it runs. */}
+              <button
+                type="button"
+                disabled={busy !== null}
+                onClick={async () => {
+                  if (!window.confirm("Reset the test chapter? This deletes its members, claims and seat pools. Nothing outside the fixture is touched.")) return;
+                  setBusy("reset"); setMsg(null);
+                  try {
+                    const r = await resetFixture();
+                    const gone = Object.entries(r.removed ?? {}).map(([k, v]) => `${v} ${k.replace("_", " ")}`).join(", ");
+                    setMsg(r.ok ? `Fixture reset${gone ? ` — removed ${gone}` : ""}.` : (r.error ?? "Reset failed."));
+                    loadFixture();
+                  } catch { setMsg("Couldn't reach the server."); }
+                  finally { setBusy(null); }
+                }}
+                className="rounded-lg px-3 text-[13px] font-black disabled:opacity-40"
+                style={{ minHeight: 40, background: "var(--bg-surface, #162443)", border: "1px solid var(--border-default, #34486D)", color: "var(--brand-cream, #F7F0E6)" }}
+              >
+                {busy === "reset" ? "…" : "Reset fixture"}
+              </button>
+
+              <a
+                href="/chapters/dashboard"
+                className="inline-flex items-center rounded-lg px-3 text-[13px] font-black"
+                style={{ minHeight: 40, background: "var(--bg-surface, #162443)", border: "1px solid var(--border-default, #34486D)", color: "var(--brand-cream, #F7F0E6)" }}
+              >
+                Dashboard →
+              </a>
+            </div>
+
+            {msg && <p className="mt-2 text-[12.5px]" style={{ color: "#FFC9A3" }}>{msg}</p>}
+          </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: "var(--border-subtle, rgba(52,72,109,0.55))" }}>
             <a href={TEST_CHAPTER_URL} className="text-[12.5px] font-bold underline underline-offset-4" style={{ color: "var(--text-secondary, #AAB4C8)" }}>Test chapter</a>

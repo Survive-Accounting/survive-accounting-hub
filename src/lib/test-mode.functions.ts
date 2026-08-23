@@ -222,6 +222,177 @@ export const purgeTestData = createServerFn({ method: "POST" })
     return { ok: true, removed };
   });
 
+// ── the test panel ─────────────────────────────────────────────────────────────────────────────
+//
+// SHORTCUTS THAT CANNOT REACH A REAL CHAPTER. Everything below resolves the fixture by slug FIRST
+// and refuses if the row it is about to touch is not that fixture. That is what makes it safe to
+// run without an admin token: the worst thing any of it can do is approve, reset or empty a fake
+// chapter that exists to be destroyed. With the TEST_MODE_ENABLED guard on top, a deployment with
+// the flag off exposes none of it at all.
+//
+// Approval MIRRORS decideChapterClaim's approve branch (same admin fields, same claim and roster
+// writes, same shell upsert) minus the SMS — a tester does not need a text saying their fake
+// chapter is live. If that function's fields change, change them here too.
+
+export type FixtureStatus = {
+  ready: boolean;
+  campusId: string | null;
+  rosterId: string | null;
+  chapterId: string | null;
+  claimStatus: string | null;
+  pendingClaimId: string | null;
+  claimantEmail: string | null;
+  members: number;
+  seatPools: number;
+  note: string;
+};
+
+/** Resolve the fixture and report exactly where the lifecycle stands. The panel reads this to
+ *  decide which shortcut to offer, so a tester never presses a button that cannot apply. */
+export const getFixtureStatus = createServerFn({ method: "GET" })
+  .handler(async (): Promise<FixtureStatus> => {
+    const out: FixtureStatus = {
+      ready: false, campusId: null, rosterId: null, chapterId: null,
+      claimStatus: null, pendingClaimId: null, claimantEmail: null,
+      members: 0, seatPools: 0, note: "",
+    };
+    if (!guard()) { out.note = "TEST_MODE_ENABLED is not set."; return out; }
+    try {
+      const db = await admin();
+      const { data: campus } = await db.from("campuses").select("id").eq("slug", TEST_CAMPUS_SLUG).maybeSingle();
+      if (!campus?.id) { out.note = "Fixture campus missing — press Seed."; return out; }
+      out.campusId = campus.id as string;
+
+      const { data: roster } = await db.from("campus_greek_chapters")
+        .select("id,claim_status").eq("campus_id", campus.id).eq("slug", TEST_CHAPTER_SLUG).maybeSingle();
+      if (!roster?.id) { out.note = "Fixture chapter missing — press Seed."; return out; }
+      out.rosterId = roster.id as string;
+      out.claimStatus = (roster.claim_status as string) ?? "unclaimed";
+
+      const { data: claim } = await db.from("greek_chapter_claims")
+        .select("id,email,status").eq("campus_greek_chapter_id", roster.id).eq("status", "pending")
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      out.pendingClaimId = (claim?.id as string) ?? null;
+      out.claimantEmail = (claim?.email as string) ?? null;
+
+      const { data: shell } = await db.from("greek_chapters").select("id").eq("campus_greek_chapter_id", roster.id).maybeSingle();
+      out.chapterId = (shell?.id as string) ?? null;
+      if (shell?.id) {
+        const { count: m } = await db.from("greek_chapter_members").select("id", { count: "exact", head: true }).eq("chapter_id", shell.id);
+        out.members = m ?? 0;
+        try {
+          const { count: p } = await db.from("chapter_seat_pools").select("id", { count: "exact", head: true }).eq("chapter_id", shell.id);
+          out.seatPools = p ?? 0;
+        } catch { out.seatPools = 0; }
+      }
+      out.ready = true;
+      return out;
+    } catch (e) {
+      out.note = e instanceof Error ? e.message : "Could not read the fixture.";
+      return out;
+    }
+  });
+
+/** APPROVE the fixture's pending claim — step 4 of the run sheet, without a trip to outreach.
+ *  Refuses anything that is not a pending claim on the fixture chapter. */
+export const testApproveFixtureClaim = createServerFn({ method: "POST" })
+  .handler(async (): Promise<{ ok: boolean; error?: string; chapterId?: string }> => {
+    if (!guard()) return { ok: false, error: "TEST_MODE_ENABLED is not set." };
+    const db = await admin();
+
+    const { data: campus } = await db.from("campuses").select("id,slug,name,short_name").eq("slug", TEST_CAMPUS_SLUG).maybeSingle();
+    if (!campus?.id) return { ok: false, error: "Fixture campus missing — press Seed first." };
+    const { data: roster } = await db.from("campus_greek_chapters")
+      .select("id,slug,greek_org_id,campus_id").eq("campus_id", campus.id).eq("slug", TEST_CHAPTER_SLUG).maybeSingle();
+    if (!roster?.id) return { ok: false, error: "Fixture chapter missing — press Seed first." };
+
+    const { data: claim } = await db.from("greek_chapter_claims")
+      .select("*").eq("campus_greek_chapter_id", roster.id).eq("status", "pending")
+      .order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (!claim?.id) return { ok: false, error: "No pending claim on the test chapter — submit one at step 3 first." };
+    // Belt and braces: the claim must belong to the fixture just resolved.
+    if (claim.campus_greek_chapter_id !== roster.id) return { ok: false, error: "That claim is not on the test chapter." };
+
+    const { data: org } = roster.greek_org_id
+      ? await db.from("greek_orgs").select("name").eq("id", roster.greek_org_id).maybeSingle()
+      : { data: null };
+    const chapterName = ((org?.name as string) ?? "").trim() || TEST_CHAPTER_NAME;
+    const schoolName = (campus.short_name as string) || (campus.name as string) || TEST_CAMPUS_NAME;
+
+    const adminFields = {
+      admin_name_role: `${claim.name}, ${claim.position}`,
+      admin_email: claim.email,
+      admin_phone: claim.phone,
+      claim_status: "claimed",
+      status: "active",
+      // Same reason as the real path: without this the new admin cannot open their own dashboard.
+      phone_verified_at: new Date().toISOString(),
+    };
+
+    const { data: shell } = await db.from("greek_chapters").select("id").eq("campus_greek_chapter_id", roster.id).maybeSingle();
+    let chapterId = (shell?.id as string) ?? null;
+    if (chapterId) {
+      const { error } = await db.from("greek_chapters").update(adminFields).eq("id", chapterId);
+      if (error) return { ok: false, error: error.message };
+    } else {
+      const { data: created, error } = await db.from("greek_chapters").insert({
+        slug: `${TEST_CAMPUS_SLUG}-${TEST_CHAPTER_SLUG}`,
+        campus_id: roster.campus_id, campus_greek_chapter_id: roster.id,
+        school_name: schoolName, chapter_name: chapterName, greek_org_id: roster.greek_org_id,
+        ...adminFields,
+      }).select("id").maybeSingle();
+      if (error) return { ok: false, error: error.message };
+      chapterId = (created?.id as string) ?? null;
+    }
+
+    await db.from("greek_chapter_claims").update({ status: "approved", decided_at: new Date().toISOString() }).eq("id", claim.id);
+    await db.from("campus_greek_chapters").update({ claim_status: "claimed", claimed_at: new Date().toISOString() }).eq("id", roster.id);
+    // No approval SMS: a tester does not need a text saying their fake chapter is live.
+    return { ok: true, chapterId: chapterId ?? undefined };
+  });
+
+/** RESET the fixture to a clean unclaimed chapter: members, claims, seat pools, share events and
+ *  the shell go; the campus and roster row stay so the next run has something to walk into.
+ *  "Start over" with teeth — and it touches nothing outside the fixture. */
+export const resetFixture = createServerFn({ method: "POST" })
+  .handler(async (): Promise<{ ok: boolean; error?: string; removed: Record<string, number> }> => {
+    const removed: Record<string, number> = {};
+    if (!guard()) return { ok: false, error: "TEST_MODE_ENABLED is not set.", removed };
+    try {
+      const db = await admin();
+      const { data: campus } = await db.from("campuses").select("id").eq("slug", TEST_CAMPUS_SLUG).maybeSingle();
+      if (!campus?.id) return { ok: false, error: "Fixture campus missing — press Seed first.", removed };
+      const { data: roster } = await db.from("campus_greek_chapters")
+        .select("id").eq("campus_id", campus.id).eq("slug", TEST_CHAPTER_SLUG).maybeSingle();
+      if (!roster?.id) return { ok: false, error: "Fixture chapter missing — press Seed first.", removed };
+
+      const { data: shell } = await db.from("greek_chapters").select("id").eq("campus_greek_chapter_id", roster.id).maybeSingle();
+      if (shell?.id) {
+        // Children before parents.
+        try {
+          const { data: pools } = await db.from("chapter_seat_pools").select("id").eq("chapter_id", shell.id).limit(200);
+          const poolIds = ((pools ?? []) as Array<{ id: string }>).map((p) => p.id);
+          if (poolIds.length) {
+            await db.from("chapter_seat_assignments").delete().in("pool_id", poolIds);
+            await db.from("chapter_seat_pools").delete().in("id", poolIds);
+            removed.seat_pools = poolIds.length;
+          }
+          await db.from("chapter_share_events").delete().eq("chapter_id", shell.id);
+        } catch { /* seat tables may not be applied yet */ }
+        const { count: m } = await db.from("greek_chapter_members").select("id", { count: "exact", head: true }).eq("chapter_id", shell.id);
+        await db.from("greek_chapter_members").delete().eq("chapter_id", shell.id);
+        removed.members = m ?? 0;
+        await db.from("greek_chapters").delete().eq("id", shell.id);
+        removed.chapter_shell = 1;
+      }
+      await db.from("greek_chapter_claims").delete().eq("campus_greek_chapter_id", roster.id);
+      await db.from("campus_greek_chapters").update({ claim_status: "unclaimed", claimed_at: null }).eq("id", roster.id);
+      return { ok: true, removed };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : "Reset failed.", removed };
+    }
+  });
+
 /** Is this slug/campus one of the fixtures? Used by anything that must exclude them from real
  *  lists, sitemaps and counts. */
 export const isFixtureSlug = (slug: string | null | undefined) => (slug ?? "") === TEST_CAMPUS_SLUG;
