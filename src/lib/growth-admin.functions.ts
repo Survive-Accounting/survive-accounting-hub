@@ -130,6 +130,11 @@ export interface OrgRow {
 type DB = { from: (t: string) => any };
 
 const admin = async (): Promise<DB> => {
+  // AUTHORIZATION LIVES HERE. Every function in this file gets its DB handle through admin(), so
+  // one check protects the whole module: a request without a valid admin session cookie throws
+  // before any service-role read or write runs. See admin-session.functions.ts.
+  const { assertAdmin } = await import("@/lib/admin-session.functions");
+  await assertAdmin();
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   return supabaseAdmin as unknown as DB;
 };

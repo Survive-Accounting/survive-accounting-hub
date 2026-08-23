@@ -9,6 +9,9 @@ import { z } from "zod";
 
 type DB = { from: (t: string) => any };
 const admin = async (): Promise<DB> => {
+  // AUTHORIZATION LIVES HERE — one check for every contact read/write (see admin-session.functions).
+  const { assertAdmin } = await import("@/lib/admin-session.functions");
+  await assertAdmin();
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   return supabaseAdmin as unknown as DB;
 };

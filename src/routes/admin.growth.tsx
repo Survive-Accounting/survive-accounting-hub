@@ -17,6 +17,7 @@ import {
   Users2,
 } from "lucide-react";
 import { AdminGate, getAdminWho } from "@/components/AdminGate";
+import { AdminSessionGate } from "@/components/AdminSessionGate";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
@@ -48,6 +49,7 @@ function GrowthShell() {
 
   return (
     <AdminGate>
+      <AdminSessionGate>
       <Toaster richColors position="top-center" />
       <div className="flex min-h-screen flex-col bg-background">
         <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur">
@@ -93,6 +95,7 @@ function GrowthShell() {
           <Outlet />
         </main>
       </div>
+      </AdminSessionGate>
     </AdminGate>
   );
 }
