@@ -97,10 +97,20 @@ type Chapter = {
 const main = async () => {
   console.log(`=== CHAPTER IMPORT 66 (${APPLY ? "APPLY" : "DRY RUN — nothing will be written"}) ===\n`);
 
-  const csvPath = join(import.meta.dir, "../../data/chapters-66-FINAL.csv");
+  // THE FILE IS AN ARGUMENT NOW, defaulting to the original import. Same columns, same rules —
+  // this script is the one place that knows how a chapter row becomes a database row (campus
+  // matching, org identity via greekChapterSlug, the collision rule), so every later batch — a
+  // re-imported campus, a hand-researched roster, a brand-new school — should come through here
+  // rather than growing a second importer that drifts from the slug rule printed on flyers.
+  //
+  //   bun run migration/supabase-migrations/import_chapters_66.ts path/to/rows.csv           # dry run
+  //   bun run migration/supabase-migrations/import_chapters_66.ts path/to/rows.csv --apply
+  const fileArg = process.argv.slice(2).find((a) => !a.startsWith("--"));
+  const csvPath = fileArg ?? join(import.meta.dir, "../../data/chapters-66-FINAL.csv");
   const rows = parseCsv(readFileSync(csvPath, "utf8"));
+  console.log(`csv: ${csvPath}`);
   console.log(`csv rows: ${rows.length}`);
-  if (rows.length !== 2060) console.log(`  NOTE: expected 2,060 — got ${rows.length}`);
+  if (!fileArg && rows.length !== 2060) console.log(`  NOTE: expected 2,060 — got ${rows.length}`);
 
   // --- gate --apply on the flag columns existing -------------------------------------------
   const probe = await db.from("campus_greek_chapters").select("nickname,verified,roster_status,is_national_org,source_url,as_of").limit(1);
@@ -145,17 +155,37 @@ const main = async () => {
   };
 
   // --- orgs: identity is the slug-normalized name ------------------------------------------
+  //
+  // MATCHED ON A LOOSER KEY THAN THE URL SLUG. greekChapterSlug strips "Fraternity", "Sorority",
+  // "International", "National" and "Inc" — but universities print more than that. Michigan State
+  // lists "Lambda Theta Alpha Latin Sorority, Inc." and "alpha Kappa Delta Phi International
+  // Sorority, Inc."; the catalog holds "Lambda Theta Alpha" and "Alpha Kappa Delta Phi". Matching
+  // on the URL slug alone missed 15 of 58 rows on that one campus and would have created 15 NEW
+  // org records — which is precisely how the ten duplicate organizations got there in the first
+  // place (see DATA_AUDIT.md §5), splitting the Divine Nine national pages in half.
+  //
+  // So catalog lookup uses orgMatchKey, which additionally drops the descriptor words a campus
+  // directory adds. The URL slug is untouched: it still comes from greekChapterSlug, because it is
+  // printed on flyers and must never change.
+  const orgMatchKey = (name: string) =>
+    (name ?? "")
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/\b(fraternity|sorority|international|national|latin|latina|latino|inc|incorporated)\b/g, " ")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+
   const orgs = await fetchAll<Org>("greek_orgs", "id,name,nickname");
   const orgByKey = new Map<string, Org[]>();
   for (const o of orgs) {
-    const k = greekChapterSlug(o.name ?? "");
+    const k = orgMatchKey(o.name ?? "");
     if (!k) continue;
     orgByKey.set(k, [...(orgByKey.get(k) ?? []), o]);
   }
   // Among duplicate org rows (bare + legal-suffix), prefer exact name, then the SHORTEST name
   // (the bare form) — matching how the slug backfill picked winners.
   const resolveOrg = (name: string): Org | null => {
-    const list = orgByKey.get(greekChapterSlug(name)) ?? [];
+    const list = orgByKey.get(orgMatchKey(name)) ?? [];
     if (!list.length) return null;
     const exact = list.find((o) => o.name.trim().toLowerCase() === name.trim().toLowerCase());
     return exact ?? list.slice().sort((a, b) => a.name.length - b.name.length || a.id.localeCompare(b.id))[0];
@@ -175,7 +205,7 @@ const main = async () => {
   const chapByKey = new Map<string, Chapter[]>();
   for (const ch of chapters) {
     const name = ch.greek_org_id ? orgNameById.get(ch.greek_org_id) ?? "" : "";
-    const k = name ? `${ch.campus_id}::${greekChapterSlug(name)}` : "";
+    const k = name ? `${ch.campus_id}::${orgMatchKey(name)}` : "";
     if (k) chapByKey.set(k, [...(chapByKey.get(k) ?? []), ch]);
   }
   // Among duplicate roster rows for one chapter, the row with the SLUG is the live URL and is
@@ -215,7 +245,7 @@ const main = async () => {
       unmatchedCampus.set(display, { rows: prev.rows + 1, why: why ?? prev.why });
       continue;
     }
-    const orgKey = greekChapterSlug(orgName);
+    const orgKey = orgMatchKey(orgName);
     if (!orgKey) { console.log(`  SKIP row with unslugifiable org "${orgName}" @ ${display}`); continue; }
 
     // The CSV itself must not carry two rows for one (campus, org) — trust but verify.
