@@ -16,6 +16,7 @@ import { SpeedInsights } from "@vercel/speed-insights/react";
 import appCss from "../styles.css?url";
 import { HOME_OG, ogMeta } from "../lib/og";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { TestModeBar } from "@/components/site/TestModeBar";
 
 function NotFoundComponent() {
   return (
@@ -121,6 +122,10 @@ function RootShell({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
+        {/* TEST MODE. Mounted at the root so the banner follows a tester across every page,
+            including the fixtures and the real site. It renders nothing unless the session says
+            test mode AND the server confirms TEST_MODE_ENABLED. */}
+        <TestModeBar />
         {children}
         {/* Vercel Web Analytics (page views/visitors) + Speed Insights (real-user
             performance). Client-only: no-op in dev, active on the Vercel deploy. */}
