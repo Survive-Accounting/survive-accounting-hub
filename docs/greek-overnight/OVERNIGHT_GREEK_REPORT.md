@@ -169,3 +169,65 @@ once colors are decided, best done with your eyes since these go public.
 - `overnight_greek_harvest.csv` — all 1,868 imported rows, importer-format
 - `Survive_Greek_Data_Import_Queue_UPDATED.xlsx` — the tracker with statuses filled in
 - `greek_overnight_progress.json` — resumable per-campus log (status, uni id, councils, sources)
+
+---
+
+# Run 2 — Next-20 + archived-campus restoration (2026-08-23, follow-up)
+
+Lee approved production writes and asked to (a) restore the archived campuses' school colors and
+(b) work the "next 20". Both are now **applied to the live database** on this same branch.
+
+## Archived-campus restoration — DONE (7 campuses)
+
+Official brand hex codes were pulled from each school's brand guide / athletics style guide, slugs
+were collision-checked, and the prior row state was backed up to `restore-backup.json`. Each row:
+colors set, slug assigned, `colors_reviewed=true`, `archived_at` cleared (unarchived).
+
+| Campus | Primary | Secondary | Tertiary | Slug |
+|---|---|---|---|---|
+| University of Connecticut | `#000E2F` | `#FFFFFF` | `#A2AAAD` | university-of-connecticut |
+| Missouri State University | `#5E0009` | `#FFFFFF` | — | missouri-state-university |
+| Montana State University | `#00205B` | `#BF995B` | `#FFFFFF` | montana-state-university |
+| University of Nevada, Las Vegas | `#E31837` | `#9FA1A4` | `#000000` | university-of-nevada-las-vegas |
+| Kennesaw State University | `#FDBB30` | `#0B1315` | `#C5C6C8` | kennesaw-state-university |
+| Towson University | `#000000` | `#FFCC00` | `#FFFFFF` | towson-university |
+| University of North Alabama | `#46166B` | `#DB9F11` | `#5F6062` | university-of-north-alabama |
+
+UNLV's malformed name `Univ of Nevada, Las Vegas Las` was corrected to `University of Nevada, Las
+Vegas` (short_name `UNLV`). To revert any of this, PATCH the rows back from `restore-backup.json`.
+
+## Chapters imported — DONE (19 campuses, 337 new)
+
+All 19 harvestable campuses (12 already-live + the 7 restored) imported in one pass:
+
+- **create 337 · update 31 · new greek_orgs 0 · slug collisions 0 · failures 0**
+- DB chapters **3,923 → 4,260**; campuses with ≥1 chapter **169 → 186**
+- Council split now: IFC **1,969** · Panhellenic **1,132** · NPHC **697** · MGC **400**
+- **0 unroutable / bad slugs** across all 19 campuses (verified post-write)
+- Live route verified: `/go/kennesaw-state-university/alpha-kappa-alpha` resolves on production with
+  ACCT 2101 — a restored, previously-archived campus routing a newly-imported chapter end-to-end.
+
+Per-campus counts are appended to `GREEK_IMPORT_COMPLETED.csv`; the raw importer-format rows are in
+`next20_restored_harvest.csv`.
+
+Biggest rosters this run: Indiana Bloomington 67, UConn 41, Missouri State 31, UNLV 29, Kennesaw 29,
+Towson 27, Arkansas State 22. HBCU rosters (Albany State 10, Savannah State 9, Winston-Salem St 7)
+came back NPHC-heavy as expected — GreekRank covers only their NPHC chapters, so these are real but
+incomplete; supplement from each school's official directory.
+
+## Not harvested (evidence recorded, nothing invented)
+
+- **Liberty University** → `GREEK_NO_SOCIAL_SYSTEM.csv`. Liberty officially prohibits Greek life
+  (Greek population zero); no GreekRank page. Confirmed, will not be pursued.
+- **Seattle University, Lipscomb, Grambling State, Alabama State, Claflin** → `GREEK_BLOCKED_OR_REVIEW.csv`
+  as `needs-source`. No usable GreekRank page (Lipscomb uses non-national "social clubs"; Grambling/
+  Alabama State/Claflin are HBCUs GreekRank doesn't cover). Each needs its official NPHC/FSL directory.
+- **Western Washington University** → not in the campuses table at all; flagged `needs-campus-record`.
+  Add it via the CSV importer first, then it can be harvested.
+
+## Still open (unchanged from Run 1)
+
+- 24 organizations in `GREEK_ORGS_NEEDS_REVIEW.csv` to classify.
+- **UT Austin duplicate campus** (`102fd422…`) still recommended for archive/merge against the
+  supported `university-of-texas-at-austin` (`faad6039…`).
+- The remaining small/branch campuses in `GREEK_BLOCKED_OR_REVIEW.csv`.

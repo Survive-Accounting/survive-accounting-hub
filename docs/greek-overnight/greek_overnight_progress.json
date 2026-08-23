@@ -595,8 +595,19 @@
   },
   "arkansas-state-university": {
    "campus": "A-State",
-   "status": "needs-research",
-   "note": "Not reached this run — resolve GreekRank uni id + harvest, or verify social Greek presence via official source. Many are small/branch campuses with limited traditional Greek life."
+   "queue": "exp",
+   "uniId": "134",
+   "status": "harvested",
+   "chapters_found": 22,
+   "councils": {
+    "IFC": 9,
+    "NPHC": 7,
+    "Panhellenic": 6
+   },
+   "review_orgs": [],
+   "excluded_orgs": [],
+   "inactive_orgs": [],
+   "harvested_at": "2026-08-23"
   },
   "azusa-pacific-university": {
    "campus": "APU",
@@ -635,8 +646,18 @@
   },
   "albany-state-university": {
    "campus": "Albany State",
-   "status": "needs-research",
-   "note": "Not reached this run — resolve GreekRank uni id + harvest, or verify social Greek presence via official source. Many are small/branch campuses with limited traditional Greek life."
+   "queue": "exp",
+   "uniId": "550",
+   "status": "harvested",
+   "chapters_found": 10,
+   "councils": {
+    "NPHC": 9,
+    "Panhellenic": 1
+   },
+   "review_orgs": [],
+   "excluded_orgs": [],
+   "inactive_orgs": [],
+   "harvested_at": "2026-08-23"
   },
   "angelo-state-university": {
    "campus": "Angelo State",
@@ -723,8 +744,20 @@
   },
   "campbell-university": {
    "campus": "Campbell",
-   "status": "needs-research",
-   "note": "Not reached this run — resolve GreekRank uni id + harvest, or verify social Greek presence via official source. Many are small/branch campuses with limited traditional Greek life."
+   "queue": "exp",
+   "uniId": "686",
+   "status": "harvested",
+   "chapters_found": 5,
+   "councils": {
+    "IFC": 3,
+    "Panhellenic": 2
+   },
+   "review_orgs": [
+    "Sigma Alpha Omega"
+   ],
+   "excluded_orgs": [],
+   "inactive_orgs": [],
+   "harvested_at": "2026-08-23"
   },
   "campbellsville-university": {
    "campus": "Campbellsville",
@@ -912,8 +945,22 @@
   },
   "furman-university": {
    "campus": "Furman",
-   "status": "needs-research",
-   "note": "Not reached this run — resolve GreekRank uni id + harvest, or verify social Greek presence via official source. Many are small/branch campuses with limited traditional Greek life."
+   "queue": "exp",
+   "uniId": "181",
+   "status": "harvested",
+   "chapters_found": 15,
+   "councils": {
+    "IFC": 7,
+    "Panhellenic": 7,
+    "NPHC": 1
+   },
+   "review_orgs": [],
+   "excluded_orgs": [],
+   "inactive_orgs": [
+    "Kappa Alpha Psi",
+    "Sigma Alpha Epsilon"
+   ],
+   "harvested_at": "2026-08-23"
   },
   "georgia-state-university": {
    "campus": "Georgia State",
@@ -1299,8 +1346,22 @@
   },
   "san-francisco-state-university": {
    "campus": "SF State",
-   "status": "needs-research",
-   "note": "Not reached this run — resolve GreekRank uni id + harvest, or verify social Greek presence via official source. Many are small/branch campuses with limited traditional Greek life."
+   "queue": "exp",
+   "uniId": "400",
+   "status": "harvested",
+   "chapters_found": 19,
+   "councils": {
+    "MGC": 4,
+    "NPHC": 7,
+    "IFC": 5,
+    "Panhellenic": 3
+   },
+   "review_orgs": [],
+   "excluded_orgs": [],
+   "inactive_orgs": [
+    "Delta Sigma Phi"
+   ],
+   "harvested_at": "2026-08-23"
   },
   "stephen-f-austin-state-university": {
    "campus": "SFA",
@@ -1322,8 +1383,17 @@
   },
   "savannah-state-university": {
    "campus": "SSU",
-   "status": "needs-research",
-   "note": "Not reached this run — resolve GreekRank uni id + harvest, or verify social Greek presence via official source. Many are small/branch campuses with limited traditional Greek life."
+   "queue": "exp",
+   "uniId": "531",
+   "status": "harvested",
+   "chapters_found": 9,
+   "councils": {
+    "NPHC": 9
+   },
+   "review_orgs": [],
+   "excluded_orgs": [],
+   "inactive_orgs": [],
+   "harvested_at": "2026-08-23"
   },
   "salisbury-university": {
    "campus": "SU",
@@ -1364,8 +1434,18 @@
   },
   "suffolk-university": {
    "campus": "Suffolk",
-   "status": "needs-research",
-   "note": "Not reached this run — resolve GreekRank uni id + harvest, or verify social Greek presence via official source. Many are small/branch campuses with limited traditional Greek life."
+   "queue": "exp",
+   "uniId": "430",
+   "status": "harvested",
+   "chapters_found": 3,
+   "councils": {
+    "IFC": 1,
+    "Panhellenic": 2
+   },
+   "review_orgs": [],
+   "excluded_orgs": [],
+   "inactive_orgs": [],
+   "harvested_at": "2026-08-23"
   },
   "texas-woman-s-university": {
    "campus": "TWU",
@@ -1438,8 +1518,18 @@
   },
   "university-of-colorado-colorado-springs": {
    "campus": "UCCS",
-   "status": "needs-research",
-   "note": "Not reached this run — resolve GreekRank uni id + harvest, or verify social Greek presence via official source. Many are small/branch campuses with limited traditional Greek life."
+   "queue": "exp",
+   "uniId": "694",
+   "status": "harvested",
+   "chapters_found": 5,
+   "councils": {
+    "IFC": 3,
+    "Panhellenic": 2
+   },
+   "review_orgs": [],
+   "excluded_orgs": [],
+   "inactive_orgs": [],
+   "harvested_at": "2026-08-23"
   },
   "university-of-houston-downtown": {
    "campus": "UH-Downtown",
@@ -1491,8 +1581,18 @@
   },
   "university-of-massachusetts-dartmouth": {
    "campus": "UMass Dartmouth",
-   "status": "needs-research",
-   "note": "Not reached this run — resolve GreekRank uni id + harvest, or verify social Greek presence via official source. Many are small/branch campuses with limited traditional Greek life."
+   "queue": "exp",
+   "uniId": "325",
+   "status": "harvested",
+   "chapters_found": 6,
+   "councils": {
+    "IFC": 4,
+    "Panhellenic": 2
+   },
+   "review_orgs": [],
+   "excluded_orgs": [],
+   "inactive_orgs": [],
+   "harvested_at": "2026-08-23"
   },
   "university-of-massachusetts-lowell": {
    "campus": "UMass Lowell",
@@ -1721,8 +1821,23 @@
   },
   "university-of-vermont": {
    "campus": "UVM",
-   "status": "needs-research",
-   "note": "Not reached this run — resolve GreekRank uni id + harvest, or verify social Greek presence via official source. Many are small/branch campuses with limited traditional Greek life."
+   "queue": "exp",
+   "uniId": "358",
+   "status": "harvested",
+   "chapters_found": 16,
+   "councils": {
+    "IFC": 10,
+    "Panhellenic": 6
+   },
+   "review_orgs": [
+    "Sigma Phi Society"
+   ],
+   "excluded_orgs": [],
+   "inactive_orgs": [
+    "Alpha Sigma Phi",
+    "Phi Gamma Delta"
+   ],
+   "harvested_at": "2026-08-23"
   },
   "university-of-wisconsinoshkosh": {
    "campus": "UW Oshkosh",
@@ -1770,8 +1885,17 @@
   },
   "winston-salem-state-university": {
    "campus": "WSSU",
-   "status": "needs-research",
-   "note": "Not reached this run — resolve GreekRank uni id + harvest, or verify social Greek presence via official source. Many are small/branch campuses with limited traditional Greek life."
+   "queue": "exp",
+   "uniId": "537",
+   "status": "harvested",
+   "chapters_found": 7,
+   "councils": {
+    "NPHC": 7
+   },
+   "review_orgs": [],
+   "excluded_orgs": [],
+   "inactive_orgs": [],
+   "harvested_at": "2026-08-23"
   },
   "walla-walla-university": {
    "campus": "WWU",
@@ -1792,6 +1916,174 @@
    "campus": "Woodbury",
    "status": "needs-research",
    "note": "Not reached this run — resolve GreekRank uni id + harvest, or verify social Greek presence via official source. Many are small/branch campuses with limited traditional Greek life."
+  },
+  "university-of-connecticut": {
+   "campus": "UConn",
+   "queue": "restored",
+   "uniId": "335",
+   "status": "harvested",
+   "chapters_found": 41,
+   "councils": {
+    "IFC": 14,
+    "MGC": 11,
+    "NPHC": 7,
+    "Panhellenic": 8,
+    "?": 1
+   },
+   "review_orgs": [],
+   "excluded_orgs": [
+    "Phi Sigma Rho"
+   ],
+   "inactive_orgs": [
+    "Delta Chi",
+    "Kappa Sigma",
+    "Pi Kappa Alpha",
+    "Sigma Alpha Epsilon",
+    "Sigma Chi",
+    "Alpha Kappa Alpha",
+    "Delta Gamma",
+    "Kappa Kappa Gamma"
+   ],
+   "harvested_at": "2026-08-23"
+  },
+  "missouri-state-university": {
+   "campus": "Missouri State",
+   "queue": "restored",
+   "uniId": "224",
+   "status": "harvested",
+   "chapters_found": 31,
+   "councils": {
+    "IFC": 18,
+    "NPHC": 5,
+    "Panhellenic": 8
+   },
+   "review_orgs": [],
+   "excluded_orgs": [],
+   "inactive_orgs": [
+    "Omega Psi Phi",
+    "Phi Delta Theta"
+   ],
+   "harvested_at": "2026-08-23"
+  },
+  "montana-state-university": {
+   "campus": "Montana State",
+   "queue": "restored",
+   "uniId": "227",
+   "status": "harvested",
+   "chapters_found": 10,
+   "councils": {
+    "IFC": 6,
+    "Panhellenic": 4
+   },
+   "review_orgs": [],
+   "excluded_orgs": [],
+   "inactive_orgs": [
+    "Sigma Alpha Epsilon"
+   ],
+   "harvested_at": "2026-08-23"
+  },
+  "university-of-nevada-las-vegas": {
+   "campus": "UNLV",
+   "queue": "restored",
+   "uniId": "346",
+   "status": "harvested",
+   "chapters_found": 29,
+   "councils": {
+    "MGC": 1,
+    "IFC": 13,
+    "NPHC": 7,
+    "Panhellenic": 8
+   },
+   "review_orgs": [
+    "Sigma Theta Psi"
+   ],
+   "excluded_orgs": [],
+   "inactive_orgs": [
+    "Phi Gamma Delta"
+   ],
+   "harvested_at": "2026-08-23"
+  },
+  "kennesaw-state-university": {
+   "campus": "Kennesaw State",
+   "queue": "restored",
+   "uniId": "288",
+   "status": "harvested",
+   "chapters_found": 29,
+   "councils": {
+    "IFC": 14,
+    "NPHC": 8,
+    "Panhellenic": 7
+   },
+   "review_orgs": [
+    "Sigma Alpha Omega",
+    "Omega Phi Alpha"
+   ],
+   "excluded_orgs": [],
+   "inactive_orgs": [],
+   "harvested_at": "2026-08-23"
+  },
+  "towson-university": {
+   "campus": "Towson",
+   "queue": "restored",
+   "uniId": "454",
+   "status": "harvested",
+   "chapters_found": 27,
+   "councils": {
+    "IFC": 14,
+    "NPHC": 3,
+    "Panhellenic": 10
+   },
+   "review_orgs": [
+    "Sigma Alpha Omega"
+   ],
+   "excluded_orgs": [],
+   "inactive_orgs": [
+    "Delta Sigma Phi",
+    "Pi Lambda Phi",
+    "Sigma Pi",
+    "Tau Kappa Epsilon",
+    "Phi Sigma Sigma"
+   ],
+   "harvested_at": "2026-08-23"
+  },
+  "university-of-north-alabama": {
+   "campus": "North Alabama",
+   "queue": "restored",
+   "uniId": "500",
+   "status": "harvested",
+   "chapters_found": 17,
+   "councils": {
+    "IFC": 7,
+    "NPHC": 6,
+    "Panhellenic": 4
+   },
+   "review_orgs": [],
+   "excluded_orgs": [],
+   "inactive_orgs": [],
+   "harvested_at": "2026-08-23"
+  },
+  "indiana-university-bloomington": {
+   "campus": "Indiana Bloomington",
+   "queue": "iu",
+   "uniId": "71",
+   "status": "harvested",
+   "chapters_found": 67,
+   "councils": {
+    "IFC": 34,
+    "NPHC": 9,
+    "MGC": 2,
+    "Panhellenic": 22
+   },
+   "review_orgs": [
+    "Sigma Phi Beta"
+   ],
+   "excluded_orgs": [],
+   "inactive_orgs": [
+    "Alpha Tau Omega",
+    "Tau Kappa Epsilon",
+    "Delta Delta Delta"
+   ],
+   "harvested_at": "2026-08-23"
   }
  }
 }
