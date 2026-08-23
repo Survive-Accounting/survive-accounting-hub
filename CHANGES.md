@@ -1,3 +1,90 @@
+# Ledger exhibits — Journal Entry · T-Accounts · Financial Statements (branch `exhibit-lab-v2`)
+
+The three tools Lee remembered from earlier versions of the app, unearthed, rebuilt on the Lab's
+current UX, and — the point — **wired to each other and to the rubric**. Filming-side first;
+nothing student-facing ships.
+
+## What was already there (the dig)
+
+| Old asset | Verdict |
+|---|---|
+| `je-logic.ts` (413 lines, pure, tested) | The sophisticated part: sides, moves/hops, memos, `autoBalance`, `balanceState`, `blankFrom`. Still good — but coupled to the canvas card's node/dispatcher model. |
+| `JeCardNode.tsx` (1,526 lines) | The heavy authoring card: guided/practice, answer key, reveal-correct, spotlight, `hidden` stepper, ???-until-valued amounts. Too much surface to drag into the Lab. |
+| `TAccountCardNode` (in `OtherCards.tsx`, ~78 lines) | Thin: two stacked lists + a net balance. The `TAccountEntry.label` field already existed — the labelled-amount idea was right, the presentation wasn't. |
+| `ScheduleCard` presets `incomestmt` / `balancesheet` | A generic table engine, not a statement that knows what it means. |
+
+**Kept none of the components; kept the ideas.** The old cards stay exactly where they are, untouched
+— this is a new Lab surface, not a migration.
+
+## The connection that makes them one system
+
+A rubric `Scenario.entry` (`Chip[]`) **already is a journal entry**. So one transaction bank drives
+all three exhibits, and `ledger-model.ts` is the only new model:
+
+```
+RUBRIC  →  JOURNAL ENTRY  →  T-ACCOUNTS  →  STATEMENTS
+(type)      (dr / cr)        (balances)     (where it lands)
+```
+
+Every account carries its rubric `AcctType`, so signs, normal balances and statement placement come
+from `rubric-view` — the same source the probes grade against. Nothing is re-derived (pinned by a
+test that greps the three components for hand-rolled side logic).
+
+## 1. Journal Entry (`JournalEntryExhibit.tsx`)
+
+- **One piece at a time**: description → each line's ACCOUNT → its AMOUNT. Unrevealed pieces print
+  `???` — present, unreadable, obviously pending (Lee's "they're ??? or they're shown").
+- **Spotlight**: click a line to light it and dim the rest.
+- Switches: the rubric **type chip**, that type's **(+/−) pair**, the **Dr = Cr proof**, and
+  **posting glyphs** showing which column each line lands in — the seed of the JE→T connection.
+- `Tab` forward · `Shift+Tab` back · `` ` `` blank · `A` all · `7 8 9 0` switches.
+
+## 2. T-Accounts (`TAccountExhibit.tsx`)
+
+- **Staggered**: debits and credits interleave down the T in posting order, so the story reads in
+  time instead of as two stacked columns.
+- **Every amount is labelled** — "Beg. balance", the transaction that put it there, "End. balance".
+  No unexplained numbers, asserted by a test over every row of every account.
+- **`Tab` posts the next journal entry** into every account it touches at once; the rows that just
+  landed flash gold, and balances count up *with* the story rather than jumping to the end.
+- The ending balance sits under its own rule, on its own side, and the ledger proves itself with a
+  **trial balance**.
+
+## 3. Financial Statements (`StatementsExhibit.tsx`)
+
+- Built from the same posted balances: **Income Statement → R/E bridge → Balance Sheet**, with
+  arrows carrying net income across. The R/E panel sits between them because that is exactly what
+  the rubric calls it.
+- Reveal builds it in seven beats, ending on the **A = L + E tie-out**.
+
+## Four defects found by looking at the pixels and the math
+
+1. **The expense total printed ABOVE its own detail lines.** A total above the lines it sums reads
+   as an error on camera. Detail first, then the total under its rule.
+2. **`Dividends -0`.** Negative zero is not a number a statement may print.
+3. **A net LOSS wore the success colour.** An exhibit that paints a loss green teaches the wrong
+   reflex — a loss is now "NET LOSS" in the warning colour, panel border and bridge label included.
+4. **An asset with a credit balance was reported as a positive asset**, silently breaking A = L + E.
+   Caught by a test that runs *every* seeded scenario through the balance sheet alone: pay rent with
+   no opening cash and Cash carries a credit balance. Statement rows are now **signed against the
+   account's normal side**.
+
+## Verification
+
+- 1,478 tests pass (80 in the Lab file); `tsc --noEmit` clean.
+- The accounting is tested, not eyeballed: every seeded entry balances, one account accumulates
+  across transactions on the right sides, the trial balance ties, R/E = beginning + NI − dividends,
+  dividends reduce equity without touching net income, and every scenario balances the sheet alone.
+- Screenshots in `docs/screenshots/ledger-exhibits/`.
+
+## Deliberately not built
+
+Drag-to-journal-entry, probes on these three (the `exhibit + probe` reference shape is ready and
+nothing is wired), student-facing routes, and the Formulas exhibit. The old canvas cards are
+untouched.
+
+---
+
 # Rubric v3 — the full picture, on switches (branch `exhibit-lab-v2`)
 
 The rubric is not one picture; it is a picture with switches. Each CEQ wants a different amount of

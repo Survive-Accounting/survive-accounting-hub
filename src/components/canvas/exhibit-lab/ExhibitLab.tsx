@@ -16,6 +16,9 @@ import { ChevronLeft, ChevronRight, Plus, X } from "lucide-react";
 
 import { NEON } from "../theme";
 import { CycleExhibit } from "./CycleExhibit";
+import { JournalEntryExhibit } from "./JournalEntryExhibit";
+import { StatementsExhibit } from "./StatementsExhibit";
+import { TAccountExhibit } from "./TAccountExhibit";
 import { RubricExhibit } from "./RubricExhibit";
 import { CYCLE_PROBES, CYCLE_STEPS } from "./cycle-model";
 import { itemLabel, toRef, type CycleMode, type LabItem } from "./lab-items";
@@ -35,7 +38,10 @@ const PRESENT_CSS = `.sa-present [data-lab-chrome]{display:none !important}`;
 const loadQueue = (): LabItem[] => { try { const r = localStorage.getItem(QKEY); return r ? (JSON.parse(r) as LabItem[]) : []; } catch { return []; } };
 const saveQueue = (q: LabItem[]): void => { try { localStorage.setItem(QKEY, JSON.stringify(q)); } catch { /* ignore */ } };
 
-const supports = (exhibit: ExhibitId, probe: ProbeId): boolean => (exhibit === "rubric" ? RUBRIC_PROBES : CYCLE_PROBES).includes(probe);
+const supports = (exhibit: ExhibitId, probe: ProbeId): boolean =>
+  exhibit === "rubric" ? RUBRIC_PROBES.includes(probe)
+  : exhibit === "cycle" ? CYCLE_PROBES.includes(probe)
+  : false; // JE / T-accounts / statements run no probes yet (shape is ready)
 
 /** THE PROBE SURFACE — the scenario/mode seed plus the library. Rendered in the
  *  Rubric's drawer, or the Cycle's rail: ONE definition, two homes. */
@@ -149,9 +155,14 @@ export function ExhibitLab() {
     : aspect === "9:16" ? { aspectRatio: "9 / 16", height: "100%", maxWidth: "100%" }
     : { width: "100%", height: "100%" };
 
-  const stage = item.exhibit === "rubric" && item.probe
-    ? <RubricExhibit key={`${refKey(toRef(item)!)}:${JSON.stringify(item.seed ?? {})}:${cur}`} probeRef={toRef(item)!} labControls={probeControls} />
-    : <CycleExhibit key={`${itemLabel(item)}:${JSON.stringify(item.seed ?? {})}:${cur}`} item={item} />;
+  const stageKey = `${itemLabel(item)}:${JSON.stringify(item.seed ?? {})}:${cur}`;
+  const stage =
+    item.exhibit === "je" ? <JournalEntryExhibit key={stageKey} seed={item.seed} />
+    : item.exhibit === "taccount" ? <TAccountExhibit key={stageKey} seed={item.seed} />
+    : item.exhibit === "statements" ? <StatementsExhibit key={stageKey} seed={item.seed} />
+    : item.exhibit === "rubric" && item.probe
+      ? <RubricExhibit key={`${refKey(toRef(item)!)}:${JSON.stringify(item.seed ?? {})}:${cur}`} probeRef={toRef(item)!} labControls={probeControls} />
+      : <CycleExhibit key={stageKey} item={item} />;
 
   return (
     <div className={`flex h-screen flex-col${present ? " sa-present" : ""}`} style={{ background: "#080D18", color: NEON.text, fontFamily: "Inter, system-ui, sans-serif" }}>
@@ -181,7 +192,7 @@ export function ExhibitLab() {
             <div>
               <div className="mb-1 text-[9px] font-black uppercase tracking-[0.2em]" style={{ color: NEON.muted }}>Exhibits</div>
               {EXHIBITS.map((e) => (
-                <button key={e.id} className="mb-1 w-full rounded-lg px-2.5 py-2 text-left" style={{ background: exhibit === e.id ? "rgba(252,163,17,0.14)" : "rgba(255,255,255,0.03)", border: `1px solid ${exhibit === e.id ? GOLD : NEON.borderSoft}` }} onClick={() => { setExhibit(e.id); if (!queue.length) setScratch(e.id === "rubric" ? { exhibit: "rubric", probe: "four_questions", seed: { scenario } } : { exhibit: "cycle", mode: "definitions" }); }}>
+                <button key={e.id} className="mb-1 w-full rounded-lg px-2.5 py-2 text-left" style={{ background: exhibit === e.id ? "rgba(252,163,17,0.14)" : "rgba(255,255,255,0.03)", border: `1px solid ${exhibit === e.id ? GOLD : NEON.borderSoft}` }} onClick={() => { setExhibit(e.id); if (!queue.length) setScratch(e.id === "rubric" ? { exhibit: "rubric", probe: "four_questions", seed: { scenario } } : e.id === "cycle" ? { exhibit: "cycle", mode: "definitions" } : { exhibit: e.id, seed: { scenario } }); }}>
                   <div className="text-[12px] font-black" style={{ color: "#F4EFE6" }}>{e.name}</div>
                   <div className="text-[10px]" style={{ color: NEON.muted }}>{e.blurb}</div>
                 </button>
@@ -193,7 +204,8 @@ export function ExhibitLab() {
                 exhibit's drawer, so the rail carries only a pointer to it. */}
             {exhibit === "rubric"
               ? <div className="rounded-lg px-2 py-1.5 text-[10px]" style={{ border: `1px dashed ${NEON.borderSoft}`, color: NEON.muted }}>Probes + scenario live in the exhibit&apos;s <b style={{ color: GOLD }}>PROBES</b> drawer (right edge) — closed by default.</div>
-              : probeControls}
+              : exhibit === "cycle" ? probeControls
+              : <div className="rounded-lg px-2 py-1.5 text-[10px]" style={{ border: `1px dashed ${NEON.borderSoft}`, color: NEON.muted }}>Ledger exhibit — Tab reveals, ` blanks, A shows everything. No probes wired yet.</div>}
 
             <div>
               <div className="mb-1 flex items-center gap-1 text-[9px] font-black uppercase tracking-[0.2em]" style={{ color: NEON.muted }}>Filming queue · {queue.length}

@@ -7,7 +7,8 @@ import { CYCLE_PROBES, CYCLE_STEPS, checkOrder, matchesStep, ringSteps, selfTest
 import { appendSteps, attempt, canReveal, checkExpect, currentStep, next, prev, reveal, runSummary, setStepEnabled, skip, startRun, type RunStepDef } from "./probe-run";
 import { EXHIBITS, PROBES, PROBE_IDS, parseRefKey, probeById, refKey, type ExhibitProbeRef } from "./probes";
 import { ALL_COA_NODES, ALL_OFF, BRIDGE_LABEL, BRIDGE_TITLE, CONTRA, DEFS, MODES, MODE_IDS, MOVEMENT_GLYPH, REVEAL_LABELS, REVEAL_LAST, STATEMENT_OF, coaGroups, coaNodes, isContra, matchMode, modeById, nextMovement, nextReveal, prevReveal, signPair, tSides, visibleAt } from "./rubric-view";
-import { ACCOUNTS, ACCT_TYPES, RUBRIC_PROBES, SCENARIOS, checkFourQuestions, classifyTiming, entryBalanced, flipIt, flipSteps, fourQuestionRound, journalLines, signFor, timingSteps, whatIfSteps, whatIfWeDont, type Chip } from "./rubric-model";
+import { MASK, balanceSheet, incomeStatement, jeLines, jePieces, jeTotals, ledgerScenarios, netIncome, pieceShown, postToTs, retainedEarnings, tBalanceRow, tRows, trialBalance } from "./ledger-model";
+import { ACCOUNTS, ACCT_TYPES, RUBRIC_PROBES, SCENARIOS, checkFourQuestions, classifyTiming, scenarioById, entryBalanced, flipIt, flipSteps, fourQuestionRound, journalLines, signFor, timingSteps, whatIfSteps, whatIfWeDont, type Chip } from "./rubric-model";
 
 const read = (p: string) => readFileSync(join(import.meta.dir, p), "utf8").split("\r\n").join("\n");
 const ROOT = join(import.meta.dir, "..", "..", "..", "..");
@@ -23,12 +24,12 @@ describe("the probe library — first-class, ten seeded, stable ids", () => {
     const r: ExhibitProbeRef = { exhibit: "rubric", probe: "four_questions", stepsOff: ["r1.sign"] };
     expect(refKey(r)).toBe("rubric:four_questions");
     expect(parseRefKey("cycle:rewind")).toEqual({ exhibit: "cycle", probe: "rewind" });
-    expect(parseRefKey("taccount:rewind")).toBeNull(); // deferred exhibits are NOT registered
+    expect(parseRefKey("formulas:rewind")).toBeNull(); // Formulas is still deferred — NOT registered
     expect(parseRefKey("rubric:nope")).toBeNull();
     expect(probeById("flip_it")?.name).toBe("Flip It");
   });
-  test("only the two in-scope exhibits exist — T-accounts / JE / F/S / Formulas are deferred", () => {
-    expect(EXHIBITS.map((e) => e.id)).toEqual(["cycle", "rubric"]);
+  test("the registered exhibits — Formulas stays deferred", () => {
+    expect(EXHIBITS.map((e) => e.id)).toEqual(["cycle", "rubric", "je", "taccount", "statements"]);
   });
 });
 
@@ -486,5 +487,135 @@ describe("Rubric v3 — the board paints what the switches say", () => {
     expect(exhibit).toContain('const idx = ["Digit1", "Digit2", "Digit3", "Digit4", "Digit5"].indexOf(e.code);');
     expect(exhibit).toContain("if (e.shiftKey) setZoom((z) => (z === t ? null : t));");
     expect(exhibit).toContain("data-lab-chrome"); // the gear never films
+  });
+});
+
+// ═════════════════════════════════════ THE LEDGER: JE → T-ACCOUNTS → F/S
+
+describe("the journal entry", () => {
+  const sc = scenarioById("supplies-cash");
+  test("debits print first, credits after — the classic silhouette", () => {
+    const l = jeLines(sc);
+    expect(l.map((x) => `${x.dr ? "Dr" : "Cr"} ${x.account}`)).toEqual(["Dr Supplies", "Cr Cash"]);
+    expect(l[0].type).toBe("A"); // the rubric type rides along, never re-derived
+  });
+  test("every seeded entry balances — an exhibit must never teach a broken JE", () => {
+    for (const s of SCENARIOS) {
+      const t = jeTotals(jeLines(s));
+      expect({ id: s.id, balanced: t.balanced }).toEqual({ id: s.id, balanced: true });
+    }
+  });
+  test("the reveal is description → account → amount, one piece at a time", () => {
+    const lines = jeLines(sc);
+    const p = jePieces(lines);
+    expect(p.map((x) => x.kind)).toEqual(["desc", "account", "amount", "account", "amount"]);
+    expect(pieceShown(p, 0, "desc", -1)).toBe(false);         // step 0 is blank
+    expect(pieceShown(p, 1, "desc", -1)).toBe(true);
+    expect(pieceShown(p, 2, "account", 0)).toBe(true);
+    expect(pieceShown(p, 2, "amount", 0)).toBe(false);        // the amount waits its turn
+    expect(pieceShown(p, p.length, "amount", 1)).toBe(true);  // fully revealed
+  });
+});
+
+describe("posting to T-accounts", () => {
+  const ts = postToTs(ledgerScenarios());
+  const t = (name: string) => ts.find((x) => x.account === name)!;
+  test("one account accumulates across transactions, on the right sides", () => {
+    // 5,000 in, 500 out (supplies), 900 out (rent) ⇒ 3,600 DR
+    expect(t("Cash").balance).toBe(3600);
+    expect(t("Cash").side).toBe("dr");
+    expect(t("Cash").posts.length).toBe(3);
+  });
+  test("a credit-normal account lands on the credit side", () => {
+    expect(t("Common Stock").balance).toBe(5000);
+    expect(t("Common Stock").side).toBe("cr");
+    expect(t("Service Revenue").side).toBe("cr");
+    expect(t("Wages Payable").side).toBe("cr");
+  });
+  test("EVERY amount carries a label — Lee's rule: no unexplained numbers", () => {
+    for (const acct of ts) for (const r of tRows(acct)) expect(r.label.length).toBeGreaterThan(0);
+    expect(tBalanceRow(t("Cash")).label).toBe("End. balance");
+  });
+  test("rows STAGGER in posting order, keeping their side", () => {
+    const rows = tRows(t("Cash"));
+    expect(rows.map((r) => r.side)).toEqual(["dr", "cr", "cr"]); // in, supplies out, rent out
+    expect(rows[0].label).toContain("Owners invested");
+  });
+  test("an opening balance is a labelled row on the account's normal side", () => {
+    const seeded = postToTs(ledgerScenarios(["supplies-cash"]), { Cash: 2000 });
+    const cash = seeded.find((x) => x.account === "Cash")!;
+    expect(tRows(cash)[0]).toEqual({ side: "dr", label: "Beg. balance", amount: 2000, kind: "opening" });
+    expect(cash.balance).toBe(1500); // 2,000 − 500
+  });
+  test("the ledger proves itself: debits = credits", () => {
+    const tb = trialBalance(ts);
+    expect(tb.balanced).toBe(true);
+    expect(tb.dr).toBe(tb.cr);
+  });
+});
+
+describe("the statements", () => {
+  const ts = postToTs(ledgerScenarios());
+  const is = incomeStatement(ts);
+  const bs = balanceSheet(ts);
+  test("net income is revenue less expenses (this ledger runs a LOSS)", () => {
+    expect(netIncome(ts)).toBe(1200 - (900 + 800)); // −500
+    expect(is.total).toBe(-500);
+  });
+  test("detail comes BEFORE its total — a total above its lines reads as an error", () => {
+    const labels = is.rows.map((r) => r.label);
+    expect(labels.indexOf("Rent Expense")).toBeLessThan(labels.indexOf("Total expenses"));
+    expect(labels.indexOf("Wages Expense")).toBeLessThan(labels.indexOf("Total expenses"));
+    expect(is.rows.find((r) => r.label === "Total expenses")?.rule).toBe(true);
+  });
+  test("R/E is the BRIDGE: beginning + net income − dividends", () => {
+    const re = retainedEarnings(ts);
+    expect(re.total).toBe(-500);
+    expect(re.rows.map((r) => r.label)).toEqual(["Beginning retained earnings", "Net income", "Dividends"]);
+    // no negative zero — a statement never prints "-0"
+    expect(Object.is(re.rows[2].amount, -0)).toBe(false);
+  });
+  test("A = L + E ties out, with equity carrying the ending R/E", () => {
+    expect(bs.assets.total).toBe(3600 + 500 + 1200);      // 5,300
+    expect(bs.claims.total).toBe(800 + 5000 - 500);       // 5,300
+    expect(bs.balanced).toBe(true);
+    expect(bs.claims.rows.some((r) => r.label === "Retained earnings")).toBe(true);
+  });
+  test("dividends are a CONTRA equity row, not an expense", () => {
+    // paying a dividend must reduce R/E and never touch net income
+    const withDiv = postToTs([...ledgerScenarios(), { id: "div", text: "Paid a $100 dividend.", entry: [
+      { account: "Dividends", type: "E", dr: true, amount: 100 },
+      { account: "Cash", type: "A", dr: false, amount: 100 },
+    ] }]);
+    expect(netIncome(withDiv)).toBe(-500);                       // unchanged
+    expect(retainedEarnings(withDiv).total).toBe(-600);          // −500 − 100
+    expect(balanceSheet(withDiv).balanced).toBe(true);
+  });
+  test("every seeded scenario alone still balances the sheet", () => {
+    for (const s of SCENARIOS) {
+      const one = postToTs([s]);
+      expect({ id: s.id, ok: balanceSheet(one).balanced }).toEqual({ id: s.id, ok: true });
+    }
+  });
+});
+
+describe("the three exhibits stay wired to the rubric", () => {
+  const je = read("JournalEntryExhibit.tsx");
+  const ta = read("TAccountExhibit.tsx");
+  const st = read("StatementsExhibit.tsx");
+  test("none of them re-derives a sign, a normal balance or a statement", () => {
+    for (const src of [je, ta, st]) {
+      expect(src).not.toContain('=== "Dr"');       // no hand-rolled side logic
+      expect(src).not.toContain("increase ===");
+    }
+    expect(je).toContain('from "./rubric-view"');  // signs come from the one source
+    expect(ta).toContain('from "./rubric-view"');
+  });
+  test("they share ONE ledger model — not three parallel ones", () => {
+    for (const src of [je, ta, st]) expect(src).toContain('from "./ledger-model"');
+  });
+  test("the masked value is present-but-unreadable, never absent", () => {
+    expect(MASK).toBe("???");
+    expect(je).toContain("function Masked(");
   });
 });
