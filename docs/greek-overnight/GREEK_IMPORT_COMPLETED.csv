@@ -1,0 +1,81 @@
+campus,slug,queue,greekrank_uni_id,chapters_imported,ifc,panhellenic,nphc,mgc,other,inactive_dropped,excluded_nonsocial,held_for_review
+Houston,university-of-houston,gap,123,33,14,7,8,4,0,1,2,0
+Iowa State,iowa-state-university,gap,74,50,31,15,3,1,0,0,0,2
+Cal Poly,california-polytechnic-state-university,gap,201,33,20,11,0,2,0,2,0,1
+Colorado State,colorado-state-university,gap,220,32,23,9,0,0,0,0,0,2
+Florida State,florida-state-university,gap,15,54,27,17,7,3,0,0,0,0
+Louisville,university-of-louisville,gap,307,29,15,8,6,0,0,0,1,0
+Nebraska,university-of-nebraska-lincoln,gap,77,48,28,15,4,1,0,0,0,1
+Northwestern,northwestern-university,gap,66,46,18,12,8,8,0,0,1,2
+Rutgers,rutgers-university,gap,390,51,34,9,4,4,0,7,2,2
+San Diego State,san-diego-state-university,gap,69,34,14,9,5,6,0,9,0,1
+TCU,texas-christian-university,gap,79,28,12,13,2,1,0,2,0,0
+USC,university-of-southern-california,gap,49,42,19,13,7,3,0,6,0,2
+Virginia,university-of-virginia,gap,35,57,31,16,7,2,1,0,2,2
+Virginia Tech,virginia-tech,gap,34,49,28,14,6,1,0,12,5,3
+Illinois,university-of-illinois-urbana-champaign,gap,46,89,47,20,9,11,2,0,5,3
+Kansas State,kansas-state-university,gap,283,44,26,13,5,0,0,1,1,0
+Miami,university-of-miami,gap,33,31,13,8,7,3,0,0,0,0
+Minnesota,university-of-minnesota,gap,75,50,30,12,5,3,0,0,0,1
+Utah,university-of-utah,gap,357,18,10,6,1,1,0,0,0,0
+Penn,university-of-pennsylvania,exp,76,50,30,8,4,7,1,3,0,0
+Ball State,ball-state-university,exp,162,27,12,10,4,1,0,1,0,0
+GW,george-washington-university,exp,51,48,22,11,6,9,0,1,0,1
+ODU,old-dominion-university,exp,254,32,14,7,8,2,1,1,1,0
+SHSU,sam-houston-state-university,exp,397,28,12,5,6,5,0,0,0,0
+U of I,university-of-idaho,exp,267,30,18,10,0,2,0,0,0,1
+WKU,western-kentucky-university,exp,112,32,14,9,9,0,0,0,0,1
+AU,american-university,exp,59,28,14,10,3,1,0,6,0,0
+Binghamton,binghamton-university,exp,436,49,20,6,6,14,3,2,5,3
+Brandeis,brandeis-university,exp,185,8,5,2,0,0,1,0,0,3
+Cleveland State,cleveland-state-university,exp,23,16,4,3,9,0,0,0,0,1
+Drexel,drexel-university,exp,93,30,12,7,5,6,0,2,1,2
+EMU,eastern-michigan-university,exp,156,25,9,7,9,0,0,1,0,0
+FAU,florida-atlantic-university,exp,170,27,11,6,8,2,0,1,0,0
+FIU,florida-international-university,exp,117,34,17,8,7,2,0,1,0,0
+Georgia State,georgia-state-university,exp,189,21,7,5,9,0,0,0,0,1
+Howard,howard-university,exp,262,6,0,0,6,0,0,0,2,0
+JSU,jacksonville-state-university,exp,278,20,6,5,9,0,0,0,0,0
+Lamar,lamar-university,exp,299,16,5,3,8,0,0,0,1,0
+Loyola Chicago,loyola-university-chicago,exp,122,13,5,6,2,0,0,5,0,1
+Mason,george-mason-university,exp,183,35,16,8,5,6,0,5,1,0
+Morehouse,morehouse-college,exp,229,5,0,0,5,0,0,0,0,0
+NDSU,north-dakota-state-university,exp,579,15,10,4,1,0,0,0,1,0
+NYU,new-york-university,exp,236,16,9,7,0,0,0,8,0,0
+Northeastern,northeastern-university,exp,108,29,11,10,6,2,0,2,0,0
+RIT,rochester-institute-of-technology,exp,287,27,12,5,6,3,1,2,0,0
+SFA,stephen-f-austin-state-university,exp,423,33,19,5,8,1,0,0,0,0
+Southern Miss,university-of-southern-mississippi,exp,412,28,11,8,9,0,0,0,0,0
+Texas State,texas-state-university,exp,450,24,13,8,2,1,0,7,0,0
+Toledo,university-of-toledo,exp,30,25,9,8,8,0,0,1,1,0
+Troy,troy-university,exp,480,23,9,6,8,0,0,0,0,0
+UIC,university-of-illinois-chicago,exp,340,16,4,3,6,3,0,1,0,2
+UMass Lowell,university-of-massachusetts-lowell,exp,326,5,2,1,0,2,0,0,1,0
+UNC Charlotte,university-of-north-carolina-at-charlotte,exp,327,33,16,8,9,0,0,4,0,1
+UNCG,university-of-north-carolina-at-greensboro,exp,328,18,7,4,7,0,0,0,0,1
+UNT,university-of-north-texas,exp,242,40,15,8,8,8,1,0,1,0
+USF,university-of-south-florida,exp,36,39,18,10,7,4,0,0,0,0
+UT Arlington,the-university-of-texas-at-arlington,exp,363,21,8,4,7,2,0,3,1,0
+UTD,the-university-of-texas-at-dallas,exp,367,23,7,4,3,7,2,3,0,0
+UTEP,university-of-texas-at-el-paso,exp,368,10,5,3,2,0,0,2,0,0
+UTSA,the-university-of-texas-at-san-antonio,exp,369,28,10,5,7,5,1,6,0,0
+UWM,university-of-wisconsinmilwaukee,exp,405,17,7,2,8,0,0,1,0,0
+SF State,san-francisco-state-university,next20/restored,400,19,5,3,7,4,0,1,0,0
+Suffolk,suffolk-university,next20/restored,430,3,1,2,0,0,0,0,0,0
+UVM,university-of-vermont,next20/restored,358,16,10,6,0,0,0,2,0,1
+UMass Dartmouth,university-of-massachusetts-dartmouth,next20/restored,325,6,4,2,0,0,0,0,0,0
+UCCS,university-of-colorado-colorado-springs,next20/restored,694,5,3,2,0,0,0,0,0,0
+A-State,arkansas-state-university,next20/restored,134,22,9,6,7,0,0,0,0,0
+Furman,furman-university,next20/restored,181,15,7,7,1,0,0,2,0,0
+Campbell,campbell-university,next20/restored,686,5,3,2,0,0,0,0,0,1
+Albany State,albany-state-university,next20/restored,550,10,0,1,9,0,0,0,0,0
+SSU,savannah-state-university,next20/restored,531,9,0,0,9,0,0,0,0,0
+WSSU,winston-salem-state-university,next20/restored,537,7,0,0,7,0,0,0,0,0
+UConn,university-of-connecticut,next20/restored,335,41,14,8,7,11,1,8,1,0
+Missouri State,missouri-state-university,next20/restored,224,31,18,8,5,0,0,2,0,0
+Montana State,montana-state-university,next20/restored,227,10,6,4,0,0,0,1,0,0
+UNLV,university-of-nevada-las-vegas,next20/restored,346,29,13,8,7,1,0,1,0,1
+Kennesaw State,kennesaw-state-university,next20/restored,288,29,14,7,8,0,0,0,0,2
+Towson,towson-university,next20/restored,454,27,14,10,3,0,0,5,0,1
+North Alabama,university-of-north-alabama,next20/restored,500,17,7,4,6,0,0,0,0,0
+Indiana Bloomington,indiana-university-bloomington,next20/restored,71,67,34,22,9,2,0,3,0,1

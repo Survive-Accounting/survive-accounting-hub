@@ -245,8 +245,13 @@ const main = async () => {
       unmatchedCampus.set(display, { rows: prev.rows + 1, why: why ?? prev.why });
       continue;
     }
+    // TWO SEPARATE KEYS. orgKey is the loose MATCH key (find the existing chapter / dedupe the CSV);
+    // slugKey is the URL slug printed on flyers. They diverged when org matching moved to orgMatchKey
+    // (which joins with spaces, not hyphens) — reusing orgKey as the slug wrote unroutable slugs like
+    // "alpha chi omega". The slug must always come from greekChapterSlug.
     const orgKey = orgMatchKey(orgName);
-    if (!orgKey) { console.log(`  SKIP row with unslugifiable org "${orgName}" @ ${display}`); continue; }
+    const slugKey = greekChapterSlug(orgName);
+    if (!orgKey || !slugKey) { console.log(`  SKIP row with unslugifiable org "${orgName}" @ ${display}`); continue; }
 
     // The CSV itself must not carry two rows for one (campus, org) — trust but verify.
     const csvKey = `${campus.id}::${orgKey}`;
@@ -273,7 +278,7 @@ const main = async () => {
       if (!target.chapter_designation && r["chapter_designation"]) patch.chapter_designation = r["chapter_designation"];
       if (!target.slug) {
         const used = takenSlugs.get(campus.id) ?? new Set<string>();
-        if (!used.has(orgKey)) { patch.slug = orgKey; used.add(orgKey); takenSlugs.set(campus.id, used); }
+        if (!used.has(slugKey)) { patch.slug = slugKey; used.add(slugKey); takenSlugs.set(campus.id, used); }
       }
       updates.push({ chapterId: target.id, campus: campus.short_name ?? campus.name, org: orgName, patch });
       pc.update++; pc.existing += existing.length;
@@ -284,9 +289,9 @@ const main = async () => {
         oc.rows++; orgCreates.set(orgName, oc);
       }
       const used = takenSlugs.get(campus.id) ?? new Set<string>();
-      let slug: string | null = orgKey;
-      if (used.has(orgKey)) { slug = null; slugCollisions.push({ campus: campus.short_name ?? campus.name, org: orgName, slug: orgKey }); }
-      else { used.add(orgKey); takenSlugs.set(campus.id, used); }
+      let slug: string | null = slugKey;
+      if (used.has(slugKey)) { slug = null; slugCollisions.push({ campus: campus.short_name ?? campus.name, org: orgName, slug: slugKey }); }
+      else { used.add(slugKey); takenSlugs.set(campus.id, used); }
       inserts.push({
         campus, org: orgName, existingOrgId: org?.id ?? null, nickname: flags.nickname,
         row: {

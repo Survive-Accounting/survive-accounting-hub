@@ -1,31 +1,34 @@
 // /partners/campus-councils — the generic council page, linked from the footer.
 //
-// No dashboard here: a visitor who arrived from the footer has not told us which council they
-// chair, so there is nothing real to show them. What it does instead is state the problem, show
-// what a council actually gets, and hand them one control — pick your campus — that takes them to
-// their OWN council page, which does have real chapters on it.
+// A visitor here has not told us which council they chair, so there is nothing personal to show.
+// What it does instead: state the problem, hand them one control that finds THEIR council page
+// (which has real chapters), and — the important change — SHOW the student product with a preview,
+// rather than describing in cards what a council page "gives you". Show, don't tell.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { PartnerPageShell } from "@/components/site/PartnerPage";
 import { PartnerHero, PartnerPrimary, PartnerSecondary, PartnerSection } from "@/components/site/PartnerKit";
+import { StudentPreview, previewCampus } from "@/components/site/StudentPreview";
+import { FeatureValueStrip } from "@/components/site/Marketing";
 import { SearchPicker } from "@/components/site/SearchPicker";
 import { COUNCILS } from "@/lib/greek-councils.functions";
-import { PARTNER_OFFER, problemHeadline } from "@/lib/partners";
-import { ALL_SCHOOLS, boltForSlug } from "@/lib/schools";
+import { LEE_PHONE_DISPLAY, LEE_SMS_HREF, problemHeadline } from "@/lib/partners";
+import { ALL_SCHOOLS, boltForSlug, schoolBySlug } from "@/lib/schools";
 import { boltCampusFor } from "@/components/site/bolt";
 import { Bolt } from "@/components/canvas/brand";
 import { ogMeta } from "@/lib/og";
 
 const ORIGIN = "https://surviveaccounting.com";
-/** The bolt sweeps a few campuses here too — the same "we fit your campus" demonstration the
- *  national page makes, without claiming any particular council uses us. */
-const SHOWCASE = ["ole-miss", "alabama", "tennessee", "lsu", "georgia"];
+
+/** A few campuses to demonstrate "we fit your campus" in the preview switcher — real schools with
+ *  verified course codes, so the preview never shows an invented code. */
+const SHOWCASE = ["ole-miss", "alabama", "texas-am", "lsu", "georgia"];
 
 export const Route = createFileRoute("/partners/campus-councils")({
   head: () => ({
     meta: ogMeta({
-      title: "For campus councils — free intro accounting exam prep for every chapter.",
+      title: "For campus Greek councils — free intro accounting exam prep for every chapter.",
       description: "IFC, Panhellenic, NPHC and MGC councils: give every chapter on your campus free intro accounting exam prep, matched to the course your school actually teaches.",
       path: "/partners/campus-councils",
     }),
@@ -40,24 +43,31 @@ function CampusCouncilsPage() {
   const [council, setCouncil] = useState("");
   const go = () => { if (school && council) void nav({ to: "/partners/council/$school/$council", params: { school, council } }); };
 
+  // Preview switcher from the showcase schools, resolved off the school table so the code and href
+  // are the real ones. Falls back gracefully if a slug is not in the table.
+  const previews = SHOWCASE
+    .map((id) => schoolBySlug(id) ?? ALL_SCHOOLS.find((s) => s.id === id))
+    .filter(Boolean)
+    .map((s) => previewCampus({ key: s!.slug, name: s!.name, code: s!.courseCode, primary: s!.c1 ?? "#C62828", secondary: s!.c2 ?? "#1565C0", href: `/${s!.slug}` }));
+
   return (
     <PartnerPageShell faqs={FAQS}>
       <PartnerHero
-        eyebrow="For campus councils"
+        eyebrow="For campus Greek councils"
         headline={problemHeadline()}
-        subhead="Help every chapter on your campus get ahead of it."
-        body={`${PARTNER_OFFER} for every member of every chapter you govern — matched to the intro accounting course your campus actually teaches. Free for the council, free for Exam 1, nothing to install.`}
-        bolt={SHOWCASE.map((slug) => boltCampusFor(slug, { code: null }))}
+        subhead="Give every chapter on your campus a free way to prepare."
+        body="Cram videos + practice exams built for their actual accounting course."
+        bolt={SHOWCASE.map((slug) => boltCampusFor(slug))}
         boltLabel="Survive Accounting"
         actions={
           <>
-            <PartnerPrimary href="#your-council">Open your council&apos;s page</PartnerPrimary>
-            <PartnerSecondary href="sms:+16625658818">Questions? Text Lee →</PartnerSecondary>
+            <PartnerPrimary href="#find-council">Find my council page →</PartnerPrimary>
+            <PartnerSecondary href={LEE_SMS_HREF}>Text Lee {LEE_PHONE_DISPLAY}</PartnerSecondary>
           </>
         }
       />
 
-      <PartnerSection id="your-council" title="Open your council's page" note="Real chapters, real links — the page you would actually send to your chapters.">
+      <PartnerSection id="find-council" title="Find your council page">
         <div className="grid max-w-md gap-2">
           <SearchPicker
             items={ALL_SCHOOLS.map((s) => ({
@@ -81,34 +91,24 @@ function CampusCouncilsPage() {
             className="w-full rounded-xl text-[15px] font-black transition-opacity disabled:opacity-40"
             style={{ minHeight: 48, background: "var(--accent)", color: "#0B1220" }}
           >
-            Open my council page ⚡
+            Open my council page →
           </button>
         </div>
       </PartnerSection>
 
-      <PartnerSection title="What a council page gives you" note="Everything below is live on your own page — nothing to set up.">
-        <div className="grid gap-3 sm:grid-cols-2">
-          {[
-            { t: "Every chapter, already listed", b: "Your council's chapters with their own live pages — claimed or not. No roster to upload." },
-            { t: "Your campus's course", b: "The intro accounting code your school actually teaches, on the page and in the videos." },
-            { t: "Share tools that work today", b: "A president email and a group-chat line, both carrying your campus link. Copy and send." },
-            { t: "No cost, no contract, no grades", b: "Exam 1 is free for every member. We never collect grades and never rank chapters." },
-          ].map((v) => (
-            <div key={v.t} className="rounded-2xl px-4 py-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
-              <p className="text-[15px] font-black" style={{ color: "var(--brand-cream)" }}>{v.t}</p>
-              <p className="mt-1 text-[13.5px] leading-relaxed" style={{ color: "var(--text-muted)" }}>{v.b}</p>
-            </div>
-          ))}
-        </div>
-      </PartnerSection>
+      {previews.length > 0 && (
+        <PartnerSection title="What your chapters get" note="The same product, tailored to each campus — switch campuses to see.">
+          <StudentPreview campuses={previews} label="Example preview" />
+        </PartnerSection>
+      )}
+
+      <FeatureValueStrip code={null} />
     </PartnerPageShell>
   );
 }
 
 const FAQS = [
-  { q: "What does this cost?", a: "Nothing for the council, and Exam 1 is free for every member of every chapter. Chapters that want the rest of the semester can sponsor seats — a chapter decision, not a council one." },
-  { q: "Do we have to upload our chapter roster?", a: "No. Every chapter on your campus already has a page on this site, built from public roster data. Your council page lists them." },
-  { q: "Do you report grades or rank chapters?", a: "Never. Grades are not collected at all, and no page ranks chapters by performance — the only status shown is whether a chapter has claimed its page." },
-  { q: "Is the course really matched to our campus?", a: "Yes. Each campus has its own intro accounting course code on file and coverage is mapped to it, down to the professor where students tell us who teaches them." },
-  { q: "What if my campus isn't listed?", a: "Text Lee and it gets added — most campuses are already on file, including the chapters." },
+  { q: "Does this cost the council?", a: "No. Exam 1 is free. Chapters can choose to sponsor full-semester seats for Exams 2, 3 and the Final." },
+  { q: "Is this actually built for our course?", a: "Yes. Survive is matched to your campus's intro accounting course, and students can match their professor for more specific coverage." },
+  { q: "What do I send my chapters?", a: "We'll give you a ready-to-send president email, GroupMe message and a unique page for every chapter." },
 ];
