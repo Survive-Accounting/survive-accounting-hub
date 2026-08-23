@@ -60,7 +60,7 @@ export function saveSetProgress(userId: string, setId: string, state: "in_progre
 }
 
 /** The dialog: email in, link out. Bottom sheet on phones, centred card from sm up. */
-export function SaveProgressDialog({ context, onClose }: { context: ResumeContext; onClose: () => void }) {
+export function SaveProgressDialog({ context, isTest, onClose }: { context: ResumeContext; isTest?: boolean; onClose: () => void }) {
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [msg, setMsg] = useState("");
@@ -78,8 +78,9 @@ export function SaveProgressDialog({ context, onClose }: { context: ResumeContex
     const redirect = typeof window !== "undefined" ? `${window.location.origin}${ctx.path}` : undefined;
     // `data` lands on the auth user's metadata (new users) — the resume context survives a
     // different device; localStorage covers the same browser, which is the common case.
-    const { error } = await supabase.auth.signInWithOtp({ email: e, options: { emailRedirectTo: redirect, data: { sa_resume: ctx } } });
+    const { error } = await supabase.auth.signInWithOtp({ email: e, options: { emailRedirectTo: redirect, data: { sa_resume: ctx, sa_is_test: !!isTest } } });
     if (error) { setState("error"); setMsg(error.message); return; }
+    if (isTest) { void (async () => { const { markStep } = await import("@/lib/test-mode"); markStep("save", { email: e }); })(); }
     setState("sent");
   };
   return (

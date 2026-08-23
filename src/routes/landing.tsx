@@ -17,6 +17,7 @@ import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/stud
 import { isPlayable, nextStep, setIndexOf, stagesOf, type SetStage } from "@/lib/set-flow";
 import { PracticeStage, readCoverage } from "@/components/site/PracticeStage";
 import { StagePills } from "@/components/site/StagePills";
+import { markStep as markTestStep, useTestMode } from "@/lib/test-mode";
 import { useStudentAuth } from "@/lib/use-student-auth";
 import { SaveProgressDialog, saveSetProgress, takeResume, type ResumeContext } from "@/components/site/SaveProgress";
 import { cramRequest, examRequest, notifyNote, reviewRequest, type NotifyReq } from "@/lib/notify-request";
@@ -185,6 +186,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   // builds a NotifyReq and opens this single modal. There are no persistent email forms in the
   // player any more; signup appears when the student expresses intent.
   const [notifyReq, setNotifyReq] = useState<NotifyReq | null>(null);
+  const outerTestMode = useTestMode();
   // /c/<slug> pre-selects the chapter's school. If it's one of the 16 SEC schools we pre-pick it;
   // otherwise we drop into "not listed" (default map) so the player still unblurs and plays.
   const campus = useCampus();
@@ -630,7 +632,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
       />
 
       {syllabusOpen && <SyllabusModal school={school} framing={syllabusFraming} onClose={() => { setSyllabusOpen(false); setSyllabusFraming(null); }} />}
-      {notifyReq && <NotifyModal req={notifyReq} school={school} professorName={professor ? (professor.last || professor.name) : null} onClose={() => setNotifyReq(null)} />}
+      {notifyReq && <NotifyModal req={notifyReq} school={school} professorName={professor ? (professor.last || professor.name) : null} isTest={outerTestMode.enabled} onClose={() => setNotifyReq(null)} />}
     </div>
   );
 }
@@ -967,7 +969,7 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
  *  have committed to anything is friction for nothing. The topic they were looking at rides
  *  along, so the eventual "it's live" message can be specific rather than a blast. Writes
  *  through submitNotify into the same private table every other landing capture uses. */
-function NotifyModal({ req, school, professorName, onClose }: { req: NotifyReq; school: School | null; professorName?: string | null; onClose: () => void }) {
+function NotifyModal({ req, school, professorName, isTest, onClose }: { req: NotifyReq; school: School | null; professorName?: string | null; isTest?: boolean; onClose: () => void }) {
   const topic = req.topic;
   const [contact, setContact] = useState("");
   const [busy, setBusy] = useState(false);
@@ -985,7 +987,8 @@ function NotifyModal({ req, school, professorName, onClose }: { req: NotifyReq; 
     if (!valid || busy) return;
     setBusy(true); setErr(null);
     try {
-      await submitNotify({ data: { contact: contact.trim(), topic, campusId: school?.campusId ?? null, campusName: school?.name ?? null, professorName: professorName ?? null, want: req.want, examNum: req.examNum ?? null, courseCode: school?.codeVerified && school.code ? school.code : null, note: notifyNote(req) } });
+      await submitNotify({ data: { contact: contact.trim(), topic, campusId: school?.campusId ?? null, campusName: school?.name ?? null, professorName: professorName ?? null, want: req.want, examNum: req.examNum ?? null, courseCode: school?.codeVerified && school.code ? school.code : null, note: notifyNote(req), isTest: !!isTest } });
+      if (isTest) { void (async () => { const { markStep } = await import("@/lib/test-mode"); markStep("notify", { want: req.want, topic }); })(); }
       setDone(true);
     } catch (e) { setErr(e instanceof Error ? e.message : "That didn't send — try again?"); }
     finally { setBusy(false); }
@@ -1495,6 +1498,13 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
   // practice_attempts carry user_id. "Save my progress" is the door, never a gate.
   const auth = useStudentAuth();
   const [saveOpen, setSaveOpen] = useState(false);
+  // Test Mode ambient hook — non-null only when the tester bar is armed. Every action that maps
+  // to a checklist step calls markTestStep(); it's a no-op outside test mode.
+  const testMode = useTestMode();
+  const isTest = testMode.enabled;
+  useEffect(() => { if (isTest) markTestStep("land", { path: routePath }); }, [isTest, routePath]);
+  useEffect(() => { if (isTest && school) markTestStep("school", { slug: school.slug ?? null, name: school.name ?? null }); }, [isTest, school?.id]);
+  useEffect(() => { if (isTest && (professor || profDone)) markTestStep("professor", { picked: !!professor, name: professor ? (professor.last || professor.name) : null }); }, [isTest, professor, profDone]);
   const [userPicked, setUserPicked] = useState(false);
   // RESUME: a student returning from their sign-in link lands where they left — exam, topic,
   // set. Consumed once, only once a session exists (that is what the link creates).
@@ -1503,6 +1513,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
     if (!auth.userId || resumed.current) return;
     resumed.current = true;
     const r = takeResume();
+    if (isTest) markTestStep("return", { userId: auth.userId, resumed: !!r });
     if (!r) return;
     setActiveNum(r.examNum);
     if (r.topicKey) { setSelById((p) => ({ ...p, [r.examNum]: { topicKey: r.topicKey!, setId: r.setId } })); setOpenTopics((p) => new Set(p).add(r.topicKey!)); setProfDone(true); setUserPicked(true); }
@@ -1582,6 +1593,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
   // us what they want to watch, and a question about their professor should not stand in front
   // of it. The confirmed bar keeps an "+ Add professor" door for later.
   const pickSet = (topicKey: string, setId: string | null) => {
+    if (isTest && setId) markTestStep("start", { setId });
     setSelById((p) => ({ ...p, [active.num]: { topicKey, setId } })); setDrawerOpen(false); setProfDone(true); setUserPicked(true);
     if (setId && auth.userId) saveSetProgress(auth.userId, setId, "in_progress");
   };
@@ -1643,7 +1655,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
                 curSet && isPlayable(curSet) && curTopic ? (
                   // A playable set walks its stages: Cram Blast → Practice → Review (shared
                   // set-flow model — same walk as /learn, homepage-sized shell around it).
-                  <SetFlowPanel key={`${curSet.id}:${resetSeq}`} topic={curTopic} set={curSet} exam={active} school={school} surface={greekOrg ? "greek" : school ? "campus" : "home"} onSetComplete={() => { markComplete(curSet!.id); if (auth.userId) saveSetProgress(auth.userId, curSet!.id, "complete"); }} onPickSet={(sid) => pickSet(curTopic!.key, sid)} onNotify={onNotify} authed={!!auth.userId} onSaveProgress={() => setSaveOpen(true)} />
+                  <SetFlowPanel key={`${curSet.id}:${resetSeq}`} topic={curTopic} set={curSet} exam={active} school={school} surface={greekOrg ? "greek" : school ? "campus" : "home"} onSetComplete={() => { markComplete(curSet!.id); if (auth.userId) saveSetProgress(auth.userId, curSet!.id, "complete"); }} onPickSet={(sid) => pickSet(curTopic!.key, sid)} onNotify={onNotify} authed={!!auth.userId} onSaveProgress={() => setSaveOpen(true)} isTest={isTest} />
                 ) : (
                   // NOT A FIXED 16:9 BOX. The unpublished state carries a line of copy and the
                   // notify field, which a phone-width 16:9 panel (~190px tall) cannot hold.
@@ -1665,7 +1677,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
         {/* school-select takeover - SCOPED to the player frame (absolute, clipped by the card) */}
         {theater && <Theater school={theater.school} mode={theater.mode} onDone={onTheaterDone} />}
       </div>
-      {saveOpen && <SaveProgressDialog context={resumeContext()} onClose={() => setSaveOpen(false)} />}
+      {saveOpen && <SaveProgressDialog context={resumeContext()} isTest={isTest} onClose={() => setSaveOpen(false)} />}
     </section>
   );
 }
@@ -2022,7 +2034,7 @@ function HeroVideo({ playbackId, onComplete }: { playbackId: string; onComplete?
  *  video always used. Stage transitions are overlay CTAs, not new screens — this is still the
  *  low-friction discovery player, not a dashboard. Paid sets never reach here (no playbackId
  *  in the free tree), so there is no entitlement logic on this surface. */
-function SetFlowPanel({ topic, set, exam, school, surface, onSetComplete, onPickSet, onNotify, authed, onSaveProgress }: { topic: ResolvedTopic; set: StudentSet; exam: ExamTab; school: School | null; surface: "home" | "campus" | "greek"; onSetComplete: () => void; onPickSet: (setId: string) => void; onNotify: (r: NotifyReq) => void; authed: boolean; onSaveProgress: () => void }) {
+function SetFlowPanel({ topic, set, exam, school, surface, onSetComplete, onPickSet, onNotify, authed, onSaveProgress, isTest }: { topic: ResolvedTopic; set: StudentSet; exam: ExamTab; school: School | null; surface: "home" | "campus" | "greek"; onSetComplete: () => void; onPickSet: (setId: string) => void; onNotify: (r: NotifyReq) => void; authed: boolean; onSaveProgress: () => void; isTest?: boolean }) {
   // Fires exactly once per mount: a "set consumed" signal that drives the completion invitation
   // and student_set_progress. Cram-video end AND practice-done both count; a signed-in student
   // gets the row either way. Keyed by set id (parent remounts on set change).
@@ -2085,6 +2097,7 @@ function SetFlowPanel({ topic, set, exam, school, surface, onSetComplete, onPick
                 onReview={set.reviewPlaybackId ? () => goto({ setId: set.id, stage: "review" }) : undefined}
                 authed={authed}
                 onSaveProgress={onSaveProgress}
+                isTest={isTest}
               />
             </div>
           </div>

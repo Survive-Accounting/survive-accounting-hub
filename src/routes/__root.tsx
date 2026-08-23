@@ -8,6 +8,8 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+import { TestModeBar } from "@/components/test-mode/TestMode";
+import { bootstrapTestModeFromUrl } from "@/lib/test-mode";
 // NOTE: this is a TanStack Start (React) app, NOT Next.js — use the "/react"
 // entrypoints, not "@vercel/analytics/next".
 import { Analytics } from "@vercel/analytics/react";
@@ -134,9 +136,10 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-
+  useEffect(() => { bootstrapTestModeFromUrl(); }, []);
   return (
     <QueryClientProvider client={queryClient}>
+      <TestModeBar />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
     </QueryClientProvider>
