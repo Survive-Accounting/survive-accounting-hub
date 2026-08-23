@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import { TestModeBar } from "@/components/test-mode/TestMode";
 import { bootstrapTestModeFromUrl } from "@/lib/test-mode";
 import { initAnalytics, capturePageview } from "@/lib/analytics";
+import { initSentry, setSentryRoute, captureError } from "@/lib/sentry";
 // NOTE: this is a TanStack Start (React) app, NOT Next.js — use the "/react"
 // entrypoints, not "@vercel/analytics/next".
 import { Analytics } from "@vercel/analytics/react";
@@ -48,6 +49,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
+    captureError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
   return (
@@ -144,6 +146,10 @@ function RootComponent() {
   // init resolves then captures the first pageview, and each route change after.
   useEffect(() => { void initAnalytics().then(() => capturePageview(window.location.pathname)); }, []);
   useEffect(() => { capturePageview(pathname); }, [pathname]);
+  // Sentry (error monitoring). No-op unless VITE_PUBLIC_SENTRY_DSN is set. Tag
+  // the route so errors group per page (feeds /admin/site-qa error attribution).
+  useEffect(() => { void initSentry().then(() => setSentryRoute(window.location.pathname)); }, []);
+  useEffect(() => { setSentryRoute(pathname); }, [pathname]);
   return (
     <QueryClientProvider client={queryClient}>
       <TestModeBar />

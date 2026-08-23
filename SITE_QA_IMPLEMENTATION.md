@@ -133,9 +133,13 @@ them to templates **best-effort** (scanning `culprit`/`title`/`metadata` for a U
 path, then classifying it). Templates with mapped errors get the 🔴 badge; a global
 `View errors ↗` link covers the rest. Unconfigured/failed ⇒ no badges, no crash.
 
-*To get exact per-template counts:* install the Sentry SDK and tag events with the
-route/template; the mapping then becomes exact. (The SDK is **not** installed here —
-this is read-only surfacing, per spec §18.)
+**SDK (error capture):** `@sentry/react` is wired in **`src/lib/sentry.ts`** — init
+in `__root.tsx` (guarded by `VITE_PUBLIC_SENTRY_DSN`, dynamic import, prod-only,
+no-op when unset), the root error boundary reports via `captureError`, and every
+route change tags the event with `route` so issues group per page. Set the DSN and
+errors start flowing; the badges then light up. Per-template mapping is still
+best-effort (the issues-list API doesn't return arbitrary tags), but the route
+tagging makes the culprit/path scan land far more often.
 
 ## 7. Vercel integration
 
@@ -199,6 +203,7 @@ Vercel are all down.
 
 ```
 src/lib/analytics.ts                     PostHog browser layer + event taxonomy
+src/lib/sentry.ts                        Sentry browser SDK init + route tagging
 src/lib/site-qa/manifest.ts              template inventory (source of truth)
 src/lib/site-qa/manifest.coverage.test.ts  new-template detection test
 src/lib/site-qa/status.ts                QA state derivation
@@ -224,7 +229,9 @@ migration/supabase-migrations/20260823_1600_site_qa.sql   qa_verifications table
 2. **PostHog** — create a project, then set in Vercel env:
    - `VITE_PUBLIC_POSTHOG_KEY` (project key, browser-safe) + `VITE_PUBLIC_POSTHOG_HOST`
    - `POSTHOG_PERSONAL_API_KEY` (secret) + `POSTHOG_PROJECT_ID` for the Traffic tab.
-3. **Sentry** (optional) — `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`.
+3. **Sentry** — browser capture: `VITE_PUBLIC_SENTRY_DSN` (Sentry → Settings →
+   Projects → your project → Client Keys (DSN)). Read/badges (server):
+   `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT`.
 4. **Vercel deploy chip** (optional) — `VERCEL_API_TOKEN` (+ `VERCEL_PROJECT_ID`,
    `VERCEL_TEAM_ID` if applicable).
 
