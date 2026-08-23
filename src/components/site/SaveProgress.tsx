@@ -87,7 +87,7 @@ export function SaveProgressDialog({ context, onClose }: { context: ResumeContex
       <div role="dialog" aria-label="Save my progress" className="w-full max-w-[380px] rounded-t-2xl p-5 sm:rounded-2xl" style={{ background: "var(--bg-overlay, #0b1020)", border: "1px solid var(--border-default, rgba(148,163,190,0.16))", color: "var(--brand-cream, #F5EFE6)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)", paddingBottom: "max(20px, env(safe-area-inset-bottom, 0px))" }} onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2">
           <Mail className="h-4 w-4" style={{ color: "var(--accent, #FFA611)" }} />
-          <span className="text-[15px] font-black">Save my progress</span>
+          <span className="text-[15px] font-black">Save your progress</span>
           <button type="button" onClick={onClose} aria-label="Close" className="ml-auto grid h-9 w-9 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--text-muted, #93A0B4)" }}><X className="h-4 w-4" /></button>
         </div>
         {state === "sent" ? (
@@ -96,9 +96,7 @@ export function SaveProgressDialog({ context, onClose }: { context: ResumeContex
           </p>
         ) : (
           <>
-            <p className="mt-2 text-[14px] leading-snug" style={{ color: "var(--text-muted, #93A0B4)" }}>
-              You can keep studying for free. Sign in only if you want Survive to remember where you are — your exam, topic and set — next time.
-            </p>
+            <p className="mt-2 text-[14px] leading-snug" style={{ color: "var(--text-muted, #93A0B4)" }}>Pick up right where you left off next time.</p>
             <input
               type="email" autoFocus inputMode="email" autoComplete="email" placeholder="you@school.edu"
               className="mt-3 w-full rounded-xl px-3 text-[15px] outline-none"
