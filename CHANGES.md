@@ -104,6 +104,126 @@ not ask for.
 
 ---
 
+# Student player — simplification pass (branch `player-simplify`)
+
+Trim the header to campus-only, remove Semester Pass and coverage from the player, and surface
+Save my progress in the two places the student naturally reaches for it.
+
+## Removed
+* **Semester Pass** — the line + bracket + `SEMESTER_PASS_PRICE`/`SemesterPassLine` deleted from
+  the player. Coverage/`passRequest` still available if we resurface it later at checkout.
+* **Coverage UI** — `~80% covered` line, tiny bar, tooltip and the professor-vs-course variants
+  deleted from `PlayerIdentity`. The underlying data (`campus_exams.coverage_pct`, the resolver
+  `level`) is untouched — the other systems that read it keep working; this is presentation only.
+* **Save my progress from the header** — the persistent pill (and its `✓ Saved` twin) are gone
+  from `PlayerIdentity`. Nothing to save until the student has answered a question.
+* **Post-set "Nice — save this…" invitation** — deleted; the two contextual entry points below
+  replace it.
+* **`showAsk`/`askDone`/`sa-two-set-ask`** — the whole flow is gone; the localStorage key is now
+  orphaned and can be reclaimed later.
+
+## Save my progress — the two contextual entry points
+* **Chip beside Q#** — a small orange `🔖 SAVE` chip appears in the PracticeStage header once the
+  student has answered ≥ 1 question in the session (`Object.keys(pickedBy).length >= 1`).
+  Signed-in students see a green `✓ SAVED` mark instead. Opens the same `SaveProgressDialog`.
+* **Q navigator footer** — under `SET PROGRESS · N of M answered`, a `Save my progress →` link
+  (signed-out only), so the moment the student is literally looking at their progress they can
+  save it. Kept small; the number grid stays the star.
+
+Both are surfaces on `PracticeStage` and share the one dialog. Nothing auto-opens.
+
+## Overflow menu
+Signed out: **Save my progress** (new, top of menu) · Reset questions · Match/Change professor
+· Change school. Signed in: Save is omitted (autosave handles it); the rest is unchanged.
+
+## Save dialog copy
+Shorter — heading **Save your progress**, one-liner body *"Pick up right where you left off next
+time."*, primary **Email me a sign-in link**, secondary **Keep studying without saving**. Long
+"You can keep studying for free…" paragraph gone (the secondary CTA already says it).
+
+## No-block law
+Still: Exam 1 works signed out, without a professor, and without Save. Nothing auto-pops.
+
+## Checks
+`bunx tsc --noEmit` clean · `bun test` 1,423 pass · `bun run build` OK · screenshots in
+`docs/screenshots/player-simplify/`.
+
+# Student player — campus identity, no professor gate, Save my progress (branch `player-identity`)
+
+The player should feel immediately usable AND obviously built for this student's campus/course.
+Professor matching is personalisation, never a gate. The large hero bolt / campus rotation belongs
+to the concurrent bolt session and is untouched here.
+
+## No-gate professor behaviour
+`flowDone = userPicked || ((school || notListed) && profDone)` in `ExamPlayer`. A click on any
+topic/set (`pickSet`) sets `userPicked` and content opens at once — the invitation panel
+(`MatchPanel`) returns null whenever content is showing. This holds on the generic page too
+(no school → the Starter Map serves Exam 1). `userPicked` is an explicit flag, NOT `selById`
+presence: the existing school-pick effect pre-fills the default live set, and a default must not
+silently skip the invitation. The professor stage is now "Match your professor — Match ACCY 201
+to your professor's exam — or pick any topic to start right now." with Skip; the rail stays
+interactive beside it. Nothing in the flow asks for an account or an email to start.
+
+## Identity header (`PlayerIdentity`, replaces `SidebarContext`)
+Static campus bolt (the same `Bolt` + `boltFor` palette the Poster and picker use — no shared
+bolt files touched) at 44px desktop / 32px mobile · `Ole Miss · ACCY 201` · `Prof. Aghazadeh` or
+`+ Match my professor` (`+ Pick my school` when there is no school) · coverage line + 4px bar with
+a tooltip · `Save my progress` · `•••`. Mobile gets a one-row compact variant above the topic
+switcher (58px) so identity, Save and the menu stay in view; the sidebar copy lives in the drawer.
+
+## Coverage data source
+`campus_exams.coverage_pct` (migration 0109) — **Lee's editable estimate per campus exam, default
+80, not computed.** Label: `{Last} Exam 1 · ~80% covered` ONLY when the professor's own map served
+the exam rows (`resolveStudentMap().level === "professor"`), else `Course coverage · ~80%`.
+Tooltip says exactly that ("Lee's estimate from the syllabus, not a computed score"). A write-in
+professor has no map, so the line stays course-level — no fabricated professor coverage.
+
+## ••• menu (replaces "Start over")
+* **Reset questions** — `resetSeq` bumps → the SetFlowPanel key changes → practice remounts at Q1.
+  Touches nothing persisted (practice_attempts is an append-only log; `student_set_progress`
+  stays), so no confirmation is needed; the hint says "Saved progress stays." Disabled until a set
+  is open.
+* **Change / Match professor** — clears the professor + skip cookie, re-shows the invitation;
+  school/course untouched; the next topic click skips it again.
+* **Change school** — generic page: the existing school-change flow (picker returns); campus or
+  Greek route: the page cannot become another campus, so it forgets the stored campus and
+  navigates to `/#exam1`. Route precedence (route → session → stored → picker) is unchanged.
+
+## Save my progress
+Secondary pill under coverage (desktop) / `Save` in the mobile strip. Signed out → `SaveProgressDialog`
+(`components/site/SaveProgress.tsx`): email → `supabase.auth.signInWithOtp` (magic link, the same
+session `/learn` uses via the new shared `lib/use-student-auth.ts`), redirect back to the page the
+student was on (`/<school>#exam1`), "Keep studying without saving" always available. A
+**resume context** (school slug, course, professor, exam, topic, set, stage) is written to
+localStorage `sa-resume` and to the auth user's metadata (`sa_resume`); on return, once a session
+exists, it is consumed once and the player reopens at that exam/topic/set. Signed in → the pill
+becomes `✓ Saved` (title: signed in as …, saves automatically) and the player writes
+`student_set_progress` (`in_progress` on set open, `complete` on cram complete — the rows `/learn`
+reads; `complete` never downgrades) and `practice_attempts` carry `user_id`.
+**Not persisted (no model yet):** per-question answers inside a set; the in-session navigator
+state is client-only. **Stubbed/assumed:** the Supabase redirect allow-list must include
+`https://surviveaccounting.com/**` for the per-campus return path — if it doesn't, the link
+falls back to the site URL and the localStorage resume still restores exam/topic/set on `/`.
+
+## Semester Pass
+Both states now sit ABOVE the exam tabs. Expanded: one line with a 44px ×; collapsed (remembered):
+an 18px bracket capping Exam 2 · Exam 3 · Final (columns 2–4 of the same 4-column grid as the
+tabs), `SEMESTER PASS · $150`, clickable → the notify modal. Hidden on Greek pages as before.
+
+## Checks
+
+## Fold: TwoSetAsk → SaveProgressDialog (08-21)
+
+The old "Nice — save your progress and get told when Exam 2 lands?" inline card (TwoSetAsk +
+`submitExamAsk` source `two_set_ask`) is deleted. After one **completed set** — cram-video end OR
+practice DONE, driven by SetFlowPanel's new `onSetComplete` (fires once per set-id) — a single
+dismissible line appears under the stage: **"Nice — save this so you can pick up where you left
+off." → "Save my progress →"** opens the same `SaveProgressDialog` the header pill uses. Never for
+Greek pages and never for a signed-in student (their set progress is already saving). The `sa-two-
+set-ask` dismissal key survives; `submitExamAsk` is unreferenced by the player now.
+`bunx tsc --noEmit` clean · `bun test` 1,419 pass · `bun run build` OK · eslint: no new findings.
+Screenshots in `docs/screenshots/player-identity/`.
+
 # Exhibit Lab v2 — Cycle + Rubric, Probe Library, The Survive Method (branch `exhibit-lab-v2`)
 
 Filming-side only. No student-facing exhibit UI ships. T-Accounts, JE grid, F/S and Formulas

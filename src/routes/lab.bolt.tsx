@@ -151,24 +151,34 @@ function BoltLabPage() {
 
           <Section title="Motion">
             <Slider
-              label="Campus duration"
+              label="Charge"
               unit="ms"
-              min={1200}
-              max={8000}
+              min={200}
+              max={2500}
+              step={20}
+              value={tuning.chargeMs}
+              onChange={set("chargeMs")}
+              hint="CHARGE_MS — the upward drive. Quick and energetic; 600–1000 is the band."
+            />
+            <Slider
+              label="Dwell"
+              unit="ms"
+              min={600}
+              max={7000}
               step={100}
-              value={tuning.campusDurationMs}
-              onChange={set("campusDurationMs")}
-              hint="CAMPUS_DURATION_MS — also the flow speed: one panel per campus."
+              value={tuning.dwellMs}
+              onChange={set("dwellMs")}
+              hint={`DWELL_MS — dead-still reading time. Cycle = ${((tuning.chargeMs + tuning.dwellMs) / 1000).toFixed(2)}s, ${Math.round((tuning.chargeMs / (tuning.chargeMs + tuning.dwellMs)) * 100)}% of it moving.`}
             />
             <Slider
               label="Panel span"
               unit="× bolt height"
               min={1}
-              max={4}
-              step={0.1}
+              max={3}
+              step={0.05}
               value={tuning.panelSpan}
               onChange={set("panelSpan")}
-              hint={`PANEL_SPAN — hand-over takes ${Math.round(100 / tuning.panelSpan)}% of each cycle; the rest is one campus alone.`}
+              hint="PANEL_SPAN — how far the charge travels. Below ~1.2 the lean opens a wedge at the top corner."
             />
             <Slider
               label="Ribbon count"
@@ -211,14 +221,24 @@ function BoltLabPage() {
               hint="RIBBON_TONE_DEEP"
             />
             <Slider
-              label="Label switch"
-              unit="of hand-over"
+              label="Caption swap"
+              unit="of charge"
               min={0}
               max={1}
               step={0.05}
-              value={tuning.labelSwitchProgress}
-              onChange={set("labelSwitchProgress")}
-              hint="LABEL_SWITCH_PROGRESS"
+              value={tuning.captionSwapProgress}
+              onChange={set("captionSwapProgress")}
+              hint="CAPTION_SWAP_PROGRESS — where the caption's text changes. It is invisible then."
+            />
+            <Slider
+              label="Idle float"
+              unit="px"
+              min={0}
+              max={6}
+              step={0.5}
+              value={tuning.idleFloatPx}
+              onChange={set("idleFloatPx")}
+              hint="IDLE_FLOAT_PX — the drift during the dwell. 0 = perfectly still. Above ~3 it reads as animation."
             />
           </Section>
 
@@ -664,13 +684,15 @@ function Swatch({ label, hex }: { label: string; hex: string }) {
  *  than in someone's memory of where they left the slider. */
 function configDiff(t: BoltTuning) {
   return [
-    `const CAMPUS_DURATION_MS = ${t.campusDurationMs}`,
+    `const CHARGE_MS = ${t.chargeMs}`,
+    `const DWELL_MS = ${t.dwellMs}`,
     `const PANEL_SPAN = ${t.panelSpan}`,
     `const RIBBON_ANGLE = ${t.ribbonAngle}`,
     `const RIBBON_COUNT = ${t.ribbonCount}`,
     `const RIBBON_TONE_LIGHT = ${t.ribbonToneLight}`,
     `const RIBBON_TONE_DEEP = ${t.ribbonToneDeep}`,
-    `const LABEL_SWITCH_PROGRESS = ${t.labelSwitchProgress}`,
+    `const CAPTION_SWAP_PROGRESS = ${t.captionSwapProgress}`,
+    `const IDLE_FLOAT_PX = ${t.idleFloatPx}`,
     `const OUTLINE_WIDTH = ${t.outlineWidth}`,
     `const SEAM_OVERLAP = ${t.seamOverlap}`,
     `const GLOW_BLUR = ${t.glowBlur}`,
