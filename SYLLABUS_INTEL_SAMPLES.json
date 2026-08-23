@@ -1,0 +1,239 @@
+{
+ "note": "Research artifacts — NOT production mapping data. Textbook chapter titles are public bibliographic metadata; no copyrighted prose stored.",
+ "canonical_survive_intro1_topics": [
+  "What is Accounting & A=L+E",
+  "Financial Statements",
+  "Accounts & Debits and Credits",
+  "Analyzing Transactions",
+  "Recording Journal Entries",
+  "Account classification",
+  "Accounting equation effects",
+  "The Accounting Cycle",
+  "Adjusting Entries",
+  "Trial Balances",
+  "Closing Entries",
+  "Merchandising",
+  "Receivables",
+  "Easy Points"
+ ],
+ "samples": [
+  {
+   "campus": "University of Florida",
+   "course": "ACG 2021",
+   "professor": "Jill Goslinga",
+   "term": "Fall",
+   "year": 2025,
+   "source": {
+    "url": "https://asset.warrington.ufl.edu/syllabi/ (predictable filename convention)",
+    "source_class": "A",
+    "doc_type": "syllabus",
+    "access": "public"
+   },
+   "textbook": {
+    "title": "Financial Accounting",
+    "authors": "Spiceland, Thomas, Herrmann",
+    "edition": "2025 Release",
+    "publisher": "McGraw-Hill"
+   },
+   "exams": [
+    {
+     "exam": "Exam 1",
+     "chapters": [
+      1,
+      2,
+      3,
+      5
+     ]
+    },
+    {
+     "exam": "Exam 2",
+     "chapters": [
+      6,
+      7,
+      8
+     ]
+    },
+    {
+     "exam": "Exam 3",
+     "chapters": [
+      9,
+      10,
+      11
+     ]
+    }
+   ],
+   "textbook_chapters": {
+    "1": "A Framework for Financial Accounting",
+    "2": "The Accounting Cycle: During the Period",
+    "3": "The Accounting Cycle: End of the Period",
+    "5": "Receivables and Sales"
+   },
+   "suggested_survive_topics": {
+    "Exam 1": [
+     {
+      "chapter": 1,
+      "topics": [
+       "What is Accounting & A=L+E",
+       "Financial Statements",
+       "Easy Points"
+      ]
+     },
+     {
+      "chapter": 2,
+      "topics": [
+       "Accounts & Debits and Credits",
+       "Analyzing Transactions",
+       "Recording Journal Entries"
+      ]
+     },
+     {
+      "chapter": 3,
+      "topics": [
+       "Adjusting Entries",
+       "Trial Balances",
+       "Closing Entries"
+      ]
+     },
+     {
+      "chapter": 5,
+      "topics": [
+       "Receivables"
+      ]
+     }
+    ]
+   },
+   "confidence": "High",
+   "provenance": "UF Warrington public syllabus repository; exam->chapter map stated explicitly in syllabus."
+  },
+  {
+   "campus": "University of Texas at Austin",
+   "course": "ACC 311",
+   "professor": "(various; HB 2504 repo)",
+   "term": "Fall",
+   "year": 2024,
+   "source": {
+    "url": "https://utdirect.utexas.edu/apps/student/coursedocs/nlogon/ (Texas HB 2504 public search)",
+    "source_class": "A",
+    "doc_type": "syllabus",
+    "access": "public"
+   },
+   "textbook": {
+    "title": "Financial Accounting",
+    "authors": "Libby, Libby, Hodge",
+    "edition": "(edition per section)",
+    "publisher": "McGraw-Hill"
+   },
+   "exams": [
+    {
+     "exam": "Exam 1",
+     "chapters": [
+      1,
+      2,
+      3
+     ]
+    }
+   ],
+   "textbook_chapters": {
+    "1": "Financial Statements and Business Decisions",
+    "2": "Investing and Financing Decisions and the Accounting System",
+    "3": "Operating Decisions and the Accounting System"
+   },
+   "suggested_survive_topics": {
+    "Exam 1": [
+     {
+      "chapter": 1,
+      "topics": [
+       "What is Accounting & A=L+E",
+       "Financial Statements",
+       "Easy Points"
+      ]
+     },
+     {
+      "chapter": 2,
+      "topics": [
+       "Account classification",
+       "Accounting equation effects",
+       "Analyzing Transactions"
+      ]
+     },
+     {
+      "chapter": 3,
+      "topics": [
+       "Recording Journal Entries",
+       "Accounts & Debits and Credits"
+      ]
+     }
+    ]
+   },
+   "confidence": "Medium",
+   "provenance": "HB 2504 public syllabus + CV search; exam ranges inferred from schedule (edition varies by section => edition confirmation needed)."
+  },
+  {
+   "campus": "University of Arkansas",
+   "course": "ACCT 2013",
+   "professor": "(Walton advising archive)",
+   "term": null,
+   "year": null,
+   "source": {
+    "url": "https://walton.uark.edu/advising/files/syllabi/ACCT-2013-Accounting-Principles.pdf",
+    "source_class": "B",
+    "doc_type": "syllabus",
+    "access": "public"
+   },
+   "textbook": {
+    "title": "Accounting Concepts and Applications",
+    "authors": "Albrecht, Stice, Stice, Swain",
+    "edition": "11e",
+    "publisher": "Cengage"
+   },
+   "exams": [
+    {
+     "exam": "Exam 1",
+     "chapters": [
+      1,
+      2,
+      3
+     ]
+    },
+    {
+     "exam": "Exam 2",
+     "chapters": [
+      4,
+      5,
+      6
+     ]
+    },
+    {
+     "exam": "Exam 3",
+     "chapters": [
+      7,
+      8
+     ]
+    },
+    {
+     "exam": "Exam 4",
+     "chapters": [
+      9,
+      10
+     ]
+    }
+   ],
+   "textbook_chapters": {},
+   "suggested_survive_topics": {
+    "Exam 1": [
+     {
+      "chapter": "1-3",
+      "topics": [
+       "What is Accounting & A=L+E",
+       "Financial Statements",
+       "Analyzing Transactions",
+       "Recording Journal Entries"
+      ]
+     }
+    ]
+   },
+   "confidence": "Low",
+   "provenance": "Advising-archive syllabus with explicit 4-exam chapter map; textbook older/less-common and TOC uncertain => edition confirmation required before mapping."
+  }
+ ]
+}

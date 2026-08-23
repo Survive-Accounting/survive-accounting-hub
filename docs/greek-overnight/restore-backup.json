@@ -1,0 +1,79 @@
+[
+ {
+  "id": "49672cb7-7f1e-4090-98e9-e192431aaeab",
+  "name": "University of Connecticut",
+  "canonical_name": null,
+  "short_name": null,
+  "slug": "university-of-connecticut",
+  "archived_at": "2026-06-24T14:21:19.877818+00:00",
+  "color_primary": null,
+  "color_secondary": null,
+  "color_tertiary": null
+ },
+ {
+  "id": "6cec1e83-5cda-403b-8da6-2b7b004db570",
+  "name": "Missouri State University",
+  "canonical_name": null,
+  "short_name": null,
+  "slug": null,
+  "archived_at": "2026-06-24T14:21:19.877818+00:00",
+  "color_primary": null,
+  "color_secondary": null,
+  "color_tertiary": null
+ },
+ {
+  "id": "fdf5e2e4-ed2d-4fd4-8d46-2d3cc88c0cbc",
+  "name": "Montana State University",
+  "canonical_name": null,
+  "short_name": null,
+  "slug": null,
+  "archived_at": "2026-06-24T14:21:19.877818+00:00",
+  "color_primary": null,
+  "color_secondary": null,
+  "color_tertiary": null
+ },
+ {
+  "id": "21cad3ab-fb66-4efb-b338-430cbbdd41e9",
+  "name": "Univ of Nevada, Las Vegas Las",
+  "canonical_name": null,
+  "short_name": null,
+  "slug": null,
+  "archived_at": "2026-06-24T14:21:19.877818+00:00",
+  "color_primary": null,
+  "color_secondary": null,
+  "color_tertiary": null
+ },
+ {
+  "id": "3888d1aa-8bf8-4ca7-9b42-6e1528b5972f",
+  "name": "Kennesaw State University",
+  "canonical_name": null,
+  "short_name": null,
+  "slug": null,
+  "archived_at": "2026-06-24T14:21:19.877818+00:00",
+  "color_primary": null,
+  "color_secondary": null,
+  "color_tertiary": null
+ },
+ {
+  "id": "acae37b2-a2b4-41cb-a205-4e807df400e4",
+  "name": "Towson University",
+  "canonical_name": null,
+  "short_name": null,
+  "slug": null,
+  "archived_at": "2026-06-24T14:21:19.877818+00:00",
+  "color_primary": null,
+  "color_secondary": null,
+  "color_tertiary": null
+ },
+ {
+  "id": "d37a8470-046b-439a-9185-53b027865f35",
+  "name": "University of North Alabama",
+  "canonical_name": null,
+  "short_name": null,
+  "slug": null,
+  "archived_at": "2026-06-24T14:21:19.877818+00:00",
+  "color_primary": null,
+  "color_secondary": null,
+  "color_tertiary": null
+ }
+]

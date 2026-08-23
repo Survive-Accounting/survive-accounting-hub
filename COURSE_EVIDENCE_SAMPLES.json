@@ -1,0 +1,516 @@
+[
+ {
+  "campus": "University of Texas at Austin",
+  "course": "ACC 311",
+  "professor": "Anindita Roy Bardhan",
+  "source_document": "https://utdirect.utexas.edu/apps/student/coursedocs/nlogon/download/9031850/",
+  "document_type": "syllabus",
+  "evidence_type": "textbook_reference",
+  "raw": "Intermediate/Financial Accounting (title not cleanly parsed for this section)",
+  "normalized": {
+   "canonicalTitle": "Intermediate/Financial Accounting",
+   "authorKey": "",
+   "edition": null,
+   "isbn13": null,
+   "publisher": null,
+   "editionKey": "intermediate-financial-accounting||?",
+   "editionConfirmed": false
+  },
+  "effective_term": "Fall 2018",
+  "confidence": "Low"
+ },
+ {
+  "campus": "University of Texas at Austin",
+  "course": "ACC 311",
+  "professor": "Jesse Chan",
+  "source_document": "https://utdirect.utexas.edu/apps/student/coursedocs/nlogon/download/10445714/",
+  "document_type": "syllabus",
+  "evidence_type": "textbook_reference",
+  "raw": "Financial Accounting (Libby, Libby)",
+  "normalized": {
+   "canonicalTitle": "Financial Accounting",
+   "authorKey": "",
+   "edition": null,
+   "isbn13": null,
+   "publisher": null,
+   "editionKey": "financial-accounting||?",
+   "editionConfirmed": false
+  },
+  "effective_term": "Summer 2020",
+  "confidence": "Low"
+ },
+ {
+  "campus": "University of Arkansas",
+  "course": "ACCT 2013",
+  "professor": "template (instructor field is a placeholder 'Name')",
+  "source_document": "https://walton.uark.edu/advising/files/syllabi/ACCT-2013-Accounting-Principles.pdf",
+  "document_type": "schedule",
+  "evidence_type": "exam_chapter_range",
+  "raw": "Exam 1: Ch 1-3; Exam 2: Ch 4-6; Exam 3: Ch 7-8; Exam 4: Ch 9-10; Final (comprehensive): Ch 11-13 + prior. Full week-by-week schedule with per-chapter homework.",
+  "parsed": [
+   {
+    "exam": "exam 1",
+    "chapters": [
+     1,
+     2,
+     3
+    ]
+   },
+   {
+    "exam": "exam 2",
+    "chapters": [
+     4,
+     5,
+     6
+    ]
+   },
+   {
+    "exam": "exam 3",
+    "chapters": [
+     7,
+     8
+    ]
+   },
+   {
+    "exam": "exam 4",
+    "chapters": [
+     9,
+     10
+    ]
+   },
+   {
+    "exam": "final",
+    "chapters": [
+     11,
+     12,
+     13
+    ]
+   }
+  ],
+  "effective_term": "template (Spring schedule 1/18-5/9) template (textbook dated 2010; catalog ref 2011-2012)",
+  "confidence": "Medium"
+ },
+ {
+  "campus": "University of Arkansas",
+  "course": "ACCT 2013",
+  "professor": "template (instructor field is a placeholder 'Name')",
+  "source_document": "https://walton.uark.edu/advising/files/syllabi/ACCT-2013-Accounting-Principles.pdf",
+  "document_type": "schedule",
+  "evidence_type": "textbook_reference",
+  "raw": "Accounting Concepts and Applications (Albrecht, Stice, Stice, and Swain)",
+  "normalized": {
+   "canonicalTitle": "Accounting Concepts and Applications",
+   "authorKey": "",
+   "edition": null,
+   "isbn13": null,
+   "publisher": null,
+   "editionKey": "accounting-concepts-and-applications||?",
+   "editionConfirmed": false
+  },
+  "effective_term": "template (Spring schedule 1/18-5/9) template (textbook dated 2010; catalog ref 2011-2012)",
+  "confidence": "Low"
+ },
+ {
+  "campus": "University of Kentucky",
+  "course": "ACC 201",
+  "professor": "Dr. Myrtle W. Clark (recent instructor, per search snippets)",
+  "source_document": "https://www.uky.edu/degreeaudit/crs-desc/ACC.pdf",
+  "document_type": "catalog",
+  "evidence_type": "textbook_reference",
+  "raw": "Weygandt/Kimmel/Kieso 'Financial Accounting: Tools for Business Decision Making' (8th/9th ed); older sections used Harrison & Horngren 9e 2013 (textbooks per CourseHero/Studocu snippets, NOT from a fetched public doc)",
+  "normalized": {
+   "canonicalTitle": "Weygandt/Kimmel/Kieso 'Financial Accounting Tools for Business Decision Making' older sections used Harrison & Horngren 2013",
+   "authorKey": "",
+   "edition": 9,
+   "isbn13": null,
+   "publisher": null,
+   "editionKey": "weygandt-kimmel-kieso-financial-accounting-tools-for-business-decision-making-older-sections-used-harrison-horngren-2013||9",
+   "editionConfirmed": true
+  },
+  "effective_term": null,
+  "confidence": "Medium"
+ },
+ {
+  "campus": "University of Oklahoma",
+  "course": "ACCT 2013",
+  "professor": "Kirk B. Hays",
+  "source_document": "https://www.coursehero.com/file/110649991/ACCT-2113-Financial-Accounting-Syllabusdocx/",
+  "document_type": "syllabus",
+  "evidence_type": "exam_chapter_range",
+  "raw": "Third-party 'Exam 2 Review Ch 5-7' materials referenced",
+  "parsed": [
+   {
+    "exam": "exam 2",
+    "chapters": [
+     5,
+     6,
+     7
+    ]
+   }
+  ],
+  "effective_term": "Spring 2021",
+  "confidence": "Medium"
+ },
+ {
+  "campus": "University of California, Los Angeles",
+  "course": "MGMT 1A",
+  "professor": null,
+  "source_document": "https://www.studocu.com/en-us/document/university-of-california-los-angeles/accounting-principles/mgmt-1a-syllabus-spring-2024/91631999",
+  "document_type": "syllabus",
+  "evidence_type": "textbook_reference",
+  "raw": "Financial & Managerial Accounting (Wild et al.), McGraw Hill",
+  "normalized": {
+   "canonicalTitle": "Financial & Managerial Accounting McGraw Hill",
+   "authorKey": "",
+   "edition": null,
+   "isbn13": null,
+   "publisher": null,
+   "editionKey": "financial-managerial-accounting-mcgraw-hill||?",
+   "editionConfirmed": false
+  },
+  "effective_term": "Spring 2024",
+  "confidence": "Low"
+ },
+ {
+  "campus": "University of Alabama",
+  "course": "AC 210",
+  "professor": null,
+  "source_document": "https://www.coursehero.com/file/19564383/AC210-Spring-2017-Syllabus1/",
+  "document_type": "syllabus",
+  "evidence_type": "textbook_reference",
+  "raw": "Phillips, Libby & Libby, Fundamentals of Financial Accounting, McGraw-Hill Irwin",
+  "normalized": {
+   "canonicalTitle": "Phillips Libby & Libby Fundamentals of Financial Accounting McGraw-Hill Irwin",
+   "authorKey": "",
+   "edition": null,
+   "isbn13": null,
+   "publisher": null,
+   "editionKey": "phillips-libby-libby-fundamentals-of-financial-accounting-mcgraw-hill-irwin||?",
+   "editionConfirmed": false
+  },
+  "effective_term": "Spring 2017",
+  "confidence": "Low"
+ },
+ {
+  "campus": "University of Georgia",
+  "course": "ACCT 2101",
+  "professor": "Holly Hawk",
+  "source_document": "https://bulletin.uga.edu/Syllabus?Syllabus=61104",
+  "document_type": "syllabus",
+  "evidence_type": "textbook_reference",
+  "raw": "Wild, Financial Accounting: Information for Decisions, McGraw-Hill Irwin (ISBN 9781260386936)",
+  "normalized": {
+   "canonicalTitle": "Wild Financial Accounting Information for Decisions McGraw-Hill Irwin",
+   "authorKey": "",
+   "edition": null,
+   "isbn13": null,
+   "publisher": null,
+   "editionKey": "wild-financial-accounting-information-for-decisions-mcgraw-hill-irwin||?",
+   "editionConfirmed": false
+  },
+  "effective_term": "Spring 2021",
+  "confidence": "Low"
+ },
+ {
+  "campus": "University of Florida",
+  "course": "ACG 2021",
+  "professor": "Jill K. Goslinga, CPA, J.D. (Senior Lecturer, Fisher School of Accounting)",
+  "source_document": "https://asset.warrington.ufl.edu/syllabi/20258_ACG2021_Introduction%20to%20Financial%20Accounting_02DG-02DH_Goslinga,%20J.pdf",
+  "document_type": "syllabus",
+  "evidence_type": "exam_chapter_range",
+  "raw": "Exam 1 = Ch 1-3 and 5; Exam 2 = Ch 6-8 and Appendix D; Exam 3 = Ch 9-11 and Appendix C; Optional comprehensive final. 3 exams x 120 pts (30 Qs each), 11 quizzes, 12 homework; 440 total points.",
+  "parsed": [
+   {
+    "exam": "exam 1",
+    "chapters": [
+     1,
+     2,
+     3,
+     5
+    ]
+   },
+   {
+    "exam": "exam 2",
+    "chapters": [
+     6,
+     7,
+     8
+    ]
+   },
+   {
+    "exam": "exam 3",
+    "chapters": [
+     9,
+     10,
+     11
+    ]
+   }
+  ],
+  "effective_term": "Fall 2025",
+  "confidence": "Medium"
+ },
+ {
+  "campus": "University of Florida",
+  "course": "ACG 2021",
+  "professor": "Jill K. Goslinga, CPA, J.D. (Senior Lecturer, Fisher School of Accounting)",
+  "source_document": "https://asset.warrington.ufl.edu/syllabi/20258_ACG2021_Introduction%20to%20Financial%20Accounting_02DG-02DH_Goslinga,%20J.pdf",
+  "document_type": "syllabus",
+  "evidence_type": "textbook_reference",
+  "raw": "Financial Accounting, 2025 Release (Spiceland, Thomas & Herrmann; McGraw-Hill) with Connect learning platform",
+  "normalized": {
+   "canonicalTitle": "Financial Accounting learning platform",
+   "authorKey": "",
+   "edition": null,
+   "isbn13": null,
+   "publisher": null,
+   "editionKey": "financial-accounting-learning-platform||?",
+   "editionConfirmed": false
+  },
+  "effective_term": "Fall 2025",
+  "confidence": "Low"
+ },
+ {
+  "campus": "University of Florida",
+  "course": "ACG 2021",
+  "professor": "Jill K. Goslinga",
+  "source_document": "https://asset.warrington.ufl.edu/syllabi/20261_ACG2021_Introduction%20to%20Financial%20Accounting_0002-0003-ONL_Goslinga,%20J.pdf",
+  "document_type": "unknown_pdf",
+  "evidence_type": "exam_chapter_range",
+  "raw": "consistent 3-exam structure across terms",
+  "parsed": [],
+  "effective_term": "Spring 2024 / Summer 2024 / Fall 2024 / Spring 2025 / Summer 2025 / Spring 2026 2026",
+  "confidence": "Medium"
+ },
+ {
+  "campus": "University of Florida",
+  "course": "ACG 2021",
+  "professor": "Jill K. Goslinga",
+  "source_document": "https://asset.warrington.ufl.edu/syllabi/20261_ACG2021_Introduction%20to%20Financial%20Accounting_0002-0003-ONL_Goslinga,%20J.pdf",
+  "document_type": "unknown_pdf",
+  "evidence_type": "textbook_reference",
+  "raw": "Spiceland/Thomas/Herrmann Financial Accounting (McGraw-Hill)",
+  "normalized": {
+   "canonicalTitle": "Spiceland/Thomas/Herrmann Financial Accounting",
+   "authorKey": "",
+   "edition": null,
+   "isbn13": null,
+   "publisher": null,
+   "editionKey": "spiceland-thomas-herrmann-financial-accounting||?",
+   "editionConfirmed": false
+  },
+  "effective_term": "Spring 2024 / Summer 2024 / Fall 2024 / Spring 2025 / Summer 2025 / Spring 2026 2026",
+  "confidence": "Low"
+ },
+ {
+  "campus": "Park University",
+  "course": "AC 201",
+  "professor": "Colin L. Carpenter",
+  "source_document": "https://app.park.edu/syllabus/syllabus.aspx?ID=17858",
+  "document_type": "syllabus",
+  "evidence_type": "exam_chapter_range",
+  "raw": "Chapters 1-12 across term; First Exam ~Sep 6, Final Exam ~Sep 29",
+  "parsed": [],
+  "effective_term": "F1 (Aug 2 - Oct 2) 2005",
+  "confidence": "Medium"
+ },
+ {
+  "campus": "Park University",
+  "course": "AC 201",
+  "professor": "Colin L. Carpenter",
+  "source_document": "https://app.park.edu/syllabus/syllabus.aspx?ID=17858",
+  "document_type": "syllabus",
+  "evidence_type": "textbook_reference",
+  "raw": "Larson, Wild & Chiappetta, Fundamental Accounting Principles",
+  "normalized": {
+   "canonicalTitle": "Larson Wild & Chiappetta Fundamental Accounting Principles",
+   "authorKey": "",
+   "edition": null,
+   "isbn13": null,
+   "publisher": null,
+   "editionKey": "larson-wild-chiappetta-fundamental-accounting-principles||?",
+   "editionConfirmed": false
+  },
+  "effective_term": "F1 (Aug 2 - Oct 2) 2005",
+  "confidence": "Low"
+ },
+ {
+  "campus": "Liberty University",
+  "course": "ACCT 211",
+  "professor": null,
+  "source_document": "https://www.liberty.edu/online/wp-content/uploads/ACCT211_CourseGuide.pdf",
+  "document_type": "syllabus",
+  "evidence_type": "textbook_reference",
+  "raw": "McGraw-Hill Connect (SmartBook/LearnSmart) - specific title/edition not disclosed in public guide",
+  "normalized": {
+   "canonicalTitle": "McGraw-Hill - specific title/edition not disclosed in public guide",
+   "authorKey": "",
+   "edition": null,
+   "isbn13": null,
+   "publisher": null,
+   "editionKey": "mcgraw-hill-specific-title-edition-not-disclosed-in-public-guide||?",
+   "editionConfirmed": false
+  },
+  "effective_term": "sample/standardized 2018",
+  "confidence": "Low"
+ },
+ {
+  "campus": "Liberty University",
+  "course": "ACCT 211",
+  "professor": null,
+  "source_document": "https://www.liberty.edu/online/courses/acct211/",
+  "document_type": "unknown",
+  "evidence_type": "exam_chapter_range",
+  "raw": "structure: 25 Connect homework, 4 cumulative quizzes, Individual Learning Project (financial-statement prep). No public exam-chapter map.",
+  "parsed": [],
+  "effective_term": "standardized online 2026",
+  "confidence": "Medium"
+ },
+ {
+  "campus": "Liberty University",
+  "course": "ACCT 211",
+  "professor": null,
+  "source_document": "https://www.liberty.edu/online/courses/acct211/",
+  "document_type": "unknown",
+  "evidence_type": "textbook_reference",
+  "raw": "via McGraw-Hill Connect",
+  "normalized": {
+   "canonicalTitle": "via McGraw-Hill",
+   "authorKey": "",
+   "edition": null,
+   "isbn13": null,
+   "publisher": null,
+   "editionKey": "via-mcgraw-hill||?",
+   "editionConfirmed": false
+  },
+  "effective_term": "standardized online 2026",
+  "confidence": "Low"
+ },
+ {
+  "campus": "University of Texas at Arlington",
+  "course": "ACCT 2301",
+  "professor": "unknown (Spring 2019 section)",
+  "source_document": "https://mentis.uta.edu/dashboard/file/download/id/241271",
+  "document_type": "syllabus",
+  "evidence_type": "exam_chapter_range",
+  "raw": "not extractable",
+  "parsed": [],
+  "effective_term": "Spring 2019",
+  "confidence": "Medium"
+ },
+ {
+  "campus": "University of Texas at Arlington",
+  "course": "ACCT 2301",
+  "professor": "unknown (Spring 2019 section)",
+  "source_document": "https://mentis.uta.edu/dashboard/file/download/id/241271",
+  "document_type": "syllabus",
+  "evidence_type": "textbook_reference",
+  "raw": "not extractable (binary PDF)",
+  "normalized": {
+   "canonicalTitle": "not extractable",
+   "authorKey": "",
+   "edition": null,
+   "isbn13": null,
+   "publisher": null,
+   "editionKey": "not-extractable||?",
+   "editionConfirmed": false
+  },
+  "effective_term": "Spring 2019",
+  "confidence": "Low"
+ },
+ {
+  "campus": "Texas A&M University",
+  "course": "ACCT 229",
+  "professor": "unknown (SPA not rendered)",
+  "source_document": "https://tamu.simplesyllabus.com/en-US/doc/0wol6fuu2/Spring-2026-College-Station-ACCT-229-505-(10007)?mode=view",
+  "document_type": "syllabus",
+  "evidence_type": "exam_chapter_range",
+  "raw": "not rendered",
+  "parsed": [],
+  "effective_term": "Spring 2026",
+  "confidence": "Medium"
+ },
+ {
+  "campus": "Texas A&M University",
+  "course": "ACCT 229",
+  "professor": "unknown (SPA not rendered)",
+  "source_document": "https://tamu.simplesyllabus.com/en-US/doc/0wol6fuu2/Spring-2026-College-Station-ACCT-229-505-(10007)?mode=view",
+  "document_type": "syllabus",
+  "evidence_type": "textbook_reference",
+  "raw": "TAMU 'First Day' inclusive-access e-textbook via Canvas (title not rendered)",
+  "normalized": {
+   "canonicalTitle": "TAMU 'First Day' inclusive-access e-textbook via Canvas",
+   "authorKey": "",
+   "edition": null,
+   "isbn13": null,
+   "publisher": null,
+   "editionKey": "tamu-first-day-inclusive-access-e-textbook-via-canvas||?",
+   "editionConfirmed": false
+  },
+  "effective_term": "Spring 2026",
+  "confidence": "Low"
+ },
+ {
+  "campus": "Tarrant County College",
+  "course": "ACCT 2301",
+  "professor": "authored by Melissa Lewis (PDF metadata)",
+  "source_document": "https://wajcustom.tccd.edu/TCC/WebAdvisor3/DisplaySyll?courseDesc=ACCT-2301&term=2024FL&id=13647&lev=UG",
+  "document_type": "unknown",
+  "evidence_type": "exam_chapter_range",
+  "raw": "not extractable",
+  "parsed": [],
+  "effective_term": "Fall 2024",
+  "confidence": "Medium"
+ },
+ {
+  "campus": "Tarrant County College",
+  "course": "ACCT 2301",
+  "professor": "authored by Melissa Lewis (PDF metadata)",
+  "source_document": "https://wajcustom.tccd.edu/TCC/WebAdvisor3/DisplaySyll?courseDesc=ACCT-2301&term=2024FL&id=13647&lev=UG",
+  "document_type": "unknown",
+  "evidence_type": "textbook_reference",
+  "raw": "not extractable (binary PDF)",
+  "normalized": {
+   "canonicalTitle": "not extractable",
+   "authorKey": "",
+   "edition": null,
+   "isbn13": null,
+   "publisher": null,
+   "editionKey": "not-extractable||?",
+   "editionConfirmed": false
+  },
+  "effective_term": "Fall 2024",
+  "confidence": "Low"
+ },
+ {
+  "campus": "Louisiana State University",
+  "course": "ACCT 2001",
+  "professor": "unknown",
+  "source_document": "https://cemoodle.online.lsu.edu/syllabus/ACCT_2001_4.0_Syllabus.pdf",
+  "document_type": "syllabus",
+  "evidence_type": "exam_chapter_range",
+  "raw": "not extracted (PDF 403 to WebFetch)",
+  "parsed": [],
+  "effective_term": "self-paced",
+  "confidence": "Medium"
+ },
+ {
+  "campus": "Louisiana State University",
+  "course": "ACCT 2001",
+  "professor": "unknown",
+  "source_document": "https://cemoodle.online.lsu.edu/syllabus/ACCT_2001_4.0_Syllabus.pdf",
+  "document_type": "syllabus",
+  "evidence_type": "textbook_reference",
+  "raw": "Kimmel, Weygandt & Kieso, 'Financial Accounting: Tools for Business Decision Making' (per search snippet; edition varies by syllabus version)",
+  "normalized": {
+   "canonicalTitle": "Kimmel Weygandt & Kieso 'Financial Accounting Tools for Business Decision Making'",
+   "authorKey": "",
+   "edition": null,
+   "isbn13": null,
+   "publisher": null,
+   "editionKey": "kimmel-weygandt-kieso-financial-accounting-tools-for-business-decision-making||?",
+   "editionConfirmed": false
+  },
+  "effective_term": "self-paced",
+  "confidence": "Low"
+ }
+]
