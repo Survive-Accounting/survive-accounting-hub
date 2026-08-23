@@ -54,6 +54,7 @@ function originFromReq(req: Request): string {
 export const searchPartners = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ q: z.string().trim().max(120).optional() }).parse(d))
   .handler(async ({ data }): Promise<PartnerRow[]> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions"); await assertAdmin();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as { from: (t: string) => any };
     let q = db
@@ -79,6 +80,7 @@ export const listPartners = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data }): Promise<PartnerListRow[]> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions"); await assertAdmin();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { loadFunnel } = await import("@/lib/referral-stats.server");
     const db = supabaseAdmin as unknown as { from: (t: string) => any };
@@ -122,6 +124,7 @@ export const upsertPartner = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data }): Promise<PartnerRow> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions"); await assertAdmin();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as { from: (t: string) => any };
     const row: Record<string, unknown> = {
@@ -192,6 +195,7 @@ export const createLink = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data }): Promise<{ link: LinkRow; shortUrl: string; qrDataUri: string }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions"); await assertAdmin();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { generateUniqueCode } = await import("@/lib/referral.server");
     const { qrDataUri } = await import("@/lib/referral-qr.server");
@@ -260,6 +264,7 @@ export const listLinks = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data }): Promise<LinkListRow[]> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions"); await assertAdmin();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { loadFunnel } = await import("@/lib/referral-stats.server");
     const { getRequest } = await import("@tanstack/react-start/server");
@@ -292,6 +297,7 @@ export const listLinks = createServerFn({ method: "POST" })
 export const getLinkDetail = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ code: z.string().trim().min(1).max(40) }).parse(d))
   .handler(async ({ data }) => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions"); await assertAdmin();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { loadFunnel } = await import("@/lib/referral-stats.server");
     const { qrDataUri } = await import("@/lib/referral-qr.server");
@@ -350,6 +356,7 @@ export const getLinkDetail = createServerFn({ method: "POST" })
 export const setLinkActive = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), active: z.boolean() }).parse(d))
   .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions"); await assertAdmin();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as { from: (t: string) => any };
     const { error } = await db
@@ -375,6 +382,7 @@ export const listConversions = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data }): Promise<ConversionRow[]> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions"); await assertAdmin();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as { from: (t: string) => any };
     let q = db
@@ -407,6 +415,7 @@ export const listCommissions = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data }): Promise<CommissionRow[]> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions"); await assertAdmin();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as { from: (t: string) => any };
     let q = db
@@ -438,6 +447,7 @@ export const setCommissionStatus = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data }): Promise<{ ok: true }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions"); await assertAdmin();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const db = supabaseAdmin as unknown as { from: (t: string) => any };
     const { error } = await db
@@ -456,6 +466,7 @@ export const setCommissionStatus = createServerFn({ method: "POST" })
 export const getAttributionKpis = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({ includeTest: z.boolean().default(false) }).parse(d))
   .handler(async ({ data }): Promise<FunnelStats> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions"); await assertAdmin();
     const { loadFunnel } = await import("@/lib/referral-stats.server");
     const funnel = await loadFunnel(data.includeTest);
     return funnel.overall;
@@ -476,6 +487,7 @@ export const recordManualConversion = createServerFn({ method: "POST" })
       .parse(d),
   )
   .handler(async ({ data }) => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions"); await assertAdmin();
     const { recordConversionByCode } = await import("@/lib/referral.server");
     return recordConversionByCode(data.code, {
       kind: data.kind,
@@ -500,6 +512,7 @@ export const reconcileOrderPurchases = createServerFn({ method: "POST" })
     z.object({ limit: z.number().int().min(1).max(2000).default(500) }).parse(d),
   )
   .handler(async ({ data }): Promise<{ checked: number; created: number; skipped: number }> => {
+    const { assertAdmin } = await import("@/lib/admin-session.functions"); await assertAdmin();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { recordConversionByCode } = await import("@/lib/referral.server");
     const db = supabaseAdmin as unknown as { from: (t: string) => any };

@@ -6,6 +6,7 @@
 // Design principle: Don't Make Me Think. One big Create action, search, simple tables, copy
 // buttons — no dashboards, no help walls.
 import { AdminGate } from "@/components/AdminGate";
+import { AdminSessionGate } from "@/components/AdminSessionGate";
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import { BarChart3, Link2, Users, Zap } from "lucide-react";
@@ -27,6 +28,7 @@ function RepsShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   return (
     <AdminGate>
+      <AdminSessionGate>
       <Toaster richColors position="top-center" />
       <div className="min-h-screen bg-background">
         <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur">
@@ -63,6 +65,7 @@ function RepsShell() {
           <Outlet />
         </main>
       </div>
+      </AdminSessionGate>
     </AdminGate>
   );
 }
