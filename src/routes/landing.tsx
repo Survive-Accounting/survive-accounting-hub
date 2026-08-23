@@ -19,6 +19,9 @@ import { PracticeStage, readCoverage } from "@/components/site/PracticeStage";
 import { StagePills } from "@/components/site/StagePills";
 import { markStep as markTestStep, useTestMode } from "@/lib/test-mode";
 import { useStudentAuth } from "@/lib/use-student-auth";
+import { useMyEntitlements, bumpEntitlements, kindForExamNum } from "@/lib/use-entitlements";
+import { createCheckoutSession } from "@/lib/student-entitlements.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { SaveProgressDialog, saveSetProgress, takeResume, type ResumeContext } from "@/components/site/SaveProgress";
 import { cramRequest, examRequest, notifyNote, reviewRequest, type NotifyReq } from "@/lib/notify-request";
 import { resolveStudentMap } from "@/lib/map-resolver.functions";
@@ -1506,6 +1509,40 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
   useEffect(() => { if (isTest && school) markTestStep("school", { slug: school.slug ?? null, name: school.name ?? null }); }, [isTest, school?.id]);
   useEffect(() => { if (isTest && (professor || profDone)) markTestStep("professor", { picked: !!professor, name: professor ? (professor.last || professor.name) : null }); }, [isTest, professor, profDone]);
   const [userPicked, setUserPicked] = useState(false);
+  // ENTITLEMENTS — the client-side "which paid tabs are unlocked" set. Refreshes on auth
+  // change, focus, and after a Stripe checkout return (via bumpEntitlements).
+  const entitlements = useMyEntitlements();
+  // Handle ?checkout=success — Stripe returned. Bump entitlements a few times over ~6s so we
+  // catch the webhook lag; MarkStep step 8 once the row lands. Then strip the query params.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("checkout") !== "success") return;
+    const kind = url.searchParams.get("kind");
+    ["checkout", "kind"].forEach((k) => url.searchParams.delete(k));
+    window.history.replaceState({}, "", url.toString());
+    let n = 0;
+    const t = setInterval(() => {
+      bumpEntitlements();
+      n += 1;
+      if (n >= 6) clearInterval(t);
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+  useEffect(() => {
+    // Test Mode step 8: fire the moment the tester's entitlement set becomes non-empty.
+    if (!isTest) return;
+    if (entitlements.kinds.size === 0) return;
+    void (async () => { const { markStep } = await import("@/lib/test-mode"); markStep("buy", { kinds: [...entitlements.kinds] }); })();
+  }, [isTest, entitlements.kinds]);
+  const startCheckout = async (kind: "exam_2" | "exam_3" | "final" | "pass") => {
+    if (!auth.userId) { setSaveOpen(true); return; } // needs sign-in first
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token ?? "";
+    if (!token) { setSaveOpen(true); return; }
+    const r = await createCheckoutSession({ data: { accessToken: token, kind, returnPath: routePath, campusId: school?.campusId ?? null } });
+    if ("url" in r && r.url) window.location.assign(r.url);
+  };
   // RESUME: a student returning from their sign-in link lands where they left — exam, topic,
   // set. Consumed once, only once a session exists (that is what the link creates).
   const resumed = useRef(false);
@@ -1660,7 +1697,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
                   // NOT A FIXED 16:9 BOX. The unpublished state carries a line of copy and the
                   // notify field, which a phone-width 16:9 panel (~190px tall) cannot hold.
                   <div className="sa-reveal relative w-full" style={{ minHeight: "min(56.25vw, 300px)" }}>
-                    <Poster school={school} exam={active} topicName={curTopic?.name ?? active.label} stem={curSet?.firstStem ?? null} onNotify={() => onNotify(examRequest({ examNum: active.num, examLabel: active.label, topicName: curTopic?.name ?? null, setName: curSet?.name ?? null, launchWindow: LAUNCH_WINDOW, free: active.price == null }))} />
+                    <Poster school={school} exam={active} topicName={curTopic?.name ?? active.label} stem={curSet?.firstStem ?? null} onNotify={() => onNotify(examRequest({ examNum: active.num, examLabel: active.label, topicName: curTopic?.name ?? null, setName: curSet?.name ?? null, launchWindow: LAUNCH_WINDOW, free: active.price == null }))} entitled={(() => { const k = kindForExamNum(active.num); return !!k && entitlements.kinds.has(k); })()} onBuy={active.price != null ? (() => { const k = kindForExamNum(active.num); if (k) void startCheckout(k); }) : undefined} />
                   </div>
                 )
               )}
@@ -2141,7 +2178,7 @@ function SetFlowPanel({ topic, set, exam, school, surface, onSetComplete, onPick
  *  the school's colours, the topic name, one plain line saying the videos for this set are coming,
  *  and the notify field — the only action there is until they publish — right here in the media
  *  panel on every breakpoint (the sidebar copy of it was invisible inside the mobile drawer). */
-function Poster({ school, exam, topicName, stem, onNotify }: { school: School | null; exam: ExamTab; topicName: string; stem?: string | null; onNotify: () => void }) {
+function Poster({ school, exam, topicName, stem, onNotify, entitled, onBuy }: { school: School | null; exam: ExamTab; topicName: string; stem?: string | null; onNotify: () => void; entitled?: boolean; onBuy?: () => void }) {
   const c = school ? boltFor(school.id) : { c1: BRAND_RED, c2: BRAND_BLUE };
   return (
     <div className="grid h-full w-full place-items-center py-5" style={{ background: "var(--sa-surface-2)" }}>
@@ -2151,15 +2188,28 @@ function Poster({ school, exam, topicName, stem, onNotify }: { school: School | 
         {/* the FULL stem — the outline row's 40ch truncation is the tease, this is the payoff */}
         {stem && <p className="max-w-md text-[14px] font-semibold leading-snug" style={{ color: "var(--brand-cream)" }}>{stem}</p>}
         <p className="text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>
-          {exam.price != null
-            ? `${exam.label === "Final" ? "The Final" : exam.label} opens ${LAUNCH_WINDOW} — ${topicName} is on the list.`
-            : `Videos for ${topicName} are coming — Lee is filming this set now.`}
+          {entitled
+            ? `${exam.label === "Final" ? "The Final" : exam.label} unlocked. Videos are still being filmed — you'll get access the moment they land.`
+            : exam.price != null
+              ? `${exam.label === "Final" ? "The Final" : exam.label} — buy now for ${exam.price}, or get notified when it opens.`
+              : `Videos for ${topicName} are coming — Lee is filming this set now.`}
         </p>
-        {/* ONE CTA → the ONE notify modal. No embedded form: browsing a future exam is allowed
-            without being asked for an email; the ask waits for a click. */}
-        <button type="button" onClick={onNotify} className="rounded-xl px-4 text-[13px] font-black" style={{ minHeight: 44, background: "var(--accent)", color: "#0B1220" }}>
-          Notify me when it&apos;s ready →
-        </button>
+        {entitled ? (
+          <span className="inline-flex items-center gap-1 rounded-xl px-4 text-[13px] font-black" style={{ minHeight: 44, background: "rgba(59,245,160,0.14)", color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.35)" }}>✓ Unlocked</span>
+        ) : exam.price != null && onBuy ? (
+          <div className="flex w-full max-w-xs flex-col gap-2">
+            <button type="button" onClick={onBuy} className="rounded-xl px-4 text-[13px] font-black" style={{ minHeight: 44, background: "var(--accent)", color: "#0B1220" }}>
+              Buy for ${exam.price} →
+            </button>
+            <button type="button" onClick={onNotify} className="text-[12.5px] font-bold" style={{ minHeight: 40, color: "var(--text-muted)" }}>
+              Notify me when it&apos;s ready →
+            </button>
+          </div>
+        ) : (
+          <button type="button" onClick={onNotify} className="rounded-xl px-4 text-[13px] font-black" style={{ minHeight: 44, background: "var(--accent)", color: "#0B1220" }}>
+            Notify me when it&apos;s ready →
+          </button>
+        )}
       </div>
     </div>
   );

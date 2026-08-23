@@ -94,3 +94,68 @@ Nothing above changes; Phase B is additive.
 
 `STRIPE_SECRET_KEY_TEST` was pasted in a session transcript. Rotate in Stripe Dashboard
 after the initial Phase B smoke test is done.
+
+---
+
+## Phase B — Stripe checkout (08-23)
+
+Merged 08-23. Adds real Stripe test-mode checkout for Exam 2 / Exam 3 / Final / Semester Pass.
+
+### Files
+- `src/lib/stripe.server.ts` — one lazy Stripe client (`STRIPE_SECRET_KEY_TEST` first,
+  `STRIPE_SECRET_KEY` fallback for live). `stripeIsTest()` derives from the key prefix, never the
+  client. `priceIdForKind` / `kindForPriceId` keep checkout and webhook in sync.
+- `src/lib/student-entitlements.functions.ts` — `createCheckoutSession` (server fn) creates a
+  Stripe Checkout Session and returns its URL; `listMyEntitlements` returns the caller's kinds
+  (a `pass` grant auto-expands to include exam_2/3/final).
+- `src/lib/use-entitlements.ts` — client hook. Refreshes on auth change, focus, and manual
+  `bumpEntitlements()` (fired after Stripe return).
+- `src/routes/api.stripe.webhook.tsx` — the webhook. Verifies `Stripe-Signature` with
+  `STRIPE_WEBHOOK_SECRET_TEST` (or `STRIPE_WEBHOOK_SECRET`). On `checkout.session.completed`
+  inserts a `student_entitlements` row (`source='stripe'`, `is_test` from key prefix). Dedupes
+  on the unique index (Stripe retries land safely).
+
+### Flow
+1. Student clicks **Buy for $50** on a paid tab. Not signed in → `SaveProgressDialog` opens
+   (they magic-link in first, then click Buy again).
+2. `createCheckoutSession` returns a Stripe Checkout URL; the client redirects.
+3. Stripe processes payment; on completion Stripe hits `/api/stripe/webhook`.
+4. Webhook verifies signature, looks up `metadata.user_id` + `metadata.kind`, inserts the
+   entitlement row.
+5. Stripe redirects the student back to `<returnPath>?checkout=success&kind=<kind>`.
+6. The landing page detects `?checkout=success`, strips the query params, and polls
+   `bumpEntitlements()` for ~6 seconds so the webhook has time to land. Once the entitlement
+   arrives, the Poster switches to **✓ Unlocked**.
+7. If Test Mode is armed, step 8 (Buy) auto-completes when the entitlement first appears.
+
+### Stripe webhook setup (do this once, then never again)
+
+1. Stripe Dashboard → **Developers → Webhooks → + Add endpoint**
+2. Endpoint URL: `https://surviveaccounting.com/api/stripe/webhook`
+3. **Listen to events on your account** (not connected accounts).
+4. Under **Events to send** pick just: **`checkout.session.completed`**
+5. Click **Add endpoint**.
+6. On the endpoint's page, **Reveal → Signing secret**. Copy the `whsec_…` value.
+7. Add it to Vercel as `STRIPE_WEBHOOK_SECRET_TEST` (Production + Preview + Development).
+   Then redeploy so the new env var is picked up.
+
+The webhook fails safely if the secret isn't set: it returns `503 webhook secret not
+configured` and Stripe will surface a red mark in the dashboard. The Poster still shows the
+Buy CTA — students can pay — but no entitlement lands. Set the secret before your first real
+test purchase.
+
+### Env vars (all in Vercel — Prod + Preview + Dev)
+| Name | Value | Purpose |
+|------|-------|---------|
+| `STRIPE_SECRET_KEY_TEST` | `sk_test_...` | Server API calls (Checkout Session create) |
+| `STRIPE_PUBLISHABLE_KEY_TEST` | `pk_test_...` | Reserved for future Elements/embedded flows |
+| `STRIPE_PRICE_EXAM2` | `price_1U7UQi…` | line_item for Exam 2 |
+| `STRIPE_PRICE_EXAM3` | `price_1U7URR…` | line_item for Exam 3 |
+| `STRIPE_PRICE_FINAL` | `price_1U7UTG…` | line_item for Final |
+| `STRIPE_PRICE_PASS`  | `price_1U7UTi…` | line_item for Semester Pass |
+| **`STRIPE_WEBHOOK_SECRET_TEST`** | **`whsec_...`** | **Verifies incoming Stripe webhook** (add this next) |
+
+### Rotation
+`STRIPE_SECRET_KEY_TEST` was pasted in a chat transcript. After the first smoke test in prod,
+Stripe Dashboard → Developers → API keys → **Roll** the `sk_test_...` key and re-add the new
+value to Vercel.

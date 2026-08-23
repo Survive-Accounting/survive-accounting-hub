@@ -92,6 +92,7 @@ import { Route as GoSchoolChapterRouteImport } from './routes/go.$school.$chapte
 import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
 import { Route as CeqIdEditRouteImport } from './routes/ceq.$id.edit'
 import { Route as CeqCourseSlugChapterSlugRouteImport } from './routes/ceq.$courseSlug.$chapterSlug'
+import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe.webhook'
 import { Route as ApiCronWeeklyDigestRouteImport } from './routes/api.cron.weekly-digest'
 import { Route as ApiCronCommsSequencesRouteImport } from './routes/api.cron.comms-sequences'
 import { Route as ApiCronBackupRouteImport } from './routes/api.cron.backup'
@@ -524,6 +525,11 @@ const CeqCourseSlugChapterSlugRoute =
     path: '/$courseSlug/$chapterSlug',
     getParentRoute: () => CeqRoute,
   } as any)
+const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
+  id: '/api/stripe/webhook',
+  path: '/api/stripe/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronWeeklyDigestRoute = ApiCronWeeklyDigestRouteImport.update({
   id: '/api/cron/weekly-digest',
   path: '/api/cron/weekly-digest',
@@ -641,6 +647,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
+  '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
@@ -733,6 +740,7 @@ export interface FileRoutesByTo {
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
+  '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
@@ -827,6 +835,7 @@ export interface FileRoutesById {
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
+  '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
@@ -922,6 +931,7 @@ export interface FileRouteTypes {
     | '/api/cron/backup'
     | '/api/cron/comms-sequences'
     | '/api/cron/weekly-digest'
+    | '/api/stripe/webhook'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
@@ -1014,6 +1024,7 @@ export interface FileRouteTypes {
     | '/api/cron/backup'
     | '/api/cron/comms-sequences'
     | '/api/cron/weekly-digest'
+    | '/api/stripe/webhook'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
@@ -1107,6 +1118,7 @@ export interface FileRouteTypes {
     | '/api/cron/backup'
     | '/api/cron/comms-sequences'
     | '/api/cron/weekly-digest'
+    | '/api/stripe/webhook'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
@@ -1171,6 +1183,7 @@ export interface RootRouteChildren {
   ApiCronBackupRoute: typeof ApiCronBackupRoute
   ApiCronCommsSequencesRoute: typeof ApiCronCommsSequencesRoute
   ApiCronWeeklyDigestRoute: typeof ApiCronWeeklyDigestRoute
+  ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
   GoSchoolChapterRoute: typeof GoSchoolChapterRoute
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
   PartnersNationalOrgRoute: typeof PartnersNationalOrgRoute
@@ -1766,6 +1779,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CeqCourseSlugChapterSlugRouteImport
       parentRoute: typeof CeqRoute
     }
+    '/api/stripe/webhook': {
+      id: '/api/stripe/webhook'
+      path: '/api/stripe/webhook'
+      fullPath: '/api/stripe/webhook'
+      preLoaderRoute: typeof ApiStripeWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/weekly-digest': {
       id: '/api/cron/weekly-digest'
       path: '/api/cron/weekly-digest'
@@ -1979,6 +1999,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronBackupRoute: ApiCronBackupRoute,
   ApiCronCommsSequencesRoute: ApiCronCommsSequencesRoute,
   ApiCronWeeklyDigestRoute: ApiCronWeeklyDigestRoute,
+  ApiStripeWebhookRoute: ApiStripeWebhookRoute,
   GoSchoolChapterRoute: GoSchoolChapterRoute,
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
   PartnersNationalOrgRoute: PartnersNationalOrgRoute,
