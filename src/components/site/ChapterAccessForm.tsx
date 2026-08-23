@@ -4,15 +4,21 @@
 // better does not belong in a form. Claiming is FREE and buys nothing: it identifies a real
 // officer so the page has an admin — full-semester seats are a later, separate conversation.
 //
+// NOTHING ABOUT CHAPTER SIZE, BUDGET OR INTENT BELONGS HERE. Those are the questions you ask
+// someone who has already agreed to talk to you. Asked at the door they turn a 20-second
+// identification into a qualification form, and the person who abandons it is the exec you most
+// wanted. There is a clean seam for them after approval; this is not it.
+//
 // The server function is still submitChapterClaim: the table is greek_chapter_claims and
 // renaming storage to match a UI word would be a migration bought with nothing.
 //
-// NO dismiss-on-outside/Esc. This form is INLINE in the onboarding accordion now, not a modal:
+// NO dismiss-on-outside/Esc for the FORM. It is INLINE in the onboarding accordion, not a modal:
 // the step headers sit directly above and below it and the mobile sticky bar floats over it, so
 // "outside" taps are part of normally using the section — a document-wide dismiss listener was
-// silently wiping four typed fields. The × button is the one deliberate way out.
+// silently wiping four typed fields. The × button is the one deliberate way out. (The role
+// dropdown below does close on outside click, because closing a popup loses nothing.)
 import { SmsConsentNote } from "@/components/landing/SmsConsentBanner";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { CLAIM_POSITIONS, notifyChapterClaim, submitChapterClaim } from "@/lib/greek-claims.functions";
@@ -25,14 +31,144 @@ const fmtPhone = (v: string) => {
   return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
 };
 
+// ONE FIELD SURFACE, shared by the inputs and the role button so a mixed row cannot drift apart.
+// Darker than the card it sits on rather than lighter: on this navy, a raised field reads as a
+// button and a recessed one reads as somewhere to type.
 const FIELD: React.CSSProperties = {
-  minHeight: 48,
-  background: "var(--bg-surface)",
+  width: "100%",
+  minHeight: 50,
+  borderRadius: 12,
+  padding: "0 14px",
+  background: "var(--bg-input, rgba(0,0,0,0.22))",
   border: "1px solid var(--border-default)",
   color: "var(--brand-cream)",
   // 16px explicitly — under it iOS zooms the page on focus and never zooms back.
   fontSize: 16,
+  outline: "none",
 };
+
+const LABEL: React.CSSProperties = {
+  display: "block",
+  fontSize: 12,
+  fontWeight: 800,
+  letterSpacing: "0.06em",
+  textTransform: "uppercase",
+  color: "var(--text-secondary, #AAB4C8)",
+  marginBottom: 6,
+};
+
+/** THE ROLE PICKER. A native <select> could not be made to look like the rest of this page: the
+ *  closed control can be restyled, but the open list is drawn by the OS and arrives as a grey
+ *  system menu in the middle of a navy card. It also cannot show the placeholder in a muted
+ *  colour, so "Your chapter role…" read as a chosen value.
+ *
+ *  So it is a real listbox — button plus panel, arrow keys, Home/End, Escape, click-outside — and
+ *  it closes without touching the form's other fields. Nine options fit on one screen, so there
+ *  is no search: a search box on nine items is furniture. */
+function RoleSelect({ value, onChange, id }: { value: string; onChange: (v: string) => void; id: string }) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const wrap = useRef<HTMLDivElement | null>(null);
+  const listRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (wrap.current && !wrap.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    setActive(Math.max(0, CLAIM_POSITIONS.indexOf(value)));
+  }, [open, value]);
+
+  // Keep the highlighted option on screen when arrowing past the fold.
+  useEffect(() => {
+    if (!open) return;
+    listRef.current?.querySelector<HTMLElement>(`[data-i="${active}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [open, active]);
+
+  const pick = (v: string) => { onChange(v); setOpen(false); };
+
+  const onKey = (e: React.KeyboardEvent) => {
+    if (!open && (e.key === "Enter" || e.key === " " || e.key === "ArrowDown")) { e.preventDefault(); setOpen(true); return; }
+    if (!open) return;
+    if (e.key === "Escape") { e.preventDefault(); setOpen(false); return; }
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => Math.min(i + 1, CLAIM_POSITIONS.length - 1)); return; }
+    if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => Math.max(i - 1, 0)); return; }
+    if (e.key === "Home") { e.preventDefault(); setActive(0); return; }
+    if (e.key === "End") { e.preventDefault(); setActive(CLAIM_POSITIONS.length - 1); return; }
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(CLAIM_POSITIONS[active]); }
+  };
+
+  return (
+    <div ref={wrap} style={{ position: "relative" }}>
+      <button
+        id={id}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        onKeyDown={onKey}
+        role="combobox"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-controls={`${id}-list`}
+        className="sa-field flex items-center justify-between text-left"
+        style={{ ...FIELD, color: value ? "var(--brand-cream)" : "var(--text-tertiary, #7C89A4)" }}
+      >
+        <span className="truncate">{value || "Select your role"}</span>
+        <span
+          aria-hidden
+          className="ml-2 shrink-0 transition-transform motion-reduce:transition-none"
+          style={{ color: "var(--accent)", fontSize: 11, transform: open ? "rotate(180deg)" : "none" }}
+        >
+          ▼
+        </span>
+      </button>
+
+      {open && (
+        <div
+          id={`${id}-list`}
+          ref={listRef}
+          role="listbox"
+          aria-label="Your chapter role"
+          className="absolute left-0 right-0 z-20 mt-1.5 overflow-y-auto rounded-xl py-1"
+          style={{
+            maxHeight: 264,
+            background: "var(--bg-overlay, #1A2948)",
+            border: "1px solid var(--border-default)",
+            boxShadow: "0 24px 56px -18px rgba(0,0,0,0.8)",
+          }}
+        >
+          {CLAIM_POSITIONS.map((p, i) => {
+            const selected = p === value;
+            return (
+              <div
+                key={p}
+                data-i={i}
+                role="option"
+                aria-selected={selected}
+                onMouseEnter={() => setActive(i)}
+                onMouseDown={(e) => { e.preventDefault(); pick(p); }}
+                className="cursor-pointer px-3.5 text-[15px]"
+                style={{
+                  minHeight: 44,
+                  display: "flex",
+                  alignItems: "center",
+                  color: selected ? "#0B1220" : "var(--brand-cream)",
+                  background: selected ? "var(--accent)" : i === active ? "rgba(255,255,255,0.07)" : "transparent",
+                  fontWeight: selected ? 800 : 500,
+                }}
+              >
+                {p}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, onClose, onDone }: {
   schoolSlug: string;
@@ -43,6 +179,7 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, onClos
    *  reload — the loader-fetched claimStatus is stale the moment this succeeds. */
   onDone?: () => void;
 }) {
+  const uid = useId();
   const [name, setName] = useState("");
   const [position, setPosition] = useState("");
   const [email, setEmail] = useState("");
@@ -92,20 +229,33 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, onClos
         tabIndex={-1}
         role="status"
         aria-live="polite"
-        className="mx-auto max-w-sm rounded-xl p-4 text-center outline-none"
+        className="mx-auto max-w-sm rounded-2xl px-5 py-6 text-center outline-none"
         style={{ background: "rgba(252,163,17,0.08)", border: "1px solid rgba(252,163,17,0.35)", fontFamily: BRAND_SANS }}
       >
-        <p className="text-[14px] font-bold" style={{ color: "var(--brand-cream)" }}>You&apos;re almost set.</p>
-        {/* Says what happens next and roughly when. "We'll be in touch" is what a form says when
-            nobody is actually going to read it. */}
-        <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-muted)" }}>I&apos;ll verify your chapter role within one business day.</p>
-        <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-muted)" }}>You&apos;ll get an email and a text as soon as your chapter is approved.</p>
+        <p className="text-[17px] font-black" style={{ color: "var(--brand-cream)" }}>Request received ✓</p>
+        {/* Says what happens next and by when. "We'll be in touch" is what a form says when nobody
+            is actually going to read it. */}
+        <p className="mx-auto mt-2 max-w-[34ch] text-[13.5px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.86 }}>
+          I&apos;ll verify your chapter role within one business day.
+        </p>
+        <p className="mx-auto mt-1.5 max-w-[34ch] text-[13px] leading-relaxed" style={{ color: "var(--text-secondary, #AAB4C8)" }}>
+          Once approved, I&apos;ll send you your chapter dashboard and sharing tools.
+        </p>
+        {/* Somewhere to GO. Without this the exec is left at a dead end inside a collapsed
+            accordion with the rest of the page above them. */}
+        <a
+          href="#exam1"
+          className="mt-4 inline-flex items-center rounded-xl px-4 text-[13.5px] font-black"
+          style={{ minHeight: 44, background: "rgba(255,255,255,0.08)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
+        >
+          Back to Exam 1 →
+        </a>
       </div>
     );
   }
 
   return (
-    <div className="relative mx-auto max-w-sm rounded-xl p-4 text-left" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", fontFamily: BRAND_SANS }}>
+    <div className="relative mx-auto max-w-sm rounded-2xl p-5 text-left" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", fontFamily: BRAND_SANS }}>
       <button
         type="button"
         onClick={onClose}
@@ -116,29 +266,56 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, onClos
         <span aria-hidden style={{ fontSize: 18 }}>×</span>
       </button>
 
-      <p className="mb-1 pr-10 text-[14px] font-black" style={{ color: "var(--brand-cream)" }}>Claim {chapterName}&apos;s page</p>
-      <p className="mb-3 text-[12.5px]" style={{ color: "var(--text-muted)" }}>We&apos;ll verify your chapter role and follow up within one business day.</p>
+      <p className="mb-4 pr-10 text-[15px] font-black" style={{ color: "var(--brand-cream)" }}>Claim {chapterName}&apos;s page</p>
 
-      <label className="sr-only" htmlFor="ca-name">Your name</label>
-      <input id="ca-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="mb-2 w-full rounded-lg px-3 outline-none focus:ring-2" style={FIELD} />
+      <div className="grid gap-3.5">
+        <div>
+          <label style={LABEL} htmlFor={`${uid}-name`}>Your name</label>
+          <input
+            id={`${uid}-name`} value={name} onChange={(e) => setName(e.target.value)}
+            autoComplete="name" placeholder="Jordan Ellis"
+            className="sa-field" style={FIELD}
+          />
+        </div>
 
-      <label className="sr-only" htmlFor="ca-pos">Your chapter role</label>
-      <select id="ca-pos" value={position} onChange={(e) => setPosition(e.target.value)} className="mb-2 w-full rounded-lg px-3 outline-none focus:ring-2" style={FIELD}>
-        <option value="">Your chapter role…</option>
-        {CLAIM_POSITIONS.map((p) => <option key={p} value={p} style={{ color: "#0B1220" }}>{p}</option>)}
-      </select>
+        <div>
+          <label style={LABEL} htmlFor={`${uid}-role`}>Your chapter role</label>
+          <RoleSelect id={`${uid}-role`} value={position} onChange={setPosition} />
+        </div>
 
-      <label className="sr-only" htmlFor="ca-email">Your email</label>
-      <input id="ca-email" value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="you@school.edu" className="mb-2 w-full rounded-lg px-3 outline-none focus:ring-2" style={FIELD} />
+        <div>
+          <label style={LABEL} htmlFor={`${uid}-email`}>Your email</label>
+          <input
+            id={`${uid}-email`} value={email} onChange={(e) => setEmail(e.target.value)}
+            type="email" autoComplete="email" inputMode="email" placeholder="you@school.edu"
+            className="sa-field" style={FIELD}
+          />
+        </div>
 
-      <label className="sr-only" htmlFor="ca-phone">Your mobile</label>
-      <input id="ca-phone" value={phone} onChange={(e) => setPhone(fmtPhone(e.target.value))} type="tel" autoComplete="tel" inputMode="tel" placeholder="(662) 555-0134" className="w-full rounded-lg px-3 outline-none focus:ring-2" style={FIELD} />
-      <SmsConsentNote />
+        <div>
+          <label style={LABEL} htmlFor={`${uid}-phone`}>Your mobile</label>
+          <input
+            id={`${uid}-phone`} value={phone} onChange={(e) => setPhone(fmtPhone(e.target.value))}
+            type="tel" autoComplete="tel" inputMode="tel" placeholder="(662) 555-0134"
+            className="sa-field" style={FIELD}
+          />
+          <SmsConsentNote />
+        </div>
+      </div>
 
-      {err && <p className="mt-2 text-[12.5px]" role="alert" style={{ color: "#F3C6CC" }}>{err}</p>}
+      {err && <p className="mt-3 text-[12.5px]" role="alert" style={{ color: "#F3C6CC" }}>{err}</p>}
 
-      <button onClick={() => void submit()} disabled={!ok || busy} className="mt-3 w-full rounded-xl text-[15px] font-black transition-opacity disabled:opacity-40" style={{ minHeight: 50, background: "var(--accent)", color: "#0B1220" }}>
-        {busy ? "…" : "Claim This Page ⚡"}
+      {/* AN EXPLICIT LABEL, NOT "…". A bare ellipsis on a submit button is indistinguishable from
+          a hang: it says something is happening but not what, and gives no hint whether waiting
+          is reasonable. "Sending request…" does both. */}
+      <button
+        onClick={() => void submit()}
+        disabled={!ok || busy}
+        aria-busy={busy}
+        className="mt-4 w-full rounded-xl text-[15px] font-black transition-opacity disabled:opacity-40"
+        style={{ minHeight: 52, background: "var(--accent)", color: "#0B1220" }}
+      >
+        {busy ? "Sending request…" : "Claim my chapter →"}
       </button>
     </div>
   );

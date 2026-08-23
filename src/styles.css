@@ -713,3 +713,16 @@ html.sa-navy body {
   /* No pulse. The border still says "here", it just says it without moving. */
   .sa-cue { animation: none; border-color: var(--accent) !important; box-shadow: 0 0 0 3px rgba(252,163,17,0.20); }
 }
+
+/* ── FORM FIELDS (claim form, and anything else that opts in) ─────────────────────────────────
+   One focus treatment for text inputs and the role listbox button alike. The claim form mixed
+   native inputs with a custom control, and without a shared rule the two drifted: the inputs got
+   the browser's blue ring on this navy and the button got nothing, so tabbing through looked like
+   two different forms. Orange because that is the action colour everywhere else here, and a ring
+   rather than a border change so the field does not shift by a pixel when it takes focus. */
+.sa-field:focus,
+.sa-field:focus-visible {
+  border-color: var(--accent, #FCA311);
+  box-shadow: 0 0 0 3px rgba(252, 163, 17, 0.28);
+}
+.sa-field::placeholder { color: var(--text-tertiary, #7C89A4); opacity: 1; }

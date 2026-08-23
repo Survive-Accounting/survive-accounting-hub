@@ -16,7 +16,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { getGoChapter, goPath } from "@/lib/greek-go.functions";
-import { normalizePhoneE164, sendSms } from "@/lib/greek-chapters.functions";
+import { normalizePhoneE164 } from "@/lib/greek-chapters.functions";
 
 type DB = {
   from: (t: string) => any;
@@ -156,7 +156,12 @@ async function runClaimIntake(claimId: string | null, isTest: boolean): Promise<
       kind: "greek_claim", name: claim.name as string, email: claim.email as string, phone: claim.phone as string,
       campusName: ch.schoolName, campusSlug: ch.schoolSlug, chapter: ch.chapterName,
       chapterLink: `https://surviveaccounting.com${goPath(ch.schoolSlug, ch.chapterSlug)}`,
-      note: `${claim.position} · ${ch.members} member${ch.members === 1 ? "" : "s"} banked`,
+      role: claim.position as string,
+      note: `${ch.members} member${ch.members === 1 ? "" : "s"} banked at claim`,
+      // STRAIGHT TO THE DECISION, and deliberately NOT a one-tap approve URL: approving hands
+      // over a roster of student names and phone numbers, so it goes through the authenticated
+      // review screen. The query param just opens it on the right claim.
+      adminLink: `https://surviveaccounting.com/outreach/greek-claims?claim=${claimId}`,
       sourcePath: goPath(ch.schoolSlug, ch.chapterSlug), smsConsent: true, isTest,
     });
     return { ok: true };
@@ -330,11 +335,49 @@ export const decideChapterClaim = createServerFn({ method: "POST" })
     await db.from("greek_chapter_claims").update({ status: "approved", decided_at: new Date().toISOString() }).eq("id", data.claimId);
     await db.from("campus_greek_chapters").update({ claim_status: "claimed", claimed_at: new Date().toISOString() }).eq("id", rosterId);
 
-    // Tell the exec, with the link they now own. Non-fatal: the approval already happened, and
-    // reporting failure is better than pretending the text went out.
-    const url = campus?.slug && roster.slug ? `surviveaccounting.com${goPath(campus.slug as string, roster.slug as string)}` : "surviveaccounting.com";
-    const sms = await sendSms(claim.phone as string, `⚡ ${chapterName} is approved — your chapter link is ${url}. Sign in at surviveaccounting.com/chapters/dashboard with ${claim.email}.`);
-    if (!sms.ok) console.warn("approval SMS failed:", sms.error);
+    // Tell the exec. Non-fatal: the approval already happened, and reporting a failed message is
+    // better than pretending it went out.
+    const { isTestRequest } = await import("@/lib/test-mode.functions");
+    await sendChapterApproval({
+      name: claim.name as string, email: claim.email as string, phone: claim.phone as string,
+      chapterName, schoolName,
+      chapterLink: campus?.slug && roster.slug ? `https://surviveaccounting.com${goPath(campus.slug as string, roster.slug as string)}` : null,
+      isTest: await isTestRequest(),
+    });
 
     return { ok: true };
   });
+
+// ── the approval message ──────────────────────────────────────────────────────────────────────
+//
+// THIS USED TO BE A RAW sendSms() CALL, and that was a real hole rather than a style problem. It
+// went straight to Twilio, so it skipped everything the send layer is for: no [TEST] prefix, no
+// is_test row in comms_sends, no suppression check, and — worst — no test-mode routing, meaning
+// approving a FIXTURE claim texted a real phone. It also opened with a bolt and an em dash,
+// neither of which is in GSM-7, so every approval was billed as two segments.
+//
+// Now it is a template like every other message, sent through the same layer, which is also why
+// the fixture's own approve button can reuse it without a second copy of the copy.
+export async function sendChapterApproval(i: {
+  name: string; email: string; phone: string;
+  chapterName: string; schoolName: string;
+  chapterLink: string | null;
+  isTest: boolean;
+}): Promise<{ email: boolean; sms: boolean }> {
+  try {
+    const comms = await import("@/lib/comms/send.server");
+    const ctx = {
+      name: i.name, email: i.email, phone: i.phone,
+      chapter: i.chapterName, school: i.schoolName, chapterLink: i.chapterLink,
+      isTest: i.isTest,
+    };
+    const email = await comms.sendTemplateEmail({ key: "confirm_chapter_approved", ctx, to: i.email, isTest: i.isTest });
+    // consented: the mobile field sits beside the SmsConsentNote on the claim form, and this
+    // person asked to be contacted about exactly this.
+    const sms = await comms.sendTemplateSms({ key: "confirm_chapter_approved", ctx, to: i.phone, isTest: i.isTest, consented: true });
+    return { email: email.ok, sms: sms.ok };
+  } catch (e) {
+    console.warn("approval notify failed (chapter is approved)", e instanceof Error ? e.message : e);
+    return { email: false, sms: false };
+  }
+}

@@ -19,9 +19,31 @@ import { supabase } from "@/integrations/supabase/client";
 import { decideChapterClaim, listChapterClaims, type ClaimRow } from "@/lib/greek-claims.functions";
 
 export const Route = createFileRoute("/outreach/greek-claims")({
+  // ?claim=<id> — where the founder alert points. It is a POINTER, not a permission: the claim it
+  // names is only shown after the same Supabase session check as everything else on this page,
+  // and it grants nothing on its own. That is the whole reason the alert links here instead of
+  // carrying a one-tap approve token, which would be an approval credential sitting in an inbox.
+  validateSearch: (search: Record<string, unknown>): { claim?: string } => ({
+    claim: typeof search.claim === "string" && search.claim.length < 64 ? search.claim : undefined,
+  }),
   head: () => ({ meta: [{ title: "Chapter claims — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
   component: () => <AdminGate><ClaimsPage /></AdminGate>,
 });
+
+/** "3 minutes ago" / "Yesterday, 4:12 PM". How long a claim has been waiting is the first thing
+ *  that decides whether to deal with it now, and a raw ISO string makes you do that arithmetic. */
+function submittedLabel(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return "";
+  const mins = Math.round((Date.now() - t) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? "" : "s"} ago`;
+  const days = Math.round(hrs / 24);
+  if (days <= 7) return `${days} day${days === 1 ? "" : "s"} ago`;
+  return new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 
 function ClaimsPage() {
   useNavyDocument();
@@ -73,6 +95,7 @@ function ClaimQueue({ token }: { token: string }) {
   const [status, setStatus] = useState<"pending" | "approved" | "rejected" | "all">("pending");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const { claim: focusId } = Route.useSearch();
 
   const q = useQuery({
     queryKey: ["greek-claims", status],
@@ -95,7 +118,12 @@ function ClaimQueue({ token }: { token: string }) {
     return <p className="mt-6 text-[13.5px]" style={{ color: "#F3C6CC", fontFamily: BRAND_SANS }}>That account isn&apos;t on the admin list.</p>;
   }
 
-  const rows: ClaimRow[] = q.data ?? [];
+  // The alert named one claim; put it first rather than making Lee find it in a list of twenty.
+  // Sorting rather than filtering, so the rest of the queue is still one glance away.
+  const all: ClaimRow[] = q.data ?? [];
+  const rows: ClaimRow[] = focusId
+    ? [...all].sort((a, b) => (a.id === focusId ? -1 : b.id === focusId ? 1 : 0))
+    : all;
 
   return (
     <div className="mt-6 mb-16" style={{ fontFamily: BRAND_SANS }}>
@@ -114,7 +142,14 @@ function ClaimQueue({ token }: { token: string }) {
 
       <div className="space-y-3">
         {rows.map((c) => (
-          <div key={c.id} className="rounded-xl p-4" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.1)" }}>
+          <div
+            key={c.id}
+            className="rounded-xl p-4"
+            style={{
+              background: c.id === focusId ? "rgba(252,163,17,0.10)" : "rgba(245,239,230,0.04)",
+              border: c.id === focusId ? "1px solid rgba(252,163,17,0.5)" : "1px solid rgba(245,239,230,0.1)",
+            }}
+          >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-[15px] font-black" style={{ color: "var(--brand-cream)" }}>{c.chapterName}</p>
@@ -131,12 +166,38 @@ function ClaimQueue({ token }: { token: string }) {
                 <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-muted)" }}>
                   {c.membersAtClaim} member{c.membersAtClaim === 1 ? "" : "s"} at claim · {c.membersNow} now
                 </p>
+                {/* WHEN. A claim that came in four minutes ago and one that has been sitting for
+                    three days are different decisions, and the queue never said which was which.
+                    The exact time is in the title for when the relative one is not enough. */}
+                <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-muted)" }} title={new Date(c.createdAt).toLocaleString()}>
+                  Submitted {submittedLabel(c.createdAt)}
+                </p>
                 {c.goUrl && <a href={c.goUrl} className="text-[12.5px] underline underline-offset-2" style={{ color: "var(--text-muted)" }}>{c.goUrl}</a>}
               </div>
               {c.status === "pending" ? (
-                <div className="flex shrink-0 gap-2">
-                  <button disabled={busyId === c.id} onClick={() => void decide(c.id, "approved")} className="rounded-lg px-3 py-2 text-[13px] font-black disabled:opacity-40" style={{ background: "var(--accent)", color: "#0B1220" }}>Approve</button>
-                  <button disabled={busyId === c.id} onClick={() => void decide(c.id, "rejected")} className="rounded-lg px-3 py-2 text-[13px] font-bold disabled:opacity-40" style={{ background: "rgba(245,239,230,0.08)", color: "var(--brand-cream)", border: "1px solid rgba(245,239,230,0.16)" }}>Reject</button>
+                <div className="flex shrink-0 flex-col items-stretch gap-2">
+                  {/* One primary action, named after what it does to the chapter rather than to
+                      the row. Approving sends the exec their dashboard and their approval
+                      message — no follow-up step, and nothing to do in the database. */}
+                  <button
+                    disabled={busyId === c.id}
+                    onClick={() => void decide(c.id, "approved")}
+                    className="rounded-lg px-4 py-2.5 text-[13px] font-black disabled:opacity-40"
+                    style={{ minHeight: 44, background: "var(--accent)", color: "#0B1220" }}
+                  >
+                    {busyId === c.id ? "Approving…" : "Approve chapter"}
+                  </button>
+                  {/* "Reject" alone reads as a verdict on the person. Most of the time this means
+                      "I could not confirm they are an officer", which is a different thing and the
+                      reason to text them first. */}
+                  <button
+                    disabled={busyId === c.id}
+                    onClick={() => void decide(c.id, "rejected")}
+                    className="rounded-lg px-4 py-2 text-[12.5px] font-bold disabled:opacity-40"
+                    style={{ minHeight: 40, background: "rgba(245,239,230,0.08)", color: "var(--brand-cream)", border: "1px solid rgba(245,239,230,0.16)" }}
+                  >
+                    Reject / needs verification
+                  </button>
                 </div>
               ) : (
                 <span className="shrink-0 rounded-lg px-2.5 py-1 text-[12px] font-bold capitalize" style={{ background: "rgba(245,239,230,0.08)", color: "var(--text-muted)" }}>{c.status}</span>

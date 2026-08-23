@@ -469,7 +469,17 @@ export const testApproveFixtureClaim = createServerFn({ method: "POST" })
 
     await db.from("greek_chapter_claims").update({ status: "approved", decided_at: new Date().toISOString() }).eq("id", claim.id);
     await db.from("campus_greek_chapters").update({ claim_status: "claimed", claimed_at: new Date().toISOString() }).eq("id", roster.id);
-    // No approval SMS: a tester does not need a text saying their fake chapter is live.
+
+    // The SAME approval message the real path sends — not a silent shortcut. A tester who never
+    // sees the approval notification cannot tell you it reads wrong, and step 10 of the run sheet
+    // is exactly that check. It is is_test, so it routes to the tester and the SMS is suppressed.
+    const { sendChapterApproval } = await import("@/lib/greek-claims.functions");
+    await sendChapterApproval({
+      name: claim.name as string, email: claim.email as string, phone: claim.phone as string,
+      chapterName, schoolName,
+      chapterLink: `https://surviveaccounting.com/go/${TEST_CAMPUS_SLUG}/${TEST_CHAPTER_SLUG}`,
+      isTest: true,
+    });
     return { ok: true, chapterId: chapterId ?? undefined };
   });
 
