@@ -1,20 +1,23 @@
-// THE RUBRIC EXHIBIT (Rubric v2) — the FILMING WRAPPER around RubricBoard.
+// THE RUBRIC EXHIBIT (v3) — the FILMING WRAPPER around RubricBoard.
 //
 // THE RUBRIC IS THE SCREEN. This file owns only what filming needs — the
-// reveal step, the zoom, the statements toggle, and the keys that drive them —
-// and keeps every probe out of the frame: the Probe Library, the ask-first
-// step panel and the chip tray all live in a collapsible drawer that is CLOSED
-// by default (§1). Nothing is deleted; the teaching questions are one click
-// away, and Lee runs them verbally on camera.
+// switches (what the board is teaching), the reveal step, the zoom, the
+// per-element opens and movements, and the keys that drive them — and keeps
+// every probe out of the frame: the Probe Library, the ask-first step panel
+// and the chip tray live in a drawer that is CLOSED by default (§1). Nothing
+// is deleted; the teaching questions are one click away, and Lee runs them
+// verbally on camera.
 //
-// KEYS (this surface, only while the drawer is CLOSED so the probe keys can
-// never fight them):
-//   Tab / Shift+Tab  next / previous reveal step
-//   `                reset to BLANK (and zoom out) — how a take starts
-//   Esc              zoom out
-//   1–5              zoom into A · L · E · Revs · Exps
-//   6                statements layer on/off
-// Space is never used: it belongs to the film controller everywhere else.
+// KEYS (only while the drawer is CLOSED, so the probe keys can never fight
+// them; Tab and Esc are ours in both states):
+//   Tab / Shift+Tab   next / previous reveal step
+//   `                 reset to BLANK — how a take starts
+//   Esc               close the open columns / zoom out
+//   1–5               open A · L · E · Revs · Exps in place (def + accounts)
+//   Shift+1–5         zoom that element to fill the frame
+//   6 7 8 9 0         statements · signs · defs · accounts · arrows
+//   N · T             normal-balance highlight · T-accounts
+//   M                 cycle the teaching mode
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { NEON } from "../theme";
@@ -23,12 +26,27 @@ import { StepPanel, StepToggles, useProbeRun } from "./lab-runner";
 import { appendSteps, type RunStepDef } from "./probe-run";
 import type { ExhibitProbeRef } from "./probes";
 import { ACCOUNTS, checkExpect, checkFourQuestions, entryBalanced, flipSteps, fourQuestionRound, journalLines, scenarioById, timingSteps, whatIfSteps, type AcctType, type Chip, type Scenario } from "./rubric-model";
-import { ELEMENT_FULL, ELEMENT_ORDER, REVEAL_LABELS, REVEAL_LAST, nextReveal, prevReveal } from "./rubric-view";
+import {
+  ALL_OFF, ELEMENT_FULL, ELEMENT_ORDER, MODES, MODE_IDS, REVEAL_LABELS, REVEAL_LAST,
+  matchMode, modeById, nextMovement, nextReveal, prevReveal,
+  type Movement, type RubricMode, type RubricToggles,
+} from "./rubric-view";
 
 const GOLD = "#FCA311", GOOD = "#3BF5A0";
 
-/** The chip tray — the probe's journal entry, now inside the drawer (it is
- *  probe machinery, and the board stays clean). */
+/** The switch a key flips. Order matches the 6·7·8·9·0 row. */
+const KEY_TOGGLES: { code: string; key: keyof RubricToggles; label: string }[] = [
+  { code: "Digit6", key: "statements", label: "statements" },
+  { code: "Digit7", key: "signs", label: "(+/−)" },
+  { code: "Digit8", key: "defs", label: "defs" },
+  { code: "Digit9", key: "accounts", label: "accounts" },
+  { code: "Digit0", key: "arrows", label: "↑↓" },
+  { code: "KeyN", key: "normal", label: "normal bal." },
+  { code: "KeyT", key: "tAccounts", label: "T-accounts" },
+];
+
+/** The chip tray — the probe's journal entry, inside the drawer (it is probe
+ *  machinery, and the board stays clean). */
 function Tray({ chips, pending, balanced }: { chips: Chip[]; pending: Partial<Chip>; balanced: boolean }) {
   if (balanced) {
     const lines = journalLines(chips);
@@ -69,39 +87,60 @@ function Tray({ chips, pending, balanced }: { chips: Chip[]; pending: Partial<Ch
 
 export function RubricExhibit({ probeRef, labControls }: {
   probeRef: ExhibitProbeRef;
-  /** The Lab's probe controls (scenario picker + probe library), rendered INSIDE
-   *  this exhibit's drawer so there is exactly one probe surface, not two. */
+  /** The Lab's probe controls (scenario picker + library), rendered INSIDE this
+   *  exhibit's drawer so there is exactly one probe surface, not two. */
   labControls?: React.ReactNode;
 }) {
   const sc: Scenario = useMemo(() => scenarioById(String(probeRef.seed?.scenario ?? "supplies-cash")), [probeRef.seed?.scenario]);
 
   // ---- the exhibit's own state: this is what films -----------------------
   const [drawer, setDrawer] = useState(false);
-  /** null = FREE MODE (navigable, everything on); 1–7 = the authored build. */
+  const [gear, setGear] = useState(false);
+  /** null = FREE MODE (navigable, everything its switches allow); 1–7 = build. */
   const [reveal, setReveal] = useState<number | null>(null);
   const [zoom, setZoom] = useState<AcctType | null>(null);
-  const [statements, setStatements] = useState(false);
+  /** The switches. Default: the clean equation — the pair above, one-word defs. */
+  const [toggles, setToggles] = useState<RubricToggles>({ ...ALL_OFF, signs: true, defs: true });
+  const [open, setOpen] = useState<ReadonlySet<AcctType>>(new Set());
+  const [movements, setMovements] = useState<Partial<Record<AcctType, Movement>>>({});
+
+  const flip = useCallback((k: keyof RubricToggles) => setToggles((t) => ({ ...t, [k]: !t[k] })), []);
+  const setMode = useCallback((m: RubricMode) => { setToggles(modeById(m)); setOpen(new Set()); }, []);
+  const mode = matchMode(toggles);
 
   const drawerRef = useRef(drawer); drawerRef.current = drawer;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
-      // Tab is ours in BOTH states — no probe step uses it.
+      // Tab / Esc are ours in BOTH states — no probe step uses them.
       if (e.key === "Tab") { e.preventDefault(); setReveal((r) => (e.shiftKey ? prevReveal(r ?? REVEAL_LAST) : nextReveal(r ?? 1))); return; }
-      if (e.key === "Escape") { e.preventDefault(); setZoom(null); return; }
+      if (e.key === "Escape") { e.preventDefault(); setZoom(null); setOpen(new Set()); return; }
       // The rest only while the probe drawer is CLOSED: with it open the Lab's
       // run keys (1–9 · S · ← → · `) own the keyboard, and two owners is a bug.
       if (drawerRef.current) return;
-      if (e.key === "`") { e.preventDefault(); setReveal(1); setZoom(null); return; }
-      if (/^[1-5]$/.test(e.key)) { e.preventDefault(); setZoom(ELEMENT_ORDER[Number(e.key) - 1]); return; }
-      if (e.key === "6") { e.preventDefault(); setStatements((s) => !s); return; }
+      if (e.key === "`") { e.preventDefault(); setReveal(1); setZoom(null); setOpen(new Set()); setMovements({}); return; }
+      // Digits by CODE, so Shift+1 is still "the first element", not "!".
+      const idx = ["Digit1", "Digit2", "Digit3", "Digit4", "Digit5"].indexOf(e.code);
+      if (idx >= 0) {
+        e.preventDefault();
+        const t = ELEMENT_ORDER[idx];
+        if (e.shiftKey) setZoom((z) => (z === t ? null : t));
+        else setOpen((s) => { const n = new Set(s); if (n.has(t)) n.delete(t); else n.add(t); return n; });
+        return;
+      }
+      const kt = KEY_TOGGLES.find((k) => k.code === e.code);
+      if (kt) { e.preventDefault(); flip(kt.key); return; }
+      if (e.code === "KeyM") { e.preventDefault(); setMode(MODE_IDS[(Math.max(0, MODE_IDS.indexOf(mode ?? "types")) + 1) % MODE_IDS.length]); return; }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [flip, setMode, mode]);
 
-  // ---- the probe run: unchanged machinery, now behind the drawer ----------
+  const toggleOpen = useCallback((t: AcctType) => setOpen((s) => { const n = new Set(s); if (n.has(t)) n.delete(t); else n.add(t); return n; }), []);
+  const cycleMovement = useCallback((t: AcctType) => setMovements((m) => ({ ...m, [t]: nextMovement(m[t] ?? null) })), []);
+
+  // ---- the probe run: unchanged machinery, behind the drawer --------------
   const [chips, setChips] = useState<Chip[]>([]);
   const [pending, setPending] = useState<Partial<Chip>>({});
   const chipsRef = useRef(chips); chipsRef.current = chips;
@@ -168,20 +207,53 @@ export function RubricExhibit({ probeRef, labControls }: {
     <div className="relative h-full min-h-0 w-full overflow-hidden">
       {/* ── THE BOARD — full bleed. Everything below is chrome that never
              appears in a captured frame (the Lab's PRESENT mode hides it). ── */}
-      <RubricBoard reveal={reveal} zoom={zoom} statements={statements} onZoom={setZoom} />
+      <RubricBoard
+        reveal={reveal} zoom={zoom} toggles={toggles} open={open} movements={movements}
+        onZoom={setZoom} onToggleOpen={toggleOpen} onCycleMovement={cycleMovement}
+      />
+
+      {/* GEAR — the switches. Authoring chrome: set the shot up here, then P. */}
+      <button
+        data-lab-chrome
+        onClick={() => setGear((g) => !g)}
+        title="Teaching modes + switches — what this board is teaching"
+        className="absolute left-2 top-2 grid h-7 w-7 place-items-center rounded-lg text-[13px]"
+        style={{ zIndex: 4, background: gear ? GOLD : "rgba(0,0,0,0.55)", color: gear ? "#0B1322" : NEON.muted, border: `1px solid ${NEON.borderSoft}` }}
+      >⚙</button>
+      {gear && (
+        <div data-lab-chrome className="absolute left-2 top-11 w-[248px] rounded-xl p-2.5" style={{ zIndex: 4, background: "rgba(8,13,24,0.97)", border: `1px solid ${NEON.borderSoft}` }}>
+          <div className="mb-1 text-[9px] font-black uppercase tracking-[0.2em]" style={{ color: NEON.muted }}>Teaching mode <span style={{ color: GOLD }}>{mode ?? "custom"}</span></div>
+          <div className="mb-2 flex flex-wrap gap-1">
+            {MODES.map((m) => (
+              <button key={m.id} className={CHIP} title={m.blurb}
+                style={{ color: mode === m.id ? "#0B1322" : "#F4EFE6", background: mode === m.id ? GOLD : "transparent", border: `1px solid ${NEON.borderSoft}` }}
+                onClick={() => setMode(m.id)}>{m.name}</button>
+            ))}
+          </div>
+          <div className="mb-1 text-[9px] font-black uppercase tracking-[0.2em]" style={{ color: NEON.muted }}>Show</div>
+          {KEY_TOGGLES.map((k) => (
+            <label key={k.key} className="flex cursor-pointer items-center gap-1.5 py-0.5 text-[11px]" style={{ color: toggles[k.key] ? "#F4EFE6" : NEON.muted }}>
+              <input type="checkbox" checked={toggles[k.key]} onChange={() => flip(k.key)} />
+              <span className="flex-1">{k.label}</span>
+              <span className="text-[8px]" style={{ color: NEON.muted }}>{k.code.replace("Digit", "").replace("Key", "")}</span>
+            </label>
+          ))}
+          <div className="mt-1.5 border-t pt-1.5 text-[9px] leading-relaxed" style={{ borderColor: NEON.borderSoft, color: NEON.muted }}>
+            Click a letter to open just that one · click above it to step ↑ ↓ ↑↓ · Shift+1–5 zooms.
+          </div>
+        </div>
+      )}
 
       {/* AUTHORING HUD — bottom-left, Lab-only. Present mode drops it. */}
-      <div className="pointer-events-auto absolute bottom-2 left-2 flex items-center gap-1.5" data-lab-chrome>
+      <div className="pointer-events-auto absolute bottom-2 left-2 flex flex-wrap items-center gap-1.5" data-lab-chrome>
         <button className={CHIP} style={{ color: reveal == null ? NEON.muted : "#0B1322", background: reveal == null ? "transparent" : GOLD, border: `1px solid ${NEON.borderSoft}` }}
           onClick={() => setReveal((r) => (r == null ? 1 : null))}
           title="BUILD MODE — the authored reveal (Tab / Shift+Tab step it, ` resets to blank). Off = the free, navigable rubric.">
           {reveal == null ? "free" : `build ${reveal}/${REVEAL_LAST}`}
         </button>
         {reveal != null && <span className="text-[9px]" style={{ color: NEON.muted }}>{REVEAL_LABELS[reveal - 1]}</span>}
-        <button className={CHIP} style={{ color: statements ? "#0B1322" : NEON.muted, background: statements ? GOOD : "transparent", border: `1px solid ${NEON.borderSoft}` }}
-          onClick={() => setStatements((s) => !s)} title="Statements layer (key 6) — BALANCE SHEET · R/E bridge · INCOME STATEMENT">statements</button>
         {zoom && <button className={CHIP} style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setZoom(null)} title="Esc">← {ELEMENT_FULL[zoom]}</button>}
-        <span className="text-[9px]" style={{ color: NEON.muted }}>Tab reveal · ` blank · 1–5 zoom · 6 statements</span>
+        <span className="text-[9px]" style={{ color: NEON.muted }}>Tab reveal · ` blank · 1–5 open · ⇧1–5 zoom · 6–0 NT switches · M mode</span>
       </div>
 
       {/* ── THE PROBE DRAWER (§1) — closed by default; the rubric is the screen.

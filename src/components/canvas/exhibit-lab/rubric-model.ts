@@ -39,7 +39,10 @@ export const acctType = (id: AcctType): AcctTypeDef => ACCT_TYPES.find((t) => t.
 
 /** Generic account lists per type — the narrowed universe at zoom step 2. */
 export const ACCOUNTS: Record<AcctType, string[]> = {
-  A: ["Cash", "Accounts Receivable", "Supplies", "Prepaid Insurance", "Prepaid Rent", "Inventory", "Equipment", "Accumulated Depreciation"],
+  // CURRENT first, then LONG-TERM (rubric-view splits this list at that seam —
+  // students need to see the two piles). Accumulated Depreciation stays LAST: it
+  // is the contra asset that hangs off the long-term pile.
+  A: ["Cash", "Accounts Receivable", "Supplies", "Prepaid Insurance", "Prepaid Rent", "Inventory", "Equipment", "Vehicles", "Buildings", "Land", "Accumulated Depreciation"],
   L: ["Accounts Payable", "Wages Payable", "Interest Payable", "Unearned Revenue", "Notes Payable"],
   E: ["Common Stock", "Retained Earnings", "Dividends"],
   R: ["Service Revenue", "Sales Revenue", "Interest Revenue"],

@@ -122,3 +122,95 @@ export const REVEAL_LABELS: readonly string[] = [
   "defs + Ts · EARNED COSTS",
   "statements layer",
 ] as const;
+
+// ═══════════════════════════════════════════════ v3: the teaching board ═══
+// The rubric is not one picture — it is a picture with switches. Every piece
+// (signs · defs · account lists · T-accounts · movement arrows · statements)
+// turns on and off independently, and a MODE is just a named set of switches
+// for the question being taught. Pure; the component only paints what this
+// says.
+
+/** ASSET GROUPS — students need to see the two piles, not one long column.
+ *  The split is a SEAM INDEX into ACCOUNTS.A, so the flat list stays the one
+ *  source of truth (the probes narrow against it). */
+export const CURRENT_ASSET_COUNT = 6; // Cash … Inventory
+
+export interface CoaGroup { label?: string; nodes: CoaNode[] }
+
+/** The account list for an element, grouped for display. Only Assets split. */
+export function coaGroups(element: AcctType): CoaGroup[] {
+  const all = coaNodes(element);
+  if (element !== "A") return [{ nodes: all }];
+  return [
+    { label: "CURRENT", nodes: all.slice(0, CURRENT_ASSET_COUNT) },
+    { label: "LONG TERM", nodes: all.slice(CURRENT_ASSET_COUNT) },
+  ];
+}
+
+/** CONTRA accounts — they sit inside a type but carry the OPPOSITE sign pair.
+ *  Called out on the board because they are the classic trap. */
+export const CONTRA: Record<string, { of: AcctType; label: string }> = {
+  "coa:A:accumulated-depreciation": { of: "A", label: "CONTRA ASSET" },
+  "coa:E:dividends": { of: "E", label: "CONTRA EQUITY" },
+};
+export const isContra = (id: string): boolean => id in CONTRA;
+
+/** The sign pair as the board prints it: left of the slash is the DEBIT side.
+ *  A contra account flips its type's pair. */
+export function signPair(type: AcctType, contra = false): { left: "+" | "−"; right: "+" | "−" } {
+  const t = tSides(type);
+  return contra ? { left: t.right, right: t.left } : { left: t.left, right: t.right };
+}
+
+// ------------------------------------------------------------- movements
+
+/** ↑ ↓ ↑↓ — the movement Lee clicks through while working a transaction.
+ *  Cycles none → up → down → both → none. */
+export type Movement = "up" | "down" | "both" | null;
+export const nextMovement = (m: Movement): Movement => (m == null ? "up" : m === "up" ? "down" : m === "down" ? "both" : null);
+export const MOVEMENT_GLYPH: Record<"up" | "down" | "both", string> = { up: "↑", down: "↓", both: "↑↓" };
+
+// --------------------------------------------------------------- switches
+
+export interface RubricToggles {
+  /** The (+/−) pair ABOVE each element — Lee's preferred spot. */
+  signs: boolean;
+  /** Light the + bolt-orange. OFF = both signs one colour (they are just the
+   *  pair); ON = the normal-balance lesson. */
+  normal: boolean;
+  /** OWN · OWE · VALUE · EARNED · COSTS. */
+  defs: boolean;
+  /** The individual accounts under each type — the whole COA in one picture. */
+  accounts: boolean;
+  /** The mini T-account (debit column | credit column). */
+  tAccounts: boolean;
+  /** The ↑/↓ movement row. */
+  arrows: boolean;
+  /** BALANCE SHEET · R/E bridge · INCOME STATEMENT. */
+  statements: boolean;
+}
+
+export const ALL_OFF: RubricToggles = { signs: false, normal: false, defs: false, accounts: false, tAccounts: false, arrows: false, statements: false };
+
+/** TEACHING MODES — a named set of switches for the question being taught.
+ *  A mode is a STARTING POINT, never a lock: every switch stays adjustable
+ *  after you pick one (that is the playground). */
+export type RubricMode = "types" | "drcr" | "normal" | "statements" | "moves" | "all";
+
+export const MODES: { id: RubricMode; name: string; blurb: string; toggles: RubricToggles }[] = [
+  { id: "types", name: "Types", blurb: "What TYPE of account is ___?", toggles: { ...ALL_OFF, defs: true, accounts: true } },
+  { id: "drcr", name: "Debits / Credits", blurb: "Which side increases it?", toggles: { ...ALL_OFF, signs: true, tAccounts: true, defs: true } },
+  { id: "normal", name: "Normal balances", blurb: "What is the normal balance of ___?", toggles: { ...ALL_OFF, signs: true, normal: true, accounts: true } },
+  { id: "statements", name: "Statements", blurb: "Which statement does it land on?", toggles: { ...ALL_OFF, statements: true, defs: true } },
+  { id: "moves", name: "Movements", blurb: "A = L + E — what moves, and which way?", toggles: { ...ALL_OFF, arrows: true, signs: true } },
+  { id: "all", name: "All", blurb: "Everything open — the playground.", toggles: { signs: true, normal: true, defs: true, accounts: true, tAccounts: true, arrows: true, statements: true } },
+];
+
+export const modeById = (id: RubricMode): RubricToggles => MODES.find((m) => m.id === id)!.toggles;
+export const MODE_IDS: readonly RubricMode[] = MODES.map((m) => m.id);
+
+/** The mode whose switches match exactly, or null once Lee has tweaked one. */
+export function matchMode(t: RubricToggles): RubricMode | null {
+  const m = MODES.find((x) => (Object.keys(ALL_OFF) as (keyof RubricToggles)[]).every((k) => x.toggles[k] === t[k]));
+  return m ? m.id : null;
+}

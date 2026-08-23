@@ -6,7 +6,7 @@ import { describe, expect, test } from "bun:test";
 import { CYCLE_PROBES, CYCLE_STEPS, checkOrder, matchesStep, ringSteps, selfTestSteps, shuffledIds, stepAfter, stepBefore } from "./cycle-model";
 import { appendSteps, attempt, canReveal, checkExpect, currentStep, next, prev, reveal, runSummary, setStepEnabled, skip, startRun, type RunStepDef } from "./probe-run";
 import { EXHIBITS, PROBES, PROBE_IDS, parseRefKey, probeById, refKey, type ExhibitProbeRef } from "./probes";
-import { ALL_COA_NODES, BRIDGE_LABEL, BRIDGE_TITLE, DEFS, REVEAL_LABELS, REVEAL_LAST, STATEMENT_OF, coaNodes, nextReveal, prevReveal, tSides, visibleAt } from "./rubric-view";
+import { ALL_COA_NODES, ALL_OFF, BRIDGE_LABEL, BRIDGE_TITLE, CONTRA, DEFS, MODES, MODE_IDS, MOVEMENT_GLYPH, REVEAL_LABELS, REVEAL_LAST, STATEMENT_OF, coaGroups, coaNodes, isContra, matchMode, modeById, nextMovement, nextReveal, prevReveal, signPair, tSides, visibleAt } from "./rubric-view";
 import { ACCOUNTS, ACCT_TYPES, RUBRIC_PROBES, SCENARIOS, checkFourQuestions, classifyTiming, entryBalanced, flipIt, flipSteps, fourQuestionRound, journalLines, signFor, timingSteps, whatIfSteps, whatIfWeDont, type Chip } from "./rubric-model";
 
 const read = (p: string) => readFileSync(join(import.meta.dir, p), "utf8").split("\r\n").join("\n");
@@ -336,7 +336,7 @@ describe("Rubric v2 — COA nodes + the statements layer", () => {
   });
 });
 
-describe("Rubric v2 — the rubric IS the screen (§1, §6)", () => {
+describe("Rubric v2/v3 — the rubric IS the screen (§1, §6)", () => {
   const board = read("RubricBoard.tsx");
   const exhibit = read("RubricExhibit.tsx");
   const lab = read("ExhibitLab.tsx");
@@ -350,7 +350,9 @@ describe("Rubric v2 — the rubric IS the screen (§1, §6)", () => {
     expect(board).toContain("export interface RubricBoardProps");
     expect(board).toContain("reveal: number | null;");
     expect(board).toContain("zoom: AcctType | null;");
-    expect(board).toContain("statements: boolean;");
+    expect(board).toContain("toggles: RubricToggles;");
+    expect(board).toContain("open: ReadonlySet<AcctType>;");
+    expect(board).toContain("movements: Readonly<Partial<Record<AcctType, Movement>>>;");
   });
   test("MOTION: layers stay mounted and animate on opacity/transform only", () => {
     // a remount is the flash bug; a height/left animation is the jank bug
@@ -387,5 +389,102 @@ describe("Rubric v2 — the rubric IS the screen (§1, §6)", () => {
     expect(board).not.toContain("onDragStart");
     expect(board).not.toContain("SCENARIOS");
     expect(board).not.toContain("Chip");
+  });
+});
+
+// ============================================================== RUBRIC v3
+
+describe("Rubric v3 — asset groups + contra accounts", () => {
+  test("assets split CURRENT / LONG TERM, and the split covers the flat list exactly", () => {
+    const g = coaGroups("A");
+    expect(g.map((x) => x.label)).toEqual(["CURRENT", "LONG TERM"]);
+    expect(g.flatMap((x) => x.nodes).map((n) => n.label)).toEqual(ACCOUNTS.A); // partition, nothing lost or doubled
+    expect(g[0].nodes.map((n) => n.label)).toEqual(["Cash", "Accounts Receivable", "Supplies", "Prepaid Insurance", "Prepaid Rent", "Inventory"]);
+    expect(g[1].nodes.map((n) => n.label)).toContain("Accumulated Depreciation");
+  });
+  test("every other element is ONE ungrouped list", () => {
+    for (const t of ["L", "E", "R", "X"] as const) {
+      const g = coaGroups(t);
+      expect(g.length).toBe(1);
+      expect(g[0].label).toBeUndefined();
+      expect(g[0].nodes.map((n) => n.label)).toEqual(ACCOUNTS[t]);
+    }
+  });
+  test("contra accounts carry the FLIPPED pair of their own type", () => {
+    expect(isContra("coa:A:accumulated-depreciation")).toBe(true);
+    expect(isContra("coa:E:dividends")).toBe(true);
+    expect(isContra("coa:A:cash")).toBe(false);
+    // asset is (+/−) ⇒ its contra is (−/+); equity is (−/+) ⇒ its contra is (+/−)
+    expect(signPair("A")).toEqual({ left: "+", right: "−" });
+    expect(signPair("A", true)).toEqual({ left: "−", right: "+" });
+    expect(signPair("E", true)).toEqual({ left: "+", right: "−" });
+    expect(CONTRA["coa:A:accumulated-depreciation"].label).toBe("CONTRA ASSET");
+  });
+});
+
+describe("Rubric v3 — movements", () => {
+  test("clicking cycles none → up → down → both → none", () => {
+    expect(nextMovement(null)).toBe("up");
+    expect(nextMovement("up")).toBe("down");
+    expect(nextMovement("down")).toBe("both");
+    expect(nextMovement("both")).toBe(null);
+  });
+  test("the glyphs are the arrows Lee teaches with", () => {
+    expect(MOVEMENT_GLYPH.up).toBe("↑");
+    expect(MOVEMENT_GLYPH.down).toBe("↓");
+    expect(MOVEMENT_GLYPH.both).toBe("↑↓");
+  });
+});
+
+describe("Rubric v3 — teaching modes are named switch sets", () => {
+  test("each mode turns on exactly what its question needs", () => {
+    expect(modeById("types")).toEqual({ ...ALL_OFF, defs: true, accounts: true });
+    expect(modeById("normal")).toEqual({ ...ALL_OFF, signs: true, normal: true, accounts: true });
+    expect(modeById("drcr")).toEqual({ ...ALL_OFF, signs: true, tAccounts: true, defs: true });
+    expect(modeById("statements")).toEqual({ ...ALL_OFF, statements: true, defs: true });
+    expect(modeById("moves")).toEqual({ ...ALL_OFF, arrows: true, signs: true });
+    expect(Object.values(modeById("all")).every(Boolean)).toBe(true); // the playground
+  });
+  test("NORMAL BALANCE is opt-in: no mode but `normal` lights the +", () => {
+    // the pair is one colour by default — the coloured + is a lesson, not decor
+    for (const m of MODES) if (m.id !== "normal" && m.id !== "all") expect(m.toggles.normal).toBe(false);
+  });
+  test("a mode round-trips, and tweaking one switch makes it custom", () => {
+    expect(matchMode(modeById("normal"))).toBe("normal");
+    expect(matchMode({ ...modeById("normal"), arrows: true })).toBeNull();
+    expect(MODE_IDS.length).toBe(MODES.length);
+  });
+});
+
+describe("Rubric v3 — the board paints what the switches say", () => {
+  const board = read("RubricBoard.tsx");
+  const exhibit = read("RubricExhibit.tsx");
+  test("the (+/−) pair sits ABOVE the letter — Lee's preferred spot", () => {
+    const col = board.slice(board.indexOf("function ElementCol("), board.indexOf("/** An operator glyph"));
+    expect(col.indexOf("<SignPair")).toBeLessThan(col.indexOf("onClick={() => onToggleOpen(type)}")); // pair, then the letter
+    expect(col.indexOf("<SignPair")).toBeLessThan(col.indexOf("onCycleMovement(type)"));               // pair is topmost
+  });
+  test("both signs share one colour until `normal` lights the +", () => {
+    const sp = board.slice(board.indexOf("function SignPair("), board.indexOf("/** THE MINI T"));
+    expect(sp).toContain('color: normal && g === "+" ? GOLD : DIM,');
+  });
+  test("clicking a letter opens THAT element in place; a switch opens them all", () => {
+    expect(board).toContain("const accountsFor = (t: AcctType) => toggles.accounts || open.has(t);");
+    expect(board).toContain("const defsFor = (t: AcctType) => toggles.defs || open.has(t);");
+    // one column opening widens the whole row, so the equation never re-flows
+    // halfway through a reveal
+    expect(board).toContain("const wide = ELEMENT_ORDER.some(accountsFor);");
+  });
+  test("the movement slot holds its height so clicking ↑↓ never nudges the frame", () => {
+    expect(board).toContain("height: Math.round(glyphSize * 0.42)");
+  });
+  test("the gear owns the switches, and the keys mirror it", () => {
+    expect(exhibit).toContain('{ code: "Digit6", key: "statements"');
+    expect(exhibit).toContain('{ code: "Digit9", key: "accounts"');
+    expect(exhibit).toContain('{ code: "KeyN", key: "normal"');
+    // digits read by CODE so Shift+1 is still "the first element", not "!"
+    expect(exhibit).toContain('const idx = ["Digit1", "Digit2", "Digit3", "Digit4", "Digit5"].indexOf(e.code);');
+    expect(exhibit).toContain("if (e.shiftKey) setZoom((z) => (z === t ? null : t));");
+    expect(exhibit).toContain("data-lab-chrome"); // the gear never films
   });
 });
