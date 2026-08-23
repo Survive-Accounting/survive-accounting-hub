@@ -1,0 +1,947 @@
+Campus,State,Course Code,Current Professors,Priority,Reason,Estimated API Cost,Estimated Professor Yield
+Park University,MO,ACCT (intro/intermediate),0,P1,strategic market; tier_1; adoption x1583; 0 professors on file,$0.04,8-25
+"University of California, Los Angeles",CA,ACCT (intro/intermediate),1,P1,high market priority; tier_2; enrollment 33k; adoption x165; grad accounting program; only 1 on file,$0.09,30-90
+Texas A&M University,TX,ACCT (intro/intermediate),75,P2,high market priority; tier_2; SEC (large Greek/athletic); adoption x117; grad accounting program; already 75 on file,$0.09,30-90
+Houston Community College System,TX,ACCT (intro/intermediate),0,P2,high market priority; tier_2; adoption x199; 0 professors on file,$0.04,8-25
+Hawaii Pacific University,HI,ACCT (intro/intermediate),2,P2,high market priority; tier_2; adoption x224; grad accounting program; only 2 on file,$0.06,15-45
+University of South Florida,FL,ACCT (intro/intermediate),15,P2,high market priority; tier_2; enrollment 37k; adoption x104; grad accounting program; already 15 on file,$0.09,30-90
+The University of Texas at Arlington,TX,ACCT (intro/intermediate),25,P2,high market priority; tier_2; enrollment 32k; adoption x138; grad accounting program; already 25 on file,$0.09,30-90
+The University of Texas at Austin,TX,ACCT (intro/intermediate),1,P2,medium market priority; enrollment 43k; adoption x50; grad accounting program; only 1 on file,$0.09,30-90
+Lone Star College,TX,ACCT (intro/intermediate),0,P2,medium market priority; enrollment 45k; adoption x54; 0 professors on file,$0.09,30-90
+University of Florida,FL,ACCT (intro/intermediate),64,P3,SEC (large Greek/athletic); Student-Ready; enrollment 36k; adoption x40; grad accounting program; already 64 on file,$0.09,30-90
+Florida Atlantic University,FL,ACCT (intro/intermediate),3,P3,medium market priority; enrollment 24k; adoption x15; grad accounting program; only 3 on file,$0.09,30-90
+University of Wisconsin–Madison,WI,ACCT (intro/intermediate),14,P3,medium market priority; enrollment 37k; adoption x17; grad accounting program,$0.09,30-90
+University of Southern California,CA,ACCT (intro/intermediate),17,P3,medium market priority; Student-Ready; enrollment 20k; adoption x39; grad accounting program; already 17 on file,$0.09,30-90
+Auburn University,AL,ACCT (intro/intermediate),14,P3,SEC (large Greek/athletic); active product campus; enrollment 27k; grad accounting program,$0.06,15-45
+Indiana University Bloomington,IN,ACCT (intro/intermediate),0,P3,enrollment 38k; adoption x5; grad accounting program; 0 professors on file,$0.09,30-90
+University of Texas at Austin,TX,ACCT (intro/intermediate),22,P3,SEC (large Greek/athletic); active product campus; enrollment 43k; grad accounting program; already 22 on file,$0.09,30-90
+"University of Tennessee, Knoxville",TN,ACCT (intro/intermediate),51,P3,SEC (large Greek/athletic); active product campus; enrollment 30k; grad accounting program; already 51 on file,$0.09,30-90
+Amberton University,TX,ACCT (intro/intermediate),0,P3,medium market priority; adoption x9; 0 professors on file,$0.04,3-12
+Casper College,WY,ACCT (intro/intermediate),0,P3,medium market priority; adoption x73; 0 professors on file,$0.04,3-12
+University of Minnesota System,MN,ACCT (intro/intermediate),0,P3,medium market priority; adoption x46; 0 professors on file,$0.04,8-25
+University of Houston - Victoria,TX,ACCT (intro/intermediate),0,P3,medium market priority; adoption x95; 0 professors on file,$0.04,3-12
+Alamo Colleges,TX,ACCT (intro/intermediate),0,P3,medium market priority; adoption x330; 0 professors on file,$0.04,8-25
+Sul Ross State University,TX,ACCT (intro/intermediate),0,P3,medium market priority; adoption x23; 0 professors on file,$0.04,8-25
+Coast Community College District,CA,ACCT (intro/intermediate),0,P3,medium market priority; adoption x24; 0 professors on file,$0.04,8-25
+Dallas County Community College District,TX,ACCT (intro/intermediate),0,P3,medium market priority; adoption x287; 0 professors on file,$0.04,8-25
+Dallas Baptist University,TX,ACCT (intro/intermediate),3,P3,medium market priority; adoption x22; grad accounting program; only 3 on file,$0.06,15-45
+University of North Texas,TX,ACCT (intro/intermediate),0,P3,enrollment 34k; grad accounting program; 0 professors on file,$0.09,30-90
+Western Kentucky University,KY,ACCT (intro/intermediate),11,P3,medium market priority; adoption x15; grad accounting program,$0.09,30-90
+Texas State University,TX,ACCT (intro/intermediate),23,P3,medium market priority; enrollment 36k; adoption x121; grad accounting program; already 23 on file,$0.09,30-90
+Stephen F. Austin State University,TX,ACCT (intro/intermediate),13,P3,medium market priority; adoption x90; grad accounting program,$0.09,30-90
+Vanderbilt University,TN,ACCT (intro/intermediate),14,P3,SEC (large Greek/athletic); active product campus; grad accounting program,$0.06,15-45
+Niagara College,ON,ACCT (intro/intermediate),0,P3,NON-US (RMP/accounting-tuned=weak); high market priority; tier_2; adoption x140; 0 professors on file,$0.04,8-25
+British Columbia Institute of Technology,BC,ACCT (intro/intermediate),0,P3,NON-US (RMP/accounting-tuned=weak); high market priority; tier_2; adoption x347; 0 professors on file,$0.04,8-25
+Sheridan College,ON,ACCT (intro/intermediate),0,P3,NON-US (RMP/accounting-tuned=weak); high market priority; tier_2; adoption x349; 0 professors on file,$0.04,8-25
+University of Arkansas,AR,ACCT (intro/intermediate),45,P3,SEC (large Greek/athletic); active product campus; enrollment 29k; grad accounting program; already 45 on file,$0.09,30-90
+Mississippi State University,MS,ACCT (intro/intermediate),31,P3,SEC (large Greek/athletic); active product campus; enrollment 18k; grad accounting program; already 31 on file,$0.06,15-45
+University of Alabama,AL,ACCT (intro/intermediate),44,P3,SEC (large Greek/athletic); enrollment 33k; adoption x55; grad accounting program; already 44 on file,$0.09,30-90
+University of Georgia,GA,ACCT (intro/intermediate),54,P3,SEC (large Greek/athletic); enrollment 32k; adoption x68; grad accounting program; already 54 on file,$0.09,30-90
+Austin Community College,TX,ACCT (intro/intermediate),0,P3,enrollment 30k; adoption x58; 0 professors on file,$0.09,30-90
+Tarrant County College,TX,ACCT (intro/intermediate),0,P3,enrollment 42k; adoption x9; 0 professors on file,$0.09,30-90
+Texas Tech University,TX,ACCT (intro/intermediate),3,P3,enrollment 32k; adoption x37; grad accounting program; only 3 on file,$0.09,30-90
+Florida Gulf Coast University,FL,ACCT (intro/intermediate),0,P3,adoption x59; grad accounting program; 0 professors on file,$0.06,15-45
+Sam Houston State University,TX,ACCT (intro/intermediate),18,P3,medium market priority; enrollment 18k; adoption x23; grad accounting program; already 18 on file,$0.06,15-45
+The University of Texas at Dallas,TX,ACCT (intro/intermediate),19,P3,medium market priority; enrollment 22k; adoption x206; grad accounting program; already 19 on file,$0.09,30-90
+University of Kentucky,KY,ACCT (intro/intermediate),84,P3,SEC (large Greek/athletic); active product campus; enrollment 25k; already 84 on file,$0.06,15-45
+Santa Rosa Junior College,CA,ACCT (intro/intermediate),0,P3,enrollment 15k; adoption x9; 0 professors on file,$0.06,15-45
+San Francisco State University,CA,ACCT (intro/intermediate),4,P3,enrollment 19k; adoption x6; grad accounting program; only 4 on file,$0.09,30-90
+Chaffey College,CA,ACCT (intro/intermediate),0,P3,enrollment 18k; adoption x12; 0 professors on file,$0.06,15-45
+Cerritos College,CA,ACCT (intro/intermediate),0,P3,enrollment 19k; adoption x8; 0 professors on file,$0.06,15-45
+City College of San Francisco,CA,ACCT (intro/intermediate),0,P3,enrollment 17k; adoption x7; 0 professors on file,$0.06,15-45
+Fullerton College,CA,ACCT (intro/intermediate),0,P3,enrollment 17k; adoption x12; 0 professors on file,$0.06,15-45
+De Anza College,CA,ACCT (intro/intermediate),0,P3,enrollment 15k; adoption x11; 0 professors on file,$0.06,15-45
+Saddleback College,CA,ACCT (intro/intermediate),0,P3,enrollment 18k; adoption x101; 0 professors on file,$0.06,15-45
+Orange Coast College,CA,ACCT (intro/intermediate),0,P3,enrollment 16k; adoption x13; 0 professors on file,$0.06,15-45
+Fresno City College,CA,ACCT (intro/intermediate),0,P3,enrollment 21k; adoption x10; 0 professors on file,$0.06,15-45
+Northern Virginia Community College,VA,ACCT (intro/intermediate),0,P3,enrollment 33k; 0 professors on file,$0.09,30-90
+University of Colorado Boulder,CO,ACCT (intro/intermediate),8,P3,enrollment 32k; adoption x5; grad accounting program,$0.09,30-90
+Valencia College,FL,ACCT (intro/intermediate),0,P3,enrollment 39k; 0 professors on file,$0.09,30-90
+University of Houston - Clear Lake,TX,ACCT (intro/intermediate),5,P3,medium market priority; adoption x82,$0.04,8-25
+Texas Woman's University,TX,ACCT (intro/intermediate),0,P3,grad accounting program; 0 professors on file,$0.09,30-90
+Old Dominion University,VA,ACCT (intro/intermediate),0,P3,enrollment 18k; grad accounting program; 0 professors on file,$0.06,15-45
+Syracuse University,NY,ACCT (intro/intermediate),0,P4,enrollment 15k; 0 professors on file,$0.06,15-45
+University of Missouri,MO,ACCT (intro/intermediate),19,P4,SEC (large Greek/athletic); active product campus; grad accounting program; already 19 on file,$0.09,30-90
+University of South Carolina,SC,ACCT (intro/intermediate),30,P4,SEC (large Greek/athletic); active product campus; grad accounting program; already 30 on file,$0.09,30-90
+University of Oklahoma,OK,ACCT (intro/intermediate),33,P4,SEC (large Greek/athletic); active product campus; grad accounting program; already 33 on file,$0.09,30-90
+Ventura College,CA,ACCT (intro/intermediate),0,P4,adoption x13; 0 professors on file,$0.04,8-25
+Chabot College,CA,ACCT (intro/intermediate),0,P4,adoption x19; 0 professors on file,$0.04,8-25
+Foothill College,CA,ACCT (intro/intermediate),0,P4,adoption x10; 0 professors on file,$0.04,8-25
+Utah Tech University,UT,ACCT (intro/intermediate),4,P4,adoption x13; grad accounting program; only 4 on file,$0.09,30-90
+Tulsa Community College,OK,ACCT (intro/intermediate),0,P4,adoption x10; 0 professors on file,$0.04,8-25
+Lansing Community College,MI,ACCT (intro/intermediate),0,P4,adoption x88; 0 professors on file,$0.04,8-25
+Seminole State College of Florida,FL,ACCT (intro/intermediate),0,P4,adoption x12; 0 professors on file,$0.04,8-25
+University of Toledo,OH,ACCT (intro/intermediate),3,P4,adoption x5; grad accounting program; only 3 on file,$0.06,15-45
+"University of California, Santa Barbara",CA,ACCT (intro/intermediate),2,P4,enrollment 23k; adoption x22; only 2 on file,$0.06,15-45
+Wayland Baptist University,TX,ACCT (intro/intermediate),0,P4,adoption x5; 0 professors on file,$0.04,3-12
+Miami Dade College,FL,ACCT (intro/intermediate),0,P4,enrollment 46k; 0 professors on file,$0.09,30-90
+University of Southern Indiana,IN,ACCT (intro/intermediate),0,P4,adoption x20; 0 professors on file,$0.04,8-25
+Baylor University,TX,ACCT (intro/intermediate),0,P4,Student-Ready; 0 professors on file,$0.04,8-25
+Miami University,OH,ACCT (intro/intermediate),0,P4,Student-Ready; 0 professors on file,$0.04,8-25
+Ohio State University,OH,ACCT (intro/intermediate),0,P4,Student-Ready; 0 professors on file,$0.04,8-25
+Oklahoma State University,OK,ACCT (intro/intermediate),0,P4,Student-Ready; 0 professors on file,$0.04,8-25
+University of Kansas,KS,ACCT (intro/intermediate),0,P4,Student-Ready; 0 professors on file,$0.04,8-25
+University of Pittsburgh,PA,ACCT (intro/intermediate),0,P4,Student-Ready; 0 professors on file,$0.04,8-25
+University of Cincinnati,OH,ACCT (intro/intermediate),0,P4,Student-Ready; 0 professors on file,$0.04,8-25
+Iowa State University,IA,ACCT (intro/intermediate),0,P4,Student-Ready; 0 professors on file,$0.04,8-25
+James Madison University,VA,ACCT (intro/intermediate),0,P4,Student-Ready; 0 professors on file,$0.04,8-25
+University of Iowa,IA,ACCT (intro/intermediate),14,P4,enrollment 22k; adoption x5; grad accounting program,$0.09,30-90
+Pennsylvania State University,PA,ACCT (intro/intermediate),65,P4,medium market priority; adoption x5; grad accounting program; already 65 on file,$0.06,15-45
+Arizona State University,AZ,ACCT (intro/intermediate),20,P4,medium market priority; adoption x25; grad accounting program; already 20 on file,$0.09,30-90
+University of Minnesota,MN,ACCT (intro/intermediate),35,P4,medium market priority; adoption x41; grad accounting program; already 35 on file,$0.09,30-90
+Kansas State University,KS,ACCT (intro/intermediate),0,P4,Student-Ready; 0 professors on file,$0.04,8-25
+Northwestern University,IL,ACCT (intro/intermediate),0,P4,Student-Ready; 0 professors on file,$0.04,8-25
+Collin College,TX,ACCT (intro/intermediate),0,P4,enrollment 26k; 0 professors on file,$0.06,15-45
+College of DuPage,IL,ACCT (intro/intermediate),0,P4,enrollment 16k; 0 professors on file,$0.06,15-45
+Pasadena City College,CA,ACCT (intro/intermediate),0,P4,enrollment 21k; 0 professors on file,$0.06,15-45
+Oregon State University,OR,ACCT (intro/intermediate),14,P4,enrollment 31k; adoption x28,$0.09,30-90
+University of Mary Washington,VA,ACCT (intro/intermediate),0,P4,grad accounting program; 0 professors on file,$0.06,15-45
+University of Illinois Chicago,IL,ACCT (intro/intermediate),13,P4,enrollment 22k; adoption x5; grad accounting program,$0.09,30-90
+University of Idaho,ID,ACCT (intro/intermediate),2,P4,adoption x7; grad accounting program; only 2 on file,$0.06,15-45
+Southern Methodist University,TX,ACCT (intro/intermediate),4,P4,adoption x5; grad accounting program; only 4 on file,$0.06,15-45
+State Center Community College District,CA,ACCT (intro/intermediate),0,P4,adoption x6; 0 professors on file,$0.04,8-25
+West Los Angeles College,CA,ACCT (intro/intermediate),0,P4,adoption x57; 0 professors on file,$0.04,8-25
+Reedley College,CA,ACCT (intro/intermediate),0,P4,adoption x28; 0 professors on file,$0.04,8-25
+Western New Mexico University,NM,ACCT (intro/intermediate),0,P4,adoption x27; 0 professors on file,$0.04,3-12
+Athens Technical College,GA,ACCT (intro/intermediate),0,P4,adoption x17; 0 professors on file,$0.04,8-25
+New Mexico State University,NM,ACCT (intro/intermediate),0,P4,adoption x30; 0 professors on file,$0.04,3-12
+San Mateo County Community College District,CA,ACCT (intro/intermediate),0,P4,adoption x6; 0 professors on file,$0.04,8-25
+Westminster College - Pennsylvania,PA,ACCT (intro/intermediate),0,P4,adoption x8; 0 professors on file,$0.04,8-25
+Cedar Crest College,PA,ACCT (intro/intermediate),4,P4,adoption x26; grad accounting program; only 4 on file,$0.06,15-45
+Northwest College,WY,ACCT (intro/intermediate),0,P4,adoption x13; 0 professors on file,$0.04,3-12
+Dakota College at Bottineau,ND,ACCT (intro/intermediate),0,P4,adoption x14; 0 professors on file,$0.04,3-12
+South Plains College,TX,ACCT (intro/intermediate),0,P4,adoption x6; 0 professors on file,$0.04,8-25
+Galveston College,TX,ACCT (intro/intermediate),0,P4,adoption x10; 0 professors on file,$0.04,3-12
+Texas A&M International University,TX,ACCT (intro/intermediate),0,P4,adoption x42; 0 professors on file,$0.04,8-25
+Bucks County Community College,PA,ACCT (intro/intermediate),0,P4,adoption x6; 0 professors on file,$0.04,8-25
+Texas State Technical College,TX,ACCT (intro/intermediate),0,P4,adoption x29; 0 professors on file,$0.04,8-25
+University of Minnesota Crookston,MN,ACCT (intro/intermediate),0,P4,adoption x28; 0 professors on file,$0.04,3-12
+Coastline Community College,CA,ACCT (intro/intermediate),0,P4,adoption x6; 0 professors on file,$0.04,8-25
+Prairie View A&M University,TX,ACCT (intro/intermediate),0,P4,adoption x12; 0 professors on file,$0.04,8-25
+Chipola College,FL,ACCT (intro/intermediate),0,P4,adoption x6; 0 professors on file,$0.04,3-12
+Northampton Community College,PA,ACCT (intro/intermediate),0,P4,adoption x16; 0 professors on file,$0.04,8-25
+University of Akron,OH,ACCT (intro/intermediate),0,P4,adoption x32; 0 professors on file,$0.04,3-12
+Everett Community College,WA,ACCT (intro/intermediate),0,P4,adoption x7; 0 professors on file,$0.04,8-25
+Southwest Tennessee Community College,TN,ACCT (intro/intermediate),0,P4,adoption x38; 0 professors on file,$0.04,8-25
+Northeast Texas Community College,TX,ACCT (intro/intermediate),0,P4,adoption x25; 0 professors on file,$0.04,3-12
+Governors State University,IL,ACCT (intro/intermediate),0,P4,adoption x70; 0 professors on file,$0.04,3-12
+Central College,IA,ACCT (intro/intermediate),4,P4,adoption x26; grad accounting program; only 4 on file,$0.06,15-45
+Chandler–Gilbert Community College,AZ,ACCT (intro/intermediate),0,P4,adoption x46; 0 professors on file,$0.04,8-25
+College of the Redwoods,CA,ACCT (intro/intermediate),0,P4,adoption x20; 0 professors on file,$0.04,3-12
+Seward County Community College,KS,ACCT (intro/intermediate),0,P4,adoption x21; 0 professors on file,$0.04,8-25
+Oxnard College,CA,ACCT (intro/intermediate),0,P4,adoption x5; 0 professors on file,$0.04,8-25
+New Mexico Junior College,NM,ACCT (intro/intermediate),0,P4,adoption x22; 0 professors on file,$0.04,3-12
+University of Mobile,AL,ACCT (intro/intermediate),0,P4,adoption x13; 0 professors on file,$0.04,8-25
+San Diego Community College District,CA,ACCT (intro/intermediate),0,P4,adoption x24; 0 professors on file,$0.04,8-25
+Woodbury University,CA,ACCT (intro/intermediate),3,P4,adoption x33; grad accounting program; only 3 on file,$0.06,15-45
+Westmont College,CA,ACCT (intro/intermediate),0,P4,adoption x17; 0 professors on file,$0.04,8-25
+West Texas A&M University,TX,ACCT (intro/intermediate),0,P4,adoption x46; 0 professors on file,$0.04,8-25
+Walla Walla Community College,WA,ACCT (intro/intermediate),0,P4,adoption x13; 0 professors on file,$0.04,3-12
+Jackson College,MI,ACCT (intro/intermediate),0,P4,adoption x6; 0 professors on file,$0.04,3-12
+Concord University,WV,ACCT (intro/intermediate),1,P4,adoption x22; grad accounting program; only 1 on file,$0.06,15-45
+Cuesta College,CA,ACCT (intro/intermediate),0,P4,adoption x8; 0 professors on file,$0.04,8-25
+Odessa College,TX,ACCT (intro/intermediate),0,P4,adoption x10; 0 professors on file,$0.04,8-25
+Lower Columbia College,WA,ACCT (intro/intermediate),0,P4,adoption x17; 0 professors on file,$0.04,3-12
+University of Hawaii System,HI,ACCT (intro/intermediate),0,P4,adoption x6; 0 professors on file,$0.04,8-25
+Massachusetts Institute of Technology,MA,ACCT (intro/intermediate),2,P4,adoption x11; grad accounting program; only 2 on file,$0.09,30-90
+Calumet College of Saint Joseph,IN,ACCT (intro/intermediate),1,P4,adoption x10; grad accounting program; only 1 on file,$0.06,15-45
+North Park University,IL,ACCT (intro/intermediate),1,P4,adoption x5; grad accounting program; only 1 on file,$0.06,15-45
+Liberty University,VA,ACCT (intro/intermediate),1,P4,enrollment 50k; only 1 on file,$0.09,30-90
+North Dakota State University,ND,ACCT (intro/intermediate),2,P4,adoption x6; only 2 on file,$0.04,8-25
+University of Mississippi,MS,ACCT (intro/intermediate),30,P4,SEC (large Greek/athletic); enrollment 21k; grad accounting program; already 30 on file,$0.09,30-90
+George Washington University,DC,ACCT (intro/intermediate),7,P4,adoption x18; grad accounting program,$0.09,30-90
+University of Arizona,AZ,ACCT (intro/intermediate),26,P4,enrollment 43k; adoption x8; grad accounting program; already 26 on file,$0.09,30-90
+Florida State College at Jacksonville,FL,ACCT (intro/intermediate),0,P4,enrollment 20k; 0 professors on file,$0.06,15-45
+Irvine Valley College,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Saint Ambrose University,IA,ACCT (intro/intermediate),0,P4,grad accounting program; 0 professors on file,$0.06,15-45
+Drexel University,PA,ACCT (intro/intermediate),14,P4,adoption x6; grad accounting program,$0.09,30-90
+Community College of Rhode Island,RI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+El Paso Community College,TX,ACCT (intro/intermediate),0,P4,enrollment 24k; 0 professors on file,$0.06,15-45
+Community College of Baltimore County,MD,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+San Jacinto College,TX,ACCT (intro/intermediate),0,P4,enrollment 23k; 0 professors on file,$0.06,15-45
+Los Angeles Valley College,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Tidewater Community College,VA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Front Range Community College,CO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Harrisburg Area Community College,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+San Diego State University,CA,ACCT (intro/intermediate),308,P4,enrollment 35k; adoption x26; grad accounting program; already 308 on file,$0.09,30-90
+Augsburg University,MN,ACCT (intro/intermediate),0,P4,grad accounting program; 0 professors on file,$0.09,30-90
+Ozarks Technical Community College,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Modesto Junior College,CA,ACCT (intro/intermediate),0,P4,enrollment 15k; 0 professors on file,$0.06,15-45
+Johnson County Community College,KS,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Suffolk County Community College,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Golden West College,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Nassau Community College,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Mt. San Antonio College,CA,ACCT (intro/intermediate),0,P4,enrollment 26k; 0 professors on file,$0.06,15-45
+University of Vermont,VT,ACCT (intro/intermediate),8,P4,adoption x7; grad accounting program,$0.06,15-45
+Northwestern State University,LA,ACCT (intro/intermediate),0,P4,grad accounting program; 0 professors on file,$0.06,15-45
+The University of Texas at San Antonio,TX,ACCT (intro/intermediate),36,P4,enrollment 31k; adoption x15; grad accounting program; already 36 on file,$0.09,30-90
+Loyola University Chicago,IL,ACCT (intro/intermediate),3,P4,grad accounting program; only 3 on file,$0.06,15-45
+East Texas A&M University,TX,ACCT (intro/intermediate),10,P4,adoption x17; grad accounting program,$0.09,30-90
+University of Houston,TX,ACCT (intro/intermediate),63,P4,enrollment 38k; adoption x20; grad accounting program; already 63 on file,$0.09,30-90
+Binghamton University,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Columbia International University,SC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Walla Walla University,WA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Albany State University,GA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Northwestern Polytechnic,AB,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); medium market priority; adoption x38; 0 professors on file,$0.04,8-25
+Okanagan College,BC,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); medium market priority; adoption x24; 0 professors on file,$0.04,8-25
+George Brown College,ON,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); medium market priority; adoption x165; 0 professors on file,$0.04,8-25
+Prague University of Economics and Business,Prague,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); medium market priority; adoption x52; 0 professors on file,$0.04,8-25
+Algonquin College,ON,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); medium market priority; adoption x135; 0 professors on file,$0.04,8-25
+Bishop's University,QC,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); medium market priority; adoption x21; 0 professors on file,$0.04,8-25
+McMaster University,ON,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); medium market priority; adoption x27; 0 professors on file,$0.04,8-25
+Campbellsville University,KY,ACCT (intro/intermediate),3,P4,adoption x21; only 3 on file,$0.04,3-12
+University of Wisconsin–Stevens Point,WI,ACCT (intro/intermediate),2,P4,adoption x13; only 2 on file,$0.04,8-25
+Loyola University New Orleans,LA,ACCT (intro/intermediate),1,P4,adoption x45; only 1 on file,$0.04,3-12
+Catawba College,NC,ACCT (intro/intermediate),4,P4,adoption x6; only 4 on file,$0.04,3-12
+University of Delaware,DE,ACCT (intro/intermediate),4,P4,Student-Ready; only 4 on file,$0.04,8-25
+Louisiana State University,LA,ACCT (intro/intermediate),40,P4,SEC (large Greek/athletic); grad accounting program; already 40 on file,$0.09,30-90
+Notre Dame de Namur University,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Wartburg College,IA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Nashville State Community College,TN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Ball State University,IN,ACCT (intro/intermediate),4,P4,grad accounting program; only 4 on file,$0.09,30-90
+Bay Path University,MA,ACCT (intro/intermediate),4,P4,grad accounting program; only 4 on file,$0.06,15-45
+Germanna Virginia Community College,VA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Brookdale Community College,NJ,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Rhode Island College,RI,ACCT (intro/intermediate),7,P4,adoption x5; grad accounting program,$0.06,15-45
+Bishop State Community College,AL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Thomas Nelson Community College,VA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Arkansas State University-Newport,AR,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Pulaski Technical College,AR,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Oakland Community College,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Clovis Community College,NM,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Schiller International University,FL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Owensboro Community and Technical College,KY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Prince George's Community College,MD,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Arkansas Northeastern College,AR,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Lincoln University - California,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of North Texas at Dallas,TX,ACCT (intro/intermediate),1,P4,grad accounting program; only 1 on file,$0.06,15-45
+Virginia Western Community College,VA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Seattle University,WA,ACCT (intro/intermediate),11,P4,adoption x34; grad accounting program,$0.06,15-45
+Indiana University of Pennsylvania,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Spalding University,KY,ACCT (intro/intermediate),2,P4,grad accounting program; only 2 on file,$0.06,15-45
+Olympic College,WA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+North Dakota University System,ND,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Parkland College,IL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Mid-State Technical College,WI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Bryant & Stratton College,NY,ACCT (intro/intermediate),1,P4,grad accounting program; only 1 on file,$0.06,15-45
+Evergreen Valley College,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Southern State Community College,OH,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Bladen Community College,NC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+"Rutgers, The State University of New Jersey",NJ,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Western Nevada College,NV,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Quincy College,MA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Northern State University,SD,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Rochester Institute of Technology,NY,ACCT (intro/intermediate),2,P4,grad accounting program; only 2 on file,$0.06,15-45
+California State University System,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Metropolitan Community College,NE,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+City Vision University,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+City Colleges of Chicago,IL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Doane University,NE,ACCT (intro/intermediate),3,P4,grad accounting program; only 3 on file,$0.06,15-45
+Lourdes University,OH,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Carson Newman University,TN,ACCT (intro/intermediate),2,P4,grad accounting program; only 2 on file,$0.06,15-45
+Shoreline Community College,WA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Laney College,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Los Angeles Community College District,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Calvary Bible College,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+College of the Siskiyous,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Anne Arundel Community College,MD,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+North Central Texas College,TX,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Eastern Michigan University,MI,ACCT (intro/intermediate),4,P4,grad accounting program; only 4 on file,$0.06,15-45
+Victoria College,TX,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+South Mountain Community College,AZ,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Lewis and Clark Community College,IL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Kauai Community College,HI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of West Georgia,GA,ACCT (intro/intermediate),7,P4,adoption x51; grad accounting program,$0.06,15-45
+Linfield College,OR,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Savannah State University,GA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+King's College - Pennsylvania,PA,ACCT (intro/intermediate),3,P4,grad accounting program; only 3 on file,$0.06,15-45
+Alabama State University,AL,ACCT (intro/intermediate),4,P4,grad accounting program; only 4 on file,$0.06,15-45
+Angelo State University,TX,ACCT (intro/intermediate),8,P4,adoption x8; grad accounting program,$0.09,30-90
+Troy University,AL,ACCT (intro/intermediate),8,P4,adoption x6,$0.04,8-25
+Clemson University,SC,ACCT (intro/intermediate),39,P4,enrollment 23k; adoption x76; grad accounting program; already 39 on file,$0.06,15-45
+Southeastern Oklahoma State University,OK,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+New York University,NY,ACCT (intro/intermediate),19,P4,enrollment 29k; adoption x5; grad accounting program; already 19 on file,$0.09,30-90
+Lamar University,TX,ACCT (intro/intermediate),6,P4,adoption x28,$0.04,8-25
+Missouri Southern State University,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+The University of Texas Rio Grande Valley,TX,ACCT (intro/intermediate),27,P4,enrollment 29k; adoption x48; grad accounting program; already 27 on file,$0.06,15-45
+University of North Carolina at Charlotte,NC,ACCT (intro/intermediate),15,P4,enrollment 24k; adoption x21; grad accounting program; already 15 on file,$0.09,30-90
+University of Louisville,KY,ACCT (intro/intermediate),13,P4,grad accounting program,$0.06,15-45
+University of Colorado Colorado Springs,CO,ACCT (intro/intermediate),8,P4,grad accounting program,$0.06,15-45
+Florida International University,FL,ACCT (intro/intermediate),33,P4,enrollment 40k; grad accounting program; already 33 on file,$0.09,30-90
+Alaska Pacific University,AK,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Albion College,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Anderson University SC,SC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Anderson University IN,IN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Aquinas College Grand,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Andrews University Berrien,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Arkansas Tech University,AR,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Augsburg College,MN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Arkansas State University State,AR,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Babson College Babson,MA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Avila University Kansas,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Augustana College IL Rock,IL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Barry University Miami,FL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Bethune-Cookman University Daytona,FL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Bentley University,MA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Berry College Mount,GA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Bradley University,IL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Boston University,MA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Boston College Chestnut,MA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Calif St U-Dominguez Hills,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Calif State U - San Marcos San,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Calif State Poly U-Pomona,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+"Univ of Calif, Los Angeles Los",CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+"Calif State U., Bakersfield",CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+"Calif State Univ, East Bay",CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+"Calif State Univ, Fresno",CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+"Calif State Univ, Long Beach Long",CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+"Calif State Univ, Fullerton",CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+"Calif State Univ, Northridge",CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+"Calif State Univ, Sacramento",CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Calvin College Grand,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Chapman University,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Central Michigan University Mt.,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Clark Atlanta University,GA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Colorado State University Fort,CO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Duke University,NC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+East Carolina University,NC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Eastern Kentucky University,KY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+CUNY-Baruch College New,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+CUNY-Brooklyn College,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Drury University,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Delaware State University,DE,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Embry-Riddle Aeronautical U Daytona,FL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Dominican Univ of Calif San,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Fontbonne University St.,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Gannon University,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Georgetown University,DC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Georgia Southwestern St Un,GA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Georgia Institute of Tech,GA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Hannibal-LaGrange University,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Indiana U-Purdue U Indy,IN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Harding University,AR,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Illinois Institute of Tech,IL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Harris-Stowe State Univ St.,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Indiana University,IN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Indiana State University Terre,IN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Johns Hopkins University,MD,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+"Univ of Alaska, Anchorage",AK,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Kent State University,OH,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Kutztown Univ of Penn,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Lawrence Technological Univ,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Louisiana St in Shreveport,LA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Long Island U.-LIU Post,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+La Salle University,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Lindenwood University St.,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Lander University,SC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Jackson State University,MS,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Metropolitan St Univ Denver,CO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+McNeese State University Lake,LA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Mississippi College,MS,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Michigan State University East,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Millsaps College,MS,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Minnesota St Univ Mankato,MN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Missouri Univ Science & Tech,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Montana State Univ-Billings,MT,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Morehead State University,KY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Murray State University,KY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Massachusetts Inst of Tech,MA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Ohio University,OH,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+North Carolina Central Univ,NC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+North Carolina Wilmington,NC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Northwood University,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Northeastern Illinois Univ,IL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Northern Illinois Univ,IL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Oakland University,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Penn State University Univ,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Ouachita Baptist University,AR,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Penn State Univ-Harrisburg,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+New York University New,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Portland State University,OR,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Roger Williams University,RI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Ramapo College-New Jersey,NJ,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Rensselaer Poly Institute,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Rochester Inst of Technology,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Rice University,TX,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Sacred Heart University,CT,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Saginaw Valley State Univ Univ,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Saint Joseph's University,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Rutgers University-Newark,NJ,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Pittsburg State University,KS,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Pepperdine Un-Los Angeles Los,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Southern Utah University Cedar,UT,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Shenandoah University,VA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Southeastern Oklahoma St,OK,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+San Jose State University San,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Simmons College,MA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Southeastern Louisiana Univ,LA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Southwest Baptist Univ,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Southeast Missouri St Univ C,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Southern Illinois Univ,IL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+St. Edward's University,TX,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Southern University & A&M Baton,LA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Saint Mary's College of CA,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Santa Clara University Santa,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Stanford University,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+St. John's University,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Stetson University,FL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Stonehill College,MA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+SUNYat Buffalo,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+SUNY Polytechnic Institute,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Temple University,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+SUNY College at Oswego,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+SUNYat New Paltz New,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Texas A&M Univ-Kingsville,TX,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Tennessee Technological Un,TN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+SUNYat Binghamton,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Susquehanna University,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Texas Christian University Fort,TX,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Univ N Carolina at Pembroke,NC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+"Univ of Calif, Irvine",CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Univ of California San Diego La,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+"Univ of Calif, Riverside",CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Univ of Alaska Fairbanks,AK,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Tuskegee University,AL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Trinity University San,TX,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+U.S. Coast Guard Academy New,CT,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Univ Illinois at Springfield,IL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Truman State University,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+The College of New Jersey,NJ,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Tulane University New,LA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Univ of Colorado at Denver,CO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Univ of Nebraska at Omaha,NE,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Univ of Louisiana at Monroe,LA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Univ of District of Columbia,DC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of New Orleans New,LA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of North Carolina Chapel,NC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Northern Iowa Cedar,IA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Hartford W,CT,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Iowa Iowa,IA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Montana,MT,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of San Diego San,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Tulsa,OK,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of St. Thomas-MN St.,MN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Uof Arkansas at Fort Smith Ft.,AR,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Rochester,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of South Dakota,SD,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of St. Thomas-TX,TX,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Tennessee,TN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of West Florida,FL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Virginia Military Institute,VA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Utah Valley University,UT,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Valdosta State University,GA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Virginia State University,VA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Washington University St.,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Wayne State University,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Webster University St.,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Western Conn State Univ,CT,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Western Michigan University,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Western New England Univ,MA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Uof California-Berkeley,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Villanova University,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Virginia Poly Inst & St Un,VA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Washburn University,KS,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+William Jewell College,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Winthrop University Rock,SC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Youngstown State University,OH,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+"Univ of Nevada, Las Vegas Las",NV,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Winona State University,MN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Worcester Polytechnic Inst,MA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Wright State University,OH,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Yale University New,CT,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Yeshiva University New,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Xavier University,OH,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Univ of Missouri - St. Louis St.,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Adams State University,CO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Appalachian State Univ,NC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of New Haven West,CT,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Boise State University,ID,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Univ So Carolina at Aiken,SC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Brigham Young University,UT,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+"Calif State U, Stanislaus",CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of North Georgia,GA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+"Calif State Univ, Chico",CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Chicago,IL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+"College at Brockport, SUNY",NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of California Berkeley,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Connecticut,CT,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Columbia University New,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Portland,OR,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of California Los Angeles,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of California Davis,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of California San Diego,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Commonweath Univ - Bloomsb,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Uof Missouri - Columbia,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Cornell University,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of California Santa Barbara,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Dominican University River,IL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Pepperdine University,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+East Tennessee State Univ Johnson,TN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Colorado State University,CO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Maryland,MD,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Emory University,GA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Central Florida,FL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Emporia State University,KS,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Rollins College,FL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Illinois Urbana-Champaign,IL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Purdue University,IN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+DePauw University,IN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Drake University,IA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Illinois State University,IL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Indiana University Kokomo,IN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Tulane University,LA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Michigan,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Ithaca College,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Michigan State University,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Washington University in St. Louis,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+John Carroll University,OH,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Nebraska-Lincoln,NE,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+King's College,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Colgate University,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Maryville Univ St. Louis St.,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of North Carolina at Chapel Hill,NC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Ohio Wesleyan University,OH,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Manhattan College,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Meredith College,NC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Menlo College,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Texas Christian University,TX,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+New Jersey In of Technology,NJ,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Naval Postgraduate School,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Utah,UT,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Virginia,VA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Niagara University Niagara,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+New York Institute of Tech Old,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Norfolk State University,VA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Virginia Tech,VA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+North Carolina A&T State Un,NC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+College of William & Mary,VA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Northwest Missouri St Univ,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Washington and Lee University,VA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Penn Western Univ-Clarion,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Washington,WA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Pepperdine Univ-Malibu,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Washington State University,WA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Purdue University W,IN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Whitman College,WA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Rockhurst University Kansas,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Wisconsin-Madison,WI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Saint Xavier University,IL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+West Virginia University,WV,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Saint Louis University St.,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Wyoming,WY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Sonoma State University Rohnert,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Monmouth College,IL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+St. Mary's University San,TX,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Georgia Institute of Technology,GA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+SUNYat Plattsburgh,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Wofford College,SC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Texas A&M Univ-Texarkana,TX,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+The Citadel,SC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Thunderbird Sch Global Mgt,AZ,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Un of Massachusetts Amherst,MA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Wabash College,IN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University at Albany-SUNY,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Columbia University,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Dayton,OH,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Rensselaer Polytechnic Institute,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Illinois,IL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Wake Forest University,NC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Case Western Reserve University,OH,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Michigan Ann,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Bowling Green State University,OH,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Test University,,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Gettysburg College,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Washington and Jefferson College,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Florida A&M University,FL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Lafayette College,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Grand Valley State Univ Grand,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Franklin & Marshall College,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Dickinson College,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Hofstra University,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Rhodes College,TN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Beloit College,WI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Hillsdale College,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Harvard University,MA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+California Polytechnic State University,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Michigan Technological University,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Idaho State University,ID,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Indiana University East,IN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Missouri University of Science and Technology,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+IUSB Indiana Uat South Bend South,IN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Rutgers University,NJ,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Slippery Rock University,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Middle Tennessee State University,TN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+LeMoyne College,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Lehigh University,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Marshall University,WV,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Longwood University,VA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Michigan Technological Univ,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Mercer University-Macon,GA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Minnesota State U Moorhead,MN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Middle Tennessee State Univ,TN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Missouri Southern St Univ,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Missouri State University,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Montclair State University,NJ,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Montana State University,MT,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Morgan State University,MD,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Nicholls State University,LA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Northern Arizona University,AZ,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Northern Michigan Univ,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Pace University New,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Penn State U Great Valley,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Penn State Univ-Behrend,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Purdue University Northwest,IN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Rollins College Liberal Arts Winter,FL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Rutgers University-Camden,NJ,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Ohio Northern University,OH,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Providence College,RI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Radford University,VA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Purdue Univ Fort Wayne Fort,IN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Quinnipiac University,CT,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Queens Univ of Charlotte,NC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Rowan University,NJ,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Rollins College Winter,FL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+San Diego State University San,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Salem State University,MA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Siena College,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Southern Arkansas Univ,AR,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+"So Illinois, Edwardsville",IL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+South Carolina State Univ,SC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Southern Univ at New Orleans New,LA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+St. Cloud State University Saint,MN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+St. John Fisher College,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Stockton University,NJ,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+State Un College at Geneseo,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Stevens Institute of Tech,NJ,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+SUNY College at Oneonta,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Stony Brook University Stony,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Tarleton State University,TX,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Texas Southern University,TX,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Tennessee at Chattanooga,TN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Texas A&M - Corpus Christi Corp,TX,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Tennessee State University,TN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Texas A&M University Coll,TX,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Towson University,MD,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Texas Wesleyan University Fort,TX,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Union University,TN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+U Missouri - Kansas City Kansas,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Univ No Carolina Greensboro,NC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Univ N Carolina at Charlotte,NC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+U Massachusetts Boston,MA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Grand Valley State University Allendal,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Essex County College,NJ,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Yuba College,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Florida College,FL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Murray State College Tishomingo,OK,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Metro Community College Ft Omaha E,NE,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Lindenwood University Belleville,IL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Penn State New Kensington,PA,ACCT (intro/intermediate),1,P4,grad accounting program; only 1 on file,$0.06,15-45
+Howard Community College,MD,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Central Virginia Community College,VA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Louisiana State University Alexandria,LA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Texas A&M University-Commerce,TX,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Atlanta Technical College,GA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Winston-Salem State University,NC,ACCT (intro/intermediate),3,P4,grad accounting program; only 3 on file,$0.06,15-45
+Seminole State College,OK,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Three Rivers Community College,CT,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Penn State Wilkes-Barre,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Penn State Shenango,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Crowder College Neosho,MO,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Salem Community College,NJ,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+University of Indianapolis,IN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+New Jersey City University,NJ,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Muskegon Community College,MI,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Southwestern Oklahoma State University,OK,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+James A. Rhodes State College,OH,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+University of The Cumberlands,KY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Ivy Tech Community College,IN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Arkansas State University Technical Center,AR,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Franklin University,OH,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Los Angeles Southwest College,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+East Central University,OK,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+East Georgia State College,GA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+County College of Morris,NJ,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Catch-All University,,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Piedmont Virginia Community College,VA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Mary,ND,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Wharton County Junior College,TX,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Cecil College,MD,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of New Mexico Albuquerque F,NM,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Mount Olive,NC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Jefferson Community and Technical College,KY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Athens State University,AL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Johnston Community College,NC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Northland Community and Technical College Thie River,MN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Wilkes University,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Durham Technical Community College,NC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Danville Community College,VA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Zane State College,OH,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Lakeland Community College,OH,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Dalton State College,GA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Germanna Community College,VA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Valley City State University,ND,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Kentucky Community and Technical College System,KY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Somerset Community College,KY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Miami Dade College Virtual Campu,FL,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Shorter University,GA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Cal Poly Humboldt,CA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Naugatuck Valley Community College,CT,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Trevecca Nazarene University,TN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Penn State Mont Alto,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Owens Community College,OH,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Weatherford College,TX,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Ivy Technical Community College Kokomo S In Ivy Technical Community College Lafayette,IN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Greenville Technical College,SC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Rockland Community College,NY,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Rappahannock Community College,VA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Minneapolis Community and Technical College,MN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Rogers State University,OK,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+Claflin University,SC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Penn State DuBois,PA,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+Indiana University Southeast,IN,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,3-12
+University of South Carolina Upstate,SC,ACCT (intro/intermediate),0,P4,0 professors on file,$0.04,8-25
+University of Southern Mississippi,MS,ACCT (intro/intermediate),22,P4,adoption x5; grad accounting program; already 22 on file,$0.06,15-45
+University of Pennsylvania,PA,ACCT (intro/intermediate),25,P4,adoption x15; grad accounting program; already 25 on file,$0.09,30-90
+University of Houston - Downtown,TX,ACCT (intro/intermediate),25,P4,adoption x12; grad accounting program; already 25 on file,$0.06,15-45
+University of Massachusetts Dartmouth,MA,ACCT (intro/intermediate),14,P4,adoption x12,$0.04,8-25
+Nelson University,TX,ACCT (intro/intermediate),4,P4,only 4 on file,$0.04,3-12
+Furman University,SC,ACCT (intro/intermediate),9,P4,adoption x9,$0.04,3-12
+Knox College,IL,ACCT (intro/intermediate),4,P4,only 4 on file,$0.04,8-25
+Howard University,DC,ACCT (intro/intermediate),16,P4,adoption x9; grad accounting program; already 16 on file,$0.06,15-45
+Indiana University Indianapolis,IN,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+University of Wisconsin–Oshkosh,WI,ACCT (intro/intermediate),7,P4,adoption x12,$0.04,8-25
+University of North Carolina at Greensboro,NC,ACCT (intro/intermediate),16,P4,adoption x47; grad accounting program; already 16 on file,$0.09,30-90
+Arkansas State University,AR,ACCT (intro/intermediate),10,P4,grad accounting program,$0.06,15-45
+Cleveland State University,OH,ACCT (intro/intermediate),10,P4,grad accounting program,$0.06,15-45
+SUNY Fredonia,NY,ACCT (intro/intermediate),5,P4,grad accounting program,$0.06,15-45
+University of Wisconsin–Milwaukee,WI,ACCT (intro/intermediate),70,P4,enrollment 17k; adoption x76; already 70 on file,$0.06,15-45
+Ottawa University,KS,ACCT (intro/intermediate),10,P4,grad accounting program,$0.09,30-90
+Georgia State University,GA,ACCT (intro/intermediate),19,P4,enrollment 27k; grad accounting program; already 19 on file,$0.09,30-90
+Northeastern University,MA,ACCT (intro/intermediate),31,P4,enrollment 17k; grad accounting program; already 31 on file,$0.06,15-45
+George Mason University,VA,ACCT (intro/intermediate),32,P4,enrollment 28k; grad accounting program; already 32 on file,$0.06,15-45
+Western Colorado University,CO,ACCT (intro/intermediate),2,P4,only 2 on file,$0.04,3-12
+Delaware Valley University,PA,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Wilmington College,OH,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,3-12
+John Brown University,AR,ACCT (intro/intermediate),3,P4,only 3 on file,$0.04,8-25
+Azusa Pacific University,CA,ACCT (intro/intermediate),16,P4,adoption x20; grad accounting program; already 16 on file,$0.06,15-45
+Indiana University Northwest,IN,ACCT (intro/intermediate),2,P4,only 2 on file,$0.04,3-12
+Lipscomb University,TN,ACCT (intro/intermediate),7,P4,grad accounting program,$0.06,15-45
+Penn State Abington,PA,ACCT (intro/intermediate),8,P4,grad accounting program,$0.06,15-45
+Jacksonville University,FL,ACCT (intro/intermediate),5,P4,grad accounting program,$0.09,30-90
+Rockhurst University,MO,ACCT (intro/intermediate),6,P4,grad accounting program,$0.06,15-45
+Champlain College,VT,ACCT (intro/intermediate),6,P4,grad accounting program,$0.06,15-45
+Erskine College,SC,ACCT (intro/intermediate),6,P4,grad accounting program,$0.06,15-45
+Morehouse College,GA,ACCT (intro/intermediate),6,P4,grad accounting program,$0.09,30-90
+Jacksonville State University,AL,ACCT (intro/intermediate),5,P4,grad accounting program,$0.06,15-45
+North Carolina State University,NC,ACCT (intro/intermediate),30,P4,enrollment 27k; grad accounting program; already 30 on file,$0.06,15-45
+Canisius College,NY,ACCT (intro/intermediate),12,P4,baseline,$0.04,8-25
+Grambling State University,LA,ACCT (intro/intermediate),5,P4,baseline,$0.04,8-25
+Campbell University,NC,ACCT (intro/intermediate),5,P4,baseline,$0.04,3-12
+University of Texas at El Paso,TX,ACCT (intro/intermediate),53,P4,enrollment 21k; grad accounting program; already 53 on file,$0.06,15-45
+Univ of Alaska Southeast,AK,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Adrian College,MI,ACCT (intro/intermediate),3,P4,only 3 on file,$0.04,8-25
+Adelphi University Garden,NY,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Alma College,MI,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Alfred University,NY,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+"Auburn Univ, Montgomery",AL,ACCT (intro/intermediate),4,P4,only 4 on file,$0.04,8-25
+Aurora University,IL,ACCT (intro/intermediate),3,P4,only 3 on file,$0.04,8-25
+Bellarmine University,KY,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Black Hills State University,SD,ACCT (intro/intermediate),2,P4,only 2 on file,$0.04,8-25
+Bowling Green State Univ Bowling,OH,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Bryant University,RI,ACCT (intro/intermediate),2,P4,only 2 on file,$0.04,8-25
+Carnegie Mellon University,PA,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Central Connecticut St Univ New,CT,ACCT (intro/intermediate),2,P4,only 2 on file,$0.04,8-25
+Charleston Southern Univ,SC,ACCT (intro/intermediate),2,P4,only 2 on file,$0.04,8-25
+Clarkson University,NY,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Clark University,MA,ACCT (intro/intermediate),2,P4,only 2 on file,$0.04,8-25
+Cottey College,MO,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Dartmouth College,NH,ACCT (intro/intermediate),2,P4,only 2 on file,$0.04,8-25
+Drake University Des,IA,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Fordham University New,NY,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Fayetteville State Univ,NC,ACCT (intro/intermediate),3,P4,only 3 on file,$0.04,8-25
+Frostburg State University,MD,ACCT (intro/intermediate),3,P4,only 3 on file,$0.04,8-25
+Loyola Marymount Univ Los,CA,ACCT (intro/intermediate),2,P4,only 2 on file,$0.04,8-25
+Univ of Central Florida,FL,ACCT (intro/intermediate),2,P4,only 2 on file,$0.04,8-25
+Univ of Hawaii at Manoa,HI,ACCT (intro/intermediate),4,P4,only 4 on file,$0.04,8-25
+Univ of Michigan-Flint,MI,ACCT (intro/intermediate),4,P4,only 4 on file,$0.04,8-25
+Univ of Northern Colorado,CO,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Univ of Tennessee at Martin,TN,ACCT (intro/intermediate),2,P4,only 2 on file,$0.04,8-25
+University of Baltimore,MD,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+University of Dallas,TX,ACCT (intro/intermediate),3,P4,only 3 on file,$0.04,8-25
+University of North Alabama,AL,ACCT (intro/intermediate),4,P4,only 4 on file,$0.04,8-25
+University of Evansville,IN,ACCT (intro/intermediate),2,P4,only 2 on file,$0.04,8-25
+University of Detroit Mercy,MI,ACCT (intro/intermediate),3,P4,only 3 on file,$0.04,8-25
+University of Hawaii at Hilo,HI,ACCT (intro/intermediate),2,P4,only 2 on file,$0.04,8-25
+University of Maine,ME,ACCT (intro/intermediate),4,P4,only 4 on file,$0.04,8-25
+University of Maryland College,MD,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+University of the Pacific,CA,ACCT (intro/intermediate),3,P4,only 3 on file,$0.04,8-25
+University of Utah Salt Lake,UT,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Uof Arkansas at Monticello,AR,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Uof Arkansas at Pine Bluff Pine,AR,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Valparaiso University,IN,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Weber State University,UT,ACCT (intro/intermediate),3,P4,only 3 on file,$0.04,8-25
+Willamette University,OR,ACCT (intro/intermediate),3,P4,only 3 on file,$0.04,8-25
+Univ of Texas at Tyler,TX,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+University of New Mexico,NM,ACCT (intro/intermediate),3,P4,only 3 on file,$0.04,8-25
+University of Notre Dame Notre,IN,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Claremont McKenna College,CA,ACCT (intro/intermediate),3,P4,only 3 on file,$0.04,8-25
+Colorado State Univ-Pueblo,CO,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Culver-Stockton College,MO,ACCT (intro/intermediate),2,P4,only 2 on file,$0.04,8-25
+Fairleigh Dickinson Univ,NJ,ACCT (intro/intermediate),2,P4,only 2 on file,$0.04,8-25
+Evangel University,MO,ACCT (intro/intermediate),2,P4,only 2 on file,$0.04,8-25
+Ferris State University Big,MI,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Marietta College,OH,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Univ of Central Oklahoma,OK,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Univ of Michigan-Dearborn,MI,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+University of Miami Coral,FL,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+University of Montevallo,AL,ACCT (intro/intermediate),4,P4,only 4 on file,$0.04,8-25
+East Central College,MO,ACCT (intro/intermediate),3,P4,only 3 on file,$0.04,8-25
+Duquesne University,PA,ACCT (intro/intermediate),1,P4,only 1 on file,$0.04,8-25
+Fort Lewis College,CO,ACCT (intro/intermediate),3,P4,only 3 on file,$0.04,8-25
+Loyola University Maryland,MD,ACCT (intro/intermediate),4,P4,only 4 on file,$0.04,8-25
+Brandeis University,MA,ACCT (intro/intermediate),17,P4,adoption x12; already 17 on file,$0.04,3-12
+Oral Roberts University,OK,ACCT (intro/intermediate),88,P4,adoption x42; already 88 on file,$0.04,3-12
+Florida State University,FL,ACCT (intro/intermediate),20,P4,Student-Ready; already 20 on file,$0.04,8-25
+University of Oregon,OR,ACCT (intro/intermediate),21,P4,Student-Ready; already 21 on file,$0.04,8-25
+University of Miami,FL,ACCT (intro/intermediate),18,P4,grad accounting program; already 18 on file,$0.09,30-90
+University of Guelph-Humber,ON,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x16; 0 professors on file,$0.04,8-25
+Fanshawe College,ON,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x8; 0 professors on file,$0.04,8-25
+University of Guam,GU,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x15; 0 professors on file,$0.04,8-25
+Korea Advanced Institute of Science and Technology,Daejeon,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x12; 0 professors on file,$0.04,8-25
+SGH Warsaw School of Economics,MZ,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x11; 0 professors on file,$0.04,8-25
+University of Genoa,IT,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x15; 0 professors on file,$0.04,8-25
+Universidad Publica de Navarra,NA,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x62; 0 professors on file,$0.04,8-25
+National Taiwan University,Taiwan,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x27; 0 professors on file,$0.04,8-25
+University of Missouri–St. Louis,MO,ACCT (intro/intermediate),24,P4,grad accounting program; already 24 on file,$0.09,30-90
+Western University,ON,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x38; 0 professors on file,$0.04,8-25
+Northern Alberta Institute of Technology,AB,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x9; 0 professors on file,$0.04,8-25
+Poznań University of Economics and Business,GP,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x12; 0 professors on file,$0.04,8-25
+University of Tartu,EE,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x31; 0 professors on file,$0.04,8-25
+College of Micronesia-FSM,FM,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x7; 0 professors on file,$0.04,8-25
+University of Regina,SK,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x12; 0 professors on file,$0.04,8-25
+College of the Rockies,BC,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x7; 0 professors on file,$0.04,8-25
+National Cheng Kung University,TW,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x45; 0 professors on file,$0.04,8-25
+National Chengchi University,TW,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x8; 0 professors on file,$0.04,8-25
+McGill University,QC,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x5; 0 professors on file,$0.04,8-25
+Carleton University,ON,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x11; 0 professors on file,$0.04,8-25
+Seneca Polytechnic,ON,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x8; 0 professors on file,$0.04,8-25
+Concordia University,QC,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x12; 0 professors on file,$0.04,8-25
+Simon Fraser University,BC,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x71; 0 professors on file,$0.04,8-25
+Langara College,BC,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x22; 0 professors on file,$0.04,8-25
+Maastricht University,NL,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x14; 0 professors on file,$0.04,8-25
+University of Waterloo,ON,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x7; 0 professors on file,$0.04,8-25
+Bow Valley College,AB,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x5; 0 professors on file,$0.04,8-25
+University of Manitoba,MB,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x38; 0 professors on file,$0.04,8-25
+Humber Polytechnic,ON,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x32; 0 professors on file,$0.04,8-25
+University of Klagenfurt,AT,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x32; 0 professors on file,$0.04,8-25
+University of Parma,IT,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x6; 0 professors on file,$0.04,8-25
+Yukon University,YT,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x9; 0 professors on file,$0.04,8-25
+King’s University College,ON,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x53; 0 professors on file,$0.04,8-25
+University of Hradec Králové,CZ,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x17; 0 professors on file,$0.04,8-25
+University of Alberta,AB,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x53; 0 professors on file,$0.04,8-25
+University of Toronto,ON,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x46; 0 professors on file,$0.04,8-25
+Suffolk University,MA,ACCT (intro/intermediate),18,P4,grad accounting program; already 18 on file,$0.06,15-45
+American University,DC,ACCT (intro/intermediate),25,P4,grad accounting program; already 25 on file,$0.06,15-45
+York University,ON,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x35; 0 professors on file,$0.04,8-25
+Universidad Carlos III de Madrid,MD,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x15; 0 professors on file,$0.04,8-25
+Penn State York,PA,ACCT (intro/intermediate),10,P4,baseline,$0.04,3-12
+Erasmus University Rotterdam,NH,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x40; 0 professors on file,$0.04,8-25
+Universidad de Alcalá,Madrid,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x5; 0 professors on file,$0.04,8-25
+University of Regensburg,Bavaria,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x40; 0 professors on file,$0.04,8-25
+College of New Caledonia,BC,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x30; 0 professors on file,$0.04,8-25
+Columbia College,BC,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x12; 0 professors on file,$0.04,8-25
+Waseda University,JP,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x23; 0 professors on file,$0.04,8-25
+Southeast College,SK,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x6; 0 professors on file,$0.04,8-25
+Technical University of Liberec,CZ,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x5; 0 professors on file,$0.04,8-25
+Nagoya University,OH,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x10; 0 professors on file,$0.04,8-25
+University of Lausanne,VD,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x6; 0 professors on file,$0.04,8-25
+National Taipei University,TW,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x18; 0 professors on file,$0.04,8-25
+University of Guelph,ON,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x26; 0 professors on file,$0.04,8-25
+University of Amsterdam,North Holland,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x5; 0 professors on file,$0.04,8-25
+National Chung Hsing University,Taiwan,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); adoption x54; 0 professors on file,$0.04,8-25
+Salisbury University,MD,ACCT (intro/intermediate),14,P4,baseline,$0.04,8-25
+Penn State Brandywine,PA,ACCT (intro/intermediate),6,P4,baseline,$0.04,8-25
+University of Massachusetts Lowell,MA,ACCT (intro/intermediate),20,P4,grad accounting program; already 20 on file,$0.09,30-90
+Georgian Court University,NJ,ACCT (intro/intermediate),8,P4,baseline,$0.04,8-25
+University of St. Thomas,TX,ACCT (intro/intermediate),13,P4,baseline,$0.04,3-12
+Belmont University,TN,ACCT (intro/intermediate),8,P4,baseline,$0.04,8-25
+Abilene Christian Univ,TX,ACCT (intro/intermediate),5,P4,baseline,$0.04,8-25
+Albright College,PA,ACCT (intro/intermediate),11,P4,baseline,$0.04,8-25
+Arcadia University,PA,ACCT (intro/intermediate),5,P4,baseline,$0.04,8-25
+Bemidji State University,MN,ACCT (intro/intermediate),7,P4,baseline,$0.04,8-25
+Bucknell University,PA,ACCT (intro/intermediate),13,P4,baseline,$0.04,8-25
+Butler University,IN,ACCT (intro/intermediate),8,P4,baseline,$0.04,8-25
+Case Western Reserve Univ,OH,ACCT (intro/intermediate),13,P4,baseline,$0.04,8-25
+Clayton State University,GA,ACCT (intro/intermediate),6,P4,baseline,$0.04,8-25
+Coastal Carolina University,SC,ACCT (intro/intermediate),10,P4,baseline,$0.04,8-25
+Creighton University,NE,ACCT (intro/intermediate),8,P4,baseline,$0.04,8-25
+Elon University,NC,ACCT (intro/intermediate),11,P4,baseline,$0.04,8-25
+Eastern Illinois Univ,IL,ACCT (intro/intermediate),7,P4,baseline,$0.04,8-25
+Florida Southern College,FL,ACCT (intro/intermediate),7,P4,baseline,$0.04,8-25
+Georgia Southern University,GA,ACCT (intro/intermediate),5,P4,baseline,$0.04,8-25
+Univ of California-Davis,CA,ACCT (intro/intermediate),11,P4,baseline,$0.04,8-25
+University of Louisiana at Lafayette,LA,ACCT (intro/intermediate),9,P4,baseline,$0.04,8-25
+Univ of Nebraska at Kearney,NE,ACCT (intro/intermediate),6,P4,baseline,$0.04,8-25
+University of North Dakota Grand,ND,ACCT (intro/intermediate),13,P4,baseline,$0.04,8-25
+University of Rhode Island,RI,ACCT (intro/intermediate),10,P4,baseline,$0.04,8-25
+University of Richmond,VA,ACCT (intro/intermediate),6,P4,baseline,$0.04,8-25
+Uof Arkansas at Little Rock Little,AR,ACCT (intro/intermediate),7,P4,baseline,$0.04,8-25
+University of Scranton,PA,ACCT (intro/intermediate),10,P4,baseline,$0.04,8-25
+Uof Alabama in Huntsville,AL,ACCT (intro/intermediate),8,P4,baseline,$0.04,8-25
+Walsh College,MI,ACCT (intro/intermediate),5,P4,baseline,$0.04,8-25
+Western Carolina University,NC,ACCT (intro/intermediate),8,P4,baseline,$0.04,8-25
+Widener University,PA,ACCT (intro/intermediate),5,P4,baseline,$0.04,8-25
+Uof Texas of Permian Basin,TX,ACCT (intro/intermediate),6,P4,baseline,$0.04,8-25
+Washington and Lee Univ,VA,ACCT (intro/intermediate),10,P4,baseline,$0.04,8-25
+Western Illinois University,IL,ACCT (intro/intermediate),6,P4,baseline,$0.04,8-25
+William Paterson University,NJ,ACCT (intro/intermediate),9,P4,baseline,$0.04,8-25
+Alabama A&M University,AL,ACCT (intro/intermediate),7,P4,baseline,$0.04,8-25
+Augusta University,GA,ACCT (intro/intermediate),5,P4,baseline,$0.04,8-25
+Columbus State University,GA,ACCT (intro/intermediate),5,P4,baseline,$0.04,8-25
+University of South Alabama,AL,ACCT (intro/intermediate),8,P4,baseline,$0.04,8-25
+Uof Minnesota Duluth,MN,ACCT (intro/intermediate),6,P4,baseline,$0.04,8-25
+Wichita State University,KS,ACCT (intro/intermediate),7,P4,baseline,$0.04,8-25
+Francis Marion University,SC,ACCT (intro/intermediate),6,P4,baseline,$0.04,8-25
+Univ of Central Arkansas,AR,ACCT (intro/intermediate),11,P4,baseline,$0.04,8-25
+Univ of Southern Maine,ME,ACCT (intro/intermediate),5,P4,baseline,$0.04,8-25
+"University of Nevada, Reno",NV,ACCT (intro/intermediate),8,P4,baseline,$0.04,8-25
+Louisiana Tech University,LA,ACCT (intro/intermediate),10,P4,baseline,$0.04,8-25
+Samford University,AL,ACCT (intro/intermediate),7,P4,baseline,$0.04,8-25
+Penn State Berks,PA,ACCT (intro/intermediate),18,P4,grad accounting program; already 18 on file,$0.06,15-45
+University of La Verne,CA,ACCT (intro/intermediate),63,P4,already 63 on file,$0.04,3-12
+University of Lethbridge,AB,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+"City St George's, University of London",England,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+University of Exeter,EX,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+New Bulgarian University,BG,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+University of the West Indies,New Providence,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+University of Augsburg,Bavaria,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+Sault College,ON,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+Thompson Rivers University,BC,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+Copenhagen Business School,Capital Region,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+University of the West Indies System,JM,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+Tecnológico de Monterrey,NL,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+VSB - Technical University of Ostrava,CZ,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+Comenius University Bratislava,SK,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+University of Saskatchewan,SK,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+University of Coimbra,PT,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+Tama University,N/A,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+Memorial University of Newfoundland,NL,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+Universidade Lusófona,Lisbon,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+Northern Marianas College,MP,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+Tallinn University of Technology,EE,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+University of Kent,EX,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+Iscte – Instituto Universitário de Lisboa,LX,ACCT (intro/intermediate),0,P4,NON-US (RMP/accounting-tuned=weak); 0 professors on file,$0.04,8-25
+"Calif St U, San Bernardino S",CA,ACCT (intro/intermediate),25,P4,already 25 on file,$0.04,8-25
+"Calif State U, Los Angeles Los",CA,ACCT (intro/intermediate),19,P4,already 19 on file,$0.04,8-25
+DePaul University,IL,ACCT (intro/intermediate),15,P4,already 15 on file,$0.04,8-25
+Kennesaw State University,GA,ACCT (intro/intermediate),31,P4,already 31 on file,$0.04,8-25
+University of New Hampshire,NH,ACCT (intro/intermediate),26,P4,already 26 on file,$0.04,8-25
+University of Memphis,TN,ACCT (intro/intermediate),16,P4,already 16 on file,$0.04,8-25
+University of Tampa,FL,ACCT (intro/intermediate),21,P4,already 21 on file,$0.04,8-25
+Uof Alabama at Birmingham,AL,ACCT (intro/intermediate),17,P4,already 17 on file,$0.04,8-25
+Utah State University,UT,ACCT (intro/intermediate),18,P4,already 18 on file,$0.04,8-25
+Virginia Commonwealth,VA,ACCT (intro/intermediate),20,P4,already 20 on file,$0.04,8-25
+University of North Florida,FL,ACCT (intro/intermediate),32,P4,already 32 on file,$0.04,8-25
+University of Denver,CO,ACCT (intro/intermediate),15,P4,already 15 on file,$0.04,8-25
+Fairfield University,CT,ACCT (intro/intermediate),17,P4,already 17 on file,$0.04,8-25
+Univ of Nebraska-Lincoln,NE,ACCT (intro/intermediate),18,P4,already 18 on file,$0.04,8-25
