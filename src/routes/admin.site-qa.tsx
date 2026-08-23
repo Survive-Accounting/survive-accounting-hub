@@ -139,6 +139,11 @@ function SiteQaInner() {
     void supabase.auth
       .getSession()
       .then(({ data }) => setToken(data.session?.access_token ?? null));
+    // React to the magic-link return (and sign-out) without a manual refresh.
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) =>
+      setToken(session?.access_token ?? null),
+    );
+    return () => sub.subscription.unsubscribe();
   }, []);
 
   const overviewQ = useQuery({
@@ -150,9 +155,7 @@ function SiteQaInner() {
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["siteqa", "overview"] });
 
-  if (!token) {
-    return <CenterNote>Sign in with an admin account to load Site QA.</CenterNote>;
-  }
+  if (!token) return <AdminSignIn />;
   if (overviewQ.isLoading) return <CenterNote>Loading Site QA…</CenterNote>;
   if (overviewQ.isError || !overviewQ.data) {
     return (
@@ -252,6 +255,71 @@ function CenterNote({ children, tone }: { children: React.ReactNode; tone?: "err
       <p className={`text-sm ${tone === "error" ? "text-red-600" : "text-muted-foreground"}`}>
         {children}
       </p>
+    </div>
+  );
+}
+
+/** Empty state when there's no admin session: send a magic-link sign-in.
+ *  Reuses the site's Supabase magic-link auth (no passwords). On return, the
+ *  session appears and onAuthStateChange loads the cockpit automatically. */
+function AdminSignIn() {
+  const [email, setEmail] = useState(adminEmailFor(getAdminWho() ?? "lee"));
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [msg, setMsg] = useState("");
+  const send = async () => {
+    const e = email.trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) {
+      setState("error");
+      setMsg("Enter a valid email.");
+      return;
+    }
+    setState("sending");
+    const redirect =
+      typeof window !== "undefined" ? `${window.location.origin}/admin/site-qa` : undefined;
+    const { error } = await supabase.auth.signInWithOtp({
+      email: e,
+      options: { emailRedirectTo: redirect },
+    });
+    if (error) {
+      setState("error");
+      setMsg(error.message);
+      return;
+    }
+    setState("sent");
+  };
+  return (
+    <div className="flex min-h-screen items-center justify-center px-6">
+      <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 text-center shadow-sm">
+        <h1 className="text-lg font-black tracking-tight">Site QA</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Sign in as an admin to load the cockpit.
+        </p>
+        {state === "sent" ? (
+          <p className="mt-4 text-sm">
+            Check <b>{email}</b> for a sign-in link. Open it, then this page loads automatically.
+          </p>
+        ) : (
+          <>
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && send()}
+              placeholder="you@surviveaccounting.com"
+              className="mt-4"
+              autoFocus
+            />
+            <Button className="mt-2 w-full" disabled={state === "sending"} onClick={send}>
+              {state === "sending" ? "Sending…" : "Email me a sign-in link"}
+            </Button>
+            {state === "error" && <p className="mt-2 text-xs text-red-600">{msg}</p>}
+            <p className="mt-3 text-[11px] text-muted-foreground">
+              Only <code>lee@</code> / <code>king@</code> can load Site QA — other accounts sign in
+              but see nothing.
+            </p>
+          </>
+        )}
+      </div>
     </div>
   );
 }
