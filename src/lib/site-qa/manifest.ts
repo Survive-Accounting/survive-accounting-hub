@@ -1,0 +1,482 @@
+// SITE QA — the page-template manifest. THE maintained source of truth for
+// /admin/site-qa. Every user-facing and admin page template Lee cares about is
+// listed here, mapped to the source files that make it up (for change detection)
+// and to how its representative example URLs + live page counts are derived.
+//
+// IMPORTANT — keep this module dependency-free (no imports, no `@/` alias, no
+// React). It is loaded THREE ways: (1) by the browser UI, (2) by server
+// functions, and (3) at build time by the Vite change-detection plugin, which
+// resolves it with esbuild before path aliases exist. A stray import breaks the
+// build. Pure data only.
+//
+// New-template detection (spec §27): every file in src/routes is asserted by
+// src/lib/site-qa/manifest.coverage.test.ts to be owned by exactly one template
+// (`routes`) or listed in IGNORED_ROUTES. Add a page → the test fails until you
+// register it here, so a new template can never silently exist untested.
+
+export type TemplateCategory = "public" | "student" | "greek" | "partner" | "admin" | "legal";
+
+/** How a template's live public-page count is derived. `static` = the fixed
+ *  routes themselves; the rest are counted from the database at request time. */
+export type CountKey =
+  | "static"
+  | "campus"
+  | "greekChapter"
+  | "council"
+  | "nationalOrg"
+  | "foundationsScenario";
+
+export interface TemplateDef {
+  id: string;
+  label: string;
+  category: TemplateCategory;
+  /** One line, plain language. No dev jargon. */
+  description: string;
+  /** Human-readable URL pattern shown in the UI (not used for routing). */
+  routePattern: string;
+  /** Route FILE basenames (under src/routes/) this template OWNS. Used for the
+   *  coverage test and folded into `files` for hashing. Unique across templates.
+   *  May be empty for component-only templates (e.g. the shared player). */
+  routes: string[];
+  /** Extra source files/dirs (repo-relative) that materially define this
+   *  template — shared components, server functions. Folded into the change
+   *  hash. Directories are hashed recursively. Overlap between templates is OK. */
+  extraFiles?: string[];
+  /** How to count live public pages for this template. */
+  countKey: CountKey;
+  /** URL path prefixes this template serves, for PostHog traffic roll-ups and
+   *  the All-pages classifier. First entry is treated as the canonical prefix. */
+  trafficPaths: string[];
+  /** True when this template participates in guided Test Mode. */
+  testMode?: boolean;
+  /** True for internal/admin templates (deprioritised, never public-indexed). */
+  internal?: boolean;
+}
+
+export const TEMPLATES: TemplateDef[] = [
+  // ── Public marketing / student-facing (highest traffic) ──────────────────
+  {
+    id: "homepage",
+    label: "Homepage",
+    category: "public",
+    description: "The main landing page — hero, pitch, and the free exam player.",
+    routePattern: "/",
+    routes: ["index.tsx", "landing.tsx"],
+    extraFiles: [
+      "src/components/landing",
+      "src/components/site/Marketing.tsx",
+      "src/components/site/SiteHeader.tsx",
+      "src/components/site/SiteFooter.tsx",
+    ],
+    countKey: "static",
+    trafficPaths: ["/"],
+    testMode: true,
+  },
+  {
+    id: "campus-page",
+    label: "Campus Page",
+    category: "public",
+    description: "One SEO landing page per school, in that campus's colors and course code.",
+    routePattern: "/:school",
+    routes: ["$school.index.tsx"],
+    extraFiles: [
+      "src/lib/campus-page.functions.ts",
+      "src/lib/schools.ts",
+      "src/lib/schools.generated.ts",
+    ],
+    countKey: "campus",
+    trafficPaths: ["/:school"],
+    testMode: true,
+  },
+  {
+    id: "student-player",
+    label: "Student Player",
+    category: "student",
+    description:
+      "The interactive exam-prep player students study in (embedded on home, campus and chapter pages).",
+    routePattern: "player (embedded)",
+    routes: [],
+    extraFiles: [
+      "src/routes/landing.tsx",
+      "src/components/site/PracticeStage.tsx",
+      "src/components/site/StagePills.tsx",
+      "src/lib/set-flow.ts",
+      "src/lib/practice.functions.ts",
+    ],
+    countKey: "campus",
+    trafficPaths: [],
+    testMode: true,
+  },
+  {
+    id: "learn-shell",
+    label: "Learn Shell",
+    category: "student",
+    description: "The signed-in student home — course, topic and video outline.",
+    routePattern: "/learn",
+    routes: ["learn.tsx"],
+    countKey: "static",
+    trafficPaths: ["/learn"],
+    testMode: true,
+  },
+  {
+    id: "study-je",
+    label: "Journal Entry Practice",
+    category: "student",
+    description: "Free interactive journal-entry practice, plus one page per public scenario.",
+    routePattern: "/study",
+    routes: ["study.tsx", "study_.foundations.tsx", "study_.scenarios.$slug.tsx"],
+    extraFiles: ["src/lib/je.functions.ts"],
+    countKey: "foundationsScenario",
+    trafficPaths: ["/study"],
+  },
+  {
+    id: "rep-page",
+    label: "Campus Rep Page",
+    category: "public",
+    description: '"Be the rep at your school" recruitment page (generic and per-campus).',
+    routePattern: "/rep · /:school/rep",
+    routes: ["rep.tsx", "$school.rep.tsx"],
+    extraFiles: ["src/components/site/RepInterest.tsx", "src/lib/campus-rep.functions.ts"],
+    countKey: "campus",
+    trafficPaths: ["/rep", "/:school/rep"],
+  },
+  {
+    id: "prof-campus-landing",
+    label: "Professor Share Page",
+    category: "public",
+    description: "The campus landing professors share, personalized by a per-prof token.",
+    routePattern: "/outreach/school/:slug",
+    routes: ["outreach_.school.$slug.tsx"],
+    countKey: "campus",
+    trafficPaths: ["/outreach/school/"],
+  },
+  {
+    id: "order-intake",
+    label: "Request a Video",
+    category: "public",
+    description: "Free intake for a personalized exam-prep video, with a status tracker.",
+    routePattern: "/order · /start",
+    routes: ["order.tsx", "start.tsx", "order.$shortRef.tsx"],
+    extraFiles: ["src/lib/orders.functions.ts", "src/lib/order-tracker.functions.ts"],
+    countKey: "static",
+    trafficPaths: ["/order", "/start"],
+    testMode: true,
+  },
+  {
+    id: "onboarding",
+    label: "Onboarding Wizard",
+    category: "public",
+    description: "The shared web + SMS onboarding / tutoring-request flow.",
+    routePattern: "/onboard · /o/:shortRef",
+    routes: ["onboard.tsx", "o.$shortRef.tsx", "t.$slug.tsx"],
+    extraFiles: ["src/lib/onboarding.functions.ts"],
+    countKey: "static",
+    trafficPaths: ["/o/", "/onboard"],
+  },
+  {
+    id: "waitlist-signup",
+    label: "Waitlist & Signup",
+    category: "public",
+    description: "Waitlist, welcome, preview and referral pages.",
+    routePattern: "/waitlist · /welcome · /expand …",
+    routes: [
+      "waitlist.tsx",
+      "thankyou.tsx",
+      "welcome.tsx",
+      "preview.tsx",
+      "beyond.tsx",
+      "expand.tsx",
+    ],
+    countKey: "static",
+    trafficPaths: ["/waitlist", "/thankyou", "/welcome", "/preview", "/beyond", "/expand"],
+  },
+
+  // ── Greek ─────────────────────────────────────────────────────────────────
+  {
+    id: "greek-chapter-page",
+    label: "Greek Chapter Page",
+    category: "greek",
+    description: "The public page for one fraternity/sorority chapter at one campus.",
+    routePattern: "/go/:school/:chapter",
+    routes: ["go.$school.$chapter.tsx"],
+    extraFiles: [
+      "src/lib/greek-go.functions.ts",
+      "src/lib/greek-slug.ts",
+      "src/components/site/ChapterGate.tsx",
+      "src/components/site/ChapterStickyCta.tsx",
+    ],
+    countKey: "greekChapter",
+    trafficPaths: ["/go/:school/:chapter"],
+    testMode: true,
+  },
+  {
+    id: "chapter-claim",
+    label: "Chapter Claim",
+    category: "greek",
+    description: "The flow an exec uses to claim their chapter and unlock the dashboard.",
+    routePattern: "claim (embedded on chapter pages)",
+    routes: [],
+    extraFiles: [
+      "src/components/site/ChapterAccess.tsx",
+      "src/components/site/ChapterAccessForm.tsx",
+      "src/components/site/ChapterSelfCreate.tsx",
+      "src/lib/greek-claims.functions.ts",
+    ],
+    countKey: "greekChapter",
+    trafficPaths: [],
+    testMode: true,
+  },
+  {
+    id: "chapter-finder",
+    label: "Chapter Finder",
+    category: "greek",
+    description: 'The "find your chapter" portal and per-school chapter index.',
+    routePattern: "/chapters · /go/:school",
+    routes: ["chapters.tsx", "go.$school.index.tsx"],
+    extraFiles: ["src/components/site/ChapterFinder.tsx"],
+    countKey: "campus",
+    trafficPaths: ["/chapters", "/go/:school"],
+  },
+  {
+    id: "chapter-dashboard",
+    label: "Chapter Dashboard",
+    category: "greek",
+    description: "The private exec dashboard for a claimed chapter.",
+    routePattern: "/chapters/dashboard",
+    routes: ["chapters_.dashboard.tsx"],
+    countKey: "static",
+    trafficPaths: ["/chapters/dashboard"],
+  },
+  {
+    id: "chapter-kit",
+    label: "Chapter Share Kit",
+    category: "greek",
+    description: "Copy / QR / flyer assets an exec shares with their chapter.",
+    routePattern: "/chapters/kit/:school/:chapter",
+    routes: ["chapters_.kit.$school.$chapter.tsx"],
+    extraFiles: ["src/components/site/ChapterShare.tsx"],
+    countKey: "greekChapter",
+    trafficPaths: ["/chapters/kit/"],
+  },
+  {
+    id: "council-private-page",
+    label: "Council Page (private)",
+    category: "greek",
+    description: "The private, forwardable council page a chair opens via a token.",
+    routePattern: "/go/:school/council/:council",
+    routes: ["go.$school.council.$council.tsx"],
+    extraFiles: [
+      "src/lib/greek-councils.functions.ts",
+      "src/components/site/CouncilForwardKit.tsx",
+    ],
+    countKey: "council",
+    trafficPaths: ["/go/:school/council/"],
+  },
+
+  // ── Partner (councils & national orgs) ──────────────────────────────────────
+  {
+    id: "council-partner-page",
+    label: "Council Partner Page",
+    category: "partner",
+    description: "The forward-kit page for a campus council partnership.",
+    routePattern: "/partners/council/:school/:council",
+    routes: ["partners.council.$school.$council.tsx"],
+    extraFiles: [
+      "src/components/site/PartnerPage.tsx",
+      "src/components/site/PartnerKit.tsx",
+      "src/lib/partners.functions.ts",
+      "src/lib/partners.ts",
+    ],
+    countKey: "council",
+    trafficPaths: ["/partners/council/"],
+  },
+  {
+    id: "national-org-page",
+    label: "National Organization Page",
+    category: "partner",
+    description: "The partner page for a national fraternity/sorority across its campuses.",
+    routePattern: "/partners/national/:org",
+    routes: ["partners.national.$org.tsx"],
+    extraFiles: ["src/lib/partners.functions.ts", "src/lib/partners.ts"],
+    countKey: "nationalOrg",
+    trafficPaths: ["/partners/national/"],
+  },
+  {
+    id: "partner-marketing",
+    label: "Partner Marketing",
+    category: "partner",
+    description: 'The "for councils" and "for national organizations" pitch pages.',
+    routePattern: "/partners/campus-councils …",
+    routes: ["partners.campus-councils.tsx", "partners.national-organizations.tsx"],
+    countKey: "static",
+    trafficPaths: ["/partners/campus-councils", "/partners/national-organizations"],
+  },
+
+  // ── Internal / admin ────────────────────────────────────────────────────────
+  {
+    id: "site-qa",
+    label: "Site QA Cockpit",
+    category: "admin",
+    description: "This page — the internal QA cockpit.",
+    routePattern: "/admin/site-qa",
+    routes: ["admin.site-qa.tsx"],
+    extraFiles: ["src/lib/site-qa"],
+    countKey: "static",
+    trafficPaths: ["/admin/site-qa"],
+    internal: true,
+  },
+  {
+    id: "outreach-console",
+    label: "Outreach Console",
+    category: "admin",
+    description: "The internal outreach dashboard — campuses, reps, students, orders, comms.",
+    routePattern: "/outreach",
+    routes: [
+      "outreach.tsx",
+      "outreach.index.tsx",
+      "outreach.campuses.tsx",
+      "outreach.reps.tsx",
+      "outreach.students.tsx",
+      "outreach.orders.tsx",
+      "outreach.demand.tsx",
+      "outreach.comms.tsx",
+      "outreach.reddit.tsx",
+      "outreach.parent-groups.tsx",
+      "outreach.practice.tsx",
+      "outreach.landing.tsx",
+      "outreach.backups.tsx",
+      "outreach.video-archive.tsx",
+      "outreach.campaign-metrics.tsx",
+      "outreach.campaign-targets.tsx",
+      "outreach.active-roster.tsx",
+      "outreach.test-mode.tsx",
+    ],
+    countKey: "static",
+    trafficPaths: ["/outreach"],
+    internal: true,
+  },
+  {
+    id: "greekintel-admin",
+    label: "GreekIntel Admin",
+    category: "admin",
+    description: "The internal Greek data console — orgs, chapters, councils, claims.",
+    routePattern: "/outreach/greek-orgs …",
+    routes: [
+      "outreach.greek-orgs.tsx",
+      "outreach.greek-orgs_.queue.tsx",
+      "outreach.greek-orgs_.people-queue.tsx",
+      "outreach.greek-orgs_.vendor-queue.tsx",
+      "outreach.chapters.tsx",
+      "outreach.councils.tsx",
+      "outreach.greek-claims.tsx",
+    ],
+    countKey: "static",
+    trafficPaths: [
+      "/outreach/greek-orgs",
+      "/outreach/chapters",
+      "/outreach/councils",
+      "/outreach/greek-claims",
+    ],
+    internal: true,
+  },
+  {
+    id: "profintel-admin",
+    label: "ProfIntel Admin",
+    category: "admin",
+    description: "The internal professor-targeting console — lead finder, research, scheduling.",
+    routePattern: "/outreach/profintel …",
+    routes: [
+      "outreach.profintel.tsx",
+      "outreach.profintel-schedule.tsx",
+      "outreach.profintel-metrics.tsx",
+      "outreach.leadfinder.index.tsx",
+      "outreach.leadfinder.$campusId.tsx",
+      "outreach.leadfinder-batch.tsx",
+      "outreach.leadfinder-leaderboard.tsx",
+      "outreach.research.tsx",
+    ],
+    countKey: "static",
+    trafficPaths: ["/outreach/profintel", "/outreach/leadfinder", "/outreach/research"],
+    internal: true,
+  },
+  {
+    id: "ceq-studio",
+    label: "CEQ Studio",
+    category: "admin",
+    description: "The internal content-authoring studio for exam questions and lessons.",
+    routePattern: "/ceq",
+    routes: [
+      "ceq.tsx",
+      "ceq.create.tsx",
+      "ceq.$id.edit.tsx",
+      "ceq.$id.tutor.tsx",
+      "ceq.$courseSlug.$chapterSlug.tsx",
+    ],
+    countKey: "static",
+    trafficPaths: ["/ceq"],
+    internal: true,
+  },
+
+  // ── Legal / account ─────────────────────────────────────────────────────────
+  {
+    id: "email-prefs",
+    label: "Email Preferences",
+    category: "legal",
+    description: "Unsubscribe and email-preference pages (token-driven).",
+    routePattern: "/u/:token",
+    routes: ["u.$token.tsx", "u.index.tsx"],
+    countKey: "static",
+    trafficPaths: ["/u/"],
+  },
+  {
+    id: "legal",
+    label: "Legal",
+    category: "legal",
+    description: "Terms of Service and Privacy Policy.",
+    routePattern: "/terms · /privacy",
+    routes: ["terms.tsx", "privacy.tsx"],
+    countKey: "static",
+    trafficPaths: ["/terms", "/privacy"],
+  },
+];
+
+/** Route files that are intentionally NOT QA templates, each with a reason. The
+ *  coverage test consults this so a genuinely-excluded route doesn't fail the
+ *  build, while a NEW page (absent from both TEMPLATES and here) does. */
+export const IGNORED_ROUTES: Record<string, string> = {
+  "README.md": "docs",
+  "__root.tsx": "root layout, not a page",
+  // Pure redirects / short links (render nothing of their own)
+  "greek.tsx": "redirect → /chapters",
+  "je.tsx": "redirect → /study",
+  "je.$.tsx": "redirect → /study",
+  "c.$slug.tsx": "legacy redirect → /go/…",
+  // Internal dev labs (noindex, not user-facing)
+  "callout-demo.tsx": "dev lab (noindex)",
+  "exhibit-demo.tsx": "dev lab (noindex)",
+  "exhibit-lab.tsx": "dev lab (noindex)",
+  "intro-outro.tsx": "dev lab (noindex)",
+  "logo-lab.tsx": "dev lab (noindex)",
+  "lab.bolt.tsx": "dev lab (noindex)",
+  "study_.canvas.tsx": "internal authoring lab (noindex)",
+  "study_.dashboard.tsx": "prototype (noindex)",
+  // API / cron / webhook endpoints — not pages
+  "api.cron.backup.tsx": "cron endpoint",
+  "api.cron.comms-sequences.tsx": "cron endpoint",
+  "api.cron.weekly-digest.tsx": "cron endpoint",
+  "api.flyer.$school.$chapter.tsx": "generated image endpoint",
+  "api.og.$school.$chapter.tsx": "generated image endpoint",
+  "api.stripe.webhook.tsx": "webhook endpoint",
+};
+
+export const TEMPLATES_BY_ID: Record<string, TemplateDef> = Object.fromEntries(
+  TEMPLATES.map((t) => [t.id, t]),
+);
+
+/** All source files (repo-relative) that define a template — its owned route
+ *  files plus any extraFiles. Used by the change-detection hasher. */
+export function templateSourceFiles(t: TemplateDef): string[] {
+  const files = t.routes.map((r) => `src/routes/${r}`);
+  for (const f of t.extraFiles ?? []) files.push(f);
+  return files;
+}

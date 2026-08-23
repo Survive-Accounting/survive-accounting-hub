@@ -78,6 +78,7 @@ import { Route as JeSplatRouteImport } from './routes/je.$'
 import { Route as ChaptersDashboardRouteImport } from './routes/chapters_.dashboard'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
 import { Route as CSlugRouteImport } from './routes/c.$slug'
+import { Route as AdminSiteQaRouteImport } from './routes/admin.site-qa'
 import { Route as SchoolRepRouteImport } from './routes/$school.rep'
 import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.leadfinder.index'
 import { Route as GoSchoolIndexRouteImport } from './routes/go.$school.index'
@@ -451,6 +452,11 @@ const CSlugRoute = CSlugRouteImport.update({
   path: '/c/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminSiteQaRoute = AdminSiteQaRouteImport.update({
+  id: '/admin/site-qa',
+  path: '/admin/site-qa',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SchoolRepRoute = SchoolRepRouteImport.update({
   id: '/$school/rep',
   path: '/$school/rep',
@@ -601,6 +607,7 @@ export interface FileRoutesByFullPath {
   '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
+  '/admin/site-qa': typeof AdminSiteQaRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters/dashboard': typeof ChaptersDashboardRoute
@@ -694,6 +701,7 @@ export interface FileRoutesByTo {
   '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
+  '/admin/site-qa': typeof AdminSiteQaRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters/dashboard': typeof ChaptersDashboardRoute
@@ -789,6 +797,7 @@ export interface FileRoutesById {
   '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
+  '/admin/site-qa': typeof AdminSiteQaRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters_/dashboard': typeof ChaptersDashboardRoute
@@ -885,6 +894,7 @@ export interface FileRouteTypes {
     | '/waitlist'
     | '/welcome'
     | '/$school/rep'
+    | '/admin/site-qa'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters/dashboard'
@@ -978,6 +988,7 @@ export interface FileRouteTypes {
     | '/waitlist'
     | '/welcome'
     | '/$school/rep'
+    | '/admin/site-qa'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters/dashboard'
@@ -1072,6 +1083,7 @@ export interface FileRouteTypes {
     | '/waitlist'
     | '/welcome'
     | '/$school/rep'
+    | '/admin/site-qa'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters_/dashboard'
@@ -1167,6 +1179,7 @@ export interface RootRouteChildren {
   WaitlistRoute: typeof WaitlistRoute
   WelcomeRoute: typeof WelcomeRoute
   SchoolRepRoute: typeof SchoolRepRoute
+  AdminSiteQaRoute: typeof AdminSiteQaRoute
   CSlugRoute: typeof CSlugRoute
   ChaptersDashboardRoute: typeof ChaptersDashboardRoute
   LabBoltRoute: typeof LabBoltRoute
@@ -1681,6 +1694,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/site-qa': {
+      id: '/admin/site-qa'
+      path: '/admin/site-qa'
+      fullPath: '/admin/site-qa'
+      preLoaderRoute: typeof AdminSiteQaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$school/rep': {
       id: '/$school/rep'
       path: '/$school/rep'
@@ -1983,6 +2003,7 @@ const rootRouteChildren: RootRouteChildren = {
   WaitlistRoute: WaitlistRoute,
   WelcomeRoute: WelcomeRoute,
   SchoolRepRoute: SchoolRepRoute,
+  AdminSiteQaRoute: AdminSiteQaRoute,
   CSlugRoute: CSlugRoute,
   ChaptersDashboardRoute: ChaptersDashboardRoute,
   LabBoltRoute: LabBoltRoute,

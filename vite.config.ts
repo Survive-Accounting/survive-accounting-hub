@@ -6,6 +6,8 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
+import { siteQaVersions } from "./scripts/vite-site-qa";
+
 export default defineConfig({
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
@@ -13,4 +15,7 @@ export default defineConfig({
     server: { entry: "server", preset: "vercel" },
   },
   nitro: { preset: "vercel" },
+  // Extra plugins layered on top of the lovable preset. siteQaVersions bakes the
+  // /admin/site-qa change-detection hashes into `virtual:site-qa-versions`.
+  vite: { plugins: [siteQaVersions()] },
 });
