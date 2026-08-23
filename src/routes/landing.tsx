@@ -22,7 +22,7 @@ import { SaveProgressDialog, saveSetProgress, takeResume, type ResumeContext } f
 import { cramRequest, examRequest, notifyNote, passRequest, reviewRequest, type NotifyReq } from "@/lib/notify-request";
 import { resolveStudentMap, type MapLevel } from "@/lib/map-resolver.functions";
 import { getChapterNames, listCampusIntroCodes } from "@/lib/default-map.functions";
-import { logSchoolDemand, submitExamAsk, submitSyllabus , submitNotify } from "@/lib/syllabus.functions";
+import { logSchoolDemand, submitSyllabus , submitNotify } from "@/lib/syllabus.functions";
 import { searchOrderProfessors, type ProfessorLite } from "@/lib/orders.functions";
 import { tagChapterMember } from "@/lib/greek-go.functions";
 import { openClaimStep, SEAT_MINIMUM, SEAT_PRICE } from "@/components/site/ChapterAccess";
@@ -1473,14 +1473,11 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
   const [askDone, setAskDone] = useState(() => { try { return localStorage.getItem("sa-two-set-ask") === "done"; } catch { return false; } });
   const markComplete = (id: string) => setCompletedSets((prev) => (prev.has(id) ? prev : new Set(prev).add(id)));
   const finishAsk = () => { setAskDone(true); try { localStorage.setItem("sa-two-set-ask", "done"); } catch { /* ignore */ } };
-  // No longer conditioned on a school: a student who watched two sets earned the ask whether or
-  // not they ever told us where they study.
-  // ONE video earns the ask. Two was a threshold most visitors never reached, so the only
-  // capture on the free flow almost never fired — and the moment someone finishes their first
-  // video is exactly when 'save your progress' is a favour rather than a toll.
-  //
-  // NEVER on a Greek chapter page: that flow already took an account at the door, and asking a
-  // signed-in member for their email again reads as a form that forgot it already met them.
+  // ONE completed set earns a single, dismissible invitation to Save my progress — the same
+  // magic-link door that lives in the identity header. Folded (08-21): TwoSetAsk was a second
+  // persistent form and used the weaker submitExamAsk; the invitation now opens SaveProgressDialog
+  // so a student who takes it actually gets a session (student_set_progress etc.). Never on
+  // Greek chapter pages (they already signed in) or for a signed-in student (they are saving).
   const showAsk = !greekOrg && completedSets.size >= 1 && !askDone;
 
   // Default selection for a tab: first topic with a LIVE set → first topic with any set → first
@@ -1605,7 +1602,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
                 curSet && isPlayable(curSet) && curTopic ? (
                   // A playable set walks its stages: Cram Blast → Practice → Review (shared
                   // set-flow model — same walk as /learn, homepage-sized shell around it).
-                  <SetFlowPanel key={`${curSet.id}:${resetSeq}`} topic={curTopic} set={curSet} exam={active} school={school} surface={greekOrg ? "greek" : school ? "campus" : "home"} onCramComplete={() => { markComplete(curSet!.id); if (auth.userId) saveSetProgress(auth.userId, curSet!.id, "complete"); }} onPickSet={(sid) => pickSet(curTopic!.key, sid)} onNotify={onNotify} />
+                  <SetFlowPanel key={`${curSet.id}:${resetSeq}`} topic={curTopic} set={curSet} exam={active} school={school} surface={greekOrg ? "greek" : school ? "campus" : "home"} onSetComplete={() => { markComplete(curSet!.id); if (auth.userId) saveSetProgress(auth.userId, curSet!.id, "complete"); }} onPickSet={(sid) => pickSet(curTopic!.key, sid)} onNotify={onNotify} />
                 ) : (
                   // NOT A FIXED 16:9 BOX. The unpublished state carries a line of copy and the
                   // notify field, which a phone-width 16:9 panel (~190px tall) cannot hold.
@@ -1617,7 +1614,13 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
             </div>
 
             {/* Two sets down — the ONLY proactive email ask in the free flow (quiet inline card). */}
-            {showAsk && <TwoSetAsk school={school} professor={professor} onDone={finishAsk} />}
+            {showAsk && !auth.userId && (
+              <div className="flex items-center gap-2 border-t px-3 py-2.5" style={{ borderColor: "var(--border-default)", background: "rgba(252,163,17,0.06)" }}>
+                <span className="min-w-0 flex-1 text-[13.5px]" style={{ color: "var(--brand-cream)" }}>Nice — <b>save this so you can pick up where you left off.</b></span>
+                <button type="button" onClick={() => { setSaveOpen(true); finishAsk(); }} className="shrink-0 rounded-lg px-3 text-[13px] font-black" style={{ minHeight: 40, background: "var(--accent)", color: "#0B1220" }}>Save my progress →</button>
+                <button type="button" onClick={finishAsk} aria-label="Dismiss" className="grid h-9 w-9 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--text-muted)" }}><X className="h-4 w-4" /></button>
+              </div>
+            )}
 
             {/* The "Let's tailor this / Send your syllabus" pair that used to live here is gone.
                 It asked for work before the student had a reason to do any, and it appeared in
@@ -2028,36 +2031,6 @@ function useCoverage(setId: string): number {
 // "Last, First" display — students know last names; falls back to the full name when last is absent.
 const profDisplay = (p: ProfessorLite): string => (p.last ? `${p.last}${p.first ? `, ${p.first}` : ""}` : p.name);
 
-// `school` is nullable now: the ask fires on two watched sets whether or not the student ever
-// matched a campus, so the payload records what is actually known instead of requiring an
-// identity the flow no longer collects up front.
-function TwoSetAsk({ school, professor, onDone }: { school: School | null; professor: ProfessorLite | null; onDone: () => void }) {
-  const [email, setEmail] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [sent, setSent] = useState(false);
-  const ok = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
-  const send = async () => {
-    if (!ok || busy) return;
-    setBusy(true);
-    try { await submitExamAsk({ data: { email: email.trim(), campusId: school?.campusId ?? null, campusName: school?.name ?? null, professorName: professor ? professor.name : null, source: "two_set_ask" } }); setSent(true); window.setTimeout(onDone, 1400); }
-    catch { setBusy(false); }
-  };
-  return (
-    <div className="flex flex-col gap-2 border-t px-3 py-3 sm:flex-row sm:items-center" style={{ borderColor: "var(--border-default)", background: "rgba(252,163,17,0.06)" }}>
-      {sent ? (
-        <span className="text-[14px] font-semibold" style={{ color: "var(--brand-cream)" }}>Saved — I'll tell you when Exam 2 lands.</span>
-      ) : (
-        <>
-          <span className="min-w-0 flex-1 text-[14px]" style={{ color: "var(--brand-cream)" }}>Nice — save your progress and get told when Exam 2 lands?</span>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" className="rounded-lg px-3 py-2.5 text-[14px] outline-none" style={{ background: "var(--bg-input)", border: "1px solid var(--border-default)", color: "var(--brand-cream)", minWidth: 0 }} />
-          <button onClick={send} disabled={!ok || busy} className="shrink-0 rounded-lg px-3 py-2.5 text-[14px] font-black disabled:opacity-40" style={{ background: "var(--accent)", color: "#0B1220" }}>{busy ? "…" : "Send"}</button>
-          <button onClick={onDone} className="grid h-6 w-6 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--text-muted)" }} aria-label="Dismiss"><X className="h-3.5 w-3.5" /></button>
-        </>
-      )}
-    </div>
-  );
-}
-
 // Muted autoplay per browser rules, with a clearly visible "Tap for sound" chip — the chip unmutes
 // on tap and fades after the FIRST interaction of any kind (chip, native controls, or unmuting).
 // No intro/branding card before content: the baked-in 1.5s pre-roll IS the intro. 16:9 only.
@@ -2109,7 +2082,12 @@ function HeroVideo({ playbackId, onComplete }: { playbackId: string; onComplete?
  *  video always used. Stage transitions are overlay CTAs, not new screens — this is still the
  *  low-friction discovery player, not a dashboard. Paid sets never reach here (no playbackId
  *  in the free tree), so there is no entitlement logic on this surface. */
-function SetFlowPanel({ topic, set, exam, school, surface, onCramComplete, onPickSet, onNotify }: { topic: ResolvedTopic; set: StudentSet; exam: ExamTab; school: School | null; surface: "home" | "campus" | "greek"; onCramComplete: () => void; onPickSet: (setId: string) => void; onNotify: (r: NotifyReq) => void }) {
+function SetFlowPanel({ topic, set, exam, school, surface, onSetComplete, onPickSet, onNotify }: { topic: ResolvedTopic; set: StudentSet; exam: ExamTab; school: School | null; surface: "home" | "campus" | "greek"; onSetComplete: () => void; onPickSet: (setId: string) => void; onNotify: (r: NotifyReq) => void }) {
+  // Fires exactly once per mount: a "set consumed" signal that drives the completion invitation
+  // and student_set_progress. Cram-video end AND practice-done both count; a signed-in student
+  // gets the row either way. Keyed by set id (parent remounts on set change).
+  const completed = useRef(false);
+  const complete = () => { if (completed.current) return; completed.current = true; onSetComplete(); };
   // Entry = the set's FIRST available stage: cram when its video exists, else straight to
   // practice (the CEQ release ships questions before videos). The cram slot stays in the shell
   // as a "coming soon" strip so a published video fills it with no layout change.
@@ -2163,7 +2141,7 @@ function SetFlowPanel({ topic, set, exam, school, surface, onCramComplete, onPic
                 surface={surface}
                 statusLabel=""
                 doneLabel={forwardLabel ?? "Done →"}
-                onDone={() => goto(after)}
+                onDone={() => { complete(); goto(after); }}
                 onReview={set.reviewPlaybackId ? () => goto({ setId: set.id, stage: "review" }) : undefined}
               />
             </div>
@@ -2181,7 +2159,7 @@ function SetFlowPanel({ topic, set, exam, school, surface, onCramComplete, onPic
             <HeroVideo
               key={`${stage}:${stage === "review" ? set.reviewPlaybackId : set.playbackId}`}
               playbackId={(stage === "review" ? set.reviewPlaybackId : set.playbackId)!}
-              onComplete={() => { if (stage === "cram") onCramComplete(); setStageEnded(true); }}
+              onComplete={() => { if (stage === "cram") complete(); setStageEnded(true); }}
             />
             {stageEnded && after && (
               <div className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-2 px-3 py-2" style={{ background: "linear-gradient(0deg, rgba(5,8,16,0.92) 0%, rgba(5,8,16,0.0) 100%)" }}>

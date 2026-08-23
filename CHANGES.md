@@ -61,6 +61,16 @@ an 18px bracket capping Exam 2 · Exam 3 · Final (columns 2–4 of the same 4-c
 tabs), `SEMESTER PASS · $150`, clickable → the notify modal. Hidden on Greek pages as before.
 
 ## Checks
+
+## Fold: TwoSetAsk → SaveProgressDialog (08-21)
+
+The old "Nice — save your progress and get told when Exam 2 lands?" inline card (TwoSetAsk +
+`submitExamAsk` source `two_set_ask`) is deleted. After one **completed set** — cram-video end OR
+practice DONE, driven by SetFlowPanel's new `onSetComplete` (fires once per set-id) — a single
+dismissible line appears under the stage: **"Nice — save this so you can pick up where you left
+off." → "Save my progress →"** opens the same `SaveProgressDialog` the header pill uses. Never for
+Greek pages and never for a signed-in student (their set progress is already saving). The `sa-two-
+set-ask` dismissal key survives; `submitExamAsk` is unreferenced by the player now.
 `bunx tsc --noEmit` clean · `bun test` 1,419 pass · `bun run build` OK · eslint: no new findings.
 Screenshots in `docs/screenshots/player-identity/`.
 
