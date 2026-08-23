@@ -416,6 +416,43 @@ export const TEMPLATES: TemplateDef[] = [
     trafficPaths: ["/ceq"],
     internal: true,
   },
+  {
+    id: "growth-admin",
+    label: "Growth Admin",
+    category: "admin",
+    description: "The internal growth workspace — campuses, chapters, councils, orgs, contacts, outreach.",
+    routePattern: "/admin/growth …",
+    routes: [
+      "admin.growth.tsx",
+      "admin.growth.index.tsx",
+      "admin.growth.campuses.tsx",
+      "admin.growth.chapters.tsx",
+      "admin.growth.councils.tsx",
+      "admin.growth.orgs.tsx",
+      "admin.growth.contacts.tsx",
+      "admin.growth.outreach.tsx",
+    ],
+    countKey: "static",
+    trafficPaths: ["/admin/growth"],
+    internal: true,
+  },
+  {
+    id: "referral-admin",
+    label: "Referral Admin",
+    category: "admin",
+    description: "The internal referral / attribution console — partners, links, conversions, commissions.",
+    routePattern: "/admin/reps …",
+    routes: [
+      "admin.reps.tsx",
+      "admin.reps.index.tsx",
+      "admin.reps.partners.tsx",
+      "admin.reps.links.tsx",
+      "admin.reps.conversions.tsx",
+    ],
+    countKey: "static",
+    trafficPaths: ["/admin/reps"],
+    internal: true,
+  },
 
   // ── Legal / account ─────────────────────────────────────────────────────────
   {
@@ -447,6 +484,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "README.md": "docs",
   "__root.tsx": "root layout, not a page",
   // Pure redirects / short links (render nothing of their own)
+  "r.$code.tsx": "referral short link → 302 to the destination, no page of its own",
   "greek.tsx": "redirect → /chapters",
   "je.tsx": "redirect → /study",
   "je.$.tsx": "redirect → /study",

@@ -43,6 +43,7 @@ import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as StudyFoundationsRouteImport } from './routes/study_.foundations'
 import { Route as StudyDashboardRouteImport } from './routes/study_.dashboard'
 import { Route as StudyCanvasRouteImport } from './routes/study_.canvas'
+import { Route as RCodeRouteImport } from './routes/r.$code'
 import { Route as PartnersNationalOrganizationsRouteImport } from './routes/partners.national-organizations'
 import { Route as PartnersCampusCouncilsRouteImport } from './routes/partners.campus-councils'
 import { Route as OutreachVideoArchiveRouteImport } from './routes/outreach.video-archive'
@@ -79,9 +80,13 @@ import { Route as ChaptersDashboardRouteImport } from './routes/chapters_.dashbo
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
 import { Route as CSlugRouteImport } from './routes/c.$slug'
 import { Route as AdminSiteQaRouteImport } from './routes/admin.site-qa'
+import { Route as AdminRepsRouteImport } from './routes/admin.reps'
+import { Route as AdminGrowthRouteImport } from './routes/admin.growth'
 import { Route as SchoolRepRouteImport } from './routes/$school.rep'
 import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.leadfinder.index'
 import { Route as GoSchoolIndexRouteImport } from './routes/go.$school.index'
+import { Route as AdminRepsIndexRouteImport } from './routes/admin.reps.index'
+import { Route as AdminGrowthIndexRouteImport } from './routes/admin.growth.index'
 import { Route as StudyScenariosSlugRouteImport } from './routes/study_.scenarios.$slug'
 import { Route as PartnersNationalOrgRouteImport } from './routes/partners.national.$org'
 import { Route as OutreachSchoolSlugRouteImport } from './routes/outreach_.school.$slug'
@@ -97,6 +102,15 @@ import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe.webhoo
 import { Route as ApiCronWeeklyDigestRouteImport } from './routes/api.cron.weekly-digest'
 import { Route as ApiCronCommsSequencesRouteImport } from './routes/api.cron.comms-sequences'
 import { Route as ApiCronBackupRouteImport } from './routes/api.cron.backup'
+import { Route as AdminRepsPartnersRouteImport } from './routes/admin.reps.partners'
+import { Route as AdminRepsLinksRouteImport } from './routes/admin.reps.links'
+import { Route as AdminRepsConversionsRouteImport } from './routes/admin.reps.conversions'
+import { Route as AdminGrowthOutreachRouteImport } from './routes/admin.growth.outreach'
+import { Route as AdminGrowthOrgsRouteImport } from './routes/admin.growth.orgs'
+import { Route as AdminGrowthCouncilsRouteImport } from './routes/admin.growth.councils'
+import { Route as AdminGrowthContactsRouteImport } from './routes/admin.growth.contacts'
+import { Route as AdminGrowthChaptersRouteImport } from './routes/admin.growth.chapters'
+import { Route as AdminGrowthCampusesRouteImport } from './routes/admin.growth.campuses'
 import { Route as PartnersCouncilSchoolCouncilRouteImport } from './routes/partners.council.$school.$council'
 import { Route as GoSchoolCouncilCouncilRouteImport } from './routes/go.$school.council.$council'
 import { Route as ChaptersKitSchoolChapterRouteImport } from './routes/chapters_.kit.$school.$chapter'
@@ -271,6 +285,11 @@ const StudyDashboardRoute = StudyDashboardRouteImport.update({
 const StudyCanvasRoute = StudyCanvasRouteImport.update({
   id: '/study_/canvas',
   path: '/study/canvas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RCodeRoute = RCodeRouteImport.update({
+  id: '/r/$code',
+  path: '/r/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PartnersNationalOrganizationsRoute =
@@ -457,6 +476,16 @@ const AdminSiteQaRoute = AdminSiteQaRouteImport.update({
   path: '/admin/site-qa',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRepsRoute = AdminRepsRouteImport.update({
+  id: '/admin/reps',
+  path: '/admin/reps',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminGrowthRoute = AdminGrowthRouteImport.update({
+  id: '/admin/growth',
+  path: '/admin/growth',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SchoolRepRoute = SchoolRepRouteImport.update({
   id: '/$school/rep',
   path: '/$school/rep',
@@ -471,6 +500,16 @@ const GoSchoolIndexRoute = GoSchoolIndexRouteImport.update({
   id: '/go/$school/',
   path: '/go/$school/',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRepsIndexRoute = AdminRepsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRepsRoute,
+} as any)
+const AdminGrowthIndexRoute = AdminGrowthIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminGrowthRoute,
 } as any)
 const StudyScenariosSlugRoute = StudyScenariosSlugRouteImport.update({
   id: '/study_/scenarios/$slug',
@@ -551,6 +590,51 @@ const ApiCronBackupRoute = ApiCronBackupRouteImport.update({
   path: '/api/cron/backup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRepsPartnersRoute = AdminRepsPartnersRouteImport.update({
+  id: '/partners',
+  path: '/partners',
+  getParentRoute: () => AdminRepsRoute,
+} as any)
+const AdminRepsLinksRoute = AdminRepsLinksRouteImport.update({
+  id: '/links',
+  path: '/links',
+  getParentRoute: () => AdminRepsRoute,
+} as any)
+const AdminRepsConversionsRoute = AdminRepsConversionsRouteImport.update({
+  id: '/conversions',
+  path: '/conversions',
+  getParentRoute: () => AdminRepsRoute,
+} as any)
+const AdminGrowthOutreachRoute = AdminGrowthOutreachRouteImport.update({
+  id: '/outreach',
+  path: '/outreach',
+  getParentRoute: () => AdminGrowthRoute,
+} as any)
+const AdminGrowthOrgsRoute = AdminGrowthOrgsRouteImport.update({
+  id: '/orgs',
+  path: '/orgs',
+  getParentRoute: () => AdminGrowthRoute,
+} as any)
+const AdminGrowthCouncilsRoute = AdminGrowthCouncilsRouteImport.update({
+  id: '/councils',
+  path: '/councils',
+  getParentRoute: () => AdminGrowthRoute,
+} as any)
+const AdminGrowthContactsRoute = AdminGrowthContactsRouteImport.update({
+  id: '/contacts',
+  path: '/contacts',
+  getParentRoute: () => AdminGrowthRoute,
+} as any)
+const AdminGrowthChaptersRoute = AdminGrowthChaptersRouteImport.update({
+  id: '/chapters',
+  path: '/chapters',
+  getParentRoute: () => AdminGrowthRoute,
+} as any)
+const AdminGrowthCampusesRoute = AdminGrowthCampusesRouteImport.update({
+  id: '/campuses',
+  path: '/campuses',
+  getParentRoute: () => AdminGrowthRoute,
+} as any)
 const PartnersCouncilSchoolCouncilRoute =
   PartnersCouncilSchoolCouncilRouteImport.update({
     id: '/partners/council/$school/$council',
@@ -607,6 +691,8 @@ export interface FileRoutesByFullPath {
   '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
+  '/admin/growth': typeof AdminGrowthRouteWithChildren
+  '/admin/reps': typeof AdminRepsRouteWithChildren
   '/admin/site-qa': typeof AdminSiteQaRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
@@ -643,6 +729,7 @@ export interface FileRoutesByFullPath {
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/partners/campus-councils': typeof PartnersCampusCouncilsRoute
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
+  '/r/$code': typeof RCodeRoute
   '/study/canvas': typeof StudyCanvasRoute
   '/study/dashboard': typeof StudyDashboardRoute
   '/study/foundations': typeof StudyFoundationsRoute
@@ -651,6 +738,15 @@ export interface FileRoutesByFullPath {
   '/$school/': typeof SchoolIndexRoute
   '/outreach/': typeof OutreachIndexRoute
   '/u/': typeof UIndexRoute
+  '/admin/growth/campuses': typeof AdminGrowthCampusesRoute
+  '/admin/growth/chapters': typeof AdminGrowthChaptersRoute
+  '/admin/growth/contacts': typeof AdminGrowthContactsRoute
+  '/admin/growth/councils': typeof AdminGrowthCouncilsRoute
+  '/admin/growth/orgs': typeof AdminGrowthOrgsRoute
+  '/admin/growth/outreach': typeof AdminGrowthOutreachRoute
+  '/admin/reps/conversions': typeof AdminRepsConversionsRoute
+  '/admin/reps/links': typeof AdminRepsLinksRoute
+  '/admin/reps/partners': typeof AdminRepsPartnersRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
@@ -666,6 +762,8 @@ export interface FileRoutesByFullPath {
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
   '/partners/national/$org': typeof PartnersNationalOrgRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
+  '/admin/growth/': typeof AdminGrowthIndexRoute
+  '/admin/reps/': typeof AdminRepsIndexRoute
   '/go/$school/': typeof GoSchoolIndexRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
@@ -737,6 +835,7 @@ export interface FileRoutesByTo {
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/partners/campus-councils': typeof PartnersCampusCouncilsRoute
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
+  '/r/$code': typeof RCodeRoute
   '/study/canvas': typeof StudyCanvasRoute
   '/study/dashboard': typeof StudyDashboardRoute
   '/study/foundations': typeof StudyFoundationsRoute
@@ -745,6 +844,15 @@ export interface FileRoutesByTo {
   '/$school': typeof SchoolIndexRoute
   '/outreach': typeof OutreachIndexRoute
   '/u': typeof UIndexRoute
+  '/admin/growth/campuses': typeof AdminGrowthCampusesRoute
+  '/admin/growth/chapters': typeof AdminGrowthChaptersRoute
+  '/admin/growth/contacts': typeof AdminGrowthContactsRoute
+  '/admin/growth/councils': typeof AdminGrowthCouncilsRoute
+  '/admin/growth/orgs': typeof AdminGrowthOrgsRoute
+  '/admin/growth/outreach': typeof AdminGrowthOutreachRoute
+  '/admin/reps/conversions': typeof AdminRepsConversionsRoute
+  '/admin/reps/links': typeof AdminRepsLinksRoute
+  '/admin/reps/partners': typeof AdminRepsPartnersRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
@@ -760,6 +868,8 @@ export interface FileRoutesByTo {
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
   '/partners/national/$org': typeof PartnersNationalOrgRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
+  '/admin/growth': typeof AdminGrowthIndexRoute
+  '/admin/reps': typeof AdminRepsIndexRoute
   '/go/$school': typeof GoSchoolIndexRoute
   '/outreach/leadfinder': typeof OutreachLeadfinderIndexRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
@@ -797,6 +907,8 @@ export interface FileRoutesById {
   '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
+  '/admin/growth': typeof AdminGrowthRouteWithChildren
+  '/admin/reps': typeof AdminRepsRouteWithChildren
   '/admin/site-qa': typeof AdminSiteQaRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
@@ -833,6 +945,7 @@ export interface FileRoutesById {
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/partners/campus-councils': typeof PartnersCampusCouncilsRoute
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
+  '/r/$code': typeof RCodeRoute
   '/study_/canvas': typeof StudyCanvasRoute
   '/study_/dashboard': typeof StudyDashboardRoute
   '/study_/foundations': typeof StudyFoundationsRoute
@@ -841,6 +954,15 @@ export interface FileRoutesById {
   '/$school/': typeof SchoolIndexRoute
   '/outreach/': typeof OutreachIndexRoute
   '/u/': typeof UIndexRoute
+  '/admin/growth/campuses': typeof AdminGrowthCampusesRoute
+  '/admin/growth/chapters': typeof AdminGrowthChaptersRoute
+  '/admin/growth/contacts': typeof AdminGrowthContactsRoute
+  '/admin/growth/councils': typeof AdminGrowthCouncilsRoute
+  '/admin/growth/orgs': typeof AdminGrowthOrgsRoute
+  '/admin/growth/outreach': typeof AdminGrowthOutreachRoute
+  '/admin/reps/conversions': typeof AdminRepsConversionsRoute
+  '/admin/reps/links': typeof AdminRepsLinksRoute
+  '/admin/reps/partners': typeof AdminRepsPartnersRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
@@ -856,6 +978,8 @@ export interface FileRoutesById {
   '/outreach_/school/$slug': typeof OutreachSchoolSlugRoute
   '/partners/national/$org': typeof PartnersNationalOrgRoute
   '/study_/scenarios/$slug': typeof StudyScenariosSlugRoute
+  '/admin/growth/': typeof AdminGrowthIndexRoute
+  '/admin/reps/': typeof AdminRepsIndexRoute
   '/go/$school/': typeof GoSchoolIndexRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
@@ -894,6 +1018,8 @@ export interface FileRouteTypes {
     | '/waitlist'
     | '/welcome'
     | '/$school/rep'
+    | '/admin/growth'
+    | '/admin/reps'
     | '/admin/site-qa'
     | '/c/$slug'
     | '/ceq/create'
@@ -930,6 +1056,7 @@ export interface FileRouteTypes {
     | '/outreach/video-archive'
     | '/partners/campus-councils'
     | '/partners/national-organizations'
+    | '/r/$code'
     | '/study/canvas'
     | '/study/dashboard'
     | '/study/foundations'
@@ -938,6 +1065,15 @@ export interface FileRouteTypes {
     | '/$school/'
     | '/outreach/'
     | '/u/'
+    | '/admin/growth/campuses'
+    | '/admin/growth/chapters'
+    | '/admin/growth/contacts'
+    | '/admin/growth/councils'
+    | '/admin/growth/orgs'
+    | '/admin/growth/outreach'
+    | '/admin/reps/conversions'
+    | '/admin/reps/links'
+    | '/admin/reps/partners'
     | '/api/cron/backup'
     | '/api/cron/comms-sequences'
     | '/api/cron/weekly-digest'
@@ -953,6 +1089,8 @@ export interface FileRouteTypes {
     | '/outreach/school/$slug'
     | '/partners/national/$org'
     | '/study/scenarios/$slug'
+    | '/admin/growth/'
+    | '/admin/reps/'
     | '/go/$school/'
     | '/outreach/leadfinder/'
     | '/api/flyer/$school/$chapter'
@@ -1024,6 +1162,7 @@ export interface FileRouteTypes {
     | '/outreach/video-archive'
     | '/partners/campus-councils'
     | '/partners/national-organizations'
+    | '/r/$code'
     | '/study/canvas'
     | '/study/dashboard'
     | '/study/foundations'
@@ -1032,6 +1171,15 @@ export interface FileRouteTypes {
     | '/$school'
     | '/outreach'
     | '/u'
+    | '/admin/growth/campuses'
+    | '/admin/growth/chapters'
+    | '/admin/growth/contacts'
+    | '/admin/growth/councils'
+    | '/admin/growth/orgs'
+    | '/admin/growth/outreach'
+    | '/admin/reps/conversions'
+    | '/admin/reps/links'
+    | '/admin/reps/partners'
     | '/api/cron/backup'
     | '/api/cron/comms-sequences'
     | '/api/cron/weekly-digest'
@@ -1047,6 +1195,8 @@ export interface FileRouteTypes {
     | '/outreach/school/$slug'
     | '/partners/national/$org'
     | '/study/scenarios/$slug'
+    | '/admin/growth'
+    | '/admin/reps'
     | '/go/$school'
     | '/outreach/leadfinder'
     | '/api/flyer/$school/$chapter'
@@ -1083,6 +1233,8 @@ export interface FileRouteTypes {
     | '/waitlist'
     | '/welcome'
     | '/$school/rep'
+    | '/admin/growth'
+    | '/admin/reps'
     | '/admin/site-qa'
     | '/c/$slug'
     | '/ceq/create'
@@ -1119,6 +1271,7 @@ export interface FileRouteTypes {
     | '/outreach/video-archive'
     | '/partners/campus-councils'
     | '/partners/national-organizations'
+    | '/r/$code'
     | '/study_/canvas'
     | '/study_/dashboard'
     | '/study_/foundations'
@@ -1127,6 +1280,15 @@ export interface FileRouteTypes {
     | '/$school/'
     | '/outreach/'
     | '/u/'
+    | '/admin/growth/campuses'
+    | '/admin/growth/chapters'
+    | '/admin/growth/contacts'
+    | '/admin/growth/councils'
+    | '/admin/growth/orgs'
+    | '/admin/growth/outreach'
+    | '/admin/reps/conversions'
+    | '/admin/reps/links'
+    | '/admin/reps/partners'
     | '/api/cron/backup'
     | '/api/cron/comms-sequences'
     | '/api/cron/weekly-digest'
@@ -1142,6 +1304,8 @@ export interface FileRouteTypes {
     | '/outreach_/school/$slug'
     | '/partners/national/$org'
     | '/study_/scenarios/$slug'
+    | '/admin/growth/'
+    | '/admin/reps/'
     | '/go/$school/'
     | '/outreach/leadfinder/'
     | '/api/flyer/$school/$chapter'
@@ -1179,6 +1343,8 @@ export interface RootRouteChildren {
   WaitlistRoute: typeof WaitlistRoute
   WelcomeRoute: typeof WelcomeRoute
   SchoolRepRoute: typeof SchoolRepRoute
+  AdminGrowthRoute: typeof AdminGrowthRouteWithChildren
+  AdminRepsRoute: typeof AdminRepsRouteWithChildren
   AdminSiteQaRoute: typeof AdminSiteQaRoute
   CSlugRoute: typeof CSlugRoute
   ChaptersDashboardRoute: typeof ChaptersDashboardRoute
@@ -1186,6 +1352,7 @@ export interface RootRouteChildren {
   OShortRefRoute: typeof OShortRefRoute
   PartnersCampusCouncilsRoute: typeof PartnersCampusCouncilsRoute
   PartnersNationalOrganizationsRoute: typeof PartnersNationalOrganizationsRoute
+  RCodeRoute: typeof RCodeRoute
   StudyCanvasRoute: typeof StudyCanvasRoute
   StudyDashboardRoute: typeof StudyDashboardRoute
   StudyFoundationsRoute: typeof StudyFoundationsRoute
@@ -1449,6 +1616,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StudyCanvasRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/r/$code': {
+      id: '/r/$code'
+      path: '/r/$code'
+      fullPath: '/r/$code'
+      preLoaderRoute: typeof RCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/partners/national-organizations': {
       id: '/partners/national-organizations'
       path: '/partners/national-organizations'
@@ -1701,6 +1875,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminSiteQaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/reps': {
+      id: '/admin/reps'
+      path: '/admin/reps'
+      fullPath: '/admin/reps'
+      preLoaderRoute: typeof AdminRepsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/growth': {
+      id: '/admin/growth'
+      path: '/admin/growth'
+      fullPath: '/admin/growth'
+      preLoaderRoute: typeof AdminGrowthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/$school/rep': {
       id: '/$school/rep'
       path: '/$school/rep'
@@ -1721,6 +1909,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/go/$school/'
       preLoaderRoute: typeof GoSchoolIndexRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/admin/reps/': {
+      id: '/admin/reps/'
+      path: '/'
+      fullPath: '/admin/reps/'
+      preLoaderRoute: typeof AdminRepsIndexRouteImport
+      parentRoute: typeof AdminRepsRoute
+    }
+    '/admin/growth/': {
+      id: '/admin/growth/'
+      path: '/'
+      fullPath: '/admin/growth/'
+      preLoaderRoute: typeof AdminGrowthIndexRouteImport
+      parentRoute: typeof AdminGrowthRoute
     }
     '/study_/scenarios/$slug': {
       id: '/study_/scenarios/$slug'
@@ -1826,6 +2028,69 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/cron/backup'
       preLoaderRoute: typeof ApiCronBackupRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/admin/reps/partners': {
+      id: '/admin/reps/partners'
+      path: '/partners'
+      fullPath: '/admin/reps/partners'
+      preLoaderRoute: typeof AdminRepsPartnersRouteImport
+      parentRoute: typeof AdminRepsRoute
+    }
+    '/admin/reps/links': {
+      id: '/admin/reps/links'
+      path: '/links'
+      fullPath: '/admin/reps/links'
+      preLoaderRoute: typeof AdminRepsLinksRouteImport
+      parentRoute: typeof AdminRepsRoute
+    }
+    '/admin/reps/conversions': {
+      id: '/admin/reps/conversions'
+      path: '/conversions'
+      fullPath: '/admin/reps/conversions'
+      preLoaderRoute: typeof AdminRepsConversionsRouteImport
+      parentRoute: typeof AdminRepsRoute
+    }
+    '/admin/growth/outreach': {
+      id: '/admin/growth/outreach'
+      path: '/outreach'
+      fullPath: '/admin/growth/outreach'
+      preLoaderRoute: typeof AdminGrowthOutreachRouteImport
+      parentRoute: typeof AdminGrowthRoute
+    }
+    '/admin/growth/orgs': {
+      id: '/admin/growth/orgs'
+      path: '/orgs'
+      fullPath: '/admin/growth/orgs'
+      preLoaderRoute: typeof AdminGrowthOrgsRouteImport
+      parentRoute: typeof AdminGrowthRoute
+    }
+    '/admin/growth/councils': {
+      id: '/admin/growth/councils'
+      path: '/councils'
+      fullPath: '/admin/growth/councils'
+      preLoaderRoute: typeof AdminGrowthCouncilsRouteImport
+      parentRoute: typeof AdminGrowthRoute
+    }
+    '/admin/growth/contacts': {
+      id: '/admin/growth/contacts'
+      path: '/contacts'
+      fullPath: '/admin/growth/contacts'
+      preLoaderRoute: typeof AdminGrowthContactsRouteImport
+      parentRoute: typeof AdminGrowthRoute
+    }
+    '/admin/growth/chapters': {
+      id: '/admin/growth/chapters'
+      path: '/chapters'
+      fullPath: '/admin/growth/chapters'
+      preLoaderRoute: typeof AdminGrowthChaptersRouteImport
+      parentRoute: typeof AdminGrowthRoute
+    }
+    '/admin/growth/campuses': {
+      id: '/admin/growth/campuses'
+      path: '/campuses'
+      fullPath: '/admin/growth/campuses'
+      preLoaderRoute: typeof AdminGrowthCampusesRouteImport
+      parentRoute: typeof AdminGrowthRoute
     }
     '/partners/council/$school/$council': {
       id: '/partners/council/$school/$council'
@@ -1975,6 +2240,48 @@ const OutreachRouteWithChildren = OutreachRoute._addFileChildren(
   OutreachRouteChildren,
 )
 
+interface AdminGrowthRouteChildren {
+  AdminGrowthCampusesRoute: typeof AdminGrowthCampusesRoute
+  AdminGrowthChaptersRoute: typeof AdminGrowthChaptersRoute
+  AdminGrowthContactsRoute: typeof AdminGrowthContactsRoute
+  AdminGrowthCouncilsRoute: typeof AdminGrowthCouncilsRoute
+  AdminGrowthOrgsRoute: typeof AdminGrowthOrgsRoute
+  AdminGrowthOutreachRoute: typeof AdminGrowthOutreachRoute
+  AdminGrowthIndexRoute: typeof AdminGrowthIndexRoute
+}
+
+const AdminGrowthRouteChildren: AdminGrowthRouteChildren = {
+  AdminGrowthCampusesRoute: AdminGrowthCampusesRoute,
+  AdminGrowthChaptersRoute: AdminGrowthChaptersRoute,
+  AdminGrowthContactsRoute: AdminGrowthContactsRoute,
+  AdminGrowthCouncilsRoute: AdminGrowthCouncilsRoute,
+  AdminGrowthOrgsRoute: AdminGrowthOrgsRoute,
+  AdminGrowthOutreachRoute: AdminGrowthOutreachRoute,
+  AdminGrowthIndexRoute: AdminGrowthIndexRoute,
+}
+
+const AdminGrowthRouteWithChildren = AdminGrowthRoute._addFileChildren(
+  AdminGrowthRouteChildren,
+)
+
+interface AdminRepsRouteChildren {
+  AdminRepsConversionsRoute: typeof AdminRepsConversionsRoute
+  AdminRepsLinksRoute: typeof AdminRepsLinksRoute
+  AdminRepsPartnersRoute: typeof AdminRepsPartnersRoute
+  AdminRepsIndexRoute: typeof AdminRepsIndexRoute
+}
+
+const AdminRepsRouteChildren: AdminRepsRouteChildren = {
+  AdminRepsConversionsRoute: AdminRepsConversionsRoute,
+  AdminRepsLinksRoute: AdminRepsLinksRoute,
+  AdminRepsPartnersRoute: AdminRepsPartnersRoute,
+  AdminRepsIndexRoute: AdminRepsIndexRoute,
+}
+
+const AdminRepsRouteWithChildren = AdminRepsRoute._addFileChildren(
+  AdminRepsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BeyondRoute: BeyondRoute,
@@ -2003,6 +2310,8 @@ const rootRouteChildren: RootRouteChildren = {
   WaitlistRoute: WaitlistRoute,
   WelcomeRoute: WelcomeRoute,
   SchoolRepRoute: SchoolRepRoute,
+  AdminGrowthRoute: AdminGrowthRouteWithChildren,
+  AdminRepsRoute: AdminRepsRouteWithChildren,
   AdminSiteQaRoute: AdminSiteQaRoute,
   CSlugRoute: CSlugRoute,
   ChaptersDashboardRoute: ChaptersDashboardRoute,
@@ -2010,6 +2319,7 @@ const rootRouteChildren: RootRouteChildren = {
   OShortRefRoute: OShortRefRoute,
   PartnersCampusCouncilsRoute: PartnersCampusCouncilsRoute,
   PartnersNationalOrganizationsRoute: PartnersNationalOrganizationsRoute,
+  RCodeRoute: RCodeRoute,
   StudyCanvasRoute: StudyCanvasRoute,
   StudyDashboardRoute: StudyDashboardRoute,
   StudyFoundationsRoute: StudyFoundationsRoute,
