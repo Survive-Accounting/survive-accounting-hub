@@ -5,20 +5,40 @@
 // it with your eyes. The lab page can also override each of these live (it passes a `tuning` prop);
 // what is written here is the default the production hero will ship with.
 
-/** ═══ MOTION ═══════════════════════════════════════════════════════════════════════════════ */
+/** ═══ MOTION — CHARGE, THEN REST ═══════════════════════════════════════════════════════════
+ *
+ *  The bolt is NOT a continuous conveyor. It is a two-beat loop:
+ *
+ *      CHARGE (fast, eased)  →  DWELL (dead still)  →  CHARGE  →  DWELL  →  …
+ *
+ *  The charge is the identity: the next campus's colours drive UPWARD through the mark and resolve.
+ *  The dwell is what the visitor actually reads — the finished school, its colours, its course code
+ *  and its name, sitting still. Movement, rest, movement, rest; never constant motion.
+ *
+ *  These two numbers are the whole cadence. Nothing else in the component knows a duration. */
 
-/** How long one campus owns the bolt, door to door. The conveyor never pauses — this is the time
- *  it takes one campus panel to travel its own height, so it is BOTH the campus cadence AND the
- *  flow speed. Lower = faster river and quicker campus turnover. Target 3400–3800. */
-export const CAMPUS_DURATION_MS = 3600;
+/** The upward charge. Quick and energetic — long enough to read as a sweep, short enough that it
+ *  never becomes the thing you are watching. 600–1000 is the useful band. */
+export const CHARGE_MS = 780;
 
-/** How tall one campus panel is, in bolt-heights. This is the single knob that trades "flow speed"
- *  against "clean read time":
- *    2.0 → the hand-off crosses the bolt in half a cycle (1.8s), then 1.8s of ONE campus alone.
- *    1.0 → a campus edge is always crossing the bolt; never a clean single-campus frame.
- *    3.0 → a faster river, a shorter hand-off, a longer clean hold.
- *  The fraction of each cycle spent handing over is exactly 1 / PANEL_SPAN. */
-export const PANEL_SPAN = 2.0;
+/** How long the finished campus sits still afterwards. This is READING time: the caption has to be
+ *  legible, out loud, by someone who only just noticed the bolt. 2500–3500 is the useful band. */
+export const DWELL_MS = 3000;
+
+/** One campus, door to door. Derived — do not set it. */
+export const CAMPUS_CYCLE_MS = CHARGE_MS + DWELL_MS;
+
+/** The charge curve, as cubic-bezier control points (the same four numbers CSS takes).
+ *  The default is a launch-and-settle: off the line immediately, quick through the middle, and a
+ *  long soft resolve into the finished state so the stop never reads as a stop. */
+export const CHARGE_EASE: readonly [number, number, number, number] = [0.2, 0.9, 0.25, 1];
+
+/** How tall one campus panel is, in bolt-heights. It must be MORE than 1: the panels lean
+ *  (RIBBON_ANGLE), so a panel exactly one bolt tall would leave a wedge of the bolt's top corner
+ *  uncovered at rest. The overhang is split evenly above and below, and 1.25 gives ~18 units of
+ *  slack against a worst-case lean of ~13. Raising it makes the charge travel further in the same
+ *  time (a longer, faster sweep); lowering it below ~1.2 risks the wedge. */
+export const PANEL_SPAN = 1.25;
 
 /** Tilt of the flow, in degrees. Both the campus hand-off edge and the ribbon bands share it, so
  *  the whole stream leans as one object. Positive = the edge rises to the LEFT (complements the
@@ -37,13 +57,36 @@ export const RIBBON_COUNT = 4;
 export const RIBBON_TONE_LIGHT = 0.17;
 export const RIBBON_TONE_DEEP = 0.13;
 
-/** When the plate ("for ACCT 2110 · AUBURN") flips to the incoming campus, as a fraction of the
- *  HAND-OVER (not of the whole cycle) — 0.55 means "when the new campus owns a bit more than half
- *  the bolt". 0 flips the instant the new colours appear; 1 waits until the old campus is gone. */
-export const LABEL_SWITCH_PROGRESS = 0.55;
+/** ═══ THE CAPTION ══════════════════════════════════════════════════════════════════════════
+ *
+ *  The plate ("for ACCT 2110 · AUBURN") is part of the campus change, not a separate event. It
+ *  fades OUT as the charge begins, swaps its text while invisible, and fades back IN as the charge
+ *  resolves — so the new school's NAME can never be on screen while the bolt still wears the old
+ *  school's COLOURS, which is the one thing that made the old version feel uncoordinated. */
 
-/** Campus dwell when the visitor prefers reduced motion: no conveyor at all, just a slow colour
- *  cross-fade from campus to campus. Long, because a fade is the only event. */
+/** Length of each half of the caption cross-fade. Twice this must comfortably fit inside
+ *  CHARGE_MS, or the caption is still fading when the bolt has already settled. */
+export const CAPTION_FADE_MS = 190;
+
+/** Where in the charge the caption's TEXT is swapped, 0–1. It is invisible at this moment, so the
+ *  exact value only decides which campus a click means mid-charge — 0.55 hands over just after the
+ *  new colours take the middle of the bolt. */
+export const CAPTION_SWAP_PROGRESS = 0.55;
+
+/** ═══ IDLE LIFE ════════════════════════════════════════════════════════════════════════════ */
+
+/** During the dwell ONLY, the bolt drifts by this many CSS pixels and back. This is deliberately
+ *  the subtlest of the options on the table: no scale breathing, no glow pulse, no bounce — one
+ *  slow float, small enough that you notice it without seeing it. 0 turns it off entirely.
+ *  Above ~3px it starts to read as an animation, which is exactly wrong. */
+export const IDLE_FLOAT_PX = 1.5;
+/** A full float round trip. Slow — this is breathing, not motion. */
+export const IDLE_FLOAT_MS = 5200;
+
+/** ═══ REDUCED MOTION ═══════════════════════════════════════════════════════════════════════ */
+
+/** Campus dwell when the visitor prefers reduced motion: no charge and no float at all, just a
+ *  slow colour cross-fade from campus to campus. Long, because a fade is the only event. */
 export const REDUCED_MOTION_DWELL_MS = 6000;
 /** Length of that cross-fade. */
 export const REDUCED_MOTION_FADE_MS = 700;
@@ -236,13 +279,15 @@ export const CURATED_CAMPUS_ORDER: string[] = [
 /** The whole tuning desk as one object, so the lab can hand the component a modified copy without
  *  every consumer having to thread twelve props. Production passes nothing and gets these. */
 export type BoltTuning = {
-  campusDurationMs: number;
+  chargeMs: number;
+  dwellMs: number;
   panelSpan: number;
   ribbonAngle: number;
   ribbonCount: number;
   ribbonToneLight: number;
   ribbonToneDeep: number;
-  labelSwitchProgress: number;
+  captionSwapProgress: number;
+  idleFloatPx: number;
   outlineWidth: number;
   seamOverlap: number;
   glowBlur: number;
@@ -253,13 +298,15 @@ export type BoltTuning = {
 };
 
 export const DEFAULT_BOLT_TUNING: BoltTuning = {
-  campusDurationMs: CAMPUS_DURATION_MS,
+  chargeMs: CHARGE_MS,
+  dwellMs: DWELL_MS,
   panelSpan: PANEL_SPAN,
   ribbonAngle: RIBBON_ANGLE,
   ribbonCount: RIBBON_COUNT,
   ribbonToneLight: RIBBON_TONE_LIGHT,
   ribbonToneDeep: RIBBON_TONE_DEEP,
-  labelSwitchProgress: LABEL_SWITCH_PROGRESS,
+  captionSwapProgress: CAPTION_SWAP_PROGRESS,
+  idleFloatPx: IDLE_FLOAT_PX,
   outlineWidth: OUTLINE_WIDTH,
   seamOverlap: SEAM_OVERLAP,
   glowBlur: GLOW_BLUR,

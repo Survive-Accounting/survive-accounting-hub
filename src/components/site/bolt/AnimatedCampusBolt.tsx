@@ -1,6 +1,8 @@
 // THE ANIMATED CAMPUS BOLT.
 //
-// One brand bolt, two school colours, and a slow upward river of campuses running through it.
+// One brand bolt, two school colours, and the next campus CHARGING upward through it — then
+// stopping dead so the school can be read. Movement, rest, movement, rest. See useBoltRotation for
+// the beat and bolt-config for the two numbers (CHARGE_MS, DWELL_MS) that set it.
 //
 // GEOMETRY IS FIXED ARTWORK (bolt-geometry.ts → brand.tsx). ONE path, BOLT_OUTER, is the interior
 // clip, the visible white outline AND the glow, so they cannot disagree. BOLT_RIGHT supplies the
@@ -22,18 +24,25 @@
 // anti-aliasing has colour on both sides of every edge pixel. The divider's geometry is unchanged.
 //
 // WHY IT DOES NOT LOOK LIKE SCAN LINES: there are no bands. Each campus is ONE parallelogram filled
-// with ONE gradient whose tone wave has RIBBON_COUNT broad crests across a panel two bolts tall —
-// so the smallest moving feature is about half a bolt. What you see is sheen travelling through a
-// colour, plus the leaning edge where one campus hands over to the next.
+// with ONE gradient whose tone wave has RIBBON_COUNT broad crests, so the smallest moving feature
+// is a large fraction of the bolt. What you see is a sheen driving through a colour, plus the
+// leaning edge where one campus hands over to the next.
 //
-// Motion is two transform writes per frame (see useBoltRotation). React re-renders when the campus
-// changes, and not otherwise.
+// THE PHASE IS ON THE DOM, NOT IN REACT. useBoltRotation writes data-phase="charge"|"rest" onto
+// the host, and the stylesheet does the rest: the caption fades out for the charge and back in for
+// the rest, and the idle float runs during rest only. No render is needed to change either.
+//
+// Motion is two transform writes per frame DURING THE CHARGE and nothing at all during the dwell.
+// React re-renders twice per campus (the queue, the caption), and not otherwise.
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { BRAND_DISPLAY } from "@/components/canvas/brand";
 import {
+  CAPTION_FADE_MS,
+  CHARGE_EASE,
   DEFAULT_BOLT_TUNING,
   GLOW_COLOR,
+  IDLE_FLOAT_MS,
   REDUCED_MOTION_DWELL_MS,
   REDUCED_MOTION_FADE_MS,
   SHADOW_BLUR,
@@ -71,6 +80,9 @@ export type AnimatedCampusBoltProps = {
   /** Fires when the visually dominant campus changes — what the plate is naming. The lab reads it
    *  for its diagnostics; production surfaces are welcome to ignore it. */
   onCampusChange?: (campus: BoltCampus) => void;
+  /** A whisper of a label revealed on hover/focus, saying what the click does ("Start studying ↓").
+   *  Ignored unless the bolt is clickable, and hidden entirely on touch. Omit for no hint. */
+  hint?: string;
   /** TUNING OVERRIDES — the lab's control panel. Production passes nothing. */
   tuning?: Partial<BoltTuning>;
 };
@@ -83,6 +95,7 @@ export function AnimatedCampusBolt({
   className,
   ariaLabel = "Cram Exam 1 Free",
   onCampusChange,
+  hint,
   tuning: tuningOverride,
 }: AnimatedCampusBoltProps) {
   const t: BoltTuning = useMemo(
@@ -114,16 +127,19 @@ export function AnimatedCampusBolt({
     return h.toString(36);
   }, [ariaLabel, campuses]);
 
+  const hostRef = useRef<HTMLElement>(null);
   const { panels, labelCampus, leftLaneRef, rightLaneRef, running } = useBoltRotation(campuses, {
     autoplay,
     reduced,
-    durationMs: t.campusDurationMs,
+    chargeMs: t.chargeMs,
+    dwellMs: t.dwellMs,
     panelSpan: t.panelSpan,
-    labelSwitchProgress: t.labelSwitchProgress,
+    ease: CHARGE_EASE,
+    captionSwapProgress: t.captionSwapProgress,
     reducedDwellMs: REDUCED_MOTION_DWELL_MS,
+    hostRef,
   });
 
-  const hostRef = useRef<HTMLElement>(null);
   const notifyRef = useRef(onCampusChange);
   notifyRef.current = onCampusChange;
   const labelId = labelCampus?.id;
@@ -269,9 +285,14 @@ export function AnimatedCampusBolt({
     </svg>
   );
 
+  // NO `key` ON THE PLATE, deliberately. Keying it on the campus remounted the caption every time
+  // the school changed, which restarted a CSS entrance animation and made the words pop on their
+  // own schedule — the "caption changes independently of the bolt" problem. The caption is now
+  // faded by the PHASE (see the stylesheet) and its text is swapped in place while it is invisible,
+  // so the bolt and the words are one movement.
   const plate =
     showLabel && (labelCampus.code || labelCampus.name) ? (
-      <span key={labelCampus.id} className="acb-plate" style={{ fontFamily: BRAND_DISPLAY }}>
+      <span className="acb-plate" style={{ fontFamily: BRAND_DISPLAY }}>
         <span className="acb-plate-for">for </span>
         {labelCampus.code ? <span className="acb-plate-em">{labelCampus.code}</span> : null}
         {labelCampus.code && labelCampus.name ? <span className="acb-plate-dot"> · </span> : null}
@@ -286,13 +307,26 @@ export function AnimatedCampusBolt({
     ["--acb-glow-hover-o" as string]: String(t.glowHoverOpacity),
     ["--acb-shadow-o" as string]: String(SHADOW_OPACITY),
     ["--acb-fade" as string]: `${REDUCED_MOTION_FADE_MS}ms`,
+    ["--acb-caption-fade" as string]: `${CAPTION_FADE_MS}ms`,
+    // The float belongs to the ROTATION. A pinned single-campus bolt (a campus page) is a static
+    // mark and must not drift; only a bolt that is actually cycling gets idle life.
+    ["--acb-float-px" as string]: `${running ? t.idleFloatPx : 0}px`,
+    ["--acb-float-ms" as string]: `${IDLE_FLOAT_MS}ms`,
     WebkitTapHighlightColor: "transparent",
   } as React.CSSProperties;
+
+  // The hint is a hover affordance, so it only exists where hovering can do something.
+  const hintText = onActivate ? hint : undefined;
 
   const inner = (
     <>
       <span className="acb-bolt">{boltSvg}</span>
       {plate}
+      {hintText ? (
+        <span className="acb-hint" aria-hidden>
+          {hintText}
+        </span>
+      ) : null}
     </>
   );
 
@@ -302,6 +336,7 @@ export function AnimatedCampusBolt({
         ref={hostRef as React.RefObject<HTMLDivElement>}
         className={`acb-host ${className ?? ""}`}
         style={hostStyle}
+        data-phase="rest"
         data-running={running ? "1" : "0"}
         role="img"
         aria-label={ariaLabel}
@@ -317,8 +352,9 @@ export function AnimatedCampusBolt({
       type="button"
       onClick={() => onActivate(labelCampus)}
       aria-label={ariaLabel}
-      className={`acb-host acb-pressable ${className ?? ""}`}
+      className={`acb-host acb-pressable ${hintText ? "acb-hinted" : ""} ${className ?? ""}`}
       style={hostStyle}
+      data-phase="rest"
       data-running={running ? "1" : "0"}
     >
       {inner}
@@ -344,7 +380,8 @@ export const ANIMATED_CAMPUS_BOLT_CSS = `
   padding: 0;
 }
 .acb-pressable { cursor: pointer; transition: transform 220ms cubic-bezier(.2,.8,.2,1); }
-.acb-pressable:hover { transform: scale(1.035); }
+.acb-pressable:hover { transform: scale(1.04); }
+.acb-pressable:active { transform: scale(1.01); transition-duration: 90ms; }
 .acb-pressable:focus-visible { outline: 3px solid var(--accent, #FCA311); outline-offset: 10px; border-radius: 14px; }
 
 .acb-bolt { display: block; width: 100%; pointer-events: none; }
@@ -352,12 +389,29 @@ export const ANIMATED_CAMPUS_BOLT_CSS = `
 
 .acb-glow { opacity: var(--acb-glow-o, 0.45); transition: opacity 600ms ease; }
 .acb-shadow { opacity: var(--acb-shadow-o, 0.5); }
-.acb-pressable:hover .acb-glow { opacity: var(--acb-glow-hover-o, 0.62); }
+.acb-pressable:hover .acb-glow, .acb-pressable:focus-visible .acb-glow { opacity: var(--acb-glow-hover-o, 0.62); }
 
 /* Reduced motion swaps campuses by cross-fading the two flat fills. */
 .acb-flat { transition: fill var(--acb-fade, 700ms) ease; }
 
-/* THE PLATE — the words live under the bolt, never inside it. */
+/* IDLE LIFE — during the DWELL only, and only while the bolt is actually rotating.
+   One slow float of --acb-float-px and back. It is on .acb-bolt, not on the host, so it can never
+   fight the host's hover scale; both are transforms on separate elements. */
+@keyframes acb-float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(0, calc(var(--acb-float-px, 0px) * -1), 0); }
+}
+.acb-host[data-phase="rest"] .acb-bolt {
+  animation: acb-float var(--acb-float-ms, 5200ms) ease-in-out infinite;
+}
+/* The charge is the motion; the float steps out of its way and hands back a clean transform. */
+.acb-host[data-phase="charge"] .acb-bolt { animation: none; transform: translate3d(0, 0, 0); }
+
+/* THE PLATE — the words live under the bolt, never inside it.
+   Its opacity is driven by the PHASE, which is how the caption and the bolt stay one event: it
+   fades out as the charge starts, its text is swapped while it is invisible, and it fades back in
+   as the charge resolves. The new school's NAME is therefore never on screen over the old school's
+   COLOURS. */
 .acb-plate {
   margin-top: 16px;
   font-size: 13px;
@@ -365,15 +419,40 @@ export const ANIMATED_CAMPUS_BOLT_CSS = `
   letter-spacing: 0.08em;
   color: var(--brand-cream, #F5EFE6);
   white-space: nowrap;
-  animation: acb-plate-in 420ms ease;
+  transition: opacity var(--acb-caption-fade, 190ms) ease;
 }
+.acb-host[data-phase="charge"] .acb-plate { opacity: 0; }
 .acb-plate-for { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; opacity: 0.55; text-transform: none; }
 .acb-plate-em { opacity: 0.92; }
 .acb-plate-dot { opacity: 0.45; }
-@keyframes acb-plate-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* HOVER HINT — a whisper of a label, absolutely positioned so it can never move the layout, and
+   only on devices that can actually hover. It says what the click does; it is not a CTA. */
+/* The space is RESERVED whenever a hint exists, so revealing it can never nudge the caption, the
+   change-school control or anything below the hero. It costs 16px of empty box; it buys a hover
+   state that does not move the page. */
+.acb-hinted { padding-bottom: 16px; }
+.acb-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--accent, #FCA311);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+@media (hover: hover) {
+  .acb-pressable:hover .acb-hint, .acb-pressable:focus-visible .acb-hint { opacity: 0.9; }
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .acb-pressable, .acb-pressable:hover { transform: none; }
-  .acb-plate { animation: none; }
+  .acb-pressable, .acb-pressable:hover, .acb-pressable:active { transform: none; }
+  .acb-host[data-phase="rest"] .acb-bolt { animation: none; }
+  .acb-plate { transition: none; }
 }
 `;

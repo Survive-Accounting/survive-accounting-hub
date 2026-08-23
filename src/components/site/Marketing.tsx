@@ -11,7 +11,7 @@
 // through a route file is exactly what trips the TanStack code-splitter. Anything landing owns
 // (TestimonialsSlider, the player) arrives through slots/props instead.
 import { useEffect, useState } from "react";
-import { ClipboardCheck, Play, Target } from "lucide-react";
+import { ArrowLeftRight, ClipboardCheck, Play, Target } from "lucide-react";
 
 import { BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS } from "@/components/canvas/brand";
 import { AnimatedCampusBolt, type BoltCampus } from "@/components/site/bolt";
@@ -170,25 +170,39 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
 
       {/* THE BOLT — after the copy in DOM order, so mobile reads headline→CTA→chips first. */}
       <div className="flex flex-col items-center lg:items-end">
-        <AnimatedCampusBolt
-          campuses={campuses}
-          onActivate={(c) => (kind === "general" && onBoltPick && c.id !== "brand" ? onBoltPick(c.id) : onStart())}
-          className="sa-hero3-paper"
-          ariaLabel="Cram Exam 1 Free"
-        />
-        {/* Under the plate, not beside the CTA: this corrects "OLE MISS", so it belongs where
-            that word is. On a chapter page it leaves the chapter route entirely rather than
-            repainting this page as another campus — see landing.tsx. */}
-        {kind !== "general" && onChangeSchool && (
-          <button
-            type="button"
-            onClick={onChangeSchool}
-            className="mt-2 text-[13px] font-semibold underline underline-offset-4 transition-colors hover:text-[var(--brand-cream)]"
-            style={{ color: "var(--text-muted)", minHeight: 44, fontFamily: BRAND_SANS }}
-          >
-            Change school →
-          </button>
-        )}
+        {/* ONE COLUMN FOR THE BOLT AND ITS CONTROL. sa-hero3-paper carries the bolt's width AND a
+            6rem right margin on desktop; when that class sat on the bolt itself, `lg:items-end`
+            right-aligned the bolt's MARGIN box, so anything rendered under it (the change-school
+            control) landed 96px to the right of the artwork and read as unrelated furniture. The
+            class belongs on the column; everything inside it is centred on the bolt. */}
+        <div className="sa-hero3-paper flex flex-col">
+          <AnimatedCampusBolt
+            campuses={campuses}
+            onActivate={(c) => (kind === "general" && onBoltPick && c.id !== "brand" ? onBoltPick(c.id) : onStart())}
+            ariaLabel={code ? `Start studying ${code}` : "Cram Exam 1 Free"}
+            hint={code ? `Open ${code} ↓` : "Start studying ↓"}
+          />
+          {/* Under the plate, not beside the CTA: this corrects "OLE MISS", so it belongs where
+              that word is. On a chapter page it leaves the chapter route entirely rather than
+              repainting this page as another campus — see landing.tsx.
+              AN ICON, NOT A SENTENCE: "Change school →" was a line of utility copy sitting directly
+              under the artwork, and it read louder than the campus name it exists to correct. A swap
+              arrow says the same thing quietly. Deliberately NOT an ✕ — that promises "close" or
+              "remove", and this neither closes nor removes anything; it exchanges one school for
+              another. The label survives for screen readers and as a hover/focus tooltip. */}
+          {kind !== "general" && onChangeSchool && (
+            <button
+              type="button"
+              onClick={onChangeSchool}
+              aria-label="Change school"
+              title="Change school"
+              className="sa-hero-swap mt-1 inline-flex items-center justify-center self-center rounded-full"
+              style={{ color: "var(--text-muted)", width: 44, height: 44 }}
+            >
+              <ArrowLeftRight size={16} aria-hidden />
+            </button>
+          )}
+        </div>
       </div>
     </section>
   );
@@ -227,6 +241,13 @@ export function TrustChips({ onBio, onReviews, onPlayer }: { onBio: () => void; 
 
 /** Chip hover/focus styling — subtle brightness + a hair of lift, quick, reduced-motion safe. */
 export const MARKETING_CSS = `
+/* CHANGE-SCHOOL SWAP. A 44px touch target around a 16px glyph, so it is quiet to look at and still
+   comfortably tappable on a phone. It brightens rather than growing — nothing under the bolt should
+   move on hover except the bolt. */
+.sa-hero-swap { background: none; border: 0; padding: 0; cursor: pointer; opacity: 0.75; transition: color 140ms, opacity 140ms, background-color 140ms; }
+.sa-hero-swap:hover { color: var(--brand-cream); opacity: 1; background: rgba(245,239,230,0.08); }
+.sa-hero-swap:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; color: var(--brand-cream); opacity: 1; }
+
 /* PROOF STRIP. Quieter than every CTA: no lift, no glow, default cursor, muted text. The hover
    is a bare half-step of contrast so the badge is not dead to the pointer, nothing more. */
 .sa-trust-chip { display: inline-flex; align-items: center; gap: 5px; cursor: default; transition: color 140ms, border-color 140ms; }

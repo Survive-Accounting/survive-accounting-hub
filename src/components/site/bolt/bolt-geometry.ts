@@ -38,14 +38,26 @@ export const PANEL_SLOTS = 3;
 /** Panel height in user units, from the span (in bolt-heights) chosen in bolt-config. */
 export const panelHeight = (panelSpan: number) => VB.h * panelSpan;
 
-/** The local y of slot `i`'s TOP edge (at the pivot x). Slot 0 is placed so that at offset 0 it
- *  covers the whole visible bolt with its own bottom portion — i.e. the bolt is full of ONE
- *  campus at the start of every cycle. */
+/** The local y of slot `i`'s TOP edge (at the pivot x).
+ *
+ *  The overhang — everything a panel has beyond one bolt height — is split EVENLY above and below,
+ *  so at offset 0 slot 0 covers the whole visible bolt with margin at both ends. That margin is
+ *  what the lean eats: a panel's edges are slanted, so an edge sitting exactly on the bolt's top
+ *  line still leaves the high corner uncovered. See `maxLeanOverhang`. */
 export const slotTop = (i: number, panelSpan: number) =>
-  VB.y - VB.h * (panelSpan - 1) + i * panelHeight(panelSpan);
+  VB.y - (panelHeight(panelSpan) - VB.h) / 2 + i * panelHeight(panelSpan);
 
 /** tan of the lean. Positive RIBBON_ANGLE tilts the flow so its edge rises to the LEFT. */
 export const leanOf = (angleDeg: number) => Math.tan((angleDeg * Math.PI) / 180);
+
+/** How far a leaning panel edge rises above (or falls below) its own centre line, across the full
+ *  overscanned width. A panel must have at least this much slack at each end or the lean opens a
+ *  wedge of bare navy at the bolt's top corner. Verified against PANEL_SPAN by the geometry test. */
+export const maxLeanOverhang = (angleDeg: number) =>
+  (Math.abs(leanOf(angleDeg)) * (PANEL_X1 - PANEL_X0)) / 2;
+
+/** The slack a given span actually provides at each end. Must exceed maxLeanOverhang. */
+export const panelSlack = (panelSpan: number) => (panelHeight(panelSpan) - VB.h) / 2;
 
 /** One campus panel as a PARALLELOGRAM: a horizontal band sheared by the lean. Adjacent slots
  *  share an edge exactly (slot i's bottom edge is slot i+1's top edge, vertex for vertex), so the

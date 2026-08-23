@@ -14,10 +14,12 @@ import {
   curatedBoltCampuses,
   orderCampuses,
 } from "./bolt-campuses";
-import { CURATED_CAMPUS_ORDER } from "./bolt-config";
+import { CHARGE_EASE, CURATED_CAMPUS_ORDER, PANEL_SPAN, RIBBON_ANGLE } from "./bolt-config";
 import {
+  maxLeanOverhang,
   panelGradientAxis,
   panelPoints,
+  panelSlack,
   ribbonStops,
   slotTop,
   panelHeight,
@@ -33,6 +35,7 @@ import {
   whyTooLight,
   type BoltCampus,
 } from "./bolt-palette";
+import { cubicBezierEase } from "./useBoltRotation";
 
 const campus = (over: Partial<BoltCampus> = {}): BoltCampus => ({
   id: "x",
@@ -249,11 +252,20 @@ describe("conveyor geometry", () => {
     }
   });
 
-  test("slot 0 covers the whole bolt at offset 0, whatever the span", () => {
-    for (const span of [1, 2, 3.5]) {
-      expect(slotTop(0, span)).toBeCloseTo(-2.26 - 146.96 * (span - 1), 6);
-      expect(slotTop(0, span) + panelHeight(span)).toBeCloseTo(-2.26 + 146.96, 6);
+  test("slot 0 straddles the bolt with EQUAL slack above and below, whatever the span", () => {
+    for (const span of [1, 1.25, 2, 3.5]) {
+      const above = -2.26 - slotTop(0, span);
+      const below = slotTop(0, span) + panelHeight(span) - (-2.26 + 146.96);
+      expect(above).toBeCloseTo(below, 6);
+      expect(above).toBeCloseTo(panelSlack(span), 6);
     }
+  });
+
+  test("the shipped span clears the lean — no bare wedge at the bolt's top corner", () => {
+    // A panel exactly one bolt tall would fail this: its leaning top edge dips below the bolt's
+    // top line on one side, and the navy shows through. The slack is what pays for the lean.
+    expect(panelSlack(PANEL_SPAN)).toBeGreaterThan(maxLeanOverhang(RIBBON_ANGLE));
+    expect(panelSlack(1)).toBeLessThan(maxLeanOverhang(RIBBON_ANGLE)); // the trap this guards
   });
 
   test("the gradient axis spans exactly one panel, perpendicular to its lean", () => {
@@ -274,5 +286,35 @@ describe("conveyor geometry", () => {
       expect(s[s.length - 1]).toEqual({ offset: 1, tone: 0 });
       expect(s.every((x, i) => i === 0 || x.offset > s[i - 1].offset)).toBe(true);
     }
+  });
+});
+
+describe("the charge curve", () => {
+  const ease = cubicBezierEase(CHARGE_EASE);
+
+  test("it starts at 0, ends at 1, and never goes backwards", () => {
+    expect(ease(0)).toBe(0);
+    expect(ease(1)).toBe(1);
+    expect(ease(-0.5)).toBe(0);
+    expect(ease(2)).toBe(1);
+    let prev = -1;
+    for (let i = 0; i <= 100; i++) {
+      const v = ease(i / 100);
+      expect(v).toBeGreaterThanOrEqual(prev); // monotonic — the charge can never reverse
+      prev = v;
+    }
+  });
+
+  test("it is front-loaded: quick out, long resolve", () => {
+    // This is the whole brief for the motion — "quick → energetic → resolved". The first quarter
+    // of the TIME must cover well over half the DISTANCE, and the last quarter must be a settle.
+    expect(ease(0.25)).toBeGreaterThan(0.55);
+    expect(ease(0.5)).toBeGreaterThan(0.85);
+    expect(1 - ease(0.75)).toBeLessThan(0.08);
+  });
+
+  test("a linear curve is still handled exactly, so the ease is a choice and not a floor", () => {
+    const linear = cubicBezierEase([0.333, 0.333, 0.667, 0.667]);
+    for (const x of [0.1, 0.25, 0.5, 0.9]) expect(linear(x)).toBeCloseTo(x, 3);
   });
 });

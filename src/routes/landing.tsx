@@ -61,6 +61,15 @@ export const Route = createFileRoute("/landing")({
 // The exam section's anchor. Shared so a campus-page navigation lands at the player rather
 // than the top of a page the student has already read.
 const EXAM_ANCHOR_ID = "exam1";
+/** THE STABLE SCROLL TARGET. An empty div immediately above the player, outside everything the
+ *  player renders.
+ *
+ *  #exam1 is a section INSIDE ExamPlayer, and the player's own content decides where it starts —
+ *  the match panel, the gate, the professor rung and the coverage strip all mount, unmount and
+ *  resize as state settles. Scrolling to a target that is still deciding its own position is how
+ *  "click the bolt, watch the page think about it" happened. This anchor cannot move, because
+ *  nothing below it can push it. #exam1 stays exactly as it was for hash links. */
+const PLAYER_ANCHOR_ID = "player";
 const PHONE = "(662) 565-8818";
 const TEL = "+16625658818";
 
@@ -201,7 +210,17 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   // playing. It no longer rings a school picker: there is no gate to ring. Content first, matching
   // later — the student sees the thing before being asked anything about themselves.
   const [focusSignal, setFocusSignal] = useState(0);
-  const onStart = () => { document.getElementById("exam1")?.scrollIntoView({ behavior: "smooth" }); setFocusSignal((f) => f + 1); };
+  // THE SCROLL RUNS ONE FRAME LATE, ON PURPOSE. A CTA click usually changes the hero at the same
+  // time (the headline grows a course code, "Change school" appears), and a smooth scroll started
+  // BEFORE that commit is aimed at a position the layout is about to move. Letting React paint
+  // first and then scrolling costs ~16ms, which nobody can see, and the target is then final.
+  //
+  // It also targets PLAYER_ANCHOR_ID, a fixed empty div, not the player's own #exam1 section —
+  // see the anchor's comment for why.
+  const onStart = () => {
+    setFocusSignal((f) => f + 1);
+    requestAnimationFrame(() => scrollToId(PLAYER_ANCHOR_ID));
+  };
   // The hero primary CTA also carries greek member attribution (the /go/ route's tagMember —
   // saying "start Exam 1" on a chapter's own URL IS the attribution, exactly as before).
   const heroStart = () => { onStartExam?.(); onStart(); };
@@ -448,7 +467,36 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
     if (reduce) return; // instant swap, no takeover
     const mode = firstPick.current ? "short" : "full";
     firstPick.current = true;
+
     setTheater({ school: s, mode });
+  };
+
+  // THE BOLT IS A DOOR, NOT A PICKER — and this is the whole reason clicking it used to stall.
+  //
+  // It used to call pickSchool(), which on the homepage returns early into
+  // navigate({ to: "/$school", hash: "exam1" }). That is a full route change: the landing route
+  // unmounts, the campus route mounts, its loader resolves, the player re-renders, and only THEN
+  // does the router act on the hash. Measured on a warm dev server: 2.1 seconds of a completely
+  // motionless page, then a hard jump — no smooth scroll at all, because nobody ever called for
+  // one. In between, the hero repainted itself as a campus hero in front of the visitor.
+  //
+  // So the bolt does not navigate and does not open the campus takeover. It sets the campus in
+  // context (which is what the player actually reads) and scrolls. One click, one visible action.
+  // The URL stays put; picking a school from the PLAYER still navigates, exactly as before, and
+  // that is where a shareable campus URL belongs.
+  const boltActivate = (campusId: string) => {
+    const s = schoolsWithCodes.find((x) => x.id === campusId) ?? null;
+    if (s && s.id !== school?.id) {
+      setManualReset(false);
+      setNotListed(false);
+      resetProfessor();
+      setSchool(s);
+      campus.setSessionSchool(s.id);
+      if (!s.codeVerified || !s.code) {
+        void logCampusCodeDemand({ data: { campusId: s.campusId, campusSlug: s.slug, campusName: s.name, source: "bolt" } }).catch(() => {});
+      }
+    }
+    onStart(); // scrolls on the next frame, after the hero above has finished changing size
   };
 
   return (
@@ -502,7 +550,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
           schoolShort={heroSchoolName}
           rotationCampuses={rotationCampuses}
           campusBolt={campusBolt}
-          onBoltPick={(id) => { const s = schoolsWithCodes.find((x) => x.id === id); if (s) pickSchool(s); else onStart(); }}
+          onBoltPick={boltActivate}
           greek={greek}
           onStart={heroStart}
           secondaryLabel={greek ? (greek.claimed ? `Use ${greek.letters} access →` : `Set up ${greek.letters} access →`) : "For fraternities & sororities →"}
@@ -525,6 +573,9 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
           }}
           courtesy={greek && goChapter ? <CourtesyLine schoolSlug={goChapter.schoolSlug} chapterSlug={goChapter.chapterSlug} chapterName={greek.orgName} /> : undefined}
         />
+        {/* THE STABLE SCROLL TARGET — see PLAYER_ANCHOR_ID. Empty, outside the player, and
+            therefore incapable of moving while the player decides how tall it is. */}
+        <div id="player" className="sa-anchor" />
         <ExamPlayer videoGate={videoGate} greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); void logCampusCodeDemand({ data: { source: "write-in" } }).catch(() => {}); rememberCampus(NOT_LISTED); }} onSkipSchool={() => { setNotListed(true); rememberCampus(SKIPPED); }} schoolSkipped={notListed && !school} initialProfSkipped={!!school && !!profSkipFor && profSkipFor === school.id} onReset={resetMatch} resetSeq={resetSeq} resetLabel={routeLocked ? "Start over" : "Reset"} onChangeSchool={routeLocked ? changeSchool : undefined} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(r) => setNotifyReq(r)} />
 
         {/* Value strip AFTER the player: the product proves the claims, the strip reinforces. */}
