@@ -31,6 +31,7 @@ import { BrandLogo, Bolt, BRAND_RED, BRAND_BLUE } from "@/components/canvas/bran
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { IntroSting } from "@/components/frames";
 import { supabase } from "@/integrations/supabase/client";
+import { useStudentAuth } from "@/lib/use-student-auth";
 
 type ProgressState = "unstarted" | "in_progress" | "complete";
 /** One set's progress. positionSec/durationSec power resume + the watched strip; updatedAt
@@ -311,18 +312,8 @@ function SetPlayer({ set, sets, stage, chipText, startAt, demo, topicNumber, cam
   );
 }
 
-// ---- Supabase MAGIC-LINK auth (no password ever) + student session -----------------------
-function useStudentAuth() {
-  const [userId, setUserId] = useState<string | null>(null);
-  const [email, setEmail] = useState<string | null>(null);
-  useEffect(() => {
-    let active = true;
-    void supabase.auth.getSession().then(({ data }) => { if (!active) return; setUserId(data.session?.user?.id ?? null); setEmail(data.session?.user?.email ?? null); });
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => { setUserId(session?.user?.id ?? null); setEmail(session?.user?.email ?? null); });
-    return () => { active = false; sub.subscription.unsubscribe(); };
-  }, []);
-  return { userId, email, signOut: () => void supabase.auth.signOut() };
-}
+// ---- Supabase MAGIC-LINK auth: the shared hook (lib/use-student-auth) — the homepage player
+//      uses the same session for "Save my progress". ------------------------------------------
 
 // Magic-link sign-in dialog — email in, link out, one tap. NEVER a password field.
 function SignInDialog({ onClose }: { onClose: () => void }) {

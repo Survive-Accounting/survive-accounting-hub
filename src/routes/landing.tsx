@@ -11,12 +11,14 @@ import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, GraduationCap, Lock, MessageCircle, X } from "lucide-react";
+import { Check, ChevronDown, GraduationCap, Lock, MessageCircle, MoreHorizontal, X } from "lucide-react";
 
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
 import { isPlayable, nextStep, setIndexOf, stagesOf, type SetStage } from "@/lib/set-flow";
 import { PracticeStage, readCoverage } from "@/components/site/PracticeStage";
 import { StagePills } from "@/components/site/StagePills";
+import { useStudentAuth } from "@/lib/use-student-auth";
+import { SaveProgressDialog, saveSetProgress, takeResume, type ResumeContext } from "@/components/site/SaveProgress";
 import { cramRequest, examRequest, notifyNote, passRequest, reviewRequest, type NotifyReq } from "@/lib/notify-request";
 import { resolveStudentMap, type MapLevel } from "@/lib/map-resolver.functions";
 import { getChapterNames, listCampusIntroCodes } from "@/lib/default-map.functions";
@@ -244,17 +246,19 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   // the only place a Reset returns to school selection. Precedence everywhere: route-provided
   // context → this session's pick → stored last-used → the generic picker.
   const routeLocked = !!campusSlug || !!goChapter || !!greekOrg;
+  // THE ••• MENU (08-21) replaced the one ambiguous "Reset / Start over" with three honest verbs:
+  //  • Reset questions — the current practice attempt only (resetSeq remounts the stage). Nothing
+  //    persisted is touched: practice_attempts is an append-only log and saved set progress stays.
+  //  • Change professor — back to the (optional) professor match; campus/course untouched.
+  //  • Change school — the existing school-change flow: on the generic page the picker returns;
+  //    on a campus or chapter route the page cannot become another campus, so it navigates to
+  //    the generic route with the stored campus forgotten (changeSchool below).
   const [resetSeq, setResetSeq] = useState(0);
-  const resetMatch = () => {
-    setResetSeq((n) => n + 1);
+  const resetQuestions = () => setResetSeq((n) => n + 1);
+  const changeProfessor = () => { resetProfessor(); rememberProfSkip(null); };
+  const changeSchoolGeneric = () => {
     resetProfessor();
     rememberProfSkip(null);
-    if (routeLocked) {
-      // Back to the route's own school — a stored or session pick never outranks the URL here.
-      setNotListed(false);
-      if (preSchool) setSchool(preSchool);
-      return;
-    }
     setManualReset(true);
     setSchool(null);
     setNotListed(false);
@@ -270,6 +274,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
     campus.clearSchool();
     void navigate({ to: "/", hash: EXAM_ANCHOR_ID });
   };
+  const changeSchoolAny = routeLocked ? changeSchool : changeSchoolGeneric;
   // ADOPT THE URL'S SCHOOL. preSchool is derived from initialCampusId, which arrives from the
   // chapter QUERY — so on a /go/ page it is still null during the first render, and
   // useState(preSchool) captured that null and never looked again. The player then asked "Pick
@@ -525,7 +530,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
           }}
           courtesy={greek && goChapter ? <CourtesyLine schoolSlug={goChapter.schoolSlug} chapterSlug={goChapter.chapterSlug} chapterName={greek.orgName} /> : undefined}
         />
-        <ExamPlayer videoGate={videoGate} greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); void logCampusCodeDemand({ data: { source: "write-in" } }).catch(() => {}); rememberCampus(NOT_LISTED); }} onSkipSchool={() => { setNotListed(true); rememberCampus(SKIPPED); }} schoolSkipped={notListed && !school} initialProfSkipped={!!school && !!profSkipFor && profSkipFor === school.id} onReset={resetMatch} resetSeq={resetSeq} resetLabel={routeLocked ? "Start over" : "Reset"} onChangeSchool={routeLocked ? changeSchool : undefined} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(r) => setNotifyReq(r)} />
+        <ExamPlayer videoGate={videoGate} greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); void logCampusCodeDemand({ data: { source: "write-in" } }).catch(() => {}); rememberCampus(NOT_LISTED); }} onSkipSchool={() => { setNotListed(true); rememberCampus(SKIPPED); }} schoolSkipped={notListed && !school} initialProfSkipped={!!school && !!profSkipFor && profSkipFor === school.id} onResetQuestions={resetQuestions} resetSeq={resetSeq} onChangeProfessor={changeProfessor} onChangeSchool={changeSchoolAny} mapLevel={resolvedMap?.level ?? "none"} routePath={campusSlug ? `/${campusSlug}` : goChapter ? `/go/${goChapter.schoolSlug}/${goChapter.chapterSlug}` : "/"} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(r) => setNotifyReq(r)} />
 
         {/* Value strip AFTER the player: the product proves the claims, the strip reinforces. */}
         <FeatureValueStrip code={heroCode} />
@@ -1196,7 +1201,7 @@ function PreviewSurface({ children }: { children: React.ReactNode }) {
  *
  *  `onReset` clears school AND professor together. A half-reset — new school, professor left
  *  over from the old one — would silently attach a student to another campus's faculty. */
-function MatchPanel({ gateActive, school, professor, notListed, profDone, coveragePct, schools, cueSignal, onPick, onNotListed, onSkipSchool, onPickProfessor, onProfNotListed, onAddProfessor, onMaterials, onReset, onChangeSchool }: {
+function MatchPanel({ gateActive, school, professor, notListed, profDone, coveragePct, schools, cueSignal, onPick, onNotListed, onSkipSchool, onPickProfessor, onProfNotListed, onAddProfessor, onMaterials, onChangeSchool, hidden }: {
   /** True while the Greek gate is showing — the whole panel stands down. */
   gateActive?: boolean;
   school: School | null;
@@ -1219,15 +1224,18 @@ function MatchPanel({ gateActive, school, professor, notListed, profDone, covera
   /** Reopens the professor rung from the confirmed bar — for a student who skipped it. */
   onAddProfessor: () => void;
   onMaterials: () => void;
-  onReset: () => void;
-  /** Route-locked pages only: the explicit way to a different school (navigates home). */
+  /** The explicit way to a different school. */
   onChangeSchool?: () => void;
+  /** Content is showing (a topic/set was picked) — the invitation states step aside. */
+  hidden: boolean;
 }) {
   const matched = !!school || notListed;
   const code = school?.codeVerified && school.code ? school.code : null;
 
   // STATE 1 — no school yet: the ENTRY OVERLAY on the preview surface. The overlay card floats
   // over the (placeholder) preview media; the marquee sits beneath it, ambient.
+  // A picked topic/set outranks every rung — content is showing, the invitations step aside.
+  if (hidden) return null;
   if (!matched) {
     return (
       <PreviewSurface>
@@ -1342,7 +1350,8 @@ function ProfessorStage({ school, onPick, onNotListed }: {
 
   return (
     <div className="mx-auto flex w-full max-w-sm flex-col items-stretch gap-2.5">
-      <p className="text-center text-[16px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Pick your professor to start</p>
+      <p className="text-center text-[16px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Match your professor</p>
+      <p className="-mt-1 text-center text-[12.5px]" style={{ color: "var(--text-muted)" }}>{school?.codeVerified && school.code ? `Match ${school.code} to your professor's exam` : "Match the course to your professor's exam"} — or pick any topic to start right now.</p>
       {writeIn ? (
         <>
           {rosterEmpty && (
@@ -1409,7 +1418,7 @@ function ProfessorStage({ school, onPick, onNotListed }: {
 // now lives in MatchPanel, inside the right panel, where the student is already looking.
 
 
-function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, schools, onSyllabus, professor, onPickProfessor, notListed, onNotListed, onSkipSchool, schoolSkipped, initialProfSkipped, onReset, resetSeq, resetLabel, onChangeSchool, theater, onTheaterDone, onNotify }: { resetSeq: number; resetLabel: string; onChangeSchool?: () => void; videoGate?: React.ReactNode; greekOrg?: string; exams: ExamTab[]; school: School | null; onPick: (s: School) => void; focusSignal: number; schools: School[]; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; notListed: boolean; onNotListed: () => void; onSkipSchool: () => void; /** No school named (skipped / not listed): the professor rung is moot and the player goes straight to content. */ schoolSkipped: boolean; /** The cookie says this visitor already skipped the professor question for this school. */ initialProfSkipped: boolean; onReset: () => void; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void; onNotify: (r: NotifyReq) => void }) {
+function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, schools, onSyllabus, professor, onPickProfessor, notListed, onNotListed, onSkipSchool, schoolSkipped, initialProfSkipped, onResetQuestions, resetSeq, onChangeProfessor, onChangeSchool, mapLevel, routePath, theater, onTheaterDone, onNotify }: { resetSeq: number; onResetQuestions: () => void; onChangeProfessor: () => void; onChangeSchool: () => void; mapLevel: MapLevel; routePath: string; videoGate?: React.ReactNode; greekOrg?: string; exams: ExamTab[]; school: School | null; onPick: (s: School) => void; focusSignal: number; schools: School[]; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; notListed: boolean; onNotListed: () => void; onSkipSchool: () => void; /** No school named (skipped / not listed): the professor rung is moot and the player goes straight to content. */ schoolSkipped: boolean; /** The cookie says this visitor already skipped the professor question for this school. */ initialProfSkipped: boolean; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void; onNotify: (r: NotifyReq) => void }) {
   const [activeNum, setActiveNum] = useState(1);
   const [selById, setSelById] = useState<Record<number, Sel>>({});
   const [openTopics, setOpenTopics] = useState<Set<string>>(() => new Set());
@@ -1427,16 +1436,26 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
   // A CHANGE of school re-asks; the mount does not (the initial value above already answered it).
   const prevSchoolId = useRef(school?.id);
   useEffect(() => { if (prevSchoolId.current !== school?.id) { prevSchoolId.current = school?.id; setProfDone(false); } }, [school?.id]);
-  // RESET SIGNAL from the page. Drops the session — exam tab, topic/set selection, open topics,
-  // drawer — and re-asks the (skippable) professor question. On a route-locked page the school
-  // is untouched, so the school-change effect above never fires; this one does that work.
-  const prevReset = useRef(resetSeq);
+  // "Reset questions" = resetSeq bumps → the SetFlowPanel key changes → the practice stage
+  // remounts at Q1 with a fresh attempt. Exam, topic, set, professor, school: all untouched.
+  //
+  // AUTH + SAVE MY PROGRESS. The same magic-link session /learn uses. Signed out, everything
+  // works and nothing is written; signed in, set progress auto-saves (student_set_progress) and
+  // practice_attempts carry user_id. "Save my progress" is the door, never a gate.
+  const auth = useStudentAuth();
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [userPicked, setUserPicked] = useState(false);
+  // RESUME: a student returning from their sign-in link lands where they left — exam, topic,
+  // set. Consumed once, only once a session exists (that is what the link creates).
+  const resumed = useRef(false);
   useEffect(() => {
-    if (prevReset.current === resetSeq) return;
-    prevReset.current = resetSeq;
-    setActiveNum(1); setSelById({}); setOpenTopics(new Set()); setDrawerOpen(false);
-    setProfDone(schoolSkipped);
-  }, [resetSeq, schoolSkipped]);
+    if (!auth.userId || resumed.current) return;
+    resumed.current = true;
+    const r = takeResume();
+    if (!r) return;
+    setActiveNum(r.examNum);
+    if (r.topicKey) { setSelById((p) => ({ ...p, [r.examNum]: { topicKey: r.topicKey!, setId: r.setId } })); setOpenTopics((p) => new Set(p).add(r.topicKey!)); setProfDone(true); setUserPicked(true); }
+  }, [auth.userId]);
   // "Skip for now" on the professor rung is REMEMBERED per school — asking a returning student the
   // same optional question on every visit was the most-repeated step in the whole flow.
   const skipProfessor = () => { setProfDone(true); rememberProfSkip(school?.id ?? null); };
@@ -1509,28 +1528,48 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
   // NO LONGER WAITS ON THE MATERIALS ANSWER. That step blocked the player to ask for a syllabus;
   // it is a chip and a modal now, so the videos unlock the moment the student has named their
   // school and professor — which is everything the player actually needs to pick a map.
-  const flowDone = (!!school || notListed) && profDone;
+  // NO GATE (08-21). A picked topic/set opens content immediately — the professor match is
+  // optional personalisation, and on the generic page even the school question yields to a
+  // click on a topic (the Starter Map serves Exam 1). The invitation states only show while the
+  // student has not yet said what they want to study.
+  // userPicked is EXPLICIT — selById is also filled by the school-pick effect above (the default
+  // live set), and a default must not silently skip the invitation.
+  const flowDone = userPicked || ((!!school || notListed) && profDone);
 
   // Picking a topic while the professor overlay is up IS "skip for now" — the student has told
   // us what they want to watch, and a question about their professor should not stand in front
   // of it. The confirmed bar keeps an "+ Add professor" door for later.
-  const pickSet = (topicKey: string, setId: string | null) => { setSelById((p) => ({ ...p, [active.num]: { topicKey, setId } })); setDrawerOpen(false); setProfDone(true); };
+  const pickSet = (topicKey: string, setId: string | null) => {
+    setSelById((p) => ({ ...p, [active.num]: { topicKey, setId } })); setDrawerOpen(false); setProfDone(true); setUserPicked(true);
+    if (setId && auth.userId) saveSetProgress(auth.userId, setId, "in_progress");
+  };
+  // "Match / Change professor": the professor stage needs the panel, so the current pick clears
+  // (the rail stays interactive beside it — a topic click skips the question again).
+  const matchProfessor = () => { onChangeProfessor(); setProfDone(false); setUserPicked(false); };
+  const changeSchoolHere = () => { setSelById({}); setProfDone(false); setUserPicked(false); onChangeSchool(); };
+  const resumeContext = (): ResumeContext => ({
+    schoolSlug: school?.slug ?? null, courseCode: school?.codeVerified && school.code ? school.code : null, professorName: professor ? (professor.last || professor.name) : null,
+    examNum: active.num, topicKey: cur?.topicKey ?? null, setId: curSet?.id ?? null, stage: "practice", path: `${routePath}#${EXAM_ANCHOR_ID}`, at: Date.now(),
+  });
+  const identityProps = { school, professor, coveragePct: active.coveragePct, mapLevel, examLabel: active.label, onMatchProfessor: matchProfessor, onChangeSchool: changeSchoolHere, onResetQuestions, onMaterials: () => onSyllabus(), auth, onSave: () => setSaveOpen(true), hasSet: !!curSet };
   const toggleTopic = (k: string) => setOpenTopics((p) => { const n = new Set(p); if (n.has(k)) n.delete(k); else n.add(k); return n; });
 
   return (
     <section id="exam1" className="mt-8 scroll-mt-6 sm:mt-14">
       <div className="relative overflow-hidden rounded-2xl" style={{ background: "var(--sa-surface-1)", border: "1px solid rgba(252,163,17,0.45)" }}>
-        <ExamTabs greek={!!greekOrg} exams={exams} activeNum={activeNum} onSelect={(n) => { setActiveNum(n); setDrawerOpen(false); }} />
         {/* HIDDEN ON CHAPTER PAGES. The Semester Pass is an INDIVIDUAL product ($150 for one
             student); beside a $100/member chapter offer it reads as a third, contradictory
-            price for the same thing. It is untouched on the student page, where it is the only
-            offer on screen. */}
+            price for the same thing. ABOVE the tabs: the bracket caps Exam 2 · 3 · Final. */}
         {!greekOrg && <SemesterPassLine onPass={() => onNotify(passRequest({ price: SEMESTER_PASS_PRICE, launchWindow: LAUNCH_WINDOW }))} />}
+        <ExamTabs greek={!!greekOrg} exams={exams} activeNum={activeNum} onSelect={(n) => { setActiveNum(n); setDrawerOpen(false); }} />
 
 
         {/* TOPIC ROW — the mobile topic switcher. No longer gated on a school: the outline it
             opens is populated by the Starter Map from the very first paint, so hiding the
             switcher until a school existed only hid working navigation. */}
+        {/* MOBILE IDENTITY STRIP — the campus mark, course, professor, Save and ••• stay in view
+            above the topic switcher (the sidebar copy lives inside the collapsed drawer). */}
+        {flowDone && <div className="px-3 pt-2 sm:hidden"><PlayerIdentity {...identityProps} compact /></div>}
         <div className="flex w-full flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 sm:hidden" style={{ background: "rgba(0,0,0,0.2)" }}>
           <span className="text-[14px]" style={{ color: "var(--text-muted)" }}>Topic</span>
           <button
@@ -1546,7 +1585,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
 
         <div className="sa-player-min sm:flex">
           <div className={`${drawerOpen ? "block" : "hidden"} border-b sm:block sm:w-[42%] sm:max-w-[360px] sm:border-b-0 sm:border-r`} style={{ borderColor: "var(--border-default)", background: "var(--bg-player-sidebar)" }}>
-            <ExamOutline tab={active} school={school} professor={professor} flowDone={flowDone} coveragePct={active.coveragePct} onAddProfessor={() => setProfDone(false)} onMaterials={() => onSyllabus()} onReset={onReset} resetLabel={resetLabel} stats={examStats(active)} isPaid={isPaid} curSetId={curSet?.id ?? null} curTopicKey={cur?.topicKey ?? null} openTopics={openTopics} onToggleTopic={toggleTopic} onPickSet={pickSet} onNotify={onNotify} />
+            <ExamOutline tab={active} school={school} professor={professor} flowDone={flowDone} identity={identityProps} stats={examStats(active)} isPaid={isPaid} curSetId={curSet?.id ?? null} curTopicKey={cur?.topicKey ?? null} openTopics={openTopics} onToggleTopic={toggleTopic} onPickSet={pickSet} onNotify={onNotify} />
           </div>
 
           <div className="flex min-w-0 flex-1 flex-col" style={{ background: "var(--sa-surface-2)" }}>
@@ -1556,7 +1595,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
             {/* ONE STATE AT A TIME. `flowDone` is the whole ladder, not its first rung — see the
                 note above sa-panel-min in styles.css for the height half of this. */}
             <div className="sa-panel-min relative w-full flex-1">
-              <MatchPanel gateActive={!!videoGate} school={school} professor={professor} notListed={notListed} profDone={profDone} coveragePct={active.coveragePct} schools={schools} cueSignal={focusSignal} onPick={onPick} onNotListed={onNotListed} onSkipSchool={onSkipSchool} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); }} onProfNotListed={skipProfessor} onAddProfessor={() => { setProfDone(false); rememberProfSkip(null); }} onMaterials={() => onSyllabus()} onReset={onReset} onChangeSchool={onChangeSchool} />
+              <MatchPanel gateActive={!!videoGate} school={school} professor={professor} notListed={notListed} profDone={profDone} coveragePct={active.coveragePct} schools={schools} cueSignal={focusSignal} onPick={onPick} onNotListed={onNotListed} onSkipSchool={onSkipSchool} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); }} onProfNotListed={skipProfessor} onAddProfessor={matchProfessor} onMaterials={() => onSyllabus()} onChangeSchool={onChangeSchool} hidden={flowDone} />
               {/* THE GATE STANDS IN FOR THE VIDEO, not for the page: tabs, topics and the
                   whole menu stay readable, because a visitor deciding whether to hand over an
                   email needs to see what they are unlocking. */}
@@ -1566,7 +1605,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
                 curSet && isPlayable(curSet) && curTopic ? (
                   // A playable set walks its stages: Cram Blast → Practice → Review (shared
                   // set-flow model — same walk as /learn, homepage-sized shell around it).
-                  <SetFlowPanel key={`${curSet.id}:${resetSeq}`} topic={curTopic} set={curSet} exam={active} school={school} surface={greekOrg ? "greek" : school ? "campus" : "home"} onCramComplete={() => markComplete(curSet!.id)} onPickSet={(sid) => pickSet(curTopic!.key, sid)} onNotify={onNotify} />
+                  <SetFlowPanel key={`${curSet.id}:${resetSeq}`} topic={curTopic} set={curSet} exam={active} school={school} surface={greekOrg ? "greek" : school ? "campus" : "home"} onCramComplete={() => { markComplete(curSet!.id); if (auth.userId) saveSetProgress(auth.userId, curSet!.id, "complete"); }} onPickSet={(sid) => pickSet(curTopic!.key, sid)} onNotify={onNotify} />
                 ) : (
                   // NOT A FIXED 16:9 BOX. The unpublished state carries a line of copy and the
                   // notify field, which a phone-width 16:9 panel (~190px tall) cannot hold.
@@ -1591,6 +1630,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
         {/* school-select takeover - SCOPED to the player frame (absolute, clipped by the card) */}
         {theater && <Theater school={theater.school} mode={theater.mode} onDone={onTheaterDone} />}
       </div>
+      {saveOpen && <SaveProgressDialog context={resumeContext()} onClose={() => setSaveOpen(false)} />}
     </section>
   );
 }
@@ -1706,17 +1746,19 @@ function SemesterPassLine({ onPass }: { onPass: () => void }) {
   if (collapsed) {
     // THE BRACKET. Four equal columns mirror the four equal-width tabs above; the bracket
     // occupies columns 2–4 (the paid exams). Exam 1 is free, so its column stays empty.
+    // THE BRACKET sits ABOVE the tabs and caps columns 2–4 (Exam 2 · Exam 3 · Final); Exam 1 is
+    // free, so its column stays empty. Thin orange rule, transparent ground, ~18px.
     return (
-      <div className="grid px-0" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))", background: "rgba(0,0,0,0.22)" }} aria-hidden={false}>
+      <div className="grid px-0 pt-1.5" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))", background: "rgba(0,0,0,0.22)" }}>
         <span />
         <button
           type="button"
           onClick={onPass}
-          aria-label={`Semester Pass — Exams 2, 3 and the Final together for $${SEMESTER_PASS_PRICE}`}
-          className="relative col-span-3 mx-2 mb-1 flex items-start justify-center"
-          style={{ height: 18, borderLeft: "1px solid rgba(252,163,17,0.45)", borderRight: "1px solid rgba(252,163,17,0.45)", borderBottom: "1px solid rgba(252,163,17,0.45)", borderRadius: "0 0 6px 6px", marginTop: -1 }}
+          aria-label={`Semester Pass — Exams 2, 3 and the Final together for ${SEMESTER_PASS_PRICE}`}
+          className="relative col-span-3 mx-2 flex items-start justify-center"
+          style={{ height: 18, borderLeft: "1px solid rgba(252,163,17,0.45)", borderRight: "1px solid rgba(252,163,17,0.45)", borderTop: "1px solid rgba(252,163,17,0.45)", borderRadius: "6px 6px 0 0", marginBottom: -1 }}
         >
-          <span className="-translate-y-1/2 whitespace-nowrap rounded-full px-2 text-[9.5px] font-black uppercase tracking-[0.1em] leading-[14px]" style={{ background: "var(--sa-surface-1)", color: "var(--accent)", border: "1px solid rgba(252,163,17,0.35)", marginTop: 9 }}>
+          <span className="whitespace-nowrap rounded-full px-2 text-[9.5px] font-black uppercase tracking-[0.1em] leading-[14px]" style={{ background: "var(--sa-surface-1)", color: "var(--accent)", border: "1px solid rgba(252,163,17,0.35)", marginTop: -8 }}>
             Semester Pass · ${SEMESTER_PASS_PRICE}
           </span>
         </button>
@@ -1726,7 +1768,7 @@ function SemesterPassLine({ onPass }: { onPass: () => void }) {
   return (
     <div className="relative flex items-center gap-1 px-2 py-1" style={{ background: "rgba(0,0,0,0.12)" }}>
       <button onClick={onPass} className="min-w-0 flex-1 truncate py-1.5 text-center text-[12.5px] hover:opacity-90" style={{ color: "var(--text-muted)", minHeight: 36 }}>
-        Save with the <span className="font-bold" style={{ color: "var(--accent)" }}>Semester Pass</span>{` — Exams 2, 3 + Final for $${SEMESTER_PASS_PRICE}.`}
+        <span className="hidden sm:inline">Save with the </span><span className="font-bold" style={{ color: "var(--accent)" }}>Semester Pass</span>{` — Exams 2, 3 + Final for ${SEMESTER_PASS_PRICE}.`}
       </button>
       <button
         onClick={dismiss}
@@ -1747,37 +1789,118 @@ const possessive = (p: ProfessorLite | null): string | null => {
   return /s$/i.test(last) ? `${last}'` : `${last}'s`;
 };
 
-/** SIDEBAR CONTEXT — school · course, professor, coverage, reset. Moved here from the bar that
- *  used to sit above the question; the sidebar is where a student understands what's on the
- *  exam, so this is where "whose exam" belongs. Only renders once the flow is confirmed. */
-function SidebarContext({ school, professor, coveragePct, onAddProfessor, onMaterials, onReset, resetLabel }: { school: School | null; professor: ProfessorLite | null; coveragePct: number | null; onAddProfessor: () => void; onMaterials: () => void; onReset: () => void; resetLabel: string }) {
+/** PLAYER IDENTITY (08-21) — the block that says "you are still inside LSU · ACCT 2001":
+ *  the campus bolt (the same static Bolt + palette the Poster uses — an identity mark, not a
+ *  hero), school · course, the professor line ("+ Match my professor" until one is matched),
+ *  the coverage line with its tiny bar and an honest tooltip, "Save my progress" and the •••
+ *  menu. `compact` is the one-row phone variant above the topic switcher. */
+type IdentityProps = {
+  school: School | null; professor: ProfessorLite | null; coveragePct: number | null; mapLevel: MapLevel; examLabel: string;
+  onMatchProfessor: () => void; onChangeSchool: () => void; onResetQuestions: () => void; onMaterials: () => void;
+  auth: { userId: string | null; email: string | null; ready: boolean }; onSave: () => void; hasSet: boolean;
+};
+
+function PlayerIdentity({ school, professor, coveragePct, mapLevel, examLabel, onMatchProfessor, onChangeSchool, onResetQuestions, onMaterials, auth, onSave, hasSet, compact }: IdentityProps & { compact?: boolean }) {
   const code = school?.codeVerified && school.code ? school.code : null;
+  const c = school ? boltFor(school.id) : { c1: BRAND_RED, c2: BRAND_BLUE };
+  const last = professor ? (professor.last || professor.name) : null;
+  // COVERAGE SOURCE: campus_exams.coverage_pct — Lee's editable estimate per campus exam (default
+  // 80), NOT a computed number. It is the professor's only when the professor's own map served
+  // the exam rows (mapLevel "professor"); otherwise it is the course-level (campus/starter) map's.
+  const profCoverage = !!last && mapLevel === "professor";
+  const covLabel = coveragePct == null ? null : profCoverage ? `${last} ${examLabel} · ~${coveragePct}% covered` : `Course coverage · ~${coveragePct}%`;
+  const covTip = coveragePct == null ? "" : profCoverage
+    ? `About ${coveragePct}% of what's on Prof. ${last}'s ${examLabel} is covered here — Lee's estimate from the syllabus, not a computed score.`
+    : `About ${coveragePct}% of what's on this course's ${examLabel} is covered here — Lee's estimate for the campus map, not a computed score. Match your professor for their exam's number.`;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDown = (e: MouseEvent | TouchEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setMenuOpen(false); };
+    document.addEventListener("mousedown", onDown); document.addEventListener("touchstart", onDown); document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("touchstart", onDown); document.removeEventListener("keydown", onKey); };
+  }, [menuOpen]);
+  const menu = (
+    <div ref={menuRef} className="relative shrink-0">
+      <button type="button" onClick={() => setMenuOpen((v) => !v)} aria-haspopup="menu" aria-expanded={menuOpen} aria-label="More options" className="grid place-items-center rounded-lg hover:bg-white/10" style={{ width: 36, height: 36, color: "var(--text-muted)" }}>
+        <MoreHorizontal className="h-4 w-4" />
+      </button>
+      {menuOpen && (
+        <div role="menu" aria-label="Player options" className="absolute right-0 z-30 mt-1 w-[230px] rounded-xl p-1.5" style={{ background: "#0b1020", border: "1px solid var(--border-default)", boxShadow: "0 16px 40px -20px rgba(0,0,0,0.9)" }}>
+          {[
+            { label: "Reset questions", hint: hasSet ? "Start this set's questions over. Saved progress stays." : "Pick a set first.", on: () => { onResetQuestions(); setMenuOpen(false); }, disabled: !hasSet },
+            { label: professor ? "Change professor" : "Match my professor", hint: "Keeps your school and course.", on: () => { onMatchProfessor(); setMenuOpen(false); } },
+            { label: "Change school", hint: "Back to the school picker.", on: () => { onChangeSchool(); setMenuOpen(false); } },
+          ].map((it) => (
+            <button key={it.label} role="menuitem" type="button" disabled={it.disabled} onClick={it.on} className="block w-full rounded-lg px-2.5 py-2 text-left hover:bg-white/10 disabled:opacity-40" style={{ minHeight: 44 }}>
+              <span className="block text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>{it.label}</span>
+              <span className="block text-[11px]" style={{ color: "var(--text-muted)" }}>{it.hint}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+  const save = auth.userId ? (
+    <span className="inline-flex items-center gap-1 rounded-full px-2 text-[11px] font-black" title={`Signed in as ${auth.email ?? "you"} — your set progress saves automatically.`} style={{ minHeight: 28, color: "#3BF5A0", background: "rgba(59,245,160,0.12)", border: "1px solid rgba(59,245,160,0.35)" }}>
+      <Check aria-hidden className="h-3 w-3" /> Saved
+    </span>
+  ) : (
+    <button type="button" onClick={onSave} aria-label="Save my progress" className="shrink-0 rounded-full px-2.5 text-[11px] font-black" style={{ minHeight: 28, color: "var(--accent)", border: "1px solid rgba(252,163,17,0.45)", background: "rgba(252,163,17,0.08)" }}>
+      {compact ? "Save" : "Save my progress"}
+    </button>
+  );
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2 rounded-xl px-2 py-1.5" style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(245,239,230,0.08)" }}>
+        <span className="inline-block shrink-0" style={{ height: 32, width: 20 }}><Bolt c1={c.c1} c2={c.c2} title={school ? `${school.name} bolt` : undefined} /></span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[12.5px] font-black" style={{ color: "var(--brand-cream)" }}>{[school ? school.name : "Your school", code].filter(Boolean).join(" · ")}</div>
+          <div className="truncate text-[11px]" style={{ color: "var(--text-muted)" }}>{last ? `Prof. ${last}` : school ? <button type="button" onClick={onMatchProfessor} className="font-bold" style={{ color: "var(--accent)" }}>+ Match my professor</button> : <button type="button" onClick={onChangeSchool} className="font-bold" style={{ color: "var(--accent)" }}>+ Pick my school</button>}{covLabel ? ` · ~${coveragePct}% covered` : ""}</div>
+        </div>
+        {save}
+        {menu}
+      </div>
+    );
+  }
   return (
     <div className="mb-3 border-b px-1 pb-3" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-2.5">
+        {/* the campus mark — static, ~44px tall, the same bolt the Poster and picker use */}
+        <span className="inline-block shrink-0" style={{ height: 44, width: 27 }}><Bolt c1={c.c1} c2={c.c2} title={school ? `${school.name} bolt` : undefined} /></span>
         <div className="min-w-0 flex-1">
           <div className="truncate text-[13px] font-black" style={{ color: "var(--brand-cream)" }}>{[school ? school.name : "Your school", code].filter(Boolean).join(" · ")}</div>
-          {professor ? (
-            <div className="text-[12px]" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>Prof. {professor.last || professor.name}</div>
+          {last ? (
+            <div className="text-[12px]" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>Prof. {last}</div>
           ) : school ? (
-            <button type="button" onClick={onAddProfessor} className="text-[12px] font-bold" style={{ color: "var(--accent)", minHeight: 28 }}>+ Add professor</button>
-          ) : null}
+            <button type="button" onClick={onMatchProfessor} className="text-[12px] font-bold" style={{ color: "var(--accent)", minHeight: 28 }}>+ Match my professor</button>
+          ) : (
+            <button type="button" onClick={onChangeSchool} className="text-[12px] font-bold" style={{ color: "var(--accent)", minHeight: 28 }}>+ Pick my school</button>
+          )}
         </div>
-        {/* "Reset" on the generic page (back to the school picker); "Start over" on a campus or
-            chapter page, where the school stays and only professor + session restart. */}
-        <button onClick={onReset} className="shrink-0 text-[11px]" style={{ color: "var(--text-muted)", minHeight: 28 }}>{resetLabel}</button>
+        {menu}
       </div>
-      {/* COVERAGE, inspectable but never in the way. Only when the resolver returned a real number. */}
-      {coveragePct != null && (
-        <button type="button" onClick={onMaterials} className="mt-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-black" style={{ background: "rgba(252,163,17,0.14)", color: "var(--accent)", minHeight: 28 }}>
-          ~{coveragePct}% covered
-        </button>
+      {/* COVERAGE — compact line + tiny bar; the tooltip carries the honest meaning. */}
+      {coveragePct != null && covLabel && (
+        <div className="group relative mt-1.5">
+          <button type="button" onClick={onMaterials} aria-describedby="sa-cov-tip" className="block w-full rounded-lg px-1 py-1 text-left hover:bg-white/5">
+            <span className="block text-[11px] font-bold" style={{ color: "var(--accent)" }}>{covLabel}</span>
+            <span className="mt-1 block h-[4px] w-full overflow-hidden rounded-full" style={{ background: "rgba(245,239,230,0.12)" }} aria-hidden>
+              <span className="block h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, coveragePct))}%`, background: "var(--accent)" }} />
+            </span>
+          </button>
+          <span id="sa-cov-tip" role="tooltip" className="pointer-events-none absolute left-0 top-full z-30 mt-1 hidden w-[260px] rounded-lg px-2.5 py-2 text-[11.5px] leading-snug group-hover:block group-focus-within:block" style={{ background: "#0b1020", border: "1px solid var(--border-default)", color: "var(--brand-cream)", boxShadow: "0 12px 30px -16px rgba(0,0,0,0.9)" }}>
+            {covTip}
+          </span>
+        </div>
       )}
+      <div className="mt-2 flex items-center gap-2">{save}</div>
     </div>
   );
 }
 
-function ExamOutline({ tab, school, professor, flowDone, coveragePct, onAddProfessor, onMaterials, onReset, resetLabel, onNotify, stats, isPaid, curSetId, curTopicKey, openTopics, onToggleTopic, onPickSet }: { tab: ExamTab; school: School | null; professor: ProfessorLite | null; flowDone: boolean; coveragePct: number | null; onAddProfessor: () => void; onMaterials: () => void; onReset: () => void; resetLabel: string; onNotify: (r: NotifyReq) => void; stats: string; isPaid: boolean; curSetId: string | null; curTopicKey: string | null; openTopics: Set<string>; onToggleTopic: (k: string) => void; onPickSet: (topicKey: string, setId: string | null) => void }) {
+function ExamOutline({ tab, school, professor, flowDone, identity, onNotify, stats, isPaid, curSetId, curTopicKey, openTopics, onToggleTopic, onPickSet }: { tab: ExamTab; school: School | null; professor: ProfessorLite | null; flowDone: boolean; identity: IdentityProps; onNotify: (r: NotifyReq) => void; stats: string; isPaid: boolean; curSetId: string | null; curTopicKey: string | null; openTopics: Set<string>; onToggleTopic: (k: string) => void; onPickSet: (topicKey: string, setId: string | null) => void }) {
   const activeRef = useRef<HTMLButtonElement>(null);
   // revealInContainer, NOT scrollIntoView: block:"nearest" also scrolls the DOCUMENT, which on a
   // /go/ page dragged the chapter banner under the sticky navbar on load. See lib/ui-scroll.ts.
@@ -1793,7 +1916,7 @@ function ExamOutline({ tab, school, professor, flowDone, coveragePct, onAddProfe
        scrolls. Below sm the outline is a drop-down drawer stacked above the video, where capping
        it is correct — an unbounded drawer would push the video off-screen. */
     <div className="max-h-[60vh] overflow-y-auto p-3 sm:max-h-none sm:overflow-visible">
-      {flowDone && <SidebarContext school={school} professor={professor} coveragePct={coveragePct} onAddProfessor={onAddProfessor} onMaterials={onMaterials} onReset={onReset} resetLabel={resetLabel} />}
+      {flowDone && <PlayerIdentity {...identity} />}
       {/* Sidebar header, restored in Pass 2. It was cut on the theory that the rows below already
           ARE the questions — true, but the header is also the only thing naming what the left
           column IS once the right panel stops being a video. On a locked tab it carries the

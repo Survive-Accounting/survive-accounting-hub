@@ -1,3 +1,69 @@
+# Student player — campus identity, no professor gate, Save my progress (branch `player-identity`)
+
+The player should feel immediately usable AND obviously built for this student's campus/course.
+Professor matching is personalisation, never a gate. The large hero bolt / campus rotation belongs
+to the concurrent bolt session and is untouched here.
+
+## No-gate professor behaviour
+`flowDone = userPicked || ((school || notListed) && profDone)` in `ExamPlayer`. A click on any
+topic/set (`pickSet`) sets `userPicked` and content opens at once — the invitation panel
+(`MatchPanel`) returns null whenever content is showing. This holds on the generic page too
+(no school → the Starter Map serves Exam 1). `userPicked` is an explicit flag, NOT `selById`
+presence: the existing school-pick effect pre-fills the default live set, and a default must not
+silently skip the invitation. The professor stage is now "Match your professor — Match ACCY 201
+to your professor's exam — or pick any topic to start right now." with Skip; the rail stays
+interactive beside it. Nothing in the flow asks for an account or an email to start.
+
+## Identity header (`PlayerIdentity`, replaces `SidebarContext`)
+Static campus bolt (the same `Bolt` + `boltFor` palette the Poster and picker use — no shared
+bolt files touched) at 44px desktop / 32px mobile · `Ole Miss · ACCY 201` · `Prof. Aghazadeh` or
+`+ Match my professor` (`+ Pick my school` when there is no school) · coverage line + 4px bar with
+a tooltip · `Save my progress` · `•••`. Mobile gets a one-row compact variant above the topic
+switcher (58px) so identity, Save and the menu stay in view; the sidebar copy lives in the drawer.
+
+## Coverage data source
+`campus_exams.coverage_pct` (migration 0109) — **Lee's editable estimate per campus exam, default
+80, not computed.** Label: `{Last} Exam 1 · ~80% covered` ONLY when the professor's own map served
+the exam rows (`resolveStudentMap().level === "professor"`), else `Course coverage · ~80%`.
+Tooltip says exactly that ("Lee's estimate from the syllabus, not a computed score"). A write-in
+professor has no map, so the line stays course-level — no fabricated professor coverage.
+
+## ••• menu (replaces "Start over")
+* **Reset questions** — `resetSeq` bumps → the SetFlowPanel key changes → practice remounts at Q1.
+  Touches nothing persisted (practice_attempts is an append-only log; `student_set_progress`
+  stays), so no confirmation is needed; the hint says "Saved progress stays." Disabled until a set
+  is open.
+* **Change / Match professor** — clears the professor + skip cookie, re-shows the invitation;
+  school/course untouched; the next topic click skips it again.
+* **Change school** — generic page: the existing school-change flow (picker returns); campus or
+  Greek route: the page cannot become another campus, so it forgets the stored campus and
+  navigates to `/#exam1`. Route precedence (route → session → stored → picker) is unchanged.
+
+## Save my progress
+Secondary pill under coverage (desktop) / `Save` in the mobile strip. Signed out → `SaveProgressDialog`
+(`components/site/SaveProgress.tsx`): email → `supabase.auth.signInWithOtp` (magic link, the same
+session `/learn` uses via the new shared `lib/use-student-auth.ts`), redirect back to the page the
+student was on (`/<school>#exam1`), "Keep studying without saving" always available. A
+**resume context** (school slug, course, professor, exam, topic, set, stage) is written to
+localStorage `sa-resume` and to the auth user's metadata (`sa_resume`); on return, once a session
+exists, it is consumed once and the player reopens at that exam/topic/set. Signed in → the pill
+becomes `✓ Saved` (title: signed in as …, saves automatically) and the player writes
+`student_set_progress` (`in_progress` on set open, `complete` on cram complete — the rows `/learn`
+reads; `complete` never downgrades) and `practice_attempts` carry `user_id`.
+**Not persisted (no model yet):** per-question answers inside a set; the in-session navigator
+state is client-only. **Stubbed/assumed:** the Supabase redirect allow-list must include
+`https://surviveaccounting.com/**` for the per-campus return path — if it doesn't, the link
+falls back to the site URL and the localStorage resume still restores exam/topic/set on `/`.
+
+## Semester Pass
+Both states now sit ABOVE the exam tabs. Expanded: one line with a 44px ×; collapsed (remembered):
+an 18px bracket capping Exam 2 · Exam 3 · Final (columns 2–4 of the same 4-column grid as the
+tabs), `SEMESTER PASS · $150`, clickable → the notify modal. Hidden on Greek pages as before.
+
+## Checks
+`bunx tsc --noEmit` clean · `bun test` 1,419 pass · `bun run build` OK · eslint: no new findings.
+Screenshots in `docs/screenshots/player-identity/`.
+
 # Exhibit Lab v2 — Cycle + Rubric, Probe Library, The Survive Method (branch `exhibit-lab-v2`)
 
 Filming-side only. No student-facing exhibit UI ships. T-Accounts, JE grid, F/S and Formulas
