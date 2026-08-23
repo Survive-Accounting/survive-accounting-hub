@@ -21,6 +21,7 @@ import { markStep as markTestStep, useTestMode } from "@/lib/test-mode";
 import { useStudentAuth } from "@/lib/use-student-auth";
 import { SaveProgressDialog, saveSetProgress, takeResume, type ResumeContext } from "@/components/site/SaveProgress";
 import { cramRequest, examRequest, notifyNote, reviewRequest, type NotifyReq } from "@/lib/notify-request";
+import { STATIC_EXAM1, STATIC_EXAM2, STATIC_EXAM3, STATIC_FINAL, estTopicMin } from "@/lib/exam-preview";
 import { resolveStudentMap } from "@/lib/map-resolver.functions";
 import { getChapterNames, listCampusIntroCodes } from "@/lib/default-map.functions";
 import { logSchoolDemand, submitSyllabus , submitNotify } from "@/lib/syllabus.functions";
@@ -113,11 +114,10 @@ const schoolColors = (id: string) => COLOR_BY_ID.get(id) ?? { c1: BRAND_RED, c2:
 // are its colours.
 const boltFor = (id: string) => schoolColors(id);
 
-// Static fallbacks when live data isn't published yet (the menu IS the marketing).
-const STATIC_EXAM1 = ["Types of Accounts", "A = L + E", "Debits & Credits", "Journal Entries", "Adjusting Entries", "Closing Entries"];
-const STATIC_EXAM2 = ["Merchandising", "Inventory (FIFO / LIFO)", "Multi-step Income Statement", "Internal Controls", "Receivables"];
-const STATIC_EXAM3 = ["Long-Term Assets", "Current Liabilities", "Long-Term Liabilities", "Equity", "Statement of Cash Flows"];
-const STATIC_FINAL = ["Full Accounting Cycle", "Financial Statements", "Ratios & Analysis", "Comprehensive Problems"];
+// Static fallbacks when live data isn't published yet (the menu IS the marketing). These live in
+// lib/exam-preview so the partner "What your chapters get" preview shows the SAME outline the real
+// player does — one source, so the two can never claim different syllabi.
+// STATIC_EXAM1..FINAL imported above from "@/lib/exam-preview".
 
 // A resolved Exam topic: its display name/number + ALL its sets (the outline lists them; today one
 // set per topic, but the shape supports more). A topic with no sets is "coming" (poster).
@@ -740,7 +740,7 @@ const FAQS: { q: string; a: string }[] = [
 const GREEK_FAQS: Array<{ q: string; a: string }> = [
   {
     q: "How does this work?",
-    a: "Every member gets Exam 1 free. They choose their professor and start cramming. If your chapter wants full-semester access, chapter seats unlock Exams 2, 3 and the Final. Exec also gets a private roster, sharing tools, and a dashboard showing who is actually using it.",
+    a: "Every member gets Exam 1 free. They choose their professor and start cramming. If your chapter wants full-semester access, chapter seats unlock Exams 2, 3 and the Final. Exec also gets sharing tools and a dashboard showing members joined, aggregate activity and the seats your chapter provides.",
   },
   {
     q: "Will this match our professors?",
@@ -752,7 +752,7 @@ const GREEK_FAQS: Array<{ q: string; a: string }> = [
   },
   {
     q: "Can we see whether members actually use it?",
-    a: "Yes. Chapter access includes a private dashboard showing who joined, recent activity, and study progress — so you're not paying for a perk nobody uses.",
+    a: "Yes — at the chapter level. Your dashboard shows members joined, aggregate chapter activity and the seats your chapter provides, so you're not paying for a perk nobody uses. No individual member's viewing is tracked or shown.",
   },
 ];
 
@@ -1896,16 +1896,8 @@ function ExamOutline({ tab, school, professor, flowDone, identity, onNotify, sta
   );
 }
 
-/** PLACEHOLDER runtime for topics with no built sets. There is NO real duration source yet
- *  (student.functions runtimeSec is null until the Mux duration backfill lands) — these are
- *  deliberately estimates, deterministic per topic name so they never flicker between renders,
- *  in the honest 11–22 min band real sets run. REPLACE THE BODY with real data when durations
- *  exist; every caller already renders whatever number this returns. */
-const estTopicMin = (name: string): number => {
-  let h = 0;
-  for (const c of name) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return 11 + (h % 12);
-};
+// estTopicMin (the deterministic 11–22 min per-topic estimate for unbuilt topics) now lives in
+// lib/exam-preview and is imported above, so the partner preview and the live player agree.
 
 function TopicRow({ topic, isPaid, price, open, onToggle, curSetId, curTopicKey, activeRef, onPickSet, onPaidClick }: { topic: ResolvedTopic; isPaid: boolean; price: number | null; open: boolean; onToggle: () => void; curSetId: string | null; curTopicKey: string | null; activeRef: RefObject<HTMLButtonElement | null>; onPickSet: (topicKey: string, setId: string | null) => void; onPaidClick: (setName: string) => void }) {
   const built = topic.sets.length > 0;

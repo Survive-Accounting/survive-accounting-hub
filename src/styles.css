@@ -707,3 +707,13 @@ html.sa-navy body {
   /* No pulse. The border still says "here", it just says it without moving. */
   .sa-cue { animation: none; border-color: var(--accent) !important; box-shadow: 0 0 0 3px rgba(252,163,17,0.20); }
 }
+
+/* ── FORM FIELDS (partner directory search, and anything else that opts in) ───────────────────
+   One orange focus ring for opt-in fields, on this navy where the browser's default blue ring
+   disappears. A ring rather than a border change so the field does not shift by a pixel on focus. */
+.sa-field:focus,
+.sa-field:focus-visible {
+  border-color: var(--accent, #FCA311);
+  box-shadow: 0 0 0 3px rgba(252, 163, 17, 0.28);
+}
+.sa-field::placeholder { color: var(--text-tertiary, #7C89A4); opacity: 1; }
