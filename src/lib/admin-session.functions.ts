@@ -89,5 +89,9 @@ export const clearAdminSession = createServerFn({ method: "POST" })
  *  admin data path calls. Kept as a plain async helper (no server-only import of its own — it
  *  delegates to the adminSessionOk server function) so it is safe to call from anywhere. */
 export async function assertAdmin(): Promise<void> {
-  if (!(await adminSessionOk()).ok) throw new Error("Not authorised — sign in as an admin.");
+  // Fail CLOSED and cleanly: any result that is not an explicit {ok:true} — including a null/undefined
+  // from a context without a request runtime — is treated as "not an admin".
+  let ok = false;
+  try { ok = (await adminSessionOk())?.ok === true; } catch { ok = false; }
+  if (!ok) throw new Error("Not authorised — sign in as an admin.");
 }
