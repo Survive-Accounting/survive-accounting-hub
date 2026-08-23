@@ -20,8 +20,10 @@ import {
   restartTestRun, startTestSession, writeTestSession, type TestSession,
 } from "@/lib/test-mode";
 import {
-  getFixtureStatus, resetFixture, testApproveFixtureClaim, testModeStatus, type FixtureStatus,
+  beginTestSession, getFixtureStatus, resetFixture, testActivity, testApproveFixtureClaim,
+  testModeStatus, type FixtureStatus, type TestActivityRow,
 } from "@/lib/test-mode.functions";
+import { supabase } from "@/integrations/supabase/client";
 
 export function TestModeBar() {
   const [session, setSession] = useState<TestSession | null>(null);
@@ -32,7 +34,15 @@ export function TestModeBar() {
   const [fx, setFx] = useState<FixtureStatus | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  // Whether the SERVER accepted this tester. A URL can name anyone; only an allow-listed address
+  // becomes a live destination, and a tester whose mail is going nowhere has to be told at the
+  // top of the screen rather than left waiting on an inbox.
+  const [routing, setRouting] = useState<{ ok: boolean; error?: string } | null>(null);
+  const [signedIn, setSignedIn] = useState(false);
+  const [log, setLog] = useState<TestActivityRow[] | null>(null);
+  const [logOpen, setLogOpen] = useState(false);
   const loadFixture = () => { void getFixtureStatus().then(setFx).catch(() => setFx(null)); };
+  const loadLog = () => { void testActivity().then((r) => setLog(r.rows)).catch(() => setLog([])); };
 
   // Adopt the URL params once, then live off the session so a tester can navigate the real site
   // without carrying ?testmode=1 on every link.
@@ -41,6 +51,27 @@ export function TestModeBar() {
     const existing = readTestSession();
     if (fromUrl) setSession(startTestSession(fromUrl.name, fromUrl.email));
     else if (existing) setSession(existing);
+  }, []);
+
+  // THE SERVER HALF OF THE SESSION. Until this runs there is no destination for test mail, and
+  // the send layer fails those sends closed rather than letting them reach the address typed into
+  // a form. So it happens the moment a tester is adopted, not at the first send.
+  useEffect(() => {
+    if (!session?.email) return;
+    let alive = true;
+    void beginTestSession({ data: { email: session.email } })
+      .then((r) => { if (alive) setRouting(r); })
+      .catch(() => { if (alive) setRouting({ ok: false, error: "Couldn't reach the server." }); });
+    return () => { alive = false; };
+  }, [session?.email]);
+
+  // Step 5 is "the exec is signed in", which is a client fact — the server cannot see this
+  // browser's session. Watching it here is what lets the step tick itself.
+  useEffect(() => {
+    let alive = true;
+    void supabase.auth.getSession().then(({ data }) => { if (alive) setSignedIn(!!data.session); });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, sess) => { if (alive) setSignedIn(!!sess); });
+    return () => { alive = false; sub.subscription.unsubscribe(); };
   }, []);
 
   // The server lock. Asked once per mount; a "no" hides everything.
@@ -53,13 +84,57 @@ export function TestModeBar() {
     return () => { alive = false; };
   }, [session]);
 
-  // Only when the panel is open: a closed panel has no reason to poll the database.
-  useEffect(() => { if (open && serverOn) loadFixture(); }, [open, serverOn]);
+  // ── REFRESH WHILE OPEN ────────────────────────────────────────────────────────────────────
+  //
+  // The status was read once, when the panel opened, and then went stale. That is not a cosmetic
+  // problem: a tester who submitted the claim with the panel already open found "Approve claim"
+  // still greyed out, still saying "submit a claim at step 3 first" — the panel telling them the
+  // thing they had just done had not happened. Pressing Refresh fixed it, which is exactly the
+  // manual step this panel exists to remove.
+  //
+  // So it re-reads on a timer while it is open, and again whenever the tab comes back to the
+  // front (a tester who opened the flyer in another tab returns to current numbers). A closed
+  // panel does nothing at all — there is no reason to poll a database nobody is looking at.
+  useEffect(() => {
+    if (!open || !serverOn) return;
+    loadFixture();
+    const t = setInterval(loadFixture, 2500);
+    const onVis = () => { if (document.visibilityState === "visible") loadFixture(); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", onVis); };
+  }, [open, serverOn]);
+  useEffect(() => { if (logOpen && serverOn) loadLog(); }, [logOpen, serverOn]);
 
   if (!session || serverOn !== true) return null;
 
   const step = Math.min(session.step, GREEK_LIFECYCLE.length - 1);
   const cur = GREEK_LIFECYCLE[step];
+
+  // ── STEPS THAT KNOW WHETHER THEY HAPPENED ────────────────────────────────────────────────
+  //
+  // A checklist a tester ticks by hand records what they BELIEVE happened. That is the least
+  // reliable field in any bug report: the interesting failures are exactly the ones where the
+  // screen said yes and the database said no. Where a step leaves a record, the record decides.
+  //
+  // Landing on a page and pulling the share kit leave nothing conclusive behind, so those keep
+  // the manual button. The rest read straight off the fixture.
+  const autoDone: Record<string, boolean | null> = {
+    "chapter-page": null,                                        // nothing to check — manual
+    join: (fx?.members ?? 0) > 0,
+    claim: !!fx?.pendingClaimId || fx?.claimStatus === "claimed",
+    approve: fx?.claimStatus === "claimed",
+    dashboard: signedIn && fx?.claimStatus === "claimed",
+    "share-kit": (fx?.shareEvents ?? 0) > 0,
+    seats: (fx?.seatPools ?? 0) > 0,
+    assign: (fx?.assignments ?? 0) > 0,
+    restart: null,
+  };
+  const doneMark = (id: string, i: number): { icon: string; title: string } => {
+    const auto = autoDone[id];
+    if (auto === true) return { icon: "✓", title: "Confirmed from the test records" };
+    if (auto === false) return { icon: "○", title: "No record of this yet" };
+    return { icon: i < step ? "✓" : String(i + 1), title: i < step ? "Marked done by hand" : "Not started" };
+  };
   const setStep = (n: number) => {
     const next = { ...session, step: Math.max(0, Math.min(n, GREEK_LIFECYCLE.length - 1)) };
     writeTestSession(next); setSession(next);
@@ -77,7 +152,12 @@ export function TestModeBar() {
       >
         <div className="mx-auto flex w-full max-w-[1200px] flex-wrap items-center gap-x-3 gap-y-1 px-3 py-1.5">
           <span className="text-[12px] font-black uppercase" style={{ letterSpacing: "0.12em" }}>Test mode</span>
-          <span className="text-[13px]">nothing here is real. Emails go to <b>{session.email}</b>.</span>
+          <span className="text-[13px]">
+            nothing here is real. Emails go to <b>{session.email}</b>
+            {routing?.ok === false && <b style={{ color: "#FFD9C2" }}> — REFUSED: {routing.error}</b>}
+            {routing === null && " (checking…)"}
+            .
+          </span>
           <span className="ml-auto flex items-center gap-2">
             <span className="text-[12px]" style={{ opacity: 0.8 }}>Run {session.run} · step {step + 1}/{GREEK_LIFECYCLE.length}</span>
             <button
@@ -142,7 +222,13 @@ export function TestModeBar() {
                   className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left"
                   style={{ background: i === step ? "rgba(0,107,166,0.18)" : "transparent", color: i < step ? "var(--text-secondary, #AAB4C8)" : "var(--brand-cream, #F7F0E6)" }}
                 >
-                  <span className="w-5 shrink-0 text-[12px] tabular-nums" style={{ color: "var(--text-secondary, #AAB4C8)" }}>{i < step ? "✓" : i + 1}</span>
+                  <span
+                    className="w-5 shrink-0 text-[12px] tabular-nums"
+                    title={doneMark(s.id, i).title}
+                    style={{ color: autoDone[s.id] === true ? "#8BE28B" : "var(--text-secondary, #AAB4C8)" }}
+                  >
+                    {doneMark(s.id, i).icon}
+                  </span>
                   <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold">{s.title}</span>
                   <span className="shrink-0 text-[11px]" style={{ color: "var(--text-secondary, #AAB4C8)" }}>{s.role}</span>
                 </button>
@@ -219,6 +305,40 @@ export function TestModeBar() {
             </div>
 
             {msg && <p className="mt-2 text-[12.5px]" style={{ color: "#FFC9A3" }}>{msg}</p>}
+
+            {/* WHERE THE MAIL IS GOING, read back from the server rather than echoed from the URL.
+                These are not the same claim: the URL says who the tester asked to be, this says
+                who the server accepted. When they differ, that difference is the bug. */}
+            <p className="mt-2 text-[12px]" style={{ color: "var(--text-secondary, #AAB4C8)" }}>
+              {fx?.testerEmail
+                ? <>Test mail routes to <b style={{ color: "#FFC9A3" }}>{fx.testerEmail}</b> — form addresses are ignored.</>
+                : <>No test destination — outbound test mail will be <b>skipped</b>, not delivered.</>}
+            </p>
+
+            {/* THE ACTIVITY LOG. "Did the [TEST] confirmation fire?" answered from the send log
+                instead of from an inbox — which also shows the sends that were deliberately
+                skipped, something an inbox can never do. */}
+            <button
+              type="button"
+              onClick={() => { setLogOpen((v) => !v); if (!logOpen) loadLog(); }}
+              className="mt-2 text-[12px] font-bold underline underline-offset-4"
+              style={{ color: "#FFC9A3" }}
+            >
+              {logOpen ? "Hide activity" : "Show activity"}
+            </button>
+            {logOpen && (
+              <ol className="mt-1.5 grid gap-1">
+                {log === null && <li className="text-[12px]" style={{ color: "var(--text-secondary, #AAB4C8)" }}>Reading…</li>}
+                {log?.length === 0 && <li className="text-[12px]" style={{ color: "var(--text-secondary, #AAB4C8)" }}>Nothing sent yet this run.</li>}
+                {log?.map((r, i) => (
+                  <li key={i} className="text-[11.5px] leading-snug" style={{ color: "var(--text-secondary, #AAB4C8)" }}>
+                    <span style={{ color: r.status === "sent" ? "#8BE28B" : r.status === "failed" ? "#F3A6A6" : "#FFC9A3" }}>{r.status}</span>
+                    {" · "}{r.medium}{" · "}{r.template}{" → "}{r.to}
+                    {r.error && <span style={{ color: "#F3A6A6" }}>{" · "}{r.error}</span>}
+                  </li>
+                ))}
+              </ol>
+            )}
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3" style={{ borderColor: "var(--border-subtle, rgba(52,72,109,0.55))" }}>

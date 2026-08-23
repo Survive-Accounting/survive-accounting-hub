@@ -12,10 +12,10 @@
 // "outside" taps are part of normally using the section — a document-wide dismiss listener was
 // silently wiping four typed fields. The × button is the one deliberate way out.
 import { SmsConsentNote } from "@/components/landing/SmsConsentBanner";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
-import { CLAIM_POSITIONS, submitChapterClaim } from "@/lib/greek-claims.functions";
+import { CLAIM_POSITIONS, notifyChapterClaim, submitChapterClaim } from "@/lib/greek-claims.functions";
 
 const fmtPhone = (v: string) => {
   if (v.trim().startsWith("+")) return "+" + v.replace(/\D/g, "").slice(0, 15);
@@ -50,26 +50,56 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, onClos
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // WHERE THE CONFIRMATION IS, AND WHERE THE EXEC IS LOOKING, ARE NOT THE SAME THING. This form
+  // lives inside an accordion step well down a long page; an exec who scrolled while typing could
+  // submit and see nothing change, because the card that replaced the form was above or below the
+  // fold. The card takes focus and scrolls itself into view, which also announces it to a screen
+  // reader instead of silently swapping the subtree.
+  const doneRef = useRef<HTMLDivElement | null>(null);
 
   const ok = name.trim().length > 1 && position && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim()) && phone.replace(/\D/g, "").length >= 10;
+
+  useEffect(() => {
+    if (!done) return;
+    const el = doneRef.current;
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [done]);
 
   const submit = async () => {
     if (!ok || busy) return;
     setBusy(true); setErr(null);
     try {
       const r = await submitChapterClaim({ data: { schoolSlug, chapterSlug, name: name.trim(), position, email: email.trim(), phone: phone.trim() } });
-      if (r.ok) { setDone(true); onDone?.(); }
-      else { setErr(r.error ?? "Something went wrong — try again."); setBusy(false); }
+      if (r.ok) {
+        // The claim is saved; that is the whole of what the exec is waiting for. Confirm NOW.
+        setDone(true); onDone?.();
+        // The notifications are finished off behind the confirmation. On Vercel the platform has
+        // already taken them (notifyPending is false) and this does nothing; on a runtime with no
+        // work-after-response we ask for them here. Deliberately not awaited and deliberately not
+        // surfaced: an exec whose claim is recorded must never be told something went wrong
+        // because a mail provider was slow. A failure here shows up in the admin log instead.
+        if (r.notifyPending && r.claimId) void notifyChapterClaim({ data: { claimId: r.claimId } }).catch(() => undefined);
+      } else { setErr(r.error ?? "Something went wrong — try again."); setBusy(false); }
     } catch { setErr("Couldn't reach the server — try again in a moment."); setBusy(false); }
   };
 
   if (done) {
     return (
-      <div className="mx-auto max-w-sm rounded-xl p-4 text-center" style={{ background: "rgba(252,163,17,0.08)", border: "1px solid rgba(252,163,17,0.35)", fontFamily: BRAND_SANS }}>
+      <div
+        ref={doneRef}
+        tabIndex={-1}
+        role="status"
+        aria-live="polite"
+        className="mx-auto max-w-sm rounded-xl p-4 text-center outline-none"
+        style={{ background: "rgba(252,163,17,0.08)", border: "1px solid rgba(252,163,17,0.35)", fontFamily: BRAND_SANS }}
+      >
         <p className="text-[14px] font-bold" style={{ color: "var(--brand-cream)" }}>You&apos;re almost set.</p>
         {/* Says what happens next and roughly when. "We'll be in touch" is what a form says when
             nobody is actually going to read it. */}
-        <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-muted)" }}>We&apos;ll verify your chapter role and follow up within one business day.</p>
+        <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-muted)" }}>I&apos;ll verify your chapter role within one business day.</p>
+        <p className="mt-1 text-[12.5px]" style={{ color: "var(--text-muted)" }}>You&apos;ll get an email and a text as soon as your chapter is approved.</p>
       </div>
     );
   }

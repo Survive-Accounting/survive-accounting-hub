@@ -4,6 +4,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { authEmailError, authErrorDetail } from "@/lib/auth-errors";
+import { readTestSession } from "@/lib/test-mode";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { FitWordmark, SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
@@ -63,10 +65,24 @@ function DashboardPage() {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(loginEmail.trim())) { setSendErr("That email doesn't look right — check it and try again."); return; }
     setSendBusy(true); setSendErr(null);
     try {
+      // The return URL is built from THIS origin, so a link requested on localhost comes back to
+      // localhost — provided the origin is on Supabase's redirect allow-list. When it is not,
+      // GoTrue does not error: it silently substitutes SITE_URL, and the tester lands on
+      // production wondering where their fixture went. See set_auth_limits.ts.
       const redirect = typeof window !== "undefined" ? `${window.location.origin}/chapters/dashboard` : undefined;
-      const { error } = await supabase.auth.signInWithOtp({ email: loginEmail.trim(), options: { emailRedirectTo: redirect } });
-      if (error) setSendErr(error.message.includes("rate") ? "Too many requests — wait a minute and try again." : "Couldn't send the link — try again in a moment.");
-      else setSent(true);
+      // Same rule as the member gate: in a test run the link goes to the tester, whatever the
+      // exec's email says, because Supabase Auth mail bypasses our send layer entirely.
+      const test = readTestSession();
+      const dest = test?.email || loginEmail.trim();
+      const { error } = await supabase.auth.signInWithOtp({ email: dest, options: { emailRedirectTo: redirect } });
+      if (error) {
+        // One mapping for both sign-in surfaces (see lib/auth-errors.ts). The substring match on
+        // "rate" that used to live here caught the rate limit but folded every other cause —
+        // redirect not on the allow-list, provider outage, signups disabled — into one sentence
+        // that told nobody anything.
+        console.warn("[chapter-dashboard] otp failed:", authErrorDetail(error));
+        setSendErr(authEmailError(error));
+      } else setSent(true);
     } catch { setSendErr("Couldn't reach the server — check your connection and try again."); }
     finally { setSendBusy(false); }
   };
@@ -83,7 +99,7 @@ function DashboardPage() {
             <h1 className="text-[18px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Chapter dashboard</h1>
             {sent ? (
               <>
-                <p className="mt-3 text-[14px]" style={{ color: "var(--brand-cream)" }}>Check your email — I sent a sign-in link to {loginEmail}.</p>
+                <p className="mt-3 text-[14px]" style={{ color: "var(--brand-cream)" }}>Check your email — I sent a sign-in link to {readTestSession()?.email || loginEmail}.</p>
                 <p className="mt-2 text-[12px]" style={{ color: "var(--text-muted)" }}>Not there in a minute? Check spam, or <button onClick={() => { setSent(false); }} className="font-semibold underline" style={{ color: "var(--accent)" }}>resend it</button>.</p>
               </>
             ) : (

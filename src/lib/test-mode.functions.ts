@@ -244,18 +244,131 @@ export type FixtureStatus = {
   claimantEmail: string | null;
   members: number;
   seatPools: number;
+  /** Rows the share kit wrote — the signal that step 6 actually happened. */
+  shareEvents: number;
+  /** Seats handed to a person, for step 8. */
+  assignments: number;
+  /** Where test mail is going right now, straight from the server-held session. */
+  testerEmail: string | null;
   note: string;
 };
 
 /** Resolve the fixture and report exactly where the lifecycle stands. The panel reads this to
  *  decide which shortcut to offer, so a tester never presses a button that cannot apply. */
+
+// ── the server half of the tester session ─────────────────────────────────────────────────────
+//
+// The client can PROPOSE a tester (that is what ?email= is). Only this can accept one, and only
+// onto the allow-list. The address then lives in an HttpOnly cookie that the page cannot read,
+// which is what lets the send layer treat it as the one legal destination for test mail — see
+// test-mode.server.ts for why that boundary is where it is.
+
+/** Adopt a tester for this browser session. Called once, when the banner first sees the URL. */
+export const beginTestSession = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ email: z.string().trim().email().max(200) }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string; email?: string }> => {
+    const { checkTester, TEST_TO_COOKIE } = await import("@/lib/test-mode.server");
+    const v = checkTester(data.email);
+    if (!v.ok || !v.email) return { ok: false, error: v.error };
+    const { setCookie } = await import("@tanstack/react-start/server");
+    setCookie(TEST_TO_COOKIE, v.email, {
+      httpOnly: true,        // the page cannot read it, so it cannot be forged from the client
+      sameSite: "lax",
+      path: "/",
+      secure: process.env.NODE_ENV === "production",
+      // No maxAge: it dies with the browser session, matching the client half.
+    });
+    return { ok: true, email: v.email };
+  });
+
+/** Where test mail is actually going, for the banner to state out loud. A tester who can see the
+ *  destination never has to wonder whether the silence means "not sent" or "sent somewhere else". */
+export const testDestination = createServerFn({ method: "GET" })
+  .handler(async (): Promise<{ email: string | null; allowed: string[] }> => {
+    const { testerAllowList } = await import("@/lib/test-mode.server");
+    return { email: (await testerEmail()).email, allowed: guard() ? testerAllowList() : [] };
+  });
+
+/** The tester's address for this request, or null. The ONE source a send may take a test
+ *  destination from — there is no parameter anywhere that can name a recipient instead.
+ *
+ *  IT IS A SERVER FUNCTION, not a plain helper, and that is load-bearing rather than stylistic:
+ *  only a .handler() body is stripped out of the client bundle. The same code in an exported
+ *  async function in this file follows the import chain into the browser graph and the build
+ *  refuses it — which is the protection working, not a nuisance. The two wrappers below are
+ *  ordinary functions precisely because they touch nothing server-only themselves. */
+export const testerEmail = createServerFn({ method: "GET" })
+  .handler(async (): Promise<{ email: string | null }> => {
+    const { readTesterCookie, TEST_TO_COOKIE } = await import("@/lib/test-mode.server");
+    try {
+      const { getCookie } = await import("@tanstack/react-start/server");
+      return { email: readTesterCookie(getCookie(TEST_TO_COOKIE)) };
+    } catch { return { email: null }; }   // no request context (cron, worker) — no tester
+  });
+
+/** Is THIS request part of a test run? The predicate every write should use to decide is_test,
+ *  rather than trusting a flag the client sent. */
+export const isTestRequest = async (): Promise<boolean> => (await testerEmail()).email !== null;
+
+export const testerEmailForRequest = async (): Promise<string | null> => (await testerEmail()).email;
+
+export const endTestSessionServer = createServerFn({ method: "POST" })
+  .handler(async (): Promise<{ ok: boolean }> => {
+    try {
+      const { TEST_TO_COOKIE } = await import("@/lib/test-mode.server");
+      const { deleteCookie } = await import("@tanstack/react-start/server");
+      deleteCookie(TEST_TO_COOKIE, { path: "/" });
+    } catch { /* no request context — nothing to clear */ }
+    return { ok: true };
+  });
+
+// ── the activity log ──────────────────────────────────────────────────────────────────────────
+
+export type TestActivityRow = {
+  at: string;
+  medium: string;
+  template: string;
+  to: string;
+  status: string;
+  error: string | null;
+  subject: string | null;
+};
+
+/** Every message this run tried to send, as the send layer recorded it. This is the answer to
+ *  "did the [TEST] confirmation fire?" that does not depend on an inbox arriving — including the
+ *  sends that were deliberately skipped, which an inbox can never show you. */
+export const testActivity = createServerFn({ method: "GET" })
+  .handler(async (): Promise<{ rows: TestActivityRow[]; note: string }> => {
+    if (!guard()) return { rows: [], note: "TEST_MODE_ENABLED is not set." };
+    try {
+      const db = await admin();
+      const { data, error } = await db.from("comms_sends")
+        .select("sent_at,medium,template,to_email,to_phone,status,error,subject")
+        .eq("is_test", true).order("sent_at", { ascending: false }).limit(25);
+      if (error) return { rows: [], note: error.message };
+      const rows: TestActivityRow[] = ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+        at: (r.sent_at as string) ?? "",
+        medium: (r.medium as string) ?? "",
+        template: (r.template as string) ?? "",
+        to: ((r.to_email as string) || (r.to_phone as string) || "—"),
+        status: (r.status as string) ?? "",
+        error: (r.error as string) ?? null,
+        subject: (r.subject as string) ?? null,
+      }));
+      return { rows, note: rows.length ? "" : "Nothing sent yet this run." };
+    } catch (e) {
+      return { rows: [], note: e instanceof Error ? e.message : "Couldn't read the activity log." };
+    }
+  });
+
 export const getFixtureStatus = createServerFn({ method: "GET" })
   .handler(async (): Promise<FixtureStatus> => {
     const out: FixtureStatus = {
       ready: false, campusId: null, rosterId: null, chapterId: null,
       claimStatus: null, pendingClaimId: null, claimantEmail: null,
-      members: 0, seatPools: 0, note: "",
+      members: 0, seatPools: 0, shareEvents: 0, assignments: 0, testerEmail: null, note: "",
     };
+    try { out.testerEmail = await testerEmailForRequest(); } catch { /* no session yet */ }
     if (!guard()) { out.note = "TEST_MODE_ENABLED is not set."; return out; }
     try {
       const db = await admin();
@@ -281,9 +394,18 @@ export const getFixtureStatus = createServerFn({ method: "GET" })
         const { count: m } = await db.from("greek_chapter_members").select("id", { count: "exact", head: true }).eq("chapter_id", shell.id);
         out.members = m ?? 0;
         try {
-          const { count: p } = await db.from("chapter_seat_pools").select("id", { count: "exact", head: true }).eq("chapter_id", shell.id);
-          out.seatPools = p ?? 0;
-        } catch { out.seatPools = 0; }
+          const { data: pools } = await db.from("chapter_seat_pools").select("id").eq("chapter_id", shell.id).limit(200);
+          const poolIds = ((pools ?? []) as Array<{ id: string }>).map((x) => x.id);
+          out.seatPools = poolIds.length;
+          if (poolIds.length) {
+            const { count: a } = await db.from("chapter_seat_assignments").select("id", { count: "exact", head: true }).in("pool_id", poolIds);
+            out.assignments = a ?? 0;
+          }
+        } catch { out.seatPools = 0; out.assignments = 0; }
+        try {
+          const { count: sh } = await db.from("chapter_share_events").select("id", { count: "exact", head: true }).eq("chapter_id", shell.id);
+          out.shareEvents = sh ?? 0;
+        } catch { out.shareEvents = 0; }
       }
       out.ready = true;
       return out;
