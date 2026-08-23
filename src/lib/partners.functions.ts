@@ -20,7 +20,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { councilBySlug } from "@/lib/greek-councils.functions";
+import { councilBySlug, councilMatches } from "@/lib/greek-councils.functions";
 import { canonicalSchoolName } from "@/lib/schools";
 import { orgSlugify, type PartnerChapterRow, type CouncilPartner, type NationalPartner, type NationalCampusRow } from "@/lib/partners";
 
@@ -67,10 +67,8 @@ export const getCouncilPartner = createServerFn({ method: "POST" })
       .select("id,slug,greek_org_id,letters,nickname,claim_status,council")
       .eq("campus_id", campus.id)
       .not("slug", "is", null).limit(500);
-    const norm = (v: string | null | undefined) => (v ?? "").toLowerCase().replace(/[^a-z]/g, "");
-    const want = new Set([norm(council.slug), norm(council.name), norm(council.full)]);
     const chs = ((rows ?? []) as Array<{ id: string; slug: string; greek_org_id: string | null; letters: string | null; nickname: string | null; claim_status: string | null; council: string | null }>)
-      .filter((c) => want.has(norm(c.council)));
+      .filter((c) => councilMatches(council, c.council));
     if (!chs.length) return null;
 
     const orgIds = [...new Set(chs.map((c) => c.greek_org_id).filter(Boolean))] as string[];
@@ -110,13 +108,25 @@ export const getNationalPartner = createServerFn({ method: "POST" })
 
     // greek_orgs has no slug column, so the slug is derived from the name — the same derivation
     // the route builds its links with, matched here rather than stored.
+    //
+    // EVERY org that slugifies to this value, not the first one. Ten organizations existed twice —
+    // "Alpha Kappa Alpha" and "Alpha Kappa Alpha Sorority, Inc." — because Ole Miss and Auburn were
+    // seeded from university pages that print the legal name while the bulk import used the plain
+    // one. `.find()` picked whichever record the database happened to return first, so those two
+    // campuses were missing from eight of the nine Divine Nine pages. The duplicate rows are being
+    // merged, but taking the UNION here means a future re-import cannot reopen the same hole.
     const { data: orgRows } = await db.from("greek_orgs").select("id,name,nickname").limit(3000);
     const orgs = (orgRows ?? []) as Array<{ id: string; name: string | null; nickname: string | null }>;
-    const org = orgs.find((o) => orgSlugify(o.name ?? "") === data.orgSlug);
-    if (!org?.id) return null;
+    const matches = orgs.filter((o) => orgSlugify(o.name ?? "") === data.orgSlug);
+    if (!matches.length) return null;
+    // The longest name is the one carrying the legal suffix; the SHORTEST is what a page should be
+    // titled, and it is also the record the merge keeps.
+    const org = matches.reduce((a, b) => ((a.name ?? "").length <= (b.name ?? "").length ? a : b));
 
     const { data: rows } = await db.from("campus_greek_chapters")
-      .select("campus_id,slug,claim_status").eq("greek_org_id", org.id).not("slug", "is", null).limit(1000);
+      .select("campus_id,slug,claim_status")
+      .in("greek_org_id", matches.map((o) => o.id))
+      .not("slug", "is", null).limit(1000);
     const chs = (rows ?? []) as Array<{ campus_id: string; slug: string; claim_status: string | null }>;
     if (!chs.length) return null;
 
@@ -155,33 +165,46 @@ export const getNationalPartner = createServerFn({ method: "POST" })
     };
   });
 
-/** The national orgs with the widest campus coverage — the discovery page's examples, and the
- *  only place a visitor can find a national page without being sent one. */
+/** The national orgs a visitor can search on the discovery page. Returns the coverage-ranked list
+ *  (widest first) with the nickname carried for search — so "KKG" or "Kappa" finds Kappa Kappa
+ *  Gamma. Client-side search + a "browse all" fallback runs over this; 80 is well past what any
+ *  finder needs to feel complete without shipping the whole 600-org directory into the page. */
 export const listTopNationalPartners = createServerFn({ method: "GET" })
-  .handler(async (): Promise<Array<{ orgSlug: string; orgName: string; campuses: number }>> => {
+  .handler(async (): Promise<Array<{ orgSlug: string; orgName: string; orgShort: string; campuses: number }>> => {
     const db = await admin();
-    const { data: orgRows } = await db.from("greek_orgs").select("id,name").limit(3000);
-    const orgs = (orgRows ?? []) as Array<{ id: string; name: string | null }>;
+    const { data: orgRows } = await db.from("greek_orgs").select("id,name,nickname").limit(3000);
+    const orgs = (orgRows ?? []) as Array<{ id: string; name: string | null; nickname: string | null }>;
+    const nickById = new Map(orgs.map((o) => [o.id, (o.nickname ?? "").trim()]));
     const byId = new Map(orgs.map((o) => [o.id, (o.name ?? "").trim()]));
 
     // Paged: PostgREST caps a response at 1,000 rows and there are 3,000+ slugged chapters.
-    const count = new Map<string, Set<string>>();
+    //
+    // COUNTED BY SLUG, NOT BY ORG ID — the same reason getNationalPartner takes the union. Two rows
+    // for one organization used to produce two entries in this list, both pointing at pages built
+    // from a fraction of the campuses each. Grouping by the slug the link is built from means the
+    // list can never disagree with the page it links to.
+    const bySlug = new Map<string, { name: string; nickname: string; campuses: Set<string> }>();
     for (let from = 0; ; from += 1000) {
       const { data } = await db.from("campus_greek_chapters")
         .select("greek_org_id,campus_id").not("slug", "is", null).not("greek_org_id", "is", null)
         .range(from, from + 999);
       const page = (data ?? []) as Array<{ greek_org_id: string; campus_id: string }>;
       for (const r of page) {
-        const set = count.get(r.greek_org_id) ?? new Set<string>();
-        set.add(r.campus_id);
-        count.set(r.greek_org_id, set);
+        const name = (byId.get(r.greek_org_id) ?? "").trim();
+        const slug = orgSlugify(name);
+        if (!name || !slug) continue;
+        const entry = bySlug.get(slug) ?? { name, nickname: nickById.get(r.greek_org_id) ?? "", campuses: new Set<string>() };
+        // Shortest name wins the label — the one without the legal suffix.
+        if (name.length < entry.name.length) entry.name = name;
+        if (!entry.nickname) entry.nickname = nickById.get(r.greek_org_id) ?? "";
+        entry.campuses.add(r.campus_id);
+        bySlug.set(slug, entry);
       }
       if (page.length < 1000) break;
     }
 
-    return [...count.entries()]
-      .map(([id, set]) => ({ orgSlug: orgSlugify(byId.get(id) ?? ""), orgName: byId.get(id) ?? "", campuses: set.size }))
-      .filter((r) => r.orgName && r.orgSlug)
+    return [...bySlug.entries()]
+      .map(([orgSlug, e]) => ({ orgSlug, orgName: e.name, orgShort: e.nickname || e.name, campuses: e.campuses.size }))
       .sort((a, b) => b.campuses - a.campuses || a.orgName.localeCompare(b.orgName))
-      .slice(0, 12);
+      .slice(0, 80);
   });

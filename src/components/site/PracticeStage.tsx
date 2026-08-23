@@ -48,9 +48,13 @@ export interface PracticeStageProps {
   isTest?: boolean;
   /** Top-right status pill ("PRACTICE"). The only chrome the question header carries. */
   statusLabel?: string;
+  /** Auth state, controlled by the surface. When false, Save my progress is surfaced contextually
+   *  (a small chip next to Q# after the first answer + a link in the Q navigator). */
+  authed?: boolean;
+  onSaveProgress?: () => void;
 }
 
-export function PracticeStage({ setId, questions: override, onDone, doneLabel, onReview, reference, campusName, campusSlug, surface, isTest, statusLabel = "Practice" }: PracticeStageProps) {
+export function PracticeStage({ setId, questions: override, onDone, doneLabel, onReview, reference, campusName, campusSlug, surface, isTest, statusLabel = "Practice", authed = false, onSaveProgress }: PracticeStageProps) {
   const q = useQuery({ queryKey: ["set-practice", setId], queryFn: () => fetchSetPractice({ data: { setId } }), enabled: !override, staleTime: 300_000, networkMode: "always" });
   const questions = useMemo<PracticeQuestion[]>(() => override ?? (q.data?.status === "ok" ? q.data.questions : []), [override, q.data]);
 
@@ -61,6 +65,11 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
   const [hi, setHi] = useState(0);                               // highlighted choice (keyboard)
   const [picked, setPicked] = useState<string | null>(null);
   const [results, setResults] = useState<Record<string, boolean>>({}); // ceqId → correct (latest)
+  // ceqId → the choice that was locked in. Navigating back to an answered question shows that
+  // result (no re-answer, no silent re-log); a retry pass clears the missed ones so they can be
+  // answered again. This is the session state the Q navigator reads.
+  const [pickedBy, setPickedBy] = useState<Record<string, string>>({});
+  const [navOpen, setNavOpen] = useState(false);
   const [seen, setSeen] = useState<Set<string>>(() => new Set());
   const [finished, setFinished] = useState(false);
   const [swap, setSwap] = useState(false);
@@ -85,6 +94,14 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
   const lastReached = useRef<{ setId: string; ceqId: string; pass: number } | null>(null);
   useEffect(() => { if (cur) lastReached.current = { setId, ceqId: cur.id, pass }; }, [cur, setId, pass]);
   const finishedRef = useRef(false); finishedRef.current = finished;
+  // Test Mode: mark step 5 the moment the "You've been through" screen renders — provided the
+  // pass ran with at least one correct + one incorrect (matches the spec's completion criterion).
+  useEffect(() => {
+    if (!finished) return;
+    const correct = Object.values(results).filter(Boolean).length;
+    const wrong   = Object.values(results).filter((v) => !v).length;
+    if (correct >= 1 && wrong >= 1) { void (async () => { const { markStep } = await import("@/lib/test-mode"); markStep("ceq", { correct, wrong, seen: seen.size }); })(); }
+  }, [finished, results, seen]);
   useEffect(() => () => { const l = lastReached.current; if (l && !finishedRef.current) log({ setId: l.setId, ceqId: l.ceqId, event: "abandon", attemptNumber: l.pass }); }, [log]);
 
   // ---- navigation ---------------------------------------------------------------------------------
@@ -94,8 +111,20 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
     if (next < 0) return;
     if (viaStep && cur && picked == null && !seen.has(cur.id)) log({ setId, ceqId: cur.id, event: "skip", attemptNumber: pass });
     setSwap(true);
-    window.setTimeout(() => { setPos(next); setPicked(null); setHi(0); revealedAt.current = Date.now(); setSwap(false); }, SWAP_MS);
-  }, [total, cur, picked, seen, log, setId, pass]);
+    window.setTimeout(() => { setPos(next); setPicked(pickedBy[questions[order[next]]?.id ?? ""] ?? null); setHi(0); revealedAt.current = Date.now(); setSwap(false); }, SWAP_MS);
+  }, [total, cur, picked, seen, log, setId, pass, pickedBy, questions, order]);
+
+  // JUMP (Q navigator): any question in the set, in any order. In a retry pass the order is the
+  // missed subset; jumping to a question outside it widens the pass back to the whole set.
+  const jumpTo = useCallback((qIndex: number) => {
+    setNavOpen(false);
+    let nextOrder = order, at = order.indexOf(qIndex);
+    if (at < 0) { nextOrder = questions.map((_, i) => i); at = qIndex; setOrder(nextOrder); }
+    if (at === pos && nextOrder === order) return;
+    setFinished(false);
+    setSwap(true);
+    window.setTimeout(() => { setPos(at); setPicked(pickedBy[questions[qIndex]?.id ?? ""] ?? null); setHi(0); revealedAt.current = Date.now(); setSwap(false); }, SWAP_MS);
+  }, [order, pos, questions, pickedBy]);
 
   const lockIn = useCallback((choiceId: string) => {
     if (!cur || picked) return;
@@ -103,6 +132,7 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
     if (!choice) return;
     const ms = Date.now() - revealedAt.current;
     setPicked(choiceId);
+    setPickedBy((m) => ({ ...m, [cur.id]: choiceId }));
     setResults((r) => ({ ...r, [cur.id]: !!choice.correct }));
     setSeen((s) => new Set(s).add(cur.id));
     addCoverage(setId, cur.id);
@@ -118,6 +148,7 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA")) return;
+      if (e.key === "Escape" && navOpen) { e.preventDefault(); setNavOpen(false); return; }
       if (finished || !cur) return;
       if (e.key === "ArrowDown") { e.preventDefault(); if (!picked) setHi((h) => Math.min(cur.choices.length - 1, h + 1)); }
       else if (e.key === "ArrowUp") { e.preventDefault(); if (!picked) setHi((h) => Math.max(0, h - 1)); }
@@ -127,7 +158,7 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [cur, picked, hi, finished, advance, lockIn, goTo, pos, onDone]);
+  }, [cur, picked, hi, finished, advance, lockIn, goTo, pos, onDone, navOpen]);
 
   // Swipe (mobile).
   const onTouchStart = (e: React.TouchEvent) => { touchX.current = e.touches[0]?.clientX ?? null; };
@@ -140,7 +171,10 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
 
   // ---- end of set → retry the missed ones ---------------------------------------------------------
   const missedIdx = useMemo(() => order.filter((i) => results[questions[i]?.id] === false), [order, results, questions]);
-  const retryMissed = () => { setOrder(missedIdx); setPass((p) => p + 1); setPos(0); setPicked(null); setHi(0); setFinished(false); revealedAt.current = Date.now(); };
+  const retryMissed = () => {
+    setPickedBy((m) => { const n = { ...m }; for (const i of missedIdx) delete n[questions[i]?.id ?? ""]; return n; });
+    setOrder(missedIdx); setPass((p) => p + 1); setPos(0); setPicked(null); setHi(0); setFinished(false); revealedAt.current = Date.now();
+  };
 
   // ---- states with a way forward -----------------------------------------------------------------
   if (!override && q.isLoading) return <div className="grid h-full w-full place-items-center text-[12px]" style={{ color: C.muted }}><span className="flex items-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</span></div>;
@@ -179,10 +213,55 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
           NOT shown to students: it rides into analytics and Ask-Lee submissions only. Keyboard
           shortcuts still work (↑↓ ⏎ ←→, Shift+→) without a hint strip. */}
       <div className="flex shrink-0 items-center gap-2 px-4 pt-3 sm:px-5">
-        <span className="rounded-full px-2.5 py-0.5 text-[11px] font-black uppercase tracking-wider tabular-nums" style={{ background: C.yellow, color: "#0B1322" }}>Q{order[pos] + 1} / {questions.length}</span>
+        {/* Q1 / 8 is the NAVIGATOR trigger — opens the set map (QuestionNav) below it. */}
+        <button
+          type="button"
+          onClick={() => setNavOpen((v) => !v)}
+          aria-haspopup="dialog"
+          aria-expanded={navOpen}
+          aria-label={`Question ${order[pos] + 1} of ${questions.length}. Open question navigator`}
+          className="flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-black uppercase tracking-wider tabular-nums"
+          style={{ background: C.yellow, color: "#0B1322", minHeight: 28 }}
+        >
+          Q{order[pos] + 1} / {questions.length}
+          <span aria-hidden style={{ fontSize: 9, marginLeft: 2 }}>{navOpen ? "▴" : "▾"}</span>
+        </button>
         {pass > 1 && <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: C.muted }}>Retry · {pos + 1} of {total}</span>}
-        <span className="ml-auto rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider" style={{ background: C.yellow, color: "#0B1322" }}>{statusLabel}</span>
+        {/* SAVE PROGRESS chip — signed-out students see it once they have something worth saving
+            (at least one answer in this session); a signed-in student sees a small green mark. */}
+        {onSaveProgress && Object.keys(pickedBy).length >= 1 && !authed && (
+          <button
+            type="button"
+            onClick={onSaveProgress}
+            aria-label="Save my progress"
+            className="ml-2 inline-flex items-center gap-1 rounded-full px-2 text-[10px] font-black uppercase tracking-wider"
+            style={{ minHeight: 24, color: C.yellow, border: `1px solid rgba(252,163,17,0.45)`, background: "rgba(252,163,17,0.08)" }}
+          >
+            <span aria-hidden>🔖</span>
+            <span>Save</span>
+          </button>
+        )}
+        {authed && Object.keys(pickedBy).length >= 1 && (
+          <span className="ml-2 inline-flex items-center gap-1 rounded-full px-2 text-[10px] font-black uppercase tracking-wider" title="Signed in — your progress saves automatically." style={{ minHeight: 24, color: C.green, background: "rgba(59,245,160,0.10)", border: `1px solid rgba(59,245,160,0.35)` }}>
+            <span aria-hidden>✓</span>
+            <span>Saved</span>
+          </span>
+        )}
+        {statusLabel && <span className="ml-auto rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider" style={{ background: C.yellow, color: "#0B1322" }}>{statusLabel}</span>}
+        {!statusLabel && <span className="ml-auto" />}
       </div>
+
+      {navOpen && (
+        <QuestionNav
+          questions={questions}
+          currentIndex={order[pos]}
+          results={results}
+          answered={pickedBy}
+          onJump={jumpTo}
+          onClose={() => setNavOpen(false)}
+          onSaveProgress={!authed ? onSaveProgress : undefined}
+        />
+      )}
 
       {/* THE CARD — swaps in place in ~120ms */}
       <div className="min-h-0 flex-1 px-4 pb-3 pt-3 sm:px-5 sm:pb-4" style={{ opacity: swap ? 0 : 1, transform: swap ? "translateX(8px)" : "none", transition: `opacity ${SWAP_MS}ms ease, transform ${SWAP_MS}ms ease` }}>
@@ -238,6 +317,65 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---- QUESTION NAVIGATOR — every position in the set, with the CURRENT SESSION's status:
+//      unattempted (neutral) · correct (green + check) · incorrect (red + X). Current question
+//      is outlined independently of its state. Click any tile to jump; never linear-only. ----------
+function QuestionNav({ questions, currentIndex, results, answered, onJump, onClose, onSaveProgress }: {
+  questions: PracticeQuestion[]; currentIndex: number; results: Record<string, boolean>; answered: Record<string, string>;
+  onJump: (qIndex: number) => void; onClose: () => void; onSaveProgress?: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onDown = (e: MouseEvent | TouchEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) onClose(); };
+    document.addEventListener("mousedown", onDown); document.addEventListener("touchstart", onDown);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("touchstart", onDown); };
+  }, [onClose]);
+  const done = questions.filter((q) => answered[q.id]).length;
+  return (
+    <div ref={ref} role="dialog" aria-label="Set progress" className="mx-4 mt-2 rounded-xl p-3 sm:mx-5" style={{ background: "#0b1020", border: `1px solid ${C.border}`, boxShadow: "0 16px 40px -20px rgba(0,0,0,0.8)" }}>
+      <div className="mb-2 flex items-center gap-2 text-[10.5px] font-black uppercase tracking-[0.12em]" style={{ color: C.muted }}>
+        <span>Set progress</span>
+        <span className="font-bold normal-case tracking-normal tabular-nums">{done} of {questions.length} answered</span>
+        <button type="button" aria-label="Close" className="ml-auto grid h-7 w-7 place-items-center rounded-full hover:bg-white/10" style={{ color: C.muted }} onClick={onClose}><span aria-hidden style={{ fontSize: 16, lineHeight: 1 }}>×</span></button>
+      </div>
+      {/* Save my progress → sits under the grid, right under the "N of M answered" line the student
+          just read. Kept small; the numbers stay the star of the panel. */}
+      {onSaveProgress && (
+        <div className="mb-2 flex items-center justify-end">
+          <button type="button" onClick={() => { onSaveProgress(); onClose(); }} className="rounded-lg px-2 py-1 text-[11.5px] font-black" style={{ minHeight: 32, color: C.yellow }}>
+            Save my progress →
+          </button>
+        </div>
+      )}
+      <div className="grid gap-1.5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(44px, 1fr))" }}>
+        {questions.map((q, i) => {
+          const state = answered[q.id] ? (results[q.id] ? "correct" : "incorrect") : "unattempted";
+          const isCur = i === currentIndex;
+          const bg = state === "correct" ? "rgba(59,245,160,0.16)" : state === "incorrect" ? "rgba(255,92,110,0.16)" : C.panel;
+          const fg = state === "correct" ? C.green : state === "incorrect" ? C.red : C.text;
+          const border = isCur ? C.yellow : state === "correct" ? "rgba(59,245,160,0.6)" : state === "incorrect" ? "rgba(255,92,110,0.6)" : C.border;
+          return (
+            <button
+              key={q.id}
+              type="button"
+              onClick={() => onJump(i)}
+              aria-current={isCur ? "true" : undefined}
+              aria-label={`Question ${i + 1}, ${state === "unattempted" ? "not attempted" : state}${isCur ? ", current" : ""}`}
+              title={`Q${i + 1} · ${state === "unattempted" ? "not attempted" : state}`}
+              className="flex items-center justify-center gap-0.5 rounded-lg text-[12.5px] font-black tabular-nums"
+              style={{ minHeight: 44, minWidth: 44, background: bg, color: fg, border: `${isCur ? 2 : 1}px solid ${border}`, boxShadow: isCur ? `0 0 0 2px rgba(252,163,17,0.25)` : "none" }}
+            >
+              {i + 1}
+              {state === "correct" && <CircleCheck aria-hidden className="h-3.5 w-3.5" />}
+              {state === "incorrect" && <CircleX aria-hidden className="h-3.5 w-3.5" />}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

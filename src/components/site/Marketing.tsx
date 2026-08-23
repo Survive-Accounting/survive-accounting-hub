@@ -11,10 +11,10 @@
 // through a route file is exactly what trips the TanStack code-splitter. Anything landing owns
 // (TestimonialsSlider, the player) arrives through slots/props instead.
 import { useEffect, useState } from "react";
-import { ClipboardCheck, Play, Target } from "lucide-react";
+import { ArrowLeftRight, ClipboardCheck, Play, Target } from "lucide-react";
 
 import { BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS } from "@/components/canvas/brand";
-import { AnimatedBoltHero, type BoltHeroStop } from "@/components/site/AnimatedBolt";
+import { AnimatedCampusBolt, type BoltCampus } from "@/components/site/bolt";
 import { CompactLockup } from "@/components/site/SiteHeader";
 import { NotListedForm } from "@/components/site/NotListedForm";
 import { scrollToId } from "@/lib/ui-scroll";
@@ -47,16 +47,24 @@ export const MARKETING_HERO_ID = "marketing-hero";
  *  MOBILE ORDER: headline → promise → built-for → CTAs → trust chips → bolt. The bolt is
  *  branding, not content — it comes from natural DOM order (no order-first), so it can never
  *  push the CTA out of the first viewport. Desktop keeps it as the right column. */
-export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltPick, onChangeSchool, secondaryHref, onSecondary, secondaryLabel, showSecondary = true, onOpenBio, courtesy, rotationStops }: {
+export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltPick, onChangeSchool, secondaryHref, onSecondary, secondaryLabel, showSecondary = true, onOpenBio, courtesy, rotationCampuses, campusBolt }: {
   kind: "general" | "campus" | "greek";
   /** Verified course code or null — a null degrades copy, never invents a code. */
   code: string | null;
   schoolShort: string | null;
   greek?: GreekMarketing;
-  /** GENERAL pages only: the school colourways the bolt cycles on load (AnimatedBoltHero rotates
-   *  every one, continuously, ~5s each). Without it the bolt wears the plain
-   *  brand red/blue. Campus/greek pages ignore this — they are pinned to their own school. */
-  rotationStops?: BoltHeroStop[];
+  /** GENERAL pages only: every school, ALREADY IN PLAY ORDER (landing runs orderCampuses over
+   *  CURATED_CAMPUS_ORDER). Without it the bolt wears the plain brand red/blue. Campus/greek pages
+   *  ignore this — they are pinned to their own school. */
+  rotationCampuses?: BoltCampus[];
+  /** CAMPUS/GREEK pages: that campus's own colours, as literal hex.
+   *
+   *  It used to be "var(--sa-bolt-1)" / "var(--sa-bolt-2)", read off the page root. The bolt has to
+   *  MEASURE the secondary now — a white or silver secondary is swapped for the school's accent —
+   *  and a CSS variable is not a colour until the browser resolves it, which is after first paint.
+   *  Passing the hex means a campus page paints the right colours on the very first frame, from
+   *  the same table the page root sets those variables from. */
+  campusBolt?: { c1: string; c2: string; accent?: string | null } | null;
   /** GENERAL pages: pressing the bolt while it shows a school means "that school" — the page
    *  navigates to that campus with the player preset, instead of merely scrolling. */
   onBoltPick?: (stopId: string) => void;
@@ -76,13 +84,19 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
   /** CourtesyLine slot on greek pages — "courtesy of {chapter}" for seated members. */
   courtesy?: React.ReactNode;
 }) {
-  // General pages ROTATE school colourways (rotationStops: every school, continuously, ~5s each
-  // — the breadth is the message), falling back to the brand
-  // red/blue when no list is supplied. Campus/greek pages inherit the page root's colourway vars
-  // (the ONE colour source; schools.ts disagrees for Ole Miss) and carry the campus plate.
-  const stops: BoltHeroStop[] = kind === "general"
-    ? (rotationStops?.length ? rotationStops : [{ id: "brand", c1: BRAND_RED, c2: BRAND_BLUE }])
-    : [{ id: schoolShort ?? "campus", c1: "var(--sa-bolt-1)", c2: "var(--sa-bolt-2)", name: schoolShort ?? undefined, code }];
+  // General pages FLOW through every school in the curated order (the breadth is the message),
+  // falling back to the brand red/blue when no list is supplied. Campus and greek pages hand in one
+  // campus and the conveyor runs on it alone — same component, same motion, one colourway.
+  const campuses: BoltCampus[] = kind === "general"
+    ? (rotationCampuses?.length ? rotationCampuses : [{ id: "brand", primary: BRAND_RED, secondary: BRAND_BLUE }])
+    : [{
+        id: schoolShort ?? "campus",
+        name: schoolShort ?? undefined,
+        code,
+        primary: campusBolt?.c1 ?? BRAND_RED,
+        secondary: campusBolt?.c2 ?? BRAND_BLUE,
+        accent: campusBolt?.accent ?? null,
+      }];
 
   const headline = code && schoolShort
     ? <><span style={{ color: "var(--accent)" }}>{code}</span> at {schoolShort} is where GPAs quietly slip.</>
@@ -156,25 +170,39 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
 
       {/* THE BOLT — after the copy in DOM order, so mobile reads headline→CTA→chips first. */}
       <div className="flex flex-col items-center lg:items-end">
-        <AnimatedBoltHero
-          stops={stops}
-          onActivate={(s) => (kind === "general" && onBoltPick && s.id !== "brand" ? onBoltPick(s.id) : onStart())}
-          className="sa-hero3-paper"
-          ariaLabel="Cram Exam 1 Free"
-        />
-        {/* Under the plate, not beside the CTA: this corrects "OLE MISS", so it belongs where
-            that word is. On a chapter page it leaves the chapter route entirely rather than
-            repainting this page as another campus — see landing.tsx. */}
-        {kind !== "general" && onChangeSchool && (
-          <button
-            type="button"
-            onClick={onChangeSchool}
-            className="mt-2 text-[13px] font-semibold underline underline-offset-4 transition-colors hover:text-[var(--brand-cream)]"
-            style={{ color: "var(--text-muted)", minHeight: 44, fontFamily: BRAND_SANS }}
-          >
-            Change school →
-          </button>
-        )}
+        {/* ONE COLUMN FOR THE BOLT AND ITS CONTROL. sa-hero3-paper carries the bolt's width AND a
+            6rem right margin on desktop; when that class sat on the bolt itself, `lg:items-end`
+            right-aligned the bolt's MARGIN box, so anything rendered under it (the change-school
+            control) landed 96px to the right of the artwork and read as unrelated furniture. The
+            class belongs on the column; everything inside it is centred on the bolt. */}
+        <div className="sa-hero3-paper flex flex-col">
+          <AnimatedCampusBolt
+            campuses={campuses}
+            onActivate={(c) => (kind === "general" && onBoltPick && c.id !== "brand" ? onBoltPick(c.id) : onStart())}
+            ariaLabel={code ? `Start studying ${code}` : "Cram Exam 1 Free"}
+            hint={code ? `Open ${code} ↓` : "Start studying ↓"}
+          />
+          {/* Under the plate, not beside the CTA: this corrects "OLE MISS", so it belongs where
+              that word is. On a chapter page it leaves the chapter route entirely rather than
+              repainting this page as another campus — see landing.tsx.
+              AN ICON, NOT A SENTENCE: "Change school →" was a line of utility copy sitting directly
+              under the artwork, and it read louder than the campus name it exists to correct. A swap
+              arrow says the same thing quietly. Deliberately NOT an ✕ — that promises "close" or
+              "remove", and this neither closes nor removes anything; it exchanges one school for
+              another. The label survives for screen readers and as a hover/focus tooltip. */}
+          {kind !== "general" && onChangeSchool && (
+            <button
+              type="button"
+              onClick={onChangeSchool}
+              aria-label="Change school"
+              title="Change school"
+              className="sa-hero-swap mt-1 inline-flex items-center justify-center self-center rounded-full"
+              style={{ color: "var(--text-muted)", width: 44, height: 44 }}
+            >
+              <ArrowLeftRight size={16} aria-hidden />
+            </button>
+          )}
+        </div>
       </div>
     </section>
   );
@@ -213,6 +241,13 @@ export function TrustChips({ onBio, onReviews, onPlayer }: { onBio: () => void; 
 
 /** Chip hover/focus styling — subtle brightness + a hair of lift, quick, reduced-motion safe. */
 export const MARKETING_CSS = `
+/* CHANGE-SCHOOL SWAP. A 44px touch target around a 16px glyph, so it is quiet to look at and still
+   comfortably tappable on a phone. It brightens rather than growing — nothing under the bolt should
+   move on hover except the bolt. */
+.sa-hero-swap { background: none; border: 0; padding: 0; cursor: pointer; opacity: 0.75; transition: color 140ms, opacity 140ms, background-color 140ms; }
+.sa-hero-swap:hover { color: var(--brand-cream); opacity: 1; background: rgba(245,239,230,0.08); }
+.sa-hero-swap:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; color: var(--brand-cream); opacity: 1; }
+
 /* PROOF STRIP. Quieter than every CTA: no lift, no glow, default cursor, muted text. The hover
    is a bare half-step of contrast so the badge is not dead to the pointer, nothing more. */
 .sa-trust-chip { display: inline-flex; align-items: center; gap: 5px; cursor: default; transition: color 140ms, border-color 140ms; }

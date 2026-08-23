@@ -44,6 +44,21 @@ export const COUNCILS = [
 export type CouncilSlug = (typeof COUNCILS)[number]["slug"];
 export const councilBySlug = (s: string) => COUNCILS.find((c) => c.slug === s) ?? null;
 
+/** THE ONE COUNCIL MATCHER. `campus_greek_chapters.council` is free text with no constraint, and it
+ *  holds every casing at once — "IFC" 899 times and "ifc" 140, "Panhellenic" 554 and "panhellenic"
+ *  73, "MGC" 231 and "mgc" 8. Any `.eq()` or `===` against it is a silent undercount, which is how a
+ *  Panhellenic page once got built from 1 of 12 chapters.
+ *
+ *  Compares a normalised form against the council's slug, short name AND full name, so a row saying
+ *  "IFC", "ifc" or "Interfraternity Council" all land on the same council. Exported because three
+ *  call sites had grown their own copy of this and one of them was missed. */
+const normCouncilValue = (v: string | null | undefined) => (v ?? "").toLowerCase().replace(/[^a-z]/g, "");
+export function councilMatches(council: { slug: string; name: string; full: string }, value: string | null | undefined): boolean {
+  const v = normCouncilValue(value);
+  if (!v) return false;
+  return v === normCouncilValue(council.slug) || v === normCouncilValue(council.name) || v === normCouncilValue(council.full);
+}
+
 const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com"];
 
 type CouncilState = { token: string; rotatedAt: string; lastOpenedAt?: string | null; lastAlertAt?: string | null };
@@ -130,10 +145,8 @@ export const getCouncilPage = createServerFn({ method: "POST" })
     const { data: rows } = await db.from("campus_greek_chapters")
       .select("id,slug,greek_org_id,council").eq("campus_id", campus.id)
       .not("slug", "is", null).limit(500);
-    const normCouncil = (v: string | null | undefined) => (v ?? "").toLowerCase().replace(/[^a-z]/g, "");
-    const wantCouncil = new Set([normCouncil(council.slug), normCouncil(council.name), normCouncil(council.full)]);
     const chs = ((rows ?? []) as Array<{ id: string; slug: string; greek_org_id: string | null; council: string | null }>)
-      .filter((c) => wantCouncil.has(normCouncil(c.council)));
+      .filter((c) => councilMatches(council, c.council));
     if (!chs.length) return null;
 
     const orgIds = [...new Set(chs.map((c) => c.greek_org_id).filter(Boolean))] as string[];
@@ -246,13 +259,28 @@ export const listCouncilPagesAdmin = createServerFn({ method: "POST" })
     const db = await admin();
     if (!(await isAdmin(db, data.accessToken))) return null;
 
-    const { data: camps } = await db.from("campuses").select("id,slug,name").eq("is_sec", true).not("slug", "is", null);
+    // EVERY campus WITH A ROSTER, not just the SEC. This was .eq("is_sec", true), which meant 50 of
+    // the 66 supported campuses could never appear here — and because this function is what MINTS a
+    // council's access token, a campus absent from this list has no council page at all. SEC-only
+    // was right when the SEC 16 were the whole product; the roster is on 66 campuses now.
+    //
+    // Driven FROM the roster rather than from the campus table: there are 946 campus rows and only a
+    // few dozen carry chapters, so listing campuses first would mean a 900-id `.in()` filter. Paged,
+    // because PostgREST caps a response at 1,000 and the roster is past 2,200.
+    const chs: Array<{ id: string; campus_id: string; council: string | null }> = [];
+    for (let from = 0; ; from += 1000) {
+      const { data } = await db.from("campus_greek_chapters")
+        .select("id,campus_id,council").not("slug", "is", null).range(from, from + 999);
+      const page = (data ?? []) as Array<{ id: string; campus_id: string; council: string | null }>;
+      chs.push(...page);
+      if (page.length < 1000) break;
+    }
+    const campusIds = [...new Set(chs.map((c) => c.campus_id))];
+    if (!campusIds.length) return [];
+    const { data: camps } = await db.from("campuses")
+      .select("id,slug,name").in("id", campusIds).is("archived_at", null).not("slug", "is", null).limit(1000);
     const schools = (camps ?? []) as Array<{ id: string; slug: string; name: string }>;
     const byId = new Map(schools.map((s) => [s.id, s]));
-
-    const { data: rows } = await db.from("campus_greek_chapters")
-      .select("id,campus_id,council").in("campus_id", schools.map((s) => s.id)).not("slug", "is", null).limit(2000);
-    const chs = (rows ?? []) as Array<{ id: string; campus_id: string; council: string | null }>;
 
     // Same shell indirection as the page query.
     const { data: shells } = await db.from("greek_chapters").select("id,campus_greek_chapter_id").limit(2000);
@@ -269,7 +297,12 @@ export const listCouncilPagesAdmin = createServerFn({ method: "POST" })
     const out: CouncilAdminRow[] = [];
     for (const s of schools) {
       for (const c of COUNCILS) {
-        const mine = chs.filter((x) => x.campus_id === s.id && x.council === c.slug);
+        // NORMALISED, like every other council match in this file. `x.council === c.slug` compared a
+        // free-text column against a lowercase slug, and the column holds "IFC" 899 times against
+        // "ifc" 140 — so this saw about a seventh of the real rows. Worse than an undercount: the
+        // `continue` below skips a council it believes is empty, and skipping means no token is ever
+        // minted, so that campus's council page could not be generated at all.
+        const mine = chs.filter((x) => x.campus_id === s.id && councilMatches(c, x.council));
         if (!mine.length) continue;                       // only councils that actually exist here
         const k = keyOf(s.slug, c.slug);
         if (!map[k]) { map[k] = { token: newToken(), rotatedAt: new Date().toISOString() }; dirty = true; }

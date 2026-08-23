@@ -1,0 +1,28 @@
+Priority,Campus,Course,Professor,Current Students,Current Professor Selections,Syllabus Availability,Latest Syllabus,Textbook Known,Mapping Status,Reason
+P1,University of Florida,ACG 2021,,,,High,2026,Yes,proposed,source_class A; URL-template enumerator over asset.warrington.ufl.edu/syllabi/ (
+P1,Park University,AC 201,,,,High,2026,Yes,proposed,source_class A; ID-crawl adapter for app.park.edu/syllabus/syllabus.aspx?ID= (ne
+P1,University of Arkansas,ACCT 2013,,,,Medium,template (textbook dated 2010; catalog ref 2011-2012),Yes,proposed,source_class B; dept syllabus archive (walton.uark.edu/advising/files/syllabi/<C
+P1,Texas A&M University,ACCT 229,,,,High,2026,No,proposed,source_class A; Simple Syllabus SaaS adapter (tenant.simplesyllabus.com) — brows
+P1,University of Texas at Austin,ACC 311,,,,High,2020,Yes,proposed,source_class A; Texas HB2504 repo (utdirect coursedocs no-login search + stable 
+P1,University of Alabama,AC 210,,,,High,2022,Yes,proposed,"source_class A; Dedicated OIRA syllabus adapter: enumerate by term code + id, fo"
+P1,University of Georgia,ACCT 2101,,,,High,2022,Yes,proposed,source_class A; UGA Bulletin syllabus adapter: enumerate ?Syllabus={id} with a h
+P2,Liberty University,ACCT 211,,,,Medium,2026,No,proposed,source_class B; Course-Guide-PDF + online-course-page adapter (predictable /onli
+P2,University of Texas at Arlington,ACCT 2301,,,,Medium,2019,No,proposed,source_class B; UTA Mentis / Academic Web Pages profile-crawler (discover opaque
+P2,Tarrant County College,ACCT 2301,,,,Medium,2024,No,proposed,source_class B; Ellucian WebAdvisor 'DisplaySyll' parameterized-PDF adapter (enu
+P2,Louisiana State University,ACCT 2001,,,,Low,,Yes,proposed,source_class C; No clean adapter for main campus (login-gated custom app). Optio
+P2,Houston Community College,ACCT 2301,,,,High,2017,No,proposed,source_class A; Concourse SaaS adapter (tenant.campusconcourse.com search + doc 
+P2,Lone Star College,ACCT 2301,,,,High,2025,No,proposed,source_class A; Simple Syllabus SaaS adapter (tenant=lonestar) — SAME adapter as
+P2,University of Mississippi (Ole Miss),ACCY 201,,,,Medium,2026,No,proposed,"source_class B; Structured URL-template adapter for iStudy syllabi + catalog, bu"
+P2,Miami Dade College,ACG 2021,,,,Medium,1999,No,proposed,source_class B; URL-template competency-PDF adapter over /asa/documents/competen
+P3,University of Oklahoma,ACCT 2013,,,,Manual,2021,No,proposed,source_class D; CourseLeaf catalog scraper + textbookbrokers.com bookstore API f
+P3,University of Kentucky,ACC 201,,,,Manual,1998 (historical),Yes,proposed,source_class D; manual VA (faculty pages blocked/stale; live syllabi behind rest
+P3,"University of California, Los Angeles",MGMT 1A,,,,Manual,2024,Yes,proposed,source_class D; No structured public source; syllabi only on Studocu/Course Hero
+P4,"University of Tennessee, Knoxville",ACCT 200,,,,Manual,,No,proposed,source_class D; manual VA (public .edu yields catalog only; real docs behind Stu
+P4,Auburn University,ACCT 2110,,,,Manual,,No,proposed,source_class D; manual VA (catalog + curriculum PDFs only; real docs behind rest
+P4,Mississippi State University,ACC 2013,,,,Manual,,No,proposed,source_class D; manual VA; investigate online.msstate.edu/files/pdfs/syllabus/ d
+P4,Vanderbilt University,BUS 1100,,,,Manual,,No,proposed,source_class D; manual VA (no undergrad business major -> minimal public syllabi
+P4,University of Missouri,ACCTCY 2026,,,,Manual,,No,proposed,source_class D; Catalog scraper for course descriptions only; real syllabi/study
+P4,University of South Carolina,ACCT 225,,,,Manual,2025,No,proposed,source_class D; Bulletin/major-map scraper for structure; actual ACCT 225 syllab
+P4,University of South Florida,ACG 2021,,,,Manual,2025,No,proposed,source_class D; Catalog scraper for structure; real syllabi/study guides only on
+P4,Hawaii Pacific University,ACCT 2010,,,,Manual,2026,No,proposed,source_class D; Catalog scraper for course descriptions/codes only. Syllabus-lev
+P4,University of Arizona,ACCT 200,,,,Manual,2026,No,proposed,source_class D; Catalog + Eller curriculum scraper for codes/descriptions only. 

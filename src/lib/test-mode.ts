@@ -86,6 +86,13 @@ export function endTestSession(): void {
   try { sessionStorage.removeItem(TEST_SESSION_KEY); } catch { /* ignore */ }
 }
 
+/** RETIRED — the student in-player guided-run (Test Mode Phase A/B) tracked steps as a student
+ *  used the player. That system was superseded by the Greek-lifecycle Test Mode in this file, so
+ *  markStep is now a no-op: the player's former call sites (PracticeStage, SaveProgress, landing)
+ *  still import and call it, they just record nothing. Removing the calls would be churn for zero
+ *  behaviour change; a no-op export keeps this module the single Test Mode surface. */
+export const markStep = (_step: string, _meta?: unknown): void => {};
+
 // ── the fixtures ───────────────────────────────────────────────────────────────────────────────
 /** The dedicated campus and chapter testers transact against. Real pages, real code paths, but
  *  rows nobody minds destroying — and excluded from every picker, ticker, sitemap and count. */

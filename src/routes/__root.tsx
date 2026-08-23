@@ -4,10 +4,13 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+import { initAnalytics, capturePageview } from "@/lib/analytics";
+import { initSentry, setSentryRoute, captureError } from "@/lib/sentry";
 // NOTE: this is a TanStack Start (React) app, NOT Next.js — use the "/react"
 // entrypoints, not "@vercel/analytics/next".
 import { Analytics } from "@vercel/analytics/react";
@@ -45,6 +48,7 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
   useEffect(() => {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
+    captureError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
 
   return (
@@ -122,11 +126,7 @@ function RootShell({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        {/* TEST MODE. Mounted at the root so the banner follows a tester across every page,
-            including the fixtures and the real site. It renders nothing unless the session says
-            test mode AND the server confirms TEST_MODE_ENABLED. */}
-        <TestModeBar />
-        {children}
+                {children}
         {/* Vercel Web Analytics (page views/visitors) + Speed Insights (real-user
             performance). Client-only: no-op in dev, active on the Vercel deploy. */}
         <Analytics />
@@ -139,9 +139,18 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // PostHog (product analytics). No-op unless VITE_PUBLIC_POSTHOG_KEY is set;
+  // init resolves then captures the first pageview, and each route change after.
+  useEffect(() => { void initAnalytics().then(() => capturePageview(window.location.pathname)); }, []);
+  useEffect(() => { capturePageview(pathname); }, [pathname]);
+  // Sentry (error monitoring). No-op unless VITE_PUBLIC_SENTRY_DSN is set. Tag
+  // the route so errors group per page (feeds /admin/site-qa error attribution).
+  useEffect(() => { void initSentry().then(() => setSentryRoute(window.location.pathname)); }, []);
+  useEffect(() => { setSentryRoute(pathname); }, [pathname]);
   return (
     <QueryClientProvider client={queryClient}>
+      <TestModeBar />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
     </QueryClientProvider>

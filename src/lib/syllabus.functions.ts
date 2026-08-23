@@ -121,6 +121,13 @@ export const submitNotify = createServerFn({ method: "POST" })
       campusId: z.string().uuid().nullable().optional(),
       campusName: z.string().trim().max(120).nullable().optional(),
       professorName: z.string().trim().max(120).nullable().optional(),
+      // CONTEXT from the player (08-21): what they tried to reach, so the lead says
+      // "wants:cram · exam:Exam 1 · topic:… · set:…" instead of just "notify".
+      want: z.enum(["cram", "review", "exam", "pass"]).nullable().optional(),
+      examNum: z.number().int().min(1).max(99).nullable().optional(),
+      courseCode: z.string().trim().max(40).nullable().optional(),
+      note: z.string().trim().max(400).nullable().optional(),
+      isTest: z.boolean().optional(),
     }).parse(d),
   )
   .handler(async ({ data }): Promise<{ ok: true }> => {
@@ -136,7 +143,8 @@ export const submitNotify = createServerFn({ method: "POST" })
       email: kind === "email" ? data.contact : null,
       phone: kind === "phone" ? data.contact : null,
       campusId: data.campusId ?? null, campusName: data.campusName ?? null, professor: data.professorName ?? null,
-      topic: data.topic ?? null, sourcePath: `/#${NOTIFY_SOURCE}`, smsConsent: kind === "phone",
+      topic: data.topic ?? null, exam: data.examNum ?? null, courseCode: data.courseCode ?? null, note: data.note ?? null,
+      sourcePath: `/#${NOTIFY_SOURCE}${data.want ? `:${data.want}` : ""}`, smsConsent: kind === "phone", isTest: !!data.isTest,
     });
     return { ok: true };
   });

@@ -385,6 +385,25 @@ export const submitOrder = createServerFn({ method: "POST" })
       if (chErr) throw new Error(chErr.message);
     }
 
+    // Referral attribution (best-effort, non-blocking). If this browser carries a first-party
+    // `sa_ref` cookie from a /r/<code> click within the window, record a SIGNUP conversion that
+    // ties this order to that referral partner — the durable join the Conversions "Sync order
+    // purchases" reconcile later turns into a purchase + commission from the real order total.
+    // Wrapped so a referral hiccup can NEVER break order creation.
+    try {
+      const { getRequest } = await import("@tanstack/react-start/server");
+      const { recordConversionForRequest } = await import("@/lib/referral.server");
+      await recordConversionForRequest(getRequest(), {
+        kind: "signup",
+        subjectType: "order",
+        subjectId: orderId,
+        email: orderRow.email as string,
+        amountCents: 0,
+      });
+    } catch (e) {
+      console.warn("referral attribution skipped:", (e as Error).message);
+    }
+
     return {
       shortRef,
       tier: data.tier,

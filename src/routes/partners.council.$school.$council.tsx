@@ -4,27 +4,28 @@
 // command centre for a chair we are already working with). This is the page that goes in the cold
 // email, so it is server-rendered, indexable-by-choice, and gated on nothing.
 //
-// IT KNOWS THE CAMPUS, so it uses the campus problem line — "ACCY 201 at Ole Miss is where GPAs
-// quietly slip." — and wears that school's bolt colourway, exactly like the student campus page.
-// A council officer seeing their own school's colours and their own course code is the entire
-// argument that this is built for them and not a template.
+// REBUILT to the "show the product, make sharing obvious" brief. It no longer explains how the
+// roster works or renders a metrics dashboard; it shows the campus problem, then the actual
+// student product (StudentPreview), then the chapters to share with, then the one action —
+// Share with all chapters — repeated where the officer finishes reading. Everything a council
+// officer needs to decide and act, nothing about our data pipeline.
 import { createFileRoute, notFound } from "@tanstack/react-router";
+import { useState } from "react";
 
 import { PartnerPageShell } from "@/components/site/PartnerPage";
-import {
-  PartnerEntityTable, PartnerHero, PartnerMetrics, PartnerPrimary,
-  PartnerRowAction, PartnerSecondary, PartnerSection, PartnerStatus, PartnerToolkit,
-} from "@/components/site/PartnerKit";
+import { PartnerHero, PartnerPrimary, PartnerSecondary, PartnerSection } from "@/components/site/PartnerKit";
+import { StudentPreview, previewCampus } from "@/components/site/StudentPreview";
+import { ShareChaptersModal } from "@/components/site/ShareChaptersModal";
+import { FeatureValueStrip } from "@/components/site/Marketing";
 import { getCouncilPartner } from "@/lib/partners.functions";
-import { PARTNER_OFFER, problemHeadline } from "@/lib/partners";
+import { LEE_PHONE_DISPLAY, LEE_SMS_HREF, councilGroupMessage, councilPresidentEmail, problemHeadline } from "@/lib/partners";
 import { boltForSlug } from "@/lib/schools";
+import { boltCampusFor } from "@/components/site/bolt";
 import { ogMeta } from "@/lib/og";
 
 const ORIGIN = "https://surviveaccounting.com";
 
 export const Route = createFileRoute("/partners/council/$school/$council")({
-  // Server-loaded so the hero, the metric shells and the chapter table are all in the first byte.
-  // Reference data that changes when a chapter is claimed — ten minutes of route cache is plenty.
   loader: async ({ params }) => {
     const page = await getCouncilPartner({ data: { schoolSlug: params.school, councilSlug: params.council } });
     if (!page) throw notFound();
@@ -59,103 +60,91 @@ export const Route = createFileRoute("/partners/council/$school/$council")({
 
 function CouncilPartnerPage() {
   const d = Route.useLoaderData();
+  const [share, setShare] = useState(false);
   const bolt = boltForSlug(d.schoolSlug);
   const course = d.courseCode ?? "intro accounting";
-  const shareUrl = `${ORIGIN}/chapters?school=${d.schoolSlug}`;
 
-  const emailCopy = [
-    `Subject: Free ${course} exam prep for every ${d.councilName} chapter`,
-    ``,
-    `Hey — quick one for your chapter's academics chair.`,
-    ``,
-    `Survive Accounting makes ${course} cram videos and practice exams for ${d.schoolName} students. Exam 1 is free for every member, and every chapter here already has its own page:`,
-    ``,
-    `${ORIGIN}/chapters?school=${d.schoolSlug}`,
-    ``,
-    `Takes about a minute to send to the house. No cost to the council.`,
-  ].join("\n");
+  const bc = boltCampusFor(d.schoolSlug, { name: d.schoolName, code: d.courseCode });
+  const preview = previewCampus({ key: d.schoolSlug, name: d.schoolName, code: d.courseCode, primary: bc.primary, secondary: bc.secondary, href: `/${d.schoolSlug}` });
+  const shareLinks = d.chapters.map((c) => ({ label: c.name, url: `${ORIGIN}${c.goPath}` }));
 
-  const groupCopy = `Free ${course} exam prep for the whole house ⚡ Exam 1 is free — find our chapter here: ${shareUrl}`;
+  const shareModal = share ? (
+    <ShareChaptersModal
+      title="Share with all chapters"
+      subtitle={`${d.councilName} at ${d.schoolName}`}
+      email={councilPresidentEmail({ councilName: d.councilName, schoolName: d.schoolName, courseCode: d.courseCode, schoolSlug: d.schoolSlug })}
+      message={councilGroupMessage({ schoolName: d.schoolName, courseCode: d.courseCode, schoolSlug: d.schoolSlug })}
+      links={shareLinks}
+      onClose={() => setShare(false)}
+    />
+  ) : null;
 
   return (
-    <PartnerPageShell boltVars={bolt} faqs={COUNCIL_FAQS(d.councilName, course)}>
+    <PartnerPageShell boltVars={bolt} faqs={COUNCIL_FAQS(course)}>
       <PartnerHero
         eyebrow={`${d.councilName} at ${d.schoolName}`}
         headline={problemHeadline(d.courseCode, d.schoolName)}
         subhead="Help every chapter get ahead of it."
-        body={`Give your chapters free exam prep built specifically for ${course} at ${d.schoolName}. Exam 1 is free for every member, and every chapter already has its own page.`}
-        bolt={[{ id: d.schoolSlug, c1: "var(--sa-bolt-1)", c2: "var(--sa-bolt-2)", name: d.schoolName, code: d.courseCode }]}
-        boltLabel={`${course} at ${d.schoolName}`}
+        body={`Free Exam 1 cram videos + practice exams built for ${course}.`}
+        bolt={[bc]}
+        boltLabel={`${course} · ${d.schoolName}`}
         actions={
           <>
-            <PartnerPrimary href="#toolkit">Share with all chapters</PartnerPrimary>
-            <PartnerSecondary disabled title="Launch kits are still being built">Download launch kit</PartnerSecondary>
-            <a href="sms:+16625658818" className="text-[14px] font-bold underline underline-offset-4" style={{ color: "var(--text-muted)", minHeight: 44, display: "inline-flex", alignItems: "center" }}>Questions? Text Lee →</a>
+            <PartnerPrimary onClick={() => setShare(true)}>Share with all chapters →</PartnerPrimary>
+            <PartnerSecondary href={LEE_SMS_HREF}>Text Lee {LEE_PHONE_DISPLAY}</PartnerSecondary>
           </>
         }
       />
 
-      <PartnerSection
-        title={`${d.councilName} at ${d.schoolName}`}
-        note="Live from the chapter roster this site already runs on."
-      >
-        <PartnerMetrics
-          metrics={[
-            { label: "Chapters on file", value: d.totalChapters },
-            { label: "Claimed by an exec", value: d.claimedChapters },
-            // NOT INSTRUMENTED YET. Rendered as an honest dash rather than a zero that reads as
-            // "nobody uses this" or a number nobody measured. See partners.functions.ts.
-            { label: "Students reached", value: null, empty: "not tracked yet" },
-            { label: "Course supported", value: d.courseCode ?? "—", ...(d.courseCode ? {} : { empty: "no verified code yet" }) },
-          ]}
-        />
+      <PartnerSection title="What your chapters get">
+        <StudentPreview campuses={[preview]} />
       </PartnerSection>
 
-      <PartnerSection title="Your chapters" note="Every chapter already has a live page. Nothing to set up.">
-        <PartnerEntityTable
-          columns={[{ key: "chapter", label: "Chapter" }, { key: "status", label: "Status" }]}
-          rows={d.chapters.map((c) => ({
-            id: c.slug,
-            cells: { chapter: c.name, status: <PartnerStatus claimed={c.claimed} /> },
-            action: <PartnerRowAction href={c.goPath} />,
-          }))}
-        />
-      </PartnerSection>
+      <FeatureValueStrip code={d.courseCode} />
 
-      <div id="toolkit" className="mt-14">
-        <PartnerToolkit
-          title="Share Survive with your chapters"
-          items={[
-            { title: "President email", body: "The note to send your chapter presidents. Ready to paste.", copy: emailCopy, cta: "Copy email →" },
-            { title: "GroupMe / text", body: "One line for the group chat, with the campus link already in it.", copy: groupCopy, cta: "Copy message →" },
-            { title: "Individual chapter links", body: "Every chapter's own page — the list above links straight to them.", href: `/chapters?school=${d.schoolSlug}`, cta: "View all links →" },
-            { title: "Chapter flyers", body: "Printable flyers with each chapter's QR code.", cta: "Download flyers", soon: true },
-          ]}
-        />
-      </div>
-
-      <PartnerSection title="What your chapters get" note={PARTNER_OFFER + ", matched to the course they actually take."}>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {[
-            { t: "Quick cram videos", b: "Made for exams, not lectures." },
-            { t: "Practice exams", b: "The problems that actually get tested." },
-            { t: `Built for ${course}`, b: `Coverage matched to ${d.schoolName}, not a generic course.` },
-          ].map((v) => (
-            <div key={v.t} className="rounded-2xl px-4 py-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
-              <p className="text-[15px] font-black" style={{ color: "var(--brand-cream)" }}>{v.t}</p>
-              <p className="mt-1 text-[13.5px]" style={{ color: "var(--text-muted)" }}>{v.b}</p>
-            </div>
+      <PartnerSection title="Your chapters" note={`${d.totalChapters} chapter${d.totalChapters === 1 ? "" : "s"} at ${d.schoolName}`}>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {d.chapters.map((c) => (
+            <ChapterCard key={c.slug} name={c.name} letters={c.letters} goPath={c.goPath} claimed={c.claimed} />
           ))}
         </div>
+        <div className="mt-6 flex justify-center sm:justify-start">
+          <PartnerPrimary onClick={() => setShare(true)}>Share with all chapters →</PartnerPrimary>
+        </div>
       </PartnerSection>
+
+      {shareModal}
     </PartnerPageShell>
   );
 }
 
-const COUNCIL_FAQS = (council: string, course: string) => [
-  { q: "What does this cost the council?", a: "Nothing. Exam 1 is free for every member of every chapter, whether or not the council does anything. Chapters that want the rest of the semester can sponsor seats, but that is a chapter decision, not a council one." },
-  { q: "What do we actually have to do?", a: `Send one message. The toolkit above has the email and the group-chat line, both already carrying your campus link — chapters do the rest from their own pages.` },
-  { q: "Do you share grades or performance?", a: "No. We never collect grades, and nothing on any council page ranks chapters by performance. The only thing shown is whether a chapter has claimed its page." },
-  { q: "Is this matched to our course?", a: `Yes — ${course} at your campus, not a generic intro course. Coverage is mapped per campus and per professor where students tell us who teaches them.` },
-  { q: `Which ${council} chapters are included?`, a: "All of them. Every chapter on the roster has a page already, claimed or not — that is what the list above is." },
+/** A chapter row built for DISTRIBUTION: copy its link or open its page. Claim status is present
+ *  but visually secondary — the officer's job here is to spread the link, not to audit it. */
+function ChapterCard({ name, letters, goPath, claimed }: { name: string; letters: string | null; goPath: string; claimed: boolean }) {
+  const [copied, setCopied] = useState(false);
+  const url = `${ORIGIN}${goPath}`;
+  const copy = async () => {
+    try { await navigator.clipboard.writeText(url); setCopied(true); window.setTimeout(() => setCopied(false), 1600); } catch { /* blocked */ }
+  };
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-xl px-3.5 py-3" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          {letters && <span className="shrink-0 text-[13px] font-black" style={{ color: "var(--accent)" }}>{letters}</span>}
+          <span className="min-w-0 truncate text-[14px] font-bold" style={{ color: "var(--brand-cream)" }}>{name}</span>
+        </div>
+        {claimed && <span className="mt-0.5 block text-[11px]" style={{ color: "var(--text-muted)" }}>Claimed by an exec</span>}
+      </div>
+      <div className="flex shrink-0 gap-1.5">
+        <button type="button" onClick={copy} className="rounded-lg px-2.5 text-[12px] font-black" style={{ minHeight: 38, background: "rgba(252,163,17,0.14)", color: "var(--accent)" }}>{copied ? "Copied ⚡" : "Copy link"}</button>
+        <a href={goPath} className="inline-flex items-center rounded-lg px-2.5 text-[12px] font-black" style={{ minHeight: 38, background: "var(--bg-overlay)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}>Open page</a>
+      </div>
+    </div>
+  );
+}
+
+const COUNCIL_FAQS = (course: string) => [
+  { q: "Does this cost the council?", a: "No. Exam 1 is free. Chapters can choose to sponsor full-semester seats for Exams 2, 3 and the Final." },
+  { q: "Is this actually built for our course?", a: `Yes. Survive is matched to your campus's intro accounting course (${course}), and students can match their professor for more specific coverage.` },
+  { q: "What do I send my chapters?", a: "We'll give you a ready-to-send president email, GroupMe message and a unique page for every chapter." },
 ];

@@ -674,12 +674,6 @@ html.sa-navy body {
    permanently visible (small, muted) on touch, where there is no hover to
    reveal it with. Keyboard users get it on focus, or it would be unreachable.
    --------------------------------------------------------------------------- */
-.sa-passline-x { opacity: 0; transition: opacity 140ms ease; }
-.sa-passline:hover .sa-passline-x,
-.sa-passline-x:focus-visible { opacity: 1; }
-@media (hover: none) {
-  .sa-passline-x { opacity: 0.5; }
-}
 
 
 /* ── PASS 7 ──────────────────────────────────────────────────────────────────────────────────
