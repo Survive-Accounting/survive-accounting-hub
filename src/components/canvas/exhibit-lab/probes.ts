@@ -53,13 +53,15 @@ export function probeById(id: string): Probe | undefined {
 
 // ---------------------------------------------------------------- exhibits
 
-/** The exhibits the Lab knows. T-accounts, the JE grid, F/S and Formulas are
- *  DEFERRED — not registered here, untouched this pass. */
-export type ExhibitId = "cycle" | "rubric";
+/** The exhibits the Lab knows. Formulas stays DEFERRED — not registered here. */
+export type ExhibitId = "cycle" | "rubric" | "je" | "taccount" | "statements";
 
 export const EXHIBITS: readonly { id: ExhibitId; name: string; blurb: string }[] = [
   { id: "cycle", name: "The Accounting Cycle", blurb: "The nine steps around the oval — definitions, self-test, build." },
-  { id: "rubric", name: "The Rubric", blurb: "A = L + E | Revs & Exps — the zoom: type → account → sign → repeat." },
+  { id: "rubric", name: "The Rubric", blurb: "A = L + E | Revs & Exps — types, signs, normal balances, movements." },
+  { id: "je", name: "Journal Entry", blurb: "The entry revealed one piece at a time — ??? until it is not." },
+  { id: "taccount", name: "T-Accounts", blurb: "The ledger filling up: staggered, labelled, one entry per keypress." },
+  { id: "statements", name: "Financial Statements", blurb: "Where it lands — IS → R/E bridge → BS, and the A = L + E tie-out." },
 ] as const;
 
 // ------------------------------------------------------ the reference shape

@@ -1,3 +1,163 @@
+# Ledger exhibits — Journal Entry · T-Accounts · Financial Statements (branch `exhibit-lab-v2`)
+
+The three tools Lee remembered from earlier versions of the app, unearthed, rebuilt on the Lab's
+current UX, and — the point — **wired to each other and to the rubric**. Filming-side first;
+nothing student-facing ships.
+
+## What was already there (the dig)
+
+| Old asset | Verdict |
+|---|---|
+| `je-logic.ts` (413 lines, pure, tested) | The sophisticated part: sides, moves/hops, memos, `autoBalance`, `balanceState`, `blankFrom`. Still good — but coupled to the canvas card's node/dispatcher model. |
+| `JeCardNode.tsx` (1,526 lines) | The heavy authoring card: guided/practice, answer key, reveal-correct, spotlight, `hidden` stepper, ???-until-valued amounts. Too much surface to drag into the Lab. |
+| `TAccountCardNode` (in `OtherCards.tsx`, ~78 lines) | Thin: two stacked lists + a net balance. The `TAccountEntry.label` field already existed — the labelled-amount idea was right, the presentation wasn't. |
+| `ScheduleCard` presets `incomestmt` / `balancesheet` | A generic table engine, not a statement that knows what it means. |
+
+**Kept none of the components; kept the ideas.** The old cards stay exactly where they are, untouched
+— this is a new Lab surface, not a migration.
+
+## The connection that makes them one system
+
+A rubric `Scenario.entry` (`Chip[]`) **already is a journal entry**. So one transaction bank drives
+all three exhibits, and `ledger-model.ts` is the only new model:
+
+```
+RUBRIC  →  JOURNAL ENTRY  →  T-ACCOUNTS  →  STATEMENTS
+(type)      (dr / cr)        (balances)     (where it lands)
+```
+
+Every account carries its rubric `AcctType`, so signs, normal balances and statement placement come
+from `rubric-view` — the same source the probes grade against. Nothing is re-derived (pinned by a
+test that greps the three components for hand-rolled side logic).
+
+## 1. Journal Entry (`JournalEntryExhibit.tsx`)
+
+- **One piece at a time**: description → each line's ACCOUNT → its AMOUNT. Unrevealed pieces print
+  `???` — present, unreadable, obviously pending (Lee's "they're ??? or they're shown").
+- **Spotlight**: click a line to light it and dim the rest.
+- Switches: the rubric **type chip**, that type's **(+/−) pair**, the **Dr = Cr proof**, and
+  **posting glyphs** showing which column each line lands in — the seed of the JE→T connection.
+- `Tab` forward · `Shift+Tab` back · `` ` `` blank · `A` all · `7 8 9 0` switches.
+
+## 2. T-Accounts (`TAccountExhibit.tsx`)
+
+- **Staggered**: debits and credits interleave down the T in posting order, so the story reads in
+  time instead of as two stacked columns.
+- **Every amount is labelled** — "Beg. balance", the transaction that put it there, "End. balance".
+  No unexplained numbers, asserted by a test over every row of every account.
+- **`Tab` posts the next journal entry** into every account it touches at once; the rows that just
+  landed flash gold, and balances count up *with* the story rather than jumping to the end.
+- The ending balance sits under its own rule, on its own side, and the ledger proves itself with a
+  **trial balance**.
+
+## 3. Financial Statements (`StatementsExhibit.tsx`)
+
+- Built from the same posted balances: **Income Statement → R/E bridge → Balance Sheet**, with
+  arrows carrying net income across. The R/E panel sits between them because that is exactly what
+  the rubric calls it.
+- Reveal builds it in seven beats, ending on the **A = L + E tie-out**.
+
+## Four defects found by looking at the pixels and the math
+
+1. **The expense total printed ABOVE its own detail lines.** A total above the lines it sums reads
+   as an error on camera. Detail first, then the total under its rule.
+2. **`Dividends -0`.** Negative zero is not a number a statement may print.
+3. **A net LOSS wore the success colour.** An exhibit that paints a loss green teaches the wrong
+   reflex — a loss is now "NET LOSS" in the warning colour, panel border and bridge label included.
+4. **An asset with a credit balance was reported as a positive asset**, silently breaking A = L + E.
+   Caught by a test that runs *every* seeded scenario through the balance sheet alone: pay rent with
+   no opening cash and Cash carries a credit balance. Statement rows are now **signed against the
+   account's normal side**.
+
+## Verification
+
+- 1,478 tests pass (80 in the Lab file); `tsc --noEmit` clean.
+- The accounting is tested, not eyeballed: every seeded entry balances, one account accumulates
+  across transactions on the right sides, the trial balance ties, R/E = beginning + NI − dividends,
+  dividends reduce equity without touching net income, and every scenario balances the sheet alone.
+- Screenshots in `docs/screenshots/ledger-exhibits/`.
+
+## Deliberately not built
+
+Drag-to-journal-entry, probes on these three (the `exhibit + probe` reference shape is ready and
+nothing is wired), student-facing routes, and the Formulas exhibit. The old canvas cards are
+untouched.
+
+---
+
+# Rubric v3 — the full picture, on switches (branch `exhibit-lab-v2`)
+
+The rubric is not one picture; it is a picture with switches. Each CEQ wants a different amount of
+it on screen, so every piece now turns on and off independently and a **mode** is a named set of
+switches for the question being taught.
+
+## 1. The full picture (Lee's MEMORIZE! slide)
+
+Turn `accounts` on and every type shows every account at once — the whole COA in one frame, which
+is the picture for *"what is the normal balance of ___"*. Assets split **CURRENT / LONG TERM**
+(the split is a seam index into the flat list, so the probes still narrow against one source of
+truth), and long-term gains Vehicles · Buildings · Land.
+
+**Contra accounts are called out** the way the slide calls them out: Accumulated Depreciation and
+Dividends render bold with their **flipped** pair beside them in bolt-orange.
+
+## 2. The signs moved ABOVE the rubric
+
+`(+/−)` / `(−/+)` sit above each element — Lee's preferred spot — bigger, and **both glyphs share
+one colour**. The coloured `+` is no longer decoration: it arrives only when the `normal` switch is
+on, so lighting the normal balance is a deliberate teaching beat. The mini T-account survives as
+its own switch (the debit-column/credit-column lesson), off by default.
+
+## 3. Click a letter → that element opens in place
+
+Clicking `A` (or pressing `1`) opens **that** element's definition + account list under it; the
+others stay as they are. A switch opens them all at once. Opening any column claims the full width
+for every column, so the equation never re-flows halfway through a build.
+
+Zoom survives for a focused shot: **Shift+1–5**, breadcrumb rail, `Esc` to come back.
+
+## 4. Movement arrows — ↑ ↓ ↑↓
+
+With `arrows` on, a slot above each letter click-cycles **↑ → ↓ → ↑↓ → none**, for working a
+transaction against `A = L + E` on camera. The slot holds its height whether or not a glyph is in
+it, so clicking through never nudges the frame.
+
+## 5. Teaching modes + the gear
+
+A ⚙ in the corner (authoring chrome — never filmed) carries the modes and the individual switches:
+
+| mode | the question it is for | switches |
+|---|---|---|
+| Types | "What TYPE of account is ___?" | defs · accounts |
+| Debits / Credits | "Which side increases it?" | signs · T-accounts · defs |
+| Normal balances | "What is the normal balance of ___?" | signs · **normal** · accounts |
+| Statements | "Which statement does it land on?" | statements · defs |
+| Movements | "A = L + E — what moves?" | arrows · signs |
+| All | the playground | everything |
+
+A mode is a **starting point, never a lock** — every switch stays adjustable after you pick one.
+
+**Keys** (drawer closed): `Tab`/`Shift+Tab` reveal · `` ` `` blank · `Esc` close/zoom out ·
+`1–5` open · `Shift+1–5` zoom · `6 7 8 9 0` statements/signs/defs/accounts/arrows · `N` normal ·
+`T` T-accounts · `M` cycle mode. Digits are read by **code**, so `Shift+1` is still "the first
+element", not `!`.
+
+## 6. Layout law learned here
+
+A switched-**off** piece renders nothing; a piece that is switched **on but not yet revealed**
+keeps its space at opacity 0. Reserving space for everything (the v2 behaviour) pushed the frame
+off-centre for pieces a lesson never shows; reserving space for nothing would make a `Tab` build
+jump. Splitting the two is what keeps both the build and the framing still.
+
+## Verification
+
+- 1454 tests pass (62 in the Lab file: the asset partition, contra flips, movement cycle, every
+  mode's switch set, and the source pins above); `tsc --noEmit` clean.
+- Screenshots in `docs/screenshots/rubric-v3/`: default · full picture · normal balances · one
+  column opened · movements.
+
+---
+
 # Rubric v2 — navigable, zoomable, progressive-reveal (branch `exhibit-lab-v2`)
 
 The probe/quiz flow had made itself the core interaction. It is demoted, not deleted: the rubric

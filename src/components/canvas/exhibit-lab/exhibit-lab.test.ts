@@ -6,8 +6,9 @@ import { describe, expect, test } from "bun:test";
 import { CYCLE_PROBES, CYCLE_STEPS, checkOrder, matchesStep, ringSteps, selfTestSteps, shuffledIds, stepAfter, stepBefore } from "./cycle-model";
 import { appendSteps, attempt, canReveal, checkExpect, currentStep, next, prev, reveal, runSummary, setStepEnabled, skip, startRun, type RunStepDef } from "./probe-run";
 import { EXHIBITS, PROBES, PROBE_IDS, parseRefKey, probeById, refKey, type ExhibitProbeRef } from "./probes";
-import { ALL_COA_NODES, BRIDGE_LABEL, BRIDGE_TITLE, DEFS, REVEAL_LABELS, REVEAL_LAST, STATEMENT_OF, coaNodes, nextReveal, prevReveal, tSides, visibleAt } from "./rubric-view";
-import { ACCOUNTS, ACCT_TYPES, RUBRIC_PROBES, SCENARIOS, checkFourQuestions, classifyTiming, entryBalanced, flipIt, flipSteps, fourQuestionRound, journalLines, signFor, timingSteps, whatIfSteps, whatIfWeDont, type Chip } from "./rubric-model";
+import { ALL_COA_NODES, ALL_OFF, BRIDGE_LABEL, BRIDGE_TITLE, CONTRA, DEFS, MODES, MODE_IDS, MOVEMENT_GLYPH, REVEAL_LABELS, REVEAL_LAST, STATEMENT_OF, coaGroups, coaNodes, isContra, matchMode, modeById, nextMovement, nextReveal, prevReveal, signPair, tSides, visibleAt } from "./rubric-view";
+import { MASK, balanceSheet, incomeStatement, jeLines, jePieces, jeTotals, ledgerScenarios, netIncome, pieceShown, postToTs, retainedEarnings, tBalanceRow, tRows, trialBalance } from "./ledger-model";
+import { ACCOUNTS, ACCT_TYPES, RUBRIC_PROBES, SCENARIOS, checkFourQuestions, classifyTiming, scenarioById, entryBalanced, flipIt, flipSteps, fourQuestionRound, journalLines, signFor, timingSteps, whatIfSteps, whatIfWeDont, type Chip } from "./rubric-model";
 
 const read = (p: string) => readFileSync(join(import.meta.dir, p), "utf8").split("\r\n").join("\n");
 const ROOT = join(import.meta.dir, "..", "..", "..", "..");
@@ -23,12 +24,12 @@ describe("the probe library — first-class, ten seeded, stable ids", () => {
     const r: ExhibitProbeRef = { exhibit: "rubric", probe: "four_questions", stepsOff: ["r1.sign"] };
     expect(refKey(r)).toBe("rubric:four_questions");
     expect(parseRefKey("cycle:rewind")).toEqual({ exhibit: "cycle", probe: "rewind" });
-    expect(parseRefKey("taccount:rewind")).toBeNull(); // deferred exhibits are NOT registered
+    expect(parseRefKey("formulas:rewind")).toBeNull(); // Formulas is still deferred — NOT registered
     expect(parseRefKey("rubric:nope")).toBeNull();
     expect(probeById("flip_it")?.name).toBe("Flip It");
   });
-  test("only the two in-scope exhibits exist — T-accounts / JE / F/S / Formulas are deferred", () => {
-    expect(EXHIBITS.map((e) => e.id)).toEqual(["cycle", "rubric"]);
+  test("the registered exhibits — Formulas stays deferred", () => {
+    expect(EXHIBITS.map((e) => e.id)).toEqual(["cycle", "rubric", "je", "taccount", "statements"]);
   });
 });
 
@@ -336,7 +337,7 @@ describe("Rubric v2 — COA nodes + the statements layer", () => {
   });
 });
 
-describe("Rubric v2 — the rubric IS the screen (§1, §6)", () => {
+describe("Rubric v2/v3 — the rubric IS the screen (§1, §6)", () => {
   const board = read("RubricBoard.tsx");
   const exhibit = read("RubricExhibit.tsx");
   const lab = read("ExhibitLab.tsx");
@@ -350,7 +351,9 @@ describe("Rubric v2 — the rubric IS the screen (§1, §6)", () => {
     expect(board).toContain("export interface RubricBoardProps");
     expect(board).toContain("reveal: number | null;");
     expect(board).toContain("zoom: AcctType | null;");
-    expect(board).toContain("statements: boolean;");
+    expect(board).toContain("toggles: RubricToggles;");
+    expect(board).toContain("open: ReadonlySet<AcctType>;");
+    expect(board).toContain("movements: Readonly<Partial<Record<AcctType, Movement>>>;");
   });
   test("MOTION: layers stay mounted and animate on opacity/transform only", () => {
     // a remount is the flash bug; a height/left animation is the jank bug
@@ -387,5 +390,232 @@ describe("Rubric v2 — the rubric IS the screen (§1, §6)", () => {
     expect(board).not.toContain("onDragStart");
     expect(board).not.toContain("SCENARIOS");
     expect(board).not.toContain("Chip");
+  });
+});
+
+// ============================================================== RUBRIC v3
+
+describe("Rubric v3 — asset groups + contra accounts", () => {
+  test("assets split CURRENT / LONG TERM, and the split covers the flat list exactly", () => {
+    const g = coaGroups("A");
+    expect(g.map((x) => x.label)).toEqual(["CURRENT", "LONG TERM"]);
+    expect(g.flatMap((x) => x.nodes).map((n) => n.label)).toEqual(ACCOUNTS.A); // partition, nothing lost or doubled
+    expect(g[0].nodes.map((n) => n.label)).toEqual(["Cash", "Accounts Receivable", "Supplies", "Prepaid Insurance", "Prepaid Rent", "Inventory"]);
+    expect(g[1].nodes.map((n) => n.label)).toContain("Accumulated Depreciation");
+  });
+  test("every other element is ONE ungrouped list", () => {
+    for (const t of ["L", "E", "R", "X"] as const) {
+      const g = coaGroups(t);
+      expect(g.length).toBe(1);
+      expect(g[0].label).toBeUndefined();
+      expect(g[0].nodes.map((n) => n.label)).toEqual(ACCOUNTS[t]);
+    }
+  });
+  test("contra accounts carry the FLIPPED pair of their own type", () => {
+    expect(isContra("coa:A:accumulated-depreciation")).toBe(true);
+    expect(isContra("coa:E:dividends")).toBe(true);
+    expect(isContra("coa:A:cash")).toBe(false);
+    // asset is (+/−) ⇒ its contra is (−/+); equity is (−/+) ⇒ its contra is (+/−)
+    expect(signPair("A")).toEqual({ left: "+", right: "−" });
+    expect(signPair("A", true)).toEqual({ left: "−", right: "+" });
+    expect(signPair("E", true)).toEqual({ left: "+", right: "−" });
+    expect(CONTRA["coa:A:accumulated-depreciation"].label).toBe("CONTRA ASSET");
+  });
+});
+
+describe("Rubric v3 — movements", () => {
+  test("clicking cycles none → up → down → both → none", () => {
+    expect(nextMovement(null)).toBe("up");
+    expect(nextMovement("up")).toBe("down");
+    expect(nextMovement("down")).toBe("both");
+    expect(nextMovement("both")).toBe(null);
+  });
+  test("the glyphs are the arrows Lee teaches with", () => {
+    expect(MOVEMENT_GLYPH.up).toBe("↑");
+    expect(MOVEMENT_GLYPH.down).toBe("↓");
+    expect(MOVEMENT_GLYPH.both).toBe("↑↓");
+  });
+});
+
+describe("Rubric v3 — teaching modes are named switch sets", () => {
+  test("each mode turns on exactly what its question needs", () => {
+    expect(modeById("types")).toEqual({ ...ALL_OFF, defs: true, accounts: true });
+    expect(modeById("normal")).toEqual({ ...ALL_OFF, signs: true, normal: true, accounts: true });
+    expect(modeById("drcr")).toEqual({ ...ALL_OFF, signs: true, tAccounts: true, defs: true });
+    expect(modeById("statements")).toEqual({ ...ALL_OFF, statements: true, defs: true });
+    expect(modeById("moves")).toEqual({ ...ALL_OFF, arrows: true, signs: true });
+    expect(Object.values(modeById("all")).every(Boolean)).toBe(true); // the playground
+  });
+  test("NORMAL BALANCE is opt-in: no mode but `normal` lights the +", () => {
+    // the pair is one colour by default — the coloured + is a lesson, not decor
+    for (const m of MODES) if (m.id !== "normal" && m.id !== "all") expect(m.toggles.normal).toBe(false);
+  });
+  test("a mode round-trips, and tweaking one switch makes it custom", () => {
+    expect(matchMode(modeById("normal"))).toBe("normal");
+    expect(matchMode({ ...modeById("normal"), arrows: true })).toBeNull();
+    expect(MODE_IDS.length).toBe(MODES.length);
+  });
+});
+
+describe("Rubric v3 — the board paints what the switches say", () => {
+  const board = read("RubricBoard.tsx");
+  const exhibit = read("RubricExhibit.tsx");
+  test("the (+/−) pair sits ABOVE the letter — Lee's preferred spot", () => {
+    const col = board.slice(board.indexOf("function ElementCol("), board.indexOf("/** An operator glyph"));
+    expect(col.indexOf("<SignPair")).toBeLessThan(col.indexOf("onClick={() => onToggleOpen(type)}")); // pair, then the letter
+    expect(col.indexOf("<SignPair")).toBeLessThan(col.indexOf("onCycleMovement(type)"));               // pair is topmost
+  });
+  test("both signs share one colour until `normal` lights the +", () => {
+    const sp = board.slice(board.indexOf("function SignPair("), board.indexOf("/** THE MINI T"));
+    expect(sp).toContain('color: normal && g === "+" ? GOLD : DIM,');
+  });
+  test("clicking a letter opens THAT element in place; a switch opens them all", () => {
+    expect(board).toContain("const accountsFor = (t: AcctType) => toggles.accounts || open.has(t);");
+    expect(board).toContain("const defsFor = (t: AcctType) => toggles.defs || open.has(t);");
+    // one column opening widens the whole row, so the equation never re-flows
+    // halfway through a reveal
+    expect(board).toContain("const wide = ELEMENT_ORDER.some(accountsFor);");
+  });
+  test("the movement slot holds its height so clicking ↑↓ never nudges the frame", () => {
+    expect(board).toContain("height: Math.round(glyphSize * 0.42)");
+  });
+  test("the gear owns the switches, and the keys mirror it", () => {
+    expect(exhibit).toContain('{ code: "Digit6", key: "statements"');
+    expect(exhibit).toContain('{ code: "Digit9", key: "accounts"');
+    expect(exhibit).toContain('{ code: "KeyN", key: "normal"');
+    // digits read by CODE so Shift+1 is still "the first element", not "!"
+    expect(exhibit).toContain('const idx = ["Digit1", "Digit2", "Digit3", "Digit4", "Digit5"].indexOf(e.code);');
+    expect(exhibit).toContain("if (e.shiftKey) setZoom((z) => (z === t ? null : t));");
+    expect(exhibit).toContain("data-lab-chrome"); // the gear never films
+  });
+});
+
+// ═════════════════════════════════════ THE LEDGER: JE → T-ACCOUNTS → F/S
+
+describe("the journal entry", () => {
+  const sc = scenarioById("supplies-cash");
+  test("debits print first, credits after — the classic silhouette", () => {
+    const l = jeLines(sc);
+    expect(l.map((x) => `${x.dr ? "Dr" : "Cr"} ${x.account}`)).toEqual(["Dr Supplies", "Cr Cash"]);
+    expect(l[0].type).toBe("A"); // the rubric type rides along, never re-derived
+  });
+  test("every seeded entry balances — an exhibit must never teach a broken JE", () => {
+    for (const s of SCENARIOS) {
+      const t = jeTotals(jeLines(s));
+      expect({ id: s.id, balanced: t.balanced }).toEqual({ id: s.id, balanced: true });
+    }
+  });
+  test("the reveal is description → account → amount, one piece at a time", () => {
+    const lines = jeLines(sc);
+    const p = jePieces(lines);
+    expect(p.map((x) => x.kind)).toEqual(["desc", "account", "amount", "account", "amount"]);
+    expect(pieceShown(p, 0, "desc", -1)).toBe(false);         // step 0 is blank
+    expect(pieceShown(p, 1, "desc", -1)).toBe(true);
+    expect(pieceShown(p, 2, "account", 0)).toBe(true);
+    expect(pieceShown(p, 2, "amount", 0)).toBe(false);        // the amount waits its turn
+    expect(pieceShown(p, p.length, "amount", 1)).toBe(true);  // fully revealed
+  });
+});
+
+describe("posting to T-accounts", () => {
+  const ts = postToTs(ledgerScenarios());
+  const t = (name: string) => ts.find((x) => x.account === name)!;
+  test("one account accumulates across transactions, on the right sides", () => {
+    // 5,000 in, 500 out (supplies), 900 out (rent) ⇒ 3,600 DR
+    expect(t("Cash").balance).toBe(3600);
+    expect(t("Cash").side).toBe("dr");
+    expect(t("Cash").posts.length).toBe(3);
+  });
+  test("a credit-normal account lands on the credit side", () => {
+    expect(t("Common Stock").balance).toBe(5000);
+    expect(t("Common Stock").side).toBe("cr");
+    expect(t("Service Revenue").side).toBe("cr");
+    expect(t("Wages Payable").side).toBe("cr");
+  });
+  test("EVERY amount carries a label — Lee's rule: no unexplained numbers", () => {
+    for (const acct of ts) for (const r of tRows(acct)) expect(r.label.length).toBeGreaterThan(0);
+    expect(tBalanceRow(t("Cash")).label).toBe("End. balance");
+  });
+  test("rows STAGGER in posting order, keeping their side", () => {
+    const rows = tRows(t("Cash"));
+    expect(rows.map((r) => r.side)).toEqual(["dr", "cr", "cr"]); // in, supplies out, rent out
+    expect(rows[0].label).toContain("Owners invested");
+  });
+  test("an opening balance is a labelled row on the account's normal side", () => {
+    const seeded = postToTs(ledgerScenarios(["supplies-cash"]), { Cash: 2000 });
+    const cash = seeded.find((x) => x.account === "Cash")!;
+    expect(tRows(cash)[0]).toEqual({ side: "dr", label: "Beg. balance", amount: 2000, kind: "opening" });
+    expect(cash.balance).toBe(1500); // 2,000 − 500
+  });
+  test("the ledger proves itself: debits = credits", () => {
+    const tb = trialBalance(ts);
+    expect(tb.balanced).toBe(true);
+    expect(tb.dr).toBe(tb.cr);
+  });
+});
+
+describe("the statements", () => {
+  const ts = postToTs(ledgerScenarios());
+  const is = incomeStatement(ts);
+  const bs = balanceSheet(ts);
+  test("net income is revenue less expenses (this ledger runs a LOSS)", () => {
+    expect(netIncome(ts)).toBe(1200 - (900 + 800)); // −500
+    expect(is.total).toBe(-500);
+  });
+  test("detail comes BEFORE its total — a total above its lines reads as an error", () => {
+    const labels = is.rows.map((r) => r.label);
+    expect(labels.indexOf("Rent Expense")).toBeLessThan(labels.indexOf("Total expenses"));
+    expect(labels.indexOf("Wages Expense")).toBeLessThan(labels.indexOf("Total expenses"));
+    expect(is.rows.find((r) => r.label === "Total expenses")?.rule).toBe(true);
+  });
+  test("R/E is the BRIDGE: beginning + net income − dividends", () => {
+    const re = retainedEarnings(ts);
+    expect(re.total).toBe(-500);
+    expect(re.rows.map((r) => r.label)).toEqual(["Beginning retained earnings", "Net income", "Dividends"]);
+    // no negative zero — a statement never prints "-0"
+    expect(Object.is(re.rows[2].amount, -0)).toBe(false);
+  });
+  test("A = L + E ties out, with equity carrying the ending R/E", () => {
+    expect(bs.assets.total).toBe(3600 + 500 + 1200);      // 5,300
+    expect(bs.claims.total).toBe(800 + 5000 - 500);       // 5,300
+    expect(bs.balanced).toBe(true);
+    expect(bs.claims.rows.some((r) => r.label === "Retained earnings")).toBe(true);
+  });
+  test("dividends are a CONTRA equity row, not an expense", () => {
+    // paying a dividend must reduce R/E and never touch net income
+    const withDiv = postToTs([...ledgerScenarios(), { id: "div", text: "Paid a $100 dividend.", entry: [
+      { account: "Dividends", type: "E", dr: true, amount: 100 },
+      { account: "Cash", type: "A", dr: false, amount: 100 },
+    ] }]);
+    expect(netIncome(withDiv)).toBe(-500);                       // unchanged
+    expect(retainedEarnings(withDiv).total).toBe(-600);          // −500 − 100
+    expect(balanceSheet(withDiv).balanced).toBe(true);
+  });
+  test("every seeded scenario alone still balances the sheet", () => {
+    for (const s of SCENARIOS) {
+      const one = postToTs([s]);
+      expect({ id: s.id, ok: balanceSheet(one).balanced }).toEqual({ id: s.id, ok: true });
+    }
+  });
+});
+
+describe("the three exhibits stay wired to the rubric", () => {
+  const je = read("JournalEntryExhibit.tsx");
+  const ta = read("TAccountExhibit.tsx");
+  const st = read("StatementsExhibit.tsx");
+  test("none of them re-derives a sign, a normal balance or a statement", () => {
+    for (const src of [je, ta, st]) {
+      expect(src).not.toContain('=== "Dr"');       // no hand-rolled side logic
+      expect(src).not.toContain("increase ===");
+    }
+    expect(je).toContain('from "./rubric-view"');  // signs come from the one source
+    expect(ta).toContain('from "./rubric-view"');
+  });
+  test("they share ONE ledger model — not three parallel ones", () => {
+    for (const src of [je, ta, st]) expect(src).toContain('from "./ledger-model"');
+  });
+  test("the masked value is present-but-unreadable, never absent", () => {
+    expect(MASK).toBe("???");
+    expect(je).toContain("function Masked(");
   });
 });
