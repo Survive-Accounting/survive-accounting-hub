@@ -6,7 +6,8 @@ import { describe, expect, test } from "bun:test";
 import { CYCLE_PROBES, CYCLE_STEPS, checkOrder, matchesStep, ringSteps, selfTestSteps, shuffledIds, stepAfter, stepBefore } from "./cycle-model";
 import { appendSteps, attempt, canReveal, checkExpect, currentStep, next, prev, reveal, runSummary, setStepEnabled, skip, startRun, type RunStepDef } from "./probe-run";
 import { EXHIBITS, PROBES, PROBE_IDS, parseRefKey, probeById, refKey, type ExhibitProbeRef } from "./probes";
-import { ACCT_TYPES, RUBRIC_PROBES, SCENARIOS, checkFourQuestions, classifyTiming, entryBalanced, flipIt, flipSteps, fourQuestionRound, journalLines, signFor, timingSteps, whatIfSteps, whatIfWeDont, type Chip } from "./rubric-model";
+import { ALL_COA_NODES, BRIDGE_LABEL, BRIDGE_TITLE, DEFS, REVEAL_LABELS, REVEAL_LAST, STATEMENT_OF, coaNodes, nextReveal, prevReveal, tSides, visibleAt } from "./rubric-view";
+import { ACCOUNTS, ACCT_TYPES, RUBRIC_PROBES, SCENARIOS, checkFourQuestions, classifyTiming, entryBalanced, flipIt, flipSteps, fourQuestionRound, journalLines, signFor, timingSteps, whatIfSteps, whatIfWeDont, type Chip } from "./rubric-model";
 
 const read = (p: string) => readFileSync(join(import.meta.dir, p), "utf8").split("\r\n").join("\n");
 const ROOT = join(import.meta.dir, "..", "..", "..", "..");
@@ -252,5 +253,139 @@ describe("seams built, consumers NOT built", () => {
     const routes = join(ROOT, "src", "routes");
     for (const f of ["learn.tsx", "index.tsx"]) if (existsSync(join(routes, f))) expect(readFileSync(join(routes, f), "utf8")).not.toContain("exhibit-lab");
     expect(readFileSync(join(routes, "exhibit-lab.tsx"), "utf8")).toContain('{ name: "robots", content: "noindex" }');
+  });
+});
+
+// ================================================================= RUBRIC v2
+
+describe("Rubric v2 — the T-accounts (get the sign sides RIGHT)", () => {
+  test("the prompt's table, verbatim: left column is DEBIT, right is CREDIT", () => {
+    // An accounting tool with a backwards normal balance is dead on arrival, so
+    // this asserts the spec's table literally rather than re-deriving it.
+    expect(tSides("A")).toEqual({ left: "+", right: "−", normal: "left" });   // Assets      + left · − right
+    expect(tSides("L")).toEqual({ left: "−", right: "+", normal: "right" });  // Liabilities − left · + right
+    expect(tSides("E")).toEqual({ left: "−", right: "+", normal: "right" });  // Equity      − left · + right
+    expect(tSides("R")).toEqual({ left: "−", right: "+", normal: "right" });  // Revenues    − left · + right
+    expect(tSides("X")).toEqual({ left: "+", right: "−", normal: "left" });   // Expenses    + left · − right
+  });
+  test("the emphasized side is always the + side — the normal balance", () => {
+    for (const t of ACCT_TYPES) {
+      const s = tSides(t.id);
+      expect(s[s.normal]).toBe("+");
+      expect(s[s.normal === "left" ? "right" : "left"]).toBe("−");
+      // and it agrees with the model the probes grade against
+      expect(s.normal).toBe(t.increase === "Dr" ? "left" : "right");
+    }
+  });
+  test("the one-word definitions are the canon five", () => {
+    expect([DEFS.A, DEFS.L, DEFS.E, DEFS.R, DEFS.X]).toEqual(["OWN", "OWE", "VALUE", "EARNED", "COSTS"]);
+  });
+});
+
+describe("Rubric v2 — the progressive reveal (§5)", () => {
+  test("step 1 is a blank canvas — nothing is painted", () => {
+    expect(visibleAt(1)).toEqual({ bsEq: false, bsDefs: false, bsTs: false, isEq: false, isDefs: false, isTs: false, statements: false });
+  });
+  test("each step adds exactly its own layer, in the authored order", () => {
+    expect(visibleAt(2).bsEq).toBe(true);
+    expect(visibleAt(2).bsDefs).toBe(false);
+    expect(visibleAt(3).bsDefs).toBe(true);
+    expect(visibleAt(3).bsTs).toBe(false);
+    expect(visibleAt(4).bsTs).toBe(true);
+    expect(visibleAt(4).isEq).toBe(false);      // the divider + Revs & Exps wait
+    expect(visibleAt(5).isEq).toBe(true);
+    expect(visibleAt(5).isDefs).toBe(false);
+    expect(visibleAt(6).isDefs).toBe(true);
+    expect(visibleAt(6).isTs).toBe(true);
+    expect(visibleAt(6).statements).toBe(false); // only at 7, and only if toggled
+    expect(visibleAt(7).statements).toBe(true);
+  });
+  test("null is FREE MODE — the navigable exhibit, everything on", () => {
+    expect(visibleAt(null)).toEqual({ bsEq: true, bsDefs: true, bsTs: true, isEq: true, isDefs: true, isTs: true, statements: true });
+  });
+  test("stepping clamps at both ends; out-of-range steps are clamped, not crashed", () => {
+    expect(prevReveal(1)).toBe(1);
+    expect(nextReveal(REVEAL_LAST)).toBe(REVEAL_LAST);
+    expect(visibleAt(0)).toEqual(visibleAt(1));
+    expect(visibleAt(99)).toEqual(visibleAt(REVEAL_LAST));
+    expect(REVEAL_LABELS.length).toBe(REVEAL_LAST);
+  });
+});
+
+describe("Rubric v2 — COA nodes + the statements layer", () => {
+  test("each account chip is a NODE (id · element · label) in COA order", () => {
+    const a = coaNodes("A");
+    expect(a[0]).toEqual({ id: "coa:A:cash", element: "A", label: "Cash" });
+    expect(a[1].id).toBe("coa:A:accounts-receivable");
+    expect(a.map((n) => n.label)).toEqual(ACCOUNTS.A);            // COA order preserved
+    expect(new Set(ALL_COA_NODES.map((n) => n.id)).size).toBe(ALL_COA_NODES.length); // ids unique
+  });
+  test("every element's accounts are reachable as nodes", () => {
+    for (const t of ACCT_TYPES) expect(coaNodes(t.id).length).toBe(ACCOUNTS[t.id].length);
+  });
+  test("the statements layer knows which side of the pipe each element is on", () => {
+    expect(STATEMENT_OF.A).toBe("BALANCE SHEET");
+    expect(STATEMENT_OF.L).toBe("BALANCE SHEET");
+    expect(STATEMENT_OF.E).toBe("BALANCE SHEET");
+    expect(STATEMENT_OF.R).toBe("INCOME STATEMENT");
+    expect(STATEMENT_OF.X).toBe("INCOME STATEMENT");
+  });
+  test("TEXT DIET: the bridge paints four characters; the full name is tooltip-only", () => {
+    expect(BRIDGE_LABEL).toBe("R/E");
+    expect(BRIDGE_TITLE).toBe("Statement of Retained Earnings");
+  });
+});
+
+describe("Rubric v2 — the rubric IS the screen (§1, §6)", () => {
+  const board = read("RubricBoard.tsx");
+  const exhibit = read("RubricExhibit.tsx");
+  const lab = read("ExhibitLab.tsx");
+  test("the board is DEPENDENCY-LIGHT: its ENTIRE import list is react + a font + the pure model", () => {
+    // asserted as the WHOLE list, not as absent needles: a prose mention of
+    // film-lock must not pass or fail this, only a real import can.
+    const froms = [...board.matchAll(/from "([^"]+)"/g)].map((m) => m[1]).sort();
+    expect(froms).toEqual(["../theme", "./rubric-model", "./rubric-view", "react"]);
+  });
+  test("the board is CONTROLLED — every piece of state arrives as a prop", () => {
+    expect(board).toContain("export interface RubricBoardProps");
+    expect(board).toContain("reveal: number | null;");
+    expect(board).toContain("zoom: AcctType | null;");
+    expect(board).toContain("statements: boolean;");
+  });
+  test("MOTION: layers stay mounted and animate on opacity/transform only", () => {
+    // a remount is the flash bug; a height/left animation is the jank bug
+    expect(board).toContain("willChange: \"opacity, transform\"");
+    expect(board).toContain("pointerEvents: shown ? \"auto\" : \"none\"");
+    expect(board).not.toContain("transition: \"all");
+  });
+  test("the probes are DEMOTED to a drawer that is CLOSED by default — not deleted", () => {
+    expect(exhibit).toContain("const [drawer, setDrawer] = useState(false);");
+    // the step panel only mounts with the drawer open, which is also what hands
+    // the run keys back to the rubric (StepPanel owns registerKeyTarget)
+    expect(exhibit).toContain("{drawer && (");
+    expect(exhibit).toContain("<StepPanel");
+    // and the library still exists, rendered INTO that drawer by the Lab
+    expect(lab).toContain("labControls={probeControls}");
+    expect(lab).toContain("function ProbeControls(");
+    expect((lab.match(/Probe library · summon onto/g) ?? []).length).toBe(1); // one surface, not two
+  });
+  test("the rubric's keys yield to the probe keys whenever the drawer is open", () => {
+    expect(exhibit).toContain("if (drawerRef.current) return;");
+    expect(exhibit).toContain("if (e.key === \"Tab\")");       // Tab is the exhibit's in both states
+    expect(exhibit).toContain("setReveal(1); setZoom(null);"); // ` = reset to blank
+  });
+  test("PRESENT mode hides every Lab affordance for a clean OBS frame", () => {
+    expect(lab).toContain(".sa-present [data-lab-chrome]{display:none !important}");
+    expect(exhibit).toContain("data-lab-chrome");
+    expect(lab).toContain("const [aspect, setAspect] = useState<\"fill\" | \"16:9\" | \"9:16\">(\"fill\");");
+    // ONE stage position in the tree: rendering it under two different parents
+    // remounts the exhibit and wipes the reveal/zoom/statements Lee just set up.
+    expect((lab.match(/{stage}/g) ?? []).length).toBe(1);
+  });
+  test("PARKED (§6): no drag-to-journal-entry, no scenario chips on the board", () => {
+    expect(board).not.toContain("draggable");
+    expect(board).not.toContain("onDragStart");
+    expect(board).not.toContain("SCENARIOS");
+    expect(board).not.toContain("Chip");
   });
 });

@@ -1,79 +1,47 @@
-// THE RUBRIC EXHIBIT (Exhibit Lab v2, §4) — A = L + E | Revs & Exps, with the
-// FOUR QUESTIONS as a PROGRESSIVE ZOOM:
-//   1. type   → that region lights, everything else dims
-//   2. account→ the view narrows to that type's list; the pick becomes a CHIP
-//   3. sign   → +/− or −/+ toggle; the sign region lights to show WHY
-//   4. else?  → zoom back out, repeat — chips accumulate until it balances
-// The chip tray IS the journal entry being assembled: when it balances it
-// becomes one (debits first, credits indented) — the payoff on camera. The
-// camera never cuts: the exhibit breathes in and out (150–250ms, no bounce).
+// THE RUBRIC EXHIBIT (Rubric v2) — the FILMING WRAPPER around RubricBoard.
 //
-// THE LAW: this surface never reads a step's `explain`. The only explanation
-// it can paint comes from the runner's `rev` (probe-run's reveal), which is
-// null until an attempt or a skip. Step 3 is optional per run (§4 toggles);
-// when it's off, the sign is filled from the scenario so the entry still
-// assembles.
-import { useCallback, useMemo, useRef, useState } from "react";
+// THE RUBRIC IS THE SCREEN. This file owns only what filming needs — the
+// reveal step, the zoom, the statements toggle, and the keys that drive them —
+// and keeps every probe out of the frame: the Probe Library, the ask-first
+// step panel and the chip tray all live in a collapsible drawer that is CLOSED
+// by default (§1). Nothing is deleted; the teaching questions are one click
+// away, and Lee runs them verbally on camera.
+//
+// KEYS (this surface, only while the drawer is CLOSED so the probe keys can
+// never fight them):
+//   Tab / Shift+Tab  next / previous reveal step
+//   `                reset to BLANK (and zoom out) — how a take starts
+//   Esc              zoom out
+//   1–5              zoom into A · L · E · Revs · Exps
+//   6                statements layer on/off
+// Space is never used: it belongs to the film controller everywhere else.
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { BIG_FONT, NEON } from "../theme";
+import { NEON } from "../theme";
+import { RubricBoard } from "./RubricBoard";
 import { StepPanel, StepToggles, useProbeRun } from "./lab-runner";
 import { appendSteps, type RunStepDef } from "./probe-run";
 import type { ExhibitProbeRef } from "./probes";
-import { ACCOUNTS, ACCT_TYPES, acctType, checkExpect, checkFourQuestions, entryBalanced, flipSteps, fourQuestionRound, journalLines, scenarioById, timingSteps, whatIfSteps, type AcctType, type Chip, type Scenario } from "./rubric-model";
+import { ACCOUNTS, checkExpect, checkFourQuestions, entryBalanced, flipSteps, fourQuestionRound, journalLines, scenarioById, timingSteps, whatIfSteps, type AcctType, type Chip, type Scenario } from "./rubric-model";
+import { ELEMENT_FULL, ELEMENT_ORDER, REVEAL_LABELS, REVEAL_LAST, nextReveal, prevReveal } from "./rubric-view";
 
-const T = "transform 220ms ease, opacity 220ms ease, box-shadow 220ms ease, background 220ms ease, border-color 220ms ease";
 const GOLD = "#FCA311", GOOD = "#3BF5A0";
 
-type Stage = "full" | "type" | "account" | "sign";
-
-/** The equation itself — regions light/dim by stage. Pure paint. */
-function Equation({ lit, stage, signLit }: { lit: AcctType | null; stage: Stage; signLit: boolean }) {
-  const region = (id: AcctType, text: string) => {
-    const on = lit === id;
-    const dim = lit != null && !on;
-    return (
-      <span key={id} className="relative inline-block rounded-xl px-3 py-1" style={{ fontFamily: BIG_FONT, fontWeight: 900, fontSize: 56, lineHeight: 1, color: on ? "#0B1322" : "#F4EFE6", background: on ? GOLD : "transparent", boxShadow: on ? `0 0 34px rgba(252,163,17,0.55)` : undefined, opacity: dim ? 0.28 : 1, transform: on ? "scale(1.06)" : "scale(1)", transition: T }}>
-        {text}
-        {/* the SIGN under each region — step 3 lights it to show WHY */}
-        <span className="absolute left-1/2 -bottom-5 -translate-x-1/2 rounded px-1.5 text-[13px] font-black tabular-nums" style={{ color: on && signLit ? "#0B1322" : GOLD, background: on && signLit ? GOOD : "transparent", boxShadow: on && signLit ? `0 0 18px rgba(59,245,160,0.7)` : undefined, transition: T, opacity: dim ? 0.28 : 1 }}>{acctType(id).sign}</span>
-      </span>
-    );
-  };
-  const scale = stage === "account" ? 0.55 : stage === "sign" ? 0.8 : 1;
-  return (
-    <div className="flex flex-col items-center" style={{ transform: `scale(${scale})`, transformOrigin: "top center", transition: T, opacity: stage === "account" ? 0.7 : 1 }}>
-      <div className="flex items-end gap-2 whitespace-nowrap">
-        {region("A", "A")}
-        <span style={{ fontFamily: BIG_FONT, fontWeight: 900, fontSize: 56, color: "#F4EFE6", opacity: lit ? 0.28 : 1, transition: T }}>=</span>
-        {region("L", "L")}
-        <span style={{ fontFamily: BIG_FONT, fontWeight: 900, fontSize: 56, color: "#F4EFE6", opacity: lit ? 0.28 : 1, transition: T }}>+</span>
-        {region("E", "E")}
-        <span className="mx-3" style={{ fontFamily: BIG_FONT, fontWeight: 300, fontSize: 56, color: NEON.muted, opacity: lit ? 0.28 : 0.6, transition: T }}>|</span>
-        {region("R", "Revs")}
-        <span style={{ fontFamily: BIG_FONT, fontWeight: 900, fontSize: 56, color: "#F4EFE6", opacity: lit ? 0.28 : 1, transition: T }}>&amp;</span>
-        {region("X", "Exps")}
-      </div>
-      <div className="mt-8 flex w-full justify-between px-6 text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: NEON.muted }}>
-        <span>balance sheet</span><span>R/E is the bridge</span><span>income statement</span>
-      </div>
-    </div>
-  );
-}
-
-/** The tray: chips while assembling; a JOURNAL ENTRY the moment it balances. */
+/** The chip tray — the probe's journal entry, now inside the drawer (it is
+ *  probe machinery, and the board stays clean). */
 function Tray({ chips, pending, balanced }: { chips: Chip[]; pending: Partial<Chip>; balanced: boolean }) {
   if (balanced) {
     const lines = journalLines(chips);
     return (
-      <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.94)", border: `2px solid ${GOOD}`, boxShadow: `0 0 40px rgba(59,245,160,0.35)`, animation: "sa-lab-reveal 240ms ease" }}>
+      <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.94)", border: `2px solid ${GOOD}` }}>
         <div className="mb-1 text-[9px] font-black uppercase tracking-[0.2em]" style={{ color: "#5b6b8a" }}>Journal entry — it balances</div>
-        <table className="w-full text-[14px]" style={{ color: "#0B1322", fontVariantNumeric: "tabular-nums" }}>
+        <table className="w-full text-[13px]" style={{ color: "#0B1322", fontVariantNumeric: "tabular-nums" }}>
           <tbody>
             {lines.map((l, i) => (
               <tr key={i}>
-                <td className="py-0.5 font-bold" style={{ paddingLeft: l.indent ? 28 : 0 }}>{l.account}</td>
-                <td className="w-20 text-right">{l.dr != null ? l.dr.toLocaleString() : ""}</td>
-                <td className="w-20 text-right">{l.cr != null ? l.cr.toLocaleString() : ""}</td>
+                <td className="py-0.5 font-bold" style={{ paddingLeft: l.indent ? 24 : 0 }}>{l.account}</td>
+                <td className="w-16 text-right">{l.dr != null ? l.dr.toLocaleString() : ""}</td>
+                <td className="w-16 text-right">{l.cr != null ? l.cr.toLocaleString() : ""}</td>
               </tr>
             ))}
           </tbody>
@@ -82,25 +50,58 @@ function Tray({ chips, pending, balanced }: { chips: Chip[]; pending: Partial<Ch
     );
   }
   return (
-    <div className="flex min-h-[52px] flex-wrap items-center gap-2 rounded-xl px-3 py-2" style={{ background: "rgba(0,0,0,0.35)", border: `1px dashed ${NEON.borderSoft}`, transition: T }}>
+    <div className="flex min-h-[44px] flex-wrap items-center gap-2 rounded-xl px-3 py-2" style={{ background: "rgba(0,0,0,0.35)", border: `1px dashed ${NEON.borderSoft}` }}>
       <span className="text-[9px] font-black uppercase tracking-[0.2em]" style={{ color: NEON.muted }}>entry</span>
       {chips.map((c, i) => (
-        <span key={i} className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-bold" style={{ background: "rgba(252,163,17,0.16)", border: `1px solid ${GOLD}`, color: "#F4EFE6", animation: "sa-lab-reveal 200ms ease" }}>
+        <span key={i} className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ background: "rgba(252,163,17,0.16)", border: `1px solid ${GOLD}`, color: "#F4EFE6" }}>
           <span className="rounded px-1 text-[9px] font-black" style={{ background: c.dr ? GOOD : "#B79CFF", color: "#0B1322" }}>{c.dr ? "Dr" : "Cr"}</span>{c.account}
         </span>
       ))}
       {pending.account && (
-        <span className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-bold" style={{ border: `1px dashed ${GOLD}`, color: NEON.muted }}>
+        <span className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ border: `1px dashed ${GOLD}`, color: NEON.muted }}>
           <span className="rounded px-1 text-[9px] font-black" style={{ border: `1px solid ${NEON.borderSoft}` }}>?</span>{pending.account}
         </span>
       )}
-      {!chips.length && !pending.account && <span className="text-[11px] italic" style={{ color: NEON.muted }}>chips land here as you answer — it becomes the entry when it balances</span>}
+      {!chips.length && !pending.account && <span className="text-[10px] italic" style={{ color: NEON.muted }}>chips land here as you answer</span>}
     </div>
   );
 }
 
-export function RubricExhibit({ probeRef }: { probeRef: ExhibitProbeRef }) {
+export function RubricExhibit({ probeRef, labControls }: {
+  probeRef: ExhibitProbeRef;
+  /** The Lab's probe controls (scenario picker + probe library), rendered INSIDE
+   *  this exhibit's drawer so there is exactly one probe surface, not two. */
+  labControls?: React.ReactNode;
+}) {
   const sc: Scenario = useMemo(() => scenarioById(String(probeRef.seed?.scenario ?? "supplies-cash")), [probeRef.seed?.scenario]);
+
+  // ---- the exhibit's own state: this is what films -----------------------
+  const [drawer, setDrawer] = useState(false);
+  /** null = FREE MODE (navigable, everything on); 1–7 = the authored build. */
+  const [reveal, setReveal] = useState<number | null>(null);
+  const [zoom, setZoom] = useState<AcctType | null>(null);
+  const [statements, setStatements] = useState(false);
+
+  const drawerRef = useRef(drawer); drawerRef.current = drawer;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
+      // Tab is ours in BOTH states — no probe step uses it.
+      if (e.key === "Tab") { e.preventDefault(); setReveal((r) => (e.shiftKey ? prevReveal(r ?? REVEAL_LAST) : nextReveal(r ?? 1))); return; }
+      if (e.key === "Escape") { e.preventDefault(); setZoom(null); return; }
+      // The rest only while the probe drawer is CLOSED: with it open the Lab's
+      // run keys (1–9 · S · ← → · `) own the keyboard, and two owners is a bug.
+      if (drawerRef.current) return;
+      if (e.key === "`") { e.preventDefault(); setReveal(1); setZoom(null); return; }
+      if (/^[1-5]$/.test(e.key)) { e.preventDefault(); setZoom(ELEMENT_ORDER[Number(e.key) - 1]); return; }
+      if (e.key === "6") { e.preventDefault(); setStatements((s) => !s); return; }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // ---- the probe run: unchanged machinery, now behind the drawer ----------
   const [chips, setChips] = useState<Chip[]>([]);
   const [pending, setPending] = useState<Partial<Chip>>({});
   const chipsRef = useRef(chips); chipsRef.current = chips;
@@ -125,8 +126,6 @@ export function RubricExhibit({ probeRef }: { probeRef: ExhibitProbeRef }) {
   const lab = useProbeRun(probeRef, buildSteps, check);
   const { run, setRun, step, rev } = lab;
 
-  // FOUR QUESTIONS state machine — runs AFTER an attempt is recorded (never
-  // before): patch the reveal text, advance the chip, narrow the next step.
   const onAnswered = useCallback((st: RunStepDef, response: string) => {
     const q = st.data?.q;
     if (typeof q !== "string") {
@@ -138,24 +137,18 @@ export function RubricExhibit({ probeRef }: { probeRef: ExhibitProbeRef }) {
     let nextPending = { ...pendingRef.current, ...(r.correct ? r.chip : {}) };
     setRun((cur) => {
       let steps = cur.steps.map((s) => (s.id === st.id ? { ...s, explain: r.explain } : s));
-      if (q === "type" && r.correct && r.chip?.type) {
-        // NARROW the universe: the account step now offers only this type's list.
-        steps = steps.map((s) => (s.id === `r${round}.account` ? { ...s, options: ACCOUNTS[r.chip!.type!] } : s));
-      }
+      if (q === "type" && r.correct && r.chip?.type) steps = steps.map((s) => (s.id === `r${round}.account` ? { ...s, options: ACCOUNTS[r.chip!.type!] } : s));
       let n = { ...cur, steps };
       if (q === "account" && r.correct) {
         const signStep = steps.find((s) => s.id === `r${round}.sign`);
         if (signStep && !signStep.enabled) {
-          // Step 3 toggled OFF for this run: fill the side from the scenario so
-          // the entry still assembles on camera.
           const exp = sc.entry.find((e) => e.account === response);
-          if (exp) { nextPending = { ...nextPending, dr: exp.dr }; }
+          if (exp) nextPending = { ...nextPending, dr: exp.dr };
         }
       }
       if (q === "else" && r.correct && response.startsWith("Yes")) n = appendSteps(n, fourQuestionRound(round + 1));
       return n;
     });
-    // Commit the chip when its side is known (sign answered, or sign skipped via toggle).
     if ((q === "sign" && r.correct) || (q === "account" && r.correct && nextPending.dr != null)) {
       const done: Chip = { account: nextPending.account!, type: nextPending.type!, dr: nextPending.dr!, amount: sc.entry.find((e) => e.account === nextPending.account)?.amount };
       setChips((c) => [...c, done]);
@@ -164,40 +157,79 @@ export function RubricExhibit({ probeRef }: { probeRef: ExhibitProbeRef }) {
     }
     setPending(nextPending);
   }, [sc, setRun, probeRef.probe]);
-  // Wire the exhibit's reaction into the runner's answer path.
+
   const labWithHook = useMemo(() => ({ ...lab, handlers: { ...lab.handlers, answer: (resp: string, correct: boolean | null) => { lab.handlers.answer(resp, correct); const st = step; if (st) onAnswered(st, resp); }, pickOption: (n: number) => { const opt = step?.options?.[n - 1]; if (step && opt != null && !step.resolution) { lab.handlers.answer(opt, check(step, opt)); onAnswered(step, opt); } } } }), [lab, step, onAnswered, check]);
 
-  const q = typeof step?.data?.q === "string" ? (step.data.q as string) : null;
-  const stage: Stage = !q || q === "else" ? "full" : q === "type" ? "type" : q === "account" ? "account" : "sign";
-  const lit: AcctType | null = pending.type ?? (q === "type" && step?.resolution?.kind === "attempt" ? ACCT_TYPES.find((t) => t.label === (step.resolution as { response: string }).response)?.id ?? null : null);
-  const balanced = entryBalanced(chips) && !pending.account && (probeRef.probe !== "four_questions" || run.done || q === "else");
-  const showEntry = probeRef.probe !== "four_questions";
+  const balanced = entryBalanced(chips) && !pending.account;
+  const showScenarioEntry = probeRef.probe !== "four_questions";
+  const CHIP = "rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide";
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <span className="rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider" style={{ background: GOLD, color: "#0B1322" }}>Rubric</span>
-        <span className="text-[12px] font-bold" style={{ color: "#F4EFE6" }}>{sc.text}</span>
-        <span className="flex-1" />
-        <StepToggles run={run} onToggle={lab.toggle} />
+    <div className="relative h-full min-h-0 w-full overflow-hidden">
+      {/* ── THE BOARD — full bleed. Everything below is chrome that never
+             appears in a captured frame (the Lab's PRESENT mode hides it). ── */}
+      <RubricBoard reveal={reveal} zoom={zoom} statements={statements} onZoom={setZoom} />
+
+      {/* AUTHORING HUD — bottom-left, Lab-only. Present mode drops it. */}
+      <div className="pointer-events-auto absolute bottom-2 left-2 flex items-center gap-1.5" data-lab-chrome>
+        <button className={CHIP} style={{ color: reveal == null ? NEON.muted : "#0B1322", background: reveal == null ? "transparent" : GOLD, border: `1px solid ${NEON.borderSoft}` }}
+          onClick={() => setReveal((r) => (r == null ? 1 : null))}
+          title="BUILD MODE — the authored reveal (Tab / Shift+Tab step it, ` resets to blank). Off = the free, navigable rubric.">
+          {reveal == null ? "free" : `build ${reveal}/${REVEAL_LAST}`}
+        </button>
+        {reveal != null && <span className="text-[9px]" style={{ color: NEON.muted }}>{REVEAL_LABELS[reveal - 1]}</span>}
+        <button className={CHIP} style={{ color: statements ? "#0B1322" : NEON.muted, background: statements ? GOOD : "transparent", border: `1px solid ${NEON.borderSoft}` }}
+          onClick={() => setStatements((s) => !s)} title="Statements layer (key 6) — BALANCE SHEET · R/E bridge · INCOME STATEMENT">statements</button>
+        {zoom && <button className={CHIP} style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setZoom(null)} title="Esc">← {ELEMENT_FULL[zoom]}</button>}
+        <span className="text-[9px]" style={{ color: NEON.muted }}>Tab reveal · ` blank · 1–5 zoom · 6 statements</span>
       </div>
-      <div className="flex min-h-0 flex-1 gap-4">
-        <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-8 rounded-2xl p-6" style={{ background: "radial-gradient(ellipse at 50% 35%, rgba(37,52,88,0.55), rgba(9,13,26,0.9) 70%)", border: `1px solid ${NEON.borderSoft}` }}>
-          <Equation lit={lit} stage={stage} signLit={stage === "sign" && !!step?.resolution} />
-          {showEntry ? (
-            <Tray chips={sc.entry} pending={{}} balanced />
-          ) : (
-            <Tray chips={chips} pending={pending} balanced={balanced} />
-          )}
-          {effects.length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {effects.map((e, i) => <span key={i} className="rounded-full px-2.5 py-1 text-[11px] font-bold" style={{ background: e.endsWith("OVERSTATED") ? "rgba(255,139,158,0.18)" : "rgba(122,210,255,0.18)", border: `1px solid ${e.endsWith("OVERSTATED") ? "#FF8B9E" : "#7AD2FF"}`, color: "#F4EFE6" }}>{e}</span>)}
-            </div>
-          )}
+
+      {/* ── THE PROBE DRAWER (§1) — closed by default; the rubric is the screen.
+             All probe data is here, not deleted: library, ask-first steps, tray. ── */}
+      <button
+        data-lab-chrome
+        onClick={() => setDrawer((d) => !d)}
+        title={drawer ? "Hide the probes — the rubric is the screen" : "Probes — the teaching questions (kept, out of frame)"}
+        style={{
+          position: "absolute", top: 12, right: drawer ? 372 : 0, zIndex: 3,
+          writingMode: "vertical-rl", padding: "10px 5px", borderRadius: "8px 0 0 8px",
+          background: drawer ? GOLD : "rgba(0,0,0,0.5)", color: drawer ? "#0B1322" : NEON.muted,
+          border: `1px solid ${NEON.borderSoft}`,
+          fontSize: 9, fontWeight: 900, letterSpacing: "0.2em", textTransform: "uppercase",
+          transition: "right 220ms cubic-bezier(0.4,0,0.2,1), background 160ms ease",
+        }}
+      >probes</button>
+      <div
+        data-lab-chrome
+        style={{
+          position: "absolute", top: 0, right: 0, bottom: 0, width: 372, zIndex: 2,
+          transform: drawer ? "translateX(0)" : "translateX(100%)",
+          transition: "transform 220ms cubic-bezier(0.4,0,0.2,1)",
+          background: "rgba(8,13,24,0.97)", borderLeft: `1px solid ${NEON.borderSoft}`,
+          display: "flex", flexDirection: "column", gap: 10, padding: 12, overflowY: "auto",
+        }}
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: GOLD }}>Probes</span>
+          <span className="text-[9px]" style={{ color: NEON.muted }}>kept · never on the board</span>
+          <span className="flex-1" />
+          <StepToggles run={run} onToggle={lab.toggle} />
         </div>
-        <div className="w-[380px] shrink-0">
-          <StepPanel run={run} step={step} rev={rev} text={lab.text} setText={lab.setText} handlers={labWithHook.handlers} />
-        </div>
+        <div className="text-[11px] font-bold" style={{ color: "#F4EFE6" }}>{sc.text}</div>
+        {/* Only mounted while OPEN: StepPanel registers the Lab's run keys, so a
+            closed drawer hands 1–9 · S · ` back to the rubric automatically. */}
+        {drawer && (
+          <>
+            <StepPanel run={run} step={step} rev={rev} text={lab.text} setText={lab.setText} handlers={labWithHook.handlers} />
+            <Tray chips={showScenarioEntry ? sc.entry : chips} pending={showScenarioEntry ? {} : pending} balanced={showScenarioEntry || balanced} />
+            {effects.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {effects.map((e, i) => <span key={i} className="rounded-full px-2 py-1 text-[10px] font-bold" style={{ background: e.endsWith("OVERSTATED") ? "rgba(255,139,158,0.18)" : "rgba(122,210,255,0.18)", border: `1px solid ${e.endsWith("OVERSTATED") ? "#FF8B9E" : "#7AD2FF"}`, color: "#F4EFE6" }}>{e}</span>)}
+              </div>
+            )}
+            {labControls}
+          </>
+        )}
       </div>
     </div>
   );
