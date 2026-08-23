@@ -1,3 +1,109 @@
+# Rubric v2 — navigable, zoomable, progressive-reveal (branch `exhibit-lab-v2`)
+
+The probe/quiz flow had made itself the core interaction. It is demoted, not deleted: the rubric
+is the screen. Filming-side only; no student-facing exhibit UI ships.
+
+## 1. Probes demoted to a drawer (§1)
+
+`RubricExhibit.tsx` is now a thin FILMING WRAPPER. The Probe Library, the ask-first step panel and
+the chip tray live in a **collapsible drawer, closed by default** (the `PROBES` tab on the right
+edge). Nothing was deleted — every probe, scenario and grading path is intact and one click away;
+Lee runs the questions verbally on camera.
+
+- `ExhibitLab.tsx` extracts `ProbeControls` (scenario picker + library) and hands it to the exhibit
+  as `labControls`, so there is exactly **one** probe surface, never two. The Cycle keeps it in the
+  rail (it has no drawer).
+- **The keyboard has one owner at a time.** `StepPanel` owns `registerKeyTarget`, and it only mounts
+  while the drawer is open — so a closed drawer automatically hands `1–9 · S · ← → · \`` back to the
+  rubric. The exhibit's handler also bails on `if (drawerRef.current) return;` for the shared keys.
+
+## 2. The board (§2) — `RubricBoard.tsx` + `rubric-view.ts`
+
+`A = L + E | Revs & Exps`, centre stage, with two things under **every** element, always:
+
+- the one-word definition — `OWN · OWE · VALUE · EARNED · COSTS`;
+- a **mini T-account with the signs inside it**, replacing the floating `(+/−)` glyphs. Left column
+  is DEBIT, right is CREDIT; the `+` side is the normal balance and renders bolt-orange while the
+  `−` is muted. No labels — the T teaches the sign and the normal balance silently.
+
+**The sign table is derived from one source of truth** (`acctType().increase`, the same model the
+probes grade against) and asserted **verbatim** in the tests, because a backwards normal balance
+would be fatal:
+
+| element | left | right | normal |
+|---|---|---|---|
+| Assets | + | − | debit |
+| Liabilities | − | + | credit |
+| Equity | − | + | credit |
+| Revenues | − | + | credit |
+| Expenses | + | − | debit |
+
+## 3. Zoom navigation (§3)
+
+Click any element (or press `1`–`5`) → a GPU-composited zoom into that element: big header
+(`ASSETS` with `OWN` beside it), its T-account at 1.5×, and its **account list from the starter COA
+in COA order**. Each chip is modeled as a NODE — `{ id: "coa:A:cash", element, label }`, emitted as
+`data-node-id` / `data-element` — so drag-to-journal-entry is additive later. Drag is **not** built.
+
+A slim **breadcrumb rail** pins the whole mini-rubric at the top while zoomed: click an element to
+jump laterally, click the rail to zoom out (`Esc` does the same).
+
+**Motion law:** all three layers (full rubric · rail · zoom panel) stay **mounted** and animate on
+`opacity` + `transform` only — no remount, no reflow, no bounce. The zoom panel keeps painting the
+*last* element through its fade-out, so a lateral jump never blanks mid-transition.
+
+## 4. Statements layer (§4)
+
+Toggled by the `statements` button or key `6`: `BALANCE SHEET` under `A = L + E`, `INCOME STATEMENT`
+under `Revs & Exps`, and a bridge **icon** + `R/E` at the divider (full name in the tooltip only —
+text diet). It also shows under the header while zoomed.
+
+## 5. Progressive reveal (§5)
+
+The 2022 clicker style, stepped with the film keys: **Tab** next, **Shift+Tab** back, **`** resets
+to blank. Seven authored steps — blank → `A = L + E` → defs → T-accounts → divider + `Revs & Exps`
+→ their defs + Ts → statements layer (only if toggled ahead of time). One reveal per keypress, 150ms
+fades. `reveal = null` is FREE MODE: the fully navigable exhibit.
+
+## 6. Filming the frame — PRESENT mode
+
+The Lab gained **P = present**: every affordance disappears (`.sa-present [data-lab-chrome]`), the
+stage fills the window at a locked aspect (`fill · 16:9 · 9:16`), and the only way back is a button
+that stays invisible until the mouse finds it. The board reflows for vertical: 9:16 **stacks** the
+two universes rather than shrinking one line of glyphs into illegibility.
+
+**Bug found by driving it, not by reading it:** entering present mode used to render the stage under
+a *different parent*, which remounted the exhibit and silently wiped the reveal step, zoom and
+statements Lee had just set up. The stage now holds **one position in the tree** and present only
+restyles its container; pinned by a test asserting `{stage}` appears exactly once.
+
+## 7. Ships to students later (§6)
+
+`RubricBoard` is **controlled and dependency-light** — its entire import list is `react`, one font
+constant, and the pure model (asserted as a whole list in the tests, so a prose mention of
+`film-lock` can neither pass nor fail it). No probe module, no film-lock, no canvas card. The
+filming keys live in the wrapper.
+
+**Parked deliberately:** drag-to-journal-entry, probe automation, scenario chips on the rubric.
+
+## Not done (flagged, not silently skipped)
+
+The reveal runs in the Lab's PRESENT mode at both aspects, which is a clean OBS window-capture
+target. Wiring the Rubric into the **canvas node registry** — so it appears inside the *canvas*
+capture window / Recording Mode alongside CEQ frames — is a separate pass: it touches `types.ts`,
+the node-type map and scene-JSON round-tripping, which is authoring-surface work this prompt did
+not ask for.
+
+## Verification
+
+- 1436 tests pass (49 in the Lab file, incl. the verbatim sign table, the seven reveal steps, COA
+  node ids/order, and the source pins above); `tsc --noEmit` clean.
+- Screenshots in `docs/screenshots/rubric-v2/`: reveal 1 (blank) · 2 · 4 · 7 + statements · zoomed
+  Assets · breadcrumb jump to Equity · present 16:9 · present 9:16.
+- The continuous OBS demo take is Lee's to record — every state in it is captured above.
+
+---
+
 # Exhibit Lab v2 — Cycle + Rubric, Probe Library, The Survive Method (branch `exhibit-lab-v2`)
 
 Filming-side only. No student-facing exhibit UI ships. T-Accounts, JE grid, F/S and Formulas
