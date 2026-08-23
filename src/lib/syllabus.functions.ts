@@ -127,6 +127,7 @@ export const submitNotify = createServerFn({ method: "POST" })
       examNum: z.number().int().min(1).max(99).nullable().optional(),
       courseCode: z.string().trim().max(40).nullable().optional(),
       note: z.string().trim().max(400).nullable().optional(),
+      isTest: z.boolean().optional(),
     }).parse(d),
   )
   .handler(async ({ data }): Promise<{ ok: true }> => {
@@ -143,7 +144,7 @@ export const submitNotify = createServerFn({ method: "POST" })
       phone: kind === "phone" ? data.contact : null,
       campusId: data.campusId ?? null, campusName: data.campusName ?? null, professor: data.professorName ?? null,
       topic: data.topic ?? null, exam: data.examNum ?? null, courseCode: data.courseCode ?? null, note: data.note ?? null,
-      sourcePath: `/#${NOTIFY_SOURCE}${data.want ? `:${data.want}` : ""}`, smsConsent: kind === "phone",
+      sourcePath: `/#${NOTIFY_SOURCE}${data.want ? `:${data.want}` : ""}`, smsConsent: kind === "phone", isTest: !!data.isTest,
     });
     return { ok: true };
   });

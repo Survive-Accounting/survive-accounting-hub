@@ -94,6 +94,14 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
   const lastReached = useRef<{ setId: string; ceqId: string; pass: number } | null>(null);
   useEffect(() => { if (cur) lastReached.current = { setId, ceqId: cur.id, pass }; }, [cur, setId, pass]);
   const finishedRef = useRef(false); finishedRef.current = finished;
+  // Test Mode: mark step 5 the moment the "You've been through" screen renders — provided the
+  // pass ran with at least one correct + one incorrect (matches the spec's completion criterion).
+  useEffect(() => {
+    if (!finished) return;
+    const correct = Object.values(results).filter(Boolean).length;
+    const wrong   = Object.values(results).filter((v) => !v).length;
+    if (correct >= 1 && wrong >= 1) { void (async () => { const { markStep } = await import("@/lib/test-mode"); markStep("ceq", { correct, wrong, seen: seen.size }); })(); }
+  }, [finished, results, seen]);
   useEffect(() => () => { const l = lastReached.current; if (l && !finishedRef.current) log({ setId: l.setId, ceqId: l.ceqId, event: "abandon", attemptNumber: l.pass }); }, [log]);
 
   // ---- navigation ---------------------------------------------------------------------------------
