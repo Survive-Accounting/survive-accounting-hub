@@ -263,7 +263,9 @@ function CenterNote({ children, tone }: { children: React.ReactNode; tone?: "err
  *  Reuses the site's Supabase magic-link auth (no passwords). On return, the
  *  session appears and onAuthStateChange loads the cockpit automatically. */
 function AdminSignIn() {
-  const [email, setEmail] = useState(adminEmailFor(getAdminWho() ?? "lee"));
+  // Lee signs in with survivestudios.com; keep the prefill on his real inbox.
+  const who = getAdminWho() ?? "lee";
+  const [email, setEmail] = useState(who === "lee" ? "lee@survivestudios.com" : adminEmailFor(who));
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [msg, setMsg] = useState("");
   const send = async () => {

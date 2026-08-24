@@ -65,6 +65,7 @@ import { Route as OutreachLandingRouteImport } from './routes/outreach.landing'
 import { Route as OutreachGreekOrgsRouteImport } from './routes/outreach.greek-orgs'
 import { Route as OutreachGreekClaimsRouteImport } from './routes/outreach.greek-claims'
 import { Route as OutreachDemandRouteImport } from './routes/outreach.demand'
+import { Route as OutreachCourseIntelRouteImport } from './routes/outreach.course-intel'
 import { Route as OutreachCouncilsRouteImport } from './routes/outreach.councils'
 import { Route as OutreachCommsRouteImport } from './routes/outreach.comms'
 import { Route as OutreachChaptersRouteImport } from './routes/outreach.chapters'
@@ -402,6 +403,11 @@ const OutreachDemandRoute = OutreachDemandRouteImport.update({
   path: '/demand',
   getParentRoute: () => OutreachRoute,
 } as any)
+const OutreachCourseIntelRoute = OutreachCourseIntelRouteImport.update({
+  id: '/course-intel',
+  path: '/course-intel',
+  getParentRoute: () => OutreachRoute,
+} as any)
 const OutreachCouncilsRoute = OutreachCouncilsRouteImport.update({
   id: '/councils',
   path: '/councils',
@@ -715,6 +721,7 @@ export interface FileRoutesByFullPath {
   '/outreach/chapters': typeof OutreachChaptersRoute
   '/outreach/comms': typeof OutreachCommsRoute
   '/outreach/councils': typeof OutreachCouncilsRoute
+  '/outreach/course-intel': typeof OutreachCourseIntelRoute
   '/outreach/demand': typeof OutreachDemandRoute
   '/outreach/greek-claims': typeof OutreachGreekClaimsRoute
   '/outreach/greek-orgs': typeof OutreachGreekOrgsRoute
@@ -822,6 +829,7 @@ export interface FileRoutesByTo {
   '/outreach/chapters': typeof OutreachChaptersRoute
   '/outreach/comms': typeof OutreachCommsRoute
   '/outreach/councils': typeof OutreachCouncilsRoute
+  '/outreach/course-intel': typeof OutreachCourseIntelRoute
   '/outreach/demand': typeof OutreachDemandRoute
   '/outreach/greek-claims': typeof OutreachGreekClaimsRoute
   '/outreach/greek-orgs': typeof OutreachGreekOrgsRoute
@@ -933,6 +941,7 @@ export interface FileRoutesById {
   '/outreach/chapters': typeof OutreachChaptersRoute
   '/outreach/comms': typeof OutreachCommsRoute
   '/outreach/councils': typeof OutreachCouncilsRoute
+  '/outreach/course-intel': typeof OutreachCourseIntelRoute
   '/outreach/demand': typeof OutreachDemandRoute
   '/outreach/greek-claims': typeof OutreachGreekClaimsRoute
   '/outreach/greek-orgs': typeof OutreachGreekOrgsRoute
@@ -1045,6 +1054,7 @@ export interface FileRouteTypes {
     | '/outreach/chapters'
     | '/outreach/comms'
     | '/outreach/councils'
+    | '/outreach/course-intel'
     | '/outreach/demand'
     | '/outreach/greek-claims'
     | '/outreach/greek-orgs'
@@ -1152,6 +1162,7 @@ export interface FileRouteTypes {
     | '/outreach/chapters'
     | '/outreach/comms'
     | '/outreach/councils'
+    | '/outreach/course-intel'
     | '/outreach/demand'
     | '/outreach/greek-claims'
     | '/outreach/greek-orgs'
@@ -1262,6 +1273,7 @@ export interface FileRouteTypes {
     | '/outreach/chapters'
     | '/outreach/comms'
     | '/outreach/councils'
+    | '/outreach/course-intel'
     | '/outreach/demand'
     | '/outreach/greek-claims'
     | '/outreach/greek-orgs'
@@ -1784,6 +1796,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OutreachDemandRouteImport
       parentRoute: typeof OutreachRoute
     }
+    '/outreach/course-intel': {
+      id: '/outreach/course-intel'
+      path: '/course-intel'
+      fullPath: '/outreach/course-intel'
+      preLoaderRoute: typeof OutreachCourseIntelRouteImport
+      parentRoute: typeof OutreachRoute
+    }
     '/outreach/councils': {
       id: '/outreach/councils'
       path: '/councils'
@@ -2196,6 +2215,7 @@ interface OutreachRouteChildren {
   OutreachChaptersRoute: typeof OutreachChaptersRoute
   OutreachCommsRoute: typeof OutreachCommsRoute
   OutreachCouncilsRoute: typeof OutreachCouncilsRoute
+  OutreachCourseIntelRoute: typeof OutreachCourseIntelRoute
   OutreachDemandRoute: typeof OutreachDemandRoute
   OutreachGreekClaimsRoute: typeof OutreachGreekClaimsRoute
   OutreachGreekOrgsRoute: typeof OutreachGreekOrgsRoute
@@ -2230,6 +2250,7 @@ const OutreachRouteChildren: OutreachRouteChildren = {
   OutreachChaptersRoute: OutreachChaptersRoute,
   OutreachCommsRoute: OutreachCommsRoute,
   OutreachCouncilsRoute: OutreachCouncilsRoute,
+  OutreachCourseIntelRoute: OutreachCourseIntelRoute,
   OutreachDemandRoute: OutreachDemandRoute,
   OutreachGreekClaimsRoute: OutreachGreekClaimsRoute,
   OutreachGreekOrgsRoute: OutreachGreekOrgsRoute,

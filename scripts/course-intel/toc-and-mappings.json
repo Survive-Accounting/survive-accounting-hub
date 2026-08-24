@@ -1,0 +1,85 @@
+{
+  "_note": "Step 1b/2 seed. Textbook TOCs (public bibliographic metadata: chapter number + title only) + PROPOSED chapter -> Survive canonical intro_1 topic mappings. State='proposed' — human approval required before any live map write. No copyrighted prose stored.",
+  "_sources": {
+    "spiceland_fa": "mheducation.com product page + sample-chapter PDF (Financial Accounting, Spiceland/Thomas/Herrmann, 6e); chapter structure stable across recent editions incl. 2025 Release",
+    "libby_fa_12e": "mheducation.com + VitalSource (Financial Accounting, Libby/Libby/Hodge, 12e)",
+    "wild_fap_25e": "publisher + Open Library (Fundamental Accounting Principles, Wild/Shaw, 25e) — financial chapters 1-12 of the combined book"
+  },
+  "canonical_survive_intro1_topics": [
+    "What is Accounting & A=L+E", "Financial Statements", "Accounts & Debits and Credits",
+    "Analyzing Transactions", "Recording Journal Entries", "Account classification",
+    "Accounting equation effects", "The Accounting Cycle", "Adjusting Entries", "Trial Balances",
+    "Closing Entries", "Merchandising", "Inventory (FIFO/LIFO)", "Cash & Internal Controls",
+    "Receivables", "Long-Term Assets", "Current Liabilities", "Long-Term Liabilities / Bonds",
+    "Equity", "Statement of Cash Flows", "Financial Statement Analysis", "Easy Points"
+  ],
+  "editions": [
+    {
+      "edition_key": "financial-accounting|spiceland|6",
+      "title": "Financial Accounting",
+      "authors": "Spiceland, Thomas, Herrmann",
+      "publisher": "McGraw-Hill",
+      "edition_label": "6e (structure stable across recent editions / 2025 Release)",
+      "campus_share": "~142 of 169 intro_1 campuses (dominant)",
+      "chapters": [
+        {"number": 1, "title": "A Framework for Financial Accounting", "topics": [{"t": "What is Accounting & A=L+E", "c": "High"}, {"t": "Financial Statements", "c": "High"}, {"t": "Easy Points", "c": "Medium"}]},
+        {"number": 2, "title": "The Accounting Cycle: During the Period", "topics": [{"t": "Accounts & Debits and Credits", "c": "High"}, {"t": "Analyzing Transactions", "c": "High"}, {"t": "Recording Journal Entries", "c": "High"}]},
+        {"number": 3, "title": "The Accounting Cycle: End of the Period", "topics": [{"t": "Adjusting Entries", "c": "High"}, {"t": "Trial Balances", "c": "High"}, {"t": "Closing Entries", "c": "High"}, {"t": "Financial Statements", "c": "Medium"}]},
+        {"number": 4, "title": "Cash and Internal Controls", "topics": [{"t": "Cash & Internal Controls", "c": "High"}]},
+        {"number": 5, "title": "Receivables and Sales", "topics": [{"t": "Receivables", "c": "High"}]},
+        {"number": 6, "title": "Inventory and Cost of Goods Sold", "topics": [{"t": "Inventory (FIFO/LIFO)", "c": "High"}, {"t": "Merchandising", "c": "Medium"}]},
+        {"number": 7, "title": "Long-Term Assets", "topics": [{"t": "Long-Term Assets", "c": "High"}]},
+        {"number": 8, "title": "Current Liabilities", "topics": [{"t": "Current Liabilities", "c": "High"}]},
+        {"number": 9, "title": "Long-Term Liabilities", "topics": [{"t": "Long-Term Liabilities / Bonds", "c": "High"}]},
+        {"number": 10, "title": "Stockholders' Equity", "topics": [{"t": "Equity", "c": "High"}]},
+        {"number": 11, "title": "Statement of Cash Flows", "topics": [{"t": "Statement of Cash Flows", "c": "High"}]},
+        {"number": 12, "title": "Financial Statement Analysis", "topics": [{"t": "Financial Statement Analysis", "c": "High"}]}
+      ]
+    },
+    {
+      "edition_key": "financial-accounting|libby|12",
+      "title": "Financial Accounting",
+      "authors": "Libby, Libby, Hodge",
+      "publisher": "McGraw-Hill",
+      "edition_label": "12e",
+      "campus_share": "~4 intro_1 campuses (incl. UT Austin); matches Lee's worked example",
+      "chapters": [
+        {"number": 1, "title": "Financial Statements and Business Decisions", "topics": [{"t": "What is Accounting & A=L+E", "c": "High"}, {"t": "Financial Statements", "c": "High"}, {"t": "Easy Points", "c": "Medium"}]},
+        {"number": 2, "title": "Investing and Financing Decisions and the Accounting System", "topics": [{"t": "Accounts & Debits and Credits", "c": "High"}, {"t": "Account classification", "c": "High"}, {"t": "Accounting equation effects", "c": "High"}]},
+        {"number": 3, "title": "Operating Decisions and the Accounting System", "topics": [{"t": "Analyzing Transactions", "c": "High"}, {"t": "Recording Journal Entries", "c": "High"}]},
+        {"number": 4, "title": "Adjustments, Financial Statements, and the Closing Process", "topics": [{"t": "Adjusting Entries", "c": "High"}, {"t": "Closing Entries", "c": "High"}, {"t": "Financial Statements", "c": "High"}]},
+        {"number": 5, "title": "Communicating and Analyzing Accounting Information", "topics": [{"t": "Financial Statement Analysis", "c": "Medium"}]},
+        {"number": 6, "title": "Sales Revenue, Receivables, and Cash", "topics": [{"t": "Receivables", "c": "High"}, {"t": "Cash & Internal Controls", "c": "High"}]},
+        {"number": 7, "title": "Cost of Goods Sold and Inventory", "topics": [{"t": "Inventory (FIFO/LIFO)", "c": "High"}, {"t": "Merchandising", "c": "Medium"}]},
+        {"number": 8, "title": "Reporting and Interpreting Property, Plant, and Equipment; Intangibles; and Natural Resources", "topics": [{"t": "Long-Term Assets", "c": "High"}]},
+        {"number": 9, "title": "Reporting and Interpreting Liabilities", "topics": [{"t": "Current Liabilities", "c": "High"}]},
+        {"number": 10, "title": "Reporting and Interpreting Bond Securities", "topics": [{"t": "Long-Term Liabilities / Bonds", "c": "High"}]},
+        {"number": 11, "title": "Reporting and Interpreting Stockholders' Equity", "topics": [{"t": "Equity", "c": "High"}]},
+        {"number": 12, "title": "Statement of Cash Flows", "topics": [{"t": "Statement of Cash Flows", "c": "High"}]},
+        {"number": 13, "title": "Analyzing Financial Statements", "topics": [{"t": "Financial Statement Analysis", "c": "High"}]}
+      ]
+    },
+    {
+      "edition_key": "fundamental-accounting-principles|wild|25",
+      "title": "Fundamental Accounting Principles",
+      "authors": "Wild, Shaw",
+      "publisher": "McGraw-Hill",
+      "edition_label": "25e (financial chapters 1-12 of combined book)",
+      "campus_share": "~10 intro_1 campuses",
+      "chapters": [
+        {"number": 1, "title": "Accounting in Business", "topics": [{"t": "What is Accounting & A=L+E", "c": "High"}, {"t": "Financial Statements", "c": "High"}]},
+        {"number": 2, "title": "Analyzing and Recording Transactions", "topics": [{"t": "Accounts & Debits and Credits", "c": "High"}, {"t": "Analyzing Transactions", "c": "High"}, {"t": "Recording Journal Entries", "c": "High"}]},
+        {"number": 3, "title": "Adjusting Accounts for Financial Statements", "topics": [{"t": "Adjusting Entries", "c": "High"}, {"t": "Financial Statements", "c": "Medium"}]},
+        {"number": 4, "title": "Completing the Accounting Cycle", "topics": [{"t": "The Accounting Cycle", "c": "High"}, {"t": "Closing Entries", "c": "High"}, {"t": "Trial Balances", "c": "High"}]},
+        {"number": 5, "title": "Accounting for Merchandising Operations", "topics": [{"t": "Merchandising", "c": "High"}]},
+        {"number": 6, "title": "Inventories and Cost of Sales", "topics": [{"t": "Inventory (FIFO/LIFO)", "c": "High"}]},
+        {"number": 7, "title": "Accounting Information Systems", "topics": [{"t": "The Accounting Cycle", "c": "Low"}]},
+        {"number": 8, "title": "Cash, Fraud, and Internal Control", "topics": [{"t": "Cash & Internal Controls", "c": "High"}]},
+        {"number": 9, "title": "Accounting for Receivables", "topics": [{"t": "Receivables", "c": "High"}]},
+        {"number": 10, "title": "Plant Assets, Natural Resources, and Intangibles", "topics": [{"t": "Long-Term Assets", "c": "High"}]},
+        {"number": 11, "title": "Current Liabilities and Payroll Accounting", "topics": [{"t": "Current Liabilities", "c": "High"}]},
+        {"number": 12, "title": "Accounting for Partnerships", "topics": [{"t": "Equity", "c": "Medium"}]}
+      ]
+    }
+  ]
+}
