@@ -57,7 +57,7 @@ export function StagePills({ current, available, onSelect, onUnavailable, size =
           >
             <Icon aria-hidden className={size === "md" ? "h-3.5 w-3.5" : "h-3 w-3"} />
             <span>{STAGE_LABEL[st]}</span>
-            {!has && <span aria-hidden className="text-[8.5px] font-bold tracking-[0.12em]" style={{ opacity: 0.9 }}>· SOON</span>}
+
           </button>
         );
       })}

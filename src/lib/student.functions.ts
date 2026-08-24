@@ -27,6 +27,10 @@ export interface StudentSet {
   playbackId: string | null; // CRAM video; null = live set with no published cram yet ("coming soon")
   ceqCount: number; // # of CEQ question cards in the set (notes excluded) — the practice stage size
   runtimeSec: number | null; // cram runtime in seconds (blast publication, else lesson_videos.duration_sec)
+  /** SHORTHAND (08-23) — the problem-type label the left-rail row should show ("Account
+   *  classification", "Accounting equation effects"). Comes from the FIRST CEQ's authored
+   *  `shorthand` field. Null when no shorthand is authored; the rail falls back to `name`. */
+  shortLabel: string | null;
   /** REVIEW stage — Lee working the questions. Shipped for only some sets; never faked. */
   hasReview: boolean;
   reviewPlaybackId: string | null; // withheld for paid sets even when hasReview
@@ -94,7 +98,7 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
   // (the same membership the Studio uses). Powers the "N questions" line on each outline set row.
   const ceqCountByDeck = new Map<string, number>();
   // FIRST STEM per deck (lowest stageOrder) — the outline teaser, with its blur ranges for paid redaction.
-  const firstCeqByDeck = new Map<string, { order: number; prompt: string; blur: { s: number; e: number }[] }>();
+  const firstCeqByDeck = new Map<string, { order: number; prompt: string; blur: { s: number; e: number }[]; shorthand: string | null }>();
   type RawCeqData = { deckId?: string; stageOrder?: number; prompt?: string; blurRanges?: { s: number; e: number }[]; noteOnly?: boolean };
   // PARKED sets are authoring-only — never served, regardless of status (same law as parked topics).
   for (const o of liveDecks(owned)) {
@@ -109,7 +113,8 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
       ceqCountByDeck.set(did, (ceqCountByDeck.get(did) ?? 0) + 1);
       const order = n.data?.stageOrder ?? 0;
       const cur = firstCeqByDeck.get(did);
-      if (!cur || order < cur.order) firstCeqByDeck.set(did, { order, prompt: (n.data?.prompt ?? "").trim(), blur: Array.isArray(n.data?.blurRanges) ? n.data!.blurRanges! : [] });
+      const sh = (n.data as { shorthand?: string } | undefined)?.shorthand?.trim() || null;
+      if (!cur || order < cur.order) firstCeqByDeck.set(did, { order, prompt: (n.data?.prompt ?? "").trim(), blur: Array.isArray(n.data?.blurRanges) ? n.data!.blurRanges! : [], shorthand: sh });
     }
   }
   if (!live.length) return [];
@@ -133,6 +138,7 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
     if (!c || !c.prompt) return null;
     return paid ? redact(c.prompt, c.blur) : c.prompt;
   };
+  const shortFor = (deckId: string): string | null => firstCeqByDeck.get(deckId)?.shorthand ?? null;
 
   // 2) Published playback ids by lessonId (newest ready). A missing lesson_videos table just
   //    means "no videos yet" — degrade to null, never crash the shell.
@@ -195,7 +201,7 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
     const cramPid = blast?.render?.muxPlaybackId ?? ((d.lessonId && pb.get(d.lessonId)) || null);
     const cramDur = pubDur(blast) ?? ((d.lessonId ? dur.get(d.lessonId) : undefined) ?? null);
     setOrderKey.set(d.id, d.sortOrder ?? Number.MAX_SAFE_INTEGER);
-    topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: "landscape", playbackId: paid ? null : cramPid, ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: cramDur, hasReview: !!look, reviewPlaybackId: paid ? null : (look?.render?.muxPlaybackId ?? null), reviewRuntimeSec: pubDur(look), firstStem: stemFor(d.id, paid) });
+    topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: "landscape", playbackId: paid ? null : cramPid, ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: cramDur, hasReview: !!look, reviewPlaybackId: paid ? null : (look?.render?.muxPlaybackId ?? null), reviewRuntimeSec: pubDur(look), firstStem: stemFor(d.id, paid), shortLabel: shortFor(d.id) });
   }
 
   for (const t of topics.values()) t.sets.sort((a, b) => (setOrderKey.get(a.id) ?? 0) - (setOrderKey.get(b.id) ?? 0) || a.name.localeCompare(b.name));

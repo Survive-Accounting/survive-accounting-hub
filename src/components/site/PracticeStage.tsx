@@ -297,7 +297,7 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
           <div className="mt-3">
             {/* Feedback is a quiet note, not another card. */}
             <p className="px-1 text-[12px] leading-relaxed" style={{ color: C.muted }}>
-              {pickedChoice?.feedback ?? (pickedChoice?.correct ? "Right. Lee works this one in the review video — coming soon." : "Lee works this one in the review video — coming soon.")}
+              {pickedChoice?.feedback ?? (pickedChoice?.correct ? "✓ Correct!" : "✕ Not quite. Try again →")}
             </p>
             <AskBox reference={fullRef(pos)} shorthand={cur.shorthand} prompt={cur.prompt} setId={setId} ceqId={cur.id} campusName={campusName} campusSlug={campusSlug} isTest={isTest} />
           </div>
