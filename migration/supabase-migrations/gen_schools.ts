@@ -46,12 +46,35 @@ const EXTRA_ALIASES: Record<string, string[]> = {
 };
 
 const hasAliases = !(await db.from("campuses").select("search_aliases").limit(1)).error;
-const cols = `id,name,slug,short_name,color_primary,color_secondary,course_family_codes_json,is_sec${hasAliases ? ",search_aliases" : ""}`;
+const cols = `id,name,slug,short_name,state,color_primary,color_secondary,course_family_codes_json,is_sec${hasAliases ? ",search_aliases" : ""}`;
 
 const { data: bySlug } = await db.from("campuses").select(cols).in("slug", seedCsv.map((r) => r.slug)).is("archived_at", null);
 const { data: sec } = await db.from("campuses").select(cols).eq("is_sec", true).is("archived_at", null);
+
+// FAIL-SOFT: this generator runs at build time (vercel.json prepends it to the build). If the SEC
+// fetch came back empty the DB is unreachable or misconfigured -- do NOT rewrite the file with a
+// broken/partial list, which would blank the homepage picker. Keep the last-good committed file.
+if (!sec?.length) { console.warn("gen_schools: SEC fetch empty -- DB unreachable? Keeping committed schools.generated.ts."); process.exit(0); }
+
+// READY campuses auto-added to the picker: live, coloured, with >=1 greek chapter AND a professor
+// signal (an RMP match or a scraped faculty page). This is the rule that makes a newly-ready campus
+// appear on the homepage the next time the site deploys -- no hand-editing of the seed list. SEC and
+// the original seed set are always kept (unioned) so a campus already shown never silently drops.
+const chapterCampusIds = new Set<string>();
+for (let from = 0; ; from += 1000) {
+  const { data, error } = await db.from("campus_greek_chapters").select("campus_id").range(from, from + 999);
+  if (error) { console.warn(`gen_schools: greek read failed (${error.message}); proceeding with SEC+seed only.`); break; }
+  if (!data?.length) break;
+  for (const r of data as any[]) if (r.campus_id) chapterCampusIds.add(r.campus_id);
+  if (data.length < 1000) break;
+}
+const { data: readyRows } = await db.from("campuses").select(cols)
+  .is("archived_at", null).not("slug", "is", null).not("color_primary", "is", null)
+  .or("rmp_school_id.not.is.null,faculty_page_url.not.is.null");
+const ready = (readyRows ?? []).filter((c: any) => chapterCampusIds.has(c.id));
+
 const seen = new Set<string>();
-const rows: any[] = [...(sec ?? []), ...(bySlug ?? [])].filter((c: any) => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
+const rows: any[] = [...(sec ?? []), ...(bySlug ?? []), ...ready].filter((c: any) => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
 // Seed rows whose DB slug we deliberately kept are not found by seed slug -- pick them up by name.
 for (const r of seedCsv) {
   if (rows.some((c) => c.slug === r.slug)) continue;
@@ -75,7 +98,13 @@ const BRAND_ID_BY_SLUG: Record<string, string> = {
 };
 const brandById = new Map((BRAND_SEC as any[]).map((b) => [b.id, b]));
 const code = (c: any) => { const r = c.course_family_codes_json; const j = typeof r === "string" ? JSON.parse(r || "{}") : (r ?? {}); return ((j?.intro_1 ?? "") as string).trim() || null; };
-const nameFor = (c: any) => (c.short_name || csvBySlug.get(c.slug)?.short_display_name || csvByName.get(norm(c.name))?.short_display_name || c.name) as string;
+// Curated schools (SEC + the original seed set) keep their marketing short form ("Bama", "Mizzou").
+// Ready-added campuses use the FULL institution name -- a raw DB short_name is often a terse, ambiguous
+// abbreviation ("AU", "A-State", "SSU") that reads badly as a homepage tile.
+const isCurated = (c: any) => c.is_sec || csvBySlug.has(c.slug) || csvByName.has(norm(c.name));
+const nameFor = (c: any) => (isCurated(c)
+  ? (c.short_name || csvBySlug.get(c.slug)?.short_display_name || csvByName.get(norm(c.name))?.short_display_name || c.name)
+  : (c.name || c.short_name)) as string;
 const idFor = (c: any) => nameFor(c).toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
 const table = rows.map((c: any) => {
@@ -89,17 +118,34 @@ const table = rows.map((c: any) => {
   if (csv && csv.slug !== c.slug) al.add(csv.slug.replace(/-/g, " "));
   if (norm(c.name) !== norm(nameFor(c))) al.add(c.name);
   return {
-    id, campusId: c.id, slug: c.slug, name: nameFor(c), isSec: !!c.is_sec, courseCode: code(c),
+    id, campusId: c.id, slug: c.slug, name: nameFor(c), state: (c.state ?? "") as string, isSec: !!c.is_sec, courseCode: code(c),
     // SEC keeps brand.tsx; everyone else reads from the database.
     c1: brand?.c1 ?? c.color_primary ?? null, c2: brand?.c2 ?? c.color_secondary ?? null,
     aliases: [...al].filter((a) => norm(a) !== norm(nameFor(c))),
   };
 }).sort((a, b) => a.name.localeCompare(b.name));
 
+// Disambiguate collisions instead of throwing. Two "Miami" (FL vs OH) is normal once the picker is
+// data-driven, and a throw here would break the *build* (this runs at deploy). Append the state to a
+// colliding display name and re-derive the id; a leftover id clash gets a numeric suffix. The search
+// alias keeps the bare name findable. Last resort still throws -- but only if disambiguation failed.
+const nameCount = new Map<string, number>();
+for (const t of table) nameCount.set(t.name, (nameCount.get(t.name) ?? 0) + 1);
+const toId = (s: string) => s.toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+const usedIds = new Set<string>();
+for (const t of table) {
+  if ((nameCount.get(t.name) ?? 0) > 1 && t.state) { t.aliases = [...new Set([t.name, ...t.aliases])]; t.name = `${t.name} (${t.state})`; }
+  let id = toId(t.name); let n = 2;
+  while (usedIds.has(id)) id = `${toId(t.name)}-${n++}`;
+  usedIds.add(id); t.id = id;
+}
 const dup = (xs: string[]) => [...new Set(xs.filter((v, i, a) => a.indexOf(v) !== i))];
 const dupIds = dup(table.map((t) => t.id)), dupNames = dup(table.map((t) => t.name));
-if (dupIds.length) throw new Error(`duplicate picker ids: ${dupIds.join(", ")}`);
-if (dupNames.length) throw new Error(`duplicate display names: ${dupNames.join(", ")}`);
+if (dupIds.length) throw new Error(`duplicate picker ids after disambiguation: ${dupIds.join(", ")}`);
+if (dupNames.length) throw new Error(`duplicate display names after disambiguation: ${dupNames.join(", ")}`);
+
+// SANITY: never publish a suspiciously small list -- if a partial DB read shrank it, keep committed.
+if (table.length < 60) { console.warn(`gen_schools: only ${table.length} schools resolved (<60) -- keeping committed file.`); process.exit(0); }
 
 await Bun.write("src/lib/schools.generated.ts", `// GENERATED by migration/supabase-migrations/gen_schools.ts -- DO NOT EDIT BY HAND.
 // The database is the source of truth. Regenerate after any campus seed change.
@@ -114,7 +160,7 @@ export type GeneratedSchool = {
   aliases: string[];
 };
 
-export const GENERATED_SCHOOLS: GeneratedSchool[] = ${JSON.stringify(table, null, 2)};
+export const GENERATED_SCHOOLS: GeneratedSchool[] = ${JSON.stringify(table.map(({ state, ...t }) => t), null, 2)};
 `);
 console.log(`wrote ${table.length} schools (${table.filter((t) => t.isSec).length} SEC, ${table.filter((t) => !t.isSec).length} other)`);
 console.log(`  missing course code: ${table.filter((t) => !t.courseCode).length}   missing colours: ${table.filter((t) => !t.c1).length}`);
