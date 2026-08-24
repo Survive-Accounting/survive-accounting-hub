@@ -17,6 +17,7 @@ import { z } from "zod";
 
 import { getGoChapter, goPath } from "@/lib/greek-go.functions";
 import { normalizePhoneE164 } from "@/lib/greek-chapters.functions";
+import { ADMIN_EMAILS } from "@/lib/admin-emails";
 
 type DB = {
   from: (t: string) => any;
@@ -28,7 +29,6 @@ const admin = async () => {
 };
 
 /** Who may decide a claim. Server-side only — this list never reaches the browser. */
-const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com", "lee@survivestudios.com"];
 
 /** Verify a Supabase JWT and confirm it belongs to an admin. Returns the email or null.
  *  Null is always treated as "no", never as "probably fine". */

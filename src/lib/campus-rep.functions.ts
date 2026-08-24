@@ -29,6 +29,7 @@
 // over rows whose raw_text starts with the prefix.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { ADMIN_EMAILS } from "@/lib/admin-emails";
 
 
 type DB = { from: (t: string) => any };
@@ -38,7 +39,6 @@ const admin = async () => {
 };
 
 const PREFIX = "[CAMPUS REP]";
-const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com", "lee@survivestudios.com"];
 
 export const REP_STATUSES = ["new", "contacted", "approved", "declined"] as const;
 export type RepStatus = (typeof REP_STATUSES)[number];

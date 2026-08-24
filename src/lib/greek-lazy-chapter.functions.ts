@@ -16,6 +16,7 @@
 // what GreekIntel or an exec has already established.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { ADMIN_EMAILS } from "@/lib/admin-emails";
 
 /** greek_orgs.council holds the NATIONAL bodies; campus councils (and the council pages) use the
  *  campus names. Without this map a self-created chapter never appears on its council page. */
@@ -111,7 +112,6 @@ export type PendingChapter = {
   schoolName: string; schoolSlug: string; council: string | null; status: string; createdAt: string;
 };
 
-const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com", "lee@survivestudios.com"];
 
 async function isAdmin(db: any, accessToken: string): Promise<boolean> {
   try {

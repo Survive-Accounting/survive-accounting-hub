@@ -26,6 +26,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { sendSms } from "@/lib/greek-chapters.functions";
+import { ADMIN_EMAILS } from "@/lib/admin-emails";
 
 type DB = { from: (t: string) => any };
 const admin = async () => {
@@ -59,7 +60,6 @@ export function councilMatches(council: { slug: string; name: string; full: stri
   return v === normCouncilValue(council.slug) || v === normCouncilValue(council.name) || v === normCouncilValue(council.full);
 }
 
-const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com", "lee@survivestudios.com"];
 
 type CouncilState = { token: string; rotatedAt: string; lastOpenedAt?: string | null; lastAlertAt?: string | null };
 type CouncilMap = Record<string, CouncilState>;

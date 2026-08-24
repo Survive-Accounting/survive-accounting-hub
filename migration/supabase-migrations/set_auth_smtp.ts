@@ -20,10 +20,14 @@ const payload = {
   smtp_admin_email: fromArg ?? "lee@mail.surviveaccounting.com",
   smtp_sender_name: "Lee Ingram",
   smtp_host: "smtp.resend.com",
-  smtp_port: "465",
+  // 587 = STARTTLS. Port 465 (implicit TLS) makes GoTrue's SMTP client fail with a
+  // generic "Error sending confirmation email" 500 even though the Resend key is
+  // valid (verified 2026-08-24: 465 → 500, 587 → 200). Keep this on 587.
+  smtp_port: "587",
   smtp_user: "resend",
   smtp_pass: RESEND,
   smtp_max_frequency: 1, // seconds between emails to the same address (Supabase default is 60 with the built-in mailer)
+  rate_limit_email_sent: 30, // per hour; the built-in default of 2 throttled admin sign-ins
   mailer_subjects_magic_link: "Your sign-in link — Survive Accounting",
 };
 console.log("PATCH /v1/projects/%s/config/auth", PROJECT);

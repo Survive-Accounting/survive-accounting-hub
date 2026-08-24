@@ -7,13 +7,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { loadDecksDeduped, liveDecks } from "@/lib/student.functions";
+import { ADMIN_EMAILS } from "@/lib/admin-emails";
 
 type DB = { from: (t: string) => any; auth: { getUser: (t: string) => Promise<{ data: { user: { email?: string | null } | null } }> } };
 const admin = async (): Promise<DB> => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   return supabaseAdmin as unknown as DB;
 };
-const ADMIN_EMAILS = ["lee@surviveaccounting.com", "lee@survivestudios.com"];
 async function isAdmin(db: DB, token: string): Promise<boolean> {
   try { const { data } = await db.auth.getUser(token); const e = (data?.user?.email ?? "").toLowerCase(); return !!e && ADMIN_EMAILS.includes(e); } catch { return false; }
 }

@@ -18,6 +18,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { sendSms } from "@/lib/greek-chapters.functions";
+import { ADMIN_EMAILS } from "@/lib/admin-emails";
 
 type DB = {
   from: (t: string) => any;
@@ -29,7 +30,6 @@ const admin = async () => {
 };
 
 /** Server-side only — never reaches the browser. Same list as greek-claims. */
-const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com", "lee@survivestudios.com"];
 
 async function emailFromToken(db: DB, accessToken: string): Promise<string | null> {
   const { data, error } = await db.auth.getUser(accessToken);
