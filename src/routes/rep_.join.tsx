@@ -12,7 +12,7 @@ import { SearchPicker } from "@/components/site/SearchPicker";
 import { ALL_SCHOOLS, boltForSlug } from "@/lib/schools";
 import { signUpRep, exampleEarn } from "@/lib/rep-portal.functions";
 import { formatCents } from "@/lib/referral-shared";
-import { readTestSession } from "@/lib/test-mode";
+import { parseTestParams, readTestSession } from "@/lib/test-mode";
 import { ogMeta } from "@/lib/og";
 
 export const Route = createFileRoute("/rep_/join")({
@@ -37,7 +37,10 @@ function RepJoin() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const isTest = useMemo(() => typeof window !== "undefined" && !!readTestSession(), []);
+  // Test rep if a test session is active OR the tester URL (?testmode=1) is present. Reading the URL
+  // directly avoids a race: TestModeBar writes the session in an effect that may not have run before
+  // this first render, but the ?testmode=1 param is available synchronously.
+  const isTest = useMemo(() => typeof window !== "undefined" && (!!readTestSession() || !!parseTestParams(window.location.search)), []);
   const ok = name.trim().length > 1 && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim()) && !!campus;
   const earn = formatCents(exampleEarn(5000)); // 10% of a $50 exam
 
