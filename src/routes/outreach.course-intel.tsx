@@ -1,8 +1,10 @@
 // /outreach/course-intel — the Course Intel cockpit.
-// One place to SEE everything the scraper/Course-Intel pipeline produces:
-// per-campus professor + textbook coverage (a leaderboard), a per-campus
-// drill-down where you approve professors (→ outreach AND the student player),
-// and the textbook chapter → Survive-topic mappings.
+// See everything the scraper/Course-Intel pipeline produces: per-campus
+// professor + textbook coverage (a leaderboard), a per-campus drill-down where
+// you publish professors to the STUDENT PLAYER (sets active_roster, the flag the
+// player's professor picker already reads), and the textbook chapter → Survive-
+// topic mappings. A professor shows to students only when the campus is live
+// AND the professor is live AND they're RMP-matched.
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -10,7 +12,7 @@ import { AdminGate, getAdminWho, adminEmailFor } from "@/components/AdminGate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  getCourseIntelOverview, getCampusProfessors, reviewProfessor, getTextbookMappings,
+  getCourseIntelOverview, getCampusProfessors, reviewProfessor, setCampusRoster, getTextbookMappings,
   type CourseIntelRow,
 } from "@/lib/course-intel.functions";
 
@@ -24,7 +26,7 @@ export const Route = createFileRoute("/outreach/course-intel")({
 });
 
 type Tab = "coverage" | "mappings";
-type Filter = "all" | "picker" | "picker_no_profs" | "has_pending";
+type Filter = "all" | "picker" | "picker_no_profs" | "has_pending" | "live";
 
 function Stat({ label, value, hint }: { label: string; value: number | string; hint?: string }) {
   return (
@@ -51,6 +53,7 @@ function CourseIntelCockpit() {
     if (filter === "picker") r = r.filter((x) => x.inPicker);
     else if (filter === "picker_no_profs") r = r.filter((x) => x.inPicker && x.profTotal === 0);
     else if (filter === "has_pending") r = r.filter((x) => x.profPending > 0);
+    else if (filter === "live") r = r.filter((x) => x.campusLive);
     const q = search.trim().toLowerCase();
     if (q) r = r.filter((x) => x.name.toLowerCase().includes(q) || (x.state ?? "").toLowerCase().includes(q));
     return [...r].sort((a, b) => b.profTotal - a.profTotal || a.name.localeCompare(b.name));
@@ -61,7 +64,7 @@ function CourseIntelCockpit() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">Course Intel</h1>
-          <p className="text-xs text-muted-foreground">Professor + textbook coverage across every campus. Approve professors to publish them to outreach and the student player.</p>
+          <p className="text-xs text-muted-foreground">Professor + textbook coverage across every campus. Publish professors to the student player and review the exam-topic mappings.</p>
         </div>
         <div className="flex gap-1 rounded-lg border border-border p-1">
           <button onClick={() => setTab("coverage")} className={`rounded px-3 py-1 text-xs ${tab === "coverage" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Coverage</button>
@@ -77,14 +80,14 @@ function CourseIntelCockpit() {
               <Stat label="With ≥1 prof" value={totals.withProfs} />
               <Stat label="Pickable schools" value={totals.pickable} hint="in the student picker" />
               <Stat label="Pickable, no profs" value={totals.pickableNoProfs} hint="next scrape targets" />
-              <Stat label="Student-visible profs" value={totals.studentVisible} />
-              <Stat label="Pending review" value={totals.pendingReview} />
+              <Stat label="Campuses live" value={totals.campusesLive} hint="on the student roster" />
+              <Stat label="Profs player-ready" value={totals.profsPlayerReady} hint="live + RMP-matched" />
             </div>
           )}
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search campus or state…" className="h-9 max-w-xs" />
-            {([["all", "All"], ["picker", "Pickable"], ["picker_no_profs", "Pickable · no profs"], ["has_pending", "Has pending"]] as [Filter, string][]).map(([f, label]) => (
+            {([["all", "All"], ["picker", "Pickable"], ["picker_no_profs", "Pickable · no profs"], ["has_pending", "Has pending"], ["live", "Live"]] as [Filter, string][]).map(([f, label]) => (
               <button key={f} onClick={() => setFilter(f)} className={`rounded-full border px-3 py-1 text-xs ${filter === f ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}>{label}</button>
             ))}
             <span className="ml-auto text-xs text-muted-foreground">{filtered.length} campuses{overview.isLoading ? " · loading…" : ""}</span>
@@ -105,13 +108,14 @@ function CourseIntelCockpit() {
                   <tr key={r.campusId} className="border-t border-border hover:bg-muted/30">
                     <td className="px-3 py-2">
                       {r.name}
-                      {r.inPicker && <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-500">PICKER</span>}
-                      {r.hasMapping && <span className="ml-1 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-500">MAPPED</span>}
+                      {r.campusLive && <span className="ml-2 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-500">LIVE</span>}
+                      {r.inPicker && <span className="ml-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-500">PICKER</span>}
+                      {r.hasMapping && <span className="ml-1 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium text-sky-500">MAPPED</span>}
                     </td>
                     <td className="px-2 py-2 text-xs text-muted-foreground">{r.state}</td>
                     <td className="px-2 py-2 text-right tabular-nums">{r.profTotal || <span className="text-muted-foreground/50">0</span>}</td>
                     <td className="px-2 py-2 text-right tabular-nums text-muted-foreground">{r.profWithEmail}</td>
-                    <td className="px-2 py-2 text-right tabular-nums text-emerald-500">{r.profStudentVisible || ""}</td>
+                    <td className="px-2 py-2 text-right tabular-nums text-emerald-500">{r.profPlayerReady || (r.profLive ? `${r.profLive}*` : "")}</td>
                     <td className="px-2 py-2 text-right tabular-nums text-amber-500">{r.profPending || ""}</td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">{r.textbook ?? <span className="text-muted-foreground/40">—</span>}</td>
                     <td className="px-2 py-2 text-right">
@@ -122,6 +126,7 @@ function CourseIntelCockpit() {
               </tbody>
             </table>
           </div>
+          <p className="mt-2 text-[10px] text-muted-foreground">Live column = professors that actually show in the player (on-roster + RMP-matched). <span className="text-emerald-500">N</span> = player-ready; <span className="text-emerald-500">N*</span> = approved but not RMP-matched (won't appear until matched).</p>
         </>
       )}
 
@@ -136,13 +141,19 @@ function ProfessorDrawer({ row, onClose }: { row: CourseIntelRow; onClose: () =>
   const qc = useQueryClient();
   const who = getAdminWho();
   const profs = useQuery({ queryKey: ["campus-profs", row.campusId], queryFn: () => getCampusProfessors({ data: { campusId: row.campusId } }) });
+  const campusLive = profs.data?.campusLive ?? row.campusLive;
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["campus-profs", row.campusId] });
+    qc.invalidateQueries({ queryKey: ["course-intel-overview"] });
+  };
   const review = useMutation({
     mutationFn: (v: { id: string; action: "approve" | "reject" | "unapprove" }) =>
       reviewProfessor({ data: { ...v, who: who ? adminEmailFor(who) : undefined } }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["campus-profs", row.campusId] });
-      qc.invalidateQueries({ queryKey: ["course-intel-overview"] });
-    },
+    onSuccess: invalidate,
+  });
+  const campusRoster = useMutation({
+    mutationFn: (live: boolean) => setCampusRoster({ data: { campusId: row.campusId, live } }),
+    onSuccess: invalidate,
   });
 
   return (
@@ -155,30 +166,42 @@ function ProfessorDrawer({ row, onClose }: { row: CourseIntelRow; onClose: () =>
           </div>
           <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
         </div>
-        <p className="mt-2 text-[11px] text-muted-foreground">Approve → visible to students in the professor picker + added to outreach. Emails are never shown to students.</p>
-        <div className="mt-4 space-y-2">
+
+        <div className={`mt-3 flex items-center justify-between rounded-lg border px-3 py-2 ${campusLive ? "border-emerald-500/30 bg-emerald-500/5" : "border-border bg-muted/30"}`}>
+          <div className="text-xs">
+            <span className="font-medium">{campusLive ? "Campus is LIVE on the student roster" : "Campus not on the student roster"}</span>
+            <div className="text-[10px] text-muted-foreground">Professors only show in the player when the campus is live.</div>
+          </div>
+          <Button size="sm" variant={campusLive ? "outline" : "default"} className="h-7 text-xs" disabled={campusRoster.isPending} onClick={() => campusRoster.mutate(!campusLive)}>
+            {campusLive ? "Deactivate campus" : "Activate campus"}
+          </Button>
+        </div>
+
+        <p className="mt-2 text-[11px] text-muted-foreground">Approve → the professor appears in the student player's picker (name + RMP rating only; emails never leave outreach). RMP-matched professors are the ones the player can show.</p>
+        <div className="mt-3 space-y-2">
           {profs.isLoading && <div className="text-sm text-muted-foreground">Loading…</div>}
-          {(profs.data ?? []).map((p) => (
+          {(profs.data?.professors ?? []).map((p) => (
             <div key={p.id} className="flex items-center gap-3 rounded-lg border border-border bg-card px-3 py-2">
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium">
                   {p.name || <span className="text-muted-foreground">(no name)</span>}
-                  {p.studentVisible && <span className="ml-2 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] text-emerald-500">LIVE</span>}
+                  {p.live && <span className="ml-2 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] text-emerald-500">LIVE</span>}
+                  {p.live && !p.rmpMatched && <span className="ml-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-500">not RMP-matched</span>}
                   {p.status === "rejected" && <span className="ml-2 rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] text-red-500">rejected</span>}
                 </div>
                 <div className="truncate text-[11px] text-muted-foreground">
-                  {[p.title, p.department, p.isCpa && "CPA", p.isPhd && "PhD", p.hasEmail && "✉ email", p.rmpRating != null && `RMP ${p.rmpRating}★ (${p.rmpNumRatings})`].filter(Boolean).join(" · ")}
+                  {[p.title, p.department, p.isCpa && "CPA", p.isPhd && "PhD", p.hasEmail && "✉", p.rmpMatched ? (p.rmpRating != null ? `RMP ${p.rmpRating}★ (${p.rmpNumRatings})` : "RMP-matched") : "no RMP"].filter(Boolean).join(" · ")}
                 </div>
               </div>
               <div className="flex shrink-0 gap-1">
-                {!p.studentVisible
+                {!p.live
                   ? <Button size="sm" className="h-7 text-xs" disabled={review.isPending} onClick={() => review.mutate({ id: p.id, action: "approve" })}>Approve</Button>
                   : <Button size="sm" variant="outline" className="h-7 text-xs" disabled={review.isPending} onClick={() => review.mutate({ id: p.id, action: "unapprove" })}>Unpublish</Button>}
                 {p.status !== "rejected" && <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500" disabled={review.isPending} onClick={() => review.mutate({ id: p.id, action: "reject" })}>✕</Button>}
               </div>
             </div>
           ))}
-          {profs.data && profs.data.length === 0 && <div className="text-sm text-muted-foreground">No professors scraped for this campus yet.</div>}
+          {profs.data && profs.data.professors.length === 0 && <div className="text-sm text-muted-foreground">No professors scraped for this campus yet.</div>}
         </div>
       </div>
     </div>
