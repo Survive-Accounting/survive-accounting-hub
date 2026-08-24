@@ -19,9 +19,8 @@
 // them and inherits the same request context, so the cookie is visible.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { ADMIN_EMAILS } from "@/lib/admin-emails";
 
-/** The only identities that may operate the admin workspaces. Server-side only — never shipped. */
-const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com", "lee@survivestudios.com"];
 
 const COOKIE = "sa_admin_jwt";
 

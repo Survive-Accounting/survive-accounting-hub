@@ -14,6 +14,7 @@
 // which is the predicate the real counts already use for comms and will use everywhere else.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { ADMIN_EMAILS } from "@/lib/admin-emails";
 
 import {
   TEST_CAMPUS_NAME, TEST_CAMPUS_SLUG, TEST_CHAPTER_NAME, TEST_CHAPTER_SLUG, TEST_COURSE_CODE,
@@ -26,7 +27,6 @@ const admin = async () => {
   return supabaseAdmin as unknown as DB;
 };
 
-const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com", "lee@survivestudios.com"];
 
 /** Both locks, reported honestly. `enabled` is the env guard; a client that thinks it is in test
  *  mode without this is simply wrong and every server write will refuse it. */

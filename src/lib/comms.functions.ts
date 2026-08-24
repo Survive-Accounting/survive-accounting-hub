@@ -7,13 +7,13 @@ import { z } from "zod";
 
 import { ALL_TEMPLATES, renderTemplate, SAMPLE_CTX, type TemplateCtx, type TemplateKey } from "@/lib/comms/templates";
 import { INTAKE_KINDS, type IntakeKind } from "@/lib/comms/kinds";
+import { ADMIN_EMAILS } from "@/lib/admin-emails";
 
 type DB = { from: (t: string) => any; auth: { getUser: (t: string) => Promise<{ data: { user: { email?: string | null } | null } }> } };
 const admin = async (): Promise<DB> => {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   return supabaseAdmin as unknown as DB;
 };
-const ADMIN_EMAILS = ["lee@surviveaccounting.com", "lee@survivestudios.com"];
 async function adminEmail(db: DB, token: string): Promise<string | null> {
   try {
     const { data } = await db.auth.getUser(token);

@@ -7,6 +7,7 @@ import versionData from "virtual:site-qa-versions";
 
 import { TEMPLATES, TEMPLATES_BY_ID, type CountKey } from "./manifest";
 import { deriveStatus, statusUrgency, type QaStatus } from "./status";
+import { ADMIN_EMAILS } from "@/lib/admin-emails";
 import {
   getCountsAndExamples,
   markVerified as storeMarkVerified,
@@ -35,13 +36,6 @@ import type {
 
 // ── admin gate (server-enforced) ───────────────────────────────────────────
 
-// Lee signs in with the survivestudios.com address; the surviveaccounting.com
-// ones are the company-domain aliases. All are admins for Site QA.
-const ADMIN_EMAILS = [
-  "lee@survivestudios.com",
-  "lee@surviveaccounting.com",
-  "king@surviveaccounting.com",
-];
 
 export interface AdminIdentity {
   email: string;

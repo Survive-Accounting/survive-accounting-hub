@@ -23,6 +23,7 @@ import { z } from "zod";
 
 import { makeTerm, termFromId, termId, priceCentsFor, PRESALE_DISCLOSURE, SEAT_MINIMUM, money, type Term } from "@/lib/terms";
 import { stripeCall, stripeReady } from "@/lib/stripe.server";
+import { ADMIN_EMAILS } from "@/lib/admin-emails";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- same shape the other greek-* server modules use
 type DB = { from: (t: string) => any };
@@ -31,7 +32,6 @@ const admin = async () => {
   return supabaseAdmin as unknown as DB;
 };
 
-const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com", "lee@survivestudios.com"];
 
 /** PAYMENTS FOLLOW THE KEYS, AND THE KEYS ARE TEST-ONLY.
  *
