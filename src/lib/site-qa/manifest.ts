@@ -360,6 +360,7 @@ export const TEMPLATES: TemplateDef[] = [
       "outreach.campaign-metrics.tsx",
       "outreach.campaign-targets.tsx",
       "outreach.active-roster.tsx",
+      "outreach.course-intel.tsx",
     ],
     countKey: "static",
     trafficPaths: ["/outreach"],
