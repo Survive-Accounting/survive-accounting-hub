@@ -4,6 +4,7 @@
 // silently fail. New tables are reached via `as never`/`as any` casts (no typegen).
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { isIntro1Qualified } from "./course-intel-shared";
 
 export type FamilyKey = "intro_1" | "intro_2" | "intermediate_1" | "intermediate_2";
 export const FAMILY_KEYS: FamilyKey[] = ["intro_1", "intro_2", "intermediate_1", "intermediate_2"];
@@ -165,10 +166,15 @@ export const searchOrderProfessors = createServerFn({ method: "POST" })
     // "My professor isn't listed" free-text path. A campus reaches this step
     // from the picker only if it's on the active roster; free-text schools have
     // no campusId, so the picker is empty. (post-typegen columns → cast.)
+    // Show a professor when they're RMP-matched AND either manually rostered
+    // (active_roster) OR qualified as an Intro-1 teacher — i.e. they have >=1 RMP
+    // rating tagged with the campus's INTRO-1 course code (rmp_target_course_
+    // counts_json.intro_1 >= 1). This keeps the picker to professors who actually
+    // teach the intro course (not intermediate/other). Filtered in JS because the
+    // qualification reads a per-family JSON count.
     const { data: rows } = await (supabaseAdmin.from("campus_lead_suggestions") as any)
-      .select("id,first_name,last_name,email")
+      .select("id,first_name,last_name,email,active_roster,rmp_target_course_counts_json")
       .eq("campus_id", data.campusId)
-      .not("active_roster", "is", null)
       .not("rmp_profile_url", "is", null)
       .is("archived_at", null)
       .order("last_name", { ascending: true })
@@ -176,10 +182,12 @@ export const searchOrderProfessors = createServerFn({ method: "POST" })
 
     const seen = new Set<string>();
     const out: ProfessorLite[] = [];
-    for (const r of (rows ?? []) as Array<Record<string, string | null>>) {
-      const email = (r.email ?? "").toLowerCase().trim();
-      const last = (r.last_name ?? "").trim();
-      const first = (r.first_name ?? "").trim();
+    for (const r of (rows ?? []) as Array<Record<string, unknown>>) {
+      // Intro-1 gate: manually rostered OR RMP-qualified intro-1 teacher.
+      if (!r.active_roster && !isIntro1Qualified(r as { rmp_target_course_counts_json?: unknown })) continue;
+      const email = ((r.email as string) ?? "").toLowerCase().trim();
+      const last = ((r.last_name as string) ?? "").trim();
+      const first = ((r.first_name as string) ?? "").trim();
       const key = `${last.toLowerCase()}|${first.toLowerCase()}|${email}`;
       if (seen.has(key)) continue;
       seen.add(key);
