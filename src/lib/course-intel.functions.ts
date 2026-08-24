@@ -13,6 +13,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { ALL_SCHOOLS } from "./schools";
+import { isIntro1Qualified, intro1Tier } from "./course-intel-shared";
 
 async function pageAll<T>(
   make: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
@@ -48,6 +49,7 @@ export type CourseIntelRow = {
   profWithEmail: number;
   profLive: number;         // professors with active_roster set (on the player)
   profPlayerReady: number;  // active_roster AND rmp_profile_url (actually show)
+  profIntro1: number;       // qualified "teaches Intro 1" (RMP target-course signal)
   profPending: number;
   textbook: string | null;
   hasMapping: boolean;
@@ -64,8 +66,9 @@ export const getCourseIntelOverview = createServerFn({ method: "GET" }).handler(
 
   const sugg = await pageAll<{
     campus_id: string; email: string | null; archived_at: string | null; active_roster: string | null; rmp_profile_url: string | null; status: string | null;
+    rmp_target_course_counts_json: unknown; rmp_recent_target_match: boolean | null;
   }>((f, t) =>
-    (supabaseAdmin.from("campus_lead_suggestions") as any).select("campus_id,email,archived_at,active_roster,rmp_profile_url,status").range(f, t),
+    (supabaseAdmin.from("campus_lead_suggestions") as any).select("campus_id,email,archived_at,active_roster,rmp_profile_url,status,rmp_target_course_counts_json,rmp_recent_target_match").range(f, t),
   );
 
   const mapped = await pageAll<{ textbook_id: string }>((f, t) =>
@@ -81,25 +84,26 @@ export const getCourseIntelOverview = createServerFn({ method: "GET" }).handler(
 
   const inPicker = new Set(ALL_SCHOOLS.map((s) => s.campusId));
 
-  const agg = new Map<string, { total: number; email: number; live: number; ready: number; pending: number }>();
+  const agg = new Map<string, { total: number; email: number; live: number; ready: number; pending: number; intro1: number }>();
   for (const s of sugg) {
     if (s.archived_at) continue;
-    const a = agg.get(s.campus_id) ?? { total: 0, email: 0, live: 0, ready: 0, pending: 0 };
+    const a = agg.get(s.campus_id) ?? { total: 0, email: 0, live: 0, ready: 0, pending: 0, intro1: 0 };
     a.total++;
     if (s.email) a.email++;
     if (s.active_roster) { a.live++; if (s.rmp_profile_url) a.ready++; }
     if ((s.status ?? "pending") === "pending") a.pending++;
+    if (isIntro1Qualified(s)) a.intro1++;
     agg.set(s.campus_id, a);
   }
 
   const rows: CourseIntelRow[] = campuses.map((c) => {
-    const a = agg.get(c.id) ?? { total: 0, email: 0, live: 0, ready: 0, pending: 0 };
+    const a = agg.get(c.id) ?? { total: 0, email: 0, live: 0, ready: 0, pending: 0, intro1: 0 };
     const tb = parseTextbook(c.course_family_textbooks_json);
     const author = (tb?.authors ?? "").split(/[,;]/)[0].trim().toLowerCase();
     return {
       campusId: c.id, name: c.name, state: c.state, inPicker: inPicker.has(c.id),
       campusLive: c.active_roster === "sec",
-      profTotal: a.total, profWithEmail: a.email, profLive: a.live, profPlayerReady: a.ready, profPending: a.pending,
+      profTotal: a.total, profWithEmail: a.email, profLive: a.live, profPlayerReady: a.ready, profIntro1: a.intro1, profPending: a.pending,
       textbook: tb ? `${tb.title}${tb.authors ? " — " + tb.authors : ""}` : null,
       hasMapping: !!author && mappedAuthors.has(author),
     };
@@ -112,6 +116,8 @@ export const getCourseIntelOverview = createServerFn({ method: "GET" }).handler(
     pickableNoProfs: rows.filter((r) => r.inPicker && r.profTotal === 0).length,
     campusesLive: rows.filter((r) => r.campusLive).length,
     profsPlayerReady: rows.reduce((s, r) => s + r.profPlayerReady, 0),
+    profsIntro1: rows.reduce((s, r) => s + r.profIntro1, 0),
+    campusesWithIntro1: rows.filter((r) => r.profIntro1 > 0).length,
     pendingReview: rows.reduce((s, r) => s + r.profPending, 0),
   };
   return { rows, totals };
@@ -123,16 +129,14 @@ export const getCampusProfessors = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: campus } = await (supabaseAdmin.from("campuses") as any).select("active_roster").eq("id", data.campusId).maybeSingle();
     const { data: rows, error } = await (supabaseAdmin.from("campus_lead_suggestions") as any)
-      .select("id,first_name,last_name,title,email,department,is_cpa,is_phd,rmp_rating,rmp_num_ratings,rmp_profile_url,status,active_roster,research_label")
+      .select("id,first_name,last_name,title,email,department,is_cpa,is_phd,rmp_rating,rmp_num_ratings,rmp_profile_url,status,active_roster,research_label,rmp_target_course_counts_json,rmp_recent_target_match,rmp_latest_target_course_code,rmp_latest_target_rating_date,profintel_score")
       .eq("campus_id", data.campusId)
       .is("archived_at", null)
-      .order("active_roster", { ascending: false, nullsFirst: false })
-      .order("rmp_num_ratings", { ascending: false, nullsFirst: false })
-      .limit(500);
+      .limit(600);
     if (error) throw new Error(error.message);
-    return {
-      campusLive: (campus?.active_roster as string) === "sec",
-      professors: ((rows ?? []) as Array<Record<string, unknown>>).map((r) => ({
+    const professors = ((rows ?? []) as Array<Record<string, unknown>>).map((r) => {
+      const sig = { rmp_target_course_counts_json: r.rmp_target_course_counts_json ?? null, rmp_recent_target_match: (r.rmp_recent_target_match as boolean) ?? null };
+      return {
         id: r.id as string,
         name: `${(r.first_name as string) ?? ""} ${(r.last_name as string) ?? ""}`.trim(),
         title: (r.title as string) ?? null,
@@ -145,8 +149,21 @@ export const getCampusProfessors = createServerFn({ method: "GET" })
         status: (r.status as string) ?? "pending",
         live: !!r.active_roster,
         source: (r.research_label as string) ?? null,
-      })),
-    };
+        intro1: isIntro1Qualified(sig),
+        intro1Tier: intro1Tier(sig),
+        targetCode: (r.rmp_latest_target_course_code as string) ?? null,
+        targetDate: (r.rmp_latest_target_rating_date as string) ?? null,
+        score: (r.profintel_score as number) ?? null,
+      };
+    });
+    // Qualified intro-1 teachers first (recent > confirmed > prior), then by score / ratings.
+    const tierRank: Record<string, number> = { recent: 0, confirmed: 1, prior: 2, none: 3 };
+    professors.sort((a, b) =>
+      (tierRank[a.intro1Tier] - tierRank[b.intro1Tier]) ||
+      ((b.score ?? -1) - (a.score ?? -1)) ||
+      ((b.rmpNumRatings ?? 0) - (a.rmpNumRatings ?? 0)));
+    const intro1Count = professors.filter((p) => p.intro1).length;
+    return { campusLive: (campus?.active_roster as string) === "sec", intro1Count, professors };
   });
 
 // Approve/unpublish/reject a professor. Approve sets active_roster='sec' (the

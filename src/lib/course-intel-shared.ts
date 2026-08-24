@@ -83,6 +83,32 @@ export function parseExamChapterRanges(text?: string | null): Array<{ label: str
   return results;
 }
 
+// "Teaches Intro 1" qualification. Must be INTRO-1 SPECIFIC: the stored
+// rmp_target_confidence / rmp_recent_target_match span ALL target families
+// (intro_1, intro_2, intermediate_1/2), so a professor who only teaches
+// Intermediate would falsely qualify. We instead read the per-family count from
+// rmp_target_course_counts_json — intro_1 >= 1 means they have >=1 RMP rating
+// tagged with the campus's Intro-1 course code. This is the ONE gate for the
+// student picker + cockpit + syllabus discovery.
+export type Intro1Signals = { rmp_target_course_counts_json?: unknown; rmp_recent_target_match?: boolean | null };
+export function introOneCount(s: Intro1Signals): number {
+  let j = s.rmp_target_course_counts_json;
+  if (typeof j === "string") { try { j = JSON.parse(j); } catch { return 0; } }
+  if (!j || typeof j !== "object") return 0;
+  const n = Number((j as Record<string, unknown>).intro_1);
+  return Number.isFinite(n) ? n : 0;
+}
+export function isIntro1Qualified(s: Intro1Signals): boolean {
+  return introOneCount(s) >= 1;
+}
+export function intro1Tier(s: Intro1Signals): "recent" | "confirmed" | "prior" | "none" {
+  const n = introOneCount(s);
+  if (n < 1) return "none";
+  if (s.rmp_recent_target_match === true) return "recent"; // has a recent target match + teaches intro-1
+  if (n >= 3) return "confirmed";                          // rated for intro-1 several times
+  return "prior";                                          // taught intro-1 at least once
+}
+
 export function scoreConfidence(signals: {
   explicitExamRange?: boolean; exactEditionIdentified?: boolean; exactTocFound?: boolean;
   multipleRecentAgree?: boolean; weeklyScheduleSupports?: boolean; professorSpecific?: boolean;
