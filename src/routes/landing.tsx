@@ -1545,6 +1545,15 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
     const { data: sess } = await supabase.auth.getSession();
     const token = sess.session?.access_token ?? "";
     if (!token) { setSaveOpen(true); return; }
+    if (isTest) {
+      // TEST MODE — grant the unlock instantly without Stripe (so the purchase → unlock → rep-credit
+      // loop is testable while the real price ids are being confirmed), and credit the rep whose /r/
+      // link brought this student here. bumpEntitlements a few times so the paid tabs open at once.
+      const { grantTestEntitlement } = await import("@/lib/student-entitlements.functions");
+      const g = await grantTestEntitlement({ data: { accessToken: token, kind, campusId: school?.campusId ?? null } });
+      if (g.ok) for (let i = 0; i < 5; i++) window.setTimeout(() => bumpEntitlements(), i * 400);
+      return;
+    }
     const r = await createCheckoutSession({ data: { accessToken: token, kind, returnPath: routePath, campusId: school?.campusId ?? null } });
     if ("url" in r && r.url) window.location.assign(r.url);
   };

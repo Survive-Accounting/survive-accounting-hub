@@ -141,6 +141,17 @@ export const TEMPLATES: TemplateDef[] = [
     trafficPaths: ["/rep", "/:school/rep"],
   },
   {
+    id: "rep-portal",
+    label: "Rep Portal",
+    category: "public",
+    description: "Campus-rep self-serve: sign up for a tracked link, and the token dashboard with earnings + payouts.",
+    routePattern: "/rep/join · /rep/dashboard",
+    routes: ["rep_.join.tsx", "rep_.dashboard.tsx"],
+    extraFiles: ["src/lib/rep-portal.ts", "src/lib/rep-portal.functions.ts"],
+    countKey: "static",
+    trafficPaths: ["/rep/join", "/rep/dashboard"],
+  },
+  {
     id: "prof-campus-landing",
     label: "Professor Share Page",
     category: "public",

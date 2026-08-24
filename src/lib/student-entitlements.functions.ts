@@ -64,6 +64,81 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
   });
 
 // ────────────────────────────────────────────────────────────────────────────────────────────
+// TEST GRANT — unlock a paid kind WITHOUT Stripe, for testing the purchase → unlock → rep-credit
+// loop while the real Stripe price ids are not set yet. Gated three ways: Test Mode must be enabled
+// on the server, the caller must be signed in, and the row is written is_test so it never counts as
+// real revenue. It also records a referral PURCHASE conversion from the sa_ref cookie (forced test),
+// so a rep whose link the tester followed sees the sale land in their dashboard — the whole point.
+// ────────────────────────────────────────────────────────────────────────────────────────────
+const KIND_PRICE_CENTS: Record<EntitlementKind, number> = { exam_2: 5000, exam_3: 5000, final: 5000, pass: 12000 };
+
+export const grantTestEntitlement = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ accessToken: z.string().min(20), kind: KIND, campusId: z.string().uuid().nullable().optional() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string; credited?: boolean }> => {
+    const { testModeOn } = await import("@/lib/test-mode.server");
+    if (!testModeOn()) return { ok: false, error: "Test Mode is not enabled." };
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: u } = await supabaseAdmin.auth.getUser(data.accessToken);
+    if (!u?.user) return { ok: false, error: "not signed in" };
+
+    const row = {
+      user_id: u.user.id, kind: data.kind, campus_id: data.campusId ?? null,
+      source: "test", is_test: true,
+      stripe_session_id: `test-${data.kind}-${u.user.id}`,   // synthetic → idempotent on the unique index
+      granted_at: new Date().toISOString(), meta: { test_grant: true },
+    };
+    const { error } = await (supabaseAdmin.from("student_entitlements" as never) as unknown as { insert: (r: Record<string, unknown>) => Promise<{ error: { message?: string } | null }> }).insert(row);
+    if (error && !/duplicate|conflict|unique/i.test(String(error.message ?? ""))) return { ok: false, error: error.message };
+
+    // Credit the rep whose link brought this student here (if any). Test-forced so it can't pollute
+    // real commission totals.
+    let credited = false;
+    try {
+      const { getRequest } = await import("@tanstack/react-start/server");
+      const { recordConversionForRequest } = await import("@/lib/referral.server");
+      const request = getRequest();
+      if (request) {
+        const r = await recordConversionForRequest(request, {
+          kind: "purchase", amountCents: KIND_PRICE_CENTS[data.kind],
+          subjectType: "entitlement", subjectId: `${u.user.id}:${data.kind}`,
+          email: u.user.email ?? null, forceTest: true,
+        });
+        credited = r.attributed;
+      }
+    } catch { /* attribution is best-effort — the unlock still happened */ }
+
+    return { ok: true, credited };
+  });
+
+// ────────────────────────────────────────────────────────────────────────────────────────────
+// VALIDATE PRICES — answers "are my STRIPE_PRICE_* env vars real price ids?" definitively. For each
+// kind it looks up the configured id and RETRIEVES it from Stripe: a valid `price_…` comes back with
+// an amount; a product id (`prod_…`) or a wrong id returns Stripe's "No such price" error. Test-Mode
+// gated so it is safe to expose. This is the check that settles whether real checkout will work.
+// ────────────────────────────────────────────────────────────────────────────────────────────
+export const validateStripePrices = createServerFn({ method: "GET" })
+  .handler(async (): Promise<{ ready: boolean; rows: Array<{ kind: EntitlementKind; idPrefix: string; ok: boolean; amount?: string; error?: string }> }> => {
+    const { testModeOn } = await import("@/lib/test-mode.server");
+    if (!testModeOn()) return { ready: false, rows: [] };
+    const { stripe, priceIdForKind } = await import("./stripe.server");
+    const kinds: EntitlementKind[] = ["exam_2", "exam_3", "final", "pass"];
+    const rows: Array<{ kind: EntitlementKind; idPrefix: string; ok: boolean; amount?: string; error?: string }> = [];
+    for (const kind of kinds) {
+      const id = priceIdForKind(kind) ?? "";
+      const idPrefix = id ? id.slice(0, 5) : "(unset)";
+      if (!id) { rows.push({ kind, idPrefix, ok: false, error: "env var not set" }); continue; }
+      if (!id.startsWith("price_")) { rows.push({ kind, idPrefix, ok: false, error: id.startsWith("prod_") ? "this is a PRODUCT id (prod_), not a PRICE id (price_)" : "not a price_ id" }); continue; }
+      try {
+        const price = await stripe().prices.retrieve(id);
+        rows.push({ kind, idPrefix, ok: true, amount: price.unit_amount != null ? `$${(price.unit_amount / 100).toFixed(2)}` : "—" });
+      } catch (e) {
+        rows.push({ kind, idPrefix, ok: false, error: e instanceof Error ? e.message : "retrieve failed" });
+      }
+    }
+    return { ready: rows.every((r) => r.ok), rows };
+  });
+
+// ────────────────────────────────────────────────────────────────────────────────────────────
 // LIST MY ENTITLEMENTS
 // ────────────────────────────────────────────────────────────────────────────────────────────
 export const listMyEntitlements = createServerFn({ method: "POST" })

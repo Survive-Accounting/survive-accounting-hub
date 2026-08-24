@@ -43,6 +43,8 @@ import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as StudyFoundationsRouteImport } from './routes/study_.foundations'
 import { Route as StudyDashboardRouteImport } from './routes/study_.dashboard'
 import { Route as StudyCanvasRouteImport } from './routes/study_.canvas'
+import { Route as RepJoinRouteImport } from './routes/rep_.join'
+import { Route as RepDashboardRouteImport } from './routes/rep_.dashboard'
 import { Route as RCodeRouteImport } from './routes/r.$code'
 import { Route as PartnersNationalOrganizationsRouteImport } from './routes/partners.national-organizations'
 import { Route as PartnersCampusCouncilsRouteImport } from './routes/partners.campus-councils'
@@ -284,6 +286,16 @@ const StudyDashboardRoute = StudyDashboardRouteImport.update({
 const StudyCanvasRoute = StudyCanvasRouteImport.update({
   id: '/study_/canvas',
   path: '/study/canvas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RepJoinRoute = RepJoinRouteImport.update({
+  id: '/rep_/join',
+  path: '/rep/join',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RepDashboardRoute = RepDashboardRouteImport.update({
+  id: '/rep_/dashboard',
+  path: '/rep/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RCodeRoute = RCodeRouteImport.update({
@@ -723,6 +735,8 @@ export interface FileRoutesByFullPath {
   '/partners/campus-councils': typeof PartnersCampusCouncilsRoute
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
   '/r/$code': typeof RCodeRoute
+  '/rep/dashboard': typeof RepDashboardRoute
+  '/rep/join': typeof RepJoinRoute
   '/study/canvas': typeof StudyCanvasRoute
   '/study/dashboard': typeof StudyDashboardRoute
   '/study/foundations': typeof StudyFoundationsRoute
@@ -828,6 +842,8 @@ export interface FileRoutesByTo {
   '/partners/campus-councils': typeof PartnersCampusCouncilsRoute
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
   '/r/$code': typeof RCodeRoute
+  '/rep/dashboard': typeof RepDashboardRoute
+  '/rep/join': typeof RepJoinRoute
   '/study/canvas': typeof StudyCanvasRoute
   '/study/dashboard': typeof StudyDashboardRoute
   '/study/foundations': typeof StudyFoundationsRoute
@@ -937,6 +953,8 @@ export interface FileRoutesById {
   '/partners/campus-councils': typeof PartnersCampusCouncilsRoute
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
   '/r/$code': typeof RCodeRoute
+  '/rep_/dashboard': typeof RepDashboardRoute
+  '/rep_/join': typeof RepJoinRoute
   '/study_/canvas': typeof StudyCanvasRoute
   '/study_/dashboard': typeof StudyDashboardRoute
   '/study_/foundations': typeof StudyFoundationsRoute
@@ -1047,6 +1065,8 @@ export interface FileRouteTypes {
     | '/partners/campus-councils'
     | '/partners/national-organizations'
     | '/r/$code'
+    | '/rep/dashboard'
+    | '/rep/join'
     | '/study/canvas'
     | '/study/dashboard'
     | '/study/foundations'
@@ -1152,6 +1172,8 @@ export interface FileRouteTypes {
     | '/partners/campus-councils'
     | '/partners/national-organizations'
     | '/r/$code'
+    | '/rep/dashboard'
+    | '/rep/join'
     | '/study/canvas'
     | '/study/dashboard'
     | '/study/foundations'
@@ -1260,6 +1282,8 @@ export interface FileRouteTypes {
     | '/partners/campus-councils'
     | '/partners/national-organizations'
     | '/r/$code'
+    | '/rep_/dashboard'
+    | '/rep_/join'
     | '/study_/canvas'
     | '/study_/dashboard'
     | '/study_/foundations'
@@ -1341,6 +1365,8 @@ export interface RootRouteChildren {
   PartnersCampusCouncilsRoute: typeof PartnersCampusCouncilsRoute
   PartnersNationalOrganizationsRoute: typeof PartnersNationalOrganizationsRoute
   RCodeRoute: typeof RCodeRoute
+  RepDashboardRoute: typeof RepDashboardRoute
+  RepJoinRoute: typeof RepJoinRoute
   StudyCanvasRoute: typeof StudyCanvasRoute
   StudyDashboardRoute: typeof StudyDashboardRoute
   StudyFoundationsRoute: typeof StudyFoundationsRoute
@@ -1602,6 +1628,20 @@ declare module '@tanstack/react-router' {
       path: '/study/canvas'
       fullPath: '/study/canvas'
       preLoaderRoute: typeof StudyCanvasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rep_/join': {
+      id: '/rep_/join'
+      path: '/rep/join'
+      fullPath: '/rep/join'
+      preLoaderRoute: typeof RepJoinRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/rep_/dashboard': {
+      id: '/rep_/dashboard'
+      path: '/rep/dashboard'
+      fullPath: '/rep/dashboard'
+      preLoaderRoute: typeof RepDashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/r/$code': {
@@ -2299,6 +2339,8 @@ const rootRouteChildren: RootRouteChildren = {
   PartnersCampusCouncilsRoute: PartnersCampusCouncilsRoute,
   PartnersNationalOrganizationsRoute: PartnersNationalOrganizationsRoute,
   RCodeRoute: RCodeRoute,
+  RepDashboardRoute: RepDashboardRoute,
+  RepJoinRoute: RepJoinRoute,
   StudyCanvasRoute: StudyCanvasRoute,
   StudyDashboardRoute: StudyDashboardRoute,
   StudyFoundationsRoute: StudyFoundationsRoute,

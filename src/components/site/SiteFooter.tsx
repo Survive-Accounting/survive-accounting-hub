@@ -50,7 +50,7 @@ export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
         { label: "Start studying", href: `${base}#exam1` },
         { label: "Reviews", href: `${base}#reviews` },
         { label: "Meet your tutor", href: `${base}#lee` },
-        { label: "Become a campus rep", href: slug ? `/${slug}/rep` : "/rep" },
+        { label: "Become a campus rep", href: "/rep/join" },
       ],
     },
     {
