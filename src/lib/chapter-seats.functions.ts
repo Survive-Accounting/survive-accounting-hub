@@ -223,6 +223,24 @@ export const startSeatPurchase = createServerFn({ method: "POST" })
     const amount = priceCentsFor(data.seats);
     const status = data.method === "check" ? "awaiting_check" : "pending";
 
+    // Rep attribution: if the treasurer followed a rep's /r/ link, capture the code now so the seat
+    // sale can credit the rep when the pool activates. Also capture the request origin so the Stripe
+    // return lands back on the SAME deployment the exec is using (matters on a preview URL).
+    // Best-effort — both fall back safely.
+    let refCode = "";
+    let originFromReq = "";
+    try {
+      const { getRequest } = await import("@tanstack/react-start/server");
+      const { readRefCookie } = await import("@/lib/referral.server");
+      const request = getRequest();
+      if (request) {
+        refCode = readRefCookie(request)?.code ?? "";
+        const o = request.headers.get("origin");
+        const host = request.headers.get("host");
+        originFromReq = o || (host ? `https://${host}` : "");
+      }
+    } catch { /* no cookie / no request */ }
+
     // Top up an existing pool for this term rather than opening a second one: "14 of 20 assigned"
     // has to stay one true sentence per term.
     const { data: existing } = await db.from("chapter_seat_pools")
@@ -241,7 +259,7 @@ export const startSeatPurchase = createServerFn({ method: "POST" })
       const topUp = await attachPayment(db, {
         poolId: existing.id as string, chapterId: data.chapterId, chapterName: (actor.ch.chapter_name as string) ?? "Chapter",
         term, seats: data.seats, amount, method: data.method,
-        treasurerName: data.treasurerName, treasurerEmail: data.treasurerEmail, isTest: !!data.isTest,
+        treasurerName: data.treasurerName, treasurerEmail: data.treasurerEmail, isTest: !!data.isTest, refCode, origin: originFromReq,
       });
       if (!topUp.ok) return topUp;
       return { ok: true, poolId: existing.id as string, status: (existing.status as string) === "active" ? "active" : status, ...topUp.urls };
@@ -265,7 +283,7 @@ export const startSeatPurchase = createServerFn({ method: "POST" })
     const paid = await attachPayment(db, {
       poolId: created.id as string, chapterId: data.chapterId, chapterName: (actor.ch.chapter_name as string) ?? "Chapter",
       term, seats: data.seats, amount, method: data.method,
-      treasurerName: data.treasurerName, treasurerEmail: data.treasurerEmail, isTest: !!data.isTest,
+      treasurerName: data.treasurerName, treasurerEmail: data.treasurerEmail, isTest: !!data.isTest, refCode, origin: originFromReq,
     });
     if (!paid.ok) return paid;
 
@@ -290,15 +308,21 @@ async function attachPayment(db: DB, o: {
   term: Term; seats: number; amount: number;
   method: "card" | "invoice" | "check";
   treasurerName?: string; treasurerEmail?: string; isTest: boolean;
+  /** Rep referral code from the sa_ref cookie, if the treasurer arrived via a rep link. Rides in
+   *  the Stripe metadata so activation (webhook OR sync confirm) can credit the rep. */
+  refCode?: string;
+  /** Origin of the exec's request, so the Stripe card return lands on the same deployment. */
+  origin?: string;
 }): Promise<{ ok: true; urls: { checkoutUrl?: string; invoiceUrl?: string } } | { ok: false; error: string }> {
   const label = `${o.seats} seat${o.seats === 1 ? "" : "s"} · ${o.term.label} — access through ${o.term.expiresLabel}`;
   const meta = {
     pool_id: o.poolId, chapter_id: o.chapterId, term_id: termId(o.term),
     seats: String(o.seats), is_test: String(o.isTest), kind: "chapter_seats",
+    ...(o.refCode ? { ref_code: o.refCode } : {}),
   };
 
   if (o.method === "card") {
-    const origin = process.env.SITE_ORIGIN ?? "https://surviveaccounting.com";
+    const origin = o.origin || process.env.SITE_ORIGIN || "https://surviveaccounting.com";
     const r = await stripeCall<{ id: string; url: string }>("checkout/sessions", {
       mode: "payment",
       success_url: `${origin}/chapters/dashboard?seats=paid&pool=${o.poolId}`,
@@ -393,6 +417,54 @@ export async function activatePoolFromStripe(poolId: string, method: "card" | "i
     return true;
   } catch { return false; }
 }
+
+/** Credit the rep whose link led to a seat purchase. Idempotent per (subject_type, subject_id,
+ *  kind) in the referral engine, so calling it from BOTH the webhook and the sync confirm is safe.
+ *  Best-effort — a credit failure never blocks activation. */
+export async function creditRepForSeatPool(poolId: string, refCode: string | null | undefined, amountCents: number, isTest: boolean): Promise<void> {
+  const code = (refCode ?? "").trim();
+  if (!code) return;
+  try {
+    const { recordConversionByCode } = await import("@/lib/referral.server");
+    await recordConversionByCode(code, {
+      kind: "chapter_purchase", amountCents: Math.max(0, Math.round(amountCents || 0)),
+      subjectType: "seat_pool", subjectId: poolId, forceTest: isTest,
+    });
+  } catch { /* attribution is best-effort */ }
+}
+
+/** SYNC CONFIRM — activate a card pool from the success return, WITHOUT waiting on the webhook.
+ *  Stripe delivers webhooks to one configured endpoint, so on a preview URL (or if the webhook is
+ *  slow) the pool would otherwise sit "pending" after the treasurer pays. This verifies the session
+ *  is really paid, then activates + credits the rep. Idempotent with the webhook. Exec or admin. */
+export const confirmSeatCheckout = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    accessToken: z.string().min(10),
+    poolId: z.string().uuid(),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; activated: boolean; error?: string }> => {
+    const db = await admin();
+    const { data: pool } = await db.from("chapter_seat_pools")
+      .select("id,chapter_id,status,stripe_checkout_id,amount_cents,is_test").eq("id", data.poolId).maybeSingle();
+    if (!pool?.id) return { ok: false, activated: false, error: "No such seat pool." };
+    const actor = await actorFor(db, data.accessToken, pool.chapter_id as string);
+    if (!actor) return { ok: false, activated: false, error: "Not authorised." };
+    if ((pool.status as string) === "active") return { ok: true, activated: true };
+
+    const sessionId = pool.stripe_checkout_id as string | null;
+    if (!sessionId) return { ok: true, activated: false };   // not a card pool / nothing to confirm
+
+    const r = await stripeCall<{ payment_status?: string; status?: string; amount_total?: number; metadata?: Record<string, string> }>(
+      `checkout/sessions/${sessionId}`, undefined, "GET",
+    );
+    if (!r.ok) return { ok: false, activated: false, error: r.error };
+    const paid = r.data.payment_status === "paid" || r.data.status === "complete";
+    if (!paid) return { ok: true, activated: false };
+
+    const activated = await activatePoolFromStripe(data.poolId, "card");
+    await creditRepForSeatPool(data.poolId, r.data.metadata?.ref_code, r.data.amount_total ?? (pool.amount_cents as number) ?? 0, !!pool.is_test);
+    return { ok: true, activated };
+  });
 
 /** ADMIN: mark a pool paid and activate it — the cheque cleared, or Lee is comping the term.
  *  This is the only activation path until the Stripe webhooks exist. */

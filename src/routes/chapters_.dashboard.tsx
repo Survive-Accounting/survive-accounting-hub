@@ -12,7 +12,7 @@ import { FitWordmark, SiteHeader, useNavyDocument } from "@/components/site/Site
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { getChapterDashboard, setChapterDigest, type ChapterDashboard } from "@/lib/greek-chapters.functions";
 import { assignSeat, transferChapterOwnership } from "@/lib/greek-seats.functions";
-import { getChapterSeatState, type ChapterSeatState } from "@/lib/chapter-seats.functions";
+import { confirmSeatCheckout, getChapterSeatState, type ChapterSeatState } from "@/lib/chapter-seats.functions";
 import { SeatOfferBlock, SeatPurchase } from "@/components/site/SeatOffer";
 import { SeatDashboard } from "@/components/site/SeatDashboard";
 import { ChapterShareKit } from "@/components/site/ShareKit";
@@ -163,6 +163,27 @@ function Dashboard({ data, token, onDigest, onReload }: { data: ChapterDashboard
       .catch(() => { /* the seat tables may not be applied yet — the free dashboard still works */ });
   };
   useEffect(loadSeats, [data.chapterId, token]);
+
+  // CONFIRM ON RETURN from Stripe card checkout (?seats=paid&pool=…): verify + activate the pool
+  // now instead of waiting on the webhook, so the treasurer sees seats immediately (and so this
+  // works on a preview URL the webhook can't reach). Idempotent; clears the param after.
+  useEffect(() => {
+    if (!token) return;
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("seats") !== "paid") return;
+    const pool = p.get("pool");
+    if (!pool) return;
+    let active = true;
+    void (async () => {
+      try { await confirmSeatCheckout({ data: { accessToken: token, poolId: pool } }); } catch { /* webhook is the fallback */ }
+      if (!active) return;
+      loadSeats(); onReload();
+      try { window.history.replaceState({}, "", window.location.pathname); } catch { /* ignore */ }
+    })();
+    return () => { active = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
   const activePool = seatState?.pools.find((x) => x.id === seatState.currentPoolId) ?? null;
   const dismissOffer = () => {
     setOfferDismissed(true);

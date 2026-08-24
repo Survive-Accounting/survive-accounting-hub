@@ -9,9 +9,10 @@
 // through Dec. 31, 2026". Every screen states the term and its expiry before the price, and the
 // selection travels to the pool that gets created.
 //
-// PAYMENTS: card and invoice are visibly OFF until Test Mode exists (see PAYMENTS_ENABLED in
-// chapter-seats.functions). Check works today and is presented as a first-class path, because it
-// is how chapter treasurers usually pay anyway.
+// PAYMENTS: card and invoice are gated on VITE_PAYMENTS_ENABLED, a build-time flag. It is set for
+// PREVIEW deployments (so the flow can be tested end-to-end against Stripe TEST mode with a test
+// card) and left unset in PRODUCTION (card/invoice stay off; treasurers pay by check / Lee invoices
+// them). The SERVER re-checks paymentsEnabled() before touching Stripe, so this is UI only.
 import { useMemo, useState } from "react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
@@ -19,8 +20,9 @@ import {
   CHAPTER_PRESALE_TIMING_COPY, PRESALE_DISCLOSURE, SEAT_MINIMUM, SEAT_PACKS,
   money, priceCentsFor, purchasableTerms, seatCoverageLine, termId, type Term,
 } from "@/lib/terms";
-import { PAYMENTS_ENABLED, startSeatPurchase } from "@/lib/chapter-seats.functions";
+import { startSeatPurchase } from "@/lib/chapter-seats.functions";
 
+const PAYMENTS_ENABLED = import.meta.env.VITE_PAYMENTS_ENABLED === "1";
 const LEE_TEL = "+16625658818";
 
 /** The disclosure block. One component so the sentence, its timing line and its treatment are

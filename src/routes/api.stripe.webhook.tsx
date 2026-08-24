@@ -107,7 +107,15 @@ async function handle(request: Request): Promise<Response> {
     case "checkout.session.completed": {
       if (poolId) {
         // CHAPTER SEATS. `paid`/`complete` is the only state that may grant access.
-        if (obj.payment_status === "paid" || obj.status === "complete") await activatePoolFromStripe(poolId, "card");
+        if (obj.payment_status === "paid" || obj.status === "complete") {
+          await activatePoolFromStripe(poolId, "card");
+          // Credit the rep whose link led to this chapter's purchase (idempotent with the sync confirm).
+          const m = (obj.metadata ?? {}) as Record<string, string>;
+          if (m.ref_code) {
+            const { creditRepForSeatPool } = await import("@/lib/chapter-seats.functions");
+            await creditRepForSeatPool(poolId, m.ref_code, typeof obj.amount_total === "number" ? obj.amount_total : 0, m.is_test === "true");
+          }
+        }
         break;
       }
       // STUDENT ENTITLEMENT (no pool_id). Returns its own 200/400/500 so Stripe's retry semantics
