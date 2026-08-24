@@ -15,6 +15,7 @@ import {
   getCourseIntelOverview, getCampusProfessors, reviewProfessor, setCampusRoster, getTextbookMappings,
   type CourseIntelRow,
 } from "@/lib/course-intel.functions";
+import { discoverCourseDocuments, parseCourseDocument, getCampusDocuments } from "@/lib/syllabus-intel.functions";
 
 export const Route = createFileRoute("/outreach/course-intel")({
   head: () => ({ meta: [{ title: "Course Intel — Survive Accounting" }] }),
@@ -203,6 +204,62 @@ function ProfessorDrawer({ row, onClose }: { row: CourseIntelRow; onClose: () =>
           ))}
           {profs.data && profs.data.professors.length === 0 && <div className="text-sm text-muted-foreground">No professors scraped for this campus yet.</div>}
         </div>
+
+        <DocsPanel campusId={row.campusId} />
+      </div>
+    </div>
+  );
+}
+
+function DocsPanel({ campusId }: { campusId: string }) {
+  const qc = useQueryClient();
+  const docs = useQuery({ queryKey: ["campus-docs", campusId], queryFn: () => getCampusDocuments({ data: { campusId } }) });
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["campus-docs", campusId] });
+  const discover = useMutation({ mutationFn: () => discoverCourseDocuments({ data: { campusId } }), onSuccess: invalidate });
+  const parse = useMutation({ mutationFn: (documentId: string) => parseCourseDocument({ data: { documentId } }), onSuccess: invalidate });
+
+  const evByDoc = (id: string) => (docs.data?.evidence ?? []).filter((e) => e.course_document_id === id);
+  const tierLabel = ["", "exam", "structure", "topic", "id"];
+
+  return (
+    <div className="mt-6 border-t border-border pt-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Course documents <span className="text-xs font-normal text-muted-foreground">(public syllabi / study guides)</span></h3>
+        <Button size="sm" className="h-7 text-xs" disabled={discover.isPending} onClick={() => discover.mutate()}>
+          {discover.isPending ? "Discovering…" : "Discover syllabi"}
+        </Button>
+      </div>
+      {discover.data && <p className="mt-1 text-[11px] text-muted-foreground">Found {discover.data.total} ({discover.data.public} public, {discover.data.restricted} restricted-skipped) · {discover.data.serpCalls} searches · code {discover.data.code || "—"}</p>}
+      <p className="mt-1 text-[10px] text-muted-foreground">Discovery uses public web search; restricted doc mills (Course Hero, Scribd, …) are skipped, never fetched. Parse fetches the public page and extracts textbook + exam→chapter ranges only.</p>
+
+      <div className="mt-3 space-y-2">
+        {docs.isLoading && <div className="text-sm text-muted-foreground">Loading…</div>}
+        {(docs.data?.docs ?? []).map((d) => {
+          const ev = evByDoc(d.id);
+          return (
+            <div key={d.id} className="rounded-lg border border-border bg-card px-3 py-2">
+              <div className="flex items-center gap-2">
+                <span className={`rounded px-1.5 py-0.5 text-[10px] ${d.value_tier === 1 ? "bg-emerald-500/15 text-emerald-500" : d.value_tier === 2 ? "bg-sky-500/15 text-sky-500" : "bg-muted text-muted-foreground"}`}>{d.document_type}</span>
+                <a href={d.source_url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-xs text-foreground hover:underline">{d.title || d.source_url}</a>
+                <span className="text-[10px] text-muted-foreground">{d.file_type}</span>
+                {d.processing_status !== "parsed"
+                  ? <Button size="sm" variant="outline" className="h-6 text-[11px]" disabled={parse.isPending} onClick={() => parse.mutate(d.id)}>Parse</Button>
+                  : <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] text-emerald-500">parsed</span>}
+              </div>
+              {ev.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1 pl-1">
+                  {ev.map((e) => (
+                    <span key={e.id} className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      {e.evidence_type === "exam_chapter_range" ? `${e.exam_label}: Ch ${(e.exam_chapters as number[] | null)?.join(", ")}` : `📖 ${e.textbook_ref}${e.edition_ref ? " " + e.edition_ref : ""}`}
+                      <span className="ml-1 opacity-60">{e.confidence}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {docs.data && docs.data.docs.length === 0 && <div className="text-xs text-muted-foreground">No documents yet — click “Discover syllabi”.</div>}
       </div>
     </div>
   );
