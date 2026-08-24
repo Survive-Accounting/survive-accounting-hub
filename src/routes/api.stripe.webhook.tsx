@@ -36,7 +36,8 @@ const poolIdOf = (obj: Record<string, unknown>): string | null => {
 async function grantStudentEntitlement(event: StripeEvent): Promise<Response> {
   const s = event.data.object as {
     id: string; client_reference_id?: string | null; customer?: string | null;
-    metadata?: { user_id?: string; kind?: string; campus_id?: string };
+    amount_total?: number | null; customer_details?: { email?: string | null } | null;
+    metadata?: { user_id?: string; kind?: string; campus_id?: string; ref_code?: string };
   };
   const userId = s.metadata?.user_id || s.client_reference_id || null;
   if (!userId) return new Response("no user_id", { status: 400 });
@@ -61,11 +62,30 @@ async function grantStudentEntitlement(event: StripeEvent): Promise<Response> {
     granted_at: new Date().toISOString(), meta: { event_id: event.id, is_test_key: isTest },
   };
   const { error } = await (supabaseAdmin.from("student_entitlements" as never) as unknown as { insert: (r: Record<string, unknown>) => Promise<{ error: { message?: string } | null }> }).insert(row);
-  if (error) {
-    if (/duplicate|conflict|unique/i.test(String(error.message ?? ""))) return new Response("ok", { status: 200 });
+  const duplicate = error && /duplicate|conflict|unique/i.test(String(error.message ?? ""));
+  if (error && !duplicate) {
     console.warn("student_entitlements insert failed:", error.message);
     return new Response(error.message ?? "insert failed", { status: 500 });
   }
+
+  // REFERRAL CREDIT. If the checkout carried a rep's code (captured from the sa_ref cookie at
+  // checkout-create time), record the purchase conversion + commission. Idempotent on
+  // (subject_type, subject_id, kind), so a Stripe retry — or the duplicate-entitlement case — never
+  // double-credits. Best-effort: a credit failure must not fail the webhook (the student still paid).
+  const refCode = s.metadata?.ref_code?.trim();
+  if (refCode) {
+    try {
+      const { recordConversionByCode } = await import("@/lib/referral.server");
+      await recordConversionByCode(refCode, {
+        kind: "purchase",
+        amountCents: typeof s.amount_total === "number" ? s.amount_total : undefined,
+        subjectType: "entitlement", subjectId: `${userId}:${kind}`,
+        email: s.customer_details?.email ?? null,
+        userId, forceTest: isTest,
+      });
+    } catch (e) { console.warn("referral credit failed:", e instanceof Error ? e.message : e); }
+  }
+
   return new Response("ok", { status: 200 });
 }
 

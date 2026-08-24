@@ -41,6 +41,18 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
     if (!price) return { ok: false, error: `STRIPE_PRICE_${data.kind.toUpperCase()} is not set` };
     const path = data.returnPath.startsWith("/") ? data.returnPath : "/";
     const origin = process.env.SITE_ORIGIN || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "https://surviveaccounting.com");
+
+    // REFERRAL ATTRIBUTION. Capture the rep's code from the sa_ref cookie NOW, while we still have the
+    // student's browser request — Stripe's webhook is a server-to-server call with no cookies, so the
+    // code must ride along in session metadata for the webhook to credit the rep. Best-effort.
+    let refCode = "";
+    try {
+      const { getRequest } = await import("@tanstack/react-start/server");
+      const { readRefCookie } = await import("./referral.server");
+      const request = getRequest();
+      if (request) refCode = readRefCookie(request)?.code ?? "";
+    } catch { /* no cookie / no request — unattributed sale */ }
+
     try {
       const session = await stripe().checkout.sessions.create({
         mode: "payment",
@@ -54,6 +66,7 @@ export const createCheckoutSession = createServerFn({ method: "POST" })
           kind: data.kind,
           campus_id: data.campusId ?? "",
           is_test: stripeIsTest() ? "1" : "0",
+          ref_code: refCode,
         },
         allow_promotion_codes: true,
       });
