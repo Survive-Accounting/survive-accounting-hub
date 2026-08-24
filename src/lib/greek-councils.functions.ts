@@ -59,7 +59,7 @@ export function councilMatches(council: { slug: string; name: string; full: stri
   return v === normCouncilValue(council.slug) || v === normCouncilValue(council.name) || v === normCouncilValue(council.full);
 }
 
-const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com"];
+const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com", "lee@survivestudios.com"];
 
 type CouncilState = { token: string; rotatedAt: string; lastOpenedAt?: string | null; lastAlertAt?: string | null };
 type CouncilMap = Record<string, CouncilState>;

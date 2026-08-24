@@ -15,6 +15,8 @@ import {
   getCourseIntelOverview, getCampusProfessors, reviewProfessor, setCampusRoster, getTextbookMappings,
   type CourseIntelRow,
 } from "@/lib/course-intel.functions";
+import { discoverCourseDocuments, parseCourseDocument, getCampusDocuments } from "@/lib/syllabus-intel.functions";
+import { enrichProfintelCampus } from "@/lib/rmp-scrape.functions";
 
 export const Route = createFileRoute("/outreach/course-intel")({
   head: () => ({ meta: [{ title: "Course Intel — Survive Accounting" }] }),
@@ -25,8 +27,8 @@ export const Route = createFileRoute("/outreach/course-intel")({
   ),
 });
 
-type Tab = "coverage" | "mappings";
-type Filter = "all" | "picker" | "picker_no_profs" | "has_pending" | "live";
+type Tab = "coverage" | "mappings" | "enrich";
+type Filter = "all" | "picker" | "picker_no_profs" | "has_pending" | "live" | "has_intro1" | "needs_enrich";
 
 function Stat({ label, value, hint }: { label: string; value: number | string; hint?: string }) {
   return (
@@ -54,6 +56,8 @@ function CourseIntelCockpit() {
     else if (filter === "picker_no_profs") r = r.filter((x) => x.inPicker && x.profTotal === 0);
     else if (filter === "has_pending") r = r.filter((x) => x.profPending > 0);
     else if (filter === "live") r = r.filter((x) => x.campusLive);
+    else if (filter === "has_intro1") r = r.filter((x) => x.profIntro1 > 0);
+    else if (filter === "needs_enrich") r = r.filter((x) => x.profTotal > 0 && x.profIntro1 === 0);
     const q = search.trim().toLowerCase();
     if (q) r = r.filter((x) => x.name.toLowerCase().includes(q) || (x.state ?? "").toLowerCase().includes(q));
     return [...r].sort((a, b) => b.profTotal - a.profTotal || a.name.localeCompare(b.name));
@@ -68,6 +72,7 @@ function CourseIntelCockpit() {
         </div>
         <div className="flex gap-1 rounded-lg border border-border p-1">
           <button onClick={() => setTab("coverage")} className={`rounded px-3 py-1 text-xs ${tab === "coverage" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Coverage</button>
+          <button onClick={() => setTab("enrich")} className={`rounded px-3 py-1 text-xs ${tab === "enrich" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Find Intro-1</button>
           <button onClick={() => setTab("mappings")} className={`rounded px-3 py-1 text-xs ${tab === "mappings" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Textbook Mappings</button>
         </div>
       </div>
@@ -78,16 +83,16 @@ function CourseIntelCockpit() {
             <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
               <Stat label="Campuses" value={totals.campuses} />
               <Stat label="With ≥1 prof" value={totals.withProfs} />
-              <Stat label="Pickable schools" value={totals.pickable} hint="in the student picker" />
+              <Stat label="Intro-1 teachers" value={totals.profsIntro1} hint="RMP-qualified" />
+              <Stat label="Campuses w/ Intro-1" value={totals.campusesWithIntro1} hint="ready for player" />
               <Stat label="Pickable, no profs" value={totals.pickableNoProfs} hint="next scrape targets" />
               <Stat label="Campuses live" value={totals.campusesLive} hint="on the student roster" />
-              <Stat label="Profs player-ready" value={totals.profsPlayerReady} hint="live + RMP-matched" />
             </div>
           )}
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search campus or state…" className="h-9 max-w-xs" />
-            {([["all", "All"], ["picker", "Pickable"], ["picker_no_profs", "Pickable · no profs"], ["has_pending", "Has pending"], ["live", "Live"]] as [Filter, string][]).map(([f, label]) => (
+            {([["all", "All"], ["has_intro1", "Has Intro-1"], ["needs_enrich", "Needs enrich"], ["picker", "Pickable"], ["picker_no_profs", "Pickable · no profs"], ["live", "Live"]] as [Filter, string][]).map(([f, label]) => (
               <button key={f} onClick={() => setFilter(f)} className={`rounded-full border px-3 py-1 text-xs ${filter === f ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}>{label}</button>
             ))}
             <span className="ml-auto text-xs text-muted-foreground">{filtered.length} campuses{overview.isLoading ? " · loading…" : ""}</span>
@@ -98,7 +103,7 @@ function CourseIntelCockpit() {
               <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2">Campus</th><th className="px-2 py-2">ST</th>
-                  <th className="px-2 py-2 text-right">Profs</th><th className="px-2 py-2 text-right">Email</th>
+                  <th className="px-2 py-2 text-right">Profs</th><th className="px-2 py-2 text-right">Intro-1</th>
                   <th className="px-2 py-2 text-right">Live</th><th className="px-2 py-2 text-right">Pending</th>
                   <th className="px-3 py-2">Textbook</th><th className="px-2 py-2"></th>
                 </tr>
@@ -113,8 +118,8 @@ function CourseIntelCockpit() {
                       {r.hasMapping && <span className="ml-1 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium text-sky-500">MAPPED</span>}
                     </td>
                     <td className="px-2 py-2 text-xs text-muted-foreground">{r.state}</td>
-                    <td className="px-2 py-2 text-right tabular-nums">{r.profTotal || <span className="text-muted-foreground/50">0</span>}</td>
-                    <td className="px-2 py-2 text-right tabular-nums text-muted-foreground">{r.profWithEmail}</td>
+                    <td className="px-2 py-2 text-right tabular-nums text-muted-foreground">{r.profTotal || <span className="text-muted-foreground/50">0</span>}</td>
+                    <td className="px-2 py-2 text-right tabular-nums font-medium text-sky-500">{r.profIntro1 || (r.profTotal ? <span className="text-muted-foreground/40">?</span> : "")}</td>
                     <td className="px-2 py-2 text-right tabular-nums text-emerald-500">{r.profPlayerReady || (r.profLive ? `${r.profLive}*` : "")}</td>
                     <td className="px-2 py-2 text-right tabular-nums text-amber-500">{r.profPending || ""}</td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">{r.textbook ?? <span className="text-muted-foreground/40">—</span>}</td>
@@ -126,10 +131,11 @@ function CourseIntelCockpit() {
               </tbody>
             </table>
           </div>
-          <p className="mt-2 text-[10px] text-muted-foreground">Live column = professors that actually show in the player (on-roster + RMP-matched). <span className="text-emerald-500">N</span> = player-ready; <span className="text-emerald-500">N*</span> = approved but not RMP-matched (won't appear until matched).</p>
+          <p className="mt-2 text-[10px] text-muted-foreground"><span className="text-sky-500">Intro-1</span> = professors RMP-qualified as teaching the intro course (these are what students see). <span className="text-muted-foreground/40">?</span> = campus has professors but hasn’t been enriched yet — run “Find Intro-1”. <span className="text-emerald-500">Live</span> = on the student roster now.</p>
         </>
       )}
 
+      {tab === "enrich" && <EnrichView rows={rows} onDone={() => overview.refetch()} />}
       {tab === "mappings" && <MappingsView />}
 
       {selected && <ProfessorDrawer row={selected} onClose={() => setSelected(null)} />}
@@ -155,6 +161,11 @@ function ProfessorDrawer({ row, onClose }: { row: CourseIntelRow; onClose: () =>
     mutationFn: (live: boolean) => setCampusRoster({ data: { campusId: row.campusId, live } }),
     onSuccess: invalidate,
   });
+  const enrich = useMutation({
+    mutationFn: () => enrichProfintelCampus({ data: { campusId: row.campusId, limit: 150 } }),
+    onSuccess: invalidate,
+  });
+  const intro1Count = profs.data?.intro1Count ?? 0;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-black/40" onClick={onClose}>
@@ -177,7 +188,18 @@ function ProfessorDrawer({ row, onClose }: { row: CourseIntelRow; onClose: () =>
           </Button>
         </div>
 
-        <p className="mt-2 text-[11px] text-muted-foreground">Approve → the professor appears in the student player's picker (name + RMP rating only; emails never leave outreach). RMP-matched professors are the ones the player can show.</p>
+        <div className="mt-3 flex items-center justify-between rounded-lg border border-border bg-muted/30 px-3 py-2">
+          <div className="text-xs">
+            <span className="font-medium text-sky-500">{intro1Count} Intro-1 teacher{intro1Count === 1 ? "" : "s"}</span>
+            <span className="text-muted-foreground"> qualified of {profs.data?.professors.length ?? 0} on file</span>
+            <div className="text-[10px] text-muted-foreground">Enrich pulls each professor’s RMP course history to find who teaches the intro course.</div>
+          </div>
+          <Button size="sm" variant="outline" className="h-7 text-xs" disabled={enrich.isPending} onClick={() => enrich.mutate()}>
+            {enrich.isPending ? "Enriching…" : "Find Intro-1 (RMP)"}
+          </Button>
+        </div>
+        {enrich.data && <p className="mt-1 text-[11px] text-muted-foreground">Enriched {enrich.data.enriched}/{enrich.data.processed} · {enrich.data.withTargetMatch} course matches · targets: {enrich.data.targets?.join(", ") || "none on file"}</p>}
+        <p className="mt-2 text-[11px] text-muted-foreground">Approve → the professor appears in the student player's picker. Intro-1 qualified + RMP-matched professors already show automatically on live campuses; Approve is a manual override. Emails never leave outreach.</p>
         <div className="mt-3 space-y-2">
           {profs.isLoading && <div className="text-sm text-muted-foreground">Loading…</div>}
           {(profs.data?.professors ?? []).map((p) => (
@@ -185,6 +207,9 @@ function ProfessorDrawer({ row, onClose }: { row: CourseIntelRow; onClose: () =>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium">
                   {p.name || <span className="text-muted-foreground">(no name)</span>}
+                  {p.intro1Tier === "recent" && <span className="ml-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] text-sky-500">Intro-1 · recent</span>}
+                  {p.intro1Tier === "confirmed" && <span className="ml-2 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] text-sky-500">Intro-1</span>}
+                  {p.intro1Tier === "prior" && <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-500">taught Intro-1</span>}
                   {p.live && <span className="ml-2 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] text-emerald-500">LIVE</span>}
                   {p.live && !p.rmpMatched && <span className="ml-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-500">not RMP-matched</span>}
                   {p.status === "rejected" && <span className="ml-2 rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] text-red-500">rejected</span>}
@@ -203,10 +228,145 @@ function ProfessorDrawer({ row, onClose }: { row: CourseIntelRow; onClose: () =>
           ))}
           {profs.data && profs.data.professors.length === 0 && <div className="text-sm text-muted-foreground">No professors scraped for this campus yet.</div>}
         </div>
+
+        <DocsPanel campusId={row.campusId} />
       </div>
     </div>
   );
 }
+
+function DocsPanel({ campusId }: { campusId: string }) {
+  const qc = useQueryClient();
+  const docs = useQuery({ queryKey: ["campus-docs", campusId], queryFn: () => getCampusDocuments({ data: { campusId } }) });
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["campus-docs", campusId] });
+  const discover = useMutation({ mutationFn: () => discoverCourseDocuments({ data: { campusId } }), onSuccess: invalidate });
+  const parse = useMutation({ mutationFn: (documentId: string) => parseCourseDocument({ data: { documentId } }), onSuccess: invalidate });
+
+  const evByDoc = (id: string) => (docs.data?.evidence ?? []).filter((e) => e.course_document_id === id);
+  const tierLabel = ["", "exam", "structure", "topic", "id"];
+
+  return (
+    <div className="mt-6 border-t border-border pt-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Course documents <span className="text-xs font-normal text-muted-foreground">(public syllabi / study guides)</span></h3>
+        <Button size="sm" className="h-7 text-xs" disabled={discover.isPending} onClick={() => discover.mutate()}>
+          {discover.isPending ? "Discovering…" : "Discover syllabi"}
+        </Button>
+      </div>
+      {discover.data && <p className="mt-1 text-[11px] text-muted-foreground">Found {discover.data.total} ({discover.data.public} public, {discover.data.restricted} restricted-skipped) · {discover.data.serpCalls} searches · code {discover.data.code || "—"}</p>}
+      <p className="mt-1 text-[10px] text-muted-foreground">Discovery uses public web search; restricted doc mills (Course Hero, Scribd, …) are skipped, never fetched. Parse fetches the public page and extracts textbook + exam→chapter ranges only.</p>
+
+      <div className="mt-3 space-y-2">
+        {docs.isLoading && <div className="text-sm text-muted-foreground">Loading…</div>}
+        {(docs.data?.docs ?? []).map((d) => {
+          const ev = evByDoc(d.id);
+          return (
+            <div key={d.id} className="rounded-lg border border-border bg-card px-3 py-2">
+              <div className="flex items-center gap-2">
+                <span className={`rounded px-1.5 py-0.5 text-[10px] ${d.value_tier === 1 ? "bg-emerald-500/15 text-emerald-500" : d.value_tier === 2 ? "bg-sky-500/15 text-sky-500" : "bg-muted text-muted-foreground"}`}>{d.document_type}</span>
+                <a href={d.source_url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-xs text-foreground hover:underline">{d.title || d.source_url}</a>
+                <span className="text-[10px] text-muted-foreground">{d.file_type}</span>
+                {d.processing_status !== "parsed"
+                  ? <Button size="sm" variant="outline" className="h-6 text-[11px]" disabled={parse.isPending} onClick={() => parse.mutate(d.id)}>Parse</Button>
+                  : <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] text-emerald-500">parsed</span>}
+              </div>
+              {ev.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1 pl-1">
+                  {ev.map((e) => (
+                    <span key={e.id} className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      {e.evidence_type === "exam_chapter_range" ? `${e.exam_label}: Ch ${(e.exam_chapters as number[] | null)?.join(", ")}` : `📖 ${e.textbook_ref}${e.edition_ref ? " " + e.edition_ref : ""}`}
+                      <span className="ml-1 opacity-60">{e.confidence}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {docs.data && docs.data.docs.length === 0 && <div className="text-xs text-muted-foreground">No documents yet — click “Discover syllabi”.</div>}
+      </div>
+    </div>
+  );
+}
+
+function EnrichView({ rows, onDone }: { rows: CourseIntelRow[]; onDone: () => void }) {
+  const [scope, setScope] = useState<"needs" | "pickable" | "all">("needs");
+  const [limit, setLimit] = useState(150);
+  const [running, setRunning] = useState(false);
+  const [prog, setProg] = useState<{ done: number; total: number; matches: number; results: Array<{ name: string; ok: boolean; enriched?: number; withTargetMatch?: number; error?: string }> }>({ done: 0, total: 0, matches: 0, results: [] });
+
+  const targets = useMemo(() => {
+    let r = rows.filter((x) => x.profTotal > 0);
+    if (scope === "needs") r = r.filter((x) => x.profIntro1 === 0);
+    else if (scope === "pickable") r = r.filter((x) => x.inPicker);
+    return [...r].sort((a, b) => (b.inPicker ? 1 : 0) - (a.inPicker ? 1 : 0) || b.profTotal - a.profTotal);
+  }, [rows, scope]);
+
+  async function run() {
+    setRunning(true);
+    const list = targets.map((t) => ({ id: t.campusId, name: t.name }));
+    const results: EnrichRow[] = [];
+    let done = 0, matches = 0, pos = 0;
+    setProg({ done: 0, total: list.length, matches: 0, results: [] });
+    const worker = async () => {
+      while (pos < list.length) {
+        const { id, name } = list[pos++];
+        try {
+          const rr = await enrichProfintelCampus({ data: { campusId: id, limit } });
+          matches += rr.withTargetMatch ?? 0;
+          results.push({ name, ok: true, enriched: rr.enriched, withTargetMatch: rr.withTargetMatch });
+        } catch (e) {
+          results.push({ name, ok: false, error: String((e as Error)?.message || e) });
+        }
+        done++;
+        setProg({ done, total: list.length, matches, results: [...results].reverse().slice(0, 60) });
+      }
+    };
+    await Promise.all([worker(), worker()]); // concurrency 2 (RMP + serverless friendly)
+    setRunning(false);
+    onDone();
+  }
+
+  return (
+    <div className="mt-4">
+      <div className="rounded-lg border border-border bg-card p-4">
+        <h3 className="text-sm font-semibold">Find Intro-1 teachers (RMP enrichment)</h3>
+        <p className="mt-1 text-xs text-muted-foreground">Pulls each professor’s RateMyProfessors course history and flags who teaches the campus’s intro course (exact course-code match + recency). This is what qualifies a professor for the student picker. Runs 2 campuses at a time; big campuses take a while — you can stop and re-run.</p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {([["needs", "Needs enrich (0 Intro-1)"], ["pickable", "Pickable schools"], ["all", "All with profs"]] as [typeof scope, string][]).map(([s, label]) => (
+            <button key={s} disabled={running} onClick={() => setScope(s)} className={`rounded-full border px-3 py-1 text-xs ${scope === s ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}>{label}</button>
+          ))}
+          <label className="ml-2 text-xs text-muted-foreground">per-campus cap
+            <input type="number" value={limit} disabled={running} onChange={(e) => setLimit(Math.max(10, Math.min(300, +e.target.value || 150)))} className="ml-1 w-16 rounded border border-border bg-background px-2 py-1 text-xs" />
+          </label>
+          <span className="ml-auto text-xs text-muted-foreground">{targets.length} campuses</span>
+          <Button size="sm" className="h-8 text-xs" disabled={running || targets.length === 0} onClick={run}>
+            {running ? `Enriching ${prog.done}/${prog.total}…` : `Enrich ${targets.length} campuses`}
+          </Button>
+        </div>
+        {(running || prog.total > 0) && (
+          <div className="mt-3">
+            <div className="h-2 w-full overflow-hidden rounded bg-muted">
+              <div className="h-full bg-sky-500 transition-all" style={{ width: `${prog.total ? (100 * prog.done) / prog.total : 0}%` }} />
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">{prog.done}/{prog.total} campuses · {prog.matches} course matches found{running ? " · running…" : " · done"}</p>
+          </div>
+        )}
+      </div>
+      {prog.results.length > 0 && (
+        <div className="mt-3 space-y-1">
+          {prog.results.map((r, i) => (
+            <div key={i} className="flex items-center gap-2 rounded border border-border px-3 py-1.5 text-xs">
+              <span className="min-w-0 flex-1 truncate">{r.name}</span>
+              {r.ok ? <span className="text-muted-foreground">enriched {r.enriched} · <span className="text-sky-500">{r.withTargetMatch} matched</span></span> : <span className="text-red-500">error: {r.error?.slice(0, 50)}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+type EnrichRow = { name: string; ok: boolean; enriched?: number; withTargetMatch?: number; error?: string };
 
 function MappingsView() {
   const q = useQuery({ queryKey: ["textbook-mappings"], queryFn: () => getTextbookMappings() });

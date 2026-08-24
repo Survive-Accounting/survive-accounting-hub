@@ -28,7 +28,7 @@ const admin = async () => {
 };
 
 /** Who may decide a claim. Server-side only — this list never reaches the browser. */
-const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com"];
+const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com", "lee@survivestudios.com"];
 
 /** Verify a Supabase JWT and confirm it belongs to an admin. Returns the email or null.
  *  Null is always treated as "no", never as "probably fine". */
