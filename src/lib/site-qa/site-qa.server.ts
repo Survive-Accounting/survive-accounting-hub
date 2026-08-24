@@ -35,7 +35,13 @@ import type {
 
 // ── admin gate (server-enforced) ───────────────────────────────────────────
 
-const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com"];
+// Lee signs in with the survivestudios.com address; the surviveaccounting.com
+// ones are the company-domain aliases. All are admins for Site QA.
+const ADMIN_EMAILS = [
+  "lee@survivestudios.com",
+  "lee@surviveaccounting.com",
+  "king@surviveaccounting.com",
+];
 
 export interface AdminIdentity {
   email: string;
