@@ -24,6 +24,29 @@ const FOUNDER_RATE = 30;          // alerts per rolling hour
 
 export type SendOutcome = { ok: boolean; status: "sent" | "queued" | "skipped" | "held" | "failed"; reason?: string; id?: string };
 
+// ---- TEST-MODE ROUTING ------------------------------------------------------------------------
+//
+// A test send goes to the TESTER, never to the address the form carried. Before this, isTest only
+// prefixed the subject and set a column: a test chapter claim typed with a friend's email mailed
+// the friend. The destination now comes from the server-held session (an HttpOnly cookie, see
+// test-mode.server.ts) and from nowhere else — there is no argument here a caller can use to name
+// a recipient, so this cannot be turned into a relay.
+//
+// It resolves HERE rather than at each call site deliberately: every test message in the product
+// passes through this file, so one override covers flows nobody has written yet, and no feature
+// can opt out by forgetting.
+//
+// The form's own value is not lost — it stays on the intake row (campus_waitlist.email) as the
+// simulated user's address. comms_sends.to_email records where the message ACTUALLY went, which
+// is the only answer that helps when you are looking for it in an inbox.
+async function testEmailDestination(): Promise<string | null> {
+  try {
+    const { testerEmailForRequest } = await import("@/lib/test-mode.functions");
+    return await testerEmailForRequest();
+  } catch { return null; }
+}
+
+
 // ---- suppression + contacts -----------------------------------------------------------------
 export async function isSuppressed(db: DB, who: { email?: string | null; phone?: string | null }): Promise<boolean> {
   try {
@@ -92,9 +115,21 @@ export async function sendTemplateEmail(opts: {
   /** Test sends skip suppression + the cap (they go to Lee). */
 }): Promise<SendOutcome> {
   const db = opts.db ?? (await adminDb());
-  const to = opts.to.trim();
   const category = categoryOf(opts.key);
   const isTest = !!opts.isTest;
+  // The form's address is what we WOULD send to; in a test run it is not where this goes.
+  const intended = opts.to.trim();
+  let to = intended;
+  if (isTest) {
+    const dest = await testEmailDestination();
+    if (!dest) {
+      // Fail closed. A test send with no tester session must not fall through to the real
+      // address — that is precisely the contamination test mode exists to prevent.
+      await logSend(db, { lead_id: opts.leadId ?? null, to_email: intended, medium: "email", template: opts.key, category, is_test: true, status: "skipped", error: "test_no_destination" });
+      return { ok: false, status: "skipped", reason: "test_no_destination" };
+    }
+    to = dest;
+  }
   const base = { lead_id: opts.leadId ?? null, to_email: to, medium: "email" as const, template: opts.key, category, dedupe_key: opts.dedupeKey ?? null, is_test: isTest };
   if (!isTest && category !== "founder" && (await isSuppressed(db, { email: to }))) {
     await logSend(db, { ...base, status: "skipped", error: "suppressed" });
@@ -127,6 +162,15 @@ export async function sendTemplateSms(opts: {
   const category = categoryOf(opts.key);
   const isTest = !!opts.isTest;
   const base = { lead_id: opts.leadId ?? null, to_phone: dest ?? opts.to, medium: "sms" as const, template: opts.key, category, dedupe_key: opts.dedupeKey ?? null, is_test: isTest };
+  // NO TEST SMS. We never collect the tester's mobile, so the only phone available is the one
+  // typed into the form — a real number belonging to a real person. The message is still rendered
+  // and still logged, so "did it fire, and what would it have said?" stays answerable from the
+  // Test Mode activity log without anyone's phone buzzing.
+  if (isTest) {
+    const r = renderTemplate(opts.key, { ...opts.ctx, isTest });
+    await logSend(db, { ...base, subject: (r.sms ?? r.subject).slice(0, 80), status: "skipped", error: "test_sms_suppressed" });
+    return { ok: false, status: "skipped", reason: "test_sms_suppressed" };
+  }
   if (!dest) { await logSend(db, { ...base, status: "failed", error: "bad-phone" }); return { ok: false, status: "failed", reason: "bad-phone" }; }
   // A2P: no consent timestamp on the row ⇒ no student SMS, full stop. (Founder/test exempt.)
   if (!isTest && category !== "founder" && !opts.consented) { await logSend(db, { ...base, status: "skipped", error: "no_consent" }); return { ok: false, status: "skipped", reason: "no_consent" }; }
@@ -178,8 +222,16 @@ export async function founderAlert(opts: { db?: DB; ctx: TemplateCtx; leadId?: s
     } catch { /* counts are best-effort */ }
   }
   const ctx: TemplateCtx = { ...opts.ctx, heldCount: held, isTest };
+  // In a test run this lands in the TESTER's inbox, not Lee's — sendTemplateEmail reroutes it like
+  // any other test message. That is deliberate: the person running the lifecycle is the person who
+  // needs to see what the founder alert says, and a shared run must not page Lee for a fake claim.
   const email = await sendTemplateEmail({ db, key: "founder_priority", ctx, to: toEmail, leadId: opts.leadId ?? null, isTest });
   let sms: SendOutcome = { ok: false, status: "skipped", reason: "no_founder_phone" };
+  if (isTest) {
+    const r = renderTemplate("founder_priority", ctx);
+    await logSend(db, { lead_id: opts.leadId ?? null, to_phone: toPhone || null, medium: "sms", template: "founder_priority", category: "founder", subject: (r.sms ?? r.subject).slice(0, 80), is_test: true, status: "skipped", error: "test_sms_suppressed" });
+    return { email, sms: { ok: false, status: "skipped", reason: "test_sms_suppressed" }, held };
+  }
   if (toPhone) {
     const { sendSms } = await import("@/lib/greek-chapters.functions");
     const r = renderTemplate("founder_priority", ctx);

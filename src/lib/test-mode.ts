@@ -1,240 +1,189 @@
-// TEST MODE (08-23) — the guided-run wrapper for the student experience. Opt-in only, never
-// touches real analytics.
+// TEST MODE — client half. Session detection, the tester's identity, and the lifecycle script.
 //
-// ACTIVATION (either):
-//   • URL: `?feedback=1&t=<tester-name>&email=<tester@email>&testmode=1` — sticks to sa-test-mode
-//   • localStorage `sa-test-mode` — persists across reloads until Start-over or ?testmode=0
+// WHAT IT IS FOR. A tester (Lee first, other people later) walks the REAL product end to end —
+// join a chapter, claim it as an exec, land on the dashboard, pull the share materials — as many
+// times as they like, against fixtures they are free to destroy, with nothing they do touching a
+// real count, a real roster or a real inbox.
 //
-// SHAPE: `useTestMode()` returns { enabled, tester, session, ... }. Any component with `isTest`
-// prop is wired to that flag. A tiny event bus lets any component say "I did X" so the drawer
-// checklist can auto-detect step completion without needing to know about every surface. Every
-// event is also POSTed to `test_mode_activity` (best-effort) so the admin console can watch a
-// run end-to-end.
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+// TWO LOCKS, BOTH REQUIRED. A URL flag alone must never enable it: the server also has to have
+// TEST_MODE_ENABLED set, which is what lets the whole thing be switched off without a deploy. The
+// client half here can only ever *propose* test mode; testModeStatus() on the server decides.
+//
+// SESSION ONLY. The tester's email lives in sessionStorage and nowhere else. It is the only
+// address test notifications may be sent to — the send route takes the address from the session
+// record, never from its caller, so this can never become an open relay.
+//
+// THE STEP SCRIPT below is the lifecycle itself: each step names what to do, where, and what
+// should happen. It is what makes a run repeatable and what makes another tester's report legible
+// ("step 4 broke" rather than "the chapter thing didn't work").
 
-// ---- storage keys -------------------------------------------------------------------------------
-export const TEST_MODE_KEY = "sa-test-mode";           // {tester, session, activatedAt}
-export const TEST_STEPS_KEY = "sa-test-steps";         // Record<StepId, {done: boolean, at: number, meta?: unknown}>
-export const TEST_DRAWER_KEY = "sa-test-drawer-open";  // "1" | "0"
+export const TEST_SESSION_KEY = "sa-test-session";
 
-export type Tester = { name: string | null; email: string | null };
-
-export interface TestModeState {
-  enabled: boolean;
-  tester: Tester;
-  /** UUID for this tester session — every test_mode_activity row carries it. */
-  session: string;
-  activatedAt: number;
-}
-
-const EMPTY: TestModeState = { enabled: false, tester: { name: null, email: null }, session: "", activatedAt: 0 };
-
-function readStored(): TestModeState {
-  if (typeof window === "undefined") return EMPTY;
-  try {
-    const raw = localStorage.getItem(TEST_MODE_KEY);
-    if (!raw) return EMPTY;
-    const parsed = JSON.parse(raw) as Partial<TestModeState> | null;
-    if (!parsed || parsed.enabled !== true) return EMPTY;
-    return {
-      enabled: true,
-      tester: { name: parsed.tester?.name ?? null, email: parsed.tester?.email ?? null },
-      session: typeof parsed.session === "string" && parsed.session ? parsed.session : cryptoRandom(),
-      activatedAt: parsed.activatedAt ?? Date.now(),
-    };
-  } catch { return EMPTY; }
-}
-
-function cryptoRandom(): string {
-  try { return crypto.randomUUID(); } catch { return "anon-" + Math.random().toString(16).slice(2); }
-}
-
-function write(state: TestModeState): void {
-  try { localStorage.setItem(TEST_MODE_KEY, JSON.stringify(state)); } catch { /* private mode */ }
-  window.dispatchEvent(new CustomEvent("sa-test-mode-change"));
-}
-
-/** Parse the tester URL params. Non-destructive: returns null if not present. */
-export function parseTestModeFromUrl(url: string | URL): TestModeState | null {
-  const u = typeof url === "string" ? new URL(url, "http://x") : url;
-  const testmode = u.searchParams.get("testmode");
-  const feedback = u.searchParams.get("feedback");
-  const on = testmode === "1" || feedback === "1";
-  const off = testmode === "0";
-  if (off) return { ...EMPTY };
-  if (!on) return null;
-  return {
-    enabled: true,
-    tester: { name: u.searchParams.get("t"), email: u.searchParams.get("email") },
-    session: cryptoRandom(),
-    activatedAt: Date.now(),
-  };
-}
-
-// ---- external store hook (SSR-safe) ------------------------------------------------------------
-function subscribe(cb: () => void) {
-  window.addEventListener("sa-test-mode-change", cb);
-  window.addEventListener("storage", cb);
-  return () => { window.removeEventListener("sa-test-mode-change", cb); window.removeEventListener("storage", cb); };
-}
-
-export function useTestMode(): TestModeState & {
-  activate: (t?: Partial<Tester>) => void;
-  deactivate: () => void;
-  resetRun: () => void;
-} {
-  const state = useSyncExternalStore(subscribe, readStored, () => EMPTY);
-  const activate = useCallback((t?: Partial<Tester>) => {
-    const cur = readStored();
-    const next: TestModeState = {
-      enabled: true,
-      tester: { name: t?.name ?? cur.tester.name, email: t?.email ?? cur.tester.email },
-      session: cur.session || cryptoRandom(),
-      activatedAt: cur.activatedAt || Date.now(),
-    };
-    write(next);
-  }, []);
-  const deactivate = useCallback(() => { try { localStorage.removeItem(TEST_MODE_KEY); } catch { /* ignore */ } window.dispatchEvent(new CustomEvent("sa-test-mode-change")); }, []);
-  const resetRun = useCallback(() => {
-    const cur = readStored();
-    const next: TestModeState = { ...cur, session: cryptoRandom(), activatedAt: Date.now() };
-    try { localStorage.removeItem(TEST_STEPS_KEY); } catch { /* ignore */ }
-    write(next);
-    window.dispatchEvent(new CustomEvent("sa-test-run-reset"));
-  }, []);
-  return { ...state, activate, deactivate, resetRun };
-}
-
-// ---- URL parser wired to storage on mount (call once at __root) --------------------------------
-export function bootstrapTestModeFromUrl(): void {
-  if (typeof window === "undefined") return;
-  const parsed = parseTestModeFromUrl(window.location.href);
-  if (parsed == null) return;
-  if (!parsed.enabled) { try { localStorage.removeItem(TEST_MODE_KEY); } catch { /* ignore */ } window.dispatchEvent(new CustomEvent("sa-test-mode-change")); return; }
-  const cur = readStored();
-  const merged: TestModeState = {
-    enabled: true,
-    tester: { name: parsed.tester.name ?? cur.tester.name, email: parsed.tester.email ?? cur.tester.email },
-    session: cur.session || parsed.session,
-    activatedAt: cur.activatedAt || parsed.activatedAt,
-  };
-  write(merged);
-  // Strip the query params from the URL so a copy-paste of the current URL doesn't re-arm test
-  // mode on a real student. Localstorage keeps the arming.
-  try {
-    const u = new URL(window.location.href);
-    ["feedback", "t", "email", "testmode"].forEach((k) => u.searchParams.delete(k));
-    window.history.replaceState({}, "", u.toString());
-  } catch { /* ignore */ }
-}
-
-// ---- STEPS — the 9-step checklist definition ---------------------------------------------------
-export const STEP_IDS = [
-  "land",       // 1 · Land on the homepage/campus/Greek page
-  "school",     // 2 · Pick a school (or arrive on a route-locked school)
-  "professor",  // 3 · Match a professor (OR intentionally Skip)
-  "start",      // 4 · Start Exam 1 — open a set
-  "ceq",        // 5 · Complete a CEQ set (≥1 correct + ≥1 incorrect + ≥1 unanswered)
-  "notify",     // 6 · Contextual coming-soon notify submitted
-  "save",       // 7 · Save progress magic link requested (+ signed-in return)
-  "buy",        // 8 · Buy paid content via Stripe test checkout
-  "return",     // 9 · Verify return state (signed-in progress + entitlement)
-] as const;
-export type StepId = typeof STEP_IDS[number];
-
-export const STEP_TITLES: Record<StepId, string> = {
-  land:      "Land on the page",
-  school:    "Pick a school",
-  professor: "Match a professor (or Skip)",
-  start:     "Start Exam 1",
-  ceq:       "Complete a CEQ set",
-  notify:    "Test contextual coming-soon notify",
-  save:      "Save progress",
-  buy:       "Buy paid content",
-  return:    "Verify return state",
+export type TestSession = {
+  /** Tester's display name, from ?t= */
+  name: string;
+  /** THE only address test mail may go to. From ?email=, stored in session. */
+  email: string;
+  /** Which run this is — bumped by "Start over" so records from separate runs are separable. */
+  run: number;
+  startedAt: string;
+  /** Step index the tester has reached, so a reload does not lose their place. */
+  step: number;
 };
 
-export const STEP_HINTS: Record<StepId, string> = {
-  land:      "The homepage, a campus page, or a Greek chapter page — anywhere the player mounts.",
-  school:    "Pick from the picker, or land on /<school> where the URL names it.",
-  professor: "Pick one, write in a name, or hit Skip. Exercise both paths across different runs.",
-  start:     "Click a topic, then a set. Practice opens immediately.",
-  ceq:       "Answer ≥1 correctly, ≥1 incorrectly. Open Q# to check the colour states.",
-  notify:    "Click a muted Cram or Review pill, or a locked paid set. Submit; a [TEST] email lands.",
-  save:      "Click Save. Check the tester email for the sign-in link and click through.",
-  buy:       "Open a paid exam and pay with a test card (Phase B — coming with Stripe wiring).",
-  return:    "Refresh — you're still signed in, your set state is remembered, entitlement holds.",
+/** Parse the tester URL: ?feedback=1&t=Lee&email=lee@…&testmode=1
+ *  Every flag is required; a partial URL is not test mode. */
+export function parseTestParams(search: string): { name: string; email: string } | null {
+  try {
+    const q = new URLSearchParams(search);
+    if (q.get("testmode") !== "1") return null;
+    if (q.get("feedback") !== "1") return null;
+    const email = (q.get("email") ?? "").trim().toLowerCase();
+    const name = (q.get("t") ?? "").trim();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return null;
+    return { name: name || email.split("@")[0], email };
+  } catch { return null; }
+}
+
+export function readTestSession(): TestSession | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(TEST_SESSION_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw) as TestSession;
+    return s?.email ? s : null;
+  } catch { return null; }
+}
+
+export function writeTestSession(s: TestSession): void {
+  try { sessionStorage.setItem(TEST_SESSION_KEY, JSON.stringify(s)); } catch { /* private mode */ }
+}
+
+export function startTestSession(name: string, email: string): TestSession {
+  const prior = readTestSession();
+  const s: TestSession = {
+    name, email,
+    run: prior && prior.email === email ? prior.run : 1,
+    startedAt: new Date().toISOString(),
+    step: 0,
+  };
+  writeTestSession(s);
+  return s;
+}
+
+/** "Start over" — same tester, next run, back to step one. The previous run's records stay (they
+ *  are is_test and the purge removes them); what changes is that a new run is not mixed in with
+ *  the last one when reading the activity log. */
+export function restartTestRun(): TestSession | null {
+  const s = readTestSession();
+  if (!s) return null;
+  const next: TestSession = { ...s, run: s.run + 1, startedAt: new Date().toISOString(), step: 0 };
+  writeTestSession(next);
+  return next;
+}
+
+export function endTestSession(): void {
+  try { sessionStorage.removeItem(TEST_SESSION_KEY); } catch { /* ignore */ }
+}
+
+/** RETIRED — the student in-player guided-run (Test Mode Phase A/B) tracked steps as a student
+ *  used the player. That system was superseded by the Greek-lifecycle Test Mode in this file, so
+ *  markStep is now a no-op: the player's former call sites (PracticeStage, SaveProgress, landing)
+ *  still import and call it, they just record nothing. Removing the calls would be churn for zero
+ *  behaviour change; a no-op export keeps this module the single Test Mode surface. */
+export const markStep = (_step: string, _meta?: unknown): void => {};
+
+// ── the fixtures ───────────────────────────────────────────────────────────────────────────────
+/** The dedicated campus and chapter testers transact against. Real pages, real code paths, but
+ *  rows nobody minds destroying — and excluded from every picker, ticker, sitemap and count. */
+export const TEST_CAMPUS_SLUG = "test-university";
+export const TEST_CAMPUS_NAME = "Test University";
+export const TEST_COURSE_CODE = "TEST 101";
+export const TEST_CHAPTER_SLUG = "test-chapter";
+export const TEST_CHAPTER_NAME = "Test Chapter";
+export const TEST_CAMPUS_URL = `/${TEST_CAMPUS_SLUG}`;
+export const TEST_CHAPTER_URL = `/go/${TEST_CAMPUS_SLUG}/${TEST_CHAPTER_SLUG}`;
+
+// ── the lifecycle script ───────────────────────────────────────────────────────────────────────
+export type TestStep = {
+  id: string;
+  /** What the tester is playing at this point — the same words the product uses. */
+  role: "Student" | "Member" | "Exec" | "Admin";
+  title: string;
+  /** What to do, in one instruction. */
+  todo: string;
+  /** What should happen — so a tester can tell "worked" from "looked like it worked". */
+  expect: string;
+  /** Where to do it. Filled with the fixture URLs. */
+  href?: string;
 };
 
-export interface StepState { done: boolean; at: number; meta?: unknown }
-export type StepMap = Partial<Record<StepId, StepState>>;
-
-function readSteps(): StepMap {
-  if (typeof window === "undefined") return {};
-  try { return JSON.parse(localStorage.getItem(TEST_STEPS_KEY) ?? "{}") as StepMap; } catch { return {}; }
-}
-function writeSteps(m: StepMap): void {
-  try { localStorage.setItem(TEST_STEPS_KEY, JSON.stringify(m)); } catch { /* ignore */ }
-  window.dispatchEvent(new CustomEvent("sa-test-steps-change"));
-}
-
-/** MARK a step complete (idempotent). Also fires activity to the server. */
-export function markStep(id: StepId, meta?: unknown): void {
-  if (typeof window === "undefined") return;
-  const m = readSteps();
-  if (m[id]?.done) return;
-  m[id] = { done: true, at: Date.now(), meta };
-  writeSteps(m);
-  void logTestEvent({ step: id, event: "step_complete", meta });
-}
-
-/** RESET progress (used by "Start over"). */
-export function resetSteps(): void {
-  try { localStorage.removeItem(TEST_STEPS_KEY); } catch { /* ignore */ }
-  window.dispatchEvent(new CustomEvent("sa-test-steps-change"));
-}
-
-// ---- steps hook -------------------------------------------------------------------------------
-export function useTestSteps(): { steps: StepMap; markStep: typeof markStep; resetSteps: typeof resetSteps; completed: number; total: number; currentIndex: number } {
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    const on = () => setTick((n) => n + 1);
-    window.addEventListener("sa-test-steps-change", on);
-    window.addEventListener("sa-test-run-reset", on);
-    return () => { window.removeEventListener("sa-test-steps-change", on); window.removeEventListener("sa-test-run-reset", on); };
-  }, []);
-  return useMemo(() => {
-    void tick;
-    const steps = readSteps();
-    const done = STEP_IDS.filter((id) => steps[id]?.done);
-    const currentIndex = STEP_IDS.findIndex((id) => !steps[id]?.done);
-    return { steps, markStep, resetSteps, completed: done.length, total: STEP_IDS.length, currentIndex: currentIndex < 0 ? STEP_IDS.length : currentIndex };
-  }, [tick]);
-}
-
-// ---- SERVER LOG — best-effort insert into test_mode_activity -----------------------------------
-export interface LogEvent {
-  step?: StepId | null;
-  event: string;              // 'step_complete' | 'click' | 'notify_submit' | 'magic_link_sent' | 'test_grant' | 'error' | ...
-  status?: "ok" | "warn" | "error";
-  detail?: string;
-  meta?: unknown;
-}
-
-export async function logTestEvent(e: LogEvent): Promise<void> {
-  const state = readStored();
-  if (!state.enabled) return;
-  try {
-    const mod = await import("@/lib/test-mode.functions");
-    await mod.logTestModeActivity({ data: {
-      sessionKey: state.session,
-      testerEmail: state.tester.email,
-      testerName: state.tester.name,
-      step: e.step ?? null,
-      event: e.event,
-      status: e.status ?? "ok",
-      detail: e.detail ?? null,
-      meta: (e.meta ?? null) as unknown,
-    }});
-  } catch { /* the drawer still shows the step; a network hiccup shouldn't wedge the run */ }
-}
+/** GREEK LIFECYCLE — the first run Lee asked for: claim a chapter page, get into the dashboard,
+ *  pull the share materials. Ordered exactly as a real chapter would live it. */
+export const GREEK_LIFECYCLE: TestStep[] = [
+  {
+    id: "chapter-page",
+    role: "Member",
+    title: "Land on the chapter page",
+    todo: "Open the test chapter's page the way a member would — from a group-chat link.",
+    expect: "The hero names the chapter and TEST 101 at Test University, and Exam 1 is offered free.",
+    href: TEST_CHAPTER_URL,
+  },
+  {
+    id: "join",
+    role: "Member",
+    title: "Join as a member",
+    todo: "Enter your name and your tester email to unlock Exam 1.",
+    expect: "You get the unlock email at your tester address, subject prefixed [TEST], and the video area opens.",
+  },
+  {
+    id: "claim",
+    role: "Exec",
+    title: "Claim the chapter",
+    todo: "Scroll to Chapter access → step 02 and submit the claim form as an exec.",
+    expect: "The claim is recorded as pending, you get a [TEST] confirmation, and Lee gets a [TEST] founder alert.",
+  },
+  {
+    id: "approve",
+    role: "Admin",
+    title: "Approve the claim",
+    todo: "Approve it from the test panel (or ask Lee to approve it in outreach).",
+    expect: "The chapter flips to claimed and the dashboard becomes reachable.",
+  },
+  {
+    id: "dashboard",
+    role: "Exec",
+    title: "Open the chapter dashboard",
+    todo: "Sign in with the magic link and open the dashboard.",
+    expect: "You see the roster, the aggregate numbers, the chapter link — and the seat offer with the presale note.",
+    href: "/chapters/dashboard",
+  },
+  {
+    id: "share-kit",
+    role: "Exec",
+    title: "Pull the share materials",
+    todo: "Open 'Not ready? Get what you need to pitch it' and copy the treasurer email and the group-chat line; open the flyer.",
+    expect: "Every piece already says Test Chapter, TEST 101 and the current term with its expiry date.",
+  },
+  {
+    id: "seats",
+    role: "Exec",
+    title: "Choose seats",
+    todo: "Choose a seat pack and a term. Stop before paying if checkout is not switched on yet.",
+    expect: "The screen names the term and the exact date access ends, and shows the presale disclosure.",
+  },
+  {
+    id: "assign",
+    role: "Exec",
+    title: "Assign a seat",
+    todo: "Once seats are active, assign one to the member you joined as in step 2.",
+    expect: "The count moves (1 of N assigned) and that member shows the courtesy line.",
+  },
+  {
+    id: "restart",
+    role: "Admin",
+    title: "Start over",
+    todo: "Press Start over to run it again, or Purge test data to wipe every record this run made.",
+    expect: "The fixture is back to a clean chapter with no members, no claim and no seats.",
+  },
+];

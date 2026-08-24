@@ -24,8 +24,14 @@ const IntakeInput = z.object({
   exam: z.number().int().min(1).max(99).optional().nullable(),
   topic: z.string().trim().max(160).optional().nullable(),
   chapter: z.string().trim().max(160).optional().nullable(),
+  /** The exec's stated chapter position. Carried so the founder alert can put the role on its own
+   *  line — it is the fact being verified, and it used to be buried inside note. */
+  role: z.string().trim().max(80).optional().nullable(),
   chapterLink: z.string().trim().max(300).optional().nullable(),
   sourcePath: z.string().trim().max(300).optional().nullable(),
+  /** Where the founder alert should send Lee. Defaults to the demand board; a chapter claim
+   *  overrides it with the authenticated review screen, deep-linked to the claim. */
+  adminLink: z.string().trim().max(300).optional().nullable(),
   note: z.string().trim().max(4000).optional().nullable(),
   filePaths: z.array(z.string()).max(10).optional().nullable(),
   /** A2P: true only when the SmsConsentNote was rendered beside the phone field the student submitted. */

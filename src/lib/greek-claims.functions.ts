@@ -16,7 +16,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 import { getGoChapter, goPath } from "@/lib/greek-go.functions";
-import { normalizePhoneE164, sendSms } from "@/lib/greek-chapters.functions";
+import { normalizePhoneE164 } from "@/lib/greek-chapters.functions";
 
 type DB = {
   from: (t: string) => any;
@@ -66,7 +66,7 @@ export const submitChapterClaim = createServerFn({ method: "POST" })
     email: z.string().trim().email().max(200),
     phone: z.string().trim().min(7).max(20),
   }).parse(d))
-  .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string; claimId?: string; notifyPending?: boolean }> => {
     const db = await admin();
 
     // SMS-TRUTH: a phone Twilio cannot reach fails at the form, not silently later — Lee's alert
@@ -84,33 +84,116 @@ export const submitChapterClaim = createServerFn({ method: "POST" })
       .select("id").eq("campus_greek_chapter_id", ch.campusGreekChapterId).eq("status", "pending").maybeSingle();
     if (existing?.id) return { ok: false, error: "Someone from your chapter already claimed this — I'm reviewing it now." };
 
-    const { error } = await db.from("greek_chapter_claims").insert({
+    const { data: inserted, error } = await db.from("greek_chapter_claims").insert({
       campus_greek_chapter_id: ch.campusGreekChapterId,
       name: data.name, position: data.position, email: data.email, phone,
       // Snapshot: how many members this chapter had already banked at the moment of the claim.
       // Recorded now because it is the number that made the claim interesting, and it keeps moving.
       members_at_claim: ch.members,
-    });
+    }).select("id").single();
     if (error) return { ok: false, error: "Couldn't save that — try again in a moment." };
 
     await db.from("campus_greek_chapters").update({ claim_status: "pending" }).eq("id", ch.campusGreekChapterId);
 
-    // UNIFIED INTAKE (greek_claim — a PRIORITY kind): the exec gets "Got your claim for
-    // <Chapter>" with the members' link; Lee gets the consolidated priority alert (email + SMS,
-    // sms: deep link to the exec). The claim row above stays the approval queue's record.
-    // The mobile field sits beside the SmsConsentNote in ChapterAccessForm, so phone = consent.
-    try {
-      const { runIntake } = await import("@/lib/comms/intake.server");
-      await runIntake({
-        kind: "greek_claim", name: data.name, email: data.email, phone,
-        campusName: ch.schoolName, campusSlug: ch.schoolSlug, chapter: ch.chapterName,
-        chapterLink: `https://surviveaccounting.com${goPath(ch.schoolSlug, ch.chapterSlug)}`,
-        note: `${data.position} · ${ch.members} member${ch.members === 1 ? "" : "s"} banked`,
-        sourcePath: goPath(ch.schoolSlug, ch.chapterSlug), smsConsent: true,
-      });
-    } catch (e) { console.warn("claim intake failed (claim saved)", (e as Error).message); }
+    // ── THE CLAIM IS SAVED; THE EXEC IS DONE WAITING ─────────────────────────────────────────
+    //
+    // This used to `await runIntake(...)` right here, and runIntake is three sequential network
+    // calls — insert the lead, send the exec's confirmation through Resend, then the founder
+    // alert (another Resend call plus a Twilio one). The exec sat on a spinner for all of it,
+    // several seconds, for work whose outcome does not change a single thing they see. Worse, a
+    // slow provider looked exactly like a form that had hung.
+    //
+    // The claim row above is the record of truth — it is the approval queue Lee actually works
+    // from — so once it is written there is nothing left to make anyone wait for. The
+    // notifications are handed to whatever the runtime gives us for work-after-response, and if
+    // the runtime gives us nothing, the CLIENT is told to fire the second call itself. Either
+    // way notifyChapterClaim is idempotent, so a retry or a double-fire cannot mail twice.
+    const claimId = (inserted?.id as string) ?? null;
+    // Resolved HERE, inside the handler, for two reasons. The cookie needs a live request, and
+    // work handed to afterResponse may run once the request is gone. And the handler body is what
+    // TanStack strips from the client bundle — a dynamic import of a server module from a plain
+    // module-level function in this file would survive into the browser graph and fail the build.
+    const { isTestRequest } = await import("@/lib/test-mode.functions");
+    const isTest = await isTestRequest();
+    const scheduled = afterResponse(() => runClaimIntake(claimId, isTest));
+    return { ok: true, claimId: claimId ?? undefined, notifyPending: !scheduled };
+  });
 
+/** Run the claim's notifications. Extracted so it can be reached from either scheduling path, and
+ *  written to be safe to call twice: the intake row it would create is looked for first. */
+async function runClaimIntake(claimId: string | null, isTest: boolean): Promise<{ ok: boolean; reason?: string }> {
+  if (!claimId) return { ok: false, reason: "no_claim" };
+  try {
+    const db = await admin();
+    const { data: claim } = await db.from("greek_chapter_claims").select("*").eq("id", claimId).maybeSingle();
+    if (!claim) return { ok: false, reason: "claim_gone" };
+
+    const { data: roster } = await db.from("campus_greek_chapters")
+      .select("id,slug,campus_id").eq("id", claim.campus_greek_chapter_id).maybeSingle();
+    if (!roster) return { ok: false, reason: "roster_gone" };
+    const { data: campus } = await db.from("campuses").select("slug").eq("id", roster.campus_id).maybeSingle();
+    const schoolSlug = (campus?.slug as string) ?? "";
+    const ch = schoolSlug ? await getGoChapter({ data: { schoolSlug, chapterSlug: roster.slug as string } }) : null;
+    if (!ch) return { ok: false, reason: "chapter_gone" };
+
+    // IDEMPOTENCE. A lead already banked for this claimant on this chapter means the work is
+    // done — a second pass would mean a second "Got your claim" in the exec's inbox.
+    const since = new Date(Date.now() - 3600e3).toISOString();
+    const { data: prior } = await db.from("campus_waitlist")
+      .select("id").eq("source", "intake:greek_claim").ilike("email", claim.email as string)
+      .eq("chapter", ch.chapterName).gte("created_at", since).limit(1);
+    if (prior?.length) return { ok: true, reason: "already_sent" };
+
+    // TEST RUNS ARE MARKED AT THE SOURCE. isTest arrives from the handler, which read it from
+    // the server-held tester session — never from anything the client sent. So a test claim cannot
+    // land in the real intake table as a real lead, and a real claim cannot be hidden by a flag.
+
+    // UNIFIED INTAKE (greek_claim — a PRIORITY kind): the exec gets "Got your claim for
+    // <Chapter>" with the members' link; Lee gets the consolidated priority alert. The mobile
+    // field sits beside the SmsConsentNote in ChapterAccessForm, so phone = consent.
+    const { runIntake } = await import("@/lib/comms/intake.server");
+    await runIntake({
+      kind: "greek_claim", name: claim.name as string, email: claim.email as string, phone: claim.phone as string,
+      campusName: ch.schoolName, campusSlug: ch.schoolSlug, chapter: ch.chapterName,
+      chapterLink: `https://surviveaccounting.com${goPath(ch.schoolSlug, ch.chapterSlug)}`,
+      role: claim.position as string,
+      note: `${ch.members} member${ch.members === 1 ? "" : "s"} banked at claim`,
+      // STRAIGHT TO THE DECISION, and deliberately NOT a one-tap approve URL: approving hands
+      // over a roster of student names and phone numbers, so it goes through the authenticated
+      // review screen. The query param just opens it on the right claim.
+      adminLink: `https://surviveaccounting.com/outreach/greek-claims?claim=${claimId}`,
+      sourcePath: goPath(ch.schoolSlug, ch.chapterSlug), smsConsent: true, isTest,
+    });
     return { ok: true };
+  } catch (e) {
+    console.warn("claim intake failed (claim saved)", e instanceof Error ? e.message : e);
+    return { ok: false, reason: "send_failed" };
+  }
+}
+
+/** Hand work to the platform to finish after the response is flushed. Vercel exposes waitUntil on
+ *  a well-known symbol; other runtimes expose nothing, and inventing a floating promise there
+ *  would just get the function frozen mid-send. Returns whether anyone took the work — the caller
+ *  needs to know, because if nobody did, the client has to ask for it. */
+function afterResponse(work: () => Promise<unknown>): boolean {
+  try {
+    const ctx = (globalThis as Record<symbol, unknown>)[Symbol.for("@vercel/request-context")] as
+      | { get?: () => { waitUntil?: (p: Promise<unknown>) => void } }
+      | undefined;
+    const waitUntil = ctx?.get?.()?.waitUntil;
+    if (typeof waitUntil === "function") { waitUntil(work().catch(() => undefined)); return true; }
+  } catch { /* fall through to the client-driven path */ }
+  return false;
+}
+
+/** The client-driven half of the same work, for runtimes with no waitUntil (local dev, Node
+ *  servers). Idempotent — see runClaimIntake — so calling it when the platform already ran the
+ *  work is a no-op rather than a duplicate email. */
+export const notifyChapterClaim = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ claimId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; reason?: string }> => {
+    const { isTestRequest } = await import("@/lib/test-mode.functions");
+    return runClaimIntake(data.claimId, await isTestRequest());
   });
 
 // ── REVIEW (admin, JWT-verified) ──────────────────────────────────────────────────────────────
@@ -252,11 +335,49 @@ export const decideChapterClaim = createServerFn({ method: "POST" })
     await db.from("greek_chapter_claims").update({ status: "approved", decided_at: new Date().toISOString() }).eq("id", data.claimId);
     await db.from("campus_greek_chapters").update({ claim_status: "claimed", claimed_at: new Date().toISOString() }).eq("id", rosterId);
 
-    // Tell the exec, with the link they now own. Non-fatal: the approval already happened, and
-    // reporting failure is better than pretending the text went out.
-    const url = campus?.slug && roster.slug ? `surviveaccounting.com${goPath(campus.slug as string, roster.slug as string)}` : "surviveaccounting.com";
-    const sms = await sendSms(claim.phone as string, `⚡ ${chapterName} is approved — your chapter link is ${url}. Sign in at surviveaccounting.com/chapters/dashboard with ${claim.email}.`);
-    if (!sms.ok) console.warn("approval SMS failed:", sms.error);
+    // Tell the exec. Non-fatal: the approval already happened, and reporting a failed message is
+    // better than pretending it went out.
+    const { isTestRequest } = await import("@/lib/test-mode.functions");
+    await sendChapterApproval({
+      name: claim.name as string, email: claim.email as string, phone: claim.phone as string,
+      chapterName, schoolName,
+      chapterLink: campus?.slug && roster.slug ? `https://surviveaccounting.com${goPath(campus.slug as string, roster.slug as string)}` : null,
+      isTest: await isTestRequest(),
+    });
 
     return { ok: true };
   });
+
+// ── the approval message ──────────────────────────────────────────────────────────────────────
+//
+// THIS USED TO BE A RAW sendSms() CALL, and that was a real hole rather than a style problem. It
+// went straight to Twilio, so it skipped everything the send layer is for: no [TEST] prefix, no
+// is_test row in comms_sends, no suppression check, and — worst — no test-mode routing, meaning
+// approving a FIXTURE claim texted a real phone. It also opened with a bolt and an em dash,
+// neither of which is in GSM-7, so every approval was billed as two segments.
+//
+// Now it is a template like every other message, sent through the same layer, which is also why
+// the fixture's own approve button can reuse it without a second copy of the copy.
+export async function sendChapterApproval(i: {
+  name: string; email: string; phone: string;
+  chapterName: string; schoolName: string;
+  chapterLink: string | null;
+  isTest: boolean;
+}): Promise<{ email: boolean; sms: boolean }> {
+  try {
+    const comms = await import("@/lib/comms/send.server");
+    const ctx = {
+      name: i.name, email: i.email, phone: i.phone,
+      chapter: i.chapterName, school: i.schoolName, chapterLink: i.chapterLink,
+      isTest: i.isTest,
+    };
+    const email = await comms.sendTemplateEmail({ key: "confirm_chapter_approved", ctx, to: i.email, isTest: i.isTest });
+    // consented: the mobile field sits beside the SmsConsentNote on the claim form, and this
+    // person asked to be contacted about exactly this.
+    const sms = await comms.sendTemplateSms({ key: "confirm_chapter_approved", ctx, to: i.phone, isTest: i.isTest, consented: true });
+    return { email: email.ok, sms: sms.ok };
+  } catch (e) {
+    console.warn("approval notify failed (chapter is approved)", e instanceof Error ? e.message : e);
+    return { email: false, sms: false };
+  }
+}

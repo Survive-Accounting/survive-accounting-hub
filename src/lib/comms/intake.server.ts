@@ -60,9 +60,9 @@ export async function runIntake(data: IntakeInput): Promise<IntakeResult> {
       name: data.name, email, phone,
       school: campusName, campusSlug,
       courseCode: data.courseCode, professor: data.professor,
-      chapter: data.chapter, chapterLink: data.chapterLink,
+      chapter: data.chapter, chapterLink: data.chapterLink, role: data.role,
       exam: data.exam, topic: data.topic, note: data.note,
-      kind: data.kind, adminLink: `${ORIGIN}/outreach/demand?lead=${id}`, isTest,
+      kind: data.kind, adminLink: data.adminLink || `${ORIGIN}/outreach/demand?lead=${id}`, isTest,
     };
     const confirmation = { email: false, sms: false };
     try {

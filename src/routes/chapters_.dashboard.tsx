@@ -4,12 +4,18 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import { supabase } from "@/integrations/supabase/client";
+import { authEmailError, authErrorDetail } from "@/lib/auth-errors";
+import { readTestSession } from "@/lib/test-mode";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
 import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { FitWordmark, SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { getChapterDashboard, setChapterDigest, type ChapterDashboard } from "@/lib/greek-chapters.functions";
 import { assignSeat, transferChapterOwnership } from "@/lib/greek-seats.functions";
+import { getChapterSeatState, type ChapterSeatState } from "@/lib/chapter-seats.functions";
+import { SeatOfferBlock, SeatPurchase } from "@/components/site/SeatOffer";
+import { SeatDashboard } from "@/components/site/SeatDashboard";
+import { ChapterShareKit } from "@/components/site/ShareKit";
 
 export const Route = createFileRoute("/chapters_/dashboard")({
   head: () => ({ meta: [{ title: "⚡ Chapter dashboard — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
@@ -59,10 +65,24 @@ function DashboardPage() {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(loginEmail.trim())) { setSendErr("That email doesn't look right — check it and try again."); return; }
     setSendBusy(true); setSendErr(null);
     try {
+      // The return URL is built from THIS origin, so a link requested on localhost comes back to
+      // localhost — provided the origin is on Supabase's redirect allow-list. When it is not,
+      // GoTrue does not error: it silently substitutes SITE_URL, and the tester lands on
+      // production wondering where their fixture went. See set_auth_limits.ts.
       const redirect = typeof window !== "undefined" ? `${window.location.origin}/chapters/dashboard` : undefined;
-      const { error } = await supabase.auth.signInWithOtp({ email: loginEmail.trim(), options: { emailRedirectTo: redirect } });
-      if (error) setSendErr(error.message.includes("rate") ? "Too many requests — wait a minute and try again." : "Couldn't send the link — try again in a moment.");
-      else setSent(true);
+      // Same rule as the member gate: in a test run the link goes to the tester, whatever the
+      // exec's email says, because Supabase Auth mail bypasses our send layer entirely.
+      const test = readTestSession();
+      const dest = test?.email || loginEmail.trim();
+      const { error } = await supabase.auth.signInWithOtp({ email: dest, options: { emailRedirectTo: redirect } });
+      if (error) {
+        // One mapping for both sign-in surfaces (see lib/auth-errors.ts). The substring match on
+        // "rate" that used to live here caught the rate limit but folded every other cause —
+        // redirect not on the allow-list, provider outage, signups disabled — into one sentence
+        // that told nobody anything.
+        console.warn("[chapter-dashboard] otp failed:", authErrorDetail(error));
+        setSendErr(authEmailError(error));
+      } else setSent(true);
     } catch { setSendErr("Couldn't reach the server — check your connection and try again."); }
     finally { setSendBusy(false); }
   };
@@ -79,7 +99,7 @@ function DashboardPage() {
             <h1 className="text-[18px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Chapter dashboard</h1>
             {sent ? (
               <>
-                <p className="mt-3 text-[14px]" style={{ color: "var(--brand-cream)" }}>Check your email — I sent a sign-in link to {loginEmail}.</p>
+                <p className="mt-3 text-[14px]" style={{ color: "var(--brand-cream)" }}>Check your email — I sent a sign-in link to {readTestSession()?.email || loginEmail}.</p>
                 <p className="mt-2 text-[12px]" style={{ color: "var(--text-muted)" }}>Not there in a minute? Check spam, or <button onClick={() => { setSent(false); }} className="font-semibold underline" style={{ color: "var(--accent)" }}>resend it</button>.</p>
               </>
             ) : (
@@ -127,6 +147,28 @@ function Dashboard({ data, token, onDigest, onReload }: { data: ChapterDashboard
   const [xDone, setXDone] = useState(false);
   const [xErr, setXErr] = useState<string | null>(null);
 
+  // ── TERM SEATS ───────────────────────────────────────────────────────────────────────────────
+  // Loaded beside the legacy dashboard rather than replacing it: the free tier keeps everything it
+  // had, and this only adds the term-scoped layer on top. A chapter with no pools sees the offer;
+  // a chapter with an active pool sees seat management.
+  const [seatState, setSeatState] = useState<ChapterSeatState | null>(null);
+  const [showBuy, setShowBuy] = useState(false);
+  const [showKit, setShowKit] = useState(false);
+  const [offerDismissed, setOfferDismissed] = useState(() => {
+    try { return localStorage.getItem(`sa-seat-offer-${data.chapterId}`) === "dismissed"; } catch { return false; }
+  });
+  const loadSeats = () => {
+    void getChapterSeatState({ data: { accessToken: token, chapterId: data.chapterId } })
+      .then((s) => setSeatState(s))
+      .catch(() => { /* the seat tables may not be applied yet — the free dashboard still works */ });
+  };
+  useEffect(loadSeats, [data.chapterId, token]);
+  const activePool = seatState?.pools.find((x) => x.id === seatState.currentPoolId) ?? null;
+  const dismissOffer = () => {
+    setOfferDismissed(true);
+    try { localStorage.setItem(`sa-seat-offer-${data.chapterId}`, "dismissed"); } catch { /* private mode */ }
+  };
+
   const onSeat = async (memberId: string, assign: boolean) => {
     setSeatBusy(memberId); setSeatErr(null);
     try {
@@ -145,6 +187,48 @@ function Dashboard({ data, token, onDigest, onReload }: { data: ChapterDashboard
     } catch { setXErr("Couldn't reach the server — try again."); }
     finally { setXBusy(false); }
   };
+
+  const seatSection = (
+    <div className="mt-6 grid gap-6">
+      {showBuy ? (
+        <SeatPurchase
+          chapterId={data.chapterId}
+          chapterName={data.chapterName}
+          courseCode={data.courseCode ?? null}
+          accessToken={token}
+          onCancel={() => setShowBuy(false)}
+          onDone={() => { setShowBuy(false); loadSeats(); }}
+        />
+      ) : null}
+
+      {/* THE OFFER — only while there is nothing active, and only until it is dismissed. Dismissing
+          leaves the chapter on the free tier; "Add seats" in the paid block brings it back. */}
+      {!showBuy && !activePool && !offerDismissed && (
+        <SeatOfferBlock onChoose={() => setShowBuy(true)} onShareKit={() => setShowKit(true)} onDismiss={dismissOffer} />
+      )}
+
+      {/* Reachable again after a dismiss — the offer is never gone, just quiet. */}
+      {!showBuy && !activePool && offerDismissed && (
+        <button type="button" onClick={() => setShowBuy(true)} className="self-start rounded-xl px-4 text-[14px] font-black" style={{ minHeight: 44, background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}>
+          Cover your members — choose seats →
+        </button>
+      )}
+
+      {seatState && seatState.pools.length > 0 && (
+        <SeatDashboard state={seatState} accessToken={token} onBuyMore={() => setShowBuy(true)} onReload={loadSeats} />
+      )}
+
+      {showKit && seatState && (
+        <ChapterShareKit
+          chapterId={data.chapterId}
+          chapterName={data.chapterName}
+          courseCode={data.courseCode ?? null}
+          chapterUrl={full ? `https://${full}` : null}
+          onClose={() => setShowKit(false)}
+        />
+      )}
+    </div>
+  );
 
   const toggleDigest = async () => { const next = !data.digestEnabled; onDigest(next); await setChapterDigest({ data: { accessToken: token, enabled: next } }); };
   const buySeats = `sms:${LEE_TEL}?&body=${encodeURIComponent(`${data.chapterName} is interested in semester seats.`)}`;
@@ -179,6 +263,11 @@ function Dashboard({ data, token, onDigest, onReload }: { data: ChapterDashboard
           </div>
         ))}
       </div>
+
+      {/* TERM SEATS — the offer, the purchase flow and (once a pool is active) seat management.
+          Placed under the aggregate numbers and above the roster, because it is the decision the
+          numbers argue for. The free roster below is untouched. */}
+      {seatSection}
 
       <div className="mt-3 overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)" }}>
         <div className="flex items-center justify-between border-b px-4 py-2.5" style={{ borderColor: "rgba(245,239,230,0.1)" }}>

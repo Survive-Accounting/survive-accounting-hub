@@ -123,6 +123,56 @@ export async function flyerSvg(i: FlyerInput): Promise<string> {
 </svg>`;
 }
 
+
+// ── the slide (16:9) ───────────────────────────────────────────────────────────────────────────
+
+/** ONE ASSET, TWO USES. The portrait flyer above is for printing and pinning up; this is the same
+ *  message laid out for a projector at a chapter meeting — 1920×1080, the campus bolt at hero
+ *  scale on the right, and a QR big enough to scan from the back of a room.
+ *
+ *  Deliberately NOT a deck. A room full of people looking at a slide will read one thing: the
+ *  course, the offer, and the code to point a phone at. A second slide is a second thing nobody
+ *  reads.
+ *
+ *  It shares colorway(), heroCode(), qrDataUri() and the brand bolt geometry with the flyer, so a
+ *  campus that changes its course code or colours changes both at once. */
+export async function slideSvg(i: FlyerInput): Promise<string> {
+  const { c1, c2 } = colorway(i.schoolSlug);
+  const code = heroCode(i);
+  const qr = await qrDataUri(i);
+  // The headline runs at 150 for a short code and steps down as the code grows, same rule the
+  // flyer uses — just scaled for the shorter landscape measure.
+  const codeSize = Math.round(courseFontSize(code) * 0.62);
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080" width="100%" font-family="Poppins, system-ui, sans-serif">
+  <rect width="1920" height="1080" fill="#14213D"/>
+  <rect x="0" y="0" width="1920" height="10" fill="#F5A623"/>
+  <rect x="0" y="1070" width="1920" height="10" fill="#F5A623"/>
+
+  <text x="120" y="150" fill="#F5F1E8" font-size="72" font-weight="700" letter-spacing="-1">survive</text>
+  <text x="122" y="188" fill="#8B97BD" font-size="22" font-weight="600" letter-spacing="12">ACCOUNTING</text>
+
+  <text x="120" y="300" fill="#F5A623" font-size="34" font-weight="700" letter-spacing="6">FOR ${esc(i.schoolName.toUpperCase())} STUDENTS</text>
+  <text x="120" y="${codeSize + 340}" fill="#F5F1E8" font-size="${codeSize}" font-weight="700" letter-spacing="-4">${esc(code)}</text>
+  <text x="120" y="${codeSize + 430}" fill="#F5F1E8" font-size="64" font-weight="700">Cram what&apos;s on your exam.</text>
+  <text x="120" y="${codeSize + 496}" fill="#B9C2DC" font-size="34">Real exam-style questions, worked start to finish</text>
+  <text x="120" y="${codeSize + 544}" fill="#B9C2DC" font-size="34">by a tutor who&apos;s helped 1,000+ students.</text>
+
+  <rect x="120" y="820" width="560" height="76" rx="38" fill="#F5A623"/>
+  <text x="400" y="871" fill="#14213D" font-size="36" font-weight="700" letter-spacing="3" text-anchor="middle">SCAN IT — EXAM 1 IS FREE</text>
+  <text x="120" y="960" fill="#8B97BD" font-size="30" font-style="italic">${i.chapterName ? esc(`Shared by ${i.chapterName}`) : ""}</text>
+  <text x="120" y="1015" fill="#F5F1E8" font-size="34" font-weight="600">surviveaccounting.com</text>
+
+  <!-- the bolt, hero scale, in the campus colourway -->
+  <g transform="translate(1290, 250) scale(3.4) translate(-45.4 0)">
+    <path d="${BOLT_OUTER}" fill="${c1}" stroke="#FFFFFF" stroke-width="8" stroke-linejoin="round" stroke-linecap="round" paint-order="stroke"/>
+    <path d="${BOLT_RIGHT}" fill="${c2}"/>
+  </g>
+
+  <!-- QR: 380px square, scannable from the back of a chapter room -->
+  <rect x="1480" y="700" width="320" height="320" rx="18" fill="#FFFFFF"/>
+  <image x="1502" y="722" width="276" height="276" href="${qr}"/>
+</svg>`;
+}
 // ── the PDF ───────────────────────────────────────────────────────────────────────────────────
 
 /** Fonts fetched from the deployment's own static output. public/ is NOT inside the serverless

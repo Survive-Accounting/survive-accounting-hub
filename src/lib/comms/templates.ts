@@ -9,7 +9,7 @@ import type { IntakeKind } from "@/lib/comms/kinds";
 export type TemplateKey =
   | "confirm_notify_exam" | "confirm_save_progress" | "confirm_syllabus" | "confirm_greek_member"
   | "confirm_greek_claim" | "confirm_rep" | "confirm_school_request" | "confirm_tutoring_request"
-  | "confirm_outreach_page" | "confirm_question"
+  | "confirm_outreach_page" | "confirm_question" | "confirm_chapter_seats" | "confirm_chapter_approved"
   | "seq_exam_t10" | "seq_exam_t3" | "seq_exam_t1" | "seq_post_exam1_d1" | "seq_post_exam1_d7" | "seq_meet_lee"
   | "broadcast_exam_live"
   | "founder_priority" | "founder_batched";
@@ -26,6 +26,9 @@ export interface TemplateCtx {
   courseCode?: string | null;    // "ACCY 201"
   professor?: string | null;
   chapter?: string | null;       // Greek chapter display ("Kappa Alpha Theta")
+  /** The exec's stated position ("Treasurer"). On the founder alert it is half of what makes a
+   *  claim verifiable at a glance, so it gets its own line rather than being buried in note. */
+  role?: string | null;
   chapterLink?: string | null;   // /go/<school>/<chapter>
   exam?: number | null;          // 1..3, 99 = Final
   topic?: string | null;
@@ -33,13 +36,19 @@ export interface TemplateCtx {
   examDate?: string | null;      // ISO date for sequence A
   daysOut?: number | null;
   price?: number | null;         // paid exam price
-  kind?: IntakeKind | null;      // founder alerts
+  // "purchase" is a founder-alert LABEL, not an intake kind: the label map below already
+  // renders it, and widening INTAKE_KINDS would add a value the intake table has no use for.
+  kind?: IntakeKind | "purchase" | null;      // founder alerts
   adminLink?: string | null;     // founder alerts → /outreach/demand?lead=
   heldCount?: number | null;     // founder rate-limit: alerts held since the last one
   note?: string | null;          // free text the student left (syllabus notes, referral)
   unsubscribeLink?: string | null;
   preferencesLink?: string | null;
   isTest?: boolean;
+  /** Chapter seats: the term label ("Fall 2026"), its expiry ("Dec. 31, 2026") and the count. */
+  term?: string | null;
+  expiresLabel?: string | null;
+  seats?: number | null;
 }
 
 export const ORIGIN = "https://surviveaccounting.com";
@@ -52,6 +61,15 @@ const first = (c: TemplateCtx) => (c.name ?? "").trim().split(/\s+/)[0] || "ther
 const examLabel = (n?: number | null) => (n == null ? "your exam" : n === 99 ? "the Final" : `Exam ${n}`);
 const examShort = (n?: number | null) => (n == null ? "Exam" : n === 99 ? "Final" : `Exam ${n}`);
 const code = (c: TemplateCtx) => c.courseCode?.trim() || "intro accounting";
+/** Chapter name for an SMS, hard-capped so one segment is GUARANTEED rather than hoped for.
+ *  Greek names run long — "Alpha Epsilon Phi Sorority Incorporated" is 38 characters — and a
+ *  message that fits the sample context but not the real world bills twice and can arrive out of
+ *  order. No ellipsis on the truncation: that character is not in GSM-7 and would force the whole
+ *  message to UCS-2, which is the exact failure this exists to prevent. */
+const smsChapter = (c: TemplateCtx, fallback = "chapter") => {
+  const v = (c.chapter ?? "").trim() || fallback;
+  return v.length > 26 ? v.slice(0, 26).trimEnd() : v;
+};
 const startLink = (c: TemplateCtx) => (c.campusSlug ? `${ORIGIN}/${c.campusSlug}` : `${ORIGIN}/`);
 const learnLink = () => `${ORIGIN}/learn`;
 const qCount = (c: TemplateCtx) => c.questionCount ?? EXAM1_QUESTION_COUNT;
@@ -112,16 +130,56 @@ function blocksFor(key: TemplateKey, c: TemplateCtx): { subject: string; blocks:
         ],
         sms: `You're in - Exam 1 is free for ${c.chapter ?? "your chapter"}: ${(c.chapterLink ?? startLink(c)).replace(/^https?:\/\//, "")} - Lee`,
       };
+    // THE EXEC HAS JUST HANDED OVER THEIR PHONE NUMBER AND ASKED FOR SOMETHING. This says what
+    // happens next and by when, and nothing else. The old version promised "I'll text you shortly
+    // — usually same day", which is a promise made by whoever is awake rather than by a process;
+    // one business day is the promise the form makes and the one Lee can keep.
     case "confirm_greek_claim":
       return {
-        subject: `Got your claim for ${c.chapter ?? "your chapter"}`,
+        subject: `Your ${c.chapter ?? "chapter"} request is in`,
         blocks: [
-          `Hey ${n},`,
-          `Got your request to claim ${c.chapter ?? "your chapter"} at ${c.school ?? "your school"}. I'll review it and text you shortly — usually same day.`,
-          `In the meantime, here's your chapter's link. Members can start Exam 1 free right now, before anything's set up: ${c.chapterLink ?? startLink(c)}`,
+          `Hi ${n},`,
+          `I got your request to claim ${c.chapter ?? "your chapter"} at ${c.school ?? "your school"}.`,
+          `I'll verify your chapter role within one business day. Once it's approved, I'll send you access to the chapter dashboard and sharing tools.`,
+          `Your members don't have to wait — Exam 1 is already free here:`,
+          c.chapterLink ?? startLink(c),
           sig,
         ],
-        sms: `Got your ${c.chapter ?? "chapter"} claim - texting you today. Members start Exam 1 free: ${(c.chapterLink ?? startLink(c)).replace(/^https?:\/\//, "")} - Lee`,
+        // GSM-7: no em dash, no bolt, no middle dot. A test run showed the old copy splitting into
+        // two segments, which bills twice and can arrive out of order.
+        sms: `Got it - your ${smsChapter(c)} request is in. I verify within 1 business day, then send your dashboard + sharing tools. Exam 1 stays free. - Lee`,
+      };
+
+    // APPROVED. The other half of the promise above, and the first thing the exec gets that is
+    // actually a key rather than a receipt — so the dashboard link is the whole message.
+    case "confirm_chapter_approved":
+      return {
+        subject: `${c.chapter ?? "Your chapter"} is ready ⚡`,
+        blocks: [
+          `Hi ${n},`,
+          `Your chapter page is approved.`,
+          `You can now open the dashboard, share Exam 1 with members and manage chapter access.`,
+          { cta: "Open chapter dashboard →", href: `${ORIGIN}/chapters/dashboard` },
+          sig,
+        ],
+        sms: `You're approved - ${smsChapter(c, "your chapter")}'s Survive dashboard is ready: surviveaccounting.com/chapters/dashboard - Lee`,
+      };
+    // SEATS ACTIVATED. Sent to the exec the moment a term seat pool goes active (card, Stripe
+    // invoice paid, or Lee marking a check paid). It names the term and the exact expiry,
+    // because the whole point of the term model is that access ends on a date the chapter
+    // agreed to — a confirmation that omitted it would be the surprise this model exists to
+    // prevent.
+    case "confirm_chapter_seats":
+      return {
+        subject: `${c.chapter ?? "Your chapter"} is covered — ${c.term ?? "this term"}`,
+        blocks: [
+          `Hey ${n},`,
+          `${c.seats ?? "Your"} seat${c.seats === 1 ? "" : "s"} for ${c.chapter ?? "your chapter"} are active for ${c.term ?? "this term"}. Assigned members get Exam 2, Exam 3 and the Final through ${c.expiresLabel ?? "the end of the term"}.`,
+          `Assign your seats → ${c.adminLink ?? "https://surviveaccounting.com/chapters/dashboard"}`,
+          c.note ?? "",
+          sig,
+        ].filter(Boolean),
+        sms: `${c.chapter ?? "Your chapter"} is covered for ${c.term ?? "this term"} - assign seats: surviveaccounting.com/chapters/dashboard - Lee`,
       };
     case "confirm_rep":
       return {
@@ -274,6 +332,34 @@ function blocksFor(key: TemplateKey, c: TemplateCtx): { subject: string; blocks:
       const kindLabel = ({ syllabus: "SYLLABUS", greek_claim: "CHAPTER CLAIM", rep: "CAMPUS REP", purchase: "PURCHASE", question: `QUESTION ${c.topic ?? ""}`.trim() } as Record<string, string>)[c.kind ?? ""] ?? (c.kind ?? "LEAD").toUpperCase();
       const line = [c.name, c.school, c.courseCode, c.professor ? `Prof. ${c.professor}` : null, c.chapter].filter(Boolean).join(" · ");
       const smsLine = [c.name, c.school, c.courseCode, c.professor ? `Prof. ${c.professor}` : null, c.chapter].filter(Boolean).join(", ");
+
+      // A CHAPTER CLAIM IS A DECISION, not a notification, so it gets a shape built for deciding:
+      // who, at which chapter, in what role, reachable how — each on its own line, in the order
+      // you would check them. The generic one-line format above is fine for a lead and useless
+      // for an approval, because the role is the thing being verified and it was buried in note.
+      //
+      // The link goes to the AUTHENTICATED review screen, deep-linked to this claim. Deliberately
+      // not a one-tap approve URL: approving hands over a roster of student names and phone
+      // numbers, and a token in an inbox is not an admin session.
+      if (c.kind === "greek_claim") {
+        const who = [c.name, c.role].filter(Boolean).join(" · ");
+        const where = [c.chapter, c.school].filter(Boolean).join(" · ");
+        return {
+          subject: `⚡ New chapter claim: ${where || c.name || "new"}`,
+          blocks: [
+            `New chapter claim${c.heldCount ? ` (+${c.heldCount} held)` : ""}`,
+            where || "(no chapter)",
+            who || "(no name)",
+            c.email ?? "",
+            c.phone ?? "",
+            c.note ? `"${c.note.slice(0, 280)}"` : "",
+            c.adminLink ? `Review claim: ${c.adminLink}` : "",
+            c.phone ? `Text back: sms:${c.phone}` : "",
+          ].filter((b) => b !== ""),
+          sms: `!! CHAPTER CLAIM${c.heldCount ? ` (+${c.heldCount} held)` : ""}: ${[c.chapter, c.school, c.name, c.role].filter(Boolean).join(", ")}${c.phone ? ` ${c.phone}` : ""}${c.adminLink ? ` ${c.adminLink}` : ""}`,
+        };
+      }
+
       return {
         subject: `⚡ ${kindLabel}: ${line || c.email || c.phone || "new"}`,
         blocks: [
@@ -377,6 +463,7 @@ export const ALL_TEMPLATES: { key: TemplateKey; label: string; group: "Confirmat
   { key: "confirm_syllabus", label: "syllabus — Got your syllabus", group: "Confirmations", hasSms: true },
   { key: "confirm_greek_member", label: "greek_member — You're in", group: "Confirmations", hasSms: true },
   { key: "confirm_greek_claim", label: "greek_claim — Got your claim", group: "Confirmations", hasSms: true },
+  { key: "confirm_chapter_approved", label: "greek_claim approved — Your chapter is ready", group: "Confirmations", hasSms: true },
   { key: "confirm_rep", label: "rep — Got your application", group: "Confirmations", hasSms: true },
   { key: "confirm_school_request", label: "school_request / referral — Noted", group: "Confirmations", hasSms: true },
   { key: "confirm_tutoring_request", label: "tutoring_request — Got your request", group: "Confirmations", hasSms: true },

@@ -84,8 +84,11 @@ export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, letter
       ),
     },
     {
-      title: "Claim this page",
-      desc: "An exec can claim the page to manage chapter access and track usage.",
+      title: "Claim your chapter",
+      // "An exec can claim the page to manage chapter access and track usage" describes the
+      // mechanism. An exec reading it has to work out what they get. This names the three things
+      // instead, which is also the order they matter in.
+      desc: "Get the chapter dashboard, sharing tools and member access controls.",
       status: claim === "claimed" ? "✓ Page claimed" : claim === "pending" ? "In review" : undefined,
       body: <ClaimStep chapterName={chapterName} schoolSlug={schoolSlug} chapterSlug={chapterSlug} claim={claim} onPending={() => setClaim("pending")} />,
     },
@@ -255,21 +258,19 @@ function ClaimStep({ chapterName, schoolSlug, chapterSlug, claim, onPending }: {
       {/* After this visitor's own submission the form's "You're almost set." card stands alone —
           repeating the pitch and pricing above a done deal would bury the confirmation. The form
           keeps its tree position either way so its internal done state survives the switch. */}
+      {/* THE FREE LINE APPEARS ONCE, HERE. It also sat above the form and again in the FAQ; three
+          reassurances in one accordion stop reassuring and start sounding like a disclaimer. This
+          is the copy the exec reads immediately before deciding to type, so this is where it
+          earns its place. */}
       {!submitted && (
         <>
           <p className="text-center text-[14px] font-bold leading-relaxed" style={{ color: "var(--brand-cream)" }}>
-            Claiming this page is free. Exam 1 stays free for every member.
+            Claiming is free. Exam 1 stays free for every member.
           </p>
 
-          {/* Pricing is SECONDARY — context for the later seats conversation, not a checkout. */}
-          <div className="rounded-xl px-4 py-3.5 text-center" style={{ background: "rgba(0,0,0,0.18)", border: "1px solid var(--border-default)" }}>
-            <p className="text-[11.5px] font-black uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Full-semester chapter access</p>
-            <p className="mt-1.5 text-[16px] font-black" style={{ color: "var(--accent)" }}>${SEAT_PRICE} per member, per semester</p>
-            <p className="mt-0.5 text-[12px] font-bold" style={{ color: "var(--text-muted)" }}>{SEAT_MINIMUM}-seat minimum</p>
-            <p className="mx-auto mt-2 max-w-[42ch] text-[12.5px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              Full-semester access unlocks Exams 2, 3, and the Final for the members your chapter sponsors.
-            </p>
-          </div>
+          {/* Pricing is SECONDARY — context for the later seats conversation, not a checkout — so
+              it sits BELOW the form now rather than between the promise and the fields. Leading
+              with a price on a free action was the single most confusing thing in this step. */}
         </>
       )}
 
@@ -288,8 +289,19 @@ function ClaimStep({ chapterName, schoolSlug, chapterSlug, claim, onPending }: {
           className="w-full rounded-xl px-7 text-[16px] font-black transition-transform hover:scale-[1.02] focus-visible:ring-2"
           style={{ minHeight: 54, background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.6)" }}
         >
-          Claim This Page ⚡
+          Claim my chapter →
         </button>
+      )}
+
+      {!submitted && (
+        <div className="rounded-xl px-4 py-3.5 text-center" style={{ background: "rgba(0,0,0,0.18)", border: "1px solid var(--border-default)" }}>
+          <p className="text-[11.5px] font-black uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Later, if you want it</p>
+          <p className="mt-1.5 text-[16px] font-black" style={{ color: "var(--accent)" }}>${SEAT_PRICE} per member, per semester</p>
+          <p className="mt-0.5 text-[12px] font-bold" style={{ color: "var(--text-muted)" }}>{SEAT_MINIMUM}-seat minimum</p>
+          <p className="mx-auto mt-2 max-w-[42ch] text-[12.5px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+            Full-semester access unlocks Exams 2, 3, and the Final for the members your chapter sponsors.
+          </p>
+        </div>
       )}
     </div>
   );

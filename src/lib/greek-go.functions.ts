@@ -259,11 +259,18 @@ export const tagChapterMember = createServerFn({ method: "POST" })
         const { data: u } = await supabaseAdmin.auth.admin.getUserById(data.userId);
         const email = u?.user?.email ?? null;
         if (email) {
+          // is_test comes from the server-held tester session, never from the client. Without it
+          // every test member landed in campus_waitlist as a real lead and every test welcome
+          // counted against the real frequency caps — the exact contamination test mode exists
+          // to prevent, arriving through the one path nobody had marked.
+          const { isTestRequest } = await import("@/lib/test-mode.functions");
+          const isTest = await isTestRequest();
           const { runIntake } = await import("@/lib/comms/intake.server");
           await runIntake({
             kind: "greek_member", email, name: data.name ?? (u?.user?.user_metadata as { full_name?: string } | undefined)?.full_name ?? null,
             campusName: ch.schoolName, campusSlug: ch.schoolSlug, chapter: ch.chapterName,
             chapterLink: `https://surviveaccounting.com${goPath(ch.schoolSlug, ch.chapterSlug)}`, sourcePath: goPath(ch.schoolSlug, ch.chapterSlug),
+            isTest,
           });
         }
       } catch (e) { console.warn("greek_member intake failed (member tagged)", (e as Error).message); }

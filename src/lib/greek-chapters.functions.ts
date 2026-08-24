@@ -186,6 +186,8 @@ async function chapterForToken(db: DB, accessToken: string) {
 }
 
 export interface ChapterDashboard {
+  /** The campus intro-accounting course code, or null when the campus has none verified. */
+  courseCode?: string | null;
   /** Needed by every Phase-2b action (seats, transfer) — the dashboard used to expose only a slug,
    *  which is a display value, not a key. */
   chapterId: string;
@@ -207,6 +209,17 @@ export const getChapterDashboard = createServerFn({ method: "POST" })
     const db = await admin();
     const ch = await chapterForToken(db, data.accessToken);
     if (!ch) return null;
+    // ONE SOURCE for the code: campuses.course_family_codes_json.intro_1, same as every other
+    // surface. Never guessed — a campus without one yields null.
+    let courseCode: string | null = null;
+    try {
+      if (ch.campus_id) {
+        const { data: camp } = await db.from("campuses").select("course_family_codes_json").eq("id", ch.campus_id).maybeSingle();
+        const j = camp?.course_family_codes_json;
+        const o = typeof j === "string" ? JSON.parse(j || "{}") : (j ?? {});
+        courseCode = ((o?.intro_1 ?? "") as string).toString().trim() || null;
+      }
+    } catch { courseCode = null; }
     const { data: mem } = await db.from("greek_chapter_members").select("id,name,joined_at,sets_completed,seat_assigned_at").eq("chapter_id", ch.id).order("joined_at", { ascending: false });
     const rows = (mem ?? []) as Array<{ id: string; name: string; joined_at: string; sets_completed: number; seat_assigned_at: string | null }>;
     const goUrl = await goUrlForChapter(db, ch);
@@ -220,6 +233,10 @@ export const getChapterDashboard = createServerFn({ method: "POST" })
       seatsAssigned: rows.filter((r) => r.seat_assigned_at).length,
       seatsNote: ch.seats_note ?? null,
       chapterName: ch.chapter_name, schoolName: ch.school_name, campusId: ch.campus_id ?? null, slug: ch.slug, url: goUrl,
+      // The campus intro course code — the seat screens name the course a chapter is buying for,
+      // and it must come from campus data, never a hardcoded ACCY 201. Null when the campus has
+      // no verified code; every caller falls back to generic wording.
+      courseCode,
       digestEnabled: !!ch.digest_enabled,
       membersJoined: rows.length,
       setsCompleted: rows.reduce((a, r) => a + (r.sets_completed ?? 0), 0),

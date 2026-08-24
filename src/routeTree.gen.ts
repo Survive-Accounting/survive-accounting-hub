@@ -47,7 +47,6 @@ import { Route as RCodeRouteImport } from './routes/r.$code'
 import { Route as PartnersNationalOrganizationsRouteImport } from './routes/partners.national-organizations'
 import { Route as PartnersCampusCouncilsRouteImport } from './routes/partners.campus-councils'
 import { Route as OutreachVideoArchiveRouteImport } from './routes/outreach.video-archive'
-import { Route as OutreachTestModeRouteImport } from './routes/outreach.test-mode'
 import { Route as OutreachStudentsRouteImport } from './routes/outreach.students'
 import { Route as OutreachResearchRouteImport } from './routes/outreach.research'
 import { Route as OutreachRepsRouteImport } from './routes/outreach.reps'
@@ -306,11 +305,6 @@ const PartnersCampusCouncilsRoute = PartnersCampusCouncilsRouteImport.update({
 const OutreachVideoArchiveRoute = OutreachVideoArchiveRouteImport.update({
   id: '/video-archive',
   path: '/video-archive',
-  getParentRoute: () => OutreachRoute,
-} as any)
-const OutreachTestModeRoute = OutreachTestModeRouteImport.update({
-  id: '/test-mode',
-  path: '/test-mode',
   getParentRoute: () => OutreachRoute,
 } as any)
 const OutreachStudentsRoute = OutreachStudentsRouteImport.update({
@@ -725,7 +719,6 @@ export interface FileRoutesByFullPath {
   '/outreach/reps': typeof OutreachRepsRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
-  '/outreach/test-mode': typeof OutreachTestModeRoute
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/partners/campus-councils': typeof PartnersCampusCouncilsRoute
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
@@ -831,7 +824,6 @@ export interface FileRoutesByTo {
   '/outreach/reps': typeof OutreachRepsRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
-  '/outreach/test-mode': typeof OutreachTestModeRoute
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/partners/campus-councils': typeof PartnersCampusCouncilsRoute
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
@@ -941,7 +933,6 @@ export interface FileRoutesById {
   '/outreach/reps': typeof OutreachRepsRoute
   '/outreach/research': typeof OutreachResearchRoute
   '/outreach/students': typeof OutreachStudentsRoute
-  '/outreach/test-mode': typeof OutreachTestModeRoute
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/partners/campus-councils': typeof PartnersCampusCouncilsRoute
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
@@ -1052,7 +1043,6 @@ export interface FileRouteTypes {
     | '/outreach/reps'
     | '/outreach/research'
     | '/outreach/students'
-    | '/outreach/test-mode'
     | '/outreach/video-archive'
     | '/partners/campus-councils'
     | '/partners/national-organizations'
@@ -1158,7 +1148,6 @@ export interface FileRouteTypes {
     | '/outreach/reps'
     | '/outreach/research'
     | '/outreach/students'
-    | '/outreach/test-mode'
     | '/outreach/video-archive'
     | '/partners/campus-councils'
     | '/partners/national-organizations'
@@ -1267,7 +1256,6 @@ export interface FileRouteTypes {
     | '/outreach/reps'
     | '/outreach/research'
     | '/outreach/students'
-    | '/outreach/test-mode'
     | '/outreach/video-archive'
     | '/partners/campus-councils'
     | '/partners/national-organizations'
@@ -1642,13 +1630,6 @@ declare module '@tanstack/react-router' {
       path: '/video-archive'
       fullPath: '/outreach/video-archive'
       preLoaderRoute: typeof OutreachVideoArchiveRouteImport
-      parentRoute: typeof OutreachRoute
-    }
-    '/outreach/test-mode': {
-      id: '/outreach/test-mode'
-      path: '/test-mode'
-      fullPath: '/outreach/test-mode'
-      preLoaderRoute: typeof OutreachTestModeRouteImport
       parentRoute: typeof OutreachRoute
     }
     '/outreach/students': {
@@ -2191,7 +2172,6 @@ interface OutreachRouteChildren {
   OutreachRepsRoute: typeof OutreachRepsRoute
   OutreachResearchRoute: typeof OutreachResearchRoute
   OutreachStudentsRoute: typeof OutreachStudentsRoute
-  OutreachTestModeRoute: typeof OutreachTestModeRoute
   OutreachVideoArchiveRoute: typeof OutreachVideoArchiveRoute
   OutreachIndexRoute: typeof OutreachIndexRoute
   OutreachGreekOrgsPeopleQueueRoute: typeof OutreachGreekOrgsPeopleQueueRoute
@@ -2226,7 +2206,6 @@ const OutreachRouteChildren: OutreachRouteChildren = {
   OutreachRepsRoute: OutreachRepsRoute,
   OutreachResearchRoute: OutreachResearchRoute,
   OutreachStudentsRoute: OutreachStudentsRoute,
-  OutreachTestModeRoute: OutreachTestModeRoute,
   OutreachVideoArchiveRoute: OutreachVideoArchiveRoute,
   OutreachIndexRoute: OutreachIndexRoute,
   OutreachGreekOrgsPeopleQueueRoute: OutreachGreekOrgsPeopleQueueRoute,

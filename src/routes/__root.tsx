@@ -9,8 +9,6 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
-import { TestModeBar } from "@/components/test-mode/TestMode";
-import { bootstrapTestModeFromUrl } from "@/lib/test-mode";
 import { initAnalytics, capturePageview } from "@/lib/analytics";
 import { initSentry, setSentryRoute, captureError } from "@/lib/sentry";
 // NOTE: this is a TanStack Start (React) app, NOT Next.js — use the "/react"
@@ -21,6 +19,7 @@ import { SpeedInsights } from "@vercel/speed-insights/react";
 import appCss from "../styles.css?url";
 import { HOME_OG, ogMeta } from "../lib/og";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { TestModeBar } from "@/components/site/TestModeBar";
 
 function NotFoundComponent() {
   return (
@@ -127,7 +126,7 @@ function RootShell({ children }: { children: ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        {children}
+                {children}
         {/* Vercel Web Analytics (page views/visitors) + Speed Insights (real-user
             performance). Client-only: no-op in dev, active on the Vercel deploy. */}
         <Analytics />
@@ -141,7 +140,6 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  useEffect(() => { bootstrapTestModeFromUrl(); }, []);
   // PostHog (product analytics). No-op unless VITE_PUBLIC_POSTHOG_KEY is set;
   // init resolves then captures the first pageview, and each route change after.
   useEffect(() => { void initAnalytics().then(() => capturePageview(window.location.pathname)); }, []);

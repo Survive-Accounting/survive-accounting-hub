@@ -17,7 +17,12 @@ import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/stud
 import { isPlayable, nextStep, setIndexOf, stagesOf, type SetStage } from "@/lib/set-flow";
 import { PracticeStage, readCoverage } from "@/components/site/PracticeStage";
 import { StagePills } from "@/components/site/StagePills";
-import { markStep as markTestStep, useTestMode } from "@/lib/test-mode";
+import { readTestSession } from "@/lib/test-mode";
+// The student in-player guided-run (Phase A/B) is retired now the Greek-lifecycle Test Mode is
+// canonical; markTestStep is a no-op kept so the call sites below stay untouched. isTest tagging
+// still works, sourced from the same session the Greek Test Mode uses.
+const markTestStep = (_step: string, _meta?: unknown): void => {};
+const readIsTest = (): boolean => typeof window !== "undefined" && !!readTestSession();
 import { useStudentAuth } from "@/lib/use-student-auth";
 import { useMyEntitlements, bumpEntitlements, kindForExamNum } from "@/lib/use-entitlements";
 import { createCheckoutSession } from "@/lib/student-entitlements.functions";
@@ -189,7 +194,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   // builds a NotifyReq and opens this single modal. There are no persistent email forms in the
   // player any more; signup appears when the student expresses intent.
   const [notifyReq, setNotifyReq] = useState<NotifyReq | null>(null);
-  const outerTestMode = useTestMode();
+  const outerTestMode = { enabled: readIsTest() };
   // /c/<slug> pre-selects the chapter's school. If it's one of the 16 SEC schools we pre-pick it;
   // otherwise we drop into "not listed" (default map) so the player still unblurs and plays.
   const campus = useCampus();
@@ -1503,7 +1508,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
   const [saveOpen, setSaveOpen] = useState(false);
   // Test Mode ambient hook — non-null only when the tester bar is armed. Every action that maps
   // to a checklist step calls markTestStep(); it's a no-op outside test mode.
-  const testMode = useTestMode();
+  const testMode = { enabled: readIsTest() };
   const isTest = testMode.enabled;
   useEffect(() => { if (isTest) markTestStep("land", { path: routePath }); }, [isTest, routePath]);
   useEffect(() => { if (isTest && school) markTestStep("school", { slug: school.slug ?? null, name: school.name ?? null }); }, [isTest, school?.id]);

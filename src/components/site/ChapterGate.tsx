@@ -20,6 +20,8 @@ import { useEffect, useState } from "react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { supabase } from "@/integrations/supabase/client";
+import { authEmailError, authErrorDetail } from "@/lib/auth-errors";
+import { readTestSession } from "@/lib/test-mode";
 
 export function ChapterGate({ chapterName }: { chapterName: string }) {
   const [name, setName] = useState("");
@@ -42,14 +44,32 @@ export function ChapterGate({ chapterName }: { chapterName: string }) {
       // rather than "Hey Jane Doe" — and so the exec roster, the Twilio alert and the
       // thank-you message all get a person instead of an email fragment.
       const [first, ...restName] = n.split(/\s+/).filter(Boolean);
+      // TEST MODE ROUTES THE LINK TO THE TESTER. This one email does not pass through our send
+      // layer — Supabase Auth mails it directly — so the override has to happen at the call. A
+      // tester typing a friend's address into the join form must not mail that friend a working
+      // sign-in link, and the account the link creates has to be one the tester can actually open.
+      //
+      // The typed address is kept as simulated_email on the account, which is what makes the test
+      // record still show who the run was pretending to be.
+      const test = readTestSession();
+      const dest = test?.email || e;
       const { error } = await supabase.auth.signInWithOtp({
-        email: e,
+        email: dest,
         options: {
           emailRedirectTo: redirect,
-          data: { full_name: n, first_name: first ?? "", last_name: restName.join(" ") },
+          data: {
+            full_name: n, first_name: first ?? "", last_name: restName.join(" "),
+            ...(test && dest !== e ? { simulated_email: e, is_test: true } : {}),
+          },
         },
       });
-      if (error) { setState("error"); setMsg(error.message); return; }
+      if (error) {
+        // NOT error.message. GoTrue's own phrasing ("Error sending confirmation email") reads to a
+        // student as though their address was rejected; the cause is nearly always ours. The raw
+        // text goes to the console for whoever is debugging, and never to the person.
+        console.warn("[chapter-gate] otp failed:", authErrorDetail(error));
+        setState("error"); setMsg(authEmailError(error)); return;
+      }
       setState("sent");
     } catch { setState("error"); setMsg("Couldn't reach the server — try again in a moment."); }
   };
@@ -61,7 +81,7 @@ export function ChapterGate({ chapterName }: { chapterName: string }) {
           <>
             <p className="text-[17px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Check your email ⚡</p>
             <p className="mx-auto mt-2 max-w-[34ch] text-[13.5px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-              I sent a sign-in link to <span style={{ color: "var(--brand-cream)" }}>{email.trim()}</span>. Open it on this device and Exam 1 unlocks.
+              I sent a sign-in link to <span style={{ color: "var(--brand-cream)" }}>{readTestSession()?.email || email.trim()}</span>. Open it on this device and Exam 1 unlocks.
             </p>
             <button type="button" onClick={() => { setState("idle"); setMsg(""); }} className="mt-4 text-[12.5px] underline underline-offset-4" style={{ color: "var(--text-muted)", minHeight: 44 }}>
               Use a different email

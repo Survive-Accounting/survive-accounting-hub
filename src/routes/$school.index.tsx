@@ -20,12 +20,17 @@ import { getCampusPage } from "@/lib/campus-page.functions";
 import { readCampusPrefs } from "@/lib/campus-prefs.functions";
 import { campusOgImage, HOME_OG, ogMeta } from "@/lib/og";
 import { schoolBySlug } from "@/lib/schools";
+import { TEST_CAMPUS_SLUG } from "@/lib/test-mode";
 import { LandingPage } from "./landing";
 
 const ORIGIN = "https://surviveaccounting.com";
 
 export const Route = createFileRoute("/$school/")({
   beforeLoad: ({ params }) => {
+    // THE TEST FIXTURE IS REACHABLE BY DIRECT URL ONLY. schoolBySlug reads the static picker list,
+    // which the fixture is deliberately absent from — it must never appear in a picker, a ticker
+    // or the sitemap — but the page itself has to work, because testers walk the real campus page.
+    if (params.school === TEST_CAMPUS_SLUG) return;
     if (!schoolBySlug(params.school)) throw redirect({ to: "/", replace: true });
   },
   loader: async ({ params }) => {
