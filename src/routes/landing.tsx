@@ -16,6 +16,7 @@ import { ChevronDown, GraduationCap, Lock, MessageCircle, MoreHorizontal, X } fr
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
 import { isPlayable, nextStep, setIndexOf, stagesOf, type SetStage } from "@/lib/set-flow";
 import { PracticeStage, readCoverage } from "@/components/site/PracticeStage";
+import { FutureExamWaitlist } from "@/components/site/FutureExamWaitlist";
 import { StagePills } from "@/components/site/StagePills";
 import { readTestSession } from "@/lib/test-mode";
 // The student in-player guided-run (Phase A/B) is retired now the Greek-lifecycle Test Mode is
