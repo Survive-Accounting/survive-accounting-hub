@@ -31,7 +31,7 @@ const admin = async () => {
   return supabaseAdmin as unknown as DB;
 };
 
-const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com"];
+const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com", "lee@survivestudios.com"];
 
 /** PAYMENTS FOLLOW THE KEYS, AND THE KEYS ARE TEST-ONLY.
  *

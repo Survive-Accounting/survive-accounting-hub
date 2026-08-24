@@ -21,7 +21,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
 /** The only identities that may operate the admin workspaces. Server-side only — never shipped. */
-const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com"];
+const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com", "lee@survivestudios.com"];
 
 const COOKIE = "sa_admin_jwt";
 

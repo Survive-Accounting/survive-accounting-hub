@@ -38,7 +38,7 @@ const admin = async () => {
 };
 
 const PREFIX = "[CAMPUS REP]";
-const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com"];
+const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com", "lee@survivestudios.com"];
 
 export const REP_STATUSES = ["new", "contacted", "approved", "declined"] as const;
 export type RepStatus = (typeof REP_STATUSES)[number];

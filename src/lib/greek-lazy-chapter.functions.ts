@@ -111,7 +111,7 @@ export type PendingChapter = {
   schoolName: string; schoolSlug: string; council: string | null; status: string; createdAt: string;
 };
 
-const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com"];
+const ADMIN_EMAILS = ["lee@surviveaccounting.com", "king@surviveaccounting.com", "lee@survivestudios.com"];
 
 async function isAdmin(db: any, accessToken: string): Promise<boolean> {
   try {
