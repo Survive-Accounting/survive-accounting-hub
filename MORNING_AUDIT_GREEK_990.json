@@ -1,0 +1,625 @@
+{
+  "generated": "2026-08-25",
+  "read_only": true,
+  "contact_made": false,
+  "universe": {
+    "sec_campuses_attempted": 16,
+    "social_chapters_attempted": 843,
+    "social_chapters_total": 858,
+    "legal_entities_discovered": 632,
+    "unique_eins": 632
+  },
+  "entity_matching": {
+    "high_auto_linked_chapters": 384,
+    "medium_review_chapters": 232,
+    "low_only_chapters": 12,
+    "no_entity_chapters": 215,
+    "high_links_total": 1254,
+    "high_links_by_evidence": {
+      "campus_city": 548,
+      "chapter_designation": 21,
+      "full_university_name": 10,
+      "national_parent": 675
+    },
+    "candidates_medium": 4760,
+    "rejected": "not a stored state; failed candidates never become links",
+    "low": "not persisted; left unlinked by design",
+    "manual_ein_eliminated": {
+      "prior_manual_ein_on_sec_roster": 4,
+      "auto_discovered_entities": 632,
+      "chapters_auto_matched_to_specific_entity": 381,
+      "note": "632 EINs discovered with zero manual lookup; replaces ~1 VA task per matched chapter and finds multiple entities per chapter."
+    }
+  },
+  "entity_types": {
+    "LOCAL_CHAPTER_ENTITY": 384,
+    "HOUSE_CORPORATION": 77,
+    "NATIONAL_PARENT": 77,
+    "UNKNOWN": 57,
+    "ALUMNI_CORPORATION": 15,
+    "EDUCATIONAL_FOUNDATION": 11,
+    "PROPERTY_HOLDING_ENTITY": 10,
+    "SCHOLARSHIP_FOUNDATION": 1
+  },
+  "entity_type_accuracy": {
+    "verdict": "conservative and safe; never mislabels house corp/foundation as undergrad chapter",
+    "unknown_count": 57,
+    "unknown_are_mostly": "real LOCAL/corp entities lacking a keyword; a few are 501c3 foundations",
+    "cheap_fix": "default bare 501(c)(7) org names to LOCAL_CHAPTER_ENTITY, 501(c)(3) to foundation-leaning"
+  },
+  "group_exemption": {
+    "entities_with_gen": 425,
+    "national_parents": [
+      {
+        "legal_name": "ALPHA CHI OMEGA FRATERNITY INC",
+        "city": "INDIANAPOLIS",
+        "state": "IN",
+        "gen": "0467"
+      },
+      {
+        "legal_name": "ALPHA DELTA PI SORORITY",
+        "city": "ATLANTA",
+        "state": "GA",
+        "gen": "0629"
+      },
+      {
+        "legal_name": "ALPHA EPSILON PHI SORORITY INC",
+        "city": "DANBURY",
+        "state": "CT",
+        "gen": "5846"
+      },
+      {
+        "legal_name": "ALPHA EPSILON PI FRATERNITY INC",
+        "city": "INDIANAPOLIS",
+        "state": "IN",
+        "gen": "1064"
+      },
+      {
+        "legal_name": "ALPHA ETA CHAPTER OF PHI KAPPA SIGMA INTERNATIONAL FRATERNITY",
+        "city": "COLUMBIA",
+        "state": "SC",
+        "gen": null
+      },
+      {
+        "legal_name": "ALPHA GAMMA DELTA FRATERNITY",
+        "city": "INDIANAPOLIS",
+        "state": "IN",
+        "gen": "0416"
+      },
+      {
+        "legal_name": "ALPHA GAMMA RHO FRATERNITY",
+        "city": "KANSAS CITY",
+        "state": "MO",
+        "gen": "0339"
+      },
+      {
+        "legal_name": "ALPHA KAPPA ALPHA SORORITY INC",
+        "city": "CHICAGO",
+        "state": "IL",
+        "gen": "9321"
+      },
+      {
+        "legal_name": "ALPHA OMICRON PI FRATERNITY INC",
+        "city": "BRENTWOOD",
+        "state": "TN",
+        "gen": "0190"
+      },
+      {
+        "legal_name": "ALPHA PHI INTERNATIONAL FRATERNITY INC",
+        "city": "DENVER",
+        "state": "CO",
+        "gen": "1038"
+      },
+      {
+        "legal_name": "ALPHA SIGMA PHI FRATERNITY INC",
+        "city": "CARMEL",
+        "state": "IN",
+        "gen": "6237"
+      },
+      {
+        "legal_name": "ALPHA TAU OMEGA FRATERNITY",
+        "city": "INDIANAPOLIS",
+        "state": "IN",
+        "gen": "0287"
+      },
+      {
+        "legal_name": "ALPHA XI DELTA NATIONAL HOUSING CORPORATION INC",
+        "city": "INDIANAPOLIS",
+        "state": "IN",
+        "gen": "3655"
+      },
+      {
+        "legal_name": "BETA THETA PI FRATERNITY",
+        "city": "OXFORD",
+        "state": "OH",
+        "gen": "0315"
+      },
+      {
+        "legal_name": "CHI OMEGA FRATERNITY",
+        "city": "MEMPHIS",
+        "state": "TN",
+        "gen": "0273"
+      },
+      {
+        "legal_name": "CHI PHI FRATERNITY INC",
+        "city": "ROSWELL",
+        "state": "GA",
+        "gen": "0409"
+      },
+      {
+        "legal_name": "CHI PSI FRATERNITY",
+        "city": "NASHVILLE",
+        "state": "TN",
+        "gen": "0986"
+      },
+      {
+        "legal_name": "DELTA CHI FRATERNITY",
+        "city": "INDIANAPOLIS",
+        "state": "IN",
+        "gen": "0401"
+      },
+      {
+        "legal_name": "DELTA DELTA DELTA",
+        "city": "DALLAS",
+        "state": "TX",
+        "gen": "0091"
+      },
+      {
+        "legal_name": "DELTA GAMMA FRATERNITY",
+        "city": "UPPER ARLNGTN",
+        "state": "OH",
+        "gen": "0461"
+      },
+      {
+        "legal_name": "DELTA KAPPA EPSILON FRATERNITY",
+        "city": "ANN ARBOR",
+        "state": "MI",
+        "gen": "0599"
+      },
+      {
+        "legal_name": "DELTA PHI EPSILON SORORITY INC",
+        "city": "OAKLYN",
+        "state": "NJ",
+        "gen": "1656"
+      },
+      {
+        "legal_name": "DELTA SIGMA PHI FRATERNITY INC NATIONAL HEADQUARTERS",
+        "city": "INDIANAPOLIS",
+        "state": "IN",
+        "gen": "0588"
+      },
+      {
+        "legal_name": "DELTA SIGMA THETA SORORITY INC",
+        "city": "WASHINGTON",
+        "state": "DC",
+        "gen": "1188"
+      },
+      {
+        "legal_name": "DELTA TAU DELTA FRATERNITY",
+        "city": "INDIANAPOLIS",
+        "state": "IN",
+        "gen": "0124"
+      },
+      {
+        "legal_name": "DELTA ZETA NATIONAL HOUSING CORPORATION",
+        "city": "OXFORD",
+        "state": "OH",
+        "gen": "5187"
+      },
+      {
+        "legal_name": "GAMMA PHI BETA SORORITY INC",
+        "city": "CENTENNIAL",
+        "state": "CO",
+        "gen": "0198"
+      },
+      {
+        "legal_name": "HONOR SOCIETY OF SIGMA LAMBDA ALPHA INCORPORATED",
+        "city": "GAINESVILLE",
+        "state": "FL",
+        "gen": "5150"
+      },
+      {
+        "legal_name": "KAPPA ALPHA ORDER",
+        "city": "LEXINGTON",
+        "state": "VA",
+        "gen": "0066"
+      },
+      {
+        "legal_name": "KAPPA ALPHA PSI FRATERNITY INC",
+        "city": "PHILADELPHIA",
+        "state": "PA",
+        "gen": "1372"
+      },
+      {
+        "legal_name": "KAPPA ALPHA THETA FRATERNITY",
+        "city": "INDIANAPOLIS",
+        "state": "IN",
+        "gen": "0154"
+      },
+      {
+        "legal_name": "KAPPA DELTA SORORITY INC",
+        "city": "MEMPHIS",
+        "state": "TN",
+        "gen": "0805"
+      },
+      {
+        "legal_name": "KAPPA KAPPA GAMMA FRATERNITY INC",
+        "city": "DUBLIN",
+        "state": "OH",
+        "gen": "0894"
+      },
+      {
+        "legal_name": "KAPPA KAPPA PSI FRATERNITY",
+        "city": "STILLWATER",
+        "state": "OK",
+        "gen": "2752"
+      },
+      {
+        "legal_name": "KAPPA SIGMA FRATERNITY",
+        "city": "CHARLOTTESVLE",
+        "state": "VA",
+        "gen": "0262"
+      },
+      {
+        "legal_name": "LAMBDA CHI ALPHA FRATERNITY INC",
+        "city": "CARMEL",
+        "state": "IN",
+        "gen": "0293"
+      },
+      {
+        "legal_name": "LAMBDA THETA ALPHA",
+        "city": "ITHACA",
+        "state": "NY",
+        "gen": "5887"
+      },
+      {
+        "legal_name": "OMEGA PSI PHI FRATERNITY",
+        "city": "DECATUR",
+        "state": "GA",
+        "gen": "1205"
+      },
+      {
+        "legal_name": "PHI DELTA THETA FRATERNITY",
+        "city": "OXFORD",
+        "state": "OH",
+        "gen": "0164"
+      },
+      {
+        "legal_name": "PHI GAMMA DELTA FRATERNITY",
+        "city": "LEXINGTON",
+        "state": "KY",
+        "gen": "0204"
+      },
+      {
+        "legal_name": "PHI KAPPA PSI FRATERNITY",
+        "city": "INDIANAPOLIS",
+        "state": "IN",
+        "gen": "0301"
+      },
+      {
+        "legal_name": "PHI KAPPA SIGMA FRATERNITY GRAND CHAPTER",
+        "city": "CARMEL",
+        "state": "IN",
+        "gen": "0271"
+      },
+      {
+        "legal_name": "PHI KAPPA TAU FRATERNITY",
+        "city": "OXFORD",
+        "state": "OH",
+        "gen": "0332"
+      },
+      {
+        "legal_name": "PHI KAPPA THETA FRATERNITY",
+        "city": "INDIANAPOLIS",
+        "state": "IN",
+        "gen": "1518"
+      },
+      {
+        "legal_name": "PHI MU FRATERNITY",
+        "city": "PEACHTREE CTY",
+        "state": "GA",
+        "gen": "0763"
+      },
+      {
+        "legal_name": "PHI SIGMA RHO NATIONAL SORORITY",
+        "city": "LEXINGTON",
+        "state": "KY",
+        "gen": "5641"
+      },
+      {
+        "legal_name": "PHI SIGMA RHO NATIONAL SORORITY",
+        "city": "INDEPENDENCE",
+        "state": "OH",
+        "gen": "5641"
+      },
+      {
+        "legal_name": "PI BETA PHI FRATERNITY",
+        "city": "CHESTERFIELD",
+        "state": "MO",
+        "gen": "0544"
+      },
+      {
+        "legal_name": "PI KAPPA ALPHA FRATERNITY",
+        "city": "MEMPHIS",
+        "state": "TN",
+        "gen": "0355"
+      },
+      {
+        "legal_name": "PI KAPPA PHI FRATERNITY",
+        "city": "CHARLOTTE",
+        "state": "NC",
+        "gen": "0424"
+      },
+      {
+        "legal_name": "SIGMA ALPHA EPSILON FRATERNITY",
+        "city": "EVANSTON",
+        "state": "IL",
+        "gen": "0228"
+      },
+      {
+        "legal_name": "SIGMA ALPHA IOTA FRATERNITY",
+        "city": "ASHEVILLE",
+        "state": "NC",
+        "gen": "0914"
+      },
+      {
+        "legal_name": "SIGMA ALPHA MU FRATERNITY INC",
+        "city": "INDIANAPOLIS",
+        "state": "IN",
+        "gen": "0387"
+      },
+      {
+        "legal_name": "SIGMA CHI FRATERNITY",
+        "city": "EVANSTON",
+        "state": "IL",
+        "gen": "0008"
+      },
+      {
+        "legal_name": "SIGMA DELTA TAU SOCIETY",
+        "city": "CARMEL",
+        "state": "IN",
+        "gen": "1026"
+      },
+      {
+        "legal_name": "SIGMA GAMMA RHO SORORITY INC",
+        "city": "RALEIGH",
+        "state": "NC",
+        "gen": "1540"
+      },
+      {
+        "legal_name": "SIGMA KAPPA SORORITY",
+        "city": "CARMEL",
+        "state": "IN",
+        "gen": "0594"
+      },
+      {
+        "legal_name": "SIGMA NU FRATERNITY INC",
+        "city": "LEXINGTON",
+        "state": "VA",
+        "gen": "0238"
+      },
+      {
+        "legal_name": "SIGMA PHI EPSILON FRATERNITY INC",
+        "city": "RICHMOND",
+        "state": "VA",
+        "gen": "0309"
+      },
+      {
+        "legal_name": "SIGMA PI FRATERNITY INTERNATIONAL",
+        "city": "SMYRNA",
+        "state": "TN",
+        "gen": "0251"
+      },
+      {
+        "legal_name": "SIGMA PI FRATERNITY INTERNATIONAL INC",
+        "city": "LEXINGTON",
+        "state": "KY",
+        "gen": "0251"
+      },
+      {
+        "legal_name": "SIGMA PI FRATERNITY INTERNATIONAL INC",
+        "city": "ATHENS",
+        "state": "GA",
+        "gen": "0251"
+      },
+      {
+        "legal_name": "SIGMA PI FRATERNITY INTERNATIONAL INC",
+        "city": "LEXINGTON",
+        "state": "KY",
+        "gen": "0251"
+      },
+      {
+        "legal_name": "SIGMA PI FRATERNITY INTERNATIONAL INC",
+        "city": "LEXINGTON",
+        "state": "KY",
+        "gen": "0251"
+      },
+      {
+        "legal_name": "SIGMA SIGMA SIGMA INC",
+        "city": "CHAPEL HILL",
+        "state": "NC",
+        "gen": "0631"
+      },
+      {
+        "legal_name": "SIGMA TAU GAMMA FRATERNITY",
+        "city": "CARMEL",
+        "state": "IN",
+        "gen": "1079"
+      },
+      {
+        "legal_name": "TAU EPSILON PHI FRATERNITY INC",
+        "city": "TROY",
+        "state": "NY",
+        "gen": "0261"
+      },
+      {
+        "legal_name": "TAU KAPPA EPSILON FRATERNITY INC",
+        "city": "INDIANAPOLIS",
+        "state": "IN",
+        "gen": "4275"
+      },
+      {
+        "legal_name": "THE GRAND CHAPTER OF PHI SIGMA KAPPA",
+        "city": "INDIANAPOLIS",
+        "state": "IN",
+        "gen": "0258"
+      },
+      {
+        "legal_name": "THETA CHI FRATERNITY INC",
+        "city": "CARMEL",
+        "state": "IN",
+        "gen": "0241"
+      },
+      {
+        "legal_name": "THETA NU XI MULTICULTURAL SORORITY INCORPORATED",
+        "city": "SOUTH WINDSOR",
+        "state": "CT",
+        "gen": "5437"
+      },
+      {
+        "legal_name": "THETA TAU",
+        "city": "SPRINGFIELD",
+        "state": "MO",
+        "gen": "5817"
+      },
+      {
+        "legal_name": "THETA XI FRATERNITY",
+        "city": "ATLANTA",
+        "state": "GA",
+        "gen": "0277"
+      },
+      {
+        "legal_name": "ZETA BETA TAU FRATERNITY",
+        "city": "CARMEL",
+        "state": "IN",
+        "gen": "0158"
+      },
+      {
+        "legal_name": "ZETA PHI BETA SORORITY INC",
+        "city": "WASHINGTON",
+        "state": "DC",
+        "gen": "1474"
+      },
+      {
+        "legal_name": "ZETA PSI FRATERNITY OF NORTH AMERICA",
+        "city": "PEARL RIVER",
+        "state": "NY",
+        "gen": "0276"
+      },
+      {
+        "legal_name": "ZETA TAU ALPHA INTL FRATERNITY & FRATERNITY HOUSING CORPORATION",
+        "city": "CARMEL",
+        "state": "IN",
+        "gen": "0406"
+      }
+    ],
+    "national_parents_with_gen": 76,
+    "materially_helped": true,
+    "easiest_orgs": [
+      "Kappa Delta",
+      "Delta Tau Delta",
+      "Gamma Phi Beta",
+      "Chi Omega",
+      "Kappa Alpha Theta"
+    ],
+    "hardest_orgs": [
+      "Sigma Lambda Beta",
+      "Sigma Lambda Gamma",
+      "Beta Upsilon Chi",
+      "FarmHouse",
+      "Lambda Theta Phi",
+      "Alpha Omicron Pi",
+      "Omega Delta Phi",
+      "Alpha Kappa Delta Phi",
+      "Lambda Theta Alpha",
+      "Delta Phi Omega",
+      "Delta Phi Lambda",
+      "Kappa Delta Chi"
+    ],
+    "nationwide_lever": "enumerate affiliation-9 subordinates under each national's GEN, then match by city — authoritative parent->child roster; biggest recall improvement"
+  },
+  "filings": {
+    "by_form": {
+      "990": 4202,
+      "990EZ": 607,
+      "990N": 525,
+      "990PF": 26
+    },
+    "year_range": [
+      2010,
+      2024
+    ],
+    "avg_latest_filing_lag_years": 3.38,
+    "entities_lag_2yr": 164,
+    "entities_lag_3yr_plus": 288,
+    "staleness": "officer data is 2-4 years old; stored as latest_filing_year, never labelled current"
+  },
+  "people": {
+    "unique_people": 620,
+    "latest_reported_presidents": 99,
+    "latest_reported_treasurers": 55,
+    "directors": 94,
+    "trustees": 0,
+    "advisors_explicitly_labelled": 4,
+    "caveat": "LATEST-990-REPORTED, not current; do not label current without independent support"
+  },
+  "financials": {
+    "rich_filings": 4835,
+    "coverage_pct": {
+      "revenue": 100,
+      "expenses": 100,
+      "assets": 100,
+      "liabilities": 100
+    },
+    "median_latest_revenue": 606174,
+    "median_latest_assets": 400159.5,
+    "max_assets": 96230431,
+    "useful_as": "market/account context — entity scale, physical-plant/alumni investment",
+    "do_not_use_as": "purchasing-power or budget-authority score; assets are restricted real estate/endowment"
+  },
+  "precision": {
+    "high_non_parent_links_on_bare_state_only": 0,
+    "high_links_unknown_type": 57,
+    "false_link_risk": "low for org+city correctness; moderate for chapter-specificity where multiple same-org entities share a city and no designation exists",
+    "riskiest_chapters": 5
+  },
+  "stakeholder_value": {
+    "likely_governing_influence": [
+      "house corporation president/treasurer",
+      "foundation president/directors",
+      "alumni corporation officers"
+    ],
+    "possible_influence": [
+      "house-corp/foundation board directors",
+      "local chapter-entity officers (stale)"
+    ],
+    "weak_relevance": [
+      "national-parent officers",
+      "sibling/defunct-entity officers",
+      "generic member/board rows"
+    ]
+  },
+  "nationwide_feasibility": {
+    "expected_auto_match_pct": 45,
+    "expected_review_pct": 28,
+    "expected_unresolved_pct": 26,
+    "improvements_in_order": [
+      "GEN subordinate enumeration (biggest recall lever)",
+      "chapter-designation backfill (fixes riskiest same-city cases)",
+      "full IRS officer coverage (all 12 TEOS zips/year vs 3)",
+      "NPHC/MGC alumni-chapter handling + accept lower ceiling",
+      "UNKNOWN-type refinement by subsection"
+    ]
+  },
+  "verdicts": {
+    "ready_for_nationwide": "PARTIAL_TO_YES",
+    "worth_including_in_growth_account_graph": "YES",
+    "how_king_should_see_it": [
+      "read-only account context card per chapter, never a bulk contact list",
+      "label people 'LATEST 990-REPORTED (TYxxxx)' with filing-lag years shown",
+      "gate outreach behind demand-first motion; 990 layer is the escalation reserve",
+      "show one primary stakeholder per role, not the whole board",
+      "financials shown as descriptive context with explicit 'not a purchasing signal' note"
+    ]
+  }
+}
