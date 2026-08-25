@@ -7,6 +7,8 @@
 // scan of the page). Does NOT send any outreach.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { classifyCouncilContact } from "@/lib/campus-classify";
+import { cached, SERP_TTL_HOURS, FIRECRAWL_TTL_HOURS } from "@/lib/scrape-cache";
 
 const SERP_BASE = "https://serpapi.com/search.json";
 const AI_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
@@ -22,22 +24,26 @@ const EMAIL_RE = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
 const IG_RE = /(?:instagram\.com|instagr\.am)\/([a-z0-9._]+)/gi;
 
 async function serp(key: string, q: string, num = 6): Promise<Array<{ title: string; link: string }>> {
-  const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 20_000);
-  try {
-    const r = await fetch(`${SERP_BASE}?engine=google&num=${num}&q=${encodeURIComponent(q)}&api_key=${encodeURIComponent(key)}`, { signal: ctrl.signal });
-    if (!r.ok) return [];
-    const j = (await r.json()) as { organic_results?: Array<{ title?: string; link?: string }> };
-    return (j.organic_results ?? []).filter((x) => x.link).map((x) => ({ title: x.title ?? "", link: x.link as string }));
-  } catch { return []; } finally { clearTimeout(timer); }
+  return cached("serp", `council|${num}|${q}`, SERP_TTL_HOURS, async () => {
+    const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 20_000);
+    try {
+      const r = await fetch(`${SERP_BASE}?engine=google&num=${num}&q=${encodeURIComponent(q)}&api_key=${encodeURIComponent(key)}`, { signal: ctrl.signal });
+      if (!r.ok) return [];
+      const j = (await r.json()) as { organic_results?: Array<{ title?: string; link?: string }> };
+      return (j.organic_results ?? []).filter((x) => x.link).map((x) => ({ title: x.title ?? "", link: x.link as string }));
+    } catch { return []; } finally { clearTimeout(timer); }
+  });
 }
 async function firecrawl(key: string, url: string): Promise<string | null> {
-  const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 45_000);
-  try {
-    const r = await fetch("https://api.firecrawl.dev/v2/scrape", { method: "POST", signal: ctrl.signal, headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true, waitFor: 2000 }) });
-    if (!r.ok) return null;
-    const j = (await r.json()) as { data?: { markdown?: string } };
-    return j.data?.markdown ?? null;
-  } catch { return null; } finally { clearTimeout(timer); }
+  return cached("firecrawl", url, FIRECRAWL_TTL_HOURS, async () => {
+    const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), 45_000);
+    try {
+      const r = await fetch("https://api.firecrawl.dev/v2/scrape", { method: "POST", signal: ctrl.signal, headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ url, formats: ["markdown"], onlyMainContent: true, waitFor: 2000 }) });
+      if (!r.ok) return null;
+      const j = (await r.json()) as { data?: { markdown?: string } };
+      return j.data?.markdown ?? null;
+    } catch { return null; } finally { clearTimeout(timer); }
+  });
 }
 async function aiClassify(aiKey: string, text: string, emails: string[]): Promise<Array<{ council: string; contact_type: string; name?: string; role?: string; email?: string; instagram?: string }>> {
   const prompt = `From this public Fraternity & Sorority Life / Greek council page, extract council CONTACTS. Councils: IFC (Interfraternity), Panhellenic, NPHC (National Pan-Hellenic), MGC (Multicultural Greek). Return ONLY JSON array:
@@ -101,19 +107,10 @@ export const discoverCouncilContacts = createServerFn({ method: "POST" })
         const email = (c.email || "").toLowerCase().trim().replace(/^mailto:/, "");
         if (!email || !realEmails.has(email)) continue; // hallucination guard: must be verbatim
         const council = ["ifc", "panhellenic", "nphc", "mgc"].includes((c.council || "").toLowerCase()) ? c.council.toLowerCase() : (hint === "fsl" ? "other" : hint);
-        const local = email.split("@")[0].toLowerCase();
-        // Classify by EVIDENCE, not guesswork. FSL-office inbox = staff fallback,
-        // never a council role inbox. A council role inbox requires the local part
-        // to name THAT council. Otherwise: named person = officer, else unknown.
-        const isFslOffice = /^(ofsl|fsl|fslife|greeklife|sfl|gogreek|fraternityandsoror|fandsl|studentlife)/.test(local);
-        const councilLocal = council === "nphc" ? /nphc/ : council === "ifc" ? /ifc/ : council === "mgc" ? /(mgc|multicultural)/ : council === "panhellenic" ? /(panhel|cpanhel|cph|\bphc)/ : /(ifc|panhel|nphc|mgc|greek|fsl)/;
-        let ctype: string;
-        if (isFslOffice) ctype = "staff_advisor";
-        else if (councilLocal.test(local) && !c.name) ctype = "role_inbox";
-        else if (c.contact_type === "staff_advisor" || /advisor|coordinator|director|assistant dean|dean of students/i.test(c.role || "")) ctype = "staff_advisor";
-        else if (c.name) ctype = "student_officer";
-        else if (councilLocal.test(local)) ctype = "role_inbox";
-        else ctype = "unknown";
+        // Classify by local-part evidence (shared helper). Role inboxes (ifc@,
+        // panhellenic@, greeklife@, fsl@ …) win even when an officer name is
+        // attached — the durable inbox is the best outreach target.
+        const ctype = classifyCouncilContact(email, { name: c.name, role: c.role, aiType: c.contact_type });
         contacts.push({ council, contact_type: ctype, name: c.name || null, role: c.role || null, email, instagram: c.instagram || igByLine[0] || null, source_url: url, source_type: sourceType });
       }
     }

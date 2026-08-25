@@ -14,6 +14,7 @@
 // Safe to re-run: only fills blank fields unless `force: true`.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { cached, SERP_TTL_HOURS } from "@/lib/scrape-cache";
 
 const SERPAPI_BASE = "https://serpapi.com/search.json";
 const SERP_TIMEOUT_MS = 20_000;
@@ -44,21 +45,23 @@ const str = (v: unknown): string | null =>
   typeof v === "string" && v.trim() ? v.trim() : null;
 
 async function serpSearch(apiKey: string, query: string, num = 10): Promise<Array<{ title: string; link: string }>> {
-  const url = `${SERPAPI_BASE}?engine=google&num=${num}&q=${encodeURIComponent(query)}&api_key=${encodeURIComponent(apiKey)}`;
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), SERP_TIMEOUT_MS);
-  try {
-    const res = await fetch(url, { signal: ctrl.signal });
-    if (!res.ok) return [];
-    const json = (await res.json()) as { organic_results?: Array<{ title?: string; link?: string }> };
-    return (json.organic_results ?? [])
-      .filter((r) => typeof r.link === "string")
-      .map((r) => ({ title: r.title ?? "", link: r.link as string }));
-  } catch {
-    return [];
-  } finally {
-    clearTimeout(timer);
-  }
+  return cached("serp", `course|${num}|${query}`, SERP_TTL_HOURS, async () => {
+    const url = `${SERPAPI_BASE}?engine=google&num=${num}&q=${encodeURIComponent(query)}&api_key=${encodeURIComponent(apiKey)}`;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), SERP_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, { signal: ctrl.signal });
+      if (!res.ok) return [];
+      const json = (await res.json()) as { organic_results?: Array<{ title?: string; link?: string }> };
+      return (json.organic_results ?? [])
+        .filter((r) => typeof r.link === "string")
+        .map((r) => ({ title: r.title ?? "", link: r.link as string }));
+    } catch {
+      return [];
+    } finally {
+      clearTimeout(timer);
+    }
+  });
 }
 
 async function firecrawlScrape(apiKey: string, url: string): Promise<string> {

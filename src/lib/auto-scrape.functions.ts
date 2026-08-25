@@ -4,32 +4,35 @@
 // server fns. Keeps the manual flow untouched.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { cached, SERP_TTL_HOURS } from "@/lib/scrape-cache";
 
 const SERPAPI_BASE = "https://serpapi.com/search.json";
 const SERP_TIMEOUT_MS = 20_000;
 
 async function serpSearch(apiKey: string, query: string, num = 10): Promise<Array<{ title: string; link: string }>> {
-  const url = `${SERPAPI_BASE}?engine=google&num=${num}&q=${encodeURIComponent(query)}&api_key=${encodeURIComponent(apiKey)}`;
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), SERP_TIMEOUT_MS);
-  let res: Response;
-  try {
-    res = await fetch(url, { signal: ctrl.signal });
-  } catch (e) {
-    if ((e as { name?: string } | null)?.name === "AbortError") throw new Error(`SerpAPI timed out after ${SERP_TIMEOUT_MS / 1000}s`);
-    throw new Error(`SerpAPI fetch failed: ${e instanceof Error ? e.message : String(e)}`);
-  } finally {
-    clearTimeout(timer);
-  }
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`SerpAPI ${res.status}: ${body.slice(0, 200)}`);
-  }
-  const json = (await res.json()) as { organic_results?: Array<{ title?: string; link?: string }>; error?: string };
-  if (json.error) throw new Error(`SerpAPI error: ${json.error}`);
-  return (json.organic_results ?? [])
-    .filter((r) => typeof r.link === "string")
-    .map((r) => ({ title: r.title ?? "", link: r.link as string }));
+  return cached("serp", `auto|${num}|${query}`, SERP_TTL_HOURS, async () => {
+    const url = `${SERPAPI_BASE}?engine=google&num=${num}&q=${encodeURIComponent(query)}&api_key=${encodeURIComponent(apiKey)}`;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), SERP_TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await fetch(url, { signal: ctrl.signal });
+    } catch (e) {
+      if ((e as { name?: string } | null)?.name === "AbortError") throw new Error(`SerpAPI timed out after ${SERP_TIMEOUT_MS / 1000}s`);
+      throw new Error(`SerpAPI fetch failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      clearTimeout(timer);
+    }
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`SerpAPI ${res.status}: ${body.slice(0, 200)}`);
+    }
+    const json = (await res.json()) as { organic_results?: Array<{ title?: string; link?: string }>; error?: string };
+    if (json.error) throw new Error(`SerpAPI error: ${json.error}`);
+    return (json.organic_results ?? [])
+      .filter((r) => typeof r.link === "string")
+      .map((r) => ({ title: r.title ?? "", link: r.link as string }));
+  });
 }
 
 function hostOf(u: string): string {
