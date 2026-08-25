@@ -8,9 +8,11 @@
 import { useEffect, useState } from "react";
 
 import { CampusSelector } from "@/routes/landing";
-import { contactKind } from "@/lib/launch";
+import { contactKind, LAUNCH_WINDOW } from "@/lib/launch";
 import type { School } from "@/routes/landing";
 import type { ProfessorLite } from "@/lib/orders.functions";
+import { submitNotify } from "@/lib/syllabus.functions";
+import { examRequest, notifyNote } from "@/lib/notify-request";
 
 const PRIMARY = "var(--accent)";
 const MUTED = "var(--text-muted)";
@@ -21,24 +23,40 @@ export interface WaitlistContact {
   professorName: string | null;
 }
 
-export function FutureExamWaitlist({ exam, school, professor, schools, onPickSchool, onMatchProfessor, onSubmit }: {
+export function FutureExamWaitlist({ exam, school, professor, schools, courseCode, isTest, onPickSchool, onMatchProfessor }: {
   exam: { num: number; label: string; price: number | null };
   school: School | null;
   professor: ProfessorLite | null;
   schools: School[];
+  courseCode: string | null;
+  isTest?: boolean;
   onPickSchool: (s: School) => void;
   onMatchProfessor: () => void;
-  onSubmit: (c: WaitlistContact) => void | Promise<void>;
 }) {
   const [contact, setContact] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
   useEffect(() => { if (school) setState("idle"); }, [school?.id]);
   const valid = contactKind(contact) !== "unknown";
   const send = async () => {
-    if (!valid || state !== "idle") return;
+    if (!valid || state !== "idle" || !school) return;
     setState("sending");
-    try { await onSubmit({ contact: contact.trim(), professorName: professor ? (professor.last || professor.name) : null }); setState("sent"); }
-    catch { setState("idle"); }
+    try {
+      const profName = professor ? (professor.last || professor.name) : null;
+      const req = examRequest({ examNum: exam.num, examLabel: exam.label, launchWindow: LAUNCH_WINDOW });
+      await submitNotify({ data: {
+        contact: contact.trim(),
+        topic: req.topic,
+        campusId: school.campusId ?? null,
+        campusName: school.name ?? null,
+        professorName: profName,
+        want: req.want,
+        examNum: req.examNum ?? null,
+        courseCode,
+        note: notifyNote(req),
+        isTest: !!isTest,
+      } });
+      setState("sent");
+    } catch { setState("idle"); }
   };
   const priceStr = exam.price != null ? ` · $${exam.price}` : "";
   return (

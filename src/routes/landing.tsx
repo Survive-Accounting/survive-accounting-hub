@@ -1678,7 +1678,8 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
               onPickSchool={onPick}
               schools={schools}
               onMatchProfessor={matchProfessor}
-              onSubmit={(contact) => { const req = examRequest({ examNum: active.num, examLabel: active.label, launchWindow: LAUNCH_WINDOW }); onNotify({ ...req, topic: [req.topic, contact.professorName ? `prof:${contact.professorName}` : null].filter(Boolean).join(" · ") }); }}
+              courseCode={school?.codeVerified && school.code ? school.code : null}
+              isTest={isTest}
             />
           );
         })()}
