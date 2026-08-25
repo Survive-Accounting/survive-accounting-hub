@@ -76,10 +76,11 @@ function resolveSEC(universe) {
 // ── args ──────────────────────────────────────────────────────────────────────
 function parseArgs(argv) {
   const a = { execute: false, budgetUsd: 100, maxSerp: 6000, concurrency: 2, maxRuntimeMin: 600, pollSec: 180,
-    checkpoint: path.join(HERE, "catchup-checkpoint.json"), secOnly: false, skipSec: false, limit: Infinity };
+    checkpoint: path.join(HERE, "catchup-checkpoint.json"), secOnly: false, skipSec: false, limit: Infinity, idleExitPolls: 6 };
   for (let i = 0; i < argv.length; i++) { const t = argv[i], n = () => argv[++i];
     if (t === "--execute") a.execute = true;
     else if (t === "--limit") a.limit = parseInt(n(), 10);
+    else if (t === "--idle-exit-polls") a.idleExitPolls = parseInt(n(), 10);
     else if (t === "--budget-usd") a.budgetUsd = parseFloat(n());
     else if (t === "--max-serp") a.maxSerp = parseInt(n(), 10);
     else if (t === "--concurrency") a.concurrency = Math.max(1, parseInt(n(), 10));
@@ -326,8 +327,8 @@ async function main() {
     } else {
       idlePolls++;
       liveStatus(`follow-behind (idle ${idlePolls})`, universe, profCounts, statusByCampus);
-      // exit when nothing has been runnable for several polls (upstream idle / caught up)
-      if (idlePolls >= 6) { stop("caught up: no runnable passes for ~6 polls (upstream idle)"); break; }
+      // exit when nothing has been runnable for a long stretch (backfill done/idle)
+      if (idlePolls >= opts.idleExitPolls) { stop(`caught up: no runnable passes for ${opts.idleExitPolls} polls (upstream idle)`); break; }
       if (!opts.execute) break;
       await sleep(opts.pollSec * 1000);
     }
