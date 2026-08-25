@@ -1,0 +1,133 @@
+{
+  "session": "market_intelligence",
+  "generated_at": "2026-08-25T18:00:00Z",
+  "verified_against_db": "2026-08-25 (live introspection; no recalculation)",
+  "config_version": "v1",
+  "ipeds_data_year": 2024,
+  "ipeds_data_note": "2024 is the IPEDS PROVISIONAL completions release; 2015-2023 are revised (_RV). Fall undergrad enrollment is DRVEF2023 (DRVEF2024 not yet released). Source year is stored per row (latest_data_year, undergrad_enrollment_year in raw_json).",
+
+  "canonical_campus_key": "campuses.id (uuid). This is the ONLY join key. IPEDS UNITID (campus_market_intelligence.ipeds_unitid, text) is the institution IDENTITY used for dedup/analytics, NOT a join key — 54 institutions have two campus rows sharing one UNITID.",
+
+  "tables": [
+    { "name": "campus_market_intelligence", "rows": 832, "pk": "campus_id", "grain": "one row per campuses.id that matched IPEDS", "purpose": "scored market-intelligence layer" },
+    { "name": "market_intel_identity_review", "rows": 124, "pk": "campus_id", "grain": "one row per unresolved/duplicate campus", "purpose": "identity queue: 16 unresolved (10 systems/districts + 6 unresolvable) + 108 duplicate-UNITID flags" },
+    { "name": "market_intel_runs", "rows": 1, "pk": "id", "grain": "one row per scoring run", "purpose": "run snapshot + full config_json (versioning); campus rows carry run_id" }
+  ],
+
+  "views": [
+    { "name": "campus_market_intelligence_card", "grain": "one row per campus_id", "purpose": "THE dashboard read surface — campus_market_intelligence joined to campuses, trimmed to safe/relevant fields", "fields": ["campus_id","campus","state","ipeds_unitid","segment","outreach_priority_score","market_opportunity_score","growth_momentum_score","growth_label","distribution_strength_score","distribution_data_completeness","course_readiness_status","course_readiness_score","live_demand_status","estimated_intro1_annual","business_bachelors","business_growth_5y","greek_chapters","councils_present","enrichment_priority_score","recommended_next_action","action_suppressed","top_drivers","market_data_completeness","generated_at"] }
+  ],
+
+  "dashboard_read_recommendation": {
+    "primary_surface": "campus_market_intelligence_card",
+    "one_row_per_campus": "The card is already 1 row per campus_id. For one row per INSTITUTION (collapse the 54 duplicate-UNITID pairs), filter to raw_json->>'duplicate_primary' <> 'false' on the base table, OR DISTINCT ON (ipeds_unitid) ORDER BY market_data_completeness DESC. duplicate_primary is NOT a top-level column yet — it lives in raw_json.",
+    "default_order": "outreach_priority_score DESC NULLS LAST",
+    "segment_filter": "segment = 'primary' for the 4-year target market (675 institutions); 'two_year' (104) is a separate community-college segment."
+  },
+
+  "ranking_fields": [
+    { "field": "outreach_priority_score", "why": "composite work-queue order (50% Market + 25% Distribution + 20% Growth, renormalized); 0 nulls", "caveat": "blends WHO + READINESS; pair with distribution_data_completeness so a low-data campus is read as 'enrich', not 'skip'." },
+    { "field": "market_opportunity_score", "why": "demand size; 0 nulls; best single 'is this a real market' sort", "caveat": "includes a 15% Greek sub-weight (see greek_double_count)." },
+    { "field": "growth_momentum_score", "why": "trajectory; 12 nulls in primary (INSUFFICIENT_DATA)", "caveat": "pair with growth_label; null = insufficient history, not 'no growth'." },
+    { "field": "enrichment_priority_score", "why": "where to research next (Market x missing structural data); 0 nulls", "caveat": "ranking for the ✨ enrichment queue, NOT the outreach queue." },
+    { "field": "estimated_intro1_annual", "why": "market size in student terms; 0 nulls", "caveat": "ESTIMATED = business_bachelors x 2.4; not measured enrollment." },
+    { "field": "business_bachelors", "why": "hard IPEDS market-size anchor; 0 nulls", "caveat": "raw count; small liberal-arts schools legitimately 0." },
+    { "field": "distribution_strength_score", "why": "readiness/reachability; 1 null in primary", "caveat": "MUST be shown with distribution_data_completeness; low score at ~40% completeness = 'not researched enough', not 'unreachable'." }
+  ],
+
+  "display_only_fields": [
+    "growth_label","growth_status","councils_present","greek_chapters","top_drivers","recommended_next_action",
+    "business_series","business_growth_1y","business_growth_3y","business_growth_5y","business_5y_cagr",
+    "business_share_of_bachelors","accounting_bachelors","accounting_share_of_business","undergrad_enrollment",
+    "undergrad_growth_5y","latest_data_year","ipeds_name","segment","current_action_priority",
+    "council_contacts_councils","role_inbox_councils"
+  ],
+
+  "data_quality_fields": [
+    "market_data_completeness","distribution_data_completeness","structural_completeness","match_method","match_confidence",
+    "duplicate_unitid","greek_available","council_available","club_available","first_party_signal_count","intro1_estimate_confidence","new_program","meaningful_market"
+  ],
+
+  "do_not_use_fields": [
+    { "field": "course_readiness_score", "reason": "100% null — COMING_SOON (course_readiness_status='COMING_SOON'), weight 0 in Outreach Priority. Slot reserved for Course Intel session." },
+    { "field": "live_demand_score", "reason": "100% null — live_demand_status='COMING_SOON'/'NOT_CONNECTED'; excluded from Outreach Priority via renormalization until first-party events are wired." },
+    { "field": "action_suppressed", "reason": "all FALSE — no outreach/suppression events exist yet; do not treat as a real suppression signal until growth_outreach_events is populated." },
+    { "field": "council_contacts_councils / role_inbox_councils (as standalone ranking)", "reason": "sub-components of Distribution; use distribution_strength_score instead." }
+  ],
+
+  "enrichment_gap_fields": {
+    "purpose": "feed the visible ✨ Enrichment checklist: high market value + missing structural/course intelligence.",
+    "source_surface": "campus_market_intelligence (segment='primary', raw_json->>'duplicate_primary' <> 'false')",
+    "identify_high_value_low_data": "WHERE market_opportunity_score >= 70 AND (distribution_strength_score IS NULL OR distribution_strength_score < 30)",
+    "current_count_high_market_low_readiness": 84,
+    "gap_flags": {
+      "greek_missing": "greek_available = false  (only 235 of 832 rows have Greek data; ~219 primary)",
+      "council_contacts_missing": "council_available = true AND council_contacts_councils = 0  (researched, none found)",
+      "council_not_researched": "council_available = false",
+      "role_inbox_missing": "role_inbox_councils = 0",
+      "clubs_missing": "club_available = false (WIB/finance clubs — 62 rows only)",
+      "course_intel_missing": "course_readiness_status = 'COMING_SOON' (all — Course Intel not yet joined)"
+    },
+    "rank_by": "enrichment_priority_score DESC",
+    "structural_completeness_field": "structural_completeness (0..1) = fraction of structural signals present (greek, council contacts, role inboxes, clubs)."
+  },
+
+  "join_contracts": [
+    { "target": "campuses", "join": "campus_market_intelligence.campus_id = campuses.id", "type": "FK (on delete cascade)", "note": "canonical identity, display_name, state, aliases, greek_eligibility, outreach_status live here." },
+    { "target": "course_intelligence", "tables": ["campus_course_availability","campus_courses","course_intel_campus_status","professor_intro1_evidence"], "join": "<table>.campus_id = campus_market_intelligence.campus_id", "note": "all campus_id-keyed; will populate course_readiness_status/score when that session hands off." },
+    { "target": "structural_data (Greek/council)", "tables": ["campus_greek_chapters","campus_council_status","campus_council_contacts"], "join": "<table>.campus_id = campus_market_intelligence.campus_id", "note": "READ live by the refresh; already reflected in Distribution Strength." },
+    { "target": "competitive_intelligence", "tables": ["campus_intelligence","campus_tam_estimates"], "join": "<table>.campus_id = campus_market_intelligence.campus_id", "note": "campus_tam_estimates is NON-AUTHORITATIVE (legacy) unless a row is explicitly IPEDS-sourced with a year — market_intelligence supersedes it." },
+    { "target": "growth_contacts", "tables": ["growth_business_clubs","growth_public_contacts"], "join": "<table>.campus_id = campus_market_intelligence.campus_id", "note": "growth_contacts itself has NO campus_id (pk=id) — reach it via growth_public_contacts.campus_id or growth_outreach_events.campus_id. Clubs/public-contacts already read by the refresh." },
+    { "target": "future_analytics (Live Demand)", "tables": ["landing_page_events","orders","campus_waitlist","student_set_progress","practice_attempts"], "join": "<table>.campus_id = campus_market_intelligence.campus_id", "note": "campus_id-keyed; will populate live_demand_score/status when wired (currently COMING_SOON)." },
+    { "target": "identity_review", "join": "market_intel_identity_review.campus_id = campuses.id", "note": "unresolved + duplicate-UNITID campuses; dashboard should exclude or badge these." },
+    { "target": "run_metadata", "join": "campus_market_intelligence.run_id = market_intel_runs.id", "note": "config_json + generated_at for the scoring run." }
+  ],
+
+  "scoring_versions": [
+    { "score": "market_opportunity", "version": "market_opportunity_v1", "weights": "40% business/Intro-1, 20% undergrad enrollment, 15% business concentration, 15% Greek opportunity, 10% accounting", "normalize": "percentile within 4-year segment" },
+    { "score": "growth_momentum", "version": "growth_momentum_v1", "weights": "40% 5Y business CAGR, 25% 3Y growth, 15% business-share change, 10% undergrad trend, 10% accounting trend", "normalize": "winsorized + size-weighted percentile" },
+    { "score": "distribution_strength", "version": "distribution_strength_v1", "weights": "35% Greek, 25% council contacts, 15% role inboxes, 10% chapter contacts, 10% women-in-business, 5% finance club", "normalize": "renormalized over researched components only; report distribution_data_completeness alongside" },
+    { "score": "outreach_priority", "version": "outreach_priority_v1", "weights": "50% Market Opportunity, 25% Distribution Strength, 20% Growth Momentum, 5% Live Demand, 0% Course Readiness", "normalize": "renormalized over available components (Live Demand currently excluded)" },
+    { "score": "enrichment_priority", "version": "enrichment_priority_v1", "weights": "Market Opportunity x missing-structural-intelligence", "normalize": "0..100" },
+    { "score": "course_readiness", "version": "course_readiness_v1", "weights": "COMING_SOON — score null, weight 0", "normalize": "n/a" },
+    { "score": "live_demand", "version": "live_demand_v1", "weights": "COMING_SOON / NOT_CONNECTED — excluded via renormalization", "normalize": "n/a" }
+  ],
+
+  "greek_double_count": {
+    "status": "PRESENT — documented, NOT changed (per instruction).",
+    "detail": "Greek chapter count feeds BOTH market_opportunity (greek_opportunity, 15%) AND distribution_strength (greek_opportunity, 35%). Outreach Priority = 50% MO + 25% DS, so Greek enters Outreach Priority via two paths: (0.15 x 0.50) + (0.35 x 0.25) = 0.0750 + 0.0875 = ~16.25% of Outreach Priority derives from the same Greek signal.",
+    "impact": "Modestly over-weights Greek-heavy campuses in the outreach queue. It does NOT affect Market Opportunity or Growth Momentum as standalone sorts.",
+    "recommendation_for_final_synthesis": "Either (a) remove greek_opportunity from Market Opportunity (keep it only in Distribution, its natural home), or (b) reduce the MO Greek weight and re-normalize. Decide in the model-tuning pass, not now."
+  },
+
+  "known_caveats": [
+    "2024 IPEDS completions are PROVISIONAL (no _RV yet); source year stored per row.",
+    "estimated_intro1_annual is business_bachelors x 2.4 — ESTIMATED, not measured enrollment (intro1_estimate_confidence='low').",
+    "Greek double-count between Market Opportunity and Distribution Strength (see greek_double_count).",
+    "Greek data covers only ~219/675 primary institutions; Distribution is PARTIAL for many strong markets — always read distribution_data_completeness with the score.",
+    "live_demand_score and course_readiness_score are 100% NULL (COMING_SOON); do not rank on them.",
+    "action_suppressed is 100% FALSE — no outreach/suppression events yet; not a real signal until growth_outreach_events populates.",
+    "54 institutions have duplicate campus rows sharing one UNITID (108 rows) — dedupe via raw_json->>'duplicate_primary' or DISTINCT ON (ipeds_unitid); the underlying campuses duplication is a separate data-quality cleanup.",
+    "market_intel_runs aggregate columns (four_year_count=726, total_business_completions=250809) count duplicate records; the deduped canonical figures are 675 institutions / 221,024 business grads / 530,461 est Intro-1.",
+    "16 campuses remain in identity review (Trinity College needs a state; 10 systems/districts intentionally unmatched; Thunderbird/closed/dup-risk).",
+    "campus_tam_estimates (legacy) is superseded and non-authoritative."
+  ],
+
+  "code_status": {
+    "branch": "overnight/campus-market-intelligence",
+    "commit": "0dc13162",
+    "pushed": false,
+    "deployed": false,
+    "migration_file": "migration/supabase-migrations/20260824_2000_campus_market_intelligence.sql",
+    "migration_applied": true,
+    "applied_note": "Schema (3 tables + campus_market_intelligence_card view) was created by the user in Postgres; data loaded via scripts/market-intel/import.mjs.",
+    "config_file": "src/lib/market-intel/scoring-config.json (all weights/versions configurable)",
+    "refresh_commands": ["node scripts/market-intel/run-all.mjs", "node scripts/market-intel/import.mjs"],
+    "full_rebuild": "node scripts/market-intel/parse-ipeds.mjs && node scripts/market-intel/match.mjs && node scripts/market-intel/resolve-review.mjs && node scripts/market-intel/run-all.mjs && node scripts/market-intel/import.mjs",
+    "must_be_merged": "Branch overnight/campus-market-intelligence -> main (scripts/, src/lib/market-intel/, migration file). Migration already applied live; merge is for source-of-truth + dashboard code to import scoring-config.json."
+  },
+
+  "totals_canonical_deduped": { "distinct_four_year": 675, "business_bachelors": 221024, "estimated_intro1_annual": 530461, "universe_target": 829, "in_universe_matched": 813 },
+
+  "integration_readiness": "YES"
+}
