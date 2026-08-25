@@ -1,0 +1,111 @@
+{
+  "session": "greek_990",
+  "generated": "2026-08-25",
+  "read_only": true,
+  "purpose": "ACCOUNT CONTEXT / ESCALATION RESERVE — not a student first-touch contact list. 990 people are LATEST 990-REPORTED (TYxxxx), never current.",
+  "tables": [
+    { "name": "greek_legal_entity", "grain": "1 per EIN", "rows": 3462, "role": "the nonprofit entity", "rls": "deny-by-default (service role only)" },
+    { "name": "greek_chapter_legal_entity", "grain": "1 per (chapter, entity)", "rows": 7160, "role": "many-to-many chapter<->entity link (typed, scored, provenanced)" },
+    { "name": "greek_990_filing", "grain": "1 per (entity, tax_year, form_type)", "rows": 14499, "rich_rows": 12406, "role": "financials + filing history" },
+    { "name": "greek_990_officer", "grain": "1 per (entity, person, title)", "rows": 621, "role": "officers/directors, historical years[]" },
+    { "name": "greek_990_entity_candidate", "grain": "1 per (chapter, candidate EIN)", "rows": 40911, "role": "review queue backing — ADMIN ONLY, do not render in drawer" },
+    { "name": "greek_chapter_990_status", "grain": "1 per chapter", "rows": 4712, "role": "per-chapter research status" }
+  ],
+  "keys": {
+    "chapter_key": "campus_greek_chapters.id (canonical roster; referenced, never written)",
+    "entity_key": "greek_legal_entity.id",
+    "ein": "greek_legal_entity.ein",
+    "link_filter": "greek_chapter_legal_entity.chapter_id (indexed: greek_chapter_legal_entity_chapter_idx)"
+  },
+  "chapter_entity_fields": [
+    { "ui": "legal_entities", "source": "greek_chapter_legal_entity JOIN greek_legal_entity", "filter": "match_confidence='HIGH_CONFIDENCE' AND entity_type<>'NATIONAL_PARENT'" },
+    { "ui": "entity_name", "source": "greek_legal_entity.legal_name" },
+    { "ui": "entity_type", "source": "greek_legal_entity.entity_type" },
+    { "ui": "house_corp_present", "rule": "entity_type IN ('HOUSE_CORPORATION','PROPERTY_HOLDING_ENTITY')" },
+    { "ui": "foundation_present", "rule": "entity_type IN ('EDUCATIONAL_FOUNDATION','SCHOLARSHIP_FOUNDATION')" },
+    { "ui": "alumni_corp_present", "rule": "entity_type='ALUMNI_CORPORATION'" },
+    { "ui": "national_parent_present", "rule": "entity_type='NATIONAL_PARENT' (show separately / de-emphasised)" },
+    { "ui": "governance_strength", "source": "derived (STRONG/MODERATE/LIGHT/UNKNOWN); precomputed in GREEK_990_CHAPTER_AGGREGATES.json" },
+    { "ui": "data_confidence", "source": "derived HIGH / NATIONAL_ONLY / MEDIUM / NONE" },
+    { "ui": "source_filing", "source": "greek_chapter_legal_entity.match_method + match_evidence; greek_990_filing.source + form_type + tax_year" }
+  ],
+  "financial_context_fields": [
+    { "ui": "revenue", "source": "greek_990_filing.total_revenue" },
+    { "ui": "expenses", "source": "greek_990_filing.total_expenses" },
+    { "ui": "assets", "source": "greek_990_filing.total_assets" },
+    { "ui": "also_available", "source": "total_liabilities, net_assets, contributions, program_service_revenue, investment_income, gross_receipts" },
+    { "ui": "tax_year", "source": "greek_990_filing.tax_year" },
+    { "ui": "latest_selection", "rule": "per entity: max(tax_year) where rich_filing_available=true; chapter latest_filing_year = max across non-parent entities" },
+    { "ui": "level", "rule": "ENTITY-level. House corp / local / foundation serving one chapter = chapter-level context. NATIONAL_PARENT = org-wide; NEVER show as the chapter's." },
+    { "ui": "guardrail", "rule": "financials are CONTEXT ONLY, NOT purchasing-power scoring; assets are restricted real estate / endowment" }
+  ],
+  "stakeholder_fields": [
+    { "ui": "primary_latest_990_stakeholder", "source": "greek_990_officer via chapter's non-parent entities" },
+    { "ui": "name", "source": "greek_990_officer.person_name" },
+    { "ui": "role", "source": "greek_990_officer.normalized_title (preserve title_as_reported)" },
+    { "ui": "entity_type", "source": "greek_legal_entity.entity_type of the officer's entity" },
+    { "ui": "filing_year_label", "source": "greek_990_officer.latest_filing_year -> 'LATEST 990-REPORTED (TY<year>)'" },
+    { "ui": "stakeholder_class", "source": "greek_990_officer.stakeholder_class" }
+  ],
+  "primary_stakeholder_rules": {
+    "exclude": "officers of NATIONAL_PARENT entities (weak relevance)",
+    "rank_order": ["governing entity first (house_corp/foundation/alumni/property over local)", "role: President>Treasurer>Director/Chair>other", "most recent latest_filing_year"],
+    "null_when": "no non-parent linked entity has any officer",
+    "currently_populated_chapters": 68,
+    "scales_with": "more IRS TEOS zips parsed (3 of 12 used)"
+  },
+  "join_contracts": [
+    { "name": "chapter_entities", "sql": "SELECT le.* FROM greek_chapter_legal_entity l JOIN greek_legal_entity le ON le.id=l.legal_entity_id WHERE l.chapter_id=$1 AND l.match_confidence='HIGH_CONFIDENCE'" },
+    { "name": "chapter_latest_financials", "sql": "SELECT DISTINCT ON (legal_entity_id) legal_entity_id, tax_year, total_revenue, total_expenses, total_assets FROM greek_990_filing WHERE rich_filing_available AND legal_entity_id = ANY($entity_ids) ORDER BY legal_entity_id, tax_year DESC" },
+    { "name": "chapter_officers", "sql": "SELECT * FROM greek_990_officer WHERE legal_entity_id = ANY($non_parent_entity_ids)" },
+    { "name": "optional_view", "sql": "greek_chapter_990_summary (documented in .md §1b; NOT yet created — safe additive migration)" }
+  ],
+  "ui_labels": {
+    "context_badge": "990 CONTEXT",
+    "stakeholder_format": "990 CONTEXT · <normalized_title> · TY<latest_filing_year>",
+    "forbidden": ["Current Chapter President", "Chapter President", "any label implying a currently-held role"],
+    "national_only_state": "National organization on file; no chapter-specific legal entity found.",
+    "none_state": "No 990 / legal-entity data found.",
+    "epostcard_state": "Files a 990-N e-postcard (no financial detail)."
+  },
+  "outreach_policy": {
+    "default": "NONE of the 990 layer enters a first-touch queue; it is escalation/advisory context",
+    "eligible_if_ever_built": "only the primary governing stakeholder (house-corp/foundation/alumni president or treasurer), advisory/escalation track only, gated behind demonstrated student demand",
+    "never_eligible": ["national-parent officers", "bulk directors", "local-chapter officers"],
+    "students": "reached via existing demand-first channels, never the 990 layer"
+  },
+  "null_behavior": {
+    "national_only": "neutral note; do NOT show parent officers/financials/address as the chapter's",
+    "no_entity": "'No 990 / legal-entity data found.' (~19% of chapters; valid outcome)",
+    "epostcard_only": "show entity, financial fields null",
+    "never": "fabricate a person, role, or figure to fill a field"
+  },
+  "code_status": {
+    "branch": "overnight/greek-990-sec-pilot",
+    "merged_to_main": true,
+    "commit": "5cac7864",
+    "deployed_production": true,
+    "production_health": "surviveaccounting.com HTTP 200",
+    "migration": "supabase/migrations/20260825_0100_greek_990_legal_entity.sql (APPLIED LIVE)",
+    "views_created": [],
+    "views_suggested": ["greek_chapter_990_summary (optional, additive)"],
+    "needs_merge": "nothing — main current and deployed; no app/UI code changed",
+    "reused_unchanged": ["greek_org_propublica_cache", "greek_org_* tables", "manual enrichment UI"]
+  },
+  "db_state": {
+    "campuses": 190, "chapters": 4712, "entities": 3462, "high_links": 7160,
+    "filings": 14499, "rich_filings": 12406, "officers": 621,
+    "chapters_with_chapter_specific_entity": 1455, "national_parent_only": 2379, "no_entity": 878,
+    "house_corp_present": 193, "foundation_present": 84, "alumni_corp_present": 67
+  },
+  "known_caveats": [
+    "Officer data is LATEST 990-REPORTED, avg ~3.4yr lag, never current; label with TY.",
+    "primary_latest_990_stakeholder populated for 68 chapters (SEC officer subset); scales with more IRS zips.",
+    "Financials are entity-level; NATIONAL_PARENT financials are org-wide — never present as chapter-level.",
+    "A few chapters link multiple same-name same-city EINs (old+current registrations) — count via distinct if a single number is needed.",
+    "Chapter-designation coverage ~15% of roster; some same-city sibling entities remain in the MEDIUM review queue.",
+    "greek_990_entity_candidate (40,911 rows) is admin review backing — never render in the drawer.",
+    "Financials are context only, NOT a purchasing-power / spend-capacity score."
+  ],
+  "integration_readiness": "YES"
+}
