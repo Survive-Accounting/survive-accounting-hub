@@ -13,3 +13,5 @@ parse-checkpoint.json*
 parse.log
 parse.status.log
 parse-sched.log
+probe*.log
+launcher.out

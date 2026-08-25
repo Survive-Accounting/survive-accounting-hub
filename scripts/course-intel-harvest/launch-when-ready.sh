@@ -15,8 +15,10 @@ fi
 touch "$D/.catchup.lock"
 echo "[launcher $(date '+%H:%M:%S')] national run complete; launching follow-behind." >> "$D/launcher.log"
 sleep 15  # let the national run's final status/report writes settle
+# SERP has a +15k auto-renew buffer, so these are generous backstops (not a tight
+# cap) — per-pass skip + idle-exit are the real controls, this just stops a runaway.
 node "$D/follow-behind.mjs" --execute \
-  --budget-usd 90 --max-serp 6000 --concurrency 2 \
-  --max-runtime-min 540 --poll-sec 180 >> "$D/catchup.log" 2>&1
+  --budget-usd 200 --max-serp 12000 --concurrency 2 \
+  --max-runtime-min 600 --poll-sec 180 >> "$D/catchup.log" 2>&1
 rm -f "$D/.catchup.lock"
 echo "[launcher $(date '+%H:%M:%S')] follow-behind exited." >> "$D/launcher.log"

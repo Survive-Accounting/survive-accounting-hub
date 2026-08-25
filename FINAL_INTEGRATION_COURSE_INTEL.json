@@ -1,0 +1,105 @@
+{
+  "session": "course_intel",
+  "branch": "overnight/course-intel-harvest",
+  "commit": "bf96f57f",
+  "not_merged_to_main": true,
+  "not_deployed": true,
+  "canonical_campus_key": "campuses.id (uuid) — every Course Intel table joins via campus_id -> campuses.id. NEVER join on campus name.",
+  "current_state": {
+    "campuses_in_universe": 884,
+    "campuses_researched": 884,
+    "campuses_with_intro1_code": 338,
+    "campuses_with_professor_evidence": 154,
+    "professors_confirmed_intro1_rows": 212,
+    "professors_confirmed_intro1_campuses": 68,
+    "professors_likely_intro1_rows": 459,
+    "professors_possible_intro1_rows": 61,
+    "campuses_with_any_document": 449,
+    "campuses_with_parsed_syllabus": 234,
+    "campuses_with_textbook_evidence": 103,
+    "textbooks_with_confirmed_edition": 159,
+    "campuses_with_exam_range_evidence": 68,
+    "campuses_with_exam1_range": 48,
+    "campuses_with_exam2_range": 44,
+    "campuses_with_exam3_range": 35,
+    "campuses_with_final_range": 37,
+    "campuses_with_midterm_range": 20,
+    "exam_date_rows_total": 285,
+    "exam_date_current_term_2026plus": 25,
+    "exam_date_historical": 239,
+    "exam_date_unknown_term": 21,
+    "campuses_with_rolled_up_exam1_date": 28,
+    "proposed_topic_mappings": 114,
+    "approved_topic_mappings": 0,
+    "student_facing_campus_exams_total": 9,
+    "student_facing_campus_exams_active": 3,
+    "student_facing_professor_specific_maps": 0,
+    "total_documents": 3389
+  },
+  "all_exams_pattern": {
+    "exam_1": "Ch 1-4 (96/91/87/65% of 48 campuses)",
+    "exam_2": "Ch 5-8",
+    "exam_3": "Ch 9-12",
+    "midterm": "Ch 1-6 (first half)",
+    "final": "cumulative Ch 1-13",
+    "confidence": "STRONG for Exam1/Exam2/Midterm/Final, MODERATE for Exam3"
+  },
+  "canonical_tables": [
+    { "table": "course_intel_campus_status", "purpose": "per-campus intel aggregate + research status; the dashboard's primary campus row", "pk": "campus_id", "campus_join_key": "campus_id -> campuses.id", "professor_join_key": null, "course_join_key": "course_code (text)", "row_grain": "one row per campus", "source_of_truth": true },
+    { "table": "course_document", "purpose": "discovered public course documents (syllabi/schedules/study guides/etc.)", "pk": "id", "campus_join_key": "campus_id -> campuses.id", "professor_join_key": "professor_name (text, nullable)", "course_join_key": "course_code (text)", "important_fks": ["textbook_id -> textbooks.id"], "row_grain": "one row per (campus_id, source_url)", "source_of_truth": true },
+    { "table": "course_evidence", "purpose": "structured evidence extracted from a document (exam_chapter_range | exam_date | topic_signal | textbook_reference)", "pk": "id", "campus_join_key": "campus_id -> campuses.id", "professor_join_key": "professor_name (text, nullable)", "important_fks": ["course_document_id -> course_document.id", "superseded_by -> course_evidence.id"], "row_grain": "one row per (document, evidence_type, exam_label)", "source_of_truth": true },
+    { "table": "professor_intro1_evidence", "purpose": "document-derived Intro-1 professor evidence (RMP-independent)", "pk": "id", "campus_join_key": "campus_id -> campuses.id", "professor_join_key": "lead_suggestion_id -> campus_lead_suggestions.id (nullable); else professor_name text", "important_fks": ["source_document_id -> course_document.id"], "row_grain": "one row per (campus, professor_name, evidence_state, source_url)", "source_of_truth": true },
+    { "table": "textbooks", "purpose": "textbook edition identity", "pk": "id", "unique": "edition_key", "row_grain": "one row per edition", "source_of_truth": true },
+    { "table": "textbook_chapters", "purpose": "textbook table of contents (chapter number + title)", "pk": "id", "important_fks": ["textbook_id -> textbooks.id"], "row_grain": "one row per (textbook, chapter number)", "source_of_truth": true },
+    { "table": "textbook_chapter_topic_mapping", "purpose": "PROPOSED textbook-chapter -> Survive-topic mapping (reuse engine)", "pk": "id", "important_fks": ["textbook_id -> textbooks.id", "textbook_chapter_id -> textbook_chapters.id", "survive_topic_id -> chapters.id (nullable, human-attached)"], "row_grain": "one row per (textbook_chapter, survive_topic_label)", "source_of_truth": "proposed-only; NOT student-facing" },
+    { "table": "campus_lead_suggestions", "purpose": "professor/instructor records (the professor entity)", "pk": "id", "campus_join_key": "campus_id -> campuses.id", "row_grain": "one row per candidate professor", "source_of_truth": true }
+  ],
+  "student_facing_map_tables_do_not_write": [
+    { "table": "campus_exams", "purpose": "student-facing per-campus (optionally per-professor) exam definition", "pk": "id", "campus_join_key": "campus_id", "professor_join_key": "professor_id -> campus_lead_suggestions? (nullable)", "course_join_key": "course_id", "note": "9 rows, 3 active, 0 professor-specific. This is the LIVE map; Course Intel proposes INTO this via review, never writes it directly." },
+    { "table": "campus_exam_topics", "purpose": "exam -> Survive chapter (Unit) rows", "pk": "(campus_exam_id, chapter_id)", "important_fks": ["campus_exam_id -> campus_exams.id", "chapter_id -> chapters.id"], "note": "28 rows" },
+    { "table": "map_meta", "purpose": "map identity + verification status per course/campus/professor", "pk": "id", "note": "status in (edited|verified); 2 rows, 0 verified" },
+    { "table": "chapters", "purpose": "Survive canonical topics/Units (the Starter Map spine)", "pk": "id", "note": "course_id 22222222-2222-2222-2222-222222222222 = Intro-1; 13 unit rows" }
+  ],
+  "join_contracts": [
+    { "from": "course_intel_campus_status.campus_id", "to": "campuses.id", "type": "uuid", "safe": true },
+    { "from": "*.campus_id", "to": "campus_market_intelligence.campus_id", "type": "uuid", "safe": true, "note": "demand: estimated_intro1_annual, undergrad_enrollment, accounting_bachelors, business_growth_1y (832 campuses)" },
+    { "from": "*.campus_id", "to": "campus_greek_chapters.campus_id", "type": "uuid", "safe": true, "note": "Greek density (count of chapters). Also campuses.greek_pct_fraternity/sorority for % of student body." },
+    { "from": "professor_intro1_evidence.lead_suggestion_id", "to": "campus_lead_suggestions.id", "type": "uuid", "safe": true, "note": "nullable; fall back to name match within campus only" },
+    { "from": "growth_contacts", "to": "campuses.id", "type": "uuid", "safe": true, "note": "table exists but EMPTY (0 rows)" },
+    { "must_not_use": "any join on campus NAME / campus_name text — names are non-unique and messy; always use campus_id uuid" }
+  ],
+  "targeted_enrichment_actions": [
+    { "need": "course_code", "function": "researchProgramCourses (src/lib/program-courses.functions.ts, TanStack server fn)", "provider": "SerpAPI + Firecrawl + AI Gateway (gemini-2.5-flash)", "writes": "campuses.course_family_codes_json/titles", "cost": "~$0.05-0.10/campus", "safe_admin_button": true },
+    { "need": "professors", "function": "autoDiscoverCampusUrls -> scrapeCampusFaculty (src/lib/faculty-scrape.functions.ts)", "provider": "SerpAPI + Firecrawl + AI", "writes": "campus_lead_suggestions", "cost": "~$0.05-0.40/campus (Firecrawl-heavy)", "safe_admin_button": true },
+    { "need": "professor_intro1_qualification", "function": "enrichProfintelCampus", "provider": "RMP scrape", "writes": "campus_lead_suggestions rmp_* columns", "cost": "low", "safe_admin_button": true, "note": "RMP unreliable for intro-1; documents are stronger" },
+    { "need": "syllabi/docs (discover)", "function": "discoverCourseDocuments (src/lib/syllabus-intel.functions.ts)", "provider": "SerpAPI only", "writes": "course_document", "cost": "~$0.05-0.15/campus", "safe_admin_button": true },
+    { "need": "exam/textbook/professor evidence (parse)", "function": "parseCourseDocument (server fn) OR scripts/course-intel-harvest/parse-pass.mjs (batch)", "provider": "Firecrawl + AI", "writes": "course_evidence + professor_intro1_evidence + textbooks", "cost": "~$0.02-0.06/doc, Firecrawl ~24 credits/PDF", "safe_admin_button": true, "note": "per-campus: discover then parse its tier-1/2 docs" }
+  ],
+  "known_caveats": [
+    "EXAM DATES ARE MOSTLY HISTORICAL: 239 historical vs 25 current-term (2026+). Only ~1 campus has a genuinely-future Exam-1 date. days_until_exam_1 is NOT reliable yet; use estimated windows (Exam 1 ~ term week 5-6).",
+    "MAP IS ESSENTIALLY EMPTY / STARTER-ONLY: 3 active campus_exams, 0 professor-specific maps, 0 approved topic mappings. Almost every professor currently receives the Global Starter Map.",
+    "PROPOSED != APPROVED: all 114 textbook_chapter_topic_mapping rows are state='proposed' with survive_topic_id=NULL. A human must attach the Survive unit and approve. Never render proposed as student-facing.",
+    "EXAM-RANGE FALSE POSITIVES: a few campus Exam-1 ranges are mis-parsed cumulative/final ranges (e.g. 1-24, 1-13). Filter/flag ranges whose span > ~6 chapters for review.",
+    "TEXTBOOK CONTAMINATION: a handful of textbook_reference rows are non-intro titles (Bookkeeping for Dummies, Canadian Income Taxation, Intermediate). Exclude on review.",
+    "SYLLABUS CLASSIFIER NOISE: some course_document rows typed 'syllabus' are actually handbooks/reports/listings/wrong-course. The ~234 'parsed syllabi' count is inflated by noise.",
+    "PROFESSOR ATTRIBUTION: professor_intro1_evidence links to campus_lead_suggestions via lead_suggestion_id when matched, else by name text — name matching is within-campus only and imperfect.",
+    "DARK CAMPUSES: ~435 campuses returned zero docs, overwhelmingly because no public domain is stored on the campus row (upstream data gap), not a discovery failure.",
+    "teaches_intro_1 boolean on campus_lead_suggestions is UNPOPULATED (0 rows) — do not rely on it; use professor_intro1_evidence (documents) and rmp_target_course_counts_json.intro_1."
+  ],
+  "migrations_created_this_session": [
+    { "file": "migration/supabase-migrations/20260824_2100_course_intel_harvest_status.sql", "creates": ["course_intel_campus_status", "professor_intro1_evidence"], "applied": true },
+    { "file": "migration/supabase-migrations/20260825_1200_course_intel_exam_dates.sql", "adds": ["course_intel_campus_status.exam_1_date/confidence/source_url/term", "problem_topics_found"], "applied": true }
+  ],
+  "unapplied_migrations": [],
+  "db_writes_made": [
+    "course_document (~3389 rows)", "course_evidence (~1100+ rows: 526 exam ranges, 285 exam dates, textbook refs, topic signals)",
+    "professor_intro1_evidence (~732 rows)", "course_intel_campus_status (884 rows)",
+    "textbooks/textbook_chapters (4 canonical editions + 51 TOC chapters)", "textbook_chapter_topic_mapping (54 proposed rows, state=proposed)"
+  ],
+  "pre_existing_dependencies_from_prior_sessions": [
+    "course_document/course_evidence/textbooks + edition columns (migrations 20260823_1730 + _2030, applied)",
+    "textbook_chapter_topic_mapping had 60 prior proposed rows (now 114 with our 54)",
+    "campus_market_intelligence (market-intel session, applied, 832 campuses)"
+  ],
+  "integration_readiness": "PARTIAL"
+}
