@@ -50,10 +50,9 @@ data/*
 .env*
 scratch/
 
-<<<<<<< HEAD
 # Greek 990 pilot: internal logs/dumps (keep deliverable CSVs/MD)
 greek-990-output/_*
-=======
+
 # Growth Contact Intelligence runtime artifacts
 scripts/growth-intel/.checkpoint.json
 scripts/growth-intel/*.log
@@ -65,4 +64,4 @@ scripts/growth-intel/*.log
 scripts/growth-intel/campuses-all.json
 /MORNING_AUDIT_GROWTH_CONTACTS.json
 /MORNING_AUDIT_GROWTH_CONTACTS.md
->>>>>>> growth/contact-intel-v1
+
