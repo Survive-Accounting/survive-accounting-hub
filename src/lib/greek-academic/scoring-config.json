@@ -1,0 +1,31 @@
+{
+  "version": "academic_need_v1",
+  "description": "INTERNAL Academic Need Score (0-100) for Greek chapters. Higher = greater academic-support need. NEVER exposed to students; NEVER a public GPA ranking. Not a sales-propensity signal (see spec §13). Weights are renormalized across whichever components have data, so a chapter with only GPA-vs-council data is still scored without fabricating the missing pieces.",
+  "components": {
+    "gpa_vs_council": {
+      "weight": 0.40,
+      "description": "Chapter GPA relative to its council average. Below-average = higher need. Anchors: 0.40 BELOW council → need 100; 0.40 ABOVE → need 0.",
+      "diff_to_100_at": -0.40,
+      "diff_to_0_at": 0.40
+    },
+    "council_percentile": {
+      "weight": 0.25,
+      "description": "Rank within council for the latest term. Bottom of council = higher need. need = 100 - percentile."
+    },
+    "trend": {
+      "weight": 0.20,
+      "description": "Multi-term GPA trajectory. Declining = higher need.",
+      "change_to_100_at": -0.30,
+      "change_to_0_at": 0.30
+    },
+    "gpa_vs_campus_baseline": {
+      "weight": 0.15,
+      "description": "Chapter GPA relative to the relevant campus baseline (all-men / all-women / all-undergraduate). Below baseline = higher need. Anchors: 0.40 BELOW → need 100; 0.40 ABOVE → need 0.",
+      "diff_to_100_at": -0.40,
+      "diff_to_0_at": 0.40
+    }
+  },
+  "high_need_threshold": 70,
+  "min_semesters_for_trend": 2,
+  "notes": "Cross-council comparisons must use normalized measures (difference from council average / percentile), never raw GPA across councils (spec §10, §21)."
+}
