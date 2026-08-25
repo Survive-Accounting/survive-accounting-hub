@@ -19,6 +19,7 @@ import { discoverCourseDocuments, parseCourseDocument, getCampusDocuments } from
 import { enrichProfintelCampus } from "@/lib/rmp-scrape.functions";
 import { researchProgramCourses } from "@/lib/program-courses.functions";
 import { scrapeCampusGreek } from "@/lib/greekrank-scrape.functions";
+import { discoverCouncilContacts, getCampusCouncilContacts } from "@/lib/council-contacts.functions";
 import { autoDiscoverCampusUrls } from "@/lib/auto-scrape.functions";
 import { scrapeCampusFaculty } from "@/lib/faculty-scrape.functions";
 
@@ -235,7 +236,43 @@ function ProfessorDrawer({ row, onClose }: { row: CourseIntelRow; onClose: () =>
           {profs.data && profs.data.professors.length === 0 && <div className="text-sm text-muted-foreground">No professors scraped for this campus yet.</div>}
         </div>
 
+        <CouncilPanel campusId={row.campusId} />
         <DocsPanel campusId={row.campusId} />
+      </div>
+    </div>
+  );
+}
+
+function CouncilPanel({ campusId }: { campusId: string }) {
+  const qc = useQueryClient();
+  const q = useQuery({ queryKey: ["campus-councils", campusId], queryFn: () => getCampusCouncilContacts({ data: { campusId } }) });
+  const discover = useMutation({ mutationFn: () => discoverCouncilContacts({ data: { campusId } }), onSuccess: () => qc.invalidateQueries({ queryKey: ["campus-councils", campusId] }) });
+  const contacts = q.data?.contacts ?? [];
+  const byCouncil: Record<string, typeof contacts> = {};
+  for (const c of contacts) (byCouncil[c.council_type] ??= []).push(c);
+  const badge = (t: string) => t === "role_inbox" ? "text-emerald-500" : t === "staff_advisor" ? "text-amber-500" : "text-muted-foreground";
+  return (
+    <div className="mt-6 border-t border-border pt-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Greek council contacts</h3>
+        <Button size="sm" variant="outline" className="h-7 text-xs" disabled={discover.isPending} onClick={() => discover.mutate()}>{discover.isPending ? "Finding…" : "Find council contacts"}</Button>
+      </div>
+      <p className="mt-1 text-[10px] text-muted-foreground">Public council inboxes & officers only. <span className="text-emerald-500">role inbox</span> preferred; <span className="text-amber-500">staff advisor</span> = FSL-office fallback. Emails are never invented.</p>
+      <div className="mt-2 space-y-1">
+        {Object.keys(byCouncil).length === 0 && <div className="text-xs text-muted-foreground">{q.isLoading ? "Loading…" : "No council contacts yet — click “Find council contacts”."}</div>}
+        {["ifc", "panhellenic", "nphc", "mgc", "other"].filter((k) => byCouncil[k]).map((k) => (
+          <div key={k} className="rounded border border-border bg-card px-3 py-1.5">
+            <div className="text-xs font-medium uppercase text-muted-foreground">{k}</div>
+            {byCouncil[k].map((c) => (
+              <div key={c.id} className="flex items-center gap-2 text-[11px]">
+                <span className={badge(c.contact_type)}>{c.contact_type.replace("_", " ")}</span>
+                <a href={`mailto:${c.email}`} className="text-foreground hover:underline">{c.email}</a>
+                {c.role && <span className="text-muted-foreground">· {c.role}</span>}
+                {c.instagram_url && <a href={c.instagram_url} target="_blank" rel="noreferrer" className="text-sky-500">IG</a>}
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -384,10 +421,10 @@ function EnrichView({ rows, onDone }: { rows: CourseIntelRow[]; onDone: () => vo
 }
 type EnrichRow = { name: string; ok: boolean; enriched?: number; withTargetMatch?: number; error?: string; codeFound?: string | null };
 
-type BackfillRow = { campus: string; code: string; greek: string; profs: string; enrich: string; syllabi: string };
+type BackfillRow = { campus: string; code: string; greek: string; council: string; profs: string; enrich: string; syllabi: string };
 
 function BackfillView({ rows, onDone }: { rows: CourseIntelRow[]; onDone: () => void }) {
-  const [stages, setStages] = useState({ code: true, greek: true, profs: true, enrich: true, syllabi: false });
+  const [stages, setStages] = useState({ code: true, greek: true, council: true, profs: true, enrich: true, syllabi: false });
   const [scope, setScope] = useState<"incomplete" | "pickable" | "has_greek" | "all">("incomplete");
   const [maxCampuses, setMax] = useState(20);
   const [pasted, setPasted] = useState("");
@@ -422,12 +459,17 @@ function BackfillView({ rows, onDone }: { rows: CourseIntelRow[]; onDone: () => 
   }, [rows, scope, maxCampuses, listMatch]);
 
   async function backfillOne(row: CourseIntelRow): Promise<BackfillRow> {
-    const id = row.campusId; const o: BackfillRow = { campus: row.name, code: "", greek: "", profs: "", enrich: "", syllabi: "" };
+    const id = row.campusId; const o: BackfillRow = { campus: row.name, code: "", greek: "", council: "", profs: "", enrich: "", syllabi: "" };
     if (stages.code) { if (!row.hasIntro1Code) { try { const cr = await researchProgramCourses({ data: { campusId: id, force: true } }) as { course_family_codes_json?: Record<string, string> }; o.code = cr?.course_family_codes_json?.intro_1 || "—"; } catch { o.code = "err"; } } else o.code = "✓"; }
-    if (stages.greek) { if (row.greekOrgs === 0) { try { const gr = await scrapeCampusGreek({ data: { campusId: id } }) as { inserted?: number }; o.greek = `+${gr?.inserted ?? 0}`; } catch { o.greek = "err"; } } else o.greek = `${row.greekOrgs}`; }
-    if (stages.profs) { if (row.profTotal === 0) { try { const d = await autoDiscoverCampusUrls({ data: { campusId: id } }) as { facultyUrls?: string[]; noAccountingDept?: boolean }; if (d?.facultyUrls?.length && !d.noAccountingDept) { const fac = await scrapeCampusFaculty({ data: { campusId: id, urls: d.facultyUrls, allowNoContact: true } }) as { inserted?: number }; o.profs = `+${fac?.inserted ?? 0}`; } else o.profs = "no dept"; } catch { o.profs = "err"; } } else o.profs = `${row.profTotal}`; }
-    if (stages.enrich) { try { const er = await enrichProfintelCampus({ data: { campusId: id, limit: 150 } }) as { withTargetMatch?: number }; o.enrich = `${er?.withTargetMatch ?? 0}`; } catch { o.enrich = "err"; } }
-    if (stages.syllabi) { try { const sr = await discoverCourseDocuments({ data: { campusId: id } }) as { inserted?: number }; o.syllabi = `${sr?.inserted ?? 0}`; } catch { o.syllabi = "err"; } }
+    let greekN = row.greekOrgs;
+    if (stages.greek) { if (row.greekOrgs === 0) { try { const gr = await scrapeCampusGreek({ data: { campusId: id } }) as { inserted?: number }; greekN = gr?.inserted ?? 0; o.greek = `+${greekN}`; } catch { o.greek = "err"; } } else o.greek = `${row.greekOrgs}`; }
+    // Eligibility gate: confidently no social Greek AND not a picker school → skip
+    // the expensive academic stages (profs/syllabi). Council + enrich still cheap/free.
+    const noGreek = !row.inPicker && greekN === 0 && (row.greekEligibility === "no_social_greek");
+    if (stages.council) { if (!noGreek) { try { const cc = await discoverCouncilContacts({ data: { campusId: id } }) as { contactsInserted?: number }; o.council = `+${cc?.contactsInserted ?? 0}`; } catch { o.council = "err"; } } else o.council = "skip"; }
+    if (stages.profs) { if (noGreek) { o.profs = "skip(no greek)"; } else if (row.profTotal === 0) { try { const d = await autoDiscoverCampusUrls({ data: { campusId: id } }) as { facultyUrls?: string[]; noAccountingDept?: boolean }; if (d?.facultyUrls?.length && !d.noAccountingDept) { const fac = await scrapeCampusFaculty({ data: { campusId: id, urls: d.facultyUrls, allowNoContact: true } }) as { inserted?: number }; o.profs = `+${fac?.inserted ?? 0}`; } else o.profs = "no dept"; } catch { o.profs = "err"; } } else o.profs = `${row.profTotal}`; }
+    if (stages.enrich && !noGreek) { try { const er = await enrichProfintelCampus({ data: { campusId: id, limit: 150 } }) as { withTargetMatch?: number }; o.enrich = `${er?.withTargetMatch ?? 0}`; } catch { o.enrich = "err"; } }
+    if (stages.syllabi && !noGreek) { try { const sr = await discoverCourseDocuments({ data: { campusId: id } }) as { inserted?: number }; o.syllabi = `${sr?.inserted ?? 0}`; } catch { o.syllabi = "err"; } }
     return o;
   }
 
@@ -448,10 +490,10 @@ function BackfillView({ rows, onDone }: { rows: CourseIntelRow[]; onDone: () => 
         <h3 className="text-sm font-semibold">Campus Backfill — all-in-one</h3>
         <p className="mt-1 text-xs text-muted-foreground">Per campus, runs the missing stages in order: course code → Greek orgs (GreekRank) → professors → RMP Intro-1 qualify → syllabi. Skips stages a campus already has. Public sources only. Runs 2 campuses at a time — this is heavy; start with a small batch.</p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
-          {(["code", "greek", "profs", "enrich", "syllabi"] as const).map((k) => (
+          {(["code", "greek", "council", "profs", "enrich", "syllabi"] as const).map((k) => (
             <label key={k} className="flex items-center gap-1 text-xs text-muted-foreground">
               <input type="checkbox" checked={stages[k]} disabled={running} onChange={() => toggle(k)} />
-              {{ code: "Course code", greek: "Greek orgs", profs: "Professors", enrich: "Intro-1 qualify", syllabi: "Syllabi" }[k]}
+              {{ code: "Course code", greek: "Greek orgs", council: "Council contacts", profs: "Professors", enrich: "Intro-1 qualify", syllabi: "Syllabi" }[k]}
             </label>
           ))}
         </div>
@@ -482,13 +524,14 @@ function BackfillView({ rows, onDone }: { rows: CourseIntelRow[]; onDone: () => 
       {prog.results.length > 0 && (
         <div className="mt-3 overflow-x-auto rounded-lg border border-border">
           <table className="w-full text-xs">
-            <thead className="bg-muted/40 text-left text-muted-foreground"><tr><th className="px-3 py-1.5">Campus</th><th className="px-2 py-1.5">Code</th><th className="px-2 py-1.5">Greek</th><th className="px-2 py-1.5">Profs</th><th className="px-2 py-1.5">Intro-1</th><th className="px-2 py-1.5">Syllabi</th></tr></thead>
+            <thead className="bg-muted/40 text-left text-muted-foreground"><tr><th className="px-3 py-1.5">Campus</th><th className="px-2 py-1.5">Code</th><th className="px-2 py-1.5">Greek</th><th className="px-2 py-1.5">Council</th><th className="px-2 py-1.5">Profs</th><th className="px-2 py-1.5">Intro-1</th><th className="px-2 py-1.5">Syllabi</th></tr></thead>
             <tbody>
               {prog.results.map((r, i) => (
                 <tr key={i} className="border-t border-border">
                   <td className="px-3 py-1.5">{r.campus}</td>
                   <td className="px-2 py-1.5 text-muted-foreground">{r.code}</td>
                   <td className="px-2 py-1.5 text-muted-foreground">{r.greek}</td>
+                  <td className="px-2 py-1.5 text-emerald-500">{r.council}</td>
                   <td className="px-2 py-1.5 text-muted-foreground">{r.profs}</td>
                   <td className="px-2 py-1.5 text-sky-500">{r.enrich}</td>
                   <td className="px-2 py-1.5 text-muted-foreground">{r.syllabi}</td>
