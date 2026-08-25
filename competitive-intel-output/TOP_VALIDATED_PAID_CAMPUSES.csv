@@ -1,0 +1,514 @@
+rank,campus,state,course_code,market_opportunity,validation_score,proven_paid_market,intro_accounting_paid_market_status,market_validation,course_specific_competitors,local_competitors,strongest_competitor,ads_observed,evidence
+1,"University of Nevada, Las Vegas",NV,ACC 201,83.7,70.5,HIGH,STRONG,CROWDED,3,9,acc201uky.com,YES,"3 course-specific site(s): coursehero.com, wizeprep.com, acc201uky.com | 7 local paid accounting competitor(s) | 2 campus-specific platform(s) | paid accounting search ads observed"
+2,University of South Florida,FL,ACG 2021,85.9,66.5,HIGH,STRONG,CROWDED,4,9,acg2021fiu.com,NO,"4 course-specific site(s): coursehero.com, acg2021fiu.com, wizeprep.com | 5 local paid accounting competitor(s) | 4 campus-specific platform(s)"
+3,University of North Carolina at Greensboro,NC,ACC 201,71.8,61,HIGH,STRONG,CROWDED,3,8,acc201uky.com,YES,"3 course-specific site(s): coursehero.com, acc201uky.com, wizeprep.com | 6 local paid accounting competitor(s) | 1 campus-specific platform(s) | paid accounting search ads observed"
+4,University of North Texas,TX,ACCT 2010,87.6,60,HIGH,STRONG,CROWDED,3,8,acct2001.com,NO,"3 course-specific site(s): coursehero.com, wizeprep.com, acct2001.com | 6 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+5,University of Houston,TX,ACCT 2301,92.1,57.5,HIGH,STRONG,CROWDED,4,7,acct2301.com,NO,"4 course-specific site(s): acct2301.com, coursehero.com, acct2331.com | 5 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+6,Univ of Central Florida,FL,ACC 201,87.1,54.5,HIGH,STRONG,CROWDED,3,7,acc201uky.com,YES,"3 course-specific site(s): acc201uky.com, coursehero.com, wizeprep.com | 5 local paid accounting competitor(s) | 1 campus-specific platform(s) | paid accounting search ads observed"
+7,University of Florida,FL,ACG 2021,84.6,54,HIGH,STRONG,CROWDED,5,6,acg2021fiu.com,NO,"5 course-specific site(s): coursehero.com, acg2021fiu.com, wizeprep.com | 2 local paid accounting competitor(s) | 5 campus-specific platform(s)"
+8,University of Miami,FL,ACC 211,75.4,54,HIGH,STRONG,CROWDED,1,8,Course Hero,NO,1 course-specific site(s): coursehero.com | 7 local paid accounting competitor(s) | 1 campus-specific platform(s)
+9,Clemson University,SC,ACCT 2010,90.1,53.5,HIGH,STRONG,CROWDED,3,7,acct2001.com,NO,"3 course-specific site(s): wizeprep.com, coursehero.com, acct2001.com | 5 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+10,Florida International University,FL,ACG 2021,91.1,53,HIGH,STRONG,CROWDED,5,6,acg2021fiu.com,NO,"5 course-specific site(s): acg2021fiu.com, stuvia.com, coursehero.com | 3 local paid accounting competitor(s) | 3 campus-specific platform(s)"
+11,Kennesaw State University,GA,ACCT 2101,82.8,53,HIGH,STRONG,CROWDED,5,6,acct2101uga.com,NO,"5 course-specific site(s): coursehero.com, acct2101uga.com, acct2100.com | 3 local paid accounting competitor(s) | 3 campus-specific platform(s)"
+12,University of North Georgia,GA,ACCT 2101,74.7,53,HIGH,STRONG,CROWDED,4,6,acct2101uga.com,NO,"4 course-specific site(s): coursehero.com, acct2101uga.com, skoolerstutoring.com | 5 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+13,Southern Methodist University,TX,ACCT 2301,70.8,53,HIGH,STRONG,CROWDED,4,6,acct2301.com,NO,"4 course-specific site(s): coursehero.com, studocu.com, acct2301.com | 5 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+14,Elon University,NC,ACC2010,70.6,52.5,HIGH,STRONG,CROWDED,6,5,a2c2.org,NO,"6 course-specific site(s): quizlet.com, coursehero.com, wizeprep.com | 3 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+15,University of North Florida,FL,ACG2021,73.4,50.5,HIGH,STRONG,CROWDED,6,5,acg2021fiu.com,NO,"6 course-specific site(s): skoolerstutoring.com, acg2021fiu.com, coursehero.com | 2 local paid accounting competitor(s) | 3 campus-specific platform(s)"
+16,University of Wisconsin–Stevens Point,WI,ACCT 210,44.2,49.5,HIGH,STRONG,CROWDED,2,7,Wize Prep,NO,"2 course-specific site(s): coursehero.com, wizeprep.com | 5 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+17,Auburn University,AL,ACCT 2110,92.3,49,HIGH,STRONG,CROWDED,4,6,acct2110.com,NO,"4 course-specific site(s): coursehero.com, acct2110.com, wizeprep.com | 3 local paid accounting competitor(s) | 3 campus-specific platform(s)"
+18,Mississippi College,MS,ACC 201,34,49,HIGH,STRONG,CROWDED,3,6,acc201uky.com,NO,"3 course-specific site(s): wizeprep.com, acc201uky.com, coursehero.com | 5 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+19,University of Arizona,AZ,ACCT 200,76.8,48.5,HIGH,STRONG,CROWDED,4,5,acct200ku.com,YES,"4 course-specific site(s): coursehero.com, wizeprep.com, acct200ku.com | 3 local paid accounting competitor(s) | 2 campus-specific platform(s) | paid accounting search ads observed"
+20,Liberty University,VA,ACCT 211,90.4,47,HIGH,STRONG,CROWDED,3,6,acct2300.com,NO,"3 course-specific site(s): wizeprep.com, coursehero.com, acct2300.com | 4 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+21,Florida Atlantic University,FL,ACG 2021,84.9,47,HIGH,STRONG,CROWDED,3,6,acg2021fiu.com,NO,"3 course-specific site(s): coursehero.com, acg2021fiu.com, skoolerstutoring.com | 4 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+22,New Jersey In of Technology,NJ,,33.3,47,HIGH,STRONG,CROWDED,1,6,Course Hero,NO,1 course-specific site(s): coursehero.com | 5 local paid accounting competitor(s) | 3 campus-specific platform(s)
+23,North Carolina Wilmington,NC,,68.8,45,HIGH,STRONG,CROWDED,2,6,Wize Prep,NO,"2 course-specific site(s): coursehero.com, wizeprep.com | 5 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+24,Texas State University,TX,ACC 2361,78,44,HIGH,STRONG,CROWDED,4,4,acc2361.com,YES,"4 course-specific site(s): coursehero.com, acc2361.com, acct209.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s) | paid accounting search ads observed"
+25,University of Kentucky,KY,ACC 201,88.9,43.5,HIGH,STRONG,CROWDED,3,5,acc201uky.com,YES,"3 course-specific site(s): acc201uky.com, coursehero.com, wizeprep.com | 4 local paid accounting competitor(s) | paid accounting search ads observed"
+26,Univ No Carolina Greensboro,NC,ACC 201,77.7,43.5,HIGH,STRONG,CROWDED,3,5,acc201uky.com,YES,"3 course-specific site(s): coursehero.com, acc201uky.com, wizeprep.com | 4 local paid accounting competitor(s) | paid accounting search ads observed"
+27,University of Georgia,GA,ACCT 2101,95.3,42.5,HIGH,STRONG,CROWDED,4,5,acct2101uga.com,NO,"4 course-specific site(s): acct2101uga.com, coursehero.com, skoolerstutoring.com | 2 local paid accounting competitor(s) | 3 campus-specific platform(s)"
+28,Temple University,PA,ACCT 2101,86.8,42.5,HIGH,STRONG,CROWDED,4,5,acct2101uga.com,NO,"4 course-specific site(s): coursehero.com, acct2101uga.com, skoolerstutoring.com | 2 local paid accounting competitor(s) | 3 campus-specific platform(s)"
+29,University of Delaware,DE,ACCT 207,84.6,42.5,HIGH,STRONG,CROWDED,4,5,acct229.com,NO,"4 course-specific site(s): wizeprep.com, coursehero.com, skoolerstutoring.com | 2 local paid accounting competitor(s) | 3 campus-specific platform(s)"
+30,Tarleton State University,TX,ACCT 2301,75.5,42.5,HIGH,STRONG,CROWDED,3,5,acct2301.com,NO,"3 course-specific site(s): acct2301.com, coursehero.com, acct2300.com | 4 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+31,Sam Houston State University,TX,ACCT 2301,74.2,42.5,HIGH,STRONG,CROWDED,3,5,acct2301.com,NO,"3 course-specific site(s): coursehero.com, acct2301.com, acct2300.com | 4 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+32,"University of Tennessee, Knoxville",TN,ACCT 200,92.7,42,HIGH,STRONG,CROWDED,3,4,acct200ku.com,YES,"3 course-specific site(s): coursehero.com, acct200ku.com, acct2001.com | 4 local paid accounting competitor(s) | paid accounting search ads observed"
+33,Missouri State University,MO,ACC 201,78.8,41.5,HIGH,STRONG,CROWDED,3,5,acc201uky.com,YES,"3 course-specific site(s): coursehero.com, acc201uky.com, wizeprep.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s) | paid accounting search ads observed"
+34,University of Mississippi,MS,ACCY 201,86.7,41,HIGH,STRONG,CROWDED,1,6,accy201.com,NO,1 course-specific site(s): accy201.com | 5 local paid accounting competitor(s) | 1 campus-specific platform(s)
+35,Georgia State University,GA,ACCT 2101,78.9,41,HIGH,STRONG,CROWDED,4,4,acct2101uga.com,NO,"4 course-specific site(s): coursehero.com, acct2101uga.com, skoolerstutoring.com | 2 local paid accounting competitor(s) | 3 campus-specific platform(s)"
+36,Univ of Texas at Tyler,TX,ACCT 2301,54,41,HIGH,STRONG,CROWDED,1,6,acct2301.com,NO,1 course-specific site(s): acct2301.com | 5 local paid accounting competitor(s) | 1 campus-specific platform(s)
+37,University of Alabama,AL,AC 210,96.1,40,HIGH,STRONG,CROWDED,4,4,ac210ua.com,NO,"4 course-specific site(s): ac210ua.com, coursehero.com, studocu.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+38,University of Iowa,IA,ACCT:2100,84,40,HIGH,STRONG,CROWDED,4,4,acct2100.com,NO,"4 course-specific site(s): coursehero.com, acct2100.com, wizeprep.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+39,Montclair State University,NJ,ACCT201,81.8,40,HIGH,STRONG,CROWDED,4,4,acct201a.com,NO,"4 course-specific site(s): coursehero.com, acct201a.com, acct201wvu.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+40,North Carolina State University,NC,ACC 210,82.3,38.5,HIGH,STRONG,CROWDED,2,5,acc210.com,NO,"2 course-specific site(s): acc210.com, acct2001.com | 4 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+41,Florida Gulf Coast University,FL,ACG 2021,79.2,38.5,HIGH,STRONG,CROWDED,2,5,acg2021fiu.com,NO,"2 course-specific site(s): acg2021fiu.com, skoolerstutoring.com | 4 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+42,The College of New Jersey,NJ,ACC 201,62.7,38.5,HIGH,STRONG,CROWDED,2,5,acc201uky.com,NO,"2 course-specific site(s): acc201uky.com, coursehero.com | 4 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+43,University of Minnesota,MN,ACCT 2051,55.1,38.5,HIGH,STRONG,CROWDED,2,5,acct2050.com,NO,"2 course-specific site(s): acct2050.com, wizeprep.com | 4 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+44,Louisiana State University,LA,ACCT 2001,49.6,38.5,HIGH,STRONG,CROWDED,3,5,acct2001.com,NO,"3 course-specific site(s): acct2001.com, wizeprep.com, coursehero.com | 2 local paid accounting competitor(s) | 3 campus-specific platform(s)"
+45,Pennsylvania State University,PA,ACCTG 211,34.6,38.5,HIGH,STRONG,CROWDED,2,5,unizin.org,NO,"2 course-specific site(s): coursehero.com, unizin.org | 4 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+46,The University of Texas Rio Grande Valley,TX,ACCT 2301,72.9,38,HIGH,STRONG,CROWDED,3,4,acct2301.com,NO,"3 course-specific site(s): coursehero.com, acct2301.com, acct2300.com | 4 local paid accounting competitor(s)"
+47,San Diego State University,CA,ACCTG 201,84.5,36.5,HIGH,STRONG,CROWDED,2,5,Wize Prep,NO,"2 course-specific site(s): coursehero.com, wizeprep.com | 3 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+48,Tennessee at Chattanooga,TN,ACC 2010,71.6,36.5,HIGH,STRONG,CROWDED,2,5,Wize Prep,NO,"2 course-specific site(s): coursehero.com, wizeprep.com | 3 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+49,University of Arkansas,AR,ACCT 2013,91.4,36,HIGH,STRONG,CROWDED,3,4,acct2013msu.com,NO,"3 course-specific site(s): coursehero.com, acct2013msu.com, wizeprep.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+50,University of Texas at Austin,TX,ACC 311,83.6,36,HIGH,STRONG,CROWDED,3,4,acc311.com,YES,"3 course-specific site(s): wizeprep.com, coursehero.com, acc311.com | 1 local paid accounting competitor(s) | 3 campus-specific platform(s) | paid accounting search ads observed"
+51,The University of Texas at Austin,TX,ACC 311,81.3,36,HIGH,STRONG,CROWDED,3,4,acc311.com,YES,"3 course-specific site(s): wizeprep.com, acc311.com, coursehero.com | 1 local paid accounting competitor(s) | 3 campus-specific platform(s) | paid accounting search ads observed"
+52,The University of Texas at Dallas,TX,ACCT 2301,78.2,36,HIGH,STRONG,CROWDED,3,4,acct2301.com,NO,"3 course-specific site(s): acct2301.com, coursehero.com, acct2300.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+53,The University of Texas at Arlington,TX,ACCT 2301,75,36,HIGH,STRONG,CROWDED,3,4,acct2301.com,NO,"3 course-specific site(s): coursehero.com, acct2301.com, acct2300.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+54,Texas A&M University,TX,ACCT 229,72,36,HIGH,STRONG,CROWDED,3,4,acct229.com,NO,"3 course-specific site(s): acct229.com, vhx.tv, coursehero.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+55,SUNY College at Oneonta,NY,ACCT 2100,39,36,HIGH,STRONG,CROWDED,3,4,acct2100.com,NO,"3 course-specific site(s): acct2100.com, wizeprep.com, coursehero.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+56,University of Southern California,CA,BUAD 280,80.6,34.5,HIGH,STRONG,CROWDED,1,5,Course Hero,NO,1 course-specific site(s): coursehero.com | 4 local paid accounting competitor(s) | 1 campus-specific platform(s)
+57,Virginia Commonwealth,VA,,70.2,34.5,HIGH,STRONG,CROWDED,1,5,Course Hero,NO,1 course-specific site(s): coursehero.com | 4 local paid accounting competitor(s) | 1 campus-specific platform(s)
+58,Northeastern University,MA,ACCT 1201,73.8,34,HIGH,STRONG,CROWDED,2,4,Wize Prep,YES,"2 course-specific site(s): coursehero.com, wizeprep.com | 2 local paid accounting competitor(s) | 2 campus-specific platform(s) | paid accounting search ads observed"
+59,Towson University,MD,ACCT 201,70.4,34,HIGH,STRONG,CROWDED,3,4,acct201a.com,NO,"3 course-specific site(s): coursehero.com, acct201a.com, wizeprep.com | 2 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+60,University of Toledo,OH,ACCT 2100,66.2,34,HIGH,STRONG,CROWDED,3,4,acct2100.com,NO,"3 course-specific site(s): coursehero.com, acct2100.com, wizeprep.com | 2 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+61,University of North Texas at Dallas,TX,ACCT 2301,58.1,34,HIGH,STRONG,CROWDED,2,4,acct2301.com,NO,"2 course-specific site(s): coursehero.com, acct2301.com | 4 local paid accounting competitor(s)"
+62,Grambling State University,LA,ACCT 201,37,34,HIGH,STRONG,CROWDED,2,4,acct201a.com,NO,"2 course-specific site(s): acct201a.com, coursehero.com | 4 local paid accounting competitor(s)"
+63,San Jose State University San,CA,,82.8,32.5,HIGH,STRONG,CROWDED,0,5,urbansitter.com,NO,5 local paid accounting competitor(s)
+64,University of Dayton,OH,,74.4,32.5,HIGH,STRONG,CROWDED,0,5,manhattanreview.com,NO,5 local paid accounting competitor(s)
+65,Rowan University,NJ,ACC 03210,74,32.5,HIGH,STRONG,CROWDED,1,5,Course Hero,NO,1 course-specific site(s): coursehero.com | 3 local paid accounting competitor(s) | 2 campus-specific platform(s)
+66,Penn State University Univ,PA,ACCTG 201,87.6,32,HIGH,STRONG,CROWDED,2,4,Wize Prep,NO,"2 course-specific site(s): coursehero.com, wizeprep.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+67,Eastern Kentucky University,KY,ACC 201,55,32,HIGH,STRONG,CROWDED,2,4,acc201uky.com,NO,"2 course-specific site(s): acc201uky.com, coursehero.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+68,Idaho State University,ID,ACCT 2201,44,32,HIGH,STRONG,CROWDED,1,4,Course Hero,YES,1 course-specific site(s): coursehero.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s) | paid accounting search ads observed
+69,Univ of Michigan-Flint,MI,ACC 201,40.6,32,HIGH,STRONG,CROWDED,2,4,acc201uky.com,NO,"2 course-specific site(s): coursehero.com, acc201uky.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+70,Savannah State University,GA,ACCT 2101,37.6,32,HIGH,STRONG,CROWDED,2,4,acct2101uga.com,NO,"2 course-specific site(s): coursehero.com, acct2101uga.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+71,Albany State University,GA,ACCT 2101,37.1,32,HIGH,STRONG,CROWDED,2,4,acct2101uga.com,NO,"2 course-specific site(s): acct2101uga.com, coursehero.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+72,"University of California, Los Angeles",CA,MGMT 1A,30.5,30.5,HIGH,STRONG,CROWDED,0,5,graduatetutor.com,NO,4 local paid accounting competitor(s) | 1 campus-specific platform(s)
+73,University of Wisconsin–Madison,WI,ACCT IS 100,86.6,30,HIGH,STRONG,CROWDED,1,4,Course Hero,YES,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s) | 2 campus-specific platform(s) | paid accounting search ads observed
+74,American University,DC,ACCT 240,53.1,30,HIGH,STRONG,CROWDED,2,4,Wize Prep,NO,"2 course-specific site(s): coursehero.com, wizeprep.com | 2 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+75,Binghamton University,NY,ACCT 211,72.7,29.5,HIGH,STRONG,CROWDED,3,3,acct2300.com,NO,"3 course-specific site(s): coursehero.com, wizeprep.com, acct2300.com | 2 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+76,Lehigh University,PA,ACCT 151,67.5,29.5,HIGH,STRONG,CROWDED,2,3,Wize Prep,YES,"2 course-specific site(s): coursehero.com, wizeprep.com | 2 local paid accounting competitor(s) | 1 campus-specific platform(s) | paid accounting search ads observed"
+77,Texas A&M University Coll,TX,ACCT 209/229/640,85,29,HIGH,STRONG,CROWDED,2,4,acct209.com,NO,"2 course-specific site(s): acct209.com, acct229.com | 3 local paid accounting competitor(s)"
+78,Western Kentucky University,KY,ACCT 200,74.6,29,HIGH,STRONG,CROWDED,3,2,acct200ku.com,YES,"3 course-specific site(s): acct200ku.com, coursehero.com, acct2001.com | 2 local paid accounting competitor(s) | paid accounting search ads observed"
+79,Indiana University,IN,BUS-A 201,87.3,28,HIGH,STRONG,CROWDED,0,4,busa201.com,YES,3 local paid accounting competitor(s) | 1 campus-specific platform(s) | paid accounting search ads observed
+80,"Univ of Calif, Irvine",CA,MGMT 30A,68.2,28,HIGH,STRONG,CROWDED,1,4,mgmt30a.com,NO,1 course-specific site(s): mgmt30a.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s)
+81,Georgetown University,DC,ACCT 1001,63.5,28,HIGH,STRONG,CROWDED,1,4,Course Hero,NO,1 course-specific site(s): coursehero.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s)
+82,Ohio University,OH,,62.3,28,HIGH,STRONG,CROWDED,1,4,Course Hero,NO,1 course-specific site(s): coursehero.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s)
+83,Texas Southern University,TX,ACCT 2301,53.3,28,HIGH,STRONG,CROWDED,1,4,acct2301.com,NO,1 course-specific site(s): acct2301.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s)
+84,Texas Tech University,TX,ACCT 2300,83.3,27.5,HIGH,STRONG,CROWDED,3,3,acct2300.com,NO,"3 course-specific site(s): coursehero.com, acct2300.com, wizeprep.com | 1 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+85,Ball State University,IN,ACC 201,67.8,27.5,HIGH,STRONG,CROWDED,2,3,acc201uky.com,NO,"2 course-specific site(s): coursehero.com, acc201uky.com | 3 local paid accounting competitor(s)"
+86,Saginaw Valley State Univ Univ,MI,ACC 111,53.4,27.5,HIGH,STRONG,CROWDED,2,3,Scribd,NO,"2 course-specific site(s): scribd.com, coursehero.com | 3 local paid accounting competitor(s)"
+87,Mercer University-Macon,GA,ACC 204,51.8,27.5,HIGH,STRONG,CROWDED,2,3,Scribd,NO,"2 course-specific site(s): scribd.com, coursehero.com | 3 local paid accounting competitor(s)"
+88,Seattle University,WA,ACCT 2300,41.2,27.5,HIGH,STRONG,CROWDED,3,3,acct2300.com,NO,"3 course-specific site(s): acct2300.com, wizeprep.com, coursehero.com | 1 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+89,Saint Ambrose University,IA,ACC 201,40.2,27.5,HIGH,STRONG,CROWDED,2,3,acc201uky.com,NO,"2 course-specific site(s): acc201uky.com, coursehero.com | 3 local paid accounting competitor(s)"
+90,Canisius College,NY,ACC 201,31.5,27.5,HIGH,STRONG,CROWDED,2,3,acc201uky.com,NO,"2 course-specific site(s): acc201uky.com, coursehero.com | 3 local paid accounting competitor(s)"
+91,University of Maryland College,MD,,78.3,26.5,HIGH,STRONG,CROWDED,0,5,collegeparktutors.com,NO,2 local paid accounting competitor(s) | 3 campus-specific platform(s)
+92,University of Colorado Colorado Springs,CO,ACCT 2010,51.4,26,HIGH,STRONG,CROWDED,1,4,Wize Prep,NO,1 course-specific site(s): wizeprep.com | 2 local paid accounting competitor(s) | 2 campus-specific platform(s)
+93,University of Montana,MT,,44.2,26,HIGH,STRONG,CROWDED,0,4,montana.cpa,NO,4 local paid accounting competitor(s)
+94,Utah Valley University,UT,,90,25.5,HIGH,STRONG,CROWDED,2,3,Wize Prep,NO,"2 course-specific site(s): coursehero.com, wizeprep.com | 2 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+95,University of Houston - Clear Lake,TX,ACCT 2301,67.1,25.5,HIGH,STRONG,CROWDED,2,3,acct2301.com,NO,"2 course-specific site(s): coursehero.com, acct2301.com | 2 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+96,Suffolk University,MA,ACCT 201,58.6,25.5,HIGH,STRONG,CROWDED,2,3,acct201a.com,NO,"2 course-specific site(s): coursehero.com, acct201a.com | 2 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+97,University of La Verne,CA,ACCT 201,57.4,25.5,HIGH,STRONG,CROWDED,2,3,acct201a.com,NO,"2 course-specific site(s): acct201a.com, coursehero.com | 2 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+98,University of Southern Indiana,IN,ACCT 201,56,25.5,HIGH,STRONG,CROWDED,2,3,acct201a.com,NO,"2 course-specific site(s): coursehero.com, acct201a.com | 2 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+99,Angelo State University,TX,ACCT 2301,55.3,25.5,HIGH,STRONG,CROWDED,2,3,acct2301.com,NO,"2 course-specific site(s): coursehero.com, acct2301.com | 2 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+100,University of Pennsylvania,PA,ACCT 1010,53.8,25.5,HIGH,STRONG,CROWDED,2,3,ust.space,NO,"2 course-specific site(s): coursehero.com, ust.space | 2 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+101,Rhode Island College,RI,ACCT 201,49.7,25.5,HIGH,STRONG,CROWDED,2,3,acct201a.com,NO,"2 course-specific site(s): acct201a.com, coursehero.com | 2 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+102,University of South Carolina,SC,ACCT 225,47.5,25.5,HIGH,STRONG,CROWDED,2,3,Wize Prep,NO,"2 course-specific site(s): coursehero.com, wizeprep.com | 2 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+103,Delaware State University,DE,ACCT 201,30.4,25.5,HIGH,STRONG,CROWDED,2,3,acct201a.com,NO,"2 course-specific site(s): acct201a.com, coursehero.com | 2 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+104,Ouachita Baptist University,AR,ACCT 2013,26,25.5,HIGH,STRONG,CROWDED,2,3,acct2013msu.com,NO,"2 course-specific site(s): acct2013msu.com, wizeprep.com | 2 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+105,University of Houston - Downtown,TX,ACC 2301,89.1,25,HIGH,STRONG,CROWDED,2,2,acct2301.com,YES,"2 course-specific site(s): coursehero.com, acct2301.com | 2 local paid accounting competitor(s) | paid accounting search ads observed"
+106,Texas A&M - Corpus Christi Corp,TX,ACCT 2301,68.8,25,HIGH,STRONG,CROWDED,3,2,acct2301.com,NO,"3 course-specific site(s): coursehero.com, acct2301.com, acct229.com | 2 local paid accounting competitor(s)"
+107,Augsburg University,MN,ACC 221,38.8,25,HIGH,STRONG,VALIDATED_PAID_MARKET,4,2,Knack,NO,"4 course-specific site(s): joinknack.com, wizeprep.com, studocu.com | 2 campus-specific platform(s)"
+108,Uof Alabama at Birmingham,AL,,74.4,24,HIGH,STRONG,CROWDED,0,4,uwca.org,NO,3 local paid accounting competitor(s) | 1 campus-specific platform(s)
+109,Troy University,AL,ACT 2291,66.1,24,HIGH,STRONG,CROWDED,0,4,mywconline.com,NO,3 local paid accounting competitor(s) | 1 campus-specific platform(s)
+110,University of Richmond,VA,,62,24,HIGH,STRONG,CROWDED,0,4,poetsandquantsforundergrads.com,NO,3 local paid accounting competitor(s) | 1 campus-specific platform(s)
+111,Middle Tennessee State Univ,TN,ACTG 2110,80.8,23.5,HIGH,STRONG,CROWDED,1,3,acct2110.com,YES,1 course-specific site(s): acct2110.com | 1 local paid accounting competitor(s) | 2 campus-specific platform(s) | paid accounting search ads observed
+112,Fayetteville State Univ,NC,ACCT 211,58.9,23.5,HIGH,STRONG,CROWDED,2,3,Wize Prep,NO,"2 course-specific site(s): coursehero.com, wizeprep.com | 1 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+113,Morgan State University,MD,ACCT 211,57.1,23.5,HIGH,STRONG,CROWDED,2,3,Wize Prep,NO,"2 course-specific site(s): wizeprep.com, coursehero.com | 1 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+114,Roger Williams University,RI,ACCTG 201,52.2,23.5,HIGH,STRONG,CROWDED,2,3,Wize Prep,NO,"2 course-specific site(s): coursehero.com, wizeprep.com | 1 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+115,Samford University,AL,ACCT 211,48.1,23.5,HIGH,STRONG,CROWDED,2,3,Wize Prep,NO,"2 course-specific site(s): coursehero.com, wizeprep.com | 1 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+116,Indiana University Southeast,IN,BUS-A 201,44.1,23.5,HIGH,STRONG,CROWDED,0,3,indianachamber.com,YES,3 local paid accounting competitor(s) | paid accounting search ads observed
+117,Indiana University East,IN,BUS-A 201,41.6,23.5,HIGH,STRONG,CROWDED,0,3,busa201.com,YES,3 local paid accounting competitor(s) | paid accounting search ads observed
+118,University of New Haven West,CT,ACCT 1101,37,23.5,HIGH,STRONG,CROWDED,1,3,Course Hero,NO,1 course-specific site(s): coursehero.com | 3 local paid accounting competitor(s)
+119,Western Colorado University,CO,ACC 201,27,23.5,HIGH,STRONG,CROWDED,1,3,acc201uky.com,NO,1 course-specific site(s): acc201uky.com | 3 local paid accounting competitor(s)
+120,University of North Carolina at Charlotte,NC,ACCT 2121,82.4,23,HIGH,STRONG,CROWDED,2,2,Scribd,YES,"2 course-specific site(s): scribd.com, coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s) | paid accounting search ads observed"
+121,Sacred Heart University,CT,AC 221,71.3,23,HIGH,STRONG,CROWDED,3,2,Course Hero,NO,"3 course-specific site(s): coursehero.com, studocu.com, quizlet.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+122,Louisiana Tech University,LA,ACCT 201,68,23,HIGH,STRONG,CROWDED,3,2,acct201a.com,NO,"3 course-specific site(s): coursehero.com, studocu.com, acct201a.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+123,Stockton University,NJ,ACCT 2110,60.7,22.5,HIGH,STRONG,CROWDED,2,3,acct2110.com,NO,"2 course-specific site(s): coursehero.com, acct2110.com | 2 local paid accounting competitor(s)"
+124,University of Colorado Boulder,CO,BCOR 2203,69,22,HIGH,STRONG,CROWDED,0,4,bufftutor.com,NO,2 local paid accounting competitor(s) | 2 campus-specific platform(s)
+125,Indiana University Bloomington,IN,BUS-A 201,89,21.5,HIGH,STRONG,CROWDED,0,3,busa201.com,YES,2 local paid accounting competitor(s) | 1 campus-specific platform(s) | paid accounting search ads observed
+126,University of Memphis,TN,,74.6,21.5,HIGH,STRONG,CROWDED,1,3,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+127,Wichita State University,KS,,70.6,21.5,HIGH,STRONG,CROWDED,1,3,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+128,Univ of Colorado at Denver,CO,,70.2,21.5,HIGH,STRONG,CROWDED,1,3,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+129,Indiana University Indianapolis,IN,BUS-A 201,63.6,21.5,HIGH,STRONG,CROWDED,0,3,busa201.com,YES,2 local paid accounting competitor(s) | 1 campus-specific platform(s) | paid accounting search ads observed
+130,Uof Arkansas at Fort Smith Ft.,AR,,53.6,21.5,HIGH,STRONG,CROWDED,1,3,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+131,Morehead State University,KY,ACCT 281,46.5,21.5,HIGH,STRONG,CROWDED,1,3,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+132,Duquesne University,PA,ACCT 214,44.5,21.5,HIGH,STRONG,CROWDED,1,3,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+133,St. John Fisher College,NY,ACCT 101,37.8,21.5,HIGH,STRONG,CROWDED,1,3,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+134,Adams State University,CO,,33.3,21.5,HIGH,STRONG,CROWDED,1,3,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+135,"University of California, Santa Barbara",CA,ECON 3A,30,21.5,HIGH,STRONG,CROWDED,1,3,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+136,Indiana University Northwest,IN,BUS-A 201,25.3,21.5,HIGH,STRONG,CROWDED,0,3,busa201.com,YES,2 local paid accounting competitor(s) | 1 campus-specific platform(s) | paid accounting search ads observed
+137,University of Louisville,KY,ACCT 201,68.9,21,HIGH,STRONG,CROWDED,2,2,acct201a.com,NO,"2 course-specific site(s): coursehero.com, acct201a.com | 2 local paid accounting competitor(s)"
+138,North Dakota State University,ND,ACCT 200,58.4,21,HIGH,STRONG,CROWDED,2,2,acct200ku.com,NO,"2 course-specific site(s): coursehero.com, acct200ku.com | 2 local paid accounting competitor(s)"
+139,Campbellsville University,KY,ACC 221,48.9,21,HIGH,STRONG,VALIDATED_PAID_MARKET,3,2,Wize Prep,NO,"3 course-specific site(s): studocu.com, wizeprep.com, scribd.com | 2 campus-specific platform(s)"
+140,University of Baltimore,MD,ACCT 201,30.6,21,HIGH,STRONG,CROWDED,2,2,acct201a.com,NO,"2 course-specific site(s): coursehero.com, acct201a.com | 2 local paid accounting competitor(s)"
+141,George Mason University,VA,ACCT 203,82.5,19.5,HIGH,STRONG,CROWDED,1,3,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s) | 2 campus-specific platform(s)
+142,Providence College,RI,ACC 203,68.9,19.5,HIGH,STRONG,CROWDED,1,3,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s) | 2 campus-specific platform(s)
+143,University of Michigan Ann,MI,,65,19.5,HIGH,STRONG,CROWDED,1,3,Wize Prep,NO,1 course-specific site(s): wizeprep.com | 1 local paid accounting competitor(s) | 2 campus-specific platform(s)
+144,George Washington University,DC,ACCY 2001,61.3,19.5,HIGH,STRONG,CROWDED,0,3,quantnet.com,YES,1 local paid accounting competitor(s) | 2 campus-specific platform(s) | paid accounting search ads observed
+145,Tennessee State University,TN,ACCT 2010,46.2,19.5,HIGH,STRONG,CROWDED,1,3,Wize Prep,NO,1 course-specific site(s): wizeprep.com | 1 local paid accounting competitor(s) | 2 campus-specific platform(s)
+146,King's College,PA,,39,19.5,HIGH,STRONG,CROWDED,0,3,spires.co,NO,3 local paid accounting competitor(s)
+147,Jackson State University,MS,ACC 211,37,19.5,HIGH,STRONG,CROWDED,0,3,nabainc.org,NO,3 local paid accounting competitor(s)
+148,Ivy Tech Community College,IN,,31.8,19.5,HIGH,STRONG,CROWDED,0,3,ecampus.com,NO,3 local paid accounting competitor(s)
+149,Penn State York,PA,ACCTG 211,25.4,19.5,HIGH,STRONG,CROWDED,0,3,spglobal.com,NO,3 local paid accounting competitor(s)
+150,Penn State New Kensington,PA,ACCTG 211,22.4,19.5,HIGH,STRONG,CROWDED,0,3,therla.org,NO,3 local paid accounting competitor(s)
+151,University of Tampa,FL,,82.9,19,HIGH,STRONG,CROWDED,2,2,Wize Prep,NO,"2 course-specific site(s): coursehero.com, wizeprep.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+152,Park University,MO,AC 201,72.5,19,HIGH,STRONG,CROWDED,2,2,Course Hero,NO,"2 course-specific site(s): coursehero.com, quizlet.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+153,Boston University,MA,,69.3,19,HIGH,STRONG,CROWDED,2,2,Course Hero,NO,"2 course-specific site(s): coursehero.com, scribd.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+154,Syracuse University,NY,ACC 151,68.2,19,HIGH,STRONG,CROWDED,2,2,Wize Prep,NO,"2 course-specific site(s): wizeprep.com, coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+155,Stephen F. Austin State University,TX,ACCT 2301,67.5,19,HIGH,STRONG,CROWDED,2,2,acct2301.com,NO,"2 course-specific site(s): coursehero.com, acct2301.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+156,University of Texas at El Paso,TX,ACCT 2301,65.5,19,HIGH,STRONG,CROWDED,2,2,acct2301.com,NO,"2 course-specific site(s): acct2301.com, coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+157,Loyola University Chicago,IL,ACCT 201,63.7,19,HIGH,STRONG,CROWDED,2,2,acct201a.com,NO,"2 course-specific site(s): coursehero.com, acct201a.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+158,Salisbury University,MD,ACCT 201,56.9,19,HIGH,STRONG,CROWDED,2,2,acct201a.com,NO,"2 course-specific site(s): coursehero.com, acct201a.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+159,Howard University,DC,ACCT 201,50.3,19,HIGH,STRONG,CROWDED,2,2,acct201a.com,NO,"2 course-specific site(s): coursehero.com, acct201a.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+160,Georgia Southwestern St Un,GA,ACCT 2101,48.5,19,HIGH,STRONG,CROWDED,2,2,acct2101uga.com,NO,"2 course-specific site(s): coursehero.com, acct2101uga.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+161,Susquehanna University,PA,ACCT 200,47.5,19,HIGH,STRONG,CROWDED,2,2,acct200ku.com,NO,"2 course-specific site(s): acct200ku.com, coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+162,Salem State University,MA,ACC 106,46.1,19,HIGH,STRONG,CROWDED,2,2,Course Hero,NO,"2 course-specific site(s): coursehero.com, scribd.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+163,Southern University & A&M Baton,LA,ACCT200,38.1,19,HIGH,STRONG,CROWDED,2,2,acct200ku.com,NO,"2 course-specific site(s): acct200ku.com, coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+164,Nicholls State University,LA,ACCT 205,51.1,18.5,HIGH,STRONG,VALIDATED_PAID_MARKET,2,3,Wize Prep,NO,"2 course-specific site(s): coursehero.com, wizeprep.com | 2 campus-specific platform(s)"
+165,Texas Wesleyan University Fort,TX,ACC 2303,36.3,18.5,HIGH,STRONG,CROWDED,1,3,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s)
+166,Valencia College,FL,,78.3,17.5,HIGH,STRONG,CROWDED,0,3,peopleadmin.com,NO,2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+167,Chapman University,CA,,74.6,17.5,HIGH,STRONG,CROWDED,0,3,buffacademy.com,NO,2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+168,Indiana U-Purdue U Indy,IN,,63.6,17.5,HIGH,STRONG,CROWDED,0,3,tutors.com,NO,2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+169,University of New Mexico Albuquerque F,NM,,60.4,17.5,HIGH,STRONG,CROWDED,0,3,krqe.com,NO,2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+170,University of South Dakota,SD,,60.1,17.5,HIGH,STRONG,CROWDED,0,3,accounting.com,NO,2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+171,University of North Carolina Chapel,NC,,59.8,17.5,HIGH,STRONG,CROWDED,0,3,teachme2.com,NO,2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+172,Uof Alabama in Huntsville,AL,,57.3,17.5,HIGH,STRONG,CROWDED,0,3,hakia.com,NO,2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+173,University of Missouri,MO,ACCTCY 2026,52.1,17.5,HIGH,STRONG,CROWDED,0,3,columbiamissourian.com,NO,2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+174,Arkansas Tech University,AR,,52.1,17.5,HIGH,STRONG,CROWDED,0,3,arkansastechnews.com,NO,2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+175,Stetson University,FL,,48,17.5,HIGH,STRONG,CROWDED,0,3,studyinternational.com,NO,2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+176,The Citadel,SC,,45.6,17.5,HIGH,STRONG,CROWDED,0,3,higheredjobs.com,NO,2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+177,Northern Michigan Univ,MI,ACT 230,43.8,17.5,HIGH,STRONG,CROWDED,0,3,culsr.org,NO,2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+178,"Univ of Alaska, Anchorage",AK,ACCT A201,41.1,17.5,HIGH,STRONG,CROWDED,0,3,boarddocs.com,NO,2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+179,Gannon University,PA,BCOR 201,31,17.5,HIGH,STRONG,CROWDED,0,3,peopleadmin.com,NO,2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+180,College of DuPage,IL,,28.5,17.5,HIGH,STRONG,LOW_EVIDENCE,0,3,dailyherald.com,NO,2 local paid accounting competitor(s) | 1 campus-specific platform(s)
+181,Univ of Nebraska-Lincoln,NE,,82.5,17,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s)
+182,Drexel University,PA,ACCT 115,70.4,17,HIGH,STRONG,VALIDATED_PAID_MARKET,2,2,Wize Prep,NO,"2 course-specific site(s): coursehero.com, wizeprep.com | 2 campus-specific platform(s)"
+183,Saint Joseph's University,PA,ACC 101,69.5,17,HIGH,STRONG,VALIDATED_PAID_MARKET,2,2,Wize Prep,NO,"2 course-specific site(s): coursehero.com, wizeprep.com | 2 campus-specific platform(s)"
+184,Pittsburg State University,KS,ACCTG-201,59.8,17,HIGH,STRONG,VALIDATED_PAID_MARKET,2,2,Wize Prep,NO,"2 course-specific site(s): coursehero.com, wizeprep.com | 2 campus-specific platform(s)"
+185,Stony Brook University Stony,NY,ACC 210,58,17,HIGH,STRONG,CROWDED,1,2,acc210.com,NO,1 course-specific site(s): acc210.com | 2 local paid accounting competitor(s)
+186,St. Cloud State University Saint,MN,ACCT291,57.6,17,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s)
+187,Penn State Univ-Behrend,PA,ACCTG 211,55.5,17,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s)
+188,Louisiana State University Alexandria,LA,,55,17,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s)
+189,Purdue Univ Fort Wayne Fort,IN,BUS A201,52.9,17,HIGH,STRONG,CROWDED,1,2,busa201.com,NO,1 course-specific site(s): busa201.com | 2 local paid accounting competitor(s)
+190,East Texas A&M University,TX,ACCT 2301,51.9,17,HIGH,STRONG,CROWDED,1,2,acct2301.com,NO,1 course-specific site(s): acct2301.com | 2 local paid accounting competitor(s)
+191,Penn State Abington,PA,ACCTG 211,48.9,17,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s)
+192,Rochester Institute of Technology,NY,ACCT 110,48.2,17,HIGH,STRONG,VALIDATED_PAID_MARKET,2,2,Wize Prep,NO,"2 course-specific site(s): coursehero.com, wizeprep.com | 2 campus-specific platform(s)"
+193,Rollins College Liberal Arts Winter,FL,BUS 230,47.9,17,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s)
+194,IUSB Indiana Uat South Bend South,IN,BUS-A 201,46.7,17,HIGH,STRONG,CROWDED,0,2,busa201.com,YES,2 local paid accounting competitor(s) | paid accounting search ads observed
+195,Minnesota State U Moorhead,MN,ACCT 230,44.6,17,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s)
+196,Penn State Berks,PA,ACCTG 211,35.1,17,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s)
+197,Bradley University,IL,ATG 157,34.4,17,HIGH,STRONG,CROWDED,0,2,archive.org,YES,2 local paid accounting competitor(s) | paid accounting search ads observed
+198,Ivy Technical Community College Kokomo S In Ivy Technical Community College Lafayette,IN,,31.8,17,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s)
+199,Longwood University,VA,ACCT 240,28.7,17,HIGH,STRONG,VALIDATED_PAID_MARKET,2,2,Wize Prep,NO,"2 course-specific site(s): coursehero.com, wizeprep.com | 2 campus-specific platform(s)"
+200,Tidewater Community College,VA,,26.1,17,HIGH,STRONG,LOW_EVIDENCE,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s)
+201,Austin Community College,TX,,25.6,17,HIGH,STRONG,LOW_EVIDENCE,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s)
+202,Vanderbilt University,TN,BUS 1100,25,17,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s)
+203,Coastline Community College,CA,,21.5,17,HIGH,STRONG,LOW_EVIDENCE,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 local paid accounting competitor(s)
+204,SUNY Fredonia,NY,ACCT 201,21,17,HIGH,STRONG,CROWDED,1,2,acct201a.com,NO,1 course-specific site(s): acct201a.com | 2 local paid accounting competitor(s)
+205,Grand Valley State Univ Grand,MI,ACC 212,85.5,16.5,HIGH,STRONG,VALIDATED_PAID_MARKET,3,1,Wize Prep,NO,"3 course-specific site(s): scribd.com, coursehero.com, wizeprep.com | 1 campus-specific platform(s)"
+206,University of Wisconsin–Oshkosh,WI,ACCT 206,59.7,16.5,HIGH,STRONG,CROWDED,1,3,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+207,Southern Illinois Univ,IL,ACCT250,46.5,16,HIGH,MODERATE,LOW_EVIDENCE,4,0,Course Hero,NO,"4 course-specific site(s): coursehero.com, quizlet.com, studocu.com"
+208,North Park University,IL,ACCT 2110,37.3,16,HIGH,STRONG,CROWDED,2,2,acct2110.com,NO,"2 course-specific site(s): coursehero.com, acct2110.com | 1 local paid accounting competitor(s)"
+209,University of Denver,CO,ACTG 2200,70.2,15.5,HIGH,STRONG,CROWDED,0,3,highperformancetutoring.com,NO,1 local paid accounting competitor(s) | 2 campus-specific platform(s)
+210,University of Maine,ME,,53.1,15.5,HIGH,STRONG,CROWDED,0,3,teachme2.com,NO,1 local paid accounting competitor(s) | 2 campus-specific platform(s)
+211,University of Tennessee,TN,,93.6,15,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+212,Georgia Southern University,GA,,79.9,15,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+213,James Madison University,VA,COB 241,75.1,15,HIGH,STRONG,CROWDED,1,2,cob241.com,NO,1 course-specific site(s): cob241.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+214,"University of Nevada, Reno",NV,,73.4,15,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+215,Utah State University,UT,,72,15,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+216,Kent State University,OH,ACCT 23020,71.2,15,HIGH,STRONG,CROWDED,1,2,acct23020.com,NO,1 course-specific site(s): acct23020.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+217,Univ of Nebraska at Omaha,NE,ACCT 2010,69,15,HIGH,STRONG,CROWDED,1,2,Wize Prep,NO,1 course-specific site(s): wizeprep.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+218,Univ of Central Oklahoma,OK,,65.4,15,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+219,Utah Tech University,UT,ACCT 2010,57.3,15,HIGH,STRONG,CROWDED,1,2,Wize Prep,NO,1 course-specific site(s): wizeprep.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+220,Hofstra University,NY,ACCT 101,56.3,15,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+221,Arkansas State University,AR,ACCT 2023,53.4,15,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+222,Univ of Michigan-Dearborn,MI,,52.6,15,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+223,Texas A&M University-Commerce,TX,,51.9,15,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+224,Dallas Baptist University,TX,ACCT 2301,51,15,HIGH,STRONG,CROWDED,1,2,acct2301.com,NO,1 course-specific site(s): acct2301.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+225,LeMoyne College,NY,ACT 201,46.9,15,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+226,Oral Roberts University,OK,ACT 215,45,15,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+227,Northwestern State University,LA,ACCT 2000,44.6,15,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+228,Florida A&M University,FL,ACG 2021,44.6,15,HIGH,STRONG,CROWDED,1,2,acg2021fiu.com,NO,1 course-specific site(s): acg2021fiu.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+229,Southeastern Oklahoma State University,OK,ACCT 2103,44.1,15,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+230,Lipscomb University,TN,AC 2103,41.8,15,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+231,Univ of Nebraska at Kearney,NE,ACCT 250,41.8,15,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+232,Belmont University,TN,,41.7,15,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+233,Tarrant County College,TX,,31.3,15,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+234,University of St. Thomas,TX,ACCT 2301,26.8,15,HIGH,STRONG,CROWDED,1,2,acct2301.com,NO,1 course-specific site(s): acct2301.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+235,Univ N Carolina at Pembroke,NC,ACC 2270,22.9,15,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+236,Penn State DuBois,PA,ACCT 211,19.8,15,HIGH,STRONG,VALIDATED_PAID_MARKET,1,2,Wize Prep,NO,1 course-specific site(s): wizeprep.com | 1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+237,San Diego State University San,CA,ACCT 100,85.4,14.5,HIGH,STRONG,CROWDED,2,1,acct2001.com,NO,"2 course-specific site(s): coursehero.com, acct2001.com | 1 local paid accounting competitor(s)"
+238,Un of Massachusetts Amherst,MA,,83.1,14.5,HIGH,STRONG,CROWDED,2,1,Course Hero,NO,"2 course-specific site(s): coursehero.com, studocu.com | 1 local paid accounting competitor(s)"
+239,Old Dominion University,VA,ACCT 201,71.6,14.5,HIGH,STRONG,CROWDED,2,1,acct201a.com,NO,"2 course-specific site(s): coursehero.com, acct201a.com | 1 local paid accounting competitor(s)"
+240,"So Illinois, Edwardsville",IL,ACCT 200,68.6,14.5,HIGH,STRONG,CROWDED,2,1,acct200ku.com,NO,"2 course-specific site(s): acct200ku.com, coursehero.com | 1 local paid accounting competitor(s)"
+241,University of West Georgia,GA,ACCT 2101,68.4,14.5,HIGH,STRONG,CROWDED,2,1,acct2101uga.com,NO,"2 course-specific site(s): coursehero.com, acct2101uga.com | 1 local paid accounting competitor(s)"
+242,University of Idaho,ID,ACCT 201,50.9,14.5,HIGH,STRONG,CROWDED,2,1,acct201a.com,NO,"2 course-specific site(s): coursehero.com, acct201a.com | 1 local paid accounting competitor(s)"
+243,Lamar University,TX,ACCT 2301,48.9,14.5,HIGH,STRONG,CROWDED,2,1,acct2301.com,NO,"2 course-specific site(s): coursehero.com, acct2301.com | 1 local paid accounting competitor(s)"
+244,Rollins College Winter,FL,ACC 501,47.9,14.5,HIGH,STRONG,CROWDED,2,1,Course Hero,NO,"2 course-specific site(s): coursehero.com, scribd.com | 1 local paid accounting competitor(s)"
+245,University of Illinois,IL,,77.2,14,HIGH,STRONG,CROWDED,0,2,bufftutor.com,NO,1 local paid accounting competitor(s) | 2 campus-specific platform(s)
+246,Concord University,WV,ACCT 205,15.9,14,HIGH,STRONG,VALIDATED_PAID_MARKET,2,2,Wize Prep,NO,"2 course-specific site(s): wizeprep.com, coursehero.com | 1 campus-specific platform(s)"
+247,Woodbury University,CA,ACCT 205,11.9,14,HIGH,STRONG,VALIDATED_PAID_MARKET,2,2,Wize Prep,NO,"2 course-specific site(s): wizeprep.com, coursehero.com | 1 campus-specific platform(s)"
+248,Bentley University,MA,,78.9,13,HIGH,STRONG,CROWDED,0,2,bentley-vanguard.org,NO,2 local paid accounting competitor(s)
+249,University of Miami Coral,FL,,76.4,13,MEDIUM,STRONG,CROWDED,0,2,themiamihurricane.com,NO,2 local paid accounting competitor(s)
+250,Miami Dade College,FL,,76.1,13,HIGH,STRONG,VALIDATED_PAID_MARKET,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 campus-specific platform(s)
+251,Northern Illinois Univ,IL,,71.3,13,HIGH,STRONG,CROWDED,0,2,northernstar.info,NO,2 local paid accounting competitor(s)
+252,Southern Utah University Cedar,UT,,63.4,13,MEDIUM,STRONG,CROWDED,0,2,monster.com,NO,2 local paid accounting competitor(s)
+253,Weber State University,UT,,58.4,13,HIGH,STRONG,CROWDED,0,2,weberstatesports.com,NO,2 local paid accounting competitor(s)
+254,Pepperdine Un-Los Angeles Los,CA,,55.8,13,HIGH,STRONG,CROWDED,0,2,bufftutor.com,NO,2 local paid accounting competitor(s)
+255,Stonehill College,MA,ACC 203,53.3,13,HIGH,STRONG,VALIDATED_PAID_MARKET,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 campus-specific platform(s)
+256,Texas Woman's University,TX,ACCT 2043,52.6,13,HIGH,STRONG,VALIDATED_PAID_MARKET,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 campus-specific platform(s)
+257,McNeese State University Lake,LA,BUA 1000,49.3,13,HIGH,STRONG,CROWDED,0,2,migratemate.co,NO,2 local paid accounting competitor(s)
+258,Uof Arkansas at Little Rock Little,AR,,48.8,13,HIGH,STRONG,CROWDED,0,2,kidsontheyard.com,NO,2 local paid accounting competitor(s)
+259,Rochester Inst of Technology,NY,,47.6,13,HIGH,STRONG,VALIDATED_PAID_MARKET,1,2,Wize Prep,NO,1 course-specific site(s): wizeprep.com | 2 campus-specific platform(s)
+260,Univ Illinois at Springfield,IL,ACC 211,40.6,13,HIGH,STRONG,CROWDED,0,2,teacheron.com,NO,2 local paid accounting competitor(s)
+261,St. Mary's University San,TX,,37.1,13,MEDIUM,STRONG,CROWDED,0,2,eduopinions.com,NO,2 local paid accounting competitor(s)
+262,Widener University,PA,,36.4,13,HIGH,STRONG,CROWDED,0,2,fdpclearinghouse.org,NO,2 local paid accounting competitor(s)
+263,Washburn University,KS,,33.1,13,HIGH,STRONG,VALIDATED_PAID_MARKET,0,2,washburnreview.org,NO,2 local paid accounting competitor(s)
+264,Suffolk County Community College,NY,,27.5,13,MEDIUM,STRONG,LOW_EVIDENCE,0,2,thembatutors.com,NO,2 local paid accounting competitor(s)
+265,De Anza College,CA,,26.5,13,HIGH,STRONG,LOW_EVIDENCE,0,2,lavozdeanza.com,NO,2 local paid accounting competitor(s)
+266,Los Angeles Valley College,CA,,26,13,HIGH,STRONG,LOW_EVIDENCE,0,2,jobapscloud.com,NO,2 local paid accounting competitor(s)
+267,University of Hawaii at Hilo,HI,,25.4,13,HIGH,STRONG,LOW_EVIDENCE,0,2,candidcareer.com,NO,2 local paid accounting competitor(s)
+268,University of Dallas,TX,BUS 1310,24.9,13,HIGH,STRONG,VALIDATED_PAID_MARKET,1,2,Wize Prep,NO,1 course-specific site(s): wizeprep.com | 2 campus-specific platform(s)
+269,University of Oklahoma,OK,ACCT 2113,24.7,13,HIGH,STRONG,VALIDATED_PAID_MARKET,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 2 campus-specific platform(s)
+270,Lansing Community College,MI,,22.1,13,HIGH,STRONG,LOW_EVIDENCE,0,2,career.io,NO,2 local paid accounting competitor(s)
+271,Evergreen Valley College,CA,,22,13,HIGH,STRONG,LOW_EVIDENCE,0,2,evctutoring.com,NO,2 local paid accounting competitor(s)
+272,Penn State Brandywine,PA,ACCTG 211,20,13,HIGH,STRONG,CROWDED,0,2,liontutors.com,NO,2 local paid accounting competitor(s)
+273,Penn State U Great Valley,PA,ACCTG 211,4.5,13,HIGH,STRONG,CROWDED,0,2,liontutors.com,NO,2 local paid accounting competitor(s)
+274,Mississippi State University,MS,ACC 2013,80.8,12.5,HIGH,STRONG,VALIDATED_PAID_MARKET,2,1,Quizlet,NO,"2 course-specific site(s): quizlet.com, coursehero.com | 1 campus-specific platform(s)"
+275,Brigham Young University,UT,,79.1,12.5,HIGH,STRONG,VALIDATED_PAID_MARKET,2,1,Course Hero,NO,"2 course-specific site(s): coursehero.com, studocu.com | 1 campus-specific platform(s)"
+276,Metropolitan St Univ Denver,CO,ACC 2010,76.2,12.5,HIGH,STRONG,VALIDATED_PAID_MARKET,2,1,Wize Prep,NO,"2 course-specific site(s): coursehero.com, wizeprep.com | 1 campus-specific platform(s)"
+277,King's College - Pennsylvania,PA,ACCT 115,39,12.5,HIGH,STRONG,VALIDATED_PAID_MARKET,2,1,Wize Prep,NO,"2 course-specific site(s): wizeprep.com, coursehero.com | 1 campus-specific platform(s)"
+278,Embry-Riddle Aeronautical U Daytona,FL,ACCT 210,30.1,12.5,HIGH,STRONG,VALIDATED_PAID_MARKET,2,1,Wize Prep,NO,"2 course-specific site(s): coursehero.com, wizeprep.com | 1 campus-specific platform(s)"
+279,Appalachian State Univ,NC,,87.6,12,HIGH,STRONG,CROWDED,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s)
+280,Virginia Poly Inst & St Un,VA,,90.9,11,HIGH,STRONG,CROWDED,0,2,acis2115.com,NO,1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+281,Rutgers University-Newark,NJ,,80.9,11,HIGH,STRONG,CROWDED,0,2,nabainc.org,NO,1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+282,University of St. Thomas-MN St.,MN,,77,11,HIGH,STRONG,CROWDED,0,2,trabajo.org,NO,1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+283,University of Illinois Chicago,IL,ACTG 210,74.9,11,HIGH,STRONG,CROWDED,0,2,uicflames.com,NO,1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+284,Villanova University,PA,,71.4,11,HIGH,STRONG,CROWDED,0,2,ebay.com,NO,1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+285,Cleveland State University,OH,ACT 221,65,11,HIGH,STRONG,CROWDED,0,2,graduatetutor.com,NO,1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+286,Youngstown State University,OH,,61.6,11,HIGH,STRONG,CROWDED,0,2,ysusports.com,NO,1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+287,Aurora University,IL,,59.7,11,HIGH,STRONG,CROWDED,0,2,higheredspace.com,NO,1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+288,University of West Florida,FL,,58.6,11,HIGH,STRONG,CROWDED,0,2,tutors.com,NO,1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+289,Western New England Univ,MA,,45.9,11,HIGH,STRONG,CROWDED,0,2,applyboard.com,NO,1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+290,Virginia State University,VA,,41.7,11,HIGH,STRONG,CROWDED,0,2,sulekha.com,NO,1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+291,Morehouse College,GA,HBA 201,40.5,11,HIGH,STRONG,CROWDED,0,2,career.io,NO,1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+292,"College at Brockport, SUNY",NY,,38.4,11,HIGH,STRONG,VALIDATED_PAID_MARKET,0,2,ny.us,NO,1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+293,Northern State University,SD,,33.7,11,HIGH,STRONG,CROWDED,0,2,distancelearningportal.com,NO,1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+294,Weatherford College,TX,,29.5,11,HIGH,STRONG,LOW_EVIDENCE,0,2,weatherfordbooks.com,NO,1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+295,Hawaii Pacific University,HI,ACCT 2000,29,11,HIGH,STRONG,CROWDED,0,2,galepages.com,NO,1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+296,University of Evansville,IN,,27.6,11,HIGH,STRONG,LOW_EVIDENCE,0,2,askfilo.com,NO,1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+297,Santa Rosa Junior College,CA,,26.5,11,HIGH,STRONG,LOW_EVIDENCE,0,2,icangotocollege.com,NO,1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+298,Union University,TN,ACC 211,24.9,11,HIGH,STRONG,CROWDED,0,2,teacheron.com,NO,1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+299,Univ N Carolina at Charlotte,NC,ACCT 2121,22.9,11,HIGH,STRONG,CROWDED,0,2,tutors.com,NO,1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+300,Rice University,TX,,21.1,11,HIGH,STRONG,LOW_EVIDENCE,0,2,graduatetutor.com,NO,1 local paid accounting competitor(s) | 1 campus-specific platform(s)
+301,University of Notre Dame Notre,IN,ACCT 20100,77.2,10.5,HIGH,STRONG,CROWDED,1,1,Studocu,NO,1 course-specific site(s): studocu.com | 1 local paid accounting competitor(s)
+302,Oakland University,MI,ACC 2000,72.6,10.5,HIGH,STRONG,CROWDED,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s)
+303,"Calif St U, San Bernardino S",CA,,68,10.5,HIGH,STRONG,CROWDED,1,1,SweetStudy,NO,1 course-specific site(s): sweetstudy.com | 1 local paid accounting competitor(s)
+304,Bowling Green State Univ Bowling,OH,,67.5,10.5,HIGH,STRONG,CROWDED,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s)
+305,Creighton University,NE,,59.9,10.5,HIGH,STRONG,CROWDED,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s)
+306,University of North Alabama,AL,AC 291,58,10.5,HIGH,STRONG,CROWDED,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s)
+307,North Carolina A&T State Un,NC,,55.9,10.5,HIGH,STRONG,CROWDED,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s)
+308,Walsh College,MI,,52.8,10.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s)
+309,Clayton State University,GA,,50.3,10.5,HIGH,STRONG,CROWDED,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s)
+310,Winthrop University Rock,SC,,45.3,10.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s)
+311,Emporia State University,KS,,40.5,10.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s)
+312,University of Mount Olive,NC,,38.6,10.5,HIGH,STRONG,CROWDED,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s)
+313,Colorado State Univ-Pueblo,CO,,37.5,10.5,HIGH,STRONG,CROWDED,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s)
+314,University of Mary Washington,VA,ACCT 101,30.6,10.5,HIGH,STRONG,CROWDED,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s)
+315,Texas A&M Univ-Kingsville,TX,ACCT 2301,28.9,10.5,HIGH,STRONG,CROWDED,1,1,acct2301.com,NO,1 course-specific site(s): acct2301.com | 1 local paid accounting competitor(s)
+316,Carson Newman University,TN,ACCT 201,27.2,10.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,acct201a.com,NO,1 course-specific site(s): acct201a.com | 1 local paid accounting competitor(s)
+317,Central College,IA,ACCT 241,26.5,10.5,HIGH,STRONG,CROWDED,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s)
+318,Community College of Rhode Island,RI,,24.4,10.5,HIGH,STRONG,LOW_EVIDENCE,1,1,Quizlet,NO,1 course-specific site(s): quizlet.com | 1 local paid accounting competitor(s)
+319,Jacksonville University,FL,ACCT 201,23.9,10.5,HIGH,STRONG,CROWDED,1,1,acct201a.com,NO,1 course-specific site(s): acct201a.com | 1 local paid accounting competitor(s)
+320,Bryant & Stratton College,NY,ACCT 100,22.4,10.5,HIGH,STRONG,CROWDED,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s)
+321,Howard Community College,MD,,21.5,10.5,HIGH,STRONG,LOW_EVIDENCE,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 local paid accounting competitor(s)
+322,Walla Walla University,WA,ACCT 201,17.7,10.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,acct201a.com,NO,1 course-specific site(s): acct201a.com | 1 local paid accounting competitor(s)
+323,Quinnipiac University,CT,AC-211,62.2,10,HIGH,STRONG,VALIDATED_PAID_MARKET,1,2,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+324,Amberton University,TX,,24.4,10,HIGH,STRONG,LOW_EVIDENCE,0,2,FrogTutoring,YES,2 campus-specific platform(s)
+325,Western Michigan University,MI,,85.2,9,HIGH,STRONG,VALIDATED_PAID_MARKET,0,2,FrogTutoring,NO,2 campus-specific platform(s)
+326,New York University,NY,ACCT-UB 1,64.1,9,HIGH,STRONG,VALIDATED_PAID_MARKET,0,2,Knack,NO,2 campus-specific platform(s)
+327,Alabama State University,AL,ACT 211,24.5,9,HIGH,STRONG,VALIDATED_PAID_MARKET,0,2,FrogTutoring,NO,2 campus-specific platform(s)
+328,DePaul University,IL,,87.6,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+329,Illinois State University,IL,,84.7,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+330,Boise State University,ID,,84.4,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+331,Wayne State University,MI,,83.4,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+332,The University of Texas at San Antonio,TX,ACC 2013,80.3,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+333,Oregon State University,OR,BA 211Z,76.9,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+334,Northern Arizona University,AZ,ACC 255,76.5,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+335,Portland State University,OR,,76,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+336,University of Wisconsin–Milwaukee,WI,BUS ADM 201,72,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+337,Western Carolina University,NC,,71.2,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+338,University of Rhode Island,RI,,70.3,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+339,San Francisco State University,CA,ACCT 100,68.6,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+340,Valdosta State University,GA,,66.8,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+341,University of Southern Mississippi,MS,ACC 200,66.5,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+342,Pace University New,NY,ACC 203,65.9,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+343,Loyola University Maryland,MD,AC 201,61.6,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+344,Univ of Central Arkansas,AR,,60.9,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+345,University of Massachusetts Lowell,MA,ACCT.2010,59.8,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+346,Xavier University,OH,,59,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+347,University of Houston - Victoria,TX,,58.5,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+348,Texas A&M International University,TX,,57.8,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+349,Siena College,NY,ACCT - 200,57.5,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+350,Athens State University,AL,,57.3,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+351,New Jersey City University,NJ,,56.9,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+352,University of Scranton,PA,,55.7,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+353,William Paterson University,NJ,,53.6,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+354,Manhattan College,NY,,47.9,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+355,Florida Southern College,FL,,46.7,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+356,Southeastern Oklahoma St,OK,ACCT-2103,44.1,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+357,Campbell University,NC,ACCT 215,43.5,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+358,Texas A&M Univ-Texarkana,TX,,37.2,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+359,Case Western Reserve Univ,OH,,35.3,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+360,Fort Lewis College,CO,ACC 225,33.2,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+361,Champlain College,VT,ACC 110,28.6,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Wize Prep,NO,1 course-specific site(s): wizeprep.com | 1 campus-specific platform(s)
+362,Alma College,MI,,27.6,8.5,HIGH,STRONG,LOW_EVIDENCE,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+363,Bay Path University,MA,ACC 100,26.8,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Wize Prep,NO,1 course-specific site(s): wizeprep.com | 1 campus-specific platform(s)
+364,Ottawa University,KS,ACC 20364,26,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Course Hero,NO,1 course-specific site(s): coursehero.com | 1 campus-specific platform(s)
+365,Cedar Crest College,PA,ACC 101,11.2,8.5,HIGH,STRONG,VALIDATED_PAID_MARKET,1,1,Wize Prep,NO,1 course-specific site(s): wizeprep.com | 1 campus-specific platform(s)
+366,St. John's University,NY,,79.4,8,HIGH,MODERATE,WHITE_SPACE,2,0,Course Hero,NO,"2 course-specific site(s): coursehero.com, studocu.com"
+367,Trinity University San,TX,,48.3,8,HIGH,STRONG,VALIDATED_PAID_MARKET,0,2,gradright.com,NO,1 local paid accounting competitor(s)
+368,University of Iowa Iowa,IA,,89.6,6.5,HIGH,STRONG,CROWDED,0,1,accounting.com,NO,1 local paid accounting competitor(s)
+369,Texas Christian University Fort,TX,,81.7,6.5,MEDIUM,STRONG,CROWDED,0,1,edumaritime.net,NO,1 local paid accounting competitor(s)
+370,University of Utah Salt Lake,UT,,77.7,6.5,HIGH,STRONG,CROWDED,0,1,studee.com,NO,1 local paid accounting competitor(s)
+371,"Calif State Univ, Long Beach Long",CA,,75.2,6.5,MEDIUM,STRONG,VALIDATED_PAID_MARKET,0,1,escholarship.org,NO,1 local paid accounting competitor(s)
+372,University of San Diego San,CA,,73.4,6.5,MEDIUM,STRONG,VALIDATED_PAID_MARKET,0,1,oceandiscoveryinstitute.org,NO,1 local paid accounting competitor(s)
+373,Univ of Missouri - St. Louis St.,MO,ACCTNG 2400,70.6,6.5,HIGH,STRONG,CROWDED,0,1,finalsite.net,NO,1 local paid accounting competitor(s)
+374,Colorado State University Fort,CO,,69.1,6.5,MEDIUM,STRONG,CROWDED,0,1,sonara.ai,NO,1 local paid accounting competitor(s)
+375,Central Connecticut St Univ New,CT,,68.9,6.5,HIGH,STRONG,CROWDED,0,1,centralcu.org,NO,1 local paid accounting competitor(s)
+376,"Univ of Calif, Riverside",CA,,68.7,6.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,escholarship.org,NO,1 local paid accounting competitor(s)
+377,Northwood University,MI,ACC-2410,66.2,6.5,HIGH,STRONG,CROWDED,0,1,pcdn.co,NO,1 local paid accounting competitor(s)
+378,Uof Minnesota Duluth,MN,,65.2,6.5,HIGH,STRONG,CROWDED,0,1,coursedog.com,NO,1 local paid accounting competitor(s)
+379,Wright State University,OH,,61.7,6.5,MEDIUM,STRONG,CROWDED,0,1,ecampus.com,NO,1 local paid accounting competitor(s)
+380,Saint Louis University St.,MO,,61.6,6.5,MEDIUM,STRONG,VALIDATED_PAID_MARKET,0,1,smapse.com,NO,1 local paid accounting competitor(s)
+381,Indiana University of Pennsylvania,PA,,61.5,6.5,HIGH,STRONG,CROWDED,0,1,indianagazette.com,NO,1 local paid accounting competitor(s)
+382,University of The Cumberlands,KY,,58.1,6.5,HIGH,STRONG,CROWDED,0,1,goelite.com,NO,1 local paid accounting competitor(s)
+383,University of New Orleans New,LA,,58,6.5,MEDIUM,STRONG,VALIDATED_PAID_MARKET,0,1,thelensnola.org,NO,1 local paid accounting competitor(s)
+384,Yeshiva University New,NY,,56.7,6.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,smapse.com,NO,1 local paid accounting competitor(s)
+385,University of North Dakota Grand,ND,,56.3,6.5,MEDIUM,STRONG,VALIDATED_PAID_MARKET,0,1,criminaljusticedegreeschools.com,NO,1 local paid accounting competitor(s)
+386,Pepperdine Univ-Malibu,CA,,55.8,6.5,MEDIUM,STRONG,CROWDED,0,1,smapse.com,NO,1 local paid accounting competitor(s)
+387,Lone Star College,TX,,52.8,6.5,HIGH,STRONG,CROWDED,0,1,chronicle.com,NO,1 local paid accounting competitor(s)
+388,John Carroll University,OH,,52.7,6.5,MEDIUM,STRONG,CROWDED,0,1,wayup.com,NO,1 local paid accounting competitor(s)
+389,Purdue University Northwest,IN,ACC 20000,52.6,6.5,HIGH,STRONG,CROWDED,0,1,greatnews.life,NO,1 local paid accounting competitor(s)
+390,Lander University,SC,,51.1,6.5,HIGH,STRONG,CROWDED,0,1,wixsite.com,NO,1 local paid accounting competitor(s)
+391,Washington and Lee Univ,VA,,47.9,6.5,HIGH,STRONG,CROWDED,0,1,wdbj7.com,NO,1 local paid accounting competitor(s)
+392,Montana State Univ-Billings,MT,ACTG 201,42.2,6.5,HIGH,STRONG,CROWDED,0,1,academicworks.com,NO,1 local paid accounting competitor(s)
+393,Niagara University Niagara,NY,,39.6,6.5,MEDIUM,STRONG,VALIDATED_PAID_MARKET,0,1,acceptancerate.com,NO,1 local paid accounting competitor(s)
+394,Norfolk State University,VA,,38.2,6.5,MEDIUM,STRONG,VALIDATED_PAID_MARKET,0,1,bufftutor.com,NO,1 local paid accounting competitor(s)
+395,Alabama A&M University,AL,,38,6.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,whnt.com,NO,1 local paid accounting competitor(s)
+396,Adelphi University Garden,NY,,37.5,6.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,theeduledger.com,NO,1 local paid accounting competitor(s)
+397,Fairleigh Dickinson Univ,NJ,,37.3,6.5,HIGH,STRONG,CROWDED,0,1,jewishlink.news,NO,1 local paid accounting competitor(s)
+398,Rogers State University,OK,,34.8,6.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,b-cdn.net,NO,1 local paid accounting competitor(s)
+399,Barry University Miami,FL,,34.5,6.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,toeflsaudi.org,NO,1 local paid accounting competitor(s)
+400,Bellarmine University,KY,,32.2,6.5,HIGH,STRONG,CROWDED,0,1,amazonaws.com,NO,1 local paid accounting competitor(s)
+401,University of St. Thomas-TX,TX,,30.9,6.5,MEDIUM,STRONG,CROWDED,0,1,collegeraptor.com,NO,1 local paid accounting competitor(s)
+402,Uof Arkansas at Monticello,AR,,30.8,6.5,HIGH,STRONG,CROWDED,0,1,insighttutoring.online,NO,1 local paid accounting competitor(s)
+403,"Univ of Calif, Los Angeles Los",CA,,30.5,6.5,MEDIUM,STRONG,CROWDED,0,1,escholarship.org,NO,1 local paid accounting competitor(s)
+404,Southwestern Oklahoma State University,OK,,30,6.5,HIGH,STRONG,CROWDED,0,1,peregrineglobal.com,NO,1 local paid accounting competitor(s)
+405,Mt. San Antonio College,CA,,29.4,6.5,MEDIUM,STRONG,LOW_EVIDENCE,0,1,globaldatebooksonline.com,NO,1 local paid accounting competitor(s)
+406,Aquinas College Grand,MI,,29.3,6.5,MEDIUM,STRONG,LOW_EVIDENCE,0,1,yumpu.com,NO,1 local paid accounting competitor(s)
+407,Loyola University New Orleans,LA,ACCT B202,28.8,6.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,vishalcpaprep.com,NO,1 local paid accounting competitor(s)
+408,Pasadena City College,CA,,28.6,6.5,MEDIUM,STRONG,LOW_EVIDENCE,0,1,icangotocollege.com,NO,1 local paid accounting competitor(s)
+409,Chaffey College,CA,,27.7,6.5,HIGH,STRONG,LOW_EVIDENCE,0,1,programmapper.com,NO,1 local paid accounting competitor(s)
+410,Catawba College,NC,ACC 1901,27.3,6.5,HIGH,STRONG,CROWDED,0,1,amazonaws.com,NO,1 local paid accounting competitor(s)
+411,Rockhurst University Kansas,MO,,27.1,6.5,HIGH,STRONG,LOW_EVIDENCE,0,1,unipage.net,NO,1 local paid accounting competitor(s)
+412,Orange Coast College,CA,,26.6,6.5,MEDIUM,STRONG,LOW_EVIDENCE,0,1,governmentjobs.com,NO,1 local paid accounting competitor(s)
+413,Community College of Baltimore County,MD,,26.1,6.5,HIGH,STRONG,LOW_EVIDENCE,0,1,governmentjobs.com,NO,1 local paid accounting competitor(s)
+414,Chandler–Gilbert Community College,AZ,,25.8,6.5,HIGH,STRONG,LOW_EVIDENCE,0,1,tutordoctor.com,NO,1 local paid accounting competitor(s)
+415,Harrisburg Area Community College,PA,,24.7,6.5,MEDIUM,STRONG,LOW_EVIDENCE,0,1,mathhelp.com,NO,1 local paid accounting competitor(s)
+416,Chabot College,CA,,24.2,6.5,MEDIUM,STRONG,LOW_EVIDENCE,0,1,mathhelp.com,NO,1 local paid accounting competitor(s)
+417,Ohio Northern University,OH,BIZ 2101,23.8,6.5,MEDIUM,STRONG,VALIDATED_PAID_MARKET,0,1,northernreview.org,NO,1 local paid accounting competitor(s)
+418,Ventura College,CA,,23.7,6.5,HIGH,STRONG,LOW_EVIDENCE,0,1,azurewebsites.net,NO,1 local paid accounting competitor(s)
+419,Prince George's Community College,MD,,23.3,6.5,MEDIUM,STRONG,LOW_EVIDENCE,0,1,comevo.com,NO,1 local paid accounting competitor(s)
+420,Cuesta College,CA,,23.2,6.5,MEDIUM,STRONG,LOW_EVIDENCE,0,1,icangotocollege.com,NO,1 local paid accounting competitor(s)
+421,Golden West College,CA,,23.2,6.5,HIGH,STRONG,LOW_EVIDENCE,0,1,goldenwestcareereducation.com,NO,1 local paid accounting competitor(s)
+422,Laney College,CA,,22.9,6.5,MEDIUM,STRONG,LOW_EVIDENCE,0,1,icangotocollege.com,NO,1 local paid accounting competitor(s)
+423,South Plains College,TX,,21.8,6.5,HIGH,STRONG,LOW_EVIDENCE,0,1,tx.cpa,NO,1 local paid accounting competitor(s)
+424,Furman University,SC,ACC 111,21,6.5,HIGH,STRONG,CROWDED,0,1,tutoringprof.com,NO,1 local paid accounting competitor(s)
+425,Anderson University IN,IN,,21,6.5,MEDIUM,STRONG,LOW_EVIDENCE,0,1,american-school-search.com,NO,1 local paid accounting competitor(s)
+426,Hannibal-LaGrange University,MO,ACC 243,20.9,6.5,MEDIUM,STRONG,CROWDED,0,1,missourihealthcareers.com,NO,1 local paid accounting competitor(s)
+427,East Central University,OK,,20.8,6.5,HIGH,STRONG,LOW_EVIDENCE,0,1,nse.org,NO,1 local paid accounting competitor(s)
+428,Arcadia University,PA,,20.6,6.5,MEDIUM,STRONG,LOW_EVIDENCE,0,1,careerkarma.com,NO,1 local paid accounting competitor(s)
+429,Evangel University,MO,,20.4,6.5,MEDIUM,STRONG,LOW_EVIDENCE,0,1,acbsp.org,NO,1 local paid accounting competitor(s)
+430,Dominican Univ of Calif San,CA,ACCT 101,15.6,6.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,tutors-on-call.com,NO,1 local paid accounting competitor(s)
+431,Fairfield University,CT,,73.6,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+432,University of Missouri–St. Louis,MO,ACCTNG 2400,70.6,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+433,"Calif State Univ, Sacramento",CA,,69.5,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+434,University at Albany-SUNY,NY,,68,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+435,University of New Hampshire,NH,ACCT 532,65.8,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,Knack,NO,1 campus-specific platform(s)
+436,West Texas A&M University,TX,,62.3,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+437,University of Louisiana at Lafayette,LA,,61.1,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+438,"Rutgers, The State University of New Jersey",NJ,,60.6,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+439,Murray State University,KY,ACC 200,60.3,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+440,University of Massachusetts Dartmouth,MA,ACT 211,60,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+441,University of Indianapolis,IN,,53.7,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+442,Prairie View A&M University,TX,,50.7,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+443,University of Minnesota Crookston,MN,,49.1,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+444,Long Island U.-LIU Post,NY,,49.1,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+445,Univ of Southern Maine,ME,,48.9,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+446,Northeastern Illinois Univ,IL,ACTG-201,45.7,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+447,Univ of Louisiana at Monroe,LA,,42.2,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+448,Saint Xavier University,IL,,40.8,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+449,Clark Atlanta University,GA,,40.8,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+450,Harding University,AR,,39.5,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+451,University of Rochester,NY,,38.9,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+452,Augsburg College,MN,,38.8,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+453,Columbus State University,GA,,38,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+454,Radford University,VA,ACTG 211,37.7,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+455,Univ of Northern Colorado,CO,,37.2,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+456,Indiana University Kokomo,IN,,35.9,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+457,University of Portland,OR,,35,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+458,Olympic College,WA,,34.5,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+459,Abilene Christian Univ,TX,,33.7,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+460,Univ of Alaska Fairbanks,AK,ACCT F261X,33.2,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+461,Black Hills State University,SD,,33.2,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+462,Charleston Southern Univ,SC,,32.8,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+463,Adrian College,MI,,31.4,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+464,John Brown University,AR,ATG 2173,31.1,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+465,Shorter University,GA,,31.1,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+466,Millsaps College,MS,,30.2,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+467,Michigan Technological Univ,MI,ACC 2000,29.7,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+468,Fresno City College,CA,,28.9,4.5,HIGH,STRONG,LOW_EVIDENCE,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+469,Wilkes University,PA,,27,4.5,HIGH,STRONG,LOW_EVIDENCE,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+470,Wartburg College,IA,,26.1,4.5,HIGH,STRONG,LOW_EVIDENCE,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+471,Univ of District of Columbia,DC,,26.1,4.5,HIGH,STRONG,LOW_EVIDENCE,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+472,Queens Univ of Charlotte,NC,ACC 120,25.7,4.5,HIGH,STRONG,VALIDATED_PAID_MARKET,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+473,San Jacinto College,TX,,24.9,4.5,HIGH,STRONG,LOW_EVIDENCE,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+474,University of Detroit Mercy,MI,,23.5,4.5,HIGH,STRONG,LOW_EVIDENCE,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+475,Alfred University,NY,,23.5,4.5,HIGH,STRONG,LOW_EVIDENCE,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+476,Reedley College,CA,,20.9,4.5,HIGH,STRONG,LOW_EVIDENCE,0,1,FrogTutoring,NO,1 campus-specific platform(s)
+477,Michigan State University East,MI,,86.8,4,HIGH,MODERATE,WHITE_SPACE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+478,CUNY-Brooklyn College,NY,,82,4,HIGH,MODERATE,WHITE_SPACE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+479,Franklin University,OH,,81.9,4,HIGH,MODERATE,WHITE_SPACE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+480,Bryant University,RI,,74,4,HIGH,MODERATE,WHITE_SPACE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+481,Southeastern Louisiana Univ,LA,,72.5,4,HIGH,MODERATE,WHITE_SPACE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+482,East Carolina University,NC,ACCT 2401,72.4,4,HIGH,MODERATE,WHITE_SPACE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+483,Florida State College at Jacksonville,FL,,69,4,HIGH,MODERATE,WHITE_SPACE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+484,Ramapo College-New Jersey,NJ,ACCT 221,64,4,HIGH,MODERATE,WHITE_SPACE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+485,Tennessee Technological Un,TN,,62.6,4,HIGH,MODERATE,WHITE_SPACE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+486,Eastern Michigan University,MI,ACC 240,62,4,HIGH,MODERATE,WHITE_SPACE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+487,Bemidji State University,MN,,54.1,4,HIGH,MODERATE,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+488,University of South Alabama,AL,,50.8,4,HIGH,MODERATE,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+489,Uof Texas of Permian Basin,TX,,50.5,4,HIGH,MODERATE,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+490,Jacksonville State University,AL,ACC 200,50.2,4,HIGH,MODERATE,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+491,Seminole State College of Florida,FL,,48.1,4,HIGH,WEAK,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+492,Wayland Baptist University,TX,ACCT 2305,46.1,4,HIGH,MODERATE,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+493,Univ of Tennessee at Martin,TN,,45.9,4,HIGH,MODERATE,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+494,Missouri Southern St Univ,MO,ACCT 0201,44.6,4,HIGH,MODERATE,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+495,Missouri Southern State University,MO,AC 201,44.6,4,HIGH,MODERATE,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+496,State Un College at Geneseo,NY,ACCT 102,43.5,4,HIGH,MODERATE,LOW_EVIDENCE,0,0,Scribd,YES,paid accounting search ads observed
+497,"Auburn Univ, Montgomery",AL,,41.9,4,HIGH,MODERATE,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+498,North Carolina Central Univ,NC,ACCT 2400,38.5,4,HIGH,MODERATE,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+499,Francis Marion University,SC,,37.1,4,HIGH,MODERATE,LOW_EVIDENCE,0,0,The Princeton Review,YES,paid accounting search ads observed
+500,Truman State University,MO,,35.9,4,HIGH,MODERATE,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+501,SUNY Polytechnic Institute,NY,,33.8,4,HIGH,MODERATE,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+502,Southern Arkansas Univ,AR,ACCT 2003,33.4,4,HIGH,MODERATE,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+503,Northern Virginia Community College,VA,,31.6,4,HIGH,MODERATE,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+504,Collin College,TX,,28.3,4,HIGH,MODERATE,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+505,Cerritos College,CA,,27.9,4,HIGH,WEAK,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+506,Oakland Community College,MI,,25.1,4,HIGH,MODERATE,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+507,Jefferson Community and Technical College,KY,,24.4,4,HIGH,WEAK,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+508,Nassau Community College,NY,,23.9,4,HIGH,WEAK,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+509,Brookdale Community College,NJ,,22.5,4,HIGH,WEAK,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+510,Southwest Baptist Univ,MO,ACC 2013,15.5,4,HIGH,MODERATE,LOW_EVIDENCE,1,0,Course Hero,NO,1 course-specific site(s): coursehero.com
+511,Uof Missouri - Columbia,MO,,76.4,3,HIGH,STRONG,VALIDATED_PAID_MARKET,0,0,Becker,NO,1 campus-specific platform(s)
+512,St. Edward's University,TX,,43.1,1.5,LOW,MODERATE,LOW_EVIDENCE,0,1,FrogTutoring,NO,
+513,Stevens Institute of Tech,NJ,ACC 200,29.4,1,MEDIUM,MODERATE,LOW_EVIDENCE,0,0,Course Hero,YES,

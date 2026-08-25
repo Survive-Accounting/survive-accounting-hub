@@ -1,0 +1,156 @@
+{
+  "session": "competitive",
+  "generated_at": "2026-08-25",
+  "dataset_status": "FROZEN",
+  "storage_model": "FILE_BACKED_ONLY — nothing is in the live application DB yet",
+  "tables": [],
+  "proposed_tables_not_applied": [
+    {
+      "name": "campus_competitive_intel",
+      "grain": "one row per campus",
+      "primary_key": "campus_id",
+      "foreign_key": "campus_id -> campuses(id)",
+      "source_file": "competitive-intel-output/COMPETITIVE_CAMPUS_AGGREGATES.json (.campuses[])",
+      "status": "PROPOSED — DDL not applied, no migration written",
+      "load": "upsert one row per campuses[] object, flattening strongest_competitor.{name,domain,type,course_specific}"
+    },
+    {
+      "name": "competitive_competitor_registry",
+      "grain": "one row per unique competitor domain",
+      "primary_key": "domain",
+      "source_file": "competitive-intel-output/COMPETITIVE_CAMPUS_AGGREGATES.json (.competitor_registry[])",
+      "status": "PROPOSED — optional; only needed if UI lists competitors by brand",
+      "load": "upsert one row per competitor_registry[] object"
+    },
+    {
+      "name": "competitive_competitor_campus",
+      "grain": "one row per competitor x campus (detail drill-down)",
+      "primary_key": "(campus_id, domain)",
+      "source_file": "competitive-intel-output/COMPETITOR_INTELLIGENCE.csv",
+      "status": "PROPOSED — optional; import ONLY if a per-campus competitor drill-down is needed",
+      "load": "not required for the small drawer UI"
+    }
+  ],
+  "file_only_sources": [
+    "competitive-intel-output/COMPETITIVE_CAMPUS_AGGREGATES.json  (CANONICAL, frozen — campuses[] + competitor_registry[])",
+    "competitive-intel-output/COMPETITOR_INTELLIGENCE.csv  (detail: competitor x campus)",
+    "competitive-intel-output/CAMPUS_COMPETITIVE_SUMMARY.csv  (human-readable campus summary)",
+    "competitive-intel-output/STUDY_EDGE_LIKE_COMPETITORS.csv",
+    "competitive-intel-output/TOP_VALIDATED_PAID_CAMPUSES.csv",
+    "competitive-intel-output/PAID_ACCOUNTING_MARKETS.csv",
+    "competitive-intel-output/COMPETITOR_BRAND_KEYWORD_CANDIDATES.csv",
+    "competitive-intel-output/SERP_COMPETITOR_SEARCH_YIELD.csv",
+    "competitive-intel-output/FACULTY_ALLY_CANDIDATES.csv (empty; strict criterion)",
+    "scripts/competitive-intel/data/FROZEN.json (freeze marker)"
+  ],
+  "canonical_key": {
+    "field": "campus_id",
+    "type": "uuid",
+    "equals": "campuses.id",
+    "note": "campus_id in the aggregates file IS the live campuses.id UUID — direct join, no name matching needed"
+  },
+  "campus_fields": [
+    "campus_id", "campus", "state", "course_code", "market_opportunity", "tier",
+    "paid_market_status", "intro_accounting_paid_market_status", "competition_intensity",
+    "market_status", "strongest_competitor", "competitor_price_context",
+    "validated_paid_market", "white_space", "study_edge_present",
+    "brand_conquest_candidate", "nonbrand_search_candidate", "evidence_confidence",
+    "paid_competitors", "intro_accounting_competitors", "course_specific_competitors",
+    "course_code_network_present", "university_free_support", "ads_observed",
+    "searches_run", "top_competitor_domains"
+  ],
+  "market_validation_fields": [
+    "paid_market_status",
+    "intro_accounting_paid_market_status",
+    "validated_paid_market",
+    "course_specific_competitors",
+    "course_code_network_present",
+    "study_edge_present",
+    "ads_observed"
+  ],
+  "context_segmentation_fields": [
+    "competition_intensity",
+    "market_status",
+    "white_space",
+    "paid_competitors",
+    "strongest_competitor.type"
+  ],
+  "display_only_fields": [
+    "competitor_price_context",
+    "strongest_competitor.name",
+    "strongest_competitor.domain",
+    "top_competitor_domains",
+    "market_opportunity",
+    "evidence_confidence",
+    "searches_run"
+  ],
+  "do_not_use_for_priority": [
+    "competitor_price_context (display only — partial/gated coverage)",
+    "university_free_support (context, not a commercial competitor)",
+    "searches_run (data-collection meta)",
+    "evidence_confidence (data-quality meta — use to gate weight, not as a score)"
+  ],
+  "priority_rule": "Competitor presence is POSITIVE market validation and must NEVER reduce campus attractiveness. CROWDED = proven demand (positive). WHITE_SPACE = first-mover (also positive, different playbook). competition_intensity is segmentation, not a penalty.",
+  "field_classification": {
+    "paid_market_status": "POSITIVE MARKET VALIDATION",
+    "intro_accounting_paid_market_status": "POSITIVE MARKET VALIDATION",
+    "validated_paid_market": "POSITIVE MARKET VALIDATION",
+    "course_specific_competitors": "POSITIVE MARKET VALIDATION",
+    "course_code_network_present": "POSITIVE MARKET VALIDATION",
+    "study_edge_present": "POSITIVE MARKET VALIDATION",
+    "ads_observed": "POSITIVE MARKET VALIDATION",
+    "competition_intensity": "COMPETITION / CONTEXT",
+    "market_status": "COMPETITION / CONTEXT",
+    "white_space": "COMPETITION / CONTEXT",
+    "paid_competitors": "COMPETITION / CONTEXT",
+    "strongest_competitor": "DISPLAY ONLY (type may inform context)",
+    "competitor_price_context": "DISPLAY ONLY",
+    "top_competitor_domains": "DISPLAY ONLY",
+    "market_opportunity": "DISPLAY ONLY (owned by market-intel, not this session)",
+    "evidence_confidence": "DO NOT USE (meta — gate weight only)",
+    "searches_run": "DO NOT USE (meta)",
+    "university_free_support": "DO NOT USE for priority (context only)"
+  },
+  "ui_drawer_recommendation": {
+    "section": "MARKET",
+    "rows": [
+      { "label": "Paid support market", "field": "paid_market_status", "example": "Strong" },
+      { "label": "Intro Accounting paid", "field": "intro_accounting_paid_market_status", "render": "Yes when STRONG/MODERATE else —", "example": "Yes" },
+      { "label": "Course-specific competitors", "field": "course_specific_competitors", "example": "5" },
+      { "label": "Study Edge", "field": "study_edge_present", "render": "Active / —", "example": "Active (UF)" },
+      { "label": "Market", "field": "market_status", "render": "chip: Validated / Crowded / White-space", "example": "Crowded" }
+    ],
+    "guidance": "At most ~5 rows in the existing campus drawer. No standalone competitor dashboard. Price + strongest competitor are optional hover/detail, display-only."
+  },
+  "join_contracts": [
+    {
+      "name": "campus_aggregate",
+      "from": "campuses c",
+      "join": "campus_competitive_intel ci ON ci.campus_id = c.id",
+      "note": "After import. Until then read competitive-intel-output/COMPETITIVE_CAMPUS_AGGREGATES.json keyed by campus_id."
+    },
+    {
+      "name": "deduped_competitor",
+      "identifier": "domain",
+      "from": "competitor_registry[] (or competitive_competitor_registry.domain after import)",
+      "note": "domain is the canonical dedup key across all campuses"
+    },
+    {
+      "name": "detailed_competitors_on_demand",
+      "how": "Filter COMPETITOR_INTELLIGENCE.csv (or competitive_competitor_campus after import) WHERE campus_id = <id>; or read campuses[].top_competitor_domains for the short list. Do NOT eager-load detail into the drawer.",
+      "note": "Detail is only needed for a drill-down, not the small MARKET section."
+    }
+  ],
+  "code_status": {
+    "branch": "overnight/competitive-market-intelligence",
+    "commit": "84bbfe38",
+    "merged": false,
+    "deployed": false,
+    "canonical_output": "competitive-intel-output/COMPETITIVE_CAMPUS_AGGREGATES.json",
+    "db_state": "NONE — no table, no view, no migration. 100% file-backed.",
+    "must_import_before_integration": "Create campus_competitive_intel (+ optional registry) and load COMPETITIVE_CAMPUS_AGGREGATES.json. This is the single blocker between the frozen files and a queryable dashboard.",
+    "totals": { "campuses": 766, "unique_competitors": 653, "validated_paid_markets": 155, "crowded": 302, "white_space": 45, "course_code_network_domains": 21 }
+  },
+  "integration_readiness": "PARTIAL — the data contract is final, frozen, and fully specified, but it exists ONLY in competitive-intel-output/ files. A one-time import (DDL + load COMPETITIVE_CAMPUS_AGGREGATES.json into campus_competitive_intel, keyed campus_id = campuses.id) is required before the live dashboard can query it. No DB object exists yet.",
+  "readiness_verdict": "PARTIAL"
+}

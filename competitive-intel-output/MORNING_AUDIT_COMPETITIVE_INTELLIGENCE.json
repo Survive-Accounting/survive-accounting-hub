@@ -1,0 +1,1526 @@
+{
+  "generated_at": "2026-08-25T17:49:54.686Z",
+  "mode": "read-only",
+  "coverage": {
+    "campuses_researched": 766,
+    "live_serp_searches_discovery": 3629,
+    "unique_successful_searches_cached": 3636,
+    "study_edge_live_searches": 14,
+    "est_discovery_cost_usd": 29.03,
+    "note_rate_limited": "approx 500-1000 additional query attempts were rate-limited (empty) by the concurrently-running growth SERP job sharing the account; not counted as successful",
+    "competitor_campus_observations": 4825,
+    "unique_competitors": 653,
+    "campuses_with_paid_support_business": 619,
+    "campuses_with_intro_accounting_competitor": 579,
+    "campuses_with_course_specific_site": 312,
+    "campuses_with_sponsored_ads": 32
+  },
+  "study_edge_like": {
+    "model_counts": {
+      "NATIONAL_PLATFORM": 6,
+      "MULTI_CAMPUS_REGIONAL": 4,
+      "STUDY_EDGE_MODEL": 24,
+      "OTHER": 1,
+      "INDIVIDUAL_TUTOR_SCALED": 1,
+      "COURSE_SPECIFIC_TUTORING_PLATFORM": 6
+    },
+    "total": 42,
+    "top_examples": [
+      {
+        "competitor": "Course Hero",
+        "domain": "coursehero.com",
+        "model_type": "NATIONAL_PLATFORM",
+        "campus_footprint": 445,
+        "footprint_examples": [
+          "University of Alabama",
+          "University of Georgia",
+          "University of Tennessee",
+          "University of Tennessee, Knoxville",
+          "Auburn University"
+        ],
+        "accounting_supported": "YES",
+        "course_specific": "YES",
+        "video": "YES",
+        "practice_exams": "YES",
+        "exam_reviews": "YES",
+        "one_on_one": "NO",
+        "pricing": "",
+        "pricing_model": "",
+        "strength": "HIGH"
+      },
+      {
+        "competitor": "Studocu",
+        "domain": "studocu.com",
+        "model_type": "NATIONAL_PLATFORM",
+        "campus_footprint": 310,
+        "footprint_examples": [
+          "University of Alabama",
+          "University of Georgia",
+          "University of Tennessee",
+          "University of Tennessee, Knoxville",
+          "Auburn University"
+        ],
+        "accounting_supported": "YES",
+        "course_specific": "YES",
+        "video": "YES",
+        "practice_exams": "YES",
+        "exam_reviews": "YES",
+        "one_on_one": "YES",
+        "pricing": "",
+        "pricing_model": "",
+        "strength": "HIGH"
+      },
+      {
+        "competitor": "Quizlet",
+        "domain": "quizlet.com",
+        "model_type": "NATIONAL_PLATFORM",
+        "campus_footprint": 301,
+        "footprint_examples": [
+          "University of Alabama",
+          "University of Georgia",
+          "University of Tennessee",
+          "University of Tennessee, Knoxville",
+          "Auburn University"
+        ],
+        "accounting_supported": "YES",
+        "course_specific": "YES",
+        "video": "NO",
+        "practice_exams": "YES",
+        "exam_reviews": "YES",
+        "one_on_one": "NO",
+        "pricing": "",
+        "pricing_model": "",
+        "strength": "HIGH"
+      },
+      {
+        "competitor": "FrogTutoring",
+        "domain": "frogtutoring.com",
+        "model_type": "MULTI_CAMPUS_REGIONAL",
+        "campus_footprint": 258,
+        "footprint_examples": [
+          "University of Georgia",
+          "University of Tennessee",
+          "University of Houston",
+          "Florida International University",
+          "Liberty University"
+        ],
+        "accounting_supported": "YES",
+        "course_specific": "NO",
+        "video": "NO",
+        "practice_exams": "NO",
+        "exam_reviews": "NO",
+        "one_on_one": "YES",
+        "pricing": "",
+        "pricing_model": "unknown",
+        "strength": "HIGH"
+      },
+      {
+        "competitor": "Scribd",
+        "domain": "scribd.com",
+        "model_type": "NATIONAL_PLATFORM",
+        "campus_footprint": 154,
+        "footprint_examples": [
+          "University of Georgia",
+          "University of Tennessee, Knoxville",
+          "Florida International University",
+          "Calif State Univ, Northridge",
+          "University of Houston - Downtown"
+        ],
+        "accounting_supported": "YES",
+        "course_specific": "YES",
+        "video": "NO",
+        "practice_exams": "YES",
+        "exam_reviews": "YES",
+        "one_on_one": "NO",
+        "pricing": "",
+        "pricing_model": "",
+        "strength": "HIGH"
+      },
+      {
+        "competitor": "Stuvia",
+        "domain": "stuvia.com",
+        "model_type": "NATIONAL_PLATFORM",
+        "campus_footprint": 107,
+        "footprint_examples": [
+          "University of Alabama",
+          "University of Tennessee",
+          "University of Tennessee, Knoxville",
+          "Auburn University",
+          "Florida International University"
+        ],
+        "accounting_supported": "YES",
+        "course_specific": "YES",
+        "video": "NO",
+        "practice_exams": "YES",
+        "exam_reviews": "YES",
+        "one_on_one": "NO",
+        "pricing": "",
+        "pricing_model": "",
+        "strength": "HIGH"
+      },
+      {
+        "competitor": "Wize Prep",
+        "domain": "wizeprep.com",
+        "model_type": "MULTI_CAMPUS_REGIONAL",
+        "campus_footprint": 89,
+        "footprint_examples": [
+          "University of Georgia",
+          "Auburn University",
+          "University of Arkansas",
+          "Virginia Poly Inst & St Un",
+          "Liberty University"
+        ],
+        "accounting_supported": "YES",
+        "course_specific": "YES",
+        "video": "YES",
+        "practice_exams": "YES",
+        "exam_reviews": "YES",
+        "one_on_one": "YES",
+        "pricing": "",
+        "pricing_model": "subscription",
+        "strength": "HIGH"
+      },
+      {
+        "competitor": "Knack",
+        "domain": "joinknack.com",
+        "model_type": "MULTI_CAMPUS_REGIONAL",
+        "campus_footprint": 41,
+        "footprint_examples": [
+          "Auburn University",
+          "University of Houston",
+          "Florida International University",
+          "Temple University",
+          "University of South Florida"
+        ],
+        "accounting_supported": "YES",
+        "course_specific": "YES",
+        "video": "NO",
+        "practice_exams": "NO",
+        "exam_reviews": "YES",
+        "one_on_one": "YES",
+        "pricing": "",
+        "pricing_model": "free",
+        "strength": "HIGH"
+      },
+      {
+        "competitor": "acct2301.com",
+        "domain": "acct2301.com",
+        "model_type": "STUDY_EDGE_MODEL",
+        "campus_footprint": 22,
+        "footprint_examples": [
+          "University of Houston",
+          "University of Houston - Downtown",
+          "The University of Texas at Dallas",
+          "Texas State University",
+          "Tarleton State University",
+          "The University of Texas at Arlington"
+        ],
+        "accounting_supported": "YES",
+        "course_specific": "YES",
+        "video": "YES",
+        "practice_exams": "YES",
+        "exam_reviews": "NO",
+        "one_on_one": "NO",
+        "pricing": "",
+        "pricing_model": "unknown",
+        "strength": "HIGH"
+      },
+      {
+        "competitor": "acc201uky.com",
+        "domain": "acc201uky.com",
+        "model_type": "STUDY_EDGE_MODEL",
+        "campus_footprint": 20,
+        "footprint_examples": [
+          "University of Kentucky",
+          "Univ of Central Florida",
+          "University of Nevada, Las Vegas",
+          "Missouri State University",
+          "Univ No Carolina Greensboro",
+          "University of North Carolina at Greensboro"
+        ],
+        "accounting_supported": "YES",
+        "course_specific": "YES",
+        "video": "YES",
+        "practice_exams": "YES",
+        "exam_reviews": "YES",
+        "one_on_one": "YES",
+        "pricing": "",
+        "pricing_model": "unknown",
+        "strength": "HIGH"
+      },
+      {
+        "competitor": "acct201a.com",
+        "domain": "acct201a.com",
+        "model_type": "STUDY_EDGE_MODEL",
+        "campus_footprint": 20,
+        "footprint_examples": [
+          "Montclair State University",
+          "Old Dominion University",
+          "Towson University",
+          "University of Louisville",
+          "Louisiana Tech University",
+          "Loyola University Chicago"
+        ],
+        "accounting_supported": "YES",
+        "course_specific": "YES",
+        "video": "YES",
+        "practice_exams": "YES",
+        "exam_reviews": "NO",
+        "one_on_one": "NO",
+        "pricing": "",
+        "pricing_model": "unknown",
+        "strength": "HIGH"
+      },
+      {
+        "competitor": "Skoolers Tutoring",
+        "domain": "skoolerstutoring.com",
+        "model_type": "MULTI_CAMPUS_REGIONAL",
+        "campus_footprint": 15,
+        "footprint_examples": [
+          "University of Alabama",
+          "University of Georgia",
+          "Auburn University",
+          "Florida International University",
+          "Univ of Central Florida"
+        ],
+        "accounting_supported": "YES",
+        "course_specific": "YES",
+        "video": "NO",
+        "practice_exams": "YES",
+        "exam_reviews": "YES",
+        "one_on_one": "YES",
+        "pricing": "$75 per hour; $75 per three hours",
+        "pricing_model": "one-time",
+        "strength": "HIGH"
+      },
+      {
+        "competitor": "acct2001.com",
+        "domain": "acct2001.com",
+        "model_type": "STUDY_EDGE_MODEL",
+        "campus_footprint": 14,
+        "footprint_examples": [
+          "University of Georgia",
+          "University of Tennessee, Knoxville",
+          "Clemson University",
+          "University of North Texas",
+          "Temple University",
+          "San Diego State University San"
+        ],
+        "accounting_supported": "YES",
+        "course_specific": "YES",
+        "video": "YES",
+        "practice_exams": "YES",
+        "exam_reviews": "YES",
+        "one_on_one": "NO",
+        "pricing": "",
+        "pricing_model": "subscription",
+        "strength": "HIGH"
+      },
+      {
+        "competitor": "acct2101uga.com",
+        "domain": "acct2101uga.com",
+        "model_type": "STUDY_EDGE_MODEL",
+        "campus_footprint": 11,
+        "footprint_examples": [
+          "University of Georgia",
+          "Temple University",
+          "Texas Tech University",
+          "Kennesaw State University",
+          "University of North Carolina at Charlotte"
+        ],
+        "accounting_supported": "YES",
+        "course_specific": "YES",
+        "video": "YES",
+        "practice_exams": "YES",
+        "exam_reviews": "NO",
+        "one_on_one": "NO",
+        "pricing": "",
+        "pricing_model": "unknown",
+        "strength": "HIGH"
+      },
+      {
+        "competitor": "acct2300.com",
+        "domain": "acct2300.com",
+        "model_type": "STUDY_EDGE_MODEL",
+        "campus_footprint": 11,
+        "footprint_examples": [
+          "University of Houston",
+          "Liberty University",
+          "Texas Tech University",
+          "The University of Texas at Dallas",
+          "Tarleton State University",
+          "The University of Texas at Arlington"
+        ],
+        "accounting_supported": "YES",
+        "course_specific": "YES",
+        "video": "YES",
+        "practice_exams": "YES",
+        "exam_reviews": "YES",
+        "one_on_one": "NO",
+        "pricing": "",
+        "pricing_model": "unknown",
+        "strength": "HIGH"
+      },
+      {
+        "competitor": "UWorld",
+        "domain": "uworld.com",
+        "model_type": "STUDY_EDGE_MODEL",
+        "campus_footprint": 10,
+        "footprint_examples": [
+          "University of Alabama",
+          "Brigham Young University",
+          "University of Nevada, Reno",
+          "Univ of Missouri - St. Louis St.",
+          "University of North Alabama"
+        ],
+        "accounting_supported": "YES",
+        "course_specific": "NO",
+        "video": "YES",
+        "practice_exams": "NO",
+        "exam_reviews": "YES",
+        "one_on_one": "NO",
+        "pricing": "$1",
+        "pricing_model": "per-course",
+        "strength": "HIGH"
+      },
+      {
+        "competitor": "Gleim",
+        "domain": "gleim.com",
+        "model_type": "STUDY_EDGE_MODEL",
+        "campus_footprint": 10,
+        "footprint_examples": [
+          "University of Alabama",
+          "University of Florida",
+          "University of Texas at Austin",
+          "The University of Texas at Austin",
+          "The University of Texas at Dallas"
+        ],
+        "accounting_supported": "YES",
+        "course_specific": "NO",
+        "video": "YES",
+        "practice_exams": "YES",
+        "exam_reviews": "YES",
+        "one_on_one": "NO",
+        "pricing": "",
+        "pricing_model": "unknown",
+        "strength": "HIGH"
+      },
+      {
+        "competitor": "acct200ku.com",
+        "domain": "acct200ku.com",
+        "model_type": "STUDY_EDGE_MODEL",
+        "campus_footprint": 9,
+        "footprint_examples": [
+          "University of Tennessee, Knoxville",
+          "University of Arizona",
+          "University of Miami",
+          "Western Kentucky University",
+          "So Illinois, Edwardsville"
+        ],
+        "accounting_supported": "YES",
+        "course_specific": "YES",
+        "video": "YES",
+        "practice_exams": "YES",
+        "exam_reviews": "NO",
+        "one_on_one": "NO",
+        "pricing": "",
+        "pricing_model": "unknown",
+        "strength": "HIGH"
+      },
+      {
+        "competitor": "accy201.com",
+        "domain": "accy201.com",
+        "model_type": "OTHER",
+        "campus_footprint": 9,
+        "footprint_examples": [
+          "University of Kentucky",
+          "Penn State University Univ",
+          "Univ of Central Florida",
+          "University of Mississippi",
+          "San Diego State University"
+        ],
+        "accounting_supported": "YES",
+        "course_specific": "YES",
+        "video": "YES",
+        "practice_exams": "YES",
+        "exam_reviews": "NO",
+        "one_on_one": "YES",
+        "pricing": "",
+        "pricing_model": "unknown",
+        "strength": "HIGH"
+      },
+      {
+        "competitor": "busa201.com",
+        "domain": "busa201.com",
+        "model_type": "INDIVIDUAL_TUTOR_SCALED",
+        "campus_footprint": 8,
+        "footprint_examples": [
+          "Indiana University Bloomington",
+          "Indiana University",
+          "Indiana University Indianapolis",
+          "Purdue Univ Fort Wayne Fort",
+          "IUSB Indiana Uat South Bend South"
+        ],
+        "accounting_supported": "YES",
+        "course_specific": "YES",
+        "video": "YES",
+        "practice_exams": "YES",
+        "exam_reviews": "NO",
+        "one_on_one": "YES",
+        "pricing": "",
+        "pricing_model": "unknown",
+        "strength": "HIGH"
+      }
+    ]
+  },
+  "market_validation": {
+    "distribution": {
+      "CROWDED": 302,
+      "WHITE_SPACE": 56,
+      "VALIDATED_PAID_MARKET": 127,
+      "LOW_EVIDENCE": 281
+    },
+    "proven_distribution": {
+      "HIGH": 479,
+      "LOW": 107,
+      "MEDIUM": 33,
+      "UNKNOWN": 147
+    },
+    "intro_distribution": {
+      "STRONG": 475,
+      "MODERATE": 110,
+      "UNKNOWN": 147,
+      "WEAK": 34
+    },
+    "top_25_validated": [
+      {
+        "rank": 1,
+        "campus": "University of Nevada, Las Vegas",
+        "state": "NV",
+        "course": "ACC 201",
+        "market_opportunity": 83.7,
+        "validation_score": 70.5,
+        "proven": "HIGH",
+        "strongest": "acc201uky.com",
+        "evidence": "3 course-specific site(s): coursehero.com, wizeprep.com, acc201uky.com | 7 local paid accounting competitor(s) | 2 campus-specific platform(s) | paid accounting search ads observed"
+      },
+      {
+        "rank": 2,
+        "campus": "University of South Florida",
+        "state": "FL",
+        "course": "ACG 2021",
+        "market_opportunity": 85.9,
+        "validation_score": 66.5,
+        "proven": "HIGH",
+        "strongest": "acg2021fiu.com",
+        "evidence": "4 course-specific site(s): coursehero.com, acg2021fiu.com, wizeprep.com | 5 local paid accounting competitor(s) | 4 campus-specific platform(s)"
+      },
+      {
+        "rank": 3,
+        "campus": "University of North Carolina at Greensboro",
+        "state": "NC",
+        "course": "ACC 201",
+        "market_opportunity": 71.8,
+        "validation_score": 61,
+        "proven": "HIGH",
+        "strongest": "acc201uky.com",
+        "evidence": "3 course-specific site(s): coursehero.com, acc201uky.com, wizeprep.com | 6 local paid accounting competitor(s) | 1 campus-specific platform(s) | paid accounting search ads observed"
+      },
+      {
+        "rank": 4,
+        "campus": "University of North Texas",
+        "state": "TX",
+        "course": "ACCT 2010",
+        "market_opportunity": 87.6,
+        "validation_score": 60,
+        "proven": "HIGH",
+        "strongest": "acct2001.com",
+        "evidence": "3 course-specific site(s): coursehero.com, wizeprep.com, acct2001.com | 6 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+      },
+      {
+        "rank": 5,
+        "campus": "University of Houston",
+        "state": "TX",
+        "course": "ACCT 2301",
+        "market_opportunity": 92.1,
+        "validation_score": 57.5,
+        "proven": "HIGH",
+        "strongest": "acct2301.com",
+        "evidence": "4 course-specific site(s): acct2301.com, coursehero.com, acct2331.com | 5 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+      },
+      {
+        "rank": 6,
+        "campus": "Univ of Central Florida",
+        "state": "FL",
+        "course": "ACC 201",
+        "market_opportunity": 87.1,
+        "validation_score": 54.5,
+        "proven": "HIGH",
+        "strongest": "acc201uky.com",
+        "evidence": "3 course-specific site(s): acc201uky.com, coursehero.com, wizeprep.com | 5 local paid accounting competitor(s) | 1 campus-specific platform(s) | paid accounting search ads observed"
+      },
+      {
+        "rank": 7,
+        "campus": "University of Florida",
+        "state": "FL",
+        "course": "ACG 2021",
+        "market_opportunity": 84.6,
+        "validation_score": 54,
+        "proven": "HIGH",
+        "strongest": "acg2021fiu.com",
+        "evidence": "5 course-specific site(s): coursehero.com, acg2021fiu.com, wizeprep.com | 2 local paid accounting competitor(s) | 5 campus-specific platform(s)"
+      },
+      {
+        "rank": 8,
+        "campus": "University of Miami",
+        "state": "FL",
+        "course": "ACC 211",
+        "market_opportunity": 75.4,
+        "validation_score": 54,
+        "proven": "HIGH",
+        "strongest": "Course Hero",
+        "evidence": "1 course-specific site(s): coursehero.com | 7 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+      },
+      {
+        "rank": 9,
+        "campus": "Clemson University",
+        "state": "SC",
+        "course": "ACCT 2010",
+        "market_opportunity": 90.1,
+        "validation_score": 53.5,
+        "proven": "HIGH",
+        "strongest": "acct2001.com",
+        "evidence": "3 course-specific site(s): wizeprep.com, coursehero.com, acct2001.com | 5 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+      },
+      {
+        "rank": 10,
+        "campus": "Florida International University",
+        "state": "FL",
+        "course": "ACG 2021",
+        "market_opportunity": 91.1,
+        "validation_score": 53,
+        "proven": "HIGH",
+        "strongest": "acg2021fiu.com",
+        "evidence": "5 course-specific site(s): acg2021fiu.com, stuvia.com, coursehero.com | 3 local paid accounting competitor(s) | 3 campus-specific platform(s)"
+      },
+      {
+        "rank": 11,
+        "campus": "Kennesaw State University",
+        "state": "GA",
+        "course": "ACCT 2101",
+        "market_opportunity": 82.8,
+        "validation_score": 53,
+        "proven": "HIGH",
+        "strongest": "acct2101uga.com",
+        "evidence": "5 course-specific site(s): coursehero.com, acct2101uga.com, acct2100.com | 3 local paid accounting competitor(s) | 3 campus-specific platform(s)"
+      },
+      {
+        "rank": 12,
+        "campus": "University of North Georgia",
+        "state": "GA",
+        "course": "ACCT 2101",
+        "market_opportunity": 74.7,
+        "validation_score": 53,
+        "proven": "HIGH",
+        "strongest": "acct2101uga.com",
+        "evidence": "4 course-specific site(s): coursehero.com, acct2101uga.com, skoolerstutoring.com | 5 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+      },
+      {
+        "rank": 13,
+        "campus": "Southern Methodist University",
+        "state": "TX",
+        "course": "ACCT 2301",
+        "market_opportunity": 70.8,
+        "validation_score": 53,
+        "proven": "HIGH",
+        "strongest": "acct2301.com",
+        "evidence": "4 course-specific site(s): coursehero.com, studocu.com, acct2301.com | 5 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+      },
+      {
+        "rank": 14,
+        "campus": "Elon University",
+        "state": "NC",
+        "course": "ACC2010",
+        "market_opportunity": 70.6,
+        "validation_score": 52.5,
+        "proven": "HIGH",
+        "strongest": "a2c2.org",
+        "evidence": "6 course-specific site(s): quizlet.com, coursehero.com, wizeprep.com | 3 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+      },
+      {
+        "rank": 15,
+        "campus": "University of North Florida",
+        "state": "FL",
+        "course": "ACG2021",
+        "market_opportunity": 73.4,
+        "validation_score": 50.5,
+        "proven": "HIGH",
+        "strongest": "acg2021fiu.com",
+        "evidence": "6 course-specific site(s): skoolerstutoring.com, acg2021fiu.com, coursehero.com | 2 local paid accounting competitor(s) | 3 campus-specific platform(s)"
+      },
+      {
+        "rank": 16,
+        "campus": "University of Wisconsin–Stevens Point",
+        "state": "WI",
+        "course": "ACCT 210",
+        "market_opportunity": 44.2,
+        "validation_score": 49.5,
+        "proven": "HIGH",
+        "strongest": "Wize Prep",
+        "evidence": "2 course-specific site(s): coursehero.com, wizeprep.com | 5 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+      },
+      {
+        "rank": 17,
+        "campus": "Auburn University",
+        "state": "AL",
+        "course": "ACCT 2110",
+        "market_opportunity": 92.3,
+        "validation_score": 49,
+        "proven": "HIGH",
+        "strongest": "acct2110.com",
+        "evidence": "4 course-specific site(s): coursehero.com, acct2110.com, wizeprep.com | 3 local paid accounting competitor(s) | 3 campus-specific platform(s)"
+      },
+      {
+        "rank": 18,
+        "campus": "Mississippi College",
+        "state": "MS",
+        "course": "ACC 201",
+        "market_opportunity": 34,
+        "validation_score": 49,
+        "proven": "HIGH",
+        "strongest": "acc201uky.com",
+        "evidence": "3 course-specific site(s): wizeprep.com, acc201uky.com, coursehero.com | 5 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+      },
+      {
+        "rank": 19,
+        "campus": "University of Arizona",
+        "state": "AZ",
+        "course": "ACCT 200",
+        "market_opportunity": 76.8,
+        "validation_score": 48.5,
+        "proven": "HIGH",
+        "strongest": "acct200ku.com",
+        "evidence": "4 course-specific site(s): coursehero.com, wizeprep.com, acct200ku.com | 3 local paid accounting competitor(s) | 2 campus-specific platform(s) | paid accounting search ads observed"
+      },
+      {
+        "rank": 20,
+        "campus": "Liberty University",
+        "state": "VA",
+        "course": "ACCT 211",
+        "market_opportunity": 90.4,
+        "validation_score": 47,
+        "proven": "HIGH",
+        "strongest": "acct2300.com",
+        "evidence": "3 course-specific site(s): wizeprep.com, coursehero.com, acct2300.com | 4 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+      },
+      {
+        "rank": 21,
+        "campus": "Florida Atlantic University",
+        "state": "FL",
+        "course": "ACG 2021",
+        "market_opportunity": 84.9,
+        "validation_score": 47,
+        "proven": "HIGH",
+        "strongest": "acg2021fiu.com",
+        "evidence": "3 course-specific site(s): coursehero.com, acg2021fiu.com, skoolerstutoring.com | 4 local paid accounting competitor(s) | 2 campus-specific platform(s)"
+      },
+      {
+        "rank": 22,
+        "campus": "New Jersey In of Technology",
+        "state": "NJ",
+        "course": "",
+        "market_opportunity": 33.3,
+        "validation_score": 47,
+        "proven": "HIGH",
+        "strongest": "Course Hero",
+        "evidence": "1 course-specific site(s): coursehero.com | 5 local paid accounting competitor(s) | 3 campus-specific platform(s)"
+      },
+      {
+        "rank": 23,
+        "campus": "North Carolina Wilmington",
+        "state": "NC",
+        "course": "",
+        "market_opportunity": 68.8,
+        "validation_score": 45,
+        "proven": "HIGH",
+        "strongest": "Wize Prep",
+        "evidence": "2 course-specific site(s): coursehero.com, wizeprep.com | 5 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+      },
+      {
+        "rank": 24,
+        "campus": "Texas State University",
+        "state": "TX",
+        "course": "ACC 2361",
+        "market_opportunity": 78,
+        "validation_score": 44,
+        "proven": "HIGH",
+        "strongest": "acc2361.com",
+        "evidence": "4 course-specific site(s): coursehero.com, acc2361.com, acct209.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s) | paid accounting search ads observed"
+      },
+      {
+        "rank": 25,
+        "campus": "University of Kentucky",
+        "state": "KY",
+        "course": "ACC 201",
+        "market_opportunity": 88.9,
+        "validation_score": 43.5,
+        "proven": "HIGH",
+        "strongest": "acc201uky.com",
+        "evidence": "3 course-specific site(s): acc201uky.com, coursehero.com, wizeprep.com | 4 local paid accounting competitor(s) | paid accounting search ads observed"
+      }
+    ],
+    "top_25_white_space": [
+      {
+        "campus": "CUNY-Baruch College New",
+        "state": "NY",
+        "course": "",
+        "market_opportunity": 95,
+        "intro_paid_status": "MODERATE",
+        "national_competitors": 5
+      },
+      {
+        "campus": "Calif State Univ, Northridge",
+        "state": "CA",
+        "course": "",
+        "market_opportunity": 89.2,
+        "intro_paid_status": "MODERATE",
+        "national_competitors": 9
+      },
+      {
+        "campus": "Michigan State University East",
+        "state": "MI",
+        "course": "",
+        "market_opportunity": 86.8,
+        "intro_paid_status": "MODERATE",
+        "national_competitors": 4
+      },
+      {
+        "campus": "Grand Valley State University Allendal",
+        "state": "MI",
+        "course": "",
+        "market_opportunity": 85.5,
+        "intro_paid_status": "MODERATE",
+        "national_competitors": 2
+      },
+      {
+        "campus": "Calif State Univ, Fullerton",
+        "state": "CA",
+        "course": "",
+        "market_opportunity": 84.1,
+        "intro_paid_status": "MODERATE",
+        "national_competitors": 4
+      },
+      {
+        "campus": "Calif State Poly U-Pomona",
+        "state": "CA",
+        "course": "",
+        "market_opportunity": 82.2,
+        "intro_paid_status": "MODERATE",
+        "national_competitors": 4
+      },
+      {
+        "campus": "CUNY-Brooklyn College",
+        "state": "NY",
+        "course": "",
+        "market_opportunity": 82,
+        "intro_paid_status": "MODERATE",
+        "national_competitors": 10
+      },
+      {
+        "campus": "Franklin University",
+        "state": "OH",
+        "course": "",
+        "market_opportunity": 81.9,
+        "intro_paid_status": "MODERATE",
+        "national_competitors": 7
+      },
+      {
+        "campus": "Purdue University W",
+        "state": "IN",
+        "course": "",
+        "market_opportunity": 80.1,
+        "intro_paid_status": "MODERATE",
+        "national_competitors": 4
+      },
+      {
+        "campus": "St. John's University",
+        "state": "NY",
+        "course": "",
+        "market_opportunity": 79.4,
+        "intro_paid_status": "MODERATE",
+        "national_competitors": 5
+      },
+      {
+        "campus": "Minnesota St Univ Mankato",
+        "state": "MN",
+        "course": "",
+        "market_opportunity": 78.7,
+        "intro_paid_status": "MODERATE",
+        "national_competitors": 6
+      },
+      {
+        "campus": "SUNYat Buffalo",
+        "state": "NY",
+        "course": "",
+        "market_opportunity": 78.4,
+        "intro_paid_status": "MODERATE",
+        "national_competitors": 3
+      },
+      {
+        "campus": "Univ of Hawaii at Manoa",
+        "state": "HI",
+        "course": "",
+        "market_opportunity": 78.3,
+        "intro_paid_status": "MODERATE",
+        "national_competitors": 8
+      },
+      {
+        "campus": "Boston College Chestnut",
+        "state": "MA",
+        "course": "",
+        "market_opportunity": 77.8,
+        "intro_paid_status": "MODERATE",
+        "national_competitors": 5
+      },
+      {
+        "campus": "Miami Dade College Virtual Campu",
+        "state": "FL",
+        "course": "",
+        "market_opportunity": 76.1,
+        "intro_paid_status": "UNKNOWN",
+        "national_competitors": 0
+      },
+      {
+        "campus": "Central Michigan University Mt.",
+        "state": "MI",
+        "course": "",
+        "market_opportunity": 74.9,
+        "intro_paid_status": "MODERATE",
+        "national_competitors": 2
+      },
+      {
+        "campus": "Bryant University",
+        "state": "RI",
+        "course": "",
+        "market_opportunity": 74,
+        "intro_paid_status": "MODERATE",
+        "national_competitors": 5
+      },
+      {
+        "campus": "Southeastern Louisiana Univ",
+        "state": "LA",
+        "course": "",
+        "market_opportunity": 72.5,
+        "intro_paid_status": "MODERATE",
+        "national_competitors": 9
+      },
+      {
+        "campus": "Calif State Univ, East Bay",
+        "state": "CA",
+        "course": "",
+        "market_opportunity": 72.4,
+        "intro_paid_status": "MODERATE",
+        "national_competitors": 2
+      },
+      {
+        "campus": "East Carolina University",
+        "state": "NC",
+        "course": "ACCT 2401",
+        "market_opportunity": 72.4,
+        "intro_paid_status": "MODERATE",
+        "national_competitors": 16
+      },
+      {
+        "campus": "Loyola Marymount Univ Los",
+        "state": "CA",
+        "course": "",
+        "market_opportunity": 71.6,
+        "intro_paid_status": "WEAK",
+        "national_competitors": 1
+      },
+      {
+        "campus": "Coastal Carolina University",
+        "state": "SC",
+        "course": "",
+        "market_opportunity": 70.8,
+        "intro_paid_status": "MODERATE",
+        "national_competitors": 6
+      },
+      {
+        "campus": "SUNYat Binghamton",
+        "state": "NY",
+        "course": "",
+        "market_opportunity": 70.5,
+        "intro_paid_status": "WEAK",
+        "national_competitors": 1
+      },
+      {
+        "campus": "Calif State U, Los Angeles Los",
+        "state": "CA",
+        "course": "",
+        "market_opportunity": 70.5,
+        "intro_paid_status": "WEAK",
+        "national_competitors": 1
+      },
+      {
+        "campus": "Tulane University New",
+        "state": "LA",
+        "course": "",
+        "market_opportunity": 70.4,
+        "intro_paid_status": "MODERATE",
+        "national_competitors": 8
+      }
+    ]
+  },
+  "pricing": {
+    "competitor_buckets": {
+      "monthly": {
+        "n": 3,
+        "min": 29,
+        "median": 34,
+        "max": 359
+      },
+      "per_exam": null,
+      "semester": null,
+      "hourly_or_1on1": {
+        "n": 10,
+        "min": 14,
+        "median": 19,
+        "max": 100
+      },
+      "one_time_or_other": {
+        "n": 178,
+        "min": 0,
+        "median": 33,
+        "max": 500
+      }
+    },
+    "study_edge_prices": [
+      "$50/mo",
+      "$75/mo",
+      "$25",
+      "$90/mo",
+      "$60"
+    ],
+    "survive_intended": {
+      "model": "chapter seat pack (group)",
+      "per_seat_usd": 100,
+      "best_value_per_seat_usd": 90,
+      "minimum_seats": 10,
+      "covers": "full exam series (Exam 1/2/3/Final) for the term + free Exam-1/starter map",
+      "recurring": false
+    }
+  },
+  "uf_study_edge": {
+    "study_edge_offer": "Study Edge provides academic support services, including expert-led sessions, mock exams, and personalized support, to help students boost their GPA.",
+    "accounting_courses": [
+      "ACG2021 Financial Accounting",
+      "ACG2071 Managerial Accounting"
+    ],
+    "free_trial": "A 7-day free trial with instant access to all features is available for new students.",
+    "offerings": {
+      "video_reviews": true,
+      "practice_exams": true,
+      "exam_reviews": true,
+      "live_reviews": true,
+      "one_on_one": true,
+      "study_guides": true,
+      "chapter_reviews": false
+    },
+    "campus_specific_pages": "YES",
+    "professors_named_count": 15,
+    "prices_observed": [
+      "$50/mo",
+      "$75/mo",
+      "$25",
+      "$90/mo",
+      "$60"
+    ],
+    "uf_market_opportunity": 84.6,
+    "uf_course": "ACG 2021",
+    "uf_paid_competitors": 21,
+    "uf_proven": "HIGH",
+    "uf_validation": "CROWDED"
+  },
+  "paid_search": {
+    "total_ads_observed": 45,
+    "campuses_with_ads": 32,
+    "by_query_type": {
+      "course_code": 38,
+      "generic_accounting": 7,
+      "brand": 0
+    },
+    "top_advertisers": [
+      {
+        "advertiser": "Varsity Tutors",
+        "ads": 17
+      },
+      {
+        "advertiser": "Preply",
+        "ads": 11
+      },
+      {
+        "advertiser": "co.uk",
+        "ads": 8
+      },
+      {
+        "advertiser": "intuit.com",
+        "ads": 3
+      },
+      {
+        "advertiser": "northwestern.edu",
+        "ads": 3
+      },
+      {
+        "advertiser": "Wyzant",
+        "ads": 1
+      },
+      {
+        "advertiser": "google.com",
+        "ads": 1
+      },
+      {
+        "advertiser": "amberton.edu",
+        "ads": 1
+      }
+    ],
+    "sample": [
+      {
+        "campus": "University of Tennessee, Knoxville",
+        "course": "ACCT 200",
+        "advertiser": "intuit.com",
+        "family": "ad_probe_course_acct",
+        "headline": "Free QuickBooks™ For Students - Practical Accounting Lessons"
+      },
+      {
+        "campus": "University of Tennessee, Knoxville",
+        "course": "ACCT 200",
+        "advertiser": "northwestern.edu",
+        "family": "ad_probe_course_acct",
+        "headline": "Online Accounting Courses - Accounting Certificate"
+      },
+      {
+        "campus": "University of Houston - Downtown",
+        "course": "ACC 2301",
+        "advertiser": "Varsity Tutors",
+        "family": "course_tutoring",
+        "headline": "Philadelphia Accounting Tutors - Leading Accounting Tutors"
+      },
+      {
+        "campus": "Indiana University Bloomington",
+        "course": "BUS-A 201",
+        "advertiser": "co.uk",
+        "family": "course_tutoring",
+        "headline": "Accounting Tutors Near You | Exam Prep Tutors"
+      },
+      {
+        "campus": "Indiana University Bloomington",
+        "course": "BUS-A 201",
+        "advertiser": "Preply",
+        "family": "course_tutoring",
+        "headline": "Accounting Tutor | Tutoring Accounting from $5"
+      },
+      {
+        "campus": "University of Kentucky",
+        "course": "ACC 201",
+        "advertiser": "Varsity Tutors",
+        "family": "ad_probe_course_tutoring",
+        "headline": "1-on-1 Accounting Tutors | Las Vegas Valley Accounting Tutors"
+      },
+      {
+        "campus": "Indiana University",
+        "course": "BUS-A 201",
+        "advertiser": "co.uk",
+        "family": "course_tutoring",
+        "headline": "Accounting Tutors Near You | Exam Prep Tutors"
+      },
+      {
+        "campus": "Indiana University",
+        "course": "BUS-A 201",
+        "advertiser": "Preply",
+        "family": "course_tutoring",
+        "headline": "Accounting Tutor | Tutoring Accounting from $5"
+      },
+      {
+        "campus": "Univ of Central Florida",
+        "course": "ACC 201",
+        "advertiser": "Varsity Tutors",
+        "family": "ad_probe_course_tutoring",
+        "headline": "1-on-1 Accounting Tutors | Las Vegas Valley Accounting Tutors"
+      },
+      {
+        "campus": "University of Wisconsin–Madison",
+        "course": "ACCT IS 100",
+        "advertiser": "Varsity Tutors",
+        "family": "school_acct_tutoring",
+        "headline": "1-on-1 Accounting Tutors | Leading Accounting Tutors"
+      },
+      {
+        "campus": "University of Wisconsin–Madison",
+        "course": "ACCT IS 100",
+        "advertiser": "Varsity Tutors",
+        "family": "ad_probe_course_tutoring",
+        "headline": "Memphis Accounting Tutors - 1-on-1 Accounting Tutors"
+      },
+      {
+        "campus": "University of Nevada, Las Vegas",
+        "course": "ACC 201",
+        "advertiser": "Varsity Tutors",
+        "family": "ad_probe_course_tutoring",
+        "headline": "1-on-1 Accounting Tutors | Las Vegas Valley Accounting Tutors"
+      },
+      {
+        "campus": "University of Texas at Austin",
+        "course": "ACC 311",
+        "advertiser": "Varsity Tutors",
+        "family": "ad_probe_course_tutoring",
+        "headline": "Beckett Ridge Accounting Tutors | 1-on-1 Accounting Tutors"
+      },
+      {
+        "campus": "University of North Carolina at Charlotte",
+        "course": "ACCT 2121",
+        "advertiser": "Varsity Tutors",
+        "family": "ad_probe_course_tutoring",
+        "headline": "Staunton Accounting Tutors | 1-on-1 Accounting Tutors"
+      },
+      {
+        "campus": "The University of Texas at Austin",
+        "course": "ACC 311",
+        "advertiser": "Varsity Tutors",
+        "family": "ad_probe_course_tutoring",
+        "headline": "Beckett Ridge Accounting Tutors | 1-on-1 Accounting Tutors"
+      },
+      {
+        "campus": "Middle Tennessee State Univ",
+        "course": "ACTG 2110",
+        "advertiser": "Varsity Tutors",
+        "family": "ad_probe_course_tutoring",
+        "headline": "Best Tutoring in Columbus | Affordable Private Tutoring"
+      },
+      {
+        "campus": "Missouri State University",
+        "course": "ACC 201",
+        "advertiser": "Varsity Tutors",
+        "family": "ad_probe_course_tutoring",
+        "headline": "1-on-1 Accounting Tutors | Las Vegas Valley Accounting Tutors"
+      },
+      {
+        "campus": "Texas State University",
+        "course": "ACC 2361",
+        "advertiser": "Varsity Tutors",
+        "family": "course_tutoring",
+        "headline": "1-on-1 Accounting Tutors - Belleville Accounting Tutors"
+      },
+      {
+        "campus": "Univ No Carolina Greensboro",
+        "course": "ACC 201",
+        "advertiser": "Varsity Tutors",
+        "family": "ad_probe_course_tutoring",
+        "headline": "1-on-1 Accounting Tutors | Las Vegas Valley Accounting Tutors"
+      },
+      {
+        "campus": "University of Arizona",
+        "course": "ACCT 200",
+        "advertiser": "intuit.com",
+        "family": "ad_probe_course_acct",
+        "headline": "Free QuickBooks™ For Students - Practical Accounting Lessons"
+      },
+      {
+        "campus": "University of Arizona",
+        "course": "ACCT 200",
+        "advertiser": "northwestern.edu",
+        "family": "ad_probe_course_acct",
+        "headline": "Online Accounting Courses - Accounting Certificate"
+      },
+      {
+        "campus": "Western Kentucky University",
+        "course": "ACCT 200",
+        "advertiser": "intuit.com",
+        "family": "ad_probe_course_acct",
+        "headline": "Free QuickBooks™ For Students - Practical Accounting Lessons"
+      },
+      {
+        "campus": "Western Kentucky University",
+        "course": "ACCT 200",
+        "advertiser": "northwestern.edu",
+        "family": "ad_probe_course_acct",
+        "headline": "Online Accounting Courses - Accounting Certificate"
+      },
+      {
+        "campus": "Northeastern University",
+        "course": "ACCT 1201",
+        "advertiser": "Preply",
+        "family": "ad_probe_course_tutoring",
+        "headline": "Financial Accounting Tutors"
+      },
+      {
+        "campus": "University of North Carolina at Greensboro",
+        "course": "ACC 201",
+        "advertiser": "Varsity Tutors",
+        "family": "ad_probe_course_tutoring",
+        "headline": "1-on-1 Accounting Tutors | Las Vegas Valley Accounting Tutors"
+      }
+    ]
+  },
+  "search_yield": {
+    "best": [
+      {
+        "family": "course_exam_review",
+        "searches": 243,
+        "new_competitors": 651,
+        "new_acct": 565,
+        "ads": 0,
+        "yield_per_search": 2.68,
+        "verdict": "EXPAND"
+      },
+      {
+        "family": "course_tutoring",
+        "searches": 311,
+        "new_competitors": 667,
+        "new_acct": 533,
+        "ads": 20,
+        "yield_per_search": 2.14,
+        "verdict": "EXPAND"
+      },
+      {
+        "family": "ad_probe_course_tutoring",
+        "searches": 82,
+        "new_competitors": 166,
+        "new_acct": 141,
+        "ads": 12,
+        "yield_per_search": 2.02,
+        "verdict": "EXPAND"
+      },
+      {
+        "family": "school_acct_tutoring",
+        "searches": 766,
+        "new_competitors": 1068,
+        "new_acct": 738,
+        "ads": 4,
+        "yield_per_search": 1.39,
+        "verdict": "KEEP"
+      }
+    ],
+    "worst": [
+      {
+        "family": "fin_acct_tutoring",
+        "searches": 500,
+        "new_competitors": 246,
+        "new_acct": 153,
+        "ads": 1,
+        "yield_per_search": 0.49,
+        "verdict": "REDUCE"
+      },
+      {
+        "family": "school_review_videos",
+        "searches": 150,
+        "new_competitors": 64,
+        "new_acct": 30,
+        "ads": 0,
+        "yield_per_search": 0.43,
+        "verdict": "REDUCE"
+      },
+      {
+        "family": "ad_probe_course_acct",
+        "searches": 82,
+        "new_competitors": 12,
+        "new_acct": 12,
+        "ads": 6,
+        "yield_per_search": 0.15,
+        "verdict": "REDUCE"
+      }
+    ],
+    "all": [
+      {
+        "family": "course_exam_review",
+        "searches": 243,
+        "new_competitors": 651,
+        "new_acct": 565,
+        "ads": 0,
+        "yield_per_search": 2.68,
+        "verdict": "EXPAND"
+      },
+      {
+        "family": "course_tutoring",
+        "searches": 311,
+        "new_competitors": 667,
+        "new_acct": 533,
+        "ads": 20,
+        "yield_per_search": 2.14,
+        "verdict": "EXPAND"
+      },
+      {
+        "family": "ad_probe_course_tutoring",
+        "searches": 82,
+        "new_competitors": 166,
+        "new_acct": 141,
+        "ads": 12,
+        "yield_per_search": 2.02,
+        "verdict": "EXPAND"
+      },
+      {
+        "family": "school_acct_tutoring",
+        "searches": 766,
+        "new_competitors": 1068,
+        "new_acct": 738,
+        "ads": 4,
+        "yield_per_search": 1.39,
+        "verdict": "KEEP"
+      },
+      {
+        "family": "school_exam_review",
+        "searches": 766,
+        "new_competitors": 995,
+        "new_acct": 712,
+        "ads": 0,
+        "yield_per_search": 1.3,
+        "verdict": "KEEP"
+      },
+      {
+        "family": "course_practice_exam",
+        "searches": 82,
+        "new_competitors": 92,
+        "new_acct": 73,
+        "ads": 0,
+        "yield_per_search": 1.12,
+        "verdict": "KEEP"
+      },
+      {
+        "family": "paid_tutoring",
+        "searches": 500,
+        "new_competitors": 370,
+        "new_acct": 174,
+        "ads": 2,
+        "yield_per_search": 0.74,
+        "verdict": "KEEP"
+      },
+      {
+        "family": "school_study_guide",
+        "searches": 500,
+        "new_competitors": 336,
+        "new_acct": 273,
+        "ads": 0,
+        "yield_per_search": 0.67,
+        "verdict": "KEEP"
+      },
+      {
+        "family": "school_exam_prep",
+        "searches": 150,
+        "new_competitors": 82,
+        "new_acct": 67,
+        "ads": 0,
+        "yield_per_search": 0.55,
+        "verdict": "REDUCE"
+      },
+      {
+        "family": "school_practice_exam",
+        "searches": 150,
+        "new_competitors": 76,
+        "new_acct": 65,
+        "ads": 0,
+        "yield_per_search": 0.51,
+        "verdict": "REDUCE"
+      },
+      {
+        "family": "fin_acct_tutoring",
+        "searches": 500,
+        "new_competitors": 246,
+        "new_acct": 153,
+        "ads": 1,
+        "yield_per_search": 0.49,
+        "verdict": "REDUCE"
+      },
+      {
+        "family": "school_review_videos",
+        "searches": 150,
+        "new_competitors": 64,
+        "new_acct": 30,
+        "ads": 0,
+        "yield_per_search": 0.43,
+        "verdict": "REDUCE"
+      },
+      {
+        "family": "ad_probe_course_acct",
+        "searches": 82,
+        "new_competitors": 12,
+        "new_acct": 12,
+        "ads": 6,
+        "yield_per_search": 0.15,
+        "verdict": "REDUCE"
+      }
+    ]
+  },
+  "future_ad_experiments": [
+    {
+      "type": "NON_BRAND_HIGH_INTENT",
+      "campus": "University of Nevada, Las Vegas",
+      "course": "ACC 201",
+      "keywords": [
+        "ACC 201 exam 1",
+        "ACC 201 practice exam",
+        "ACC 201 exam review"
+      ]
+    },
+    {
+      "type": "NON_BRAND_HIGH_INTENT",
+      "campus": "University of South Florida",
+      "course": "ACG 2021",
+      "keywords": [
+        "ACG 2021 exam 1",
+        "ACG 2021 practice exam",
+        "ACG 2021 exam review"
+      ]
+    },
+    {
+      "type": "NON_BRAND_HIGH_INTENT",
+      "campus": "University of North Carolina at Greensboro",
+      "course": "ACC 201",
+      "keywords": [
+        "ACC 201 exam 1",
+        "ACC 201 practice exam",
+        "ACC 201 exam review"
+      ]
+    },
+    {
+      "type": "NON_BRAND_HIGH_INTENT",
+      "campus": "University of North Texas",
+      "course": "ACCT 2010",
+      "keywords": [
+        "ACCT 2010 exam 1",
+        "ACCT 2010 practice exam",
+        "ACCT 2010 exam review"
+      ]
+    },
+    {
+      "type": "NON_BRAND_HIGH_INTENT",
+      "campus": "University of Houston",
+      "course": "ACCT 2301",
+      "keywords": [
+        "ACCT 2301 exam 1",
+        "ACCT 2301 practice exam",
+        "ACCT 2301 exam review"
+      ]
+    },
+    {
+      "type": "NON_BRAND_HIGH_INTENT",
+      "campus": "Univ of Central Florida",
+      "course": "ACC 201",
+      "keywords": [
+        "ACC 201 exam 1",
+        "ACC 201 practice exam",
+        "ACC 201 exam review"
+      ]
+    },
+    {
+      "type": "BRAND_CONQUEST_RESEARCH",
+      "note": "Understand SERP structure/demand; do NOT use trademarks in ad copy",
+      "brands": [
+        "Study Edge",
+        "Wize Prep",
+        "Course Hero",
+        "FrogTutoring"
+      ]
+    }
+  ],
+  "readiness": "YES"
+}
