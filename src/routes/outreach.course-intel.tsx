@@ -6,7 +6,7 @@
 // topic mappings. A professor shows to students only when the campus is live
 // AND the professor is live AND they're RMP-matched.
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AdminGate, getAdminWho, adminEmailFor } from "@/components/AdminGate";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,9 @@ import {
 import { discoverCourseDocuments, parseCourseDocument, getCampusDocuments } from "@/lib/syllabus-intel.functions";
 import { enrichProfintelCampus } from "@/lib/rmp-scrape.functions";
 import { researchProgramCourses } from "@/lib/program-courses.functions";
+import { scrapeCampusGreek } from "@/lib/greekrank-scrape.functions";
+import { autoDiscoverCampusUrls } from "@/lib/auto-scrape.functions";
+import { scrapeCampusFaculty } from "@/lib/faculty-scrape.functions";
 
 export const Route = createFileRoute("/outreach/course-intel")({
   head: () => ({ meta: [{ title: "Course Intel — Survive Accounting" }] }),
@@ -28,7 +31,7 @@ export const Route = createFileRoute("/outreach/course-intel")({
   ),
 });
 
-type Tab = "coverage" | "mappings" | "enrich";
+type Tab = "coverage" | "mappings" | "enrich" | "backfill";
 type Filter = "all" | "picker" | "picker_no_profs" | "has_pending" | "live" | "has_intro1" | "needs_enrich";
 
 function Stat({ label, value, hint }: { label: string; value: number | string; hint?: string }) {
@@ -74,6 +77,7 @@ function CourseIntelCockpit() {
         <div className="flex gap-1 rounded-lg border border-border p-1">
           <button onClick={() => setTab("coverage")} className={`rounded px-3 py-1 text-xs ${tab === "coverage" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Coverage</button>
           <button onClick={() => setTab("enrich")} className={`rounded px-3 py-1 text-xs ${tab === "enrich" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Find Intro-1</button>
+          <button onClick={() => setTab("backfill")} className={`rounded px-3 py-1 text-xs ${tab === "backfill" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Backfill</button>
           <button onClick={() => setTab("mappings")} className={`rounded px-3 py-1 text-xs ${tab === "mappings" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}>Textbook Mappings</button>
         </div>
       </div>
@@ -137,6 +141,7 @@ function CourseIntelCockpit() {
       )}
 
       {tab === "enrich" && <EnrichView rows={rows} onDone={() => overview.refetch()} />}
+      {tab === "backfill" && <BackfillView rows={rows} onDone={() => overview.refetch()} />}
       {tab === "mappings" && <MappingsView />}
 
       {selected && <ProfessorDrawer row={selected} onClose={() => setSelected(null)} />}
@@ -378,6 +383,100 @@ function EnrichView({ rows, onDone }: { rows: CourseIntelRow[]; onDone: () => vo
   );
 }
 type EnrichRow = { name: string; ok: boolean; enriched?: number; withTargetMatch?: number; error?: string; codeFound?: string | null };
+
+type BackfillRow = { campus: string; code: string; greek: string; profs: string; enrich: string; syllabi: string };
+
+function BackfillView({ rows, onDone }: { rows: CourseIntelRow[]; onDone: () => void }) {
+  const [stages, setStages] = useState({ code: true, greek: true, profs: true, enrich: true, syllabi: false });
+  const [scope, setScope] = useState<"incomplete" | "pickable" | "has_greek" | "all">("incomplete");
+  const [maxCampuses, setMax] = useState(20);
+  const [running, setRunning] = useState(false);
+  const [prog, setProg] = useState<{ done: number; total: number; results: BackfillRow[] }>({ done: 0, total: 0, results: [] });
+  const stop = useRef(false);
+
+  const targets = useMemo(() => {
+    let r = rows.slice();
+    if (scope === "incomplete") r = r.filter((x) => !x.hasIntro1Code || x.greekOrgs === 0 || x.profIntro1 === 0);
+    else if (scope === "pickable") r = r.filter((x) => x.inPicker);
+    else if (scope === "has_greek") r = r.filter((x) => x.greekOrgs > 0);
+    return [...r].sort((a, b) => (b.inPicker ? 1 : 0) - (a.inPicker ? 1 : 0) || b.profTotal - a.profTotal).slice(0, maxCampuses);
+  }, [rows, scope, maxCampuses]);
+
+  async function backfillOne(row: CourseIntelRow): Promise<BackfillRow> {
+    const id = row.campusId; const o: BackfillRow = { campus: row.name, code: "", greek: "", profs: "", enrich: "", syllabi: "" };
+    if (stages.code) { if (!row.hasIntro1Code) { try { const cr = await researchProgramCourses({ data: { campusId: id, force: true } }) as { course_family_codes_json?: Record<string, string> }; o.code = cr?.course_family_codes_json?.intro_1 || "—"; } catch { o.code = "err"; } } else o.code = "✓"; }
+    if (stages.greek) { if (row.greekOrgs === 0) { try { const gr = await scrapeCampusGreek({ data: { campusId: id } }) as { inserted?: number }; o.greek = `+${gr?.inserted ?? 0}`; } catch { o.greek = "err"; } } else o.greek = `${row.greekOrgs}`; }
+    if (stages.profs) { if (row.profTotal === 0) { try { const d = await autoDiscoverCampusUrls({ data: { campusId: id } }) as { facultyUrls?: string[]; noAccountingDept?: boolean }; if (d?.facultyUrls?.length && !d.noAccountingDept) { const fac = await scrapeCampusFaculty({ data: { campusId: id, urls: d.facultyUrls, allowNoContact: true } }) as { inserted?: number }; o.profs = `+${fac?.inserted ?? 0}`; } else o.profs = "no dept"; } catch { o.profs = "err"; } } else o.profs = `${row.profTotal}`; }
+    if (stages.enrich) { try { const er = await enrichProfintelCampus({ data: { campusId: id, limit: 150 } }) as { withTargetMatch?: number }; o.enrich = `${er?.withTargetMatch ?? 0}`; } catch { o.enrich = "err"; } }
+    if (stages.syllabi) { try { const sr = await discoverCourseDocuments({ data: { campusId: id } }) as { inserted?: number }; o.syllabi = `${sr?.inserted ?? 0}`; } catch { o.syllabi = "err"; } }
+    return o;
+  }
+
+  async function run() {
+    setRunning(true); stop.current = false;
+    const list = [...targets]; const results: BackfillRow[] = []; let done = 0, pos = 0;
+    setProg({ done: 0, total: list.length, results: [] });
+    const worker = async () => { while (pos < list.length && !stop.current) { const row = list[pos++]; const r = await backfillOne(row); results.push(r); done++; setProg({ done, total: list.length, results: [...results].reverse().slice(0, 50) }); } };
+    await Promise.all([worker(), worker()]); // concurrency 2
+    setRunning(false); onDone();
+  }
+
+  const toggle = (k: keyof typeof stages) => setStages((s) => ({ ...s, [k]: !s[k] }));
+
+  return (
+    <div className="mt-4">
+      <div className="rounded-lg border border-border bg-card p-4">
+        <h3 className="text-sm font-semibold">Campus Backfill — all-in-one</h3>
+        <p className="mt-1 text-xs text-muted-foreground">Per campus, runs the missing stages in order: course code → Greek orgs (GreekRank) → professors → RMP Intro-1 qualify → syllabi. Skips stages a campus already has. Public sources only. Runs 2 campuses at a time — this is heavy; start with a small batch.</p>
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          {(["code", "greek", "profs", "enrich", "syllabi"] as const).map((k) => (
+            <label key={k} className="flex items-center gap-1 text-xs text-muted-foreground">
+              <input type="checkbox" checked={stages[k]} disabled={running} onChange={() => toggle(k)} />
+              {{ code: "Course code", greek: "Greek orgs", profs: "Professors", enrich: "Intro-1 qualify", syllabi: "Syllabi" }[k]}
+            </label>
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {([["incomplete", "Incomplete (missing anything)"], ["pickable", "Pickable"], ["has_greek", "Has Greek"], ["all", "All"]] as [typeof scope, string][]).map(([s, label]) => (
+            <button key={s} disabled={running} onClick={() => setScope(s)} className={`rounded-full border px-3 py-1 text-xs ${scope === s ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}>{label}</button>
+          ))}
+          <label className="ml-2 text-xs text-muted-foreground">max
+            <input type="number" value={maxCampuses} disabled={running} onChange={(e) => setMax(Math.max(1, Math.min(200, +e.target.value || 20)))} className="ml-1 w-16 rounded border border-border bg-background px-2 py-1 text-xs" />
+          </label>
+          <span className="ml-auto text-xs text-muted-foreground">{targets.length} campuses queued</span>
+          {running
+            ? <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { stop.current = true; }}>Stop</Button>
+            : <Button size="sm" className="h-8 text-xs" disabled={targets.length === 0} onClick={run}>Backfill {targets.length} campuses</Button>}
+        </div>
+        {(running || prog.total > 0) && (
+          <div className="mt-3">
+            <div className="h-2 w-full overflow-hidden rounded bg-muted"><div className="h-full bg-sky-500 transition-all" style={{ width: `${prog.total ? (100 * prog.done) / prog.total : 0}%` }} /></div>
+            <p className="mt-1 text-[11px] text-muted-foreground">{prog.done}/{prog.total} campuses {running ? "· running…" : "· done"}</p>
+          </div>
+        )}
+      </div>
+      {prog.results.length > 0 && (
+        <div className="mt-3 overflow-x-auto rounded-lg border border-border">
+          <table className="w-full text-xs">
+            <thead className="bg-muted/40 text-left text-muted-foreground"><tr><th className="px-3 py-1.5">Campus</th><th className="px-2 py-1.5">Code</th><th className="px-2 py-1.5">Greek</th><th className="px-2 py-1.5">Profs</th><th className="px-2 py-1.5">Intro-1</th><th className="px-2 py-1.5">Syllabi</th></tr></thead>
+            <tbody>
+              {prog.results.map((r, i) => (
+                <tr key={i} className="border-t border-border">
+                  <td className="px-3 py-1.5">{r.campus}</td>
+                  <td className="px-2 py-1.5 text-muted-foreground">{r.code}</td>
+                  <td className="px-2 py-1.5 text-muted-foreground">{r.greek}</td>
+                  <td className="px-2 py-1.5 text-muted-foreground">{r.profs}</td>
+                  <td className="px-2 py-1.5 text-sky-500">{r.enrich}</td>
+                  <td className="px-2 py-1.5 text-muted-foreground">{r.syllabi}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function MappingsView() {
   const q = useQuery({ queryKey: ["textbook-mappings"], queryFn: () => getTextbookMappings() });
