@@ -16,19 +16,19 @@ const check = (name: string, ok: boolean, detail = "") => { (ok ? pass++ : fail+
 
 // Replica of the resolver's exam-resolution (professor → campus → starter, all-or-nothing).
 async function resolveExam1TopicIds(db: Db, campusId: string | null, professorId: string | null): Promise<{ level: string; topicIds: string[] }> {
-  const at = async (c: string | null, p: string | null) => {
+  const at = async (c: string | null, p: string | null): Promise<{ topicIds: string[] } | null> => {
     let q = db.from("campus_exams").select("id,name").eq("course_id", COURSE_ID).eq("status", "active");
     q = c ? q.eq("campus_id", c) : q.is("campus_id", null);
     q = p ? q.eq("professor_id", p) : q.is("professor_id", null);
     const { data: exams } = await q; if (!exams?.length) return null;
     const e1 = exams.find((e: any) => /exam\s*1|^1$/i.test(e.name)) ?? null;
-    if (!e1) return { level: "hit", topicIds: [] };
+    if (!e1) return { topicIds: [] };
     const { data: t } = await db.from("campus_exam_topics").select("chapter_id,position").eq("campus_exam_id", e1.id).order("position");
-    return { level: "hit", topicIds: (t ?? []).map((x: any) => x.chapter_id) };
+    return { topicIds: (t ?? []).map((x: any) => x.chapter_id) };
   };
-  if (campusId && professorId) { const r = await at(campusId, professorId); if (r) return { level: "professor", ...r }; }
-  if (campusId) { const r = await at(campusId, null); if (r) return { level: "campus", ...r }; }
-  const r = await at(null, null); if (r) return { level: "starter", ...r };
+  if (campusId && professorId) { const r = await at(campusId, professorId); if (r) return { level: "professor", topicIds: r.topicIds }; }
+  if (campusId) { const r = await at(campusId, null); if (r) return { level: "campus", topicIds: r.topicIds }; }
+  const r = await at(null, null); if (r) return { level: "starter", topicIds: r.topicIds };
   return { level: "none", topicIds: [] };
 }
 
