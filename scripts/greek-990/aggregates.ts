@@ -52,6 +52,7 @@ function aggregate(st: any) {
   const rank = (o: any) => (/President/.test(o.normalized_title) ? 3 : /Treasurer/.test(o.normalized_title) ? 2 : /Director|Chair/.test(o.normalized_title) ? 1 : 0);
   const govFirst = (et: string) => ["HOUSE_CORPORATION", "EDUCATIONAL_FOUNDATION", "SCHOLARSHIP_FOUNDATION", "ALUMNI_CORPORATION", "PROPERTY_HOLDING_ENTITY"].includes(et) ? 1 : 0;
   for (const { e } of linked) {
+    if (e.entity_type === "NATIONAL_PARENT") continue; // national officers are weak relevance — not a chapter stakeholder
     for (const o of officersByEntity.get(e.id) || []) {
       const cand = { name: o.person_name, role: o.normalized_title, entity_type: e.entity_type, stakeholder_class: o.stakeholder_class, latest_filing_year: o.latest_filing_year };
       if (!primary) { primary = cand; continue; }

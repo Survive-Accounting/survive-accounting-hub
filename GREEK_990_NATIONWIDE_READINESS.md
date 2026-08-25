@@ -86,8 +86,27 @@ the national-parent link is the ceiling — a real data floor, not a matcher gap
 layer, with exactly the requested fields: `legal_entity_count`, `house_corp_present`,
 `foundation_present`, `alumni_corp_present`, `governance_strength`, `primary_latest_990_stakeholder`
 (with a `source: "LATEST 990-REPORTED (TYxxxx)"` label, never "current"), `latest_filing_year`, and
-`data_confidence`. Nationwide financial enrichment (filing years + revenue/assets) is completing in
-the background; the aggregate is regenerated when it finishes and is idempotent/resumable.
+`data_confidence`.
+
+Final aggregate summary (nationwide financial enrichment complete — 3,764 of 4,712 chapters carry a
+`latest_filing_year`):
+
+| Field | Count |
+|---|---:|
+| Chapters | 4,712 across 190 campuses |
+| With a chapter-specific entity (data_confidence HIGH) | 1,455 |
+| National-parent only | 2,379 |
+| No entity | 878 |
+| House corporation present | 193 |
+| Foundation present | 84 |
+| Alumni corporation present | 67 |
+| Governance STRONG / MODERATE / LIGHT | 189 / 64 / 1,202 |
+| With a `latest_filing_year` | 3,764 |
+| With a chapter-level `primary_latest_990_stakeholder` | 68 (officer-backed; SEC subset, scales with more IRS zips) |
+
+The `primary_latest_990_stakeholder` excludes national-parent officers (weak relevance) — it names a
+real house-corp / foundation / local-chapter governing person, e.g. *Chi Omega @ University of
+Alabama → Kathleen Roth, House Corporation President, LATEST 990-REPORTED (TY2022)*.
 
 ## Guardrails (unchanged)
 
