@@ -57,6 +57,10 @@ function hasIntro1Code(cfc: unknown, cc: unknown): boolean {
 export type CourseIntelRow = {
   campusId: string;
   name: string;
+  displayName: string;      // student-facing label (falls back to name)
+  searchText: string;       // name + display + aliases + system, lowercased for search
+  systemName: string | null;
+  resolutionStatus: string | null; // resolved | needs_campus_resolution
   state: string | null;
   inPicker: boolean;
   campusLive: boolean;      // campuses.active_roster = 'sec'
@@ -77,11 +81,17 @@ export const getCourseIntelOverview = createServerFn({ method: "GET" }).handler(
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
   const campuses = await pageAll<{
-    id: string; name: string; state: string | null; active_roster: string | null; course_family_textbooks_json: unknown;
+    id: string; name: string; display_name: string | null; aliases: unknown; parent_system_id: string | null;
+    campus_resolution_status: string | null; state: string | null; active_roster: string | null; course_family_textbooks_json: unknown;
     course_family_codes_json: unknown; course_codes_json: unknown; greek_eligibility: string | null;
   }>((f, t) =>
-    (supabaseAdmin.from("campuses") as any).select("id,name,state,active_roster,course_family_textbooks_json,course_family_codes_json,course_codes_json,greek_eligibility").range(f, t),
+    (supabaseAdmin.from("campuses") as any).select("id,name,display_name,aliases,parent_system_id,campus_resolution_status,state,active_roster,course_family_textbooks_json,course_family_codes_json,course_codes_json,greek_eligibility").range(f, t),
   );
+
+  const systems = await pageAll<{ id: string; name: string; aliases: unknown }>((f, t) =>
+    (supabaseAdmin.from("campus_systems") as any).select("id,name,aliases").range(f, t),
+  );
+  const systemById = new Map(systems.map((s) => [s.id, s]));
 
   const sugg = await pageAll<{
     campus_id: string; email: string | null; archived_at: string | null; active_roster: string | null; rmp_profile_url: string | null; status: string | null;
@@ -125,8 +135,15 @@ export const getCourseIntelOverview = createServerFn({ method: "GET" }).handler(
     const a = agg.get(c.id) ?? { total: 0, email: 0, live: 0, ready: 0, pending: 0, intro1: 0 };
     const tb = parseTextbook(c.course_family_textbooks_json);
     const author = (tb?.authors ?? "").split(/[,;]/)[0].trim().toLowerCase();
+    const sys = c.parent_system_id ? systemById.get(c.parent_system_id) : null;
+    const aliasArr = Array.isArray(c.aliases) ? (c.aliases as string[]) : [];
+    const sysAliases = sys && Array.isArray(sys.aliases) ? (sys.aliases as string[]) : [];
+    const searchText = [c.name, c.display_name, ...aliasArr, sys?.name, ...sysAliases].filter(Boolean).join(" | ").toLowerCase();
     return {
-      campusId: c.id, name: c.name, state: c.state, inPicker: inPicker.has(c.id),
+      campusId: c.id, name: c.name,
+      displayName: (c.display_name as string) || c.name, searchText,
+      systemName: sys?.name ?? null, resolutionStatus: (c.campus_resolution_status as string) ?? null,
+      state: c.state, inPicker: inPicker.has(c.id),
       campusLive: c.active_roster === "sec",
       profTotal: a.total, profWithEmail: a.email, profLive: a.live, profPlayerReady: a.ready, profIntro1: a.intro1,
       hasIntro1Code: hasIntro1Code(c.course_family_codes_json, c.course_codes_json), greekOrgs: greekCount.get(c.id) ?? 0,
