@@ -39,6 +39,21 @@ function parseTextbook(raw: unknown): { title: string; authors: string } | null 
   return { title: b.title, authors: b.authors ?? "" };
 }
 
+function hasIntro1Code(cfc: unknown, cc: unknown): boolean {
+  for (let j of [cfc, cc]) {
+    if (typeof j === "string") { try { j = JSON.parse(j); } catch { continue; } }
+    if (!j || typeof j !== "object") continue;
+    const o = j as Record<string, unknown>;
+    const v = o.intro_1 ?? o["intro-accounting-1"];
+    if (typeof v === "string" && v.trim()) return true;
+    if (v && typeof v === "object") {
+      const vc = v as Record<string, unknown>;
+      if ((vc.local_course_code && String(vc.local_course_code).trim()) || (vc.code && String(vc.code).trim())) return true;
+    }
+  }
+  return false;
+}
+
 export type CourseIntelRow = {
   campusId: string;
   name: string;
@@ -50,6 +65,7 @@ export type CourseIntelRow = {
   profLive: number;         // professors with active_roster set (on the player)
   profPlayerReady: number;  // active_roster AND rmp_profile_url (actually show)
   profIntro1: number;       // qualified "teaches Intro 1" (RMP target-course signal)
+  hasIntro1Code: boolean;   // campus has an intro-1 course code (prereq to qualify)
   profPending: number;
   textbook: string | null;
   hasMapping: boolean;
@@ -60,8 +76,9 @@ export const getCourseIntelOverview = createServerFn({ method: "GET" }).handler(
 
   const campuses = await pageAll<{
     id: string; name: string; state: string | null; active_roster: string | null; course_family_textbooks_json: unknown;
+    course_family_codes_json: unknown; course_codes_json: unknown;
   }>((f, t) =>
-    (supabaseAdmin.from("campuses") as any).select("id,name,state,active_roster,course_family_textbooks_json").range(f, t),
+    (supabaseAdmin.from("campuses") as any).select("id,name,state,active_roster,course_family_textbooks_json,course_family_codes_json,course_codes_json").range(f, t),
   );
 
   const sugg = await pageAll<{
@@ -103,7 +120,8 @@ export const getCourseIntelOverview = createServerFn({ method: "GET" }).handler(
     return {
       campusId: c.id, name: c.name, state: c.state, inPicker: inPicker.has(c.id),
       campusLive: c.active_roster === "sec",
-      profTotal: a.total, profWithEmail: a.email, profLive: a.live, profPlayerReady: a.ready, profIntro1: a.intro1, profPending: a.pending,
+      profTotal: a.total, profWithEmail: a.email, profLive: a.live, profPlayerReady: a.ready, profIntro1: a.intro1,
+      hasIntro1Code: hasIntro1Code(c.course_family_codes_json, c.course_codes_json), profPending: a.pending,
       textbook: tb ? `${tb.title}${tb.authors ? " — " + tb.authors : ""}` : null,
       hasMapping: !!author && mappedAuthors.has(author),
     };
@@ -118,6 +136,7 @@ export const getCourseIntelOverview = createServerFn({ method: "GET" }).handler(
     profsPlayerReady: rows.reduce((s, r) => s + r.profPlayerReady, 0),
     profsIntro1: rows.reduce((s, r) => s + r.profIntro1, 0),
     campusesWithIntro1: rows.filter((r) => r.profIntro1 > 0).length,
+    campusesNeedCodes: rows.filter((r) => r.profTotal > 0 && r.profIntro1 === 0 && !r.hasIntro1Code).length,
     pendingReview: rows.reduce((s, r) => s + r.profPending, 0),
   };
   return { rows, totals };
