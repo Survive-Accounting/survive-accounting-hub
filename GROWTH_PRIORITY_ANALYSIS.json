@@ -1,0 +1,75 @@
+{
+  "version": "growth_priority_v1",
+  "generated": "2026-08-25",
+  "universe": { "ranked": 677, "primary_institutions": 675, "duplicates_suppressed": true, "two_year_excluded": true },
+  "model": {
+    "formula": "score = renormalized_weighted_mean(market:0.40, reach:0.20, paid:0.15, readiness:0.15, growth:0.10) + demand_boost(<=15)",
+    "components": {
+      "market": "percentile(business_bachelors) among ranked set",
+      "reach": "percentile(3*eligible_council_emails + 2*eligible_chapter_emails + 0.2*min(instagram,40) + 0.5*min(social_chapters,60); quarantine-gated)",
+      "paid": "55*validated_paid + 30*intro_STRONG|15*intro_MODERATE + 15*(course_specific>0) + 10*ads_observed, cap 100, null without competitive row",
+      "readiness": "25*course_code + 25*confirmed_intro1|12*likely + 20*exam1_range + 15*textbook + 10*min(syllabi,3)/3 + 5*approved_campus_map",
+      "growth": "campus_market_intelligence.growth_momentum_score (v1)",
+      "demand_boost": "min(15, 3*identified_users + 10*paid_users + 5*chapter_claims + 2*orders + 1*waitlist + 0.05*practice_attempts)"
+    },
+    "tiebreak": ["score desc", "business_bachelors desc", "name asc", "campus_id asc"],
+    "storage": "growth_campus_priority (rank, score, version, why[], components jsonb)",
+    "overrides": "growth_campus_pins (pinned, manual_priority) — computed row never destroyed"
+  },
+  "guardrails": [
+    "GPA/academic_need/difference_from_council are not model inputs",
+    "990 financials are not model inputs; 990 people never first-touch eligible",
+    "competitor presence additive-only, never a penalty; false/UNKNOWN means unconfirmed",
+    "raw professor directory count excluded; Intro-1 evidence counts only",
+    "growth_scoring_exclusions honoured (greek_chapter_count); duplicate campuses suppressed",
+    "no live exam countdowns from historical evidence (term >= 2026 required)"
+  ],
+  "corrections": [
+    { "issue": "greek double-count in market-intel outreach_priority (~16.25%)", "fix": "greek counted once, in reach only" },
+    { "issue": "estimated_intro1_annual collinear with business_bachelors (x2.4)", "fix": "display-only" },
+    { "issue": "validated_paid_market too broad (66% of campuses)", "fix": "proven-paid basket keys on course_specific_competitors>0" },
+    { "issue": "UH-Downtown carried 36 chapters + 12 council emails (UH-main bleed)", "fix": "quarantined greek_chapter_count needs_review 2026-08-25" }
+  ],
+  "campus_baskets": [
+    { "key": "top_markets", "label": "Top Markets", "rule": "market>=80", "count": 136 },
+    { "key": "course_ready", "label": "Course Ready", "rule": "readiness>=60", "count": 45 },
+    { "key": "greek_power", "label": "Greek Powerhouses", "rule": "reach>=70", "count": 67 },
+    { "key": "needs_enrichment", "label": "Needs Enrichment", "rule": "market>=70 && readiness<40", "count": 169 },
+    { "key": "live_demand", "label": "Live Demand", "rule": "demand_boost>0", "count": 8 },
+    { "key": "proven_paid", "label": "Proven Paid", "rule": "course_specific_competitors>0", "count": 284, "placement": "More" },
+    { "key": "white_space", "label": "White Space", "rule": "market_status=WHITE_SPACE && market>=60", "count": 35, "placement": "More" }
+  ],
+  "chapter_baskets": [
+    { "key": "largest", "rule": "latest_member_count>=100", "count": 550 },
+    { "key": "large_reachable", "rule": "members>=100 && (eligible email or instagram)", "count": 162 },
+    { "key": "top_campus", "rule": "campus priority rank<=50" },
+    { "key": "showing_demand", "rule": "claims/access requests>0", "count": 1 },
+    { "key": "alumni_infrastructure", "rule": "house corp or foundation entity (context only)", "count_chapters_with_entity": 1455 }
+  ],
+  "professor_cohorts": [
+    { "key": "confirmed_intro1", "rule": "evidence_state=CONFIRMED_INTRO1", "rows": 212, "campuses": 68 },
+    { "key": "likely_intro1", "rule": "evidence_state=LIKELY_INTRO1", "rows": 459, "campuses": 112 },
+    { "key": "has_docs", "rule": "course_document rows naming professor" },
+    { "key": "has_exam_evidence", "rule": "course_evidence exam_chapter_range by professor_name" },
+    { "key": "map_ready", "rule": "campus has exam1 range + textbook TOC, map unapproved" },
+    { "key": "needs_evidence", "rule": "candidates>0 && no intro-1 evidence" }
+  ],
+  "signals_rejected": [
+    "gpa_leaderboard", "990_purchasing_power", "raw_professor_count", "raw_competitor_count_penalty",
+    "estimated_intro1_annual (redundant)", "business_clubs (too sparse to rank: 62 rows)"
+  ],
+  "fall_2026_top_12": [
+    "University of Florida", "University of Georgia", "University of Arkansas", "UNLV",
+    "University of Mississippi", "Florida Atlantic", "Florida Gulf Coast",
+    "University of Houston - Downtown (quarantined data — review)", "University of Kentucky",
+    "University of North Texas", "University of Tennessee", "University of Alabama"
+  ],
+  "empirical_tests": [
+    "council-email-first vs chapter-IG-first reply rates",
+    "course-specific-competitor campuses vs white-space conversion",
+    "course-code landing pages where course_code_network_present",
+    "readiness as conversion moderator",
+    "greek_pct_of_student_body as conversion moderator",
+    "GPA-context line A/B (only sanctioned GPA use)"
+  ]
+}
