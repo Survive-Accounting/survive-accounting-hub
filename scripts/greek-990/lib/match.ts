@@ -6,7 +6,7 @@ import {
   type BmfRow,
 } from "./bmf";
 import {
-  GREEK_WORDS, classifyEntityType, cityMatches, leadingGreekDesignation,
+  GREEK_WORDS, classifyEntityType, cityMatches, entityOwnDesignation,
   normalizeName, phraseAt, tokens, type EntityType,
 } from "./normalize";
 
@@ -175,10 +175,25 @@ export function matchChapter(
     if (cls.type !== "UNKNOWN") score += 5;
     if (["07", "03", "02"].includes(row.subsection)) score += 3;
 
+    // Sibling-chapter guard: when THIS chapter's designation is known, an entity that carries a
+    // DIFFERENT explicit chapter designation (and did not match ours) is another chapter's entity
+    // that merely shares our campus city — e.g. "EPSILON PHI HOUSE CORP OF KAPPA KAPPA GAMMA"
+    // linked to the "Gamma Pi" (Alabama) chapter. Cap such matches at review, never auto-link.
+    let siblingConflict = false;
+    if (hasDesig && !designationEvidence) {
+      const own = entityOwnDesignation(hay, org);
+      if (own.length) {
+        const desigSet = new Set(desigFull);
+        const overlap = own.some((t) => desigSet.has(t));
+        if (!overlap) siblingConflict = true;
+      }
+    }
+
     // ── confidence tiers ──
     const strongDisambiguator = uni.hit || cityHit || (!!designationEvidence && designationEvidence.includes("present"));
     let confidence: Confidence;
-    if (strongDisambiguator && score >= 65) confidence = "HIGH_CONFIDENCE";
+    if (siblingConflict) confidence = score >= 48 ? "MEDIUM_CONFIDENCE" : "LOW_CONFIDENCE";
+    else if (strongDisambiguator && score >= 65) confidence = "HIGH_CONFIDENCE";
     else if (score >= 48) confidence = "MEDIUM_CONFIDENCE";
     else confidence = "LOW_CONFIDENCE";
 

@@ -13,16 +13,16 @@ _Intelligence layer only — no outreach sent, no deploy._
 
 ## Entity discovery (precision-first, brief §10/§27)
 - Chapters with ≥1 legal entity linked: **702** (82%)
-- Chapters with a HIGH-confidence **chapter-level** entity (local / house corp / foundation / alumni): **383** (45%)
-- Chapters linked ONLY to their national parent (real but generic): **319**
-- Review-worthy MEDIUM candidates (house corp / foundation / designation / GEN hits): **584**
+- Chapters with a HIGH-confidence **chapter-level** entity (local / house corp / foundation / alumni): **381** (44%)
+- Chapters linked ONLY to their national parent (real but generic): **321**
+- Review-worthy MEDIUM candidates (house corp / foundation / designation / GEN hits): **588**
 - Chapters with no entity found: **156** (a valid outcome, brief §23)
 _HIGH auto-links require a real disambiguator — campus city OR chapter designation — never a bare state match._
-- **Unique legal entities:** 638 · **unique EINs:** 638
+- **Unique legal entities:** 632 · **unique EINs:** 632
 
 ### Entity types
-- LOCAL_CHAPTER_ENTITY: 386
-- HOUSE_CORPORATION: 81
+- LOCAL_CHAPTER_ENTITY: 384
+- HOUSE_CORPORATION: 77
 - NATIONAL_PARENT: 77
 - UNKNOWN: 57
 - ALUMNI_CORPORATION: 15
@@ -34,30 +34,30 @@ All chapter↔entity links stored with typed relationship, match score, explaina
 evidence, and provenance. EIN is never stored bare on the chapter (brief §4).
 
 ## Filings & financials (ProPublica Nonprofit Explorer API, cached)
-- Total filings recorded: **5411**
-  - 990: 4245
-  - 990EZ: 613
-  - 990N: 527
+- Total filings recorded: **5360**
+  - 990: 4202
+  - 990EZ: 607
+  - 990N: 525
   - 990PF: 26
 - Chapters with financial data: **693**
-- Median filing revenue: **$544,112** · median assets: **$425,730**
+- Median filing revenue: **$541,268** · median assets: **$414,383**
   _(aggregate financials are market/account context only — NOT purchasing authority, brief §18)_
 
 ## Officers / directors (IRS 990 XML + reused prior extraction)
-- Officer/director person-records: **624**
-- Unique people: **624**
+- Officer/director person-records: **620**
+- Unique people: **620**
 - Chapters with a LATEST-990-reported president: **171**
 - Chapters with a LATEST-990-reported treasurer: **127**
   _(never labeled "current" — 990s lag, brief §15)_
 
 ## Alumni governance strength (internal descriptive, brief §30)
-- LIGHT: 613
+- LIGHT: 614
 - UNKNOWN: 156
 - MODERATE: 65
-- STRONG: 24
+- STRONG: 23
 
 ## Review queue
-- 584 MEDIUM candidates in `GREEK_990_ENTITY_REVIEW_QUEUE.csv` for CONFIRM / REJECT / UNSURE.
+- 588 MEDIUM candidates in `GREEK_990_ENTITY_REVIEW_QUEUE.csv` for CONFIRM / REJECT / UNSURE.
   Human effort is exception-based — HIGH links auto-applied, LOW left unlinked.
 
 ## Method & cost

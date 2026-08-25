@@ -124,6 +124,29 @@ export function classifyEntityType(
   return { type: "UNKNOWN", confidence: "LOW", evidence: "no classifying keyword" };
 }
 
+/** All maximal consecutive Greek-letter runs in a token list, e.g.
+ *  ["HOUSE","BOARD","OF","GAMMA","PI","OF","KAPPA","KAPPA","GAMMA"] → [["GAMMA","PI"],["KAPPA","KAPPA","GAMMA"]]. */
+export function maximalGreekRuns(toks: string[]): string[][] {
+  const runs: string[][] = [];
+  let cur: string[] = [];
+  for (const t of toks) {
+    if (GREEK_WORDS.has(t)) cur.push(t);
+    else { if (cur.length) runs.push(cur); cur = []; }
+  }
+  if (cur.length) runs.push(cur);
+  return runs;
+}
+
+/** The entity's OWN chapter designation, if any: the first maximal Greek run that is NOT the
+ *  org name itself. "EPSILON PHI HOUSE CORP OF KAPPA KAPPA GAMMA" → ["EPSILON","PHI"]. */
+export function entityOwnDesignation(nameTokensHay: string[], orgTokens: string[]): string[] {
+  const orgKey = orgTokens.join(" ");
+  for (const run of maximalGreekRuns(nameTokensHay)) {
+    if (run.join(" ") !== orgKey) return run;
+  }
+  return [];
+}
+
 /** Extract a plausible chapter-designation phrase (leading Greek letters) from a BMF name,
  *  e.g. "ALPHA PHI ZETA HOUSE CORPORATION OF ..." → "ALPHA PHI ZETA". Best-effort. */
 export function leadingGreekDesignation(name: string): string {
