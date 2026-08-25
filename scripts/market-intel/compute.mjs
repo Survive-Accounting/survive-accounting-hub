@@ -110,7 +110,10 @@ for (const m of matched) {
   const shareChg5 = shareChg5raw != null ? round(shareChg5raw, 4) : null;
   const shareChg5d = shareChg5raw != null ? shareChg5raw * sizeFactor : null;
   const shareChg3 = (shareAt(LATEST) != null && shareAt(LATEST - 3) != null) ? round(shareAt(LATEST) - shareAt(LATEST - 3), 4) : null;
-  const ugTrend5 = growthRatio(ip.ug12_2023, ip.ug12_2018);
+  // enrollment 5y trend uses 12-month undergrad EFFY (LATEST-5 -> LATEST): 2019 -> 2024
+  const ug12base = ip[`ug12_${LATEST - 5}`] ?? ip.ug12_2019 ?? ip.ug12_2018;
+  const ug12latest = ip[`ug12_${LATEST}`] ?? ip.ug12_2024 ?? ip.ug12_2023;
+  const ugTrend5 = growthRatio(ug12latest, ug12base);
   const ugTrend5d = ugTrend5 != null ? ugTrend5 * sizeFactor : null;
 
   const meaningfulMarket = business >= CFG.growth.meaningful_market_min_business;
@@ -137,7 +140,7 @@ for (const m of matched) {
     latest_data_year: latestYear,
     business_bachelors: business, accounting_bachelors: accounting, total_bachelors: total,
     business_share_of_bachelors: businessShare, accounting_share_of_business: acctShareBiz,
-    undergrad_enrollment: undergrad,
+    undergrad_enrollment: undergrad, undergrad_enrollment_year: ip.ug_fall_2023 ? (CFG.data_sources.enrollment_fall_year || 2023) : (meta.undergrad_enrollment ? 'campus_db' : null),
     estimated_intro1_annual: estIntro1,
     // growth raw
     business_growth_1y: round(g1, 4), business_growth_3y: round(g3, 4), business_growth_5y: round(g5, 4),

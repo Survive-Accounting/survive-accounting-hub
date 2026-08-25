@@ -18,6 +18,7 @@ a87efea2-a1e6-40e8-bece-26f4accddae8,Saint Mary's College of CA,CA,Moraga,NEEDS_
 6048af64-37f0-412f-be1c-c084567bd209,Uof Arkansas at Fort Smith Ft.,AR,Smith,NEEDS_IDENTITY_REVIEW,high_conf_suggestion_verify,University of Arkansas-Fort Smith (108092) j=0.8
 3cadacd7-3222-4d2d-af43-f94bb783870b,Univ So Carolina at Aiken,SC,Aiken,NEEDS_IDENTITY_REVIEW,high_conf_suggestion_verify,University of South Carolina Aiken (218645) j=0.6
 df7ad324-c0ff-49a0-ade1-82dde6b6e6f2,Fairleigh Dickinson Univ,NJ,Teaneck,NEEDS_IDENTITY_REVIEW,high_conf_suggestion_verify,Fairleigh Dickinson University-Metropolitan Campus (184603) j=0.6
+9d49fc62-9150-4ffc-bd20-a5b60b60e7c2,Manhattan College,NY,Riverdale,NEEDS_IDENTITY_REVIEW,high_conf_suggestion_verify,Marymount Manhattan College (192864) j=0.667
 4c146400-e96d-4d2c-b06a-49f2ba596d02,New Jersey In of Technology,NJ,Newark,NEEDS_IDENTITY_REVIEW,high_conf_suggestion_verify,New Jersey Institute of Technology (185828) j=0.75
 a97a7a2b-1c87-499b-8fde-67d5cf9df329,University at Albany-SUNY,NY,Albany,NEEDS_IDENTITY_REVIEW,high_conf_suggestion_verify,University at Albany (196060) j=0.667
 315515a8-bafb-4cba-b4de-967bbadaeca1,Penn State U Great Valley,PA,Malvern,NEEDS_IDENTITY_REVIEW,high_conf_suggestion_verify,Pennsylvania State University-Penn State Great Valley (214607) j=0.833
@@ -26,6 +27,7 @@ a97a7a2b-1c87-499b-8fde-67d5cf9df329,University at Albany-SUNY,NY,Albany,NEEDS_I
 13864a8e-31cc-45e2-a81d-5e54f623ab35,Univ No Carolina Greensboro,NC,Greensboro,NEEDS_IDENTITY_REVIEW,high_conf_suggestion_verify,University of North Carolina at Greensboro (199148) j=0.6
 9d92ff92-0651-441b-94ca-4e6ca696bafe,Grand Valley State University Allendal,MI,Allendale,NEEDS_IDENTITY_REVIEW,high_conf_suggestion_verify,Grand Valley State University (170082) j=0.8
 34714288-6630-4265-a831-f04fa103fe63,Penn State New Kensington,PA,New Kensington,NEEDS_IDENTITY_REVIEW,high_conf_suggestion_verify,Pennsylvania State University-Penn State New Kensington (214625) j=0.667
+4d3d2512-cf8e-4061-9ce1-329bf3918490,Texas A&M University-Commerce,TX,Commerce,NEEDS_IDENTITY_REVIEW,high_conf_suggestion_verify,Texas A&M University-Texarkana (224545) j=0.667
 49ae7dd9-7422-4c18-8994-5f4e946dde02,Penn State Abington,PA,Abington,NEEDS_IDENTITY_REVIEW,high_conf_suggestion_verify,Pennsylvania State University-Penn State Abington (214801) j=0.6
 c45a706a-15c7-42e2-b488-a4d6c2a8d799,Penn State Shenango,PA,Sharon,NEEDS_IDENTITY_REVIEW,high_conf_suggestion_verify,Pennsylvania State University-Penn State Shenango (214634) j=0.6
 d4eed22f-40df-4fd0-ace4-373c1e3e3c35,Arkansas State University Technical Center,AR,Jonesboro,NEEDS_IDENTITY_REVIEW,high_conf_suggestion_verify,Arkansas State University (106458) j=0.6
@@ -37,7 +39,7 @@ e68d3256-de0a-4381-a0a5-a8dfebf4e3e5,Penn State Brandywine,PA,Media,NEEDS_IDENTI
 41429690-d8eb-48ba-8335-ae92e477173f,Augsburg College,MN,Minneapolis,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,Academy College (172866) j=0.333
 938e0768-ff62-4cea-b212-c57f6ebfd82c,Calvin College Grand,MI,Rapids,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,Grand Rapids Community College (170055) j=0.4
 9220ee33-22b4-46b6-9ca5-86528da2ec47,CUNY-Baruch College New,NY,York,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,CUNY Bernard M Baruch College (190512) j=0.5
-4864a01b-855f-4a2c-88be-7c89ea366c61,Indiana U-Purdue U Indy,IN,Indianapolis,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,Indiana University-Indianapolis (151111) j=0.4
+4864a01b-855f-4a2c-88be-7c89ea366c61,Indiana U-Purdue U Indy,IN,Indianapolis,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,Indiana University - Purdue University Indianapolis - Columbus Ctr (500254) j=0.429
 b9ea128c-d602-46c5-8be3-b8c8af227538,Simmons College,MA,Boston,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,Amherst College (164465) j=0.333
 a812801e-bfdf-47fa-af80-4b4ee6fe52fa,SUNYat Buffalo,NY,Buffalo,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,University at Buffalo (196088) j=0.333
 e1d98d50-18ce-4a43-b5da-c487df2b0ab4,SUNY College at Oswego,NY,Oswego,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,SUNY College at Geneseo (196167) j=0.5
@@ -48,14 +50,14 @@ a80edc34-2642-4523-914e-9b5fc55648e6,SUNYat New Paltz New,NY,Paltz,NEEDS_IDENTIT
 8eb60afc-bad2-480f-bafc-efb0f53ffbf0,Columbia University New,NY,York,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,Columbia University in the City of New York (190150) j=0.5
 82634e4a-b0a0-48a7-bb15-d604e3fd8f77,Commonweath Univ - Bloomsb,PA,Bloomsburg,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,DeSales University (210739) j=0.25
 46e2c9bf-c4c4-4a7f-bc4a-5fe00bfce1aa,Purdue University W,IN,Lafayette,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,Purdue University Global (489779) j=0.5
-0a812f83-8129-4bab-ad51-7366d1e2a183,SUNYat Plattsburgh,NY,Plattsburgh,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,SUNY College at Plattsburgh (196246) j=0.25
+0a812f83-8129-4bab-ad51-7366d1e2a183,SUNYat Plattsburgh,NY,Plattsburgh,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,State University of New York at Plattsburgh (196246) j=0.167
 c7641d1b-7a81-42a5-a284-627f5cd1c3d8,The Citadel,SC,Charleston,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,Citadel Military College of South Carolina (217864) j=0.2
 50c1a664-effd-4a12-b28d-27a586dde5ba,IUSB Indiana Uat South Bend South,IN,Bend,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,Indiana University-South Bend (151342) j=0.5
 cb96e07b-5d0a-4c3f-879c-867bf3f056c8,LeMoyne College,NY,Syracuse,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,Bard College (189088) j=0.333
 8f26c44b-1aed-4104-97ad-67c4574e956b,Ivy Technical Community College Kokomo S In Ivy Technical Community College Lafayette,IN,Kokomo,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,Ivy Tech Community College (150987) j=0.375
 72167168-8fe4-4957-bd46-6c0f27c59cb7,Penn State Univ-Behrend,PA,Erie,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,Pennsylvania State University-Penn State Erie-Behrend College (214591) j=0.571
 a72a0c67-452d-49a1-a44c-2082633374f8,Rollins College Liberal Arts Winter,FL,Park,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,Rollins College (136950) j=0.4
-d5050503-04c5-46ef-b145-bd84564b479d,"So Illinois, Edwardsville",IL,Edwardsville,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,Southern Illinois University-Edwardsville (149231) j=0.4
+d5050503-04c5-46ef-b145-bd84564b479d,"So Illinois, Edwardsville",IL,Edwardsville,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,Southern Illinois University Edwardsville (149231) j=0.4
 d3222e80-5eab-48a6-884b-d06ccc97d5be,State Un College at Geneseo,NY,Geneseo,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,Farmingdale State College (196042) j=0.4
 0af70b45-ea23-4541-bcf0-b498b7c7dea2,Metro Community College Ft Omaha E,NE,Omaha,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,Central Community College (180902) j=0.286
 d063f907-ff46-46d2-bd8f-3091a9fdf510,Lindenwood University Belleville,IL,Belleville,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,Adler University (142832) j=0.25
@@ -64,28 +66,27 @@ fa73b74c-c14b-4e23-9377-6c8a0eaf345b,University of New Mexico Albuquerque F,NM,A
 dfbd0173-afb7-4baa-9ca3-e88699517e45,Alamo Colleges,TX,San Antonio,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,Alamo City Barber College (482981) j=0.2
 9261c4f6-7fb7-4000-aaa7-12022e2464f0,Calvary Bible College,MO,Kansas City,NEEDS_IDENTITY_REVIEW,low_conf_or_renamed,Central Christian College of the Bible (176910) j=0.4
 4467ec8d-e660-46df-a418-15e9ee1846b7,Thunderbird Sch Global Mgt,AZ,Glendale,NEEDS_IDENTITY_REVIEW,no_candidate,
-02a82fbc-c702-4940-aa81-aedf19bf0140,University of Iowa Iowa,IA,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_153658,University of Iowa Iowa | University of Iowa
 28a1f84d-2dcf-4376-a654-79b5af45fbac,San Diego State University San,CA,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_122409,San Diego State University San | San Diego State University
-e6b5ba83-78a8-4275-b758-d5f630bc1d18,University of Illinois,IL,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_145600,University of Illinois | University of Illinois Chicago
+02a82fbc-c702-4940-aa81-aedf19bf0140,University of Iowa Iowa,IA,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_153658,University of Iowa Iowa | University of Iowa
 faad6039-be72-4f5c-8ad5-ca7b95e2889f,University of Texas at Austin,TX,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_228778,University of Texas at Austin | The University of Texas at Austin
-9fe12d29-01ee-4c7a-965c-dee6767e4409,University of Tennessee,TN,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_221740,University of Tennessee | Tennessee at Chattanooga
+e6b5ba83-78a8-4275-b758-d5f630bc1d18,University of Illinois,IL,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_145600,University of Illinois | University of Illinois Chicago
 1f5cee7a-6b22-413a-bcc7-9c9235f26a75,University of Miami Coral,FL,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_135726,University of Miami | University of Miami Coral
 32dca893-1ddb-4ed6-a702-65258c2e8176,New York University New,NY,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_193900,New York University New | New York University
-6a03001e-d222-4c4e-9437-1cab7241feaa,University of Minnesota,MN,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_174075,University of Minnesota | University of Minnesota Crookston
+9fe12d29-01ee-4c7a-965c-dee6767e4409,University of Tennessee,TN,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_221740,University of Tennessee | Tennessee at Chattanooga
 971f9332-c7d9-4467-8e5f-40171e863e35,Univ of Colorado at Denver,CO,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_127060,Univ of Colorado at Denver | University of Denver
 eb4a7667-96ea-4e54-a592-0c3d516926f2,Arkansas State University State,AR,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_106458,Arkansas State University State | Arkansas State University
-a666f8fd-df3d-4c6e-bfeb-234b08bd6553,Rutgers University-Camden,NJ,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_186371,"Rutgers University-Camden | Rutgers, The State University of New Jersey"
-390be85e-40fa-4a5f-beba-45d794270644,Indiana University,IN,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_151111,Indiana University | Indiana University Indianapolis
+6a03001e-d222-4c4e-9437-1cab7241feaa,University of Minnesota,MN,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_174075,University of Minnesota | University of Minnesota Crookston
+698dd98f-dd92-46c1-8f28-e930568cb15d,Louisiana State University,LA,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_160038,Louisiana State University | Northwestern State University
 0e791cac-4313-4d1d-b394-69dc6523a86b,Southeastern Oklahoma St,OK,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_207847,Southeastern Oklahoma St | Southeastern Oklahoma State University
 47c388bd-8c4a-4e2b-a781-a1ad46680c21,Univ of Missouri - St. Louis St.,MO,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_178420,Univ of Missouri - St. Louis St. | University of Missouri–St. Louis
-4d3d2512-cf8e-4061-9ce1-329bf3918490,Texas A&M University-Commerce,TX,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_224554,Texas A&M University-Commerce | East Texas A&M University
-698dd98f-dd92-46c1-8f28-e930568cb15d,Louisiana State University,LA,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_160038,Louisiana State University | Northwestern State University
-03be85e7-c388-40db-ac11-960c88d1a8b2,Missouri Southern St Univ,MO,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_178341,Missouri Southern St Univ | Missouri Southern State University
-82d2d96d-bd68-413c-b8af-7931ceea020b,University of St. Thomas-TX,TX,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_227863,University of St. Thomas-TX | University of St. Thomas
-b672bbda-beea-49ff-aa2c-86fd70c74b6b,Univ N Carolina at Pembroke,NC,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_489937,Univ N Carolina at Pembroke | Univ N Carolina at Charlotte
+390be85e-40fa-4a5f-beba-45d794270644,Indiana University,IN,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_151111,Indiana University | Indiana University Indianapolis
+a666f8fd-df3d-4c6e-bfeb-234b08bd6553,Rutgers University-Camden,NJ,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_186371,"Rutgers University-Camden | Rutgers, The State University of New Jersey"
 82ddec8e-3ba1-43c1-a445-7efee49786e8,Rochester Institute of Technology,NY,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_195003,Rochester Inst of Technology | Rochester Institute of Technology
+82d2d96d-bd68-413c-b8af-7931ceea020b,University of St. Thomas-TX,TX,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_227863,University of St. Thomas-TX | University of St. Thomas
 09eb4c4d-1391-4809-be0e-11ac02c3cf7e,King's College,PA,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_213321,King's College | King's College - Pennsylvania
-88390087-3589-48ae-b624-0eeb2302910e,Massachusetts Inst of Tech,MA,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_166683,Massachusetts Inst of Tech | Massachusetts Institute of Technology
+b672bbda-beea-49ff-aa2c-86fd70c74b6b,Univ N Carolina at Pembroke,NC,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_489937,Univ N Carolina at Pembroke | Univ N Carolina at Charlotte
+03be85e7-c388-40db-ac11-960c88d1a8b2,Missouri Southern St Univ,MO,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_178341,Missouri Southern St Univ | Missouri Southern State University
 3f2b5f3c-75a1-4c40-9e3a-798aa26d9fe9,Rockhurst University Kansas,MO,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_179043,Rockhurst University Kansas | Rockhurst University
+88390087-3589-48ae-b624-0eeb2302910e,Massachusetts Inst of Tech,MA,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_166683,Massachusetts Inst of Tech | Massachusetts Institute of Technology
 a78c470a-f86c-44ef-a549-9ed91623bddc,"Univ of Calif, Los Angeles Los",CA,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_110662,"Univ of Calif, Los Angeles Los | University of California, Los Angeles"
 27ba2556-1124-4a4a-9f65-447bc45bbc09,Germanna Virginia Community College,VA,,DUPLICATE_UNITID,multiple_campus_rows_share_unitid_232195,Germanna Virginia Community College | Germanna Community College

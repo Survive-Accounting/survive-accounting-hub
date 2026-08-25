@@ -4,10 +4,13 @@
   "data_sources": {
     "completions": "IPEDS Completions survey (C{year}_A), AWLEVEL=5 (bachelor's), MAJORNUM=1 (first majors). CIP 99=total, CIP 52.*=business, CIP 52.03*=accounting.",
     "enrollment_fall": "IPEDS DRVEF2023 EFUG (fall undergraduate headcount).",
-    "enrollment_12mo": "IPEDS EFFY EFFYLEV=2 (12-month unduplicated undergraduate) for trend.",
-    "directory": "IPEDS HD2023 (UNITID, name, state, city, control).",
-    "years_available": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023],
-    "latest_completions_year": 2023
+    "enrollment_12mo": "IPEDS EFFY EFFYLEV=2 (12-month unduplicated undergraduate) for trend (2019 vs latest).",
+    "directory": "IPEDS HD2024 (UNITID, name, state, city, control).",
+    "years_available": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024],
+    "latest_completions_year": 2024,
+    "latest_year_provisional": true,
+    "provisional_note": "2024 completions are the IPEDS PROVISIONAL release (no revised _RV file yet as of 2026-08); earlier years use revised _RV files. The source year is preserved on every row. Fall undergrad enrollment is DRVEF2023 (DRVEF2024 not yet released); enrollment_source_year is stamped separately.",
+    "enrollment_fall_year": 2023
   },
 
   "intro1_estimate": {
