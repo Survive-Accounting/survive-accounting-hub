@@ -115,7 +115,10 @@ async function main() {
   const totalAi = status.reduce((a, s) => a + (s.ai_parses || 0), 0);
   let totalCost = status.reduce((a, s) => a + Number(s.est_cost_usd || 0), 0);
   if (!totalSerp) { const ok = readCostlog().filter((r) => r.ok); totalCost = ok.reduce((a, r) => a + (r.costUsd || 0), 0); }
-  const attempted = status.length;
+  const WAITING = new Set(["WAITING_FOR_COURSE", "WAITING_FOR_PROFESSORS", "NOT_RUN"]);
+  const attempted = status.filter((s) => !WAITING.has(s.status)).length; // actually harvested
+  const waitingCourse = status.filter((s) => s.status === "WAITING_FOR_COURSE").length;
+  const waitingProfs = status.filter((s) => s.status === "WAITING_FOR_PROFESSORS").length;
   const withDocs = status.filter((s) => s.documents_found > 0).length;
   const withSyllabi = status.filter((s) => s.syllabi_found > 0).length;
   const withStudyGuide = status.filter((s) => (s.study_guides_found + s.review_docs_found) > 0).length;
@@ -143,6 +146,7 @@ _Generated ${new Date().toISOString()} · branch \`overnight/course-intel-harves
 - **AI parses:** ${totalAi}  ·  est. spend ≈ **$${totalCost.toFixed(2)}**
 - **Failures:** ${failed}
 - **NO_RESULT campuses:** ${noResult}
+- **Waiting on upstream backfill:** ${waitingCourse} for course-code · ${waitingProfs} for professors
 - **Review queue size:** ${queue.length}
 
 ## Status breakdown

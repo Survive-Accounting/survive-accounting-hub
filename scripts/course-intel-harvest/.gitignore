@@ -3,3 +3,9 @@
 *.log
 _cleanup_preflight.sql
 national-checkpoint.json*
+.catchup.lock
+catchup-checkpoint.json*
+catchup.log
+catchup.status.log
+launcher.log
+_test-checkpoint.json*
