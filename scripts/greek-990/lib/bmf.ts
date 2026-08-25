@@ -13,6 +13,13 @@ export const BMF_DIR = join(import.meta.dir, "..", "..", "..", "data", "greek-99
 export const SEC_STATES = ["AL", "AR", "FL", "GA", "KY", "LA", "MS", "MO", "OK", "SC", "TN", "TX"];
 export const NATIONAL_HQ_STATES = ["IN", "OH", "IL", "VA", "CO", "MI", "WI", "PA", "NY", "MD", "DC", "KS", "NC", "CT", "NJ"];
 export const ALL_STATES = [...new Set([...SEC_STATES, ...NATIONAL_HQ_STATES])];
+// Every US state + DC — used by the nationwide parent/GEN pass so a national HQ in any state resolves.
+export const US_STATES = [
+  "AL", "AK", "AZ", "AR", "CA", "CO", "CT", "DE", "DC", "FL", "GA", "HI", "ID", "IL", "IN", "IA",
+  "KS", "KY", "LA", "ME", "MD", "MA", "MI", "MN", "MS", "MO", "MT", "NE", "NV", "NH", "NJ", "NM",
+  "NY", "NC", "ND", "OH", "OK", "OR", "PA", "RI", "SC", "SD", "TN", "TX", "UT", "VT", "VA", "WA",
+  "WV", "WI", "WY",
+];
 
 export interface BmfRow {
   ein: string;

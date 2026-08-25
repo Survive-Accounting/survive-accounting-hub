@@ -189,6 +189,64 @@ export async function upsertOfficers(
   return rows.length;
 }
 
+// ── Batched builders/writers (for the nationwide runner — far fewer round-trips) ──
+
+export function entityRow(c: Candidate, source: string, nationalOrgId?: string | null) {
+  return {
+    ein: c.ein, legal_name: c.legalName, sort_name: c.bmf.sort_name || null,
+    city: c.city || null, state: c.state || null, zip: c.zip || null,
+    entity_type: c.entityType, entity_type_confidence: c.entityTypeConfidence, entity_type_evidence: c.entityTypeEvidence,
+    irs_subsection: c.subsection || null, ntee_code: c.ntee || null, classification: c.bmf.classification || null,
+    affiliation_code: c.affiliation || null, group_exemption_number: c.gen && c.gen !== "0000" ? c.gen : null,
+    ruling_date: c.ruling || null, deductibility_code: c.bmf.deductibility || null,
+    asset_amt: c.assetAmt || null, income_amt: c.incomeAmt || null, revenue_amt: c.revenueAmt || null,
+    national_greek_org_id: nationalOrgId ?? null, source, source_reference: `IRS EO BMF ${c.state}`,
+    bmf_raw: c.bmf, last_checked_at: nowIso(), updated_at: nowIso(),
+  };
+}
+
+export function linkRow(chapterId: string, legalEntityId: string, c: Candidate, method: string) {
+  return {
+    chapter_id: chapterId, legal_entity_id: legalEntityId, relationship_type: c.entityType,
+    match_confidence: c.confidence, match_score: c.score, match_method: method,
+    match_evidence: { name: c.nameEvidence, location: c.locationEvidence, group_exemption: c.genEvidence, designation: c.designationEvidence },
+    verified_status: c.confidence === "HIGH_CONFIDENCE" ? "UNVERIFIED" : "NEEDS_REVIEW",
+    source_reference: method === "GROUP_EXEMPTION" ? `IRS group ruling` : `IRS EO BMF ${c.state}`, first_seen_at: nowIso(),
+  };
+}
+
+export function candidateRow(chapterId: string, c: Candidate, action: string, status = "NEW") {
+  return {
+    chapter_id: chapterId, candidate_ein: c.ein, candidate_legal_name: c.legalName,
+    candidate_city: c.city || null, candidate_state: c.state || null, candidate_entity_type: c.entityType,
+    match_score: c.score, match_confidence: c.confidence, name_evidence: c.nameEvidence,
+    location_evidence: c.locationEvidence, group_exemption_evidence: c.genEvidence, designation_evidence: c.designationEvidence,
+    recommended_action: action, status, source: "IRS_EO_BMF", updated_at: nowIso(),
+  };
+}
+
+/** Bulk-upsert entities and return an ein→id map (chunked to keep URLs/payloads sane). */
+export async function bulkUpsertEntities(rows: any[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  if (!rows.length) return map;
+  // de-dup by ein within the batch (last wins)
+  const byEin = new Map<string, any>();
+  for (const r of rows) byEin.set(r.ein, r);
+  const uniq = [...byEin.values()];
+  for (let i = 0; i < uniq.length; i += 200) {
+    const chunk = uniq.slice(i, i + 200);
+    const ret = await dataWrite<any>("greek_legal_entity", chunk, { onConflict: "ein", returning: true });
+    for (const r of ret) map.set(r.ein, r.id);
+  }
+  return map;
+}
+
+export async function bulkUpsert(table: string, rows: any[], onConflict: string): Promise<void> {
+  for (let i = 0; i < rows.length; i += 200) {
+    await dataWrite(table, rows.slice(i, i + 200), { onConflict });
+  }
+}
+
 export async function upsertStatus(row: {
   chapter_id: string; campus_id: string; status: string;
   candidates_found?: number; entities_linked?: number; filings_found?: number; officers_found?: number;

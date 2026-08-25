@@ -121,6 +121,10 @@ export function classifyEntityType(
   if (has(/\b(FRATERNITY|SORORITY)\b/) && (opts.affiliation === "9" || opts.subsection === "07"))
     return { type: "LOCAL_CHAPTER_ENTITY", confidence: "MEDIUM", evidence: "social-club subordinate (aff 9 / 501c7)" };
   if (has(/\bCHAPTER\b/)) return { type: "LOCAL_CHAPTER_ENTITY", confidence: "LOW", evidence: "name contains CHAPTER" };
+  // Conservative subsection-based leaning when the name has no classifying keyword (brief follow-up §2).
+  // These stay LOW confidence — the tax subsection is a hint, not proof — and never override a keyword above.
+  if (opts.subsection === "07") return { type: "LOCAL_CHAPTER_ENTITY", confidence: "LOW", evidence: "501(c)(7) social club, no keyword — chapter-leaning" };
+  if (opts.subsection === "03") return { type: "EDUCATIONAL_FOUNDATION", confidence: "LOW", evidence: "501(c)(3), no keyword — foundation-leaning" };
   return { type: "UNKNOWN", confidence: "LOW", evidence: "no classifying keyword" };
 }
 
