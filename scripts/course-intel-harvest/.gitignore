@@ -9,3 +9,6 @@ catchup.log
 catchup.status.log
 launcher.log
 _test-checkpoint.json*
+parse-checkpoint.json*
+parse.log
+parse.status.log
