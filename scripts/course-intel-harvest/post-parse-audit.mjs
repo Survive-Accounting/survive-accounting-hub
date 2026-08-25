@@ -36,11 +36,16 @@ async function main() {
   const isExam1 = (l) => /\b(exam|test)\s*0*1\b|\bfirst\s+(exam|test)\b|\bexam\s*i\b/i.test(l || "");
   const exam1 = evid.filter((e) => e.evidence_type === "exam_chapter_range" && isExam1(e.exam_label));
   const exam1Campuses = new Set(exam1.map((e) => e.campus_id));
-  const chapFreq = {}, rangeFreq = {};
-  for (const e of exam1) { const chs = (e.exam_chapters || []).map(Number).filter(Number.isFinite); for (const c of chs) inc(chapFreq, c); if (chs.length) inc(rangeFreq, `${Math.min(...chs)}-${Math.max(...chs)}`); }
+  // count DISTINCT campuses per chapter / per range (dedupe — a campus can have many rows)
+  const chapCampuses = {}, rangeCampuses = {};
+  for (const e of exam1) {
+    const chs = (e.exam_chapters || []).map(Number).filter(Number.isFinite);
+    for (const c of chs) (chapCampuses[c] ||= new Set()).add(e.campus_id);
+    if (chs.length) (rangeCampuses[`${Math.min(...chs)}-${Math.max(...chs)}`] ||= new Set()).add(e.campus_id);
+  }
   const nE1 = exam1Campuses.size;
-  const chapterPattern = Object.entries(chapFreq).map(([c, n]) => ({ chapter: +c, campuses: n, pct: nE1 ? +(100 * n / nE1).toFixed(0) : 0 })).sort((a, b) => a.chapter - b.chapter);
-  const rangePattern = Object.entries(rangeFreq).map(([r, n]) => ({ range: r, campuses: n })).sort((a, b) => b.campuses - a.campuses);
+  const chapterPattern = Object.entries(chapCampuses).map(([c, s]) => ({ chapter: +c, campuses: s.size, pct: nE1 ? +(100 * s.size / nE1).toFixed(0) : 0 })).sort((a, b) => a.chapter - b.chapter);
+  const rangePattern = Object.entries(rangeCampuses).map(([r, s]) => ({ range: r, campuses: s.size })).sort((a, b) => b.campuses - a.campuses);
 
   // exam dates
   const withDate = status.filter((s) => s.exam_1_date);

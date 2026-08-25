@@ -1,0 +1,182 @@
+[
+  {
+    "title": "Intermediate Accounting",
+    "mentions": 22,
+    "campuses": 11,
+    "likely_noise": true
+  },
+  {
+    "title": "Managerial Accounting",
+    "mentions": 13,
+    "campuses": 11,
+    "likely_noise": false
+  },
+  {
+    "title": "Financial and Managerial Accounting",
+    "mentions": 21,
+    "campuses": 10,
+    "likely_noise": false
+  },
+  {
+    "title": "Financial Accounting",
+    "mentions": 24,
+    "campuses": 9,
+    "likely_noise": false
+  },
+  {
+    "title": "Financial & Managerial Accounting",
+    "mentions": 11,
+    "campuses": 6,
+    "likely_noise": false
+  },
+  {
+    "title": "Essentials of Corporate Finance",
+    "mentions": 6,
+    "campuses": 4,
+    "likely_noise": false
+  },
+  {
+    "title": "Financial Accounting: Tools for Business Decision Making",
+    "mentions": 7,
+    "campuses": 3,
+    "likely_noise": false
+  },
+  {
+    "title": "Accounting",
+    "mentions": 4,
+    "campuses": 3,
+    "likely_noise": false
+  },
+  {
+    "title": "Fundamentals of Financial Accounting",
+    "mentions": 4,
+    "campuses": 3,
+    "likely_noise": false
+  },
+  {
+    "title": "Canadian Income Taxation",
+    "mentions": 4,
+    "campuses": 3,
+    "likely_noise": true
+  },
+  {
+    "title": "Principles of Accounting",
+    "mentions": 3,
+    "campuses": 3,
+    "likely_noise": false
+  },
+  {
+    "title": "Accounting Principles",
+    "mentions": 3,
+    "campuses": 3,
+    "likely_noise": false
+  },
+  {
+    "title": "Intermediate Accounting, Volume One",
+    "mentions": 3,
+    "campuses": 3,
+    "likely_noise": true
+  },
+  {
+    "title": "Financial and Managerial Accounting: Information for Decisions",
+    "mentions": 7,
+    "campuses": 2,
+    "likely_noise": false
+  },
+  {
+    "title": "Principles of Accounting, Volume 1: Financial Accounting",
+    "mentions": 6,
+    "campuses": 2,
+    "likely_noise": false
+  },
+  {
+    "title": "Financial Accounting: Information for Decisions",
+    "mentions": 4,
+    "campuses": 2,
+    "likely_noise": false
+  },
+  {
+    "title": "Bookkeeping for Dummies",
+    "mentions": 4,
+    "campuses": 2,
+    "likely_noise": true
+  },
+  {
+    "title": "Fundamental Accounting Principles",
+    "mentions": 3,
+    "campuses": 2,
+    "likely_noise": false
+  },
+  {
+    "title": "Financial Accounting: IFRS.",
+    "mentions": 2,
+    "campuses": 2,
+    "likely_noise": false
+  },
+  {
+    "title": "Financial Accounting for MBAs",
+    "mentions": 2,
+    "campuses": 2,
+    "likely_noise": false
+  },
+  {
+    "title": "Advanced Accounting",
+    "mentions": 2,
+    "campuses": 2,
+    "likely_noise": false
+  },
+  {
+    "title": "Business Finance Essentials",
+    "mentions": 2,
+    "campuses": 2,
+    "likely_noise": false
+  },
+  {
+    "title": "Intermediate Accounting, Volume Two",
+    "mentions": 2,
+    "campuses": 2,
+    "likely_noise": true
+  },
+  {
+    "title": "Financial Reporting, Financial Statement Analysis, and Valuation",
+    "mentions": 2,
+    "campuses": 2,
+    "likely_noise": false
+  },
+  {
+    "title": "Small Business – An Entrepreneur’s Plan.",
+    "mentions": 2,
+    "campuses": 2,
+    "likely_noise": true
+  },
+  {
+    "title": "ACCOUNTING",
+    "mentions": 5,
+    "campuses": 1,
+    "likely_noise": false
+  },
+  {
+    "title": "Horngren’s Financial and Managerial Accounting with MyAccountingLab",
+    "mentions": 3,
+    "campuses": 1,
+    "likely_noise": false
+  },
+  {
+    "title": "Operations Management",
+    "mentions": 3,
+    "campuses": 1,
+    "likely_noise": false
+  },
+  {
+    "title": "Financial Accounting with Connect",
+    "mentions": 3,
+    "campuses": 1,
+    "likely_noise": false
+  },
+  {
+    "title": "Financial Accounting Fundamentals",
+    "mentions": 3,
+    "campuses": 1,
+    "likely_noise": false
+  }
+]
