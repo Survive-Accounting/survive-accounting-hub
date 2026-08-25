@@ -1,0 +1,109 @@
+{
+  "version": "v1",
+  "generated": "2026-08-25",
+  "purpose": "Contract for the King contact-QC layer over Growth Contact Intelligence. Discovery-agnostic; nothing here scrapes or sends. Term/year is NEVER invented.",
+  "sources": {
+    "growth_public_contacts": "chapter + club contacts owned by this system (editable)",
+    "campus_council_contacts": "council contacts owned by Campus Backfill (READ-ONLY; QC state stored separately)",
+    "growth_business_clubs": "business-club orgs owned by this system",
+    "growth_advisors": "normalized shared-advisor identity (one per email) with M:N links",
+    "growth_advisor_links": "advisor -> chapter/council/campus/org relationships (preserves sharing)",
+    "growth_contact_qc": "polymorphic QC + eligibility + King queue state across ALL sources",
+    "growth_outreach_eligibility": "view exposing the reusable outreach-eligibility shape"
+  },
+  "enums": {
+    "contact_type": ["role_inbox", "student_officer", "chapter_exec", "staff_advisor", "organization_general", "social_account", "unknown"],
+    "campaign_purpose": ["STUDENT_DISTRIBUTION", "CHAPTER_SALES", "CAMPUS_REP_RECRUITMENT", "ADVISORY_ESCALATION", "UNKNOWN"],
+    "freshness_status": ["stable", "current", "verify_before_use", "likely_stale", "unknown"],
+    "qc_action": ["pending", "approve", "edit", "wrong_data", "reject", "skip"]
+  },
+  "outreach_eligibility_shape": {
+    "table": "growth_contact_qc",
+    "view": "growth_outreach_eligibility",
+    "one_row_per": "contact (contact_source + source_id unique)",
+    "fields": {
+      "contact_id": "source_id of the underlying contact",
+      "contact_source": "which table the contact lives in",
+      "campus_id": "campuses.id",
+      "chapter_id": "campus_greek_chapters.id when entity_type=chapter (else null)",
+      "council_id": "null — councils are keyed by (campus_id, council_type)",
+      "council_type": "ifc | panhellenic | nphc | mgc when applicable",
+      "org_id": "growth_business_clubs.id when entity_type=club (else null)",
+      "campaign_purpose": "intended campaign (enum campaign_purpose)",
+      "email": "contact email if present",
+      "instagram": "contact instagram url if present",
+      "contact_type": "classified type (enum contact_type)",
+      "source": "source_url the value was verified on",
+      "source_type": "official_university_directory | business_school_page | official_fsl | indexed_social | ...",
+      "confidence": "high | medium | low",
+      "last_verified": "last_verified_at (freshness)",
+      "effective_term": "e.g. 'Fall 2026' — NULL when not established (never invented)",
+      "effective_year": "int — NULL when not established",
+      "freshness_status": "enum freshness_status",
+      "outreach_eligible": "boolean — false when review_reason set",
+      "review_reason": "why not eligible / NEEDS_REVIEW"
+    }
+  },
+  "freshness_rules": {
+    "stable": "role_inbox, organization_general, staff_advisor, social_account, official general email — persist across terms",
+    "current": "named officer WITH effective_term matching the active term (none today — 0% term data)",
+    "verify_before_use": "named student_officer / chapter_exec WITHOUT current-term evidence — must be human-verified before any 'current officer' use",
+    "likely_stale": "reserved — a named officer whose page predates a known term boundary (unquantifiable without term data)",
+    "unknown": "unclassifiable / low-confidence"
+  },
+  "eligibility_rule": "outreach_eligible = true when contact_type != unknown AND confidence != low AND NOT (named officer without effective_term). Named officers => verify_before_use => NOT eligible until King verifies. Low-confidence => NOT eligible. Unknown => NOT eligible (triage).",
+  "merge_variable_qa_contract": {
+    "attribute_contract": ["value", "source", "confidence", "last_verified"],
+    "note": "Every generated variable MUST expose all four attributes. A variable with no established value is {value:null}. Term/year is never invented.",
+    "required_always": ["first_name", "role", "campus", "email"],
+    "required_when_template_uses_them": ["course_code", "professor", "exam_date"],
+    "variables": {
+      "first_name": { "value_from": "contact.name (first token)", "source": "contact.source_url", "confidence_from": "contact.confidence; null name => missing", "required": true, "missing_action": "NEEDS_REVIEW" },
+      "role": { "value_from": "contact.role (normalized)", "source": "contact.source_url", "confidence_from": "contact.confidence (medium/low — no term)", "required": true, "missing_action": "NEEDS_REVIEW" },
+      "chapter": { "value_from": "greek_orgs.name via campus_greek_chapters", "source": "registry/scrape", "confidence_from": "medium", "required": false, "missing_action": "omit or NEEDS_REVIEW if template requires" },
+      "council": { "value_from": "campus_greek_chapters.council (councilKey normalized)", "source": "scraped free-text council", "confidence_from": "medium (dirty free-text)", "required": false, "missing_action": "omit or NEEDS_REVIEW if template requires" },
+      "campus": { "value_from": "campuses.name", "source": "internal system", "confidence_from": "high", "required": true, "missing_action": "NEEDS_REVIEW (should never be missing)" },
+      "course_code": { "value_from": "campus course-intel (course_family_codes_json.intro_1)", "source": "course intelligence", "confidence_from": "low/missing at most campuses", "required": "when used", "missing_action": "NEEDS_REVIEW" },
+      "professor": { "value_from": "Intro-1 professor (professor_intro1_evidence / campus data)", "source": "course intelligence", "confidence_from": "low/missing", "required": "when used", "missing_action": "NEEDS_REVIEW" },
+      "exam_date": { "value_from": "campus exam schedule (campus_exams)", "source": "exam intelligence", "confidence_from": "low/missing", "required": "when used", "missing_action": "NEEDS_REVIEW" }
+    },
+    "email_gating_rule": "email_status = READY only if every REQUIRED variable has a non-null value AND confidence not in ['low'] AND (for officer-implying templates) freshness_status != verify_before_use. Otherwise email_status = NEEDS_REVIEW. NEEDS_REVIEW is never auto-sent; it goes to King.",
+    "email_status_values": ["READY", "NEEDS_REVIEW"]
+  },
+  "king_qc_queue": {
+    "table": "growth_contact_qc",
+    "queue_filter": "qc_action = 'pending'",
+    "actions": {
+      "APPROVE": "Contact + variables are correct; mark usable. Sets qc_action=approve, qc_by, qc_at. If freshness=verify_before_use, APPROVE also asserts the officer is current (optionally set effective_term).",
+      "EDIT": "Fix a field (name/role/email/instagram/council/campaign_purpose). Stores changes in qc_edits {field:newValue}; qc_action=edit. Edits are applied to the working contact, source row preserved.",
+      "WRONG_DATA": "A specific value is wrong (wrong person / wrong instagram / wrong org / wrong council). qc_action=wrong_data + qc_notes naming the wrong variable; contact excluded from outreach until corrected.",
+      "REJECT": "Contact is unusable (bad email, not a real contact, opted out). qc_action=reject; permanently excluded.",
+      "SKIP": "Defer decision. qc_action=skip; returns to queue later. No state change to eligibility."
+    },
+    "king_owns": ["wrong variable", "wrong person", "old officer (verify_before_use)", "bad email", "wrong instagram", "wrong organization", "shared-advisor collapse review", "unknown-type triage"],
+    "requires_lee_approval": ["any outbound send (email/DM/text)", "bulk campaign / list activation", "new template", "new campaign type", "any automation/auto-send toggle", "advisor/escalation outreach", "anything touching billing/seats/pricing", "standing rules / persistent config"]
+  },
+  "refresh_cadence": {
+    "annually": ["role_inbox", "staff_advisor", "organization_general", "social_account", "website", "chapter/club general email"],
+    "each_semester": ["chapter_exec", "student_officer (named)", "business-club president"],
+    "on_bounce_or_failure": ["any contact — immediate re-verify"],
+    "monthly": ["only contacts a live campaign targets near a term boundary"]
+  },
+  "counts_snapshot": {
+    "note": "read-only snapshot at build time",
+    "contacts_total_qc_rows": 4302,
+    "outreach_eligible": 3538,
+    "needs_review": 764,
+    "verify_before_use_named_officers": 748,
+    "unknown_classified_in_qc_layer": 137,
+    "advisors_distinct_emails": 392,
+    "advisors_shared_across_multiple_entities": 194,
+    "advisor_source_rows_collapsed": 896,
+    "by_campaign_purpose": {
+      "STUDENT_DISTRIBUTION": 3090,
+      "CHAPTER_SALES": 228,
+      "ADVISORY_ESCALATION": 913,
+      "CAMPUS_REP_RECRUITMENT": 71
+    }
+  }
+}
