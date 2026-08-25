@@ -390,17 +390,36 @@ function BackfillView({ rows, onDone }: { rows: CourseIntelRow[]; onDone: () => 
   const [stages, setStages] = useState({ code: true, greek: true, profs: true, enrich: true, syllabi: false });
   const [scope, setScope] = useState<"incomplete" | "pickable" | "has_greek" | "all">("incomplete");
   const [maxCampuses, setMax] = useState(20);
+  const [pasted, setPasted] = useState("");
   const [running, setRunning] = useState(false);
   const [prog, setProg] = useState<{ done: number; total: number; results: BackfillRow[] }>({ done: 0, total: 0, results: [] });
   const stop = useRef(false);
 
+  // Explicit list: paste campus names (one per line, optional ", ST"). Matches
+  // against the campus list; when present it OVERRIDES the scope filter.
+  const listMatch = useMemo(() => {
+    const lines = pasted.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    if (!lines.length) return null;
+    const norm = (s: string) => s.toLowerCase().replace(/,\s*[a-z]{2}$/i, "").replace(/[^a-z0-9]+/g, " ").trim();
+    const byNorm = new Map(rows.map((r) => [norm(r.name), r]));
+    const matched: CourseIntelRow[] = []; const missing: string[] = []; const seen = new Set<string>();
+    for (const line of lines) {
+      const n = norm(line);
+      let row = byNorm.get(n) || rows.find((r) => { const rn = norm(r.name); return rn.includes(n) || n.includes(rn); });
+      if (row && !seen.has(row.campusId)) { matched.push(row); seen.add(row.campusId); }
+      else if (!row) missing.push(line);
+    }
+    return { matched, missing };
+  }, [pasted, rows]);
+
   const targets = useMemo(() => {
+    if (listMatch) return listMatch.matched.slice(0, 200);
     let r = rows.slice();
     if (scope === "incomplete") r = r.filter((x) => !x.hasIntro1Code || x.greekOrgs === 0 || x.profIntro1 === 0);
     else if (scope === "pickable") r = r.filter((x) => x.inPicker);
     else if (scope === "has_greek") r = r.filter((x) => x.greekOrgs > 0);
     return [...r].sort((a, b) => (b.inPicker ? 1 : 0) - (a.inPicker ? 1 : 0) || b.profTotal - a.profTotal).slice(0, maxCampuses);
-  }, [rows, scope, maxCampuses]);
+  }, [rows, scope, maxCampuses, listMatch]);
 
   async function backfillOne(row: CourseIntelRow): Promise<BackfillRow> {
     const id = row.campusId; const o: BackfillRow = { campus: row.name, code: "", greek: "", profs: "", enrich: "", syllabi: "" };
@@ -436,7 +455,12 @@ function BackfillView({ rows, onDone }: { rows: CourseIntelRow[]; onDone: () => 
             </label>
           ))}
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="mt-3">
+          <label className="text-[11px] text-muted-foreground">Specific list (optional) — paste campus names, one per line. Overrides the scope filter.</label>
+          <textarea value={pasted} disabled={running} onChange={(e) => setPasted(e.target.value)} rows={pasted ? 4 : 2} placeholder={"University of Kentucky\nOhio State University\nClemson University"} className="mt-1 w-full rounded border border-border bg-background px-2 py-1 text-xs" />
+          {listMatch && <p className="mt-1 text-[11px]"><span className="text-sky-500">{listMatch.matched.length} matched</span>{listMatch.missing.length > 0 && <span className="text-amber-500"> · {listMatch.missing.length} not found: {listMatch.missing.slice(0, 5).join(", ")}{listMatch.missing.length > 5 ? "…" : ""}</span>}</p>}
+        </div>
+        <div className={`mt-3 flex flex-wrap items-center gap-2 ${listMatch ? "opacity-40 pointer-events-none" : ""}`}>
           {([["incomplete", "Incomplete (missing anything)"], ["pickable", "Pickable"], ["has_greek", "Has Greek"], ["all", "All"]] as [typeof scope, string][]).map(([s, label]) => (
             <button key={s} disabled={running} onClick={() => setScope(s)} className={`rounded-full border px-3 py-1 text-xs ${scope === s ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}>{label}</button>
           ))}
