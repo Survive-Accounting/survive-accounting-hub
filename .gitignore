@@ -58,3 +58,4 @@ scripts/growth-intel/*.log
 /COUNCIL_CONTACT_SAMPLE.csv
 /GREEK_CHAPTER_CONTACT_SAMPLE.csv
 /BUSINESS_CLUB_SAMPLE.csv
+scripts/growth-intel/campuses-all.json
