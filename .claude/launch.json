@@ -2,10 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "exam1-starter-dev",
+      "name": "je-engine-v2-dev",
       "runtimeExecutable": "bun",
-      "runtimeArgs": ["run", "dev", "--port", "8096"],
-      "port": 8096
+      "runtimeArgs": ["run", "dev", "--port", "8090"],
+      "port": 8090
     }
   ]
 }
