@@ -1,0 +1,14 @@
+query_family,searches_run,useful_results,new_competitors,new_acct_competitors,ads_seen,yield_per_search,verdict
+school_acct_tutoring,5,19,17,14,0,3.4,EXPAND
+school_exam_review,5,18,14,14,0,2.8,EXPAND
+school_study_guide,5,26,13,10,0,2.6,EXPAND
+course_exam_review,3,21,7,6,0,2.33,EXPAND
+paid_tutoring,5,17,7,4,0,1.4,KEEP
+ad_probe_course_tutoring,3,13,7,7,0,2.33,EXPAND
+fin_acct_tutoring,5,19,5,5,0,1,KEEP
+school_exam_prep,5,15,4,3,0,0.8,KEEP
+school_review_videos,5,11,4,0,0,0.8,KEEP
+course_tutoring,3,10,2,2,0,0.67,KEEP
+school_practice_exam,5,21,2,1,0,0.4,REDUCE
+course_practice_exam,3,21,1,1,0,0.33,REDUCE
+ad_probe_course_acct,3,5,1,1,2,0.33,REDUCE

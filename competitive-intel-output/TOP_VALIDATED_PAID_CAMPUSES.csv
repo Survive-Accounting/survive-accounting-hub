@@ -1,0 +1,6 @@
+rank,campus,state,course_code,market_opportunity,validation_score,proven_paid_market,intro_accounting_paid_market_status,market_validation,course_specific_competitors,local_competitors,strongest_competitor,ads_observed,evidence
+1,"University of Tennessee, Knoxville",TN,ACCT 200,92.7,61.5,HIGH,STRONG,CROWDED,3,7,acct200ku.com,YES,"3 course-specific site(s): coursehero.com, acct200ku.com, acct2001.com | 7 local paid accounting competitor(s) | paid accounting search ads observed"
+2,University of Georgia,GA,ACCT 2101,95.3,42.5,HIGH,STRONG,CROWDED,4,5,acct2101uga.com,NO,"4 course-specific site(s): acct2101uga.com, coursehero.com, skoolerstutoring.com | 2 local paid accounting competitor(s) | 3 campus-specific platform(s)"
+3,University of Alabama,AL,AC 210,96.1,40,HIGH,STRONG,CROWDED,4,4,ac210ua.com,NO,"4 course-specific site(s): ac210ua.com, coursehero.com, studocu.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s)"
+4,University of Tennessee,TN,,93.6,28,HIGH,STRONG,CROWDED,1,4,Course Hero,NO,1 course-specific site(s): coursehero.com | 3 local paid accounting competitor(s) | 1 campus-specific platform(s)
+5,CUNY-Baruch College New,NY,,95,6.5,HIGH,STRONG,CROWDED,0,1,superprof.ng,NO,1 local paid accounting competitor(s)
