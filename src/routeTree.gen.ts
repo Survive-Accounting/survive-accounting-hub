@@ -81,6 +81,7 @@ import { Route as JeSplatRouteImport } from './routes/je.$'
 import { Route as ChaptersDashboardRouteImport } from './routes/chapters_.dashboard'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
 import { Route as CSlugRouteImport } from './routes/c.$slug'
+import { Route as ApiBackfillRouteImport } from './routes/api.backfill'
 import { Route as AdminSiteQaRouteImport } from './routes/admin.site-qa'
 import { Route as AdminRepsRouteImport } from './routes/admin.reps'
 import { Route as AdminGrowthRouteImport } from './routes/admin.growth'
@@ -483,6 +484,11 @@ const CSlugRoute = CSlugRouteImport.update({
   path: '/c/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiBackfillRoute = ApiBackfillRouteImport.update({
+  id: '/api/backfill',
+  path: '/api/backfill',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminSiteQaRoute = AdminSiteQaRouteImport.update({
   id: '/admin/site-qa',
   path: '/admin/site-qa',
@@ -706,6 +712,7 @@ export interface FileRoutesByFullPath {
   '/admin/growth': typeof AdminGrowthRouteWithChildren
   '/admin/reps': typeof AdminRepsRouteWithChildren
   '/admin/site-qa': typeof AdminSiteQaRoute
+  '/api/backfill': typeof ApiBackfillRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters/dashboard': typeof ChaptersDashboardRoute
@@ -814,6 +821,7 @@ export interface FileRoutesByTo {
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
   '/admin/site-qa': typeof AdminSiteQaRoute
+  '/api/backfill': typeof ApiBackfillRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters/dashboard': typeof ChaptersDashboardRoute
@@ -926,6 +934,7 @@ export interface FileRoutesById {
   '/admin/growth': typeof AdminGrowthRouteWithChildren
   '/admin/reps': typeof AdminRepsRouteWithChildren
   '/admin/site-qa': typeof AdminSiteQaRoute
+  '/api/backfill': typeof ApiBackfillRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters_/dashboard': typeof ChaptersDashboardRoute
@@ -1039,6 +1048,7 @@ export interface FileRouteTypes {
     | '/admin/growth'
     | '/admin/reps'
     | '/admin/site-qa'
+    | '/api/backfill'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters/dashboard'
@@ -1147,6 +1157,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/$school/rep'
     | '/admin/site-qa'
+    | '/api/backfill'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters/dashboard'
@@ -1258,6 +1269,7 @@ export interface FileRouteTypes {
     | '/admin/growth'
     | '/admin/reps'
     | '/admin/site-qa'
+    | '/api/backfill'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters_/dashboard'
@@ -1370,6 +1382,7 @@ export interface RootRouteChildren {
   AdminGrowthRoute: typeof AdminGrowthRouteWithChildren
   AdminRepsRoute: typeof AdminRepsRouteWithChildren
   AdminSiteQaRoute: typeof AdminSiteQaRoute
+  ApiBackfillRoute: typeof ApiBackfillRoute
   CSlugRoute: typeof CSlugRoute
   ChaptersDashboardRoute: typeof ChaptersDashboardRoute
   LabBoltRoute: typeof LabBoltRoute
@@ -1908,6 +1921,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/backfill': {
+      id: '/api/backfill'
+      path: '/api/backfill'
+      fullPath: '/api/backfill'
+      preLoaderRoute: typeof ApiBackfillRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/site-qa': {
       id: '/admin/site-qa'
       path: '/admin/site-qa'
@@ -2353,6 +2373,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminGrowthRoute: AdminGrowthRouteWithChildren,
   AdminRepsRoute: AdminRepsRouteWithChildren,
   AdminSiteQaRoute: AdminSiteQaRoute,
+  ApiBackfillRoute: ApiBackfillRoute,
   CSlugRoute: CSlugRoute,
   ChaptersDashboardRoute: ChaptersDashboardRoute,
   LabBoltRoute: LabBoltRoute,

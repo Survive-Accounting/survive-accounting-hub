@@ -1,0 +1,225 @@
+{
+  "audit": {
+    "generated": "2026-08-25",
+    "type": "read-only",
+    "run": "structural campus backfill (Survive_Updated_Campus_Enrichment_Batches.xlsx)"
+  },
+  "1_executive_status": {
+    "overall_status": "COMPLETE",
+    "safe_to_resume": "N/A — nothing to resume; run finished 816/816",
+    "safe_to_integrate_data": "PARTIAL",
+    "branch": "course-intel-v1",
+    "worktree": "C:/Users/lee/Documents/sa-course-intel",
+    "latest_commit": "9f3b5831 (Campus systems + identity)",
+    "main_deployed": "515d1e53",
+    "uncommitted_changes": ["src/routes/api.backfill.tsx (untracked, internal runner)", "src/routeTree.gen.ts (auto-generated)"],
+    "backfill_data_location": "Supabase (live DB) — not files",
+    "start_time": "~03:57",
+    "end_time": "14:09:22",
+    "total_runtime": "~10h12m wall (~8.4h active compute at concurrency 2; remainder = AI-Gateway replenish waits + operator interventions)"
+  },
+  "2_campus_progress": {
+    "target": 816, "attempted": 816, "completed": 816, "partial": 0, "not_started": 0, "failed": 0, "needs_review": 24,
+    "by_batch": {
+      "Batch 1 - 92": {"target": 92, "completed": 92, "errored": 0},
+      "Batch 1B New - 49": {"target": 49, "completed": 49, "errored": 0},
+      "Batch 2 - 331": {"target": 331, "completed": 331, "errored": 0},
+      "Batch 3 - 344": {"target": 344, "completed": 344, "errored": 0}
+    }
+  },
+  "3_stage_results": {
+    "course_code": {"attempted": 816, "had": 264, "newly_found": 59, "none": 493},
+    "greek_org_discovery": {"had": 96, "discovered_campuses": 720},
+    "greek_council_discovery": {"councils_covered": {"ifc": 488, "panhellenic": 481, "nphc": 361, "mgc": 220, "other": 15}},
+    "council_contact_discovery": {"campuses_with_contacts": 153, "campuses_zero": 659, "gated_no_greek": 4},
+    "prof_discovery": {"had": 246, "discovered_campuses": 346, "no_dept": 220, "gated": 4},
+    "rmp_intro1_qualification": {"see": "section_5"},
+    "net_new_totals": {
+      "course_codes": 59,
+      "greek_chapters_delta": 1742,
+      "council_contacts": 1543,
+      "role_inboxes_role_inbox_typed": 68,
+      "role_inbox_like_by_email": 381,
+      "accounting_professors_delta": 1259,
+      "intro1_target_match_delta": 671
+    },
+    "authoritative_db_totals_816": {
+      "active_professors": 4734,
+      "intro1_qualified_profs": 505,
+      "intro1_campuses": 101,
+      "council_contacts": 1547,
+      "greek_chapters": 3815,
+      "campuses_with_course_code": 323
+    }
+  },
+  "4_data_quality": {
+    "total_campuses_db": 1013,
+    "duplicate_campus_groups": 3,
+    "duplicate_campus_examples": [
+      ["University of California Los Angeles", "University of California, Los Angeles"],
+      ["University of California Santa Barbara", "University of California, Santa Barbara"],
+      ["University of Wisconsin-Madison", "University of Wisconsin\u2013Madison"]
+    ],
+    "duplicate_chapter_pairs": 0,
+    "greek_org_type_distribution": {"fraternity": 3963, "sorority": 2488, "professional": 6, "unknown": 439},
+    "greek_contamination_professional_honor": 11,
+    "greek_contamination_examples": ["Alpha Kappa Psi", "Delta Sigma Pi"],
+    "council_contacts_total": 1565,
+    "duplicate_council_emails_across_campuses": 208,
+    "council_not_current": 0,
+    "council_contact_type_dist": {"staff_advisor": 848, "student_officer": 512, "unknown": 137, "role_inbox": 68},
+    "role_inbox_classification_gap": "381 emails look like role inboxes by local-part but only 68 typed role_inbox",
+    "unclassified_greek_org_type": 439,
+    "estimated_precision": {
+      "greek_chapters": "~0.95+ (dedup 0 dup pairs, contamination ~0.16%; risk = wrong-campus at small/CC schools)",
+      "council_contacts": "~0.85-0.9 (real official sources; risk = 208 shared emails + role-inbox mistyping)",
+      "professors": "~0.8 (over-collection at large research campuses inflates counts beyond accounting)"
+    },
+    "highest_risk_areas": [
+      "Professor over-collection at large research universities (whole business school, not just accounting)",
+      "Greek chapter counts at community/small colleges (likely wrong-campus GreekRank matches)",
+      "208 council emails shared across multiple campuses (advisor reuse vs mis-scrape)",
+      "3 duplicate campus records (comma/dash variants from batch-2 list)"
+    ],
+    "20_most_suspicious": [
+      {"campus": "University of Virginia", "issue": "259 professors (over-collection)", "risk": "HIGH"},
+      {"campus": "University of Illinois Urbana-Champaign", "issue": "118 profs + 101 greek chapters", "risk": "HIGH"},
+      {"campus": "The University of Texas at Austin", "issue": "114 professors", "risk": "MED"},
+      {"campus": "University of La Verne", "issue": "103 professors (small school — over-collection)", "risk": "HIGH"},
+      {"campus": "Oral Roberts University", "issue": "95 professors (small school)", "risk": "HIGH"},
+      {"campus": "University of Minnesota", "issue": "90 profs + 55 greek", "risk": "MED"},
+      {"campus": "The University of Texas Rio Grande Valley", "issue": "85 professors", "risk": "MED"},
+      {"campus": "Parkland College", "issue": "64 greek chapters (community college)", "risk": "HIGH"},
+      {"campus": "Indiana University Northwest", "issue": "61 greek chapters (commuter campus)", "risk": "HIGH"},
+      {"campus": "Austin Community College", "issue": "58 greek chapters (community college)", "risk": "HIGH"},
+      {"campus": "Cornell College", "issue": "61 greek chapters (small college — likely Cornell University bleed)", "risk": "HIGH"},
+      {"campus": "Rutgers University", "issue": "79 greek chapters (verify not multi-campus merge)", "risk": "MED"},
+      {"campus": "Virginia Tech", "issue": "64 greek chapters", "risk": "LOW"},
+      {"campus": "Michigan State University", "issue": "63 greek chapters", "risk": "LOW"},
+      {"campus": "University of Nebraska-Lincoln", "issue": "63 greek chapters", "risk": "LOW"},
+      {"campus": "University of Missouri", "issue": "62 greek chapters", "risk": "LOW"},
+      {"campus": "Purdue University", "issue": "61 greek chapters", "risk": "LOW"},
+      {"campus": "Franklin & Marshall College", "issue": "57 greek chapters (small college)", "risk": "MED"},
+      {"campus": "UCLA duplicate", "issue": "two campus records (comma variant)", "risk": "MED"},
+      {"campus": "UCSB / UW-Madison duplicates", "issue": "two campus records each (punctuation variant)", "risk": "MED"}
+    ]
+  },
+  "5_intro1_lesson": {
+    "ACCOUNTING_PROFESSOR": 4734,
+    "with_any_rmp": 2387,
+    "POSSIBLE_INTRO1_rmp_intro1_ge_1": 505,
+    "LIKELY_INTRO1_rmp_intro1_and_recent": 182,
+    "teaches_intro1_flag_broader_signal": 1062,
+    "confidence_distribution": {"none": 4053, "high": 293, "medium": 376, "low": 12},
+    "interpretation": "0 Intro-1 almost always means the RMP course-code evidence system could not PROVE the relationship — NOT that no Intro-1 professor exists. Only 505 profs (11%) have any RMP Intro-1 course hit and just 182 have a RECENT one, yet 1062 carry the broader teaches_intro_1 signal and 2387 have RMP ratings at all. The proof layer is the bottleneck, not the population.",
+    "false_negative_patterns": [
+      "Professors with RMP ratings but no course tags (adjuncts/lecturers rarely tagged) — invisible to course-code proof",
+      "Campuses with a course code but thin RMP coverage (small/regional/CC) — 0 Intro-1 despite real teachers",
+      "Departments using non-obvious course numbers the code-discovery missed (493 campuses still 'none')"
+    ],
+    "reconciliation_recommendation": "Layer official schedule-of-classes / registrar section rosters and syllabi (already scoped in Course Intel) as a SECOND evidence source. Precedence: (1) official schedule instructor-of-record for the Intro-1 code = CONFIRMED, (2) syllabus author = CONFIRMED, (3) RMP recent target match = LIKELY, (4) RMP any target hit = POSSIBLE, (5) title/dept heuristic = CANDIDATE. Treat RMP as corroboration, not primary."
+  },
+  "6_cost_performance": {
+    "serp_searches_estimated_total": "~22,000 (measured ~27/campus; exact obscured by mid-run top-ups/auto-renewal; readings dipped to ~61 then renewal restored ~15k)",
+    "firecrawl_credits": "100,004 / 100,000 — ENTIRE PLAN CONSUMED (~123 credits/campus)",
+    "ai_gateway": "402 outage mid-run (16 log events) — replenished by operator; not credit-metered here",
+    "avg_time_per_campus_s": 74,
+    "median_time_per_campus_s": 64,
+    "p90_time_s": 182,
+    "max_time_s": 679,
+    "total_campus_compute_s": 60493,
+    "avg_searches_per_campus": 27,
+    "slowest_stage": "professor discovery (faculty-page pagination + scroll fallback via Firecrawl; 222 Firecrawl 500s)",
+    "highest_yield_stage": "greek chapter discovery (1742 new) + council contact discovery (1543 new)",
+    "lowest_yield_stage": "professor discovery on community colleges (679s for 3 profs; 220 no_dept)",
+    "optimize_before_next": [
+      "Firecrawl is the true cost ceiling — cache faculty scrapes + cap pagination depth + skip community colleges",
+      "Gate community colleges out of council + faculty stages (they legitimately have neither)",
+      "Cache SERP discovery queries by (campus, stage) to avoid re-searching on resume"
+    ]
+  },
+  "7_reusability": {
+    "cache": ["SERP course-code queries", "SERP council queries", "Firecrawl faculty-page fetches (biggest saver)"],
+    "stop_early": ["Faculty pagination after N pages or first 0-yield page", "Council discovery when campus is community college / no Greek"],
+    "conditional_stages": ["Council + faculty stages only when Greek presence OR 4-year institution", "Code discovery skip when code already present"],
+    "source_precedence": ["Official registrar schedule > syllabus > RMP course tags > title heuristic for Intro-1", "greekrank.net /uni/<id>/ verified before writing chapters"],
+    "failure_states": ["Distinguish AI-Gateway 402 (halt+alert) from 'no result' (— )", "Distinguish dev-server netfail (retry) from stage error"],
+    "parallelize": ["Concurrency 2 was safe; independent stages per campus could run 3-4 wide with per-service rate caps"],
+    "never_repeat": ["Multiple orchestrators on one progress file (pkill fails on Windows git-bash — use PowerShell Stop-Process)", "Running council/faculty on community colleges", "Unbounded faculty pagination"]
+  },
+  "8_growth_signals": {
+    "council_presence": "USE FOR SCORING — 153 campuses have real council contacts; strong contactability signal",
+    "stable_council_inbox": "USE AS ACTION TRIGGER — 68 typed role inboxes (+381 role-inbox-like) are durable outreach targets",
+    "chapter_count": "USE FOR SCORING — Greek density proxy; but cap/verify outliers first",
+    "greek_density_pct": "USE FOR SCORING — already stored (greek_pct_*)",
+    "professor_breadth": "DISPLAY ONLY (until de-duplicated) — over-collection makes raw counts unreliable for scoring",
+    "intro1_qualified_present": "USE AS ACTION TRIGGER — 101 campuses picker-ready now",
+    "chapter_contactability": "USE FOR SCORING — chapters with exec_page_url / instagram",
+    "campus_readiness": "USE FOR SCORING — composite (code + greek + intro1 + council)",
+    "raw_prof_count": "DO NOT USE — inflated by non-accounting faculty"
+  },
+  "9_king_actions": [
+    {"action": "CONTACT IFC", "when": "campus has ifc role_inbox + Greek presence", "count_candidates": 488},
+    {"action": "CONTACT PANHELLENIC", "when": "panhellenic role_inbox present", "count_candidates": 481},
+    {"action": "VERIFY BAD CONTACT", "when": "email shared across >3 campuses (208 shared emails)"},
+    {"action": "FIND MISSING PRESIDENT", "when": "council has advisor but no student_officer"},
+    {"action": "RESEARCH CHAPTER", "when": "greek count outlier at CC/small college (Parkland, Austin CC, Cornell College)"},
+    {"action": "DO NOT CONTACT", "when": "community college with no council + no Greek"},
+    {"action": "WAIT", "when": "campus has code but 0 Intro-1 proof — pending schedule/syllabus reconciliation"}
+  ],
+  "10_review_queues": {
+    "HIGH_VALUE_HIGH_RISK": [
+      {"item": "Professor over-collection (>=80 profs)", "table": "campus_lead_suggestions", "count_campuses": 7},
+      {"item": "Greek count outliers at CC/small colleges", "table": "campus_greek_chapters", "count_campuses": "~6 of 14 flagged"},
+      {"item": "Duplicate campus records", "table": "campuses", "count": 3}
+    ],
+    "HIGH_VALUE_LOW_RISK": [
+      {"item": "Role-inbox reclassification (381 look-alike vs 68 typed)", "table": "campus_council_contacts", "count": 313},
+      {"item": "Intro-1 zero-proof campuses with a course code", "table": "campus_lead_suggestions", "count_campuses": "~ (323 with code minus 101 intro1) ~222"}
+    ],
+    "LOW_VALUE": [
+      {"item": "Unclassified greek org_type", "table": "greek_orgs", "count": 439},
+      {"item": "Shared council emails (advisor reuse likely legit)", "table": "campus_council_contacts", "count": 208}
+    ]
+  },
+  "11_next_run_improvements": [
+    "Cache Firecrawl faculty fetches + cap pagination depth (biggest cost + accuracy win)",
+    "Institution-type gate: skip council + faculty stages for community colleges",
+    "Add official schedule-of-classes as primary Intro-1 evidence (fix false negatives)",
+    "SERP query cache keyed (campus, stage) for zero-cost resume",
+    "Single-orchestrator lock file (never allow concurrent writers)",
+    "Distinct failure codes: AI-Gateway-402 halts+alerts, netfail retries, 'no result' logs",
+    "Prof-scrape scoping to accounting dept only (kill 259-prof over-collection)",
+    "GreekRank campus-id verification before writing chapters (kill CC bleed)",
+    "Auto-classify greek_orgs.org_type on insert (drop 439 unknowns)",
+    "Per-service concurrency caps to allow 3-4 wide safely"
+  ],
+  "12_integration_contract": {
+    "source_of_truth": [
+      "campuses (identity: name/display_name/aliases/parent_system_id/campus_resolution_status)",
+      "campus_greek_chapters (Greek presence + counts)",
+      "campus_council_contacts (outreach targets)",
+      "campus_lead_suggestions (professors + Intro-1 evidence: rmp_target_course_counts_json, teaches_intro_1, active_roster)"
+    ],
+    "derived": [
+      "intro1_qualified per campus (computed from rmp_target_course_counts_json.intro_1 >= 1)",
+      "campus readiness composite (code + greek + intro1 + council)",
+      "greek density (greek_pct_* already stored)"
+    ],
+    "temporary": [
+      "scratchpad/master_progress.json (run ledger)",
+      "scratchpad/*.log, all_targets.json, audit_db_result.json"
+    ],
+    "deprecated": [
+      "raw prof COUNT as a quality/scoring input (until de-duplicated)"
+    ]
+  },
+  "13_final_verdict": {
+    "structural_data_ready_for_growth_v1": "PARTIAL",
+    "top_three": [
+      "Run is a clean COMPLETE: 816/816, 0 errors, 505 Intro-1 profs across 101 campuses now picker-actionable, 1,547 council contacts, 3,815 Greek chapters — safe to build Growth V1 on the council + Greek + Intro-1 layers today.",
+      "Two accuracy caveats before integrating professor data: over-collection at ~7 large campuses (UVA 259) and Greek-count outliers at ~6 community/small colleges — quarantine raw prof counts and the flagged Greek outliers from scoring until reviewed.",
+      "The Intro-1 '0' is a PROOF gap, not an absence: only 182 confirmed / 505 possible via RMP, but ~1,062 broader signals exist. Reconcile with official schedules + syllabi next; do not treat 0-Intro-1 campuses as having no teacher."
+    ]
+  }
+}

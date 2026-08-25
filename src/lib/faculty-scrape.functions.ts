@@ -176,7 +176,12 @@ const MAP_FALLBACK_EMAIL_THRESHOLD = 5;
 // scrape only sees page 1. We detect this pattern and re-scrape with
 // Firecrawl `actions` that click Next/Load more N times and capture HTML
 // from each step. Generalizable across schools.
-const MAX_PAGINATION_PAGES = 8;
+// Conservative pagination cap (2026-08-25 audit): faculty-page pagination was
+// the top Firecrawl cost. An accounting department almost never spans >4 roster
+// pages; deeper walks were spending credits for near-zero marginal yield. The
+// batched actions-scrape already aborts early when two consecutive step HTMLs
+// are identical (selector didn't match → no real next page).
+const MAX_PAGINATION_PAGES = 4;
 const MIN_EXTRACTED_BEFORE_PAGINATION = 15;
 const PAGINATION_STEP_WAIT_MS = 1500;
 const PAGINATION_ACTIONS_TIMEOUT_MS = 180_000;
