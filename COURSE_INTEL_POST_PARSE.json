@@ -1,0 +1,844 @@
+{
+  "generated_at": "2026-08-25T20:08:29.702Z",
+  "processing": {
+    "by_processing_status": {
+      "parsed": 971,
+      "discovered": 2254,
+      "error": 162,
+      "skipped": 2
+    },
+    "by_document_type": {
+      "syllabus": 749,
+      "schedule": 407,
+      "unknown_pdf": 960,
+      "study_guide": 66,
+      "lecture": 128,
+      "catalog": 814,
+      "faculty_page": 126,
+      "homework": 48,
+      "worksheet": 85,
+      "unknown": 6
+    },
+    "total_docs": 3389,
+    "parsed": 971,
+    "still_discovered": 2254,
+    "errors": 162,
+    "skipped": 2
+  },
+  "exam1": {
+    "campuses_with_ranges": 46,
+    "chapter_frequency": [
+      {
+        "chapter": 1,
+        "campuses": 44,
+        "pct": 96
+      },
+      {
+        "chapter": 2,
+        "campuses": 42,
+        "pct": 91
+      },
+      {
+        "chapter": 3,
+        "campuses": 40,
+        "pct": 87
+      },
+      {
+        "chapter": 4,
+        "campuses": 30,
+        "pct": 65
+      },
+      {
+        "chapter": 5,
+        "campuses": 16,
+        "pct": 35
+      },
+      {
+        "chapter": 6,
+        "campuses": 7,
+        "pct": 15
+      },
+      {
+        "chapter": 7,
+        "campuses": 7,
+        "pct": 15
+      },
+      {
+        "chapter": 8,
+        "campuses": 6,
+        "pct": 13
+      },
+      {
+        "chapter": 9,
+        "campuses": 3,
+        "pct": 7
+      },
+      {
+        "chapter": 10,
+        "campuses": 1,
+        "pct": 2
+      },
+      {
+        "chapter": 11,
+        "campuses": 5,
+        "pct": 11
+      },
+      {
+        "chapter": 12,
+        "campuses": 5,
+        "pct": 11
+      },
+      {
+        "chapter": 13,
+        "campuses": 6,
+        "pct": 13
+      },
+      {
+        "chapter": 14,
+        "campuses": 8,
+        "pct": 17
+      },
+      {
+        "chapter": 15,
+        "campuses": 4,
+        "pct": 9
+      },
+      {
+        "chapter": 16,
+        "campuses": 4,
+        "pct": 9
+      },
+      {
+        "chapter": 17,
+        "campuses": 2,
+        "pct": 4
+      },
+      {
+        "chapter": 18,
+        "campuses": 2,
+        "pct": 4
+      },
+      {
+        "chapter": 19,
+        "campuses": 1,
+        "pct": 2
+      },
+      {
+        "chapter": 20,
+        "campuses": 1,
+        "pct": 2
+      },
+      {
+        "chapter": 21,
+        "campuses": 1,
+        "pct": 2
+      },
+      {
+        "chapter": 22,
+        "campuses": 1,
+        "pct": 2
+      },
+      {
+        "chapter": 23,
+        "campuses": 1,
+        "pct": 2
+      },
+      {
+        "chapter": 24,
+        "campuses": 1,
+        "pct": 2
+      }
+    ],
+    "range_frequency": [
+      {
+        "range": "1-4",
+        "campuses": 20
+      },
+      {
+        "range": "1-3",
+        "campuses": 12
+      },
+      {
+        "range": "1-5",
+        "campuses": 8
+      },
+      {
+        "range": "1-2",
+        "campuses": 5
+      },
+      {
+        "range": "13-15",
+        "campuses": 3
+      },
+      {
+        "range": "1-7",
+        "campuses": 3
+      },
+      {
+        "range": "1-6",
+        "campuses": 2
+      },
+      {
+        "range": "1-13",
+        "campuses": 2
+      },
+      {
+        "range": "1-12",
+        "campuses": 2
+      },
+      {
+        "range": "1-11",
+        "campuses": 2
+      },
+      {
+        "range": "14-14",
+        "campuses": 2
+      },
+      {
+        "range": "1-8",
+        "campuses": 2
+      },
+      {
+        "range": "1-16",
+        "campuses": 2
+      },
+      {
+        "range": "12-14",
+        "campuses": 1
+      },
+      {
+        "range": "14-16",
+        "campuses": 1
+      },
+      {
+        "range": "13-14",
+        "campuses": 1
+      },
+      {
+        "range": "1-24",
+        "campuses": 1
+      },
+      {
+        "range": "1-18",
+        "campuses": 1
+      },
+      {
+        "range": "7-8",
+        "campuses": 1
+      },
+      {
+        "range": "15-17",
+        "campuses": 1
+      },
+      {
+        "range": "8-14",
+        "campuses": 1
+      },
+      {
+        "range": "8-9",
+        "campuses": 1
+      }
+    ]
+  },
+  "exam_dates": {
+    "campuses_with_exam1_date": 28,
+    "future_dates": 1,
+    "past_dates": 27,
+    "by_confidence": {
+      "HIGH": 26,
+      "LOW": 2
+    },
+    "future_list": [
+      {
+        "campus": "University of North Carolina at Charlotte",
+        "state": "NC",
+        "date": "2026-09-21",
+        "term": "Fall 2026",
+        "conf": "HIGH",
+        "days_until": 27,
+        "future": true
+      }
+    ],
+    "sample_all": [
+      {
+        "campus": "The University of Texas at Austin",
+        "state": "TX",
+        "date": "2025-06-17",
+        "term": "Summer 2025",
+        "conf": "HIGH",
+        "days_until": -434,
+        "future": false
+      },
+      {
+        "campus": "Oral Roberts University",
+        "state": "OK",
+        "date": "2019-09-23",
+        "term": "Fall 2019",
+        "conf": "HIGH",
+        "days_until": -2528,
+        "future": false
+      },
+      {
+        "campus": "University of Maine",
+        "state": "ME",
+        "date": "2023-02-21",
+        "term": "Spring 2023",
+        "conf": "HIGH",
+        "days_until": -1281,
+        "future": false
+      },
+      {
+        "campus": "Ball State University",
+        "state": "IN",
+        "date": "2026-01-20",
+        "term": "Spring 2026",
+        "conf": "HIGH",
+        "days_until": -217,
+        "future": false
+      },
+      {
+        "campus": "Texas A&M Univ-Texarkana",
+        "state": "TX",
+        "date": "2021-02-18",
+        "term": "Spring 2021",
+        "conf": "HIGH",
+        "days_until": -2014,
+        "future": false
+      },
+      {
+        "campus": "Doane University",
+        "state": "NE",
+        "date": "2019-06-02",
+        "term": "Summer 2019",
+        "conf": "HIGH",
+        "days_until": -2641,
+        "future": false
+      },
+      {
+        "campus": "University of Akron",
+        "state": "OH",
+        "date": "2022-09-26",
+        "term": "Fall 2022",
+        "conf": "HIGH",
+        "days_until": -1429,
+        "future": false
+      },
+      {
+        "campus": "Florida Atlantic University",
+        "state": "FL",
+        "date": "2023-09-22",
+        "term": "Fall 2023",
+        "conf": "HIGH",
+        "days_until": -1068,
+        "future": false
+      },
+      {
+        "campus": "University of Florida",
+        "state": "FL",
+        "date": "2025-02-13",
+        "term": null,
+        "conf": "HIGH",
+        "days_until": -558,
+        "future": false
+      },
+      {
+        "campus": "North Central Texas College",
+        "state": "TX",
+        "date": "2025-09-28",
+        "term": "Fall 2025",
+        "conf": "HIGH",
+        "days_until": -331,
+        "future": false
+      },
+      {
+        "campus": "University of South Carolina",
+        "state": "SC",
+        "date": "2019-02-18",
+        "term": "Spring 2019",
+        "conf": "HIGH",
+        "days_until": -2745,
+        "future": false
+      },
+      {
+        "campus": "New York University",
+        "state": "NY",
+        "date": "2025-10-02",
+        "term": "Fall 2025",
+        "conf": "HIGH",
+        "days_until": -327,
+        "future": false
+      },
+      {
+        "campus": "Eastern Illinois Univ",
+        "state": "IL",
+        "date": "2018-09-26",
+        "term": "Fall 2018",
+        "conf": "HIGH",
+        "days_until": -2890,
+        "future": false
+      },
+      {
+        "campus": "Rice University",
+        "state": "TX",
+        "date": "2021-09-16",
+        "term": "Fall 2021",
+        "conf": "HIGH",
+        "days_until": -1804,
+        "future": false
+      },
+      {
+        "campus": "University of North Carolina at Charlotte",
+        "state": "NC",
+        "date": "2026-09-21",
+        "term": "Fall 2026",
+        "conf": "HIGH",
+        "days_until": 27,
+        "future": true
+      },
+      {
+        "campus": "University of Utah Salt Lake",
+        "state": "UT",
+        "date": "2026-02-05",
+        "term": "Spring 2026",
+        "conf": "HIGH",
+        "days_until": -201,
+        "future": false
+      },
+      {
+        "campus": "University of North Georgia",
+        "state": "GA",
+        "date": "2020-05-22",
+        "term": "Summer 2020",
+        "conf": "HIGH",
+        "days_until": -2286,
+        "future": false
+      },
+      {
+        "campus": "University of Texas at El Paso",
+        "state": "TX",
+        "date": "2026-02-16",
+        "term": "Spring 2026",
+        "conf": "HIGH",
+        "days_until": -190,
+        "future": false
+      },
+      {
+        "campus": "Univ of California-Davis",
+        "state": "CA",
+        "date": "2018-05-01",
+        "term": null,
+        "conf": "HIGH",
+        "days_until": -3038,
+        "future": false
+      },
+      {
+        "campus": "Sul Ross State University",
+        "state": "TX",
+        "date": "2026-02-17",
+        "term": "Spring 2026",
+        "conf": "HIGH",
+        "days_until": -189,
+        "future": false
+      },
+      {
+        "campus": "University of Toronto",
+        "state": "ON",
+        "date": "2025-02-07",
+        "term": null,
+        "conf": "LOW",
+        "days_until": -564,
+        "future": false
+      },
+      {
+        "campus": "Western Kentucky University",
+        "state": "KY",
+        "date": "2025-06-13",
+        "term": "Summer 2025",
+        "conf": "HIGH",
+        "days_until": -438,
+        "future": false
+      },
+      {
+        "campus": "Rutgers University-Camden",
+        "state": "NJ",
+        "date": "2023-02-16",
+        "term": "Spring 2023",
+        "conf": "HIGH",
+        "days_until": -1286,
+        "future": false
+      },
+      {
+        "campus": "Prairie View A&M University",
+        "state": "TX",
+        "date": "2024-09-22",
+        "term": "Fall 2024",
+        "conf": "HIGH",
+        "days_until": -702,
+        "future": false
+      },
+      {
+        "campus": "Austin Community College",
+        "state": "TX",
+        "date": "2023-10-19",
+        "term": "Fall 2023",
+        "conf": "HIGH",
+        "days_until": -1041,
+        "future": false
+      },
+      {
+        "campus": "University of Waterloo",
+        "state": "ON",
+        "date": "2020-02-27",
+        "term": null,
+        "conf": "LOW",
+        "days_until": -2371,
+        "future": false
+      },
+      {
+        "campus": "Florida Gulf Coast University",
+        "state": "FL",
+        "date": "2020-02-05",
+        "term": "Spring 2020",
+        "conf": "HIGH",
+        "days_until": -2393,
+        "future": false
+      },
+      {
+        "campus": "Stephen F. Austin State University",
+        "state": "TX",
+        "date": "2025-10-09",
+        "term": "Fall 2025",
+        "conf": "HIGH",
+        "days_until": -320,
+        "future": false
+      }
+    ]
+  },
+  "topics": {
+    "explicit_topic_evidence_rows": 174,
+    "top_topics": [
+      {
+        "topic": "prepare financial statements through exercises",
+        "mentions": 8
+      },
+      {
+        "topic": "understanding of the key theoretical concepts",
+        "mentions": 8
+      },
+      {
+        "topic": "record operations according to a double-entry system",
+        "mentions": 8
+      },
+      {
+        "topic": "listening comprehension",
+        "mentions": 3
+      },
+      {
+        "topic": "the accounting information system",
+        "mentions": 3
+      },
+      {
+        "topic": "grammar",
+        "mentions": 3
+      },
+      {
+        "topic": "soñar un crimen",
+        "mentions": 3
+      },
+      {
+        "topic": "accrual accounting concepts",
+        "mentions": 3
+      },
+      {
+        "topic": "introduction to financial statements",
+        "mentions": 3
+      },
+      {
+        "topic": "vocabulary",
+        "mentions": 3
+      },
+      {
+        "topic": "reading comprehension",
+        "mentions": 3
+      },
+      {
+        "topic": "reporting and analyzing inventory",
+        "mentions": 3
+      },
+      {
+        "topic": "a further look at financial statements",
+        "mentions": 3
+      },
+      {
+        "topic": "composition",
+        "mentions": 3
+      },
+      {
+        "topic": "reporting and analyzing receivables",
+        "mentions": 2
+      },
+      {
+        "topic": "individual income tax overview, dependends and filing status",
+        "mentions": 2
+      },
+      {
+        "topic": "financial markets",
+        "mentions": 2
+      },
+      {
+        "topic": "individual deductions",
+        "mentions": 2
+      },
+      {
+        "topic": "tvm shortcuts",
+        "mentions": 2
+      },
+      {
+        "topic": "statistics review",
+        "mentions": 2
+      },
+      {
+        "topic": "fraud, internal control, and cash",
+        "mentions": 2
+      },
+      {
+        "topic": "equity",
+        "mentions": 2
+      },
+      {
+        "topic": "introduction",
+        "mentions": 2
+      },
+      {
+        "topic": "tvm",
+        "mentions": 2
+      },
+      {
+        "topic": "individual income tax computation and tax credits",
+        "mentions": 2
+      },
+      {
+        "topic": "merchandising operations and the multiple step income statement",
+        "mentions": 2
+      },
+      {
+        "topic": "tax compliance, the irs, and tax authorities",
+        "mentions": 2
+      },
+      {
+        "topic": "investments",
+        "mentions": 2
+      },
+      {
+        "topic": "risk & return",
+        "mentions": 2
+      },
+      {
+        "topic": "an introduction to tax",
+        "mentions": 2
+      }
+    ]
+  },
+  "professors": {
+    "by_state": {
+      "POSSIBLE_INTRO1": 61,
+      "LIKELY_INTRO1": 458,
+      "CONFIRMED_INTRO1": 211
+    },
+    "distinct": 541,
+    "campuses_with_professor_evidence": 154
+  },
+  "textbooks": {
+    "distinct_rows": 280,
+    "editions_confirmed": 159,
+    "reference_rows": 336,
+    "campuses_with_textbook": 101
+  },
+  "coverage": {
+    "campuses_with_useful_doc": 249,
+    "campuses_with_exam1_evidence": 46,
+    "campuses_with_any_evidence": 117
+  },
+  "toc_worklist": [
+    {
+      "title": "Intermediate Accounting",
+      "mentions": 22,
+      "campuses": 11,
+      "likely_noise": true
+    },
+    {
+      "title": "Managerial Accounting",
+      "mentions": 13,
+      "campuses": 11,
+      "likely_noise": false
+    },
+    {
+      "title": "Financial and Managerial Accounting",
+      "mentions": 21,
+      "campuses": 10,
+      "likely_noise": false
+    },
+    {
+      "title": "Financial Accounting",
+      "mentions": 24,
+      "campuses": 9,
+      "likely_noise": false
+    },
+    {
+      "title": "Financial & Managerial Accounting",
+      "mentions": 11,
+      "campuses": 6,
+      "likely_noise": false
+    },
+    {
+      "title": "Essentials of Corporate Finance",
+      "mentions": 6,
+      "campuses": 4,
+      "likely_noise": false
+    },
+    {
+      "title": "Financial Accounting: Tools for Business Decision Making",
+      "mentions": 7,
+      "campuses": 3,
+      "likely_noise": false
+    },
+    {
+      "title": "Accounting",
+      "mentions": 4,
+      "campuses": 3,
+      "likely_noise": false
+    },
+    {
+      "title": "Fundamentals of Financial Accounting",
+      "mentions": 4,
+      "campuses": 3,
+      "likely_noise": false
+    },
+    {
+      "title": "Canadian Income Taxation",
+      "mentions": 4,
+      "campuses": 3,
+      "likely_noise": true
+    },
+    {
+      "title": "Principles of Accounting",
+      "mentions": 3,
+      "campuses": 3,
+      "likely_noise": false
+    },
+    {
+      "title": "Accounting Principles",
+      "mentions": 3,
+      "campuses": 3,
+      "likely_noise": false
+    },
+    {
+      "title": "Intermediate Accounting, Volume One",
+      "mentions": 3,
+      "campuses": 3,
+      "likely_noise": true
+    },
+    {
+      "title": "Financial and Managerial Accounting: Information for Decisions",
+      "mentions": 7,
+      "campuses": 2,
+      "likely_noise": false
+    },
+    {
+      "title": "Principles of Accounting, Volume 1: Financial Accounting",
+      "mentions": 6,
+      "campuses": 2,
+      "likely_noise": false
+    },
+    {
+      "title": "Financial Accounting: Information for Decisions",
+      "mentions": 4,
+      "campuses": 2,
+      "likely_noise": false
+    },
+    {
+      "title": "Bookkeeping for Dummies",
+      "mentions": 4,
+      "campuses": 2,
+      "likely_noise": true
+    },
+    {
+      "title": "Fundamental Accounting Principles",
+      "mentions": 3,
+      "campuses": 2,
+      "likely_noise": false
+    },
+    {
+      "title": "Financial Accounting: IFRS.",
+      "mentions": 2,
+      "campuses": 2,
+      "likely_noise": false
+    },
+    {
+      "title": "Financial Accounting for MBAs",
+      "mentions": 2,
+      "campuses": 2,
+      "likely_noise": false
+    },
+    {
+      "title": "Advanced Accounting",
+      "mentions": 2,
+      "campuses": 2,
+      "likely_noise": false
+    },
+    {
+      "title": "Business Finance Essentials",
+      "mentions": 2,
+      "campuses": 2,
+      "likely_noise": false
+    },
+    {
+      "title": "Intermediate Accounting, Volume Two",
+      "mentions": 2,
+      "campuses": 2,
+      "likely_noise": true
+    },
+    {
+      "title": "Financial Reporting, Financial Statement Analysis, and Valuation",
+      "mentions": 2,
+      "campuses": 2,
+      "likely_noise": false
+    },
+    {
+      "title": "Small Business – An Entrepreneur’s Plan.",
+      "mentions": 2,
+      "campuses": 2,
+      "likely_noise": true
+    },
+    {
+      "title": "ACCOUNTING",
+      "mentions": 5,
+      "campuses": 1,
+      "likely_noise": false
+    },
+    {
+      "title": "Horngren’s Financial and Managerial Accounting with MyAccountingLab",
+      "mentions": 3,
+      "campuses": 1,
+      "likely_noise": false
+    },
+    {
+      "title": "Operations Management",
+      "mentions": 3,
+      "campuses": 1,
+      "likely_noise": false
+    },
+    {
+      "title": "Financial Accounting with Connect",
+      "mentions": 3,
+      "campuses": 1,
+      "likely_noise": false
+    },
+    {
+      "title": "Financial Accounting Fundamentals",
+      "mentions": 3,
+      "campuses": 1,
+      "likely_noise": false
+    }
+  ]
+}

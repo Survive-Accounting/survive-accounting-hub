@@ -1,0 +1,368 @@
+{
+  "generated_at": "2026-08-25T17:51:16.551Z",
+  "executive": {
+    "overall": "PARTIAL",
+    "sec_preflight": "PASS",
+    "pass_a_status": {
+      "NO_RESULT": 436,
+      "COMPLETE": 448
+    },
+    "pass_b_status": {
+      "NOT_RUN": 290,
+      "COMPLETE": 81,
+      "NO_RESULT": 507,
+      "WAITING_FOR_PROFESSORS": 6
+    },
+    "status_breakdown": {
+      "NO_RESULT": 408,
+      "COMPLETE": 63,
+      "NEEDS_REVIEW": 386,
+      "WAITING_FOR_COURSE": 11,
+      "FAILED": 15,
+      "WAITING_FOR_PROFESSORS": 1
+    },
+    "campuses_total": 884,
+    "campuses_attempted": 872,
+    "campuses_completed": 63,
+    "campuses_with_code": 320,
+    "professors_researched_total": 17636,
+    "professors_in_pass_b_candidate_pool": 12324
+  },
+  "document_yield": {
+    "by_type": {
+      "syllabus": 729,
+      "schedule": 373,
+      "unknown_pdf": 1172,
+      "study_guide": 66,
+      "catalog": 739,
+      "lecture": 91,
+      "homework": 42,
+      "faculty_page": 99,
+      "worksheet": 72,
+      "unknown": 6
+    },
+    "by_tier": {
+      "tier2": 1144,
+      "tier3": 1335,
+      "tier1": 66,
+      "tier4": 844
+    },
+    "by_processing_status": {
+      "parsed": 652,
+      "discovered": 2653,
+      "error": 84
+    },
+    "unique_documents": 3389,
+    "parsed": 652,
+    "discovered_unparsed": 2653,
+    "failed_fetches": 84,
+    "restricted_rejected_seen": 0
+  },
+  "coverage": {
+    "campuses_with_course_evidence": 77,
+    "campuses_with_useful_doc": 315,
+    "campuses_with_exam1_evidence": 5,
+    "campuses_with_professor_evidence": 145,
+    "campuses_with_textbook_evidence": 64,
+    "campuses_with_exam_date_evidence": 0,
+    "campuses_zero_docs": 435,
+    "top_campuses": [
+      {
+        "campus": "Johns Hopkins University",
+        "state": "MD",
+        "docs": 7,
+        "highValue": 4,
+        "syllabi": 1,
+        "status": "NEEDS_REVIEW",
+        "conf": null
+      },
+      {
+        "campus": "Drexel University",
+        "state": "PA",
+        "docs": 6,
+        "highValue": 4,
+        "syllabi": 1,
+        "status": "NEEDS_REVIEW",
+        "conf": null
+      },
+      {
+        "campus": "East Central College",
+        "state": "MO",
+        "docs": 10,
+        "highValue": 3,
+        "syllabi": 0,
+        "status": "NEEDS_REVIEW",
+        "conf": null
+      },
+      {
+        "campus": "University of Oklahoma",
+        "state": "OK",
+        "docs": 21,
+        "highValue": 2,
+        "syllabi": 0,
+        "status": "NEEDS_REVIEW",
+        "conf": null
+      },
+      {
+        "campus": "University of Florida",
+        "state": "FL",
+        "docs": 20,
+        "highValue": 2,
+        "syllabi": 1,
+        "status": "NEEDS_REVIEW",
+        "conf": null
+      },
+      {
+        "campus": "Indiana University Indianapolis",
+        "state": "IN",
+        "docs": 18,
+        "highValue": 2,
+        "syllabi": 0,
+        "status": "NEEDS_REVIEW",
+        "conf": null
+      },
+      {
+        "campus": "Jacksonville State University",
+        "state": "AL",
+        "docs": 17,
+        "highValue": 2,
+        "syllabi": 1,
+        "status": "NEEDS_REVIEW",
+        "conf": null
+      },
+      {
+        "campus": "Marquette University",
+        "state": null,
+        "docs": 13,
+        "highValue": 2,
+        "syllabi": 0,
+        "status": "NEEDS_REVIEW",
+        "conf": null
+      },
+      {
+        "campus": "University of Louisville",
+        "state": "KY",
+        "docs": 13,
+        "highValue": 2,
+        "syllabi": 2,
+        "status": "NEEDS_REVIEW",
+        "conf": null
+      },
+      {
+        "campus": "University of California, Santa Barbara",
+        "state": "CA",
+        "docs": 11,
+        "highValue": 2,
+        "syllabi": 2,
+        "status": "NEEDS_REVIEW",
+        "conf": null
+      },
+      {
+        "campus": "Anderson University IN",
+        "state": "IN",
+        "docs": 9,
+        "highValue": 2,
+        "syllabi": 0,
+        "status": "NEEDS_REVIEW",
+        "conf": null
+      },
+      {
+        "campus": "Columbia International University",
+        "state": "SC",
+        "docs": 3,
+        "highValue": 2,
+        "syllabi": 1,
+        "status": "NEEDS_REVIEW",
+        "conf": null
+      }
+    ]
+  },
+  "professor_evidence": {
+    "by_state": {
+      "POSSIBLE_INTRO1": 61,
+      "LIKELY_INTRO1": 289,
+      "CONFIRMED_INTRO1": 152
+    },
+    "distinct_professors": 410,
+    "confirmed_by_source_quality": {
+      "HIGH": 152
+    },
+    "professors_with_multiple_states": 9
+  },
+  "exam1_intelligence": {
+    "campuses_with_exam1_ranges": 5,
+    "chapter_frequency": [
+      {
+        "chapter": 1,
+        "campuses": 5,
+        "pct": 100
+      },
+      {
+        "chapter": 2,
+        "campuses": 4,
+        "pct": 80
+      },
+      {
+        "chapter": 3,
+        "campuses": 4,
+        "pct": 80
+      },
+      {
+        "chapter": 4,
+        "campuses": 1,
+        "pct": 20
+      },
+      {
+        "chapter": 7,
+        "campuses": 1,
+        "pct": 20
+      },
+      {
+        "chapter": 8,
+        "campuses": 1,
+        "pct": 20
+      },
+      {
+        "chapter": 14,
+        "campuses": 1,
+        "pct": 20
+      },
+      {
+        "chapter": 18,
+        "campuses": 1,
+        "pct": 20
+      }
+    ],
+    "range_frequency": [
+      {
+        "range": "1-3",
+        "campuses": 3
+      },
+      {
+        "range": "1-18",
+        "campuses": 1
+      },
+      {
+        "range": "7-8",
+        "campuses": 1
+      },
+      {
+        "range": "1-4",
+        "campuses": 1
+      }
+    ],
+    "exam_label_distribution": {
+      "skills test": 1,
+      "exam 4": 3,
+      "undefined": 23,
+      "comprehensive final exam": 1,
+      "exam 3": 6,
+      "final exam": 7,
+      "exam 2": 6,
+      "exam iii": 1,
+      "mid-term examination": 1,
+      "final exam part 1": 1,
+      "exam 1": 6,
+      "final cumulative examination": 1,
+      "final examination": 1,
+      "midterm exam": 5,
+      "exam i": 1,
+      "in-class quiz 2": 1,
+      "in-class quiz 1": 1,
+      "midterm #3": 1,
+      "mid-term exam": 1,
+      "exam ii": 1,
+      "midterm": 1
+    }
+  },
+  "exam_timing": {
+    "usable_exam1_dates": 0,
+    "estimated_windows": 0,
+    "note": "exam DATES not extracted this run; AI schema captured term/year only"
+  },
+  "textbook_intelligence": {
+    "distinct_textbook_rows": 171,
+    "editions_confirmed": 94,
+    "toc_chapter_rows": 37,
+    "top_textbooks_by_mention": [
+      {
+        "title": "Financial Accounting",
+        "mentions": 9
+      },
+      {
+        "title": "Financial & Managerial Accounting",
+        "mentions": 4
+      },
+      {
+        "title": "Principles of Accounting, Volume 1: Financial Accounting",
+        "mentions": 4
+      },
+      {
+        "title": "Financial and Managerial Accounting",
+        "mentions": 4
+      },
+      {
+        "title": "Bookkeeping for Dummies",
+        "mentions": 4
+      },
+      {
+        "title": "Canadian Income Taxation",
+        "mentions": 3
+      },
+      {
+        "title": "Intermediate Accounting, Volume One",
+        "mentions": 3
+      },
+      {
+        "title": "Financial Accounting for MBAs",
+        "mentions": 2
+      },
+      {
+        "title": "Horngren’s Financial and Managerial Accounting with MyAccountingLab",
+        "mentions": 2
+      },
+      {
+        "title": "Financial Reporting, Financial Statement Analysis, and Valuation",
+        "mentions": 2
+      },
+      {
+        "title": "Small Business – An Entrepreneur’s Plan.",
+        "mentions": 2
+      },
+      {
+        "title": "Financial Accounting: Information for Decisions",
+        "mentions": 2
+      },
+      {
+        "title": "Financial and Managerial Accounting: Information for Decisions",
+        "mentions": 2
+      },
+      {
+        "title": "Principles of Accounting",
+        "mentions": 2
+      },
+      {
+        "title": "Intermediate Accounting",
+        "mentions": 2
+      }
+    ],
+    "textbook_reference_evidence_rows": 114
+  },
+  "search_performance": {
+    "serp_searches": 3237,
+    "firecrawl_fetches": 833,
+    "ai_parses": 745,
+    "est_cost_usd": 53.53,
+    "useful_docs_tier12": 1210,
+    "useful_yield_per_serp": 0.37
+  },
+  "mapping_safety": {
+    "exam1_proposals_by_confidence": {
+      "Medium": 6
+    },
+    "textbook_topic_mappings_by_state": {
+      "proposed": 60
+    },
+    "total_exam_range_evidence": 70
+  }
+}

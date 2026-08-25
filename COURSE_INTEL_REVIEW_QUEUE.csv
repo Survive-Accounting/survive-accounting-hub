@@ -1,0 +1,1009 @@
+priority,campus_id,campus,state,reason,detail,status
+1,0054904a-2d2a-4686-af96-8ac394798e2b,University of Montana,MT,multiple_textbook_editions,Financial & Managerial Accounting|14th edition ; Introductory Financial and Managerial Accounting for Undergraduates|3rd edition,COMPLETE
+1,0054904a-2d2a-4686-af96-8ac394798e2b,University of Montana,MT,conflicting_professor_evidence,"{""LIKELY_INTRO1"":3,""CONFIRMED_INTRO1"":1}",COMPLETE
+1,03ba330e-a0c8-44c0-afdc-e8c247c5fdea,Uof California-Berkeley,CA,conflicting_professor_evidence,"{""CONFIRMED_INTRO1"":1,""LIKELY_INTRO1"":1}",NEEDS_REVIEW
+1,102fd422-da6d-47e5-aabe-e5d83c511408,The University of Texas at Austin,TX,multiple_textbook_editions,Financial Accounting|10th Edition ; Financial Accounting|7th Edition,COMPLETE
+1,163adfda-42e6-4a63-9af0-2c63d4e871e5,De Anza College,CA,multiple_textbook_editions,"Financial Accounting|26 Edition ; Accounting (LL) 1A - De Anza, 29th + CNOWv2 for Accounting, 1 term Acc Card|29th",COMPLETE
+1,163adfda-42e6-4a63-9af0-2c63d4e871e5,De Anza College,CA,conflicting_professor_evidence,"{""LIKELY_INTRO1"":5,""CONFIRMED_INTRO1"":4,""POSSIBLE_INTRO1"":2}",COMPLETE
+1,1cc90976-6fa5-4b05-9db0-1893f95c0e05,Grand Valley State Univ Grand,MI,multiple_textbook_editions,FUNDAMENTALS OF FINANCIAL ACCOUNTING W/ CONNECT BUNDLE|5 ; FUND. OF FINANCIAL ACCOUNTING CONNECT|5,NEEDS_REVIEW
+1,1d6d2c96-2d39-4387-ad42-b0172a297eae,Utah Tech University,UT,multiple_textbook_editions,Gleim CMA Part 1|2025 Edition ; Business Finance Essentials|,NEEDS_REVIEW
+1,2615bd8c-9631-467d-b9c3-2e128212ddfe,College of the Rockies,BC,multiple_textbook_editions,"Intermediate Accounting, Volume One|Seventh Edition Update ; Canadian Income Taxation|2021-2022 Edition ; Small Business – An Entrepreneur’s Plan|7th Enhanced Canadian Edition ; Canadian Income Taxation, with Connect access|2024-2025 Edition",COMPLETE
+1,2d23ea54-35d6-4f68-8a2b-5c53849a61be,Texas A&M Univ-Texarkana,TX,conflicting_professor_evidence,"{""LIKELY_INTRO1"":3,""CONFIRMED_INTRO1"":1}",COMPLETE
+1,318d6a61-b955-4242-9b0c-1c471a14791a,Franklin University,OH,multiple_textbook_editions,Horngren’s financial and managerial accounting: The financial chapters|7th ed. ; Intermediate Accounting|11th ; Financial accounting theory and analysis: Text and cases|13th ed. ; Survey of accounting|7th ed.,COMPLETE
+1,33422353-e982-42b4-b0e4-26fbb9cf1d1e,Doane University,NE,multiple_textbook_editions,Horngren’s Accounting|10th ; Financial Accounting The Impact on Decision Makers|Tenth Edition,COMPLETE
+1,356ddca2-f616-4344-baed-6b1e5c5c83ff,King's College - Pennsylvania,PA,multiple_textbook_editions,"Accounting Tools for Business Decision Making|5th Edition ; Financial Management for Public, Health, and Not-for-Profit Organizations|4th ed.",COMPLETE
+1,379b6839-6a7d-479a-b2df-d1dbce1d831e,Kent State University,OH,conflicting_professor_evidence,"{""CONFIRMED_INTRO1"":1,""LIKELY_INTRO1"":10}",NEEDS_REVIEW
+1,391db14a-eec4-471d-8348-74078e451fdc,Universidad Carlos III de Madrid,MD,multiple_textbook_editions,Financial Accounting International Financial Reporting Standards|11 Edition ; Financial and Managerial Accounting|13th Edition,COMPLETE
+1,4a1720da-d044-42a3-bdde-1542ae9e096c,Stanford University,CA,conflicting_professor_evidence,"{""LIKELY_INTRO1"":3,""CONFIRMED_INTRO1"":4}",NEEDS_REVIEW
+1,4ba93766-716e-4019-87ab-9181e6bba681,Nagoya University,OH,multiple_textbook_editions,"Principles of Accounting, Volume 1: Financial Accounting| ; Financial Reporting, Financial Statement Analysis, and Valuation|Ninth Edition",COMPLETE
+1,4ba93766-716e-4019-87ab-9181e6bba681,Nagoya University,OH,conflicting_professor_evidence,"{""LIKELY_INTRO1"":2,""CONFIRMED_INTRO1"":2}",COMPLETE
+1,519ab87b-e1bc-4847-a579-140ec08ef841,Wayland Baptist University,TX,conflicting_professor_evidence,"{""LIKELY_INTRO1"":3,""CONFIRMED_INTRO1"":1}",NEEDS_REVIEW
+1,54110fb9-3a7e-42fb-9cd0-f8e441f5587a,University of Exeter,EX,multiple_textbook_editions,Accounting and Finance for Non-specialists| ; Financial Information Analysis|2nd edition ; Financial Accounting for Decision Makers|11th Ed,COMPLETE
+1,5f09e5d9-bf5b-4672-8fde-5c1f5f4af107,Augusta University,GA,multiple_textbook_editions,Bookkeeping for Dummies|2nd Edition ; Bookkeeping for Dummies|3rd Edition,COMPLETE
+1,62f42404-8006-4fa6-9068-516683198e09,New York University,NY,multiple_textbook_editions,Financial Accounting|12th edition ; Fundamentals of Financial Accounting|11th edition ; Financial Accounting|11th Ed. ; Financial Accounting|12th,COMPLETE
+1,62f42404-8006-4fa6-9068-516683198e09,New York University,NY,conflicting_professor_evidence,"{""POSSIBLE_INTRO1"":4,""CONFIRMED_INTRO1"":6,""LIKELY_INTRO1"":1}",COMPLETE
+1,6c2bfcd5-86ff-4126-a9a8-c617ff3bfb33,College of the Redwoods,CA,multiple_textbook_editions,Fundamental Accounting Principles|22nd edition ; Financial Accounting: Information for Decisions|8th ; Wild Financial and Managerial Accounting National|LL7/E,COMPLETE
+1,7d9df2aa-4485-48e4-86f7-bfd409b9ef35,Seminole State College of Florida,FL,multiple_textbook_editions,Accounting Connect Access|13TH 23 ; Found Fin Mgmt. Connect(nd Seminole)|18TH 22,NEEDS_REVIEW
+1,7e8be616-afcd-4961-830d-87a484b80a50,Rice University,TX,conflicting_professor_evidence,"{""LIKELY_INTRO1"":6,""CONFIRMED_INTRO1"":1}",COMPLETE
+1,8258c5bb-9425-4e60-9996-61f5713e9f2b,University of Texas at El Paso,TX,conflicting_professor_evidence,"{""POSSIBLE_INTRO1"":2,""LIKELY_INTRO1"":3,""CONFIRMED_INTRO1"":1}",NEEDS_REVIEW
+1,826884a5-9a66-41e8-9a4e-0c3417955bd4,Univ of California-Davis,CA,conflicting_professor_evidence,"{""LIKELY_INTRO1"":1,""CONFIRMED_INTRO1"":1}",NEEDS_REVIEW
+1,93078365-5338-47a5-a275-1339b9812dba,College of New Caledonia,BC,multiple_textbook_editions,"Intermediate Accounting, Volume One|Seventh Edition Update ; Small Business – An Entrepreneur’s Plan.|7th Enhanced Canadian Edition ; Canadian Income Taxation|2024-2025 Edition",COMPLETE
+1,9608bb77-b019-460a-b907-92e56493e21c,Langara College,BC,multiple_textbook_editions,"Intermediate Accounting, Volume One|Seventh Edition Update ; Small Business – An Entrepreneur’s Plan.|7th Enhanced Canadian Edition ; Canadian Income Taxation|2024-2025 Edition",COMPLETE
+1,97dbdd51-4f57-40e6-a822-88ddc4c1ecb0,Colorado College,,conflicting_professor_evidence,"{""CONFIRMED_INTRO1"":5,""LIKELY_INTRO1"":2}",NEEDS_REVIEW
+1,9961c567-684f-4fc4-bfea-f701a46b101d,Western Kentucky University,KY,multiple_textbook_editions,Financial Accounting:Tools for Business Decision Making|9th Ed ; Financial Accounting: Tools for Business Decision Making|9e,COMPLETE
+1,9af2ea11-48be-4d06-b454-7949013dbe14,University of Illinois Chicago,IL,conflicting_professor_evidence,"{""POSSIBLE_INTRO1"":1,""CONFIRMED_INTRO1"":4}",NEEDS_REVIEW
+1,a20b5f96-7a39-4a87-8fc8-30a577bac114,Florida International University,FL,multiple_textbook_editions,"The Legal Environment of Business|11th Ed ; Calculus for Business, Economics, and the Social and Life Sciences|11 ; Calculus for Business, Economics, and the Social and Life Sciences, brief|11",COMPLETE
+1,aa693672-2bb7-4b81-847c-7b7be9f3ab10,City College of San Francisco,CA,conflicting_professor_evidence,"{""CONFIRMED_INTRO1"":2,""POSSIBLE_INTRO1"":3,""LIKELY_INTRO1"":6}",COMPLETE
+1,b6679ac5-dc5d-4f0d-b1e0-d8905cdee00d,University of Genoa,IT,multiple_textbook_editions,"Intermediate accounting : IFRS edition| ; Bilancio di esercizio e principi contabili|XI ed. ; Financial Accounting, 7th Edition: An International Introduction|7th Edition ; The concise guide to Mergers, Acquisitions and divestitures|2007",COMPLETE
+1,c4181814-91e1-44b3-9f4a-dd2c2e895706,Cerritos College,CA,multiple_textbook_editions,"Financial and Managerial Accounting: Information for Decisions|Seventh Edition ; Financial and Managerial Accounting: Information for Decisions|Eighth Edition ; College Accounting, A Contemporary Approach with CONNECT|5th edition",COMPLETE
+1,d4a7fffb-46c2-40b4-ba73-67432ef69acf,South Plains College,TX,multiple_textbook_editions,Financial & Managerial Accounting|17th edition ; Financial & Managerial Accounting|15th ; Financial and Managerial Accounting|15e,COMPLETE
+1,d4a7fffb-46c2-40b4-ba73-67432ef69acf,South Plains College,TX,conflicting_professor_evidence,"{""CONFIRMED_INTRO1"":2,""LIKELY_INTRO1"":2}",COMPLETE
+1,d51305bc-4b97-4bc3-a6a5-24678f9dd387,Mercer University-Macon,GA,conflicting_professor_evidence,"{""CONFIRMED_INTRO1"":3,""LIKELY_INTRO1"":1}",NEEDS_REVIEW
+1,d523da51-d1e6-4787-b1f4-a00133b9e727,Carleton University,ON,conflicting_professor_evidence,"{""CONFIRMED_INTRO1"":2,""LIKELY_INTRO1"":1}",NEEDS_REVIEW
+1,dbaf817b-e5bd-427f-877b-32996eba63f7,Waseda University,JP,multiple_textbook_editions,"Principles of Accounting, Volume 1: Financial Accounting| ; Financial Reporting, Financial Statement Analysis, and Valuation|Ninth Edition",COMPLETE
+1,dbaf817b-e5bd-427f-877b-32996eba63f7,Waseda University,JP,conflicting_professor_evidence,"{""LIKELY_INTRO1"":2,""CONFIRMED_INTRO1"":2}",COMPLETE
+1,e1d3aaab-0722-4800-8b9d-2eedf84393b8,Austin Community College,TX,multiple_textbook_editions,"Horngren’s Financial and Managerial Accounting with MyAccountingLab|8th ed ; Corporate Financial Accounting, Custom with Access to Cengage Now|15th ed",COMPLETE
+1,e631c8de-37a3-4aae-a948-a64bd20ea4c5,University of Arkansas,AR,multiple_textbook_editions,Accounting Concepts and Applications|11th ; Farm Management|Seventh Edition ; Economics of Farm Management in a Global Setting|,COMPLETE
+1,eb81939f-3101-45c3-b20c-aa2c88c725ff,Nashville State Community College,TN,multiple_textbook_editions,Fundamentals of Taxation|2023 ; Payroll Accounting|2024 Edition,NEEDS_REVIEW
+1,f003c714-618d-421f-a448-69140e495edc,"Calif State Univ, Long Beach Long",CA,conflicting_professor_evidence,"{""CONFIRMED_INTRO1"":25,""LIKELY_INTRO1"":3}",NEEDS_REVIEW
+1,f8cd97cd-6ba9-4282-abf1-2c2828fb627c,Brandeis University,MA,conflicting_professor_evidence,"{""POSSIBLE_INTRO1"":8,""CONFIRMED_INTRO1"":4,""LIKELY_INTRO1"":5}",NEEDS_REVIEW
+1,f9cf5367-8e29-402c-872b-4ed82c646921,Pratt Institute-Main,,multiple_textbook_editions,A Global History of Architecture|Third Edition ; Gang Leader for a Day: A Rogue Sociologist Takes to the Streets|,COMPLETE
+1,faa7ada5-f035-43db-acbe-b76cf60cd37b,DePaul University,IL,multiple_textbook_editions,Principles of Accounting|6th Edition ; Introduction to Information Technology|Second Edition,COMPLETE
+1,fefc04a6-4fad-4a75-a7ff-1bf58ff91bec,Stephen F. Austin State University,TX,conflicting_professor_evidence,"{""POSSIBLE_INTRO1"":2,""LIKELY_INTRO1"":2,""CONFIRMED_INTRO1"":2}",NEEDS_REVIEW
+2,13864a8e-31cc-45e2-a81d-5e54f623ab35,Univ No Carolina Greensboro,NC,exam_mapping_needs_approval,"exam 1:[1,2,3] exam 2:[4,5,6] exam 3:[7,8,9] exam 4:[10,11,12] exam 1:[1,2,3] exam 2:[4,5,6] exam 3:[7,8,9] final cumulative examination:[1,2,3,4,5,6,7,8,9,10]",COMPLETE
+2,1d6d2c96-2d39-4387-ad42-b0172a297eae,Utah Tech University,UT,exam_mapping_needs_approval,"undefined:[1,2,3,4] undefined:[19,25,26,27] undefined:[1,2,3,4,5] undefined:[6,7,8,9,10,11,12] undefined:[11,12,13] undefined:[1,2,3,4] undefined:[5,6,7,8] undefined:[6,7] undefined:[6,7] undefined:[1,2,3,4,5,6,7] undefined:[8,9,10,11,12,13,14] undefined:[1,2,3] undefined:[4,5,6] undefined:[7,8,9] undefined:[10,11,12] undefined:[1,2,5,7]",NEEDS_REVIEW
+2,277031ea-17f5-47ee-b8e4-51e4e9f008b2,Penn State York,PA,exam_mapping_needs_approval,"midterm exam:[1,2,3,4] final exam:[5,6,7,8,9,10,11]",NEEDS_REVIEW
+2,2d23ea54-35d6-4f68-8a2b-5c53849a61be,Texas A&M Univ-Texarkana,TX,exam_mapping_needs_approval,"exam 1:[7,8] exam 2:[9,10] exam 3:[11,16] exam 4:[12,13]",COMPLETE
+2,34714288-6630-4265-a831-f04fa103fe63,Penn State New Kensington,PA,exam_mapping_needs_approval,"midterm exam:[1,2,3,4] final exam:[5,6,7,8,9,10,11]",NEEDS_REVIEW
+2,49ae7dd9-7422-4c18-8994-5f4e946dde02,Penn State Abington,PA,exam_mapping_needs_approval,"midterm exam:[1,2,3,4] final exam:[5,6,7,8,9,10,11]",NEEDS_REVIEW
+2,5c4b0a8f-22b8-45f9-b1b7-9be45f9bf85d,Penn State Berks,PA,exam_mapping_needs_approval,"midterm exam:[1,2,3,4] final exam:[5,6,7,8,9,10,11]",NEEDS_REVIEW
+2,60e3b6bc-611e-4254-8b7c-7e8b45412159,George Mason University,VA,exam_mapping_needs_approval,"exam 1:[1,14,18] exam 2:[2,3,1] exam 3:[3,6,7,8,9,1,2]",NEEDS_REVIEW
+2,6ec0e41d-4faf-4648-aac9-c4bc0b13b58e,Virginia Commonwealth,VA,exam_mapping_needs_approval,"skills test:[1,2,3,4,5]",NEEDS_REVIEW
+2,743b800e-466a-4230-bfe2-8dcb86839a0b,George Brown College,ON,exam_mapping_needs_approval,"midterm:[1,2,3,4,5,6]",COMPLETE
+2,7b202c04-686d-413f-878f-a2bd3675a1f0,Uof Arkansas at Monticello,AR,exam_mapping_needs_approval,"undefined:[15] undefined:[1,2,3] undefined:[10,11,12]",NEEDS_REVIEW
+2,7d89723d-6d46-46c6-a059-e5875ff118a7,James Madison University,VA,exam_mapping_needs_approval,"midterm #3:[7,8,9,10,11]",COMPLETE
+2,9311c065-92df-486b-9852-97cb17107c69,Florida State College at Jacksonville,FL,exam_mapping_needs_approval,"exam 1:[1,2,3,4] exam 2:[5,6,7,8] exam 3:[9,10,11,12,13]",NEEDS_REVIEW
+2,a44a848d-4281-4780-8e29-955221802623,Liberty University,VA,exam_mapping_needs_approval,"undefined:[1,2,3,4,5] undefined:[6,7,8,9,10] undefined:[11,12,13,14,15] undefined:[16,17,18,19,20]",NEEDS_REVIEW
+2,d523da51-d1e6-4787-b1f4-a00133b9e727,Carleton University,ON,exam_mapping_needs_approval,"in-class quiz 1:[1,2,3,4] midterm exam:[1,2,3,4,5,6] in-class quiz 2:[7,8,9] final exam:[1,2,3,4,5,6,7,8,9,10,11]",NEEDS_REVIEW
+2,e631c8de-37a3-4aae-a948-a64bd20ea4c5,University of Arkansas,AR,exam_mapping_needs_approval,"exam 1:[1,2,3] exam 2:[4,5,6] exam 3:[7,8] exam 4:[9,10] final exam:[1,2,3,4,5,6,7,8,9,10,11,12,13] exam i:[1,17,18,19,20,21,22,23,24,5] exam ii:[6,7,8,9,10] exam iii:[11,19,3,4] comprehensive final exam:[1,17,18,19,20,21,22,23,24,5,6,7,8,9,10,11,19,3,4,2,13,14,12,15,16]",COMPLETE
+2,e68d3256-de0a-4381-a0a5-a8dfebf4e3e5,Penn State Brandywine,PA,exam_mapping_needs_approval,"mid-term exam:[1,2,3,4,5,6,7,8] final exam:[11,12,13,14,15,16,18,20,21,22,23]",NEEDS_REVIEW
+2,ec4f4635-fa9b-41eb-ac1c-5c61a8722b97,Salisbury University,MD,exam_mapping_needs_approval,"mid-term examination:[8,13,14] final exam part 1:[11,12,15,16,17] final examination:[11,12,15,16,17]",NEEDS_REVIEW
+3,00274032-48fd-43d0-bd53-3549b4c5ff07,CUNY Hunter College,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,0054904a-2d2a-4686-af96-8ac394798e2b,University of Montana,MT,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,0058c3b5-9cf3-4da2-a236-75b19b8b7911,Lawrence Technological Univ,MI,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,0061927b-102d-4362-9c21-c5b423e43cac,University of The Cumberlands,KY,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,022f4049-cba8-48ec-9edd-c585f88f7f87,University of Puget Sound,,ambiguous_course_identity_no_code,await_course_code_backfill,WAITING_FOR_COURSE
+3,02a82fbc-c702-4940-aa81-aedf19bf0140,University of Iowa Iowa,IA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,034f7eaf-fd20-4890-a886-1aad917e13f9,Durham Technical Community College,NC,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,03ba330e-a0c8-44c0-afdc-e8c247c5fdea,Uof California-Berkeley,CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,0413aa57-040e-42c2-a0e4-d93c16cbd1f2,Calif St U-Dominguez Hills,CA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,0417ce15-a77e-4ea4-86fd-a631c0d6c359,Seneca Polytechnic,ON,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,04786a32-7351-43a1-b6d2-a479ba0f4d10,Western Carolina University,NC,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,04a6f5fc-5913-4fc1-84f7-039fd4149b4d,Casper College,WY,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,04efb67d-2b5d-41a7-8efe-c169a5b76671,New York Institute of Tech Old,NY,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,0632e0db-c8a2-4438-b1a4-aac2bb91f8f0,Prague University of Economics and Business,Prague,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,063e3e9e-7bec-4e35-8cd6-2f3d14e56f40,Piedmont Virginia Community College,VA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,06bf71a9-dd00-4ec2-85b2-dc4ec507a5ec,Valparaiso University,IN,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,07abe6b1-0505-4677-b232-ce2466ce8025,Illinois Wesleyan University,,ambiguous_course_identity_no_code,await_course_code_backfill,WAITING_FOR_COURSE
+3,07d162bf-ff97-4faf-a6dd-a86f60e658a4,University of Klagenfurt,AT,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,083af01c-5504-4361-8165-2c8e07f52f1b,Drury University,MO,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,0854cf69-76e9-41a4-bc7e-9e2a902b0ff6,Weatherford College,TX,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,09eb4c4d-1391-4809-be0e-11ac02c3cf7e,King's College,PA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,0a2467b0-4236-4560-8258-9c06494ec754,Foothill College,CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,0a3b9320-6bf6-4bb8-b6bf-ae15265f984f,South Mountain Community College,AZ,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,0a3cb687-366b-4785-a617-593622020200,Memorial University of Newfoundland,NL,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,0a691d0a-34aa-4226-8511-bd241c559a29,Cal Poly Humboldt,CA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,0a812f83-8129-4bab-ad51-7366d1e2a183,SUNYat Plattsburgh,NY,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,0af70b45-ea23-4541-bcf0-b498b7c7dea2,Metro Community College Ft Omaha E,NE,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,0b199f76-27de-48df-8995-829dd9b4269d,Southeastern Louisiana Univ,LA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,0b3dfa6a-84b2-439c-baf7-8b176d6baf4b,Northern State University,SD,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,0b7a9a22-43aa-45f5-85f7-1775981a18b5,Youngstown State University,OH,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,0be532c5-92f3-4118-bfeb-598814125b3a,Widener University,PA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,0c1f92c6-28ac-4337-a9ff-cc37dde1e15c,University of Hawaii at Hilo,HI,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,0c4bd334-027c-4924-97d4-779d00ff3a8f,Ursinus College,,ambiguous_course_identity_no_code,await_course_code_backfill,WAITING_FOR_COURSE
+3,0cdd07d2-dead-4536-8851-da2eaf3e4627,Victoria College,TX,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,0d099c0a-c67d-4f8f-b964-f507569e6520,Humber Polytechnic,ON,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,0f40f287-100d-4ec3-a951-1e3b40486a8f,University of St. Thomas-MN St.,MN,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,0f682377-179e-47c9-a36a-5ee3bc9efc14,University of Cincinnati-Main Campus,,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,0fa0e5bb-76cd-4299-a9af-f8802eaf317c,Spelman College,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,0fad3da2-b1f2-4e2b-9637-7b5d0737ec4d,Harris-Stowe State Univ St.,MO,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,0fcc221b-28d0-4121-8ebb-dcd839d752b6,Tama University,N/A,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,10760ba6-adb3-4111-9efb-6347b0e122ac,Bellarmine University,KY,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,1084bf96-1261-41f7-9187-1a44b33ee412,University of Montevallo,AL,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,10d95c68-bd9f-4167-bedf-2031cd6f0697,Illinois Institute of Tech,IL,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,10fd53d0-9208-49ca-a413-bfe2c75b5968,University of North Dakota Grand,ND,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,1147ac50-18c0-4bdf-8bf4-413b49791ab5,University of Kent,EX,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,1190fd15-76d0-4fdd-bf3a-1e0e293ad7c7,Univ of Michigan-Dearborn,MI,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,119df83b-8e7f-454d-936c-f1f39dcd407c,U.S. Coast Guard Academy New,CT,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,12545761-cf00-4814-98a9-1233d9fcb40b,Uof Arkansas at Little Rock Little,AR,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,12bbe4a6-0781-41f6-a0f4-590a8ea973c5,Lincoln University - California,CA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,12f2df5b-431f-4e9a-9572-5902e68182d2,Hamilton College,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,135d7070-b769-4c6a-9e0e-88bc5baef315,Athens Technical College,GA,ambiguous_course_identity_no_code,discover_course_code,FAILED
+3,13762cae-715d-4650-9dcc-282fb44d0522,Bishop's University,QC,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,14304f21-086e-4e59-9c54-52684fa8251e,Westminster College - Pennsylvania,PA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,144e6ab5-3085-49c2-9bd5-4d134a21834b,Indiana University Kokomo,IN,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,147c54d6-9172-4f20-9912-fbd9c2a4d81e,Dalton State College,GA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,1554bb6b-6fa9-44ca-a0b4-953feab9b3b3,Barnard College,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,15f91e0b-0e8c-48ab-a405-beccd03620e2,"City St George's, University of London",England,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,167bb454-f11c-446d-aa3e-edf7b33f9978,La Salle University,PA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,171479ac-0d62-494b-b7ee-cfecb8ebc587,Florida Southern College,FL,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,17ac68da-ab12-4467-b47d-4f6f348ad82e,Valdosta State University,GA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,18900a1d-e1e7-4324-ad9b-51d3a6755d11,University of Alberta,AB,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,18b8b3d0-71ec-4f35-9eb5-bff566b77e0f,Cecil College,MD,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,18e02f64-5108-480b-9d97-bb448a55b8d0,Stetson University,FL,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,198f0b0d-a269-494d-8d24-7b682822be61,Uof Arkansas at Pine Bluff Pine,AR,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,1994f812-8ee7-44c5-aebb-d0af3b5561a5,National Chengchi University,TW,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,19cec263-576b-4358-a420-390ac8264399,University of South Alabama,AL,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,1a33f054-89c8-4d91-9882-42ccf611d597,Ohio University,OH,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,1a36c076-bb65-4fab-87d0-389c52320681,Texas State Technical College,TX,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,1a74e225-71ce-4468-bd59-de5872700f40,Penn State Wilkes-Barre,PA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,1c22f607-dc5c-494b-b75a-331432771695,San Jose State University San,CA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,1cd28141-8461-4fe6-864d-c424dd1340fa,Owens Community College,OH,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,1df94a58-25ba-426e-b8b9-91e808fe9947,Northland Community and Technical College Thie River,MN,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,1e64d18f-c6ed-4a0f-9314-1f56961a707c,Trinity University,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,1ea5aedb-ca83-4b0b-8a67-0922286988ba,Oxnard College,CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,1ecc155c-f2c2-4ef3-8450-04407ea1d4b5,Southern State Community College,OH,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,1eee187e-f639-4f30-ae46-39db81030a1e,University of Maine,ME,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,1f5cee7a-6b22-413a-bcc7-9c9235f26a75,University of Miami Coral,FL,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,1f69dafc-34ac-4a01-bb90-b66e9185005b,Virginia Poly Inst & St Un,VA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,1fe25f7c-0601-4e2d-be12-d6a2e4dac428,Germanna Community College,VA,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,219109ba-69a3-44d4-87d9-ec01570b4e8e,Anderson University IN,IN,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,21d50e49-537c-4f56-829e-90c3d7307451,Columbus State University,GA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,233b5757-3c57-4670-8646-49c83abe263d,Norfolk State University,VA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,237b083b-8fd3-4662-bfea-b9b52919a7dc,Rochester Inst of Technology,NY,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,238792eb-7de7-4568-a96a-43356a756fe2,Western Illinois University,IL,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,239b5fd1-f932-49cf-b416-f4e7215a0572,Pulaski Technical College,AR,ambiguous_course_identity_no_code,discover_course_code,FAILED
+3,24265ab0-ff8f-4428-8bd9-7a60ba5a39c2,University of Louisiana at Lafayette,LA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,25423fc1-42f6-409b-8238-65442b6d86b6,Iscte – Instituto Universitário de Lisboa,LX,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,2547e625-3204-4a9f-9a1a-0f257e64f2ad,Chandler–Gilbert Community College,AZ,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,2549e4aa-15b7-4286-92b9-5042805a6e5a,Chipola College,FL,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,255bc3e7-e679-429e-9e07-c32fcbece318,William Paterson University,NJ,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,2615bd8c-9631-467d-b9c3-2e128212ddfe,College of the Rockies,BC,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,263926a7-4015-4b52-8066-c0f1682fb0e8,Winona State University,MN,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,26e8e9bc-b64d-4126-8c54-288c9a379a2c,Rutgers University-Newark,NJ,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,27ba2556-1124-4a4a-9f65-447bc45bbc09,Germanna Virginia Community College,VA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,28653455-0e18-4437-b092-07b9d11dd0e3,Boston University,MA,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,2880ad1b-4158-4b1c-a3d9-7c0b30b9ed5c,Yale University New,CT,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,28b71fa7-96f8-4793-bbd2-2b9300b4b925,University of Evansville,IN,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,292dce80-939c-4482-9070-f5da1d10ee61,Hobart William Smith Colleges,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,29965458-b9bd-44c8-a837-4910eff23d36,Anderson University SC,SC,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,2add23d8-7a54-45a0-be98-55f2e911a905,Ozarks Technical Community College,MO,ambiguous_course_identity_no_code,discover_course_code,FAILED
+3,2c434afb-1227-464b-9876-da717055f353,Uof Minnesota Duluth,MN,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,2c4a27b0-8a7e-47f8-94bc-ee1f94c88d37,Community College of Rhode Island,RI,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,2c9dad4c-7c68-473a-a4f4-da84ad6bd3fb,Naugatuck Valley Community College,CT,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,2d23ea54-35d6-4f68-8a2b-5c53849a61be,Texas A&M Univ-Texarkana,TX,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,2dabde00-bd6d-47af-bbe6-afe142c3b1ac,Denison University,,ambiguous_course_identity_no_code,await_course_code_backfill,WAITING_FOR_COURSE
+3,2ec60732-9510-4ee0-a694-b9e2e7231bab,Alma College,MI,ambiguous_course_identity_no_code,discover_course_code,FAILED
+3,2fe42442-8bc8-41d3-aaad-468c81a94eb6,King’s University College,ON,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,300b679c-d17d-412b-8a4f-ca4b11e42306,Winthrop University Rock,SC,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,30433ce3-11b6-4587-82a3-1933561e59da,Southeast College,SK,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,318d6a61-b955-4242-9b0c-1c471a14791a,Franklin University,OH,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,32dca893-1ddb-4ed6-a702-65258c2e8176,New York University New,NY,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,334e7a3a-7055-41a9-901c-0a9459d4fddf,Los Angeles Southwest College,CA,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,336bd28f-485a-48af-a24c-9794cf742cfa,San Jacinto College,TX,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,33b67a71-d3bb-4b72-b388-e4ac8cebe84e,Rockland Community College,NY,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,342bca14-34bc-49fa-bac0-b7bc73bdbfb8,Harrisburg Area Community College,PA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,349eaec1-12e2-4168-888f-9371ce7a828e,Boise State University,ID,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,35477678-ec10-42e4-b8d7-9cec7bd719c5,Penn State Mont Alto,PA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,355ac638-046f-446e-84b7-0122e594e64c,University of California-Irvine,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,35fbc3cc-96b8-446e-885c-5edafd8cbb57,North Carolina Wilmington,NC,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,3603b53c-af52-4632-b942-d2a2fe8cf8ff,Valley City State University,ND,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,36b634ee-8202-4a0d-8ff6-0f45ce3a000b,Evangel University,MO,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,36cbc0fe-6655-4c06-84bc-5f6f72c6f892,Clark University,MA,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,36fe540d-615e-48f4-a8e6-1d3658ba2497,Appalachian State Univ,NC,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,378aee56-c546-4fd6-9e1f-1eb73502f55a,University of Akron,OH,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,37fd8b58-b0fe-4251-891f-90066c835ebd,University of Michigan Ann,MI,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,38500765-705e-4dd6-b69e-ccc0372713f4,Claremont McKenna College,CA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,38d26c62-4217-42fb-861b-5a4dd2d6d85e,Western Nevada College,NV,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,391db14a-eec4-471d-8348-74078e451fdc,Universidad Carlos III de Madrid,MD,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,3b9a452c-0df8-47ec-ae4e-7d64bac8b4f1,Babson College Babson,MA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,3bc8c84a-aa2f-4aab-a49c-a0a35192717e,Francis Marion University,SC,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,3c705af5-e9b4-48a5-a06d-eda9bd395ce8,Howard Community College,MD,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,3ca36c37-faca-4790-a3fb-42c5ebda3d8d,SUNY College at Geneseo,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,3ec89a8b-86fa-40ff-9757-76e073ef99be,Occidental College,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,3efb7f4b-cfc3-4e01-a51b-b989d9a8a90b,SUNY College of Environmental Science and Forestry,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,3f4a6d65-464a-4c43-a656-fe4a2309ff67,Mid-State Technical College,WI,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,3f5fcb44-a23c-4fd4-97b6-c52555db9c3e,"University of Nevada, Reno",NV,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,3f984578-bf7d-49ec-aa49-f69f4740b3e9,Kenyon College,,ambiguous_course_identity_no_code,manual_review_no_public_docs,FAILED
+3,3f988607-eaa9-49ee-b07f-e50be118690f,Central Connecticut St Univ New,CT,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,3fae48fa-9213-438f-a213-f777a26ed6f3,Purdue University-Main Campus,,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,40e687ef-df5d-49e1-887f-f482f5df6e42,Washington University St.,MO,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,4114870f-aa70-4029-aaab-e6790b43f623,Louisiana State University Alexandria,LA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,41176dec-0dbe-4c9d-8ede-070856e8883b,Zane State College,OH,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,41429690-d8eb-48ba-8335-ae92e477173f,Augsburg College,MN,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,41596046-afe7-4f6b-bfb6-bdd4f43d64db,Bladen Community College,NC,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,422237cd-f175-4edb-acac-5a5fe4b5eb7a,Tecnológico de Monterrey,NL,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,4277ee6f-3ba3-490c-aac0-1034bb15a547,Laney College,CA,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,42d6ef0d-de7b-48ad-a717-ae341b8d4ea3,Brigham Young University,UT,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,433969d6-efa9-49de-956b-c0078b5a4872,Southern Utah University Cedar,UT,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,439997eb-bc7f-4225-98e5-09b2bdc4ad14,Fontbonne University St.,MO,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,43eae681-5034-48a1-84f2-087d12eeefc4,Kettering University,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,440f7ded-6e38-4620-b284-da1d335321e3,Univ of Hawaii at Manoa,HI,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,4467ec8d-e660-46df-a418-15e9ee1846b7,Thunderbird Sch Global Mgt,AZ,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,44d2a610-af4f-4e3d-9323-215220109005,Universidad de Alcalá,Madrid,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,4511c588-2713-4e82-99e3-7c3a05824108,Westmont College,CA,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,454397c7-d71d-4259-b7ca-e93a5338467e,Northwestern Polytechnic,AB,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,45ba56b7-2a0b-4483-be22-190189083ce8,Ithaca College,NY,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,46116ec2-efd9-470f-85bb-d5356fa3a3d6,Yale University,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,462eb615-e29e-49c5-b3e1-254e604d9398,Georgia Institute of Tech,GA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,46d72a89-a706-4361-9169-87f52d3412b1,Wesleyan University,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,46e2c9bf-c4c4-4a7f-bc4a-5fe00bfce1aa,Purdue University W,IN,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,4805af64-d782-4e17-a635-04e05ae8cb07,Millsaps College,MS,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,4864a01b-855f-4a2c-88be-7c89ea366c61,Indiana U-Purdue U Indy,IN,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,48694acd-4eea-48a7-9591-60a6cf341ae3,Muskegon Community College,MI,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,4935004d-15b5-4d10-a450-32d12e0aefda,Loyola Marymount Univ Los,CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,4a1720da-d044-42a3-bdde-1542ae9e096c,Stanford University,CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,4b7ba858-9367-4f7a-b0a8-9bab4028555f,Naval Postgraduate School,CA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,4ba93766-716e-4019-87ab-9181e6bba681,Nagoya University,OH,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,4bd98964-3625-4197-9c14-9e0c64ebe87d,Western New Mexico University,NM,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,4c146400-e96d-4d2c-b06a-49f2ba596d02,New Jersey In of Technology,NJ,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,4d35ff12-865b-431e-869b-dc2c0212e56a,Florida College,FL,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,4d3d2512-cf8e-4061-9ce1-329bf3918490,Texas A&M University-Commerce,TX,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,4e4f2d99-2f1b-4db0-b53b-298d709a8d8d,Pasadena City College,CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,4f018d9f-31e9-4473-a6c6-50d9b6937c07,Danville Community College,VA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,4f484e24-355c-4ef4-b50f-87b3767f9894,Maastricht University,NL,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,4f493dd7-0ec5-480a-a857-46e8c84ff5a4,Thompson Rivers University,BC,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,4f988627-0f47-4341-abbc-4e48f4fc87d1,Miami Dade College,FL,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,4ff7d415-b812-4ef2-9f95-3219beb24f9f,Universidad Publica de Navarra,NA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,50609aee-1e7c-4718-b0ad-f3ef6f05fb17,Calif State U - San Marcos San,CA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,51a5f06a-ffe1-4d26-bd70-1b89c242a82f,McMaster University,ON,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,520243a8-73d8-45ea-80d6-3b1e7a7f1fa3,Webster University St.,MO,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,523452b0-3bac-473c-a9be-d8537ab5365f,Walla Walla Community College,WA,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,53cd6d0b-a9ab-4cbf-bb19-ee9ba3564314,Menlo College,CA,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,540e2567-9d61-460f-9afc-cff3783bda4c,Shorter University,GA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,54110fb9-3a7e-42fb-9cd0-f8e441f5587a,University of Exeter,EX,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,54240b28-04bf-435e-af0c-f7b60f26c3af,North Central Texas College,TX,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,55262f96-e712-463b-bf70-01c2ddde5e7e,Metropolitan Community College,NE,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,55717554-6abb-4da8-bfa4-67f85ca6d582,University of Coimbra,PT,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,55bdaf15-10b6-4e78-b41c-6498c94db332,"Calif St U, San Bernardino S",CA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,56273372-c4cc-4ac9-a826-7ec570e89952,"Univ of Calif, Riverside",CA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,569ea866-31b2-4e34-bd4a-c9fd5ed8570d,Irvine Valley College,CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,57c1c76b-7ff9-407f-82f4-d8767198e199,Yukon University,YT,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,592b7b48-8c25-4f49-a5cb-891e50b1a190,Univ of California San Diego La,CA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,59575c9b-3309-4500-9f5b-700d1b82e6cf,Lakeland Community College,OH,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,59a61d79-e406-4d25-aa97-5bc067e002c2,Northwest Missouri St Univ,MO,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,5a0ea0ba-1598-44be-9ac6-20117745ab68,Anne Arundel Community College,MD,ambiguous_course_identity_no_code,discover_course_code,FAILED
+3,5e606899-5078-49f6-838f-a2a34e143c32,New Mexico Junior College,NM,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,5e6610d2-c113-4dc3-8b49-6fe9eb27007d,Trevecca Nazarene University,TN,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,5ecc7590-129b-4dec-885d-904a25aaa79f,Dartmouth College,NH,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,5f09e5d9-bf5b-4672-8fde-5c1f5f4af107,Augusta University,GA,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,5fb03ee8-3e82-4143-98d6-9210e0132aec,Xavier University,OH,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,5fb17f2e-cbe9-4b34-8e6e-c0cd2c01ca87,Willamette University,OR,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,5fe1d763-45d7-4e52-9afe-2b3d45a0e5b5,University of the West Indies,New Providence,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,6011c41d-c350-49bf-872c-7e72d4270a60,Rose-Hulman Institute of Technology,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,6048af64-37f0-412f-be1c-c084567bd209,Uof Arkansas at Fort Smith Ft.,AR,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,6090d3b9-9696-405e-aae3-fcf467daf9d3,Technical University of Liberec,CZ,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,60b48e65-7249-4a6e-8f07-5b9be8cb5dcf,Three Rivers Community College,CT,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,610ceccb-2051-41c9-b827-70391e26ce3e,Ferris State University Big,MI,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,61914461-c30b-40d7-8658-989d53b62047,Okanagan College,BC,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,61c58928-adb6-49ca-aa57-faf958bf241d,"Calif State U, Stanislaus",CA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,61dbe784-bee6-42fd-9413-3efdd27dbf9d,SUNYat Binghamton,NY,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,6432dced-bb87-4968-ba01-d5ab3c7075e5,Wilkes University,PA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,643ebee4-9857-4c8d-8d6b-34a45cdb0c7b,Tulane University New,LA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,64409137-92b9-40ff-aa60-398116a04afa,California State Polytechnic University-Pomona,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,64a30d2a-feaa-4bf3-ac47-b582e1a8ab53,James A. Rhodes State College,OH,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,64d5eb76-7c75-4e16-9b83-771d954f9a20,Northern Alberta Institute of Technology,AB,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,656b5758-4296-42e5-8ce3-cd4a188b3c05,University of South Dakota,SD,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,660a501d-b0eb-4426-98c8-4ab4ba9142ad,University of Manitoba,MB,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,66f2f8af-6af5-48d2-b1fe-c46b82f1082b,Schiller International University,FL,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,6707d6e6-c02f-4053-8357-1e82d88f365d,University of North Carolina Chapel,NC,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,670b60f9-b633-4984-b6ba-cef32a0bbc51,Centre College,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,675fd9e9-bb80-446e-9a75-9b5a722d3797,University of the Pacific,CA,ambiguous_course_identity_no_code,discover_course_code,FAILED
+3,678fb645-37f4-4a2e-a533-a83d5e5798d7,Greenville Technical College,SC,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,67d4f9e2-5cb4-4662-af97-da0d6eca0743,Tarrant County College,TX,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,68c57016-e4d4-4ac3-863f-8355c9c769e3,Sheridan College,ON,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,68c682f8-1712-4606-9e9d-3faa467a2748,British Columbia Institute of Technology,BC,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,69189032-e251-48ca-86b2-9ac8b8a67c39,Univ of District of Columbia,DC,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,691e247f-d841-483d-8052-c937bff5b80b,Lone Star College,TX,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,6920f319-ad8f-49fb-84e1-d08fbe841fa7,University of Chicago,IL,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,695149ba-2389-45e3-8164-f29a9f46de55,Alabama A&M University,AL,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,6a5adfa7-2b07-4254-ae83-c2b2a90055dc,Eastern Illinois Univ,IL,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,6ae849d0-f506-4742-9231-abaccc8c562d,Marietta College,OH,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,6b5433eb-a6da-4beb-a18c-ebc5e6a1fab5,Northern Virginia Community College,VA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,6bea086d-17cb-4ab3-ad7c-417d811e7650,California State University-Fresno,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,6c2bfcd5-86ff-4126-a9a8-c617ff3bfb33,College of the Redwoods,CA,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,6c3227b1-ac79-4962-931e-7700a8bcc96f,Golden West College,CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,6c3dc7c0-7b2c-47eb-8926-2d6175b5af5d,Western Conn State Univ,CT,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,6cad7402-9304-43d7-951a-91aa2b183778,St. John's University,NY,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,6e18e239-bfbe-481b-be4a-38a3f2740641,Southeast Missouri St Univ C,MO,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,6e228c88-6be0-4c7c-a70f-d2854aac448b,Tuskegee University,AL,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,6ec0e41d-4faf-4648-aac9-c4bc0b13b58e,Virginia Commonwealth,VA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,6f5f6dd5-04f8-49df-b326-6bd2851e5d9c,"Calif State Univ, Fullerton",CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,6f64b325-7d6d-4bd4-8f24-edcf98168ca1,Cornell College,,ambiguous_course_identity_no_code,await_course_code_backfill,WAITING_FOR_COURSE
+3,706dd741-cfb2-4ca6-bd3c-897471067515,Central Michigan University Mt.,MI,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,70dbdd53-9b50-44d3-81c1-407dc3d97427,Abilene Christian Univ,TX,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,70eee749-b3df-4b53-bd6d-5546e97c4757,Culver-Stockton College,MO,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,7148ae85-ca10-4541-89d6-dfb8dce8b24a,Tulsa Community College,OK,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,729c2dec-45af-4237-a35d-ff547002f993,Stony Brook University,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,731da80c-a223-4103-a4a7-44777cc89a13,Columbia College,BC,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,73469d67-a9f4-40a3-bc7a-350bba5661b3,Concordia University,QC,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,739175c4-6de3-40a8-a3e6-cf7d60124c00,North Carolina A&T State Un,NC,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,743b800e-466a-4230-bfe2-8dcb86839a0b,George Brown College,ON,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,74ef8b14-c57e-434e-a7ea-d40e98017070,University of Northern Iowa Cedar,IA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,76ddaad2-9bb1-4144-9493-b5dd39c3d8a5,Clarkson University,NY,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,76f02913-0d56-49e0-8468-ceac474870e8,University of California-Merced,,ambiguous_course_identity_no_code,await_course_code_backfill,WAITING_FOR_COURSE
+3,774fdd9c-50fc-446e-8f16-4c80ad19bb64,Harding University,AR,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,77721583-6490-42e1-af25-c92ac0c829af,Western Michigan University,MI,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,77bb1c71-2791-4cd4-8083-8cf5fa4acd67,John Carroll University,OH,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,7874a5d5-5dcd-4a2d-8a6f-77e62b44078c,Illinois State University,IL,ambiguous_course_identity_no_code,discover_course_code,FAILED
+3,78d31aa9-0aa4-4eeb-8b04-391d7783285a,University at Buffalo,,ambiguous_course_identity_no_code,await_course_code_backfill,WAITING_FOR_COURSE
+3,78fc9d08-b381-45ee-b219-a45e2b10b8c0,Olympic College,WA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,793f90ba-450b-472d-a6e1-0b26b1164277,University of Parma,IT,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,79474d56-4f60-46c2-8305-edf089d42737,East Tennessee State Univ Johnson,TN,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,7a187453-8a9d-46ab-8966-bf5e4ae97bc1,"Auburn Univ, Montgomery",AL,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,7a2e14b5-e5aa-4536-9120-4612c793109a,Indiana University of Pennsylvania,PA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,7a3714f4-c34f-4ceb-8565-ec506a73d391,University of Richmond,VA,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,7a5d59b8-53d3-47a6-983c-c3009234af1a,Uof Alabama in Huntsville,AL,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,7aeecdb0-004f-4de6-a097-4247b72cbc6e,Milwaukee School of Engineering,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,7af9a67c-c045-4a19-9d5a-d0a5a3d723c7,Sault College,ON,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,7b202c04-686d-413f-878f-a2bd3675a1f0,Uof Arkansas at Monticello,AR,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,7b462501-d1b5-4a82-a76c-281e975de3d5,Wharton County Junior College,TX,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,7b5a4d9b-0e32-4dcd-9da0-d7e4419131d5,Collin College,TX,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,7c06eaea-9a16-4010-a9b9-2e20c245b7a0,Lower Columbia College,WA,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,7c12b848-fed4-47c7-87c6-1613ffd16c0c,Evergreen Valley College,CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,7c7090fb-dd70-4435-bafc-a5504af4d3f2,Univ of Nebraska-Lincoln,NE,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,7d00a6d0-1d67-4be5-a70d-2a038ee11bbc,Univ of Tennessee at Martin,TN,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,7d82054c-5736-4513-b932-0d77321f2655,University of California-Riverside,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,7e8be616-afcd-4961-830d-87a484b80a50,Rice University,TX,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,7ea2234b-16ca-4beb-b177-25e1cf1f4eb2,University of Lethbridge,AB,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,7f4afacd-e2fb-423d-8519-42ce3ede62a1,Texas A&M International University,TX,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,8084398c-7b9c-40d9-8271-f3efc47ba142,University of Utah Salt Lake,UT,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,80f0a71a-4c1d-4ee6-8203-4713f3fe867f,Albion College,MI,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,81a0e240-292a-4319-a272-aee496cc7632,Aquinas College Grand,MI,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,81dabe5c-3158-48a7-91d7-0118f1f7fc21,University of Augsburg,Bavaria,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,8211857b-67fa-4a29-9cc0-e143bca60d3b,Fresno City College,CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,82634e4a-b0a0-48a7-bb15-d604e3fd8f77,Commonweath Univ - Bloomsb,PA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,826884a5-9a66-41e8-9a4e-0c3417955bd4,Univ of California-Davis,CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,82a8f268-daae-4557-a54a-80b23f68ed7f,Coastline Community College,CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,82d2d96d-bd68-413c-b8af-7931ceea020b,University of St. Thomas-TX,TX,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,83d8767f-45f5-4ebe-9782-06e2077e358e,University of Maryland College,MD,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,841cb304-a0fd-4bf7-9ae9-e450bd5d9d0a,Lawrence University,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,85541c29-e394-4484-8370-ac07ba1ac189,"Calif State Univ, Chico",CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,85bc073a-5ea9-45ca-b7be-c397206e9169,West Los Angeles College,CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,85edc1b3-e5d1-4b5a-96cf-a8ece23cb652,New Bulgarian University,BG,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,8613ae59-6df6-4198-a892-327d6bf0c8db,Niagara University Niagara,NY,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,8666d5d1-85ec-4e4c-af1c-8e25a7c5d880,Sul Ross State University,TX,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,869cfc8a-c5bb-4bb9-8354-d11f86252e6a,Alaska Pacific University,AK,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,86d84cfa-181c-4333-8c01-e93bf9555f97,SUNY Polytechnic Institute,NY,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,86dc6ecb-0e19-450d-b71f-97325b948926,Santa Clara University Santa,CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,883ae647-a3f8-4382-9e9d-0cc592171ff0,Cottey College,MO,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,88939f16-1d5a-42f4-86bd-77c8ddcd3d1f,Suffolk County Community College,NY,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,88a0c6af-4245-4928-8951-dd76ffb17af5,Virginia Commonwealth University,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,88a469fd-df9a-4680-8a8f-523c2eca122d,Maryville Univ St. Louis St.,MO,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,88b53812-431e-4416-b30e-0c965380f53d,Odessa College,TX,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,89759e20-f828-4ff3-bab1-342c20c777e3,Trinity University San,TX,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,8b5bd50a-9d62-40b3-bd1a-c38d919179a2,Arkansas Northeastern College,AR,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,8b60f73d-7924-45a5-92b2-35824107948e,St. Edward's University,TX,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,8bdfbb11-8b2a-489c-aa45-884feeb84bef,Boston College Chestnut,MA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,8c611872-ff7f-4e8c-9d21-6e57bd4a8ef0,Governors State University,IL,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,8df14f57-cf02-4996-a7e9-53ef9730e6f4,University of Toronto,ON,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,8eb60afc-bad2-480f-bafc-efb0f53ffbf0,Columbia University New,NY,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,8f26c44b-1aed-4104-97ad-67c4574e956b,Ivy Technical Community College Kokomo S In Ivy Technical Community College Lafayette,IN,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,8f442115-9b6b-4cdf-a6d0-428257b4eecb,Clayton State University,GA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,8f469f4c-2082-4008-be23-49b0e1b5c349,"Calif State Univ, Fresno",CA,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,8f528d96-6ddf-4e5a-ad92-c005d2ed4c64,Portland State University,OR,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,8fe9ccdc-a26b-414d-a410-986d6c651097,New Jersey City University,NJ,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,902eef5e-867a-4379-9f36-9490c2a7a396,Clark Atlanta University,GA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,9186a65e-e745-4c08-9896-25e746359ab2,Emporia State University,KS,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,9220ee33-22b4-46b6-9ca5-86528da2ec47,CUNY-Baruch College New,NY,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,9242c526-7842-4b60-b13f-34a6589c8e55,Wayne State University,MI,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,9261c4f6-7fb7-4000-aaa7-12022e2464f0,Calvary Bible College,MO,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,92a79654-e795-47cc-9a38-3b4d03be6375,Chapman University,CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,92a8c453-b8a0-46d6-a871-57b08ac53965,University of Portland,OR,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,92e2c12c-b56b-4012-b97d-acdc0396d71e,Nassau Community College,NY,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,93078365-5338-47a5-a275-1339b9812dba,College of New Caledonia,BC,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,9311c065-92df-486b-9852-97cb17107c69,Florida State College at Jacksonville,FL,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,937aa008-9316-4e4c-acfd-1c28cd6629b6,"College at Brockport, SUNY",NY,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,938e0768-ff62-4cea-b212-c57f6ebfd82c,Calvin College Grand,MI,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,942659b0-c399-4802-b095-4cee98f767ef,University of Houston - Victoria,TX,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,942c7c2b-196c-4158-8d12-42f518ed998a,Calif State Poly U-Pomona,CA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,948a28f0-c21c-401f-9ded-5325025fdfd1,VSB - Technical University of Ostrava,CZ,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,959d2a70-6fd1-462b-a312-328eab64a393,Albright College,PA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,95f44ca2-4006-412f-bc21-8b59ba5e2340,Johnston Community College,NC,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,9608bb77-b019-460a-b907-92e56493e21c,Langara College,BC,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,963c6010-45d8-4773-8e03-ea282d7124aa,Arkansas Tech University,AR,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,964be11f-f306-4df2-9671-835a053ace33,Univ of Central Arkansas,AR,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,971f9332-c7d9-4467-8e5f-40171e863e35,Univ of Colorado at Denver,CO,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,977ba395-f54d-4746-af3d-6524a4835e4b,Western University,ON,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,98098d5c-fe07-4462-9efb-b7657f81a3c3,Michigan State University East,MI,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,98516247-4fc7-4e24-9dd6-a32f638a6420,Crowder College Neosho,MO,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,98ee430a-ae7d-4d1c-9522-606ca41ae950,El Paso Community College,TX,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,992a2fd0-da9b-44ed-ae81-790e2f65afa0,Shoreline Community College,WA,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,99517fab-c7e6-4267-9af4-c26726960518,Valencia College,FL,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,99b0c569-e225-48ba-8f76-e506192efce2,Fairfield University,CT,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,99e11f5f-f412-4933-acb6-3281890e1f02,University of Rhode Island,RI,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,9a2a8eae-cc53-4fe9-843f-9fff41401846,Frostburg State University,MD,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,9abc52dc-600d-4529-8de8-eaf45d54cd9d,University of Hartford W,CT,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,9ac3cbcb-4a60-4405-8d96-ee7fcf80584c,Prince George's Community College,MD,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,9b132b31-63f3-42e6-8f70-4a2d5d640120,Saint Xavier University,IL,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,9b18e705-fe9c-4685-a1de-7ca0e9ce8ab1,Weber State University,UT,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,9c470742-b64f-49bb-a7ec-fd30cea6422d,Long Island U.-LIU Post,NY,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,9c52dc54-5fa9-41cf-8526-50501e74df46,Louisiana St in Shreveport,LA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,9d3c5ea8-f147-46b6-b81b-7a5fe08de8a4,Alfred University,NY,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,9d49fc62-9150-4ffc-bd20-a5b60b60e7c2,Manhattan College,NY,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,9d769837-cb0d-4da8-9e48-fdbe72f9b534,Walsh College,MI,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,9d92ff92-0651-441b-94ca-4e6ca696bafe,Grand Valley State University Allendal,MI,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,9e61454f-9c58-4bc7-9fdb-3394746b105d,Owensboro Community and Technical College,KY,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,9ed8c466-4196-4225-96a6-be527a2823e4,Bethune-Cookman University Daytona,FL,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,9f980c00-1149-4376-b1b3-fd9c7e6ebd48,Miami Dade College Virtual Campu,FL,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,9fe12d29-01ee-4c7a-965c-dee6767e4409,University of Tennessee,TN,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,a0945c4f-7aac-41ca-8b66-44cf9daf39ce,Kutztown Univ of Penn,PA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,a107c3fb-796d-4259-ba0a-1997aa70398b,Drake University Des,IA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,a11b7477-a844-437f-a44c-8a4f2457c6f3,Hope College,,ambiguous_course_identity_no_code,await_course_code_backfill,WAITING_FOR_COURSE
+3,a12fd983-9c9e-4e52-bec1-af8b7246036e,Andrews University Berrien,MI,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,a15b74b4-1830-41e3-b9b1-535d2b5c0673,St. Mary's University San,TX,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,a19c66da-129a-4816-826e-1876586b5eb5,Aurora University,IL,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,a22f95ff-580c-4a29-b272-de814eb3afda,Notre Dame de Namur University,CA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,a233cd40-1ea1-4c91-9d10-4a475bd69f71,Seminole State College,OK,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,a257517a-7ea1-4ff1-b6bb-c2ba9d0dad3e,Cooper Union for the Advancement of Science and Art,,ambiguous_course_identity_no_code,await_course_code_backfill,WAITING_FOR_COURSE
+3,a2d4e198-012c-4b71-98a8-9bd851f8d6cf,CUNY-Brooklyn College,NY,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,a321dfc0-787d-4435-b679-5f63e9bf2379,Villanova University,PA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,a348048e-fc82-46b7-a488-22b20e51e009,Uof Alabama at Birmingham,AL,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,a41b86e6-01e0-41e1-b9d1-c01c9ace5db2,Ivy Tech Community College,IN,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,a424acd3-1900-4dc0-b4e4-456106d0fff6,University of Minnesota Crookston,MN,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,a4e6567b-2e3b-4ef4-a2f5-e20631d87f2f,Arcadia University,PA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,a5a70954-2eda-4491-8b5c-568d577edbb3,Truman State University,MO,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,a69a3ac3-44e3-423a-ac88-78e331864335,Mercer University,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,a77d0008-6465-4ede-bfff-995d7a2777f6,Washington and Lee Univ,VA,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,a80edc34-2642-4523-914e-9b5fc55648e6,SUNYat New Paltz New,NY,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,a812801e-bfdf-47fa-af80-4b4ee6fe52fa,SUNYat Buffalo,NY,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,a83c1c6d-af52-45f2-99aa-ebf765272bf1,Bryant University,RI,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,a8528f4c-570c-40eb-b385-4c357aedb55b,"Calif State U., Bakersfield",CA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,a87efea2-a1e6-40e8-bece-26f4accddae8,Saint Mary's College of CA,CA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,a8bc67f2-6641-4ef3-a98b-03dc605d4fd8,University of Regensburg,Bavaria,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,a8d586a7-d54e-4b0c-b35d-661e8cdf5aaa,Lewis and Clark Community College,IL,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,a975d81f-9737-44f3-adc8-3f33e1aa6754,Western New England Univ,MA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,a97a7a2b-1c87-499b-8fde-67d5cf9df329,University at Albany-SUNY,NY,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,a9e5ecb0-efcc-47f2-acfb-ca973240b0c7,East Central University,OK,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,aa44b165-a6cc-4c71-b271-e34d92118f3a,University of Detroit Mercy,MI,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,acd721bb-d2a0-49b8-8932-5f849ae27fb7,Everett Community College,WA,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,ad7da69c-8adf-4484-b9e2-0e0705bc0921,Virginia Western Community College,VA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,ada6e940-608d-4e39-920a-3268ea02c07f,San Jose State University,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,af045436-976c-4f48-85b0-c7a5e0ce3000,Saint Louis University St.,MO,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,af1d8651-43c0-4f2d-82dd-4c1d4a4009cb,Minnesota St Univ Mankato,MN,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,afae29c6-5742-421f-b1ad-5a2d0096cac4,Uof Texas of Permian Basin,TX,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,afc34f5a-4dd9-47f0-972a-e72d579052bb,Colorado State Univ-Pueblo,CO,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,b0b219b5-1880-4f16-a94d-af044068f061,University of Guelph-Humber,ON,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,b228b0cd-5021-448b-a8d0-66473108d126,College of the Siskiyous,CA,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,b230da3f-ad97-4124-864a-2b126ffa8eac,Rensselaer Poly Institute,NY,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,b26313fa-a73d-4072-99fe-a8c6ba0faf52,Black Hills State University,SD,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,b27f9bf6-16b4-4782-9931-9d31dc11ad9e,Colorado State University Fort,CO,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,b3093949-cf55-4b02-9e52-d33ad895fa46,Bucks County Community College,PA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,b319a0e7-46ee-49b7-8fac-93fca757a527,Salem Community College,NJ,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,b35e85a6-d715-4b69-965a-fb920c9188a4,Rappahannock Community College,VA,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,b38e972d-a01b-44db-8e06-cf840a98743d,Sonoma State University Rohnert,CA,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,b3d05deb-1b8c-415c-affe-ea7a707e5e1a,Ventura College,CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,b3f40783-beaf-44f7-a90d-3c924710437a,Meredith College,NC,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,b43fc4ee-c28e-41f4-a24f-39bc666e03a4,"Rutgers, The State University of New Jersey",NJ,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,b44d9ead-b5c3-4317-a27a-a6bf73b88a38,Simon Fraser University,BC,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,b452d7d4-1e15-42f8-a6e4-afecea0f5bf7,Worcester Polytechnic Inst,MA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,b4b6aba9-702e-4bdf-8541-90e566653ee1,University of Tampa,FL,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,b6129ff5-854a-4a3e-a4f3-96572aef3fab,Texas Christian University Fort,TX,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,b6670695-2dfb-48ef-b7f6-4793e5d8d9fe,University of Hradec Králové,CZ,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,b6679ac5-dc5d-4f0d-b1e0-d8905cdee00d,University of Genoa,IT,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,b671450d-60aa-448d-91e0-2d57bcb25d74,Copenhagen Business School,Capital Region,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,b6a2cb0d-02a6-44a1-8631-826bb107c107,West Texas A&M University,TX,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,b7b85c1d-0b2b-45ed-988d-13a3142a4ee8,Marist College,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,b840ea4e-049e-4ad4-acfa-594f15dfd70a,Southwest Tennessee Community College,TN,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,b842ce16-a903-49e8-ad1e-1e6dc5d72b41,University of Amsterdam,North Holland,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,b8634bfc-6cb4-4dc0-9b1e-28f1b5f0a505,Clovis Community College,NM,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,b86b4da0-c6a0-4fc1-b76c-4622a87c26b0,Comenius University Bratislava,SK,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,b8ab4988-2d30-4eaa-8b82-58cccdb9fec6,Central Virginia Community College,VA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,b913ad43-1616-4c37-8125-338976942c8a,Lourdes University,OH,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,b92684a6-c0d1-4ffe-8e2c-1d0877706896,East Georgia State College,GA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,b9ea128c-d602-46c5-8be3-b8c8af227538,Simmons College,MA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,b9ea8457-71d7-4e88-8da9-833bc04c41b4,Bow Valley College,AB,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,ba2925de-c5bf-4f7e-8c18-9c155cb04851,Union College,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,ba92cd6a-6a0c-4d27-a73e-acaf35196aef,Algonquin College,ON,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,badee7d8-d0ac-40d6-808e-312282fde591,Wichita State University,KS,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,bb44fb26-0e2b-4e03-9d2a-b3ad8028a7a0,Washburn University,KS,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,bcea8237-a35e-4b1c-ae0f-0831acb066ef,Univ of Central Oklahoma,OK,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,bdeb1f43-8b3b-433c-9f75-2046a52d6e59,Santa Rosa Junior College,CA,ambiguous_course_identity_no_code,human_review,NEEDS_REVIEW
+3,bea3ef96-1085-44e3-a25b-6f90750f02e5,University of Guam,GU,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,c01a3034-759e-4f51-9356-ac0cdf772813,University of Regina,SK,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,c09bc369-6ce4-4603-8ddf-910417927605,Dakota College at Bottineau,ND,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,c1625287-0894-4dd0-ba43-ed915ceb160b,University of North Carolina-Wilmington,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,c1a80a4b-0acb-4a94-831e-06680837522b,Jefferson Community and Technical College,KY,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,c2443e77-e8d8-4492-b503-2989f29dd590,Bemidji State University,MN,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,c25d661c-930b-478f-b1de-8ae1456cbf0b,Somerset Community College,KY,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,c344c808-1d67-44ff-a972-092a832c39db,Cuesta College,CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,c45a706a-15c7-42e2-b488-a4d6c2a8d799,Penn State Shenango,PA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,c47176e3-d0e5-4e38-939b-89180bb0556c,Front Range Community College,CO,ambiguous_course_identity_no_code,await_course_code_backfill,WAITING_FOR_COURSE
+3,c51895f9-2dd1-45aa-9d51-c54fa90b7359,Fordham University New,NY,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,c5f9fe2f-2922-46cb-977d-78d9faeebc32,Kauai Community College,HI,ambiguous_course_identity_no_code,retry_later_rate_limited,NO_RESULT
+3,c6f2425e-f4fb-4145-a230-429cd9359057,William Jewell College,MO,ambiguous_course_identity_no_code,retry_later_rate_limited,NO_RESULT
+3,c7641d1b-7a81-42a5-a284-627f5cd1c3d8,The Citadel,SC,ambiguous_course_identity_no_code,retry_later_rate_limited,NO_RESULT
+3,c8a2760d-7168-4b10-86e7-8c3ec7b83f76,Southwestern Oklahoma State University,OK,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,c8fa3dd9-e7bb-44c3-a5eb-641b422b2d0f,Charleston Southern Univ,SC,ambiguous_course_identity_no_code,retry_later_rate_limited,NO_RESULT
+3,c973ec84-2505-4cb7-8594-41e1de90c857,Barry University Miami,FL,ambiguous_course_identity_no_code,retry_later_rate_limited,NO_RESULT
+3,c98a229e-d53c-4ba8-ac2c-0eae9c12a64c,Lander University,SC,ambiguous_course_identity_no_code,retry_later_rate_limited,NO_RESULT
+3,cb524a76-1b2c-43b3-a9cd-4bec051cd146,University of San Diego San,CA,ambiguous_course_identity_no_code,retry_later_rate_limited,NO_RESULT
+3,ccc501d6-e3db-4756-a90e-d6ba018e7af5,University of Scranton,PA,ambiguous_course_identity_no_code,retry_later_rate_limited,NO_RESULT
+3,cdad3007-6eac-4111-8c1b-be946e69e632,Pepperdine Univ-Malibu,CA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,cf2aa238-eda2-4487-ad36-d5f0cc409791,Virginia State University,VA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,cf5e7aa4-be8a-4bc7-b5ca-9dd8854b9d87,Illinois Institute of Technology,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,cfa13e53-1907-4ffb-bb69-b3bd182f9beb,Tennessee Technological Un,TN,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,cfb8ffb1-177d-4886-af65-069ac1f7679b,Bishop State Community College,AL,ambiguous_course_identity_no_code,retry_later_rate_limited,NO_RESULT
+3,d00ecc4b-16fa-4f3e-839e-416e675b03e1,Utah Valley University,UT,ambiguous_course_identity_no_code,retry_later_rate_limited,NO_RESULT
+3,d063f907-ff46-46d2-bd8f-3091a9fdf510,Lindenwood University Belleville,IL,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,d1146274-961a-478c-a77e-46fa0da20513,Tallinn University of Technology,EE,ambiguous_course_identity_no_code,retry_later_rate_limited,NO_RESULT
+3,d14f1731-a353-475f-8973-456ac48a4fb1,Yeshiva University New,NY,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,d2928a30-18ef-41db-a42e-28902d171e46,Catch-All University,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,d2b2df05-6c30-40b7-8f3c-792ca185e5e0,Fanshawe College,ON,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,d2ef853c-9c35-42ea-8521-d1158e0c86d7,Emerson College,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,d3eb3ebb-d35c-4cf2-aa3b-1bb79dbed05e,Pepperdine Un-Los Angeles Los,CA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,d4a67616-74fe-4cbd-bfa1-77901bd027cd,Berry College Mount,GA,ambiguous_course_identity_no_code,discover_course_code,FAILED
+3,d4a7fffb-46c2-40b4-ba73-67432ef69acf,South Plains College,TX,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,d4eed22f-40df-4fd0-ace4-373c1e3e3c35,Arkansas State University Technical Center,AR,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,d4f67951-69fb-4df8-b92d-bf85151ab254,Northern Illinois Univ,IL,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,d523da51-d1e6-4787-b1f4-a00133b9e727,Carleton University,ON,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,d63da1c2-3480-4560-91bb-8e0eea52c55d,University of California-Santa Cruz,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,d725079a-c122-4041-89fb-685ddd4ef97d,Northampton Community College,PA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,d72ee0bc-d2eb-49e3-8d16-c3dda82c8213,Colorado School of Mines,,ambiguous_course_identity_no_code,await_course_code_backfill,WAITING_FOR_COURSE
+3,d79f8d8d-ee85-4c80-bafc-8037d46f238d,Utah State University,UT,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,d7f8594c-8a01-48e6-9b2f-8576ae47583e,Essex County College,NJ,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,d814f035-7255-44d7-8693-da0c46ec67ae,Avila University Kansas,MO,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,d819d191-8c86-4462-9344-50a90b1460fe,Prairie View A&M University,TX,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,d82c2f13-e409-4b31-8fce-6f4559dd90ca,Erasmus University Rotterdam,NH,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,d874c43e-d913-40aa-9a38-004014f7ba5b,Northern Marianas College,MP,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,d911c14b-fb24-4917-ade0-b4fd80fd07f3,"Calif State Univ, Sacramento",CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,d95936b7-cfb7-41a5-92cd-fe42aa02fc90,National Taiwan University,Taiwan,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,d9ad83fb-89de-461a-9ea3-84e3da4b1e6b,Jackson College,MI,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,d9b6d4b6-e143-4e62-b128-70b11eb736f3,Korea Advanced Institute of Science and Technology,Daejeon,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,da54c466-bf4e-4ecc-b33e-dd07c7c75920,National Chung Hsing University,Taiwan,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,da6d507a-c2d2-48ce-83d8-5f32e2116375,Coastal Carolina University,SC,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,dbaf817b-e5bd-427f-877b-32996eba63f7,Waseda University,JP,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,dc001c64-7bc5-4bc3-bf4b-4ab00cea5bde,Wartburg College,IA,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,de0ad748-1314-4667-be67-2af2a1a2ebcb,Dominican University River,IL,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,deae68b0-ed73-4f47-a753-f9c3fbf80db2,University of Mary,ND,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,ded1f5b6-1f32-43cf-802b-d1ee547d1160,Athens State University,AL,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,df0a1fea-03e2-4ffb-9662-0e08e38de16b,Penn Western Univ-Clarion,PA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,df2475b0-2aed-47c5-bbb3-f89f27b282af,Murray State College Tishomingo,OK,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,df7ad324-c0ff-49a0-ade1-82dde6b6e6f2,Fairleigh Dickinson Univ,NJ,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,dff0a59c-2a1d-40dc-9a08-9a1c33005243,Creighton University,NE,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,e10d4e7f-f243-4713-b21c-b4ac88b69205,Univ of Louisiana at Monroe,LA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,e1ac1805-88fb-467c-a56e-b5a4314dbe2a,"Calif State Univ, Northridge",CA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,e1d6c67e-a2ef-4de5-bef9-43f4c3e2170a,Northeast Texas Community College,TX,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,e1d98d50-18ce-4a43-b5da-c487df2b0ab4,SUNY College at Oswego,NY,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,e2a16f5b-765f-4d73-9a91-7a3f99365e50,Bowling Green State Univ Bowling,OH,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,e3114266-7c3f-4cd0-b4aa-56d1f4ea58d5,Los Angeles Valley College,CA,ambiguous_course_identity_no_code,human_review,NEEDS_REVIEW
+3,e329761c-0ee2-41af-8636-924921ac811c,National Taipei University,TW,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,e36ab379-0926-426b-a847-74d97ca5eb3d,University of Tartu,EE,ambiguous_course_identity_no_code,discover_course_code,FAILED
+3,e3d2c747-eb94-4bfd-aa2c-96419d8e4b64,Stevens Institute of Technology,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,e3e46381-cd61-450a-8bc6-b7f2584b172f,Niagara College,ON,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,e432f3bb-ed53-4567-95df-0b2a384a23f5,Uof Missouri - Columbia,MO,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,e47db61b-a42c-455c-9938-2e06d2f88768,New Mexico State University,NM,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,e4babfe5-48bd-4339-a430-c4a49cf502b3,University of Mount Olive,NC,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,e5409792-0f22-436e-bf17-2ea0a775297a,College of Micronesia-FSM,FM,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,e5a2e787-fab4-48e5-902c-7b3159cd9d62,University of Waterloo,ON,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,e60857bb-43c5-45a0-89e4-33f513882d40,University of Rochester,NY,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,e6b5ba83-78a8-4275-b758-d5f630bc1d18,University of Illinois,IL,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,e6c4d818-8e76-473a-8a94-ba12819e464c,Yuba College,CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,e831fd80-ba40-4abb-bcdc-5f395f10ebd9,Brookdale Community College,NJ,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,e9c8be9c-5820-4f26-92b6-fb127931ea64,Adams State University,CO,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,e9fee1cf-3855-4543-bcda-0f8aa14930c1,"Calif State U, Los Angeles Los",CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,ea6eb33d-5d19-445f-a470-de50c0e7ca66,"Calif State Univ, East Bay",CA,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,ea6f3381-59fb-4ed6-bc78-6d440f54108f,Univ of Northern Colorado,CO,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,ea95df00-5f04-4cc7-8e0a-a5cc0ed848ea,University of West Florida,FL,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,eb4a389e-5a35-4769-b62f-deeb18045af0,Babson College,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,eb727b6b-e7ce-4b06-a715-57f9cee04d2a,Northwest College,WY,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,eb81939f-3101-45c3-b20c-aa2c88c725ff,Nashville State Community College,TN,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,ec51fe64-7980-4004-99fe-1bad86b4a3ce,Adelphi University Garden,NY,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,ed42ab17-05f4-4d3b-8654-fcd952a706fb,McGill University,QC,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,ed8f4775-a0df-46e5-a1a1-1d6c84b81b28,Galveston College,TX,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,ed941b6e-3152-4e2c-bb9e-2e143eccfe02,Wright State University,OH,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,ed9776cb-5afc-42f5-8dd3-e246cf6334f7,Belmont University,TN,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,edb01572-9cac-43ee-a3c2-a77293c4b51a,Thomas Nelson Community College,VA,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,ee5df01f-b124-49c9-86df-2d967685a33a,County College of Morris,NJ,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,ef616b59-8e53-47b5-b818-7ccc0a2ad6c8,Case Western Reserve Univ,OH,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,f003c714-618d-421f-a448-69140e495edc,"Calif State Univ, Long Beach Long",CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,f0486b27-8b7a-410d-8d54-6dbf969747ac,Reedley College,CA,ambiguous_course_identity_no_code,discover_course_code,FAILED
+3,f0c53fab-d637-4f6c-8eef-97474fa31f1b,University of Mobile,AL,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,f0f41169-393f-4a62-b77e-d99007dbbafe,Saddleback College,CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,f25abc44-579d-46cf-8561-39f3ba1e8480,Adrian College,MI,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,f264082f-29ce-459e-806b-2a4d94fd40b6,Un of Massachusetts Amherst,MA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,f273198b-4e2b-492e-a2c0-d741e9177fd2,Lindenwood University St.,MO,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,f47c0997-2c32-4abf-b468-ae3e6e8b0f8d,Modesto Junior College,CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,f4927de9-b187-4169-9866-81867beadf56,Indiana State University Terre,IN,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,f50c46e4-57b7-49aa-a311-c459158a3b19,Poznań University of Economics and Business,GP,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,f50efb95-3818-465e-ae4f-9d7023244d4c,SGH Warsaw School of Economics,MZ,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,f5694930-31de-47b3-b2d1-68f31e0e0866,Quincy College,MA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,f5bd3707-0cc1-4f33-81d9-8a0e7d6acfd1,York University,ON,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,f6c19503-0373-4c04-9cf1-32f31633a1f4,Bentley University,MA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,f6c82e70-079f-40d1-864a-a2e2537a8cfa,University of Indianapolis,IN,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,f6c91efe-50cb-4230-ba20-0b7c014fb7e6,University of Saskatchewan,SK,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,f72f4b7b-32a9-40b4-976d-e2d59793a28e,Augustana College IL Rock,IL,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,f7dd7f3d-c11f-47fa-a968-32b7f180a202,Amberton University,TX,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,f80519fd-1784-4a8e-a405-ebdd375eb45f,City Vision University,MO,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,f814d244-0a76-46cd-8ec8-cd2386da7943,California State University-Fullerton,,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,f8b0c4d4-08d5-4101-9048-e17c6e5432d4,University of Guelph,ON,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,f966273c-65d0-49c5-b432-c4adef34a019,Atlanta Technical College,GA,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,f9afaeba-e3f8-408d-a788-65c30fb954ab,University of Dayton,OH,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,fa73b74c-c14b-4e23-9377-6c8a0eaf345b,University of New Mexico Albuquerque F,NM,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,fa98584d-8345-4348-b524-14e7e89146ca,Seward County Community College,KS,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,faa7ada5-f035-43db-acbe-b76cf60cd37b,DePaul University,IL,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,fabacc2f-2064-45a0-a047-10d98334c837,Minneapolis Community and Technical College,MN,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,fac55964-81f5-4be8-844a-8a5f7afddee3,Rogers State University,OK,ambiguous_course_identity_no_code,discover_course_code,NO_RESULT
+3,fc1f2202-b64b-43fe-8f02-0ca84f248ead,Arkansas State University-Newport,AR,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,fc6c1756-f157-41c0-b1a0-f357b5363952,University of Lausanne,VD,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,fc8400fb-f045-4fc1-89b8-67adb544b341,Universidade Lusófona,Lisbon,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,fcff0e7b-1366-4dec-ad3b-0e2b82361b10,University of Memphis,TN,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,fd76c429-3697-4e8d-b3bd-2ad19806f6c9,Mt. San Antonio College,CA,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+3,fdafc302-1ea9-40ad-8fba-16a8b1d187e0,University of New Orleans New,LA,ambiguous_course_identity_no_code,discover_course_code,COMPLETE
+3,feba6ffa-1f28-4c9f-b342-a8a9f99c0d8c,National Cheng Kung University,TW,ambiguous_course_identity_no_code,resolve_campus_domain,NO_RESULT
+3,fff8a734-eb34-4927-846d-50b30cdc1d59,Lansing Community College,MI,ambiguous_course_identity_no_code,discover_course_code,NEEDS_REVIEW
+4,0061927b-102d-4362-9c21-c5b423e43cac,University of The Cumberlands,KY,high_value_no_result,profs=0,NO_RESULT
+4,01a4f731-5f9a-4d62-a663-f51adccd3231,Montana State Univ-Billings,MT,high_value_no_result,profs=0,NO_RESULT
+4,028b5829-9bac-49e7-949f-c11f2f4a4522,University of New Hampshire,NH,high_value_no_result,profs=25,NO_RESULT
+4,03be85e7-c388-40db-ac11-960c88d1a8b2,Missouri Southern St Univ,MO,high_value_no_result,profs=0,NO_RESULT
+4,0413aa57-040e-42c2-a0e4-d93c16cbd1f2,Calif St U-Dominguez Hills,CA,high_value_no_result,profs=0,NO_RESULT
+4,0417ce15-a77e-4ea4-86fd-a631c0d6c359,Seneca Polytechnic,ON,high_value_no_result,profs=0,NO_RESULT
+4,044c2f7d-7367-4634-8fb2-477920113a56,Univ of Central Florida,FL,high_value_no_result,profs=20,NO_RESULT
+4,04786a32-7351-43a1-b6d2-a479ba0f4d10,Western Carolina University,NC,high_value_no_result,profs=7,NO_RESULT
+4,04a6f5fc-5913-4fc1-84f7-039fd4149b4d,Casper College,WY,high_value_no_result,profs=0,NO_RESULT
+4,04efb67d-2b5d-41a7-8efe-c169a5b76671,New York Institute of Tech Old,NY,high_value_no_result,profs=0,NO_RESULT
+4,0632e0db-c8a2-4438-b1a4-aac2bb91f8f0,Prague University of Economics and Business,Prague,high_value_no_result,profs=0,NO_RESULT
+4,06bf71a9-dd00-4ec2-85b2-dc4ec507a5ec,Valparaiso University,IN,high_value_no_result,profs=1,NO_RESULT
+4,07d162bf-ff97-4faf-a6dd-a86f60e658a4,University of Klagenfurt,AT,high_value_no_result,profs=0,NO_RESULT
+4,0854cf69-76e9-41a4-bc7e-9e2a902b0ff6,Weatherford College,TX,high_value_no_result,profs=0,NO_RESULT
+4,09de9381-4821-4dd2-af13-9b0dab76009d,Rockhurst University,MO,high_value_no_result,profs=29,NO_RESULT
+4,09eb4c4d-1391-4809-be0e-11ac02c3cf7e,King's College,PA,high_value_no_result,profs=0,NO_RESULT
+4,0a691d0a-34aa-4226-8511-bd241c559a29,Cal Poly Humboldt,CA,high_value_no_result,profs=0,NO_RESULT
+4,0af70b45-ea23-4541-bcf0-b498b7c7dea2,Metro Community College Ft Omaha E,NE,high_value_no_result,profs=0,NO_RESULT
+4,0b199f76-27de-48df-8995-829dd9b4269d,Southeastern Louisiana Univ,LA,high_value_no_result,profs=0,NO_RESULT
+4,0b7a9a22-43aa-45f5-85f7-1775981a18b5,Youngstown State University,OH,high_value_no_result,profs=0,NO_RESULT
+4,0be532c5-92f3-4118-bfeb-598814125b3a,Widener University,PA,high_value_no_result,profs=5,NO_RESULT
+4,0c1f92c6-28ac-4337-a9ff-cc37dde1e15c,University of Hawaii at Hilo,HI,high_value_no_result,profs=2,NO_RESULT
+4,0d099c0a-c67d-4f8f-b964-f507569e6520,Humber Polytechnic,ON,high_value_no_result,profs=0,NO_RESULT
+4,0e791cac-4313-4d1d-b394-69dc6523a86b,Southeastern Oklahoma St,OK,high_value_no_result,profs=0,NO_RESULT
+4,0f682377-179e-47c9-a36a-5ee3bc9efc14,University of Cincinnati-Main Campus,,high_value_no_result,profs=3,NO_RESULT
+4,0fad3da2-b1f2-4e2b-9637-7b5d0737ec4d,Harris-Stowe State Univ St.,MO,high_value_no_result,profs=0,NO_RESULT
+4,0fcc221b-28d0-4121-8ebb-dcd839d752b6,Tama University,N/A,high_value_no_result,profs=0,NO_RESULT
+4,10760ba6-adb3-4111-9efb-6347b0e122ac,Bellarmine University,KY,high_value_no_result,profs=0,NO_RESULT
+4,10833194-95fb-4f18-8508-2f71d7bd4033,Texas A&M - Corpus Christi Corp,TX,high_value_no_result,profs=0,NO_RESULT
+4,1084bf96-1261-41f7-9187-1a44b33ee412,University of Montevallo,AL,high_value_no_result,profs=4,NO_RESULT
+4,10d95c68-bd9f-4167-bedf-2031cd6f0697,Illinois Institute of Tech,IL,high_value_no_result,profs=0,NO_RESULT
+4,1147ac50-18c0-4bdf-8bf4-413b49791ab5,University of Kent,EX,high_value_no_result,profs=0,NO_RESULT
+4,1190fd15-76d0-4fdd-bf3a-1e0e293ad7c7,Univ of Michigan-Dearborn,MI,high_value_no_result,profs=0,NO_RESULT
+4,119df83b-8e7f-454d-936c-f1f39dcd407c,U.S. Coast Guard Academy New,CT,high_value_no_result,profs=0,NO_RESULT
+4,12bbe4a6-0781-41f6-a0f4-590a8ea973c5,Lincoln University - California,CA,high_value_no_result,profs=0,NO_RESULT
+4,134547c6-fcf2-4a0f-9c0c-6612fb4408dc,University of Delaware,DE,high_value_no_result,profs=17,NO_RESULT
+4,13762cae-715d-4650-9dcc-282fb44d0522,Bishop's University,QC,high_value_no_result,profs=0,NO_RESULT
+4,14304f21-086e-4e59-9c54-52684fa8251e,Westminster College - Pennsylvania,PA,high_value_no_result,profs=0,NO_RESULT
+4,144e6ab5-3085-49c2-9bd5-4d134a21834b,Indiana University Kokomo,IN,high_value_no_result,profs=0,NO_RESULT
+4,15f91e0b-0e8c-48ab-a405-beccd03620e2,"City St George's, University of London",England,high_value_no_result,profs=0,NO_RESULT
+4,167bb454-f11c-446d-aa3e-edf7b33f9978,La Salle University,PA,high_value_no_result,profs=0,NO_RESULT
+4,17ac68da-ab12-4467-b47d-4f6f348ad82e,Valdosta State University,GA,high_value_no_result,profs=7,NO_RESULT
+4,18e02f64-5108-480b-9d97-bb448a55b8d0,Stetson University,FL,high_value_no_result,profs=0,NO_RESULT
+4,1994f812-8ee7-44c5-aebb-d0af3b5561a5,National Chengchi University,TW,high_value_no_result,profs=0,NO_RESULT
+4,1a36c076-bb65-4fab-87d0-389c52320681,Texas State Technical College,TX,high_value_no_result,profs=0,NO_RESULT
+4,1a74e225-71ce-4468-bd59-de5872700f40,Penn State Wilkes-Barre,PA,high_value_no_result,profs=0,NO_RESULT
+4,1a8addf0-3ad8-4a34-887b-409b12876e4e,Northeastern Illinois Univ,IL,high_value_no_result,profs=0,NO_RESULT
+4,1bd287c5-561a-493b-b9df-51399ae78725,Georgian Court University,NJ,high_value_no_result,profs=31,NO_RESULT
+4,1c22f607-dc5c-494b-b75a-331432771695,San Jose State University San,CA,high_value_no_result,profs=0,NO_RESULT
+4,1cc28287-8ed6-41c4-8cd7-ff0ba716c76f,Siena College,NY,high_value_no_result,profs=0,NO_RESULT
+4,1df94a58-25ba-426e-b8b9-91e808fe9947,Northland Community and Technical College Thie River,MN,high_value_no_result,profs=0,NO_RESULT
+4,1f69dafc-34ac-4a01-bb90-b66e9185005b,Virginia Poly Inst & St Un,VA,high_value_no_result,profs=0,NO_RESULT
+4,1fe25f7c-0601-4e2d-be12-d6a2e4dac428,Germanna Community College,VA,high_value_no_result,profs=0,NO_RESULT
+4,20d1bda2-ab50-4426-8dde-42a78951a9cf,Radford University,VA,high_value_no_result,profs=10,NO_RESULT
+4,21d50e49-537c-4f56-829e-90c3d7307451,Columbus State University,GA,high_value_no_result,profs=4,NO_RESULT
+4,22af1952-1da1-45e4-8128-b977774a7936,Morehouse College,GA,high_value_no_result,profs=44,NO_RESULT
+4,233b5757-3c57-4670-8646-49c83abe263d,Norfolk State University,VA,high_value_no_result,profs=0,NO_RESULT
+4,237b083b-8fd3-4662-bfea-b9b52919a7dc,Rochester Inst of Technology,NY,high_value_no_result,profs=0,NO_RESULT
+4,238792eb-7de7-4568-a96a-43356a756fe2,Western Illinois University,IL,high_value_no_result,profs=6,NO_RESULT
+4,24265ab0-ff8f-4428-8bd9-7a60ba5a39c2,University of Louisiana at Lafayette,LA,high_value_no_result,profs=0,NO_RESULT
+4,243ec81c-f171-4480-94e7-683791da360c,Hofstra University,NY,high_value_no_result,profs=0,NO_RESULT
+4,25423fc1-42f6-409b-8238-65442b6d86b6,Iscte – Instituto Universitário de Lisboa,LX,high_value_no_result,profs=0,NO_RESULT
+4,2547e625-3204-4a9f-9a1a-0f257e64f2ad,Chandler–Gilbert Community College,AZ,high_value_no_result,profs=0,NO_RESULT
+4,2549e4aa-15b7-4286-92b9-5042805a6e5a,Chipola College,FL,high_value_no_result,profs=0,NO_RESULT
+4,25bbd83e-03ff-4c69-833e-388ace5857a9,Middle Tennessee State Univ,TN,high_value_no_result,profs=0,NO_RESULT
+4,263926a7-4015-4b52-8066-c0f1682fb0e8,Winona State University,MN,high_value_no_result,profs=0,NO_RESULT
+4,26e8e9bc-b64d-4126-8c54-288c9a379a2c,Rutgers University-Newark,NJ,high_value_no_result,profs=0,NO_RESULT
+4,27ba2556-1124-4a4a-9f65-447bc45bbc09,Germanna Virginia Community College,VA,high_value_no_result,profs=0,NO_RESULT
+4,28653455-0e18-4437-b092-07b9d11dd0e3,Boston University,MA,high_value_no_result,profs=24,NO_RESULT
+4,2880ad1b-4158-4b1c-a3d9-7c0b30b9ed5c,Yale University New,CT,high_value_no_result,profs=0,NO_RESULT
+4,28b71fa7-96f8-4793-bbd2-2b9300b4b925,University of Evansville,IN,high_value_no_result,profs=2,NO_RESULT
+4,2c9dad4c-7c68-473a-a4f4-da84ad6bd3fb,Naugatuck Valley Community College,CT,high_value_no_result,profs=0,NO_RESULT
+4,2e7d0614-5165-4f09-ac53-11d3daded701,St. Cloud State University Saint,MN,high_value_no_result,profs=0,NO_RESULT
+4,2f64caa2-688c-4c86-b6af-387d722c8315,Indiana University Southeast,IN,high_value_no_result,profs=41,NO_RESULT
+4,2fb75c3f-c5c3-4de5-b82d-4e4684cea60f,Missouri Univ Science & Tech,MO,high_value_no_result,profs=0,NO_RESULT
+4,2fe42442-8bc8-41d3-aaad-468c81a94eb6,King’s University College,ON,high_value_no_result,profs=0,NO_RESULT
+4,30433ce3-11b6-4587-82a3-1933561e59da,Southeast College,SK,high_value_no_result,profs=0,NO_RESULT
+4,315515a8-bafb-4cba-b4de-967bbadaeca1,Penn State U Great Valley,PA,high_value_no_result,profs=0,NO_RESULT
+4,32dca893-1ddb-4ed6-a702-65258c2e8176,New York University New,NY,high_value_no_result,profs=0,NO_RESULT
+4,334e7a3a-7055-41a9-901c-0a9459d4fddf,Los Angeles Southwest College,CA,high_value_no_result,profs=0,NO_RESULT
+4,336bd28f-485a-48af-a24c-9794cf742cfa,San Jacinto College,TX,high_value_no_result,profs=0,NO_RESULT
+4,33b67a71-d3bb-4b72-b388-e4ac8cebe84e,Rockland Community College,NY,high_value_no_result,profs=0,NO_RESULT
+4,35477678-ec10-42e4-b8d7-9cec7bd719c5,Penn State Mont Alto,PA,high_value_no_result,profs=0,NO_RESULT
+4,35fbc3cc-96b8-446e-885c-5edafd8cbb57,North Carolina Wilmington,NC,high_value_no_result,profs=0,NO_RESULT
+4,3603b53c-af52-4632-b942-d2a2fe8cf8ff,Valley City State University,ND,high_value_no_result,profs=0,NO_RESULT
+4,366acaca-3d1d-4daa-a8ad-4b49b5630234,Sacred Heart University,CT,high_value_no_result,profs=0,NO_RESULT
+4,36cbc0fe-6655-4c06-84bc-5f6f72c6f892,Clark University,MA,high_value_no_result,profs=2,NO_RESULT
+4,38500765-705e-4dd6-b69e-ccc0372713f4,Claremont McKenna College,CA,high_value_no_result,profs=2,NO_RESULT
+4,3888d1aa-8bf8-4ca7-9b42-6e1528b5972f,Kennesaw State University,GA,high_value_no_result,profs=0,NO_RESULT
+4,38b46e76-3660-4620-b3ac-ab695d04013d,Univ of Alaska Fairbanks,AK,high_value_no_result,profs=1,NO_RESULT
+4,3a475885-a4d7-481d-8e79-0c284b6dc6d3,Purdue Univ Fort Wayne Fort,IN,high_value_no_result,profs=0,NO_RESULT
+4,3bc8c84a-aa2f-4aab-a49c-a0a35192717e,Francis Marion University,SC,high_value_no_result,profs=6,NO_RESULT
+4,3c705af5-e9b4-48a5-a06d-eda9bd395ce8,Howard Community College,MD,high_value_no_result,profs=0,NO_RESULT
+4,3f4a6d65-464a-4c43-a656-fe4a2309ff67,Mid-State Technical College,WI,high_value_no_result,profs=0,NO_RESULT
+4,3f5fcb44-a23c-4fd4-97b6-c52555db9c3e,"University of Nevada, Reno",NV,high_value_no_result,profs=8,NO_RESULT
+4,408b44a5-1704-40d5-965d-dc02cb78f55c,The University of Texas at Dallas,TX,high_value_no_result,profs=200,NO_RESULT
+4,4114870f-aa70-4029-aaab-e6790b43f623,Louisiana State University Alexandria,LA,high_value_no_result,profs=0,NO_RESULT
+4,41596046-afe7-4f6b-bfb6-bdd4f43d64db,Bladen Community College,NC,high_value_no_result,profs=0,NO_RESULT
+4,422237cd-f175-4edb-acac-5a5fe4b5eb7a,Tecnológico de Monterrey,NL,high_value_no_result,profs=0,NO_RESULT
+4,4277ee6f-3ba3-490c-aac0-1034bb15a547,Laney College,CA,high_value_no_result,profs=0,NO_RESULT
+4,429a3f53-60ea-43d0-92c7-fbd392cdc3a1,Univ Illinois at Springfield,IL,high_value_no_result,profs=0,NO_RESULT
+4,433969d6-efa9-49de-956b-c0078b5a4872,Southern Utah University Cedar,UT,high_value_no_result,profs=0,NO_RESULT
+4,439997eb-bc7f-4225-98e5-09b2bdc4ad14,Fontbonne University St.,MO,high_value_no_result,profs=0,NO_RESULT
+4,43f18a73-0f16-4f1e-8010-f8e3ba44aad2,Univ of Texas at Tyler,TX,high_value_no_result,profs=1,NO_RESULT
+4,44d2a610-af4f-4e3d-9323-215220109005,Universidad de Alcalá,Madrid,high_value_no_result,profs=0,NO_RESULT
+4,4511c588-2713-4e82-99e3-7c3a05824108,Westmont College,CA,high_value_no_result,profs=0,NO_RESULT
+4,454397c7-d71d-4259-b7ca-e93a5338467e,Northwestern Polytechnic,AB,high_value_no_result,profs=0,NO_RESULT
+4,462eb615-e29e-49c5-b3e1-254e604d9398,Georgia Institute of Tech,GA,high_value_no_result,profs=0,NO_RESULT
+4,46e2c9bf-c4c4-4a7f-bc4a-5fe00bfce1aa,Purdue University W,IN,high_value_no_result,profs=0,NO_RESULT
+4,4805af64-d782-4e17-a635-04e05ae8cb07,Millsaps College,MS,high_value_no_result,profs=0,NO_RESULT
+4,4864a01b-855f-4a2c-88be-7c89ea366c61,Indiana U-Purdue U Indy,IN,high_value_no_result,profs=0,NO_RESULT
+4,48694acd-4eea-48a7-9591-60a6cf341ae3,Muskegon Community College,MI,high_value_no_result,profs=0,NO_RESULT
+4,48f560b5-3dce-438e-a498-9103782531f2,Stockton University,NJ,high_value_no_result,profs=0,NO_RESULT
+4,4b7ba858-9367-4f7a-b0a8-9bab4028555f,Naval Postgraduate School,CA,high_value_no_result,profs=0,NO_RESULT
+4,4bd98964-3625-4197-9c14-9e0c64ebe87d,Western New Mexico University,NM,high_value_no_result,profs=0,NO_RESULT
+4,4d35ff12-865b-431e-869b-dc2c0212e56a,Florida College,FL,high_value_no_result,profs=0,NO_RESULT
+4,4d3d2512-cf8e-4061-9ce1-329bf3918490,Texas A&M University-Commerce,TX,high_value_no_result,profs=0,NO_RESULT
+4,4f484e24-355c-4ef4-b50f-87b3767f9894,Maastricht University,NL,high_value_no_result,profs=0,NO_RESULT
+4,4f988627-0f47-4341-abbc-4e48f4fc87d1,Miami Dade College,FL,high_value_no_result,profs=0,NO_RESULT
+4,4faf28e4-be37-4940-9769-5cb89ca311ca,Montclair State University,NJ,high_value_no_result,profs=0,NO_RESULT
+4,4ff7d415-b812-4ef2-9f95-3219beb24f9f,Universidad Publica de Navarra,NA,high_value_no_result,profs=0,NO_RESULT
+4,50609aee-1e7c-4718-b0ad-f3ef6f05fb17,Calif State U - San Marcos San,CA,high_value_no_result,profs=0,NO_RESULT
+4,50c1a664-effd-4a12-b28d-27a586dde5ba,IUSB Indiana Uat South Bend South,IN,high_value_no_result,profs=0,NO_RESULT
+4,5190a915-add2-421e-aaa6-cc49c69b9e63,Augsburg University,MN,high_value_no_result,profs=21,NO_RESULT
+4,523452b0-3bac-473c-a9be-d8537ab5365f,Walla Walla Community College,WA,high_value_no_result,profs=0,NO_RESULT
+4,53cd6d0b-a9ab-4cbf-bb19-ee9ba3564314,Menlo College,CA,high_value_no_result,profs=0,NO_RESULT
+4,53ec4d40-0dad-4012-b2f0-0ca78b569459,Southern Univ at New Orleans New,LA,high_value_no_result,profs=0,NO_RESULT
+4,540e2567-9d61-460f-9afc-cff3783bda4c,Shorter University,GA,high_value_no_result,profs=0,NO_RESULT
+4,54a5eca7-03c1-496c-bbbd-032df1589250,Morehead State University,KY,high_value_no_result,profs=0,NO_RESULT
+4,54ad536d-986b-4f87-893b-2a3d5fdcc743,Rowan University,NJ,high_value_no_result,profs=0,NO_RESULT
+4,55262f96-e712-463b-bf70-01c2ddde5e7e,Metropolitan Community College,NE,high_value_no_result,profs=0,NO_RESULT
+4,55717554-6abb-4da8-bfa4-67f85ca6d582,University of Coimbra,PT,high_value_no_result,profs=0,NO_RESULT
+4,55bdaf15-10b6-4e78-b41c-6498c94db332,"Calif St U, San Bernardino S",CA,high_value_no_result,profs=25,NO_RESULT
+4,56273372-c4cc-4ac9-a826-7ec570e89952,"Univ of Calif, Riverside",CA,high_value_no_result,profs=0,NO_RESULT
+4,57c1c76b-7ff9-407f-82f4-d8767198e199,Yukon University,YT,high_value_no_result,profs=0,NO_RESULT
+4,592b7b48-8c25-4f49-a5cb-891e50b1a190,Univ of California San Diego La,CA,high_value_no_result,profs=0,NO_RESULT
+4,59753acc-437d-4eef-bd21-d8f53b2b2e72,Oakland University,MI,high_value_no_result,profs=0,NO_RESULT
+4,5c3debe3-95b4-4dd9-8680-23c8c72c1077,University of St. Thomas,TX,high_value_no_result,profs=85,NO_RESULT
+4,5c6b371f-e9e3-4ca9-850b-d12533f918d5,Tarleton State University,TX,high_value_no_result,profs=0,NO_RESULT
+4,5c769137-f886-40f0-99f3-690719e46337,SUNY College at Oneonta,NY,high_value_no_result,profs=0,NO_RESULT
+4,5e6610d2-c113-4dc3-8b49-6fe9eb27007d,Trevecca Nazarene University,TN,high_value_no_result,profs=0,NO_RESULT
+4,5f2e34bd-d832-4f30-87b4-698eb93cc40e,South Carolina State Univ,SC,high_value_no_result,profs=0,NO_RESULT
+4,5fb17f2e-cbe9-4b34-8e6e-c0cd2c01ca87,Willamette University,OR,high_value_no_result,profs=2,NO_RESULT
+4,5fe1d763-45d7-4e52-9afe-2b3d45a0e5b5,University of the West Indies,New Providence,high_value_no_result,profs=0,NO_RESULT
+4,6090d3b9-9696-405e-aae3-fcf467daf9d3,Technical University of Liberec,CZ,high_value_no_result,profs=0,NO_RESULT
+4,610ceccb-2051-41c9-b827-70391e26ce3e,Ferris State University Big,MI,high_value_no_result,profs=5,NO_RESULT
+4,61914461-c30b-40d7-8658-989d53b62047,Okanagan College,BC,high_value_no_result,profs=0,NO_RESULT
+4,61c58928-adb6-49ca-aa57-faf958bf241d,"Calif State U, Stanislaus",CA,high_value_no_result,profs=0,NO_RESULT
+4,61dbe784-bee6-42fd-9413-3efdd27dbf9d,SUNYat Binghamton,NY,high_value_no_result,profs=0,NO_RESULT
+4,643ebee4-9857-4c8d-8d6b-34a45cdb0c7b,Tulane University New,LA,high_value_no_result,profs=0,NO_RESULT
+4,64a30d2a-feaa-4bf3-ac47-b582e1a8ab53,James A. Rhodes State College,OH,high_value_no_result,profs=0,NO_RESULT
+4,656b5758-4296-42e5-8ce3-cd4a188b3c05,University of South Dakota,SD,high_value_no_result,profs=6,NO_RESULT
+4,66f2f8af-6af5-48d2-b1fe-c46b82f1082b,Schiller International University,FL,high_value_no_result,profs=0,NO_RESULT
+4,670b60f9-b633-4984-b6ba-cef32a0bbc51,Centre College,,high_value_no_result,profs=17,NO_RESULT
+4,68c57016-e4d4-4ac3-863f-8355c9c769e3,Sheridan College,ON,high_value_no_result,profs=0,NO_RESULT
+4,69189032-e251-48ca-86b2-9ac8b8a67c39,Univ of District of Columbia,DC,high_value_no_result,profs=0,NO_RESULT
+4,691e247f-d841-483d-8052-c937bff5b80b,Lone Star College,TX,high_value_no_result,profs=0,NO_RESULT
+4,695149ba-2389-45e3-8164-f29a9f46de55,Alabama A&M University,AL,high_value_no_result,profs=6,NO_RESULT
+4,6c3dc7c0-7b2c-47eb-8926-2d6175b5af5d,Western Conn State Univ,CT,high_value_no_result,profs=0,NO_RESULT
+4,6cad7402-9304-43d7-951a-91aa2b183778,St. John's University,NY,high_value_no_result,profs=0,NO_RESULT
+4,6e18e239-bfbe-481b-be4a-38a3f2740641,Southeast Missouri St Univ C,MO,high_value_no_result,profs=0,NO_RESULT
+4,6e228c88-6be0-4c7c-a70f-d2854aac448b,Tuskegee University,AL,high_value_no_result,profs=0,NO_RESULT
+4,6f399342-fdd6-41d1-80b5-6866944940f7,U Massachusetts Boston,MA,high_value_no_result,profs=0,NO_RESULT
+4,70dbdd53-9b50-44d3-81c1-407dc3d97427,Abilene Christian Univ,TX,high_value_no_result,profs=3,NO_RESULT
+4,70eee749-b3df-4b53-bd6d-5546e97c4757,Culver-Stockton College,MO,high_value_no_result,profs=2,NO_RESULT
+4,71f16455-bb85-4967-b1f7-588d06f667d8,McNeese State University Lake,LA,high_value_no_result,profs=0,NO_RESULT
+4,731da80c-a223-4103-a4a7-44777cc89a13,Columbia College,BC,high_value_no_result,profs=0,NO_RESULT
+4,739175c4-6de3-40a8-a3e6-cf7d60124c00,North Carolina A&T State Un,NC,high_value_no_result,profs=0,NO_RESULT
+4,74aa6d4a-28ab-4349-b8fd-8f0c7fdbf72f,Roger Williams University,RI,high_value_no_result,profs=0,NO_RESULT
+4,76ddaad2-9bb1-4144-9493-b5dd39c3d8a5,Clarkson University,NY,high_value_no_result,profs=1,NO_RESULT
+4,774fdd9c-50fc-446e-8f16-4c80ad19bb64,Harding University,AR,high_value_no_result,profs=0,NO_RESULT
+4,77bb1c71-2791-4cd4-8083-8cf5fa4acd67,John Carroll University,OH,high_value_no_result,profs=0,NO_RESULT
+4,7839ef8a-5b97-42fc-8d0d-300552c364bd,University of Dallas,TX,high_value_no_result,profs=2,NO_RESULT
+4,78fc9d08-b381-45ee-b219-a45e2b10b8c0,Olympic College,WA,high_value_no_result,profs=0,NO_RESULT
+4,7a5d59b8-53d3-47a6-983c-c3009234af1a,Uof Alabama in Huntsville,AL,high_value_no_result,profs=7,NO_RESULT
+4,7aaee15f-267f-432f-bbba-c77fada8539e,Univ of Nebraska at Omaha,NE,high_value_no_result,profs=0,NO_RESULT
+4,7af9a67c-c045-4a19-9d5a-d0a5a3d723c7,Sault College,ON,high_value_no_result,profs=0,NO_RESULT
+4,7b462501-d1b5-4a82-a76c-281e975de3d5,Wharton County Junior College,TX,high_value_no_result,profs=0,NO_RESULT
+4,7b5a4d9b-0e32-4dcd-9da0-d7e4419131d5,Collin College,TX,high_value_no_result,profs=0,NO_RESULT
+4,7c06eaea-9a16-4010-a9b9-2e20c245b7a0,Lower Columbia College,WA,high_value_no_result,profs=0,NO_RESULT
+4,7cd43201-9dde-4cfa-be62-cd3008e13940,Shenandoah University,VA,high_value_no_result,profs=0,NO_RESULT
+4,7d00a6d0-1d67-4be5-a70d-2a038ee11bbc,Univ of Tennessee at Martin,TN,high_value_no_result,profs=2,NO_RESULT
+4,80b1c509-c9ce-4516-b831-7066588a754d,Metropolitan St Univ Denver,CO,high_value_no_result,profs=0,NO_RESULT
+4,80f0a71a-4c1d-4ee6-8203-4713f3fe867f,Albion College,MI,high_value_no_result,profs=3,NO_RESULT
+4,81dabe5c-3158-48a7-91d7-0118f1f7fc21,University of Augsburg,Bavaria,high_value_no_result,profs=0,NO_RESULT
+4,82d2d96d-bd68-413c-b8af-7931ceea020b,University of St. Thomas-TX,TX,high_value_no_result,profs=0,NO_RESULT
+4,83d8767f-45f5-4ebe-9782-06e2077e358e,University of Maryland College,MD,high_value_no_result,profs=1,NO_RESULT
+4,843467b2-ed80-47ce-b70c-62713dfbe9c6,St. John Fisher College,NY,high_value_no_result,profs=0,NO_RESULT
+4,85edc1b3-e5d1-4b5a-96cf-a8ece23cb652,New Bulgarian University,BG,high_value_no_result,profs=0,NO_RESULT
+4,869cfc8a-c5bb-4bb9-8354-d11f86252e6a,Alaska Pacific University,AK,high_value_no_result,profs=0,NO_RESULT
+4,86d84cfa-181c-4333-8c01-e93bf9555f97,SUNY Polytechnic Institute,NY,high_value_no_result,profs=0,NO_RESULT
+4,883ae647-a3f8-4382-9e9d-0cc592171ff0,Cottey College,MO,high_value_no_result,profs=1,NO_RESULT
+4,892382c3-5770-41cb-b94f-8407abd92be8,Indiana University Northwest,IN,high_value_no_result,profs=35,NO_RESULT
+4,89759e20-f828-4ff3-bab1-342c20c777e3,Trinity University San,TX,high_value_no_result,profs=0,NO_RESULT
+4,8b5bd50a-9d62-40b3-bd1a-c38d919179a2,Arkansas Northeastern College,AR,high_value_no_result,profs=0,NO_RESULT
+4,8d55c666-9cb4-49f3-87de-b7014695a2fe,Saint Ambrose University,IA,high_value_no_result,profs=26,NO_RESULT
+4,8dfbf0a0-ff60-4411-a8fb-1e79b524a9ee,Ouachita Baptist University,AR,high_value_no_result,profs=0,NO_RESULT
+4,8f26c44b-1aed-4104-97ad-67c4574e956b,Ivy Technical Community College Kokomo S In Ivy Technical Community College Lafayette,IN,high_value_no_result,profs=0,NO_RESULT
+4,8f442115-9b6b-4cdf-a6d0-428257b4eecb,Clayton State University,GA,high_value_no_result,profs=5,NO_RESULT
+4,8f469f4c-2082-4008-be23-49b0e1b5c349,"Calif State Univ, Fresno",CA,high_value_no_result,profs=9,NO_RESULT
+4,8f528d96-6ddf-4e5a-ad92-c005d2ed4c64,Portland State University,OR,high_value_no_result,profs=0,NO_RESULT
+4,8ffbeac6-9bc5-4bf5-92a3-a6e828e54946,Univ of Nebraska at Kearney,NE,high_value_no_result,profs=4,NO_RESULT
+4,916ffb4e-6b04-49cf-a8fb-3ab2a6706dd1,Southeastern Oklahoma State University,OK,high_value_no_result,profs=32,NO_RESULT
+4,9186a65e-e745-4c08-9896-25e746359ab2,Emporia State University,KS,high_value_no_result,profs=1,NO_RESULT
+4,9220ee33-22b4-46b6-9ca5-86528da2ec47,CUNY-Baruch College New,NY,high_value_no_result,profs=0,NO_RESULT
+4,9261c4f6-7fb7-4000-aaa7-12022e2464f0,Calvary Bible College,MO,high_value_no_result,profs=0,NO_RESULT
+4,92a8c453-b8a0-46d6-a871-57b08ac53965,University of Portland,OR,high_value_no_result,profs=0,NO_RESULT
+4,937aa008-9316-4e4c-acfd-1c28cd6629b6,"College at Brockport, SUNY",NY,high_value_no_result,profs=0,NO_RESULT
+4,942659b0-c399-4802-b095-4cee98f767ef,University of Houston - Victoria,TX,high_value_no_result,profs=0,NO_RESULT
+4,942c7c2b-196c-4158-8d12-42f518ed998a,Calif State Poly U-Pomona,CA,high_value_no_result,profs=0,NO_RESULT
+4,948a28f0-c21c-401f-9ded-5325025fdfd1,VSB - Technical University of Ostrava,CZ,high_value_no_result,profs=0,NO_RESULT
+4,959d2a70-6fd1-462b-a312-328eab64a393,Albright College,PA,high_value_no_result,profs=11,NO_RESULT
+4,95f44ca2-4006-412f-bc21-8b59ba5e2340,Johnston Community College,NC,high_value_no_result,profs=0,NO_RESULT
+4,963c6010-45d8-4773-8e03-ea282d7124aa,Arkansas Tech University,AR,high_value_no_result,profs=3,NO_RESULT
+4,964be11f-f306-4df2-9671-835a053ace33,Univ of Central Arkansas,AR,high_value_no_result,profs=10,NO_RESULT
+4,967ef766-bc42-4e80-aa88-34d386311c56,University of North Florida,FL,high_value_no_result,profs=31,NO_RESULT
+4,971f9332-c7d9-4467-8e5f-40171e863e35,Univ of Colorado at Denver,CO,high_value_no_result,profs=1,NO_RESULT
+4,977ba395-f54d-4746-af3d-6524a4835e4b,Western University,ON,high_value_no_result,profs=0,NO_RESULT
+4,98098d5c-fe07-4462-9efb-b7657f81a3c3,Michigan State University East,MI,high_value_no_result,profs=0,NO_RESULT
+4,98516247-4fc7-4e24-9dd6-a32f638a6420,Crowder College Neosho,MO,high_value_no_result,profs=0,NO_RESULT
+4,992a2fd0-da9b-44ed-ae81-790e2f65afa0,Shoreline Community College,WA,high_value_no_result,profs=0,NO_RESULT
+4,99391f60-44a3-4844-bb5d-7859ec3b82a7,Ohio Northern University,OH,high_value_no_result,profs=1,NO_RESULT
+4,99517fab-c7e6-4267-9af4-c26726960518,Valencia College,FL,high_value_no_result,profs=0,NO_RESULT
+4,99e11f5f-f412-4933-acb6-3281890e1f02,University of Rhode Island,RI,high_value_no_result,profs=7,NO_RESULT
+4,9a2858ec-9f5f-4833-a891-7cf0357ed43d,Quinnipiac University,CT,high_value_no_result,profs=0,NO_RESULT
+4,9abc52dc-600d-4529-8de8-eaf45d54cd9d,University of Hartford W,CT,high_value_no_result,profs=0,NO_RESULT
+4,9b18e705-fe9c-4685-a1de-7ca0e9ce8ab1,Weber State University,UT,high_value_no_result,profs=2,NO_RESULT
+4,9c470742-b64f-49bb-a7ec-fd30cea6422d,Long Island U.-LIU Post,NY,high_value_no_result,profs=0,NO_RESULT
+4,9c52dc54-5fa9-41cf-8526-50501e74df46,Louisiana St in Shreveport,LA,high_value_no_result,profs=0,NO_RESULT
+4,9d3c5ea8-f147-46b6-b81b-7a5fe08de8a4,Alfred University,NY,high_value_no_result,profs=1,NO_RESULT
+4,9d49fc62-9150-4ffc-bd20-a5b60b60e7c2,Manhattan College,NY,high_value_no_result,profs=15,NO_RESULT
+4,9d769837-cb0d-4da8-9e48-fdbe72f9b534,Walsh College,MI,high_value_no_result,profs=4,NO_RESULT
+4,9d92ff92-0651-441b-94ca-4e6ca696bafe,Grand Valley State University Allendal,MI,high_value_no_result,profs=0,NO_RESULT
+4,9ed8c466-4196-4225-96a6-be527a2823e4,Bethune-Cookman University Daytona,FL,high_value_no_result,profs=0,NO_RESULT
+4,9f980c00-1149-4376-b1b3-fd9c7e6ebd48,Miami Dade College Virtual Campu,FL,high_value_no_result,profs=0,NO_RESULT
+4,9fe12d29-01ee-4c7a-965c-dee6767e4409,University of Tennessee,TN,high_value_no_result,profs=0,NO_RESULT
+4,a12fd983-9c9e-4e52-bec1-af8b7246036e,Andrews University Berrien,MI,high_value_no_result,profs=3,NO_RESULT
+4,a19c66da-129a-4816-826e-1876586b5eb5,Aurora University,IL,high_value_no_result,profs=3,NO_RESULT
+4,a1e57676-9ca7-46d9-a433-0227b694047e,North Carolina Central Univ,NC,high_value_no_result,profs=0,NO_RESULT
+4,a22f95ff-580c-4a29-b272-de814eb3afda,Notre Dame de Namur University,CA,high_value_no_result,profs=0,NO_RESULT
+4,a321dfc0-787d-4435-b679-5f63e9bf2379,Villanova University,PA,high_value_no_result,profs=0,NO_RESULT
+4,a348048e-fc82-46b7-a488-22b20e51e009,Uof Alabama at Birmingham,AL,high_value_no_result,profs=16,NO_RESULT
+4,a424acd3-1900-4dc0-b4e4-456106d0fff6,University of Minnesota Crookston,MN,high_value_no_result,profs=0,NO_RESULT
+4,a4e6567b-2e3b-4ef4-a2f5-e20631d87f2f,Arcadia University,PA,high_value_no_result,profs=5,NO_RESULT
+4,a5a70954-2eda-4491-8b5c-568d577edbb3,Truman State University,MO,high_value_no_result,profs=0,NO_RESULT
+4,a6ce0030-1be4-4656-b63c-fdaeac13e364,College of Charleston,,high_value_no_result,profs=11,NO_RESULT
+4,a77d0008-6465-4ede-bfff-995d7a2777f6,Washington and Lee Univ,VA,high_value_no_result,profs=8,NO_RESULT
+4,a812801e-bfdf-47fa-af80-4b4ee6fe52fa,SUNYat Buffalo,NY,high_value_no_result,profs=0,NO_RESULT
+4,a83c1c6d-af52-45f2-99aa-ebf765272bf1,Bryant University,RI,high_value_no_result,profs=16,NO_RESULT
+4,a8528f4c-570c-40eb-b385-4c357aedb55b,"Calif State U., Bakersfield",CA,high_value_no_result,profs=0,NO_RESULT
+4,a87efea2-a1e6-40e8-bece-26f4accddae8,Saint Mary's College of CA,CA,high_value_no_result,profs=0,NO_RESULT
+4,a8bc67f2-6641-4ef3-a98b-03dc605d4fd8,University of Regensburg,Bavaria,high_value_no_result,profs=0,NO_RESULT
+4,a975d81f-9737-44f3-adc8-3f33e1aa6754,Western New England Univ,MA,high_value_no_result,profs=0,NO_RESULT
+4,aba6890b-beb3-43c0-8bbc-ecdc2435befb,Delaware State University,DE,high_value_no_result,profs=0,NO_RESULT
+4,acd721bb-d2a0-49b8-8932-5f849ae27fb7,Everett Community College,WA,high_value_no_result,profs=0,NO_RESULT
+4,af1d8651-43c0-4f2d-82dd-4c1d4a4009cb,Minnesota St Univ Mankato,MN,high_value_no_result,profs=0,NO_RESULT
+4,afae29c6-5742-421f-b1ad-5a2d0096cac4,Uof Texas of Permian Basin,TX,high_value_no_result,profs=5,NO_RESULT
+4,afc34f5a-4dd9-47f0-972a-e72d579052bb,Colorado State Univ-Pueblo,CO,high_value_no_result,profs=1,NO_RESULT
+4,b0b219b5-1880-4f16-a94d-af044068f061,University of Guelph-Humber,ON,high_value_no_result,profs=0,NO_RESULT
+4,b228b0cd-5021-448b-a8d0-66473108d126,College of the Siskiyous,CA,high_value_no_result,profs=0,NO_RESULT
+4,b27f9bf6-16b4-4782-9931-9d31dc11ad9e,Colorado State University Fort,CO,high_value_no_result,profs=0,NO_RESULT
+4,b35e85a6-d715-4b69-965a-fb920c9188a4,Rappahannock Community College,VA,high_value_no_result,profs=0,NO_RESULT
+4,b38e972d-a01b-44db-8e06-cf840a98743d,Sonoma State University Rohnert,CA,high_value_no_result,profs=0,NO_RESULT
+4,b43fc4ee-c28e-41f4-a24f-39bc666e03a4,"Rutgers, The State University of New Jersey",NJ,high_value_no_result,profs=0,NO_RESULT
+4,b6670695-2dfb-48ef-b7f6-4793e5d8d9fe,University of Hradec Králové,CZ,high_value_no_result,profs=0,NO_RESULT
+4,b671450d-60aa-448d-91e0-2d57bcb25d74,Copenhagen Business School,Capital Region,high_value_no_result,profs=0,NO_RESULT
+4,b672bbda-beea-49ff-aa2c-86fd70c74b6b,Univ N Carolina at Pembroke,NC,high_value_no_result,profs=0,NO_RESULT
+4,b840ea4e-049e-4ad4-acfa-594f15dfd70a,Southwest Tennessee Community College,TN,high_value_no_result,profs=0,NO_RESULT
+4,b842ce16-a903-49e8-ad1e-1e6dc5d72b41,University of Amsterdam,North Holland,high_value_no_result,profs=0,NO_RESULT
+4,b86b4da0-c6a0-4fc1-b76c-4622a87c26b0,Comenius University Bratislava,SK,high_value_no_result,profs=0,NO_RESULT
+4,b913ad43-1616-4c37-8125-338976942c8a,Lourdes University,OH,high_value_no_result,profs=0,NO_RESULT
+4,b92684a6-c0d1-4ffe-8e2c-1d0877706896,East Georgia State College,GA,high_value_no_result,profs=0,NO_RESULT
+4,b9ea8457-71d7-4e88-8da9-833bc04c41b4,Bow Valley College,AB,high_value_no_result,profs=0,NO_RESULT
+4,ba22b66d-58b4-4dd1-948f-1e6fc966517d,Texas A&M Univ-Kingsville,TX,high_value_no_result,profs=0,NO_RESULT
+4,bb7dc736-4a33-468b-a612-edff11a73849,Indiana University East,IN,high_value_no_result,profs=0,NO_RESULT
+4,c3766dfa-b24b-4817-8c18-4a217e3f608f,Central College,IA,high_value_no_result,profs=20,NO_RESULT
+4,c3dd686d-977b-4495-9565-1b38202941c7,Campbell University,NC,high_value_no_result,profs=31,NO_RESULT
+4,c43ce0f2-0a99-4475-8b1a-5788fb7169f7,Georgia Southwestern St Un,GA,high_value_no_result,profs=0,NO_RESULT
+4,c45a706a-15c7-42e2-b488-a4d6c2a8d799,Penn State Shenango,PA,high_value_no_result,profs=0,NO_RESULT
+4,c51895f9-2dd1-45aa-9d51-c54fa90b7359,Fordham University New,NY,high_value_no_result,profs=2,NO_RESULT
+4,c5f9fe2f-2922-46cb-977d-78d9faeebc32,Kauai Community College,HI,high_value_no_result,profs=0,NO_RESULT
+4,c687187a-56ca-4fed-9854-fe0f78301b02,Southern University & A&M Baton,LA,high_value_no_result,profs=0,NO_RESULT
+4,c6f2425e-f4fb-4145-a230-429cd9359057,William Jewell College,MO,high_value_no_result,profs=1,NO_RESULT
+4,c72a8f91-65bc-4dc9-81e9-a4ce4e943a6f,Purdue University Northwest,IN,high_value_no_result,profs=0,NO_RESULT
+4,c7641d1b-7a81-42a5-a284-627f5cd1c3d8,The Citadel,SC,high_value_no_result,profs=0,NO_RESULT
+4,c8a2760d-7168-4b10-86e7-8c3ec7b83f76,Southwestern Oklahoma State University,OK,high_value_no_result,profs=0,NO_RESULT
+4,c8fa3dd9-e7bb-44c3-a5eb-641b422b2d0f,Charleston Southern Univ,SC,high_value_no_result,profs=1,NO_RESULT
+4,c973ec84-2505-4cb7-8594-41e1de90c857,Barry University Miami,FL,high_value_no_result,profs=0,NO_RESULT
+4,c98a229e-d53c-4ba8-ac2c-0eae9c12a64c,Lander University,SC,high_value_no_result,profs=0,NO_RESULT
+4,ca053114-c08b-45ba-a7b4-8b05700bbc7a,Murray State University,KY,high_value_no_result,profs=0,NO_RESULT
+4,cad32c49-057b-43be-873b-9ff8b0f36b6d,Loyola University Maryland,MD,high_value_no_result,profs=3,NO_RESULT
+4,cb524a76-1b2c-43b3-a9cd-4bec051cd146,University of San Diego San,CA,high_value_no_result,profs=1,NO_RESULT
+4,cb5e06ea-c042-439c-8d66-41b97a52c811,Morgan State University,MD,high_value_no_result,profs=0,NO_RESULT
+4,cb96e07b-5d0a-4c3f-879c-867bf3f056c8,LeMoyne College,NY,high_value_no_result,profs=0,NO_RESULT
+4,ccc501d6-e3db-4756-a90e-d6ba018e7af5,University of Scranton,PA,high_value_no_result,profs=9,NO_RESULT
+4,ccf291f6-3888-47a8-95b4-35e4d70c96e1,The College of New Jersey,NJ,high_value_no_result,profs=0,NO_RESULT
+4,cdad3007-6eac-4111-8c1b-be946e69e632,Pepperdine Univ-Malibu,CA,high_value_no_result,profs=0,NO_RESULT
+4,ce1c0370-a602-4ae8-94a5-a45ab40cf0d2,Loyola University Chicago,IL,high_value_no_result,profs=99,NO_RESULT
+4,ce887831-4cb8-40e8-a470-cba6d24bf774,University of Denver,CO,high_value_no_result,profs=13,NO_RESULT
+4,cede6ca5-d9a3-409a-bfcb-51f8fde1033b,Lehigh University,PA,high_value_no_result,profs=0,NO_RESULT
+4,cf2aa238-eda2-4487-ad36-d5f0cc409791,Virginia State University,VA,high_value_no_result,profs=0,NO_RESULT
+4,cf743bf8-b71e-4298-bb5c-c1b374f0eb8a,University of North Texas at Dallas,TX,high_value_no_result,profs=34,NO_RESULT
+4,cfa13e53-1907-4ffb-bb69-b3bd182f9beb,Tennessee Technological Un,TN,high_value_no_result,profs=0,NO_RESULT
+4,cfb8ffb1-177d-4886-af65-069ac1f7679b,Bishop State Community College,AL,high_value_no_result,profs=0,NO_RESULT
+4,d00ecc4b-16fa-4f3e-839e-416e675b03e1,Utah Valley University,UT,high_value_no_result,profs=0,NO_RESULT
+4,d063f907-ff46-46d2-bd8f-3091a9fdf510,Lindenwood University Belleville,IL,high_value_no_result,profs=0,NO_RESULT
+4,d1146274-961a-478c-a77e-46fa0da20513,Tallinn University of Technology,EE,high_value_no_result,profs=0,NO_RESULT
+4,d11e6ca3-fae0-4e1e-ac9f-cbbac4c238f0,Parkland College,IL,high_value_no_result,profs=3,NO_RESULT
+4,d2a7f96d-2040-4e61-8ec0-5d779494011e,Univ of Michigan-Flint,MI,high_value_no_result,profs=4,NO_RESULT
+4,d37a8470-046b-439a-9185-53b027865f35,University of North Alabama,AL,high_value_no_result,profs=3,NO_RESULT
+4,d3e38c3b-56de-4640-9ae5-5b2edb9e313f,Texas A&M University Coll,TX,high_value_no_result,profs=0,NO_RESULT
+4,d3eb3ebb-d35c-4cf2-aa3b-1bb79dbed05e,Pepperdine Un-Los Angeles Los,CA,high_value_no_result,profs=0,NO_RESULT
+4,d4eed22f-40df-4fd0-ace4-373c1e3e3c35,Arkansas State University Technical Center,AR,high_value_no_result,profs=0,NO_RESULT
+4,d4f67951-69fb-4df8-b92d-bf85151ab254,Northern Illinois Univ,IL,high_value_no_result,profs=0,NO_RESULT
+4,d82c2f13-e409-4b31-8fce-6f4559dd90ca,Erasmus University Rotterdam,NH,high_value_no_result,profs=0,NO_RESULT
+4,d874c43e-d913-40aa-9a38-004014f7ba5b,Northern Marianas College,MP,high_value_no_result,profs=0,NO_RESULT
+4,d95936b7-cfb7-41a5-92cd-fe42aa02fc90,National Taiwan University,Taiwan,high_value_no_result,profs=0,NO_RESULT
+4,d9b6d4b6-e143-4e62-b128-70b11eb736f3,Korea Advanced Institute of Science and Technology,Daejeon,high_value_no_result,profs=0,NO_RESULT
+4,da54c466-bf4e-4ecc-b33e-dd07c7c75920,National Chung Hsing University,Taiwan,high_value_no_result,profs=0,NO_RESULT
+4,da6d507a-c2d2-48ce-83d8-5f32e2116375,Coastal Carolina University,SC,high_value_no_result,profs=9,NO_RESULT
+4,dc001c64-7bc5-4bc3-bf4b-4ab00cea5bde,Wartburg College,IA,high_value_no_result,profs=0,NO_RESULT
+4,dd5430a5-c829-494a-b772-0c413e4d9f51,Louisiana Tech University,LA,high_value_no_result,profs=0,NO_RESULT
+4,ddcc6e53-df9e-4714-a66f-80bb2e29023e,Saginaw Valley State Univ Univ,MI,high_value_no_result,profs=0,NO_RESULT
+4,de0ad748-1314-4667-be67-2af2a1a2ebcb,Dominican University River,IL,high_value_no_result,profs=0,NO_RESULT
+4,deae68b0-ed73-4f47-a753-f9c3fbf80db2,University of Mary,ND,high_value_no_result,profs=0,NO_RESULT
+4,ded1f5b6-1f32-43cf-802b-d1ee547d1160,Athens State University,AL,high_value_no_result,profs=0,NO_RESULT
+4,df0a1fea-03e2-4ffb-9662-0e08e38de16b,Penn Western Univ-Clarion,PA,high_value_no_result,profs=0,NO_RESULT
+4,df2475b0-2aed-47c5-bbb3-f89f27b282af,Murray State College Tishomingo,OK,high_value_no_result,profs=0,NO_RESULT
+4,df7ad324-c0ff-49a0-ade1-82dde6b6e6f2,Fairleigh Dickinson Univ,NJ,high_value_no_result,profs=9,NO_RESULT
+4,e10d4e7f-f243-4713-b21c-b4ac88b69205,Univ of Louisiana at Monroe,LA,high_value_no_result,profs=6,NO_RESULT
+4,e1ac1805-88fb-467c-a56e-b5a4314dbe2a,"Calif State Univ, Northridge",CA,high_value_no_result,profs=0,NO_RESULT
+4,e1d98d50-18ce-4a43-b5da-c487df2b0ab4,SUNY College at Oswego,NY,high_value_no_result,profs=0,NO_RESULT
+4,e2a16f5b-765f-4d73-9a91-7a3f99365e50,Bowling Green State Univ Bowling,OH,high_value_no_result,profs=1,NO_RESULT
+4,e329761c-0ee2-41af-8636-924921ac811c,National Taipei University,TW,high_value_no_result,profs=0,NO_RESULT
+4,e32d9134-b104-447d-9fee-a51d633bd8ae,Pittsburg State University,KS,high_value_no_result,profs=0,NO_RESULT
+4,e380e84d-076b-4aa0-a6a6-f4ef43f3483a,Lake Forest College,,high_value_no_result,profs=1,NO_RESULT
+4,e38b78a6-8295-4269-8b41-b9c3bbc219d1,Susquehanna University,PA,high_value_no_result,profs=0,NO_RESULT
+4,e3e46381-cd61-450a-8bc6-b7f2584b172f,Niagara College,ON,high_value_no_result,profs=0,NO_RESULT
+4,e47db61b-a42c-455c-9938-2e06d2f88768,New Mexico State University,NM,high_value_no_result,profs=0,NO_RESULT
+4,e4babfe5-48bd-4339-a430-c4a49cf502b3,University of Mount Olive,NC,high_value_no_result,profs=0,NO_RESULT
+4,e5409792-0f22-436e-bf17-2ea0a775297a,College of Micronesia-FSM,FM,high_value_no_result,profs=0,NO_RESULT
+4,e60857bb-43c5-45a0-89e4-33f513882d40,University of Rochester,NY,high_value_no_result,profs=8,NO_RESULT
+4,e61ddff3-433f-4443-b48b-2c2f090fb9c0,Embry-Riddle Aeronautical U Daytona,FL,high_value_no_result,profs=1,NO_RESULT
+4,e67809ea-17f6-4792-ac07-3713502bdafe,Harvard University,MA,high_value_no_result,profs=0,NO_RESULT
+4,e9c8be9c-5820-4f26-92b6-fb127931ea64,Adams State University,CO,high_value_no_result,profs=2,NO_RESULT
+4,ea6eb33d-5d19-445f-a470-de50c0e7ca66,"Calif State Univ, East Bay",CA,high_value_no_result,profs=0,NO_RESULT
+4,ea6f3381-59fb-4ed6-bc78-6d440f54108f,Univ of Northern Colorado,CO,high_value_no_result,profs=4,NO_RESULT
+4,ea95df00-5f04-4cc7-8e0a-a5cc0ed848ea,University of West Florida,FL,high_value_no_result,profs=0,NO_RESULT
+4,eb202e0a-5d46-489b-a975-85e41e0fe58f,Southern Arkansas Univ,AR,high_value_no_result,profs=0,NO_RESULT
+4,eb727b6b-e7ce-4b06-a715-57f9cee04d2a,Northwest College,WY,high_value_no_result,profs=0,NO_RESULT
+4,ec51fe64-7980-4004-99fe-1bad86b4a3ce,Adelphi University Garden,NY,high_value_no_result,profs=0,NO_RESULT
+4,ec7bd556-5572-45ff-8860-f0ec230a7465,Penn State DuBois,PA,high_value_no_result,profs=15,NO_RESULT
+4,ed8f4775-a0df-46e5-a1a1-1d6c84b81b28,Galveston College,TX,high_value_no_result,profs=0,NO_RESULT
+4,ed9776cb-5afc-42f5-8dd3-e246cf6334f7,Belmont University,TN,high_value_no_result,profs=5,NO_RESULT
+4,edb01572-9cac-43ee-a3c2-a77293c4b51a,Thomas Nelson Community College,VA,high_value_no_result,profs=0,NO_RESULT
+4,ede66ee5-cebb-498d-b10a-22aae43cf8b7,Northwood University,MI,high_value_no_result,profs=0,NO_RESULT
+4,ee5df01f-b124-49c9-86df-2d967685a33a,County College of Morris,NJ,high_value_no_result,profs=0,NO_RESULT
+4,f0c53fab-d637-4f6c-8eef-97474fa31f1b,University of Mobile,AL,high_value_no_result,profs=0,NO_RESULT
+4,f4927de9-b187-4169-9866-81867beadf56,Indiana State University Terre,IN,high_value_no_result,profs=0,NO_RESULT
+4,f50c46e4-57b7-49aa-a311-c459158a3b19,Poznań University of Economics and Business,GP,high_value_no_result,profs=0,NO_RESULT
+4,f50efb95-3818-465e-ae4f-9d7023244d4c,SGH Warsaw School of Economics,MZ,high_value_no_result,profs=0,NO_RESULT
+4,f72f4b7b-32a9-40b4-976d-e2d59793a28e,Augustana College IL Rock,IL,high_value_no_result,profs=0,NO_RESULT
+4,f7429d11-c236-4c42-a5bb-72a9d1b654ed,Delaware Valley University,PA,high_value_no_result,profs=22,NO_RESULT
+4,f7ad62be-bb56-4789-8590-d4a40753a11c,Nicholls State University,LA,high_value_no_result,profs=0,NO_RESULT
+4,f7dd7f3d-c11f-47fa-a968-32b7f180a202,Amberton University,TX,high_value_no_result,profs=0,NO_RESULT
+4,f80519fd-1784-4a8e-a405-ebdd375eb45f,City Vision University,MO,high_value_no_result,profs=0,NO_RESULT
+4,f966273c-65d0-49c5-b432-c4adef34a019,Atlanta Technical College,GA,high_value_no_result,profs=0,NO_RESULT
+4,f9afaeba-e3f8-408d-a788-65c30fb954ab,University of Dayton,OH,high_value_no_result,profs=11,NO_RESULT
+4,fa73b74c-c14b-4e23-9377-6c8a0eaf345b,University of New Mexico Albuquerque F,NM,high_value_no_result,profs=0,NO_RESULT
+4,fa98584d-8345-4348-b524-14e7e89146ca,Seward County Community College,KS,high_value_no_result,profs=0,NO_RESULT
+4,fac55964-81f5-4be8-844a-8a5f7afddee3,Rogers State University,OK,high_value_no_result,profs=0,NO_RESULT
+4,fc6c1756-f157-41c0-b1a0-f357b5363952,University of Lausanne,VD,high_value_no_result,profs=0,NO_RESULT
+4,fc8400fb-f045-4fc1-89b8-67adb544b341,Universidade Lusófona,Lisbon,high_value_no_result,profs=0,NO_RESULT
+4,fc8b0ae0-233c-4fe0-94c9-7544cb7cf015,Salem State University,MA,high_value_no_result,profs=0,NO_RESULT
+4,feba6ffa-1f28-4c9f-b342-a8a9f99c0d8c,National Cheng Kung University,TW,high_value_no_result,profs=0,NO_RESULT
