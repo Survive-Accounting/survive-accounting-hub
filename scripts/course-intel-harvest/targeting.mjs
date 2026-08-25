@@ -25,8 +25,12 @@ const isExam1 = (l) => /\b(exam|test)\s*0*1\b|\bexam\s*i\b|first/.test((l || "")
 
 async function main() {
   const status = await pageAll("course_intel_campus_status", "campus_id,campus_name,state,course_code,status,documents_found,high_value_documents,syllabi_found,textbook_docs_found,confirmed_intro1_professors,professor_candidates,highest_source_confidence", "", "campus_id.asc");
-  const campuses = await pageAll("campuses", "id,name,state,active_roster,market_priority,priority_tier,is_sec", "&is_research_only=is.false");
+  const campuses = await pageAll("campuses", "id,name,state,active_roster,market_priority,priority_tier,is_sec,greek_eligibility,greek_pct_fraternity,greek_pct_sorority", "&is_research_only=is.false");
   const cById = new Map(campuses.map((c) => [c.id, c]));
+  // Greek strength — PRIMARY distribution channel. % of student body Greek (best),
+  // else number of Greek chapters on campus (density fallback).
+  const greekChapters = {};
+  for (const g of await pageAll("campus_greek_chapters", "campus_id", "")) greekChapters[g.campus_id] = (greekChapters[g.campus_id] || 0) + 1;
   // doc-confirmed professors per campus (RMP-independent)
   const profEv = await pageAll("professor_intro1_evidence", "campus_id,professor_name,evidence_state", "");
   const docConfirmed = {}; const docLikely = {};
@@ -49,9 +53,23 @@ async function main() {
     const hasTextbook = (s.textbook_docs_found || 0) > 0;
     const hasSyllabus = (s.syllabi_found || 0) > 0;
     const mkt = Number(c.priority_tier) || Number(c.market_priority) || null;
+    const greekPct = (Number(c.greek_pct_fraternity) || 0) + (Number(c.greek_pct_sorority) || 0);
+    const gChapters = greekChapters[s.campus_id] || 0;
+    const noGreek = c.greek_eligibility === "no_social_greek";
 
     // ── transparent weighted score ─────────────────────────────────────────
     let score = 0;
+    // Greek = PRIMARY distribution channel → weighted alongside the strongest signals.
+    let greekScore = 0;
+    if (greekPct >= 25) greekScore = 25;         // Greek-heavy campus
+    else if (greekPct >= 12) greekScore = 15;
+    else if (greekPct > 0) greekScore = 7;
+    else if (gChapters >= 25) greekScore = 15;   // density fallback when % unknown
+    else if (gChapters >= 8) greekScore = 8;
+    else if (c.greek_eligibility === "eligible") greekScore = 4;
+    if (noGreek) greekScore = -15;               // no social Greek = weak for our channel
+    score += greekScore;
+
     if (live) score += 30;                       // already live to students = act now
     if (docConf > 0) score += 25;                // RMP-independent professor truth
     else if (docLik > 0) score += 10;
@@ -64,18 +82,23 @@ async function main() {
     else if (mkt && mkt <= 4) score += 6;
     if (s.status === "COMPLETE") score += 5;
 
-    const tier = score >= 65 ? "A" : score >= 40 ? "B" : score >= 20 ? "C" : "D";
+    const tier = score >= 75 ? "A" : score >= 48 ? "B" : score >= 25 ? "C" : "D";
+    const strongGreek = greekPct >= 12 || gChapters >= 8;
     let action;
-    if (live && docConf > 0 && hasExam1) action = "TARGET NOW — live, prof + exam map known";
+    if (strongGreek && docConf > 0 && hasExam1) action = "TARGET NOW — strong Greek + prof + exam map";
+    else if (live && docConf > 0 && hasExam1) action = "TARGET NOW — live, prof + exam map known";
+    else if (strongGreek && (docConf > 0 || hasExam1)) action = "HIGH — strong Greek + course intel; outreach";
     else if (docConf > 0 && hasExam1) action = "HIGH — confirmed prof + exam map; ready for outreach";
     else if (docConf > 0) action = "confirmed prof; parse/verify exam map next";
     else if (hasExam1 && hasCode) action = "exam map known; find professor (Pass B)";
+    else if (noGreek) action = "low priority — no social Greek (weak channel)";
     else if (hasCode) action = "course known; needs prof + exam evidence";
     else if (s.documents_found > 0) action = "thin evidence; human review";
     else action = "dark — needs domain/course-code backfill";
 
     return {
       campus: s.campus_name || c.name, state: s.state || c.state, course_code: s.course_code || "",
+      greek_pct: greekPct || "", greek_chapters: gChapters || "", greek_elig: c.greek_eligibility || "",
       live_picker: live ? "Y" : "", doc_confirmed_profs: docConf, doc_likely_profs: docLik,
       exam1_chapters: exam1Range[s.campus_id] || "", textbook: hasTextbook ? "Y" : "", syllabus: hasSyllabus ? "Y" : "",
       documents: s.documents_found || 0, high_value: s.high_value_documents || 0,
@@ -83,7 +106,7 @@ async function main() {
     };
   }).sort((a, b) => b.target_score - a.target_score || b.doc_confirmed_profs - a.doc_confirmed_profs);
 
-  const H = ["target_tier", "target_score", "campus", "state", "course_code", "live_picker", "doc_confirmed_profs", "doc_likely_profs", "exam1_chapters", "textbook", "syllabus", "documents", "high_value", "market_priority", "intel_status", "recommended_action"];
+  const H = ["target_tier", "target_score", "campus", "state", "course_code", "greek_pct", "greek_chapters", "greek_elig", "live_picker", "doc_confirmed_profs", "doc_likely_profs", "exam1_chapters", "textbook", "syllabus", "documents", "high_value", "market_priority", "intel_status", "recommended_action"];
   fs.writeFileSync(path.join(ROOT, "CAMPUS_TARGETING.csv"), toCsv(H, rows));
   const tierCount = {}; for (const r of rows) tierCount[r.target_tier] = (tierCount[r.target_tier] || 0) + 1;
   const summary = {
@@ -97,6 +120,6 @@ async function main() {
   fs.writeFileSync(path.join(ROOT, "CAMPUS_TARGETING.json"), JSON.stringify(summary, null, 2));
   console.log("[targeting] wrote CAMPUS_TARGETING.csv + .json");
   console.log(JSON.stringify({ by_tier: tierCount, live: summary.live_picker_campuses, docConfProf: summary.with_doc_confirmed_prof, exam1: summary.with_exam1_map, both: summary.with_both_prof_and_exam1 }, null, 2));
-  console.log("TOP 20:"); rows.slice(0, 20).forEach((r, i) => console.log(`  ${String(i + 1).padStart(2)}. [${r.target_tier}${r.target_score}] ${r.campus} (${r.state}) code=${r.course_code || "-"} conf=${r.doc_confirmed_profs} exam1=${r.exam1_chapters || "-"} ${r.live_picker ? "LIVE" : ""}`));
+  console.log("TOP 25:"); rows.slice(0, 25).forEach((r, i) => console.log(`  ${String(i + 1).padStart(2)}. [${r.target_tier}${r.target_score}] ${r.campus} (${r.state}) greek=${r.greek_pct || r.greek_chapters + "ch" || "-"} conf=${r.doc_confirmed_profs} exam1=${r.exam1_chapters || "-"} ${r.live_picker ? "LIVE" : ""}`));
 }
 main().catch((e) => { console.error("[targeting:fatal]", e); process.exit(1); });

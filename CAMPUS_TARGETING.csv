@@ -1,885 +1,885 @@
-target_tier,target_score,campus,state,course_code,live_picker,doc_confirmed_profs,doc_likely_profs,exam1_chapters,textbook,syllabus,documents,high_value,market_priority,intel_status,recommended_action
-A,103,Louisiana State University,LA,ACCT 2001,Y,1,2,1-5,Y,Y,14,0,,COMPLETE,"TARGET NOW — live, prof + exam map known"
-A,92,University of Florida,FL,ACG 2021,Y,1,0,1-5,,Y,20,2,,NEEDS_REVIEW,"TARGET NOW — live, prof + exam map known"
-A,88,University of Arkansas,AR,ACCT 2013,Y,0,4,1-24,Y,Y,14,0,,COMPLETE,exam map known; find professor (Pass B)
-A,83,University of South Carolina,SC,ACCT 225,Y,0,2,1-7,Y,Y,20,0,,NEEDS_REVIEW,exam map known; find professor (Pass B)
-A,74,Ball State University,IN,ACC 201,,3,0,1-2,Y,Y,8,1,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
-A,74,Florida Atlantic University,FL,ACG 2021,,1,2,1-8,Y,Y,13,1,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
-A,73,New York University,NY,ACCT-UB 1,,8,3,1-4,Y,Y,12,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
-A,73,De Anza College,CA,ACCT 1A,,4,5,1-4,Y,Y,25,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
-A,73,The University of Texas at Austin,TX,ACC 311,,1,10,1-13,Y,Y,14,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
-A,73,Univ No Carolina Greensboro,NC,ACC 201,,1,1,1-3,Y,Y,9,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
-A,73,Oral Roberts University,OK,ACT 215,,1,4,1-4,Y,Y,11,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
-A,73,King's College - Pennsylvania,PA,ACCT 115,,1,16,1-7,Y,Y,25,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
-A,73,Western Kentucky University,KY,ACCT 200,,1,6,1-4,Y,Y,23,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
-A,73,Austin Community College,TX,ACCT 2301,,1,12,1-7,Y,Y,16,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
-A,70,University of Georgia,GA,ACCT 2101,Y,3,3,,,Y,8,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-A,70,University of Kentucky,KY,ACC 201,Y,2,0,,,Y,18,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-A,68,University of Texas at El Paso,TX,ACCT 2301,,3,6,1-4,Y,Y,15,0,,NEEDS_REVIEW,HIGH — confirmed prof + exam map; ready for outreach
-A,68,Stephen F. Austin State University,TX,ACCT 2301,,2,5,1-6,Y,Y,9,0,,NEEDS_REVIEW,HIGH — confirmed prof + exam map; ready for outreach
-B,63,University of Utah Salt Lake,UT,,,5,1,12-14,Y,Y,10,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
-B,63,North Central Texas College,TX,,,4,0,1-4,Y,Y,9,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
-B,63,University of Toronto,ON,,,3,3,1-12,Y,Y,6,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
-B,63,Rice University,TX,,,2,7,1-3,Y,Y,9,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
-B,63,University of Montana,MT,,,1,8,8-14,Y,Y,10,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
-B,63,Texas A&M Univ-Texarkana,TX,,,1,2,7-8,Y,Y,16,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
-B,60,Gustavus Adolphus College,,B/E 110,,1,2,1-6,,Y,15,0,,NEEDS_REVIEW,HIGH — confirmed prof + exam map; ready for outreach
-B,59,Doane University,NE,ACC 103,,0,4,1-12,Y,Y,12,1,,COMPLETE,exam map known; find professor (Pass B)
-B,59,James Madison University,VA,COB 241,,0,4,1-16,Y,Y,9,1,,COMPLETE,exam map known; find professor (Pass B)
-B,58,Univ of California-Davis,CA,,,4,5,1-7,Y,Y,18,0,,NEEDS_REVIEW,HIGH — confirmed prof + exam map; ready for outreach
-B,58,University of North Georgia,GA,ACCT 2101,,0,1,1-2,Y,Y,13,0,,COMPLETE,exam map known; find professor (Pass B)
-B,58,The University of Texas at Arlington,TX,ACCT 2301,,0,3,1-3,Y,Y,7,0,,COMPLETE,exam map known; find professor (Pass B)
-B,58,Cerritos College,CA,ACCT 101,,0,4,13-15,Y,Y,17,0,,COMPLETE,exam map known; find professor (Pass B)
-B,58,Bradley University,IL,ATG 157,,0,2,1-4,Y,Y,15,0,,COMPLETE,exam map known; find professor (Pass B)
-B,56,Texas A&M University,TX,ACCT 229,Y,0,2,,,Y,15,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-B,53,City College of San Francisco,CA,ACCT 1,,4,5,,Y,Y,15,0,,COMPLETE,confirmed prof; parse/verify exam map next
-B,53,Florida Gulf Coast University,FL,ACG 2021,,0,1,1-16,Y,Y,7,0,,NEEDS_REVIEW,exam map known; find professor (Pass B)
-B,50,Florida State College at Jacksonville,FL,,,1,0,1-4,,Y,10,0,,NEEDS_REVIEW,HIGH — confirmed prof + exam map; ready for outreach
-B,49,Drexel University,PA,ACCT 115,,0,1,1-3,,Y,6,4,,NEEDS_REVIEW,exam map known; find professor (Pass B)
-B,48,Wayland Baptist University,TX,ACCT 2305,,2,4,,Y,Y,21,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-B,48,Seminole State College of Florida,FL,ACG 2021,,2,0,,Y,Y,3,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-B,48,Wilmington College,OH,EC 238,,1,0,,Y,Y,2,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-B,48,University of Maine,ME,,,0,1,1-4,Y,Y,6,0,,COMPLETE,thin evidence; human review
-B,48,University of Akron,OH,,,0,8,1-3,Y,Y,8,0,,COMPLETE,thin evidence; human review
-B,48,University of North Carolina at Charlotte,NC,ACCT 2121,,0,0,1-4,Y,Y,16,0,,COMPLETE,exam map known; find professor (Pass B)
-B,48,CUNY-Brooklyn College,NY,,,0,2,8-9,Y,Y,5,0,,COMPLETE,thin evidence; human review
-B,48,Washburn University,KS,,,0,4,1-13,Y,Y,7,0,,COMPLETE,thin evidence; human review
-B,48,Prairie View A&M University,TX,,,0,7,1-4,Y,Y,14,0,,COMPLETE,thin evidence; human review
-B,45,Sul Ross State University,TX,,,2,0,1-4,,,8,0,,NEEDS_REVIEW,HIGH — confirmed prof + exam map; ready for outreach
-B,45,Dakota College at Bottineau,ND,,,1,1,14-14,,,3,0,,NEEDS_REVIEW,HIGH — confirmed prof + exam map; ready for outreach
-B,45,"University of Nevada, Las Vegas",NV,ACC 201,,0,1,1-3,,Y,23,0,,NEEDS_REVIEW,exam map known; find professor (Pass B)
-B,45,University of Mississippi,MS,ACCY 201,Y,0,0,,,Y,9,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-B,45,Tennessee State University,TN,ACCT 2010,,0,1,1-8,,Y,16,0,,NEEDS_REVIEW,exam map known; find professor (Pass B)
-B,45,Mississippi State University,MS,ACC 2013,Y,0,0,,,Y,19,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-B,45,Vanderbilt University,TN,BUS 1100,Y,0,0,,,Y,9,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-B,45,"University of Tennessee, Knoxville",TN,ACCT 200,Y,0,0,,,Y,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-B,43,McMaster University,ON,,,4,4,,Y,Y,3,0,,COMPLETE,confirmed prof; parse/verify exam map next
-B,43,University of Genoa,IT,,,3,2,,Y,Y,6,0,,COMPLETE,confirmed prof; parse/verify exam map next
-B,43,Mercer University-Macon,GA,ACC 204,,3,1,,Y,,9,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-B,43,Nagoya University,OH,,,2,2,,Y,Y,8,0,,COMPLETE,confirmed prof; parse/verify exam map next
-B,43,Waseda University,JP,,,2,2,,Y,Y,8,0,,COMPLETE,confirmed prof; parse/verify exam map next
-B,43,South Plains College,TX,,,1,2,,Y,Y,10,0,,COMPLETE,confirmed prof; parse/verify exam map next
-B,43,Univ of Hawaii at Manoa,HI,,,0,1,1-3,Y,Y,15,0,,NEEDS_REVIEW,thin evidence; human review
-B,43,George Mason University,VA,ACCT 203,,0,0,1-18,Y,Y,6,0,,NEEDS_REVIEW,exam map known; find professor (Pass B)
-B,43,Eastern Illinois Univ,IL,,,0,3,1-5,Y,Y,7,0,,NEEDS_REVIEW,thin evidence; human review
-B,43,Yeshiva University New,NY,,,0,2,1-4,Y,Y,8,0,,NEEDS_REVIEW,thin evidence; human review
-B,42,University of Oklahoma,OK,ACCT 2113,Y,0,0,,,,21,2,,NEEDS_REVIEW,course known; needs prof + exam evidence
-B,40,University of West Georgia,GA,ACCT 2101,,5,0,,,Y,19,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-B,40,University of Illinois Chicago,IL,ACTG 210,,4,4,,,Y,10,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-B,40,Brandeis University,MA,BUS 6a,,3,4,,,Y,14,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-B,40,Kent State University,OH,ACCT 23020,,1,10,,,Y,12,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-B,40,University of North Texas,TX,ACCT 2010,,1,0,,,Y,29,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-B,40,The University of Texas at San Antonio,TX,ACC 2013,,1,0,,,Y,12,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-B,40,University of Alabama,AL,AC 210,Y,0,0,,,,4,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-B,40,Auburn University,AL,ACCT 2110,Y,0,0,,,,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-B,40,University of Missouri,MO,ACCTCY 2026,Y,0,0,,,,6,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-C,39,University of Wisconsin–Milwaukee,WI,BUS ADM 201,,0,5,,Y,Y,9,1,,COMPLETE,course known; needs prof + exam evidence
-C,39,Trinity College,,2001,,0,4,,Y,Y,9,1,,COMPLETE,course known; needs prof + exam evidence
-C,39,Pratt Institute-Main,,ACCT-1971,,0,7,,Y,Y,12,1,,COMPLETE,course known; needs prof + exam evidence
-C,38,Memorial University of Newfoundland,NL,,,1,0,,Y,Y,8,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,38,University of Chicago,IL,,,1,0,,Y,,1,0,,COMPLETE,confirmed prof; parse/verify exam map next
-C,38,Northern Arizona University,AZ,ACC 255,,0,2,,Y,Y,8,0,,COMPLETE,course known; needs prof + exam evidence
-C,38,University of Wisconsin–Oshkosh,WI,ACCT 206,,0,1,,Y,Y,16,0,,COMPLETE,course known; needs prof + exam evidence
-C,38,University of North Dakota Grand,ND,,,0,0,1-4,Y,Y,3,0,,COMPLETE,thin evidence; human review
-C,38,Massachusetts Inst of Tech,MA,15.501,,0,1,,Y,Y,18,0,,COMPLETE,course known; needs prof + exam evidence
-C,38,Florida International University,FL,ACG 2021,,0,4,,Y,Y,11,0,,COMPLETE,course known; needs prof + exam evidence
-C,36,American University,DC,ACCT 240,,3,12,,,,11,1,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,35,Colorado College,,BU205,,6,4,,,,15,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,35,Penn State University Univ,PA,ACCTG 201,,1,0,,,,12,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,35,Rochester Institute of Technology,NY,ACCT 110,,1,1,,,,8,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,33,University of Illinois,IL,,,4,0,,Y,,4,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,33,Howard University,DC,ACCT 201,,0,2,,Y,Y,18,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-C,33,Rollins College Winter,FL,ACC 501,,0,2,,Y,Y,2,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-C,33,Dominican Univ of Calif San,CA,ACCT 101,,0,4,,Y,Y,7,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-C,33,"University of California, Los Angeles",CA,MGMT 1A,,0,1,,Y,Y,29,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-C,33,Binghamton University,NY,ACCT 211,,0,1,,Y,,14,0,,COMPLETE,course known; needs prof + exam evidence
-C,30,"Calif State Univ, Long Beach Long",CA,,,12,3,,,Y,5,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,30,Foothill College,CA,,,6,0,,,Y,6,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,30,Tulsa Community College,OK,,,6,0,,,Y,4,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,30,Lakeland Community College,OH,,,3,0,,,Y,1,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,30,Simon Fraser University,BC,,,3,0,,,Y,6,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,30,Univ of Central Oklahoma,OK,,,3,0,,,Y,2,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,30,Stanford University,CA,,,2,3,,,Y,4,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,30,University of Alberta,AB,,,1,0,,,Y,3,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,30,Washington University St.,MO,,,1,0,,,Y,4,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,30,University of Northern Iowa Cedar,IA,,,1,0,,,Y,4,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,30,Carleton University,ON,,,1,3,,,Y,10,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,29,University of Houston - Downtown,TX,ACC 2301,,0,1,,Y,,14,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-C,28,Universidad Carlos III de Madrid,MD,,,0,1,,Y,Y,7,0,,COMPLETE,thin evidence; human review
-C,28,New Jersey In of Technology,NJ,,,0,5,,Y,Y,7,0,,COMPLETE,thin evidence; human review
-C,28,University of Exeter,EX,,,0,7,,Y,Y,6,0,,COMPLETE,thin evidence; human review
-C,28,Dartmouth College,NH,,,0,2,,Y,Y,2,0,,COMPLETE,thin evidence; human review
-C,28,Augusta University,GA,,,0,5,,Y,Y,4,0,,COMPLETE,thin evidence; human review
-C,28,College of the Redwoods,CA,,,0,4,,Y,Y,5,0,,COMPLETE,thin evidence; human review
-C,28,Lewis and Clark Community College,IL,,,0,2,,Y,Y,3,0,,COMPLETE,thin evidence; human review
-C,28,Texas Christian University Fort,TX,,,0,1,,Y,Y,6,0,,COMPLETE,thin evidence; human review
-C,28,University of Waterloo,ON,,,0,2,,Y,Y,6,0,,COMPLETE,thin evidence; human review
-C,28,DePaul University,IL,,,0,6,,Y,Y,5,0,,COMPLETE,thin evidence; human review
-C,28,University of New Orleans New,LA,,,0,2,,Y,Y,3,0,,COMPLETE,thin evidence; human review
-C,26,Adrian College,MI,,,2,0,,,,4,1,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,26,Missouri State University,MO,ACC 201,,0,2,,,Y,21,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-C,26,Northwestern State University,LA,ACCT 2000,,0,2,,,Y,8,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-C,25,Owensboro Community and Technical College,KY,,,2,0,,,,1,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,25,Santa Rosa Junior College,CA,,,2,0,,,,3,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,25,Jefferson Community and Technical College,KY,,,2,0,,,,1,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,25,Somerset Community College,KY,,,2,0,,,,1,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,25,Uof California-Berkeley,CA,,,1,1,,,,3,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,25,Boise State University,ID,,,1,0,,,,5,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
-C,25,Orange Coast College,CA,ACCT A101,,0,15,,,Y,12,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-C,25,Salisbury University,MD,ACCT 201,,0,1,,,Y,10,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-C,23,Grand Valley State Univ Grand,MI,ACC 212,,0,0,,Y,Y,16,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-C,23,Uof Minnesota Duluth,MN,,,0,1,,Y,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
-C,23,University of Michigan Ann,MI,,,0,1,,Y,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
-C,23,Central Connecticut St Univ New,CT,,,0,1,,Y,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
-C,23,Univ of Nebraska-Lincoln,NE,,,0,2,,Y,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
-C,23,Chapman University,CA,,,0,1,,Y,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
-C,23,Northeast Texas Community College,TX,,,0,1,,Y,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
-C,22,Indiana University Indianapolis,IN,BUS-A 201,,0,1,,,,18,2,,NEEDS_REVIEW,course known; needs prof + exam evidence
-C,20,Canisius College,NY,ACC 201,,0,3,,,,17,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-C,20,Troy University,AL,ACT 2291,,0,1,,,,31,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-C,20,Elon University,NC,ACC2010,,0,1,,,,2,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-C,20,Rutgers University-Camden,NJ,52:010:101,,0,1,,,,13,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-C,20,Knox College,IL,BUS 211,,0,1,,,,7,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-C,20,"So Illinois, Edwardsville",IL,ACCT 200,,0,1,,,,15,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,19,Johns Hopkins University,MD,EN.660.203,,0,0,,,Y,7,4,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,18,Utah Tech University,UT,ACCT 2010,,0,0,,Y,,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,18,College of the Rockies,BC,,,0,0,,Y,Y,7,0,,COMPLETE,thin evidence; human review
-D,18,Franklin University,OH,,,0,0,,Y,Y,8,0,,COMPLETE,thin evidence; human review
-D,18,George Brown College,ON,,,0,0,,Y,Y,3,0,,COMPLETE,thin evidence; human review
-D,18,College of New Caledonia,BC,,,0,0,,Y,Y,7,0,,COMPLETE,thin evidence; human review
-D,18,Langara College,BC,,,0,0,,Y,Y,7,0,,COMPLETE,thin evidence; human review
-D,17,Jacksonville State University,AL,ACC 200,,0,0,,,Y,17,2,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,17,"University of California, Santa Barbara",CA,ECON 3A,,0,0,,,Y,11,2,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,17,University of Louisville,KY,ACCT 201,,0,0,,,Y,13,2,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,17,Columbia International University,SC,ACC 2101,,0,0,,,Y,3,2,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,16,Rhode Island College,RI,ACCT 201,,0,0,,,Y,10,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,16,North Dakota State University,ND,ACCT 200,,0,0,,,Y,24,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,16,Penn State York,PA,ACCTG 211,,0,0,,,Y,14,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,16,San Diego State University San,CA,ACCT 100,,0,0,,,Y,15,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,16,Penn State New Kensington,PA,ACCTG 211,,0,0,,,Y,14,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,16,Penn State Abington,PA,ACCTG 211,,0,0,,,Y,15,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,16,Penn State Berks,PA,ACCTG 211,,0,0,,,Y,16,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,16,Liberty University,VA,ACCT 211,,0,0,,,Y,18,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,16,Penn State Brandywine,PA,ACCTG 211,,0,0,,,Y,11,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,16,University of Mary Washington,VA,ACCT 101,,0,0,,,Y,16,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Thomas Jefferson University,,ACCT 101,,0,0,,,Y,20,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Campbellsville University,KY,ACC 221,,0,0,,,Y,7,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Florida Southern College,FL,,,0,1,,,Y,8,0,,NEEDS_REVIEW,thin evidence; human review
-D,15,Fayetteville State Univ,NC,ACCT 211,,0,0,,,Y,20,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Johnson County Community College,KS,ACCT 121,,0,0,,,Y,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Texas Wesleyan University Fort,TX,ACC 2303,,0,0,,,Y,23,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Univ of Alaska Southeast,AK,ACCT S201,,0,0,,,Y,16,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Community College of Rhode Island,RI,,,0,10,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,15,University of Southern Mississippi,MS,ACC 200,,0,0,,,Y,15,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Harrisburg Area Community College,PA,,,0,1,,,Y,5,0,,NEEDS_REVIEW,thin evidence; human review
-D,15,"Univ of Calif, Irvine",CA,MGMT 30A,,0,0,,,Y,8,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Samford University,AL,ACCT 211,,0,0,,,Y,19,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,University of North Carolina at Greensboro,NC,ACC 201,,0,0,,,Y,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,University of Vermont,VT,BUS 1610,,0,0,,,Y,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Dallas Baptist University,TX,ACCT 2301,,0,0,,,Y,10,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,East Texas A&M University,TX,ACCT 2301,,0,0,,,Y,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Bryant & Stratton College,NY,ACCT 100,,0,0,,,Y,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Xavier University,OH,,,0,2,,,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,15,Duquesne University,PA,ACCT 214,,0,0,,,Y,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Virginia Commonwealth,VA,,,0,3,,,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,15,East Tennessee State Univ Johnson,TN,,,0,1,,,Y,6,0,,NEEDS_REVIEW,thin evidence; human review
-D,15,Uof Arkansas at Monticello,AR,,,0,5,,,Y,7,0,,NEEDS_REVIEW,thin evidence; human review
-D,15,Calumet College of Saint Joseph,IN,ACCT 210,,0,0,,,Y,3,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Queens Univ of Charlotte,NC,ACC 120,,0,0,,,Y,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Governors State University,IL,,,0,9,,,Y,10,0,,NEEDS_REVIEW,thin evidence; human review
-D,15,University of Houston - Clear Lake,TX,ACCT 2301,,0,0,,,Y,4,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,University of Toledo,OH,ACCT 2100,,0,0,,,Y,24,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Fullerton College,CA,ACCT 101AF,,0,0,,,Y,9,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,University of Houston,TX,ACCT 2301,,0,0,,,Y,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,University of Wisconsin–Madison,WI,ACCT IS 100,,0,0,,,Y,16,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Walla Walla University,WA,ACCT 201,,0,0,,,Y,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Tufts University,,BUS 1101,,0,0,,,Y,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Community College of Baltimore County,MD,ACCT 101,,0,0,,,Y,2,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Linfield College,OR,BNAC 260,,0,0,,,Y,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Chabot College,CA,BUS 1A,,0,0,,,Y,12,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Pace University New,NY,ACC 203,,0,0,,,Y,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,State Un College at Geneseo,NY,ACCT 102,,0,0,,,Y,13,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,University of Southern Indiana,IN,ACCT 201,,0,0,,,Y,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,McGill University,QC,,,0,2,,,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,15,Case Western Reserve Univ,OH,,,0,1,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,15,Tennessee at Chattanooga,TN,ACC 2010,,0,0,,,Y,13,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,University of North Carolina at Asheville,,ACCT 215,,0,0,,,Y,2,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,15,Modesto Junior College,CA,,,0,1,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,14,University of Richmond,VA,,,0,0,,Y,,9,1,,COMPLETE,thin evidence; human review
-D,13,Oxnard College,CA,,,0,0,,Y,Y,11,0,,NEEDS_REVIEW,thin evidence; human review
-D,13,East Central College,MO,ACC 102,,0,0,,,,10,3,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,13,Nashville State Community College,TN,,,0,0,,Y,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,12,Marquette University,,ACCO 1030,,0,0,,,,13,2,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,12,Azusa Pacific University,CA,ACCT 210,,0,0,,,,3,2,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,11,Albany State University,GA,ACCT 2101,,0,0,,,,16,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,11,Saint Joseph's University,PA,ACC 101,,0,0,,,,6,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,11,Temple University,PA,ACCT 2101,,0,0,,,,15,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,11,Lamar University,TX,ACCT 2301,,0,0,,,,14,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,11,Towson University,MD,ACCT 201,,0,0,,,,18,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,11,Idaho State University,ID,ACCT 2201,,0,0,,,,16,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,11,Montana State University,MT,ACTG 201,,0,0,,,,17,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,11,Georgia State University,GA,ACCT 2101,,0,0,,,,8,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Montana State Univ-Billings,MT,ACTG 201,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,University of New Hampshire,NH,ACCT 532,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Erskine College,SC,BA 221,,0,0,,,,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Missouri Southern St Univ,MO,ACCT 0201,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Univ of Central Florida,FL,ACC 201,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Rockhurst University,MO,AC 2010,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Hanover College,,BSP 325,,0,0,,,,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Park University,MO,AC 201,,0,0,,,,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Southern Illinois Univ,IL,ACCT250,,0,0,,,,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Southeastern Oklahoma St,OK,ACCT-2103,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Texas A&M - Corpus Christi Corp,TX,ACCT 2301,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Muhlenberg College,,ACT 101,,0,0,,,,0,0,,FAILED,course known; needs prof + exam evidence
-D,10,Michigan Technological Univ,MI,ACC 2000,,0,0,,,,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Carson Newman University,TN,ACCT 201,,0,0,,,,12,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,University of Delaware,DE,ACCT 207,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Chaffey College,CA,ACCTG 1A,,0,0,,,,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,SUNY Fredonia,NY,ACCT 201,,0,0,,,,18,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Old Dominion University,VA,ACCT 201,,0,0,,,,18,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Northeastern Illinois Univ,IL,ACTG-201,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Texas State University,TX,ACC 2361,,0,0,,,,10,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Georgian Court University,NJ,AC211,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Siena College,NY,ACCT - 200,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Claflin University,SC,ACCT 210,,0,0,,,,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,East Carolina University,NC,ACCT 2401,,0,0,,,,17,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Radford University,VA,ACTG 211,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Winston-Salem State University,NC,ACC 2316,,0,0,,,,8,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Morehouse College,GA,HBA 201,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,University of South Carolina Upstate,SC,ACCT U225,,0,0,,,,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,University of Missouri–St. Louis,MO,ACCTNG 2400,,0,0,,,,10,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Hofstra University,NY,ACCT 101,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Middle Tennessee State Univ,TN,ACTG 2110,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Champlain College,VT,ACC 110,,0,0,,,,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Tidewater Community College,VA,ACC 211,,0,0,,,,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Florida Institute of Technology,,EAC 2211,,0,0,,,,0,0,,FAILED,course known; needs prof + exam evidence
-D,10,Spalding University,KY,ACC 261,,0,0,,,,3,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,St. Cloud State University Saint,MN,ACCT291,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Indiana University Southeast,IN,BUS-A 201,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Missouri Univ Science & Tech,MO,BUS 1210,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Penn State U Great Valley,PA,ACCTG 211,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Concord University,WV,ACCT 205,,0,0,,,,12,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,John Brown University,AR,ATG 2173,,0,0,,,,12,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Western Colorado University,CO,ACC 201,,0,0,,,,2,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,University of Wisconsin–Stevens Point,WI,ACCT 210,,0,0,,,,17,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Longwood University,VA,ACCT 240,,0,0,,,,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Sacred Heart University,CT,AC 221,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Kennesaw State University,GA,ACCT 2101,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Univ of Alaska Fairbanks,AK,ACCT F261X,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Indiana University,IN,BUS-A 201,,0,0,,,,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Purdue Univ Fort Wayne Fort,IN,BUS A201,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Univ So Carolina at Aiken,SC,BADM A225,,0,0,,,,2,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Northeastern University,MA,ACCT 1201,,0,0,,,,6,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,The University of Texas at Dallas,TX,ACCT 2301,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Georgetown University,DC,ACCT 1001,,0,0,,,,8,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Univ Illinois at Springfield,IL,ACC 211,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Univ of Texas at Tyler,TX,ACCT 2301,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Stonehill College,MA,ACC 203,,0,0,,,,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Jacksonville University,FL,ACCT 201,,0,0,,,,3,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,University of Notre Dame Notre,IN,ACCT 20100,,0,0,,,,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Stockton University,NJ,ACCT 2110,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Northern Michigan Univ,MI,ACT 230,,0,0,,,,17,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Montclair State University,NJ,ACCT201,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,IUSB Indiana Uat South Bend South,IN,BUS-A 201,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Augsburg University,MN,ACC 221,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Southern Univ at New Orleans New,LA,ACCT 201N,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Morehead State University,KY,ACCT 281,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Rowan University,NJ,ACC 03210,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Jackson State University,MS,ACC 211,,0,0,,,,19,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Oakland University,MI,ACC 2000,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Cedar Crest College,PA,ACC 101,,0,0,,,,2,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Catawba College,NC,ACC 1901,,0,0,,,,3,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,University of St. Thomas,TX,ACCT 2301,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Tarleton State University,TX,ACCT 2301,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,SUNY College at Oneonta,NY,ACCT 2100,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,South Carolina State Univ,SC,ACCT207,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Woodbury University,CA,ACCT 205,,0,0,,,,13,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,U Missouri - Kansas City Kansas,MO,ACCTNG 210,,0,0,,,,10,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Texas Southern University,TX,ACCT 2301,,0,0,,,,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,U Massachusetts Boston,MA,af 210,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,McNeese State University Lake,LA,BUA 1000,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Grove City College,,ACCT 201,,0,0,,,,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Roger Williams University,RI,ACCTG 201,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Fort Lewis College,CO,ACC 225,,0,0,,,,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Catholic University of America,,ACCT-205,,0,0,,,,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,University of Dallas,TX,BUS 1310,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Arkansas State University,AR,ACCT 2023,,0,0,,,,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Univ of Nebraska at Omaha,NE,ACCT 2010,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Shenandoah University,VA,BA 211,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Florida A&M University,FL,ACG 2021,,0,0,,,,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,University of La Verne,CA,ACCT 201,,0,0,,,,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Metropolitan St Univ Denver,CO,ACC 2010,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Gannon University,PA,BCOR 201,,0,0,,,,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,St. John Fisher College,NY,ACCT 101,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,University of Colorado Colorado Springs,CO,ACCT 2010,,0,0,,,,24,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Indiana University Northwest,IN,BUS-A 201,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Eastern Kentucky University,KY,ACC 201,,0,0,,,,4,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Ramapo College-New Jersey,NJ,ACCT 221,,0,0,,,,2,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Providence College,RI,ACC 203,,0,0,,,,13,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Saint Ambrose University,IA,ACC 201,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Davidson College,,ECO 211,,0,0,,,,0,0,,WAITING_FOR_PROFESSORS,course known; needs prof + exam evidence
-D,10,Ouachita Baptist University,AR,ACCT 2013,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,The University of Texas Rio Grande Valley,TX,ACCT 2301,,0,0,,,,17,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Univ of Nebraska at Kearney,NE,ACCT 250,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Southeastern Oklahoma State University,OK,ACCT 2103,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Ottawa University,KS,ACC 20364,,0,0,,,,13,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Sam Houston State University,TX,ACCT 2301,,0,0,,,,18,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,University of North Florida,FL,ACG2021,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Ohio Northern University,OH,BIZ 2101,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,University of New Haven West,CT,ACCT 1101,,0,0,,,,9,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Quinnipiac University,CT,AC-211,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,University of Baltimore,MD,ACCT 201,,0,0,,,,13,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,The College of Wooster,,BUEC 11900,,0,0,,,,0,0,,FAILED,course known; needs prof + exam evidence
-D,10,Univ N Carolina at Charlotte,NC,ACCT 2121,,0,0,,,,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,North Park University,IL,ACCT 2110,,0,0,,,,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,North Carolina Central Univ,NC,ACCT 2400,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,College of Charleston,,ACC101,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Washington College,,BUS 112,,0,0,,,,4,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Delaware State University,DE,ACCT 201,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Savannah State University,GA,ACCT 2101,,0,0,,,,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,University of South Florida,FL,ACG 2021,,0,0,,,,12,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,University of Massachusetts Lowell,MA,ACCT.2010,,0,0,,,,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Univ N Carolina at Pembroke,NC,ACC 2270,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Stevens Institute of Tech,NJ,ACC 200,,0,0,,,,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,University of Massachusetts Dartmouth,MA,ACT 211,,0,0,,,,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Missouri Southern State University,MO,AC 201,,0,0,,,,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Texas A&M Univ-Kingsville,TX,ACCT 2301,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Texas Woman's University,TX,ACCT 2043,,0,0,,,,6,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Indiana University East,IN,BUS-A 201,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Cleveland State University,OH,ACT 221,,0,0,,,,18,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Mississippi College,MS,ACC 201,,0,0,,,,9,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Furman University,SC,ACC 111,,0,0,,,,3,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Minnesota State U Moorhead,MN,ACCT 230,,0,0,,,,10,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Central College,IA,ACCT 241,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Campbell University,NC,ACCT 215,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Georgia Southwestern St Un,GA,ACCT 2101,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Southern University & A&M Baton,LA,ACCT200,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Purdue University Northwest,IN,ACC 20000,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Murray State University,KY,ACC 200,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Loyola University Maryland,MD,AC 201,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Morgan State University,MD,ACCT 211,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,LeMoyne College,NY,ACT 201,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,The College of New Jersey,NJ,ACC 201,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,University of Redlands,,ACCT210,,0,0,,,,0,0,,FAILED,course known; needs prof + exam evidence
-D,10,Loyola University Chicago,IL,ACCT 201,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,University of Denver,CO,ACTG 2200,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Lehigh University,PA,ACCT 151,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,University of North Texas at Dallas,TX,ACCT 2301,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,St. Lawrence University,,ACC-203,,0,0,,,,2,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Parkland College,IL,BUS 121,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Grambling State University,LA,ACCT 201,,0,0,,,,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Univ of Michigan-Flint,MI,ACC 201,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,University of North Alabama,AL,AC 291,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Texas A&M University Coll,TX,ACCT 209/229/640,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Southwest Baptist Univ,MO,ACC 2013,,0,0,,,,12,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,College of DuPage,IL,ACCOU 2140,,0,0,,,,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Lipscomb University,TN,AC 2103,,0,0,,,,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Allegheny College,,ECON 285,,0,0,,,,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Hawaii Pacific University,HI,ACCT 2000,,0,0,,,,6,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Louisiana Tech University,LA,ACCT 201,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Saginaw Valley State Univ Univ,MI,ACC 111,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Stony Brook University Stony,NY,ACC 210,,0,0,,,,13,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Pittsburg State University,KS,ACCTG-201,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Lake Forest College,,BUSN230,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Susquehanna University,PA,ACCT 200,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Embry-Riddle Aeronautical U Daytona,FL,ACCT 210,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Bay Path University,MA,ACC 100,,0,0,,,,3,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Harvard University,MA,ECON S-1900,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Loyola University New Orleans,LA,ACCT B202,,0,0,,,,12,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Seattle University,WA,ACCT 2300,,0,0,,,,2,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Alabama State University,AL,ACT 211,,0,0,,,,2,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Southern Arkansas Univ,AR,ACCT 2003,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Penn State DuBois,PA,ACCT 211,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Northwood University,MI,ACC-2410,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Angelo State University,TX,ACCT 2301,,0,0,,,,4,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Hannibal-LaGrange University,MO,ACC 243,,0,0,,,,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Nelson University,TX,ACC 2213,,0,0,,,,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Eastern Michigan University,MI,ACC 240,,0,0,,,,16,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Union University,TN,ACC 211,,0,0,,,,15,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Delaware Valley University,PA,ACC 1101,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Nicholls State University,LA,ACCT 205,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,10,Oakland Community College,MI,ACC 1810,,0,0,,,,4,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
-D,10,Salem State University,MA,ACC 106,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
-D,6,Augsburg College,MN,,,0,0,,,Y,6,1,,NEEDS_REVIEW,thin evidence; human review
-D,6,Brigham Young University,UT,,,0,0,,,Y,3,1,,NEEDS_REVIEW,thin evidence; human review
-D,5,Cecil College,MD,,,0,0,,,Y,5,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Ohio University,OH,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Owens Community College,OH,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Winthrop University Rock,SC,,,0,0,,,Y,5,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Appalachian State Univ,NC,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Western Nevada College,NV,,,0,0,,,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Purdue University-Main Campus,,,,0,0,,,Y,6,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Thunderbird Sch Global Mgt,AZ,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Danville Community College,VA,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Irvine Valley College,CA,,,0,0,,,Y,5,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Uof Arkansas at Fort Smith Ft.,AR,,,0,0,,,Y,4,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,University of Manitoba,MB,,,0,0,,,Y,8,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,University of North Carolina Chapel,NC,,,0,0,,,Y,4,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Tarrant County College,TX,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,British Columbia Institute of Technology,BC,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,"Calif State Univ, Fullerton",CA,,,0,0,,,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Concordia University,QC,,,0,0,,,Y,8,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Western Michigan University,MI,,,0,0,,,Y,8,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Evergreen Valley College,CA,,,0,0,,,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,University of Lethbridge,AB,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Fresno City College,CA,,,0,0,,,Y,4,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Suffolk County Community College,NY,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Boston College Chestnut,MA,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Columbia University New,NY,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Wayne State University,MI,,,0,0,,,Y,4,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,El Paso Community College,TX,,,0,0,,,Y,7,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Fairfield University,CT,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Prince George's Community College,MD,,,0,0,,,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Kutztown Univ of Penn,PA,,,0,0,,,Y,5,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Virginia Western Community College,VA,,,0,0,,,Y,6,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Saint Louis University St.,MO,,,0,0,,,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Bucks County Community College,PA,,,0,0,,,Y,6,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Salem Community College,NJ,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Meredith College,NC,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,University of Tampa,FL,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,West Texas A&M University,TX,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Central Virginia Community College,VA,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Algonquin College,ON,,,0,0,,,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Wichita State University,KS,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,University of Regina,SK,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Cuesta College,CA,,,0,0,,,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Utah State University,UT,,,0,0,,,Y,6,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Essex County College,NJ,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Avila University Kansas,MO,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Creighton University,NE,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Yuba College,CA,,,0,0,,,Y,12,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,"Calif State U, Los Angeles Los",CA,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Wright State University,OH,,,0,0,,,Y,9,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Saddleback College,CA,,,0,0,,,Y,7,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Un of Massachusetts Amherst,MA,,,0,0,,,Y,5,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,York University,ON,,,0,0,,,Y,4,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Bentley University,MA,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,University of Indianapolis,IN,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,5,Mt. San Antonio College,CA,,,0,0,,,Y,7,0,,NEEDS_REVIEW,thin evidence; human review
-D,2,Anderson University IN,IN,,,0,0,,,,9,2,,NEEDS_REVIEW,thin evidence; human review
-D,0,CUNY Hunter College,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Lawrence Technological Univ,MI,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,University of The Cumberlands,KY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Puget Sound,,,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
-D,0,University of Iowa Iowa,IA,,,0,0,,,,6,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Durham Technical Community College,NC,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Calif St U-Dominguez Hills,CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Seneca Polytechnic,ON,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Western Carolina University,NC,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Casper College,WY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,New York Institute of Tech Old,NY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Prague University of Economics and Business,Prague,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Piedmont Virginia Community College,VA,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Valparaiso University,IN,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Illinois Wesleyan University,,,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
-D,0,University of Klagenfurt,AT,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Drury University,MO,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Weatherford College,TX,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,King's College,PA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,South Mountain Community College,AZ,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Cal Poly Humboldt,CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,SUNYat Plattsburgh,NY,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Metro Community College Ft Omaha E,NE,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Southeastern Louisiana Univ,LA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Northern State University,SD,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Youngstown State University,OH,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Widener University,PA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Hawaii at Hilo,HI,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Ursinus College,,,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
-D,0,Victoria College,TX,,,0,0,,,,4,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Humber Polytechnic,ON,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of St. Thomas-MN St.,MN,,,0,0,,,,4,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,University of Cincinnati-Main Campus,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Spelman College,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Harris-Stowe State Univ St.,MO,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Tama University,N/A,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Bellarmine University,KY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Montevallo,AL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Illinois Institute of Tech,IL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Kent,EX,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Univ of Michigan-Dearborn,MI,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,U.S. Coast Guard Academy New,CT,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Uof Arkansas at Little Rock Little,AR,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Lincoln University - California,CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Hamilton College,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Athens Technical College,GA,,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
-D,0,Bishop's University,QC,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Westminster College - Pennsylvania,PA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Indiana University Kokomo,IN,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Dalton State College,GA,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Barnard College,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,"City St George's, University of London",England,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,La Salle University,PA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Valdosta State University,GA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Stetson University,FL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Uof Arkansas at Pine Bluff Pine,AR,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,National Chengchi University,TW,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of South Alabama,AL,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Texas State Technical College,TX,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Penn State Wilkes-Barre,PA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,San Jose State University San,CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Northland Community and Technical College Thie River,MN,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Trinity University,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Southern State Community College,OH,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,University of Miami Coral,FL,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Virginia Poly Inst & St Un,VA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Germanna Community College,VA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Columbus State University,GA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Norfolk State University,VA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Rochester Inst of Technology,NY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Western Illinois University,IL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Pulaski Technical College,AR,,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
-D,0,University of Louisiana at Lafayette,LA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Iscte – Instituto Universitário de Lisboa,LX,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Chandler–Gilbert Community College,AZ,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Chipola College,FL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,William Paterson University,NJ,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Winona State University,MN,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Rutgers University-Newark,NJ,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Germanna Virginia Community College,VA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Boston University,MA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Yale University New,CT,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Evansville,IN,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Hobart William Smith Colleges,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Anderson University SC,SC,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Ozarks Technical Community College,MO,,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
-D,0,Naugatuck Valley Community College,CT,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Denison University,,,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
-D,0,Alma College,MI,,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
-D,0,King’s University College,ON,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Southeast College,SK,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,New York University New,NY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Los Angeles Southwest College,CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,San Jacinto College,TX,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Rockland Community College,NY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Penn State Mont Alto,PA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of California-Irvine,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,North Carolina Wilmington,NC,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Valley City State University,ND,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Evangel University,MO,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Clark University,MA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Claremont McKenna College,CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Babson College Babson,MA,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Francis Marion University,SC,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Howard Community College,MD,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,SUNY College at Geneseo,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Occidental College,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,SUNY College of Environmental Science and Forestry,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Mid-State Technical College,WI,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,"University of Nevada, Reno",NV,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Kenyon College,,,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
-D,0,Louisiana State University Alexandria,LA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Zane State College,OH,,,0,0,,,,9,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Bladen Community College,NC,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Tecnológico de Monterrey,NL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Laney College,CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Southern Utah University Cedar,UT,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Fontbonne University St.,MO,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Kettering University,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Universidad de Alcalá,Madrid,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Westmont College,CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Northwestern Polytechnic,AB,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Ithaca College,NY,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Yale University,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Georgia Institute of Tech,GA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Wesleyan University,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Purdue University W,IN,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Millsaps College,MS,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Indiana U-Purdue U Indy,IN,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Muskegon Community College,MI,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Loyola Marymount Univ Los,CA,,,0,0,,,,9,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Naval Postgraduate School,CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Western New Mexico University,NM,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Florida College,FL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Texas A&M University-Commerce,TX,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Pasadena City College,CA,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Maastricht University,NL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Thompson Rivers University,BC,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Miami Dade College,FL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Universidad Publica de Navarra,NA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Calif State U - San Marcos San,CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Webster University St.,MO,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Walla Walla Community College,WA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Menlo College,CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Shorter University,GA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Metropolitan Community College,NE,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Coimbra,PT,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,"Calif St U, San Bernardino S",CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,"Univ of Calif, Riverside",CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Yukon University,YT,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Univ of California San Diego La,CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Northwest Missouri St Univ,MO,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Anne Arundel Community College,MD,,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
-D,0,New Mexico Junior College,NM,,,0,0,,,,8,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Trevecca Nazarene University,TN,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Willamette University,OR,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of the West Indies,New Providence,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Rose-Hulman Institute of Technology,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Technical University of Liberec,CZ,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Three Rivers Community College,CT,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Ferris State University Big,MI,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Okanagan College,BC,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,"Calif State U, Stanislaus",CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,SUNYat Binghamton,NY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Wilkes University,PA,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Tulane University New,LA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,California State Polytechnic University-Pomona,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,James A. Rhodes State College,OH,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Northern Alberta Institute of Technology,AB,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,University of South Dakota,SD,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Schiller International University,FL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Centre College,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of the Pacific,CA,,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
-D,0,Greenville Technical College,SC,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Sheridan College,ON,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Univ of District of Columbia,DC,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Lone Star College,TX,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Alabama A&M University,AL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Marietta College,OH,,,0,0,,,,4,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Northern Virginia Community College,VA,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,California State University-Fresno,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Golden West College,CA,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Western Conn State Univ,CT,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,St. John's University,NY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Southeast Missouri St Univ C,MO,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Tuskegee University,AL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Cornell College,,,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
-D,0,Central Michigan University Mt.,MI,,,0,0,,,,4,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Abilene Christian Univ,TX,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Culver-Stockton College,MO,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Stony Brook University,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Columbia College,BC,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,North Carolina A&T State Un,NC,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Clarkson University,NY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of California-Merced,,,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
-D,0,Harding University,AR,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,John Carroll University,OH,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Illinois State University,IL,,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
-D,0,University at Buffalo,,,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
-D,0,Olympic College,WA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Parma,IT,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,"Auburn Univ, Montgomery",AL,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Indiana University of Pennsylvania,PA,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Uof Alabama in Huntsville,AL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Milwaukee School of Engineering,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Sault College,ON,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Wharton County Junior College,TX,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Collin College,TX,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Lower Columbia College,WA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Univ of Tennessee at Martin,TN,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of California-Riverside,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Texas A&M International University,TX,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Albion College,MI,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Aquinas College Grand,MI,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,University of Augsburg,Bavaria,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Commonweath Univ - Bloomsb,PA,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Coastline Community College,CA,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,University of St. Thomas-TX,TX,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Maryland College,MD,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Lawrence University,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,"Calif State Univ, Chico",CA,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,West Los Angeles College,CA,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,New Bulgarian University,BG,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Niagara University Niagara,NY,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Alaska Pacific University,AK,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,SUNY Polytechnic Institute,NY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Santa Clara University Santa,CA,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Cottey College,MO,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Virginia Commonwealth University,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Maryville Univ St. Louis St.,MO,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Odessa College,TX,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Trinity University San,TX,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Arkansas Northeastern College,AR,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,St. Edward's University,TX,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Ivy Technical Community College Kokomo S In Ivy Technical Community College Lafayette,IN,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Clayton State University,GA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,"Calif State Univ, Fresno",CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Portland State University,OR,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,New Jersey City University,NJ,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Clark Atlanta University,GA,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Emporia State University,KS,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,CUNY-Baruch College New,NY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Calvary Bible College,MO,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Portland,OR,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Nassau Community College,NY,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,"College at Brockport, SUNY",NY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Calvin College Grand,MI,,,0,0,,,,4,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,University of Houston - Victoria,TX,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Calif State Poly U-Pomona,CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,VSB - Technical University of Ostrava,CZ,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Albright College,PA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Johnston Community College,NC,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Arkansas Tech University,AR,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Univ of Central Arkansas,AR,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Univ of Colorado at Denver,CO,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Western University,ON,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Michigan State University East,MI,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Crowder College Neosho,MO,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Shoreline Community College,WA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Valencia College,FL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Rhode Island,RI,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Frostburg State University,MD,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,University of Hartford W,CT,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Saint Xavier University,IL,,,0,0,,,,4,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Weber State University,UT,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Long Island U.-LIU Post,NY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Louisiana St in Shreveport,LA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Alfred University,NY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Manhattan College,NY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Walsh College,MI,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Grand Valley State University Allendal,MI,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Bethune-Cookman University Daytona,FL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Miami Dade College Virtual Campu,FL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Tennessee,TN,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Drake University Des,IA,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Hope College,,,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
-D,0,Andrews University Berrien,MI,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,St. Mary's University San,TX,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Aurora University,IL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Notre Dame de Namur University,CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Seminole State College,OK,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Cooper Union for the Advancement of Science and Art,,,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
-D,0,Villanova University,PA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Uof Alabama at Birmingham,AL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Ivy Tech Community College,IN,,,0,0,,,,5,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,University of Minnesota Crookston,MN,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Arcadia University,PA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Truman State University,MO,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Mercer University,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Washington and Lee Univ,VA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,SUNYat New Paltz New,NY,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,SUNYat Buffalo,NY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Bryant University,RI,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,"Calif State U., Bakersfield",CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Saint Mary's College of CA,CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Regensburg,Bavaria,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Western New England Univ,MA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University at Albany-SUNY,NY,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,East Central University,OK,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,University of Detroit Mercy,MI,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Everett Community College,WA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,San Jose State University,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Minnesota St Univ Mankato,MN,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Uof Texas of Permian Basin,TX,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Colorado State Univ-Pueblo,CO,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Guelph-Humber,ON,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,College of the Siskiyous,CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Rensselaer Poly Institute,NY,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Black Hills State University,SD,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Colorado State University Fort,CO,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Rappahannock Community College,VA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Sonoma State University Rohnert,CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Ventura College,CA,,,0,0,,,,6,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,"Rutgers, The State University of New Jersey",NJ,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Worcester Polytechnic Inst,MA,,,0,0,,,,7,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,University of Hradec Králové,CZ,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Copenhagen Business School,Capital Region,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Marist College,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Southwest Tennessee Community College,TN,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Amsterdam,North Holland,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Clovis Community College,NM,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Comenius University Bratislava,SK,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Lourdes University,OH,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,East Georgia State College,GA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Simmons College,MA,,,0,0,,,,5,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Bow Valley College,AB,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Union College,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Guam,GU,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,University of North Carolina-Wilmington,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Bemidji State University,MN,,,0,0,,,,4,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Penn State Shenango,PA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Front Range Community College,CO,,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
-D,0,Fordham University New,NY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Kauai Community College,HI,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,William Jewell College,MO,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,The Citadel,SC,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Southwestern Oklahoma State University,OK,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Charleston Southern Univ,SC,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Barry University Miami,FL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Lander University,SC,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of San Diego San,CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Scranton,PA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Pepperdine Univ-Malibu,CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Virginia State University,VA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Illinois Institute of Technology,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Tennessee Technological Un,TN,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Bishop State Community College,AL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Utah Valley University,UT,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Lindenwood University Belleville,IL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Tallinn University of Technology,EE,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Catch-All University,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Fanshawe College,ON,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Emerson College,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Pepperdine Un-Los Angeles Los,CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Berry College Mount,GA,,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
-D,0,Arkansas State University Technical Center,AR,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Northern Illinois Univ,IL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of California-Santa Cruz,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Northampton Community College,PA,,,0,0,,,,4,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Colorado School of Mines,,,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
-D,0,Erasmus University Rotterdam,NH,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Northern Marianas College,MP,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,"Calif State Univ, Sacramento",CA,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,National Taiwan University,Taiwan,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Jackson College,MI,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Korea Advanced Institute of Science and Technology,Daejeon,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,National Chung Hsing University,Taiwan,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Coastal Carolina University,SC,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Wartburg College,IA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Dominican University River,IL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Mary,ND,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Athens State University,AL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Penn Western Univ-Clarion,PA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Murray State College Tishomingo,OK,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Fairleigh Dickinson Univ,NJ,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Univ of Louisiana at Monroe,LA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,"Calif State Univ, Northridge",CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,SUNY College at Oswego,NY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Bowling Green State Univ Bowling,OH,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Los Angeles Valley College,CA,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,National Taipei University,TW,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Tartu,EE,,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
-D,0,Stevens Institute of Technology,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Niagara College,ON,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Uof Missouri - Columbia,MO,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,New Mexico State University,NM,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Mount Olive,NC,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,College of Micronesia-FSM,FM,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Rochester,NY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Brookdale Community College,NJ,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Adams State University,CO,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,"Calif State Univ, East Bay",CA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Univ of Northern Colorado,CO,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of West Florida,FL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Babson College,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Northwest College,WY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Adelphi University Garden,NY,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Galveston College,TX,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Belmont University,TN,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Thomas Nelson Community College,VA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,County College of Morris,NJ,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Reedley College,CA,,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
-D,0,University of Mobile,AL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Lindenwood University St.,MO,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Indiana State University Terre,IN,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Poznań University of Economics and Business,GP,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,SGH Warsaw School of Economics,MZ,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Quincy College,MA,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,University of Saskatchewan,SK,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Augustana College IL Rock,IL,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Amberton University,TX,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,City Vision University,MO,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,California State University-Fullerton,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Guelph,ON,,,0,0,,,,6,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Atlanta Technical College,GA,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Dayton,OH,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of New Mexico Albuquerque F,NM,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Seward County Community College,KS,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Minneapolis Community and Technical College,MN,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,Rogers State University,OK,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Arkansas State University-Newport,AR,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,University of Lausanne,VD,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Universidade Lusófona,Lisbon,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,University of Memphis,TN,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
-D,0,National Cheng Kung University,TW,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
-D,0,Lansing Community College,MI,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+target_tier,target_score,campus,state,course_code,greek_pct,greek_chapters,greek_elig,live_picker,doc_confirmed_profs,doc_likely_profs,exam1_chapters,textbook,syllabus,documents,high_value,market_priority,intel_status,recommended_action
+A,128,Louisiana State University,LA,ACCT 2001,41,45,eligible,Y,1,2,1-5,Y,Y,14,0,,COMPLETE,TARGET NOW — strong Greek + prof + exam map
+A,117,University of Florida,FL,ACG 2021,43,63,eligible,Y,1,0,1-5,,Y,20,2,,NEEDS_REVIEW,TARGET NOW — strong Greek + prof + exam map
+A,113,University of Arkansas,AR,ACCT 2013,64,49,eligible,Y,0,4,1-24,Y,Y,14,0,,COMPLETE,HIGH — strong Greek + course intel; outreach
+A,108,University of South Carolina,SC,ACCT 225,66,65,eligible,Y,0,2,1-7,Y,Y,20,0,,NEEDS_REVIEW,HIGH — strong Greek + course intel; outreach
+A,98,The University of Texas at Austin,TX,ACC 311,31,,eligible,,1,10,1-13,Y,Y,14,0,,COMPLETE,TARGET NOW — strong Greek + prof + exam map
+A,95,University of Georgia,GA,ACCT 2101,57,67,eligible,Y,3,3,,,Y,8,0,,NEEDS_REVIEW,HIGH — strong Greek + course intel; outreach
+A,95,University of Kentucky,KY,ACC 201,48,57,eligible,Y,2,0,,,Y,18,0,,NEEDS_REVIEW,HIGH — strong Greek + course intel; outreach
+A,89,Ball State University,IN,ACC 201,,28,,,3,0,1-2,Y,Y,8,1,,COMPLETE,TARGET NOW — strong Greek + prof + exam map
+A,89,Florida Atlantic University,FL,ACG 2021,18,27,eligible,,1,2,1-8,Y,Y,13,1,,COMPLETE,TARGET NOW — strong Greek + prof + exam map
+A,88,De Anza College,CA,ACCT 1A,,29,,,4,5,1-4,Y,Y,25,0,,COMPLETE,TARGET NOW — strong Greek + prof + exam map
+A,88,Western Kentucky University,KY,ACCT 200,,33,,,1,6,1-4,Y,Y,23,0,,COMPLETE,TARGET NOW — strong Greek + prof + exam map
+A,88,Austin Community College,TX,ACCT 2301,,58,,,1,12,1-7,Y,Y,16,0,,COMPLETE,TARGET NOW — strong Greek + prof + exam map
+A,83,Stephen F. Austin State University,TX,ACCT 2301,,33,,,2,5,1-6,Y,Y,9,0,,NEEDS_REVIEW,TARGET NOW — strong Greek + prof + exam map
+A,80,New York University,NY,ACCT-UB 1,9,16,eligible,,8,3,1-4,Y,Y,12,0,,COMPLETE,TARGET NOW — strong Greek + prof + exam map
+A,76,University of Texas at El Paso,TX,ACCT 2301,,10,,,3,6,1-4,Y,Y,15,0,,NEEDS_REVIEW,TARGET NOW — strong Greek + prof + exam map
+A,75,Gustavus Adolphus College,,B/E 110,24,3,eligible,,1,2,1-6,,Y,15,0,,NEEDS_REVIEW,TARGET NOW — strong Greek + prof + exam map
+A,75,Florida State College at Jacksonville,FL,,43,,eligible,,1,0,1-4,,Y,10,0,,NEEDS_REVIEW,TARGET NOW — strong Greek + prof + exam map
+B,74,James Madison University,VA,COB 241,,46,,,0,4,1-16,Y,Y,9,1,,COMPLETE,HIGH — strong Greek + course intel; outreach
+B,73,Univ No Carolina Greensboro,NC,ACC 201,,,,,1,1,1-3,Y,Y,9,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
+B,73,Oral Roberts University,OK,ACT 215,,,,,1,4,1-4,Y,Y,11,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
+B,73,King's College - Pennsylvania,PA,ACCT 115,,,,,1,16,1-7,Y,Y,25,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
+B,73,Cerritos College,CA,ACCT 101,,36,,,0,4,13-15,Y,Y,17,0,,COMPLETE,HIGH — strong Greek + course intel; outreach
+B,71,Texas A&M University,TX,ACCT 229,,63,eligible,Y,0,2,,,Y,15,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
+B,70,University of Mississippi,MS,ACCY 201,91,37,eligible,Y,0,0,,,Y,9,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+B,70,Mississippi State University,MS,ACC 2013,49,43,eligible,Y,0,0,,,Y,19,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+B,70,Vanderbilt University,TN,BUS 1100,52,39,eligible,Y,0,0,,,Y,9,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+B,70,"University of Tennessee, Knoxville",TN,ACCT 200,57,59,eligible,Y,0,0,,,Y,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+B,67,Doane University,NE,ACC 103,,20,,,0,4,1-12,Y,Y,12,1,,COMPLETE,HIGH — strong Greek + course intel; outreach
+B,67,University of Oklahoma,OK,ACCT 2113,59,55,eligible,Y,0,0,,,,21,2,,NEEDS_REVIEW,course known; needs prof + exam evidence
+B,66,The University of Texas at Arlington,TX,ACCT 2301,,21,,,0,3,1-3,Y,Y,7,0,,COMPLETE,HIGH — strong Greek + course intel; outreach
+B,65,Auburn University,AL,ACCT 2110,74,56,eligible,Y,0,0,,,,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+B,65,University of Missouri,MO,ACCTCY 2026,55,62,eligible,Y,0,0,,,,6,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+B,64,Drexel University,PA,ACCT 115,19,30,eligible,,0,1,1-3,,Y,6,4,,NEEDS_REVIEW,HIGH — strong Greek + course intel; outreach
+B,63,University of Utah Salt Lake,UT,,,,,,5,1,12-14,Y,Y,10,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
+B,63,North Central Texas College,TX,,,,,,4,0,1-4,Y,Y,9,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
+B,63,University of Toronto,ON,,,,,,3,3,1-12,Y,Y,6,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
+B,63,Seminole State College of Florida,FL,ACG 2021,,54,,,2,0,,Y,Y,3,0,,NEEDS_REVIEW,HIGH — strong Greek + course intel; outreach
+B,63,Rice University,TX,,,,,,2,7,1-3,Y,Y,9,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
+B,63,University of Montana,MT,,,,,,1,8,8-14,Y,Y,10,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
+B,63,Texas A&M Univ-Texarkana,TX,,,,,,1,2,7-8,Y,Y,16,0,,COMPLETE,HIGH — confirmed prof + exam map; ready for outreach
+B,63,University of North Carolina at Charlotte,NC,ACCT 2121,15,33,eligible,,0,0,1-4,Y,Y,16,0,,COMPLETE,HIGH — strong Greek + course intel; outreach
+B,61,City College of San Francisco,CA,ACCT 1,,12,,,4,5,,Y,Y,15,0,,COMPLETE,HIGH — strong Greek + course intel; outreach
+B,61,Florida Gulf Coast University,FL,ACG 2021,,18,,,0,1,1-16,Y,Y,7,0,,NEEDS_REVIEW,HIGH — strong Greek + course intel; outreach
+B,60,"University of Nevada, Las Vegas",NV,ACC 201,,29,,,0,1,1-3,,Y,23,0,,NEEDS_REVIEW,HIGH — strong Greek + course intel; outreach
+B,58,Univ of California-Davis,CA,,,,,,4,5,1-7,Y,Y,18,0,,NEEDS_REVIEW,HIGH — confirmed prof + exam map; ready for outreach
+B,58,University of North Georgia,GA,ACCT 2101,,,,,0,1,1-2,Y,Y,13,0,,COMPLETE,exam map known; find professor (Pass B)
+B,58,Binghamton University,NY,ACCT 211,32,49,eligible,,0,1,,Y,,14,0,,COMPLETE,course known; needs prof + exam evidence
+B,58,Bradley University,IL,ATG 157,,1,,,0,2,1-4,Y,Y,15,0,,COMPLETE,exam map known; find professor (Pass B)
+B,55,University of West Georgia,GA,ACCT 2101,,28,,,5,0,,,Y,19,0,,NEEDS_REVIEW,HIGH — strong Greek + course intel; outreach
+B,55,University of North Texas,TX,ACCT 2010,,40,,,1,0,,,Y,29,0,,NEEDS_REVIEW,HIGH — strong Greek + course intel; outreach
+B,55,The University of Texas at San Antonio,TX,ACC 2013,,28,,,1,0,,,Y,12,0,,NEEDS_REVIEW,HIGH — strong Greek + course intel; outreach
+B,55,University of Alabama,AL,AC 210,14,71,eligible,Y,0,0,,,,4,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+B,53,Florida International University,FL,ACG 2021,,34,eligible,,0,4,,Y,Y,11,0,,COMPLETE,course known; needs prof + exam evidence
+B,51,American University,DC,ACCT 240,,28,eligible,,3,12,,,,11,1,,NEEDS_REVIEW,HIGH — strong Greek + course intel; outreach
+B,51,Northwestern State University,LA,ACCT 2000,32,18,eligible,,0,2,,,Y,8,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
+B,50,Rochester Institute of Technology,NY,ACCT 110,18,27,eligible,,1,1,,,,8,0,,NEEDS_REVIEW,HIGH — strong Greek + course intel; outreach
+B,50,George Mason University,VA,ACCT 203,7,35,eligible,,0,0,1-18,Y,Y,6,0,,NEEDS_REVIEW,HIGH — strong Greek + course intel; outreach
+B,48,Wayland Baptist University,TX,ACCT 2305,,,,,2,4,,Y,Y,21,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+B,48,Wilmington College,OH,EC 238,,2,,,1,0,,Y,Y,2,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+B,48,University of Maine,ME,,,,,,0,1,1-4,Y,Y,6,0,,COMPLETE,thin evidence; human review
+B,48,University of Akron,OH,,,,,,0,8,1-3,Y,Y,8,0,,COMPLETE,thin evidence; human review
+B,48,CUNY-Brooklyn College,NY,,,,,,0,2,8-9,Y,Y,5,0,,COMPLETE,thin evidence; human review
+B,48,Washburn University,KS,,,,,,0,4,1-13,Y,Y,7,0,,COMPLETE,thin evidence; human review
+B,48,Prairie View A&M University,TX,,,,,,0,7,1-4,Y,Y,14,0,,COMPLETE,thin evidence; human review
+C,47,University of Illinois Chicago,IL,ACTG 210,8,28,eligible,,4,4,,,Y,10,0,,NEEDS_REVIEW,HIGH — strong Greek + course intel; outreach
+C,47,University of Wisconsin–Milwaukee,WI,BUS ADM 201,,17,,,0,5,,Y,Y,9,1,,COMPLETE,course known; needs prof + exam evidence
+C,47,Trinity College,,2001,,12,eligible,,0,4,,Y,Y,9,1,,COMPLETE,course known; needs prof + exam evidence
+C,46,University of Wisconsin–Oshkosh,WI,ACCT 206,,17,,,0,1,,Y,Y,16,0,,COMPLETE,course known; needs prof + exam evidence
+C,45,Sul Ross State University,TX,,,,,,2,0,1-4,,,8,0,,NEEDS_REVIEW,HIGH — confirmed prof + exam map; ready for outreach
+C,45,Dakota College at Bottineau,ND,,,,,,1,1,14-14,,,3,0,,NEEDS_REVIEW,HIGH — confirmed prof + exam map; ready for outreach
+C,45,Tennessee State University,TN,ACCT 2010,,,,,0,1,1-8,,Y,16,0,,NEEDS_REVIEW,exam map known; find professor (Pass B)
+C,44,University of Houston - Downtown,TX,ACC 2301,,36,,,0,1,,Y,,14,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,43,McMaster University,ON,,,,,,4,4,,Y,Y,3,0,,COMPLETE,confirmed prof; parse/verify exam map next
+C,43,University of Genoa,IT,,,,,,3,2,,Y,Y,6,0,,COMPLETE,confirmed prof; parse/verify exam map next
+C,43,Mercer University-Macon,GA,ACC 204,,,,,3,1,,Y,,9,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,43,Nagoya University,OH,,,,,,2,2,,Y,Y,8,0,,COMPLETE,confirmed prof; parse/verify exam map next
+C,43,Waseda University,JP,,,,,,2,2,,Y,Y,8,0,,COMPLETE,confirmed prof; parse/verify exam map next
+C,43,South Plains College,TX,,,,,,1,2,,Y,Y,10,0,,COMPLETE,confirmed prof; parse/verify exam map next
+C,43,Univ of Hawaii at Manoa,HI,,,,,,0,1,1-3,Y,Y,15,0,,NEEDS_REVIEW,thin evidence; human review
+C,43,Eastern Illinois Univ,IL,,,,,,0,3,1-5,Y,Y,7,0,,NEEDS_REVIEW,thin evidence; human review
+C,43,Yeshiva University New,NY,,,,,,0,2,1-4,Y,Y,8,0,,NEEDS_REVIEW,thin evidence; human review
+C,43,Pratt Institute-Main,,ACCT-1971,,3,eligible,,0,7,,Y,Y,12,1,,COMPLETE,course known; needs prof + exam evidence
+C,41,Rhode Island College,RI,ACCT 201,52,6,eligible,,0,0,,,Y,10,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,41,Missouri State University,MO,ACC 201,,31,,,0,2,,,Y,21,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,40,Kent State University,OH,ACCT 23020,,1,,,1,10,,,Y,12,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,40,Howard University,DC,ACCT 201,2,6,eligible,,0,2,,Y,Y,18,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,40,University of Southern Mississippi,MS,ACC 200,117,28,eligible,,0,0,,,Y,15,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,40,Orange Coast College,CA,ACCT A101,,28,,,0,15,,,Y,12,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,39,Colorado College,,BU205,,6,eligible,,6,4,,,,15,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,38,Tulsa Community College,OK,,,14,,,6,0,,,Y,4,0,,NEEDS_REVIEW,HIGH — strong Greek + course intel; outreach
+C,38,Stanford University,CA,,,23,,,2,3,,,Y,4,0,,NEEDS_REVIEW,HIGH — strong Greek + course intel; outreach
+C,38,Memorial University of Newfoundland,NL,,,,,,1,0,,Y,Y,8,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,38,University of Chicago,IL,,,1,,,1,0,,Y,,1,0,,COMPLETE,confirmed prof; parse/verify exam map next
+C,38,Northern Arizona University,AZ,ACC 255,,,,,0,2,,Y,Y,8,0,,COMPLETE,course known; needs prof + exam evidence
+C,38,University of North Dakota Grand,ND,,,,,,0,0,1-4,Y,Y,3,0,,COMPLETE,thin evidence; human review
+C,38,Massachusetts Inst of Tech,MA,15.501,,,,,0,1,,Y,Y,18,0,,COMPLETE,course known; needs prof + exam evidence
+C,37,"University of California, Los Angeles",CA,MGMT 1A,,,eligible,,0,1,,Y,Y,29,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,35,Penn State University Univ,PA,ACCTG 201,,,,,1,0,,,,12,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,35,Hanover College,,BSP 325,76,8,eligible,,0,0,,,,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,35,Muhlenberg College,,ACT 101,44,10,eligible,,0,0,,,,0,0,,FAILED,course known; needs prof + exam evidence
+C,35,Grove City College,,ACCT 201,37,,eligible,,0,0,,,,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,35,Davidson College,,ECO 211,62,10,eligible,,0,0,,,,0,0,,WAITING_FOR_PROFESSORS,course known; needs prof + exam evidence
+C,35,The College of Wooster,,BUEC 11900,100,2,eligible,,0,0,,,,0,0,,FAILED,course known; needs prof + exam evidence
+C,35,College of Charleston,,ACC101,45,32,eligible,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+C,35,Furman University,SC,ACC 111,69,15,eligible,,0,0,,,,3,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,35,St. Lawrence University,,ACC-203,32,6,eligible,,0,0,,,,2,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,35,Allegheny College,,ECON 285,37,12,eligible,,0,0,,,,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,35,Eastern Michigan University,MI,ACC 240,26,25,eligible,,0,0,,,,16,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,35,Delaware Valley University,PA,ACC 1101,45,2,eligible,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+C,34,Johns Hopkins University,MD,EN.660.203,,25,,,0,0,,,Y,7,4,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,33,University of Illinois,IL,,,,,,4,0,,Y,,4,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,33,Utah Tech University,UT,ACCT 2010,19,18,eligible,,0,0,,Y,,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,33,Rollins College Winter,FL,ACC 501,,,,,0,2,,Y,Y,2,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,33,Dominican Univ of Calif San,CA,ACCT 101,,,,,0,4,,Y,Y,7,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,33,Salisbury University,MD,ACCT 201,,12,,,0,1,,,Y,10,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,32,University of Louisville,KY,ACCT 201,24,32,eligible,,0,0,,,Y,13,2,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,30,"Calif State Univ, Long Beach Long",CA,,,,,,12,3,,,Y,5,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,30,Foothill College,CA,,,,,,6,0,,,Y,6,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,30,Lakeland Community College,OH,,,,,,3,0,,,Y,1,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,30,Simon Fraser University,BC,,,,,,3,0,,,Y,6,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,30,Univ of Central Oklahoma,OK,,,,,,3,0,,,Y,2,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,30,University of Alberta,AB,,,,,,1,0,,,Y,3,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,30,Washington University St.,MO,,,,,,1,0,,,Y,4,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,30,University of Northern Iowa Cedar,IA,,,,,,1,0,,,Y,4,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,30,Carleton University,ON,,,,,,1,3,,,Y,10,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,30,Purdue University-Main Campus,,,30,61,eligible,,0,0,,,Y,6,0,,NEEDS_REVIEW,thin evidence; human review
+C,30,Dallas Baptist University,TX,ACCT 2301,,51,,,0,0,,,Y,10,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,30,Bryant & Stratton College,NY,ACCT 100,17,10,eligible,,0,0,,,Y,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,30,Indiana University Indianapolis,IN,BUS-A 201,,19,,,0,1,,,,18,2,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,30,University of Toledo,OH,ACCT 2100,,25,,,0,0,,,Y,24,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,30,University of Wisconsin–Madison,WI,ACCT IS 100,17,60,eligible,,0,0,,,Y,16,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,30,Tufts University,,BUS 1101,24,13,eligible,,0,0,,,Y,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,30,Chabot College,CA,BUS 1A,,36,,,0,0,,,Y,12,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,28,Universidad Carlos III de Madrid,MD,,,,,,0,1,,Y,Y,7,0,,COMPLETE,thin evidence; human review
+C,28,New Jersey In of Technology,NJ,,,,,,0,5,,Y,Y,7,0,,COMPLETE,thin evidence; human review
+C,28,Troy University,AL,ACT 2291,,23,,,0,1,,,,31,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,28,University of Exeter,EX,,,,,,0,7,,Y,Y,6,0,,COMPLETE,thin evidence; human review
+C,28,Dartmouth College,NH,,,,,,0,2,,Y,Y,2,0,,COMPLETE,thin evidence; human review
+C,28,Augusta University,GA,,,,,,0,5,,Y,Y,4,0,,COMPLETE,thin evidence; human review
+C,28,College of the Redwoods,CA,,,,,,0,4,,Y,Y,5,0,,COMPLETE,thin evidence; human review
+C,28,Texas Christian University Fort,TX,,,,,,0,1,,Y,Y,6,0,,COMPLETE,thin evidence; human review
+C,28,University of Waterloo,ON,,,,,,0,2,,Y,Y,6,0,,COMPLETE,thin evidence; human review
+C,28,DePaul University,IL,,,,,,0,6,,Y,Y,5,0,,COMPLETE,thin evidence; human review
+C,28,University of New Orleans New,LA,,,,,,0,2,,Y,Y,3,0,,COMPLETE,thin evidence; human review
+C,27,Knox College,IL,BUS 211,8,,eligible,,0,1,,,,7,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,26,Adrian College,MI,,,,,,2,0,,,,4,1,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,26,Towson University,MD,ACCT 201,,27,,,0,0,,,,18,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,25,Brandeis University,MA,BUS 6a,,8,no_social_greek,,3,4,,,Y,14,0,,NEEDS_REVIEW,HIGH — strong Greek + course intel; outreach
+C,25,Owensboro Community and Technical College,KY,,,,,,2,0,,,,1,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,25,Santa Rosa Junior College,CA,,,7,,,2,0,,,,3,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,25,Jefferson Community and Technical College,KY,,,,,,2,0,,,,1,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,25,Somerset Community College,KY,,,,,,2,0,,,,1,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,25,Uof California-Berkeley,CA,,,,,,1,1,,,,3,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,25,Boise State University,ID,,,,,,1,0,,,,5,0,,NEEDS_REVIEW,confirmed prof; parse/verify exam map next
+C,25,Jacksonville State University,AL,ACC 200,,20,,,0,0,,,Y,17,2,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,25,University of Puget Sound,,,36,9,eligible,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
+C,25,Illinois Wesleyan University,,,38,12,eligible,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
+C,25,Ursinus College,,,25,3,eligible,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
+C,25,Hamilton College,,,25,11,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+C,25,University of Delaware,DE,ACCT 207,,53,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+C,25,Old Dominion University,VA,ACCT 201,,32,,,0,0,,,,18,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,25,Trinity University,,,27,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+C,25,Florida Institute of Technology,,EAC 2211,12,14,eligible,,0,0,,,,0,0,,FAILED,course known; needs prof + exam evidence
+C,25,Denison University,,,53,25,eligible,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
+C,25,Kennesaw State University,GA,ACCT 2101,,29,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+C,25,SUNY College at Geneseo,,,36,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+C,25,Northeastern University,MA,ACCT 1201,14,29,eligible,,0,0,,,,6,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,25,Kenyon College,,,48,9,eligible,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
+C,25,Kettering University,,,25,17,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+C,25,Cedar Crest College,PA,ACC 101,,37,,,0,0,,,,2,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,25,Catawba College,NC,ACC 1901,,29,,,0,0,,,,3,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,25,Rose-Hulman Institute of Technology,,,58,11,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+C,25,James A. Rhodes State College,OH,,67,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+C,25,Centre College,,,105,11,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+C,25,Cornell College,,,48,61,eligible,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
+C,25,Indiana University Northwest,IN,BUS-A 201,,61,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+C,25,Ivy Technical Community College Kokomo S In Ivy Technical Community College Lafayette,IN,,59,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+C,25,Sam Houston State University,TX,ACCT 2301,,29,,,0,0,,,,18,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,25,Hope College,,,34,2,eligible,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
+C,25,Mercer University,,,43,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+C,25,University of Massachusetts Dartmouth,MA,ACT 211,,54,,,0,0,,,,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,25,Columbia International University,SC,ACC 2101,,21,,,0,0,,,Y,3,2,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,25,Southwestern Oklahoma State University,OK,,63,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+C,25,University of Redlands,,ACCT210,12,19,eligible,,0,0,,,,0,0,,FAILED,course known; needs prof + exam evidence
+C,25,Loyola University Chicago,IL,ACCT 201,13,13,eligible,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+C,25,University of North Texas at Dallas,TX,ACCT 2301,,41,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+C,25,Parkland College,IL,BUS 121,,64,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+C,25,Grambling State University,LA,ACCT 201,,39,,,0,0,,,,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+C,25,Colorado School of Mines,,,34,11,eligible,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
+C,25,Lake Forest College,,BUSN230,13,7,eligible,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+C,25,Stevens Institute of Technology,,,31,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+C,25,Babson College,,,28,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+C,25,Nelson University,TX,ACC 2213,,25,,,0,0,,,,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,24,North Dakota State University,ND,ACCT 200,,15,,,0,0,,,Y,24,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,24,Penn State York,PA,ACCTG 211,,14,,,0,0,,,Y,14,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,23,Grand Valley State Univ Grand,MI,ACC 212,,,,,0,0,,Y,Y,16,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,23,Uof Minnesota Duluth,MN,,,,,,0,1,,Y,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,23,University of Michigan Ann,MI,,,,,,0,1,,Y,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,23,Central Connecticut St Univ New,CT,,,,,,0,1,,Y,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,23,East Texas A&M University,TX,ACCT 2301,,17,,,0,0,,,Y,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,23,Univ of Nebraska-Lincoln,NE,,,,,,0,2,,Y,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,23,Chapman University,CA,,,,,,0,1,,Y,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,23,Fullerton College,CA,ACCT 101AF,,22,,,0,0,,,Y,9,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,23,Walla Walla University,WA,ACCT 201,,8,,,0,0,,,Y,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,23,Community College of Baltimore County,MD,ACCT 101,,19,,,0,0,,,Y,2,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,23,Northeast Texas Community College,TX,,,,,,0,1,,Y,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,23,University of Southern Indiana,IN,ACCT 201,,12,,,0,0,,,Y,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,22,Thomas Jefferson University,,ACCT 101,4,4,eligible,,0,0,,,Y,20,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,22,University of North Carolina at Greensboro,NC,ACC 201,0.14,18,eligible,,0,0,,,Y,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,22,University of Vermont,VT,BUS 1610,11,16,eligible,,0,0,,,Y,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,22,University of Houston,TX,ACCT 2301,6,34,eligible,,0,0,,,Y,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,22,University of North Carolina at Asheville,,ACCT 215,2,4,eligible,,0,0,,,Y,2,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,21,"University of California, Santa Barbara",CA,ECON 3A,,,eligible,,0,0,,,Y,11,2,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,20,Canisius College,NY,ACC 201,,1,,,0,3,,,,17,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,20,Marquette University,,ACCO 1030,,15,eligible,,0,0,,,,13,2,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,20,Elon University,NC,ACC2010,,,,,0,1,,,,2,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,20,Rutgers University-Camden,NJ,52:010:101,,,,,0,1,,,,13,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,20,"So Illinois, Edwardsville",IL,ACCT 200,,,,,0,1,,,,15,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,20,Azusa Pacific University,CA,ACCT 210,,10,,,0,0,,,,3,2,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,19,Albany State University,GA,ACCT 2101,,10,,,0,0,,,,16,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,19,Lamar University,TX,ACCT 2301,,16,,,0,0,,,,14,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,19,Montana State University,MT,ACTG 201,,10,,,0,0,,,,17,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,19,Georgia State University,GA,ACCT 2101,,21,eligible,,0,0,,,,8,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,18,Erskine College,SC,BA 221,,8,,,0,0,,,,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,18,Rockhurst University,MO,AC 2010,,9,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,18,Chaffey College,CA,ACCTG 1A,,8,,,0,0,,,,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,18,Texas State University,TX,ACC 2361,,24,,,0,0,,,,10,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,18,Claflin University,SC,ACCT 210,,8,,,0,0,,,,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,18,University of South Carolina Upstate,SC,ACCT U225,,12,,,0,0,,,,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,18,University of Missouri–St. Louis,MO,ACCTNG 2400,,8,,,0,0,,,,10,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,18,College of the Rockies,BC,,,,,,0,0,,Y,Y,7,0,,COMPLETE,thin evidence; human review
+D,18,Indiana University Southeast,IN,BUS-A 201,,8,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,18,Franklin University,OH,,,,,,0,0,,Y,Y,8,0,,COMPLETE,thin evidence; human review
+D,18,Concord University,WV,ACCT 205,,8,,,0,0,,,,12,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,18,The University of Texas at Dallas,TX,ACCT 2301,,23,eligible,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,18,Jacksonville University,FL,ACCT 201,,11,,,0,0,,,,3,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,18,Augsburg University,MN,ACC 221,,16,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,18,George Brown College,ON,,,,,,0,0,,Y,Y,3,0,,COMPLETE,thin evidence; human review
+D,18,Arkansas State University,AR,ACCT 2023,,22,eligible,,0,0,,,,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,18,The University of Texas Rio Grande Valley,TX,ACCT 2301,,8,,,0,0,,,,17,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,18,College of New Caledonia,BC,,,,,,0,0,,Y,Y,7,0,,COMPLETE,thin evidence; human review
+D,18,Langara College,BC,,,,,,0,0,,Y,Y,7,0,,COMPLETE,thin evidence; human review
+D,18,Ohio Northern University,OH,BIZ 2101,,11,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,18,Savannah State University,GA,ACCT 2101,,9,,,0,0,,,,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,18,Texas Woman's University,TX,ACCT 2043,,8,,,0,0,,,,6,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,18,Cleveland State University,OH,ACT 221,,16,,,0,0,,,,18,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,18,University of North Alabama,AL,AC 291,,17,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,18,Hawaii Pacific University,HI,ACCT 2000,,19,,,0,0,,,,6,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,18,Bay Path University,MA,ACC 100,,13,,,0,0,,,,3,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,18,Loyola University New Orleans,LA,ACCT B202,,13,,,0,0,,,,12,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,17,Morehouse College,GA,HBA 201,10,5,eligible,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,17,John Brown University,AR,ATG 2173,6,,eligible,,0,0,,,,12,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,17,Catholic University of America,,ACCT-205,1,1,eligible,,0,0,,,,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,17,Washington College,,BUS 112,10,7,eligible,,0,0,,,,4,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,17,University of South Florida,FL,ACG 2021,6,39,eligible,,0,0,,,,12,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,17,University of Massachusetts Lowell,MA,ACCT.2010,6,5,eligible,,0,0,,,,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,16,San Diego State University San,CA,ACCT 100,,,,,0,0,,,Y,15,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,16,Penn State New Kensington,PA,ACCTG 211,,,,,0,0,,,Y,14,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,16,Penn State Abington,PA,ACCTG 211,,,,,0,0,,,Y,15,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,16,Penn State Berks,PA,ACCTG 211,,,,,0,0,,,Y,16,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,16,Liberty University,VA,ACCT 211,,3,,,0,0,,,Y,18,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,16,Penn State Brandywine,PA,ACCTG 211,,,,,0,0,,,Y,11,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,15,Campbellsville University,KY,ACC 221,,6,,,0,0,,,Y,7,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,15,University of Cincinnati-Main Campus,,,16,50,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,15,Florida Southern College,FL,,,,,,0,1,,,Y,8,0,,NEEDS_REVIEW,thin evidence; human review
+D,15,Fayetteville State Univ,NC,ACCT 211,,,,,0,0,,,Y,20,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,15,Johnson County Community College,KS,ACCT 121,,,,,0,0,,,Y,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,15,Texas Wesleyan University Fort,TX,ACC 2303,,,,,0,0,,,Y,23,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,15,Univ of Alaska Southeast,AK,ACCT S201,,,,,0,0,,,Y,16,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,15,Hobart William Smith Colleges,,,16,7,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,15,Community College of Rhode Island,RI,,,,,,0,10,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,15,Harrisburg Area Community College,PA,,,,,,0,1,,,Y,5,0,,NEEDS_REVIEW,thin evidence; human review
+D,15,"Univ of Calif, Irvine",CA,MGMT 30A,,,,,0,0,,,Y,8,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,15,Samford University,AL,ACCT 211,,,,,0,0,,,Y,19,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,15,Xavier University,OH,,,,,,0,2,,,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,15,Duquesne University,PA,ACCT 214,,,,,0,0,,,Y,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,15,Virginia Commonwealth,VA,,,,,,0,3,,,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,15,East Tennessee State Univ Johnson,TN,,,,,,0,1,,,Y,6,0,,NEEDS_REVIEW,thin evidence; human review
+D,15,Milwaukee School of Engineering,,,17,4,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,15,Uof Arkansas at Monticello,AR,,,,,,0,5,,,Y,7,0,,NEEDS_REVIEW,thin evidence; human review
+D,15,Calumet College of Saint Joseph,IN,ACCT 210,,7,,,0,0,,,Y,3,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,15,Queens Univ of Charlotte,NC,ACC 120,,,,,0,0,,,Y,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,15,Governors State University,IL,,,,,,0,9,,,Y,10,0,,NEEDS_REVIEW,thin evidence; human review
+D,15,University of Houston - Clear Lake,TX,ACCT 2301,,,,,0,0,,,Y,4,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,15,Linfield College,OR,BNAC 260,,,,,0,0,,,Y,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,15,Union College,,,22,17,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,15,University of North Carolina-Wilmington,,,19,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,15,Illinois Institute of Technology,,,18,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,15,Pace University New,NY,ACC 203,,,,,0,0,,,Y,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,15,State Un College at Geneseo,NY,ACCT 102,,,,,0,0,,,Y,13,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,15,McGill University,QC,,,,,,0,2,,,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,15,Case Western Reserve Univ,OH,,,,,,0,1,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,15,Tennessee at Chattanooga,TN,ACC 2010,,,,,0,0,,,Y,13,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,15,Modesto Junior College,CA,,,,,,0,1,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,14,University of Richmond,VA,,,,,,0,0,,Y,,9,1,,COMPLETE,thin evidence; human review
+D,13,Oxnard College,CA,,,,,,0,0,,Y,Y,11,0,,NEEDS_REVIEW,thin evidence; human review
+D,13,Lewis and Clark Community College,IL,,,,no_social_greek,,0,2,,Y,Y,3,0,,COMPLETE,low priority — no social Greek (weak channel)
+D,13,East Central College,MO,ACC 102,,,,,0,0,,,,10,3,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,13,Nashville State Community College,TN,,,,,,0,0,,Y,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,11,Saint Joseph's University,PA,ACC 101,,,,,0,0,,,,6,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,11,Temple University,PA,ACCT 2101,,,,,0,0,,,,15,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,11,Idaho State University,ID,ACCT 2201,,,,,0,0,,,,16,1,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Montana State Univ-Billings,MT,ACTG 201,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,University of New Hampshire,NH,ACCT 532,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Missouri Southern St Univ,MO,ACCT 0201,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Univ of Central Florida,FL,ACC 201,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Park University,MO,AC 201,,,,,0,0,,,,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Southern Illinois Univ,IL,ACCT250,,,,,0,0,,,,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Southeastern Oklahoma St,OK,ACCT-2103,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Texas A&M - Corpus Christi Corp,TX,ACCT 2301,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Michigan Technological Univ,MI,ACC 2000,,,,,0,0,,,,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Carson Newman University,TN,ACCT 201,,,,,0,0,,,,12,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,SUNY Fredonia,NY,ACCT 201,,7,,,0,0,,,,18,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Northeastern Illinois Univ,IL,ACTG-201,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Georgian Court University,NJ,AC211,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Siena College,NY,ACCT - 200,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,East Carolina University,NC,ACCT 2401,,1,,,0,0,,,,17,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Radford University,VA,ACTG 211,,1,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Winston-Salem State University,NC,ACC 2316,,7,,,0,0,,,,8,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Hofstra University,NY,ACCT 101,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Middle Tennessee State Univ,TN,ACTG 2110,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Tidewater Community College,VA,ACC 211,,,,,0,0,,,,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Spalding University,KY,ACC 261,,3,,,0,0,,,,3,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,St. Cloud State University Saint,MN,ACCT291,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Missouri Univ Science & Tech,MO,BUS 1210,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Penn State U Great Valley,PA,ACCTG 211,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Western Colorado University,CO,ACC 201,,4,,,0,0,,,,2,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,University of Wisconsin–Stevens Point,WI,ACCT 210,,5,,,0,0,,,,17,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Longwood University,VA,ACCT 240,,,,,0,0,,,,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Sacred Heart University,CT,AC 221,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Univ of Alaska Fairbanks,AK,ACCT F261X,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Indiana University,IN,BUS-A 201,,,,,0,0,,,,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Purdue Univ Fort Wayne Fort,IN,BUS A201,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Univ So Carolina at Aiken,SC,BADM A225,,,,,0,0,,,,2,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Georgetown University,DC,ACCT 1001,,,,,0,0,,,,8,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Univ Illinois at Springfield,IL,ACC 211,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Univ of Texas at Tyler,TX,ACCT 2301,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Stonehill College,MA,ACC 203,,,,,0,0,,,,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,University of Notre Dame Notre,IN,ACCT 20100,,,,,0,0,,,,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Stockton University,NJ,ACCT 2110,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Northern Michigan Univ,MI,ACT 230,,,,,0,0,,,,17,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Montclair State University,NJ,ACCT201,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,IUSB Indiana Uat South Bend South,IN,BUS-A 201,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Southern Univ at New Orleans New,LA,ACCT 201N,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Morehead State University,KY,ACCT 281,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Rowan University,NJ,ACC 03210,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Jackson State University,MS,ACC 211,,,,,0,0,,,,19,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Oakland University,MI,ACC 2000,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Tarleton State University,TX,ACCT 2301,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,SUNY College at Oneonta,NY,ACCT 2100,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,South Carolina State Univ,SC,ACCT207,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Woodbury University,CA,ACCT 205,,2,,,0,0,,,,13,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,U Missouri - Kansas City Kansas,MO,ACCTNG 210,,,,,0,0,,,,10,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Texas Southern University,TX,ACCT 2301,,,,,0,0,,,,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,U Massachusetts Boston,MA,af 210,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,McNeese State University Lake,LA,BUA 1000,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Roger Williams University,RI,ACCTG 201,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Fort Lewis College,CO,ACC 225,,,,,0,0,,,,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,University of Dallas,TX,BUS 1310,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Univ of Nebraska at Omaha,NE,ACCT 2010,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Shenandoah University,VA,BA 211,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Florida A&M University,FL,ACG 2021,,,,,0,0,,,,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,University of La Verne,CA,ACCT 201,,7,,,0,0,,,,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Metropolitan St Univ Denver,CO,ACC 2010,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Gannon University,PA,BCOR 201,,,,,0,0,,,,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,St. John Fisher College,NY,ACCT 101,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,University of Colorado Colorado Springs,CO,ACCT 2010,,5,,,0,0,,,,24,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Eastern Kentucky University,KY,ACC 201,,1,,,0,0,,,,4,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Ramapo College-New Jersey,NJ,ACCT 221,,,,,0,0,,,,2,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Providence College,RI,ACC 203,,,,,0,0,,,,13,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Saint Ambrose University,IA,ACC 201,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Ouachita Baptist University,AR,ACCT 2013,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Univ of Nebraska at Kearney,NE,ACCT 250,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Southeastern Oklahoma State University,OK,ACCT 2103,,6,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Ottawa University,KS,ACC 20364,,5,,,0,0,,,,13,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,University of North Florida,FL,ACG2021,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,University of New Haven West,CT,ACCT 1101,,,,,0,0,,,,9,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Quinnipiac University,CT,AC-211,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,University of Baltimore,MD,ACCT 201,,,,,0,0,,,,13,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Univ N Carolina at Charlotte,NC,ACCT 2121,,,,,0,0,,,,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,North Park University,IL,ACCT 2110,,,,,0,0,,,,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,North Carolina Central Univ,NC,ACCT 2400,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Delaware State University,DE,ACCT 201,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Univ N Carolina at Pembroke,NC,ACC 2270,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Stevens Institute of Tech,NJ,ACC 200,,,,,0,0,,,,11,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Missouri Southern State University,MO,AC 201,,5,,,0,0,,,,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Texas A&M Univ-Kingsville,TX,ACCT 2301,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Indiana University East,IN,BUS-A 201,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Mississippi College,MS,ACC 201,,,,,0,0,,,,9,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Minnesota State U Moorhead,MN,ACCT 230,,,,,0,0,,,,10,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Central College,IA,ACCT 241,,6,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Campbell University,NC,ACCT 215,,6,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Georgia Southwestern St Un,GA,ACCT 2101,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Southern University & A&M Baton,LA,ACCT200,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Purdue University Northwest,IN,ACC 20000,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Murray State University,KY,ACC 200,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Loyola University Maryland,MD,AC 201,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Morgan State University,MD,ACCT 211,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,LeMoyne College,NY,ACT 201,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,The College of New Jersey,NJ,ACC 201,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,University of Denver,CO,ACTG 2200,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Lehigh University,PA,ACCT 151,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Univ of Michigan-Flint,MI,ACC 201,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Texas A&M University Coll,TX,ACCT 209/229/640,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Southwest Baptist Univ,MO,ACC 2013,,,,,0,0,,,,12,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,College of DuPage,IL,ACCOU 2140,,,,,0,0,,,,14,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Lipscomb University,TN,AC 2103,,,,,0,0,,,,5,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Louisiana Tech University,LA,ACCT 201,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Saginaw Valley State Univ Univ,MI,ACC 111,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Stony Brook University Stony,NY,ACC 210,,,,,0,0,,,,13,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Pittsburg State University,KS,ACCTG-201,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Susquehanna University,PA,ACCT 200,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Embry-Riddle Aeronautical U Daytona,FL,ACCT 210,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Harvard University,MA,ECON S-1900,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Alabama State University,AL,ACT 211,,7,,,0,0,,,,2,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Southern Arkansas Univ,AR,ACCT 2003,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Penn State DuBois,PA,ACCT 211,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Northwood University,MI,ACC-2410,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Angelo State University,TX,ACCT 2301,,2,,,0,0,,,,4,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Hannibal-LaGrange University,MO,ACC 243,,,,,0,0,,,,1,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Union University,TN,ACC 211,,,,,0,0,,,,15,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Nicholls State University,LA,ACCT 205,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,10,Oakland Community College,MI,ACC 1810,,7,,,0,0,,,,4,0,,NEEDS_REVIEW,course known; needs prof + exam evidence
+D,10,Salem State University,MA,ACC 106,,,,,0,0,,,,0,0,,NO_RESULT,course known; needs prof + exam evidence
+D,9,Central Virginia Community College,VA,,,,eligible,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,8,University of California-Merced,,,,13,eligible,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
+D,8,Front Range Community College,CO,,,21,,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
+D,8,Los Angeles Valley College,CA,,,22,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,7,CUNY Hunter College,,,2,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,7,Spelman College,,,5,4,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,7,Wesleyan University,,,4,10,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,7,California State Polytechnic University-Pomona,,,3,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,7,California State University-Fresno,,,8,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,7,Stony Brook University,,,5,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,7,University at Buffalo,,,3,27,eligible,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
+D,7,University of California-Riverside,,,7,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,7,Lawrence University,,,7,7,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,7,Virginia Commonwealth University,,,5,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,7,Marist College,,,6,8,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,7,University of California-Santa Cruz,,,11,12,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,7,University of Mary,ND,,9,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,7,California State University-Fullerton,,,2.2,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,6,Augsburg College,MN,,,,,,0,0,,,Y,6,1,,NEEDS_REVIEW,thin evidence; human review
+D,6,Brigham Young University,UT,,,,,,0,0,,,Y,3,1,,NEEDS_REVIEW,thin evidence; human review
+D,5,Cecil College,MD,,,,,,0,0,,,Y,5,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Ohio University,OH,,,2,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Owens Community College,OH,,,,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Winthrop University Rock,SC,,,,,,0,0,,,Y,5,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Appalachian State Univ,NC,,,,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Western Nevada College,NV,,,,,,0,0,,,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Thunderbird Sch Global Mgt,AZ,,,,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Danville Community College,VA,,,,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Irvine Valley College,CA,,,,,,0,0,,,Y,5,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Uof Arkansas at Fort Smith Ft.,AR,,,,,,0,0,,,Y,4,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,University of Manitoba,MB,,,,,,0,0,,,Y,8,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,University of North Carolina Chapel,NC,,,,,,0,0,,,Y,4,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Tarrant County College,TX,,,,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,British Columbia Institute of Technology,BC,,,,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,"Calif State Univ, Fullerton",CA,,,,,,0,0,,,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Concordia University,QC,,,,,,0,0,,,Y,8,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Western Michigan University,MI,,,,,,0,0,,,Y,8,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Evergreen Valley College,CA,,,,,,0,0,,,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,University of Lethbridge,AB,,,,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Fresno City College,CA,,,,,,0,0,,,Y,4,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Suffolk County Community College,NY,,,3,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Boston College Chestnut,MA,,,,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Columbia University New,NY,,,,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Wayne State University,MI,,,,,,0,0,,,Y,4,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,El Paso Community College,TX,,,,,,0,0,,,Y,7,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Fairfield University,CT,,,,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Prince George's Community College,MD,,,,,,0,0,,,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Kutztown Univ of Penn,PA,,,,,,0,0,,,Y,5,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Virginia Western Community College,VA,,,,,,0,0,,,Y,6,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Saint Louis University St.,MO,,,,,,0,0,,,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Bucks County Community College,PA,,,,,,0,0,,,Y,6,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Salem Community College,NJ,,,,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Meredith College,NC,,,,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,University of Tampa,FL,,,,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,West Texas A&M University,TX,,,,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Algonquin College,ON,,,,,,0,0,,,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Wichita State University,KS,,,,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,University of Regina,SK,,,,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Cuesta College,CA,,,,,,0,0,,,Y,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Utah State University,UT,,,,,,0,0,,,Y,6,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Essex County College,NJ,,,,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Avila University Kansas,MO,,,,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Creighton University,NE,,,,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Yuba College,CA,,,,,,0,0,,,Y,12,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,"Calif State U, Los Angeles Los",CA,,,,,,0,0,,,Y,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Wright State University,OH,,,,,,0,0,,,Y,9,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Saddleback College,CA,,,7,,,0,0,,,Y,7,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Un of Massachusetts Amherst,MA,,,,,,0,0,,,Y,5,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,York University,ON,,,,,,0,0,,,Y,4,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Bentley University,MA,,,,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,University of Indianapolis,IN,,,,,,0,0,,,Y,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,5,Mt. San Antonio College,CA,,,,,,0,0,,,Y,7,0,,NEEDS_REVIEW,thin evidence; human review
+D,4,Barnard College,,,,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,4,University of California-Irvine,,,,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,4,Occidental College,,,,5,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,4,SUNY College of Environmental Science and Forestry,,,,7,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,4,Yale University,,,,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,4,Cooper Union for the Advancement of Science and Art,,,,1,eligible,,0,0,,,,0,0,,WAITING_FOR_COURSE,dark — needs domain/course-code backfill
+D,4,San Jose State University,,,,,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,4,Emerson College,,,,2,eligible,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,2,Anderson University IN,IN,,,,,,0,0,,,,9,2,,NEEDS_REVIEW,thin evidence; human review
+D,1,University of Mary Washington,VA,ACCT 101,,3,no_social_greek,,0,0,,,Y,16,1,,NEEDS_REVIEW,low priority — no social Greek (weak channel)
+D,0,Lawrence Technological Univ,MI,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,University of The Cumberlands,KY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Iowa Iowa,IA,,,,,,0,0,,,,6,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Durham Technical Community College,NC,,,,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Calif St U-Dominguez Hills,CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Seneca Polytechnic,ON,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Western Carolina University,NC,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Casper College,WY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,New York Institute of Tech Old,NY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Prague University of Economics and Business,Prague,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Piedmont Virginia Community College,VA,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Valparaiso University,IN,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Klagenfurt,AT,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Drury University,MO,,,,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Weatherford College,TX,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,King's College,PA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,South Mountain Community College,AZ,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Cal Poly Humboldt,CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,SUNYat Plattsburgh,NY,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Metro Community College Ft Omaha E,NE,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Southeastern Louisiana Univ,LA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Northern State University,SD,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Youngstown State University,OH,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Widener University,PA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Hawaii at Hilo,HI,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Victoria College,TX,,,,,,0,0,,,,4,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Humber Polytechnic,ON,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of St. Thomas-MN St.,MN,,,,,,0,0,,,,4,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Harris-Stowe State Univ St.,MO,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Tama University,N/A,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Bellarmine University,KY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Montevallo,AL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Illinois Institute of Tech,IL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Kent,EX,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Univ of Michigan-Dearborn,MI,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,U.S. Coast Guard Academy New,CT,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Uof Arkansas at Little Rock Little,AR,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Lincoln University - California,CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Athens Technical College,GA,,,,,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
+D,0,Bishop's University,QC,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Westminster College - Pennsylvania,PA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Indiana University Kokomo,IN,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Dalton State College,GA,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,"City St George's, University of London",England,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,La Salle University,PA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Valdosta State University,GA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Stetson University,FL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Uof Arkansas at Pine Bluff Pine,AR,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,National Chengchi University,TW,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of South Alabama,AL,,,,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Texas State Technical College,TX,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Penn State Wilkes-Barre,PA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,San Jose State University San,CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Northland Community and Technical College Thie River,MN,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Southern State Community College,OH,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,University of Miami Coral,FL,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Virginia Poly Inst & St Un,VA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Germanna Community College,VA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Columbus State University,GA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Norfolk State University,VA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Rochester Inst of Technology,NY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Western Illinois University,IL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Pulaski Technical College,AR,,,,,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
+D,0,University of Louisiana at Lafayette,LA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Iscte – Instituto Universitário de Lisboa,LX,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Chandler–Gilbert Community College,AZ,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Chipola College,FL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,William Paterson University,NJ,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Winona State University,MN,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Rutgers University-Newark,NJ,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Germanna Virginia Community College,VA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Boston University,MA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Yale University New,CT,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Evansville,IN,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Anderson University SC,SC,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Ozarks Technical Community College,MO,,,,,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
+D,0,Naugatuck Valley Community College,CT,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Alma College,MI,,,,,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
+D,0,King’s University College,ON,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Southeast College,SK,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,New York University New,NY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Los Angeles Southwest College,CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,San Jacinto College,TX,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Rockland Community College,NY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Penn State Mont Alto,PA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,North Carolina Wilmington,NC,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Valley City State University,ND,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Evangel University,MO,,,,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Clark University,MA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Claremont McKenna College,CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Babson College Babson,MA,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Francis Marion University,SC,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Howard Community College,MD,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Mid-State Technical College,WI,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,"University of Nevada, Reno",NV,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Louisiana State University Alexandria,LA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Zane State College,OH,,,,,,0,0,,,,9,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Bladen Community College,NC,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Tecnológico de Monterrey,NL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Laney College,CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Southern Utah University Cedar,UT,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Fontbonne University St.,MO,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Universidad de Alcalá,Madrid,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Northwestern Polytechnic,AB,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Ithaca College,NY,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Georgia Institute of Tech,GA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Purdue University W,IN,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Millsaps College,MS,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Indiana U-Purdue U Indy,IN,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Muskegon Community College,MI,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Loyola Marymount Univ Los,CA,,,,,,0,0,,,,9,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Naval Postgraduate School,CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Western New Mexico University,NM,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Texas A&M University-Commerce,TX,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Pasadena City College,CA,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Maastricht University,NL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Thompson Rivers University,BC,,,,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Miami Dade College,FL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Universidad Publica de Navarra,NA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Calif State U - San Marcos San,CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Webster University St.,MO,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Walla Walla Community College,WA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Menlo College,CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Shorter University,GA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Metropolitan Community College,NE,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Coimbra,PT,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,"Calif St U, San Bernardino S",CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,"Univ of Calif, Riverside",CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Yukon University,YT,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Univ of California San Diego La,CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Northwest Missouri St Univ,MO,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Anne Arundel Community College,MD,,,,,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
+D,0,New Mexico Junior College,NM,,,,,,0,0,,,,8,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Trevecca Nazarene University,TN,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Willamette University,OR,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of the West Indies,New Providence,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Technical University of Liberec,CZ,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Three Rivers Community College,CT,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Ferris State University Big,MI,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Okanagan College,BC,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,"Calif State U, Stanislaus",CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,SUNYat Binghamton,NY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Wilkes University,PA,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Tulane University New,LA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Northern Alberta Institute of Technology,AB,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,University of South Dakota,SD,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Schiller International University,FL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of the Pacific,CA,,,,,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
+D,0,Greenville Technical College,SC,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Sheridan College,ON,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Univ of District of Columbia,DC,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Lone Star College,TX,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Alabama A&M University,AL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Marietta College,OH,,,,,,0,0,,,,4,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Northern Virginia Community College,VA,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Golden West College,CA,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Western Conn State Univ,CT,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,St. John's University,NY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Southeast Missouri St Univ C,MO,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Tuskegee University,AL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Central Michigan University Mt.,MI,,,,,,0,0,,,,4,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Abilene Christian Univ,TX,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Culver-Stockton College,MO,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Columbia College,BC,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,North Carolina A&T State Un,NC,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Clarkson University,NY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Harding University,AR,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,John Carroll University,OH,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Illinois State University,IL,,,,,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
+D,0,Olympic College,WA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Parma,IT,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,"Auburn Univ, Montgomery",AL,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Indiana University of Pennsylvania,PA,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Uof Alabama in Huntsville,AL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Sault College,ON,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Wharton County Junior College,TX,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Collin College,TX,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Lower Columbia College,WA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Univ of Tennessee at Martin,TN,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Texas A&M International University,TX,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Albion College,MI,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Aquinas College Grand,MI,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,University of Augsburg,Bavaria,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Commonweath Univ - Bloomsb,PA,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Coastline Community College,CA,,,,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,University of St. Thomas-TX,TX,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Maryland College,MD,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,"Calif State Univ, Chico",CA,,,,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,West Los Angeles College,CA,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,New Bulgarian University,BG,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Niagara University Niagara,NY,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Alaska Pacific University,AK,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,SUNY Polytechnic Institute,NY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Santa Clara University Santa,CA,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Cottey College,MO,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Maryville Univ St. Louis St.,MO,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Odessa College,TX,,,,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Trinity University San,TX,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Arkansas Northeastern College,AR,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,St. Edward's University,TX,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Clayton State University,GA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,"Calif State Univ, Fresno",CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Portland State University,OR,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,New Jersey City University,NJ,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Clark Atlanta University,GA,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Emporia State University,KS,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,CUNY-Baruch College New,NY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Calvary Bible College,MO,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Portland,OR,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Nassau Community College,NY,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,"College at Brockport, SUNY",NY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Calvin College Grand,MI,,,,,,0,0,,,,4,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,University of Houston - Victoria,TX,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Calif State Poly U-Pomona,CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,VSB - Technical University of Ostrava,CZ,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Albright College,PA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Johnston Community College,NC,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Arkansas Tech University,AR,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Univ of Central Arkansas,AR,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Univ of Colorado at Denver,CO,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Western University,ON,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Michigan State University East,MI,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Crowder College Neosho,MO,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Shoreline Community College,WA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Valencia College,FL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Rhode Island,RI,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Frostburg State University,MD,,,,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,University of Hartford W,CT,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Saint Xavier University,IL,,,,,,0,0,,,,4,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Weber State University,UT,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Long Island U.-LIU Post,NY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Louisiana St in Shreveport,LA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Alfred University,NY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Manhattan College,NY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Walsh College,MI,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Grand Valley State University Allendal,MI,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Bethune-Cookman University Daytona,FL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Miami Dade College Virtual Campu,FL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Tennessee,TN,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Drake University Des,IA,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Andrews University Berrien,MI,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,St. Mary's University San,TX,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Aurora University,IL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Seminole State College,OK,,,,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Villanova University,PA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Uof Alabama at Birmingham,AL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Ivy Tech Community College,IN,,,,,,0,0,,,,5,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,University of Minnesota Crookston,MN,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Arcadia University,PA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Truman State University,MO,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Washington and Lee Univ,VA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,SUNYat New Paltz New,NY,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,SUNYat Buffalo,NY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Bryant University,RI,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,"Calif State U., Bakersfield",CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Saint Mary's College of CA,CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Regensburg,Bavaria,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Western New England Univ,MA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University at Albany-SUNY,NY,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,East Central University,OK,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,University of Detroit Mercy,MI,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Everett Community College,WA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Minnesota St Univ Mankato,MN,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Uof Texas of Permian Basin,TX,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Colorado State Univ-Pueblo,CO,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Guelph-Humber,ON,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,College of the Siskiyous,CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Rensselaer Poly Institute,NY,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Black Hills State University,SD,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Colorado State University Fort,CO,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Rappahannock Community College,VA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Sonoma State University Rohnert,CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Ventura College,CA,,,,,,0,0,,,,6,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,"Rutgers, The State University of New Jersey",NJ,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Worcester Polytechnic Inst,MA,,,,,,0,0,,,,7,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,University of Hradec Králové,CZ,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Copenhagen Business School,Capital Region,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Southwest Tennessee Community College,TN,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Amsterdam,North Holland,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Clovis Community College,NM,,,,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Comenius University Bratislava,SK,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Lourdes University,OH,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,East Georgia State College,GA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Simmons College,MA,,,,,,0,0,,,,5,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Bow Valley College,AB,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Guam,GU,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Bemidji State University,MN,,,,,,0,0,,,,4,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Penn State Shenango,PA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Fordham University New,NY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Kauai Community College,HI,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,William Jewell College,MO,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,The Citadel,SC,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Charleston Southern Univ,SC,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Barry University Miami,FL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Lander University,SC,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of San Diego San,CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Scranton,PA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Pepperdine Univ-Malibu,CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Virginia State University,VA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Tennessee Technological Un,TN,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Bishop State Community College,AL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Utah Valley University,UT,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Lindenwood University Belleville,IL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Tallinn University of Technology,EE,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Catch-All University,,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Fanshawe College,ON,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Pepperdine Un-Los Angeles Los,CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Berry College Mount,GA,,,,,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
+D,0,Arkansas State University Technical Center,AR,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Northern Illinois Univ,IL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Northampton Community College,PA,,,,,,0,0,,,,4,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Erasmus University Rotterdam,NH,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Northern Marianas College,MP,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,"Calif State Univ, Sacramento",CA,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,National Taiwan University,Taiwan,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Jackson College,MI,,,,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Korea Advanced Institute of Science and Technology,Daejeon,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,National Chung Hsing University,Taiwan,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Coastal Carolina University,SC,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Wartburg College,IA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Dominican University River,IL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Athens State University,AL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Penn Western Univ-Clarion,PA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Murray State College Tishomingo,OK,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Fairleigh Dickinson Univ,NJ,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Univ of Louisiana at Monroe,LA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,"Calif State Univ, Northridge",CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,SUNY College at Oswego,NY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Bowling Green State Univ Bowling,OH,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,National Taipei University,TW,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Tartu,EE,,,,,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
+D,0,Niagara College,ON,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Uof Missouri - Columbia,MO,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,New Mexico State University,NM,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Mount Olive,NC,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,College of Micronesia-FSM,FM,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Rochester,NY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Brookdale Community College,NJ,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Adams State University,CO,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,"Calif State Univ, East Bay",CA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Univ of Northern Colorado,CO,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of West Florida,FL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Northwest College,WY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Adelphi University Garden,NY,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Galveston College,TX,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Belmont University,TN,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Thomas Nelson Community College,VA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,County College of Morris,NJ,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Reedley College,CA,,,,,,0,0,,,,0,0,,FAILED,dark — needs domain/course-code backfill
+D,0,University of Mobile,AL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Lindenwood University St.,MO,,,,,,0,0,,,,3,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Indiana State University Terre,IN,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Poznań University of Economics and Business,GP,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,SGH Warsaw School of Economics,MZ,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Quincy College,MA,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,University of Saskatchewan,SK,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Augustana College IL Rock,IL,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Amberton University,TX,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,City Vision University,MO,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Guelph,ON,,,,,,0,0,,,,6,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Atlanta Technical College,GA,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Dayton,OH,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of New Mexico Albuquerque F,NM,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Seward County Community College,KS,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Minneapolis Community and Technical College,MN,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,Rogers State University,OK,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Arkansas State University-Newport,AR,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,University of Lausanne,VD,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Universidade Lusófona,Lisbon,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,University of Memphis,TN,,,,,,0,0,,,,2,0,,NEEDS_REVIEW,thin evidence; human review
+D,0,National Cheng Kung University,TW,,,,,,0,0,,,,0,0,,NO_RESULT,dark — needs domain/course-code backfill
+D,0,Lansing Community College,MI,,,,,,0,0,,,,1,0,,NEEDS_REVIEW,thin evidence; human review
+D,-5,Champlain College,VT,ACC 110,,1,no_social_greek,,0,0,,,,1,0,,NEEDS_REVIEW,low priority — no social Greek (weak channel)
+D,-5,University of St. Thomas,TX,ACCT 2301,,1,no_social_greek,,0,0,,,,0,0,,NO_RESULT,low priority — no social Greek (weak channel)
+D,-5,Seattle University,WA,ACCT 2300,,54,no_social_greek,,0,0,,,,2,0,,NEEDS_REVIEW,low priority — no social Greek (weak channel)
+D,-15,Westmont College,CA,,,,no_social_greek,,0,0,,,,0,0,,NO_RESULT,low priority — no social Greek (weak channel)
+D,-15,Florida College,FL,,,,no_social_greek,,0,0,,,,0,0,,NO_RESULT,low priority — no social Greek (weak channel)
+D,-15,Notre Dame de Namur University,CA,,,,no_social_greek,,0,0,,,,0,0,,NO_RESULT,low priority — no social Greek (weak channel)
