@@ -98,8 +98,10 @@ async function main() {
       trendLabel = trend5 > 0.05 ? "improving" : trend5 < -0.05 ? "declining" : "stable";
     }
 
-    // member trend
-    const withMem = recs.filter((r) => r.member_count != null);
+    // member trend — EXCLUDE implausible (council/community totals flagged in the
+    // correction pass) so a mis-parsed total can never inflate chapter sizing.
+    const memberOk = (r) => r.member_count != null && r.member_count <= 700 && !(r.quality_flags || []).includes("member_count_implausible");
+    const withMem = recs.filter(memberOk);
     const latestMember = withMem[0]?.member_count ?? null;
     const avgMember = withMem.length ? Math.round(withMem.slice(0, 3).reduce((s, r) => s + r.member_count, 0) / Math.min(3, withMem.length)) : null;
     const memberTrend = withMem.length >= 2 ? withMem[0].member_count - withMem[withMem.length - 1].member_count : null;
@@ -114,7 +116,22 @@ async function main() {
     else if (trendLabel === "improving" && trend5 != null) drivers.push(`GPA up ${trend5.toFixed(2)} over ${withGpa.length} terms`);
     if (gpaVsBaseline != null && gpaVsBaseline < 0) drivers.push(`${Math.abs(gpaVsBaseline).toFixed(2)} below campus baseline`);
 
+    // Constructive, non-shaming context labels (internal — never a public ranking).
+    const labels = [];
+    if (latest.chapter_gpa == null) labels.push("UNKNOWN");
+    if (latestMember != null && latestMember >= 150) labels.push("LARGE MEMBER BASE");
+    if ((diffCouncil != null && diffCouncil >= 0.05) || (percentile != null && percentile >= 75)) labels.push("STRONG ACADEMIC CULTURE");
+    if (diffCouncil != null && diffCouncil <= -0.10) labels.push("HIGH ACADEMIC OPPORTUNITY");
+    if (trendLabel === "declining") labels.push("DECLINING TREND");
+    if (trendLabel === "improving") labels.push("IMPROVING TREND");
+    if (!labels.length) labels.push("UNKNOWN");
+
+    // data_confidence: match quality, downgraded when only a single term of history.
+    const dc = latest.match_confidence === "high" ? (recs.length >= 2 ? "high" : "medium")
+      : latest.match_confidence === "medium" ? "medium" : "low";
+
     out.push({
+      academic_context_labels: labels,
       campus_greek_chapter_id: chapterId, campus_id: latest.campus_id, council_normalized: council,
       latest_gpa: latest.chapter_gpa, latest_term: latest.term, latest_year: latest.year, latest_semester_key: latest.semester_key,
       council_average_gpa: councilAvg, difference_from_council: diffCouncil,
@@ -125,7 +142,7 @@ async function main() {
       latest_member_count: latestMember, average_member_count_recent: avgMember, member_count_trend: memberTrend,
       academic_need_score: score, score_version: CONFIG.version, need_drivers: drivers.length ? drivers : null,
       calculated_at: new Date().toISOString(), semesters_available: recs.length,
-      data_confidence: latest.match_confidence, source_url: latest.source_url,
+      data_confidence: dc, source_url: latest.source_url,
     });
   }
 
