@@ -26,11 +26,17 @@ All weights/thresholds live in [`src/lib/market-intel/scoring-config.json`](../.
 
 ## Pipeline
 ```
-parse-ipeds.mjs   # one-time: parse IPEDS zips -> data/ipeds.json  (needs the zips, see below)
-match.mjs         # campus universe -> IPEDS UNITID -> data/matches.json
-run-all.mjs       # compute + emit-csv + emit-reports   <-- THE REFRESH PATH
-import.mjs        # load results into DB (after migration applied)
+parse-ipeds.mjs    # one-time: parse IPEDS zips -> data/ipeds.json  (needs the zips, see below)
+match.mjs          # campus universe -> IPEDS UNITID -> data/matches.json
+resolve-review.mjs # work the identity-review queue (accept verified suggestions +
+                   #   resolve named institutions in-state); writes back to matches.json
+run-all.mjs        # compute + emit-csv + emit-reports   <-- THE REFRESH PATH
+import.mjs         # load results into DB (idempotent; tables must exist)
+emit-sql.mjs       # (optional) self-contained schema+data .sql for a one-paste load
 ```
+Full rebuild order: `parse-ipeds -> match -> resolve-review -> run-all -> import`.
+`match` regenerates matches.json from scratch, so always run `resolve-review` after it.
+`run-all` alone is the daily refresh (it does not re-match, so resolutions persist).
 `run-all.mjs` is the cheap **refresh**: it re-reads live Greek/council/club/demand data and
 recomputes Distribution / Outreach / Enrichment (and the full market layer) from the cached IPEDS
 JSON — no re-download. Run it after the structural Campus Backfill settles.
