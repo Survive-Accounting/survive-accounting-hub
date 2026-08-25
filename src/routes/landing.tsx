@@ -1675,9 +1675,6 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
               exam={active}
               school={school}
               professor={professor}
-              onPickSchool={onPick}
-              schools={schools}
-              onMatchProfessor={matchProfessor}
               courseCode={school?.codeVerified && school.code ? school.code : null}
               isTest={isTest}
             />
@@ -1715,6 +1712,9 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
                 time, so this asks a question without hiding the catalogue behind it. */}
             {/* ONE STATE AT A TIME. `flowDone` is the whole ladder, not its first rung — see the
                 note above sa-panel-min in styles.css for the height half of this. */}
+            {/* On future-exam tabs the waitlist above IS the whole right-pane surface — no
+                second invitation card. */}
+            {(() => { const k = kindForExamNum(active.num); const hideMatch = !!(active.price != null && !greekOrg && !(k && entitlements.kinds.has(k))); return hideMatch ? null : (
             <div className="sa-panel-min relative w-full flex-1">
               <MatchPanel gateActive={!!videoGate} school={school} professor={professor} notListed={notListed} profDone={profDone} coveragePct={active.coveragePct} schools={schools} cueSignal={focusSignal} onPick={onPick} onNotListed={onNotListed} onSkipSchool={onSkipSchool} onPickProfessor={(pr) => { onPickProfessor(pr); setProfDone(true); }} onProfNotListed={skipProfessor} onAddProfessor={matchProfessor} onMaterials={() => onSyllabus()} onChangeSchool={onChangeSchool} hidden={flowDone} />
               {/* THE GATE STANDS IN FOR THE VIDEO, not for the page: tabs, topics and the
@@ -1736,6 +1736,8 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
                 )
               )}
             </div>
+
+            ); })()}
 
             {/* The "Let's tailor this / Send your syllabus" pair that used to live here is gone.
                 It asked for work before the student had a reason to do any, and it appeared in
