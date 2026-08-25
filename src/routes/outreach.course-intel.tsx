@@ -266,7 +266,7 @@ function CouncilPanel({ campusId }: { campusId: string }) {
         {["ifc", "panhellenic", "nphc", "mgc", "other"].filter((k) => byCouncil[k]).map((k) => (
           <div key={k} className="rounded border border-border bg-card px-3 py-1.5">
             <div className="text-xs font-medium uppercase text-muted-foreground">{k}</div>
-            {byCouncil[k].map((c) => (
+            {byCouncil[k].map((c: any) => (
               <div key={c.id} className="flex items-center gap-2 text-[11px]">
                 <span className={badge(c.contact_type)}>{c.contact_type.replace("_", " ")}</span>
                 <a href={`mailto:${c.email}`} className="text-foreground hover:underline">{c.email}</a>
@@ -288,7 +288,7 @@ function DocsPanel({ campusId }: { campusId: string }) {
   const discover = useMutation({ mutationFn: () => discoverCourseDocuments({ data: { campusId } }), onSuccess: invalidate });
   const parse = useMutation({ mutationFn: (documentId: string) => parseCourseDocument({ data: { documentId } }), onSuccess: invalidate });
 
-  const evByDoc = (id: string) => (docs.data?.evidence ?? []).filter((e) => e.course_document_id === id);
+  const evByDoc = (id: string) => (docs.data?.evidence ?? []).filter((e: any) => e.course_document_id === id);
   const tierLabel = ["", "exam", "structure", "topic", "id"];
 
   return (
@@ -304,7 +304,7 @@ function DocsPanel({ campusId }: { campusId: string }) {
 
       <div className="mt-3 space-y-2">
         {docs.isLoading && <div className="text-sm text-muted-foreground">Loading…</div>}
-        {(docs.data?.docs ?? []).map((d) => {
+        {(docs.data?.docs ?? []).map((d: any) => {
           const ev = evByDoc(d.id);
           return (
             <div key={d.id} className="rounded-lg border border-border bg-card px-3 py-2">
@@ -318,7 +318,7 @@ function DocsPanel({ campusId }: { campusId: string }) {
               </div>
               {ev.length > 0 && (
                 <div className="mt-1 flex flex-wrap gap-1 pl-1">
-                  {ev.map((e) => (
+                  {ev.map((e: any) => (
                     <span key={e.id} className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                       {e.evidence_type === "exam_chapter_range" ? `${e.exam_label}: Ch ${(e.exam_chapters as number[] | null)?.join(", ")}` : `📖 ${e.textbook_ref}${e.edition_ref ? " " + e.edition_ref : ""}`}
                       <span className="ml-1 opacity-60">{e.confidence}</span>

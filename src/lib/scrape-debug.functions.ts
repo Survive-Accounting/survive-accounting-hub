@@ -60,7 +60,7 @@ export const listImprovementSuggestions = createServerFn({ method: "POST" })
         applies_to_verticals: Array.from(g.verticals),
         any_shipped: g.shipped,
       }))
-      .sort((a, b) => b.count - a.count || (b.latest_at > a.latest_at ? 1 : -1));
+      .sort((a, b) => b.count - a.count || ((b.latest_at ?? "") > (a.latest_at ?? "") ? 1 : -1));
 
     return { suggestions: rows ?? [], grouped };
   });

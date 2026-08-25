@@ -81,14 +81,21 @@ const r1 = (v: number) => Math.round(v * 10) / 10;
 
 /** Percentile rank (0-100) of each value among the finite values of `values`. */
 function percentiles(values: (number | null)[]): (number | null)[] {
-  const finite = values.filter((v): v is number => v != null && Number.isFinite(v)).sort((a, b) => a - b);
+  const finite = values
+    .filter((v): v is number => v != null && Number.isFinite(v))
+    .sort((a, b) => a - b);
   const n = finite.length;
   if (n === 0) return values.map(() => null);
   return values.map((v) => {
     if (v == null || !Number.isFinite(v)) return null;
     // fraction of values strictly below + half of ties → stable, deterministic
-    let lo = 0, hi = finite.length;
-    while (lo < hi) { const m = (lo + hi) >> 1; if (finite[m] < v) lo = m + 1; else hi = m; }
+    let lo = 0,
+      hi = finite.length;
+    while (lo < hi) {
+      const m = (lo + hi) >> 1;
+      if (finite[m] < v) lo = m + 1;
+      else hi = m;
+    }
     let hi2 = lo;
     while (hi2 < n && finite[hi2] === v) hi2++;
     const below = lo + (hi2 - lo) / 2;
@@ -146,13 +153,17 @@ function whyChips(c: PriorityComponents, i: PriorityInput): string[] {
   else if (c.market != null && c.market >= 60) chips.push([c.market, "Sizeable market"]);
   // "Proven paid" chips only where a COURSE-SPECIFIC paid competitor validates the exact
   // product (generic marketplaces exist everywhere — not a differentiator).
-  if (i.courseSpecificCompetitors > 0 && (c.paid ?? 0) >= 70) chips.push([c.paid!, "Proven paid market"]);
+  if (i.courseSpecificCompetitors > 0 && (c.paid ?? 0) >= 70)
+    chips.push([c.paid!, "Proven paid market"]);
   if (c.reach != null && c.reach >= 70) chips.push([c.reach, "Strong Greek reach"]);
   if (c.readiness >= 60) chips.push([c.readiness, "Course-ready"]);
   if (c.growth != null && c.growth >= 75) chips.push([c.growth, "Fast-growing"]);
   if (c.demandBoost > 0) chips.push([100 + c.demandBoost, "Live demand"]); // always surfaces first
   if (i.marketStatus === "WHITE_SPACE" && (c.market ?? 0) >= 60) chips.push([50, "White space"]);
-  return chips.sort((a, b) => b[0] - a[0]).slice(0, 3).map(([, label]) => label);
+  return chips
+    .sort((a, b) => b[0] - a[0])
+    .slice(0, 3)
+    .map(([, label]) => label);
 }
 
 function basketsOf(c: PriorityComponents, i: PriorityInput): string[] {
@@ -184,21 +195,26 @@ export function computePriority(inputs: PriorityInput[]): PriorityRow[] {
     };
     // Weighted mean over non-null components, renormalized (a missing signal is
     // excluded, never scored 0 — matches the market-intel convention).
-    let wSum = 0, sSum = 0;
+    let wSum = 0,
+      sSum = 0;
     for (const key of ["market", "growth", "reach", "paid", "readiness"] as const) {
       const v = components[key];
-      if (v != null) { wSum += WEIGHTS[key]; sSum += WEIGHTS[key] * v; }
+      if (v != null) {
+        wSum += WEIGHTS[key];
+        sSum += WEIGHTS[key] * v;
+      }
     }
     const base = wSum > 0 ? sSum / wSum : 0;
     const score = r1(clamp(base + components.demandBoost, 0, 115));
     return { i, components, score };
   });
 
-  scored.sort((a, b) =>
-    b.score - a.score ||
-    (b.i.businessBachelors ?? -1) - (a.i.businessBachelors ?? -1) ||
-    a.i.name.localeCompare(b.i.name) ||
-    a.i.campusId.localeCompare(b.i.campusId),
+  scored.sort(
+    (a, b) =>
+      b.score - a.score ||
+      (b.i.businessBachelors ?? -1) - (a.i.businessBachelors ?? -1) ||
+      a.i.name.localeCompare(b.i.name) ||
+      a.i.campusId.localeCompare(b.i.campusId),
   );
 
   return scored.map(({ i, components, score }, idx) => ({

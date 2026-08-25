@@ -108,8 +108,10 @@ import { Route as ApiCronBackupRouteImport } from './routes/api.cron.backup'
 import { Route as AdminRepsPartnersRouteImport } from './routes/admin.reps.partners'
 import { Route as AdminRepsLinksRouteImport } from './routes/admin.reps.links'
 import { Route as AdminRepsConversionsRouteImport } from './routes/admin.reps.conversions'
+import { Route as AdminGrowthResultsRouteImport } from './routes/admin.growth.results'
 import { Route as AdminGrowthOutreachRouteImport } from './routes/admin.growth.outreach'
 import { Route as AdminGrowthOrgsRouteImport } from './routes/admin.growth.orgs'
+import { Route as AdminGrowthIntelligenceRouteImport } from './routes/admin.growth.intelligence'
 import { Route as AdminGrowthCouncilsRouteImport } from './routes/admin.growth.councils'
 import { Route as AdminGrowthContactsRouteImport } from './routes/admin.growth.contacts'
 import { Route as AdminGrowthChaptersRouteImport } from './routes/admin.growth.chapters'
@@ -623,6 +625,11 @@ const AdminRepsConversionsRoute = AdminRepsConversionsRouteImport.update({
   path: '/conversions',
   getParentRoute: () => AdminRepsRoute,
 } as any)
+const AdminGrowthResultsRoute = AdminGrowthResultsRouteImport.update({
+  id: '/results',
+  path: '/results',
+  getParentRoute: () => AdminGrowthRoute,
+} as any)
 const AdminGrowthOutreachRoute = AdminGrowthOutreachRouteImport.update({
   id: '/outreach',
   path: '/outreach',
@@ -631,6 +638,11 @@ const AdminGrowthOutreachRoute = AdminGrowthOutreachRouteImport.update({
 const AdminGrowthOrgsRoute = AdminGrowthOrgsRouteImport.update({
   id: '/orgs',
   path: '/orgs',
+  getParentRoute: () => AdminGrowthRoute,
+} as any)
+const AdminGrowthIntelligenceRoute = AdminGrowthIntelligenceRouteImport.update({
+  id: '/intelligence',
+  path: '/intelligence',
   getParentRoute: () => AdminGrowthRoute,
 } as any)
 const AdminGrowthCouncilsRoute = AdminGrowthCouncilsRouteImport.update({
@@ -763,8 +775,10 @@ export interface FileRoutesByFullPath {
   '/admin/growth/chapters': typeof AdminGrowthChaptersRoute
   '/admin/growth/contacts': typeof AdminGrowthContactsRoute
   '/admin/growth/councils': typeof AdminGrowthCouncilsRoute
+  '/admin/growth/intelligence': typeof AdminGrowthIntelligenceRoute
   '/admin/growth/orgs': typeof AdminGrowthOrgsRoute
   '/admin/growth/outreach': typeof AdminGrowthOutreachRoute
+  '/admin/growth/results': typeof AdminGrowthResultsRoute
   '/admin/reps/conversions': typeof AdminRepsConversionsRoute
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
@@ -872,8 +886,10 @@ export interface FileRoutesByTo {
   '/admin/growth/chapters': typeof AdminGrowthChaptersRoute
   '/admin/growth/contacts': typeof AdminGrowthContactsRoute
   '/admin/growth/councils': typeof AdminGrowthCouncilsRoute
+  '/admin/growth/intelligence': typeof AdminGrowthIntelligenceRoute
   '/admin/growth/orgs': typeof AdminGrowthOrgsRoute
   '/admin/growth/outreach': typeof AdminGrowthOutreachRoute
+  '/admin/growth/results': typeof AdminGrowthResultsRoute
   '/admin/reps/conversions': typeof AdminRepsConversionsRoute
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
@@ -985,8 +1001,10 @@ export interface FileRoutesById {
   '/admin/growth/chapters': typeof AdminGrowthChaptersRoute
   '/admin/growth/contacts': typeof AdminGrowthContactsRoute
   '/admin/growth/councils': typeof AdminGrowthCouncilsRoute
+  '/admin/growth/intelligence': typeof AdminGrowthIntelligenceRoute
   '/admin/growth/orgs': typeof AdminGrowthOrgsRoute
   '/admin/growth/outreach': typeof AdminGrowthOutreachRoute
+  '/admin/growth/results': typeof AdminGrowthResultsRoute
   '/admin/reps/conversions': typeof AdminRepsConversionsRoute
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
@@ -1099,8 +1117,10 @@ export interface FileRouteTypes {
     | '/admin/growth/chapters'
     | '/admin/growth/contacts'
     | '/admin/growth/councils'
+    | '/admin/growth/intelligence'
     | '/admin/growth/orgs'
     | '/admin/growth/outreach'
+    | '/admin/growth/results'
     | '/admin/reps/conversions'
     | '/admin/reps/links'
     | '/admin/reps/partners'
@@ -1208,8 +1228,10 @@ export interface FileRouteTypes {
     | '/admin/growth/chapters'
     | '/admin/growth/contacts'
     | '/admin/growth/councils'
+    | '/admin/growth/intelligence'
     | '/admin/growth/orgs'
     | '/admin/growth/outreach'
+    | '/admin/growth/results'
     | '/admin/reps/conversions'
     | '/admin/reps/links'
     | '/admin/reps/partners'
@@ -1320,8 +1342,10 @@ export interface FileRouteTypes {
     | '/admin/growth/chapters'
     | '/admin/growth/contacts'
     | '/admin/growth/councils'
+    | '/admin/growth/intelligence'
     | '/admin/growth/orgs'
     | '/admin/growth/outreach'
+    | '/admin/growth/results'
     | '/admin/reps/conversions'
     | '/admin/reps/links'
     | '/admin/reps/partners'
@@ -2110,6 +2134,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRepsConversionsRouteImport
       parentRoute: typeof AdminRepsRoute
     }
+    '/admin/growth/results': {
+      id: '/admin/growth/results'
+      path: '/results'
+      fullPath: '/admin/growth/results'
+      preLoaderRoute: typeof AdminGrowthResultsRouteImport
+      parentRoute: typeof AdminGrowthRoute
+    }
     '/admin/growth/outreach': {
       id: '/admin/growth/outreach'
       path: '/outreach'
@@ -2122,6 +2153,13 @@ declare module '@tanstack/react-router' {
       path: '/orgs'
       fullPath: '/admin/growth/orgs'
       preLoaderRoute: typeof AdminGrowthOrgsRouteImport
+      parentRoute: typeof AdminGrowthRoute
+    }
+    '/admin/growth/intelligence': {
+      id: '/admin/growth/intelligence'
+      path: '/intelligence'
+      fullPath: '/admin/growth/intelligence'
+      preLoaderRoute: typeof AdminGrowthIntelligenceRouteImport
       parentRoute: typeof AdminGrowthRoute
     }
     '/admin/growth/councils': {
@@ -2305,8 +2343,10 @@ interface AdminGrowthRouteChildren {
   AdminGrowthChaptersRoute: typeof AdminGrowthChaptersRoute
   AdminGrowthContactsRoute: typeof AdminGrowthContactsRoute
   AdminGrowthCouncilsRoute: typeof AdminGrowthCouncilsRoute
+  AdminGrowthIntelligenceRoute: typeof AdminGrowthIntelligenceRoute
   AdminGrowthOrgsRoute: typeof AdminGrowthOrgsRoute
   AdminGrowthOutreachRoute: typeof AdminGrowthOutreachRoute
+  AdminGrowthResultsRoute: typeof AdminGrowthResultsRoute
   AdminGrowthIndexRoute: typeof AdminGrowthIndexRoute
 }
 
@@ -2315,8 +2355,10 @@ const AdminGrowthRouteChildren: AdminGrowthRouteChildren = {
   AdminGrowthChaptersRoute: AdminGrowthChaptersRoute,
   AdminGrowthContactsRoute: AdminGrowthContactsRoute,
   AdminGrowthCouncilsRoute: AdminGrowthCouncilsRoute,
+  AdminGrowthIntelligenceRoute: AdminGrowthIntelligenceRoute,
   AdminGrowthOrgsRoute: AdminGrowthOrgsRoute,
   AdminGrowthOutreachRoute: AdminGrowthOutreachRoute,
+  AdminGrowthResultsRoute: AdminGrowthResultsRoute,
   AdminGrowthIndexRoute: AdminGrowthIndexRoute,
 }
 

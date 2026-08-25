@@ -254,7 +254,9 @@ export async function cancelScrapeJob(id: string, message = "Cancelled by user")
 
 /** Manually trigger the server-side watchdog (8-min stale → error). */
 export async function runScrapeJobsWatchdog(): Promise<number> {
-  const { data, error } = await supabase.rpc("fail_stale_scrape_jobs");
+  // fail_stale_scrape_jobs is absent from the live DB (legacy path); typed via any so the
+  // regenerated schema types stay honest — the error branch already handles absence.
+  const { data, error } = await (supabase as any).rpc("fail_stale_scrape_jobs");
   if (error) return 0;
   return (data as number) ?? 0;
 }

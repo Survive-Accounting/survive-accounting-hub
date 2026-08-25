@@ -43,8 +43,8 @@ export async function fetchQueue(): Promise<QueueRow[]> {
     .is("archived_at", null);
   if (error) throw error;
 
-  const { data: claims, error: cErr } = await supabase
-    .from("outreach_va_campus_assignments")
+  const { data: claims, error: cErr } = await (supabase
+    .from("outreach_va_campus_assignments") as any)
     .select("id,campus_id,assigned_by_email,claim_expires_at,status")
     .eq("status", "claimed");
   if (cErr) throw cErr;
@@ -84,8 +84,8 @@ export async function fetchQueue(): Promise<QueueRow[]> {
 /** Claim a campus. Returns the new claim id, or throws if already claimed. */
 export async function claimCampus(campusId: string): Promise<string> {
   const email = currentEmail();
-  const { data, error } = await supabase
-    .from("outreach_va_campus_assignments")
+  const { data, error } = await (supabase
+    .from("outreach_va_campus_assignments") as any)
     .insert({
       campus_id: campusId,
       assigned_by_email: email,
@@ -105,8 +105,8 @@ export async function claimCampus(campusId: string): Promise<string> {
 /** Bump the expiry on the caller's active claim for this campus. */
 export async function refreshClaim(campusId: string): Promise<void> {
   const email = currentEmail();
-  await supabase
-    .from("outreach_va_campus_assignments")
+  await (supabase
+    .from("outreach_va_campus_assignments") as any)
     .update({ claim_expires_at: expiresIso() } as never)
     .eq("campus_id", campusId)
     .eq("status", "claimed")
@@ -116,8 +116,8 @@ export async function refreshClaim(campusId: string): Promise<void> {
 /** Release the caller's active claim on a campus. */
 export async function releaseClaim(campusId: string): Promise<void> {
   const email = currentEmail();
-  await supabase
-    .from("outreach_va_campus_assignments")
+  await (supabase
+    .from("outreach_va_campus_assignments") as any)
     .update({ status: "released", released_at: new Date().toISOString() } as never)
     .eq("campus_id", campusId)
     .eq("status", "claimed")
@@ -127,8 +127,8 @@ export async function releaseClaim(campusId: string): Promise<void> {
 /** Mark a campus claim as approved (called after the approval write succeeds). */
 export async function markClaimApproved(campusId: string): Promise<void> {
   const email = currentEmail();
-  await supabase
-    .from("outreach_va_campus_assignments")
+  await (supabase
+    .from("outreach_va_campus_assignments") as any)
     .update({ status: "approved", released_at: new Date().toISOString() } as never)
     .eq("campus_id", campusId)
     .eq("status", "claimed")

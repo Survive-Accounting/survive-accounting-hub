@@ -4,20 +4,24 @@
 // growth_priority_v1 model (growth-priority-core.ts), and stores the result in
 // growth_campus_priority. Called by the admin server function and by
 // scripts/growth-priority/refresh.ts. Import DYNAMICALLY from .functions.ts.
-import {
-  computePriority,
-  type PriorityInput,
-  type PriorityRow,
-} from "@/lib/growth-priority-core";
+import { computePriority, type PriorityInput, type PriorityRow } from "@/lib/growth-priority-core";
 
 type DB = { from: (t: string) => any };
 
 /** PostgREST pages at 1000 rows — page until short page. */
-async function selectAll<T = any>(db: DB, table: string, columns: string, filter?: (q: any) => any): Promise<T[]> {
+async function selectAll<T = any>(
+  db: DB,
+  table: string,
+  columns: string,
+  filter?: (q: any) => any,
+): Promise<T[]> {
   const out: T[] = [];
   const page = 1000;
   for (let from = 0; ; from += page) {
-    let q = db.from(table).select(columns).range(from, from + page - 1);
+    let q = db
+      .from(table)
+      .select(columns)
+      .range(from, from + page - 1);
     if (filter) q = filter(q);
     const { data, error } = await q;
     if (error) throw new Error(`${table}: ${error.message}`);
@@ -31,24 +35,55 @@ const norm = (s: string | null | undefined) => (s ?? "").toLowerCase().replace(/
 
 export async function gatherPriorityInputs(db: DB): Promise<PriorityInput[]> {
   const [
-    market, campuses, elig, chapters, quarantine, competitive, courseIntel,
-    profEvidence, examEvidence, campusExams, entitlements, waitlist, orders, claims, attempts,
+    market,
+    campuses,
+    elig,
+    chapters,
+    quarantine,
+    competitive,
+    courseIntel,
+    profEvidence,
+    examEvidence,
+    campusExams,
+    entitlements,
+    waitlist,
+    orders,
+    claims,
+    attempts,
   ] = await Promise.all([
-    selectAll(db, "campus_market_intelligence",
-      "campus_id,segment,business_bachelors,growth_momentum_score,dup:raw_json->>duplicate_primary"),
+    selectAll(
+      db,
+      "campus_market_intelligence",
+      "campus_id,segment,business_bachelors,growth_momentum_score,dup:raw_json->>duplicate_primary",
+    ),
     selectAll(db, "campuses", "id,name,display_name,slug"),
-    selectAll(db, "growth_outreach_eligibility",
-      "campus_id,chapter_id,council_type,contact_type,email,instagram,outreach_eligible,confidence"),
-    selectAll(db, "campus_greek_chapters", "campus_id,greek_org_id", (q) => q.is("archived_at", null)),
+    selectAll(
+      db,
+      "growth_outreach_eligibility",
+      "campus_id,chapter_id,council_type,contact_type,email,instagram,outreach_eligible,confidence",
+    ),
+    selectAll(db, "campus_greek_chapters", "campus_id,greek_org_id", (q) =>
+      q.is("archived_at", null),
+    ),
     selectAll(db, "growth_scoring_exclusions", "campus_id,metric"),
-    selectAll(db, "campus_competitive_intel",
-      "campus_id,validated_paid_market,intro_accounting_paid_market_status,course_specific_competitors,ads_observed,market_status"),
-    selectAll(db, "course_intel_campus_status", "campus_id,course_code,syllabi_found,textbook_docs_found"),
+    selectAll(
+      db,
+      "campus_competitive_intel",
+      "campus_id,validated_paid_market,intro_accounting_paid_market_status,course_specific_competitors,ads_observed,market_status",
+    ),
+    selectAll(
+      db,
+      "course_intel_campus_status",
+      "campus_id,course_code,syllabi_found,textbook_docs_found",
+    ),
     selectAll(db, "professor_intro1_evidence", "campus_id,evidence_state"),
     selectAll(db, "course_evidence", "campus_id,evidence_type,exam_label", (q) =>
-      q.in("evidence_type", ["exam_chapter_range", "textbook_reference"])),
+      q.in("evidence_type", ["exam_chapter_range", "textbook_reference"]),
+    ),
     selectAll(db, "campus_exams", "campus_id,professor_id,status", (q) => q.eq("status", "active")),
-    selectAll(db, "student_entitlements", "campus_id,user_id,source", (q) => q.is("revoked_at", null).not("is_test", "is", true)),
+    selectAll(db, "student_entitlements", "campus_id,user_id,source", (q) =>
+      q.is("revoked_at", null).not("is_test", "is", true),
+    ),
     selectAll(db, "campus_waitlist", "campus_id", (q) => q.not("is_test", "is", true)),
     selectAll(db, "orders", "campus_id"),
     selectAll(db, "greek_chapter_claims", "campus_greek_chapter_id,status"),
@@ -70,15 +105,36 @@ export async function gatherPriorityInputs(db: DB): Promise<PriorityInput[]> {
     let row = agg.get(campusId);
     if (!row) {
       row = {
-        campusId, name: nameOf.get(campusId) ?? campusId, duplicateSuppressed: false, segment: null,
-        businessBachelors: null, growthMomentum: null,
-        eligibleCouncilEmails: 0, eligibleChapterEmails: 0, instagramContacts: 0,
-        socialChapters: 0, greekQuarantined: false,
-        hasCompetitiveRow: false, validatedPaidMarket: false, introPaidStatus: null,
-        courseSpecificCompetitors: 0, adsObserved: false, marketStatus: null,
-        hasCourseCode: false, confirmedIntro1Professors: 0, likelyIntro1Professors: 0,
-        exam1RangeEvidence: false, textbookEvidence: false, syllabiFound: 0, approvedCampusMap: false,
-        identifiedUsers: 0, paidUsers: 0, practiceAttempts: 0, waitlistSignups: 0, orders: 0, chapterClaims: 0,
+        campusId,
+        name: nameOf.get(campusId) ?? campusId,
+        duplicateSuppressed: false,
+        segment: null,
+        businessBachelors: null,
+        growthMomentum: null,
+        eligibleCouncilEmails: 0,
+        eligibleChapterEmails: 0,
+        instagramContacts: 0,
+        socialChapters: 0,
+        greekQuarantined: false,
+        hasCompetitiveRow: false,
+        validatedPaidMarket: false,
+        introPaidStatus: null,
+        courseSpecificCompetitors: 0,
+        adsObserved: false,
+        marketStatus: null,
+        hasCourseCode: false,
+        confirmedIntro1Professors: 0,
+        likelyIntro1Professors: 0,
+        exam1RangeEvidence: false,
+        textbookEvidence: false,
+        syllabiFound: 0,
+        approvedCampusMap: false,
+        identifiedUsers: 0,
+        paidUsers: 0,
+        practiceAttempts: 0,
+        waitlistSignups: 0,
+        orders: 0,
+        chapterClaims: 0,
       };
       agg.set(campusId, row);
     }
@@ -137,7 +193,8 @@ export async function gatherPriorityInputs(db: DB): Promise<PriorityInput[]> {
     if (!ev.campus_id) continue;
     const r = get(ev.campus_id);
     if (ev.evidence_type === "textbook_reference") r.textbookEvidence = true;
-    else if (ev.evidence_type === "exam_chapter_range" && norm(ev.exam_label).includes("exam1")) r.exam1RangeEvidence = true;
+    else if (ev.evidence_type === "exam_chapter_range" && norm(ev.exam_label).includes("exam1"))
+      r.exam1RangeEvidence = true;
   }
   for (const ex of campusExams as any[]) {
     if (ex.campus_id && !ex.professor_id) get(ex.campus_id).approvedCampusMap = true;
@@ -187,7 +244,9 @@ export async function gatherPriorityInputs(db: DB): Promise<PriorityInput[]> {
   return [...agg.values()].filter((r) => r.segment != null);
 }
 
-export async function refreshGrowthPriority(db: DB): Promise<{ ranked: number; top: PriorityRow[] }> {
+export async function refreshGrowthPriority(
+  db: DB,
+): Promise<{ ranked: number; top: PriorityRow[] }> {
   const inputs = await gatherPriorityInputs(db);
   const rows = computePriority(inputs);
   // Full replace: ranking is a snapshot, not an event log.
@@ -195,11 +254,17 @@ export async function refreshGrowthPriority(db: DB): Promise<{ ranked: number; t
   if (del.error) throw new Error(`clear priority: ${del.error.message}`);
   for (let i = 0; i < rows.length; i += 500) {
     const batch = rows.slice(i, i + 500).map((r) => ({
-      campus_id: r.campusId, rank: r.rank, score: r.score, version: r.version,
-      why: r.why, components: { ...r.components, baskets: r.baskets },
+      campus_id: r.campusId,
+      rank: r.rank,
+      score: r.score,
+      version: r.version,
+      why: r.why,
+      components: { ...r.components, baskets: r.baskets },
       computed_at: new Date().toISOString(),
     }));
-    const { error } = await db.from("growth_campus_priority").upsert(batch, { onConflict: "campus_id" });
+    const { error } = await db
+      .from("growth_campus_priority")
+      .upsert(batch, { onConflict: "campus_id" });
     if (error) throw new Error(`write priority: ${error.message}`);
   }
   return { ranked: rows.length, top: rows.slice(0, 25) };

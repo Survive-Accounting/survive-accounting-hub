@@ -554,8 +554,8 @@ async function discoverOneChapter(db: DB, campus: any, domain: string, ch: any, 
         })
         .select("id")
         .maybeSingle();
-      if (error || !ins) continue;
-      id = ins.id;
+      if (error || !ins?.id) continue;
+      id = String(ins.id);
       byKey.set(key, { id });
       saved++;
     }

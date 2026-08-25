@@ -43,7 +43,7 @@ export const getScraperTrends = createServerFn({ method: "POST" })
       costUsd: number;
     };
     const byDay = new Map<string, Day>();
-    for (const r of (bundles ?? []) as Array<{
+    for (const r of (bundles ?? []) as unknown as Array<{
       created_at: string;
       duration_ms: number | null;
       credits_estimate_usd: number | null;
@@ -202,8 +202,16 @@ export const generatePerformanceVerdict = createServerFn({ method: "POST" })
         .limit(2_000),
     ]);
 
-    type B = NonNullable<typeof bundles>[number];
-    const rows = (bundles ?? []) as B[];
+    // The debug-bundle VIEW types every column nullable — normalize once here.
+    const rows = ((bundles ?? []) as any[]).map((r) => ({
+      ...r,
+      created_at: String(r.created_at ?? ""),
+      contacts_with_email: Number(r.contacts_with_email ?? 0),
+      contacts_inserted: Number(r.contacts_inserted ?? 0),
+      host_fail_count: Number(r.host_fail_count ?? 0),
+      pagination_walked: Number(r.pagination_walked ?? 0),
+      duration_ms: r.duration_ms == null ? null : Number(r.duration_ms),
+    }));
 
     // Aggregate per-day for the prompt (compact).
     const byDay = new Map<string, { runs: number; emails: number; contacts: number; hostFails: number; pagWalked: number; mapFb: number; dur: number; cost: number }>();
@@ -253,7 +261,7 @@ export const generatePerformanceVerdict = createServerFn({ method: "POST" })
       window_start: windowStart.toISOString(),
       window_end: windowEnd.toISOString(),
       total_runs: rows.length,
-      milestones: (milestones ?? []).map((m: { id: string; name: string; description: string | null; deployed_at: string; tags: string[] }) => ({
+      milestones: ((milestones ?? []) as any[]).map((m) => ({
         id: m.id, name: m.name, description: m.description, deployed_at: m.deployed_at, tags: m.tags,
       })),
       daily_series: dailySeries,
