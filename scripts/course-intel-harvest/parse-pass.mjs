@@ -92,6 +92,7 @@ async function main() {
   const reserve = +(args[args.indexOf("--reserve-credits") + 1] || 3000) || 3000;
   const maxDocs = +(args[args.indexOf("--max-docs") + 1] || Infinity) || Infinity;
   const concurrency = Math.max(1, +(args[args.indexOf("--concurrency") + 1] || 2) || 2);
+  const typeFilter = args.indexOf("--types") >= 0 ? new Set(args[args.indexOf("--types") + 1].split(",")) : null;
   const checkpoint = path.join(HERE, "parse-checkpoint.json");
   const keys = { firecrawl: process.env.FIRECRAWL_API_KEY, ai: process.env.AI_GATEWAY_API_KEY };
   if (execute && (!keys.firecrawl || !keys.ai)) throw new Error("FIRECRAWL_API_KEY / AI_GATEWAY_API_KEY missing");
@@ -109,7 +110,7 @@ async function main() {
 
   // filter to parse-worthy + order by value then market priority
   const work = docs
-    .filter((d) => valueRank(d.document_type, d.value_tier) <= 6 && !RESTRICTED.test(d.source_domain || "") && !cp.done[d.id])
+    .filter((d) => valueRank(d.document_type, d.value_tier) <= 6 && !RESTRICTED.test(d.source_domain || "") && !cp.done[d.id] && (!typeFilter || typeFilter.has(d.document_type)))
     .map((d) => ({ ...d, vrank: (d.value_tier === 1 ? 0 : 0) + valueRank(d.document_type, d.value_tier), mprio: cprio.get(d.campus_id) ?? 9 }))
     .sort((a, b) => a.vrank - b.vrank || a.mprio - b.mprio)
     .slice(0, maxDocs);

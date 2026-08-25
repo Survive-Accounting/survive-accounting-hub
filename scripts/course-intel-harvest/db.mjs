@@ -88,10 +88,21 @@ export async function markDocument(id, patch) {
   await rest("PATCH", `course_document?id=eq.${id}`, { body: patch, prefer: "return=minimal" });
 }
 
+// PostgREST bulk insert requires EVERY object to have identical keys, else it
+// 400s with PGRST102 ("All object keys must match") and drops the whole batch.
+// Our evidence rows are heterogeneous (range vs date vs topic vs textbook), so we
+// union all keys and fill the missing ones with null before inserting.
+function uniformRows(rows) {
+  const keys = new Set();
+  for (const r of rows) for (const k of Object.keys(r)) keys.add(k);
+  const all = [...keys];
+  return rows.map((r) => { const o = {}; for (const k of all) o[k] = k in r ? r[k] : null; return o; });
+}
+
 /** Replace evidence for a document (idempotent re-parse). */
 export async function replaceEvidence(documentId, rows) {
   await rest("DELETE", `course_evidence?course_document_id=eq.${documentId}`, { prefer: "return=minimal" });
-  if (rows.length) await rest("POST", "course_evidence", { body: rows, prefer: "return=minimal" });
+  if (rows.length) await rest("POST", "course_evidence", { body: uniformRows(rows), prefer: "return=minimal" });
 }
 
 export async function upsertTextbook(row) {
@@ -116,7 +127,7 @@ export async function upsertProfessorEvidence(rows) {
   await rest(
     "POST",
     "professor_intro1_evidence?on_conflict=campus_id,professor_name,evidence_state,source_url",
-    { body: rows, prefer: "resolution=merge-duplicates,return=minimal" },
+    { body: uniformRows(rows), prefer: "resolution=merge-duplicates,return=minimal" },
   );
 }
 
