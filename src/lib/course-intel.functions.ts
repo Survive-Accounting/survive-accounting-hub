@@ -67,6 +67,7 @@ export type CourseIntelRow = {
   profIntro1: number;       // qualified "teaches Intro 1" (RMP target-course signal)
   hasIntro1Code: boolean;   // campus has an intro-1 course code (prereq to qualify)
   greekOrgs: number;        // campus_greek_chapters count
+  greekEligibility: string | null; // unknown|eligible|no_social_greek|ambiguous
   profPending: number;
   textbook: string | null;
   hasMapping: boolean;
@@ -77,9 +78,9 @@ export const getCourseIntelOverview = createServerFn({ method: "GET" }).handler(
 
   const campuses = await pageAll<{
     id: string; name: string; state: string | null; active_roster: string | null; course_family_textbooks_json: unknown;
-    course_family_codes_json: unknown; course_codes_json: unknown;
+    course_family_codes_json: unknown; course_codes_json: unknown; greek_eligibility: string | null;
   }>((f, t) =>
-    (supabaseAdmin.from("campuses") as any).select("id,name,state,active_roster,course_family_textbooks_json,course_family_codes_json,course_codes_json").range(f, t),
+    (supabaseAdmin.from("campuses") as any).select("id,name,state,active_roster,course_family_textbooks_json,course_family_codes_json,course_codes_json,greek_eligibility").range(f, t),
   );
 
   const sugg = await pageAll<{
@@ -128,7 +129,8 @@ export const getCourseIntelOverview = createServerFn({ method: "GET" }).handler(
       campusId: c.id, name: c.name, state: c.state, inPicker: inPicker.has(c.id),
       campusLive: c.active_roster === "sec",
       profTotal: a.total, profWithEmail: a.email, profLive: a.live, profPlayerReady: a.ready, profIntro1: a.intro1,
-      hasIntro1Code: hasIntro1Code(c.course_family_codes_json, c.course_codes_json), greekOrgs: greekCount.get(c.id) ?? 0, profPending: a.pending,
+      hasIntro1Code: hasIntro1Code(c.course_family_codes_json, c.course_codes_json), greekOrgs: greekCount.get(c.id) ?? 0,
+      greekEligibility: (c.greek_eligibility as string) ?? null, profPending: a.pending,
       textbook: tb ? `${tb.title}${tb.authors ? " — " + tb.authors : ""}` : null,
       hasMapping: !!author && mappedAuthors.has(author),
     };

@@ -1,0 +1,165 @@
+Institution,Has Fraternity,Has Sorority,% Fraternity,% Sorority,Greek Eligibility
+Washington and Lee University,Y,Y,72,72,eligible
+The College of Wooster,Y,Y,35,65,eligible
+Wake Forest University,Y,Y,28,65,eligible
+Texas Christian University,Y,Y,46,59,eligible
+Wabash College,Y,N,59,,eligible
+Centre College,Y,Y,52,53,eligible
+Tulane University of Louisiana,Y,Y,32,53,eligible
+Wofford College,Y,Y,34,50,eligible
+DePauw University,Y,Y,49,44,eligible
+Hanover College,Y,Y,45,31,eligible
+Bucknell University,Y,Y,31,43,eligible
+Duke University,Y,Y,30,42,eligible
+Davidson College,Y,Y,22,40,eligible
+Elon University,Y,Y,20,39,eligible
+Colgate University,Y,Y,30,38,eligible
+Butler University,Y,Y,27,35,eligible
+Creighton University,Y,Y,24,34,eligible
+Dartmouth College,Y,Y,33,33,eligible
+Denison University,Y,Y,20,33,eligible
+Pepperdine University,Y,Y,22,33,eligible
+University of Nebraska-Lincoln,Y,Y,29,33,eligible
+Chapman University,Y,Y,23,32,eligible
+Gettysburg College,Y,Y,28,31,eligible
+Miami University-Oxford,Y,Y,23,31,eligible
+The University of Tampa,Y,Y,19,30,eligible
+Rose-Hulman Institute of Technology,Y,Y,29,29,eligible
+Cornell College,Y,Y,20,28,eligible
+Kenyon College,Y,Y,20,28,eligible
+Worcester Polytechnic Institute,Y,Y,22,27,eligible
+College of William and Mary,Y,Y,24,26,eligible
+Lehigh University,Y,Y,18,25,eligible
+Muhlenberg College,Y,Y,19,25,eligible
+Loyola Marymount University,Y,Y,17,25,eligible
+Stanford University,Y,Y,21,25,eligible
+College of Charleston,Y,Y,21,24,eligible
+Dickinson College,Y,Y,8,24,eligible
+Georgia Institute of Technology,Y,Y,20,24,eligible
+Ohio Wesleyan University,Y,Y,24,16,eligible
+Missouri University of Science and Technology,Y,Y,19,24,eligible
+Rollins College,Y,Y,16,24,eligible
+University of Kansas,Y,Y,15,24,eligible
+Emory University,Y,Y,23,21,eligible
+Hillsdale College,Y,Y,17,23,eligible
+St. Lawrence University,Y,Y,9,23,eligible
+University of Denver,Y,Y,23,20,eligible
+Allegheny College,Y,Y,15,22,eligible
+Johns Hopkins University,Y,Y,22,13,eligible
+Mercer University,Y,Y,22,21,eligible
+SUNY College at Geneseo,Y,Y,14,22,eligible
+Truman State University,Y,Y,22,17,eligible
+University of Puget Sound,Y,Y,22,14,eligible
+Colorado School of Mines,Y,Y,13,21,eligible
+Duquesne University,Y,Y,15,21,eligible
+Illinois Wesleyan University,Y,Y,17,21,eligible
+The College of New Jersey,Y,Y,21,16,eligible
+Hope College,Y,Y,14,20,eligible
+Grove City College,Y,Y,17,20,eligible
+Villanova University,Y,Y,9,20,eligible
+Bentley University,Y,Y,11,19,eligible
+Franklin and Marshall College,Y,Y,3,19,eligible
+Quinnipiac University,Y,Y,17,19,eligible
+University of Illinois at Urbana-Champaign,Y,Y,14,19,eligible
+Ursinus College,Y,Y,6,19,eligible
+Rensselaer Polytechnic Institute,Y,Y,18,11,eligible
+Stevens Institute of Technology,Y,Y,13,18,eligible
+Washington State University,Y,Y,18,18,eligible
+Whitman College,Y,Y,18,18,eligible
+Babson College,Y,Y,11,17,eligible
+Purdue University-Main Campus,Y,Y,13,17,eligible
+Stetson University,Y,Y,17,16,eligible
+Trinity University,Y,Y,10,17,eligible
+Washington University in St. Louis,Y,Y,17,17,eligible
+University of Richmond,Y,Y,12,17,eligible
+Case Western Reserve University,Y,Y,16,14,eligible
+University of New Hampshire,Y,Y,15,10,eligible
+Iowa State University,Y,Y,14,14,eligible
+Hamilton College,Y,Y,11,14,eligible
+Gustavus Adolphus College,Y,Y,10,14,eligible
+University of California-San Diego,Y,Y,14,14,eligible
+East Carolina University,Y,Y,12,13,eligible
+Kettering University,Y,Y,13,12,eligible
+Hobart William Smith Colleges,Y,Y,13,3,eligible
+Michigan State University,Y,Y,12,13,eligible
+University of Connecticut,Y,Y,11,13,eligible
+Milwaukee School of Engineering,Y,Y,5,12,eligible
+Ohio State University,Y,Y,8,12,eligible
+Tufts University,Y,Y,12,12,eligible
+Union College,Y,Y,10,12,eligible
+University of Pittsburgh,Y,Y,9,12,eligible
+University of North Carolina at Chapel Hill,Y,Y,7,12,eligible
+University of North Carolina-Wilmington,Y,Y,7,12,eligible
+Willamette University,Y,Y,9,12,eligible
+Boston University,Y,Y,,11,eligible
+Appalachian State University,Y,Y,9,10,eligible
+Clarkson University,Y,Y,10,8,eligible
+Illinois Institute of Technology,Y,Y,8,10,eligible
+Florida Institute of Technology,Y,Y,9,3,eligible
+Hofstra University,Y,Y,5,9,eligible
+Michigan Technological University,Y,Y,9,8,eligible
+University of Cincinnati-Main Campus,Y,Y,9,7,eligible
+Montana State University,Y,Y,7,8,eligible
+University of Maine,Y,Y,6,8,eligible
+University of Redlands,Y,Y,4,8,eligible
+Carnegie Mellon University,Y,Y,7,7,eligible
+Lake Forest College,Y,Y,6,7,eligible
+University of Massachusetts-Amherst,Y,Y,7,7,eligible
+West Virginia University,Y,Y,7,6,eligible
+California Polytechnic State University-San Luis Obispo,Y,Y,3,6,eligible
+Colorado State University,Y,Y,5,6,eligible
+DePaul University,Y,Y,3,6,eligible
+Ohio University,Y,Y,6,4,eligible
+Rowan University,Y,Y,5,6,eligible
+The University of Montana,Y,Y,6,6,eligible
+University of California-Santa Cruz,Y,Y,5,6,eligible
+University of California-Davis,Y,Y,5,6,eligible
+University of Central Florida,Y,Y,4,6,eligible
+Washington College,Y,Y,4,6,eligible
+California State University-Fresno,Y,Y,5,3,eligible
+New Jersey Institute of Technology,Y,Y,5,4,eligible
+Spelman College,N,Y,,5,eligible
+Towson University,Y,Y,5,5,eligible
+Temple University,Y,Y,4,5,eligible
+University of California-Berkeley,Y,Y,3,5,eligible
+Lawrence University,Y,Y,4,3,eligible
+Wesleyan University,Y,Y,4,0,eligible
+University of California-Riverside,Y,Y,3,4,eligible
+Marist College,Y,Y,3,3,eligible
+Stony Brook University,Y,Y,2,3,eligible
+University of Nevada-Las Vegas,Y,Y,1,3,eligible
+Virginia Commonwealth University,Y,Y,2,3,eligible
+California State Polytechnic University-Pomona,Y,Y,2,1,eligible
+California State University-Fullerton,Y,Y,0.2,2,eligible
+Thomas Jefferson University,Y,Y,2,2,eligible
+University at Buffalo,Y,Y,1,2,eligible
+Catholic University of America,Y,Y,,1,eligible
+CUNY Hunter College,Y,Y,1,1,eligible
+Ramapo College of New Jersey,Y,Y,0,1,eligible
+University of North Carolina at Asheville,Y,Y,1,1,eligible
+Barnard College,N,Y,,0,eligible
+Baylor University,Y,Y,,,eligible
+Boise State University,Y,Y,,,eligible
+Colorado College,Y,Y,,,eligible
+Cooper Union for the Advancement of Science and Art,Y,Y,0,0,eligible
+Cornell University,Y,Y,,,eligible
+Drake University,Y,Y,,,eligible
+Embry-Riddle Aeronautical University,Y,Y,,,eligible
+Emerson College,Y,Y,,,eligible
+James Madison University,Y,Y,,,eligible
+Marquette University,Y,Y,,,eligible
+Occidental College,Y,Y,,,eligible
+Pratt Institute-Main,Y,Y,,,eligible
+Rutgers University-Camden,Y,Y,,,eligible
+Rutgers University-New Brunswick,Y,Y,,,eligible
+Rutgers University-Newark,Y,Y,,,eligible
+Saint Louis University,Y,Y,,,eligible
+San Jose State University,Y,Y,,,eligible
+SUNY College of Environmental Science and Forestry,Y,Y,,,eligible
+Trinity College,Y,Y,,,eligible
+University of Nevada-Reno,Y,Y,,,eligible
+University of Washington-Seattle,Y,Y,,,eligible
+Virginia Tech,Y,Y,,,eligible
+University of California-Irvine,Y,Y,,,eligible
+University of California-Merced,Y,Y,,,eligible
+Yale University,Y,Y,,,eligible
