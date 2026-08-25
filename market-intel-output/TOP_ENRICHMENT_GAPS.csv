@@ -1,101 +1,101 @@
 rank,campus,state,IPEDS_UNITID,enrichment_priority,market_opportunity,structural_completeness,business_bachelors,greek_status,council_status,clubs_status,missing,next_action
 1,CUNY-Baruch College New,NY,190512,95,95,0%,2497,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-2,Virginia Poly Inst & St Un,VA,233921,90.9,90.9,0%,1723,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-3,Liberty University,VA,232557,90.4,90.4,0%,1962,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-4,Utah Valley University,UT,230737,90,90,0%,999,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-5,"Calif State Univ, Northridge",CA,110608,89.2,89.2,0%,1574,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-6,University of Houston - Downtown,TX,225432,89.1,89.1,0%,1057,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-7,Appalachian State Univ,NC,197869,87.6,87.6,0%,1065,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-8,Penn State University Univ,PA,214777,87.6,87.6,0%,1790,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-9,DePaul University,IL,144740,87.6,87.6,0%,935,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-10,Univ of Central Florida,FL,132903,87.1,87.1,0%,2290,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-11,Michigan State University East,MI,171100,86.8,86.8,0%,1469,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-12,Temple University,PA,216339,86.8,86.8,0%,1143,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-13,Grand Valley State University Allendal,MI,170082,85.5,85.5,0%,939,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-14,Western Michigan University,MI,172699,85.2,85.2,0%,847,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-15,Texas A&M University Coll,TX,228723,85,85,0%,1809,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-16,Illinois State University,IL,145813,84.7,84.7,0%,973,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-17,Boise State University,ID,142115,84.4,84.4,0%,862,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-18,"Calif State Univ, Fullerton",CA,110565,84.1,84.1,0%,2254,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-19,Wayne State University,MI,172644,83.4,83.4,0%,867,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-20,Un of Massachusetts Amherst,MA,166629,83.1,83.1,0%,1093,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-21,University of Tampa,FL,137847,82.9,82.9,0%,768,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-22,San Jose State University San,CA,122755,82.8,82.8,0%,1614,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-23,Univ of Nebraska-Lincoln,NE,181464,82.5,82.5,0%,900,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-24,Calif State Poly U-Pomona,CA,110529,82.2,82.2,0%,1514,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-25,CUNY-Brooklyn College,NY,190549,82,82,0%,652,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-26,Franklin University,OH,202806,81.9,81.9,0%,895,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-27,Montclair State University,NJ,185590,81.8,81.8,0%,785,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-28,Texas Christian University Fort,TX,228875,81.7,81.7,0%,701,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-29,Rutgers University-Newark,NJ,186399,80.9,80.9,0%,656,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-30,Middle Tennessee State Univ,TN,220978,80.8,80.8,0%,888,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-31,Purdue University W,IN,243780,80.1,80.1,0%,1062,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-32,Georgia Southern University,GA,139931,79.9,79.9,0%,695,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-33,St. John's University,NY,195809,79.4,79.4,0%,491,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-34,Florida Gulf Coast University,FL,433660,79.2,79.2,0%,662,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-35,Brigham Young University,UT,230038,79.1,79.1,0%,1015,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-36,Bentley University,MA,164739,78.9,78.9,0%,849,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-37,Minnesota St Univ Mankato,MN,173920,78.7,78.7,0%,583,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-38,SUNYat Buffalo,NY,196088,78.4,78.4,0%,798,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-39,Valencia College,FL,138187,78.3,78.3,0%,502,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-40,University of Maryland College,MD,163286,78.3,78.3,0%,986,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-41,Univ of Hawaii at Manoa,HI,141574,78.3,78.3,0%,624,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-42,Boston College Chestnut,MA,164924,77.8,77.8,0%,566,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-43,University of Utah Salt Lake,UT,230764,77.7,77.7,0%,810,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-44,University of Notre Dame Notre,IN,152080,77.2,77.2,0%,585,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-45,University of Illinois,IL,145637,77.2,77.2,0%,830,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-46,University of St. Thomas-MN St.,MN,174914,77,77,0%,607,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-47,Northern Arizona University,AZ,105330,76.5,76.5,0%,790,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-48,Uof Missouri - Columbia,MO,178396,76.4,76.4,0%,1160,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-49,Metropolitan St Univ Denver,CO,127565,76.2,76.2,0%,509,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-50,Miami Dade College Virtual Campu,FL,135717,76.1,76.1,0%,435,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-51,Portland State University,OR,209807,76,76,0%,591,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-52,Tarleton State University,TX,228529,75.5,75.5,0%,558,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-53,"Calif State Univ, Long Beach Long",CA,110583,75.2,75.2,0%,1399,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-54,Central Michigan University Mt.,MI,169248,74.9,74.9,0%,540,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-55,University of North Georgia,GA,482680,74.7,74.7,0%,457,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-56,Chapman University,CA,111948,74.6,74.6,0%,560,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-57,University of Memphis,TN,220862,74.6,74.6,0%,533,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-58,Uof Alabama at Birmingham,AL,100663,74.4,74.4,0%,543,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-59,University of Dayton,OH,202480,74.4,74.4,0%,513,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-60,Rowan University,NJ,184782,74,74,0%,633,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-61,Bryant University,RI,217165,74,74,0%,636,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-62,Fairfield University,CT,129242,73.6,73.6,0%,482,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-63,"University of Nevada, Reno",NV,182290,73.4,73.4,0%,584,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-64,University of North Florida,FL,136172,73.4,73.4,0%,569,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-65,University of San Diego San,CA,122436,73.4,73.4,0%,501,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-66,The University of Texas Rio Grande Valley,TX,227368,72.9,72.9,0%,570,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-67,Oakland University,MI,171571,72.6,72.6,0%,540,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-68,Southeastern Louisiana Univ,LA,160612,72.5,72.5,0%,386,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-69,Park University,MO,178721,72.5,72.5,0%,515,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-70,"Calif State Univ, East Bay",CA,110574,72.4,72.4,0%,786,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-71,Utah State University,UT,230728,72,72,0%,546,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-72,Loyola Marymount Univ Los,CA,117946,71.6,71.6,0%,463,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-73,Tennessee at Chattanooga,TN,221740,71.6,71.6,0%,446,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-74,Villanova University,PA,216597,71.4,71.4,0%,426,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-75,Sacred Heart University,CT,130253,71.3,71.3,0%,419,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-76,Northern Illinois Univ,IL,147703,71.3,71.3,0%,441,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-77,Western Carolina University,NC,200004,71.2,71.2,0%,527,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-78,Coastal Carolina University,SC,218724,70.8,70.8,0%,424,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-79,Elon University,NC,198516,70.6,70.6,0%,431,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-80,Wichita State University,KS,156125,70.6,70.6,0%,410,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-81,Univ of Missouri - St. Louis St.,MO,178420,70.6,70.6,0%,326,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-82,"Calif State U, Los Angeles Los",CA,110592,70.5,70.5,0%,872,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-83,Tulane University New,LA,160755,70.4,70.4,0%,604,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-84,University of Rhode Island,RI,217484,70.3,70.3,0%,516,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-85,Virginia Commonwealth,VA,234030,70.2,70.2,0%,567,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-86,Univ of Colorado at Denver,CO,127060,70.2,70.2,0%,397,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-87,"Calif State Univ, Sacramento",CA,110617,69.5,69.5,0%,996,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-88,Saint Joseph's University,PA,215770,69.5,69.5,0%,433,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-89,Boston University,MA,164988,69.3,69.3,0%,768,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-90,Colorado State University Fort,CO,126818,69.1,69.1,0%,775,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-91,Univ of Nebraska at Omaha,NE,181394,69,69,0%,420,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-92,Florida State College at Jacksonville,FL,133702,69,69,0%,307,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-93,Providence College,RI,217402,68.9,68.9,0%,417,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-94,Central Connecticut St Univ New,CT,128771,68.9,68.9,0%,345,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-95,Texas A&M - Corpus Christi Corp,TX,224147,68.8,68.8,0%,354,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-96,North Carolina Wilmington,NC,199218,68.8,68.8,0%,665,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-97,"Univ of Calif, Riverside",CA,110671,68.7,68.7,0%,815,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-98,Santa Clara University Santa,CA,122931,68.7,68.7,0%,361,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-99,"So Illinois, Edwardsville",IL,149231,68.6,68.6,0%,395,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
-100,University of West Georgia,GA,141334,68.4,68.4,0%,358,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+2,Virginia Poly Inst & St Un,VA,233921,91.3,91.3,0%,1723,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+3,Utah Valley University,UT,230737,90.3,90.3,0%,999,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+4,"Calif State Univ, Northridge",CA,110608,89.6,89.6,0%,1574,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+5,Penn State University Univ,PA,214777,88.1,88.1,0%,1790,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+6,Appalachian State Univ,NC,197869,87.9,87.9,0%,1065,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+7,DePaul University,IL,144740,87.8,87.8,0%,935,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+8,Univ of Central Florida,FL,132903,87.8,87.8,0%,2290,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+9,Michigan State University East,MI,171100,87.3,87.3,0%,1469,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+10,Temple University,PA,216339,87.2,87.2,0%,1143,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+11,Grand Valley State University Allendal,MI,170082,85.8,85.8,0%,939,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+12,Texas A&M University Coll,TX,228723,85.7,85.7,0%,1809,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+13,Western Michigan University,MI,172699,85.6,85.6,0%,847,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+14,Illinois State University,IL,145813,85.2,85.2,0%,973,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+15,Boise State University,ID,142115,84.9,84.9,0%,862,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+16,California State University-Fullerton,CA,110565,84.5,84.5,0%,2254,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+17,Wayne State University,MI,172644,83.8,83.8,0%,867,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+18,Un of Massachusetts Amherst,MA,166629,83.7,83.7,0%,1093,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+19,University of Tampa,FL,137847,83.4,83.4,0%,768,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+20,San Jose State University San,CA,122755,83.2,83.2,0%,1614,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+21,Univ of Nebraska-Lincoln,NE,181464,83,83,0%,900,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+22,California State Polytechnic University-Pomona,CA,110529,82.7,82.7,0%,1514,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+23,Franklin University,OH,202806,82.4,82.4,0%,895,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+24,CUNY-Brooklyn College,NY,190549,82.4,82.4,0%,652,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+25,Montclair State University,NJ,185590,82.3,82.3,0%,785,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+26,Texas Christian University Fort,TX,228875,82.1,82.1,0%,701,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+27,Middle Tennessee State Univ,TN,220978,81.4,81.4,0%,888,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+28,Rutgers University-Newark,NJ,186399,81.3,81.3,0%,656,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+29,Georgia Southern University,GA,139931,80.5,80.5,0%,695,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+30,Brigham Young University,UT,230038,80,80,0%,1015,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+31,St. John's University,NY,195809,79.8,79.8,0%,491,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+32,Bentley University,MA,164739,79.7,79.7,0%,849,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+33,University of Maryland College,MD,163286,79.2,79.2,0%,986,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+34,Minnesota St Univ Mankato,MN,173920,79.1,79.1,0%,583,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+35,Valencia College,FL,138187,78.8,78.8,0%,502,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+36,Univ of Hawaii at Manoa,HI,141574,78.7,78.7,0%,624,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+37,University of Utah Salt Lake,UT,230764,78.5,78.5,0%,810,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+38,Boston College Chestnut,MA,164924,78.3,78.3,0%,566,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+39,University of Illinois,IL,145637,78,78,0%,830,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+40,University of Notre Dame Notre,IN,152080,77.9,77.9,0%,585,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+41,University of St. Thomas-MN St.,MN,174914,77.6,77.6,0%,607,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+42,Northern Arizona University,AZ,105330,77.3,77.3,0%,790,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+43,Uof Missouri - Columbia,MO,178396,77,77,0%,1160,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+44,Metropolitan St Univ Denver,CO,127565,76.9,76.9,0%,509,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+45,Miami Dade College Virtual Campu,FL,135717,76.6,76.6,0%,435,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+46,Portland State University,OR,209807,76.6,76.6,0%,591,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+47,Tarleton State University,TX,228529,76.1,76.1,0%,558,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+48,"Calif State Univ, Long Beach Long",CA,110583,76,76,0%,1399,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+49,Central Michigan University Mt.,MI,169248,75.6,75.6,0%,540,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+50,Chapman University,CA,111948,75.4,75.4,0%,560,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+51,University of North Georgia,GA,482680,75.4,75.4,0%,457,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+52,University of Dayton,OH,202480,75.3,75.3,0%,513,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+53,University of Memphis,TN,220862,75.3,75.3,0%,533,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+54,Uof Alabama at Birmingham,AL,100663,75,75,0%,543,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+55,Rowan University,NJ,184782,74.6,74.6,0%,633,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+56,Bryant University,RI,217165,74.6,74.6,0%,636,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+57,Fairfield University,CT,129242,74.4,74.4,0%,482,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+58,University of San Diego San,CA,122436,74.2,74.2,0%,501,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+59,"University of Nevada, Reno",NV,182290,74.1,74.1,0%,584,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+60,University of North Florida,FL,136172,74.1,74.1,0%,569,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+61,Park University,MO,178721,73.4,73.4,0%,515,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+62,Southeastern Louisiana Univ,LA,160612,73.3,73.3,0%,386,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+63,Oakland University,MI,171571,73.3,73.3,0%,540,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+64,"Calif State Univ, East Bay",CA,110574,73.1,73.1,0%,786,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+65,Utah State University,UT,230728,72.9,72.9,0%,546,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+66,Loyola Marymount Univ Los,CA,117946,72.6,72.6,0%,463,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+67,Tennessee at Chattanooga,TN,221740,72.5,72.5,0%,446,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+68,Villanova University,PA,216597,72.4,72.4,0%,426,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+69,Sacred Heart University,CT,130253,72.4,72.4,0%,419,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+70,Northern Illinois Univ,IL,147703,72.1,72.1,0%,441,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+71,Western Carolina University,NC,200004,72.1,72.1,0%,527,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+72,Coastal Carolina University,SC,218724,71.7,71.7,0%,424,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+73,Elon University,NC,198516,71.6,71.6,0%,431,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+74,Wichita State University,KS,156125,71.4,71.4,0%,410,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+75,"Calif State U, Los Angeles Los",CA,110592,71.3,71.3,0%,872,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+76,Univ of Colorado at Denver,CO,127060,71.3,71.3,0%,397,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+77,Virginia Commonwealth University,VA,234030,71.2,71.2,0%,567,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+78,University of Rhode Island,RI,217484,71.2,71.2,0%,516,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+79,Tulane University New,LA,160755,71.1,71.1,0%,604,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+80,Saint Joseph's University,PA,215770,70.6,70.6,0%,433,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+81,"Calif State Univ, Sacramento",CA,110617,70.5,70.5,0%,996,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+82,Boston University,MA,164988,70.1,70.1,0%,768,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+83,Colorado State University Fort,CO,126818,70,70,0%,775,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+84,Providence College,RI,217402,70,70,0%,417,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+85,Santa Clara University Santa,CA,122931,69.9,69.9,0%,361,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+86,Texas A&M - Corpus Christi Corp,TX,224147,69.9,69.9,0%,354,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+87,Univ of Nebraska at Omaha,NE,181394,69.9,69.9,0%,420,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+88,Central Connecticut St Univ New,CT,128771,69.9,69.9,0%,345,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+89,Florida State College at Jacksonville,FL,133702,69.8,69.8,0%,307,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+90,University of California-Riverside,CA,110671,69.6,69.6,0%,815,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+91,"So Illinois, Edwardsville",IL,149231,69.6,69.6,0%,395,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+92,University of North Carolina-Wilmington,NC,199218,69.3,69.3,0%,665,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+93,University of California-Irvine,CA,110653,69.2,69.2,0%,965,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+94,Louisiana Tech University,LA,159647,69.1,69.1,0%,321,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+95,University at Albany-SUNY,NY,196060,69,69,0%,435,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+96,"Calif St U, San Bernardino S",CA,110510,68.8,68.8,0%,726,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+97,Lehigh University,PA,213543,68.7,68.7,0%,376,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+98,Fordham University New,NY,191241,68.7,68.7,0%,377,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+99,Bowling Green State Univ Bowling,OH,201441,68.4,68.4,0%,424,NOT_RUN,0/4 councils w/ contacts,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data
+100,Commonweath Univ - Bloomsb,PA,498562,68.1,68.1,0%,402,NOT_RUN,NOT_RUN,NOT_RUN,"greek, council_contacts, role_inboxes, business_clubs",Enrich structural data

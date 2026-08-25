@@ -58,7 +58,8 @@ rep.push(`| Matched to IPEDS UNITID (in universe) | **${inUnivMatched}** (${(inU
 rep.push(`| Scored campus records (incl. a few out-of-universe with an existing UNITID) | ${R.length} |`);
 rep.push(`| — 4-year records / **distinct institutions** | ${primAll.length} / **${prim.length}** |`);
 rep.push(`| — 2-year records (community colleges, separate segment) | ${two.length} |`);
-rep.push(`| Identity failures → review queue | **${review.length}** (10 systems/districts, 4 unresolvable) |`);
+const aggN = review.filter((m) => m.review_reason === 'aggregate_system_or_district').length;
+rep.push(`| Identity failures → review queue | **${review.length}** (${aggN} systems/districts, ${review.length - aggN} unresolvable) |`);
 rep.push(`| Duplicate campus rows sharing a UNITID (flagged, not merged) | ${dups.length} rows / ${dupPairs} groups |`);
 rep.push(`\nMatch methods: ${Object.entries(matches.filter((m) => m.unitid).reduce((a, m) => { a[m.match_method] = (a[m.match_method] || 0) + 1; return a; }, {})).map(([k, v]) => `${k}=${v}`).join(', ')}.`);
 rep.push(`\nReview-queue reasons: ${Object.entries(reviewReasons).map(([k, v]) => `${k}=${v}`).join(', ')}. Systems/districts are intentionally **not** auto-matched to a single campus (per the "do not merge system campuses" rule).\n`);

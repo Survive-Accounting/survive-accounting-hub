@@ -50,13 +50,23 @@ const campuses = await selectAll('campuses', {
   select: 'id,name,canonical_name,display_name,short_name,aliases,institution_name,scorecard_school_name,state,city,country,ipeds_unitid,is_active,is_research_only,undergrad_enrollment,total_enrollment,status,approval_status',
 });
 
-// Target universe: US (or US-state) & not research-only & active!=false
+// Target universe: US & not research-only & active!=false. State may be null (draft_imported
+// campuses pending backfill) — those are matched nationally by unique name instead of state-scoped.
 function inUniverse(c) {
   if (c.is_active === false) return false;
   if (c.is_research_only === true) return false;
-  const st = stateAbbr(c.state);
-  const usCountry = !c.country || /united states|usa|u\.s\./i.test(c.country);
-  return usCountry && !!st; // must resolve to a US state
+  return !c.country || /united states|usa|u\.s\./i.test(c.country);
+}
+
+// National name/alias index for matching state-null campuses (accept only a UNIQUE national hit).
+const natByName = new Map(), natByAlias = new Map();
+const addNat = (map, key, u) => { if (!map.has(key)) map.set(key, new Set()); map.get(key).add(u); };
+for (const r of ipeds) {
+  const nn = norm(r.name);
+  addNat(natByName, nn, String(r.unitid));
+  if (/^the /.test(nn)) addNat(natByName, nn.replace(/^the /, ''), String(r.unitid)); // "The Catholic University..." -> also index without "the"
+  const aliases = (r.alias && r.alias !== '-2') ? r.alias.split(/[|;]/).map((x) => norm(x.trim())).filter(Boolean) : [];
+  for (const a of aliases) addNat(natByAlias, a, String(r.unitid));
 }
 
 const results = [];
@@ -76,6 +86,33 @@ for (const c of campuses) {
   // 1. existing unitid
   if (c.ipeds_unitid && byUnit.has(String(c.ipeds_unitid))) {
     match = String(c.ipeds_unitid); method = 'existing_unitid'; conf = 1.0; mExisting++;
+  }
+
+  // 1b. National unique name/alias match for state-null US campuses (draft imports pending
+  // backfill). Accept ONLY if all name/alias variants collapse to a single IPEDS UNITID.
+  if (!match && univ && !st) {
+    const cands = new Set();
+    for (const nm of allNames) {
+      // try the plain name + a "the"-stripped variant + a College<->University rename variant
+      const base = norm(nm);
+      const variants = new Set([base, base.replace(/^the /, '')]);
+      for (const v of variants) {
+        for (const u of (natByName.get(v) || [])) cands.add(u);
+        for (const u of (natByAlias.get(v) || [])) cands.add(u);
+      }
+    }
+    // Rename recovery: only if the name as-is has NO national hit (e.g. Marist College ->
+    // Marist University), try the College<->University swap. Guarded so it can't reintroduce
+    // ambiguity for names that still exist (Trinity University stays unique).
+    if (cands.size === 0) {
+      for (const nm of allNames) {
+        const sw = new Set([norm(nm).replace(/\bcollege\b/, 'university'), norm(nm).replace(/\buniversity\b/, 'college')]);
+        for (const v of sw) { for (const u of (natByName.get(v) || [])) cands.add(u); for (const u of (natByAlias.get(v) || [])) cands.add(u); }
+      }
+      if (cands.size === 1) method = 'national_rename';
+    }
+    if (cands.size === 1) { match = [...cands][0]; method = method === 'national_rename' ? method : 'national_exact'; conf = 0.88; }
+    else if (cands.size > 1) cand = { unitid: null, name: `ambiguous national (${[...cands].length} candidates) — needs state`, score: 0 };
   }
 
   if (!match && univ && st && ipByState.has(st)) {
@@ -174,7 +211,7 @@ for (const c of campuses) {
   else if (!match) review++;
 
   results.push({
-    campus_id: c.id, campus: c.name, state: c.state, state_abbr: st, city: c.city, country: c.country,
+    campus_id: c.id, campus: c.name, state: c.state, state_abbr: st || (match ? byUnit.get(match)?.state : null), city: c.city, country: c.country,
     in_universe: univ, unitid: match, match_method: method, match_confidence: conf,
     ipeds_name: match ? byUnit.get(match)?.name : null,
     review_suggestion: !match && cand ? `${cand.name} (${cand.unitid}) j=${cand.score}` : null,
