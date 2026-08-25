@@ -296,13 +296,18 @@ export async function harvestCampus(campus, ctx, keys) {
     last_error: counters.lastError ? String(counters.lastError).slice(0, 400) : null,
     recommended_next_action: recommendNextAction({ anyDocs, code, domain, highestConf, professorCandidates, rateLimited: counters.rateLimited }),
   };
-  try { await db.upsertCampusStatus(statusRow); } catch (e) { counters.lastError = String(e.message || e); }
+  // The follow-behind worker owns a MERGED, pass-preserving status write, so it
+  // passes ctx.deferStatus to suppress this one-pass (clobbering) write.
+  if (!ctx.deferStatus) {
+    try { await db.upsertCampusStatus(statusRow); } catch (e) { counters.lastError = String(e.message || e); }
+  }
 
   return {
     costUsd, requests, error: (!anyDocs && counters.lastError) ? counters.lastError : undefined,
     docsFound: counters.docsFound, highValue: counters.highValue, confirmedIntro1,
     serp: counters.serp, firecrawl: counters.firecrawl, ai: counters.ai, rateLimited: counters.rateLimited,
-    status: overall,
+    status: overall, passAStatus, passBStatus, highestConf, professorCandidates,
+    profEvidence: dedupEvidence, statusRow, domain, code, hasProfs: (ctx.professors || []).length > 0,
   };
 }
 

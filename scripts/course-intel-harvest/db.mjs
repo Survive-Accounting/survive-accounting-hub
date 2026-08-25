@@ -44,13 +44,21 @@ async function pageAll(table, select, filter = "") {
 }
 
 const CAMPUS_COLS =
-  "id,name,canonical_name,display_name,short_name,state,country,country_code,domains,email_domain,website_url,accounting_department_url,faculty_page_url,course_family_codes_json,course_family_titles_json,course_codes_json,institution_type,is_research_only";
+  "id,name,canonical_name,display_name,short_name,state,country,country_code,domains,email_domain,website_url,accounting_department_url,faculty_page_url,course_family_codes_json,course_family_titles_json,course_codes_json,institution_type,is_research_only,is_sec,active_roster,priority_tier,market_priority,campus_resolution_status,enriched_at";
 
 /** The eligible campus universe (see universe.mjs for the rationale). */
 export async function loadCampuses() {
   // is_research_only=false, drop the Test fixture. (institution_type='system'
   // and alias-dupes are filtered in universe.mjs after load.)
   return pageAll("campuses", CAMPUS_COLS, `&is_research_only=is.false&name=not.ilike.${enc("%test%")}`);
+}
+
+/** Map campus_id → professor count, for Pass B eligibility polling (one paged scan). */
+export async function loadProfessorCounts() {
+  const rows = await pageAll("campus_lead_suggestions", "campus_id", "&lead_type=eq.professor");
+  const m = new Map();
+  for (const r of rows) m.set(r.campus_id, (m.get(r.campus_id) || 0) + 1);
+  return m;
 }
 
 /** Accounting professor candidates for a campus (Pass B seed). */
@@ -110,6 +118,40 @@ export async function upsertProfessorEvidence(rows) {
     "professor_intro1_evidence?on_conflict=campus_id,professor_name,evidence_state,source_url",
     { body: rows, prefer: "resolution=merge-duplicates,return=minimal" },
   );
+}
+
+// ── Follow-behind helpers (DB-derived, cumulative status) ────────────────────
+
+export async function getCampusStatus(campusId) {
+  const rows = await rest("GET", `course_intel_campus_status?select=*&campus_id=eq.${campusId}&limit=1`);
+  return rows[0] || null;
+}
+
+/** Cumulative document + evidence tallies for a campus, computed from the DB so a
+ *  single-pass run never clobbers the other pass's contribution. */
+export async function getCampusDocStats(campusId) {
+  const docs = await rest("GET", `course_document?select=document_type,value_tier,title,source_url,textbook_id&campus_id=eq.${campusId}&course_family=eq.intro_1&limit=1000`);
+  const ev = await rest("GET", `course_evidence?select=evidence_type,confidence&campus_id=eq.${campusId}&course_family=eq.intro_1&limit=1000`);
+  const isReview = (d) => /review|practice/i.test(`${d.title} ${d.source_url}`);
+  const rank = { Low: 1, Medium: 2, High: 3 };
+  let maxConf = null;
+  for (const e of ev) if (e.confidence && (!maxConf || rank[e.confidence] > rank[maxConf])) maxConf = e.confidence;
+  return {
+    documents_found: docs.length,
+    high_value_documents: docs.filter((d) => d.value_tier === 1).length,
+    syllabi_found: docs.filter((d) => d.document_type === "syllabus").length,
+    study_guides_found: docs.filter((d) => d.document_type === "study_guide" && !isReview(d)).length,
+    review_docs_found: docs.filter((d) => d.document_type === "study_guide" && isReview(d)).length,
+    schedules_found: docs.filter((d) => d.document_type === "schedule").length,
+    textbook_docs_found: docs.filter((d) => d.textbook_id).length,
+    highest_source_confidence: maxConf,
+  };
+}
+
+/** Distinct doc-confirmed Intro-1 professors for a campus. */
+export async function getCampusConfirmedProfs(campusId) {
+  const rows = await rest("GET", `professor_intro1_evidence?select=professor_name&campus_id=eq.${campusId}&evidence_state=eq.CONFIRMED_INTRO1&limit=500`);
+  return new Set(rows.map((r) => (r.professor_name || "").toLowerCase().trim())).size;
 }
 
 export { rest };

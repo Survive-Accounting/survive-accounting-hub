@@ -32,9 +32,22 @@ async function pageAll(table, select, filter = "") {
 }
 
 function readCostlog() {
-  const f = path.join(HERE, ".harvest-checkpoint.json.costlog.jsonl");
-  if (!fs.existsSync(f)) return [];
-  return fs.readFileSync(f, "utf8").trim().split("\n").filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+  // Prefer an explicit --costlog, else the national run's log, else the preflight's.
+  const argIdx = process.argv.indexOf("--costlog");
+  const candidates = [
+    argIdx >= 0 ? process.argv[argIdx + 1] : null,
+    path.join(HERE, "national-checkpoint.json.costlog.jsonl"),
+    path.join(HERE, ".harvest-checkpoint.json.costlog.jsonl"),
+  ].filter(Boolean);
+  const rows = [];
+  for (const f of candidates) {
+    if (!fs.existsSync(f)) continue;
+    for (const l of fs.readFileSync(f, "utf8").trim().split("\n").filter(Boolean)) {
+      try { rows.push(JSON.parse(l)); } catch {}
+    }
+    break; // use the first that exists
+  }
+  return rows;
 }
 
 async function main() {
@@ -95,12 +108,13 @@ async function main() {
   fs.writeFileSync(path.join(ROOT, "COURSE_INTEL_REVIEW_QUEUE.csv"), toCsv(qHeaders, queue));
 
   // ── COURSE_INTEL_OVERNIGHT_SUMMARY.md ──────────────────────────────────────
-  const costlog = readCostlog();
-  const okRuns = costlog.filter((r) => r.ok);
-  const totalSerp = okRuns.reduce((a, r) => a + (r.serp || 0), 0);
-  const totalFc = okRuns.reduce((a, r) => a + (r.firecrawl || 0), 0);
-  const totalAi = okRuns.reduce((a, r) => a + (r.ai || 0), 0);
-  const totalCost = okRuns.reduce((a, r) => a + (r.costUsd || 0), 0);
+  // API totals: sum the status table (cumulative across ALL runs — national +
+  // catch-up), which is authoritative; fall back to the costlog if empty.
+  const totalSerp = status.reduce((a, s) => a + (s.serp_searches || 0), 0);
+  const totalFc = status.reduce((a, s) => a + (s.firecrawl_fetches || 0), 0);
+  const totalAi = status.reduce((a, s) => a + (s.ai_parses || 0), 0);
+  let totalCost = status.reduce((a, s) => a + Number(s.est_cost_usd || 0), 0);
+  if (!totalSerp) { const ok = readCostlog().filter((r) => r.ok); totalCost = ok.reduce((a, r) => a + (r.costUsd || 0), 0); }
   const attempted = status.length;
   const withDocs = status.filter((s) => s.documents_found > 0).length;
   const withSyllabi = status.filter((s) => s.syllabi_found > 0).length;
