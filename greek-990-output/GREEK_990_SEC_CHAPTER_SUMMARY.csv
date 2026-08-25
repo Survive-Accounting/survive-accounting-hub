@@ -1,0 +1,859 @@
+chapter_id,campus,chapter,council,legal_entity_status,legal_entity_count,local_entity_count,local_entity_found,house_corporation_found,foundation_found,national_parent_found,alumni_corp_found,latest_990_year,officer_count_latest_filing,director_count_latest_filing,latest_reported_president,latest_reported_treasurer,latest_revenue,latest_expenses,latest_assets,latest_liabilities,alumni_governance_strength,data_confidence
+43ace145-d6e8-411a-9cdd-6ab04d24760c,University of Georgia,Chi Psi,IFC,ENTITY_MATCHED,5,4,true,false,true,true,false,2023,2,4,,John Binder,110474,55214,35426,0,MODERATE,HIGH
+4a1fd814-301a-4e6f-bf5b-c0c7faa4302a,University of Alabama,Sigma Gamma Rho,NPHC,ENTITY_MATCHED,4,3,true,false,false,true,false,2023,0,0,,,13810784,14676025,5801135,4995240,LIGHT,HIGH
+4b611d36-66ff-4fad-9028-1949c9379cc6,University of Alabama,Phi Delta Theta,IFC,ENTITY_MATCHED,6,5,true,true,false,true,false,2024,0,0,,,261202,269757,7588,0,MODERATE,HIGH
+5850984b-e51e-47bb-97b6-f5a341811d6d,University of Alabama,Kappa Alpha Psi,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2016,0,0,,,5407230,4580050,6573534,491114,LIGHT,NATIONAL_ONLY
+5979d5f4-2a86-4691-966b-55a65b8cce0b,University of Alabama,Sigma Alpha Mu,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,1830393,2158081,7985659,3927195,LIGHT,NATIONAL_ONLY
+5f077000-273d-4178-9227-40370f869fca,University of Alabama,Alpha Kappa Psi,mgc,NOT_RUN,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+d2afa2e2-0e7d-489a-8f3b-b6ac38c6d1c5,University of Alabama,Omega Psi Phi,NPHC,ENTITY_MATCHED,3,2,true,false,false,true,false,2022,0,0,,,14895796,9895558,17720990,1151714,LIGHT,HIGH
+e4840d06-3b5c-4319-994c-6607a458e25c,University of Alabama,Phi Sigma Rho,MGC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,606354,573393,552349,4873,LIGHT,HIGH
+f1f61609-5e43-4606-bd46-d0cb939ebb4b,University of Alabama,Zeta Tau Alpha,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,8374719,10057415,36753113,13449328,LIGHT,NATIONAL_ONLY
+f728d824-09d2-4a81-8cab-e93b4a4eb5ef,University of Alabama,Delta Gamma,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6798067,7007656,19676752,1853098,LIGHT,NATIONAL_ONLY
+ffc501be-d96b-45cc-bd0a-4e52ad64a982,University of Alabama,Chi Omega,Panhellenic,ENTITY_MATCHED,6,5,true,true,false,true,false,2024,2,1,KATHLEEN ROTH,,786903,727225,628486,298080,MODERATE,HIGH
+624388c6-07d7-4424-bd38-b5a926f8b48e,University of Alabama,Sigma Pi,IFC,ENTITY_MATCHED,3,2,true,true,false,true,false,2024,0,0,,,888889,798505,2718575,2277989,MODERATE,HIGH
+7277b189-0e08-4513-a610-ba6a0b552f6b,University of Alabama,Phi Mu,Panhellenic,ENTITY_MATCHED,3,2,false,true,false,true,false,2024,0,0,,,3606077,1963807,19312738,1516133,MODERATE,HIGH
+7823421a-20cd-4459-a623-949081693d50,University of Alabama,Phi Gamma Delta,IFC,ENTITY_MATCHED,4,3,true,false,false,true,false,2024,5,10,TIM KILDUFF,DONALD J HERMAN,1661300,1605007,907471,874294,LIGHT,HIGH
+7925753c-4231-49b3-bb5c-79ec684b0c4b,University of Alabama,Delta Sigma Pi,mgc,NOT_RUN,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+801cdc56-9a61-4e52-916f-1e1c99d0ef36,University of Alabama,Phi Mu Alpha Sinfonia,mgc,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+8bb39239-038a-4abf-812b-fd84310421aa,University of Alabama,Phi Sigma Pi,mgc,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+8e687c4d-9d79-4ac5-8e85-322f2e9f7af9,University of Alabama,Sigma Alpha Iota,mgc,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,974858,1013793,948164,127531,LIGHT,NATIONAL_ONLY
+a47a98bc-44de-4b24-ad31-7452c884c63a,University of Alabama,Theta Xi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,,0,0,,,,,,,LIGHT,NATIONAL_ONLY
+a7cd9646-06a8-44eb-b654-19107e6a62b5,University of Alabama,Alpha Chi Omega,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,8,10,LYNNE BIGGIO HERNDON,LESLIE ABRAMSKY BLOCK,14721901,15897771,27766470,17951953,LIGHT,NATIONAL_ONLY
+a9841492-4f12-4d00-b200-77a5f0e597dd,University of Alabama,Zeta Phi Beta,NPHC,ENTITY_MATCHED,3,2,true,false,false,true,false,2022,0,0,,,7208754,6749052,25467405,5042416,LIGHT,HIGH
+b7dda90d-e1b8-4a8a-8611-6c255451633b,University of Alabama,Sigma Kappa,Panhellenic,ENTITY_MATCHED,2,1,false,false,false,true,false,2024,0,0,,,6149087,4574786,14487244,7002321,LIGHT,HIGH
+bec2f8bb-ebad-46b3-91d3-9be3323246ca,University of Alabama,Kappa Kappa Psi,mgc,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,0,0,1821222,331339,LIGHT,NATIONAL_ONLY
+c3133a56-5088-4e67-87a5-abfd7862ed0f,University of Alabama,Theta Tau,mgc,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,1000639,1010473,3869054,15379,LIGHT,NATIONAL_ONLY
+02ad4fdf-672c-41de-888e-0dcda1a7d3d2,University of Mississippi,Phi Kappa Tau,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,1891353,2050531,4195963,1337387,LIGHT,NATIONAL_ONLY
+69c84714-359e-4cf1-831a-e69341917129,University of Alabama,Phi Kappa Psi,IFC,ENTITY_MATCHED,4,3,true,false,false,true,false,2024,8,11,GRANT KOONS,OLIVER BRAITSCH,566464,644359,27213,29320,LIGHT,HIGH
+0158b422-500d-468d-82f4-f442566490cc,University of Alabama,Alpha Phi,Panhellenic,ENTITY_MATCHED,3,2,false,true,false,true,false,2024,0,0,,,1255887,893923,3363533,20100,MODERATE,HIGH
+04986e1e-0dc4-4228-bbbb-32d3a3f865d4,University of Alabama,Alpha Gamma Delta,Panhellenic,ENTITY_MATCHED,4,3,true,false,false,true,false,2024,12,13,AMY HENDERSON,KAY MCGIFFERT,1464194,919679,11894528,3910736,LIGHT,HIGH
+063214de-104b-457b-a5b0-cd15f57a1e31,University of Alabama,Sigma Tau Gamma,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2022,0,0,,,3953336,3791340,5058507,3816331,LIGHT,NATIONAL_ONLY
+0ba3db7b-caf2-42cb-ad14-3d034e0aa1d4,University of Alabama,Theta Chi,IFC,ENTITY_MATCHED,3,2,true,true,false,true,false,2023,4,2,WESLEY WICKER,JOHN CONNELL,1621857,1733766,6629471,4761173,MODERATE,HIGH
+141b5822-9695-489b-a00f-62aa76310ebb,University of Alabama,Lambda Chi Alpha,IFC,ENTITY_MATCHED,4,3,true,true,false,true,false,2024,4,0,WAYNE KEITH,BRIAN MOORE,373380,309693,3434336,2163015,MODERATE,HIGH
+1567dfee-e02d-4ee7-aa74-1523a6012f33,University of Alabama,Zeta Psi,IFC,ENTITY_MATCHED,2,1,false,false,false,true,false,2023,0,0,,,1103861,1284162,681595,851565,LIGHT,HIGH
+1bdaa71d-03f7-451c-9a2c-76f30a7c4db3,University of Alabama,Gamma Phi Beta,Panhellenic,ENTITY_MATCHED,3,2,true,false,false,true,false,2024,0,0,,,693516,558908,413543,0,LIGHT,HIGH
+1e46c182-1677-45af-a3d0-243f73308712,University of Alabama,Pi Beta Phi,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2023,3,0,CARRIE THOMAS,ERIN FREEMAN,2813973,2782141,15855671,13485130,MODERATE,HIGH
+2daa16e3-614c-4c2a-877d-f23c501c9c18,University of Alabama,Delta Zeta,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,4,4,MICHELLE ALBRECHT SMITH,,26809001,20532278,96230431,29613757,LIGHT,HIGH
+2e8844f9-9f4d-485c-918e-c61ac0570fb7,University of Alabama,Kappa Delta,Panhellenic,ENTITY_MATCHED,3,2,true,false,false,true,false,2024,0,0,,,787739,840405,602813,136529,LIGHT,HIGH
+34ad2c9d-7a06-4421-bf4f-91c37fa2e57f,University of Alabama,Sigma Alpha Epsilon,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,494193,527113,28167,38322,LIGHT,HIGH
+385a68d8-e617-4a3a-abdb-61d5f7af570b,University of Alabama,Phi Beta Sigma,NPHC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+38be0a34-6c23-4101-ac18-9c3dc8b641b3,University of Alabama,Zeta Beta Tau,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2024,0,0,,,970930,960414,84695,52660,LIGHT,HIGH
+3b496a89-44ad-46e2-b6f3-44cc0924d9d3,University of Alabama,Alpha Kappa Alpha,NPHC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,45276043,47246171,78704412,25926573,LIGHT,NATIONAL_ONLY
+3b8fef71-1651-44f6-8f95-522c03f2ca1a,University of Alabama,Iota Phi Theta,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+cc9f8c39-a807-448d-aa58-6307c652d3df,"University of Tennessee, Knoxville",Kappa Sigma,IFC,ENTITY_MATCHED,3,2,true,true,false,true,false,2024,0,0,,,599383,591703,18062,0,MODERATE,HIGH
+d91432d1-b1d1-4970-9300-da8e5cd65e1b,University of Arkansas,Theta Chi,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,5802095,6651701,1868008,1046790,LIGHT,NATIONAL_ONLY
+e1886d36-234f-4ae2-8c83-398d3ef2a9a3,University of Arkansas,Sigma Phi Epsilon,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2021,0,0,,,7894444,7973017,70284165,47495636,LIGHT,NATIONAL_ONLY
+e7b9a13b-c37f-4885-9bfc-fc24f402933f,University of Arkansas,Kappa Sigma,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,393060,395074,24578,10000,LIGHT,HIGH
+ebd6e709-7200-4b65-a259-f6f94d26ced6,University of Arkansas,Sigma Pi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,3247538,4404602,2773566,173335,LIGHT,NATIONAL_ONLY
+fa4f3b98-dbe5-49a5-b86b-a53da79cfd27,University of Arkansas,Phi Gamma Delta,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,5,10,TIM KILDUFF,DONALD J HERMAN,6882567,7250137,16972198,283891,LIGHT,NATIONAL_ONLY
+faf4b6c2-fc9b-4311-b06c-b1fd7177adbb,University of Arkansas,Alpha Omicron Pi,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,7459387,6338452,39739276,4492321,LIGHT,NATIONAL_ONLY
+43cfe9e2-980a-4a0b-b2dc-7f56e1dbfc14,Vanderbilt University,Phi Delta Theta,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6642836,6441081,6956145,1366384,LIGHT,NATIONAL_ONLY
+49e124b7-b9d9-4568-908e-06c944ec4717,University of Arkansas,Sigma Chi,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2023,2,0,PRESTON BARBER,HARRISON FRANK,1277553,1122173,760115,11081,LIGHT,HIGH
+5aea7298-ebc2-4a29-b635-b1299f06e4fc,University of Arkansas,Alpha Gamma Rho,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,0,0,,,1786541,2798515,4372490,1522014,LIGHT,NATIONAL_ONLY
+60e35aee-d68f-4ff2-9b00-925d99ee35de,University of Arkansas,Lambda Chi Alpha,IFC,ENTITY_MATCHED,2,1,false,false,false,true,false,2023,0,0,,,7757361,9318779,6329265,6105805,LIGHT,HIGH
+62f66786-5085-4c01-950d-d50798fd4ba8,University of Arkansas,Chi Omega,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,526987,461087,252489,12681,LIGHT,HIGH
+65ac0dcd-0feb-475c-98db-991632b4a3d8,University of Alabama,Delta Kappa Epsilon,IFC,ENTITY_MATCHED,4,3,false,true,false,true,false,2024,0,0,,,1386288,534954,5272278,0,MODERATE,HIGH
+668d4547-ae1c-41a8-9ec2-b35d2993cbbc,University of Alabama,Kappa Alpha Order,IFC,ENTITY_MATCHED,4,3,true,false,false,true,false,2024,2,3,MIKE STUCKENSHNEIDER,MATT MOSBY,2099957,2183010,181256,49580,LIGHT,HIGH
+6cca91e5-0b66-4a6b-b866-5327b600037b,University of Alabama,Kappa Sigma,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2024,0,0,,,1596195,1607248,235658,140555,LIGHT,HIGH
+7763c508-bedc-477f-bce3-89a5b56e153a,University of Alabama,Beta Upsilon Chi,IFC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+7c17e66b-5ac1-4aa0-8461-5be5cc173b19,University of Arkansas,Phi Mu,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,7308750,6433972,31031034,10603689,LIGHT,NATIONAL_ONLY
+7c4c5ff3-d56a-4b50-8c7f-7981e1d2f775,University of Alabama,Alpha Delta Phi,IFC,ENTITY_MATCHED,2,2,false,true,false,false,false,2023,0,0,,,87176,90220,1766,0,MODERATE,HIGH
+8ae33c96-8d2d-4470-be7f-f5fa5b554304,University of Alabama,Chi Phi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,1397402,1687432,780052,749335,LIGHT,HIGH
+97328791-d138-45ff-8fe2-d7a50ef9116b,University of Arkansas,Delta Delta Delta,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2023,4,2,KATHRYN GRIFFIN,HOLLY WHEELER,1069790,1397056,14514976,11502806,MODERATE,HIGH
+9aac1054-eb3b-4a27-abf9-51c6ab2f1002,University of Alabama,Delta Tau Delta,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,1158053,1105032,256834,29750,LIGHT,HIGH
+ad571e5b-8131-4892-afa0-0f5153693852,University of Arkansas,Pi Kappa Phi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,0,0,,,7651700,6650513,12806295,8166805,LIGHT,NATIONAL_ONLY
+b357bc15-fe42-417f-bd95-b1d196a209df,University of Alabama,FarmHouse,IFC,NOT_RUN,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+ba6142cd-5155-4b18-aa7b-68c573999785,University of Alabama,Alpha Epsilon Pi,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,4685200,4269285,4595688,593080,LIGHT,NATIONAL_ONLY
+c0a7fa66-bb43-4a11-9dee-c3c26919744e,University of Alabama,Alpha Sigma Phi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,4339126,5668023,3009489,350189,LIGHT,NATIONAL_ONLY
+c13429f0-9743-41ab-93e0-3b988d837a1b,University of Arkansas,Kappa Delta,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,543285,455930,192870,0,LIGHT,HIGH
+0437831d-84b3-4047-b41d-f854cb2788bf,University of Arkansas,Pi Kappa Alpha,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,0,0,,,0,0,1,0,LIGHT,NATIONAL_ONLY
+63bd9deb-1afa-4917-9e52-8faea402c898,University of Mississippi,Kappa Delta,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,771116,649708,668372,0,LIGHT,HIGH
+2fcb93db-039e-43a1-9165-2e5e8f1fd44a,University of Mississippi,Delta Delta Delta,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2023,4,4,Elizabeth Fisher,Pamela Grafton,1065965,1104325,9155976,4844950,STRONG,HIGH
+0904f008-ae4c-42d9-bed0-08c085e29548,University of Mississippi,Pi Beta Phi,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2023,3,9,BETH WILLISTON WEBB,JAMIE LATTURE COLLIER,1077944,755932,16172407,10422974,STRONG,HIGH
+0c62e6d9-d48f-43cd-875c-852248892a48,University of Mississippi,Delta Gamma,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,6798067,7007656,19676752,1853098,LIGHT,HIGH
+b45ed8d0-67a5-4927-9008-9464957244c0,University of Mississippi,Phi Mu,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,1091941,1840007,7683443,3431938,LIGHT,HIGH
+c7ee4c8f-44ae-4cd8-899e-1c9011f68808,University of Arkansas,Phi Kappa Psi,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,5,11,ROBERT MARCHESANI,CHARLES BRANDMAN,3462956,3596087,3874343,1368036,LIGHT,NATIONAL_ONLY
+07ea4b0a-63e2-4795-a5e7-d5ac3125421d,University of Alabama,Alpha Kappa Lambda,IFC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+0f4af31c-8c1c-4b3d-8a94-2261edd5edf6,University of Arkansas,Alpha Kappa Alpha,NPHC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,45276043,47246171,78704412,25926573,LIGHT,NATIONAL_ONLY
+1e2d1344-bb4c-4c0d-b1da-6e01368781df,University of Arkansas,FarmHouse,IFC,NOT_RUN,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+253d3b2d-61f4-4ae4-9129-bc9fda680014,University of Arkansas,Alpha Delta Pi,Panhellenic,ENTITY_MATCHED,3,2,true,false,false,true,false,2023,8,11,DAWN VICTOR-HERRING,,1502450,1348825,11910128,8410848,LIGHT,HIGH
+2a945735-0056-4a71-8f63-f1ca723d6a58,University of Arkansas,Alpha Phi,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,11454559,8872758,66006797,33308311,LIGHT,NATIONAL_ONLY
+2e7d9496-7aec-4592-8598-421ff3194832,University of Arkansas,Beta Upsilon Chi,IFC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+3d7a9d2c-2997-42bc-ba41-dde8172f28e6,University of Arkansas,Alpha Phi Alpha,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+44b0257c-7e82-453f-aadc-5057d48cf3de,University of Arkansas,Phi Delta Theta,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,694938,656356,255994,0,LIGHT,HIGH
+e2f37719-8dd5-4715-957b-01a0bd082be4,Auburn University,Alpha Kappa Alpha,NPHC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,45276043,47246171,78704412,25926573,LIGHT,NATIONAL_ONLY
+e25d1d99-05d7-4664-8d19-bae9a25a0a89,Auburn University,Delta Sigma Theta,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2022,0,0,,,31051194,25156563,57143857,24790550,LIGHT,HIGH
+092bfab8-0e71-406e-9207-a479e51baa95,Auburn University,Kappa Alpha Psi,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2016,0,0,,,5407230,4580050,6573534,491114,LIGHT,NATIONAL_ONLY
+77ed3a1b-801e-4849-b2a2-767d537cad49,Auburn University,Phi Beta Sigma,NPHC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+272f9cf6-16ab-4377-b8c2-db00a66f5f9f,Auburn University,Sigma Gamma Rho,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,13810784,14676025,5801135,4995240,LIGHT,NATIONAL_ONLY
+f4fd32bf-551a-4793-80cb-9b09cd06673f,University of Mississippi,Alpha Phi Alpha,NPHC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+510d3717-b938-42ae-9fa1-648f12636d30,University of Mississippi,Kappa Alpha Psi,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2016,0,0,,,5407230,4580050,6573534,491114,LIGHT,NATIONAL_ONLY
+d6411603-959b-4b2b-8fe7-5503152073c2,Auburn University,Omega Psi Phi,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,14895796,9895558,17720990,1151714,LIGHT,NATIONAL_ONLY
+d574230b-9354-475d-9e43-afae830522f7,University of Mississippi,Phi Beta Sigma,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+b67ed604-54be-4c98-a4fa-0f150912dd84,University of Mississippi,Sigma Gamma Rho,NPHC,ENTITY_MATCHED,3,2,true,false,false,true,false,2023,0,0,,,13810784,14676025,5801135,4995240,LIGHT,HIGH
+afae95ff-6d65-4008-99ee-9bfb3490accd,University of Mississippi,Zeta Phi Beta,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,7208754,6749052,25467405,5042416,LIGHT,NATIONAL_ONLY
+f3b5af35-8d4c-495d-bc36-52140fa2ff75,Auburn University,Gamma Phi Beta,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,656053,658959,131606,0,LIGHT,HIGH
+4b838faf-6c14-4e99-8f64-5c6e58cfe600,Auburn University,Sigma Kappa,Panhellenic,CANDIDATES_FOUND,1,0,false,false,false,true,false,2024,0,0,,,6149087,4574786,14487244,7002321,LIGHT,NATIONAL_ONLY
+4a2faa1a-ea4c-4505-a026-12e6de5e1d2e,University of Mississippi,Beta Theta Pi,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,6378113,7611188,6605669,5491333,LIGHT,NATIONAL_ONLY
+0674b1b9-5bc2-464d-a735-df36666cc9e8,University of Mississippi,Chi Psi,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,2385705,2131170,3917503,2129325,LIGHT,NATIONAL_ONLY
+12d66d60-bc39-4346-8798-ee0a968aee8f,Auburn University,Zeta Tau Alpha,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,8374719,10057415,36753113,13449328,LIGHT,NATIONAL_ONLY
+13273f4c-b30a-45b8-8e84-39d8227b737b,Auburn University,Sigma Nu,IFC,ENTITY_MATCHED,3,2,true,true,false,true,false,2023,8,1,MAX COBLENTZ,BEN LEAVER,42154,0,884849,250644,MODERATE,HIGH
+2588a200-b838-4838-8c07-c48e0e62d31a,University of Mississippi,Kappa Alpha Order,IFC,CANDIDATES_FOUND,1,0,false,false,false,true,false,2023,0,0,,,4724636,4818996,4568222,3315696,LIGHT,NATIONAL_ONLY
+2945c24c-4ae0-4129-9991-6edcaf682c46,Auburn University,Delta Zeta,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,4,4,MICHELLE ALBRECHT SMITH,,26809001,20532278,96230431,29613757,LIGHT,NATIONAL_ONLY
+463a3ab9-e789-43e3-bc1f-b0b66374e0c3,Auburn University,Chi Omega,Panhellenic,ENTITY_MATCHED,3,2,true,true,false,true,false,2024,0,0,,,627692,581732,299069,96800,MODERATE,HIGH
+52766781-1e27-4553-a351-58ab3c12aa67,Auburn University,Sigma Pi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,3247538,4404602,2773566,173335,LIGHT,HIGH
+5a157e94-2531-4cf7-b4ce-3a8db7f012c5,University of Mississippi,Pi Kappa Alpha,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,0,0,,,0,0,1,0,LIGHT,NATIONAL_ONLY
+5b74f2d9-2d41-40c6-8212-cfccc17d1fec,University of Mississippi,Sigma Nu,IFC,ENTITY_MATCHED,4,3,true,true,false,true,false,2024,0,0,,,2054675,2039138,118659,0,MODERATE,HIGH
+5e2c78e6-a353-4cad-b590-f22d2426ce04,University of Mississippi,Pi Kappa Phi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,0,0,,,7651700,6650513,12806295,8166805,LIGHT,NATIONAL_ONLY
+6e7b0efe-210d-4161-8dfe-7b1b8220a087,University of Mississippi,Sigma Pi,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,3247538,4404602,2773566,173335,LIGHT,NATIONAL_ONLY
+81309444-580b-41c0-bd0e-bbfa10d16be1,University of Mississippi,Delta Kappa Epsilon,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,1575740,1428396,1691763,243043,LIGHT,NATIONAL_ONLY
+92fdb51d-079b-420a-8255-c088c385d9ff,Auburn University,Alpha Chi Omega,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,8,10,LYNNE BIGGIO HERNDON,LESLIE ABRAMSKY BLOCK,14721901,15897771,27766470,17951953,LIGHT,NATIONAL_ONLY
+9d5b324b-7b71-42f7-b573-bdfcd0966c57,Auburn University,Kappa Alpha Theta,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,11,7,ERICA D'ANGELO OCHS,,8145905,7622433,35939184,20356979,LIGHT,HIGH
+b194d420-e740-4c9a-86a5-30889f9afd6a,University of Mississippi,Kappa Sigma,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,5863607,5483274,7857250,989095,LIGHT,NATIONAL_ONLY
+bd2456a4-5b61-4b14-8064-0728727421dc,Auburn University,Alpha Delta Pi,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,8,11,DAWN VICTOR-HERRING,,6464144,4988932,18574229,1900417,LIGHT,NATIONAL_ONLY
+c2c871c6-14d8-4fb2-a91b-a52e1eafd967,Auburn University,Tau Kappa Epsilon,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,537384,544081,840815,437907,LIGHT,HIGH
+cc45b916-49e6-4899-88c0-59bf2782d3fd,Auburn University,Alpha Gamma Delta,Panhellenic,ENTITY_MATCHED,3,2,true,false,false,true,false,2024,8,8,LEE WOODHAM LANGUB,,570681,551337,271400,0,LIGHT,HIGH
+d1bb7996-7940-4a16-a86c-6f444f452823,Auburn University,Theta Chi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,1143927,1137556,99841,0,LIGHT,HIGH
+d27c8da8-ea97-4f2e-a010-6200bee7d194,University of Mississippi,Delta Psi,IFC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+e49b3fa6-f1af-432f-ae50-708149bb0699,Auburn University,Sigma Sigma Sigma,Panhellenic,ENTITY_MATCHED,2,1,false,false,false,true,false,2023,0,0,,,4399940,3377361,12339297,4335848,LIGHT,HIGH
+ec299ef6-97ee-4193-9d37-0e6283713d45,University of Mississippi,Sigma Chi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,3,,,1903538,2138368,7170815,6658515,LIGHT,HIGH
+452cec96-cac3-409b-b4f0-ca0bba25c019,University of Alabama,Pi Kappa Phi,IFC,ENTITY_MATCHED,5,4,true,false,false,true,true,2024,0,0,,,663370,651855,434867,310951,LIGHT,HIGH
+4689b6ec-2776-4412-bf47-deb255351c35,University of Florida,Delta Phi Epsilon,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2022,0,0,,,2232843,2579930,2808095,1988366,LIGHT,NATIONAL_ONLY
+480256a6-015e-4f52-bdf8-9889fb5ce9fc,University of Florida,Omega Psi Phi,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2022,0,0,,,14895796,9895558,17720990,1151714,LIGHT,HIGH
+5d5b962b-38bf-44be-85d4-d49a81bf2624,University of Florida,Sigma Lambda Beta,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+64497c6d-ac9d-4ee5-9187-5dde1ec4020a,University of Florida,Phi Beta Sigma,NPHC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+65369f1d-404f-4d0f-9142-f091bdd9181b,University of Florida,Tau Epsilon Phi,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,563663,530613,581008,30684,LIGHT,NATIONAL_ONLY
+6dbd3ee3-9e3b-454e-a111-589034869de7,University of Florida,Delta Gamma,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6798067,7007656,19676752,1853098,LIGHT,NATIONAL_ONLY
+8b949866-751d-4339-b6a1-754cef3f52d9,University of Florida,Zeta Beta Tau,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,2944254,2608316,2736822,1252880,LIGHT,HIGH
+94fecaa5-fa7b-4a7e-9e84-3fa20c464006,University of Florida,Theta Chi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,1711462,1774966,2701388,1254566,LIGHT,HIGH
+a43806a3-d537-4ac0-a5ad-41f24fcded77,University of Florida,Sigma Delta Tau,Panhellenic,CANDIDATES_FOUND,1,0,false,false,false,true,false,2024,0,0,,,2113009,1974844,5289828,395039,LIGHT,NATIONAL_ONLY
+a7869869-fa77-41d5-9566-af7b7e6bdebc,University of Florida,Lambda Delta Psi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+a8aa95c8-41d5-4a31-82a5-cd6809830ac8,University of Florida,Lambda Theta Alpha,MGC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,575588,519075,2038399,39114,LIGHT,NATIONAL_ONLY
+a9c372e1-6051-4743-9395-f90e02a0964d,University of Florida,Chi Omega,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,314807,259787,155818,0,LIGHT,HIGH
+b03042eb-c390-4e9e-8c62-4a14529d9082,University of Florida,Kappa Alpha Theta,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,11,7,ERICA D'ANGELO OCHS,,8145905,7622433,35939184,20356979,LIGHT,HIGH
+b80432af-6251-4760-8e9a-d3dbff94efd0,University of Florida,Delta Sigma Theta,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2022,0,0,,,31051194,25156563,57143857,24790550,LIGHT,HIGH
+cd022047-e09e-4cf6-ac10-0be13ff7d52e,University of Kentucky,Sigma Phi Epsilon,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2021,0,0,,,7894444,7973017,70284165,47495636,LIGHT,NATIONAL_ONLY
+d426272d-e522-49b1-960f-3763d5054400,University of Florida,Alpha Phi Alpha,NPHC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+dab1bc7c-9188-4f0b-9922-2047e2574767,University of Florida,Delta Phi Omega,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+dda87eb3-497b-464b-9a43-deec51e207ee,University of Florida,Delta Zeta,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2023,4,4,MICHELLE ALBRECHT SMITH,,83140,174978,625198,270111,STRONG,HIGH
+de9722c0-e9d0-45ed-a32c-4a953e43c403,University of Florida,Lambda Theta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+e0683856-eaa0-43e6-bae8-1fae2a61e4b0,University of Florida,Zeta Phi Beta,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2022,0,0,,,7208754,6749052,25467405,5042416,LIGHT,HIGH
+e0829b70-06b7-4b2b-b5d7-40129b596d3b,University of Florida,Delta Delta Delta,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,9122429,10741658,14446908,5787498,LIGHT,NATIONAL_ONLY
+ec7a0cc0-b239-44b8-be1c-7ca870490ccf,University of Florida,Kappa Alpha Psi,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2016,0,0,,,5407230,4580050,6573534,491114,LIGHT,NATIONAL_ONLY
+f9376129-972f-4b51-99ce-0279b9bc19cc,University of Florida,Alpha Epsilon Phi,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,8,5,SHANNON COHEN BENSON,,1330950,1005208,2263197,81844,LIGHT,HIGH
+2f533ff2-9390-40bf-ac78-2b57b0eb5dca,Auburn University,Delta Kappa Epsilon,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,1575740,1428396,1691763,243043,LIGHT,NATIONAL_ONLY
+42775f80-3493-400a-b4b0-3851e72a6999,Auburn University,Kappa Alpha Order,IFC,ENTITY_MATCHED,2,1,false,false,false,true,false,2024,0,0,,,1287964,1263594,50613,0,LIGHT,HIGH
+46d23ecc-da9e-4031-841a-07e0f94684e4,Auburn University,Alpha Sigma Phi,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2023,0,0,,,4339126,5668023,3009489,350189,LIGHT,HIGH
+8daaeb54-4404-491b-a42b-62bef25f9839,Auburn University,Chi Phi,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2024,0,0,,,20007,1750,972018,0,LIGHT,HIGH
+91a7e8d5-3b45-441e-9c32-b7b5152d2b2a,Auburn University,Beta Theta Pi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6378113,7611188,6605669,5491333,LIGHT,NATIONAL_ONLY
+a8390b11-d1b5-4e63-820e-3c6a7c5c3d27,Auburn University,Sigma Alpha Epsilon,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,8059440,7868762,14236601,3966752,LIGHT,NATIONAL_ONLY
+aa115230-3404-442b-b727-02b408cc480c,Auburn University,Phi Gamma Delta,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2024,10,15,JOHN GIVENS,MASON BELCHER,1548528,1558235,125891,0,LIGHT,HIGH
+b2f5d394-7061-42e1-8944-3cddaa7978c5,Auburn University,Sigma Chi,IFC,ENTITY_MATCHED,3,2,true,false,true,true,false,2023,0,0,,,41125,94135,378274,0,MODERATE,HIGH
+b356d70e-3a59-4e20-aed2-969176a94f4f,Auburn University,Delta Chi,IFC,ENTITY_MATCHED,3,2,true,true,false,true,false,2024,0,0,,,539491,485197,196550,0,MODERATE,HIGH
+bdde3fb3-e78e-40c1-86c5-1c95bf07433b,Auburn University,Alpha Gamma Rho,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,1786541,2798515,4372490,1522014,LIGHT,HIGH
+cf550b96-08be-4673-8ccc-5c3316c270ab,Auburn University,Phi Sigma Kappa,IFC,ENTITY_MATCHED,2,1,false,false,false,true,false,2023,0,0,,,2415659,2354765,2300163,675977,LIGHT,HIGH
+d9bfe35a-a200-4c58-8a4f-5033c80d9e7e,Auburn University,Beta Upsilon Chi,IFC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+e9bed739-ab8b-42d9-b364-7efa815bb19e,Auburn University,FarmHouse,IFC,NOT_RUN,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+fa917a10-8d03-41aa-8352-013270c127d8,Auburn University,Pi Kappa Phi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,7651700,6650513,12806295,8166805,LIGHT,HIGH
+184c4240-0e54-4ea4-86fe-5e50efeb9b75,University of Florida,Gamma Phi Beta,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,415682,432203,299319,0,LIGHT,HIGH
+21604309-f167-4903-b960-4b89fd0f278b,University of Florida,Theta Nu Xi,MGC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2022,0,0,,,164379,152496,363481,0,LIGHT,NATIONAL_ONLY
+4c82c970-1997-45bf-ba50-7a1739c06863,University of Georgia,Gamma Phi Beta,Panhellenic,ENTITY_MATCHED,3,2,true,false,false,true,false,2024,3,0,MICHELLE HOOD ROSENTHAL,,1221891,1261955,182493,0,LIGHT,HIGH
+56e66157-c555-457c-9c78-9ead1e4c6c0b,University of Georgia,Pi Beta Phi,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,9556072,8964046,47809375,4630878,LIGHT,NATIONAL_ONLY
+d86c7bbb-0117-4d29-b0d7-e1219978b359,University of Florida,Chi Phi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,934035,846893,208142,7862,LIGHT,HIGH
+d87ff56e-67e9-4792-9f8c-3d59d24a5b3c,University of Georgia,Alpha Gamma Delta,Panhellenic,ENTITY_MATCHED,3,2,true,false,false,true,false,2023,8,8,LEE WOODHAM LANGUB,,1594780,1582987,199418,52437,LIGHT,HIGH
+da533485-1591-4603-af01-a865f7ef7b52,Louisiana State University,Beta Theta Pi,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,6378113,7611188,6605669,5491333,LIGHT,NATIONAL_ONLY
+dbaff48f-8549-4633-bd38-a9892c9d6bbe,University of Arkansas,Omega Delta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+5bb8da71-7716-4f00-bb46-584511475f1d,University of Florida,Lambda Chi Alpha,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,7757361,9318779,6329265,6105805,LIGHT,HIGH
+5e625acc-8d93-42c7-86cb-a6144da1080f,University of Georgia,Zeta Tau Alpha,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,8374719,10057415,36753113,13449328,LIGHT,NATIONAL_ONLY
+f370eccd-c5e4-4406-ad8c-06cd0e10a7b8,University of Georgia,Alpha Chi Omega,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,8,10,LYNNE BIGGIO HERNDON,LESLIE ABRAMSKY BLOCK,14721901,15897771,27766470,17951953,LIGHT,NATIONAL_ONLY
+f4e65447-ca17-45e4-a826-327e86c42361,University of Georgia,Delta Gamma,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6798067,7007656,19676752,1853098,LIGHT,NATIONAL_ONLY
+f948d255-a856-4c9c-be22-c12602f7770e,University of Georgia,Delta Phi Epsilon,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2022,0,0,,,2232843,2579930,2808095,1988366,LIGHT,NATIONAL_ONLY
+60e7fec7-b4e9-444f-a5e5-a024102b7488,University of Arkansas,Sigma Lambda Gamma,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+6476eb05-5f29-40a1-964f-794ceeb01890,University of Georgia,Delta Zeta,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,4,4,MICHELLE ALBRECHT SMITH,,26809001,20532278,96230431,29613757,LIGHT,NATIONAL_ONLY
+66786a08-8ea2-4f6c-8f41-27ab1d81bc14,Louisiana State University,Delta Chi,IFC,ENTITY_MATCHED,3,2,true,true,false,true,false,2023,0,0,,,276750,224436,74691,0,MODERATE,HIGH
+6eb899e7-4c7d-412c-8baa-808ae5bc36d9,University of Florida,Sigma Alpha Epsilon,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2024,2,9,DAVID SASSER,CORBIN EMERSON,925205,859723,235355,4722,LIGHT,HIGH
+6f856aed-b8be-463d-b963-3c70dda0f40d,University of Georgia,Kappa Alpha Theta,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,11,7,ERICA D'ANGELO OCHS,,8145905,7622433,35939184,20356979,LIGHT,HIGH
+70a73586-3940-451e-91b9-246ed43cafb2,University of Florida,Kappa Sigma,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2022,0,0,,,5863607,5483274,7857250,989095,LIGHT,HIGH
+77e0a574-d96c-460b-96c6-ab1724a918e6,University of Georgia,Alpha Kappa Alpha,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,45276043,47246171,78704412,25926573,LIGHT,NATIONAL_ONLY
+7a34ab8f-0d8e-4bec-8102-e6be3c66444a,University of Arkansas,Sigma Gamma Rho,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,13810784,14676025,5801135,4995240,LIGHT,HIGH
+7d49cf00-3d09-4a50-a2f0-5d840bf7e12e,University of Florida,Pi Kappa Phi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,301832,301832,0,0,LIGHT,HIGH
+8169a044-62a7-49e7-8fe5-e5a56a11bf54,University of Florida,Beta Theta Pi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,648484,640839,18025,0,LIGHT,HIGH
+8e9e0957-2299-4b7e-b624-4fa8cd1c6a1c,University of Arkansas,Alpha Kappa Delta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+8fd4a829-f954-4643-938b-c19066e61a1e,University of Florida,Alpha Epsilon Pi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,4,4,BRADLEY FINE,JASON SNYTTE,853498,821965,83932,0,LIGHT,HIGH
+903f8e66-7679-46a3-9059-452b4c7d3d4f,University of Florida,Pi Kappa Alpha,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,0,0,1,0,LIGHT,HIGH
+a17243f9-c06b-4787-be05-7ad0e552afa2,University of Florida,Delta Chi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,4512794,8407611,10805747,2221386,LIGHT,NATIONAL_ONLY
+aab325a3-cc94-4bdb-a75e-bc5059f7129e,University of Georgia,Kappa Delta,Panhellenic,ENTITY_MATCHED,3,2,true,true,false,true,false,2024,0,0,,,454720,467786,188529,18681,MODERATE,HIGH
+04a9896a-3441-455c-aa85-09921c8bb8ce,Louisiana State University,Alpha Gamma Rho,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,1786541,2798515,4372490,1522014,LIGHT,HIGH
+08417fd2-85c1-4f72-a53e-edaaa7027a78,University of Florida,Sigma Phi Epsilon,IFC,ENTITY_MATCHED,2,1,false,false,false,true,true,2023,0,0,,,489105,533339,3556703,1440793,LIGHT,HIGH
+0c8ff0dd-26c4-4b67-9899-e6e2ec1ce0d3,University of Georgia,Alpha Delta Pi,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,8,11,DAWN VICTOR-HERRING,,6464144,4988932,18574229,1900417,LIGHT,NATIONAL_ONLY
+188f4385-e720-4398-a929-93c6772992b1,University of Florida,Sigma Chi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,299499,301920,1404,0,LIGHT,HIGH
+282f58ea-c129-4b98-b961-ba971f3ac940,University of Georgia,Sigma Gamma Rho,NPHC,ENTITY_MATCHED,3,2,true,false,false,true,false,2023,0,0,,,13810784,14676025,5801135,4995240,LIGHT,HIGH
+2a7e8ded-3de3-4060-96c4-ff3ff60fd6d6,University of Florida,Alpha Gamma Rho,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,2,0,,,570409,516668,74348,75,LIGHT,HIGH
+2b8b5fb7-fdad-44cb-bdc8-240ca6e27696,University of Georgia,Omega Psi Phi,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2022,0,0,,,14895796,9895558,17720990,1151714,LIGHT,HIGH
+2fa82fb7-8a9b-48a7-b5a5-360c87a735ca,University of Georgia,Delta Sigma Theta,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,31051194,25156563,57143857,24790550,LIGHT,NATIONAL_ONLY
+32fdc993-3bff-4605-a49d-07de641c4e41,University of Georgia,Zeta Phi Beta,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,7208754,6749052,25467405,5042416,LIGHT,NATIONAL_ONLY
+3a2b5440-9bf1-418d-900c-862fa27c74a7,Louisiana State University,Acacia,IFC,NOT_RUN,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+3c2712da-d721-417d-8382-f8049d976088,University of Florida,Phi Gamma Delta,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,5,10,TIM KILDUFF,DONALD J HERMAN,6882567,7250137,16972198,283891,LIGHT,HIGH
+3f200e94-b82d-4b06-bb25-b9cfdc150053,University of Georgia,Alpha Omicron Pi,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,7459387,6338452,39739276,4492321,LIGHT,NATIONAL_ONLY
+41b734e8-abbe-47cc-b146-e641c776502f,University of Georgia,Sigma Kappa,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,6149087,4574786,14487244,7002321,LIGHT,NATIONAL_ONLY
+c22a1b49-e06e-4f7b-8c8e-e2b2ccec54d4,University of Florida,Sigma Nu,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6291872,5989304,10968372,2625304,LIGHT,NATIONAL_ONLY
+c371e47c-ed55-4831-8006-7dd170467069,University of Arkansas,Phi Beta Sigma,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+cd8fff1c-a0e7-4014-b76a-eb4e3d8e657e,University of Kentucky,Delta Phi Lambda,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+d057db17-f35a-4c74-86a8-d71ef3e6dafc,University of Georgia,Pi Kappa Psi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+d38fda16-9e72-44d8-b294-6f6467b43ff4,University of Georgia,Phi Gamma Delta,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,10,10,CHANCE LACEY,HANK MANNING,1060888,989212,194506,2843,LIGHT,HIGH
+dba1e801-5968-4813-8e8a-b901df5ca322,University of Georgia,Sigma Pi,IFC,ENTITY_MATCHED,2,0,false,false,false,true,false,2023,0,0,,,477905,420753,205814,0,LIGHT,NATIONAL_ONLY
+dd83d629-fa1b-4385-a8ea-a0f4f043f8b8,University of Kentucky,Omega Psi Phi,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,14895796,9895558,17720990,1151714,LIGHT,NATIONAL_ONLY
+df8c0ef1-d864-4bda-84c5-08d4ade794ec,University of Georgia,Delta Sigma Phi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,6,10,JIM LARSON,BRAD SULLIVAN,3767364,4353085,972505,2084532,LIGHT,NATIONAL_ONLY
+f2ece4b5-6ac3-4cb3-bb03-ed83f36bb6bc,University of Kentucky,Delta Zeta,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,4,4,MICHELLE ALBRECHT SMITH,,26809001,20532278,96230431,29613757,LIGHT,NATIONAL_ONLY
+f529eb4e-74c2-4dd5-b168-577b23f33202,University of Kentucky,Sigma Lambda Beta,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+45bf09d8-5f54-4916-88cd-3e7797d18830,University of Georgia,Phi Kappa Tau,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,171791,171800,25012,0,LIGHT,HIGH
+fb8bd862-bcf4-4a20-8de4-a390214e70f7,University of Georgia,Sigma Sigma Rho,MGC,CANDIDATES_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+493a191e-b338-44de-9377-cb123f46ad2d,University of Kentucky,Alpha Kappa Delta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+49e7e7eb-737d-4b2d-806a-78862bcceb15,University of Kentucky,Zeta Tau Alpha,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,8374719,10057415,36753113,13449328,LIGHT,NATIONAL_ONLY
+622d210d-fdc8-46d5-87e3-c34171482b05,University of Georgia,Kappa Sigma,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,5863607,5483274,7857250,989095,LIGHT,NATIONAL_ONLY
+67ded91c-8f38-49c1-922d-c35e98e36240,University of Georgia,Phi Kappa Theta,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2023,0,0,,,253795,251748,94913,3518,LIGHT,HIGH
+6e215efd-3bc7-4346-a149-0ee347e74061,University of Georgia,Sigma Nu,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,6291872,5989304,10968372,2625304,LIGHT,HIGH
+7e20da79-f052-4731-8509-2b66113f818e,University of Georgia,Chi Phi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,1726829,1550584,2016767,226135,LIGHT,NATIONAL_ONLY
+82a222ec-1fa0-4042-bd34-418c4148a255,University of Kentucky,Delta Sigma Theta,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2022,0,0,,,31051194,25156563,57143857,24790550,LIGHT,HIGH
+83f8cc90-e07c-420e-9065-feec401df68f,University of Georgia,Xi Kappa,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+8c79ce73-5f9a-4f8d-9f54-e4941ce051c7,University of Georgia,Alpha Gamma Rho,IFC,ENTITY_MATCHED,4,3,true,false,true,true,false,2024,0,0,,,1786541,2798515,4372490,1522014,MODERATE,HIGH
+8ce1b8b6-7aa7-492e-ab00-81e29a45f2df,University of Georgia,Beta Theta Pi,IFC,ENTITY_MATCHED,3,2,true,true,false,true,false,2023,0,0,,,6378113,7611188,6605669,5491333,MODERATE,HIGH
+968d8697-5bc9-431c-ba23-e691095e3d0c,University of Georgia,Sigma Phi Epsilon,IFC,ENTITY_MATCHED,2,1,false,false,false,true,false,2023,0,0,,,523223,494502,189996,0,LIGHT,HIGH
+9cc5cd47-0bcf-41b8-b87e-2203bbacd143,University of Georgia,Lambda Upsilon Lambda,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+9fcec30d-59f8-4609-8d03-cd34e02f3567,University of Georgia,Theta Chi,IFC,ENTITY_MATCHED,3,2,true,false,false,true,true,2023,8,0,SANDERS HACKETT,MATTHEW SINGER,411293,324977,160573,0,LIGHT,HIGH
+00abf3c1-453a-4e19-a3c0-760276d51dbf,University of Kentucky,Iota Phi Theta,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+01f34594-62b9-4b17-ab05-4a873f787081,University of Georgia,Kappa Alpha Order,IFC,ENTITY_MATCHED,2,1,false,false,false,true,false,2023,9,0,,,771189,709678,174056,3500,LIGHT,HIGH
+0e21189a-81dc-4486-8755-cd9365058b41,University of Georgia,Beta Upsilon Chi,IFC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+1480164a-2597-4f83-a1ca-0dadada71861,University of Georgia,Alpha Epsilon Pi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,524263,511621,447561,117076,LIGHT,HIGH
+1632da80-5993-41f7-8f2c-ad2dfa904b23,University of Kentucky,Lambda Theta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+194ce5c8-ea68-4c14-894c-2dd99c4079f7,University of Georgia,Sigma Alpha Epsilon,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2023,0,0,,,741029,719480,95915,0,LIGHT,HIGH
+1e7e70cd-6de9-47d0-a427-8d319ee8afee,University of Georgia,Pi Kappa Phi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,7651700,6650513,12806295,8166805,LIGHT,HIGH
+2e766e8b-b5e0-4ff8-a3e0-f9408d0c7c16,University of Georgia,Lambda Chi Alpha,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,7757361,9318779,6329265,6105805,LIGHT,HIGH
+3e6c3cbb-5b85-444e-88de-0cb8618a0ae0,University of Georgia,Sigma Chi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,89185,80469,9173,0,LIGHT,HIGH
+a680313e-d9aa-4102-b1a7-e9287f642134,University of Georgia,Lambda Theta Alpha,MGC,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,0,0,,,575588,519075,2038399,39114,LIGHT,NATIONAL_ONLY
+b1a94daa-8d28-4ae8-bf56-8cfb3372edad,University of Kentucky,Kappa Alpha Psi,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2016,0,0,,,5407230,4580050,6573534,491114,LIGHT,NATIONAL_ONLY
+b2f23af1-1e9a-4f2c-aaf2-49c9b9374d34,University of Kentucky,Lambda Theta Alpha,MGC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,575588,519075,2038399,39114,LIGHT,NATIONAL_ONLY
+bd41da9f-4b96-407b-a3c6-dde8a31635d3,University of Kentucky,Kappa Delta,Panhellenic,ENTITY_MATCHED,3,2,true,true,false,true,false,2024,7,8,KELLEN MCCOWN,,261483,289428,185639,0,STRONG,HIGH
+c044d843-b59e-4529-bab3-4f53a1338635,University of Kentucky,Phi Sigma Rho,Panhellenic,ENTITY_MATCHED,2,0,false,false,false,true,false,2023,0,0,,,606354,573393,552349,4873,LIGHT,NATIONAL_ONLY
+c21ce060-86d2-4163-a2a1-3941cfd82f39,University of Georgia,Delta Phi Lambda,MGC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+c43b2c46-d683-41fe-8b31-3ddde018f5ad,University of Georgia,Kappa Phi Gamma,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+c504aa9a-ade9-4780-bbe2-260ff8963d3c,University of Kentucky,Alpha Kappa Alpha,NPHC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,45276043,47246171,78704412,25926573,LIGHT,NATIONAL_ONLY
+c51f6ca7-7f1c-478d-a014-2a0e1fbc68e7,University of Georgia,Tau Epsilon Phi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,5,0,,,563663,530613,581008,30684,LIGHT,HIGH
+cd3803c0-f4f9-43a3-a77f-9f9403df362b,University of Kentucky,Delta Tau Delta,IFC,ENTITY_MATCHED,3,2,true,true,false,true,false,2023,0,0,,,294748,371676,23761,5638,MODERATE,HIGH
+ced7e0ce-d64f-4706-bb83-af84a950046f,University of Kentucky,Beta Upsilon Chi,IFC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+cf1e41c6-3826-43a0-99da-d6ca07045202,University of Missouri,Delta Sigma Theta,NPHC,ENTITY_MATCHED,3,2,true,false,false,true,false,2022,0,0,,,31051194,25156563,57143857,24790550,LIGHT,HIGH
+dca19dea-3879-47de-85a1-b107f0be4e65,University of Kentucky,Phi Gamma Delta,IFC,ENTITY_MATCHED,4,3,true,true,true,true,false,2024,5,10,TIM KILDUFF,DONALD J HERMAN,4215768,2492902,29803315,446726,STRONG,HIGH
+5352dc15-3e0e-4b2d-b5f5-e6146c67cb6c,University of Kentucky,Delta Gamma,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,6798067,7007656,19676752,1853098,LIGHT,HIGH
+56ef86c3-591a-4fa5-83fe-94f5111a1b9b,University of Kentucky,Alpha Phi,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,11454559,8872758,66006797,33308311,LIGHT,NATIONAL_ONLY
+de98b687-fa19-49e4-b6c2-2c683bd427be,University of Missouri,Lambda Theta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+61728ce6-70b6-465e-82bf-5336b277aea4,University of Kentucky,Pi Kappa Alpha,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2024,0,0,,,0,0,1,0,LIGHT,HIGH
+e4c3fa82-3d65-4af4-9891-add102795fdc,University of Missouri,Zeta Phi Beta,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2022,0,0,,,7208754,6749052,25467405,5042416,LIGHT,HIGH
+61a3ea03-b3b7-4240-82ae-5e75ae0eec50,University of Missouri,Delta Xi,Panhellenic,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+f5043fb0-c5f0-40b5-bded-f0cdb23b2bff,University of Missouri,Sigma Lambda Gamma,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+f7fba024-ee50-4695-91b8-787b6a4cc5e5,University of Kentucky,Delta Sigma Phi,IFC,ENTITY_MATCHED,4,3,true,false,false,true,false,2023,6,10,JIM LARSON,BRAD SULLIVAN,237731,232738,5764,0,LIGHT,HIGH
+fa63fdf2-fbbc-48e4-8c9a-0cb18712539d,University of Missouri,Alpha Phi Alpha,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+6c805063-5534-4d8d-ba19-4659aeb6644f,University of Missouri,Sigma Lambda Beta,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+7463e10f-2629-4caf-9138-ecb1710604c6,University of Kentucky,Alpha Gamma Rho,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,0,0,,,1786541,2798515,4372490,1522014,LIGHT,NATIONAL_ONLY
+7489122e-c90a-4205-b1f1-bc665125c6e5,University of Kentucky,Theta Chi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,108984,123908,20360,0,LIGHT,HIGH
+7e9d9781-fc57-4d72-8915-386992f5e725,University of Kentucky,FarmHouse,IFC,NOT_RUN,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+842efe93-4928-4477-8634-fc7da497347b,University of Kentucky,Phi Delta Theta,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6642836,6441081,6956145,1366384,LIGHT,NATIONAL_ONLY
+8af58534-8ee7-47fd-b196-e1370bd0adcd,University of Kentucky,Chi Omega,Panhellenic,ENTITY_MATCHED,4,3,true,true,false,true,false,2024,0,0,,,538960,527642,622688,108902,MODERATE,HIGH
+905d2eda-1b74-44fe-8b7e-e1e6a13d057e,University of Kentucky,Sigma Alpha Epsilon,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,8059440,7868762,14236601,3966752,LIGHT,NATIONAL_ONLY
+9816e9c5-348a-4af0-8288-1626b0131a57,University of Kentucky,Lambda Chi Alpha,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,7757361,9318779,6329265,6105805,LIGHT,NATIONAL_ONLY
+9abfa47e-9445-476d-b378-8083c4ff78c6,University of Kentucky,Alpha Kappa Lambda,IFC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+9c28a719-b01c-46a9-b898-fc8f6b07f392,University of Kentucky,Phi Kappa Tau,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,1891353,2050531,4195963,1337387,LIGHT,NATIONAL_ONLY
+a3bed8af-7fe5-4df2-a90e-899c6cde6f8a,University of Kentucky,Kappa Sigma,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,5863607,5483274,7857250,989095,LIGHT,NATIONAL_ONLY
+a4528ac0-4600-407d-b083-27ab3c5ee4f2,University of Missouri,Sigma Gamma Rho,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,13810784,14676025,5801135,4995240,LIGHT,NATIONAL_ONLY
+a8ae23f7-a4c1-4372-898e-a4c151711639,University of Missouri,Zeta Tau Alpha,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,8374719,10057415,36753113,13449328,LIGHT,NATIONAL_ONLY
+b17311eb-0306-4994-ad3e-ea8dd2073f82,University of Kentucky,Alpha Chi Omega,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,8,10,LYNNE BIGGIO HERNDON,LESLIE ABRAMSKY BLOCK,14721901,15897771,27766470,17951953,LIGHT,NATIONAL_ONLY
+0cf79a32-8601-45cb-a76e-b2db1e9d66af,University of Kentucky,Delta Chi,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,4512794,8407611,10805747,2221386,LIGHT,NATIONAL_ONLY
+11aca819-9f55-4055-ae7d-f59606eef252,University of Kentucky,Triangle,IFC,NOT_RUN,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+160e470b-8004-472a-842e-97bf14e38590,University of Kentucky,Alpha Delta Pi,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,8,11,DAWN VICTOR-HERRING,,6464144,4988932,18574229,1900417,LIGHT,NATIONAL_ONLY
+1c4300c5-a979-4db6-bb4d-078d8c707b67,University of Missouri,Gamma Phi Beta,Panhellenic,ENTITY_MATCHED,3,2,true,false,false,true,false,2024,4,10,CYNTHIA L WOOD,ATHENA TUTTLE,328271,241309,258955,0,LIGHT,HIGH
+1cd28360-3d42-44dc-ab1d-6555eaf42a9e,University of Kentucky,Sigma Nu,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,6291872,5989304,10968372,2625304,LIGHT,HIGH
+21b38814-4fa7-4290-8462-94a790fd8009,University of Missouri,Kappa Alpha Psi,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2016,0,0,,,5407230,4580050,6573534,491114,LIGHT,NATIONAL_ONLY
+221fc216-155d-469c-97a6-1c6faa223823,University of Missouri,Kappa Alpha Theta,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,11,7,ERICA D'ANGELO OCHS,,8145905,7622433,35939184,20356979,LIGHT,HIGH
+29adebe2-26e5-4eb1-afe6-3d04f8836795,University of Missouri,Phi Mu,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,603261,884208,2353853,1185623,LIGHT,HIGH
+29b225bd-0998-4f97-a2a7-76a4a13e0ff6,University of Missouri,Kappa Delta,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,539128,533928,237983,663,LIGHT,HIGH
+3899c365-6f39-48f9-b4c6-f69e79b0b599,University of Missouri,Phi Beta Sigma,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+3ceac3c2-c19b-43d8-b614-6c009b7089a7,University of Kentucky,Delta Delta Delta,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,9122429,10741658,14446908,5787498,LIGHT,NATIONAL_ONLY
+41128e5d-8fb2-42f3-8623-88f498a57ae8,University of Missouri,Lambda Theta Alpha,MGC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,575588,519075,2038399,39114,LIGHT,NATIONAL_ONLY
+c42a1575-0e56-49e9-a57f-eecae1d8d559,University of Kentucky,Tau Kappa Epsilon,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,5693324,5797020,6866705,3063238,LIGHT,NATIONAL_ONLY
+c9f59692-1b97-452e-bbba-125dab56e2e2,University of Missouri,Omega Psi Phi,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,14895796,9895558,17720990,1151714,LIGHT,NATIONAL_ONLY
+5414f953-da0a-4afe-80b2-6ed4ab3c2ae4,University of Missouri,Theta Chi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,14,14,Walker Piles,Nathan Jacobs,584401,623842,50933,0,LIGHT,HIGH
+ced6432f-11fc-4eca-8dc4-3ae2f9599734,Louisiana State University,Delta Tau Delta,IFC,ENTITY_MATCHED,3,2,true,true,false,true,false,2024,0,0,,,185176,128790,56386,0,MODERATE,HIGH
+d6471839-57c9-4073-9322-0dc96ed23afc,Louisiana State University,Sigma Chi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,263204,252728,17448,0,LIGHT,HIGH
+e5368dfc-6f55-4c93-aefb-c6ab012f4935,Louisiana State University,Pi Kappa Alpha,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2024,0,0,,,826335,831245,2834640,1096208,LIGHT,HIGH
+fa9a720f-5c60-4f22-9180-c657fdd6bad6,University of Missouri,Alpha Gamma Rho,IFC,ENTITY_MATCHED,3,2,true,true,false,true,false,2024,13,26,,LEE GARD,424217,405556,89245,21000,STRONG,HIGH
+fd64e9a8-1d8b-4f25-a589-f9f4dbf51309,University of Missouri,Beta Theta Pi,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2023,0,0,,,1441935,1391574,148285,151935,LIGHT,HIGH
+5bf61743-e64e-467a-a71c-2c3cc619e4ee,University of Missouri,Alpha Delta Pi,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2023,8,11,DAWN VICTOR-HERRING,,1100952,1348457,2390367,2879938,STRONG,HIGH
+5ccce45c-86be-4cac-803f-208e5362615c,University of Missouri,Lambda Chi Alpha,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,7757361,9318779,6329265,6105805,LIGHT,NATIONAL_ONLY
+606afceb-19a9-438d-b29d-ff168902f099,Louisiana State University,Delta Zeta,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,4,4,MICHELLE ALBRECHT SMITH,,26809001,20532278,96230431,29613757,LIGHT,HIGH
+6a6c177e-1c8f-40bf-9e6b-e8874e145255,University of Missouri,Theta Xi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,,0,0,,,,,,,LIGHT,NATIONAL_ONLY
+6da4a677-a8d1-485f-b9bc-d8fa988cab63,University of Missouri,Triangle,IFC,NOT_RUN,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+7768f132-b7e1-4862-ba51-d2913b684fe8,University of Missouri,Beta Sigma Psi,IFC,ENTITY_MATCHED,1,1,false,false,false,false,false,2023,0,0,,,245552,240799,17974,80165,LIGHT,HIGH
+78a24cf2-c933-43c0-aa1b-809c50ce743f,University of Missouri,Tau Kappa Epsilon,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,5693324,5797020,6866705,3063238,LIGHT,NATIONAL_ONLY
+7adf8636-93d2-44ba-914b-a31b7b32ad8f,Louisiana State University,Theta Chi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,5802095,6651701,1868008,1046790,LIGHT,NATIONAL_ONLY
+7afacd94-43a0-4bed-8163-58ec7679acb7,University of Missouri,Alpha Epsilon Pi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,116758,103109,15917,0,LIGHT,HIGH
+853b2630-ec98-42ec-a814-93b0f0a653ed,Louisiana State University,Sigma Nu,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6291872,5989304,10968372,2625304,LIGHT,NATIONAL_ONLY
+85a0cbde-98d2-4bef-98ed-b30dfacdb5fa,University of Missouri,Alpha Kappa Lambda,IFC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+874a1448-8d09-4eaa-a4df-630644dc7e2e,University of Missouri,Sigma Chi,IFC,ENTITY_MATCHED,3,2,false,false,false,true,true,2023,0,0,,,6258354,6354819,2876673,1885237,LIGHT,HIGH
+9f30ce1a-2a45-456f-a372-059e7f8c6007,University of Missouri,FarmHouse,IFC,NOT_RUN,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+9f33379f-5f3a-42c1-a674-0ce3793d2336,Louisiana State University,Zeta Tau Alpha,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2024,0,0,,,428253,267132,1109097,89,MODERATE,HIGH
+a6043a50-af32-4df8-a1c7-30c10a6e9796,Louisiana State University,Alpha Kappa Alpha,NPHC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,45276043,47246171,78704412,25926573,LIGHT,NATIONAL_ONLY
+a60dae25-021c-448a-81a2-dd3b32e5ff06,Louisiana State University,Kappa Delta Chi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+b687dcc6-f5c0-4fd0-9cb7-f53992a0810a,Louisiana State University,Chi Omega,Panhellenic,ENTITY_MATCHED,4,3,true,false,false,true,false,2024,0,0,,,1924277,1635414,9937734,8377017,LIGHT,HIGH
+0148e49a-eb34-4679-88bf-d80226def9c0,Louisiana State University,Phi Beta Sigma,NPHC,ENTITY_MATCHED,1,1,false,false,false,false,false,,0,0,,,,,,,LIGHT,HIGH
+f1fd9b5d-f1ce-4a04-92b4-6cf683c4f7c0,University of Missouri,Phi Kappa Psi,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,5,11,ROBERT MARCHESANI,CHARLES BRANDMAN,3462956,3596087,3874343,1368036,LIGHT,NATIONAL_ONLY
+06705787-2ac6-4499-ba94-e8689f821178,Louisiana State University,Delta Gamma,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,6798067,7007656,19676752,1853098,LIGHT,HIGH
+0b84f848-3cf7-40c8-a4ad-84e7e23ba389,Louisiana State University,Pi Beta Phi,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2023,0,0,,,713100,802446,1028887,9796,MODERATE,HIGH
+0bfac3f1-8f9b-4417-b470-2edcf6a2432f,Louisiana State University,Delta Delta Delta,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2023,0,0,,,709067,306505,2637035,13626,MODERATE,HIGH
+0fc7b0ef-c327-4876-bf12-7a655e854dd4,University of Missouri,Kappa Alpha Order,IFC,ENTITY_MATCHED,3,2,false,false,true,true,false,2024,12,1,,,475722,496145,18953,0,MODERATE,HIGH
+0fe0a843-37ea-42c3-8624-e1c26543ef62,Louisiana State University,Lambda Theta Alpha,MGC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,575588,519075,2038399,39114,LIGHT,NATIONAL_ONLY
+0ffb6513-ffbd-403c-acaf-025d1abaed64,Louisiana State University,Delta Phi Omega,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+16761f0e-4801-472f-9334-38731725a05f,University of Missouri,Delta Sigma Phi,IFC,ENTITY_MATCHED,2,1,false,false,false,true,true,2024,9,20,John Hequembourg,Ryan Brockschmitt,235405,367558,2403389,1320701,LIGHT,HIGH
+17f3466f-bd02-489d-a916-58784fb6af3e,University of Missouri,Alpha Gamma Delta,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,8,8,LEE WOODHAM LANGUB,,4374047,5118555,11704156,7476350,LIGHT,NATIONAL_ONLY
+1ae1b67f-ff83-489d-be08-9cfedb1b3220,University of Missouri,Delta Tau Delta,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2024,13,3,BEN DONSBACH,TREVOR DEMAY,1218460,1202659,412114,88057,LIGHT,HIGH
+1e8ae42b-5f67-48b0-bf30-11208006bd78,University of Missouri,Kappa Sigma,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,5863607,5483274,7857250,989095,LIGHT,NATIONAL_ONLY
+25278759-5a04-4bf9-9632-d3cb0132c203,Louisiana State University,Iota Phi Theta,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+31813913-0bed-4331-a453-a04d6c48485f,Louisiana State University,Sigma Gamma Rho,NPHC,ENTITY_MATCHED,4,3,true,false,false,true,false,2024,0,0,,,77685,51648,89275,45140,LIGHT,HIGH
+3b90067b-a147-46c5-9045-d213c71d2e58,University of Missouri,Alpha Gamma Sigma,IFC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+3c1d4480-ea01-42da-a554-17999051c107,Louisiana State University,Alpha Delta Pi,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2023,8,11,DAWN VICTOR-HERRING,,777733,559556,1095517,0,STRONG,HIGH
+43081c7b-52e5-4f7a-822b-c4e334f08518,Louisiana State University,Alpha Phi Alpha,NPHC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+43877429-8cb7-4835-a8ee-fc971aeb39bb,Louisiana State University,Zeta Phi Beta,NPHC,ENTITY_MATCHED,3,2,true,false,false,true,false,2022,0,0,,,7208754,6749052,25467405,5042416,LIGHT,HIGH
+cca002e1-98f3-47b0-a01b-3d9c516ad2ed,University of South Carolina,Beta Theta Pi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,6378113,7611188,6605669,5491333,LIGHT,HIGH
+ce00b81b-222d-43de-baf5-311d55eaf094,University of Oklahoma,Sigma Lambda Gamma,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+48db956e-180d-4395-a802-607daac380b1,University of Oklahoma,Alpha Sigma Phi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,4339126,5668023,3009489,350189,LIGHT,HIGH
+cf2d5192-893d-4a83-ad26-505b616208b9,University of Oklahoma,Zeta Phi Beta,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,7208754,6749052,25467405,5042416,LIGHT,NATIONAL_ONLY
+d7c2e863-190f-4f4a-9457-8cfbcea7f6fa,University of South Carolina,Chi Psi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,2385705,2131170,3917503,2129325,LIGHT,NATIONAL_ONLY
+d8c0acb2-393c-410f-9fb4-cb34713596c6,University of Oklahoma,Delta Tau Delta,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,13,0,BENJAMIN NASH,,329913,305828,28719,0,LIGHT,HIGH
+e1dfef32-0653-44dd-b879-453a96de65e0,University of Oklahoma,Phi Delta Theta,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6642836,6441081,6956145,1366384,LIGHT,NATIONAL_ONLY
+e69edd5b-8f10-4023-8508-9471f2db5761,University of Oklahoma,Iota Phi Theta,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+e9e57415-7dd5-46ea-aa61-9c7a2f500df9,University of Oklahoma,Delta Gamma,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,6798067,7007656,19676752,1853098,LIGHT,HIGH
+efd5f194-c443-411e-be4e-a697f491037c,University of Oklahoma,Kappa Sigma,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2024,0,0,,,507194,506753,28189,0,LIGHT,HIGH
+f0f55db0-1512-433c-af1e-1847df2d698a,University of Oklahoma,Alpha Chi Omega,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,8,10,LYNNE BIGGIO HERNDON,LESLIE ABRAMSKY BLOCK,14721901,15897771,27766470,17951953,LIGHT,NATIONAL_ONLY
+f90c1e45-a4f2-4043-86c9-c343463edd80,University of Oklahoma,Delta Delta Delta,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,9122429,10741658,14446908,5787498,LIGHT,NATIONAL_ONLY
+fa135ef5-0845-4a73-a3ff-ede4cedd18a8,University of Oklahoma,Phi Beta Sigma,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+ff952f31-8f5d-4509-826e-54219c1ee2bb,University of Oklahoma,Sigma Chi,IFC,ENTITY_MATCHED,3,2,true,false,true,true,false,2024,0,0,,,61677,22367,300058,1,MODERATE,HIGH
+4ea5684b-d8d1-4b58-8a28-c2126e56417f,University of Oklahoma,FarmHouse,IFC,NOT_RUN,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+5430ae2b-8a93-45c7-b7ae-d425c71b61f5,Louisiana State University,Kappa Alpha Order,IFC,ENTITY_MATCHED,2,1,false,false,false,true,false,2023,0,0,,,852717,848575,26356,0,LIGHT,HIGH
+5e5bda40-e6b0-4ac6-881a-fda512335af3,University of South Carolina,Kappa Sigma,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,105005,106423,3250,0,LIGHT,HIGH
+620cbb54-2352-452f-afc6-4b820e8ade62,University of Oklahoma,Pi Kappa Alpha,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,0,0,1,0,LIGHT,HIGH
+7399cfe9-d41c-4e65-aa6a-2cd9ffeb64ae,University of Oklahoma,Kappa Alpha Psi,NPHC,ENTITY_MATCHED,2,1,false,false,false,true,true,2016,0,0,,,5407230,4580050,6573534,491114,LIGHT,HIGH
+78b389e0-7ea6-4aa3-ae55-145b9581ffb0,University of Oklahoma,Pi Beta Phi,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,2,8,HANNAH HARP,MARY POWELL,630899,695085,1518088,5762,LIGHT,HIGH
+791f0a51-5928-4bc6-818d-10a891ec898b,University of Oklahoma,Alpha Omicron Pi,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,7459387,6338452,39739276,4492321,LIGHT,NATIONAL_ONLY
+7cfcd242-ec52-4821-a305-e618e31745df,University of South Carolina,Lambda Chi Alpha,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,0,0,740,0,LIGHT,HIGH
+851052d3-0d5b-4a4a-8c44-effae0ac13de,University of South Carolina,Alpha Sigma Phi,IFC,ENTITY_MATCHED,2,1,false,false,false,true,false,2023,20,0,Benjamin Grniet,,179749,174675,15991,0,LIGHT,HIGH
+0a48854d-b464-4f53-96bb-d0868e1bd98e,University of South Carolina,Delta Tau Delta,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,170282,163777,16952,0,LIGHT,HIGH
+14f68e3f-bdf3-4326-9461-3429595db80a,University of South Carolina,Phi Delta Theta,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,388240,380382,15885,0,LIGHT,HIGH
+154430e0-7058-462f-bd4c-a7f58ef49dbb,University of Oklahoma,Sigma Alpha Epsilon,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,8059440,7868762,14236601,3966752,LIGHT,HIGH
+1e9a67dd-5659-4593-a0cd-66a5ba03000e,University of Oklahoma,Sigma Nu,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6291872,5989304,10968372,2625304,LIGHT,NATIONAL_ONLY
+24c11cd4-e713-4b79-8913-b8fc652c15e8,University of Oklahoma,Alpha Kappa Alpha,NPHC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,45276043,47246171,78704412,25926573,LIGHT,NATIONAL_ONLY
+33b99650-ee47-47a0-82c7-a39f836821ce,University of South Carolina,Beta Upsilon Chi,IFC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+37b1f743-25d1-42aa-8cd7-4cffbddc5ebf,Louisiana State University,Lambda Chi Alpha,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,7757361,9318779,6329265,6105805,LIGHT,NATIONAL_ONLY
+3d522dcb-2b3a-499c-870f-ca6b7ea7fa36,University of Oklahoma,Phi Gamma Delta,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,5,10,TIM KILDUFF,DONALD J HERMAN,741748,765950,4743,0,LIGHT,HIGH
+8638ac56-bd9f-4ee9-a678-1acb5dac8372,University of Oklahoma,Beta Upsilon Chi,IFC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+8b1980bd-578e-440d-8725-2a257e973db2,University of Oklahoma,Pi Kappa Phi,IFC,ENTITY_MATCHED,2,1,false,false,false,true,true,2024,0,0,,,7651700,6650513,12806295,8166805,LIGHT,HIGH
+9635da7a-4859-4a93-8bbd-dd9aaf719172,University of Oklahoma,Alpha Phi Alpha,NPHC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+9af85e36-e14d-43f7-bd73-ec661f5b6d3c,University of Oklahoma,Lambda Theta Alpha,MGC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,575588,519075,2038399,39114,LIGHT,NATIONAL_ONLY
+9cddd6bb-6cb4-4a27-89f2-34a015ac5340,Louisiana State University,Phi Delta Theta,IFC,CANDIDATES_FOUND,1,0,false,false,false,true,false,2023,0,0,,,6642836,6441081,6956145,1366384,LIGHT,NATIONAL_ONLY
+9cf68578-8c16-47a3-81fa-2c2709ac6acc,University of Oklahoma,Alpha Gamma Delta,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,8,8,LEE WOODHAM LANGUB,,4374047,5118555,11704156,7476350,LIGHT,HIGH
+a0fc1862-c8bd-49b6-9ba3-457ddc1d0b10,Louisiana State University,Phi Gamma Delta,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,5,10,TIM KILDUFF,DONALD J HERMAN,6882567,7250137,16972198,283891,LIGHT,NATIONAL_ONLY
+ba567397-e177-4bd0-87fc-a14b1bd11adb,University of South Carolina,Delta Chi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,4512794,8407611,10805747,2221386,LIGHT,NATIONAL_ONLY
+bbe3c7b8-bc0c-47a7-b960-669d055788e0,University of Oklahoma,Omega Delta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+c99e24f7-6445-42bb-92ae-535978415525,University of Oklahoma,Lambda Delta Psi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+e1c8eb70-3406-4439-b901-3b06ffd99974,Mississippi State University,Alpha Phi Alpha,NPHC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+444b2688-5501-4f13-afca-d413903da38a,Mississippi State University,Pi Kappa Alpha,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,0,0,,,0,0,1,0,LIGHT,NATIONAL_ONLY
+4b758f39-36ff-4fa9-be2c-80b6c78e703c,University of Texas at Austin,Sigma Lambda Alpha,MGC,ENTITY_MATCHED,2,1,true,false,false,true,false,,0,0,,,,,,,LIGHT,HIGH
+51935596-ea0a-4f02-a791-dc905ffeaa46,University of Texas at Austin,Lambda Theta Alpha,MGC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,575588,519075,2038399,39114,LIGHT,NATIONAL_ONLY
+543d367e-7086-4c74-9d6f-06f1588bbef1,University of South Carolina,Acacia,IFC,NOT_RUN,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+54c86879-585e-45e8-992f-39f651514318,Mississippi State University,Delta Chi,IFC,ENTITY_MATCHED,3,2,false,true,false,true,true,2023,0,0,,,287560,341925,963836,786261,MODERATE,HIGH
+5f6fbcee-0a33-4244-a9cd-dd8558b50674,Mississippi State University,Delta Kappa Epsilon,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,1575740,1428396,1691763,243043,LIGHT,NATIONAL_ONLY
+633c109d-a78d-429f-8ab6-50af8cc9502b,Mississippi State University,Alpha Gamma Rho,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,1786541,2798515,4372490,1522014,LIGHT,NATIONAL_ONLY
+6b31500f-ef66-41e1-a80a-8d6b9769197c,University of Texas at Austin,Alpha Kappa Delta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+6d282a1c-057d-43cc-9bd0-b5c4602899e2,Mississippi State University,Omega Psi Phi,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2022,0,0,,,14895796,9895558,17720990,1151714,LIGHT,HIGH
+70c1bb2f-0127-46ba-967f-934162e0f3c7,University of Texas at Austin,Delta Epsilon Psi,MGC,CANDIDATES_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+72ce6133-f7ea-4d44-985d-0f4a9828dce2,Mississippi State University,Delta Gamma,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6798067,7007656,19676752,1853098,LIGHT,NATIONAL_ONLY
+78f6b4d2-02a6-4c3d-a73a-c656850a99c9,Mississippi State University,Sigma Nu,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6291872,5989304,10968372,2625304,LIGHT,NATIONAL_ONLY
+7e2f2c6a-9bb1-4cb2-adf1-4c35b547fa30,Mississippi State University,Iota Phi Theta,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+89ac982d-4c51-4d68-acd0-983c7e154160,Mississippi State University,Kappa Delta,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2023,0,0,,,1216074,1332178,3902613,2535187,MODERATE,HIGH
+8bfaee7d-1516-4697-80c1-c6f99858b2de,Mississippi State University,Beta Upsilon Chi,IFC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+91b4b517-8f79-4b5c-9ea1-91093e23942e,Mississippi State University,Chi Omega,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,9326761,25219251,8372048,1503624,LIGHT,NATIONAL_ONLY
+96560abd-23d7-48ae-9a56-6f5bfe6564f6,Mississippi State University,Sigma Lambda Beta,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+9d07e7dd-3cff-489c-9713-dcc01af27544,Mississippi State University,Kappa Alpha Order,IFC,ENTITY_MATCHED,2,1,false,false,false,true,false,2023,9,0,,,606950,591652,23498,0,LIGHT,HIGH
+a36421c0-11a1-4d78-affd-2bc699c1ea9e,Mississippi State University,Phi Beta Sigma,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+07f53403-547d-4188-9ae0-358d939581bb,Mississippi State University,Sigma Phi Epsilon,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2021,0,0,,,7894444,7973017,70284165,47495636,LIGHT,NATIONAL_ONLY
+0ad49680-be3f-46c0-b3e1-9bd34315f77c,Mississippi State University,Sigma Alpha Epsilon,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,1138207,1146210,236825,128546,LIGHT,HIGH
+0b4adfaf-e924-42a0-960a-22a9dc9710b9,Mississippi State University,Alpha Chi Omega,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,8,10,LYNNE BIGGIO HERNDON,LESLIE ABRAMSKY BLOCK,14721901,15897771,27766470,17951953,LIGHT,NATIONAL_ONLY
+0f2f4486-f8e0-4254-b5c6-11d9f53f2598,Mississippi State University,Sigma Lambda Gamma,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+2112f2da-fdac-4718-8c4c-21584d89f784,University of Texas at Austin,Kappa Delta Chi,MGC,CANDIDATES_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+2924b1ae-5f3c-4709-a4c4-acfa254d5920,University of Texas at Austin,Phi Beta Sigma,NPHC,ENTITY_MATCHED,1,1,true,false,false,false,false,,0,0,,,,,,,LIGHT,HIGH
+2a6e7e4a-76eb-4049-8f5e-a275ffd10285,University of Texas at Austin,Sigma Lambda Beta,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+2f4b21f1-8cf5-4081-98eb-41ec87616397,Mississippi State University,Pi Kappa Phi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,0,0,,,7651700,6650513,12806295,8166805,LIGHT,NATIONAL_ONLY
+31df6c5a-d415-43bb-9db5-8e4d1909c0ea,University of Texas at Austin,Zeta Phi Beta,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,7208754,6749052,25467405,5042416,LIGHT,NATIONAL_ONLY
+33e4ee81-06e2-4e4d-9afa-2f439f2e11fc,Mississippi State University,Zeta Phi Beta,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2022,0,0,,,7208754,6749052,25467405,5042416,LIGHT,HIGH
+3507667a-d745-4047-b883-1471cce253f4,University of Texas at Austin,Sigma Lambda Gamma,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+36b5d0b5-0f9e-4d61-9e01-c5c755d7b3e2,Mississippi State University,Sigma Gamma Rho,NPHC,ENTITY_MATCHED,4,3,true,false,false,true,false,2023,0,0,,,13810784,14676025,5801135,4995240,LIGHT,HIGH
+3dce38f1-54c5-4649-9726-e435a16c105d,Mississippi State University,Kappa Sigma,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,5863607,5483274,7857250,989095,LIGHT,NATIONAL_ONLY
+3f9398af-5978-4816-87b5-80b8cb555632,Mississippi State University,Alpha Kappa Alpha,NPHC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,45276043,47246171,78704412,25926573,LIGHT,NATIONAL_ONLY
+40d081ad-214a-4f76-859f-55f4c84076dd,University of Texas at Austin,Sigma Gamma Rho,NPHC,ENTITY_MATCHED,4,3,true,false,false,true,false,2023,0,0,,,13810784,14676025,5801135,4995240,LIGHT,HIGH
+bdb38a1f-f98c-4491-b06e-eeec32eff183,Mississippi State University,Sigma Pi,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,3247538,4404602,2773566,173335,LIGHT,NATIONAL_ONLY
+c311d609-7e14-446c-95a3-8f5aab2c6460,Mississippi State University,Delta Xi Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+c91cbabf-a29e-4fef-b3db-9aca6fc3bfed,University of Texas at Austin,Kappa Alpha Psi,NPHC,ENTITY_MATCHED,3,2,true,false,false,true,false,2016,0,0,,,5407230,4580050,6573534,491114,LIGHT,HIGH
+cc7ab4cb-090d-44e3-92a8-88375a44aa26,Mississippi State University,Zeta Tau Alpha,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,8374719,10057415,36753113,13449328,LIGHT,NATIONAL_ONLY
+468c2896-918f-41e6-b261-8a7a1ab0cc93,University of Texas at Austin,Alpha Kappa Alpha,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,45276043,47246171,78704412,25926573,LIGHT,NATIONAL_ONLY
+471de92e-3641-4af6-a998-709730662ff3,University of South Carolina,Delta Phi Omega,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+da2059df-8a65-4fa5-a116-d1986da624d6,University of Texas at Austin,Alpha Delta Pi,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2023,11,19,Debbie Ellis,Jeannene Mills,1029511,910183,1509993,312823,STRONG,HIGH
+4e5a15d4-563b-4644-826a-3a94053439c1,University of Texas at Austin,Delta Sigma Theta,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2022,0,0,,,31051194,25156563,57143857,24790550,LIGHT,HIGH
+f37b4b25-404a-4a99-8437-14b292b739f2,University of Texas at Austin,Pi Kappa Phi,IFC,ENTITY_MATCHED,2,1,false,true,false,true,false,2024,0,0,,,7651700,6650513,12806295,8166805,MODERATE,HIGH
+f4caa950-0384-4c5d-a6aa-6271030ff585,University of Texas at Austin,Beta Upsilon Chi,IFC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+52642911-5748-4eeb-8779-b8d7b7fe91cf,University of Texas at Austin,Lambda Chi Alpha,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,7757361,9318779,6329265,6105805,LIGHT,HIGH
+5b53cad0-c3e7-467c-a792-3415e702ef93,University of South Carolina,Lambda Theta Alpha,MGC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,575588,519075,2038399,39114,LIGHT,NATIONAL_ONLY
+5c25abb8-31a0-40c9-b412-ae4506a6048d,University of South Carolina,Lambda Theta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+fd9f136a-7357-417e-80c6-8ab014511a7b,University of Texas at Austin,Chi Omega,Panhellenic,ENTITY_MATCHED,3,2,true,false,false,true,false,2023,0,0,,,396171,418181,16556,0,LIGHT,HIGH
+fec66e10-f3be-4c4a-a7df-4ec43231e402,University of Texas at Austin,Phi Delta Theta,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6642836,6441081,6956145,1366384,LIGHT,NATIONAL_ONLY
+64a30c66-0de7-4055-951c-9aa7b973b6ff,University of Texas at Austin,Iota Phi Theta,NPHC,ENTITY_MATCHED,1,1,false,false,false,false,false,,0,0,,,,,,,LIGHT,HIGH
+6ddc6a1a-35ca-4897-afd1-dcab1f642485,University of South Carolina,Kappa Alpha Psi,NPHC,ENTITY_MATCHED,4,3,true,false,false,true,false,2016,0,0,,,5407230,4580050,6573534,491114,LIGHT,HIGH
+7d956d8c-a430-4d2b-93c4-1c64f0fcfec3,University of Texas at Austin,Kappa Alpha Order,IFC,ENTITY_MATCHED,2,1,false,false,false,true,false,2023,9,0,,,1200337,1182384,163790,0,LIGHT,HIGH
+83c21d1f-20ae-4d2c-adb7-1a2804e04d31,University of Texas at Austin,Sigma Alpha Epsilon,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,1687855,1736442,603542,326323,LIGHT,HIGH
+98ad24fa-7bc6-4784-8898-64add8daed99,University of South Carolina,Sigma Lambda Gamma,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+9a295ad2-3917-4ac7-809e-c07b77777d7c,University of South Carolina,Phi Beta Sigma,NPHC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+9e26078e-7060-4e17-b4b3-9513e47ca478,University of Texas at Austin,Kappa Alpha Theta,Panhellenic,ENTITY_MATCHED,3,2,true,false,false,true,false,2023,11,7,ERICA D'ANGELO OCHS,,8145905,7622433,35939184,20356979,LIGHT,HIGH
+a62aad87-8262-4dcc-bdda-d63decd8b193,University of Texas at Austin,Alpha Chi Omega,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,8,10,LYNNE BIGGIO HERNDON,LESLIE ABRAMSKY BLOCK,14721901,15897771,27766470,17951953,LIGHT,HIGH
+a70b3f7c-d000-4bf0-b909-fe11c66ee4b8,University of Texas at Austin,Tau Kappa Epsilon,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,5693324,5797020,6866705,3063238,LIGHT,HIGH
+abd3df90-d5ad-4daa-bba6-0e2380f2edff,University of South Carolina,Sigma Lambda Beta,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+aeca7bbd-9687-4a25-acc5-cc34913e1b6b,University of Texas at Austin,Delta Tau Delta,IFC,ENTITY_MATCHED,3,2,true,true,false,true,false,2023,0,0,,,1313356,1242734,400301,863,MODERATE,HIGH
+b584c132-a7c7-455f-aa66-2490021a3d68,University of South Carolina,Omega Psi Phi,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,14895796,9895558,17720990,1151714,LIGHT,NATIONAL_ONLY
+08525c20-fd06-4cef-ace8-ce39b6398d51,University of Texas at Austin,Delta Gamma,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6798067,7007656,19676752,1853098,LIGHT,NATIONAL_ONLY
+d08a56d2-87f1-4e64-b0f8-2770db7c77f7,University of Texas at Austin,Phi Kappa Psi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,5,11,ROBERT MARCHESANI,CHARLES BRANDMAN,3462956,3596087,3874343,1368036,LIGHT,NATIONAL_ONLY
+091c9058-4ecd-49cf-b42c-0ee91ac384e3,University of South Carolina,Zeta Phi Beta,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,35015,21943,78399,0,LIGHT,HIGH
+12895a18-2ef1-4712-8ca1-0c99c09905aa,University of South Carolina,Sigma Gamma Rho,NPHC,ENTITY_MATCHED,5,4,true,false,false,true,false,2023,0,0,,,13810784,14676025,5801135,4995240,LIGHT,HIGH
+1536e854-3e1b-4c4d-8dcb-b9916d3a80af,University of South Carolina,Alpha Kappa Alpha,NPHC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,45276043,47246171,78704412,25926573,LIGHT,NATIONAL_ONLY
+1cc9aebc-6dd5-42d4-b738-cd05de6b46cd,University of Texas at Austin,Zeta Tau Alpha,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2023,0,0,,,90970,90774,2737679,0,MODERATE,HIGH
+20a584d0-d276-4f7c-936d-214cad985938,University of Texas at Austin,Acacia,IFC,NOT_RUN,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+2a857ca4-9eff-49a4-9d87-22f6d78d1d35,University of Texas at Austin,Kappa Sigma,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,5863607,5483274,7857250,989095,LIGHT,NATIONAL_ONLY
+2feb2102-d7fe-4e21-b2a2-ba24cdbaba48,University of Texas at Austin,Pi Beta Phi,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2023,8,7,CARRIE MCDOWELL,MELEESIA AVANT,999019,844105,4577015,0,STRONG,HIGH
+37731bc8-6637-4e10-a32e-b1013baf5c23,University of Texas at Austin,Phi Gamma Delta,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,5,10,TIM KILDUFF,DONALD J HERMAN,6882567,7250137,16972198,283891,LIGHT,HIGH
+38b1d424-fb42-43ec-8e9c-fe4833bdf1b1,University of Texas at Austin,Alpha Xi Delta,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,6,11,ERIN MACDONALD PECK,JENNIFER UMBERGER,2870393,3398321,14410437,4124678,LIGHT,NATIONAL_ONLY
+39869220-072e-47a7-b910-22b4da008c64,University of South Carolina,Iota Phi Theta,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+3e846834-9a1f-49b1-9dbb-d1c15d5bea03,University of Texas at Austin,Theta Chi,IFC,ENTITY_MATCHED,3,2,true,false,false,true,true,2023,0,0,,,5802095,6651701,1868008,1046790,LIGHT,HIGH
+3fb924cd-f058-40fe-adbb-580bd44a3627,University of Texas at Austin,Alpha Epsilon Pi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,4685200,4269285,4595688,593080,LIGHT,HIGH
+bd1d6e5b-b3b2-4808-9ebc-398941e381bd,University of Texas at Austin,Sigma Alpha Mu,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,2,2,RANDY MALTZ,BRUCE GOLDEN,679952,549151,369700,0,LIGHT,HIGH
+c24ad417-42e1-45ef-ad58-b3d6ef736cf3,University of South Carolina,Delta Sigma Theta,NPHC,ENTITY_MATCHED,3,2,true,false,false,true,false,2022,0,0,,,31051194,25156563,57143857,24790550,LIGHT,HIGH
+c2f54fc5-1e40-44c2-8790-ae006c681a6d,University of Texas at Austin,Beta Theta Pi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6378113,7611188,6605669,5491333,LIGHT,NATIONAL_ONLY
+c53c2ebe-020c-4a5b-93b7-71add6f5f853,University of South Carolina,Phi Mu,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2023,0,0,,,986776,940467,3247544,1999965,MODERATE,HIGH
+cf88d4f0-f75c-4241-a557-cd75457a36e1,"University of Tennessee, Knoxville",Delta Zeta,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,4,4,MICHELLE ALBRECHT SMITH,,26809001,20532278,96230431,29613757,LIGHT,HIGH
+d03e5a10-55bf-419a-b1a3-97718ebe6ac3,University of South Carolina,Kappa Delta,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,537204,490636,400018,2407,LIGHT,HIGH
+4e4dc338-04c9-45e9-a898-0dfb8f540a23,"University of Tennessee, Knoxville",Phi Kappa Tau,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,1891353,2050531,4195963,1337387,LIGHT,HIGH
+d906bbf5-2ee8-4ba0-bee1-e02b2c638afa,"University of Tennessee, Knoxville",Sigma Lambda Beta,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+53af61e9-2310-4622-a559-3aa375db3a72,University of South Carolina,Zeta Beta Tau,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,2944254,2608316,2736822,1252880,LIGHT,NATIONAL_ONLY
+f3804906-967c-48f0-b29b-c2fb9561a746,University of South Carolina,Phi Kappa Sigma,IFC,ENTITY_MATCHED,2,0,false,false,false,true,false,2023,0,0,,,1004912,715799,1503648,172902,LIGHT,NATIONAL_ONLY
+5b256776-eb78-4362-a07c-ed6732580dee,University of South Carolina,Pi Kappa Alpha,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,247307,236866,11914,0,LIGHT,HIGH
+f8ab16a7-7e23-4ff4-aace-aff49eeed11d,"University of Tennessee, Knoxville",Sigma Alpha Epsilon,IFC,ENTITY_MATCHED,3,2,true,false,false,true,true,2024,0,0,,,1051427,1110355,95570,0,LIGHT,HIGH
+fc2b9acb-b491-4333-971d-4b51336d3035,University of South Carolina,Pi Kappa Phi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,7651700,6650513,12806295,8166805,LIGHT,HIGH
+ffbf8e7e-2afd-4641-ac65-0c6a6e8723e6,"University of Tennessee, Knoxville",Zeta Beta Tau,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,2944254,2608316,2736822,1252880,LIGHT,NATIONAL_ONLY
+5cb7569c-60bb-4c79-8d38-f493817d6575,"University of Tennessee, Knoxville",Pi Kappa Phi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,0,0,,,7651700,6650513,12806295,8166805,LIGHT,NATIONAL_ONLY
+67c4fec2-db43-4ed4-bf21-c9facda73fe4,"University of Tennessee, Knoxville",Delta Gamma,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,6798067,7007656,19676752,1853098,LIGHT,HIGH
+6bbf0392-7967-45b1-af75-23fdad57aa3a,University of South Carolina,Sigma Phi Epsilon,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2022,0,0,,,346885,358154,2368,0,LIGHT,HIGH
+6f2b75d7-6316-48ef-9a02-5e38d9d1dd27,University of South Carolina,Sigma Alpha Epsilon,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,605994,623860,13333,6583,LIGHT,HIGH
+7d6aa336-1932-492d-a6a4-0e831070a14e,University of South Carolina,Gamma Phi Beta,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,391220,311574,278446,0,LIGHT,HIGH
+8072b4ca-3844-4a0e-83c4-a1bc103050a0,University of South Carolina,Theta Xi,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,,0,0,,,,,,,LIGHT,NATIONAL_ONLY
+81654ba2-66d9-4558-8158-83f55322338b,University of South Carolina,Theta Chi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,5802095,6651701,1868008,1046790,LIGHT,NATIONAL_ONLY
+8a5232a1-d3bd-4b91-bf5c-ac792bc5a354,"University of Tennessee, Knoxville",Omega Psi Phi,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,14895796,9895558,17720990,1151714,LIGHT,NATIONAL_ONLY
+9072d5a3-7639-4d3a-b7b4-40e3dd6a25ff,"University of Tennessee, Knoxville",Zeta Tau Alpha,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,8374719,10057415,36753113,13449328,LIGHT,NATIONAL_ONLY
+9bb92210-342d-4562-9690-2a3a6216fb8b,"University of Tennessee, Knoxville",Sigma Nu,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,577996,595236,13065,0,LIGHT,HIGH
+9c08a668-c2aa-49ad-8a54-1e3e1be51616,"University of Tennessee, Knoxville",Alpha Kappa Alpha,NPHC,CANDIDATES_FOUND,1,0,false,false,false,true,false,2023,0,0,,,45276043,47246171,78704412,25926573,LIGHT,NATIONAL_ONLY
+a0864b4b-8b47-4372-99b4-157b6aa17487,"University of Tennessee, Knoxville",Kappa Alpha Theta,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,11,7,ERICA D'ANGELO OCHS,,8145905,7622433,35939184,20356979,LIGHT,NATIONAL_ONLY
+a3ae0626-40bb-4fd3-95a3-fecd7a74786e,"University of Tennessee, Knoxville",Sigma Chi,IFC,ENTITY_MATCHED,2,1,false,true,false,true,false,2023,2,6,TOMMY SCHMID,,192534,143370,1296346,693821,STRONG,HIGH
+aa6492e4-c585-4831-96ed-181b43ac3ca9,"University of Tennessee, Knoxville",Delta Sigma Theta,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2022,0,0,,,31051194,25156563,57143857,24790550,LIGHT,HIGH
+04ce30f2-1b62-479c-ac4a-27e00c4220c3,"University of Tennessee, Knoxville",Pi Kappa Alpha,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,0,0,1,0,LIGHT,HIGH
+05968d0a-932b-4ab0-97da-b5b7874c595e,"University of Tennessee, Knoxville",Alpha Kappa Delta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+0f992b9a-20b2-4015-bcdf-6db642d5a049,"University of Tennessee, Knoxville",Phi Delta Theta,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,6642836,6441081,6956145,1366384,LIGHT,HIGH
+1ba73b2c-bd6e-445a-8e06-8fef41096958,University of South Carolina,Sigma Chi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6258354,6354819,2876673,1885237,LIGHT,NATIONAL_ONLY
+246196de-17f9-429b-b3a1-f709c27b8beb,University of South Carolina,Chi Omega,Panhellenic,ENTITY_MATCHED,3,2,true,true,false,true,false,2023,0,0,,,1058809,713135,7656704,23499,MODERATE,HIGH
+2e46d771-e65f-448a-bf9e-76ea507356bb,"University of Tennessee, Knoxville",Phi Beta Sigma,NPHC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+309bfd0c-741e-42a5-8a1f-e08bd8981365,"University of Tennessee, Knoxville",Alpha Delta Pi,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2023,8,11,DAWN VICTOR-HERRING,,1253748,1076226,1963376,32171,STRONG,HIGH
+372f0d9d-9067-4068-9345-69375d3fe460,University of South Carolina,Alpha Chi Omega,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,8,10,LYNNE BIGGIO HERNDON,LESLIE ABRAMSKY BLOCK,14721901,15897771,27766470,17951953,LIGHT,NATIONAL_ONLY
+3a8ebe74-60a0-4afe-99d7-b2d609bf9c2d,"University of Tennessee, Knoxville",Lambda Theta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+3f038e02-49ac-4001-88e0-bcdd7fc5f815,"University of Tennessee, Knoxville",Delta Delta Delta,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2024,0,0,,,506957,363447,4802330,2890083,MODERATE,HIGH
+43084298-d8d2-4c3d-ac06-0bc5c380392d,"University of Tennessee, Knoxville",Theta Chi,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,5802095,6651701,1868008,1046790,LIGHT,NATIONAL_ONLY
+b0ff8d4e-2bd8-4f57-ae33-d562b3999616,"University of Tennessee, Knoxville",Phi Mu,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,7308750,6433972,31031034,10603689,LIGHT,NATIONAL_ONLY
+b8d12871-cfe3-496f-bf9a-126eb11609c5,"University of Tennessee, Knoxville",Alpha Chi Omega,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,8,10,LYNNE BIGGIO HERNDON,LESLIE ABRAMSKY BLOCK,14721901,15897771,27766470,17951953,LIGHT,HIGH
+bbdd94ae-8f01-4f24-ba8d-43cf09b92ad7,"University of Tennessee, Knoxville",Sigma Lambda Gamma,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+c05ff010-95eb-479f-ba60-ee0650949fb3,University of South Carolina,Alpha Xi Delta,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,6,11,ERIN MACDONALD PECK,JENNIFER UMBERGER,2870393,3398321,14410437,4124678,LIGHT,NATIONAL_ONLY
+cbfe3eb1-b28e-4c20-bbca-2fc91a4cb380,"University of Tennessee, Knoxville",Zeta Phi Beta,NPHC,ENTITY_MATCHED,3,2,true,false,false,true,false,2022,0,0,,,7208754,6749052,25467405,5042416,LIGHT,HIGH
+ccd0f96e-98ac-4f6d-8bc7-b35a7c671600,Texas A&M University,Beta Theta Pi,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2023,0,0,,,6378113,7611188,6605669,5491333,LIGHT,HIGH
+ce2ead72-8a78-4267-8aec-063dc3d06834,Texas A&M University,Delta Zeta,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,4,4,MICHELLE ALBRECHT SMITH,,26809001,20532278,96230431,29613757,LIGHT,NATIONAL_ONLY
+d4b10ae1-8435-4021-8549-abd1305d463a,Vanderbilt University,Lambda Theta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+daaaeeb4-6429-41db-bc16-3d767cdcaabc,Texas A&M University,Pi Kappa Alpha,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,1393481,1281379,116604,0,LIGHT,HIGH
+511ab5b7-cafb-4e27-a7cf-3525fe46705c,Texas A&M University,Delta Delta Delta,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,9122429,10741658,14446908,5787498,LIGHT,NATIONAL_ONLY
+e2e12ba2-5831-4aaa-a5a1-95e7122e9285,Texas A&M University,Pi Kappa Phi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,7651700,6650513,12806295,8166805,LIGHT,HIGH
+513255b9-3f57-4bc2-86a1-d7b3ed9aedbe,Texas A&M University,Alpha Chi Omega,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,8,10,LYNNE BIGGIO HERNDON,LESLIE ABRAMSKY BLOCK,14721901,15897771,27766470,17951953,LIGHT,NATIONAL_ONLY
+e474f349-c608-48f2-8318-265afca5b0d1,Vanderbilt University,Kappa Delta Chi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+ef1d3d5d-7a52-4bd3-a086-9821368fc611,Texas A&M University,Kappa Delta Chi,MGC,CANDIDATES_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+f4cd0f43-4110-4e65-8616-9afdd32c5d37,"University of Tennessee, Knoxville",Delta Sigma Phi,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,6,10,JIM LARSON,BRAD SULLIVAN,3767364,4353085,972505,2084532,LIGHT,NATIONAL_ONLY
+f85962e1-f27e-488f-9897-48070ede9af2,Vanderbilt University,Phi Beta Sigma,NPHC,ENTITY_MATCHED,1,1,true,false,false,false,false,2023,0,0,,,63814,33385,68930,0,LIGHT,HIGH
+5234b86a-bdf5-4a28-865b-e0fe3836b2d5,Texas A&M University,Alpha Tau Omega,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,5,12,JEFFERY J MILES,DAVE KRUG,6383047,5611478,2983000,1535860,LIGHT,NATIONAL_ONLY
+fb810f0d-f50c-47a6-b3e0-7dda7ac68240,Texas A&M University,Alpha Sigma Phi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,4339126,5668023,3009489,350189,LIGHT,HIGH
+551034ff-660d-42ef-a0f5-10f28d668e54,Texas A&M University,Phi Delta Theta,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6642836,6441081,6956145,1366384,LIGHT,NATIONAL_ONLY
+552ba5d7-ad72-4489-a155-073af12cc950,Vanderbilt University,Lambda Theta Alpha,MGC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,575588,519075,2038399,39114,LIGHT,NATIONAL_ONLY
+55e8b23b-f63c-41fd-b11f-634b1964c65d,Texas A&M University,Gamma Phi Omega,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+5a69306a-bcd0-46b5-9a4f-6626c3d304e3,Texas A&M University,Sigma Alpha Mu,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,1830393,2158081,7985659,3927195,LIGHT,NATIONAL_ONLY
+5dbabe8c-9de3-46d6-8237-bf7fb5ed95c3,"University of Tennessee, Knoxville",Chi Phi,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,1726829,1550584,2016767,226135,LIGHT,NATIONAL_ONLY
+6688bb58-43e1-47a0-b105-3a32a903462a,Vanderbilt University,Sigma Lambda Gamma,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+6c99290f-ce6f-4502-bdb4-281f3246d861,Vanderbilt University,Sigma Gamma Rho,NPHC,ENTITY_MATCHED,4,3,true,false,false,true,false,2023,0,0,,,13810784,14676025,5801135,4995240,LIGHT,HIGH
+0c4721ae-ce44-45b4-b785-92503ee189a6,Texas A&M University,Sigma Phi Epsilon,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2021,0,0,,,7894444,7973017,70284165,47495636,LIGHT,NATIONAL_ONLY
+11bf036f-9074-43f2-a839-1dc7010d52e6,"University of Tennessee, Knoxville",Delta Tau Delta,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,5981883,5618963,13862842,1636510,LIGHT,HIGH
+2c7643f8-f1e2-44b0-a61b-f87f4a5cee31,Texas A&M University,Kappa Alpha Order,IFC,ENTITY_MATCHED,2,1,false,false,false,true,false,2024,9,0,,,525477,518552,25935,0,LIGHT,HIGH
+2f992cef-7281-44ba-ba2a-a95ca70abbf3,Texas A&M University,Delta Kappa Delta,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+35f483c4-73ea-42fa-9e5f-a8f7bb23c59a,Vanderbilt University,Omega Psi Phi,NPHC,ENTITY_MATCHED,4,3,true,false,false,true,false,2023,0,0,,,93826,89585,191313,0,LIGHT,HIGH
+3e6cf3de-a7c7-4085-849d-94ee98bfd6ee,"University of Tennessee, Knoxville",Alpha Tau Omega,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,5,12,JEFFERY J MILES,DAVE KRUG,6383047,5611478,2983000,1535860,LIGHT,NATIONAL_ONLY
+710fc5e3-6b3c-46f9-b4a9-05905b44c0be,Texas A&M University,Delta Sigma Phi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,6,10,JIM LARSON,BRAD SULLIVAN,3767364,4353085,972505,2084532,LIGHT,NATIONAL_ONLY
+7137faf9-3cbb-44ee-88a0-b7e13f9f01c2,Texas A&M University,Gamma Beta,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+73e724cb-cb3e-40cf-ada1-bccf2273fa4f,Texas A&M University,Tau Kappa Epsilon,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,5693324,5797020,6866705,3063238,LIGHT,NATIONAL_ONLY
+86377b8f-6408-4577-ae95-443652160ef0,Texas A&M University,Beta Upsilon Chi,IFC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+98972c19-05fa-4751-9e98-093f0a171047,"University of Tennessee, Knoxville",FarmHouse,IFC,NOT_RUN,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+9cf3a347-aff9-4dd7-a612-58f96f06b850,Texas A&M University,Lambda Chi Alpha,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,64094,51495,25692,0,LIGHT,HIGH
+a268ab95-6e47-4edc-a55f-4690735cb2a4,Texas A&M University,Delta Tau Delta,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,423775,424788,28148,0,LIGHT,HIGH
+a59aa39b-2d69-4041-92c9-2a8b0119549f,Texas A&M University,Gamma Phi Beta,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,387563,334552,204397,0,LIGHT,HIGH
+a9ce9a24-81c8-4dd1-8f67-9fef5cfae51b,Texas A&M University,Alpha Epsilon Phi,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2012,8,5,SHANNON COHEN BENSON,,993292,1069433,1317620,119146,LIGHT,NATIONAL_ONLY
+ab8abeb8-e96d-405f-82ab-5d94651061d1,Texas A&M University,Kappa Delta,Panhellenic,ENTITY_MATCHED,3,2,true,true,false,true,false,2024,4,7,KATHY QUINN,MEGAN JOHNSON,611109,572244,136281,589,STRONG,HIGH
+abec7764-04f9-4bc5-995f-6732c5f59935,Texas A&M University,Kappa Alpha Theta,Panhellenic,ENTITY_MATCHED,3,2,true,false,false,true,false,2023,11,7,ERICA D'ANGELO OCHS,,8145905,7622433,35939184,20356979,LIGHT,HIGH
+af9c56a5-b9dd-408b-9016-b2ee5bb47bad,"University of Tennessee, Knoxville",Delta Kappa Epsilon,IFC,ENTITY_MATCHED,2,1,false,false,false,true,false,2023,0,0,,,1575740,1428396,1691763,243043,LIGHT,HIGH
+bd5e02a3-1319-4ba7-aaf6-6d4c9c5785b7,Texas A&M University,Pi Beta Phi,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2024,0,0,,,354250,398505,1019429,229184,MODERATE,HIGH
+bd682384-a220-44b0-b6e0-3948e9f621c5,Texas A&M University,Alpha Gamma Rho,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,0,0,,,1786541,2798515,4372490,1522014,LIGHT,NATIONAL_ONLY
+c96dc42e-4b4d-4fc7-bbd0-50c14eb1b0eb,Vanderbilt University,Iota Phi Theta,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+d081ca63-5f4c-4642-aa8d-49add2a2ae1e,Vanderbilt University,Kappa Alpha Order,IFC,ENTITY_MATCHED,2,1,false,false,false,true,false,2023,9,0,,,221773,224350,86,0,LIGHT,HIGH
+e60323c4-ed2c-4364-8fce-b652a0c99d92,Texas A&M University,Zeta Phi Beta,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,7208754,6749052,25467405,5042416,LIGHT,NATIONAL_ONLY
+ea2d7614-1824-4cf7-a98a-f33c8aa32896,Vanderbilt University,Sigma Alpha Epsilon,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,8059440,7868762,14236601,3966752,LIGHT,NATIONAL_ONLY
+ea5044f6-ea15-4021-b25f-b373a70cd23d,Vanderbilt University,Chi Omega,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,173810,171213,241305,0,LIGHT,HIGH
+eaece50e-2234-436c-ad48-51065e36b50a,Texas A&M University,Lambda Delta Psi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+4a1eef17-0368-4dd2-92cd-a0dc9d6735f7,University of South Carolina,Alpha Tau Omega,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,5,12,JEFFERY J MILES,DAVE KRUG,6383047,5611478,2983000,1535860,LIGHT,HIGH
+f5f7f21a-a7a4-47cb-84da-da07c41911dd,Vanderbilt University,Delta Sigma Theta,NPHC,ENTITY_MATCHED,3,2,true,false,false,true,false,2022,0,0,,,31051194,25156563,57143857,24790550,LIGHT,HIGH
+5471b08d-79b8-4ffc-83f4-e1c33cd5c4cb,Vanderbilt University,Kappa Sigma,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,161752,157464,7843,0,LIGHT,HIGH
+fd4fed22-a2bc-4fd0-8f98-ad37c3d8b1ce,Vanderbilt University,Phi Gamma Delta,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,5,10,TIM KILDUFF,DONALD J HERMAN,6882567,7250137,16972198,283891,LIGHT,NATIONAL_ONLY
+61d0d21e-d25f-4cc3-9c63-7df44a9e8217,Vanderbilt University,Kappa Delta,Panhellenic,ENTITY_MATCHED,3,2,true,true,false,true,false,2024,0,0,,,98760,116942,267641,11352,MODERATE,HIGH
+f3151e37-63be-4559-b4b3-3761e79b2dec,University of Mississippi,Alpha Chi Omega,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,8,10,LYNNE BIGGIO HERNDON,LESLIE ABRAMSKY BLOCK,14721901,15897771,27766470,17951953,LIGHT,NATIONAL_ONLY
+66dc94ed-f3ec-49b6-bea5-d16450ce36c2,Vanderbilt University,Sigma Chi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6258354,6354819,2876673,1885237,LIGHT,NATIONAL_ONLY
+707e3e2b-c74a-4add-bf38-ff6a5292d23b,Texas A&M University,Phi Beta Sigma,NPHC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+78202cfd-8ab8-40a2-88c8-46569806e267,Vanderbilt University,Delta Delta Delta,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,9122429,10741658,14446908,5787498,LIGHT,NATIONAL_ONLY
+8443029b-7563-4a0f-b91c-2f73b48b35e3,Vanderbilt University,Alpha Kappa Alpha,NPHC,ENTITY_MATCHED,2,1,false,false,false,true,false,2023,0,0,,,45276043,47246171,78704412,25926573,LIGHT,HIGH
+8beb5e68-21b0-471a-b02c-d1024d06541f,Texas A&M University,Alpha Phi Alpha,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+a0329fbb-629d-48f4-837e-178275abdd9a,Texas A&M University,Omega Delta Phi,MGC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+af54ec6c-07b7-4df3-a888-aa5b70f9b0b5,Vanderbilt University,Alpha Phi,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,11454559,8872758,66006797,33308311,LIGHT,NATIONAL_ONLY
+b0f63342-9a8a-449d-ad11-f70c9699756f,Vanderbilt University,Pi Beta Phi,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,9556072,8964046,47809375,4630878,LIGHT,NATIONAL_ONLY
+bcb2761e-0154-4ae4-a7c9-a0a974077de5,Vanderbilt University,Beta Upsilon Chi,IFC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+bd9a2027-3f38-404b-a4fd-7a2d07c6ba8d,Vanderbilt University,Zeta Beta Tau,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,2944254,2608316,2736822,1252880,LIGHT,HIGH
+c5ea9593-3a21-4d4c-8d21-fcec1c1bc3a6,Texas A&M University,Kappa Alpha Psi,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2016,0,0,,,5407230,4580050,6573534,491114,LIGHT,HIGH
+c7ce96b3-c576-4429-95fe-706f87dede88,Texas A&M University,Omega Psi Phi,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,14895796,9895558,17720990,1151714,LIGHT,NATIONAL_ONLY
+b693be80-5212-4899-b0fa-7440cf86905a,Vanderbilt University,Alpha Tau Omega,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,5,12,JEFFERY J MILES,DAVE KRUG,6383047,5611478,2983000,1535860,LIGHT,NATIONAL_ONLY
+0373a63c-e2c9-4d17-b672-95eaf65f9b76,Vanderbilt University,Pi Kappa Alpha,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2024,0,0,,,90892,95275,2266,0,LIGHT,HIGH
+0a7867da-29b8-4b2b-8da7-c6c998440797,Texas A&M University,Lambda Theta Alpha,MGC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,575588,519075,2038399,39114,LIGHT,NATIONAL_ONLY
+160cf709-88f2-44b3-b7de-4ac610c37ac5,Texas A&M University,Lambda Theta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+35a50b4f-590a-4bed-b029-ac9ea0653828,Vanderbilt University,Alpha Omicron Pi,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,7459387,6338452,39739276,4492321,LIGHT,NATIONAL_ONLY
+3c460ca3-0868-4535-9051-470a450e3ba9,Texas A&M University,Delta Sigma Theta,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,31051194,25156563,57143857,24790550,LIGHT,NATIONAL_ONLY
+11724f75-3f96-4876-8efa-ca98cb341db4,University of Kentucky,Alpha Tau Omega,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,5,12,JEFFERY J MILES,DAVE KRUG,6383047,5611478,2983000,1535860,LIGHT,NATIONAL_ONLY
+2f35493b-73a4-4679-befc-ae29dc797082,University of Arkansas,Alpha Tau Omega,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,5,12,JEFFERY J MILES,DAVE KRUG,6383047,5611478,2983000,1535860,LIGHT,NATIONAL_ONLY
+92e2e338-1867-4d6f-b61a-96fb80b82c5e,University of Oklahoma,Kappa Kappa Gamma,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,8,8,MARIA BROWN,KYLE DONNELLY,7985122,7584941,18693957,6644074,LIGHT,HIGH
+ae76c103-2239-40ee-8bca-b756a96ee83d,University of Texas at Austin,Kappa Kappa Gamma,Panhellenic,ENTITY_MATCHED,3,2,true,true,false,true,false,2023,8,8,MARIA BROWN,KYLE DONNELLY,1695587,1243900,4049912,44435,STRONG,HIGH
+d5d6b2fa-848b-4fdd-9c21-ad41a595a47a,Texas A&M University,Kappa Kappa Gamma,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,8,8,MARIA BROWN,KYLE DONNELLY,7985122,7584941,18693957,6644074,LIGHT,HIGH
+dea619bb-6fdd-4a04-ac12-c57e6bef8d79,University of South Carolina,Kappa Kappa Gamma,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,8,8,MARIA BROWN,KYLE DONNELLY,7985122,7584941,18693957,6644074,LIGHT,HIGH
+2f90aa36-8406-499a-861c-d0c9636e9887,Louisiana State University,Alpha Tau Omega,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,5,12,JEFFERY J MILES,DAVE KRUG,6383047,5611478,2983000,1535860,LIGHT,NATIONAL_ONLY
+13773674-6d52-471e-8314-6b03ac762da9,University of Georgia,Kappa Kappa Gamma,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,8,8,MARIA BROWN,KYLE DONNELLY,7985122,7584941,18693957,6644074,LIGHT,NATIONAL_ONLY
+5a913f15-359b-4a16-9e83-c113b052db0d,Louisiana State University,Kappa Kappa Gamma,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,8,8,MARIA BROWN,KYLE DONNELLY,7985122,7584941,18693957,6644074,LIGHT,HIGH
+889f039b-6b45-4a04-b583-1edaffd8c11d,University of Kentucky,Kappa Kappa Gamma,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,8,8,MARIA BROWN,KYLE DONNELLY,7985122,7584941,18693957,6644074,LIGHT,HIGH
+92a24559-c787-4045-8183-4d4c31bdde42,University of Missouri,Kappa Kappa Gamma,Panhellenic,ENTITY_MATCHED,3,2,true,true,false,true,false,2023,8,8,MARIA BROWN,KYLE DONNELLY,1365230,1316040,7590485,4825902,STRONG,HIGH
+37204f52-69e2-4cbc-86f6-e8162ca13698,Mississippi State University,Kappa Kappa Gamma,panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,8,8,MARIA BROWN,KYLE DONNELLY,7985122,7584941,18693957,6644074,LIGHT,NATIONAL_ONLY
+4889e622-4fc7-49c1-a944-43d45d9eb083,University of South Carolina,Delta Gamma,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6798067,7007656,19676752,1853098,LIGHT,NATIONAL_ONLY
+46039176-7793-4f4e-a2bd-088e7ef38ce1,Vanderbilt University,Phi Kappa Psi,ifc,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,5,11,ROBERT MARCHESANI,CHARLES BRANDMAN,3462956,3596087,3874343,1368036,LIGHT,NATIONAL_ONLY
+ac4291da-4833-491c-8bcc-f19b3999edee,Louisiana State University,Phi Kappa Psi,ifc,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,5,11,ROBERT MARCHESANI,CHARLES BRANDMAN,3462956,3596087,3874343,1368036,LIGHT,NATIONAL_ONLY
+d29ab71f-e79f-46f4-aa50-21578135b223,Mississippi State University,Phi Kappa Psi,ifc,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,5,11,ROBERT MARCHESANI,CHARLES BRANDMAN,3462956,3596087,3874343,1368036,LIGHT,NATIONAL_ONLY
+5128b084-50ca-4319-8018-1a5fff708609,Mississippi State University,Phi Kappa Tau,IFC,ENTITY_MATCHED,3,2,false,true,true,true,false,2023,0,0,,,158553,143781,273756,0,STRONG,HIGH
+cdfd0105-9512-417a-a889-eaf0d5d44fcb,University of Florida,Phi Kappa Psi,ifc,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,5,11,ROBERT MARCHESANI,CHARLES BRANDMAN,3462956,3596087,3874343,1368036,LIGHT,NATIONAL_ONLY
+232ebe65-e492-44a4-bfd8-32e318b278de,Louisiana State University,Phi Kappa Tau,ifc,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,1891353,2050531,4195963,1337387,LIGHT,NATIONAL_ONLY
+fa992911-da51-435e-b477-7a7814bb9515,University of Arkansas,Kappa Kappa Gamma,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,8,8,MARIA BROWN,KYLE DONNELLY,7985122,7584941,18693957,6644074,LIGHT,NATIONAL_ONLY
+45c66f96-36fe-460f-9df0-6a06396eaaca,University of Mississippi,Chi Omega,Panhellenic,ENTITY_MATCHED,3,2,true,true,false,true,false,2024,6,0,Margaret Allen,Beth Doty,559825,570299,87245,0,MODERATE,HIGH
+49c486ec-ee90-48bf-b318-a40190fb674a,University of Mississippi,Delta Tau Delta,IFC,ENTITY_MATCHED,3,2,true,true,false,true,false,2023,4,0,Avery Willis,Eric Thieret,320568,313709,11948,0,MODERATE,HIGH
+7323a169-2dc3-4b97-9e05-e5a33ec78af9,Auburn University,Kappa Kappa Gamma,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,8,8,MARIA BROWN,KYLE DONNELLY,7985122,7584941,18693957,6644074,LIGHT,HIGH
+004fd5bb-fc29-4b44-87b2-3b25a615b330,University of Oklahoma,Phi Kappa Psi,ifc,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,5,11,ROBERT MARCHESANI,CHARLES BRANDMAN,3462956,3596087,3874343,1368036,LIGHT,HIGH
+03e821d5-2301-4b9a-849a-31496e501012,University of Mississippi,Sigma Alpha Epsilon,IFC,ENTITY_MATCHED,3,2,true,true,false,true,false,2023,0,0,,,13533,4536,932497,178305,MODERATE,HIGH
+0a1d21f0-0441-4460-b99c-bd0ed9f3381d,University of Alabama,Phi Kappa Tau,IFC,ENTITY_MATCHED,2,1,false,true,false,true,false,2023,0,0,,,1891353,2050531,4195963,1337387,MODERATE,HIGH
+0c2c419e-22d3-4d7d-bf6a-7a4c776ce136,University of Alabama,Alpha Tau Omega,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,17,14,BEN HOLLIS,WAYNE INGRAM,2056016,2010130,8229462,3102368,LIGHT,HIGH
+1b2be24d-24ef-4b52-9148-f18fb9cc0a07,University of Texas at Austin,Alpha Tau Omega,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,5,12,JEFFERY J MILES,DAVE KRUG,6383047,5611478,2983000,1535860,LIGHT,NATIONAL_ONLY
+1ed9c85c-3a5a-4172-b124-f2f2636eeab4,Auburn University,Alpha Xi Delta,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,6,11,ERIN MACDONALD PECK,JENNIFER UMBERGER,2870393,3398321,14410437,4124678,LIGHT,NATIONAL_ONLY
+20e2ecf7-4374-47b5-929b-6b25bcd6a0ff,University of Georgia,Phi Kappa Psi,ifc,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,5,11,ROBERT MARCHESANI,CHARLES BRANDMAN,3462956,3596087,3874343,1368036,LIGHT,HIGH
+230c448a-2a07-4a74-a9eb-b6ef484816c0,Auburn University,Phi Kappa Psi,ifc,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,5,11,ROBERT MARCHESANI,CHARLES BRANDMAN,3462956,3596087,3874343,1368036,LIGHT,NATIONAL_ONLY
+28e5e42d-735e-471c-97c6-0d5bc9441b43,Vanderbilt University,Kappa Kappa Gamma,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,8,8,MARIA BROWN,KYLE DONNELLY,7985122,7584941,18693957,6644074,LIGHT,HIGH
+2e1122fc-bd87-4bb2-b141-d64de64678c4,Auburn University,Alpha Omicron Pi,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,7459387,6338452,39739276,4492321,LIGHT,NATIONAL_ONLY
+3f59cf7b-9232-4b67-b9e0-0b84eed277db,University of Georgia,Alpha Tau Omega,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,5,12,JEFFERY J MILES,DAVE KRUG,6383047,5611478,2983000,1535860,LIGHT,NATIONAL_ONLY
+4d17b423-9316-4d39-b471-0f4536454657,University of Oklahoma,Alpha Tau Omega,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,5,12,JEFFERY J MILES,DAVE KRUG,6383047,5611478,2983000,1535860,LIGHT,NATIONAL_ONLY
+52e71d2c-e231-4a1a-8f85-ce64c8d46882,University of South Carolina,Phi Kappa Psi,ifc,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,5,11,ROBERT MARCHESANI,CHARLES BRANDMAN,3462956,3596087,3874343,1368036,LIGHT,NATIONAL_ONLY
+56812a13-d615-49e1-b8cb-344b786e1034,University of Mississippi,Alpha Phi,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,11454559,8872758,66006797,33308311,LIGHT,NATIONAL_ONLY
+5a566b94-e903-4bb0-8147-d7bb4cbc0acc,Auburn University,Delta Sigma Phi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,6,10,JIM LARSON,BRAD SULLIVAN,3767364,4353085,972505,2084532,LIGHT,NATIONAL_ONLY
+6d0c7f0b-1550-4c9a-953d-ab8b32df7787,University of Florida,Alpha Tau Omega,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,5,12,JEFFERY J MILES,DAVE KRUG,6383047,5611478,2983000,1535860,LIGHT,NATIONAL_ONLY
+b5945cad-5f86-471d-adef-960ff2a62fcc,University of Mississippi,Kappa Kappa Gamma,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,8,8,MARIA BROWN,KYLE DONNELLY,2550594,1466877,15336967,8759843,LIGHT,HIGH
+c75616f2-591c-45db-bb48-96f540392ba4,University of Alabama,Kappa Kappa Gamma,Panhellenic,ENTITY_MATCHED,7,6,true,true,false,true,false,2024,8,8,MARIA BROWN,KYLE DONNELLY,3280520,2397718,18866804,7533955,STRONG,HIGH
+de420286-a41b-4f85-9af7-a1214a808053,Auburn University,Phi Kappa Tau,ifc,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,1891353,2050531,4195963,1337387,LIGHT,NATIONAL_ONLY
+b12c011c-b357-46a8-994d-f2bd007c2428,Auburn University,Pi Kappa Alpha,IFC,ENTITY_MATCHED,3,2,true,true,false,true,false,2024,0,0,,,0,0,1,0,MODERATE,HIGH
+0726ad3e-8039-4b1d-9331-c2ad8ff5088b,University of Texas at Austin,Delta Delta Delta,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,9122429,10741658,14446908,5787498,LIGHT,NATIONAL_ONLY
+0d395c7a-db42-4270-a9a1-5608377d2da8,University of Arkansas,Beta Theta Pi,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,6378113,7611188,6605669,5491333,LIGHT,NATIONAL_ONLY
+2635d958-6717-420d-a0bc-68c2f29d57cf,University of Georgia,Phi Mu,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,1055056,930729,3659895,985322,LIGHT,HIGH
+2cf4cf7d-14c4-4cdc-abdc-04c695b16e8b,University of Kentucky,Sigma Chi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,225923,232858,22568,0,LIGHT,HIGH
+2ed5ac21-bc13-43a7-a49d-c2c601ebb754,University of Missouri,Pi Kappa Phi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,0,0,,,7651700,6650513,12806295,8166805,LIGHT,NATIONAL_ONLY
+33c8b00d-483a-4985-8116-5aed413b2899,Mississippi State University,Delta Delta Delta,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,9122429,10741658,14446908,5787498,LIGHT,NATIONAL_ONLY
+371bd9ce-87f5-43fd-8d3c-b4617f6420e7,"University of Tennessee, Knoxville",Alpha Omicron Pi,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,7459387,6338452,39739276,4492321,LIGHT,NATIONAL_ONLY
+3da46785-040e-408e-8a49-11055fa92810,University of South Carolina,Sigma Nu,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,6291872,5989304,10968372,2625304,LIGHT,HIGH
+48e27da2-21f1-4ee7-9ee0-d039616020ef,Mississippi State University,Alpha Psi Lambda,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+4f96d30a-5363-48ed-bdda-55c4444044d2,Texas A&M University,Phi Gamma Delta,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,5,10,TIM KILDUFF,DONALD J HERMAN,728533,683526,54616,0,LIGHT,HIGH
+5496ad42-33a2-4a5e-9ebb-4e7703c7178a,University of Georgia,Lambda Phi Epsilon,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+564ad580-9f02-48eb-a503-b98ab03d3195,University of Missouri,Zeta Beta Tau,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,2944254,2608316,2736822,1252880,LIGHT,NATIONAL_ONLY
+5f0bea9d-17bf-47a6-9333-5cfbd28c76f1,University of South Carolina,Alpha Delta Pi,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,8,11,DAWN VICTOR-HERRING,,6464144,4988932,18574229,1900417,LIGHT,NATIONAL_ONLY
+6c984ba4-f2e2-4b33-81a2-e16cfe5c8a2d,University of Arkansas,Lambda Theta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+6d548e81-5cd7-4f88-aae2-8174960b7600,Texas A&M University,Gamma Alpha Omega,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+728ebba4-fa81-43f3-b1b4-eb08433e7b30,University of Georgia,Delta Delta Delta,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,9122429,10741658,14446908,5787498,LIGHT,NATIONAL_ONLY
+7e52bc5e-a86a-4f16-977e-56c9f13364c3,University of Oklahoma,Sigma Phi Epsilon,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2021,0,0,,,7894444,7973017,70284165,47495636,LIGHT,NATIONAL_ONLY
+8849a47e-b1ca-4350-9129-7f114855f66d,University of Florida,Kappa Alpha Order,IFC,ENTITY_MATCHED,2,1,false,false,false,true,false,2023,0,0,,,802447,826096,34486,0,LIGHT,HIGH
+95982912-a822-4003-89eb-f494f1baa9a5,University of Florida,Alpha Chi Omega,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,8,10,LYNNE BIGGIO HERNDON,LESLIE ABRAMSKY BLOCK,14721901,15897771,27766470,17951953,LIGHT,NATIONAL_ONLY
+9ca21517-f457-4ab9-b748-57f79601faca,University of Arkansas,Zeta Phi Beta,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,7208754,6749052,25467405,5042416,LIGHT,NATIONAL_ONLY
+9f5cf85e-5755-4e0f-84dd-2991cc18fe09,University of South Carolina,Sigma Pi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,3247538,4404602,2773566,173335,LIGHT,NATIONAL_ONLY
+a8d39a14-31a6-4a71-87f6-9f866e514895,University of Texas at Austin,Sigma Phi Epsilon,IFC,ENTITY_MATCHED,3,2,true,false,true,true,false,2024,0,0,,,61069,131769,423098,749813,MODERATE,HIGH
+a9c624d3-a34a-4700-bbba-cd33e3d1b49f,University of South Carolina,Alpha Epsilon Pi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,1,0,,Gal Mor,363733,370976,9240,0,LIGHT,HIGH
+b35e0b75-ebc3-48ee-b9da-881fadf2e19d,Texas A&M University,Theta Chi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,5802095,6651701,1868008,1046790,LIGHT,NATIONAL_ONLY
+b6782745-2a52-43df-9dc1-170f1f17944c,University of Alabama,Alpha Delta Chi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+bf810360-a9bb-4a70-a100-154e7a406487,University of Georgia,Alpha Phi,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,11454559,8872758,66006797,33308311,LIGHT,NATIONAL_ONLY
+c0854791-5538-4f8d-92d8-1a831bff1da3,University of Texas at Austin,Sigma Delta Tau,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,2113009,1974844,5289828,395039,LIGHT,NATIONAL_ONLY
+c5285578-e2ad-4b77-aef6-5415c7e0718b,University of Oklahoma,Alpha Phi,Panhellenic,ENTITY_MATCHED,2,1,false,false,false,true,false,2024,0,0,,,11454559,8872758,66006797,33308311,LIGHT,HIGH
+cbd621e2-8bdb-4c0e-9ae7-a7f4df141820,University of South Carolina,Hermandad de Sigma Iota Alpha,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+d40d89df-31e5-4cfb-9d32-ede5483f6276,University of Florida,Sigma Kappa,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,6149087,4574786,14487244,7002321,LIGHT,NATIONAL_ONLY
+d5beca2a-e498-4c6a-96de-051b638a9806,Vanderbilt University,Zeta Phi Beta,NPHC,ENTITY_MATCHED,3,2,true,false,false,true,false,2024,0,0,,,38106,33627,71011,0,LIGHT,HIGH
+dc360cef-d997-49a0-b740-28a2845351b8,University of Alabama,Kappa Alpha Theta,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,11,7,ERICA D'ANGELO OCHS,,8145905,7622433,35939184,20356979,LIGHT,HIGH
+de3b89c6-b833-448e-9a85-ccd44377ff69,University of Texas at Austin,Delta Phi Omega,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+c2a0e78f-ff3c-483b-9228-7eb8fe47939b,Auburn University,Phi Delta Theta,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,901706,832927,165033,0,LIGHT,HIGH
+cfa546f2-fd78-44e0-b6a3-cd4965cd7ad6,Auburn University,Alpha Tau Omega,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,5,12,JEFFERY J MILES,DAVE KRUG,1196769,1201973,60522,0,LIGHT,HIGH
+040e97c1-0e59-4d3e-9e79-cec67d43c27c,University of Missouri,Delta Kappa Epsilon,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,1575740,1428396,1691763,243043,LIGHT,NATIONAL_ONLY
+071eb8fb-3948-4a3e-874d-4707b4e20290,University of Florida,Sigma Gamma Rho,NPHC,ENTITY_MATCHED,3,2,true,false,false,true,false,2023,0,0,,,13810784,14676025,5801135,4995240,LIGHT,HIGH
+08302d72-b66f-44c9-8eea-1dc2a289d19e,University of Kentucky,Omega Delta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+17e37132-d0c5-4189-a5c9-440e17e9eb7b,University of South Carolina,Omega Phi Beta,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+1f5e31c9-7da6-4222-8651-73908386c84c,University of Alabama,Alpha Delta Pi,Panhellenic,ENTITY_MATCHED,4,3,false,true,false,true,false,2024,11,17,CHERYL GILLIS OGLESBY,LESLIE BYNES CORSO,1974080,1450842,9282305,6475993,STRONG,HIGH
+225c9cb9-65ce-41e5-a78c-d7b06ae60f18,University of Arkansas,Delta Gamma,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6798067,7007656,19676752,1853098,LIGHT,NATIONAL_ONLY
+2e2424fb-d264-44f5-a228-8c4faa60a523,University of Georgia,Kappa Alpha Psi,NPHC,ENTITY_MATCHED,3,2,false,false,true,true,true,2016,0,0,,,5407230,4580050,6573534,491114,LIGHT,HIGH
+38a3c398-bb62-4b65-ac27-4761331b6e70,University of Alabama,Alpha Omega Epsilon,mgc,ENTITY_MATCHED,1,1,true,false,false,false,false,2023,4,0,Kirsten Corrigan,Sarah Cosner,45503,43329,21571,0,LIGHT,HIGH
+3bf883df-bee3-40ae-9add-87ba544a1cc6,University of Florida,Zeta Tau Alpha,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,8374719,10057415,36753113,13449328,LIGHT,NATIONAL_ONLY
+3de5e36d-922b-4859-8605-9942b3a00918,Mississippi State University,Pi Beta Phi,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,9556072,8964046,47809375,4630878,LIGHT,NATIONAL_ONLY
+3e9b86f2-4774-49cf-8428-f227565344ef,University of Missouri,Omega Delta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+4d455644-f2b6-417f-beb9-cc85ad8273e6,University of Florida,Sigma Lambda Gamma,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+54ff9db3-1f9b-477b-931b-20c9a0ef3c71,University of Oklahoma,Chi Omega,Panhellenic,ENTITY_MATCHED,4,3,true,true,false,true,false,2024,0,0,,,411459,388576,103451,28841,MODERATE,HIGH
+5c82b66c-6aab-44f0-a8c2-b0af3259b845,University of Texas at Austin,Kappa Delta,Panhellenic,ENTITY_MATCHED,4,3,true,true,true,true,false,2024,0,0,,,1214202,1004809,2727115,804793,STRONG,HIGH
+604efb82-98d0-465a-9e69-243cdabb2e6a,University of Florida,Sigma Alpha Mu,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,1830393,2158081,7985659,3927195,LIGHT,HIGH
+655d0d48-276e-4d67-b04f-c68a0a559a6f,Vanderbilt University,Alpha Delta Pi,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2024,8,11,DAWN VICTOR-HERRING,,112946,98825,615074,2534,STRONG,HIGH
+65ff6c26-4546-4d8f-9d9e-9f27fab9f16d,University of Oklahoma,Lambda Phi Epsilon,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+7497302e-b3c2-476d-a738-b64b7f0e3c95,University of Georgia,Lambda Theta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+764a407e-4079-42fb-9302-250a4c07cd42,Texas A&M University,Chi Omega,Panhellenic,ENTITY_MATCHED,3,2,true,true,false,true,false,2024,0,0,,,829706,802115,2357593,43890,MODERATE,HIGH
+7b27d0ad-38ab-445f-b291-788d162a090b,University of Missouri,Delta Phi Lambda,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+7ec7bd2f-0dcf-4dfc-8e5c-387c17299c96,Louisiana State University,Alpha Phi,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,11454559,8872758,66006797,33308311,LIGHT,NATIONAL_ONLY
+81b8d466-8b52-49b7-a182-449d98cc68e3,University of Arkansas,Tau Kappa Epsilon,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,5693324,5797020,6866705,3063238,LIGHT,NATIONAL_ONLY
+869976cb-e8d5-4522-a0f9-73779222079f,University of Oklahoma,Sigma Gamma Rho,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,13810784,14676025,5801135,4995240,LIGHT,NATIONAL_ONLY
+89485551-b3c0-47f7-bbbf-36b23601d4b3,University of Missouri,Sigma Nu,IFC,ENTITY_MATCHED,4,3,true,true,true,true,false,2024,0,0,,,981072,1047486,59441,22801,STRONG,HIGH
+90780449-6fef-4af8-bd94-86cd4f7587d3,University of Oklahoma,Lambda Chi Alpha,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,832545,818890,37696,0,LIGHT,HIGH
+99d631ef-07bf-4bfb-9bd8-ca13bf1b042e,Texas A&M University,Alpha Omicron Pi,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,7459387,6338452,39739276,4492321,LIGHT,NATIONAL_ONLY
+9c4ef163-bcc9-40c8-b526-39366f3e7706,University of Texas at Austin,Sigma Chi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,14,14,,,1026249,998049,164746,48250,LIGHT,HIGH
+aa219fe9-c9c0-484b-b5bb-056876f2db5e,University of Florida,Alpha Omicron Pi,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,7459387,6338452,39739276,4492321,LIGHT,NATIONAL_ONLY
+ad0e0ca2-3d64-48d1-af9b-41ba9ba33057,"University of Tennessee, Knoxville",Delta Phi Lambda,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+df02e6c9-817d-45c9-86f4-610f9e0c2e42,"University of Tennessee, Knoxville",Lambda Chi Alpha,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,347639,330413,58064,0,LIGHT,HIGH
+c86dd7f9-3997-4293-bf60-3c6d6141a127,Auburn University,Delta Delta Delta,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2024,0,0,,,60960,32740,281932,0,MODERATE,HIGH
+e1464b98-3058-412d-a6f6-b644ecf88ae9,Texas A&M University,Phi Kappa Psi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,5,11,ROBERT MARCHESANI,CHARLES BRANDMAN,3462956,3596087,3874343,1368036,LIGHT,HIGH
+eb771c05-1884-4dfc-8fab-fd33ee93997b,University of Missouri,Alpha Tau Omega,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,5,12,JEFFERY J MILES,DAVE KRUG,6383047,5611478,2983000,1535860,LIGHT,NATIONAL_ONLY
+090138f1-0cd6-470a-8bad-c3727077cd5b,University of Arkansas,Lambda Theta Alpha,MGC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,575588,519075,2038399,39114,LIGHT,NATIONAL_ONLY
+09f6e9e9-8cae-44e7-b06d-c4536cfe89c8,Mississippi State University,Lambda Chi Alpha,IFC,ENTITY_MATCHED,3,2,true,false,false,true,true,2023,4,0,CONNOR NOTTINGHAM,CHARLIE NUTTER,625099,754311,6273,13170,LIGHT,HIGH
+0e64c9f9-5e5a-4c3e-94bd-d156f2377375,University of Missouri,Phi Delta Theta,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2023,0,0,,,1168076,1018273,586258,435036,LIGHT,HIGH
+17b9041b-7258-4247-9e18-43d83fbe03a2,"University of Tennessee, Knoxville",Beta Upsilon Chi,IFC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+1e6728c5-e5b8-4399-b082-1e054431c5c3,University of Missouri,Chi Omega,Panhellenic,ENTITY_MATCHED,3,2,true,true,false,true,false,2024,0,0,,,1228934,1006467,4335490,1549074,MODERATE,HIGH
+1eade52a-7b91-401c-9221-a256eddf687b,University of South Carolina,Delta Sigma Phi,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,6,10,JIM LARSON,BRAD SULLIVAN,3767364,4353085,972505,2084532,LIGHT,NATIONAL_ONLY
+293a1ac6-a030-42c4-a75c-2121f5382030,University of Kentucky,Alpha Phi Alpha,NPHC,ENTITY_MATCHED,1,1,true,false,false,false,false,2018,0,0,,,97180,108263,121169,0,LIGHT,HIGH
+2f7030ec-8ee2-4efe-b31b-12aad50573d6,University of Missouri,Sigma Alpha Epsilon,IFC,ENTITY_MATCHED,2,1,false,false,false,true,false,2023,0,0,,,323982,381723,3980681,2607027,LIGHT,HIGH
+307f8397-8728-431d-b7a1-5ffbeb2dc7e4,Texas A&M University,Sigma Alpha Epsilon,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,8059440,7868762,14236601,3966752,LIGHT,NATIONAL_ONLY
+31bd65eb-f292-4ea7-aca8-0257a51c5043,University of Oklahoma,Beta Theta Pi,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2023,0,0,,,778643,1066734,74184,39164,LIGHT,HIGH
+3dacf938-c157-43a1-b0a0-14f23648664f,University of Florida,Delta Tau Delta,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,688183,762098,67696,2145,LIGHT,HIGH
+416ef068-2a6e-423d-9931-f9c3fa71cf82,University of Texas at Austin,Sigma Nu,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6291872,5989304,10968372,2625304,LIGHT,NATIONAL_ONLY
+4a9283ab-753e-4ae7-b663-ea7db0735cf2,University of Florida,Phi Delta Theta,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6642836,6441081,6956145,1366384,LIGHT,NATIONAL_ONLY
+5074c516-edb0-4c3a-b8be-bf9885a81f6a,University of Missouri,Iota Phi Theta,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+51b9e19c-bdcf-4150-9759-834a1dcc7648,University of Texas at Austin,Sigma Pi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,3247538,4404602,2773566,173335,LIGHT,NATIONAL_ONLY
+568c6c9b-958a-4544-9ac5-57642e7981c4,"University of Tennessee, Knoxville",Beta Theta Pi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,6378113,7611188,6605669,5491333,LIGHT,HIGH
+580ffb7b-a7c8-43ac-a3a4-4788146962b8,University of Arkansas,Alpha Chi Omega,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,8,10,LYNNE BIGGIO HERNDON,LESLIE ABRAMSKY BLOCK,14721901,15897771,27766470,17951953,LIGHT,NATIONAL_ONLY
+619a5a1f-5ca2-4559-9406-0f9a1b3804ac,Louisiana State University,Kappa Alpha Theta,Panhellenic,ENTITY_MATCHED,4,3,true,true,false,true,false,2023,11,7,ERICA D'ANGELO OCHS,,222066,233356,1068640,396184,STRONG,HIGH
+6975e995-8c93-4272-b642-e9aefcc5ea09,University of Missouri,Alpha Kappa Delta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+6e9d47bd-afb9-445c-b857-96efb4f4ac0d,Mississippi State University,Delta Zeta,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,4,4,MICHELLE ALBRECHT SMITH,,26809001,20532278,96230431,29613757,LIGHT,NATIONAL_ONLY
+76371616-eb0a-427c-84ac-43c88793a5b3,Louisiana State University,Lambda Theta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+7b17090d-735c-4337-a44c-fcef68d20d3f,Vanderbilt University,Alpha Phi Alpha,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+802274e2-0fad-4493-82d5-a76aef5dd94b,University of Texas at Austin,Delta Sigma Phi,IFC,ENTITY_MATCHED,2,1,false,false,false,true,true,2023,6,10,JIM LARSON,BRAD SULLIVAN,3767364,4353085,972505,2084532,LIGHT,HIGH
+8a02a23d-295e-4b5c-b015-e36e90730bf0,University of Georgia,Alpha Sigma Phi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,4339126,5668023,3009489,350189,LIGHT,HIGH
+973def4e-9ee5-4611-94e7-4a0ef80fd8f3,University of Missouri,Delta Gamma,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6798067,7007656,19676752,1853098,LIGHT,NATIONAL_ONLY
+bcdbd3be-a47e-469d-8be6-85eac5412eb0,University of Georgia,Alpha Kappa Delta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+bd8ef4f7-eeb8-4eff-bf06-ba7ea6edf80c,"University of Tennessee, Knoxville",Alpha Gamma Rho,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,0,0,,,1786541,2798515,4372490,1522014,LIGHT,NATIONAL_ONLY
+c5304c30-ddb3-444e-8210-daa61058c810,Vanderbilt University,Beta Theta Pi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6378113,7611188,6605669,5491333,LIGHT,NATIONAL_ONLY
+c67b595d-1e42-4490-bff5-f6c618854eb5,University of Florida,Pi Beta Phi,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2023,0,0,,,464155,316072,2039889,462366,MODERATE,HIGH
+c8cb4e72-decc-4638-a96a-03e78fed4d16,University of Texas at Austin,Kappa Phi Gamma,MGC,ENTITY_MATCHED,1,1,false,false,false,false,false,,0,0,,,,,,,LIGHT,HIGH
+c971a147-0136-4c68-a19a-9deb38ac5b4d,"University of Tennessee, Knoxville",Kappa Delta,Panhellenic,ENTITY_MATCHED,3,2,true,true,false,true,false,2024,0,0,,,821660,774540,512836,95515,MODERATE,HIGH
+cb7c2594-d255-4fe7-b754-9adce1ead246,University of Kentucky,Pi Beta Phi,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,9556072,8964046,47809375,4630878,LIGHT,NATIONAL_ONLY
+d474a53c-bb29-4c89-8b27-59cd3124cfc9,University of Kentucky,Phi Beta Sigma,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+e009f5b4-4f7b-4a82-bf83-7c495068b0d8,University of Florida,Kappa Phi Lambda,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+b619c2d1-9013-4b2b-9e42-92acbee948d7,Auburn University,Kappa Delta,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,715401,698541,238462,52,LIGHT,HIGH
+eab9e24c-04fd-44c8-b8e7-b79e8fb3a5e4,Auburn University,Sigma Tau Gamma,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2022,0,0,,,3953336,3791340,5058507,3816331,LIGHT,NATIONAL_ONLY
+013f6620-efd2-4658-bd36-2ea9603247df,"University of Tennessee, Knoxville",Sigma Kappa,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,0,0,,,6149087,4574786,14487244,7002321,LIGHT,NATIONAL_ONLY
+06642d20-7b23-4c2e-af23-bd13c872ed61,Vanderbilt University,Alpha Epsilon Pi,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,4685200,4269285,4595688,593080,LIGHT,NATIONAL_ONLY
+17b4d8a9-a986-4d00-b7bb-f05473c238d1,University of Texas at Austin,Lambda Theta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+181a29ec-25fc-4a1d-b8db-a44bcdf04ae7,University of Georgia,Zeta Beta Tau,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,2944254,2608316,2736822,1252880,LIGHT,NATIONAL_ONLY
+2ef7d26d-f69a-4df6-8994-1fb623cb000f,University of Texas at Austin,Pi Kappa Alpha,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2024,0,0,,,1248905,1305098,144114,179210,LIGHT,HIGH
+38d6f4e6-584d-472e-abdc-ea3bc03aeca3,University of Texas at Austin,Alpha Phi Alpha,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+4e0b3dd9-172b-4173-943b-f3d7d6774ca4,Texas A&M University,Beta Tau Omega,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+515fb1ee-f3cc-4d41-b2a5-34f8bd6cca53,University of Kentucky,Alpha Omicron Pi,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,7459387,6338452,39739276,4492321,LIGHT,NATIONAL_ONLY
+525b54d1-77f0-4846-b053-858b16c9abf2,Texas A&M University,Sigma Chi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,819345,833021,71214,0,LIGHT,HIGH
+62556537-3a4d-454f-8ea9-c3b2ff3521d2,University of Arkansas,Iota Phi Theta,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+658ec82b-c715-4b02-8213-0db61be7fdba,Mississippi State University,Kappa Alpha Psi,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2016,0,0,,,5407230,4580050,6573534,491114,LIGHT,NATIONAL_ONLY
+663c3633-82ec-47a2-9baa-ab0daf180933,University of Florida,Sigma Beta Rho,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+66c0d10c-e0e2-40e2-9ed5-ccb8b325e442,University of Arkansas,Kappa Alpha Order,IFC,ENTITY_MATCHED,2,1,false,false,false,true,false,2024,9,1,,,1189692,1045782,265371,0,LIGHT,HIGH
+6aa7459a-f44e-40a5-8323-ec6665464b3c,University of Alabama,Delta Delta Delta,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,9122429,10741658,14446908,5787498,LIGHT,NATIONAL_ONLY
+752a83ed-07ce-4980-9451-2a67694ceb38,"University of Tennessee, Knoxville",Kappa Alpha Psi,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2016,0,0,,,5407230,4580050,6573534,491114,LIGHT,HIGH
+84dabaad-2d18-4ee3-a8be-7ce6f12ecffa,"University of Tennessee, Knoxville",Lambda Theta Alpha,MGC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,575588,519075,2038399,39114,LIGHT,NATIONAL_ONLY
+8821ef3d-b543-474f-a750-c6f453315f9a,Mississippi State University,Sigma Chi,IFC,ENTITY_MATCHED,2,1,false,false,false,true,true,2023,0,0,,,6258354,6354819,2876673,1885237,LIGHT,HIGH
+9c07f9ca-6fa0-4fd4-bd36-14d2d9539531,University of Oklahoma,Sigma Lambda Beta,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+9c5140b7-4648-4063-8357-046e5dbbb09e,Mississippi State University,Alpha Tau Omega,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,5,12,JEFFERY J MILES,DAVE KRUG,6383047,5611478,2983000,1535860,LIGHT,NATIONAL_ONLY
+9e1463f7-8533-4d0f-a1b9-c5a526cac91d,University of Kentucky,Zeta Phi Beta,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2022,0,0,,,7208754,6749052,25467405,5042416,LIGHT,HIGH
+a13c1f80-3d0c-4d76-b016-ed5a5fe4fa1d,University of Missouri,Pi Beta Phi,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,9556072,8964046,47809375,4630878,LIGHT,NATIONAL_ONLY
+a4f7d3ff-9365-4fb6-8ca0-cf9f3a2a5214,University of Missouri,Pi Kappa Alpha,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,0,0,,,0,0,1,0,LIGHT,NATIONAL_ONLY
+ad1ea9a0-34d4-44df-9e98-3d6ab70d9e0b,University of Oklahoma,Tau Kappa Epsilon,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,5693324,5797020,6866705,3063238,LIGHT,NATIONAL_ONLY
+b07bc211-e554-4181-a71f-5c62e826c99e,Texas A&M University,Sigma Gamma Rho,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,13810784,14676025,5801135,4995240,LIGHT,HIGH
+ba9cd670-be0d-4fdb-a8d5-3734503a5b08,University of Kentucky,Pi Kappa Phi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,0,0,,,7651700,6650513,12806295,8166805,LIGHT,NATIONAL_ONLY
+bb8910e4-d245-4c3a-b129-ded5ff4b40c4,"University of Tennessee, Knoxville",Pi Beta Phi,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,9556072,8964046,47809375,4630878,LIGHT,NATIONAL_ONLY
+bc9b29e4-af23-4ff5-8ab9-5eb5781e3bcf,University of Arkansas,Kappa Alpha Psi,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2016,0,0,,,5407230,4580050,6573534,491114,LIGHT,NATIONAL_ONLY
+c304f45d-ef70-4235-a251-2af7e149446c,University of Georgia,Delta Tau Delta,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,3,0,Shawn Powers,Calvin Brown,192510,171299,59109,0,LIGHT,HIGH
+cbc9e17f-4f7e-46a8-81b2-fcc241b289d2,Louisiana State University,Omega Psi Phi,NPHC,ENTITY_MATCHED,3,2,true,false,false,true,false,2023,0,0,,,113386,93423,75827,0,LIGHT,HIGH
+d4c0089d-d2c1-4846-beb6-def82a1f5993,Louisiana State University,Kappa Alpha Psi,NPHC,ENTITY_MATCHED,4,3,true,false,false,true,false,2016,0,0,,,5407230,4580050,6573534,491114,LIGHT,HIGH
+d68aa26a-a515-428a-82a6-157cee6e23e5,University of Texas at Austin,Alpha Phi,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2024,0,0,,,11454559,8872758,66006797,33308311,LIGHT,NATIONAL_ONLY
+de463a31-bc46-48d8-b336-2f9be5201d79,Mississippi State University,FarmHouse,IFC,NOT_RUN,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+df1ed940-d88c-4c7e-8567-1dd4035d540d,Vanderbilt University,Kappa Alpha Theta,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,11,7,ERICA D'ANGELO OCHS,,8145905,7622433,35939184,20356979,LIGHT,HIGH
+e31dd838-ea66-4777-b4bf-f21d4afb0f34,University of Oklahoma,Zeta Tau Alpha,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,8374719,10057415,36753113,13449328,LIGHT,NATIONAL_ONLY
+e832f692-f60b-4ead-adee-4087b3cadd65,University of Missouri,Sigma Sigma Sigma,Panhellenic,ENTITY_MATCHED,3,2,true,false,false,true,false,2023,0,0,,,4399940,3377361,12339297,4335848,LIGHT,HIGH
+f464de0d-9de1-4e43-9598-0b574669303d,Vanderbilt University,Delta Kappa Epsilon,IFC,CANDIDATES_FOUND,1,0,false,false,false,true,false,2023,0,0,,,1575740,1428396,1691763,243043,LIGHT,NATIONAL_ONLY
+fbd1054c-2776-45f6-8552-c63998e0131f,Louisiana State University,Delta Kappa Epsilon,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,1575740,1428396,1691763,243043,LIGHT,NATIONAL_ONLY
+fd6e5771-886a-4918-a17a-fde29ec9014f,University of Kentucky,Sigma Gamma Rho,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,13810784,14676025,5801135,4995240,LIGHT,HIGH
+e46fad28-0d9e-4058-bbc1-cd4d2606b10e,University of Florida,Alpha Kappa Delta Phi,MGC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+e6fce575-9c11-4e5b-8b7c-4785685a177c,University of Missouri,Sigma Phi Epsilon,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,187367,177950,14378,0,LIGHT,HIGH
+ef949b81-b6f2-4029-bec7-3bf664413056,University of Kentucky,Kappa Alpha Theta,Panhellenic,ENTITY_MATCHED,3,2,true,false,false,true,false,2023,11,7,ERICA D'ANGELO OCHS,,8145905,7622433,35939184,20356979,LIGHT,HIGH
+e5933ae2-aa60-49fe-9860-52ab1cc07120,University of Florida,Beta Upsilon Chi,IFC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+f4d7bf55-ef01-4636-b6c2-2ac7039c8ff6,University of Oklahoma,Gamma Phi Beta,Panhellenic,ENTITY_MATCHED,3,2,true,false,false,true,false,2024,4,4,Robin Allen,Suzanne Vicsek,306550,334668,173243,0,LIGHT,HIGH
+ef381995-fba6-4e6a-b30b-6db11416bbf9,Vanderbilt University,Kappa Alpha Psi,NPHC,ENTITY_MATCHED,4,3,true,false,false,true,true,2024,3,5,TILLMAN PAYNE,STEVE PELMORE JR,92883,91080,82208,26887,LIGHT,HIGH
+f0ca80f5-751c-470a-bec0-3b1f89468465,University of Alabama,Beta Theta Pi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,1816367,1975736,411689,87059,LIGHT,HIGH
+895d4c76-fdf3-4361-be08-75fc82ce9185,Vanderbilt University,Zeta Tau Alpha,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,8374719,10057415,36753113,13449328,LIGHT,NATIONAL_ONLY
+e8507145-08f4-4567-984b-b68cb3c7ac7c,"University of Tennessee, Knoxville",Phi Kappa Psi,ifc,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,7,11,DYLAN CONYERS,REID HINTHORNE,3462956,3596087,3874343,1368036,LIGHT,HIGH
+3fd01959-2813-4c9b-ab1e-2781a50b94d4,University of Mississippi,Alpha Delta Pi,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,8,11,DAWN VICTOR-HERRING,,6464144,4988932,18574229,1900417,LIGHT,NATIONAL_ONLY
+1c92e393-0c1d-4d98-8449-22ef846736bb,University of Mississippi,Alpha Omicron Pi,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,7459387,6338452,39739276,4492321,LIGHT,NATIONAL_ONLY
+768fbaf3-8463-4a2b-b481-ff2f420b7f8b,University of Mississippi,Alpha Tau Omega,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,12,20,ALEX WHYTE,JACOB ROUSSEAU,1112442,1179703,97969,3606,LIGHT,HIGH
+c4553906-2c37-4d0a-bcb2-184341a4628f,University of Mississippi,Phi Delta Theta,IFC,ENTITY_MATCHED,3,2,true,true,false,true,false,2023,0,0,,,267865,346324,1904475,899566,MODERATE,HIGH
+9b76ab02-c7e0-40f9-9cea-6d48f021dd65,University of Mississippi,Phi Kappa Psi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,5,11,ROBERT MARCHESANI,CHARLES BRANDMAN,3462956,3596087,3874343,1368036,LIGHT,NATIONAL_ONLY
+8a1f21a3-d2c6-4234-a32c-94f0eb1afbc6,University of Alabama,Delta Chi,IFC,ENTITY_MATCHED,3,2,true,true,false,true,false,2024,0,0,,,387990,342068,4164619,3264601,MODERATE,HIGH
+d2094383-c2b0-4fea-93b2-2cf82b0e2d96,University of Alabama,Phi Kappa Sigma,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,128682,131671,92284,0,LIGHT,HIGH
+52cec257-9dd9-4408-ba4f-ed1a70b5c01f,University of Alabama,Pi Kappa Alpha,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2024,0,0,,,480363,431051,4611267,2906872,LIGHT,HIGH
+a056b28f-bc94-465b-a7f0-3db04f644472,University of Alabama,Sigma Chi,IFC,ENTITY_MATCHED,4,3,true,true,false,true,false,2023,0,0,,,41235,10683,2154773,684085,MODERATE,HIGH
+857d784c-75ac-4152-8cd1-cca1c740b67c,University of Alabama,Sigma Nu,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,1714663,1606190,1041433,956434,LIGHT,HIGH
+8718a95a-4fec-40ac-8e07-48241485c113,University of Alabama,Sigma Phi Epsilon,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2024,0,0,,,1264415,1222728,97660,-450,LIGHT,HIGH
+40fbca37-a714-4008-ba61-eab9ed908b60,University of Alabama,Tau Kappa Epsilon,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,4,2,Carter Scott,Robert Cheney,5693324,5797020,6866705,3063238,LIGHT,HIGH
+bc7f24d5-ed00-41de-aec2-00ac756c3ea5,University of Alabama,Alpha Phi Alpha,NPHC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+c91735ae-5b76-4d71-9493-7425b28ddc10,University of Alabama,Delta Sigma Theta,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,31051194,25156563,57143857,24790550,LIGHT,NATIONAL_ONLY
+1d5dafd5-2463-4369-9b63-b45cf72f0fa5,University of Alabama,Alpha Omicron Pi,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,7459387,6338452,39739276,4492321,LIGHT,NATIONAL_ONLY
+f3adea43-07ec-4a95-b1e3-35a49ab15e73,University of Alabama,Sigma Delta Tau,Panhellenic,ENTITY_MATCHED,3,2,false,true,false,true,false,2024,0,0,,,2113009,1974844,5289828,395039,MODERATE,HIGH
+5981b7f5-1a3e-4ab1-8ec2-83cc5417caa0,University of Arkansas,Delta Chi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,4512794,8407611,10805747,2221386,LIGHT,NATIONAL_ONLY
+16c2ff96-2352-4bd2-bd50-5c0131c7502e,University of Arkansas,Sigma Alpha Epsilon,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,2,0,JACK MCGAHEE,GAVIN SMART,988968,840758,545856,30257,LIGHT,HIGH
+308b1cbe-3549-4ae2-9b36-cd8bb4dd8da6,University of Arkansas,Sigma Nu,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6291872,5989304,10968372,2625304,LIGHT,NATIONAL_ONLY
+9ca43c66-a37b-4166-8692-d1a64077c093,University of Arkansas,Delta Sigma Theta,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,31051194,25156563,57143857,24790550,LIGHT,NATIONAL_ONLY
+27816318-b154-42aa-91b0-1b37d659d417,University of Arkansas,Omega Psi Phi,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,14895796,9895558,17720990,1151714,LIGHT,NATIONAL_ONLY
+c0e78a44-fb10-4b30-9bdb-a1d295986e38,University of Arkansas,Pi Beta Phi,Panhellenic,ENTITY_MATCHED,2,1,false,false,false,true,false,2023,2,4,LAUREN KIMBROUGH,JENESSA BAILEY,1160633,1305529,9850894,7838665,LIGHT,HIGH
+ce47cb63-bac5-4011-933c-35e3f2a87b8b,University of Arkansas,Zeta Tau Alpha,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,8374719,10057415,36753113,13449328,LIGHT,NATIONAL_ONLY
+39ded09d-ccf9-4ed1-9c3c-408cf1ba0d31,Auburn University,Alpha Epsilon Pi,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,4685200,4269285,4595688,593080,LIGHT,NATIONAL_ONLY
+0af8858a-3f29-4f93-8a41-979fca84fcea,Auburn University,Delta Tau Delta,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,300647,353058,10416,0,LIGHT,HIGH
+3162836a-ab6b-4a97-8ca7-621c63a89124,Auburn University,Lambda Chi Alpha,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,1360693,1218112,425639,0,LIGHT,HIGH
+d2be9b40-dffa-4b10-a4d1-6164616434a5,Auburn University,Sigma Phi Epsilon,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2021,0,0,,,7894444,7973017,70284165,47495636,LIGHT,NATIONAL_ONLY
+92f14868-16b2-4e2c-8623-7dbd3fb26d5d,Auburn University,Theta Xi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2018,0,0,,,0,0,8240,0,LIGHT,HIGH
+964f6759-18f4-4cfd-9df3-91845c9eb323,Auburn University,Delta Gamma,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6798067,7007656,19676752,1853098,LIGHT,NATIONAL_ONLY
+d6d47339-7e87-4aaf-abaa-94109a95e558,Auburn University,Phi Mu,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,7308750,6433972,31031034,10603689,LIGHT,NATIONAL_ONLY
+440dcb36-ed3d-4107-a43a-06bf65b570d8,Auburn University,Pi Beta Phi,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2023,1,0,,DRU WASHBURN,64050,3547,289330,0,MODERATE,HIGH
+d32e113d-486c-460e-b240-c9b12a087d2a,University of Florida,Delta Sigma Phi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,6,10,JIM LARSON,BRAD SULLIVAN,3767364,4353085,972505,2084532,LIGHT,HIGH
+ac82a5e0-e3d6-4bef-bf49-0bc6e0a2c93b,Auburn University,Zeta Phi Beta,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2022,0,0,,,7208754,6749052,25467405,5042416,LIGHT,HIGH
+cfae1ca6-3b37-43e7-8d81-1d6e0f0242be,University of Florida,Phi Kappa Tau,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,589118,618628,143063,2871,LIGHT,HIGH
+322057ff-331e-4e38-88f5-1cddec2d1229,University of Florida,Theta Xi,IFC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,,0,0,,,,,,,LIGHT,NATIONAL_ONLY
+0a6efe96-0b1e-4ce6-9cd5-24df58b249ff,University of Florida,Alpha Kappa Alpha,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,45276043,47246171,78704412,25926573,LIGHT,NATIONAL_ONLY
+c73e7489-7d63-48f8-9da6-425ffcc7cdfe,University of Florida,Kappa Kappa Gamma,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,8,8,MARIA BROWN,KYLE DONNELLY,7985122,7584941,18693957,6644074,LIGHT,HIGH
+400ec7ff-3488-4ff3-98fc-3078e0128d7f,University of Georgia,Delta Kappa Epsilon,IFC,ENTITY_MATCHED,2,1,false,false,false,true,false,2023,0,0,,,1575740,1428396,1691763,243043,LIGHT,HIGH
+afcd248f-2816-48bd-a49a-b9d3b4dc3c86,University of Georgia,Phi Delta Theta,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6642836,6441081,6956145,1366384,LIGHT,NATIONAL_ONLY
+2482a074-1401-4046-8311-b96a131a1bb1,University of Georgia,Pi Kappa Alpha,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,0,0,1,0,LIGHT,HIGH
+fa0bc7f2-9437-439c-b52a-01a66da47357,University of Georgia,Alpha Phi Alpha,NPHC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+10ee111c-4e9d-4b89-991f-4bc4d4db4ca3,University of Georgia,Phi Beta Sigma,NPHC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+b316737b-981a-47b6-9662-887073d60896,University of Georgia,Chi Omega,Panhellenic,ENTITY_MATCHED,3,2,true,true,false,true,false,2023,5,0,NAN PETERSON,,1397949,1712592,1992420,1361711,MODERATE,HIGH
+093c579e-f0ae-4458-bccd-edc9db7c0c2b,University of Kentucky,Beta Theta Pi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,6378113,7611188,6605669,5491333,LIGHT,HIGH
+33666795-76fe-4086-9d13-b0bb1b761e22,University of Kentucky,Kappa Alpha Order,IFC,ENTITY_MATCHED,3,2,false,false,false,true,false,2024,9,0,,,203231,193168,51444,0,LIGHT,HIGH
+e38daad6-810d-4a82-b4bf-3b808b1764c9,University of Kentucky,Sigma Pi,IFC,ENTITY_MATCHED,5,1,false,true,false,true,false,2023,0,0,,,85865,98009,628005,466766,MODERATE,HIGH
+1bcffceb-cb84-446c-b8f0-6713423bd304,University of Kentucky,Alpha Gamma Delta,Panhellenic,ENTITY_MATCHED,3,2,true,false,false,true,false,2023,8,8,LEE WOODHAM LANGUB,,748783,804440,737197,91810,LIGHT,HIGH
+9fc12d9b-9642-431d-b1c8-031cfb902f91,University of Kentucky,Phi Mu,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,7308750,6433972,31031034,10603689,LIGHT,NATIONAL_ONLY
+b81392a2-eee8-4e91-9d2b-99fb93fb0374,University of Kentucky,Sigma Lambda Gamma,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+136b3807-9837-4216-a8fb-f8e1f449feb6,Louisiana State University,Pi Kappa Phi,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2024,0,0,,,7651700,6650513,12806295,8166805,LIGHT,NATIONAL_ONLY
+4c20c5e8-b7a9-4370-b8a1-dda94957a1ee,Mississippi State University,Phi Gamma Delta,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,5,10,TIM KILDUFF,DONALD J HERMAN,6882567,7250137,16972198,283891,LIGHT,NATIONAL_ONLY
+6075284f-e8de-4f59-9c1a-5f454876a44d,Mississippi State University,Phi Mu,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,7308750,6433972,31031034,10603689,LIGHT,NATIONAL_ONLY
+6c8221e4-77a8-4725-a2d3-827d25deb2c1,University of Missouri,Delta Chi,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,6,0,,,276880,276880,22,0,LIGHT,HIGH
+a22d78bd-0015-4e04-85fa-078cfdc15df9,University of Missouri,Alpha Chi Omega,Panhellenic,ENTITY_MATCHED,3,2,true,true,false,true,false,2024,8,10,LYNNE BIGGIO HERNDON,LESLIE ABRAMSKY BLOCK,373662,200734,3611824,391775,STRONG,HIGH
+16e772fe-6e82-4721-ab33-f51bb5f8a974,University of Missouri,Sigma Kappa,Panhellenic,CANDIDATES_FOUND,1,0,false,false,false,true,false,2024,0,0,,,6149087,4574786,14487244,7002321,LIGHT,NATIONAL_ONLY
+9a602309-4610-4d9e-bf56-09ff6c7fe3d8,University of Oklahoma,Omega Psi Phi,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,14895796,9895558,17720990,1151714,LIGHT,NATIONAL_ONLY
+24f91542-bf28-431c-8f51-834bc77bce00,University of Oklahoma,Kappa Alpha Theta,Panhellenic,ENTITY_MATCHED,4,3,true,false,false,true,false,2023,11,7,ERICA D'ANGELO OCHS,,8145905,7622433,35939184,20356979,LIGHT,HIGH
+b8935aaf-84b2-4f1e-8bfb-d24ea7c51ac0,University of South Carolina,Alpha Kappa Delta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+6189186c-20f9-410f-99b5-9f13ab1f2a96,University of South Carolina,Kappa Alpha Order,IFC,ENTITY_MATCHED,3,2,false,true,false,true,false,2023,9,0,,,247828,228046,857530,0,MODERATE,HIGH
+bd86af5f-21b5-45fd-92ee-447eac216984,University of South Carolina,Phi Gamma Delta,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,5,10,TIM KILDUFF,DONALD J HERMAN,6882567,7250137,16972198,283891,LIGHT,NATIONAL_ONLY
+3f8c795a-3a87-47a7-88fd-e0692643be5a,University of Florida,Alpha Delta Pi,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,8,11,DAWN VICTOR-HERRING,,6464144,4988932,18574229,1900417,LIGHT,NATIONAL_ONLY
+b2933d1f-5117-4408-b237-6612e2f024cc,University of Florida,Kappa Delta,Panhellenic,ENTITY_MATCHED,3,2,true,true,false,true,false,2024,0,0,,,374415,360601,157249,0,MODERATE,HIGH
+45f82ba3-e337-4d88-ba7e-49ef09700694,University of Florida,Phi Mu,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2024,0,0,,,1295521,1242685,5063114,1938442,MODERATE,HIGH
+55380bd5-2253-4a72-afc5-641b4ee7cd62,University of Georgia,Delta Epsilon Psi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+a8cd8083-ebb8-4995-a994-75f338cdbdbd,University of Georgia,Sigma Delta Tau,Panhellenic,CANDIDATES_FOUND,1,0,false,false,false,true,false,2024,0,0,,,2113009,1974844,5289828,395039,LIGHT,NATIONAL_ONLY
+6261efd7-d5da-421d-8728-a9a782752c91,Louisiana State University,Kappa Sigma,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,5863607,5483274,7857250,989095,LIGHT,NATIONAL_ONLY
+759f790b-39a0-4a7e-af87-00b7c76eff1b,Louisiana State University,Sigma Alpha Epsilon,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,8059440,7868762,14236601,3966752,LIGHT,NATIONAL_ONLY
+26e60bfa-d1f8-4e48-9252-6a84569ffaaa,Louisiana State University,Delta Sigma Theta,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2022,0,0,,,31051194,25156563,57143857,24790550,LIGHT,HIGH
+1a7ff266-b322-4abd-8305-8b3bfd6542e5,Louisiana State University,Kappa Delta,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,0,0,,,557892,425224,572414,53,LIGHT,HIGH
+d63b4b28-db65-4fb5-b616-55d6f56f3f43,Louisiana State University,Phi Mu,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,7308750,6433972,31031034,10603689,LIGHT,HIGH
+953722a9-97d9-4b94-a2c1-505010d4bb67,Mississippi State University,Phi Delta Theta,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6642836,6441081,6956145,1366384,LIGHT,NATIONAL_ONLY
+fe2f8d65-123b-4fa7-882b-d48f41ebf95c,Mississippi State University,Delta Sigma Theta,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2022,0,0,,,31051194,25156563,57143857,24790550,LIGHT,HIGH
+7f99a2af-bc93-4f86-b59a-0c1db0222722,University of Missouri,Phi Gamma Delta,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,5,10,TIM KILDUFF,DONALD J HERMAN,6882567,7250137,16972198,283891,LIGHT,NATIONAL_ONLY
+62b8eb66-540d-42a2-8bd4-af4403059ad8,University of Missouri,Alpha Kappa Alpha,NPHC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,45276043,47246171,78704412,25926573,LIGHT,NATIONAL_ONLY
+d421276a-aef4-4743-b62f-b44f063eca93,University of Missouri,Alpha Phi,Panhellenic,ENTITY_MATCHED,2,1,false,true,false,true,false,2024,4,15,Andrea Gulick,Sarah Benoist,1588846,1570311,14764675,10953108,STRONG,HIGH
+bb6bbf1a-ecf1-4b07-a363-4259adfba04c,University of Missouri,Delta Delta Delta,Panhellenic,ENTITY_MATCHED,3,2,false,false,true,true,false,2024,0,0,,,560234,306291,4745137,2547077,MODERATE,HIGH
+81a5734d-73b4-4082-91ba-4761571d09f1,University of Oklahoma,Kappa Alpha Order,IFC,ENTITY_MATCHED,2,1,false,false,false,true,false,2023,0,0,,,54054,45080,8974,0,LIGHT,HIGH
+88d2790b-23d7-418f-99a6-40f0de1c1060,University of Oklahoma,Alpha Kappa Delta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+47d36578-c7fe-44e9-bac9-cac0c8421ab2,University of Oklahoma,Lambda Theta Phi,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+d45da3d0-4da0-4a9f-bdf2-b8bf344bb3d6,University of Oklahoma,Delta Sigma Theta,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,31051194,25156563,57143857,24790550,LIGHT,NATIONAL_ONLY
+3936d915-9087-4d6b-9164-346220536b0d,University of South Carolina,Tau Kappa Epsilon,IFC,ENTITY_MATCHED,2,1,false,false,false,true,false,2023,0,0,,,5693324,5797020,6866705,3063238,LIGHT,HIGH
+c77fc1ae-8c64-4615-9f3c-05e231ed8a9f,University of South Carolina,Alpha Phi Alpha,NPHC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+1943e205-c885-464b-be1b-859000378584,University of South Carolina,Alpha Gamma Delta,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,8,8,LEE WOODHAM LANGUB,,989583,1006632,312644,102551,LIGHT,HIGH
+12327012-2a43-49dd-a05d-8313f72958ae,University of South Carolina,Delta Delta Delta,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,9122429,10741658,14446908,5787498,LIGHT,NATIONAL_ONLY
+b9c44b87-6ea2-4cf9-a482-90d3a67e43d5,University of South Carolina,Pi Beta Phi,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,9556072,8964046,47809375,4630878,LIGHT,NATIONAL_ONLY
+d94eb1e1-605d-492a-a8b7-c34e8d37036e,University of South Carolina,Zeta Tau Alpha,Panhellenic,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,8374719,10057415,36753113,13449328,LIGHT,NATIONAL_ONLY
+b6cee4ae-c23a-4fa8-bd4f-c124d622051f,"University of Tennessee, Knoxville",Kappa Alpha Order,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,4724636,4818996,4568222,3315696,LIGHT,NATIONAL_ONLY
+0ad6d618-dd7a-4d76-8c46-7c2c7c2b4392,"University of Tennessee, Knoxville",Phi Gamma Delta,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2024,5,10,TIM KILDUFF,DONALD J HERMAN,714215,714145,20278,0,LIGHT,HIGH
+3cf02ec4-4a03-4591-a61b-81a057834c69,"University of Tennessee, Knoxville",Sigma Phi Epsilon,IFC,ENTITY_MATCHED,3,2,true,false,false,true,false,2021,0,0,,,7894444,7973017,70284165,47495636,LIGHT,HIGH
+829b5d43-9f58-45c1-a0a2-ea3a037506da,"University of Tennessee, Knoxville",Alpha Phi Alpha,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+b682002d-9f02-43e5-a048-f33e31a77458,"University of Tennessee, Knoxville",Chi Omega,Panhellenic,ENTITY_MATCHED,3,2,true,true,false,true,false,2024,0,0,,,900884,720687,868223,13804,MODERATE,HIGH
+e306c798-848b-42ee-afdb-79575aeaa28f,University of Texas at Austin,Delta Chi,IFC,ENTITY_MATCHED,2,1,false,true,false,true,false,2023,0,0,,,2185,6305,494510,0,MODERATE,HIGH
+880bce0b-600d-4c6c-81e6-1d1a23c21cc0,University of Texas at Austin,Zeta Beta Tau,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,1744325,1754997,252926,66643,LIGHT,HIGH
+e1fbccc3-a5ad-4b44-96b4-ee674c997615,University of Texas at Austin,Beta Chi Theta,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+2b7a9694-03ee-44da-97e3-12b612e59406,University of Texas at Austin,Omega Delta Phi,MGC,NEEDS_REVIEW,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+b59cc787-3727-494b-b806-e3ef60a83b98,University of Texas at Austin,Omega Psi Phi,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,14895796,9895558,17720990,1151714,LIGHT,NATIONAL_ONLY
+d73c4071-298c-4621-ab3e-e9cee338ce70,University of Texas at Austin,Alpha Epsilon Phi,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,11,5,Sydney Blen,Rebecca Nahavandi,361426,441029,303492,2712,LIGHT,HIGH
+7e3f9705-bd1c-49cd-8e9e-2650bdd431a4,Texas A&M University,Kappa Sigma,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,5863607,5483274,7857250,989095,LIGHT,NATIONAL_ONLY
+a5cec104-911f-4bdc-b9db-8cc9155ee297,Texas A&M University,Phi Kappa Tau,IFC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,1891353,2050531,4195963,1337387,LIGHT,NATIONAL_ONLY
+c84cc118-8dfc-4fca-86b6-ee08af35a618,Texas A&M University,Chi Psi Beta,MGC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+8f84bef5-d9af-4ef0-a7aa-3c4e39fb615c,Texas A&M University,Alpha Kappa Alpha,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,45276043,47246171,78704412,25926573,LIGHT,NATIONAL_ONLY
+a956456b-b884-4d30-b8f1-29aad09652b3,Texas A&M University,Alpha Delta Pi,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,8,11,DAWN VICTOR-HERRING,,6464144,4988932,18574229,1900417,LIGHT,NATIONAL_ONLY
+2da09d74-b40d-4803-ab5b-39874c5c8c2f,Texas A&M University,Delta Gamma,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,6798067,7007656,19676752,1853098,LIGHT,NATIONAL_ONLY
+c01417b6-45a4-4b4a-acc9-a9a5d3440934,Texas A&M University,Zeta Tau Alpha,Panhellenic,NEEDS_REVIEW,1,0,false,false,false,true,false,2023,0,0,,,8374719,10057415,36753113,13449328,LIGHT,NATIONAL_ONLY
+d4521a9e-d44e-4409-920d-4ecf4472ff8c,Vanderbilt University,Lambda Chi Alpha,IFC,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,0,0,,,7757361,9318779,6329265,6105805,LIGHT,HIGH
+095e8273-b280-4514-b12a-8e9c75921a18,Vanderbilt University,Alpha Chi Omega,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,8,10,LYNNE BIGGIO HERNDON,LESLIE ABRAMSKY BLOCK,14721901,15897771,27766470,17951953,LIGHT,HIGH
+f188d8bd-98e7-436b-9bde-81999554b295,University of Mississippi,Alpha Kappa Alpha,NPHC,NO_ENTITY_FOUND,1,0,false,false,false,true,false,2023,0,0,,,45276043,47246171,78704412,25926573,LIGHT,NATIONAL_ONLY
+49a17c41-e6a3-4401-b985-e83c4b56ccb9,University of Mississippi,Delta Sigma Theta,NPHC,ENTITY_MATCHED,2,1,true,false,false,true,false,2022,0,0,,,31051194,25156563,57143857,24790550,LIGHT,HIGH
+76ea666b-97e6-482f-afad-333269c36b08,University of Mississippi,Iota Phi Theta,NPHC,NO_ENTITY_FOUND,0,0,false,false,false,false,false,,0,0,,,,,,,UNKNOWN,NONE
+fd397af1-a567-41ad-82eb-cffc463c3034,University of Mississippi,Omega Psi Phi,NPHC,NEEDS_REVIEW,1,0,false,false,false,true,false,2022,0,0,,,14895796,9895558,17720990,1151714,LIGHT,NATIONAL_ONLY
+4e41f031-7641-45a9-b606-72e24ca3e3d8,"University of Tennessee, Knoxville",Kappa Kappa Gamma,Panhellenic,ENTITY_MATCHED,2,1,true,false,false,true,false,2023,8,8,MARIA BROWN,KYLE DONNELLY,7985122,7584941,18693957,6644074,LIGHT,HIGH

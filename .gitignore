@@ -49,3 +49,6 @@ data/*
 # so widen it. (.vercel/ is already covered further up.)
 .env*
 scratch/
+
+# Greek 990 pilot: internal logs/dumps (keep deliverable CSVs/MD)
+greek-990-output/_*

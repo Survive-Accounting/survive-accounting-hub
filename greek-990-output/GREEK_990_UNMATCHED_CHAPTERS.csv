@@ -1,0 +1,157 @@
+campus,chapter,council,legal_entity_status
+University of Alabama,Alpha Kappa Psi,mgc,NOT_RUN
+University of Alabama,Delta Sigma Pi,mgc,NOT_RUN
+University of Alabama,Phi Mu Alpha Sinfonia,mgc,NO_ENTITY_FOUND
+University of Alabama,Phi Sigma Pi,mgc,NO_ENTITY_FOUND
+University of Alabama,Phi Beta Sigma,NPHC,NEEDS_REVIEW
+University of Alabama,Iota Phi Theta,NPHC,NO_ENTITY_FOUND
+University of Alabama,Beta Upsilon Chi,IFC,NO_ENTITY_FOUND
+University of Alabama,FarmHouse,IFC,NOT_RUN
+University of Alabama,Alpha Kappa Lambda,IFC,NEEDS_REVIEW
+University of Arkansas,FarmHouse,IFC,NOT_RUN
+University of Arkansas,Beta Upsilon Chi,IFC,NO_ENTITY_FOUND
+University of Arkansas,Alpha Phi Alpha,NPHC,NO_ENTITY_FOUND
+Auburn University,Phi Beta Sigma,NPHC,NEEDS_REVIEW
+University of Mississippi,Alpha Phi Alpha,NPHC,NEEDS_REVIEW
+University of Mississippi,Phi Beta Sigma,NPHC,NO_ENTITY_FOUND
+University of Mississippi,Delta Psi,IFC,NO_ENTITY_FOUND
+University of Florida,Sigma Lambda Beta,MGC,NO_ENTITY_FOUND
+University of Florida,Phi Beta Sigma,NPHC,NEEDS_REVIEW
+University of Florida,Lambda Delta Psi,MGC,NO_ENTITY_FOUND
+University of Florida,Alpha Phi Alpha,NPHC,NEEDS_REVIEW
+University of Florida,Delta Phi Omega,MGC,NO_ENTITY_FOUND
+University of Florida,Lambda Theta Phi,MGC,NO_ENTITY_FOUND
+Auburn University,Beta Upsilon Chi,IFC,NO_ENTITY_FOUND
+Auburn University,FarmHouse,IFC,NOT_RUN
+University of Arkansas,Omega Delta Phi,MGC,NO_ENTITY_FOUND
+University of Arkansas,Sigma Lambda Gamma,MGC,NO_ENTITY_FOUND
+University of Arkansas,Alpha Kappa Delta Phi,MGC,NO_ENTITY_FOUND
+Louisiana State University,Acacia,IFC,NOT_RUN
+University of Arkansas,Phi Beta Sigma,NPHC,NO_ENTITY_FOUND
+University of Kentucky,Delta Phi Lambda,MGC,NO_ENTITY_FOUND
+University of Georgia,Pi Kappa Psi,MGC,NO_ENTITY_FOUND
+University of Kentucky,Sigma Lambda Beta,MGC,NO_ENTITY_FOUND
+University of Georgia,Sigma Sigma Rho,MGC,CANDIDATES_FOUND
+University of Kentucky,Alpha Kappa Delta Phi,MGC,NO_ENTITY_FOUND
+University of Georgia,Xi Kappa,MGC,NO_ENTITY_FOUND
+University of Georgia,Lambda Upsilon Lambda,MGC,NO_ENTITY_FOUND
+University of Kentucky,Iota Phi Theta,NPHC,NO_ENTITY_FOUND
+University of Georgia,Beta Upsilon Chi,IFC,NO_ENTITY_FOUND
+University of Kentucky,Lambda Theta Phi,MGC,NO_ENTITY_FOUND
+University of Georgia,Delta Phi Lambda,MGC,NEEDS_REVIEW
+University of Georgia,Kappa Phi Gamma,MGC,NO_ENTITY_FOUND
+University of Kentucky,Beta Upsilon Chi,IFC,NO_ENTITY_FOUND
+University of Missouri,Lambda Theta Phi,MGC,NO_ENTITY_FOUND
+University of Missouri,Delta Xi,Panhellenic,NO_ENTITY_FOUND
+University of Missouri,Sigma Lambda Gamma,MGC,NO_ENTITY_FOUND
+University of Missouri,Alpha Phi Alpha,NPHC,NO_ENTITY_FOUND
+University of Missouri,Sigma Lambda Beta,MGC,NO_ENTITY_FOUND
+University of Kentucky,FarmHouse,IFC,NOT_RUN
+University of Kentucky,Alpha Kappa Lambda,IFC,NO_ENTITY_FOUND
+University of Kentucky,Triangle,IFC,NOT_RUN
+University of Missouri,Phi Beta Sigma,NPHC,NO_ENTITY_FOUND
+University of Missouri,Triangle,IFC,NOT_RUN
+University of Missouri,Alpha Kappa Lambda,IFC,NEEDS_REVIEW
+University of Missouri,FarmHouse,IFC,NOT_RUN
+Louisiana State University,Kappa Delta Chi,MGC,NO_ENTITY_FOUND
+Louisiana State University,Delta Phi Omega,MGC,NO_ENTITY_FOUND
+Louisiana State University,Iota Phi Theta,NPHC,NO_ENTITY_FOUND
+University of Missouri,Alpha Gamma Sigma,IFC,NO_ENTITY_FOUND
+Louisiana State University,Alpha Phi Alpha,NPHC,NEEDS_REVIEW
+University of Oklahoma,Sigma Lambda Gamma,MGC,NO_ENTITY_FOUND
+University of Oklahoma,Iota Phi Theta,NPHC,NO_ENTITY_FOUND
+University of Oklahoma,Phi Beta Sigma,NPHC,NO_ENTITY_FOUND
+University of Oklahoma,FarmHouse,IFC,NOT_RUN
+University of South Carolina,Beta Upsilon Chi,IFC,NO_ENTITY_FOUND
+University of Oklahoma,Beta Upsilon Chi,IFC,NO_ENTITY_FOUND
+University of Oklahoma,Alpha Phi Alpha,NPHC,NEEDS_REVIEW
+University of Oklahoma,Omega Delta Phi,MGC,NO_ENTITY_FOUND
+University of Oklahoma,Lambda Delta Psi,MGC,NO_ENTITY_FOUND
+Mississippi State University,Alpha Phi Alpha,NPHC,NEEDS_REVIEW
+University of South Carolina,Acacia,IFC,NOT_RUN
+University of Texas at Austin,Alpha Kappa Delta Phi,MGC,NO_ENTITY_FOUND
+University of Texas at Austin,Delta Epsilon Psi,MGC,CANDIDATES_FOUND
+Mississippi State University,Iota Phi Theta,NPHC,NO_ENTITY_FOUND
+Mississippi State University,Beta Upsilon Chi,IFC,NO_ENTITY_FOUND
+Mississippi State University,Sigma Lambda Beta,MGC,NO_ENTITY_FOUND
+Mississippi State University,Phi Beta Sigma,NPHC,NO_ENTITY_FOUND
+Mississippi State University,Sigma Lambda Gamma,MGC,NO_ENTITY_FOUND
+University of Texas at Austin,Kappa Delta Chi,MGC,CANDIDATES_FOUND
+University of Texas at Austin,Sigma Lambda Beta,MGC,NO_ENTITY_FOUND
+University of Texas at Austin,Sigma Lambda Gamma,MGC,NO_ENTITY_FOUND
+Mississippi State University,Delta Xi Phi,MGC,NO_ENTITY_FOUND
+University of South Carolina,Delta Phi Omega,MGC,NO_ENTITY_FOUND
+University of Texas at Austin,Beta Upsilon Chi,IFC,NEEDS_REVIEW
+University of South Carolina,Lambda Theta Phi,MGC,NO_ENTITY_FOUND
+University of South Carolina,Sigma Lambda Gamma,MGC,NO_ENTITY_FOUND
+University of South Carolina,Phi Beta Sigma,NPHC,NEEDS_REVIEW
+University of South Carolina,Sigma Lambda Beta,MGC,NO_ENTITY_FOUND
+University of Texas at Austin,Acacia,IFC,NOT_RUN
+University of South Carolina,Iota Phi Theta,NPHC,NO_ENTITY_FOUND
+"University of Tennessee, Knoxville",Sigma Lambda Beta,MGC,NO_ENTITY_FOUND
+"University of Tennessee, Knoxville",Alpha Kappa Delta Phi,MGC,NO_ENTITY_FOUND
+"University of Tennessee, Knoxville",Phi Beta Sigma,NPHC,NEEDS_REVIEW
+"University of Tennessee, Knoxville",Lambda Theta Phi,MGC,NO_ENTITY_FOUND
+"University of Tennessee, Knoxville",Sigma Lambda Gamma,MGC,NO_ENTITY_FOUND
+Vanderbilt University,Lambda Theta Phi,MGC,NO_ENTITY_FOUND
+Vanderbilt University,Kappa Delta Chi,MGC,NO_ENTITY_FOUND
+Texas A&M University,Kappa Delta Chi,MGC,CANDIDATES_FOUND
+Texas A&M University,Gamma Phi Omega,MGC,NO_ENTITY_FOUND
+Vanderbilt University,Sigma Lambda Gamma,MGC,NO_ENTITY_FOUND
+Texas A&M University,Delta Kappa Delta,MGC,NO_ENTITY_FOUND
+Texas A&M University,Gamma Beta,MGC,NO_ENTITY_FOUND
+Texas A&M University,Beta Upsilon Chi,IFC,NEEDS_REVIEW
+"University of Tennessee, Knoxville",FarmHouse,IFC,NOT_RUN
+Vanderbilt University,Iota Phi Theta,NPHC,NO_ENTITY_FOUND
+Texas A&M University,Lambda Delta Psi,MGC,NO_ENTITY_FOUND
+Texas A&M University,Phi Beta Sigma,NPHC,NEEDS_REVIEW
+Texas A&M University,Alpha Phi Alpha,NPHC,NO_ENTITY_FOUND
+Texas A&M University,Omega Delta Phi,MGC,NEEDS_REVIEW
+Vanderbilt University,Beta Upsilon Chi,IFC,NO_ENTITY_FOUND
+Texas A&M University,Lambda Theta Phi,MGC,NO_ENTITY_FOUND
+Mississippi State University,Alpha Psi Lambda,MGC,NO_ENTITY_FOUND
+University of Georgia,Lambda Phi Epsilon,MGC,NO_ENTITY_FOUND
+University of Arkansas,Lambda Theta Phi,MGC,NO_ENTITY_FOUND
+Texas A&M University,Gamma Alpha Omega,MGC,NO_ENTITY_FOUND
+University of Alabama,Alpha Delta Chi,MGC,NO_ENTITY_FOUND
+University of South Carolina,Hermandad de Sigma Iota Alpha,MGC,NO_ENTITY_FOUND
+University of Texas at Austin,Delta Phi Omega,MGC,NO_ENTITY_FOUND
+University of Kentucky,Omega Delta Phi,MGC,NO_ENTITY_FOUND
+University of South Carolina,Omega Phi Beta,MGC,NO_ENTITY_FOUND
+University of Missouri,Omega Delta Phi,MGC,NO_ENTITY_FOUND
+University of Florida,Sigma Lambda Gamma,MGC,NO_ENTITY_FOUND
+University of Oklahoma,Lambda Phi Epsilon,MGC,NO_ENTITY_FOUND
+University of Georgia,Lambda Theta Phi,MGC,NO_ENTITY_FOUND
+University of Missouri,Delta Phi Lambda,MGC,NO_ENTITY_FOUND
+"University of Tennessee, Knoxville",Delta Phi Lambda,MGC,NO_ENTITY_FOUND
+"University of Tennessee, Knoxville",Beta Upsilon Chi,IFC,NO_ENTITY_FOUND
+University of Missouri,Iota Phi Theta,NPHC,NO_ENTITY_FOUND
+University of Missouri,Alpha Kappa Delta Phi,MGC,NO_ENTITY_FOUND
+Louisiana State University,Lambda Theta Phi,MGC,NO_ENTITY_FOUND
+Vanderbilt University,Alpha Phi Alpha,NPHC,NO_ENTITY_FOUND
+University of Georgia,Alpha Kappa Delta Phi,MGC,NO_ENTITY_FOUND
+University of Kentucky,Phi Beta Sigma,NPHC,NO_ENTITY_FOUND
+University of Florida,Kappa Phi Lambda,MGC,NO_ENTITY_FOUND
+University of Texas at Austin,Lambda Theta Phi,MGC,NO_ENTITY_FOUND
+University of Texas at Austin,Alpha Phi Alpha,NPHC,NO_ENTITY_FOUND
+Texas A&M University,Beta Tau Omega,MGC,NO_ENTITY_FOUND
+University of Arkansas,Iota Phi Theta,NPHC,NO_ENTITY_FOUND
+University of Florida,Sigma Beta Rho,MGC,NO_ENTITY_FOUND
+University of Oklahoma,Sigma Lambda Beta,MGC,NO_ENTITY_FOUND
+Mississippi State University,FarmHouse,IFC,NOT_RUN
+University of Florida,Alpha Kappa Delta Phi,MGC,NEEDS_REVIEW
+University of Florida,Beta Upsilon Chi,IFC,NO_ENTITY_FOUND
+University of Alabama,Alpha Phi Alpha,NPHC,NEEDS_REVIEW
+University of Georgia,Alpha Phi Alpha,NPHC,NEEDS_REVIEW
+University of Georgia,Phi Beta Sigma,NPHC,NEEDS_REVIEW
+University of Kentucky,Sigma Lambda Gamma,MGC,NO_ENTITY_FOUND
+University of South Carolina,Alpha Kappa Delta Phi,MGC,NO_ENTITY_FOUND
+University of Georgia,Delta Epsilon Psi,MGC,NO_ENTITY_FOUND
+University of Oklahoma,Alpha Kappa Delta Phi,MGC,NO_ENTITY_FOUND
+University of Oklahoma,Lambda Theta Phi,MGC,NO_ENTITY_FOUND
+University of South Carolina,Alpha Phi Alpha,NPHC,NEEDS_REVIEW
+"University of Tennessee, Knoxville",Alpha Phi Alpha,NPHC,NO_ENTITY_FOUND
+University of Texas at Austin,Beta Chi Theta,MGC,NO_ENTITY_FOUND
+University of Texas at Austin,Omega Delta Phi,MGC,NEEDS_REVIEW
+Texas A&M University,Chi Psi Beta,MGC,NO_ENTITY_FOUND
+University of Mississippi,Iota Phi Theta,NPHC,NO_ENTITY_FOUND
