@@ -12,3 +12,4 @@ _test-checkpoint.json*
 parse-checkpoint.json*
 parse.log
 parse.status.log
+parse-sched.log
