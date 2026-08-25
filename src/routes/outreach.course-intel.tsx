@@ -64,8 +64,9 @@ function CourseIntelCockpit() {
     else if (filter === "has_intro1") r = r.filter((x) => x.profIntro1 > 0);
     else if (filter === "needs_enrich") r = r.filter((x) => x.profTotal > 0 && x.profIntro1 === 0);
     const q = search.trim().toLowerCase();
-    if (q) r = r.filter((x) => x.name.toLowerCase().includes(q) || (x.state ?? "").toLowerCase().includes(q));
-    return [...r].sort((a, b) => b.profTotal - a.profTotal || a.name.localeCompare(b.name));
+    // Alias- and system-aware: searchText carries name + display + aliases + system name/aliases.
+    if (q) r = r.filter((x) => x.searchText.includes(q) || (x.state ?? "").toLowerCase().includes(q));
+    return [...r].sort((a, b) => b.profTotal - a.profTotal || a.displayName.localeCompare(b.displayName));
   }, [rows, filter, search]);
 
   return (
@@ -97,7 +98,7 @@ function CourseIntelCockpit() {
           )}
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search campus or state…" className="h-9 max-w-xs" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search campus, alias, system, or state…" className="h-9 max-w-xs" />
             {([["all", "All"], ["has_intro1", "Has Intro-1"], ["needs_enrich", "Needs enrich"], ["picker", "Pickable"], ["picker_no_profs", "Pickable · no profs"], ["live", "Live"]] as [Filter, string][]).map(([f, label]) => (
               <button key={f} onClick={() => setFilter(f)} className={`rounded-full border px-3 py-1 text-xs ${filter === f ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}>{label}</button>
             ))}
@@ -118,7 +119,9 @@ function CourseIntelCockpit() {
                 {filtered.slice(0, 300).map((r) => (
                   <tr key={r.campusId} className="border-t border-border hover:bg-muted/30">
                     <td className="px-3 py-2">
-                      {r.name}
+                      {r.displayName}
+                      {r.systemName && <span className="ml-1 text-[10px] text-muted-foreground">· {r.systemName}</span>}
+                      {r.resolutionStatus === "needs_campus_resolution" && <span className="ml-1 rounded bg-rose-500/15 px-1.5 py-0.5 text-[10px] font-medium text-rose-500">NEEDS CAMPUS</span>}
                       {r.campusLive && <span className="ml-2 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-500">LIVE</span>}
                       {r.inPicker && <span className="ml-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-500">PICKER</span>}
                       {r.hasMapping && <span className="ml-1 rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-medium text-sky-500">MAPPED</span>}
@@ -179,8 +182,8 @@ function ProfessorDrawer({ row, onClose }: { row: CourseIntelRow; onClose: () =>
       <div className="h-full w-full max-w-xl overflow-y-auto border-l border-border bg-background p-5" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-base font-semibold">{row.name}</h2>
-            <p className="text-xs text-muted-foreground">{row.state} · {row.profTotal} professors · {row.textbook ?? "no textbook on file"}</p>
+            <h2 className="text-base font-semibold">{row.displayName}</h2>
+            <p className="text-xs text-muted-foreground">{[row.systemName, row.state].filter(Boolean).join(" · ")}{row.systemName || row.state ? " · " : ""}{row.profTotal} professors · {row.textbook ?? "no textbook on file"}</p>
           </div>
           <Button variant="ghost" size="sm" onClick={onClose}>Close</Button>
         </div>
@@ -349,7 +352,7 @@ function EnrichView({ rows, onDone }: { rows: CourseIntelRow[]; onDone: () => vo
 
   async function run() {
     setRunning(true);
-    const list = targets.map((t) => ({ id: t.campusId, name: t.name }));
+    const list = targets.map((t) => ({ id: t.campusId, name: t.displayName }));
     const results: EnrichRow[] = [];
     let done = 0, matches = 0, pos = 0;
     setProg({ done: 0, total: list.length, matches: 0, results: [] });
@@ -438,7 +441,13 @@ function BackfillView({ rows, onDone }: { rows: CourseIntelRow[]; onDone: () => 
     const lines = pasted.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
     if (!lines.length) return null;
     const norm = (s: string) => s.toLowerCase().replace(/,\s*[a-z]{2}$/i, "").replace(/[^a-z0-9]+/g, " ").trim();
-    const byNorm = new Map(rows.map((r) => [norm(r.name), r]));
+    // Index every alias/display term (searchText is " | "-joined) so a pasted
+    // nickname ("UCSD", "Cal Poly Pomona") resolves to the right campus.
+    const byNorm = new Map<string, CourseIntelRow>();
+    for (const r of rows) {
+      byNorm.set(norm(r.name), r);
+      for (const term of r.searchText.split(" | ")) { const t = norm(term); if (t && !byNorm.has(t)) byNorm.set(t, r); }
+    }
     const matched: CourseIntelRow[] = []; const missing: string[] = []; const seen = new Set<string>();
     for (const line of lines) {
       const n = norm(line);
@@ -459,7 +468,7 @@ function BackfillView({ rows, onDone }: { rows: CourseIntelRow[]; onDone: () => 
   }, [rows, scope, maxCampuses, listMatch]);
 
   async function backfillOne(row: CourseIntelRow): Promise<BackfillRow> {
-    const id = row.campusId; const o: BackfillRow = { campus: row.name, code: "", greek: "", council: "", profs: "", enrich: "", syllabi: "" };
+    const id = row.campusId; const o: BackfillRow = { campus: row.displayName, code: "", greek: "", council: "", profs: "", enrich: "", syllabi: "" };
     if (stages.code) { if (!row.hasIntro1Code) { try { const cr = await researchProgramCourses({ data: { campusId: id, force: true } }) as { course_family_codes_json?: Record<string, string> }; o.code = cr?.course_family_codes_json?.intro_1 || "—"; } catch { o.code = "err"; } } else o.code = "✓"; }
     let greekN = row.greekOrgs;
     if (stages.greek) { if (row.greekOrgs === 0) { try { const gr = await scrapeCampusGreek({ data: { campusId: id } }) as { inserted?: number }; greekN = gr?.inserted ?? 0; o.greek = `+${greekN}`; } catch { o.greek = "err"; } } else o.greek = `${row.greekOrgs}`; }
