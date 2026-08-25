@@ -1,0 +1,5 @@
+# Runtime artifacts — never commit
+.greek-academic-checkpoint.json
+.greek-academic-checkpoint.json.costlog.jsonl
+*.costlog.jsonl
+*.log
