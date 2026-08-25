@@ -2,7 +2,7 @@
 // Idempotent: creates a run row, upserts campus_market_intelligence + identity review.
 import fs from 'node:fs';
 import path from 'node:path';
-import { insertOne, upsert } from './_db.mjs';
+import { insertOne, upsert, REST, HEADERS, rfetch } from './_db.mjs';
 
 const DATA = path.resolve('scripts/market-intel/data');
 const CFG = JSON.parse(fs.readFileSync(path.resolve('src/lib/market-intel/scoring-config.json'), 'utf8'));
@@ -10,6 +10,21 @@ const res = JSON.parse(fs.readFileSync(path.join(DATA, 'results.json'), 'utf8'))
 const matches = JSON.parse(fs.readFileSync(path.join(DATA, 'matches.json'), 'utf8'));
 const R = res.records;
 const prim = R.filter((r) => r.segment === 'primary');
+
+// Idempotent reload: purge prior rows so re-running doesn't accumulate stale runs.
+async function purge(table, filter) {
+  const res = await rfetch(`${REST}/${table}?${filter}`, { method: 'DELETE', headers: { ...HEADERS, Prefer: 'return=minimal' } });
+  return res.ok || res.status === 404;
+}
+{
+  const probe = await rfetch(`${REST}/campus_market_intelligence?select=campus_id&limit=1`, { headers: HEADERS });
+  if (probe.ok) {
+    await purge('campus_market_intelligence', 'campus_id=not.is.null');
+    await purge('market_intel_identity_review', 'campus_id=not.is.null');
+    await purge('market_intel_runs', 'id=not.is.null');
+    console.log('Purged prior market-intel rows.');
+  }
+}
 
 const run = await insertOne('market_intel_runs', {
   config_version: res.config_version,

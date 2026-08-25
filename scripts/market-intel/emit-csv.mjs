@@ -64,8 +64,8 @@ const master = [
 console.log(`Emitting CSVs to market-intel-output/ (generated ${generated_at}, IPEDS ${latest_data_year})`);
 writeCsv('CAMPUS_MARKET_INTELLIGENCE.csv', master, R);
 
-// ---- Top lists (4-year primary segment) ----
-const prim = R.filter((r) => r.segment === 'primary');
+// ---- Top lists (4-year primary segment, deduped by UNITID so a school appears once) ----
+const prim = R.filter((r) => r.segment === 'primary' && r.duplicate_primary !== false);
 const topCols = [
   { h: 'rank', f: (r) => r._rank }, { h: 'campus', f: 'campus' }, { h: 'state', f: 'state' }, { h: 'IPEDS_UNITID', f: 'unitid' },
   { h: 'outreach_priority', f: 'outreach_priority_score' }, { h: 'market_opportunity', f: 'market_opportunity_score' },

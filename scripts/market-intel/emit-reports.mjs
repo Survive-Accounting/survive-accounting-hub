@@ -8,7 +8,8 @@ const CFG = JSON.parse(fs.readFileSync(path.resolve('src/lib/market-intel/scorin
 const { records: R, generated_at, latest_data_year, intro1_multiplier } = JSON.parse(fs.readFileSync(path.join(DATA, 'results.json'), 'utf8'));
 const matches = JSON.parse(fs.readFileSync(path.join(DATA, 'matches.json'), 'utf8'));
 
-const prim = R.filter((r) => r.segment === 'primary');
+const primAll = R.filter((r) => r.segment === 'primary');
+const prim = primAll.filter((r) => r.duplicate_primary !== false); // dedupe by UNITID for rankings/totals
 const two = R.filter((r) => r.segment === 'two_year');
 const inUniverse = matches.filter((m) => m.in_universe);
 const review = matches.filter((m) => m.status === 'NEEDS_IDENTITY_REVIEW');
@@ -51,11 +52,13 @@ rep.push(`> Independent, standardized market-intelligence layer built on public 
 rep.push(`## 1. Coverage & identity`);
 rep.push(`| Metric | Value |`);
 rep.push(`|---|---|`);
+const inUnivMatched = matches.filter((m) => m.in_universe && m.unitid).length;
 rep.push(`| Target universe (US, 4-yr + 2-yr, non-research-only) | **${inUniverse.length}** campuses |`);
-rep.push(`| Matched to IPEDS UNITID | **${R.length}** (${(R.length / inUniverse.length * 100).toFixed(0)}%) |`);
-rep.push(`| — 4-year institutions (primary market) | **${prim.length}** |`);
-rep.push(`| — 2-year institutions (community colleges, separate segment) | ${two.length} |`);
-rep.push(`| Identity failures → review queue | **${review.length}** |`);
+rep.push(`| Matched to IPEDS UNITID (in universe) | **${inUnivMatched}** (${(inUnivMatched / inUniverse.length * 100).toFixed(0)}%) |`);
+rep.push(`| Scored campus records (incl. a few out-of-universe with an existing UNITID) | ${R.length} |`);
+rep.push(`| — 4-year records / **distinct institutions** | ${primAll.length} / **${prim.length}** |`);
+rep.push(`| — 2-year records (community colleges, separate segment) | ${two.length} |`);
+rep.push(`| Identity failures → review queue | **${review.length}** (10 systems/districts, 4 unresolvable) |`);
 rep.push(`| Duplicate campus rows sharing a UNITID (flagged, not merged) | ${dups.length} rows / ${dupPairs} groups |`);
 rep.push(`\nMatch methods: ${Object.entries(matches.filter((m) => m.unitid).reduce((a, m) => { a[m.match_method] = (a[m.match_method] || 0) + 1; return a; }, {})).map(([k, v]) => `${k}=${v}`).join(', ')}.`);
 rep.push(`\nReview-queue reasons: ${Object.entries(reviewReasons).map(([k, v]) => `${k}=${v}`).join(', ')}. Systems/districts are intentionally **not** auto-matched to a single campus (per the "do not merge system campuses" rule).\n`);

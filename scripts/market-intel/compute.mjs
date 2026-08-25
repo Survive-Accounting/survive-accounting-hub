@@ -309,10 +309,18 @@ for (const r of recs) {
 }
 
 // Flag duplicate campus records sharing one UNITID (pre-existing data-quality issue; not merged).
+// Mark ONE record per group as duplicate_primary (the most complete/specific) so top lists and
+// the brief can dedupe by UNITID without showing a school twice; the master CSV keeps every row.
 const byUnit = {};
 for (const r of recs) (byUnit[r.unitid] ||= []).push(r);
 for (const list of Object.values(byUnit)) {
-  if (list.length > 1) for (const r of list) { r.duplicate_unitid = true; r.duplicate_group = list.map((x) => x.campus).join(' | '); }
+  if (list.length <= 1) { list[0].duplicate_primary = true; continue; }
+  const best = [...list].sort((a, b) =>
+    (b.greek_available - a.greek_available) ||
+    ((b.structural_completeness || 0) - (a.structural_completeness || 0)) ||
+    ((b.market_data_completeness || 0) - (a.market_data_completeness || 0)) ||
+    ((b.campus || '').length - (a.campus || '').length))[0];
+  for (const r of list) { r.duplicate_unitid = true; r.duplicate_group = list.map((x) => x.campus).join(' | '); r.duplicate_primary = r === best; }
 }
 const dupCount = recs.filter((r) => r.duplicate_unitid).length;
 if (dupCount) console.log(`\n⚠ ${dupCount} campus records share a UNITID with another (duplicate DB rows, flagged not merged)`);

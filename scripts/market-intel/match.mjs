@@ -137,11 +137,14 @@ for (const c of campuses) {
             if (confirmed(extra, ipCity) && j > bestScore) { bestScore = j; best = p; bestMethod = 'name_prefix'; }
             continue;
           }
-          // reverse: campus ⊆ ipeds
+          // reverse: campus ⊆ ipeds. The extra tokens belong to the IPEDS name, so confirm them
+          // against the CAMPUS's own city/state/filler (NOT the IPEDS candidate's city, which would
+          // circularly confirm any branch — e.g. "Indiana University" [Bloomington] must not match
+          // "Indiana University-Indianapolis" just because that branch sits in Indianapolis).
           let cSub = true; for (const t of v) if (!p.tokName.has(t)) { cSub = false; break; }
           if (cSub) {
             const extra = new Set([...p.tokName].filter((t) => !v.has(t)));
-            if (confirmed(extra, ipCity) && j > bestScore) { bestScore = j; best = p; bestMethod = 'name_reverse'; }
+            if (confirmed(extra, new Set()) && j > bestScore) { bestScore = j; best = p; bestMethod = 'name_reverse'; }
           }
         }
       }
