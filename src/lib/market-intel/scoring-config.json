@@ -1,0 +1,109 @@
+{
+  "config_version": "v1",
+  "description": "Campus Market Intelligence scoring configuration. All weights and thresholds live here so the model can be re-tuned without touching pipeline or UI code. Scores are 0-100, percentile-normalized across the matched target universe so absolute size does not blow out the scale.",
+  "data_sources": {
+    "completions": "IPEDS Completions survey (C{year}_A), AWLEVEL=5 (bachelor's), MAJORNUM=1 (first majors). CIP 99=total, CIP 52.*=business, CIP 52.03*=accounting.",
+    "enrollment_fall": "IPEDS DRVEF2023 EFUG (fall undergraduate headcount).",
+    "enrollment_12mo": "IPEDS EFFY EFFYLEV=2 (12-month unduplicated undergraduate) for trend (2019 vs latest).",
+    "directory": "IPEDS HD2024 (UNITID, name, state, city, control).",
+    "years_available": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024],
+    "latest_completions_year": 2024,
+    "latest_year_provisional": true,
+    "provisional_note": "2024 completions are the IPEDS PROVISIONAL release (no revised _RV file yet as of 2026-08); earlier years use revised _RV files. The source year is preserved on every row. Fall undergrad enrollment is DRVEF2023 (DRVEF2024 not yet released); enrollment_source_year is stamped separately.",
+    "enrollment_fall_year": 2023
+  },
+
+  "intro1_estimate": {
+    "method": "business_bachelors_x_multiplier",
+    "multiplier": 2.4,
+    "confidence": "low",
+    "label": "ESTIMATED, NOT ACTUAL ENROLLMENT",
+    "rationale": "Annual business bachelor's completions x multiplier approximates the yearly Intro Financial Accounting seat pool. The multiplier accounts for: business majors nearly all pass through Intro Financial Accounting; students who start business and switch out; business minors and adjacent majors (econ, IS) who take intro; and retakes. 2.4 is a deliberately conservative placeholder. Recalibrate against real course-enrollment samples when available; store per-campus overrides rather than editing this default."
+  },
+
+  "growth": {
+    "min_base_business": 25,
+    "meaningful_market_min_business": 100,
+    "min_denominator_handling": "A growth RATE for a window only counts if that window's baseline business completions >= min_base_business (25). Below that the rate is statistically noise (e.g. 2->10, 0->25 new programs) and is excluded from the momentum score rather than allowed to top the ranking. Share change is additionally damped by a small-market size factor.",
+    "meaningful_market": "latest_business_bachelors >= meaningful_market_min_business. Required for the RAPID_GROWTH label and for the 'fastest-growing meaningful markets' output lists, so a tiny program cannot headline growth.",
+    "small_market_size_factor": "min(1, latest_business_bachelors / min_base_business) applied to share-change and enrollment-trend signals.",
+    "insufficient_if_years_lt": 2,
+    "windows": { "growth_1y": 1, "growth_3y": 3, "growth_5y": 5, "cagr_years": 5 },
+    "momentum_label_percentiles": { "RAPID_GROWTH": 90, "GROWING": 65, "STABLE": 35 }
+  },
+
+  "market_opportunity_v1": {
+    "score_version": "market_opportunity_v1",
+    "components": {
+      "business_opportunity": { "weight": 0.40, "metric": "estimated_intro1_annual", "normalize": "percentile" },
+      "undergrad_enrollment": { "weight": 0.20, "metric": "undergrad_enrollment", "normalize": "percentile" },
+      "business_concentration": { "weight": 0.15, "metric": "business_share_of_bachelors", "normalize": "percentile" },
+      "greek_opportunity": { "weight": 0.15, "metric": "greek_chapter_count", "normalize": "percentile" },
+      "accounting_relevance": { "weight": 0.10, "metric": "accounting_bachelors", "normalize": "percentile" }
+    }
+  },
+
+  "growth_momentum_v1": {
+    "score_version": "growth_momentum_v1",
+    "components": {
+      "business_5y_cagr": { "weight": 0.40, "metric": "business_5y_cagr_shrunk", "normalize": "percentile" },
+      "business_3y_growth": { "weight": 0.25, "metric": "business_growth_3y_shrunk", "normalize": "percentile" },
+      "business_share_change": { "weight": 0.15, "metric": "business_share_change_5y", "normalize": "percentile" },
+      "undergrad_trend": { "weight": 0.10, "metric": "undergrad_growth_5y", "normalize": "percentile" },
+      "accounting_trend": { "weight": 0.10, "metric": "accounting_growth_5y_shrunk", "normalize": "percentile" }
+    }
+  },
+
+  "distribution_strength_v1": {
+    "score_version": "distribution_strength_v1",
+    "renormalize_missing": true,
+    "note": "Components not yet researched are EXCLUDED (not scored as zero); available weights are renormalized to 100%. distribution_data_completeness = sum(available weights). Recompute after the structural Campus Backfill settles.",
+    "components": {
+      "greek_opportunity": { "weight": 0.35, "metric": "greek_chapter_count", "normalize": "percentile", "availability": "campus_greek_chapters" },
+      "council_contact_coverage": { "weight": 0.25, "metric": "councils_with_contacts", "normalize": "councils_of_4", "availability": "campus_council_status" },
+      "role_inbox_coverage": { "weight": 0.15, "metric": "councils_with_role_inbox", "normalize": "councils_of_4", "availability": "campus_council_status" },
+      "chapter_contact_coverage": { "weight": 0.10, "metric": "chapter_contact_ratio", "normalize": "ratio", "availability": "greek_chapter_contacts" },
+      "women_in_business": { "weight": 0.10, "metric": "has_women_in_business_contact", "normalize": "boolean", "availability": "growth_business_clubs" },
+      "finance_club": { "weight": 0.05, "metric": "has_finance_club_contact", "normalize": "boolean", "availability": "growth_business_clubs" }
+    }
+  },
+
+  "live_demand_v1": {
+    "status": "COMING_SOON",
+    "note": "First-party demand events (landing_page_events, orders, campus_waitlist, practice_attempts) exist but are too sparse and partially unattributed (practice_attempts has free-text campus, no campus_id) to score reliably universe-wide in V1. Raw first-party signal counts are exposed per campus for transparency; live_demand_score is null and carries zero weight until a real analytics feed (e.g. PostHog) is connected.",
+    "raw_signal_tables": ["landing_page_events", "orders", "campus_waitlist"]
+  },
+
+  "course_readiness_v1": {
+    "status": "COMING_SOON",
+    "score": null,
+    "weight_in_outreach_priority": 0.0,
+    "note": "Designed into the model for Course Intel to plug in later. Contributes ZERO weight to Outreach Priority in V1."
+  },
+
+  "outreach_priority_v1": {
+    "score_version": "outreach_priority_v1",
+    "renormalize_missing": true,
+    "note": "MARKET score, separate from CURRENT ACTION PRIORITY. Suppressions/guardrails (opt-out, unsubscribed, ineligible, recently contacted, active conversation) are applied as a separate action layer, never baked into this score.",
+    "components": {
+      "market_opportunity": { "weight": 0.50, "source": "market_opportunity_v1" },
+      "distribution_strength": { "weight": 0.25, "source": "distribution_strength_v1" },
+      "growth_momentum": { "weight": 0.20, "source": "growth_momentum_v1" },
+      "live_demand": { "weight": 0.05, "source": "live_demand_v1" },
+      "course_readiness": { "weight": 0.0, "source": "course_readiness_v1" }
+    }
+  },
+
+  "enrichment_priority_v1": {
+    "score_version": "enrichment_priority_v1",
+    "note": "Which valuable campuses still have important missing structural data. enrichment_priority = market_opportunity_score * (1 - structural_completeness). NOT the same as outreach priority: a high-market campus with low structural completeness is a top ENRICHMENT target but not yet the best outreach target.",
+    "structural_components": ["greek_chapters", "council_contacts", "role_inboxes", "business_clubs"],
+    "structural_component_weights": { "greek_chapters": 0.4, "council_contacts": 0.3, "role_inboxes": 0.2, "business_clubs": 0.1 }
+  },
+
+  "action_guardrails_v1": {
+    "note": "Applied to derive CURRENT ACTION PRIORITY from OUTREACH PRIORITY. Kept separate from the market score.",
+    "suppress_if": ["campus.outreach_status == opted_out", "recipient suppressed/unsubscribed (comms_suppressions)", "campus.ready_for_outreach == false AND not eligible", "last_outreach_at within recent window", "active conversation underway"],
+    "recent_outreach_days": 21
+  }
+}

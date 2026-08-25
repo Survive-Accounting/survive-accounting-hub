@@ -1,0 +1,4 @@
+# Large rebuildable pipeline intermediates (regenerate via parse-ipeds.mjs / match.mjs / compute.mjs)
+ipeds.json
+matches.json
+results.json

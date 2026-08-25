@@ -1,0 +1,1648 @@
+{
+  "generated_at_source_run": "2026-08-25T12:00:00Z",
+  "audit_note": "Read-only audit of the existing computed run; no recompute or DB mutation performed.",
+  "overall_status": {
+    "verdict": "PARTIAL",
+    "config_version": "v1",
+    "latest_official_data_year": 2024,
+    "latest_year_provisional": true,
+    "target_universe": 829,
+    "ipeds_matched_in_universe": 813,
+    "match_rate_pct": 98.1,
+    "scored_records": 832,
+    "distinct_four_year_institutions": 675,
+    "two_year_records": 104,
+    "identity_review": 16,
+    "identity_review_systems_districts": 10,
+    "identity_review_other": 6,
+    "duplicate_unitid_rows": 108,
+    "duplicate_unitid_groups": 54,
+    "years_of_history": {
+      "range": "2015-2024",
+      "median_years_loaded": 10,
+      "institutions_with_9plus_years": 632
+    }
+  },
+  "db_readonly": {
+    "campus_market_intelligence": "832",
+    "identity_review": "124",
+    "legacy_tam_estimates": {
+      "rows": 455,
+      "by_source_type": {
+        "ai_estimate": 140,
+        "adoption_proxy": 147,
+        "unavailable": 123,
+        "ipeds": 5,
+        "manual_override": 17,
+        "opensyllabus_proxy": 12,
+        "public_course_schedule": 1,
+        "college_scorecard": 10
+      },
+      "with_source_year": 41,
+      "note": "LEGACY — not used by this layer"
+    },
+    "campus_intelligence_rows": "444"
+  },
+  "raw_market_data": {
+    "undergrad_enrollment": {
+      "n": 673,
+      "min": 14,
+      "p10": 1381,
+      "p25": 2551,
+      "median": 5510,
+      "p75": 11859,
+      "p90": 23613,
+      "max": 70991,
+      "mean": 9254.1,
+      "sum": 6227991
+    },
+    "business_bachelors": {
+      "n": 675,
+      "min": 0,
+      "p10": 14,
+      "p25": 61,
+      "median": 166,
+      "p75": 426,
+      "p90": 895,
+      "max": 2726,
+      "mean": 327.4,
+      "sum": 221024
+    },
+    "accounting_bachelors": {
+      "n": 675,
+      "min": 0,
+      "p10": 0,
+      "p25": 0,
+      "median": 17,
+      "p75": 46,
+      "p90": 103,
+      "max": 513,
+      "mean": 35.4,
+      "sum": 23871
+    },
+    "business_share": {
+      "n": 665,
+      "min": 0,
+      "p10": 0.0753,
+      "p25": 0.1344,
+      "median": 0.1778,
+      "p75": 0.2338,
+      "p90": 0.3103,
+      "max": 1,
+      "mean": 0.2,
+      "sum": 131.98949999999985
+    },
+    "business_growth_5y_meaningful": {
+      "n": 436,
+      "min": -0.6502,
+      "p10": -0.3569,
+      "p25": -0.2334,
+      "median": -0.075,
+      "p75": 0.0831,
+      "p90": 0.2878,
+      "max": 61.75,
+      "mean": 0.1,
+      "sum": 39.57189999999996
+    },
+    "non_authoritative_sources": {
+      "warning": "These legacy tables are AI/proxy estimates and must NOT be treated as authoritative. This layer ignores them and uses only IPEDS.",
+      "campus_tam_estimates": {
+        "rows": 455,
+        "by_source_type": {
+          "ai_estimate": 140,
+          "adoption_proxy": 147,
+          "unavailable": 123,
+          "ipeds": 5,
+          "manual_override": 17,
+          "opensyllabus_proxy": 12,
+          "public_course_schedule": 1,
+          "college_scorecard": 10
+        },
+        "with_source_year": 41,
+        "note": "LEGACY — not used by this layer"
+      },
+      "campus_intelligence_rows": "444"
+    }
+  },
+  "intro1_tam": {
+    "method": "business_bachelors_x_multiplier",
+    "multiplier": 2.4,
+    "confidence": "low",
+    "label": "ESTIMATED, NOT ACTUAL ENROLLMENT",
+    "total_est_intro1_annual": 530461,
+    "median_campus_estimate": 398,
+    "multiplier_sensitivity": [
+      {
+        "multiplier": 1.5,
+        "total_est_intro1": 331536,
+        "current": false
+      },
+      {
+        "multiplier": 2,
+        "total_est_intro1": 442048,
+        "current": false
+      },
+      {
+        "multiplier": 2.4,
+        "total_est_intro1": 530458,
+        "current": true
+      },
+      {
+        "multiplier": 3,
+        "total_est_intro1": 663072,
+        "current": false
+      },
+      {
+        "multiplier": 3.5,
+        "total_est_intro1": 773584,
+        "current": false
+      }
+    ],
+    "top25": [
+      {
+        "campus": "Florida International University",
+        "state": "FL",
+        "est_intro1": 6542,
+        "business": 2726
+      },
+      {
+        "campus": "CUNY-Baruch College New",
+        "state": "NY",
+        "est_intro1": 5993,
+        "business": 2497
+      },
+      {
+        "campus": "Indiana University Bloomington",
+        "state": "IN",
+        "est_intro1": 5866,
+        "business": 2444
+      },
+      {
+        "campus": "San Diego State University",
+        "state": "CA",
+        "est_intro1": 5597,
+        "business": 2332
+      },
+      {
+        "campus": "University of Georgia",
+        "state": "GA",
+        "est_intro1": 5594,
+        "business": 2331
+      },
+      {
+        "campus": "Univ of Central Florida",
+        "state": "FL",
+        "est_intro1": 5496,
+        "business": 2290
+      },
+      {
+        "campus": "University of Houston",
+        "state": "TX",
+        "est_intro1": 5470,
+        "business": 2279
+      },
+      {
+        "campus": "California State University-Fullerton",
+        "state": "CA",
+        "est_intro1": 5410,
+        "business": 2254
+      },
+      {
+        "campus": "Liberty University",
+        "state": "VA",
+        "est_intro1": 4709,
+        "business": 1962
+      },
+      {
+        "campus": "University of Alabama",
+        "state": "AL",
+        "est_intro1": 4618,
+        "business": 1924
+      },
+      {
+        "campus": "Texas A&M University Coll",
+        "state": "TX",
+        "est_intro1": 4342,
+        "business": 1809
+      },
+      {
+        "campus": "Penn State University Univ",
+        "state": "PA",
+        "est_intro1": 4296,
+        "business": 1790
+      },
+      {
+        "campus": "Virginia Poly Inst & St Un",
+        "state": "VA",
+        "est_intro1": 4135,
+        "business": 1723
+      },
+      {
+        "campus": "University of Tennessee, Knoxville",
+        "state": "TN",
+        "est_intro1": 4111,
+        "business": 1713
+      },
+      {
+        "campus": "University of South Florida",
+        "state": "FL",
+        "est_intro1": 4090,
+        "business": 1704
+      },
+      {
+        "campus": "San Jose State University San",
+        "state": "CA",
+        "est_intro1": 3874,
+        "business": 1614
+      },
+      {
+        "campus": "Calif State Univ, Northridge",
+        "state": "CA",
+        "est_intro1": 3778,
+        "business": 1574
+      },
+      {
+        "campus": "Auburn University",
+        "state": "AL",
+        "est_intro1": 3662,
+        "business": 1526
+      },
+      {
+        "campus": "California State Polytechnic University-Pomona",
+        "state": "CA",
+        "est_intro1": 3634,
+        "business": 1514
+      },
+      {
+        "campus": "University of North Texas",
+        "state": "TX",
+        "est_intro1": 3588,
+        "business": 1495
+      },
+      {
+        "campus": "University of Arkansas",
+        "state": "AR",
+        "est_intro1": 3540,
+        "business": 1475
+      },
+      {
+        "campus": "Michigan State University East",
+        "state": "MI",
+        "est_intro1": 3526,
+        "business": 1469
+      },
+      {
+        "campus": "Clemson University",
+        "state": "SC",
+        "est_intro1": 3473,
+        "business": 1447
+      },
+      {
+        "campus": "Texas Tech University",
+        "state": "TX",
+        "est_intro1": 3456,
+        "business": 1440
+      },
+      {
+        "campus": "University of Wisconsin–Madison",
+        "state": "WI",
+        "est_intro1": 3394,
+        "business": 1414
+      }
+    ],
+    "calibration_recommendation": [
+      "Sample 25-30 campuses stratified by business-completion size (small <200, mid 200-800, large >800).",
+      "For each, obtain ACTUAL Intro Financial Accounting section enrollment (registrar course schedule / campus_course_sections / syllabi in course_document) for one recent term x2 (fall+spring).",
+      "Back out realized multiplier = actual_annual_intro1_seats / business_bachelors; compare distribution vs the 2.4 default.",
+      "Set per-campus overrides where sampled; keep 2.4 as the global prior until >=20 samples, then refit."
+    ]
+  },
+  "market_opportunity": {
+    "top25": [
+      {
+        "campus": "University of Alabama",
+        "state": "AL",
+        "MO": 96.3,
+        "business": 1924,
+        "accounting": 238,
+        "business_share": 0.2913,
+        "undergrad": 33435,
+        "greek": 71,
+        "drivers": [
+          "1,924 business grads/year (2024)",
+          "Business completions -1% over 5Y",
+          "71 social Greek chapters",
+          "IFC + MGC + NPHC + PANHELLENIC contacts verified",
+          "Large undergrad population (33,435)"
+        ]
+      },
+      {
+        "campus": "University of Georgia",
+        "state": "GA",
+        "MO": 95.7,
+        "business": 2331,
+        "accounting": 156,
+        "business_share": 0.2813,
+        "undergrad": 31514,
+        "greek": 67,
+        "drivers": [
+          "2,331 business grads/year (2024)",
+          "Business completions +20% over 5Y",
+          "67 social Greek chapters",
+          "IFC + MGC + NPHC + PANHELLENIC contacts verified",
+          "Large undergrad population (31,514)"
+        ]
+      },
+      {
+        "campus": "CUNY-Baruch College New",
+        "state": "NY",
+        "MO": 95,
+        "business": 2497,
+        "accounting": 513,
+        "business_share": 0.7213,
+        "undergrad": 16086,
+        "greek": null,
+        "drivers": [
+          "2,497 business grads/year (2024)",
+          "Business completions -14% over 5Y",
+          "Large undergrad population (16,086)",
+          "513 accounting grads/year",
+          "Business-heavy (72% of bachelor's)"
+        ]
+      },
+      {
+        "campus": "University of Tennessee, Knoxville",
+        "state": "TN",
+        "MO": 94,
+        "business": 1713,
+        "accounting": 144,
+        "business_share": 0.2832,
+        "undergrad": 28883,
+        "greek": 59,
+        "drivers": [
+          "1,713 business grads/year (2024)",
+          "Business completions +39% over 5Y",
+          "59 social Greek chapters",
+          "Large undergrad population (28,883)",
+          "144 accounting grads/year"
+        ]
+      },
+      {
+        "campus": "University of Houston",
+        "state": "TX",
+        "MO": 93.6,
+        "business": 2279,
+        "accounting": 275,
+        "business_share": 0.2805,
+        "undergrad": 37946,
+        "greek": 34,
+        "drivers": [
+          "2,279 business grads/year (2024)",
+          "Business completions +6% over 5Y",
+          "34 social Greek chapters",
+          "Large undergrad population (37,946)",
+          "275 accounting grads/year"
+        ]
+      },
+      {
+        "campus": "Auburn University",
+        "state": "AL",
+        "MO": 92.6,
+        "business": 1526,
+        "accounting": 156,
+        "business_share": 0.2626,
+        "undergrad": 26874,
+        "greek": 56,
+        "drivers": [
+          "1,526 business grads/year (2024)",
+          "Business completions +28% over 5Y",
+          "56 social Greek chapters",
+          "Large undergrad population (26,874)",
+          "156 accounting grads/year"
+        ]
+      },
+      {
+        "campus": "Florida International University",
+        "state": "FL",
+        "MO": 92.6,
+        "business": 2726,
+        "accounting": 165,
+        "business_share": 0.237,
+        "undergrad": 44363,
+        "greek": 34,
+        "drivers": [
+          "2,726 business grads/year (2024)",
+          "Business completions -2% over 5Y",
+          "34 social Greek chapters",
+          "Large undergrad population (44,363)",
+          "165 accounting grads/year"
+        ]
+      },
+      {
+        "campus": "University of Arkansas",
+        "state": "AR",
+        "MO": 92.3,
+        "business": 1475,
+        "accounting": 142,
+        "business_share": 0.2959,
+        "undergrad": 27472,
+        "greek": 49,
+        "drivers": [
+          "1,475 business grads/year (2024)",
+          "Business completions +10% over 5Y",
+          "49 social Greek chapters",
+          "Large undergrad population (27,472)",
+          "142 accounting grads/year"
+        ]
+      },
+      {
+        "campus": "Clemson University",
+        "state": "SC",
+        "MO": 91.8,
+        "business": 1447,
+        "accounting": 163,
+        "business_share": 0.2554,
+        "undergrad": 22875,
+        "greek": 57,
+        "drivers": [
+          "1,447 business grads/year (2024)",
+          "Business completions +54% over 5Y",
+          "57 social Greek chapters",
+          "Large undergrad population (22,875)",
+          "163 accounting grads/year"
+        ]
+      },
+      {
+        "campus": "Virginia Poly Inst & St Un",
+        "state": "VA",
+        "MO": 91.3,
+        "business": 1723,
+        "accounting": 128,
+        "business_share": 0.2237,
+        "undergrad": 30504,
+        "greek": null,
+        "drivers": [
+          "1,723 business grads/year (2024)",
+          "Business completions +23% over 5Y",
+          "Large undergrad population (30,504)",
+          "128 accounting grads/year"
+        ]
+      },
+      {
+        "campus": "Utah Valley University",
+        "state": "UT",
+        "MO": 90.3,
+        "business": 999,
+        "accounting": 146,
+        "business_share": 0.2292,
+        "undergrad": 43794,
+        "greek": null,
+        "drivers": [
+          "999 business grads/year (2024)",
+          "Business completions +36% over 5Y",
+          "Large undergrad population (43,794)",
+          "146 accounting grads/year"
+        ]
+      },
+      {
+        "campus": "Calif State Univ, Northridge",
+        "state": "CA",
+        "MO": 89.6,
+        "business": 1574,
+        "accounting": 229,
+        "business_share": 0.1917,
+        "undergrad": 32429,
+        "greek": null,
+        "drivers": [
+          "1,574 business grads/year (2024)",
+          "Business completions -6% over 5Y",
+          "Large undergrad population (32,429)",
+          "229 accounting grads/year"
+        ]
+      },
+      {
+        "campus": "Indiana University Bloomington",
+        "state": "IN",
+        "MO": 89.3,
+        "business": 2444,
+        "accounting": 0,
+        "business_share": 0.333,
+        "undergrad": 36833,
+        "greek": 68,
+        "drivers": [
+          "2,444 business grads/year (2024)",
+          "Business completions +20% over 5Y",
+          "68 social Greek chapters",
+          "Large undergrad population (36,833)",
+          "Business-heavy (33% of bachelor's)"
+        ]
+      },
+      {
+        "campus": "University of Kentucky",
+        "state": "KY",
+        "MO": 89.2,
+        "business": 1109,
+        "accounting": 152,
+        "business_share": 0.2194,
+        "undergrad": 23930,
+        "greek": 57,
+        "drivers": [
+          "1,109 business grads/year (2024)",
+          "Business completions +20% over 5Y",
+          "57 social Greek chapters",
+          "Large undergrad population (23,930)",
+          "152 accounting grads/year"
+        ]
+      },
+      {
+        "campus": "University of North Texas",
+        "state": "TX",
+        "MO": 88.9,
+        "business": 1495,
+        "accounting": 222,
+        "business_share": 0.1982,
+        "undergrad": 33858,
+        "greek": 40,
+        "drivers": [
+          "1,495 business grads/year (2024)",
+          "Business completions +5% over 5Y",
+          "40 social Greek chapters",
+          "Large undergrad population (33,858)",
+          "222 accounting grads/year"
+        ]
+      },
+      {
+        "campus": "University of Mississippi",
+        "state": "MS",
+        "MO": 88.1,
+        "business": 1058,
+        "accounting": 217,
+        "business_share": 0.2723,
+        "undergrad": 19094,
+        "greek": 37,
+        "drivers": [
+          "1,058 business grads/year (2024)",
+          "Business completions -13% over 5Y",
+          "37 social Greek chapters",
+          "Large undergrad population (19,094)",
+          "217 accounting grads/year"
+        ]
+      },
+      {
+        "campus": "Penn State University Univ",
+        "state": "PA",
+        "MO": 88.1,
+        "business": 1790,
+        "accounting": 219,
+        "business_share": 0.164,
+        "undergrad": 42223,
+        "greek": null,
+        "drivers": [
+          "1,790 business grads/year (2024)",
+          "Business completions +9% over 5Y",
+          "Large undergrad population (42,223)",
+          "219 accounting grads/year"
+        ]
+      },
+      {
+        "campus": "Appalachian State Univ",
+        "state": "NC",
+        "MO": 87.9,
+        "business": 1065,
+        "accounting": 99,
+        "business_share": 0.2491,
+        "undergrad": 19405,
+        "greek": null,
+        "drivers": [
+          "1,065 business grads/year (2024)",
+          "Business completions +35% over 5Y",
+          "Large undergrad population (19,405)",
+          "99 accounting grads/year"
+        ]
+      },
+      {
+        "campus": "University of Houston - Downtown",
+        "state": "TX",
+        "MO": 87.9,
+        "business": 1057,
+        "accounting": 240,
+        "business_share": 0.3644,
+        "undergrad": 12880,
+        "greek": 36,
+        "drivers": [
+          "1,057 business grads/year (2024)",
+          "Business completions +20% over 5Y",
+          "36 social Greek chapters",
+          "Council contacts verified",
+          "Large undergrad population (12,880)"
+        ]
+      },
+      {
+        "campus": "DePaul University",
+        "state": "IL",
+        "MO": 87.8,
+        "business": 935,
+        "accounting": 173,
+        "business_share": 0.3063,
+        "undergrad": 14374,
+        "greek": null,
+        "drivers": [
+          "935 business grads/year (2024)",
+          "Business completions -8% over 5Y",
+          "Large undergrad population (14,374)",
+          "173 accounting grads/year",
+          "Business-heavy (31% of bachelor's)"
+        ]
+      },
+      {
+        "campus": "Univ of Central Florida",
+        "state": "FL",
+        "MO": 87.8,
+        "business": 2290,
+        "accounting": 196,
+        "business_share": 0.1541,
+        "undergrad": 59470,
+        "greek": null,
+        "drivers": [
+          "2,290 business grads/year (2024)",
+          "Business completions -14% over 5Y",
+          "Large undergrad population (59,470)",
+          "196 accounting grads/year"
+        ]
+      },
+      {
+        "campus": "University of Wisconsin–Madison",
+        "state": "WI",
+        "MO": 87.7,
+        "business": 1414,
+        "accounting": 108,
+        "business_share": 0.171,
+        "undergrad": 36797,
+        "greek": 60,
+        "drivers": [
+          "1,414 business grads/year (2024)",
+          "Business completions +39% over 5Y",
+          "60 social Greek chapters",
+          "Large undergrad population (36,797)",
+          "108 accounting grads/year"
+        ]
+      },
+      {
+        "campus": "University of Cincinnati-Main Campus",
+        "state": "OH",
+        "MO": 87.6,
+        "business": 1248,
+        "accounting": 92,
+        "business_share": 0.1985,
+        "undergrad": 31184,
+        "greek": 50,
+        "drivers": [
+          "1,248 business grads/year (2024)",
+          "Business completions +13% over 5Y",
+          "50 social Greek chapters",
+          "IFC + MGC contacts verified",
+          "Large undergrad population (31,184)"
+        ]
+      },
+      {
+        "campus": "University of South Florida",
+        "state": "FL",
+        "MO": 87.5,
+        "business": 1704,
+        "accounting": 253,
+        "business_share": 0.1724,
+        "undergrad": 37269,
+        "greek": 39,
+        "drivers": [
+          "1,704 business grads/year (2024)",
+          "Business completions +29% over 5Y",
+          "39 social Greek chapters",
+          "Large undergrad population (37,269)",
+          "253 accounting grads/year"
+        ]
+      },
+      {
+        "campus": "Florida Atlantic University",
+        "state": "FL",
+        "MO": 87.3,
+        "business": 1389,
+        "accounting": 205,
+        "business_share": 0.2368,
+        "undergrad": 24614,
+        "greek": 27,
+        "drivers": [
+          "1,389 business grads/year (2024)",
+          "Business completions +12% over 5Y",
+          "27 social Greek chapters",
+          "Large undergrad population (24,614)",
+          "205 accounting grads/year"
+        ]
+      }
+    ],
+    "large_market_false_negatives": [],
+    "small_school_false_positives": [],
+    "outliers_note": "Community colleges are segmented out; liberal-arts colleges with 0 CIP-52 business majors (Yale/Barnard/Occidental) correctly score low."
+  },
+  "growth_momentum": {
+    "labels": {
+      "RAPID_GROWTH": 51,
+      "GROWING": 176,
+      "STABLE": 200,
+      "DECLINING": 236,
+      "INSUFFICIENT_DATA": 12
+    },
+    "top_meaningful_growers": [
+      {
+        "campus": "Morehouse College",
+        "state": "GA",
+        "GM": 97.9,
+        "business_5y": "86→150",
+        "growth_5y": 0.7442
+      },
+      {
+        "campus": "Southern Utah University Cedar",
+        "state": "UT",
+        "GM": 96.6,
+        "business_5y": "148→265",
+        "growth_5y": 0.7905
+      },
+      {
+        "campus": "Lander University",
+        "state": "SC",
+        "GM": 96.3,
+        "business_5y": "133→213",
+        "growth_5y": 0.6015
+      },
+      {
+        "campus": "Fayetteville State Univ",
+        "state": "NC",
+        "GM": 96,
+        "business_5y": "134→234",
+        "growth_5y": 0.7463
+      },
+      {
+        "campus": "Louisiana State University Alexandria",
+        "state": "LA",
+        "GM": 96,
+        "business_5y": "80→160",
+        "growth_5y": 1
+      },
+      {
+        "campus": "Clemson University",
+        "state": "SC",
+        "GM": 95.8,
+        "business_5y": "938→1447",
+        "growth_5y": 0.5426
+      },
+      {
+        "campus": "Univ of California San Diego La",
+        "state": "CA",
+        "GM": 94.8,
+        "business_5y": "200→429",
+        "growth_5y": 1.145
+      },
+      {
+        "campus": "Indiana University Kokomo",
+        "state": "IN",
+        "GM": 94.3,
+        "business_5y": "66→117",
+        "growth_5y": 0.7727
+      },
+      {
+        "campus": "Fairfield University",
+        "state": "CT",
+        "GM": 93.9,
+        "business_5y": "359→482",
+        "growth_5y": 0.3426
+      },
+      {
+        "campus": "Murray State University",
+        "state": "KY",
+        "GM": 93.6,
+        "business_5y": "182→262",
+        "growth_5y": 0.4396
+      },
+      {
+        "campus": "University of Tennessee, Knoxville",
+        "state": "TN",
+        "GM": 92.6,
+        "business_5y": "1229→1713",
+        "growth_5y": 0.3938
+      },
+      {
+        "campus": "Norfolk State University",
+        "state": "VA",
+        "GM": 92.6,
+        "business_5y": "70→118",
+        "growth_5y": 0.6857
+      },
+      {
+        "campus": "San Diego State University",
+        "state": "CA",
+        "GM": 92.1,
+        "business_5y": "1756→2332",
+        "growth_5y": 0.328
+      },
+      {
+        "campus": "Appalachian State Univ",
+        "state": "NC",
+        "GM": 91.5,
+        "business_5y": "787→1065",
+        "growth_5y": 0.3532
+      },
+      {
+        "campus": "Montana State University",
+        "state": "MT",
+        "GM": 91.3,
+        "business_5y": "267→389",
+        "growth_5y": 0.4569
+      },
+      {
+        "campus": "Texas Christian University Fort",
+        "state": "TX",
+        "GM": 91,
+        "business_5y": "523→701",
+        "growth_5y": 0.3403
+      },
+      {
+        "campus": "Indiana University Bloomington",
+        "state": "IN",
+        "GM": 90.8,
+        "business_5y": "2030→2444",
+        "growth_5y": 0.2039
+      },
+      {
+        "campus": "Trinity University San",
+        "state": "TX",
+        "GM": 90.8,
+        "business_5y": "114→155",
+        "growth_5y": 0.3596
+      },
+      {
+        "campus": "Florida A&M University",
+        "state": "FL",
+        "GM": 90.5,
+        "business_5y": "101→166",
+        "growth_5y": 0.6436
+      },
+      {
+        "campus": "University of Wisconsin–Madison",
+        "state": "WI",
+        "GM": 90,
+        "business_5y": "1020→1414",
+        "growth_5y": 0.3863
+      }
+    ],
+    "steepest_decliners_meaningful": [
+      {
+        "campus": "University of Pennsylvania",
+        "state": "PA",
+        "GM": 5.6,
+        "business_5y": "609→213",
+        "growth_5y": -0.6502
+      },
+      {
+        "campus": "Lindenwood University St.",
+        "state": "MO",
+        "GM": 14.6,
+        "business_5y": "632→279",
+        "growth_5y": -0.5585
+      },
+      {
+        "campus": "Southern Illinois Univ",
+        "state": "IL",
+        "GM": 10.7,
+        "business_5y": "342→157",
+        "growth_5y": -0.5409
+      },
+      {
+        "campus": "Northeastern Illinois Univ",
+        "state": "IL",
+        "GM": 5,
+        "business_5y": "326→151",
+        "growth_5y": -0.5368
+      },
+      {
+        "campus": "Salem State University",
+        "state": "MA",
+        "GM": 4.7,
+        "business_5y": "359→169",
+        "growth_5y": -0.5292
+      },
+      {
+        "campus": "St. Cloud State University Saint",
+        "state": "MN",
+        "GM": 15,
+        "business_5y": "436→216",
+        "growth_5y": -0.5046
+      },
+      {
+        "campus": "University of La Verne",
+        "state": "CA",
+        "GM": 5,
+        "business_5y": "511→256",
+        "growth_5y": -0.499
+      },
+      {
+        "campus": "Wright State University",
+        "state": "OH",
+        "GM": 9.2,
+        "business_5y": "552→278",
+        "growth_5y": -0.4964
+      },
+      {
+        "campus": "Central Michigan University Mt.",
+        "state": "MI",
+        "GM": 8.6,
+        "business_5y": "1071→540",
+        "growth_5y": -0.4958
+      },
+      {
+        "campus": "Indiana University of Pennsylvania",
+        "state": "PA",
+        "GM": 10.4,
+        "business_5y": "548→277",
+        "growth_5y": -0.4945
+      },
+      {
+        "campus": "Truman State University",
+        "state": "MO",
+        "GM": 12,
+        "business_5y": "198→103",
+        "growth_5y": -0.4798
+      },
+      {
+        "campus": "Duquesne University",
+        "state": "PA",
+        "GM": 10,
+        "business_5y": "320→168",
+        "growth_5y": -0.475
+      },
+      {
+        "campus": "University of Montana",
+        "state": "MT",
+        "GM": 16.1,
+        "business_5y": "277→147",
+        "growth_5y": -0.4693
+      },
+      {
+        "campus": "University of Hartford W",
+        "state": "CT",
+        "GM": 13.2,
+        "business_5y": "193→108",
+        "growth_5y": -0.4404
+      },
+      {
+        "campus": "Radford University",
+        "state": "VA",
+        "GM": 13.7,
+        "business_5y": "295→166",
+        "growth_5y": -0.4373
+      },
+      {
+        "campus": "Abilene Christian Univ",
+        "state": "TX",
+        "GM": 12.5,
+        "business_5y": "193→109",
+        "growth_5y": -0.4352
+      },
+      {
+        "campus": "Eastern Michigan University",
+        "state": "MI",
+        "GM": 12.9,
+        "business_5y": "660→375",
+        "growth_5y": -0.4318
+      },
+      {
+        "campus": "University of Mount Olive",
+        "state": "NC",
+        "GM": 11.1,
+        "business_5y": "181→103",
+        "growth_5y": -0.4309
+      },
+      {
+        "campus": "Western Illinois University",
+        "state": "IL",
+        "GM": 18.4,
+        "business_5y": "243→140",
+        "growth_5y": -0.4239
+      },
+      {
+        "campus": "Pace University New",
+        "state": "NY",
+        "GM": 13.9,
+        "business_5y": "572→333",
+        "growth_5y": -0.4178
+      }
+    ],
+    "small_base_audit": {
+      "min_base_business": 25,
+      "gated_small_base_rows": 8,
+      "new_program_rows": 18,
+      "note": "Rates only count when the window baseline >= min_base_business; RAPID_GROWTH requires latest business >= 100 and excludes new 0-baseline programs."
+    },
+    "useful_signals": [
+      "5Y business CAGR (size-gated)",
+      "3Y business growth",
+      "business share change (direction of program mix)",
+      "undergrad enrollment trend (context)"
+    ],
+    "weak_signals": [
+      "accounting-only growth (many schools report all business under CIP 52.0101 so accounting reads 0/noisy)"
+    ]
+  },
+  "distribution_strength": {
+    "intentionally_deferred": true,
+    "computed_early_on_current_data": true,
+    "stale_warning": "Distribution Strength was computed on Greek/council data captured while the structural backfill + Growth Contact Intelligence runners were still populating campus_greek_chapters / campus_council_status. Treat current DS/Outreach/Enrichment as PROVISIONAL and refresh after backfill settles.",
+    "coverage": {
+      "four_year_scored": 488,
+      "of_total": 675,
+      "pct": 72
+    },
+    "data_completeness_distribution": {
+      "n": 488,
+      "min": 0.35,
+      "p10": 0.35,
+      "p25": 0.4,
+      "median": 0.4,
+      "p75": 0.75,
+      "p90": 0.75,
+      "max": 0.9,
+      "mean": 0.5,
+      "sum": 242.35000000000082
+    },
+    "refresh_command": "node scripts/market-intel/run-all.mjs && node scripts/market-intel/import.mjs",
+    "refresh_note": "run-all re-reads live campus_greek_chapters + campus_council_status/contacts + growth_business_clubs and recomputes Distribution Strength, Outreach Priority, Enrichment Priority (and the market/growth layer) from the cached IPEDS JSON — no IPEDS re-download. Then import reloads the DB."
+  },
+  "outreach_priority": {
+    "do_not_treat_as_final": true,
+    "top25_overlap_with_current_op": {
+      "market_only": 15,
+      "market_plus_growth": 19,
+      "market_plus_distribution": 19,
+      "of": 25
+    },
+    "biggest_movers_market_vs_current_op": [
+      {
+        "campus": "Vanderbilt University",
+        "state": "TN",
+        "op": 276,
+        "market": 536,
+        "delta": 260,
+        "ds": 76.2,
+        "gm": 57.9
+      },
+      {
+        "campus": "Indiana University Kokomo",
+        "state": "IN",
+        "op": 183,
+        "market": 437,
+        "delta": 254,
+        "ds": null,
+        "gm": 94.3
+      },
+      {
+        "campus": "Rice University",
+        "state": "TX",
+        "op": 311,
+        "market": 565,
+        "delta": 254,
+        "ds": null,
+        "gm": 92.1
+      },
+      {
+        "campus": "Western Nevada College",
+        "state": "NV",
+        "op": 215,
+        "market": 467,
+        "delta": 252,
+        "ds": null,
+        "gm": 95.7
+      },
+      {
+        "campus": "City Vision University",
+        "state": "MO",
+        "op": 320,
+        "market": 572,
+        "delta": 252,
+        "ds": null,
+        "gm": 89.9
+      },
+      {
+        "campus": "University of South Carolina",
+        "state": "SC",
+        "op": 90,
+        "market": 334,
+        "delta": 244,
+        "ds": 98,
+        "gm": 74.7
+      },
+      {
+        "campus": "Norfolk State University",
+        "state": "VA",
+        "op": 170,
+        "market": 409,
+        "delta": 239,
+        "ds": null,
+        "gm": 92.6
+      },
+      {
+        "campus": "Texas A&M Univ-Texarkana",
+        "state": "TX",
+        "op": 196,
+        "market": 428,
+        "delta": 232,
+        "ds": null,
+        "gm": 88.7
+      },
+      {
+        "campus": "Central Michigan University Mt.",
+        "state": "MI",
+        "op": 327,
+        "market": 97,
+        "delta": -230,
+        "ds": 0,
+        "gm": 8.6
+      },
+      {
+        "campus": "Erskine College",
+        "state": "SC",
+        "op": 286,
+        "market": 515,
+        "delta": 229,
+        "ds": 38.7,
+        "gm": 96.2
+      },
+      {
+        "campus": "Columbia International University",
+        "state": "SC",
+        "op": 287,
+        "market": 516,
+        "delta": 229,
+        "ds": 40.7,
+        "gm": 92.6
+      },
+      {
+        "campus": "Nelson University",
+        "state": "TX",
+        "op": 294,
+        "market": 523,
+        "delta": 229,
+        "ds": 56.3,
+        "gm": 69.4
+      }
+    ],
+    "weighting_problems": [
+      "Distribution carries 25% but is only present for ~72% of institutions, so for most campuses OP renormalizes to Market+Growth — DS currently rewards campuses that happen to be researched, not necessarily the best markets. Keep DS out of the headline rank until coverage is broad, or show a DS-known vs DS-pending split.",
+      "Live Demand (5%) is null everywhere → effectively Market 52.6% / Distribution 26.3% / Growth 21.1% after renormalization.",
+      "Course Readiness is 0% (correct for now) but reserved."
+    ]
+  },
+  "identity_quality": {
+    "match_methods": {
+      "exact_name": 268,
+      "national_exact": 65,
+      "name_prefix": 138,
+      "review_resolved_override": 18,
+      "name_reverse": 26,
+      "national_rename": 1,
+      "review_resolved_suggestion": 37,
+      "alias_exact": 6,
+      "existing_unitid": 273
+    },
+    "duplicate_groups": [
+      {
+        "unitid": "221759",
+        "campuses": [
+          "University of Tennessee, Knoxville",
+          "University of Tennessee"
+        ]
+      },
+      {
+        "unitid": "151351",
+        "campuses": [
+          "Indiana University Bloomington",
+          "Indiana University"
+        ]
+      },
+      {
+        "unitid": "122409",
+        "campuses": [
+          "San Diego State University",
+          "San Diego State University San"
+        ]
+      },
+      {
+        "unitid": "228778",
+        "campuses": [
+          "University of Texas at Austin",
+          "The University of Texas at Austin"
+        ]
+      },
+      {
+        "unitid": "153658",
+        "campuses": [
+          "University of Iowa Iowa",
+          "University of Iowa"
+        ]
+      },
+      {
+        "unitid": "243780",
+        "campuses": [
+          "Purdue University W",
+          "Purdue University-Main Campus"
+        ]
+      },
+      {
+        "unitid": "196079",
+        "campuses": [
+          "Binghamton University",
+          "SUNYat Binghamton"
+        ]
+      },
+      {
+        "unitid": "135726",
+        "campuses": [
+          "University of Miami",
+          "University of Miami Coral"
+        ]
+      },
+      {
+        "unitid": "122755",
+        "campuses": [
+          "San Jose State University",
+          "San Jose State University San"
+        ]
+      },
+      {
+        "unitid": "110565",
+        "campuses": [
+          "California State University-Fullerton",
+          "Calif State Univ, Fullerton"
+        ]
+      },
+      {
+        "unitid": "170082",
+        "campuses": [
+          "Grand Valley State University Allendal",
+          "Grand Valley State Univ Grand"
+        ]
+      },
+      {
+        "unitid": "193900",
+        "campuses": [
+          "New York University New",
+          "New York University"
+        ]
+      },
+      {
+        "unitid": "110529",
+        "campuses": [
+          "Calif State Poly U-Pomona",
+          "California State Polytechnic University-Pomona"
+        ]
+      },
+      {
+        "unitid": "164580",
+        "campuses": [
+          "Babson College",
+          "Babson College Babson"
+        ]
+      },
+      {
+        "unitid": "110671",
+        "campuses": [
+          "University of California-Riverside",
+          "Univ of Calif, Riverside"
+        ]
+      },
+      {
+        "unitid": "196088",
+        "campuses": [
+          "SUNYat Buffalo",
+          "University at Buffalo"
+        ]
+      },
+      {
+        "unitid": "218645",
+        "campuses": [
+          "University of South Carolina",
+          "Univ So Carolina at Aiken"
+        ]
+      },
+      {
+        "unitid": "199148",
+        "campuses": [
+          "University of North Carolina at Greensboro",
+          "Univ No Carolina Greensboro"
+        ]
+      },
+      {
+        "unitid": "234030",
+        "campuses": [
+          "Virginia Commonwealth University",
+          "Virginia Commonwealth"
+        ]
+      },
+      {
+        "unitid": "135717",
+        "campuses": [
+          "Miami Dade College Virtual Campu",
+          "Miami Dade College"
+        ]
+      },
+      {
+        "unitid": "110653",
+        "campuses": [
+          "University of California-Irvine",
+          "Univ of Calif, Irvine"
+        ]
+      },
+      {
+        "unitid": "199218",
+        "campuses": [
+          "University of North Carolina-Wilmington",
+          "North Carolina Wilmington"
+        ]
+      },
+      {
+        "unitid": "110556",
+        "campuses": [
+          "California State University-Fresno",
+          "Calif State Univ, Fresno"
+        ]
+      },
+      {
+        "unitid": "196097",
+        "campuses": [
+          "Stony Brook University",
+          "Stony Brook University Stony"
+        ]
+      },
+      {
+        "unitid": "229267",
+        "campuses": [
+          "Trinity University",
+          "Trinity University San"
+        ]
+      },
+      {
+        "unitid": "106458",
+        "campuses": [
+          "Arkansas State University State",
+          "Arkansas State University"
+        ]
+      },
+      {
+        "unitid": "140447",
+        "campuses": [
+          "Mercer University",
+          "Mercer University-Macon"
+        ]
+      },
+      {
+        "unitid": "174075",
+        "campuses": [
+          "University of Minnesota",
+          "University of Minnesota Crookston"
+        ]
+      },
+      {
+        "unitid": "160038",
+        "campuses": [
+          "Louisiana State University",
+          "Northwestern State University"
+        ]
+      },
+      {
+        "unitid": "121150",
+        "campuses": [
+          "Pepperdine Un-Los Angeles Los",
+          "Pepperdine Univ-Malibu"
+        ]
+      },
+      {
+        "unitid": "151111",
+        "campuses": [
+          "Indiana U-Purdue U Indy",
+          "Indiana University Indianapolis"
+        ]
+      },
+      {
+        "unitid": "195003",
+        "campuses": [
+          "Rochester Institute of Technology",
+          "Rochester Inst of Technology"
+        ]
+      },
+      {
+        "unitid": "186371",
+        "campuses": [
+          "Rutgers, The State University of New Jersey",
+          "Rutgers University-Camden"
+        ]
+      },
+      {
+        "unitid": "224554",
+        "campuses": [
+          "East Texas A&M University",
+          "Texas A&M University-Commerce"
+        ]
+      },
+      {
+        "unitid": "178420",
+        "campuses": [
+          "University of Missouri–St. Louis",
+          "Univ of Missouri - St. Louis St."
+        ]
+      },
+      {
+        "unitid": "186867",
+        "campuses": [
+          "Stevens Institute of Technology",
+          "Stevens Institute of Tech"
+        ]
+      },
+      {
+        "unitid": "207847",
+        "campuses": [
+          "Southeastern Oklahoma State University",
+          "Southeastern Oklahoma St"
+        ]
+      },
+      {
+        "unitid": "127060",
+        "campuses": [
+          "Univ of Colorado at Denver",
+          "University of Denver"
+        ]
+      },
+      {
+        "unitid": "196167",
+        "campuses": [
+          "SUNY College at Geneseo",
+          "State Un College at Geneseo"
+        ]
+      },
+      {
+        "unitid": "166683",
+        "campuses": [
+          "Massachusetts Institute of Technology",
+          "Massachusetts Inst of Tech"
+        ]
+      },
+      {
+        "unitid": "227863",
+        "campuses": [
+          "University of St. Thomas-TX",
+          "University of St. Thomas"
+        ]
+      },
+      {
+        "unitid": "173045",
+        "campuses": [
+          "Augsburg University",
+          "Augsburg College"
+        ]
+      },
+      {
+        "unitid": "214713",
+        "campuses": [
+          "Pennsylvania State University",
+          "Penn State Univ-Harrisburg"
+        ]
+      },
+      {
+        "unitid": "136950",
+        "campuses": [
+          "Rollins College Liberal Arts Winter",
+          "Rollins College Winter"
+        ]
+      },
+      {
+        "unitid": "213321",
+        "campuses": [
+          "King's College",
+          "King's College - Pennsylvania"
+        ]
+      },
+      {
+        "unitid": "179043",
+        "campuses": [
+          "Rockhurst University",
+          "Rockhurst University Kansas"
+        ]
+      },
+      {
+        "unitid": "150987",
+        "campuses": [
+          "Ivy Technical Community College Kokomo S In Ivy Technical Community College Lafayette",
+          "Ivy Tech Community College"
+        ]
+      },
+      {
+        "unitid": "178341",
+        "campuses": [
+          "Missouri Southern State University",
+          "Missouri Southern St Univ"
+        ]
+      },
+      {
+        "unitid": "130794",
+        "campuses": [
+          "Yale University",
+          "Yale University New"
+        ]
+      },
+      {
+        "unitid": "110662",
+        "campuses": [
+          "Univ of Calif, Los Angeles Los",
+          "University of California, Los Angeles"
+        ]
+      },
+      {
+        "unitid": "489937",
+        "campuses": [
+          "Univ N Carolina at Pembroke",
+          "Univ N Carolina at Charlotte"
+        ]
+      },
+      {
+        "unitid": "181303",
+        "campuses": [
+          "Metro Community College Ft Omaha E",
+          "Metropolitan Community College"
+        ]
+      },
+      {
+        "unitid": "232195",
+        "campuses": [
+          "Germanna Virginia Community College",
+          "Germanna Community College"
+        ]
+      },
+      {
+        "unitid": "145725",
+        "campuses": [
+          "Illinois Institute of Technology",
+          "Illinois Institute of Tech"
+        ]
+      }
+    ],
+    "systems_districts_held": [
+      "San Mateo County Community College District",
+      "Houston Community College System",
+      "University of Minnesota System",
+      "North Dakota University System",
+      "California State University System",
+      "San Diego Community College District",
+      "Los Angeles Community College District",
+      "Coast Community College District",
+      "Dallas County Community College District",
+      "University of Hawaii System"
+    ],
+    "needs_human_decision": [
+      {
+        "campus": "Trinity College",
+        "state": null,
+        "reason": "low_conf_or_renamed",
+        "suggestion": "ambiguous national (2 candidates) — needs state (null) j=0"
+      },
+      {
+        "campus": "Alamo Colleges",
+        "state": "TX",
+        "reason": "low_conf_or_renamed",
+        "suggestion": "Alamo City Barber College (482981) j=0.2"
+      },
+      {
+        "campus": "Thunderbird Sch Global Mgt",
+        "state": "AZ",
+        "reason": "no_candidate",
+        "suggestion": null
+      },
+      {
+        "campus": "Test University",
+        "state": null,
+        "reason": "no_candidate",
+        "suggestion": null
+      },
+      {
+        "campus": "Lindenwood University Belleville",
+        "state": "IL",
+        "reason": "low_conf_or_renamed",
+        "suggestion": "Adler University (142832) j=0.25"
+      },
+      {
+        "campus": "Arkansas State University Technical Center",
+        "state": "AR",
+        "reason": "high_conf_suggestion_verify",
+        "suggestion": "Arkansas State University (106458) j=0.6"
+      },
+      {
+        "note": "54 duplicate-UNITID groups: decide a canonical campus row per institution and retire the messy re-import (e.g. \"Mercer University\" vs \"Mercer University-Macon\")."
+      }
+    ]
+  }
+}
