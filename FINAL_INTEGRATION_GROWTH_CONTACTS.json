@@ -1,0 +1,134 @@
+{
+  "session": "growth_contacts",
+  "generated": "2026-08-25",
+  "read_only_handoff": true,
+  "tables": [
+    { "name": "growth_public_contacts", "grain": "one contact-point per (entity, value)", "owner": "this_system", "pk": "id", "rows": 2675, "note": "chapter + club contacts (email/officer/social/general)" },
+    { "name": "growth_business_clubs", "grain": "one org per (campus, category, normalized_name)", "owner": "this_system", "pk": "id", "rows": 62 },
+    { "name": "growth_contact_evidence", "grain": "one source per contact/club value", "owner": "this_system", "pk": "id" },
+    { "name": "growth_discovery_status", "grain": "per (campus, category[, entity])", "owner": "this_system", "pk": "id" },
+    { "name": "growth_discovery_runs", "grain": "one per batch run", "owner": "this_system", "pk": "id" },
+    { "name": "growth_advisors", "grain": "one per advisor email", "owner": "this_system", "pk": "id", "rows": 391 },
+    { "name": "growth_advisor_links", "grain": "one per (advisor, entity)", "owner": "this_system", "pk": "id", "rows": 896 },
+    { "name": "growth_contact_qc", "grain": "one per (contact_source, source_id)", "owner": "this_system", "pk": "id", "rows": 4302 },
+    { "name": "campus_council_contacts", "grain": "one per (campus, council, email)", "owner": "campus_backfill_READ_ONLY", "pk": "id", "rows": 1565 },
+    { "name": "campus_council_status", "grain": "per (campus, council_type)", "owner": "campus_backfill_READ_ONLY", "pk": "id" },
+    { "name": "campus_greek_chapters", "grain": "one chapter instance per campus", "owner": "greek_registry", "pk": "id", "join_key": "council (free-text; use councilKey/councilMatches, never =)" },
+    { "name": "greek_orgs", "grain": "one national org", "owner": "greek_registry", "pk": "id" },
+    { "name": "greek_org_people", "grain": "one 990/national officer", "owner": "greek_990", "pk": "id", "rows": 28, "note": "990 CONTEXT only, not an outreach target" },
+    { "name": "greek_org_filings", "grain": "one 990 filing per (chapter, year)", "owner": "greek_990", "pk": "id", "rows": 34 },
+    { "name": "growth_outreach_events", "grain": "one touch per contact/channel", "owner": "growth_admin", "pk": "id (bigint)", "rows": 0, "note": "OUTREACH HISTORY + QUEUE spine — exists, EMPTY, unused" },
+    { "name": "comms_sends", "grain": "one send", "owner": "comms", "pk": "id", "rows": 46, "note": "unified send log, lead_id-based (faculty); has dedupe_key" },
+    { "name": "comms_suppressions", "grain": "one suppressed email/phone", "owner": "comms", "pk": "id", "note": "SUPPRESSION list — exists" },
+    { "name": "outreach_email_events", "grain": "one email lifecycle event", "owner": "outreach_legacy", "rows": 23 },
+    { "name": "sms_messages", "grain": "one sms", "owner": "comms", "rows": 33 }
+  ],
+  "views": [
+    { "name": "growth_outreach_eligibility", "over": "growth_contact_qc", "grain": "one per contact", "purpose": "the single read surface for the OUTREACH tab" }
+  ],
+  "contact_fields": [
+    "contact_id", "contact_source", "campus_id", "chapter_id", "council_type", "org_id",
+    "campaign_purpose", "contact_type", "name", "role", "email", "instagram", "source",
+    "source_type", "confidence", "last_verified", "effective_term", "effective_year",
+    "freshness_status", "outreach_eligible", "review_reason", "qc_action"
+  ],
+  "outreach_eligibility_fields": [
+    { "field": "contact_id", "type": "uuid", "note": "source_id of underlying contact" },
+    { "field": "contact_source", "type": "text", "values": ["growth_public_contacts", "campus_council_contacts", "growth_business_clubs", "growth_advisors"] },
+    { "field": "campus_id", "type": "uuid", "join": "campuses.id" },
+    { "field": "chapter_id", "type": "uuid", "join": "campus_greek_chapters.id (when entity_type=chapter)" },
+    { "field": "council_type", "type": "text", "values": ["ifc", "panhellenic", "nphc", "mgc"] },
+    { "field": "org_id", "type": "uuid", "join": "growth_business_clubs.id (when entity_type=club)" },
+    { "field": "campaign_purpose", "type": "text", "values": ["STUDENT_DISTRIBUTION", "CHAPTER_SALES", "CAMPUS_REP_RECRUITMENT", "ADVISORY_ESCALATION", "UNKNOWN"] },
+    { "field": "contact_type", "type": "text", "values": ["role_inbox", "student_officer", "chapter_exec", "staff_advisor", "organization_general", "social_account", "unknown"] },
+    { "field": "email", "type": "text" },
+    { "field": "instagram", "type": "text" },
+    { "field": "source", "type": "text", "note": "source_url" },
+    { "field": "confidence", "type": "text", "values": ["high", "medium", "low"] },
+    { "field": "last_verified", "type": "timestamptz" },
+    { "field": "effective_term", "type": "text", "note": "NULL when unknown — never invented" },
+    { "field": "freshness_status", "type": "text", "values": ["stable", "current", "verify_before_use", "likely_stale", "unknown"] },
+    { "field": "outreach_eligible", "type": "boolean" },
+    { "field": "review_reason", "type": "text" },
+    { "field": "qc_action", "type": "text", "values": ["pending", "approve", "edit", "wrong_data", "reject", "skip"] }
+  ],
+  "display_classification": {
+    "CURRENT / HIGH CONFIDENCE": "outreach_eligible=true AND confidence='high' (role inboxes, official-page emails, advisors on official pages)",
+    "VERIFY": "freshness_status='verify_before_use' (named officer, no current-term evidence)",
+    "SOCIAL": "contact_type='social_account' (Instagram handle)",
+    "ADVISORY / ESCALATION": "campaign_purpose='ADVISORY_ESCALATION' (staff advisor / growth_advisors)",
+    "990 CONTEXT": "greek_org_people rows for the chapter's org — context panel, NOT an outreach recipient"
+  },
+  "merge_variables": [
+    { "name": "first_name", "value_from": "contact.name (first token)", "confidence": "medium; often null", "last_verified": "contact.last_verified_at", "required": true, "missing_action": "NEEDS_REVIEW" },
+    { "name": "role", "value_from": "contact.role (normalized)", "confidence": "medium/low", "last_verified": "contact.last_verified_at", "required": true, "missing_action": "NEEDS_REVIEW" },
+    { "name": "chapter", "value_from": "greek_orgs.name via campus_greek_chapters", "confidence": "medium", "last_verified": "chapter.updated_at", "required": false, "missing_action": "omit / NEEDS_REVIEW if template requires" },
+    { "name": "council", "value_from": "campus_greek_chapters.council (councilKey)", "confidence": "medium (dirty free-text)", "last_verified": "chapter.updated_at", "required": false, "missing_action": "omit / NEEDS_REVIEW if template requires" },
+    { "name": "campus", "value_from": "campuses.name", "confidence": "high", "last_verified": "internal", "required": true, "missing_action": "NEEDS_REVIEW" },
+    { "name": "course_code", "value_from": "course-intel intro_1 (course_family_codes_json)", "confidence": "low/missing", "last_verified": "course-intel run", "required": "when used", "missing_action": "NEEDS_REVIEW" },
+    { "name": "professor", "value_from": "professor_intro1_evidence / campus data", "confidence": "low/missing", "last_verified": "course-intel run", "required": "when used", "missing_action": "NEEDS_REVIEW" },
+    { "name": "exam_date", "value_from": "campus_exams", "confidence": "low/missing", "last_verified": "exam-intel run", "required": "when used", "missing_action": "NEEDS_REVIEW" },
+    { "name": "tracked_link", "value_from": "generated per recipient (referral /r/<code> or UTM)", "confidence": "high (generated)", "last_verified": "generation time", "required": true, "missing_action": "NEEDS_REVIEW (link must exist to track)", "status": "referral platform branch NOT merged/applied — generation NEEDS BUILD" }
+  ],
+  "qc_actions": [
+    { "action": "APPROVE", "effect": "usable; verify_before_use APPROVE asserts officer current (optional effective_term)" },
+    { "action": "EDIT", "effect": "fix field -> qc_edits {field:newValue}; source preserved" },
+    { "action": "WRONG_DATA", "effect": "specific value wrong; excluded until corrected" },
+    { "action": "REJECT", "effect": "unusable; permanently excluded" },
+    { "action": "SKIP", "effect": "defer; returns to queue" }
+  ],
+  "outreach_history_support": [
+    { "capability": "queued", "exists": true, "where": "growth_outreach_events.status='queued'" },
+    { "capability": "approved", "exists": true, "where": "growth_contact_qc.qc_action='approve' (QC) — send-approval is separate (Lee)" },
+    { "capability": "sent", "exists": true, "where": "growth_outreach_events.status='sent' / comms_sends.status" },
+    { "capability": "delivered", "exists": true, "where": "growth_outreach_events.status='delivered'" },
+    { "capability": "opened", "exists": true, "where": "growth_outreach_events.status='opened'" },
+    { "capability": "clicked", "exists": true, "where": "growth_outreach_events.status='clicked'" },
+    { "capability": "replied", "exists": true, "where": "growth_outreach_events.status='replied' + direction='inbound'" },
+    { "capability": "reply_category (positive/negative/etc.)", "exists": false, "note": "NO field — needs a reply_category column/table" },
+    { "capability": "follow_up", "exists": true, "where": "growth_outreach_events.next_follow_up_at / follow_up_done_at" },
+    { "capability": "instagram_dm", "exists": "partial", "where": "channel='ig_dm' logging only; no Meta send/receipt" },
+    { "capability": "suppression", "exists": true, "where": "comms_suppressions (email/phone)" },
+    { "capability": "unsubscribe", "exists": true, "where": "growth_outreach_events.status='unsubscribed' + comms_suppressions" },
+    { "capability": "bounce", "exists": true, "where": "growth_outreach_events.status='bounced'" }
+  ],
+  "missing_outreach_features": [
+    "growth_outreach_events is EMPTY and no send pipeline writes to it yet",
+    "queue-assembly service (dedupe recipients by email, apply comms_suppressions, exclude non-approved/verify_before_use, prior-contact check)",
+    "one-contact-per-org primary selection rule",
+    "reply_category (positive/negative/interested) classification",
+    "daily-target config (targets like 100 emails/20 DMs) — no config table",
+    "tracked_link generation (referral-platform branch not merged/applied)",
+    "Meta / Instagram Graph messaging (automated DM send + read/receipt) — NOT integrated",
+    "growth-contact-linked send: comms_sends is lead_id-based, not wired to growth contact_id"
+  ],
+  "join_contracts": [
+    "growth_outreach_eligibility.campus_id = campuses.id",
+    "growth_outreach_eligibility.chapter_id = campus_greek_chapters.id",
+    "campus_greek_chapters.greek_org_id = greek_orgs.id (org name/letters)",
+    "council: (campus_id, council_type) — no council table; label from council_type",
+    "growth_outreach_eligibility.org_id = growth_business_clubs.id",
+    "growth_advisor_links.advisor_id = growth_advisors.id ; growth_advisor_links.entity_id = campus_greek_chapters.id (chapter) ; growth_advisor_links.campus_id = campuses.id",
+    "growth_contact_qc.(contact_source,source_id) -> underlying contact row",
+    "greek_org_people.chapter_id = campus_greek_chapters.id ; greek_org_people.org_id = greek_orgs.id (990 context)",
+    "growth_outreach_events.contact_id = growth_public_contacts.id (or council/club source id) ; entity_id/campus_id denormalized for rollups",
+    "comms_suppressions.email = lower(contact.email) (suppression check at queue time)"
+  ],
+  "code": {
+    "branch": "growth/contact-intel-v1",
+    "head_commit": "74badae7",
+    "pushed": true,
+    "merged_to_main": false,
+    "based_on": "overnight/growth-admin-v1 (also not merged)",
+    "applied_migrations_live": [
+      "20260824_1500_growth_contact_intel.sql",
+      "20260825_1200_contact_qc.sql",
+      "20260824_1200_council_contacts.sql (Campus Backfill, read-only to us)",
+      "20260823_1200_growth_admin_contacts_outreach.sql (provides growth_outreach_events)"
+    ],
+    "unapplied_migrations": [],
+    "db_state": "all growth_* tables live + populated; growth_outreach_events live but empty",
+    "needs_merge": "growth/contact-intel-v1 must be merged (or cherry-picked) for the server functions + eligibility view CODE; the DB objects are already live"
+  },
+  "integration_readiness": "PARTIAL — data + QC + eligibility + suppression + history-spine all exist and are populated; the queue-assembly logic, one-per-org selection, reply_category, daily-target config, tracked_link generation, and Meta DM integration are NOT built; branch not yet merged."
+}
