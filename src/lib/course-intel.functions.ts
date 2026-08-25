@@ -66,6 +66,7 @@ export type CourseIntelRow = {
   profPlayerReady: number;  // active_roster AND rmp_profile_url (actually show)
   profIntro1: number;       // qualified "teaches Intro 1" (RMP target-course signal)
   hasIntro1Code: boolean;   // campus has an intro-1 course code (prereq to qualify)
+  greekOrgs: number;        // campus_greek_chapters count
   profPending: number;
   textbook: string | null;
   hasMapping: boolean;
@@ -87,6 +88,12 @@ export const getCourseIntelOverview = createServerFn({ method: "GET" }).handler(
   }>((f, t) =>
     (supabaseAdmin.from("campus_lead_suggestions") as any).select("campus_id,email,archived_at,active_roster,rmp_profile_url,status,rmp_target_course_counts_json,rmp_recent_target_match").range(f, t),
   );
+
+  const greek = await pageAll<{ campus_id: string }>((f, t) =>
+    (supabaseAdmin.from("campus_greek_chapters") as any).select("campus_id").range(f, t),
+  );
+  const greekCount = new Map<string, number>();
+  for (const g of greek) greekCount.set(g.campus_id, (greekCount.get(g.campus_id) ?? 0) + 1);
 
   const mapped = await pageAll<{ textbook_id: string }>((f, t) =>
     supabaseAdmin.from("textbook_chapter_topic_mapping").select("textbook_id").range(f, t),
@@ -121,7 +128,7 @@ export const getCourseIntelOverview = createServerFn({ method: "GET" }).handler(
       campusId: c.id, name: c.name, state: c.state, inPicker: inPicker.has(c.id),
       campusLive: c.active_roster === "sec",
       profTotal: a.total, profWithEmail: a.email, profLive: a.live, profPlayerReady: a.ready, profIntro1: a.intro1,
-      hasIntro1Code: hasIntro1Code(c.course_family_codes_json, c.course_codes_json), profPending: a.pending,
+      hasIntro1Code: hasIntro1Code(c.course_family_codes_json, c.course_codes_json), greekOrgs: greekCount.get(c.id) ?? 0, profPending: a.pending,
       textbook: tb ? `${tb.title}${tb.authors ? " — " + tb.authors : ""}` : null,
       hasMapping: !!author && mappedAuthors.has(author),
     };
@@ -137,6 +144,7 @@ export const getCourseIntelOverview = createServerFn({ method: "GET" }).handler(
     profsIntro1: rows.reduce((s, r) => s + r.profIntro1, 0),
     campusesWithIntro1: rows.filter((r) => r.profIntro1 > 0).length,
     campusesNeedCodes: rows.filter((r) => r.profTotal > 0 && r.profIntro1 === 0 && !r.hasIntro1Code).length,
+    campusesWithGreek: rows.filter((r) => r.greekOrgs > 0).length,
     pendingReview: rows.reduce((s, r) => s + r.profPending, 0),
   };
   return { rows, totals };
