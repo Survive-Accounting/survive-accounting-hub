@@ -126,6 +126,17 @@ const canonical = campuses.map((r) => {
   // validation booleans
   const validated = courseSpecific.length >= 1 || strongLocal.length >= 1 || campusPlatform.length >= 1;
   const whiteSpace = !validated && (mo ?? 0) >= 55;
+  // Study Edge gates its content, so it rarely appears in per-campus ORGANIC discovery;
+  // this flag is sourced from the Study Edge deep-dive (study-edge.mjs) for the campus it
+  // explicitly names (University of Florida / ACG2021). Others = not confirmed (not "absent").
+  const studyEdge = comps.some((c) => c.domain === 'studyedge.com') || /^university of florida$/i.test(r.campus);
+  // single display enum
+  let marketStatus;
+  if (r.searches < 3) marketStatus = 'LOW_EVIDENCE';
+  else if (acctComps.length >= 4 && strongLocal.length >= 1) marketStatus = 'CROWDED';
+  else if (validated) marketStatus = 'VALIDATED_PAID_MARKET';
+  else if (whiteSpace) marketStatus = 'WHITE_SPACE';
+  else marketStatus = 'LOW_EVIDENCE';
   // strongest competitor
   const rank = (c) => (c.course_specific_site ? 5 : 0) + (LOCAL_STRONG.has(c.competitor_type) ? 4 : 0)
     + (CAMPUS_PLATFORM.has(c.competitor_type) ? 3 : 0) + (c.campus_specific === 'YES' ? 2 : 0)
@@ -145,6 +156,8 @@ const canonical = campuses.map((r) => {
     competitor_price_context: priceContext(comps),
     validated_paid_market: validated,
     white_space: whiteSpace,
+    market_status: marketStatus,
+    study_edge_present: studyEdge,
     brand_conquest_candidate: conquest.length > 0,
     nonbrand_search_candidate: r.intro1_code ? true : (u.name ? 'partial' : false),
     evidence_confidence: evidence,
