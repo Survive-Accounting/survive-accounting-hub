@@ -17,6 +17,7 @@ import {
 } from "@/lib/course-intel.functions";
 import { discoverCourseDocuments, parseCourseDocument, getCampusDocuments } from "@/lib/syllabus-intel.functions";
 import { enrichProfintelCampus } from "@/lib/rmp-scrape.functions";
+import { researchProgramCourses } from "@/lib/program-courses.functions";
 
 export const Route = createFileRoute("/outreach/course-intel")({
   head: () => ({ meta: [{ title: "Course Intel — Survive Accounting" }] }),
@@ -290,15 +291,17 @@ function DocsPanel({ campusId }: { campusId: string }) {
 }
 
 function EnrichView({ rows, onDone }: { rows: CourseIntelRow[]; onDone: () => void }) {
-  const [scope, setScope] = useState<"needs" | "pickable" | "all">("needs");
+  const [scope, setScope] = useState<"needs" | "pickable" | "all" | "codeless">("needs");
   const [limit, setLimit] = useState(150);
   const [running, setRunning] = useState(false);
-  const [prog, setProg] = useState<{ done: number; total: number; matches: number; results: Array<{ name: string; ok: boolean; enriched?: number; withTargetMatch?: number; error?: string }> }>({ done: 0, total: 0, matches: 0, results: [] });
+  const [prog, setProg] = useState<{ done: number; total: number; matches: number; results: EnrichRow[] }>({ done: 0, total: 0, matches: 0, results: [] });
+  const codeMode = scope === "codeless";
 
   const targets = useMemo(() => {
     let r = rows.filter((x) => x.profTotal > 0);
     if (scope === "needs") r = r.filter((x) => x.profIntro1 === 0);
     else if (scope === "pickable") r = r.filter((x) => x.inPicker);
+    else if (scope === "codeless") r = r.filter((x) => x.profIntro1 === 0 && !x.hasIntro1Code);
     return [...r].sort((a, b) => (b.inPicker ? 1 : 0) - (a.inPicker ? 1 : 0) || b.profTotal - a.profTotal);
   }, [rows, scope]);
 
@@ -312,9 +315,15 @@ function EnrichView({ rows, onDone }: { rows: CourseIntelRow[]; onDone: () => vo
       while (pos < list.length) {
         const { id, name } = list[pos++];
         try {
+          // Code-less campuses: discover the course code first, then enrich.
+          let codeFound: string | null = null;
+          if (codeMode) {
+            const cr = await researchProgramCourses({ data: { campusId: id, force: true } }) as { course_family_codes_json?: Record<string, string> };
+            codeFound = cr?.course_family_codes_json?.intro_1 ?? null;
+          }
           const rr = await enrichProfintelCampus({ data: { campusId: id, limit } });
           matches += rr.withTargetMatch ?? 0;
-          results.push({ name, ok: true, enriched: rr.enriched, withTargetMatch: rr.withTargetMatch });
+          results.push({ name, ok: true, enriched: rr.enriched, withTargetMatch: rr.withTargetMatch, codeFound });
         } catch (e) {
           results.push({ name, ok: false, error: String((e as Error)?.message || e) });
         }
@@ -331,9 +340,11 @@ function EnrichView({ rows, onDone }: { rows: CourseIntelRow[]; onDone: () => vo
     <div className="mt-4">
       <div className="rounded-lg border border-border bg-card p-4">
         <h3 className="text-sm font-semibold">Find Intro-1 teachers (RMP enrichment)</h3>
-        <p className="mt-1 text-xs text-muted-foreground">Pulls each professor’s RateMyProfessors course history and flags who teaches the campus’s intro course (exact course-code match + recency). This is what qualifies a professor for the student picker. Runs 2 campuses at a time; big campuses take a while — you can stop and re-run.</p>
+        <p className="mt-1 text-xs text-muted-foreground">{codeMode
+          ? "Code-less campuses have no Intro-1 course code on file, so nobody can match. This first DISCOVERS the course code (SerpAPI → Firecrawl → AI over the catalog), then enriches to qualify Intro-1 teachers. Costs a little per campus (search + fetch); runs 2 at a time."
+          : "Pulls each professor’s RateMyProfessors course history and flags who teaches the campus’s intro course (exact course-code match + recency). This is what qualifies a professor for the student picker. Free (RMP only); runs 2 campuses at a time; big campuses take a while — you can stop and re-run."}</p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
-          {([["needs", "Needs enrich (0 Intro-1)"], ["pickable", "Pickable schools"], ["all", "All with profs"]] as [typeof scope, string][]).map(([s, label]) => (
+          {([["needs", "Needs enrich (0 Intro-1)"], ["codeless", "Code-less (find codes)"], ["pickable", "Pickable schools"], ["all", "All with profs"]] as [typeof scope, string][]).map(([s, label]) => (
             <button key={s} disabled={running} onClick={() => setScope(s)} className={`rounded-full border px-3 py-1 text-xs ${scope === s ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground"}`}>{label}</button>
           ))}
           <label className="ml-2 text-xs text-muted-foreground">per-campus cap
@@ -341,7 +352,7 @@ function EnrichView({ rows, onDone }: { rows: CourseIntelRow[]; onDone: () => vo
           </label>
           <span className="ml-auto text-xs text-muted-foreground">{targets.length} campuses</span>
           <Button size="sm" className="h-8 text-xs" disabled={running || targets.length === 0} onClick={run}>
-            {running ? `Enriching ${prog.done}/${prog.total}…` : `Enrich ${targets.length} campuses`}
+            {running ? `Working ${prog.done}/${prog.total}…` : codeMode ? `Find codes + enrich ${targets.length}` : `Enrich ${targets.length} campuses`}
           </Button>
         </div>
         {(running || prog.total > 0) && (
@@ -358,7 +369,7 @@ function EnrichView({ rows, onDone }: { rows: CourseIntelRow[]; onDone: () => vo
           {prog.results.map((r, i) => (
             <div key={i} className="flex items-center gap-2 rounded border border-border px-3 py-1.5 text-xs">
               <span className="min-w-0 flex-1 truncate">{r.name}</span>
-              {r.ok ? <span className="text-muted-foreground">enriched {r.enriched} · <span className="text-sky-500">{r.withTargetMatch} matched</span></span> : <span className="text-red-500">error: {r.error?.slice(0, 50)}</span>}
+              {r.ok ? <span className="text-muted-foreground">{r.codeFound !== undefined && (r.codeFound ? <span className="text-emerald-500">code {r.codeFound} · </span> : <span className="text-amber-500">no code · </span>)}enriched {r.enriched} · <span className="text-sky-500">{r.withTargetMatch} matched</span></span> : <span className="text-red-500">error: {r.error?.slice(0, 50)}</span>}
             </div>
           ))}
         </div>
@@ -366,7 +377,7 @@ function EnrichView({ rows, onDone }: { rows: CourseIntelRow[]; onDone: () => vo
     </div>
   );
 }
-type EnrichRow = { name: string; ok: boolean; enriched?: number; withTargetMatch?: number; error?: string };
+type EnrichRow = { name: string; ok: boolean; enriched?: number; withTargetMatch?: number; error?: string; codeFound?: string | null };
 
 function MappingsView() {
   const q = useQuery({ queryKey: ["textbook-mappings"], queryFn: () => getTextbookMappings() });
