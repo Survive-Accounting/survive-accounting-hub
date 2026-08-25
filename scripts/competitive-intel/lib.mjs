@@ -35,7 +35,7 @@ const UNIT = { serp: 0.008, firecrawl: 0.005, ai: 0.002 };
 export const estCost = (c) => +(c.serp * UNIT.serp + c.firecrawl * UNIT.firecrawl + c.ai * UNIT.ai).toFixed(4);
 
 // ── SERP credit health (stop a long unattended run when searches run out) ─────
-export const SERP_STATE = { dead: false, lastError: '', rateLimited: 0 };
+export const SERP_STATE = { dead: false, lastError: '', rateLimited: 0, cacheOnly: false };
 
 // ── On-disk caches (JSON maps; loaded once, flushed periodically) ─────────────
 function loadMap(file) {
@@ -60,6 +60,7 @@ export function serpKey(q) { return hash('g|' + q.toLowerCase().trim()); }
 export async function serp(q, c, { num = 8 } = {}) {
   const k = serpKey(q);
   if (serpCache[k]) { c.serpCached++; return serpCache[k]; }
+  if (SERP_STATE.cacheOnly) return { organic: [], ads: [], retrieved_at: now(), query: q, cacheMiss: true };
   if (SERP_STATE.dead) return { organic: [], ads: [], retrieved_at: now(), query: q, dead: true };
   c.serp++;
   const ctrl = new AbortController();
@@ -174,7 +175,30 @@ export const SKIP_DOMAINS = new Set([
   'score.org', 'apps.uc.edu', 'catalog.com', 'acalog.com', 'kuali.co', 'anthology.com',
   'aaahq.org', 'aicpa.org', 'aicpa-cima.com', 'imanet.org', 'thiswaytocpa.com',
   'agacgfm.org', 'nasba.org', 'efollett.com', 'bkstr.com', 'chggapp.com',
+  'shiksha.com', 'collegeconfidential.com', 'ratemycourses.io', 'educations.com',
+  'gradreports.com', 'talent.com', 'sciencedirect.com', 'ssrn.com', 'courseleaf.com',
+  'wordpress.com', 'acuityscheduling.com', 'gi.org', 'sciensano.be', 'gradcafe.com',
+  'topuniversities.com', 'timeshighereducation.com', 'collegevine.com', 'quora.com',
+  'givecampus.com', 'zoominfo.com', 'centralbank.net', 'dmuglobal.com', 'athabascau.ca',
+  'collegeclassreviews.com', 'rocketreach.co', 'apollo.io', 'crunchbase.com', 'bloomberg.com',
+  'forbes.com', 'businesswire.com', 'prnewswire.com', '6sense.com', 'leadiq.com', 'signalhire.com',
+  'usatoday.com', 'nytimes.com', 'washingtonpost.com', 'youtube.com', 'vimeo.com', 'yellowpages.com',
+  'mapquest.com', 'tripadvisor.com', 'wikihow.com', 'chron.com', 'patch.com', 'dnb.com',
+  'greatschools.org', 'schooldigger.com', 'publicschoolreview.com', 'privateschoolreview.com',
+  'transfercredit.org', 'collegedunia.com', 'bebee.com', 'lensa.com', 'uniflik.com', 'mba.com',
+  'gmac.com', 'leverageedu.com', 'yocket.com', 'collegedekho.com', 'careers360.com', 'afbf.in',
+  'canamgroup.com', 'bachelorsportal.com', 'mastersportal.com', 'studyportals.com', 'idp.com',
+  'collegeboard.org', 'commonapp.org', 'appily.com', 'cappex.com', 'shiksha.in', 'glassdoor.co.in',
 ]);
+// Brand base-labels matched regardless of TLD (catch .ng/.sg/.co.uk variants).
+const SKIP_BASE = new Set(['glassdoor', 'indeed', 'ziprecruiter', 'shiksha', 'niche', 'wikipedia',
+  'yelp', 'ratemyprofessors', 'coursicle', 'payscale', 'salary', 'zippia', 'linkedin', 'facebook']);
+const BRAND_BASE = {
+  superprof: ['Superprof', 'TUTOR_MARKETPLACE'], wyzant: ['Wyzant', 'TUTOR_MARKETPLACE'],
+  varsitytutors: ['Varsity Tutors', 'TUTOR_MARKETPLACE'], preply: ['Preply', 'TUTOR_MARKETPLACE'],
+  chegg: ['Chegg', 'NOTES_MARKETPLACE'], coursehero: ['Course Hero', 'NOTES_MARKETPLACE'],
+  studocu: ['Studocu', 'NOTES_MARKETPLACE'], quizlet: ['Quizlet', 'NOTES_MARKETPLACE'],
+};
 // Signal-only (student demand / social proof), not competitors themselves.
 export const SIGNAL_DOMAINS = new Set([
   'reddit.com', 'facebook.com', 'instagram.com', 'quora.com', 'discord.com', 'discord.gg',
@@ -225,6 +249,10 @@ export const BRANDS = {
   'sophia.org': ['Sophia', 'NATIONAL_COURSEWARE'], 'study.com': ['Study.com', 'NATIONAL_COURSEWARE'],
   'pearson.com': ['Pearson', 'NATIONAL_COURSEWARE'], 'mheducation.com': ['McGraw Hill', 'NATIONAL_COURSEWARE'],
   'cengage.com': ['Cengage', 'NATIONAL_COURSEWARE'], 'saylor.org': ['Saylor', 'NATIONAL_COURSEWARE'],
+  'princetonreview.com': ['The Princeton Review', 'TUTOR_MARKETPLACE'],
+  'coursesidekick.com': ['Course Sidekick (Course Hero)', 'NOTES_MARKETPLACE'],
+  'joinknack.com': ['Knack', 'MULTI_CAMPUS_TUTORING'], 'edubirdie.com': ['EduBirdie', 'NOTES_MARKETPLACE'],
+  'tutorocean.com': ['TutorOcean', 'TUTOR_MARKETPLACE'], 'tutorselect.com': ['TutorSelect', 'TUTOR_MARKETPLACE'],
   'surviveaccounting.com': ['Survive Accounting (US)', 'SELF'],
 };
 
@@ -241,6 +269,9 @@ export function classifyHost(host, campusDomain) {
   if (SIGNAL_DOMAINS.has(reg)) return { kind: 'signal' };
   const b = BRANDS[reg] || BRANDS[host];
   if (b) return b[1] === 'SELF' ? { kind: 'self', brand: b[0] } : { kind: 'brand', brand: b[0], type: b[1] };
+  const base = reg.split('.')[0];
+  if (SKIP_BASE.has(base)) return { kind: 'skip' };
+  if (BRAND_BASE[base]) return { kind: 'brand', brand: BRAND_BASE[base][0], type: BRAND_BASE[base][1] };
   return { kind: 'candidate' };
 }
 
@@ -297,6 +328,11 @@ export function mentionsCourse(text, code) {
 // ── Accounting-specificity ───────────────────────────────────────────────────
 const ACCT_RX = /\b(account|accounting|acct|financial accounting|managerial accounting|bookkeep|debits?|credits?|balance sheet|ledger|cpa|intro to account)/i;
 export function mentionsAccounting(text) { return ACCT_RX.test(text || ''); }
+
+// Academic-help commercial intent — an unknown candidate domain must show this
+// (or be course-specific) to count as a competitor, else it's directory/portal noise.
+const INTENT_RX = /\b(tutor|tutoring|exam|review|practice|study guide|study group|cram|prep|homework|solutions?|notes|quiz|flashcard|academic support|test bank|mock|walkthrough|explained|lessons?|coaching|bootcamp|q\s?&\s?a|study help|course help)\b/i;
+export function hasHelpIntent(text) { return INTENT_RX.test(text || ''); }
 
 // ── Pricing extraction (verbatim; from scraped page text) ────────────────────
 const PRICE_RX = /\$\s?\d{1,4}(?:\.\d{2})?(?:\s?(?:\/|per\s)\s?(?:mo|month|monthly|semester|term|session|hour|hr|week|year|exam|course|class))?/gi;

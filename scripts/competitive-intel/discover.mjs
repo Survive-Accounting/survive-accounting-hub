@@ -13,7 +13,7 @@ import path from 'node:path';
 import {
   serp, classifyHost, campusSignals, mentionsCampus, mentionsCourse,
   mentionsAccounting, detectOfferings, hostOf, registrable, isCourseSpecificSite,
-  newCounters, estCost, SERP_STATE, flushCaches, now, sleep, DATA,
+  hasHelpIntent, newCounters, estCost, SERP_STATE, flushCaches, now, sleep, DATA,
 } from './lib.mjs';
 
 const args = Object.fromEntries(process.argv.slice(2).map((a) => {
@@ -24,6 +24,7 @@ const COMP_FILE = path.join(DATA, 'competitors.json');
 const YIELD_FILE = path.join(DATA, 'serp-yield.json');
 const PROG_FILE = path.join(DATA, 'discover-progress.json');
 
+if (args.cacheOnly) SERP_STATE.cacheOnly = true;
 const universe = JSON.parse(fs.readFileSync(path.join(DATA, 'universe.json'), 'utf8'));
 const results = fs.existsSync(COMP_FILE) ? JSON.parse(fs.readFileSync(COMP_FILE, 'utf8')) : {};
 const yieldStats = fs.existsSync(YIELD_FILE) ? JSON.parse(fs.readFileSync(YIELD_FILE, 'utf8')) : {};
@@ -108,7 +109,9 @@ async function discoverCampus(u) {
 
   for (const { family, q } of queries) {
     if (SERP_STATE.dead) break;
+    const liveBefore = counters.serp;
     const res = await serp(q, counters, { num: 8 });
+    const wasCached = counters.serp === liveBefore;
     if (res.dead) break;
     searches++;
     familiesRun[family] = (familiesRun[family] || 0) + 1;
@@ -128,6 +131,8 @@ async function discoverCampus(u) {
       // brand or candidate = competitor
       const titleUrl = `${r.title} ${r.displayed_link} ${r.link}`;
       const blob = `${r.title} ${r.snippet}`;
+      // Intent gate: unknown candidate must show academic-help intent or be course-specific.
+      if (cls.kind === 'candidate' && !isCourseSpecificSite(host, r.link, u.intro1_code) && !hasHelpIntent(blob)) continue;
       const campusHit = mentionsCampus(r.title, sig) || mentionsCampus(r.link, sig) || mentionsCourse(titleUrl, u.intro1_code);
       const off = detectOfferings(blob);
       const row = upsert(reg, cls, r.link);
@@ -154,7 +159,8 @@ async function discoverCampus(u) {
         link: a.link, block: a.block, kind: cls.kind, type: cls.type || null, retrieved_at: res.retrieved_at,
       });
       bumpYield(family, { ads_seen: 1 });
-      if (cls.kind === 'candidate' || cls.kind === 'brand') {
+      if (cls.kind === 'candidate' && !isCourseSpecificSite(host, a.link, u.intro1_code) && !hasHelpIntent(`${a.title} ${a.description}`)) { /* non-help advertiser: recorded as ad only */ }
+      else if (cls.kind === 'candidate' || cls.kind === 'brand') {
         const row = upsert(reg, cls, a.link, { sponsored: true });
         row.sponsored = true;
         const blob = `${a.title} ${a.description}`;
@@ -165,7 +171,7 @@ async function discoverCampus(u) {
       }
     }
     if (wasLive) bumpYield(family, { useful_results: useful });
-    await sleep(150);
+    if (!wasCached) await sleep(150);
   }
 
   // Finalize competitor rows.
@@ -221,20 +227,26 @@ async function main() {
   const serpBudget = args.serpBudget ? Number(args.serpBudget) : Infinity;
 
   const todo = list.filter((u) => force || !results[u.campus_id]?.done);
-  console.log(`Discovery: ${todo.length}/${list.length} campuses to process (${Object.keys(results).length} already done). SERP budget=${serpBudget === Infinity ? '∞' : serpBudget}`);
+  const CONC = args.concurrency ? Number(args.concurrency) : 4;
+  console.log(`Discovery: ${todo.length}/${list.length} campuses to process (${Object.keys(results).length} already done). concurrency=${CONC} SERP budget=${serpBudget === Infinity ? '∞' : serpBudget}`);
 
-  let processed = 0;
-  for (const u of todo) {
-    if (SERP_STATE.dead) { console.log(`\n⚠ SERP credits exhausted: ${SERP_STATE.lastError}. Stopping gracefully.`); break; }
-    if (counters.serp >= serpBudget) { console.log(`\nReached SERP budget (${serpBudget} live searches). Stopping.`); break; }
-    const r = await discoverCampus(u);
-    results[u.campus_id] = r;
-    processed++;
-    if (processed % 5 === 0 || processed === todo.length) {
-      saveAll();
-      console.log(`[${processed}/${todo.length}] rank ${u.rank} ${u.name} (${u.state}) T${u.tier} MO=${u.market_opportunity} → ${r.paid_competitors} comp (${r.intro1_competitors} acct, ${r.local_competitors} local), ${r.ads.length} ads | live serp=${counters.serp} cached=${counters.serpCached} $${estCost(counters)}`);
+  let processed = 0, idx = 0;
+  async function worker() {
+    while (idx < todo.length) {
+      if (SERP_STATE.dead) return;
+      if (counters.serp >= serpBudget) return;
+      const u = todo[idx++];
+      const r = await discoverCampus(u);
+      results[u.campus_id] = r;
+      processed++;
+      if (processed % 5 === 0 || processed === todo.length) {
+        saveAll();
+        console.log(`[${processed}/${todo.length}] rank ${u.rank} ${u.name} (${u.state}) T${u.tier} MO=${u.market_opportunity} → ${r.paid_competitors} comp (${r.intro1_competitors} acct, ${r.local_competitors} local), ${r.ads.length} ads | live serp=${counters.serp} cached=${counters.serpCached} rl=${SERP_STATE.rateLimited} $${estCost(counters)}`);
+      }
     }
   }
+  await Promise.all(Array.from({ length: CONC }, () => worker()));
+  if (SERP_STATE.dead) console.log(`\n⚠ SERP credits exhausted: ${SERP_STATE.lastError}. Stopped gracefully.`);
   saveAll();
   fs.writeFileSync(PROG_FILE, JSON.stringify({
     processedThisRun: processed, totalDone: Object.values(results).filter((r) => r.done).length,

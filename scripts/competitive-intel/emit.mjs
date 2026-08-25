@@ -57,6 +57,7 @@ function confidence(c) {
 function campusSignal(r) {
   const comps = r.competitors || [];
   const strongLocal = comps.filter((c) => LOCAL_STRONG.has(c.competitor_type) && acctYes(c));
+  const strongLocalYes = comps.filter((c) => LOCAL_STRONG.has(c.competitor_type) && c.intro_accounting_supported === 'YES');
   const campusPlatform = comps.filter((c) => CAMPUS_PLATFORM.has(c.competitor_type) && c.campus_specific === 'YES' && acctYes(c));
   const acctComps = comps.filter(acctYes);
   const localAny = comps.filter((c) => ['COURSE_SPECIFIC_SITE', 'LOCAL_CAMPUS_TUTORING', 'MULTI_CAMPUS_TUTORING'].includes(c.competitor_type));
@@ -67,8 +68,8 @@ function campusSignal(r) {
   const mo = r.market_opportunity ?? uById.get(r.campus_id)?.market_opportunity ?? null;
 
   let proven;
-  if (strongLocal.length >= 1 || campusPlatform.length >= 1 || acctAds) proven = 'HIGH';
-  else if (localAny.length >= 1 || courseSpecific.length >= 2 || adsAny) proven = 'MEDIUM';
+  if (courseSpecific.length >= 1 || strongLocalYes.length >= 1 || campusPlatform.length >= 1 || acctAds) proven = 'HIGH';
+  else if (strongLocal.length >= 1 || localAny.length >= 2 || adsAny) proven = 'MEDIUM';
   else if (acctComps.length >= 1) proven = 'LOW';
   else proven = 'UNKNOWN';
 
