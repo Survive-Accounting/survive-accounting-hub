@@ -7,7 +7,7 @@ schedule parse (146 docs) was run to add exam dates. No student-facing maps chan
 > **Headline:** the parsed syllabi don't just reveal Exam 1 — they reveal the **whole course
 > structure**, and it's remarkably consistent nationwide: a **four-chapters-per-exam cadence** —
 > **Exam 1 = Ch 1–4 → Exam 2 = Ch 5–8 → Exam 3 = Ch 9–12 → Final = cumulative (≈Ch 1–13)** — with
-> midterm-style courses front-loading Ch 1–6. **67 campuses** now carry explicit per-exam chapter
+> midterm-style courses front-loading Ch 1–6. **68 campuses** now carry explicit per-exam chapter
 > evidence (was 5 before parsing).
 
 ---

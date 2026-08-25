@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-25T20:26:55.841Z",
-  "campuses_with_any_exam_range": 67,
+  "generated_at": "2026-08-25T20:30:18.045Z",
+  "campuses_with_any_exam_range": 68,
   "per_exam": {
     "exam_1": {
       "campuses": 48,
@@ -834,122 +834,122 @@
       ]
     },
     "other": {
-      "campuses": 19,
+      "campuses": 20,
       "chapter_frequency": [
         {
           "chapter": 1,
-          "campuses": 14,
-          "pct": 74
+          "campuses": 15,
+          "pct": 75
         },
         {
           "chapter": 2,
-          "campuses": 14,
-          "pct": 74
+          "campuses": 15,
+          "pct": 75
         },
         {
           "chapter": 3,
-          "campuses": 14,
-          "pct": 74
+          "campuses": 15,
+          "pct": 75
         },
         {
           "chapter": 4,
-          "campuses": 13,
-          "pct": 68
+          "campuses": 14,
+          "pct": 70
         },
         {
           "chapter": 5,
-          "campuses": 13,
-          "pct": 68
+          "campuses": 14,
+          "pct": 70
         },
         {
           "chapter": 6,
-          "campuses": 12,
-          "pct": 63
+          "campuses": 13,
+          "pct": 65
         },
         {
           "chapter": 7,
-          "campuses": 11,
-          "pct": 58
+          "campuses": 12,
+          "pct": 60
         },
         {
           "chapter": 8,
-          "campuses": 12,
-          "pct": 63
+          "campuses": 13,
+          "pct": 65
         },
         {
           "chapter": 9,
-          "campuses": 11,
-          "pct": 58
+          "campuses": 12,
+          "pct": 60
         },
         {
           "chapter": 10,
-          "campuses": 11,
-          "pct": 58
+          "campuses": 12,
+          "pct": 60
         },
         {
           "chapter": 11,
-          "campuses": 12,
-          "pct": 63
+          "campuses": 13,
+          "pct": 65
         },
         {
           "chapter": 12,
           "campuses": 8,
-          "pct": 42
+          "pct": 40
         },
         {
           "chapter": 13,
-          "campuses": 5,
-          "pct": 26
+          "campuses": 6,
+          "pct": 30
         },
         {
           "chapter": 14,
-          "campuses": 6,
-          "pct": 32
+          "campuses": 7,
+          "pct": 35
         },
         {
           "chapter": 15,
           "campuses": 3,
-          "pct": 16
+          "pct": 15
         },
         {
           "chapter": 16,
           "campuses": 2,
-          "pct": 11
+          "pct": 10
         },
         {
           "chapter": 17,
-          "campuses": 1,
-          "pct": 5
+          "campuses": 2,
+          "pct": 10
         },
         {
           "chapter": 18,
           "campuses": 3,
-          "pct": 16
+          "pct": 15
         },
         {
           "chapter": 19,
           "campuses": 4,
-          "pct": 21
+          "pct": 20
         },
         {
           "chapter": 20,
           "campuses": 3,
-          "pct": 16
+          "pct": 15
         },
         {
           "chapter": 21,
           "campuses": 2,
-          "pct": 11
+          "pct": 10
         },
         {
           "chapter": 22,
           "campuses": 2,
-          "pct": 11
+          "pct": 10
         },
         {
           "chapter": 24,
           "campuses": 3,
-          "pct": 16
+          "pct": 15
         },
         {
           "chapter": 25,
@@ -959,7 +959,7 @@
         {
           "chapter": 26,
           "campuses": 2,
-          "pct": 11
+          "pct": 10
         },
         {
           "chapter": 27,
@@ -970,7 +970,7 @@
       "top_ranges": [
         {
           "range": "1-5",
-          "campuses": 5
+          "campuses": 6
         },
         {
           "range": "1-4",
@@ -996,5 +996,5 @@
     }
   },
   "exam_date_evidence_rows": 285,
-  "campus_maps_count": 67
+  "campus_maps_count": 68
 }
