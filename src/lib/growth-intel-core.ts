@@ -76,14 +76,29 @@ const FREEMAIL = /@(gmail|yahoo|hotmail|outlook|aol|icloud|proton(mail)?|me|live
 const ROLE_LOCAL = /^(info|contact|hello|board|exec|officers?|president|vp|treasurer|secretary|membership|recruitment|admin|team|chapter|greek|fsl|scholarship|academic)/i;
 
 // ── Providers ──────────────────────────────────────────────────────────────
+// Tracks SerpAPI credit health so a long unattended run stops when searches run out
+// (401/403, or SerpAPI's "ran out of searches" error) rather than spinning uselessly.
+export const SERP_STATE = { dead: false, lastError: "", rateLimited: 0 };
+
 export async function serp(key: string, q: string, c: Counters, num = 6): Promise<Array<{ title: string; link: string }>> {
   c.serp++;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 20_000);
   try {
     const r = await fetch(`${SERP_BASE}?engine=google&num=${num}&q=${encodeURIComponent(q)}&api_key=${encodeURIComponent(key)}`, { signal: ctrl.signal });
-    if (!r.ok) return [];
-    const j = (await r.json()) as { organic_results?: Array<{ title?: string; link?: string }> };
+    if (!r.ok) {
+      if (r.status === 401 || r.status === 403) { SERP_STATE.dead = true; SERP_STATE.lastError = `HTTP ${r.status}`; }
+      else if (r.status === 429) SERP_STATE.rateLimited++;
+      return [];
+    }
+    const j = (await r.json()) as { organic_results?: Array<{ title?: string; link?: string }>; error?: string };
+    if (j.error) {
+      if (/run out|out of searches|exceeded|no searches|account limit|plan.*limit/i.test(j.error)) {
+        SERP_STATE.dead = true;
+        SERP_STATE.lastError = j.error;
+      }
+      return [];
+    }
     return (j.organic_results ?? []).filter((x) => x.link).map((x) => ({ title: x.title ?? "", link: x.link as string }));
   } catch {
     return [];
@@ -425,15 +440,16 @@ function chapterName(ch: any): string {
   return (org || ch.nickname || letters || ch.chapter_designation || "chapter").toString();
 }
 
-async function discoverOneChapter(db: DB, campus: any, domain: string, ch: any, keys: Keys, c: Counters, runId: string | null): Promise<number> {
+async function discoverOneChapter(db: DB, campus: any, domain: string, ch: any, keys: Keys, c: Counters, runId: string | null, queriesPerChapter = 2): Promise<number> {
   const cname = chapterName(ch);
   const signals = deriveCampusSignals(campus);
   const pages = new Map<string, "official" | "social" | "web">();
   for (const seed of [ch.chapter_url, ch.exec_page_url]) if (seed) pages.set(seed, "official");
-  const queries = [
-    `${campus.name} ${cname} chapter instagram`,
-    domain ? `site:${domain} ${cname} chapter contact email` : `${campus.name} ${cname} fraternity sorority chapter contact email`,
-  ];
+  // Query 1 = IG handle; query 2 = contact/roster page (exec emails). At 1/chapter
+  // we keep the contact query (exec emails are the goal) and give up most IG handles.
+  const igQuery = `${campus.name} ${cname} chapter instagram`;
+  const contactQuery = domain ? `site:${domain} ${cname} chapter contact email` : `${campus.name} ${cname} fraternity sorority chapter contact email`;
+  const queries = queriesPerChapter <= 1 ? [contactQuery] : [igQuery, contactQuery];
   for (const q of queries) {
     const hits = await serp(keys.serp, q, c, 5);
     for (const h of hits.slice(0, 3)) {
@@ -569,10 +585,11 @@ export async function runChapterDiscovery(
   db: DB,
   campus: any,
   keys: Keys,
-  opts: { runId?: string | null; limit?: number; counters?: Counters; councils?: string[] } = {},
+  opts: { runId?: string | null; limit?: number; counters?: Counters; councils?: string[]; skipCompleted?: boolean; queriesPerChapter?: number } = {},
 ): Promise<{ chaptersProcessed: number; contactsSaved: number }> {
   const c = opts.counters ?? newCounters();
   const runId = opts.runId ?? null;
+  const qpc = opts.queriesPerChapter ?? 2;
   const domain = await resolveDomain(campus, keys.serp, c);
   const { data: all } = await db
     .from("campus_greek_chapters")
@@ -583,6 +600,18 @@ export async function runChapterDiscovery(
   // Council filter (e.g. IFC + Panhellenic only) via normalized free-text council.
   const wanted = opts.councils?.length ? new Set(opts.councils) : null;
   let chapters = ((all ?? []) as any[]).filter((r) => !wanted || wanted.has(councilKey(r.council)));
+  // Resumability: skip chapters already discovered (complete / no_result) so a
+  // continuous re-scan only spends on genuinely new chapters.
+  if (opts.skipCompleted && chapters.length) {
+    const { data: done } = await db
+      .from("growth_discovery_status")
+      .select("entity_id,status")
+      .eq("campus_id", campus.id)
+      .eq("category", "chapter")
+      .in("entity_id", chapters.map((r) => r.id));
+    const doneSet = new Set(((done ?? []) as any[]).filter((s) => s.status === "complete" || s.status === "no_result").map((s) => s.entity_id));
+    chapters = chapters.filter((r) => !doneSet.has(r.id));
+  }
   if (opts.limit) chapters = chapters.slice(0, opts.limit);
   // Resolve org names in one batch (no FK embed available in the schema cache).
   const orgIds = [...new Set(((chapters ?? []) as any[]).map((c) => c.greek_org_id).filter(Boolean))];
@@ -597,7 +626,7 @@ export async function runChapterDiscovery(
   for (const ch of (chapters ?? []) as any[]) {
     await markStatus(db, campus.id, "chapter", { status: "running", last_attempted_at: now(), discovery_run_id: runId }, ch.id);
     try {
-      const n = await discoverOneChapter(db, campus, domain, ch, keys, c, runId);
+      const n = await discoverOneChapter(db, campus, domain, ch, keys, c, runId, qpc);
       contactsSaved += n;
       processed++;
       await markStatus(db, campus.id, "chapter", { status: n > 0 ? "complete" : "no_result", last_success_at: n > 0 ? now() : null, results_found: n, error: null }, ch.id);
