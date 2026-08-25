@@ -1,0 +1,5 @@
+.harvest-checkpoint.json
+.harvest-checkpoint.json.costlog.jsonl
+*.log
+_cleanup_preflight.sql
+national-checkpoint.json*
