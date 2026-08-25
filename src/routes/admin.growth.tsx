@@ -14,6 +14,7 @@ import {
   Landmark,
   Megaphone,
   Network,
+  Radar,
   Users2,
 } from "lucide-react";
 import { AdminGate, getAdminWho } from "@/components/AdminGate";
@@ -39,6 +40,7 @@ const TABS = [
   { to: "/admin/growth/councils", label: "Councils", icon: Landmark },
   { to: "/admin/growth/orgs", label: "National Orgs", icon: Network },
   { to: "/admin/growth/contacts", label: "Contacts", icon: Users2 },
+  { to: "/admin/growth/intelligence", label: "Contact Intel", icon: Radar },
   { to: "/admin/growth/outreach", label: "Outreach", icon: Megaphone },
 ] as const;
 

@@ -1,0 +1,15 @@
+{
+  "note": "10 diverse V1 test campuses (§18). id = campuses.id (live). domain null => pipeline resolves the official .edu host from SERP.",
+  "campuses": [
+    { "id": "b3af67c6-99a5-4677-83d5-aa7d11a89c17", "name": "University of Alabama", "domain": null, "kind": "large SEC", "chapters": 71 },
+    { "id": "3f570e37-5394-4058-baab-508948befedb", "name": "University of Georgia", "domain": "uga.edu", "kind": "large SEC", "chapters": 67 },
+    { "id": "e330e87c-5467-4c05-9d3d-6cd2398de036", "name": "Auburn University", "domain": null, "kind": "large SEC", "chapters": 55 },
+    { "id": "972451c3-bc5e-48d7-9f88-868a55378efa", "name": "Vanderbilt University", "domain": null, "kind": "private (SEC)", "chapters": 39 },
+    { "id": "1e6b6504-3a9c-44e2-81a9-ee961f66563a", "name": "Ohio State University", "domain": null, "kind": "large public", "chapters": 45 },
+    { "id": "faad6039-be72-4f5c-8ad5-ca7b95e2889f", "name": "University of Texas at Austin", "domain": null, "kind": "large public", "chapters": 64 },
+    { "id": "0fa0e5bb-76cd-4299-a9af-f8802eaf317c", "name": "Spelman College", "domain": null, "kind": "HBCU / private / weak-greek", "chapters": 0 },
+    { "id": "0b7532ee-e905-4012-b835-ab99faf022d6", "name": "Howard University", "domain": "howard.edu", "kind": "HBCU / private", "chapters": 6 },
+    { "id": "405335e8-8bb7-4d03-96d2-6d9fb0415684", "name": "Middle Tennessee State University", "domain": null, "kind": "weak org web presence", "chapters": 1 },
+    { "id": "42c3eddd-939e-48ae-ba21-2d04bdadb84e", "name": "Florida Atlantic University", "domain": "fau.edu", "kind": "large public", "chapters": 27 }
+  ]
+}
