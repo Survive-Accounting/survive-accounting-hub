@@ -21,10 +21,14 @@ const flag = (n: string, d?: string) => {
   return h ? h.split("=").slice(1).join("=") : process.argv.includes(`--${n}`) ? "true" : d;
 };
 const APPLY = process.argv.includes("--apply");
-const BUDGET = parseFloat(flag("budget", "200")!);
+const BUDGET = parseFloat(flag("budget", "300")!);
 const QPC = parseInt(flag("queries-per-chapter", "2")!, 10);
 const SCAN = parseInt(flag("scan-interval", "900")!, 10) * 1000;
-const MAX_MS = parseFloat(flag("max-hours", "24")!) * 3600_000;
+const MAX_MS = parseFloat(flag("max-hours", "96")!) * 3600_000;
+// SerpAPI auto-renews (+buffer), so treat "out of searches" as a transient pause:
+// back off and retry rather than hard-stop, up to a generous recovery budget.
+const SERP_RETRY_MS = parseFloat(flag("serp-retry-min", "20")!) * 60_000;
+const SERP_MAX_RECOVERIES = parseInt(flag("serp-max-recoveries", "40")!, 10);
 const WIB = !process.argv.includes("--no-wib");
 const COUNCILS = ["ifc", "panhellenic"];
 const START = Date.now(); // note: script-level, before any awaited work
@@ -87,11 +91,25 @@ async function main() {
 
   let stopReason = "";
   let processedTotal = 0;
+  let serpRecoveries = 0;
   const stopFlag = { v: false };
   process.on("SIGINT", () => { console.log("\nSIGINT — stopping after current campus."); stopFlag.v = true; });
 
+  // Returns true only if SERP is unrecoverably dead. Otherwise backs off for the
+  // auto-renew window, clears the flag, and returns false so the run continues.
+  const serpStop = async (): Promise<boolean> => {
+    if (!SERP_STATE.dead) return false;
+    if (serpRecoveries >= SERP_MAX_RECOVERIES) { stopReason = `SERP exhausted after ${serpRecoveries} recoveries (${SERP_STATE.lastError})`; return true; }
+    serpRecoveries++;
+    console.log(`  SERP reported exhausted (${SERP_STATE.lastError}); auto-renew should refill — backing off ${SERP_RETRY_MS / 60000}m then retrying (recovery ${serpRecoveries}/${SERP_MAX_RECOVERIES}).`);
+    await sleep(SERP_RETRY_MS);
+    SERP_STATE.dead = false;
+    SERP_STATE.lastError = "";
+    return false;
+  };
+
   outer: for (let pass = 1; ; pass++) {
-    if (SERP_STATE.dead) { stopReason = `SERP credits exhausted (${SERP_STATE.lastError})`; break; }
+    if (await serpStop()) break;
     if (estCost(counters) >= BUDGET) { stopReason = `budget $${BUDGET} reached`; break; }
     if (Date.now() - START >= MAX_MS) { stopReason = `max-hours reached`; break; }
 
@@ -101,7 +119,7 @@ async function main() {
 
     for (const campus of targets) {
       if (stopFlag.v) { stopReason = "SIGINT"; break outer; }
-      if (SERP_STATE.dead) { stopReason = `SERP credits exhausted (${SERP_STATE.lastError})`; break outer; }
+      if (await serpStop()) break outer;
       if (estCost(counters) >= BUDGET) { stopReason = `budget $${BUDGET} reached`; break outer; }
       if (Date.now() - START >= MAX_MS) { stopReason = "max-hours reached"; break outer; }
 
@@ -117,14 +135,14 @@ async function main() {
           touched = true;
           console.log(`  CHAP  ${campus.name.slice(0, 30).padEnd(30)} ${r.chaptersProcessed} ch / +${r.contactsSaved} contacts  ($${estCost(counters)})`);
         }
-        if (touched) { didWork = true; processedTotal++; }
+        if (touched) { didWork = true; processedTotal++; serpRecoveries = 0; } // progress resets the recovery budget
       } catch (e: any) {
         console.error(`  ! ${campus.name}: ${String(e?.message || e).slice(0, 160)}`);
       }
       await db.from("growth_discovery_runs").update({ campuses_done: processedTotal, serp_calls: counters.serp, firecrawl_calls: counters.firecrawl, ai_calls: counters.ai, est_cost_usd: estCost(counters) }).eq("id", runId);
     }
 
-    if (SERP_STATE.dead) { stopReason = `SERP credits exhausted (${SERP_STATE.lastError})`; break; }
+    if (await serpStop()) break;
     if (!didWork) {
       console.log(`[pass ${pass}] no pending work — all targets discovered. Watching for enrichment-added campuses; sleeping ${SCAN / 1000}s.`);
       await sleep(SCAN);
