@@ -71,8 +71,11 @@ export async function harvestCampus(campus, ctx, keys) {
       if (d.isArchive) { if (!archives.find((a) => canon(a.url) === canon(r.link))) archives.push(cand); }
       addCandidate(cand);
     }
-    // stop once we have a healthy pile of concrete (non-archive) report candidates
-    if (candidates.filter((x) => !x.isArchive).length >= MAX_REPORT_CANDIDATES) break;
+    // Only stop early on a genuinely STRONG signal (≥2 high-confidence report-title
+    // matches). Weak greek-life-page matches must NOT halt discovery — SERP is not
+    // the scarce resource, so exhaust the query set to maximize report recall.
+    const strong = candidates.filter((x) => !x.isArchive && x.confidence === "high");
+    if (strong.length >= 2) break;
   }
 
   // ── 2. Archive-first expansion: fetch archive pages ONCE, follow report links ─

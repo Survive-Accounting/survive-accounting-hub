@@ -28,15 +28,19 @@ const NON_REPORT = /(news|apply|admission|tuition|calendar|event|form|newsletter
 /** Query set (bounded). Ordered by expected yield (spec addendum priority). */
 export function buildQueries(domain) {
   if (!domain) return [];
+  // Unquoted, recall-first phrasings surface the FSL reports/archive LANDING page
+  // (e.g. /fscl/resources/reports.php) which keepDoc marks isArchive → crawled for
+  // per-semester report links. Exact-title queries catch schools that name reports
+  // literally. Ordered by expected yield (spec addendum: latest report first).
   return [
+    `site:${domain} fraternity sorority grades report`,
+    `site:${domain} fraternity sorority reports`,
+    `site:${domain} greek grade report`,
     `site:${domain} "Greek Academic Report"`,
     `site:${domain} "Community Academic Report"`,
-    `site:${domain} fraternity sorority "grade report"`,
     `site:${domain} fraternity sorority GPA report filetype:pdf`,
-    `site:${domain} (IFC OR Panhellenic) GPA "academic report"`,
-    `site:${domain} greek life grades filetype:pdf`,
-    `site:${domain} "scholarship report" fraternity sorority`,
-    `site:${domain} chapter GPA fraternity sorority`,
+    `site:${domain} (IFC OR Panhellenic) academic report GPA`,
+    `site:${domain} fraternity sorority scholarship report`,
   ];
 }
 

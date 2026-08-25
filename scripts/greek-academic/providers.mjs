@@ -50,13 +50,14 @@ export async function firecrawlMarkdown(key, url) {
   } catch { return null; }
 }
 
-/** Firecrawl scrape that also returns discovered links (for archive-page crawling). */
+/** Firecrawl scrape that also returns discovered links (for archive-page crawling).
+ *  onlyMainContent:false so report-list links in page chrome/side regions survive. */
 export async function firecrawlWithLinks(key, url) {
   try {
     const r = await timeoutFetch(FIRECRAWL_SCRAPE, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ url, formats: ["markdown", "links"], onlyMainContent: true, waitFor: 2500 }),
+      body: JSON.stringify({ url, formats: ["markdown", "links"], onlyMainContent: false, waitFor: 3000 }),
     }, 60_000);
     if (!r.ok) return null;
     const j = await r.json();
