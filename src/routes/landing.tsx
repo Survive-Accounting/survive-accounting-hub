@@ -2637,6 +2637,7 @@ function SetFlowPanel({ topic, set, exam, school, surface, onSetComplete, onPick
                 surface={surface}
                 statusLabel=""
                 doneLabel={pathNext ? `Continue → ${pathNext.label}` : (forwardLabel ?? "Done →")}
+                onFinished={() => { complete(); onStageComplete?.("practice"); }}
                 onDone={() => { complete(); onStageComplete?.("practice"); if (pathNext) pathNext.onGo(); else goto(after); }}
                 pathAdvance={pathNext ? { label: pathNext.label, onContinue: () => { complete(); onStageComplete?.("practice"); pathNext.onGo(); } } : null}
                 onReview={set.reviewPlaybackId ? () => goto({ setId: set.id, stage: "review" }) : undefined}

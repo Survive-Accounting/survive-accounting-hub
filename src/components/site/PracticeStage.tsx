@@ -57,9 +57,11 @@ export interface PracticeStageProps {
    *  Results render untouched for ~3s, then a small "Continuing in 5…" line with Continue now /
    *  Stay here appears. Retry, Stay, or any earlier navigation cancels it. */
   pathAdvance?: { label: string; onContinue: () => void } | null;
+  /** Fires once when the completion screen first renders — "reached set completion state". */
+  onFinished?: () => void;
 }
 
-export function PracticeStage({ setId, questions: override, onDone, doneLabel, onReview, reference, campusName, campusSlug, surface, isTest, statusLabel = "Practice", authed = false, onSaveProgress, pathAdvance = null }: PracticeStageProps) {
+export function PracticeStage({ setId, questions: override, onDone, doneLabel, onReview, reference, campusName, campusSlug, surface, isTest, statusLabel = "Practice", authed = false, onSaveProgress, pathAdvance = null, onFinished }: PracticeStageProps) {
   const q = useQuery({ queryKey: ["set-practice", setId], queryFn: () => fetchSetPractice({ data: { setId } }), enabled: !override, staleTime: 300_000, networkMode: "always" });
   const questions = useMemo<PracticeQuestion[]>(() => override ?? (q.data?.status === "ok" ? q.data.questions : []), [override, q.data]);
 
@@ -99,6 +101,10 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
   const lastReached = useRef<{ setId: string; ceqId: string; pass: number } | null>(null);
   useEffect(() => { if (cur) lastReached.current = { setId, ceqId: cur.id, pass }; }, [cur, setId, pass]);
   const finishedRef = useRef(false); finishedRef.current = finished;
+  // "Reached set completion state" — the guided path marks the practice step done HERE (the
+  // results screen), not on the Continue click, so progress and the rail ✓ update in view.
+  const finishedOnce = useRef(false);
+  useEffect(() => { if (finished && !finishedOnce.current) { finishedOnce.current = true; onFinished?.(); } }, [finished, onFinished]);
   // Test Mode: mark step 5 the moment the "You've been through" screen renders — provided the
   // pass ran with at least one correct + one incorrect (matches the spec's completion criterion).
   useEffect(() => {
