@@ -11,7 +11,7 @@
 // through a route file is exactly what trips the TanStack code-splitter. Anything landing owns
 // (TestimonialsSlider, the player) arrives through slots/props instead.
 import { useEffect, useState } from "react";
-import { ArrowLeftRight, ClipboardCheck, Play, Target } from "lucide-react";
+import { ArrowLeftRight, ClipboardCheck, Play, Target, MessageCircle } from "lucide-react";
 
 import { BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS } from "@/components/canvas/brand";
 import { AnimatedCampusBolt, type BoltCampus } from "@/components/site/bolt";
@@ -102,7 +102,10 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
     ? <><span style={{ color: "var(--accent)" }}>{code}</span> at {schoolShort} is where GPAs quietly slip.</>
     : <>Intro accounting is where GPAs quietly slip.</>;
 
-  const builtFor = code ?? "Intro Accounting";
+  // Campus pages keep the sharper personalised claim; the generic page sells the outcome.
+  const supporting = code
+    ? `Cram videos + practice exams built for ${code}.`
+    : "Cram videos + practice exams built for crushing your first accounting course.";
 
   return (
     <section id={MARKETING_HERO_ID} className="sa-hero3 grid items-center gap-8 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12 lg:py-14" style={{ fontFamily: BRAND_SANS }}>
@@ -122,7 +125,7 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
           Practice what gets tested. Score higher.
         </p>
         <p className="mt-2 max-w-[24ch] text-[15px] leading-snug sm:max-w-[42ch] sm:text-[16.5px]" style={{ color: "var(--brand-cream)", opacity: 0.66 }}>
-          Cram videos + practice exams built for {builtFor}.
+          {supporting}
         </p>
 
         <div className="mt-7 flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row lg:justify-start">
@@ -132,7 +135,7 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
             className="w-full rounded-xl px-7 text-[16px] font-black transition-transform hover:scale-[1.02] focus-visible:ring-2 sm:w-auto"
             style={{ minHeight: 54, background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.6)" }}
           >
-            Cram Exam 1 Free ⚡
+            Start Exam 1 Free ⚡
           </button>
           {showSecondary && secondaryLabel && (
             secondaryHref ? (
@@ -179,7 +182,7 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
           <AnimatedCampusBolt
             campuses={campuses}
             onActivate={(c) => (kind === "general" && onBoltPick && c.id !== "brand" ? onBoltPick(c.id) : onStart())}
-            ariaLabel={code ? `Start studying ${code}` : "Cram Exam 1 Free"}
+            ariaLabel={code ? `Start studying ${code}` : "Start Exam 1 Free"}
             hint={code ? `Open ${code} ↓` : "Start studying ↓"}
           />
           {/* Under the plate, not beside the CTA: this corrects "OLE MISS", so it belongs where
@@ -275,25 +278,29 @@ export const MARKETING_CSS = `
 // ── FEATURE VALUE STRIP ───────────────────────────────────────────────────────────────────────
 /** Three scannable value cards, AFTER the player (the product proves the claims; the strip
  *  reinforces, it doesn't preface). Card 3 is context-dynamic. */
-export function FeatureValueStrip({ code }: { code: string | null }) {
+export function FeatureValueStrip({ code, onSyllabus }: { code: string | null; onSyllabus?: () => void }) {
+  void code; // card 3 is course-generic launch copy now; the syllabus action carries the tailoring
   const CARDS = [
-    { icon: Play, title: "Quick cram videos", body: "Made for exams, not lectures." },
+    { icon: Play, title: "Quick cram videos", body: "Nothing like your lecture videos." },
     { icon: ClipboardCheck, title: "Practice exams", body: "See the problems that matter." },
-    {
-      icon: Target,
-      title: `Built for ${code ?? "Intro Accounting"}`,
-      body: code ? "Coverage matched to your exact class." : "Coverage matched to your course.",
-    },
   ];
+  const card = "rounded-2xl p-4";
+  const cardStyle = { background: "var(--bg-surface)", border: "1px solid var(--border-default)" } as const;
   return (
     <section className="mx-auto grid w-full max-w-[880px] gap-3 px-1 py-10 sm:grid-cols-3" style={{ fontFamily: BRAND_SANS }}>
       {CARDS.map(({ icon: Icon, title, body }) => (
-        <div key={title} className="rounded-2xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
+        <div key={title} className={card} style={cardStyle}>
           <Icon className="h-5 w-5" style={{ color: "var(--accent)" }} aria-hidden />
           <p className="mt-2.5 text-[15px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{title}</p>
           <p className="mt-1 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>{body}</p>
         </div>
       ))}
+      {/* Card 3 is the ONE actionable card — it opens the existing syllabus flow. */}
+      <button type="button" onClick={onSyllabus} className={`${card} text-left transition-transform hover:scale-[1.01] focus-visible:ring-2`} style={cardStyle}>
+        <Target className="h-5 w-5" style={{ color: "var(--accent)" }} aria-hidden />
+        <p className="mt-2.5 text-[15px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Built around your course</p>
+        <p className="mt-1 text-[14px] leading-snug" style={{ color: "var(--accent)" }}>Send your syllabus. I&apos;ll match it →</p>
+      </button>
     </section>
   );
 }
@@ -350,9 +357,9 @@ export function TutorCard({ onMore }: { onMore: () => void }) {
         <LeePortrait width={112} caption={false} />
         <div className="min-w-0" style={{ color: "var(--brand-cream)" }}>
           <p className="text-[16px] font-bold">Lee Ingram</p>
-          <p className="mt-1 text-[14px] leading-snug" style={{ opacity: 0.75 }}>Two accounting degrees from Ole Miss</p>
-          <p className="mt-1 text-[14px] leading-snug" style={{ opacity: 0.75 }}>Tutor since 2015 · Ole Miss adjunct</p>
-          <p className="mt-1 text-[14px] leading-snug" style={{ opacity: 0.75 }}>1,000+ students helped</p>
+          <p className="mt-1 text-[14px] leading-snug" style={{ opacity: 0.75 }}>Two accounting degrees</p>
+          <p className="mt-1 text-[14px] leading-snug" style={{ opacity: 0.75 }}>Tutor since 2015</p>
+          <p className="mt-1 text-[14px] leading-snug" style={{ opacity: 0.75 }}>1,000+ students tutored</p>
         </div>
       </div>
       <button
@@ -399,15 +406,64 @@ export function TutorBioModal({ onClose }: { onClose: () => void }) {
             Hey, I&apos;m Lee.
           </h2>
         </div>
+        {/* PHOTO ROW — today just the portrait above; when live-music shots exist, add more
+            <img>s beside the portrait and this strip becomes a small gallery without a redesign. */}
         <div className="mt-2">
-          <P>I earned two accounting degrees from Ole Miss and have tutored intro accounting every semester since 2015. I also teach entrepreneurship and QuickBooks as an adjunct at Ole Miss.</P>
-          <P>I keep coming back to intro accounting because it&apos;s one of those classes where good students can study hard and still get surprised by the exam.</P>
-          <P>That&apos;s why I built Survive Accounting: to turn ten years of tutoring experience into focused, $50-per-exam prep. The biggest thing I&apos;ve learned is simple—students do better when they&apos;ve already practiced the kinds of problems they&apos;re likely to see before exam day.</P>
-          <P>I genuinely love teaching this stuff. Accounting is the language of business, and once it clicks, it&apos;s a pretty powerful thing to understand.</P>
-          <P>Outside of teaching, I&apos;m usually traveling, playing music, or working on Survive.</P>
+          <P>I&apos;ve been helping students get through Intro Accounting since 2015 and have worked with more than 1,000 students.</P>
+          <P>I built Survive because accounting exams are a lot easier when you&apos;ve already practiced the kinds of problems you&apos;re about to see.</P>
+          <P>Outside Survive, I&apos;m usually traveling, seeing live music, playing live music, or working on Survive.</P>
         </div>
       </div>
     </div>
+  );
+}
+
+/** FLOATING CONTACT — "Questions? Text Lee". One quiet pill, bottom-right, replacing the old
+ *  full-width sticky bar (which duplicated the navbar). Hidden until the hero scrolls away and
+ *  when the real footer is on screen — same show logic the old bar used, kept because it stops
+ *  the pill from stacking on the footer's own Text-Lee link. */
+export function FloatingContact({ heroId, tel, phone, onText, onEmail }: { heroId: string; tel: string; phone: string; onText?: () => void; onEmail?: () => void }) {
+  const [pastHero, setPastHero] = useState(false);
+  const [footerSeen, setFooterSeen] = useState(false);
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const hero = document.getElementById(heroId);
+    const footer = document.getElementById("site-footer");
+    const ios: IntersectionObserver[] = [];
+    if (hero) { const io = new IntersectionObserver(([e]) => setPastHero(!e.isIntersecting), { threshold: 0 }); io.observe(hero); ios.push(io); }
+    if (footer) { const io = new IntersectionObserver(([e]) => setFooterSeen(e.isIntersecting), { threshold: 0 }); io.observe(footer); ios.push(io); }
+    return () => ios.forEach((io) => io.disconnect());
+  }, [heroId]);
+  const show = pastHero && !footerSeen;
+  void onEmail;
+  return (
+    <a
+      href={`sms:${tel}`}
+      onClick={onText}
+      aria-hidden={!show}
+      tabIndex={show ? 0 : -1}
+      className="fixed z-[190] inline-flex items-center gap-2 rounded-full px-4 shadow-lg transition-all"
+      style={{
+        // Mobile: sit ABOVE the practice stage's fixed Next bar (~64px tall) so answers and the
+        // primary control stay clear. Desktop: classic bottom-right.
+        right: 14,
+        bottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
+        opacity: show ? 1 : 0,
+        transform: show ? "translateY(0)" : "translateY(12px)",
+        pointerEvents: show ? "auto" : "none",
+        minHeight: 44,
+        background: "var(--accent)",
+        color: "#0B1220",
+        fontFamily: BRAND_SANS,
+        fontWeight: 800,
+        fontSize: 14,
+      }}
+    >
+      <MessageCircle className="h-4 w-4" aria-hidden />
+      <span className="hidden sm:inline">Questions? Text Lee</span>
+      <span className="sm:hidden">Text Lee</span>
+      <span className="hidden md:inline" style={{ opacity: 0.75, fontWeight: 600 }}>{phone}</span>
+    </a>
   );
 }
 

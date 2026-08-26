@@ -54,7 +54,7 @@ import {
 } from "@/components/site/bolt";
 import {
   FeatureValueStrip, MARKETING_CSS, MARKETING_HERO_ID, MarketingHero, MarketingUtilityLinks,
-  SocialProofSection, StickyFooterBar, TutorBioModal, TutorCard, type GreekMarketing,
+  FloatingContact, SocialProofSection, TutorBioModal, TutorCard, type GreekMarketing,
 } from "@/components/site/Marketing";
 import { CampusProvider, useCampus } from "@/lib/campus-context";
 import { readStoredCampus, rememberCampus, rememberProfSkip, SKIPPED, NOT_LISTED } from "@/lib/campus-prefs";
@@ -595,15 +595,13 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
         <ExamPlayer videoGate={videoGate} greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); void logCampusCodeDemand({ data: { source: "write-in" } }).catch(() => {}); rememberCampus(NOT_LISTED); }} onSkipSchool={() => { setNotListed(true); rememberCampus(SKIPPED); }} schoolSkipped={notListed && !school} initialProfSkipped={!!school && !!profSkipFor && profSkipFor === school.id} onResetQuestions={resetQuestions} resetSeq={resetSeq} onChangeProfessor={changeProfessor} onChangeSchool={changeSchoolAny} routePath={campusSlug ? `/${campusSlug}` : goChapter ? `/go/${goChapter.schoolSlug}/${goChapter.chapterSlug}` : "/"} theater={theater} onTheaterDone={() => setTheater(null)} onNotify={(r) => setNotifyReq(r)} />
 
         {/* Value strip AFTER the player: the product proves the claims, the strip reinforces. */}
-        <FeatureValueStrip code={heroCode} />
+        <FeatureValueStrip code={heroCode} onSyllabus={() => openSyllabus()} />
 
         {/* CHAPTER ACCESS still after the product, never before it. */}
         {chapterAccess}
 
         {/* Greek pages put proof before the FAQ (reviews answer "is this real?", which an exec
             asks before the operational questions). The student page keeps its existing order. */}
-        {greekOrg ? null : <Faq greek={undefined} />}
-        <SectionDivider />
         {/* sa-anchor (not a hardcoded scroll-mt): the offset tracks the real measured header
             height via --sa-header-h, same as #exam1 and #chapter-access. The #lee anchor lives
             on the tutor column inside the row. */}
@@ -613,7 +611,8 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
           tutor={<TutorCard onMore={() => setBioOpen(true)} />}
         />
         <SectionDivider />
-        {greekOrg ? <Faq greek={greekOrg} /> : null}
+        {/* FAQ sits at the BOTTOM (08-25): objections come after the product and the proof. */}
+        <Faq greek={greekOrg || undefined} />
         {/* THE PRE-FOOTER UTILITY LINKS ARE GONE. "Don't see your professor?" and "Don't see your
             school?" floated alone between the proof section and the footer, where they read as
             orphaned error-state text rather than an offer. Both actions still exist where they are
@@ -627,18 +626,9 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
       <Footer onLanding />
 
       {bioOpen && <TutorBioModal onClose={() => setBioOpen(false)} />}
-      {/* The sticky footer slides up once the hero is gone and away again at the real footer. */}
-      <StickyFooterBar
-        heroId={MARKETING_HERO_ID}
-        tel={TEL}
-        phone={PHONE}
-        links={[
-          { label: "Cram Exam 1 Free", href: "#exam1" },
-          { label: "Reviews", href: "#reviews" },
-          { label: "Meet your tutor", href: "#lee" },
-          greek ? { label: "Chapter Access", href: `#${greek.accessAnchor}` } : { label: "For Greeks", href: "/chapters" },
-        ]}
-      />
+      {/* One floating "Text Lee" pill replaces the full-width sticky bar (which repeated the
+          navbar). Greek pages keep their own bottom CTA instead. */}
+      {!greekOrg && <FloatingContact heroId={MARKETING_HERO_ID} tel={TEL} phone={PHONE} />}
 
       {syllabusOpen && <SyllabusModal school={school} framing={syllabusFraming} onClose={() => { setSyllabusOpen(false); setSyllabusFraming(null); }} />}
       {notifyReq && <NotifyModal req={notifyReq} school={school} professorName={professor ? (professor.last || professor.name) : null} isTest={outerTestMode.enabled} onClose={() => setNotifyReq(null)} />}
