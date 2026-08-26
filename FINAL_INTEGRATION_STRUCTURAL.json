@@ -1,0 +1,105 @@
+{
+  "session": "structural",
+  "generated": "2026-08-25",
+  "canonical_campus_key": "campuses.id (uuid). Every child table joins on campus_id uuid. No name-based joins required anywhere.",
+  "tables": [
+    {"name": "campuses", "pk": "id (uuid)", "grain": "1 row per campus", "campus_join_key": "id", "fks": ["parent_system_id -> campus_systems.id"], "holds": "campus identity + course codes (course_family_codes_json)", "safe_ui": ["name","display_name","aliases","state","parent_system_id","campus_resolution_status","institution_type","school_type","greek_eligibility","greek_pct_fraternity","greek_pct_sorority","course_family_codes_json.intro_1"], "quarantined": ["derived raw professor count (do not score)"]},
+    {"name": "campus_systems", "pk": "id (uuid)", "grain": "1 row per university system", "campus_join_key": "campuses.parent_system_id -> id", "fks": [], "holds": "searchable system grouping (UC/SUNY/CSU...)", "safe_ui": ["name","aliases"], "quarantined": [], "note": "searchable, NOT selectable; selection resolves to a real campus"},
+    {"name": "campus_greek_chapters", "pk": "id (uuid)", "grain": "1 row per (campus x greek org) chapter", "campus_join_key": "campus_id", "fks": ["campus_id -> campuses.id","greek_org_id -> greek_orgs.id"], "holds": "Greek presence + counts + chapter contact fields", "safe_ui": ["chapter_designation","council","website_url","instagram_url","facebook_url","phone","discovery_source","confidence","status","enrichment_status","archived_at"], "quarantined": ["count for the 5 wrong-campus campuses in growth_scoring_exclusions"], "note": "council = CAMPUS council (ifc|panhellenic|nphc|mgc). NO dedicated chapter email column."},
+    {"name": "greek_orgs", "pk": "id (uuid)", "grain": "1 row per national Greek org", "campus_join_key": "via campus_greek_chapters.greek_org_id", "fks": [], "holds": "org identity + org_type", "safe_ui": ["name","nickname","letters","org_type","council","national_website","domain"], "quarantined": ["org_type='unknown' (439 rows) — do not assume social"], "note": "council here = NATIONAL conference (NIC/NPC), NOT the campus council. org_type classified by name on NEW inserts; legacy rows unchanged."},
+    {"name": "campus_council_contacts", "pk": "id (uuid)", "grain": "1 row per (campus x council_type x email)", "campus_join_key": "campus_id", "fks": ["campus_id -> campuses.id"], "holds": "council outreach contacts (IFC/Panhel/NPHC/MGC)", "safe_ui": ["council_type","contact_type","name","role","email","instagram_url","source_type","source_url","confidence","is_current"], "quarantined": [], "note": "council_type is a TEXT enum (ifc|panhellenic|nphc|mgc|other), NOT an FK. contact_type: role_inbox|staff_advisor|student_officer|unknown. Campus-level, NOT chapter-level."},
+    {"name": "campus_council_status", "pk": "id (uuid)", "grain": "1 row per (campus x council_type)", "campus_join_key": "campus_id", "fks": ["campus_id -> campuses.id"], "holds": "per-council discovery status (drives the Enrichment panel)", "safe_ui": ["council_type","status","contacts_found","role_inbox_found","last_attempted_at","last_success_at","error"], "quarantined": [], "note": "status values observed: complete | no_result"},
+    {"name": "campus_lead_suggestions", "pk": "id (uuid)", "grain": "1 row per (campus x professor)", "campus_join_key": "campus_id", "fks": ["campus_id -> campuses.id","chapter_id -> campus_greek_chapters.id (UNPOPULATED)","moved_to_campus_id -> campuses.id"], "holds": "professors + Intro-1 evidence", "safe_ui": ["first_name","last_name","title","department","email","is_cpa","is_phd","rmp_rating","rmp_num_ratings","rmp_difficulty","rmp_profile_url","active_roster","student_visible","teaches_intro_1","rmp_target_course_counts_json","rmp_recent_target_match","rmp_target_confidence"], "quarantined": ["COUNT(*) as a scoring input (global do-not-score)","count for 7 over-collection campuses in growth_scoring_exclusions"], "note": "filter archived_at IS NULL for active. Professors are the PROFESSOR entity (table name is legacy)."},
+    {"name": "growth_scoring_exclusions", "pk": "id (uuid)", "grain": "1 row per (campus x metric)", "campus_join_key": "campus_id", "fks": ["campus_id -> campuses.id"], "holds": "scoring exclusion list Growth MUST respect", "safe_ui": ["metric","reason","status","value","note"], "quarantined": [], "status": "UNAPPLIED (migration 20260825_1200)"},
+    {"name": "scrape_cache", "pk": "cache_key (text)", "grain": "1 row per cached external call", "campus_join_key": "n/a (infra)", "fks": [], "holds": "SERP/Firecrawl response cache", "safe_ui": [], "quarantined": [], "status": "UNAPPLIED"},
+    {"name": "backfill_lock", "pk": "id (text='global')", "grain": "singleton", "campus_join_key": "n/a (infra)", "fks": [], "holds": "single-orchestrator advisory lock", "safe_ui": [], "quarantined": [], "status": "UNAPPLIED"}
+  ],
+  "councils_note": "IFC / Panhellenic / NPHC / MGC are NOT tables. They are: (a) council_type values in campus_council_contacts + campus_council_status, and (b) council values in campus_greek_chapters. There is no separate councils table.",
+  "campus_fields": [
+    {"label": "Campus name", "expr": "campuses.display_name (fallback name)"},
+    {"label": "State", "expr": "campuses.state"},
+    {"label": "Course code (Intro-1)", "expr": "campuses.course_family_codes_json ->> 'intro_1'"},
+    {"label": "Greek chapter count", "expr": "count(campus_greek_chapters where campus_id=? and archived_at is null)", "filters": "exclude greek_orgs.org_type in (professional,honor,service); exclude if in growth_scoring_exclusions(greek_chapter_count)"},
+    {"label": "IFC present", "expr": "exists(campus_greek_chapters where campus_id=? and council='ifc') OR campus_council_status(council_type='ifc').status='complete'"},
+    {"label": "Panhellenic present", "expr": "same pattern, council/council_type='panhellenic'"},
+    {"label": "NPHC present", "expr": "same pattern, 'nphc'"},
+    {"label": "MGC present", "expr": "same pattern, 'mgc'"},
+    {"label": "Council contact counts", "expr": "count(campus_council_contacts where campus_id=? group by council_type)"},
+    {"label": "Professor count", "expr": "count(campus_lead_suggestions where campus_id=? and archived_at is null)", "safe_to_score": false, "display_rule": "DISPLAY ONLY, label 'directory-scraped, may include non-accounting'; show quarantine warning if in growth_scoring_exclusions"},
+    {"label": "Intro-1 professor count", "expr": "count(campus_lead_suggestions where campus_id=? and archived_at is null and (rmp_target_course_counts_json->>'intro_1')::int >= 1)", "safe_to_score": true}
+  ],
+  "chapter_fields": [
+    {"field": "chapter id", "path": "campus_greek_chapters.id"},
+    {"field": "greek org id", "path": "campus_greek_chapters.greek_org_id"},
+    {"field": "name", "path": "greek_orgs.name (join greek_org_id)"},
+    {"field": "nickname", "path": "greek_orgs.nickname"},
+    {"field": "greek letters", "path": "greek_orgs.letters (OFTEN NULL — augment later)"},
+    {"field": "council (campus)", "path": "campus_greek_chapters.council"},
+    {"field": "chapter designation", "path": "campus_greek_chapters.chapter_designation"},
+    {"field": "campus", "path": "campus_greek_chapters.campus_id -> campuses.display_name"},
+    {"field": "website", "path": "campus_greek_chapters.website_url (often null)"},
+    {"field": "instagram", "path": "campus_greek_chapters.instagram_url (often null)"},
+    {"field": "general email", "path": "NOT AVAILABLE — no chapter email column; campus_council_contacts is campus-level not chapter-level. Weak point / augment later."},
+    {"field": "org type", "path": "greek_orgs.org_type"},
+    {"field": "source", "path": "campus_greek_chapters.discovery_source (+ notes)"},
+    {"field": "confidence", "path": "campus_greek_chapters.confidence (text: unverified|...)"}
+  ],
+  "professor_fields": {
+    "available_now": ["first_name","last_name","title","department","email","is_cpa","is_phd","rmp_rating","rmp_num_ratings","rmp_difficulty","rmp_would_take_again","rmp_profile_url","active_roster","student_visible","teaches_intro_1","rmp_target_course_counts_json","rmp_recent_target_match","rmp_target_confidence","hasselback_match","source"],
+    "course_intel_should_augment": ["official schedule-of-classes instructor-of-record (primary Intro-1 proof)","syllabus authorship","chapter_id link (professor->chapter, currently unpopulated)","teaching_evidence_url / teaching_evidence_notes","course section term data","mobility (moved_to_campus_id)"]
+  },
+  "enrichment_checks": [
+    {"category": "Course code", "COMPLETE": "course_family_codes_json ->> 'intro_1' is not null", "PARTIAL": "n/a", "MISSING": "intro_1 key absent/empty", "NEEDS_REVIEW": "course_codes_reviewed = false (sparsely populated)"},
+    {"category": "Greek chapters", "COMPLETE": ">0 active social chapters", "PARTIAL": "chapters exist but all org_type unknown/non-social", "MISSING": "0 chapters", "NEEDS_REVIEW": "campus in growth_scoring_exclusions(greek_chapter_count)"},
+    {"category": "Councils (IFC/Panhel/NPHC/MGC)", "COMPLETE": "all applicable councils have campus_council_status.status='complete'", "PARTIAL": "some councils complete, others no_result/absent", "MISSING": "no campus_council_status rows / all no_result", "NEEDS_REVIEW": "status='complete' but contacts_found=0"},
+    {"category": "Council contacts", "COMPLETE": "contacts_found>0 AND role_inbox_found=true", "PARTIAL": "contacts_found>0 AND role_inbox_found=false", "MISSING": "0 contacts", "NEEDS_REVIEW": "email shared across >3 campuses (208 shared emails)"},
+    {"category": "Professors", "COMPLETE": "active profs>0 AND intro1 qualified>0", "PARTIAL": "active profs>0 AND intro1=0 (proof gap)", "MISSING": "0 active profs", "NEEDS_REVIEW": "campus in growth_scoring_exclusions(professor_count)"}
+  ],
+  "targeted_enrichment_actions": [
+    {"category": "Course code", "fn": "researchProgramCourses", "call": "researchProgramCourses({ data: { campusId, force: true } })", "endpoint": "server fn (POST)", "id_required": "campusId (uuid)", "providers": ["SerpAPI","Firecrawl","AI Gateway (gemini-2.5-flash)"], "cost": "~3-5 SERP + 1-3 Firecrawl + 1 AI", "safe_from_admin_ui": "yes (no admin guard on the fn; gate the UI)", "locking_idempotency": "idempotent — overwrites course_family_codes_json; safe to re-run"},
+    {"category": "Greek chapters", "fn": "scrapeCampusGreek", "call": "scrapeCampusGreek({ data: { campusId } })", "endpoint": "server fn (POST)", "id_required": "campusId", "providers": ["SerpAPI","Firecrawl","AI Gateway"], "cost": "~2-3 SERP + 2 Firecrawl + 1 AI", "safe_from_admin_ui": "yes", "locking_idempotency": "idempotent — find-or-create orgs, dedups chapter links by greek_org_id; NEW: verifies campus identity before writing"},
+    {"category": "Council contacts", "fn": "discoverCouncilContacts", "call": "discoverCouncilContacts({ data: { campusId } })", "endpoint": "server fn (POST)", "id_required": "campusId", "providers": ["SerpAPI","Firecrawl","AI Gateway"], "cost": "HIGH SERP (~10-20; dominant cost) + up to 5 Firecrawl + up to 5 AI", "safe_from_admin_ui": "yes", "locking_idempotency": "idempotent — upsert on (campus_id,council_type,email); never invents emails"},
+    {"category": "Professors (discover)", "fn": "autoDiscoverCampusUrls + scrapeCampusFaculty", "call": "const d = await autoDiscoverCampusUrls({ data: { campusId } }); await scrapeCampusFaculty({ data: { campusId, urls: d.facultyUrls, allowNoContact: true, maxPages: 3 } })", "endpoint": "server fns (POST)", "id_required": "campusId (+ urls for faculty)", "providers": ["SerpAPI","Firecrawl (heavy — top cost)","AI Gateway"], "cost": "~2-4 SERP + MANY Firecrawl (pagination) + AI", "safe_from_admin_ui": "yes; already accounting-scoped", "locking_idempotency": "idempotent inserts (dedup by email/slug); pagination capped at MAX_PAGINATION_PAGES=4"},
+    {"category": "Intro-1 qualification", "fn": "enrichProfintelCampus", "call": "enrichProfintelCampus({ data: { campusId, limit: 150 } })", "endpoint": "server fn (POST)", "id_required": "campusId", "providers": ["RateMyProfessors GraphQL (FREE, no key)"], "cost": "free (no SERP/Firecrawl/AI)", "safe_from_admin_ui": "yes — cheapest, run liberally", "locking_idempotency": "idempotent — updates rmp_* fields on existing leads"},
+    {"category": "All-in-one (orchestrated)", "fn": "POST /api/backfill", "call": "POST /api/backfill  body {campusId, stages?, lockOwner?, forceStages?}  header Authorization: Bearer $BACKFILL_TOKEN", "endpoint": "HTTP route", "id_required": "campusId", "providers": ["all of the above"], "cost": "sum of enabled stages", "safe_from_admin_ui": "requires BACKFILL_TOKEN (local .env only today; NOT in Vercel -> 503 in prod until set)", "locking_idempotency": "single-orchestrator lock via lockOwner (backfill_lock, fail-open); CC gate; per-stage idempotent"}
+  ],
+  "quarantined_fields": [
+    {"item": "raw professor count", "scope": "GLOBAL", "rule": "DO NOT USE as scoring signal", "display": "allowed with warning label", "reason": "directory over-collection includes non-accounting faculty"},
+    {"item": "professor_count outliers", "scope": "7 campuses", "table": "growth_scoring_exclusions (metric=professor_count, status=needs_review)", "display": "allowed with warning", "campuses": ["University of Virginia (259)","UIUC (118)","UT Austin (114)","La Verne (103)","Oral Roberts (95)","Minnesota (90)","UT-RGV (85)"]},
+    {"item": "greek_chapter_count outliers", "scope": "5 campuses", "table": "growth_scoring_exclusions (metric=greek_chapter_count, status=needs_review)", "display": "allowed with warning", "campuses": ["Parkland College (64)","Austin CC (58)","Indiana University Northwest (61)","Cornell College (61)","Franklin & Marshall (57)"]},
+    {"item": "community-college council/faculty stages", "scope": "runtime gate", "rule": "skipped by default (isCommunityCollege); override via forceStages or HIGH_VALUE_CAMPUS_IDS", "display": "n/a (prevents future spend)", "reason": "CCs have no Greek councils and often no accounting faculty page"},
+    {"item": "greek_orgs.org_type='unknown'", "scope": "439 rows", "rule": "do not assume social; exclude from confident social counts", "display": "allowed", "reason": "legacy classification gap"},
+    {"item": "shared council emails", "scope": "208", "rule": "verify before treating as distinct per-campus contacts", "display": "allowed with warning", "reason": "advisor reuse vs mis-scrape"}
+  ],
+  "join_contracts": [
+    {"path": "campus -> chapter", "join": "campus_greek_chapters.campus_id = campuses.id", "strength": "strong (uuid FK)"},
+    {"path": "chapter -> greek org identity", "join": "greek_orgs.id = campus_greek_chapters.greek_org_id", "strength": "strong (uuid FK)"},
+    {"path": "campus -> council status", "join": "campus_council_status.campus_id = campuses.id (filter council_type)", "strength": "strong on campus_id; council_type is a TEXT enum not an FK"},
+    {"path": "campus -> council contacts", "join": "campus_council_contacts.campus_id = campuses.id (filter council_type)", "strength": "strong on campus_id; CAMPUS-level not chapter-level"},
+    {"path": "chapter -> council", "join": "campus_greek_chapters.council (text enum) -> council_type", "strength": "WEAK — controlled vocab text, no FK; do not conflate with greek_orgs.council (national NIC/NPC)"},
+    {"path": "campus -> professor", "join": "campus_lead_suggestions.campus_id = campuses.id (filter archived_at is null)", "strength": "strong (uuid)"},
+    {"path": "professor -> chapter", "join": "campus_lead_suggestions.chapter_id -> campus_greek_chapters.id", "strength": "ABSENT — column exists but UNPOPULATED; no professor-to-chapter link today"}
+  ],
+  "weak_joins_flagged": [
+    "council_type / council are TEXT enums (ifc|panhellenic|nphc|mgc|other), not FKs to a councils table (none exists)",
+    "professor->chapter (chapter_id) is unpopulated",
+    "greek_orgs.council (national NIC/NPC) != campus_greek_chapters.council (campus IFC/Panhel) — never join these",
+    "no chapter-level email; council contacts are campus-level",
+    "3 duplicate campus records (UCLA/UCSB/UW-Madison) can double-join — dedupe first"
+  ],
+  "code_status": {
+    "branch": "course-intel-v1",
+    "head_commit": "5591430d (Scraper hardening + data quarantine)",
+    "main_commit": "515d1e53 (campus systems — already merged)",
+    "commits_ahead_of_main": ["5591430d"],
+    "pushed": false,
+    "needs_merge": "course-intel-v1 -> main (1 commit: hardening + api.backfill runner + docs)",
+    "manual_config": ["BACKFILL_TOKEN in Vercel (only in local .env today; api.backfill returns 503 without it)","optional HIGH_VALUE_CAMPUS_IDS env"]
+  },
+  "migrations": {
+    "applied": ["20260824_1200_council_contacts","20260824_1400_greek_density","20260824_1500_council_email_index_fix","20260824_1700_campus_systems"],
+    "not_applied": ["20260825_1200_scraper_hardening (scrape_cache, backfill_lock, growth_scoring_exclusions + quarantine seed)"]
+  },
+  "unapplied_migrations": ["20260825_1200_scraper_hardening.sql"],
+  "integration_readiness": "PARTIAL — council + Greek + Intro-1 layers are dashboard-ready on live tables now; professor COUNT stays quarantined; growth_scoring_exclusions + cache/lock migration must be applied before the Enrichment button uses cache/lock or the dashboard reads the quarantine list (helpers fail-open so buttons work without them, but scoring must not consume raw prof counts regardless)."
+}
