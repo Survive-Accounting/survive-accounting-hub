@@ -22,7 +22,36 @@ import type { FlyerInput } from "@/lib/flyer.server";
 
 const CAMPUS = "campus";
 
-async function resolve(school: string, chapter: string): Promise<FlyerInput | null> {
+/** REP ATTRIBUTION ON THE FLYER (campus-rep V1).
+ *  · `?ref=<code>` swaps the QR target to /r/<code> — used by the rep share kit. The code must be
+ *    a real, active link that genuinely belongs to this chapter (or, for the campus variant, to a
+ *    partner at all) so a stray param can't mint junk-attributed artwork.
+ *  · With NO ?ref, a chapter that has a live rep_chapter_assignment for the CURRENT term still
+ *    gets the sourcing rep's QR by default — an exec downloading "their" flyer after claiming
+ *    keeps crediting the rep who sourced them, without the rep's name appearing anywhere. */
+async function repRefForChapter(db: { from: (t: string) => any }, chapterId: string): Promise<string | null> {
+  try {
+    const { termFor, termId } = await import("@/lib/terms");
+    const { data: asg } = await db.from("rep_chapter_assignments").select("referral_link_id")
+      .eq("campus_greek_chapter_id", chapterId).eq("term_id", termId(termFor()))
+      .in("status", ["reserved", "qualified"]).maybeSingle();
+    if (!asg?.referral_link_id) return null;
+    const { data: link } = await db.from("referral_links").select("code,active")
+      .eq("id", asg.referral_link_id).maybeSingle();
+    return link?.active ? (link.code as string) : null;
+  } catch { return null; }
+}
+
+async function validatedRef(db: { from: (t: string) => any }, ref: string, chapterId: string | null): Promise<string | null> {
+  const { data: link } = await db.from("referral_links")
+    .select("code,active,campus_greek_chapter_id").eq("code", ref).maybeSingle();
+  if (!link?.active) return null;
+  // Chapter flyer: the code must be bound to THIS chapter. Campus flyer: any active code passes.
+  if (chapterId && link.campus_greek_chapter_id && link.campus_greek_chapter_id !== chapterId) return null;
+  return link.code as string;
+}
+
+async function resolve(school: string, chapter: string, ref: string | null): Promise<FlyerInput | null> {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const db = supabaseAdmin as unknown as { from: (t: string) => any };
 
@@ -40,19 +69,22 @@ async function resolve(school: string, chapter: string): Promise<FlyerInput | nu
   const { schoolBySlug } = await import("@/lib/schools");
   const schoolName = schoolBySlug(school)?.name ?? (campus.name as string);
 
-  if (chapter === CAMPUS) return { schoolSlug: school, schoolName, courseCode };
+  if (chapter === CAMPUS) {
+    const refCode = ref ? await validatedRef(db, ref, null) : null;
+    return { schoolSlug: school, schoolName, courseCode, ...(refCode ? { refCode } : {}) };
+  }
 
   // nickname preferred for the "Shared by" line — it is what students call the chapter ("ADPi"),
   // and the flyer hangs in their house. Falls back to the org's display name; NEVER the
   // chapter_designation, which is store-only. The nickname select degrades pre-migration
   // (20260820_1209) so a deploy order mistake can't 404 every flyer.
-  let ch: { greek_org_id: string | null; nickname?: string | null } | null = null;
+  let ch: { id: string; greek_org_id: string | null; nickname?: string | null } | null = null;
   {
     const r1 = await db.from("campus_greek_chapters")
-      .select("greek_org_id,nickname").eq("campus_id", campus.id).eq("slug", chapter).maybeSingle();
+      .select("id,greek_org_id,nickname").eq("campus_id", campus.id).eq("slug", chapter).maybeSingle();
     if (r1.error) {
       const r2 = await db.from("campus_greek_chapters")
-        .select("greek_org_id").eq("campus_id", campus.id).eq("slug", chapter).maybeSingle();
+        .select("id,greek_org_id").eq("campus_id", campus.id).eq("slug", chapter).maybeSingle();
       ch = r2.data ?? null;
     } else ch = r1.data ?? null;
   }
@@ -63,7 +95,9 @@ async function resolve(school: string, chapter: string): Promise<FlyerInput | nu
     chapterName = ((org?.name ?? "") as string).trim() || chapter;
   }
   const sharedBy = (ch.nickname ?? "").trim() || chapterName;
-  return { schoolSlug: school, schoolName, courseCode, chapterSlug: chapter, chapterName: sharedBy };
+  // Explicit ?ref wins (validated against this chapter); otherwise the term's sourcing rep, if any.
+  const refCode = (ref ? await validatedRef(db, ref, ch.id) : null) ?? (await repRefForChapter(db, ch.id));
+  return { schoolSlug: school, schoolName, courseCode, chapterSlug: chapter, chapterName: sharedBy, ...(refCode ? { refCode } : {}) };
 }
 
 async function handle({ request, params }: { request: Request; params: { school: string; chapter: string } }): Promise<Response> {
@@ -73,7 +107,8 @@ async function handle({ request, params }: { request: Request; params: { school:
     // ?f=slide (16:9 for a chapter meeting projector — same message, same colourway, big QR)
     const raw = url.searchParams.get("f");
     const format = raw === "svg" ? "svg" : raw === "slide" ? "slide" : "pdf";
-    const input = await resolve(params.school, params.chapter);
+    const ref = (url.searchParams.get("ref") ?? "").trim() || null;
+    const input = await resolve(params.school, params.chapter, ref);
     if (!input) return new Response("Not found", { status: 404 });
 
     // Imported HERE, not at module scope: this file lives in the CLIENT route tree, and a static
@@ -86,7 +121,7 @@ async function handle({ request, params }: { request: Request; params: { school:
 
     // The ETag carries everything that changes the artwork, so a course-code or colourway edit
     // invalidates by itself.
-    const etag = `"${Buffer.from(`${params.school}|${params.chapter}|${input.courseCode ?? ""}|${format}|${body.length}`).toString("base64url")}"`;
+    const etag = `"${Buffer.from(`${params.school}|${params.chapter}|${input.courseCode ?? ""}|${input.refCode ?? ""}|${format}|${body.length}`).toString("base64url")}"`;
     if (request.headers.get("if-none-match") === etag) return new Response(null, { status: 304 });
 
     const filename = `survive-${params.school}-${params.chapter}-flyer.${format}`;

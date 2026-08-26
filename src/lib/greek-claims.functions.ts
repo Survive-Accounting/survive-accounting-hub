@@ -84,14 +84,36 @@ export const submitChapterClaim = createServerFn({ method: "POST" })
       .select("id").eq("campus_greek_chapter_id", ch.campusGreekChapterId).eq("status", "pending").maybeSingle();
     if (existing?.id) return { ok: false, error: "Someone from your chapter already claimed this — I'm reviewing it now." };
 
+    // CAMPUS-REP SOURCING (V1): if a rep holds this chapter's live assignment for the current
+    // term, the claim carries that attribution — it then shows in the sourcing rep's stats. The
+    // rep was never responsible for making the claim happen; it is a downstream success event,
+    // stamped at the moment it becomes true. Best-effort: a lookup failure never blocks the exec.
+    let sourcing: { partnerId: string; assignmentId: string; isTest: boolean } | null = null;
+    try {
+      const { termFor, termId } = await import("@/lib/terms");
+      const { data: asg } = await db.from("rep_chapter_assignments").select("id,partner_id,is_test")
+        .eq("campus_greek_chapter_id", ch.campusGreekChapterId).eq("term_id", termId(termFor()))
+        .in("status", ["reserved", "qualified"]).maybeSingle();
+      if (asg?.id) sourcing = { partnerId: asg.partner_id as string, assignmentId: asg.id as string, isTest: !!asg.is_test };
+    } catch { /* pre-migration or transient — claim proceeds unattributed */ }
+
     const { data: inserted, error } = await db.from("greek_chapter_claims").insert({
       campus_greek_chapter_id: ch.campusGreekChapterId,
       name: data.name, position: data.position, email: data.email, phone,
       // Snapshot: how many members this chapter had already banked at the moment of the claim.
       // Recorded now because it is the number that made the claim interesting, and it keeps moving.
       members_at_claim: ch.members,
+      ...(sourcing ? { sourcing_partner_id: sourcing.partnerId, sourcing_assignment_id: sourcing.assignmentId } : {}),
     }).select("id").single();
     if (error) return { ok: false, error: "Couldn't save that — try again in a moment." };
+
+    if (sourcing) {
+      await db.from("rep_activity").insert({
+        partner_id: sourcing.partnerId, kind: "chapter_claimed",
+        campus_greek_chapter_id: ch.campusGreekChapterId,
+        meta: { claimId: inserted?.id ?? null, position: data.position }, is_test: sourcing.isTest,
+      }).then(() => undefined, () => undefined);
+    }
 
     await db.from("campus_greek_chapters").update({ claim_status: "pending" }).eq("id", ch.campusGreekChapterId);
 

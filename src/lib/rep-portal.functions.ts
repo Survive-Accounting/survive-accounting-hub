@@ -52,7 +52,12 @@ function destinationLabel(url: string): string {
   } catch { return url; }
 }
 
-// ── SIGN UP ──────────────────────────────────────────────────────────────────────────────────
+// ── SIGN UP (DEPRECATED — kept only so a stale client can't 500) ────────────────────────────
+// Campus-rep V1 replaced instant self-minted active reps with the real lifecycle
+// (applyAsRep → admin approve → phone verify → active, see rep-auth.functions.ts). This endpoint
+// now creates the SAME thing applyAsRep creates — an applied/paused rep with no links — and no
+// longer returns a dashboard token, so the old "active on submit" bypass is closed even for
+// direct callers.
 export const signUpRep = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({
     name: z.string().trim().min(2).max(120),
@@ -77,25 +82,15 @@ export const signUpRep = createServerFn({ method: "POST" })
     const token = newToken();
     const { data: partner, error } = await db.from("referral_partners").insert({
       name: data.name, type: "campus_rep", email: data.email.toLowerCase(),
-      phone: data.phone ?? null, status: "active",
+      phone: data.phone ?? null, status: "paused", rep_status: "applied",
       default_commission_type: "percent", default_commission_rate: 10,
       campus_id: campusId, venmo: data.venmo ? normalizeVenmo(data.venmo) : null,
       dashboard_token: token, is_test: isTest,
-      notes: `self-signup${isTest ? " · TEST" : ""}`,
+      notes: `self-signup (legacy endpoint)${isTest ? " · TEST" : ""}`,
     }).select("id").maybeSingle();
     if (error || !partner?.id) return { ok: false, error: error?.message ?? "Couldn't create your rep account." };
 
-    // A default link so they can share the SECOND they finish signing up — points at their campus
-    // page (product + purchase live there). Per-chapter links come later from the dashboard.
-    const dest = school ? `/${data.campusSlug}` : "/";
-    const { generateUniqueCode } = await import("@/lib/referral.server");
-    const code = await generateUniqueCode();
-    await db.from("referral_links").insert({
-      code, partner_id: partner.id, label: school ? `${school.name} — main link` : "Main link",
-      destination_url: dest, active: true, is_test: isTest,
-    });
-
-    return { ok: true, token, dashboardUrl: `${ORIGIN}/rep/dashboard?k=${token}` };
+    return { ok: true };
   });
 
 // ── DASHBOARD (token) ──────────────────────────────────────────────────────────────────────────
@@ -104,9 +99,10 @@ export const getRepDashboard = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<RepDashboardResult> => {
     const db = await admin();
     const { data: p } = await db.from("referral_partners")
-      .select("id,name,email,campus_id,venmo,is_test,default_commission_type,default_commission_rate")
+      .select("id,name,email,campus_id,venmo,is_test,default_commission_type,default_commission_rate,rep_status")
       .eq("dashboard_token", data.token).maybeSingle();
     if (!p?.id) return { ok: false, error: "That dashboard link isn't valid. Check the link or sign up again." };
+    if (p.rep_status === "paused" || p.rep_status === "deactivated") return { ok: false, error: "This rep account is paused." };
 
     let campusSlug: string | null = null, campusName: string | null = null;
     if (p.campus_id) {
@@ -174,10 +170,14 @@ export const getRepDashboard = createServerFn({ method: "POST" })
     };
   });
 
-/** Resolve a rep id from a token, or null. Shared guard for the manage functions below. */
+/** Resolve a rep id from a token, or null. Shared guard for the manage functions below.
+ *  V1 lifecycle: a paused/deactivated rep's token stops working here too — the admin brake covers
+ *  the legacy endpoints, not just the new session ones. */
 async function repIdFromToken(db: DB, token: string): Promise<{ id: string; isTest: boolean } | null> {
-  const { data } = await db.from("referral_partners").select("id,is_test").eq("dashboard_token", token).maybeSingle();
-  return data?.id ? { id: data.id as string, isTest: !!data.is_test } : null;
+  const { data } = await db.from("referral_partners").select("id,is_test,rep_status").eq("dashboard_token", token).maybeSingle();
+  if (!data?.id) return null;
+  if (data.rep_status === "paused" || data.rep_status === "deactivated") return null;
+  return { id: data.id as string, isTest: !!data.is_test };
 }
 
 // ── SET VENMO ────────────────────────────────────────────────────────────────────────────────

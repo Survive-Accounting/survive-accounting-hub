@@ -9,7 +9,7 @@ import { AdminGate } from "@/components/AdminGate";
 import { AdminSessionGate } from "@/components/AdminSessionGate";
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { Toaster } from "sonner";
-import { BarChart3, Link2, Users, Zap } from "lucide-react";
+import { BarChart3, Link2, UserCheck, Users, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/reps")({
@@ -19,6 +19,8 @@ export const Route = createFileRoute("/admin/reps")({
 
 const TABS = [
   { to: "/admin/reps", label: "Create link", icon: Zap, exact: true },
+  // Campus-rep V1: roster/applications/QC/view-as. The other tabs stay the generic engine console.
+  { to: "/admin/reps/roster", label: "Campus reps", icon: UserCheck, exact: false },
   { to: "/admin/reps/partners", label: "Partners", icon: Users, exact: false },
   { to: "/admin/reps/links", label: "Links", icon: Link2, exact: false },
   { to: "/admin/reps/conversions", label: "Conversions", icon: BarChart3, exact: false },

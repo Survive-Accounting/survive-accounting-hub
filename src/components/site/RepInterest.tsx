@@ -15,7 +15,9 @@ import { submitRepInterest } from "@/lib/campus-rep.functions";
 import { useCampus } from "@/lib/campus-context";
 
 const POINTS = [
-  "Commission on every sale you bring in — 10% your first semester, 15% if you stay on.",
+  // V1 COMMISSION IS FLAT 10% (campus-rep V1 brief §17): the "15% if you stay on" tier is retired
+  // everywhere a rep can read it, so no promise outruns the ledger.
+  "Commission on every sale you bring in — a flat 10% of the revenue you generate.",
   "You get flyers, QR codes, and chapter links — all made for you.",
   "Work your own hours. This is a side gig, not a job.",
 ];

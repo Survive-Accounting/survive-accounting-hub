@@ -43,10 +43,23 @@ export const logPracticeEvents = createServerFn({ method: "POST" })
   }).parse(d))
   .handler(async ({ data }): Promise<{ ok: boolean; written: number }> => {
     const db = await admin();
+    // CAMPUS-REP STUDY ATTRIBUTION (deliberately minimal — audit §22): stamp the sa_ref cookie's
+    // code, if present and inside its window, on each attempt row. No lookup at write time — the
+    // code resolves to a link → partner at READ time. Best-effort; never blocks logging.
+    let refCode: string | null = null;
+    try {
+      const { getRequest } = await import("@tanstack/react-start/server");
+      const { readRefCookie } = await import("@/lib/referral.server");
+      const request = getRequest();
+      if (request) {
+        const c = readRefCookie(request);
+        if (c && Date.now() - c.atMs <= 30 * 864e5) refCode = c.code;
+      }
+    } catch { /* no request context — unattributed practice */ }
     const rows = data.events.map((e) => ({
       set_id: e.setId, ceq_id: e.ceqId, event: e.event, choice_id: e.choiceId ?? null, correct: e.correct ?? null, ms: e.ms ?? null,
       attempt_number: e.attemptNumber, session_id: data.sessionId, user_id: data.userId ?? null, campus: data.campus ?? null,
-      surface: data.surface ?? null, is_test: !!data.isTest,
+      surface: data.surface ?? null, is_test: !!data.isTest, ref_code: refCode,
     }));
     const { error } = await db.from("practice_attempts").insert(rows);
     if (error) { console.warn("practice_attempts insert failed", error.message); return { ok: false, written: 0 }; }

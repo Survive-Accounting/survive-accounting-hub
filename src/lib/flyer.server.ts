@@ -36,6 +36,10 @@ export type FlyerInput = {
   courseCode: string | null;
   chapterSlug?: string;
   chapterName?: string;
+  /** REP ATTRIBUTION rides in the QR ONLY: when set, the QR encodes /r/<code> (which sets the
+   *  sa_ref cookie and 302s to the same /go page). The rep's NAME never appears on the flyer —
+   *  chapter branding stays, attribution stays invisible. */
+  refCode?: string;
 };
 
 /** Per the template: 300 for ≤8 chars, 240 for 9–10, 200 for 11+. Missouri's ACCTCY 2026 is 11. */
@@ -49,6 +53,9 @@ export function courseFontSize(code: string): number {
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
 
 export function flyerTarget(i: FlyerInput): string {
+  // A rep-attributed flyer scans to the tracked short link — the redirect lands on the same /go
+  // (or campus) page, so the student sees nothing different; only the cookie does.
+  if (i.refCode) return `https://surviveaccounting.com/r/${i.refCode}`;
   return i.chapterSlug
     ? `https://surviveaccounting.com/go/${i.schoolSlug}/${i.chapterSlug}?s=flyer`
     : `https://surviveaccounting.com/${i.schoolSlug}?s=flyer`;

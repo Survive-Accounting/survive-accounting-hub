@@ -461,6 +461,8 @@ export const TEMPLATES: TemplateDef[] = [
       "admin.reps.partners.tsx",
       "admin.reps.links.tsx",
       "admin.reps.conversions.tsx",
+      "admin.reps.roster.tsx",
+      "admin.reps.view.$partnerId.tsx",
     ],
     countKey: "static",
     trafficPaths: ["/admin/reps"],

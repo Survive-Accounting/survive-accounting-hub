@@ -105,6 +105,7 @@ import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe.webhoo
 import { Route as ApiCronWeeklyDigestRouteImport } from './routes/api.cron.weekly-digest'
 import { Route as ApiCronCommsSequencesRouteImport } from './routes/api.cron.comms-sequences'
 import { Route as ApiCronBackupRouteImport } from './routes/api.cron.backup'
+import { Route as AdminRepsRosterRouteImport } from './routes/admin.reps.roster'
 import { Route as AdminRepsPartnersRouteImport } from './routes/admin.reps.partners'
 import { Route as AdminRepsLinksRouteImport } from './routes/admin.reps.links'
 import { Route as AdminRepsConversionsRouteImport } from './routes/admin.reps.conversions'
@@ -121,6 +122,7 @@ import { Route as GoSchoolCouncilCouncilRouteImport } from './routes/go.$school.
 import { Route as ChaptersKitSchoolChapterRouteImport } from './routes/chapters_.kit.$school.$chapter'
 import { Route as ApiOgSchoolChapterRouteImport } from './routes/api.og.$school.$chapter'
 import { Route as ApiFlyerSchoolChapterRouteImport } from './routes/api.flyer.$school.$chapter'
+import { Route as AdminRepsViewPartnerIdRouteImport } from './routes/admin.reps.view.$partnerId'
 
 const WelcomeRoute = WelcomeRouteImport.update({
   id: '/welcome',
@@ -610,6 +612,11 @@ const ApiCronBackupRoute = ApiCronBackupRouteImport.update({
   path: '/api/cron/backup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRepsRosterRoute = AdminRepsRosterRouteImport.update({
+  id: '/roster',
+  path: '/roster',
+  getParentRoute: () => AdminRepsRoute,
+} as any)
 const AdminRepsPartnersRoute = AdminRepsPartnersRouteImport.update({
   id: '/partners',
   path: '/partners',
@@ -691,6 +698,11 @@ const ApiFlyerSchoolChapterRoute = ApiFlyerSchoolChapterRouteImport.update({
   id: '/api/flyer/$school/$chapter',
   path: '/api/flyer/$school/$chapter',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRepsViewPartnerIdRoute = AdminRepsViewPartnerIdRouteImport.update({
+  id: '/view/$partnerId',
+  path: '/view/$partnerId',
+  getParentRoute: () => AdminRepsRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -782,6 +794,7 @@ export interface FileRoutesByFullPath {
   '/admin/reps/conversions': typeof AdminRepsConversionsRoute
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
+  '/admin/reps/roster': typeof AdminRepsRosterRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
@@ -801,6 +814,7 @@ export interface FileRoutesByFullPath {
   '/admin/reps/': typeof AdminRepsIndexRoute
   '/go/$school/': typeof GoSchoolIndexRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
+  '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
   '/chapters/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
@@ -893,6 +907,7 @@ export interface FileRoutesByTo {
   '/admin/reps/conversions': typeof AdminRepsConversionsRoute
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
+  '/admin/reps/roster': typeof AdminRepsRosterRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
@@ -912,6 +927,7 @@ export interface FileRoutesByTo {
   '/admin/reps': typeof AdminRepsIndexRoute
   '/go/$school': typeof GoSchoolIndexRoute
   '/outreach/leadfinder': typeof OutreachLeadfinderIndexRoute
+  '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
   '/chapters/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
@@ -1008,6 +1024,7 @@ export interface FileRoutesById {
   '/admin/reps/conversions': typeof AdminRepsConversionsRoute
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
+  '/admin/reps/roster': typeof AdminRepsRosterRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
@@ -1027,6 +1044,7 @@ export interface FileRoutesById {
   '/admin/reps/': typeof AdminRepsIndexRoute
   '/go/$school/': typeof GoSchoolIndexRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
+  '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
   '/chapters_/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
@@ -1124,6 +1142,7 @@ export interface FileRouteTypes {
     | '/admin/reps/conversions'
     | '/admin/reps/links'
     | '/admin/reps/partners'
+    | '/admin/reps/roster'
     | '/api/cron/backup'
     | '/api/cron/comms-sequences'
     | '/api/cron/weekly-digest'
@@ -1143,6 +1162,7 @@ export interface FileRouteTypes {
     | '/admin/reps/'
     | '/go/$school/'
     | '/outreach/leadfinder/'
+    | '/admin/reps/view/$partnerId'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
     | '/chapters/kit/$school/$chapter'
@@ -1235,6 +1255,7 @@ export interface FileRouteTypes {
     | '/admin/reps/conversions'
     | '/admin/reps/links'
     | '/admin/reps/partners'
+    | '/admin/reps/roster'
     | '/api/cron/backup'
     | '/api/cron/comms-sequences'
     | '/api/cron/weekly-digest'
@@ -1254,6 +1275,7 @@ export interface FileRouteTypes {
     | '/admin/reps'
     | '/go/$school'
     | '/outreach/leadfinder'
+    | '/admin/reps/view/$partnerId'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
     | '/chapters/kit/$school/$chapter'
@@ -1349,6 +1371,7 @@ export interface FileRouteTypes {
     | '/admin/reps/conversions'
     | '/admin/reps/links'
     | '/admin/reps/partners'
+    | '/admin/reps/roster'
     | '/api/cron/backup'
     | '/api/cron/comms-sequences'
     | '/api/cron/weekly-digest'
@@ -1368,6 +1391,7 @@ export interface FileRouteTypes {
     | '/admin/reps/'
     | '/go/$school/'
     | '/outreach/leadfinder/'
+    | '/admin/reps/view/$partnerId'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
     | '/chapters_/kit/$school/$chapter'
@@ -2113,6 +2137,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronBackupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/reps/roster': {
+      id: '/admin/reps/roster'
+      path: '/roster'
+      fullPath: '/admin/reps/roster'
+      preLoaderRoute: typeof AdminRepsRosterRouteImport
+      parentRoute: typeof AdminRepsRoute
+    }
     '/admin/reps/partners': {
       id: '/admin/reps/partners'
       path: '/partners'
@@ -2224,6 +2255,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/flyer/$school/$chapter'
       preLoaderRoute: typeof ApiFlyerSchoolChapterRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/admin/reps/view/$partnerId': {
+      id: '/admin/reps/view/$partnerId'
+      path: '/view/$partnerId'
+      fullPath: '/admin/reps/view/$partnerId'
+      preLoaderRoute: typeof AdminRepsViewPartnerIdRouteImport
+      parentRoute: typeof AdminRepsRoute
     }
   }
 }
@@ -2370,14 +2408,18 @@ interface AdminRepsRouteChildren {
   AdminRepsConversionsRoute: typeof AdminRepsConversionsRoute
   AdminRepsLinksRoute: typeof AdminRepsLinksRoute
   AdminRepsPartnersRoute: typeof AdminRepsPartnersRoute
+  AdminRepsRosterRoute: typeof AdminRepsRosterRoute
   AdminRepsIndexRoute: typeof AdminRepsIndexRoute
+  AdminRepsViewPartnerIdRoute: typeof AdminRepsViewPartnerIdRoute
 }
 
 const AdminRepsRouteChildren: AdminRepsRouteChildren = {
   AdminRepsConversionsRoute: AdminRepsConversionsRoute,
   AdminRepsLinksRoute: AdminRepsLinksRoute,
   AdminRepsPartnersRoute: AdminRepsPartnersRoute,
+  AdminRepsRosterRoute: AdminRepsRosterRoute,
   AdminRepsIndexRoute: AdminRepsIndexRoute,
+  AdminRepsViewPartnerIdRoute: AdminRepsViewPartnerIdRoute,
 }
 
 const AdminRepsRouteWithChildren = AdminRepsRoute._addFileChildren(
