@@ -66,6 +66,20 @@ export interface TopicMapState {
     mapState: "professor" | "campus" | "proposed" | "starter";
   }[];
   approvals: { action: string; approvedBy: string; at: string }[];
+  /** The SETS that actually exist under each Survive Unit — what a student would get if this
+   *  topic is on the map. Clicking a topic opens this, so mapping decisions are made against
+   *  real content rather than a topic name. Keyed by chapters.id. */
+  setsByUnit: Record<string, TopicSet[]>;
+}
+
+export interface TopicSet {
+  id: string;
+  name: string;
+  shortLabel: string | null;
+  questions: number;
+  hasCram: boolean;
+  hasReview: boolean;
+  access: "free" | "paid";
 }
 
 async function examsAt(
@@ -300,6 +314,32 @@ export const growthTopicMapState = createServerFn({ method: "GET" })
         cur.evidenceState = p.evidence_state;
       profMap.set(key, cur);
     }
+    // SETS PER UNIT — read through the same student tree the player uses, so what Lee sees
+    // while mapping is exactly what a student at this campus would receive. Degrades to an
+    // empty map if the content tree is unavailable; never invents a set.
+    const setsByUnit: Record<string, TopicSet[]> = {};
+    try {
+      const { fetchStudentTree } = await import("@/lib/student.functions");
+      const tree = (await fetchStudentTree({ data: { campusId } })) as any[];
+      for (const course of tree ?? []) {
+        const topics = [...(course.topics ?? []), ...((course.units ?? []) as any[]).flatMap((u: any) => u.topics ?? [])];
+        for (const t of topics) {
+          if (!t?.id || setsByUnit[t.id]) continue;
+          setsByUnit[t.id] = ((t.sets ?? []) as any[]).map((s) => ({
+            id: s.id,
+            name: s.name,
+            shortLabel: s.shortLabel ?? null,
+            questions: s.ceqCount ?? 0,
+            hasCram: !!s.playbackId || s.access === "paid",
+            hasReview: !!s.hasReview,
+            access: s.access === "paid" ? "paid" : "free",
+          }));
+        }
+      }
+    } catch {
+      /* content tree unavailable — topics still map, they just don't expand */
+    }
+
     const hasCampusMap = campusExams.length > 0;
     const profRanges = new Set(
       ranges.filter((r) => r.professor_name).map((r) => String(r.professor_name)),
@@ -337,6 +377,7 @@ export const growthTopicMapState = createServerFn({ method: "GET" })
         approvedBy: a.approved_by,
         at: a.created_at,
       })),
+      setsByUnit,
     };
   });
 

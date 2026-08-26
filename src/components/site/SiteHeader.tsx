@@ -98,25 +98,14 @@ export function FitWordmark({ size, subline, className, style }: { size: number;
  *  also the brand statement, not just a way home. Kept as its own component because
  *  FitWordmark's subline is proportional to the fitted size and would render ~3.4px here. */
 export function CompactLockup({ size = 19 }: { size?: number } = {}) {
+  // PLAIN TEXT at navbar scale (08-25). The bolt-as-"i" wordmark is the brand's signature at
+  // hero/card sizes, but at 19px the bolt reads as a glyph error and costs legibility. Here the
+  // name is set as one clean horizontal line — the expressive bolt lives on in the hero,
+  // loading reveal and topic rail. SurviveWordmark stays exported for the large surfaces.
   return (
-    <span style={{ display: "inline-flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1 }}>
-      <SurviveWordmark size={size} />
-      <span
-        style={{
-          marginTop: 2,
-          fontSize: Math.max(7, size * 0.33),
-          letterSpacing: "0.34em",
-          // cancels the trailing letter-space so the word optically aligns to the wordmark's left
-          textIndent: "0.34em",
-          fontWeight: 700,
-          textTransform: "uppercase",
-          color: "var(--brand-cream, #F5EFE6)",
-          opacity: 0.55,
-          whiteSpace: "nowrap",
-        }}
-      >
-        Accounting
-      </span>
+    <span style={{ display: "inline-flex", alignItems: "baseline", gap: size * 0.38, lineHeight: 1, whiteSpace: "nowrap" }}>
+      <span style={{ fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 900, fontSize: size, letterSpacing: "-0.01em", color: "var(--brand-cream, #F5EFE6)" }}>survive</span>
+      <span style={{ fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 700, fontSize: Math.max(9, size * 0.62), letterSpacing: "0.22em", textTransform: "uppercase", color: "var(--brand-cream, #F5EFE6)", opacity: 0.6 }}>Accounting</span>
     </span>
   );
 }
@@ -266,7 +255,7 @@ export function SiteHeader({ wordmark = true, chapterNav, onLanding = false }: {
   const menuItems = chapterNav ? chapterLinks(chapterNav) : menuLinks(base, greekHref);
   const cta: NavItem = chapterNav
     ? { label: "Set Up Chapter Access →", href: `#${chapterNav.accessAnchor}` }
-    : { label: "Cram Exam 1 Free ⚡", href: `${base}#exam1` };
+    : { label: "Start Exam 1 Free ⚡", href: `${base}#exam1` };
 
   // PUBLISH THE HEADER HEIGHT as --sa-header-h so a full-viewport hero can subtract exactly the
   // right amount. Hardcoding 48px is wrong on a notched phone, where safe-area-inset-top adds

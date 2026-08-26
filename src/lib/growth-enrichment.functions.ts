@@ -10,6 +10,7 @@
 // are imported dynamically inside handlers only.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { estimateCost } from "@/lib/growth-enrichment-cost";
 
 export type EnrichState = "COMPLETE" | "PARTIAL" | "MISSING" | "NEEDS_REVIEW";
 
@@ -20,6 +21,8 @@ export interface EnrichmentRow {
   detail: string; // provenance: counts, last attempted, source
   runnable: boolean; // has a safe targeted runner
   costNote: string | null; // shown before triggering a paid provider
+  /** Estimated provider usage + dollars, off published list prices (always rendered with a ~). */
+  cost: { usd: number; summary: string } | null;
   quarantined: boolean;
 }
 
@@ -119,7 +122,7 @@ async function computeStatus(db: DB, campusId: string): Promise<EnrichmentRow[]>
       state: code ? "COMPLETE" : "MISSING",
       detail: code ? `${code}` : "no Intro-1 code on file",
       runnable: !code,
-      costNote: "Uses SerpAPI + Firecrawl + AI · ~$0.05–0.10",
+      costNote: "Uses SerpAPI + Firecrawl + AI · ~$0.05–0.10", cost: estimateCost("course_code"),
       quarantined: false,
     },
     {
@@ -136,7 +139,7 @@ async function computeStatus(db: DB, campusId: string): Promise<EnrichmentRow[]>
           ? `${chapterCount} chapters on roster`
           : "no chapters found",
       runnable: chapterCount === 0,
-      costNote: "Uses SerpAPI + Firecrawl + AI",
+      costNote: "Uses SerpAPI + Firecrawl + AI", cost: estimateCost("greek_chapters"),
       quarantined: quarantines.has("greek_chapter_count"),
     },
     {
@@ -154,7 +157,7 @@ async function computeStatus(db: DB, campusId: string): Promise<EnrichmentRow[]>
         ? `${councilComplete.length}/${councils.length} councils researched · last ${fmtWhen(lastCouncilAttempt)}`
         : "councils not researched",
       runnable: false,
-      costNote: null,
+      costNote: null, cost: null,
       quarantined: false,
     },
     {
@@ -166,7 +169,7 @@ async function computeStatus(db: DB, campusId: string): Promise<EnrichmentRow[]>
           ? `${councilContacts} contacts${roleInbox ? " incl. role inbox" : " — no role inbox yet"}`
           : "no council contacts",
       runnable: councilContacts === 0 || !roleInbox,
-      costNote: "SerpAPI-heavy (~10–20 searches) · the expensive one",
+      costNote: "SerpAPI-heavy (~10–20 searches) · the expensive one", cost: estimateCost("council_contacts"),
       quarantined: false,
     },
     {
@@ -187,7 +190,7 @@ async function computeStatus(db: DB, campusId: string): Promise<EnrichmentRow[]>
             ? `${candidates} candidates, none doc-confirmed Intro-1`
             : "no professors researched",
       runnable: candidates === 0,
-      costNote: "Uses Firecrawl (heavy) · potentially higher cost",
+      costNote: "Uses Firecrawl (heavy) · potentially higher cost", cost: estimateCost("professors"),
       quarantined: quarantines.has("professor_count"),
     },
     {
@@ -199,7 +202,7 @@ async function computeStatus(db: DB, campusId: string): Promise<EnrichmentRow[]>
           ? `${intro1Qualified}/${candidates} RMP-qualified for Intro-1`
           : "needs professors first",
       runnable: candidates > 0,
-      costNote: null /* free */,
+      costNote: null /* free */, cost: estimateCost("rmp_qualify"),
       quarantined: false,
     },
     {
@@ -209,7 +212,7 @@ async function computeStatus(db: DB, campusId: string): Promise<EnrichmentRow[]>
       detail:
         docsFound > 0 ? `${docsFound} documents · ${syllabiFound} syllabi` : "no documents found",
       runnable: true,
-      costNote: "SerpAPI only · ~$0.05–0.15",
+      costNote: "SerpAPI only · ~$0.05–0.15", cost: estimateCost("syllabi_docs"),
       quarantined: false,
     },
     {
@@ -218,7 +221,7 @@ async function computeStatus(db: DB, campusId: string): Promise<EnrichmentRow[]>
       state: textbookDocs > 0 ? "COMPLETE" : docsFound > 0 ? "PARTIAL" : "MISSING",
       detail: textbookDocs > 0 ? `${textbookDocs} textbook doc(s)` : "no textbook evidence",
       runnable: false,
-      costNote: null,
+      costNote: null, cost: null,
       quarantined: false,
     },
     {
@@ -235,7 +238,7 @@ async function computeStatus(db: DB, campusId: string): Promise<EnrichmentRow[]>
         ? `${examRanges.length} exam-range evidence rows`
         : "no exam-range evidence",
       runnable: false,
-      costNote: null,
+      costNote: null, cost: null,
       quarantined: false,
     },
     {
@@ -252,7 +255,7 @@ async function computeStatus(db: DB, campusId: string): Promise<EnrichmentRow[]>
           ? `historical only (${s.exam_1_date} · ${exam1DateTerm ?? "term unknown"})`
           : "no dates",
       runnable: false,
-      costNote: null,
+      costNote: null, cost: null,
       quarantined: false,
     },
   ];

@@ -22,6 +22,8 @@ export interface EligibleContact {
   instagram: string | null;
   confidence: string | null;
   lastVerified: string | null;
+  /** The page this contact was found on — the drawer links out to it so you can re-check. */
+  sourceUrl: string | null;
   freshnessStatus: string | null;
   outreachEligible: boolean;
   reviewReason: string | null;
