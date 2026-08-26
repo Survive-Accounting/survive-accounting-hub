@@ -9,7 +9,7 @@
 // 0105). No checkout exists yet — paid exams show topics + a mapping-gated line, not purchasable.
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, GraduationCap, Lock, MessageCircle, MoreHorizontal, X } from "lucide-react";
 
@@ -18,6 +18,7 @@ import { seedCharFromKey } from "@/lib/picker-keys";
 import { isPlayable, nextStep, setIndexOf, stagesOf, type SetStage } from "@/lib/set-flow";
 import { PracticeStage, readCoverage } from "@/components/site/PracticeStage";
 import { track } from "@/lib/analytics";
+import { buildPath, firstUnfinished, markStepDone, nextPathStep, pathProgress, pathStarted, prevPathStep, readDoneSteps, readPathPos, setPathStarted, stepMeta, stepShortLabel, topicComplete, writePathPos, type PathStep } from "@/lib/exam-path";
 import { writeResume } from "@/components/site/SaveProgress";
 import { FutureExamWaitlist } from "@/components/site/FutureExamWaitlist";
 import { StagePills } from "@/components/site/StagePills";
@@ -1263,57 +1264,110 @@ const estRange = (q: number): string => {
   const r5 = (n: number) => Math.max(5, Math.round(n / 5) * 5);
   return `~${r5(q * 0.65)}–${r5(q * 0.9)} min`;
 };
-function TopicIntroCard({ topic, recommended, school, onStart, onRemind }: {
-  topic: ResolvedTopic; recommended: boolean; school: School | null; onStart: () => void; onRemind: () => void;
-}) {
+/** COMPACT TOPIC PREVIEW — shown only when the student MANUALLY clicks another broad topic.
+ *  Never interrupts the guided Continue path. Very short: the topic, its available modes with
+ *  honest numbers, one Jump action. */
+function TopicIntroCard({ topic, onJump }: { topic: ResolvedTopic; onJump: () => void }) {
   const questions = topic.sets.reduce((a, x) => a + x.ceqCount, 0);
-  const covers = topic.sets.slice(0, 5).map((x) => (x.shortLabel ?? x.name).replace(/^"|"$/g, ""));
-  const c = school ? boltFor(school.id) : { c1: BRAND_RED, c2: BRAND_BLUE };
+  const cramSec = topic.sets.reduce((a, x) => a + (x.playbackId ? (x.runtimeSec ?? 0) : 0), 0);
+  const hasCram = topic.sets.some((x) => !!x.playbackId);
+  const hasReview = topic.sets.some((x) => x.hasReview && !!x.reviewPlaybackId);
+  const mins = (sec: number) => `${Math.max(1, Math.round(sec / 60))} min`;
+  const Line = ({ k, v }: { k: string; v: string }) => (
+    <p className="flex items-baseline justify-between gap-4 text-[13.5px]" style={{ color: "var(--brand-cream)" }}>
+      <span className="font-black">{k}</span>
+      <span style={{ color: "var(--text-muted)" }}>{v}</span>
+    </p>
+  );
   return (
-    <div className="sa-reveal grid w-full place-items-center px-4 py-8" style={{ minHeight: "min(56.25vw, 320px)", background: "var(--sa-surface-2)" }}>
-      <div className="w-full max-w-sm">
-        {recommended ? (
-          <>
-            <div className="flex items-center gap-2.5">
-              <span className="inline-block shrink-0" style={{ height: 34, width: 21 }}><Bolt c1={c.c1} c2={c.c2} /></span>
-              <h3 className="text-[19px] font-black leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Start with Easy Points</h3>
-            </div>
-            <p className="mt-1.5 text-[14px] font-semibold" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>Quick wins first. Don&apos;t leave points on the table.</p>
-            <p className="mt-3 text-[12px] font-black uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>What you&apos;ll do here:</p>
-            <ul className="mt-1.5 space-y-1 text-[13.5px]" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>
-              <li>• Practice the most testable foundational questions</li>
-              <li>• Build confidence before harder topics</li>
-              <li>• Get familiar with how Survive works</li>
-            </ul>
-          </>
-        ) : (
-          <>
-            <h3 className="text-[19px] font-black leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{topic.name}</h3>
-            <p className="mt-1.5 text-[14px]" style={{ color: "var(--brand-cream)", opacity: 0.8 }}>{TOPIC_BLURBS[topic.name] ?? "Practice the exact kinds of problems this topic tests."}</p>
-            {covers.length > 0 && (
-              <>
-                <p className="mt-3 text-[12px] font-black uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>You&apos;ll cover:</p>
-                <ul className="mt-1.5 space-y-1 text-[13.5px]" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>
-                  {covers.map((x) => <li key={x}>• {x}</li>)}
-                </ul>
-              </>
-            )}
-          </>
-        )}
-        {questions > 0 && (
-          <p className="mt-3 text-[12.5px]" style={{ color: "var(--text-muted)" }}>
-            <span className="font-black" style={{ color: "var(--brand-cream)" }}>Practice</span>
-            {" "}· {questions} questions · {estRange(questions)}
-          </p>
-        )}
-        <button type="button" onClick={onStart} className="mt-4 w-full rounded-xl text-[15px] font-black transition-transform hover:scale-[1.01] focus-visible:ring-2" style={{ minHeight: 50, background: "var(--accent)", color: "#0B1220" }}>
-          {recommended ? "Start Easy Points →" : "Start this topic →"}
+    <div className="sa-reveal grid w-full place-items-center px-4 py-8" style={{ minHeight: "min(56.25vw, 300px)", background: "var(--sa-surface-2)" }}>
+      <div className="w-full max-w-xs">
+        <h3 className="text-[18px] font-black leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{topic.name}</h3>
+        <div className="mt-3 space-y-1.5">
+          {hasCram && <Line k="Cram" v={cramSec > 0 ? mins(cramSec) : "video"} />}
+          {questions > 0 && <Line k="Practice" v={`${questions} questions · ${estRange(questions)}`} />}
+          <Line k="Review" v={hasReview ? "video" : "Coming soon"} />
+        </div>
+        <button type="button" onClick={onJump} className="mt-4 w-full rounded-xl text-[14px] font-black transition-transform hover:scale-[1.01] focus-visible:ring-2" style={{ minHeight: 48, background: "var(--accent)", color: "#0B1220" }}>
+          Jump to this topic →
         </button>
-        {recommended && (
-          <button type="button" onClick={onRemind} className="mt-1 w-full text-[13px] font-bold" style={{ minHeight: 42, color: "var(--text-muted)" }}>
-            Remind myself to study later →
+      </div>
+    </div>
+  );
+}
+
+/** PATH START — the post-loading state. One line of readiness, one button. The optional
+ *  intro-tour video slot renders ONLY when a tour is configured (INTRO_TOUR below); no
+ *  Coming-Soon button ever. */
+// INTRO TOUR SLOT (future): set to a Mux playback id when Lee's generic tour ships. The tour is
+// campus-agnostic — the card already frames it with the student's own school · course line, so
+// the EXPERIENCE stays personalised. Null hides the button entirely.
+const INTRO_TOUR_PLAYBACK_ID: string | null = null;
+function PathStartCard({ school, onStart, onRemind }: { school: School | null; onStart: () => void; onRemind: () => void }) {
+  const code = school?.codeVerified && school.code ? school.code : null;
+  const who = school ? [school.name, code].filter(Boolean).join(" · ") : "Exam 1";
+  const [tourOpen, setTourOpen] = useState(false);
+  if (tourOpen && INTRO_TOUR_PLAYBACK_ID) {
+    return (
+      <div className="relative w-full" style={{ aspectRatio: "16 / 9", background: "#000" }}>
+        <HeroVideo playbackId={INTRO_TOUR_PLAYBACK_ID} onComplete={() => setTourOpen(false)} />
+      </div>
+    );
+  }
+  return (
+    <div className="sa-reveal grid w-full place-items-center px-4 py-10" style={{ minHeight: "min(56.25vw, 300px)", background: "var(--sa-surface-2)" }}>
+      <div className="w-full max-w-xs text-center">
+        <p className="text-[19px] font-black leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
+          You&apos;re ready for {who}
+        </p>
+        {INTRO_TOUR_PLAYBACK_ID && (
+          <button type="button" onClick={() => setTourOpen(true)} className="mt-4 w-full rounded-xl text-[14px] font-bold" style={{ minHeight: 46, color: "var(--brand-cream)", background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
+            Watch the quick tour
           </button>
         )}
+        <button type="button" onClick={onStart} className="mt-3 w-full rounded-xl text-[15px] font-black transition-transform hover:scale-[1.01] focus-visible:ring-2" style={{ minHeight: 52, background: "var(--accent)", color: "#0B1220" }}>
+          Start Exam 1 →
+        </button>
+        <button type="button" onClick={onRemind} className="mt-1 w-full text-[13px] font-bold" style={{ minHeight: 42, color: "var(--text-muted)" }}>
+          Remind myself to study later →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** TOPIC COMPLETE — restrained. One check, one line, the live percentage, Continue. */
+function TopicCompleteCard({ name, pct, next, onContinue }: { name: string; pct: number; next: PathStep; onContinue: () => void }) {
+  return (
+    <div className="sa-reveal grid w-full place-items-center px-4 py-10" style={{ minHeight: "min(56.25vw, 300px)", background: "var(--sa-surface-2)" }}>
+      <div className="w-full max-w-xs text-center">
+        <p className="text-[19px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{name} complete ✓</p>
+        <p className="mt-1.5 text-[13.5px]" style={{ color: "var(--text-muted)" }}>Nice. You handled the stuff you really shouldn&apos;t miss.</p>
+        <p className="mt-3 text-[12.5px] font-black" style={{ color: "var(--accent)" }}>Exam 1 · {pct}%</p>
+        <button type="button" onClick={onContinue} className="mt-4 w-full rounded-xl text-[14.5px] font-black" style={{ minHeight: 50, background: "var(--accent)", color: "#0B1220" }}>
+          Continue → {next.topicName}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** EXAM COMPLETE — real numbers only. Exam 2 is offered through the tab it already lives in
+ *  (waitlist or unlocked content, whichever is real). */
+function ExamCompleteCard({ steps, done, onExam2 }: { steps: PathStep[]; done: Record<string, number>; onExam2: () => void }) {
+  const questions = steps.filter((st) => st.kind === "practice_set" && done[st.id]).reduce((a, st) => a + st.questions, 0);
+  const topics = new Set(steps.map((st) => st.topicKey)).size;
+  return (
+    <div className="sa-reveal grid w-full place-items-center px-4 py-10" style={{ minHeight: "min(56.25vw, 300px)", background: "var(--sa-surface-2)" }}>
+      <div className="w-full max-w-xs text-center">
+        <p className="text-[20px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Exam 1 prep complete ✓</p>
+        <p className="mt-2 text-[13.5px]" style={{ color: "var(--text-muted)" }}>
+          {questions} questions · {topics} topics — all of it, done.
+        </p>
+        <p className="mt-3 text-[13.5px] font-bold" style={{ color: "var(--brand-cream)" }}>Exam 2 is ready when you are.</p>
+        <button type="button" onClick={onExam2} className="mt-3 w-full rounded-xl text-[14px] font-black" style={{ minHeight: 48, background: "var(--accent)", color: "#0B1220" }}>
+          See Exam 2 →
+        </button>
       </div>
     </div>
   );
@@ -1848,6 +1902,92 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
     track(isFirstTopic ? "easy_points_started" : "topic_started", { topic_id: topicKey, campus_id: school?.campusId ?? undefined });
   };
   const [remindOpen, setRemindOpen] = useState(false);
+
+  // ── GUIDED PATH (08-26). THE PATH is the product: Start Exam 1, then keep pressing Continue.
+  // Steps derive from the free tab's actual content (lib/exam-path); completion is local-first.
+  const isFreeTab = active.price == null;
+  const pathSteps = useMemo<PathStep[]>(() => (isFreeTab ? buildPath(active.topics) : []), [isFreeTab, active]);
+  const [doneMap, setDoneMap] = useState<Record<string, number>>(() => readDoneSteps());
+  useEffect(() => {
+    const on = () => setDoneMap(readDoneSteps());
+    window.addEventListener("sa-path", on);
+    return () => window.removeEventListener("sa-path", on);
+  }, []);
+  const progress = useMemo(() => pathProgress(pathSteps, doneMap), [pathSteps, doneMap]);
+  const [started, setStarted] = useState<boolean>(() => pathStarted());
+  // Live position: the mounted set + the stage the SetFlowPanel is actually showing.
+  const [liveStage, setLiveStage] = useState<SetStage | null>(null);
+  const curStepId = curSet && liveStage ? `${curSet.id}:${liveStage}` : null;
+  const nextStepOnPath = nextPathStep(pathSteps, curStepId);
+  const prevStepOnPath = prevPathStep(pathSteps, curStepId);
+  // Interstitials.
+  const [topicDoneCard, setTopicDoneCard] = useState<{ name: string; next: PathStep } | null>(null);
+  const [examDone, setExamDone] = useState(false);
+  // Jump control: remount the SetFlowPanel at a requested stage (Back/Next across stages).
+  const [stageReq, setStageReq] = useState<{ setId: string; stage: SetStage; n: number } | null>(null);
+  const goToStep = useCallback((step: PathStep) => {
+    setTopicDoneCard(null); setExamDone(false);
+    setOpenTopic(step.topicKey);
+    setSelById((p) => ({ ...p, [active.num]: { topicKey: step.topicKey, setId: step.setId } }));
+    setUserPicked(true); setProfDone(true); setDrawerOpen(false);
+    setStageReq((r) => ({ setId: step.setId, stage: step.stage, n: (r?.n ?? 0) + 1 }));
+    writePathPos(step.id);
+    track("path_step_started", { step_type: step.kind, topic_id: step.topicKey, problem_type_id: step.setId, campus_id: school?.campusId ?? undefined });
+    if (auth.userId && step.stage === "practice") saveSetProgress(auth.userId, step.setId, "in_progress");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active.num, school?.campusId, auth.userId]);
+  const startPath = () => {
+    setPathStarted(); setStarted(true);
+    const first = firstUnfinished(pathSteps, doneMap) ?? pathSteps[0];
+    if (first) goToStep(first);
+    track("exam_path_started", { campus_id: school?.campusId ?? undefined, exam: "exam_1" });
+  };
+  // CONTINUE — the one advance rule. Topic boundary with the topic finished → a restrained
+  // interstitial; past the last step with everything done → the exam-complete state.
+  const continuePath = useCallback(() => {
+    const nxt = nextPathStep(pathSteps, curStepId);
+    if (!nxt) {
+      const prog = pathProgress(pathSteps, readDoneSteps());
+      if (prog.pct >= 100) { setExamDone(true); track("exam_completed", { exam: "exam_1", campus_id: school?.campusId ?? undefined }); }
+      else { const resume = firstUnfinished(pathSteps, readDoneSteps()); if (resume) goToStep(resume); }
+      return;
+    }
+    const curTopicKey = cur?.topicKey ?? null;
+    if (curTopicKey && nxt.topicKey !== curTopicKey && topicComplete(pathSteps, readDoneSteps(), curTopicKey)) {
+      const name = active.topics.find((t) => t.key === curTopicKey)?.name ?? "Topic";
+      setTopicDoneCard({ name, next: nxt });
+      return;
+    }
+    goToStep(nxt);
+  }, [pathSteps, curStepId, cur?.topicKey, active.topics, goToStep, school?.campusId]);
+  // Per-stage completion from the mounted set.
+  const topicDoneTracked = useRef<Set<string>>(new Set());
+  const handleStageComplete = useCallback((stage: SetStage) => {
+    if (!curSet || !isFreeTab) return;
+    const id = `${curSet.id}:${stage}`;
+    if (!pathSteps.some((st) => st.id === id)) return;
+    markStepDone(id);
+    track("path_step_completed", { step_type: stage === "practice" ? "practice_set" : stage === "cram" ? "cram_video" : "review_video", topic_id: cur?.topicKey ?? undefined, problem_type_id: curSet.id, campus_id: school?.campusId ?? undefined });
+    const tk = cur?.topicKey;
+    if (tk && !topicDoneTracked.current.has(tk) && topicComplete(pathSteps, readDoneSteps(), tk)) {
+      topicDoneTracked.current.add(tk);
+      track("topic_completed", { topic_id: tk, campus_id: school?.campusId ?? undefined });
+    }
+  }, [curSet, isFreeTab, pathSteps, cur?.topicKey, school?.campusId]);
+  // RESUME — a returning student who already started lands back on their step (selection only;
+  // nothing consumed). Runs once when the path list is ready and nothing is selected yet.
+  const resumedPath = useRef(false);
+  useEffect(() => {
+    if (resumedPath.current || !started || !isFreeTab || pathSteps.length === 0 || userPicked) return;
+    resumedPath.current = true;
+    const pos = readPathPos();
+    const step = pathSteps.find((st) => st.id === pos) ?? firstUnfinished(pathSteps, doneMap) ?? pathSteps[0];
+    if (step) goToStep(step);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [started, isFreeTab, pathSteps.length]);
+  // The current topic follows the path — expand it, collapse the rest.
+  useEffect(() => { if (started && isFreeTab && curSet && cur?.topicKey) setOpenTopic(cur.topicKey); }, [started, isFreeTab, curSet?.id, cur?.topicKey]);
+  const pathNextProp = curStepId && isFreeTab ? (nextStepOnPath ? { label: stepShortLabel(nextStepOnPath), meta: stepMeta(nextStepOnPath), onGo: continuePath } : { label: "Finish Exam 1", meta: "wrap up", onGo: continuePath }) : null;
   // DELAYED PERSONALISATION PROMPTS. Answered-question total comes from the existing coverage
   // store (localStorage, bumped by the practice stage per answer) — no new tracking. The
   // professor invitation appears once at ≥5 answers; the syllabus one only after a professor
@@ -1953,18 +2093,21 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
               {videoGate ? (
                 <div className="relative w-full" style={{ aspectRatio: "16 / 9", background: "var(--sa-surface-2)" }}>{videoGate}</div>
               ) : flowDone && !(isPaid && !greekOrg && !(() => { const k = kindForExamNum(active.num); return !!k && entitlements.kinds.has(k); })()) && (
-                !curSet && curTopic && curTopic.sets.length > 0 && active.price == null ? (
+                examDone && isFreeTab ? (
+                  <ExamCompleteCard steps={pathSteps} done={doneMap} onExam2={() => setActiveNum(2)} />
+                ) : topicDoneCard && isFreeTab ? (
+                  <TopicCompleteCard name={topicDoneCard.name} pct={progress.pct} next={topicDoneCard.next} onContinue={() => goToStep(topicDoneCard.next)} />
+                ) : isFreeTab && !started && !userPicked ? (
+                  <PathStartCard school={school} onStart={startPath} onRemind={() => { setRemindOpen(true); track("study_reminder_opened"); }} />
+                ) : !curSet && curTopic && curTopic.sets.length > 0 && active.price == null ? (
                   <TopicIntroCard
                     topic={curTopic}
-                    recommended={active.topics[0]?.key === curTopic.key}
-                    school={school}
-                    onStart={() => startTopic(curTopic!.key)}
-                    onRemind={() => { setRemindOpen(true); track("study_reminder_opened", { topic_id: curTopic!.key }); }}
+                    onJump={() => { const first = pathSteps.find((st) => st.topicKey === curTopic!.key); if (first) goToStep(first); else startTopic(curTopic!.key); }}
                   />
                 ) : curSet && isPlayable(curSet) && curTopic ? (
                   // A playable set walks its stages: Cram Blast → Practice → Review (shared
                   // set-flow model — same walk as /learn, homepage-sized shell around it).
-                  <SetFlowPanel key={`${curSet.id}:${resetSeq}`} topic={curTopic} set={curSet} exam={active} school={school} surface={greekOrg ? "greek" : school ? "campus" : "home"} onSetComplete={() => { markComplete(curSet!.id); if (auth.userId) saveSetProgress(auth.userId, curSet!.id, "complete"); }} onPickSet={(sid) => pickSet(curTopic!.key, sid)} onNotify={onNotify} authed={!!auth.userId} onSaveProgress={() => setSaveOpen(true)} isTest={isTest} />
+                  <SetFlowPanel key={`${curSet.id}:${resetSeq}:${stageReq && stageReq.setId === curSet.id ? `${stageReq.stage}${stageReq.n}` : "d"}`} initialStage={stageReq && stageReq.setId === curSet.id ? stageReq.stage : undefined} onStageShown={(st) => setLiveStage(st)} onStageComplete={handleStageComplete} pathNext={pathNextProp} topic={curTopic} set={curSet} exam={active} school={school} surface={greekOrg ? "greek" : school ? "campus" : "home"} onSetComplete={() => { markComplete(curSet!.id); if (auth.userId) saveSetProgress(auth.userId, curSet!.id, "complete"); }} onPickSet={(sid) => pickSet(curTopic!.key, sid)} onNotify={onNotify} authed={!!auth.userId} onSaveProgress={() => setSaveOpen(true)} isTest={isTest} />
                 ) : (
                   // NOT A FIXED 16:9 BOX. The unpublished state carries a line of copy and the
                   // notify field, which a phone-width 16:9 panel (~190px tall) cannot hold.
@@ -1976,6 +2119,31 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
             </div>
 
             ); })()}
+
+            {/* PATH NAVIGATOR — ← Back · Next: {step} →. The path's steering wheel; nothing else
+                in the pane needs to explain where the student is. */}
+            {started && isFreeTab && flowDone && !entryGate && !examDone && curSet && (
+              <div className="flex items-center justify-between gap-3 border-t px-3 py-2" style={{ borderColor: "var(--border-default)", background: "rgba(0,0,0,0.18)" }}>
+                <button
+                  type="button"
+                  disabled={!prevStepOnPath}
+                  onClick={() => { if (prevStepOnPath) { track("path_back_clicked"); goToStep(prevStepOnPath); } }}
+                  className="shrink-0 rounded-lg px-2.5 text-[13px] font-bold disabled:opacity-35"
+                  style={{ minHeight: 40, color: "var(--brand-cream)" }}
+                >
+                  ← Back
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { track("path_next_clicked"); continuePath(); }}
+                  title={nextStepOnPath ? stepMeta(nextStepOnPath) : undefined}
+                  className="min-w-0 rounded-lg px-2.5 text-right text-[13px] font-black"
+                  style={{ minHeight: 40, color: "var(--accent)" }}
+                >
+                  <span className="block truncate">{nextStepOnPath ? `Next: ${stepShortLabel(nextStepOnPath)} →` : "Finish Exam 1 →"}</span>
+                </button>
+              </div>
+            )}
 
             {/* TINY, SKIPPABLE personalisation cards — never modals, never mid-question. */}
             {showProfPrompt && (
@@ -2410,7 +2578,15 @@ function HeroVideo({ playbackId, onComplete }: { playbackId: string; onComplete?
  *  video always used. Stage transitions are overlay CTAs, not new screens — this is still the
  *  low-friction discovery player, not a dashboard. Paid sets never reach here (no playbackId
  *  in the free tree), so there is no entitlement logic on this surface. */
-function SetFlowPanel({ topic, set, exam, school, surface, onSetComplete, onPickSet, onNotify, authed, onSaveProgress, isTest }: { topic: ResolvedTopic; set: StudentSet; exam: ExamTab; school: School | null; surface: "home" | "campus" | "greek"; onSetComplete: () => void; onPickSet: (setId: string) => void; onNotify: (r: NotifyReq) => void; authed: boolean; onSaveProgress: () => void; isTest?: boolean }) {
+function SetFlowPanel({ topic, set, exam, school, surface, onSetComplete, onPickSet, onNotify, authed, onSaveProgress, isTest, initialStage, onStageShown, onStageComplete, pathNext }: { topic: ResolvedTopic; set: StudentSet; exam: ExamTab; school: School | null; surface: "home" | "campus" | "greek"; onSetComplete: () => void; onPickSet: (setId: string) => void; onNotify: (r: NotifyReq) => void; authed: boolean; onSaveProgress: () => void; isTest?: boolean;
+  /** GUIDED PATH (08-26): start at this stage when the parent jumped here via Back/Next. */
+  initialStage?: SetStage;
+  /** The parent tracks the live (setId, stage) so the path knows where the student is. */
+  onStageShown?: (stage: SetStage) => void;
+  /** Per-stage completion — cram video end, practice done, review video end. */
+  onStageComplete?: (stage: SetStage) => void;
+  /** The path's next step from here: label for CTAs + the jump. Null past the last step. */
+  pathNext?: { label: string; meta: string; onGo: () => void } | null }) {
   // Fires exactly once per mount: a "set consumed" signal that drives the completion invitation
   // and student_set_progress. Cram-video end AND practice-done both count; a signed-in student
   // gets the row either way. Keyed by set id (parent remounts on set change).
@@ -2419,7 +2595,8 @@ function SetFlowPanel({ topic, set, exam, school, surface, onSetComplete, onPick
   // Entry = the set's FIRST available stage: cram when its video exists, else straight to
   // practice (the CEQ release ships questions before videos). The cram slot stays in the shell
   // as a "coming soon" strip so a published video fills it with no layout change.
-  const [stage, setStage] = useState<SetStage>(() => stagesOf(set)[0]);
+  const [stage, setStage] = useState<SetStage>(() => (initialStage && stagesOf(set).includes(initialStage) ? initialStage : stagesOf(set)[0]));
+  useEffect(() => { onStageShown?.(stage); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [stage]);
   // The end-of-video overlay per stage ("Practice this set →" / "Next set →").
   const [stageEnded, setStageEnded] = useState(false);
   const stages = stagesOf(set);
@@ -2468,8 +2645,9 @@ function SetFlowPanel({ topic, set, exam, school, surface, onSetComplete, onPick
                 campusSlug={school?.slug ?? null}
                 surface={surface}
                 statusLabel=""
-                doneLabel={forwardLabel ?? "Done →"}
-                onDone={() => { complete(); goto(after); }}
+                doneLabel={pathNext ? `Continue → ${pathNext.label}` : (forwardLabel ?? "Done →")}
+                onDone={() => { complete(); onStageComplete?.("practice"); if (pathNext) pathNext.onGo(); else goto(after); }}
+                pathAdvance={pathNext ? { label: pathNext.label, onContinue: () => { complete(); onStageComplete?.("practice"); pathNext.onGo(); } } : null}
                 onReview={set.reviewPlaybackId ? () => goto({ setId: set.id, stage: "review" }) : undefined}
                 authed={authed}
                 onSaveProgress={onSaveProgress}
@@ -2490,9 +2668,12 @@ function SetFlowPanel({ topic, set, exam, school, surface, onSetComplete, onPick
             <HeroVideo
               key={`${stage}:${stage === "review" ? set.reviewPlaybackId : set.playbackId}`}
               playbackId={(stage === "review" ? set.reviewPlaybackId : set.playbackId)!}
-              onComplete={() => { if (stage === "cram") complete(); setStageEnded(true); }}
+              onComplete={() => { if (stage === "cram") complete(); onStageComplete?.(stage); setStageEnded(true); }}
             />
-            {stageEnded && after && (
+            {stageEnded && pathNext && (
+              <VideoAdvance label={pathNext.label} onGo={pathNext.onGo} />
+            )}
+            {stageEnded && !pathNext && after && (
               <div className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-2 px-3 py-2" style={{ background: "linear-gradient(0deg, rgba(5,8,16,0.92) 0%, rgba(5,8,16,0.0) 100%)" }}>
                 <span className="min-w-0 truncate text-[11.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>
                   {after.setId === set.id ? (after.stage === "practice" ? "Now try it yourself" : "Now watch Lee work it") : `Up next: ${nextSetName}`}
@@ -2500,7 +2681,7 @@ function SetFlowPanel({ topic, set, exam, school, surface, onSetComplete, onPick
                 <button className="shrink-0 rounded-xl px-3.5 py-1.5 text-[12px] font-black uppercase tracking-wide" style={{ background: "var(--accent)", color: "#0B1220" }} onClick={() => goto(after)}>{forwardLabel}</button>
               </div>
             )}
-            {stageEnded && !after && (
+            {stageEnded && !pathNext && !after && (
               <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2 text-[11.5px] font-semibold" style={{ color: "var(--brand-cream)", background: "linear-gradient(0deg, rgba(5,8,16,0.92) 0%, rgba(5,8,16,0.0) 100%)" }}>
                 ✓ You finished {topic.name} — pick your next topic on the left.
               </div>
@@ -2508,6 +2689,31 @@ function SetFlowPanel({ topic, set, exam, school, surface, onSetComplete, onPick
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/** VIDEO-END COUNTDOWN (guided path) — "Up next … Starting in 5…" with Start now / Pause. Fires
+ *  the moment a cram/review video completes; Pause leaves the classic overlay behaviour. */
+function VideoAdvance({ label, onGo }: { label: string; onGo: () => void }) {
+  const [left, setLeft] = useState(5);
+  const [paused, setPaused] = useState(false);
+  useEffect(() => { track("path_auto_advance_shown", { where: "video_end" }); }, []);
+  useEffect(() => {
+    if (paused) return;
+    if (left <= 0) { track("path_auto_advanced", { where: "video_end" }); onGo(); return; }
+    const t = window.setTimeout(() => setLeft((n) => n - 1), 1000);
+    return () => window.clearTimeout(t);
+  }, [left, paused, onGo]);
+  return (
+    <div className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-2 px-3 py-2" style={{ background: "linear-gradient(0deg, rgba(5,8,16,0.94) 0%, rgba(5,8,16,0.0) 100%)" }} aria-live="polite">
+      <span className="min-w-0 truncate text-[11.5px] font-semibold" style={{ color: "var(--brand-cream)" }}>
+        Up next: {label}{!paused && <span style={{ color: "var(--text-muted)" }}> · Starting in {left}…</span>}
+      </span>
+      <span className="flex shrink-0 items-center gap-2">
+        <button className="rounded-xl px-3.5 py-1.5 text-[12px] font-black uppercase tracking-wide" style={{ background: "var(--accent)", color: "#0B1220" }} onClick={() => { track("path_auto_advanced", { where: "video_end", manual: true }); onGo(); }}>Start now</button>
+        {!paused && <button className="px-2 py-1.5 text-[12px] font-bold" style={{ color: "var(--text-muted)" }} onClick={() => { setPaused(true); track("path_auto_advance_paused", { where: "video_end" }); }}>Pause</button>}
+      </span>
     </div>
   );
 }
