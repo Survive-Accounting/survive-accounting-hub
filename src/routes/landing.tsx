@@ -1839,6 +1839,31 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
     track(isFirstTopic ? "easy_points_started" : "topic_started", { topic_id: topicKey, campus_id: school?.campusId ?? undefined });
   };
   const [remindOpen, setRemindOpen] = useState(false);
+  // DELAYED PERSONALISATION PROMPTS. Answered-question total comes from the existing coverage
+  // store (localStorage, bumped by the practice stage per answer) — no new tracking. The
+  // professor invitation appears once at ≥5 answers; the syllabus one only after a professor
+  // exists and ≥12 answers (the professor pick must feel like progress, not the start of a form
+  // funnel). Each shows once per browser; dismissing is remembered.
+  const PROF_PROMPT_KEY = "sa-prof-prompt";
+  const SYL_PROMPT_KEY = "sa-syllabus-prompt";
+  const [answeredTotal, setAnsweredTotal] = useState(0);
+  useEffect(() => {
+    const total = () => { try { return Object.values(readCoverage()).reduce((a, x) => a + x.length, 0); } catch { return 0; } };
+    setAnsweredTotal(total());
+    const on = () => setAnsweredTotal(total());
+    window.addEventListener("sa-coverage", on);
+    return () => window.removeEventListener("sa-coverage", on);
+  }, []);
+  const promptDone = (k: string) => { try { return localStorage.getItem(k) === "done"; } catch { return true; } };
+  const finishPrompt = (k: string) => { try { localStorage.setItem(k, "done"); } catch { /* ignore */ } };
+  const [profPromptGone, setProfPromptGone] = useState(() => promptDone(PROF_PROMPT_KEY));
+  const [sylPromptGone, setSylPromptGone] = useState(() => promptDone(SYL_PROMPT_KEY));
+  const showProfPrompt = !profPromptGone && !professor && !!school && answeredTotal >= 5 && flowDone && !isPaid;
+  const showSylPrompt = !sylPromptGone && !!professor && answeredTotal >= 12 && flowDone && !isPaid && !showProfPrompt;
+  const profPromptTracked = useRef(false);
+  useEffect(() => { if (showProfPrompt && !profPromptTracked.current) { profPromptTracked.current = true; track("professor_prompt_shown"); } }, [showProfPrompt]);
+  const sylPromptTracked = useRef(false);
+  useEffect(() => { if (showSylPrompt && !sylPromptTracked.current) { sylPromptTracked.current = true; track("syllabus_prompt_shown"); } }, [showSylPrompt]);
   const changeSchoolHere = () => { setSelById({}); setProfDone(false); setUserPicked(false); onChangeSchool(); };
   const resumeContext = (): ResumeContext => ({
     schoolSlug: school?.slug ?? null, courseCode: school?.codeVerified && school.code ? school.code : null, professorName: professor ? (professor.last || professor.name) : null,
@@ -1942,6 +1967,26 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
             </div>
 
             ); })()}
+
+            {/* TINY, SKIPPABLE personalisation cards — never modals, never mid-question. */}
+            {showProfPrompt && (
+              <div className="flex items-center gap-2 border-t px-3 py-2.5" style={{ borderColor: "var(--border-default)", background: "rgba(252,163,17,0.05)" }}>
+                <span className="min-w-0 flex-1 text-[13px]" style={{ color: "var(--brand-cream)" }}>
+                  <b>Want a closer match to your class?</b> Choose your professor.
+                </span>
+                <button type="button" onClick={() => { track("professor_prompt_selected"); finishPrompt(PROF_PROMPT_KEY); setProfPromptGone(true); matchProfessor(); }} className="shrink-0 rounded-lg px-3 text-[12.5px] font-black" style={{ minHeight: 38, background: "var(--accent)", color: "#0B1220" }}>Choose professor</button>
+                <button type="button" onClick={() => { track("professor_prompt_skipped"); finishPrompt(PROF_PROMPT_KEY); setProfPromptGone(true); }} className="shrink-0 px-2 text-[12.5px] font-bold" style={{ minHeight: 38, color: "var(--text-muted)" }}>Not now</button>
+              </div>
+            )}
+            {showSylPrompt && (
+              <div className="flex items-center gap-2 border-t px-3 py-2.5" style={{ borderColor: "var(--border-default)", background: "rgba(252,163,17,0.05)" }}>
+                <span className="min-w-0 flex-1 text-[13px]" style={{ color: "var(--brand-cream)" }}>
+                  <b>Want an even closer match?</b> Send your syllabus. I&apos;ll match it.
+                </span>
+                <button type="button" onClick={() => { track("syllabus_prompt_selected"); finishPrompt(SYL_PROMPT_KEY); setSylPromptGone(true); onSyllabus(); }} className="shrink-0 rounded-lg px-3 text-[12.5px] font-black" style={{ minHeight: 38, background: "var(--accent)", color: "#0B1220" }}>Send syllabus</button>
+                <button type="button" onClick={() => { track("syllabus_prompt_skipped"); finishPrompt(SYL_PROMPT_KEY); setSylPromptGone(true); }} className="shrink-0 px-2 text-[12.5px] font-bold" style={{ minHeight: 38, color: "var(--text-muted)" }}>I&apos;ll do this later</button>
+              </div>
+            )}
 
             {/* The "Let's tailor this / Send your syllabus" pair that used to live here is gone.
                 It asked for work before the student had a reason to do any, and it appeared in
@@ -2065,6 +2110,11 @@ const possessive = (p: ProfessorLite | null): string | null => {
  *  hero), school · course, the professor line ("+ Choose professor" until one is matched),
  *  the coverage line with its tiny bar and an honest tooltip, "Save my progress" and the •••
  *  menu. `compact` is the one-row phone variant above the topic switcher. */
+// Canonical human contact — the same values the footer renders.
+const LEE_PHONE = "(662) 565-8818";
+const LEE_TEL = "+16625658818";
+const LEE_EMAIL = "lee@surviveaccounting.com";
+
 type IdentityProps = {
   school: School | null; professor: ProfessorLite | null;
   onMatchProfessor: () => void; onChangeSchool: () => void; onResetQuestions: () => void;
@@ -2076,6 +2126,8 @@ function PlayerIdentity({ school, professor, onMatchProfessor, onChangeSchool, o
   const c = school ? boltFor(school.id) : { c1: BRAND_RED, c2: BRAND_BLUE };
   const last = professor ? (professor.last || professor.name) : null;
   const [menuOpen, setMenuOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  useEffect(() => { if (!menuOpen) setHelpOpen(false); }, [menuOpen]);
   const menuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!menuOpen) return;
@@ -2091,19 +2143,36 @@ function PlayerIdentity({ school, professor, onMatchProfessor, onChangeSchool, o
       </button>
       {menuOpen && (
         <div role="menu" aria-label="Player options" className="absolute right-0 z-30 mt-1 w-[230px] rounded-xl p-1.5" style={{ background: "#0b1020", border: "1px solid var(--border-default)", boxShadow: "0 16px 40px -20px rgba(0,0,0,0.9)" }}>
-          {[
-            // Signed-out students see Save at the TOP — most useful action once they have
-            // something worth keeping. Signed-in students omit the entry (autosave handles it).
+          {helpOpen ? (
+            // GET HELP — a tiny human submenu, never a page scroll. sms:/mailto: go straight to Lee.
+            <div>
+              <a role="menuitem" href={`sms:${LEE_TEL}`} onClick={() => { track("help_text_clicked"); setMenuOpen(false); setHelpOpen(false); }} className="block w-full rounded-lg px-2.5 py-2 text-left hover:bg-white/10" style={{ minHeight: 44 }}>
+                <span className="block text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>Text Lee</span>
+                <span className="block text-[11px]" style={{ color: "var(--text-muted)" }}>{LEE_PHONE}</span>
+              </a>
+              <a role="menuitem" href={`mailto:${LEE_EMAIL}`} onClick={() => { track("help_email_clicked"); setMenuOpen(false); setHelpOpen(false); }} className="block w-full rounded-lg px-2.5 py-2 text-left hover:bg-white/10" style={{ minHeight: 44 }}>
+                <span className="block text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>Email Lee</span>
+                <span className="block text-[11px]" style={{ color: "var(--text-muted)" }}>{LEE_EMAIL}</span>
+              </a>
+              <button role="menuitem" type="button" onClick={() => setHelpOpen(false)} className="block w-full rounded-lg px-2.5 py-2 text-left hover:bg-white/10" style={{ minHeight: 40 }}>
+                <span className="block text-[12px] font-bold" style={{ color: "var(--text-muted)" }}>← Back</span>
+              </button>
+            </div>
+          ) : (
+          [
+            // Spec order (08-25): Save / Reset / Change school / Change professor / Get help.
             !auth.userId && { label: "Save my progress", hint: "Sign in with a magic link. Optional.", on: () => { onSave(); setMenuOpen(false); } },
             { label: "Reset questions", hint: hasSet ? "Start this set's questions over. Saved progress stays." : "Pick a set first.", on: () => { onResetQuestions(); setMenuOpen(false); }, disabled: !hasSet },
-            { label: professor ? "Change professor" : "Choose professor", hint: "Keeps your school and course.", on: () => { onMatchProfessor(); setMenuOpen(false); } },
             { label: "Change school", hint: "Back to the school picker.", on: () => { onChangeSchool(); setMenuOpen(false); } },
+            { label: professor ? "Change professor" : "Choose professor", hint: "Keeps your school and course.", on: () => { onMatchProfessor(); setMenuOpen(false); } },
+            { label: "Get help", hint: "Text or email Lee.", on: () => { track("help_opened"); setHelpOpen(true); } },
           ].filter((it): it is Exclude<typeof it, false> => !!it).map((it) => (
             <button key={it.label} role="menuitem" type="button" disabled={it.disabled} onClick={it.on} className="block w-full rounded-lg px-2.5 py-2 text-left hover:bg-white/10 disabled:opacity-40" style={{ minHeight: 44 }}>
               <span className="block text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>{it.label}</span>
               <span className="block text-[11px]" style={{ color: "var(--text-muted)" }}>{it.hint}</span>
             </button>
-          ))}
+          ))
+          )}
         </div>
       )}
     </div>
