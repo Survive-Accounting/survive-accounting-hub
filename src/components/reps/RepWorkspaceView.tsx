@@ -255,7 +255,11 @@ function PayoutCard({ d, legacyToken, reload }: { d: RepWorkspace; legacyToken?:
   const [saved, setSaved] = useState<"idle" | "saving" | "done">("idle");
   const save = () => { setSaved("saving"); void updateRepVenmoSession({ data: { legacyToken, venmo } }).then(() => { setSaved("done"); reload(); window.setTimeout(() => setSaved("idle"), 1500); }).catch(() => setSaved("idle")); };
   return (
-    <section className="mt-6 rounded-2xl p-4" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
+    <section className="mt-6 rounded-2xl p-4" style={{ background: "var(--bg-surface)", border: `1px solid ${d.venmo ? "var(--border-default)" : "rgba(252,163,17,0.45)"}` }}>
+      {/* Venmo left OUT of signup on purpose — this is where it gets collected, before it matters. */}
+      {!d.venmo && (
+        <p className="mb-2 text-[11px] font-black uppercase" style={{ color: "var(--accent)", letterSpacing: "0.1em" }}>Getting paid — add your Venmo before your first payout</p>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[13.5px] font-black" style={{ color: "var(--brand-cream)" }}>Next payout · {d.payout.nextLabel} — {formatCents(d.payout.dueCents)} due</p>
         <p className="text-[11.5px]" style={{ color: "var(--text-muted)" }}>Venmo, on the 1st (Oct–Jan). Purchases are confirmed first.</p>
@@ -265,7 +269,7 @@ function PayoutCard({ d, legacyToken, reload }: { d: RepWorkspace; legacyToken?:
           <label style={LABEL}>Venmo — where you get paid</label>
           <input value={venmo} onChange={(e) => setVenmo(e.target.value)} placeholder="@your-venmo" className="sa-field w-full" style={FIELD} />
         </div>
-        <button type="button" onClick={save} className="rounded-lg px-3.5 text-[13px] font-black" style={{ minHeight: 46, background: "var(--bg-overlay)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}>{saved === "done" ? "Saved ⚡" : saved === "saving" ? "Saving…" : "Save"}</button>
+        <button type="button" onClick={save} className="rounded-lg px-3.5 text-[13px] font-black" style={{ minHeight: 46, background: d.venmo ? "var(--bg-overlay)" : "var(--accent)", border: d.venmo ? "1px solid var(--border-default)" : "none", color: d.venmo ? "var(--brand-cream)" : "#0B1220" }}>{saved === "done" ? "Saved ⚡" : saved === "saving" ? "Saving…" : d.venmo ? "Save" : "Add Venmo"}</button>
       </div>
     </section>
   );

@@ -7,15 +7,17 @@
 // states, and the prebuilt share copy.
 
 // ── rep lifecycle ────────────────────────────────────────────────────────────────────────────
-// applicant → approved → (phone verified) → active. `paused`/`deactivated` are admin brakes.
+// SELF-VERIFY (no admin approval): signup → phone verify → active. `approved` now just means
+// "signed up, phone not verified yet"; `applied` only exists on legacy rows from the brief
+// approval-gate era and behaves identically. `paused`/`deactivated` stay the admin brakes.
 // This is rep_status on referral_partners; the engine's own `status` column stays the
 // link-resolution switch and the server keeps the two in sync.
 export const REP_STATUSES = ["applied", "approved", "active", "paused", "deactivated"] as const;
 export type RepStatus = (typeof REP_STATUSES)[number];
 
 export const REP_STATUS_LABEL: Record<RepStatus, string> = {
-  applied: "Applied",
-  approved: "Approved — needs phone verify",
+  applied: "Unverified (legacy)",
+  approved: "Unverified — phone pending",
   active: "Active",
   paused: "Paused",
   deactivated: "Deactivated",
@@ -258,6 +260,33 @@ export type ShareKit = {
 };
 
 export type ShareKitResult = ShareKit | { ok: false; error: string };
+
+// ── signup (self-verify — no admin approval gate) ────────────────────────────────────────────
+/** What submitting the signup form should do when a rep row already exists for this phone/email.
+ *  · fresh            — nothing exists: create, then verify
+ *  · resume           — an unverified signup exists: update it, then verify (never a duplicate row)
+ *  · existing_active  — verified + active: "you already have an account — sign in"
+ *  · blocked          — paused/deactivated: the admin brake wins; no self-service resurrection */
+export type SignupResolution = "fresh" | "resume" | "existing_active" | "blocked";
+export function signupResolution(existing: { repStatus: RepStatus | null; phoneVerifiedAt: string | null } | null): SignupResolution {
+  if (!existing) return "fresh";
+  const rs = existing.repStatus ?? "active";
+  if (rs === "paused" || rs === "deactivated") return "blocked";
+  if (existing.phoneVerifiedAt && rs === "active") return "existing_active";
+  return "resume";
+}
+
+/** Progressive US phone formatting for the signup field: digits in → "(601) 201-8759" out.
+ *  Display only — the server stores normalized E.164. Non-US-looking input (leading +) is left
+ *  alone so an international number can still be typed verbatim. */
+export function formatUsPhoneInput(raw: string): string {
+  if (raw.trim().startsWith("+")) return raw;
+  const d = raw.replace(/\D/g, "").slice(0, 10);
+  if (d.length === 0) return "";
+  if (d.length <= 3) return `(${d}`;
+  if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
+  return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+}
 
 export const fmtMs = (ms: number): string => {
   const h = ms / 3_600_000;

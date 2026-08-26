@@ -41,17 +41,21 @@ function newToken(): string {
   return Array.from(b, (n) => A[n % A.length]).join("");
 }
 
-// ── APPLY (replaces instant signup) ──────────────────────────────────────────────────────────
+// ── SIGN UP (SELF-VERIFY — no admin approval gate) ───────────────────────────────────────────
+// Form → Twilio phone verify → dashboard. Signing up creates the rep as `approved` ("cleared to
+// verify") with the ENGINE paused; the successful OTP check is the activation gate. Duplicates
+// never stack: an existing verified+active rep is told to sign in, an unverified one resumes
+// verification on the same row, and a paused/deactivated rep stays behind the admin brake.
 export const applyAsRep = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({
     name: z.string().trim().min(2).max(120),
     email: z.string().trim().email().max(200),
     phone: z.string().trim().min(7).max(40),
     campusSlug: z.string().trim().min(1).max(120),
-    venmo: z.string().trim().max(120).optional().nullable(),
+    venmo: z.string().trim().max(120).optional().nullable(),   // legacy input — no longer collected at signup
     isTest: z.boolean().optional(),
   }).parse(d))
-  .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
+  .handler(async ({ data }): Promise<{ ok: boolean; state?: "verify" | "existing_active"; error?: string }> => {
     const db = await admin();
     const isTest = !!data.isTest && (await testEnabled());
 
@@ -66,35 +70,47 @@ export const applyAsRep = createServerFn({ method: "POST" })
     }
     if (!campusId) return { ok: false, error: "Pick your school from the list." };
 
-    // One application per phone: a resubmit updates the existing row instead of stacking dupes.
-    const { data: existing } = await db.from("referral_partners").select("id,rep_status")
+    // Phone is the identity; email is the tie-breaker for "same person, new number" typos.
+    const { signupResolution } = await import("@/lib/rep-shared");
+    let { data: existing } = await db.from("referral_partners").select("id,rep_status,phone_verified_at")
       .eq("type", "campus_rep").eq("phone", phone).maybeSingle();
-    if (existing?.id) {
+    if (!existing?.id) {
+      const { data: byEmail } = await db.from("referral_partners").select("id,rep_status,phone_verified_at")
+        .eq("type", "campus_rep").eq("email", data.email.toLowerCase()).maybeSingle();
+      existing = byEmail ?? null;
+    }
+    const res = signupResolution(existing?.id ? { repStatus: (existing.rep_status ?? null) as never, phoneVerifiedAt: existing.phone_verified_at ?? null } : null);
+
+    if (res === "blocked") return { ok: false, error: "This rep account is paused. Text Lee if that's a surprise." };
+    if (res === "existing_active") return { ok: true, state: "existing_active" };
+
+    if (res === "resume") {
+      // Same person finishing signup: refresh their details on the SAME row, then verify.
       await db.from("referral_partners").update({
-        name: data.name, email: data.email.toLowerCase(), campus_id: campusId,
-        venmo: data.venmo ? normalizeVenmo(data.venmo) : null,
-      }).eq("id", existing.id);
-      return { ok: true };
+        name: data.name, email: data.email.toLowerCase(), phone, campus_id: campusId,
+        rep_status: "approved",
+      }).eq("id", existing!.id);
+      return { ok: true, state: "verify" };
     }
 
-    // ENGINE STATUS 'paused' UNTIL ACTIVE: an applicant has no links yet, and even a manually
-    // minted code must not attribute until the rep is approved + verified.
+    // Fresh signup. ENGINE STATUS 'paused' UNTIL VERIFIED: no link may attribute before the
+    // phone check flips the rep active.
     const { error } = await db.from("referral_partners").insert({
       name: data.name, type: "campus_rep", email: data.email.toLowerCase(), phone,
-      status: "paused", rep_status: "applied",
+      status: "paused", rep_status: "approved",
       default_commission_type: "percent", default_commission_rate: 10,
       campus_id: campusId, venmo: data.venmo ? normalizeVenmo(data.venmo) : null,
       dashboard_token: newToken(), is_test: isTest,
-      notes: `rep application${isTest ? " · TEST" : ""}`,
+      notes: `self-signup${isTest ? " · TEST" : ""}`,
     });
     if (error) return { ok: false, error: error.message };
 
-    // Founder heads-up so applications don't sit unseen. Best-effort.
+    // Founder heads-up (informational — nothing waits on Lee). Best-effort.
     try {
       const { founderAlert } = await import("@/lib/comms/send.server");
       await founderAlert({ ctx: { kind: "rep", name: data.name, school: data.campusSlug, email: data.email, phone }, isTest });
     } catch { /* alert is never load-bearing */ }
-    return { ok: true };
+    return { ok: true, state: "verify" };
   });
 
 // ── PHONE OTP: start ─────────────────────────────────────────────────────────────────────────
@@ -127,7 +143,7 @@ export const checkRepVerification = createServerFn({ method: "POST" })
     phone: z.string().trim().min(7).max(40),
     code: z.string().trim().min(4).max(10),
   }).parse(d))
-  .handler(async ({ data }): Promise<{ ok: boolean; state?: "applied" | "active"; error?: string }> => {
+  .handler(async ({ data }): Promise<{ ok: boolean; state?: "active"; error?: string }> => {
     const db = await admin();
     const { normalizePhoneE164 } = await import("@/lib/greek-chapters.functions");
     const phone = normalizePhoneE164(data.phone);
@@ -137,7 +153,7 @@ export const checkRepVerification = createServerFn({ method: "POST" })
     const { data: repRow } = await db.from("referral_partners").select(REP_COLS)
       .eq("type", "campus_rep").eq("phone", phone).maybeSingle();
     const rep = repRow as RepRow | null;
-    if (!rep?.id) return { ok: false, error: "No rep account for that number. Apply first — it takes 30 seconds." };
+    if (!rep?.id) return { ok: false, error: "No rep account for that number yet. Sign up first — it takes 30 seconds." };
 
     const rs = (rep.rep_status ?? "active") as RepStatus;
     if (rs === "paused" || rs === "deactivated") return { ok: false, error: "Your rep account is paused. Reach out to Lee if that's a surprise." };
@@ -152,20 +168,16 @@ export const checkRepVerification = createServerFn({ method: "POST" })
     }
     if (!passed) return { ok: false, error: "That code didn't match — check it and try again." };
 
-    if (rs === "applied") {
-      // Verified but not yet approved: phone is confirmed, application stays in the queue. No session.
-      await db.from("referral_partners").update({ phone_verified_at: new Date().toISOString() }).eq("id", rep.id);
-      return { ok: true, state: "applied" };
-    }
-
-    // approved (first verify) or active (login): stamp, activate, ensure the main link, set session.
+    // SELF-VERIFY: a passed OTP IS the activation gate. First verify (approved, or a legacy
+    // 'applied' row) activates + mints the main link; every later login just refreshes the session.
+    const firstVerify = rs === "approved" || rs === "applied";
     const updates: Record<string, unknown> = { phone_verified_at: rep.phone_verified_at ?? new Date().toISOString() };
-    if (rs === "approved") { updates.rep_status = "active"; updates.status = "active"; }
+    if (firstVerify) { updates.rep_status = "active"; updates.status = "active"; }
     let token = rep.dashboard_token;
     if (!token) { token = newToken(); updates.dashboard_token = token; }
     await db.from("referral_partners").update(updates).eq("id", rep.id);
 
-    if (rs === "approved") {
+    if (firstVerify) {
       try {
         const { ensureMainCampusLink } = await import("@/lib/rep-workspace.functions");
         await ensureMainCampusLink(db, rep);
@@ -174,7 +186,7 @@ export const checkRepVerification = createServerFn({ method: "POST" })
 
     await setRepCookie(token!);
     try {
-      await db.from("rep_activity").insert({ partner_id: rep.id, kind: "rep_login", is_test: rep.is_test, meta: { firstActivation: rs === "approved" } });
+      await db.from("rep_activity").insert({ partner_id: rep.id, kind: "rep_login", is_test: rep.is_test, meta: { firstActivation: firstVerify } });
     } catch { /* ledger is best-effort */ }
     return { ok: true, state: "active" };
   });

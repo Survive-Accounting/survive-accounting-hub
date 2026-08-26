@@ -14,6 +14,7 @@ import { createPortal } from "react-dom";
 import { ChevronDown, GraduationCap, Lock, MessageCircle, MoreHorizontal, X } from "lucide-react";
 
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
+import { seedCharFromKey } from "@/lib/picker-keys";
 import { isPlayable, nextStep, setIndexOf, stagesOf, type SetStage } from "@/lib/set-flow";
 import { PracticeStage, readCoverage } from "@/components/site/PracticeStage";
 import { track } from "@/lib/analytics";
@@ -911,6 +912,14 @@ export function CampusSelector({ school, onPick, schools = SCHOOLS, pulse, openO
       <button
         ref={btnRef}
         onClick={() => { setOpen(true); onOpen?.(); }}
+        // TYPE-TO-SEARCH (desktop): tab here and just type — the sheet opens with that character
+        // already seeding the search. Trigger-scoped, so no other field's keystrokes are touched;
+        // PickerSheet autofocuses its input on open and `q` is this component's own state.
+        onKeyDown={(e) => {
+          if (open) return;
+          const ch = seedCharFromKey(e);
+          if (ch) { e.preventDefault(); setQ(ch); setOpen(true); onOpen?.(); }
+        }}
         aria-haspopup="dialog"
         aria-expanded={open}
         className={`flex w-full items-center gap-3 rounded-2xl px-5 py-4 text-left transition-transform hover:scale-[1.01]${cued ? " sa-cue" : ""}`}

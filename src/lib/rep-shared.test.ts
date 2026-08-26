@@ -6,11 +6,12 @@ import { describe, expect, it } from "bun:test";
 
 import {
   ACTIVITY_KINDS, assignmentAfterQc, chapterState, contactDraftProblem, contactTypeForRole,
-  mailtoHref, normalizeInstagram, shareEmail, shareKindForMethod, shareMessage, smsHref,
-  REP_STATUSES,
+  formatUsPhoneInput, mailtoHref, normalizeInstagram, shareEmail, shareKindForMethod, shareMessage,
+  signupResolution, smsHref, REP_STATUSES,
 } from "@/lib/rep-shared";
 import { commissionCents } from "@/lib/referral-shared";
 import { flyerTarget } from "@/lib/flyer.server";
+import { seedCharFromKey } from "@/lib/picker-keys";
 
 describe("rep lifecycle", () => {
   it("carries the full applicant → active path", () => {
@@ -134,6 +135,70 @@ describe("flyer attribution", () => {
     const input = { ...base, chapterSlug: "x", chapterName: "X", refCode: "abc" };
     expect(Object.keys(input).sort()).toEqual(["chapterName", "chapterSlug", "courseCode", "refCode", "schoolName", "schoolSlug"]);
   });
+});
+
+describe("signupResolution (self-verify, no approval gate)", () => {
+  it("nothing on file → fresh signup then verification", () => {
+    expect(signupResolution(null)).toBe("fresh");
+  });
+  it("an unverified signup RESUMES on the same row — never a duplicate rep", () => {
+    expect(signupResolution({ repStatus: "approved", phoneVerifiedAt: null })).toBe("resume");
+    expect(signupResolution({ repStatus: "applied", phoneVerifiedAt: null })).toBe("resume");
+    // verified phone but not yet flipped active (interrupted mid-activation) still resumes
+    expect(signupResolution({ repStatus: "approved", phoneVerifiedAt: "2026-08-26T00:00:00Z" })).toBe("resume");
+  });
+  it("a verified active rep is told to sign in", () => {
+    expect(signupResolution({ repStatus: "active", phoneVerifiedAt: "2026-08-26T00:00:00Z" })).toBe("existing_active");
+  });
+  it("paused/deactivated reps cannot resurrect themselves through signup", () => {
+    expect(signupResolution({ repStatus: "paused", phoneVerifiedAt: "2026-08-26T00:00:00Z" })).toBe("blocked");
+    expect(signupResolution({ repStatus: "deactivated", phoneVerifiedAt: null })).toBe("blocked");
+  });
+});
+
+describe("formatUsPhoneInput", () => {
+  it("formats progressively as the user types", () => {
+    expect(formatUsPhoneInput("6")).toBe("(6");
+    expect(formatUsPhoneInput("601")).toBe("(601");
+    expect(formatUsPhoneInput("6012")).toBe("(601) 2");
+    expect(formatUsPhoneInput("601201")).toBe("(601) 201");
+    expect(formatUsPhoneInput("6012018759")).toBe("(601) 201-8759");
+  });
+  it("re-formats pasted/decorated input and caps at 10 digits", () => {
+    expect(formatUsPhoneInput("601-201-8759")).toBe("(601) 201-8759");
+    expect(formatUsPhoneInput("60120187591234")).toBe("(601) 201-8759");
+    expect(formatUsPhoneInput("")).toBe("");
+  });
+  it("leaves an international +… number alone", () => {
+    expect(formatUsPhoneInput("+447911123456")).toBe("+447911123456");
+  });
+});
+
+describe("picker type-to-search predicate", () => {
+  const k = (key: string, mods: Partial<{ ctrlKey: boolean; metaKey: boolean; altKey: boolean }> = {}) =>
+    seedCharFromKey({ key, ctrlKey: false, metaKey: false, altKey: false, ...mods });
+  it("a printable character seeds the search", () => {
+    expect(k("O")).toBe("O");
+    expect(k("l")).toBe("l");
+    expect(k("2")).toBe("2");
+  });
+  it("named keys never seed (Tab keeps tabbing, arrows/Enter keep native meaning)", () => {
+    expect(k("Tab")).toBeNull();
+    expect(k("Enter")).toBeNull();
+    expect(k("ArrowDown")).toBeNull();
+    expect(k("Escape")).toBeNull();
+    expect(k("Backspace")).toBeNull();
+  });
+  it("modifier chords stay the browser's (Ctrl+F, Cmd+K…)", () => {
+    expect(k("f", { ctrlKey: true })).toBeNull();
+    expect(k("k", { metaKey: true })).toBeNull();
+    expect(k("a", { altKey: true })).toBeNull();
+  });
+  it("Space stays native button activation", () => {
+    expect(k(" ")).toBeNull();
+  });
+  // The scope guardrail is structural: the handler is attached to the picker's trigger button
+  // only, never document — a keystroke inside any other input can't reach it by construction.
 });
 
 describe("commission", () => {

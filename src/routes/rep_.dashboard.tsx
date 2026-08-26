@@ -16,7 +16,7 @@ import { Footer } from "@/components/site/SiteFooter";
 import { RepWorkspaceView } from "@/components/reps/RepWorkspaceView";
 import { checkRepVerification, repLogout, startRepVerification } from "@/lib/rep-auth.functions";
 import { getRepWorkspace } from "@/lib/rep-workspace.functions";
-import type { RepWorkspace } from "@/lib/rep-shared";
+import { formatUsPhoneInput, type RepWorkspace } from "@/lib/rep-shared";
 
 export const Route = createFileRoute("/rep_/dashboard")({
   validateSearch: (s: Record<string, unknown>): { k?: string } => ({
@@ -58,7 +58,9 @@ function RepDashboardPage() {
     <div style={wrap}>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.3} animate /></div>
       <SiteHeader />
-      <main style={{ position: "relative", zIndex: 1, maxWidth: 760, margin: "0 auto", padding: "0 20px", width: "100%" }} className="pb-16">
+      {/* Longhand side padding — the `padding` shorthand would override the class's pb (the old
+          footer-collision bug); pb-20/sm:pb-28 keeps the workspace clear of the footer. */}
+      <main style={{ position: "relative", zIndex: 1, maxWidth: 760, margin: "0 auto", paddingLeft: 20, paddingRight: 20, width: "100%" }} className="pb-20 sm:pb-28">
         {st.s === "loading" && <p className="pt-16 text-center text-[14px]" style={{ color: "var(--text-muted)", fontFamily: BRAND_SANS }}>Loading your dashboard…</p>}
         {st.s === "signin" && <SignIn note={st.note} onDone={load} />}
         {(st.s === "pending" || st.s === "paused") && (
@@ -75,7 +77,7 @@ function RepDashboardPage() {
   );
 }
 
-// ── phone → OTP sign-in (doubles as first-time verification once approved) ──────────────────
+// ── phone → OTP sign-in (SELF-VERIFY: the same OTP is also first-time activation) ────────────
 function SignIn({ note, onDone }: { note?: string; onDone: () => void }) {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
@@ -83,7 +85,6 @@ function SignIn({ note, onDone }: { note?: string; onDone: () => void }) {
   const [busy, setBusy] = useState(false);
   const [testHint, setTestHint] = useState(false);
   const [err, setErr] = useState<string | null>(note ?? null);
-  const [applied, setApplied] = useState(false);
 
   const FIELD: React.CSSProperties = {
     width: "100%", minHeight: 50, borderRadius: 12, padding: "0 14px",
@@ -105,32 +106,22 @@ function SignIn({ note, onDone }: { note?: string; onDone: () => void }) {
     void checkRepVerification({ data: { phone: phone.trim(), code: code.trim() } })
       .then((r) => {
         if (!r.ok) { setErr(r.error ?? "That code didn't match."); return; }
-        if (r.state === "applied") { setApplied(true); return; }
         onDone();
       })
       .catch(() => setErr("Couldn't reach the server."))
       .finally(() => setBusy(false));
   };
 
-  if (applied) {
-    return (
-      <div className="mx-auto max-w-sm pt-16 text-center" style={{ fontFamily: BRAND_SANS }}>
-        <h1 className="text-[20px] font-black" style={{ fontFamily: BRAND_DISPLAY }}>Phone verified ✓ — application pending.</h1>
-        <p className="mt-2 text-[14px]" style={{ color: "var(--text-muted)" }}>Lee reviews every application personally. We'll text you the moment you're approved.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="mx-auto max-w-sm pt-14" style={{ fontFamily: BRAND_SANS }}>
       <h1 className="text-center text-[24px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Rep sign-in</h1>
       <p className="mt-1.5 text-center text-[13.5px]" style={{ color: "var(--text-muted)" }}>
-        {stage === "phone" ? "Enter the phone number from your application — we'll text you a code." : `Enter the code we texted ${phone.trim()}.`}
+        {stage === "phone" ? "Enter your phone number — we'll text you a code." : `Enter the code we texted ${phone.trim()}.`}
       </p>
       <div className="mt-5 grid gap-3">
         {stage === "phone" ? (
           <>
-            <input value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" autoComplete="tel" placeholder="(555) 123-4567" className="sa-field" style={FIELD} onKeyDown={(e) => e.key === "Enter" && start()} />
+            <input value={phone} onChange={(e) => setPhone(formatUsPhoneInput(e.target.value))} type="tel" inputMode="tel" autoComplete="tel" placeholder="(555) 123-4567" className="sa-field" style={FIELD} onKeyDown={(e) => e.key === "Enter" && start()} />
             <button type="button" onClick={start} disabled={busy || phone.replace(/\D/g, "").length < 10} className="w-full rounded-xl text-[15px] font-black disabled:opacity-40" style={{ minHeight: 52, background: "var(--accent)", color: "#0B1220" }}>{busy ? "Sending…" : "Text me a code"}</button>
           </>
         ) : (
@@ -142,7 +133,7 @@ function SignIn({ note, onDone }: { note?: string; onDone: () => void }) {
           </>
         )}
         {err && <p className="text-center text-[12.5px]" role="alert" style={{ color: "#F3C6CC" }}>{err}</p>}
-        <p className="text-center text-[12px]" style={{ color: "var(--text-muted)" }}>Not a rep yet? <a href="/rep/join" className="font-bold underline underline-offset-4" style={{ color: "var(--accent)" }}>Apply here</a> — takes 30 seconds.</p>
+        <p className="text-center text-[12px]" style={{ color: "var(--text-muted)" }}>Not a rep yet? <a href="/rep/join" className="font-bold underline underline-offset-4" style={{ color: "var(--accent)" }}>Get started</a> — takes 30 seconds.</p>
       </div>
     </div>
   );

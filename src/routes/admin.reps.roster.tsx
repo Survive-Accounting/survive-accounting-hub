@@ -79,7 +79,9 @@ function RosterPage() {
       {/* APPLICATIONS */}
       {applications.length > 0 && (
         <section className="rounded-xl border border-amber-500/40 bg-amber-500/5 p-4">
-          <h2 className="text-sm font-bold">Applications waiting ({applications.length})</h2>
+          {/* SELF-VERIFY ERA: signup no longer waits on approval — this section only renders for
+              LEGACY 'applied' rows from the brief approval-gate era. */}
+          <h2 className="text-sm font-bold">Legacy unverified signups ({applications.length})</h2>
           <div className="mt-2 grid gap-2">
             {applications.map((r) => (
               <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-background px-3 py-2">
@@ -94,7 +96,7 @@ function RosterPage() {
               </div>
             ))}
           </div>
-          <p className="mt-2 text-xs text-muted-foreground">Approving doesn't activate anyone — the rep still verifies their phone at /rep/dashboard, and only then goes active.</p>
+          <p className="mt-2 text-xs text-muted-foreground">Signup is self-verify now — these older rows just need the rep to verify their phone at /rep/dashboard. Approve clears them into that path; Decline deactivates.</p>
         </section>
       )}
 

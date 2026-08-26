@@ -68,8 +68,9 @@ export async function repFromSession(db: DB, opts: { legacyToken?: string | null
   const rs = (rep.rep_status ?? "active") as RepStatus; // pre-migration rows default to active
   if (rs === "paused" || rs === "deactivated") return { error: "Your rep account is paused. Reach out to Lee if that's a surprise.", state: "paused" };
   if (opts.requireActive !== false) {
-    if (rs === "applied") return { error: "Your application is in — we'll text you when you're approved.", state: "pending" };
-    if (rs === "approved" && !rep.is_test) return { error: "Verify your phone to open your dashboard.", state: "pending" };
+    // Self-verify model: an unverified signup (approved, or a legacy 'applied' row) just needs
+    // the phone OTP — no approval language anywhere.
+    if ((rs === "applied" || rs === "approved") && !rep.is_test) return { error: "Verify your phone to open your dashboard.", state: "pending" };
   }
   return { rep };
 }

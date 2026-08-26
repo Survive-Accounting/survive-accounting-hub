@@ -24,6 +24,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from "react-dom";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
+import { seedCharFromKey } from "@/lib/picker-keys";
 import { revealInContainer } from "@/lib/ui-scroll";
 import { useDismiss } from "@/lib/use-dismiss";
 
@@ -97,7 +98,17 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
     return () => { window.removeEventListener("scroll", place, true); window.removeEventListener("resize", place); };
   }, [open, place]);
 
-  useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    // Caret to the END — a type-to-search open seeds the box with the typed character, and some
+    // browsers put a programmatic-focus caret at position 0, which would make the SECOND keystroke
+    // land before the first.
+    const n = el.value.length;
+    try { el.setSelectionRange(n, n); } catch { /* non-text input types */ }
+  }, [open]);
   useEffect(() => { setActive((i) => Math.min(i, Math.max(0, results.length - 1))); }, [results.length]);
   useEffect(() => {
     if (!open) return;
@@ -123,7 +134,17 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
         ref={triggerRef}
         type="button"
         disabled={disabled}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => { setQ(""); setOpen((v) => !v); }}
+        // TYPE-TO-SEARCH: tab to the picker and just start typing — the panel opens with that
+        // character already in the search box. Attached to THIS trigger only (never a document
+        // listener), so typing in any other field on the page is untouched. Mobile taps take the
+        // onClick path above exactly as before.
+        onKeyDown={(e) => {
+          if (open) return;
+          const ch = seedCharFromKey(e);
+          if (ch) { e.preventDefault(); setQ(ch); setActive(0); setOpen(true); return; }
+          if (e.key === "ArrowDown" || e.key === "Enter") { e.preventDefault(); setQ(""); setOpen(true); }
+        }}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel ?? placeholder}
