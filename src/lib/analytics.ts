@@ -38,6 +38,25 @@ export const SA_EVENTS = [
   "qr_landing",
   "checkout_started",
   "purchase_completed",
+  // Launch polish (08-25): onboarding + prompts + help.
+  "school_picker_opened",
+  "school_not_listed",
+  "personalized_loading_started",
+  "personalized_loading_completed",
+  "topic_preview_opened",
+  "topic_started",
+  "easy_points_started",
+  "study_reminder_opened",
+  "study_reminder_sent",
+  "professor_prompt_shown",
+  "professor_prompt_selected",
+  "professor_prompt_skipped",
+  "syllabus_prompt_shown",
+  "syllabus_prompt_selected",
+  "syllabus_prompt_skipped",
+  "help_opened",
+  "help_text_clicked",
+  "help_email_clicked",
 ] as const;
 
 export type SaEvent = (typeof SA_EVENTS)[number];
