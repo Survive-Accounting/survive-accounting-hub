@@ -25,6 +25,8 @@ import { ChapterPanel } from "@/components/growth/ChapterPanel";
 import { DocsPanel } from "@/components/growth/DocsPanel";
 import { ActivityFeed } from "@/components/growth/ActivityFeed";
 import { HINTS } from "@/components/growth/hints";
+import { BottomSheet } from "@/components/growth/BottomSheet";
+import { useLayoutMode } from "@/components/growth/layout-mode";
 import { cn } from "@/lib/utils";
 
 type Section = "overview" | "outreach" | "map" | "docs" | "activity";
@@ -170,6 +172,7 @@ function OverviewBody({ d, campusId }: { d: CampusDetail; campusId: string }) {
   const [openProf, setOpenProf] = useState<string | null>(null);
   const [openChapter, setOpenChapter] = useState<string | null>(null);
   const [log, setLog] = useState<{ title: string; kinds: string[] } | null>(null);
+  const [layout] = useLayoutMode();
   const r = d.results;
 
   return (
@@ -334,13 +337,15 @@ function OverviewBody({ d, campusId }: { d: CampusDetail; campusId: string }) {
         )}
         <div className="rounded-md border border-border">
           {d.professors.map((p) => (
-            <Accordion
+            <NestedRow
               key={p.id ?? p.name}
-              level={2}
+              layout={layout}
               open={openProf === (p.id ?? p.name)}
               onToggle={() =>
                 setOpenProf((cur) => (cur === (p.id ?? p.name) ? null : (p.id ?? p.name)))
               }
+              onClose={() => setOpenProf(null)}
+              sheetTitle={p.name}
               header={
                 <span className="flex items-center gap-2 text-xs">
                   <span className="min-w-0 flex-1 truncate font-medium">{p.name}</span>
@@ -366,10 +371,8 @@ function OverviewBody({ d, campusId }: { d: CampusDetail; campusId: string }) {
                 </span>
               }
             >
-              {openProf === (p.id ?? p.name) && (
-                <ProfessorPanel campusId={campusId} professorId={p.id} name={p.name} />
-              )}
-            </Accordion>
+              <ProfessorPanel campusId={campusId} professorId={p.id} name={p.name} />
+            </NestedRow>
           ))}
         </div>
       </Panel>
@@ -380,11 +383,14 @@ function OverviewBody({ d, campusId }: { d: CampusDetail; campusId: string }) {
         )}
         <div className="rounded-md border border-border">
           {d.chapters.map((c) => (
-            <Accordion
+            <NestedRow
               key={c.id}
-              level={2}
+              layout={layout}
               open={openChapter === c.id}
               onToggle={() => setOpenChapter((cur) => (cur === c.id ? null : c.id))}
+              onClose={() => setOpenChapter(null)}
+              sheetTitle={c.name}
+              sheetSubtitle={d.name}
               header={
                 <span className="flex items-center gap-2 text-xs">
                   <span className="min-w-0 flex-1 truncate font-medium">{c.name}</span>
@@ -423,10 +429,8 @@ function OverviewBody({ d, campusId }: { d: CampusDetail; campusId: string }) {
                 </span>
               }
             >
-              {openChapter === c.id && (
-                <ChapterPanel chapterId={c.id} campusId={campusId} campusName={d.name} />
-              )}
-            </Accordion>
+              <ChapterPanel chapterId={c.id} campusId={campusId} campusName={d.name} />
+            </NestedRow>
           ))}
         </div>
       </Panel>
@@ -466,3 +470,60 @@ function KV({ k, v, hint }: { k: string; v: string; hint?: React.ReactNode }) {
 }
 
 export { ExternalLink };
+
+/** A nested row (professor or organization) that honours the layout A/B: an accordion
+ *  that opens in place, or a row that stacks a sheet over the campus. Children are only
+ *  mounted while open, so a closed row costs nothing. */
+function NestedRow({
+  layout,
+  open,
+  onToggle,
+  onClose,
+  header,
+  sheetTitle,
+  sheetSubtitle,
+  children,
+}: {
+  layout: "accordion" | "sheet";
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  header: React.ReactNode;
+  sheetTitle: string;
+  sheetSubtitle?: string;
+  children: React.ReactNode;
+}) {
+  if (layout === "accordion") {
+    return (
+      <Accordion level={2} open={open} onToggle={onToggle} header={header}>
+        {open && children}
+      </Accordion>
+    );
+  }
+  return (
+    <>
+      <button
+        onClick={onToggle}
+        className="flex w-full items-center gap-2 border-b border-border/60 px-2 py-1.5 text-left last:border-b-0 hover:bg-muted/60"
+      >
+        {header}
+      </button>
+      {open && (
+        <BottomSheet
+          open
+          depth={1}
+          onBack={onClose}
+          onClose={onClose}
+          title={<span className="sa-admin-display text-sm font-semibold">{sheetTitle}</span>}
+          subtitle={
+            sheetSubtitle ? (
+              <span className="text-[11px] text-muted-foreground">{sheetSubtitle}</span>
+            ) : undefined
+          }
+        >
+          {children}
+        </BottomSheet>
+      )}
+    </>
+  );
+}

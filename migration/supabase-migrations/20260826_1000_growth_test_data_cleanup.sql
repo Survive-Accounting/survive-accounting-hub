@@ -41,3 +41,13 @@ delete from public.orders
     or email in ('lee@survivestudios.com', 'lee@surviveaccounting.com');
 
 commit;
+
+-- 6) FOLLOW-UP (same day): the first pass left test-ignore@surviveaccounting.com behind —
+--    it is neither a plus-tag nor a "test@" prefix. Our own domains are internal by
+--    definition, so the predicate (and this delete) now cover them wholesale.
+begin;
+delete from public.campus_waitlist
+ where email ilike '%@surviveaccounting.com'
+    or email ilike '%@survivestudios.com'
+    or email ilike 'test-%';
+commit;

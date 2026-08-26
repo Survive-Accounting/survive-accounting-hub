@@ -15,21 +15,15 @@ const TEST_EMAIL_PATTERNS: RegExp[] = [
   /\+[^@]*test/i,
   /@testchapter\.example$/i,
   /@example\.(com|org|test)$/i,
-  /^test@/i,
+  /^test[-_.@]/i, // test-ignore@…, test_foo@…
+  // Our own domains are internal by definition — never a customer signal.
+  /@(surviveaccounting|survivestudios)\.com$/i,
 ];
-
-/** Internal addresses — real inboxes, but never a real customer signal. */
-const INTERNAL_EMAILS = new Set([
-  "lee@survivestudios.com",
-  "lee@surviveaccounting.com",
-  "lee@survivestudios.com".toLowerCase(),
-]);
 
 export function isTestEmail(email: string | null | undefined): boolean {
   if (!email) return false;
   const e = email.trim().toLowerCase();
   if (!e) return false;
-  if (INTERNAL_EMAILS.has(e)) return true;
   return TEST_EMAIL_PATTERNS.some((re) => re.test(e));
 }
 

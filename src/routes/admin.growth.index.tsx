@@ -18,6 +18,8 @@ import {
 import { growthDailyProgress } from "@/lib/growth-queue.functions";
 import { CampusPanel } from "@/components/growth/CampusPanel";
 import { Accordion, Chip, Hint, MiniBolt, useDebounced } from "@/components/growth/v2";
+import { BottomSheet, LayoutSwitch } from "@/components/growth/BottomSheet";
+import { useLayoutMode } from "@/components/growth/layout-mode";
 import { HINTS } from "@/components/growth/hints";
 import { cn } from "@/lib/utils";
 
@@ -83,6 +85,8 @@ function GrowthCampusesPage() {
   const [openId, setOpenId] = useState<string | null>(search.open ?? null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [limit, setLimit] = useState(50);
+  // TEMPORARY A/B — see layout-mode.ts. Remove with the switch once a style wins.
+  const [layout, setLayout] = useLayoutMode();
 
   useEffect(() => setLimit(50), [dq, basket]);
   useEffect(() => {
@@ -200,6 +204,7 @@ function GrowthCampusesPage() {
               </span>
             </Hint>
           )}
+          <LayoutSwitch mode={layout} onChange={setLayout} />
           <Hint
             text={`Recompute the priority order from current data. Version ${list.data?.version ?? "—"}, last run ${
               list.data?.generatedAt ? new Date(list.data.generatedAt).toLocaleString() : "—"
@@ -253,16 +258,26 @@ function GrowthCampusesPage() {
             </span>
           </div>
 
-          {filtered.slice(0, limit).map((r) => (
-            <Accordion
-              key={r.campusId}
-              open={openId === r.campusId}
-              onToggle={() => setOpenId((cur) => (cur === r.campusId ? null : r.campusId))}
-              header={<CampusRowHeader r={r} />}
-            >
-              {openId === r.campusId && <CampusPanel campusId={r.campusId} pinned={r.pinned} />}
-            </Accordion>
-          ))}
+          {filtered.slice(0, limit).map((r) =>
+            layout === "accordion" ? (
+              <Accordion
+                key={r.campusId}
+                open={openId === r.campusId}
+                onToggle={() => setOpenId((cur) => (cur === r.campusId ? null : r.campusId))}
+                header={<CampusRowHeader r={r} />}
+              >
+                {openId === r.campusId && <CampusPanel campusId={r.campusId} pinned={r.pinned} />}
+              </Accordion>
+            ) : (
+              <button
+                key={r.campusId}
+                onClick={() => setOpenId(r.campusId)}
+                className="flex w-full items-center gap-2 border-b border-border/60 px-3 py-2 text-left last:border-b-0 hover:bg-muted/60"
+              >
+                <CampusRowHeader r={r} />
+              </button>
+            ),
+          )}
 
           {filtered.length === 0 && (
             <div className="px-3 py-8 text-center text-xs text-muted-foreground">
@@ -278,6 +293,23 @@ function GrowthCampusesPage() {
             </button>
           )}
         </div>
+      )}
+
+      {layout === "sheet" && openId && (
+        <BottomSheet
+          open
+          onClose={() => setOpenId(null)}
+          title={
+            <span className="sa-admin-display text-sm font-semibold">
+              {rows.find((r) => r.campusId === openId)?.name ?? "Campus"}
+            </span>
+          }
+        >
+          <CampusPanel
+            campusId={openId}
+            pinned={!!rows.find((r) => r.campusId === openId)?.pinned}
+          />
+        </BottomSheet>
       )}
     </div>
   );
