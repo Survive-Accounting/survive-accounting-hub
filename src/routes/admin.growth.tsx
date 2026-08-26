@@ -8,11 +8,11 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import {
+  Activity,
   BarChart3,
   Building2,
   GraduationCap,
   Landmark,
-  Megaphone,
   Network,
   Radar,
   Users2,
@@ -20,6 +20,7 @@ import {
 import { AdminGate, getAdminWho } from "@/components/AdminGate";
 import { AdminSessionGate } from "@/components/AdminSessionGate";
 import { cn } from "@/lib/utils";
+import { useAdminDarkDocument } from "@/components/growth/v2";
 import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/admin/growth")({
@@ -33,11 +34,16 @@ export const Route = createFileRoute("/admin/growth")({
   component: GrowthShell,
 });
 
-// V1 (2026-08-25): CAMPUSES is the product. Results shows first-party outcomes.
-// Everything else — the older per-source workspaces — lives under More ▾ so the
-// primary navigation stays "Don't Make Me Think".
+// NAVIGATION (V2). Three things, because there are only three jobs: work the campuses,
+// watch what happens, check the scoreboard.
+//
+// The older per-source workspaces stay reachable under More ▾ — EXCEPT the manual outreach
+// log, which is deliberately absent. It writes rows that LOOK like sends (status='sent',
+// no message_id) and one accidental visit put four phantom emails on the daily counter.
+// It comes back when it's wired to real sends, not before.
 const TABS = [
   { to: "/admin/growth", label: "Campuses", icon: Building2, exact: true },
+  { to: "/admin/growth/activity", label: "Activity", icon: Activity },
   { to: "/admin/growth/results", label: "Results", icon: BarChart3 },
 ] as const;
 
@@ -48,13 +54,14 @@ const MORE_TABS = [
   { to: "/admin/growth/orgs", label: "National Orgs", icon: Network },
   { to: "/admin/growth/contacts", label: "Contacts", icon: Users2 },
   { to: "/admin/growth/intelligence", label: "Contact Intel", icon: Radar },
-  { to: "/admin/growth/outreach", label: "Outreach log", icon: Megaphone },
 ] as const;
 
 function GrowthShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [who, setWho] = useState<string | null>(null);
   useEffect(() => setWho(getAdminWho()), []);
+  // The workspace wears the product's navy — see .sa-admin-dark in styles.css.
+  useAdminDarkDocument();
 
   return (
     <AdminGate>

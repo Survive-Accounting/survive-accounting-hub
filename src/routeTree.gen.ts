@@ -116,6 +116,7 @@ import { Route as AdminGrowthCouncilsRouteImport } from './routes/admin.growth.c
 import { Route as AdminGrowthContactsRouteImport } from './routes/admin.growth.contacts'
 import { Route as AdminGrowthChaptersRouteImport } from './routes/admin.growth.chapters'
 import { Route as AdminGrowthCampusesRouteImport } from './routes/admin.growth.campuses'
+import { Route as AdminGrowthActivityRouteImport } from './routes/admin.growth.activity'
 import { Route as PartnersCouncilSchoolCouncilRouteImport } from './routes/partners.council.$school.$council'
 import { Route as GoSchoolCouncilCouncilRouteImport } from './routes/go.$school.council.$council'
 import { Route as ChaptersKitSchoolChapterRouteImport } from './routes/chapters_.kit.$school.$chapter'
@@ -665,6 +666,11 @@ const AdminGrowthCampusesRoute = AdminGrowthCampusesRouteImport.update({
   path: '/campuses',
   getParentRoute: () => AdminGrowthRoute,
 } as any)
+const AdminGrowthActivityRoute = AdminGrowthActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
+  getParentRoute: () => AdminGrowthRoute,
+} as any)
 const PartnersCouncilSchoolCouncilRoute =
   PartnersCouncilSchoolCouncilRouteImport.update({
     id: '/partners/council/$school/$council',
@@ -771,6 +777,7 @@ export interface FileRoutesByFullPath {
   '/$school/': typeof SchoolIndexRoute
   '/outreach/': typeof OutreachIndexRoute
   '/u/': typeof UIndexRoute
+  '/admin/growth/activity': typeof AdminGrowthActivityRoute
   '/admin/growth/campuses': typeof AdminGrowthCampusesRoute
   '/admin/growth/chapters': typeof AdminGrowthChaptersRoute
   '/admin/growth/contacts': typeof AdminGrowthContactsRoute
@@ -882,6 +889,7 @@ export interface FileRoutesByTo {
   '/$school': typeof SchoolIndexRoute
   '/outreach': typeof OutreachIndexRoute
   '/u': typeof UIndexRoute
+  '/admin/growth/activity': typeof AdminGrowthActivityRoute
   '/admin/growth/campuses': typeof AdminGrowthCampusesRoute
   '/admin/growth/chapters': typeof AdminGrowthChaptersRoute
   '/admin/growth/contacts': typeof AdminGrowthContactsRoute
@@ -997,6 +1005,7 @@ export interface FileRoutesById {
   '/$school/': typeof SchoolIndexRoute
   '/outreach/': typeof OutreachIndexRoute
   '/u/': typeof UIndexRoute
+  '/admin/growth/activity': typeof AdminGrowthActivityRoute
   '/admin/growth/campuses': typeof AdminGrowthCampusesRoute
   '/admin/growth/chapters': typeof AdminGrowthChaptersRoute
   '/admin/growth/contacts': typeof AdminGrowthContactsRoute
@@ -1113,6 +1122,7 @@ export interface FileRouteTypes {
     | '/$school/'
     | '/outreach/'
     | '/u/'
+    | '/admin/growth/activity'
     | '/admin/growth/campuses'
     | '/admin/growth/chapters'
     | '/admin/growth/contacts'
@@ -1224,6 +1234,7 @@ export interface FileRouteTypes {
     | '/$school'
     | '/outreach'
     | '/u'
+    | '/admin/growth/activity'
     | '/admin/growth/campuses'
     | '/admin/growth/chapters'
     | '/admin/growth/contacts'
@@ -1338,6 +1349,7 @@ export interface FileRouteTypes {
     | '/$school/'
     | '/outreach/'
     | '/u/'
+    | '/admin/growth/activity'
     | '/admin/growth/campuses'
     | '/admin/growth/chapters'
     | '/admin/growth/contacts'
@@ -2190,6 +2202,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminGrowthCampusesRouteImport
       parentRoute: typeof AdminGrowthRoute
     }
+    '/admin/growth/activity': {
+      id: '/admin/growth/activity'
+      path: '/activity'
+      fullPath: '/admin/growth/activity'
+      preLoaderRoute: typeof AdminGrowthActivityRouteImport
+      parentRoute: typeof AdminGrowthRoute
+    }
     '/partners/council/$school/$council': {
       id: '/partners/council/$school/$council'
       path: '/partners/council/$school/$council'
@@ -2339,6 +2358,7 @@ const OutreachRouteWithChildren = OutreachRoute._addFileChildren(
 )
 
 interface AdminGrowthRouteChildren {
+  AdminGrowthActivityRoute: typeof AdminGrowthActivityRoute
   AdminGrowthCampusesRoute: typeof AdminGrowthCampusesRoute
   AdminGrowthChaptersRoute: typeof AdminGrowthChaptersRoute
   AdminGrowthContactsRoute: typeof AdminGrowthContactsRoute
@@ -2351,6 +2371,7 @@ interface AdminGrowthRouteChildren {
 }
 
 const AdminGrowthRouteChildren: AdminGrowthRouteChildren = {
+  AdminGrowthActivityRoute: AdminGrowthActivityRoute,
   AdminGrowthCampusesRoute: AdminGrowthCampusesRoute,
   AdminGrowthChaptersRoute: AdminGrowthChaptersRoute,
   AdminGrowthContactsRoute: AdminGrowthContactsRoute,

@@ -5,7 +5,7 @@
 // explicit Approve / Keep Starter actions (transactional server-side).
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ExternalLink, Loader2 } from "lucide-react";
+import { Check, ChevronRight, ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   growthApproveMap,
@@ -13,8 +13,11 @@ import {
   growthTopicMapState,
   type SuggestedExam,
   type TopicMapState,
+  type TopicSet,
 } from "@/lib/growth-topicmap.functions";
 import { Pill, Section } from "@/components/growth/shared";
+import { Chip, Hint } from "@/components/growth/v2";
+import { HINTS } from "@/components/growth/hints";
 import { cn } from "@/lib/utils";
 
 export function TopicMapTab({ campusId }: { campusId: string }) {
@@ -118,14 +121,12 @@ function TopicMapBody({
           {s.currentExams.map((e) => (
             <div key={e.name} className="rounded-md border border-border p-2">
               <div className="text-xs font-semibold">{e.name}</div>
-              <div className="mt-1 flex flex-wrap gap-1">
+              <div className="mt-1 space-y-0.5">
                 {e.topicIds.length === 0 && (
                   <span className="text-[11px] text-muted-foreground">No topics mapped yet</span>
                 )}
                 {e.topicIds.map((t) => (
-                  <span key={t} className="rounded bg-muted px-1.5 py-0.5 text-[11px]">
-                    {unitName.get(t) ?? t}
-                  </span>
+                  <TopicRow key={t} name={unitName.get(t) ?? t} sets={s.setsByUnit?.[t] ?? []} />
                 ))}
               </div>
             </div>
@@ -350,6 +351,56 @@ function SuggestedExamCard({
               <span key={i}>{src.type ?? "doc"}</span>
             ),
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A topic on the map, expandable to the SETS a student would actually receive.
+ *  Mapping decisions get made against real content this way, not against a topic name. */
+function TopicRow({ name, sets }: { name: string; sets: TopicSet[] }) {
+  const [open, setOpen] = useState(false);
+  const questions = sets.reduce((n, s) => n + s.questions, 0);
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-1.5 rounded px-1 py-0.5 text-left text-[11px] hover:bg-muted/60"
+        aria-expanded={open}
+      >
+        <ChevronRight
+          className={cn(
+            "size-3 shrink-0 text-muted-foreground transition-transform",
+            open && "rotate-90 text-primary",
+          )}
+        />
+        <span className="min-w-0 flex-1 truncate">{name}</span>
+        {sets.length > 0 ? (
+          <Hint text={HINTS.topicSets}>
+            <span className="shrink-0 text-[10px] text-muted-foreground">
+              {sets.length} set{sets.length === 1 ? "" : "s"} · {questions} Q
+            </span>
+          </Hint>
+        ) : (
+          <Hint text="No sets are built for this topic yet — a student mapped to it would see nothing here.">
+            <span className="shrink-0 text-[10px] text-amber-400">no content</span>
+          </Hint>
+        )}
+      </button>
+      {open && sets.length > 0 && (
+        <div className="ml-4 space-y-0.5 border-l border-border pl-2">
+          {sets.map((s) => (
+            <div key={s.id} className="flex items-center gap-1.5 text-[10px]">
+              <span className="min-w-0 flex-1 truncate">{s.shortLabel || s.name}</span>
+              {s.questions > 0 && (
+                <span className="shrink-0 text-muted-foreground">{s.questions} Q</span>
+              )}
+              {s.hasCram && <Chip tone="info">cram</Chip>}
+              {s.hasReview && <Chip tone="neutral">review</Chip>}
+              {s.access === "paid" && <Chip tone="warn">paid</Chip>}
+            </div>
+          ))}
         </div>
       )}
     </div>

@@ -48,6 +48,7 @@ const toContact = (r: any): EligibleContact => ({
   instagram: r.instagram ?? null,
   confidence: r.confidence ?? null,
   lastVerified: r.last_verified ?? null,
+  sourceUrl: r.source ?? null,
   freshnessStatus: r.freshness_status ?? null,
   outreachEligible: !!r.outreach_eligible,
   reviewReason: r.review_reason ?? null,
@@ -710,9 +711,7 @@ export const growthDailyProgress = createServerFn({ method: "GET" }).handler(
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const [{ data: events }, { data: settingsRow }] = await Promise.all([
-      db
-        .from("growth_outreach_events")
-        .select("channel,direction,status")
+      db.from("growth_outreach_events").select("channel,direction,status,message_id")
         .gte("occurred_at", today.toISOString()),
       db.from("site_settings").select("settings").limit(1).maybeSingle(),
     ]);
@@ -728,12 +727,11 @@ export const growthDailyProgress = createServerFn({ method: "GET" }).handler(
       .is("follow_up_done_at", null);
     return {
       email: {
-        done: rows.filter(
-          (e) =>
-            e.channel === "email" &&
-            e.direction === "outbound" &&
-            ["sent", "delivered", "opened", "clicked", "replied"].includes(e.status),
-        ).length,
+        // A PROVIDER MESSAGE ID IS THE ONLY PROOF A SEND HAPPENED. The legacy manual-log page
+        // writes status='sent' rows with no message_id and no address; counting those once
+        // showed "4 emails sent today" when nothing had left the building.
+        done: rows.filter((e) => e.channel === "email" && e.direction === "outbound" && !!e.message_id)
+          .length,
         target: targets.email,
       },
       instagram: {

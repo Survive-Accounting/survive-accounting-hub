@@ -443,6 +443,7 @@ export const TEMPLATES: TemplateDef[] = [
       "admin.growth.contacts.tsx",
       "admin.growth.outreach.tsx",
       "admin.growth.results.tsx",
+      "admin.growth.activity.tsx",
       "admin.growth.intelligence.tsx",
     ],
     countKey: "static",

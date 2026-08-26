@@ -1,118 +1,135 @@
-// /admin/growth/results — first-party outcomes (the old Overview KPIs, reframed
-// as RESULTS): students, revenue, chapters, outreach follow-ups. Everything here
-// is observed product data, not modeled intelligence.
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+// /admin/growth/results — the honest scoreboard.
+//
+// Only observed, first-party outcomes. The deprecated special-order flow is gone; revenue is
+// chapter seats + individual exam purchases + (when it ships) the $150 semester pass.
+//
+// SEATS ARE ALWAYS TWO NUMBERS. Bought is the money; claimed is whether members actually got
+// it. A pool of 40 with 3 claimed is a support problem that a revenue figure alone hides.
+import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
-import { getGrowthOverview } from "@/lib/growth-admin.functions";
-import { Tile, money, StorageBanner } from "@/components/growth/shared";
-import { growthDailyProgress } from "@/lib/growth-queue.functions";
+import { growthResults } from "@/lib/growth-results.functions";
+import { Hint, Metric, money } from "@/components/growth/v2";
+import { ActivityFeed } from "@/components/growth/ActivityFeed";
+import { HINTS } from "@/components/growth/hints";
 
 export const Route = createFileRoute("/admin/growth/results")({
   component: ResultsPage,
 });
 
 function ResultsPage() {
-  const nav = useNavigate();
-  const q = useQuery({ queryKey: ["growth-overview"], queryFn: () => getGrowthOverview() });
-  const daily = useQuery({ queryKey: ["growth-daily"], queryFn: () => growthDailyProgress() });
-  const k = q.data;
+  const q = useQuery({ queryKey: ["growth-results"], queryFn: () => growthResults() });
+
+  if (q.isLoading || !q.data) {
+    return (
+      <div className="flex h-64 items-center justify-center text-muted-foreground">
+        <Loader2 className="size-5 animate-spin" />
+      </div>
+    );
+  }
+  const r = q.data;
+  const seatFillRate =
+    r.seats.bought > 0 ? Math.round((r.seats.claimed / r.seats.bought) * 100) : null;
 
   return (
-    <div className="space-y-6">
-      {k && !k.storageReady && <StorageBanner />}
-      {q.isLoading || !k ? (
-        <div className="flex h-64 items-center justify-center text-muted-foreground">
-          <Loader2 className="h-6 w-6 animate-spin" />
+    <div className="space-y-5">
+      <Group title="Today">
+        <Metric
+          label="Emails sent"
+          value={`${r.today.emailsSent} / ${r.today.emailTarget}`}
+          hint={HINTS.emailsSentToday}
+        />
+        <Metric
+          label="Instagram DMs"
+          value={`${r.today.dms} / ${r.today.dmTarget}`}
+          hint="DMs you logged by hand. Instagram sending isn't automated — you send it, then log it."
+        />
+      </Group>
+
+      <Group title="Revenue">
+        <Metric
+          label="Seats bought"
+          value={r.seats.bought || null}
+          hint="Total seats chapters have paid for."
+          tone={r.seats.bought ? "good" : "default"}
+        />
+        <Metric
+          label="Seats claimed"
+          value={r.seats.claimed || null}
+          hint="Seats members have actually redeemed. A big gap between bought and claimed means the chapter needs help distributing them."
+          tone={seatFillRate != null && seatFillRate < 50 ? "warn" : "default"}
+        />
+        <Metric
+          label="Seat revenue"
+          value={money(r.seats.revenueCents)}
+          hint="Paid chapter seat pools."
+          tone="good"
+        />
+        <Metric
+          label="Exam purchases"
+          value={r.individual.examPurchases || null}
+          hint="Individual students who bought a single exam. Dollar totals live in Stripe — exam prices vary, so we don't guess them here."
+        />
+        <Metric
+          label="Semester passes"
+          value={r.individual.passPurchases || null}
+          hint="The $150 semester access pass. Zero until it ships."
+        />
+      </Group>
+
+      <Group title="Students">
+        <Metric label="Identified" value={r.students.identified || null} hint={HINTS.identified} />
+        <Metric
+          label="Paid"
+          value={r.students.paid || null}
+          hint={HINTS.paid}
+          tone={r.students.paid ? "good" : "default"}
+        />
+        <Metric
+          label="Questions answered"
+          value={r.students.questionsAnswered || null}
+          hint={HINTS.questionsAnswered}
+        />
+        <Metric label="Waitlist" value={r.students.waitlist || null} hint={HINTS.waitlist} />
+      </Group>
+
+      <Group title="Reach">
+        <Metric
+          label="Active chapters"
+          value={r.greek.activeChapters}
+          hint="Social Greek chapters on the roster nationwide."
+        />
+        <Metric
+          label="Chapters claimed"
+          value={r.greek.claimedChapters || null}
+          hint="Chapters where a member has claimed the chapter on Survive."
+          tone={r.greek.claimedChapters ? "good" : "default"}
+        />
+        <Metric
+          label="Contacts we can email"
+          value={r.reach.eligibleContacts}
+          hint="Approved, unsuppressed addresses across every campus."
+        />
+        <Metric
+          label="Campuses contacted"
+          value={`${r.reach.campusesContacted} / ${r.reach.campusesContactable}`}
+          hint="How many of the campuses we CAN reach we have actually reached."
+        />
+      </Group>
+
+      <section>
+        <div className="mb-2 flex items-center gap-2">
+          <h2 className="sa-admin-display text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Latest activity
+          </h2>
+          <Hint text="The same feed as the Activity tab, trimmed to the most recent events.">
+            <span className="text-[10px] text-muted-foreground">everywhere</span>
+          </Hint>
         </div>
-      ) : (
-        <>
-          {daily.data && (
-            <Group title="Today">
-              <Tile
-                label="Emails"
-                value={`${daily.data.email.done} / ${daily.data.email.target}`}
-              />
-              <Tile
-                label="Instagram DMs"
-                value={`${daily.data.instagram.done} / ${daily.data.instagram.target}`}
-              />
-              <Tile
-                label="Follow-ups due"
-                value={daily.data.followUpsDue.toLocaleString()}
-                accent={daily.data.followUpsDue > 0 ? "amber" : "default"}
-              />
-            </Group>
-          )}
-          <Group title="Students & revenue">
-            <Tile
-              label="Paid orders"
-              value={k.paidOrders.toLocaleString()}
-              accent="emerald"
-              hint="Orders marked paid or delivered."
-            />
-            <Tile
-              label="Seated students"
-              value={k.seatedStudents.toLocaleString()}
-              hint="Members assigned a chapter-purchased seat."
-            />
-            <Tile
-              label="Direct revenue"
-              value={money(k.directRevenueCents)}
-              accent="emerald"
-              hint="Sum of paid/delivered order totals."
-            />
-            <Tile
-              label="Seat revenue"
-              value={money(k.seatRevenueCents)}
-              accent="emerald"
-              hint="Sum of active/paid chapter seat pools."
-            />
-          </Group>
-          <Group title="Greek footprint">
-            <Tile
-              label="Active chapters"
-              value={k.activeChapters.toLocaleString()}
-              onClick={() => nav({ to: "/admin/growth/chapters" })}
-            />
-            <Tile
-              label="Claimed chapters"
-              value={k.claimedChapters.toLocaleString()}
-              accent="emerald"
-              onClick={() =>
-                nav({ to: "/admin/growth/chapters", search: { status: "claimed" } as never })
-              }
-            />
-            <Tile
-              label="Chapter members"
-              value={k.chapterMembers.toLocaleString()}
-              hint="Students who joined via a chapter link."
-            />
-            <Tile
-              label="National orgs"
-              value={k.nationalOrgs.toLocaleString()}
-              onClick={() => nav({ to: "/admin/growth/orgs" })}
-            />
-          </Group>
-          <Group title="Outreach">
-            <Tile
-              label="Follow-ups due"
-              value={k.followUpsDue.toLocaleString()}
-              accent={k.followUpsDue > 0 ? "amber" : "default"}
-              onClick={() => nav({ to: "/admin/growth/outreach" })}
-            />
-            <Tile
-              label="Never contacted"
-              value={k.neverContactedCampuses.toLocaleString()}
-              hint="Greek-ready campuses with no outreach logged yet."
-              accent={k.neverContactedCampuses > 0 ? "amber" : "default"}
-              onClick={() =>
-                nav({ to: "/admin/growth/outreach", search: { view: "never" } as never })
-              }
-            />
-          </Group>
-        </>
-      )}
+        <div className="rounded-lg border border-border bg-card p-3">
+          <ActivityFeed compact />
+        </div>
+      </section>
     </div>
   );
 }
@@ -120,10 +137,10 @@ function ResultsPage() {
 function Group({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section>
-      <h2 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <h2 className="sa-admin-display mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
         {title}
       </h2>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">{children}</div>
+      <div className="grid grid-cols-2 gap-2 md:grid-cols-5">{children}</div>
     </section>
   );
 }

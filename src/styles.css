@@ -720,3 +720,93 @@ html.sa-navy body {
   box-shadow: 0 0 0 3px rgba(252, 163, 17, 0.28);
 }
 .sa-field::placeholder { color: var(--text-tertiary, #7C89A4); opacity: 1; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+   ADMIN DARK (Growth V2) — the internal workspace wearing the product's clothes.
+
+   WHY A SEPARATE CLASS FROM .sa-navy. `.sa-navy` aliases shadcn's --accent to the brand amber,
+   which is right for a marketing page (one accent, used for actions) and wrong for a dense admin
+   UI, where --accent is the neutral hover wash on hundreds of rows. Turning that gold would set
+   the whole table alight on mouse-over. So this class does the OTHER half of the job: it repoints
+   the shadcn SEMANTIC tokens at the navy surface ladder, and leaves --accent neutral.
+
+   Everything under it (bg-card, border-border, text-muted-foreground, …) therefore renders dark
+   without a single component changing class — and the components that WANT brand gold ask for it
+   explicitly via --accent-primary.
+
+   Applied by useAdminDarkDocument() on the /admin/growth shell only; removed on unmount so the
+   rest of the admin keeps the light theme it was designed for.
+   ═══════════════════════════════════════════════════════════════════════════════════════════ */
+html.sa-admin-dark,
+html.sa-admin-dark body {
+  background-color: var(--bg-page, #0F1A2E);
+  color: var(--text-primary, #F5EFE6);
+}
+
+html.sa-admin-dark {
+  --background: var(--bg-page, #0F1A2E);
+  --foreground: var(--text-primary, #F5EFE6);
+
+  /* surface-1 for cards/rows, surface-nav for popovers so a menu reads as ABOVE the card */
+  --card: var(--bg-surface, #1B2B4D);
+  --card-foreground: var(--text-primary, #F5EFE6);
+  --popover: var(--bg-nav, #182647);
+  --popover-foreground: var(--text-primary, #F5EFE6);
+
+  /* PRIMARY IS THE BRAND AMBER, on navy text — the one loud thing on the page. */
+  --primary: var(--accent-primary, #FCA311);
+  --primary-foreground: #14213D;
+
+  --secondary: var(--bg-player-main, #223458);
+  --secondary-foreground: var(--text-primary, #F5EFE6);
+
+  /* muted = the quiet step of the ladder; muted-foreground = secondary reading colour */
+  --muted: var(--bg-player-main, #223458);
+  --muted-foreground: var(--text-secondary, rgba(226, 232, 240, 0.6));
+
+  /* NEUTRAL on purpose (see the note above) — this is the row-hover wash, not an action colour */
+  --accent: var(--bg-player-main, #223458);
+  --accent-foreground: var(--text-primary, #F5EFE6);
+
+  --destructive: #E5484D;
+  --destructive-foreground: #F5EFE6;
+
+  --border: var(--border-default, #34486D);
+  --input: var(--border-default, #34486D);
+  --ring: var(--accent-primary, #FCA311);
+}
+
+/* Headings in the admin wear Rubik, like the product. Body stays Inter for density. */
+html.sa-admin-dark .sa-admin-display {
+  font-family: "Rubik", system-ui, -apple-system, sans-serif;
+  letter-spacing: -0.01em;
+}
+
+/* Form controls: the shadcn defaults assume a light ground and vanish on navy. */
+html.sa-admin-dark input:not([type="checkbox"]):not([type="radio"]),
+html.sa-admin-dark select,
+html.sa-admin-dark textarea {
+  background-color: var(--bg-input, rgba(245, 239, 230, 0.06));
+  color: var(--text-primary, #F5EFE6);
+  border-color: var(--border-default, #34486D);
+}
+html.sa-admin-dark input::placeholder,
+html.sa-admin-dark textarea::placeholder {
+  color: var(--text-tertiary, rgba(226, 232, 240, 0.45));
+  opacity: 1;
+}
+html.sa-admin-dark option { background-color: var(--bg-nav, #182647); }
+
+/* Checkboxes: without this they render as light-mode chrome on navy. */
+html.sa-admin-dark input[type="checkbox"] { accent-color: var(--accent-primary, #FCA311); }
+
+/* ACCORDION DISCLOSURE (V2). Rows expand IN PLACE rather than sliding a panel over the page,
+   so the campus you opened stays where you clicked it and the list keeps its context. The
+   nested levels (chapter / professor inside a campus) indent against this same rail. */
+.sa-accordion-body {
+  border-left: 2px solid var(--accent-primary, #FCA311);
+  background: color-mix(in srgb, var(--bg-page, #0F1A2E) 55%, transparent);
+}
+.sa-accordion-body .sa-accordion-body {
+  border-left-color: var(--border-default, #34486D);
+}
