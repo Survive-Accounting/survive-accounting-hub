@@ -10,9 +10,10 @@ import { ReactFlowProvider } from "@xyflow/react";
 
 import { useExhibit, type ExhibitDeclaration } from "@/components/canvas/exhibit-base";
 import { clearExhibitHighlights } from "@/components/canvas/exhibit-highlights";
-import { exhibitDepthKey, exhibitRevealKey } from "@/components/canvas/exhibit-modes";
+import { cycleExhibitModes, exhibitDepthKey, exhibitRevealKey } from "@/components/canvas/exhibit-modes";
 import { UsersNode } from "@/components/canvas/cards/UsersNode";
 import { StandardsNode } from "@/components/canvas/cards/StandardsNode";
+import { BasisNode } from "@/components/canvas/cards/BasisNode";
 import { FilmContext } from "@/components/canvas/film-lock";
 import { PAPER } from "@/components/canvas/theme";
 
@@ -21,6 +22,7 @@ import { PAPER } from "@/components/canvas/theme";
 // narrows the type rather than fabricating a whole node.
 const UsersDemo = UsersNode as unknown as (p: { id: string; data: unknown; selected?: boolean }) => React.ReactNode;
 const StandardsDemo = StandardsNode as unknown as (p: { id: string; data: unknown; selected?: boolean }) => React.ReactNode;
+const BasisDemo = BasisNode as unknown as (p: { id: string; data: unknown; selected?: boolean }) => React.ReactNode;
 
 export const Route = createFileRoute("/exhibit-demo")({
   head: () => ({ meta: [{ title: "⚡ Exhibit Layer Demo — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
@@ -76,6 +78,7 @@ function ExhibitDemo() {
       if (e.code === "Backquote" || e.key === "`") clearExhibitHighlights();
       if (e.key === "Tab" && exhibitRevealKey(e.shiftKey ? "back" : "step")) e.preventDefault();
       if ((e.key === "d" || e.key === "D") && !e.ctrlKey && !e.metaKey && !e.altKey) exhibitDepthKey();
+      if ((e.key === "m" || e.key === "M") && !e.ctrlKey && !e.metaKey && !e.altKey) cycleExhibitModes();
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
@@ -105,6 +108,13 @@ function ExhibitDemo() {
           </div>
           <div style={{ marginTop: 8 }}>
             <StandardsDemo id="demo-standards-narrow" data={{ kind: "standards", w: 420, h: 720 }} selected={false} />
+          </div>
+          {/* WHEN IT COUNTS — cash vs accrual (Tab reveal, M example toggle, D gaps) */}
+          <div style={{ marginTop: 8 }}>
+            <BasisDemo id="demo-basis" data={{ kind: "basis" }} selected={false} />
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <BasisDemo id="demo-basis-narrow" data={{ kind: "basis", w: 440, h: 640 }} selected={false} />
           </div>
         </FilmContext.Provider>
       </ReactFlowProvider>

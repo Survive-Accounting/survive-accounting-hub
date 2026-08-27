@@ -52,10 +52,19 @@ const listeners = new Set<() => void>();
 const emit = (p: Partial<ModeSnap>) => { snap = { ...snap, ...p }; listeners.forEach((fn) => fn()); };
 const subscribe = (fn: () => void) => { listeners.add(fn); return () => { listeners.delete(fn); }; };
 
-/** Pure mode advance — the M key's contract, pinned by tests. */
+/** Pure mode advance — the M key's contract, pinned by tests.
+ *
+ *  FOREIGN MODE (Lee, on camera): the store is shared across exhibit kinds, so
+ *  it can be sitting on a mode belonging to a DIFFERENT exhibit (the initial
+ *  value is the cycle card's). A card in that state renders its own first mode
+ *  as a fallback, so advancing to ids[0] would change the store and nothing on
+ *  screen — a dead M press mid-take. Skip to ids[1] instead: the key always
+ *  visibly does something. */
 export function nextModeId(ids: readonly string[], cur: string): string {
   if (ids.length === 0) return cur;
-  return ids[(ids.indexOf(cur) + 1) % ids.length];
+  const i = ids.indexOf(cur);
+  if (i < 0) return ids[ids.length > 1 ? 1 : 0];
+  return ids[(i + 1) % ids.length];
 }
 
 const orbitDef = () => modeDefs.find((m) => m.orbit);
