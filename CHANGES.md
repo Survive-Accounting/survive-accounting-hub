@@ -1,3 +1,24 @@
+# "The Rulebook & The Cops" — standards & regulation exhibit (branch `standards-exhibit`)
+
+FASB ──writes──▶ GAAP ◀──enforces── SEC, as a relationship cheat sheet. New element kind
+`standards`, config-driven (`standards-exhibit-config.ts`, copy accuracy-audited and PINNED by
+tests: Securities EXCHANGE Act 1934 vs Securities Act 1933; GASB owns governments, GAAP copy
+never claims them; the fake government-GAAP suffix term is never rendered; AICPA = exam+ethics,
+license = state boards; Dodd-Frank/CFPB/CFTC omitted by design as commented config).
+
+- **Cram layer**: the chain + role captions (THE WRITERS / THE RULEBOOK / THE COPS), all MUST
+  KNOW. Click a tile → brightest spotlight, its arrows light, rest mutes, WHAT/DOES micro-lines
+  reveal with the 【exam-answer phrase】 in gold (Bible law 2) — the private-sector vs
+  government trap highlighted on both sides.
+- **A+ layer** (D on camera, button elsewhere; never in the reveal): GASB · IASB─writes→IFRS
+  mini-chain (the visual rhyme) · PCAOB · AICPA · FAF (spotlighting FAF draws measured connector
+  arcs to FASB + GASB) · SEC→FASB delegation line · two WHY cause→effect beats.
+- **Reveal**: blank → GAAP → +FASB+arrow → +SEC+arrow → +captions on Tab (shared reveal layer);
+  ` resets to blank + closes A+.
+- Tests `standards-exhibit.test.ts` (14): audited copy + corrections pinned, cue placement,
+  reveal shape. Browser QA on /exhibit-demo: full loop verified incl. FAF arcs (2 drawn);
+  the borderColor console warning on dev pages is PRE-EXISTING (fires on /callout-demo too).
+
 # "Who's It For?" — users + branches exhibit (branch `users-exhibit`)
 
 Internal/external users + financial/managerial accounting as ONE mirrored exhibit — the WALL

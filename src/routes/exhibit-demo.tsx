@@ -12,6 +12,7 @@ import { useExhibit, type ExhibitDeclaration } from "@/components/canvas/exhibit
 import { clearExhibitHighlights } from "@/components/canvas/exhibit-highlights";
 import { exhibitDepthKey, exhibitRevealKey } from "@/components/canvas/exhibit-modes";
 import { UsersNode } from "@/components/canvas/cards/UsersNode";
+import { StandardsNode } from "@/components/canvas/cards/StandardsNode";
 import { FilmContext } from "@/components/canvas/film-lock";
 import { PAPER } from "@/components/canvas/theme";
 
@@ -19,6 +20,7 @@ import { PAPER } from "@/components/canvas/theme";
 // wider than what the cards actually read (id / data / selected), so the demo
 // narrows the type rather than fabricating a whole node.
 const UsersDemo = UsersNode as unknown as (p: { id: string; data: unknown; selected?: boolean }) => React.ReactNode;
+const StandardsDemo = StandardsNode as unknown as (p: { id: string; data: unknown; selected?: boolean }) => React.ReactNode;
 
 export const Route = createFileRoute("/exhibit-demo")({
   head: () => ({ meta: [{ title: "⚡ Exhibit Layer Demo — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
@@ -96,6 +98,13 @@ function ExhibitDemo() {
           {/* the same card at a mobile-ish width — the stacked degradation */}
           <div style={{ marginTop: 8 }}>
             <UsersDemo id="demo-users-narrow" data={{ kind: "users", w: 420, h: 760 }} selected={false} />
+          </div>
+          {/* THE RULEBOOK & THE COPS — same film keys (Tab reveal, D = A+ layer) */}
+          <div style={{ marginTop: 8 }}>
+            <StandardsDemo id="demo-standards" data={{ kind: "standards" }} selected={false} />
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <StandardsDemo id="demo-standards-narrow" data={{ kind: "standards", w: 420, h: 720 }} selected={false} />
           </div>
         </FilmContext.Provider>
       </ReactFlowProvider>

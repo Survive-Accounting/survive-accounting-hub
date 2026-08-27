@@ -91,9 +91,11 @@ export function UsersNode({ id, data, selected }: NodeProps) {
       transition: T,
     };
   };
+  // Shorthand `border`, never `borderColor` — the base styles set the border
+  // shorthand, and React warns when the two mix across rerenders.
   const glow = (nodeId: string): React.CSSProperties =>
     hl.isLit(nodeId) && (brightest === nodeId || nodeId.startsWith("diff-"))
-      ? { borderColor: EXHIBIT_GLOW.border, boxShadow: EXHIBIT_GLOW.shadow }
+      ? { border: `1.5px solid ${EXHIBIT_GLOW.border}`, boxShadow: EXHIBIT_GLOW.shadow }
       : {};
 
   // ---- the wall ----------------------------------------------------------

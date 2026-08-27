@@ -26,6 +26,7 @@ export type CardKind =
   | "framebolt"
   | "cycle"
   | "users"
+  | "standards"
   | "logo"
   | "intro"
   | "outro"
@@ -69,6 +70,7 @@ export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
   framebolt: "element",
   cycle: "element",
   users: "element",
+  standards: "element",
   logo: "element",
   intro: "element",
   outro: "element",
@@ -845,6 +847,14 @@ export interface UsersElement extends CardBase {
   h?: number;
 }
 
+// ---- Standards ("The Rulebook & The Cops"): FASB → GAAP ← SEC relationship
+//      cheat sheet. Config-driven (standards-exhibit-config.ts) — geometry only. ----
+export interface StandardsElement extends CardBase {
+  kind: "standards";
+  w?: number;
+  h?: number;
+}
+
 export interface CycleElement extends CardBase {
   kind: "cycle";
   /** Center label (default "The Accounting Cycle"). */
@@ -968,6 +978,7 @@ export type CardData =
   | FrameBoltElement
   | CycleElement
   | UsersElement
+  | StandardsElement
   | LogoElement
   | IntroCardElement
   | OutroCardElement
