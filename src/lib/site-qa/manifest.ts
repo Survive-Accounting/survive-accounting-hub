@@ -444,6 +444,7 @@ export const TEMPLATES: TemplateDef[] = [
       "admin.growth.outreach.tsx",
       "admin.growth.results.tsx",
       "admin.growth.activity.tsx",
+      "admin.growth.king.tsx",
       "admin.growth.intelligence.tsx",
     ],
     countKey: "static",
@@ -517,6 +518,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   // API / cron / webhook endpoints — not pages
   "api.backfill.tsx": "token-gated backfill orchestrator endpoint",
   "api.cron.backup.tsx": "cron endpoint",
+  "api.cron.king-digest.tsx": "cron endpoint",
   "api.cron.comms-sequences.tsx": "cron endpoint",
   "api.cron.weekly-digest.tsx": "cron endpoint",
   "api.flyer.$school.$chapter.tsx": "generated image endpoint",
