@@ -27,6 +27,7 @@ export type CardKind =
   | "cycle"
   | "users"
   | "standards"
+  | "basis"
   | "logo"
   | "intro"
   | "outro"
@@ -71,6 +72,7 @@ export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
   cycle: "element",
   users: "element",
   standards: "element",
+  basis: "element",
   logo: "element",
   intro: "element",
   outro: "element",
@@ -855,6 +857,14 @@ export interface StandardsElement extends CardBase {
   h?: number;
 }
 
+// ---- Basis ("When It Counts"): cash vs. accrual — one event, two lenses.
+//      Config-driven (cash-accrual-config.ts); geometry only. ----
+export interface BasisElement extends CardBase {
+  kind: "basis";
+  w?: number;
+  h?: number;
+}
+
 export interface CycleElement extends CardBase {
   kind: "cycle";
   /** Center label (default "The Accounting Cycle"). */
@@ -979,6 +989,7 @@ export type CardData =
   | CycleElement
   | UsersElement
   | StandardsElement
+  | BasisElement
   | LogoElement
   | IntroCardElement
   | OutroCardElement
