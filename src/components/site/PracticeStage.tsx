@@ -14,6 +14,7 @@ import { fetchSetPractice, type PracticeQuestion } from "@/lib/student.functions
 import { askAboutQuestion, logPracticeEvents, type AttemptEvent } from "@/lib/practice.functions";
 import { readStudentEmail, rememberStudentEmail } from "@/lib/student-email";
 import { supabase } from "@/integrations/supabase/client";
+import { track } from "@/lib/analytics";
 
 const C = { text: "#E8ECF5", muted: "#93A0B4", yellow: "#FCA311", green: "#3BF5A0", red: "#FF5C6E", border: "rgba(148,163,190,0.16)", panel: "rgba(9,14,26,0.6)" };
 const SWAP_MS = 120;
@@ -53,9 +54,15 @@ export interface PracticeStageProps {
    *  (a small chip next to Q# after the first answer + a link in the Q navigator). */
   authed?: boolean;
   onSaveProgress?: () => void;
+  /** GUIDED PATH (08-26): when set, the completion screen may auto-advance — conservatively.
+   *  Results render untouched for ~3s, then a small "Continuing in 5…" line with Continue now /
+   *  Stay here appears. Retry, Stay, or any earlier navigation cancels it. */
+  pathAdvance?: { label: string; onContinue: () => void } | null;
+  /** Fires once when the completion screen first renders — "reached set completion state". */
+  onFinished?: () => void;
 }
 
-export function PracticeStage({ setId, questions: override, onDone, doneLabel, onReview, reference, campusName, campusSlug, surface, isTest, statusLabel = "Practice", authed = false, onSaveProgress }: PracticeStageProps) {
+export function PracticeStage({ setId, questions: override, onDone, doneLabel, onReview, reference, campusName, campusSlug, surface, isTest, statusLabel = "Practice", authed = false, onSaveProgress, pathAdvance = null, onFinished }: PracticeStageProps) {
   const q = useQuery({ queryKey: ["set-practice", setId], queryFn: () => fetchSetPractice({ data: { setId } }), enabled: !override, staleTime: 300_000, networkMode: "always" });
   const questions = useMemo<PracticeQuestion[]>(() => override ?? (q.data?.status === "ok" ? q.data.questions : []), [override, q.data]);
 
@@ -95,6 +102,10 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
   const lastReached = useRef<{ setId: string; ceqId: string; pass: number } | null>(null);
   useEffect(() => { if (cur) lastReached.current = { setId, ceqId: cur.id, pass }; }, [cur, setId, pass]);
   const finishedRef = useRef(false); finishedRef.current = finished;
+  // "Reached set completion state" — the guided path marks the practice step done HERE (the
+  // results screen), not on the Continue click, so progress and the rail ✓ update in view.
+  const finishedOnce = useRef(false);
+  useEffect(() => { if (finished && !finishedOnce.current) { finishedOnce.current = true; onFinished?.(); } }, [finished, onFinished]);
   // Test Mode: mark step 5 the moment the "You've been through" screen renders — provided the
   // pass ran with at least one correct + one incorrect (matches the spec's completion criterion).
   useEffect(() => {
@@ -173,6 +184,7 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
   // ---- end of set → retry the missed ones ---------------------------------------------------------
   const missedIdx = useMemo(() => order.filter((i) => results[questions[i]?.id] === false), [order, results, questions]);
   const retryMissed = () => {
+    track("retry_missed_clicked", { set_id: setId } as never);
     setPickedBy((m) => { const n = { ...m }; for (const i of missedIdx) delete n[questions[i]?.id ?? ""]; return n; });
     setOrder(missedIdx); setPass((p) => p + 1); setPos(0); setPicked(null); setHi(0); setFinished(false); revealedAt.current = Date.now();
   };
@@ -199,6 +211,7 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
           {m > 0 && <button className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-[13px] font-black uppercase tracking-wide" style={{ background: C.yellow, color: "#0B1322", minHeight: 46 }} onClick={retryMissed}><RotateCcw className="h-4 w-4" /> Retry the {m} you missed →</button>}
           <button className="mt-2 w-full rounded-xl px-4 py-2.5 text-[12.5px] font-black uppercase tracking-wide" style={{ background: m > 0 ? "rgba(245,239,230,0.1)" : C.yellow, color: m > 0 ? C.text : "#0B1322", minHeight: 44 }} onClick={onDone}>{doneLabel}</button>
           {onReview && <button className="mt-2 w-full rounded-xl px-4 py-2 text-[12px] font-bold" style={{ color: C.yellow, border: `1px solid ${C.border}`, minHeight: 44 }} onClick={onReview}>Review with Lee →</button>}
+          {pathAdvance && <FinishAutoAdvance key={pass} label={pathAdvance.label} onContinue={pathAdvance.onContinue} />}
         </div>
       </div>
     );
@@ -318,6 +331,33 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ---- FINISH AUTO-ADVANCE — the guided path's conservative countdown. The results screen owns
+//      the first ~3 seconds untouched; then a single quiet line counts 5→0 and continues. "Stay
+//      here" (or Retry, which remounts via key={pass}) cancels it for this screen. -----------------
+function FinishAutoAdvance({ label, onContinue }: { label: string; onContinue: () => void }) {
+  const [phase, setPhase] = useState<"wait" | "count" | "off">("wait");
+  const [left, setLeft] = useState(5);
+  useEffect(() => {
+    if (phase !== "wait") return;
+    const t = window.setTimeout(() => { setPhase("count"); track("path_auto_advance_shown", { where: "practice_done" } as never); }, 3000);
+    return () => window.clearTimeout(t);
+  }, [phase]);
+  useEffect(() => {
+    if (phase !== "count") return;
+    if (left <= 0) { track("path_auto_advanced", { where: "practice_done" } as never); onContinue(); return; }
+    const t = window.setTimeout(() => setLeft((n) => n - 1), 1000);
+    return () => window.clearTimeout(t);
+  }, [phase, left, onContinue]);
+  if (phase !== "count") return null;
+  return (
+    <div className="mt-3 flex items-center justify-center gap-3 text-[12px]" style={{ color: C.muted }} aria-live="polite">
+      <span>Continuing in {left}…</span>
+      <button type="button" className="font-black" style={{ color: C.yellow, minHeight: 32 }} onClick={() => { track("path_auto_advanced", { where: "practice_done", manual: true } as never); onContinue(); }}>Continue now</button>
+      <button type="button" className="font-bold" style={{ minHeight: 32 }} onClick={() => { setPhase("off"); track("path_auto_advance_paused", { where: "practice_done" } as never); }}>Stay here</button>
     </div>
   );
 }

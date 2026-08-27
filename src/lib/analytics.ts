@@ -62,6 +62,19 @@ export const SA_EVENTS = [
   "portal_door_selected",
   "demo_mode_flipped",
   "demo_adventure",
+  // Guided Exam 1 path (08-26).
+  "exam_path_started",
+  "path_step_started",
+  "path_step_completed",
+  "path_auto_advance_shown",
+  "path_auto_advanced",
+  "path_auto_advance_paused",
+  "path_back_clicked",
+  "path_next_clicked",
+  "topic_completed",
+  "exam_completed",
+  "retry_missed_clicked",
+  "intro_reset_clicked",
 ] as const;
 
 export type SaEvent = (typeof SA_EVENTS)[number];
