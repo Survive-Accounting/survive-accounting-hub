@@ -22,6 +22,7 @@ import { Route as OutreachRouteImport } from './routes/outreach'
 import { Route as OrderRouteImport } from './routes/order'
 import { Route as OnboardRouteImport } from './routes/onboard'
 import { Route as LogoLabRouteImport } from './routes/logo-lab'
+import { Route as LeeportalRouteImport } from './routes/leeportal'
 import { Route as LearnRouteImport } from './routes/learn'
 import { Route as LandingRouteImport } from './routes/landing'
 import { Route as JeRouteImport } from './routes/je'
@@ -191,6 +192,11 @@ const OnboardRoute = OnboardRouteImport.update({
 const LogoLabRoute = LogoLabRouteImport.update({
   id: '/logo-lab',
   path: '/logo-lab',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LeeportalRoute = LeeportalRouteImport.update({
+  id: '/leeportal',
+  path: '/leeportal',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LearnRoute = LearnRouteImport.update({
@@ -743,6 +749,7 @@ export interface FileRoutesByFullPath {
   '/je': typeof JeRouteWithChildren
   '/landing': typeof LandingRoute
   '/learn': typeof LearnRoute
+  '/leeportal': typeof LeeportalRoute
   '/logo-lab': typeof LogoLabRoute
   '/onboard': typeof OnboardRoute
   '/order': typeof OrderRouteWithChildren
@@ -863,6 +870,7 @@ export interface FileRoutesByTo {
   '/je': typeof JeRouteWithChildren
   '/landing': typeof LandingRoute
   '/learn': typeof LearnRoute
+  '/leeportal': typeof LeeportalRoute
   '/logo-lab': typeof LogoLabRoute
   '/onboard': typeof OnboardRoute
   '/order': typeof OrderRouteWithChildren
@@ -981,6 +989,7 @@ export interface FileRoutesById {
   '/je': typeof JeRouteWithChildren
   '/landing': typeof LandingRoute
   '/learn': typeof LearnRoute
+  '/leeportal': typeof LeeportalRoute
   '/logo-lab': typeof LogoLabRoute
   '/onboard': typeof OnboardRoute
   '/order': typeof OrderRouteWithChildren
@@ -1103,6 +1112,7 @@ export interface FileRouteTypes {
     | '/je'
     | '/landing'
     | '/learn'
+    | '/leeportal'
     | '/logo-lab'
     | '/onboard'
     | '/order'
@@ -1223,6 +1233,7 @@ export interface FileRouteTypes {
     | '/je'
     | '/landing'
     | '/learn'
+    | '/leeportal'
     | '/logo-lab'
     | '/onboard'
     | '/order'
@@ -1340,6 +1351,7 @@ export interface FileRouteTypes {
     | '/je'
     | '/landing'
     | '/learn'
+    | '/leeportal'
     | '/logo-lab'
     | '/onboard'
     | '/order'
@@ -1461,6 +1473,7 @@ export interface RootRouteChildren {
   JeRoute: typeof JeRouteWithChildren
   LandingRoute: typeof LandingRoute
   LearnRoute: typeof LearnRoute
+  LeeportalRoute: typeof LeeportalRoute
   LogoLabRoute: typeof LogoLabRoute
   OnboardRoute: typeof OnboardRoute
   OrderRoute: typeof OrderRouteWithChildren
@@ -1604,6 +1617,13 @@ declare module '@tanstack/react-router' {
       path: '/logo-lab'
       fullPath: '/logo-lab'
       preLoaderRoute: typeof LogoLabRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/leeportal': {
+      id: '/leeportal'
+      path: '/leeportal'
+      fullPath: '/leeportal'
+      preLoaderRoute: typeof LeeportalRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/learn': {
@@ -2531,6 +2551,7 @@ const rootRouteChildren: RootRouteChildren = {
   JeRoute: JeRouteWithChildren,
   LandingRoute: LandingRoute,
   LearnRoute: LearnRoute,
+  LeeportalRoute: LeeportalRoute,
   LogoLabRoute: LogoLabRoute,
   OnboardRoute: OnboardRoute,
   OrderRoute: OrderRouteWithChildren,
