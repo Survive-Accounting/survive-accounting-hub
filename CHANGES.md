@@ -1,3 +1,26 @@
+# "Who's It For?" — users + branches exhibit (branch `users-exhibit`)
+
+Internal/external users + financial/managerial accounting as ONE mirrored exhibit — the WALL
+divider is the mental model. New canvas element kind `users` (config-driven: content lives in
+`users-exhibit-config.ts`, accuracy fixes are config edits, scene data stores geometry only).
+
+- **Spotlight**: click any element → its whole side illuminates, the other mutes (0.32 +
+  desaturate), clicked element brightest; chips also reveal their one-line want; single-select
+  over the shared highlight store so ` and 0 clear it for free.
+- **Shared reveal layer** (`exhibit-modes.ts` grew a REVEAL section): authored 4-state sequence
+  (wall+headers → chips → serves+plates → mnemonics) on Tab/Shift+Tab, FILM SURFACES ONLY —
+  authoring + student always render full, so ` can never strand a blank exhibit. Tab falls
+  through to the walk at either end. D toggles the HOW THEY DIFFER strip (4 opposing pairs,
+  pair-lighting; never part of the sequence).
+- **Importance cues** (`exhibit-cues.tsx`, shared, first use): MUST KNOW / EASY POINT /
+  A+ DETAIL corner tags, session-dismissible, deliberately NOT on the ` bus. Board of
+  Directors carries the professor-variance A+ line.
+- Registered in types/templates/stage-elements/canvas nodeTypes; `exhibit-demo` dev lab now
+  mounts the card (wide + narrow) with film keys as the QA surface.
+- Tests `users-exhibit.test.ts`: classification audit pinned, text diet, reveal shape, key
+  precedence. Browser QA on /exhibit-demo: all interactions verified headless; screenshots
+  unavailable unattended (pane not displayed — known limitation).
+
 # Cycle modes — the Accounting Cycle exhibit's 3-CEQ mode switcher (branch `exhibit-lab-v2`)
 
 SOURCE DOCS · DEFINITIONS · ORDER — the exhibit tunes itself to the three CEQ types Lee films for

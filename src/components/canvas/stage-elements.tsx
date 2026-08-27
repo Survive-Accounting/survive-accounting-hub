@@ -21,6 +21,7 @@ import { ScheduleCardNode } from "./cards/ScheduleCardNode";
 import { VideoCardNode } from "./cards/VideoCardNode";
 import { OutlineCardNode } from "./cards/OutlineCardNode";
 import { CycleNode } from "./cards/CycleNode";
+import { UsersNode } from "./cards/UsersNode";
 import { MemoCardNode } from "./cards/MemoCardNode";
 import { ComputationCardNode, TAccountCardNode, MemorizeCardNode } from "./cards/OtherCards";
 import {
@@ -45,6 +46,7 @@ export const STAGE_ELEMENTS: StageElementSpec[] = [
   { label: "Journal Entry", group: "Teaching", make: () => blankCard("je") },
   { label: "Memorize", group: "Teaching", make: () => blankCard("memorize") },
   { label: "T-Account", group: "Teaching", make: () => blankCard("taccount") },
+  { label: "Who's It For?", group: "Teaching", make: () => blankCard("users"), size: { w: 960, h: 560 } },
 
   // — Text: plain copy furniture
   { label: "Big Text", group: "Text", make: () => ({ kind: "heading", text: "A = L + E", level: 1, spartan: true, underline: false, w: 480, h: 150 }) },
@@ -112,6 +114,7 @@ export const STAGE_NODE_TYPES = {
   video: VideoCardNode,
   outline: OutlineCardNode,
   cycle: CycleNode,
+  users: UsersNode,
   memo: MemoCardNode,
   examcue: ExamCueNode,
   ceqtease: CeqTeaseNode,

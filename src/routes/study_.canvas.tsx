@@ -71,6 +71,7 @@ import { BridgeCardNode, CeqHookNode, CeqTeaseNode, CornerBoltNode, ExamCueNode,
 import { BoltBoil, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 import { Bolt } from "@/components/canvas/brand";
 import { CycleNode } from "@/components/canvas/cards/CycleNode";
+import { UsersNode } from "@/components/canvas/cards/UsersNode";
 import { configureSfx, playSfx, preloadSfx, SFX_DEFAULT, type SfxConfig, type SfxEvent } from "@/components/canvas/sfx";
 import { framePartIds, framePartLabels, materializeFrame, REST_TARGET, WHOLE_TARGET } from "@/components/canvas/choreo";
 import { ChoreoScrubber } from "@/components/canvas/ChoreoScrubber";
@@ -857,6 +858,7 @@ const nodeTypes = {
   outro: OutroCardNode,
   corner: CornerBoltNode,
   cycle: CycleNode,
+  users: UsersNode,
   memo: MemoCardNode,
   paygate: GateNode,
   signupgate: GateNode,
@@ -1055,6 +1057,7 @@ const ADD_ELEMENT_BLANKS: { label: string; make: () => CardData }[] = [
   { label: "Exam Cue", make: () => blankCard("examcue") },
   { label: "CEQ Tease", make: () => blankCard("ceqtease") },
   { label: "Accounting Cycle", make: () => blankCard("cycle") },
+  { label: "Who's It For?", make: () => blankCard("users") },
   { label: "Logo", make: () => blankCard("logo") },
   { label: "Intro card", make: () => blankCard("intro") },
   { label: "Outro card", make: () => blankCard("outro") },

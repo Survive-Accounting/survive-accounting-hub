@@ -15,7 +15,7 @@
 // Mode is PURELY ADDITIVE: highlights, film lock, and the ` sweep all keep
 // working in every mode. This layer owns mode/orbit STATE only; what a mode
 // looks like is the card's own render.
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { Pause, Play } from "lucide-react";
 
 import { useOnExhibitClear } from "./exhibit-highlights";
@@ -36,9 +36,17 @@ interface ModeSnap {
    *  (Shift+Tab); wrap with ((tick % n) + n) % n. */
   orderTick: number;
   orderPlaying: boolean;
+  /** AUTHORED REVEAL (Bible law 4): the film-surface position in an exhibit's
+   *  reveal sequence, 0 = the sequence's first state. FILM SURFACES ONLY —
+   *  authoring and student surfaces always render full, so ` can never strand
+   *  a blank exhibit where there are no film keys to step it. */
+  revealTick: number;
+  /** The depth layer (e.g. the users exhibit's HOW THEY DIFFER strip). OFF by
+   *  default; Cram Blasts never toggle it on. */
+  depthOn: boolean;
 }
 
-let snap: ModeSnap = { mode: "source", orderTick: 0, orderPlaying: false };
+let snap: ModeSnap = { mode: "source", orderTick: 0, orderPlaying: false, revealTick: 0, depthOn: false };
 let modeDefs: readonly ExhibitModeDef[] = [];
 const listeners = new Set<() => void>();
 const emit = (p: Partial<ModeSnap>) => { snap = { ...snap, ...p }; listeners.forEach((fn) => fn()); };
@@ -92,6 +100,54 @@ export function toggleExhibitOrderPlay(): void { setPlaying(!snap.orderPlaying);
 
 /** ` reset (via the exhibit clear bus): bolt back to step 1, paused. */
 export function resetExhibitOrder(): void { setPlaying(false); if (snap.orderTick !== 0) emit({ orderTick: 0 }); }
+
+// ---- AUTHORED REVEAL + DEPTH LAYER (shared; first consumer: the users
+// exhibit). A card with an authored reveal sequence registers its step count
+// via useExhibitReveal; Tab / Shift+Tab step the FILM rendering through it and
+// fall through to the walk at either end; ` (the clear bus) resets to state 0
+// and closes the depth layer. Non-film surfaces ignore revealTick entirely.
+
+let revealMax = 0;
+let revealMounts = 0;
+
+/** Tab / Shift+Tab on a film surface. Consumes ONLY while a reveal exhibit is
+ *  mounted AND there is a step left in that direction — at either end the key
+ *  falls through to the walk, so CEQ stepping keeps working around it. */
+export function exhibitRevealKey(action: "step" | "back"): boolean {
+  if (revealMounts === 0 || revealMax <= 0) return false;
+  if (action === "step") {
+    if (snap.revealTick >= revealMax) return false;
+    emit({ revealTick: snap.revealTick + 1 });
+    return true;
+  }
+  if (snap.revealTick <= 0) return false;
+  emit({ revealTick: snap.revealTick - 1 });
+  return true;
+}
+
+/** D on a film surface: toggle the mounted exhibit's depth layer. */
+export function exhibitDepthKey(): boolean {
+  if (revealMounts === 0) return false;
+  emit({ depthOn: !snap.depthOn });
+  return true;
+}
+
+/** Direct setters for authoring chrome (buttons/chips on non-film surfaces). */
+export function setExhibitDepth(on: boolean): void { if (snap.depthOn !== on) emit({ depthOn: on }); }
+export function setExhibitReveal(tick: number): void { const t = Math.max(0, Math.min(revealMax, tick)); if (snap.revealTick !== t) emit({ revealTick: t }); }
+
+export function resetExhibitReveal(): void {
+  if (snap.revealTick !== 0 || snap.depthOn) emit({ revealTick: 0, depthOn: false });
+}
+
+/** A reveal-sequenced card's hook: declares its LAST state index (0-based) and
+ *  subscribes. Registers the ` reset. */
+export function useExhibitReveal(maxTick: number): ModeSnap {
+  revealMax = maxTick; // idempotent — one reveal exhibit kind mounted at a time today
+  useEffect(() => { revealMounts++; return () => { revealMounts--; }; }, []);
+  useOnExhibitClear(resetExhibitReveal);
+  return useSyncExternalStore(subscribe, () => snap, () => snap);
+}
 
 /** A moded card's one hook: declares its chips, subscribes to the store, and
  *  joins the ` reset. Module-stable fns keep the clear-bus Set deduped. */

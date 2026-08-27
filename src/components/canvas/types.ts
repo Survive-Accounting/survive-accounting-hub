@@ -25,6 +25,7 @@ export type CardKind =
   | "ceqhook"
   | "framebolt"
   | "cycle"
+  | "users"
   | "logo"
   | "intro"
   | "outro"
@@ -67,6 +68,7 @@ export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
   ceqhook: "element",
   framebolt: "element",
   cycle: "element",
+  users: "element",
   logo: "element",
   intro: "element",
   outro: "element",
@@ -833,6 +835,16 @@ export interface CycleStep {
   /** The step label, e.g. "Record JEs". */
   text: string;
 }
+// ---- Users ("Who's It For?"): internal/external users + financial/managerial
+//      branches as one mirrored exhibit. Content is CONFIG-DRIVEN
+//      (users-exhibit-config.ts) — the element itself stores geometry only, so
+//      accuracy fixes never touch scene data. Design ELEMENT, never in the deck. ----
+export interface UsersElement extends CardBase {
+  kind: "users";
+  w?: number;
+  h?: number;
+}
+
 export interface CycleElement extends CardBase {
   kind: "cycle";
   /** Center label (default "The Accounting Cycle"). */
@@ -955,6 +967,7 @@ export type CardData =
   | CeqHookElement
   | FrameBoltElement
   | CycleElement
+  | UsersElement
   | LogoElement
   | IntroCardElement
   | OutroCardElement

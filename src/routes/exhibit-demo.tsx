@@ -10,8 +10,15 @@ import { ReactFlowProvider } from "@xyflow/react";
 
 import { useExhibit, type ExhibitDeclaration } from "@/components/canvas/exhibit-base";
 import { clearExhibitHighlights } from "@/components/canvas/exhibit-highlights";
+import { exhibitDepthKey, exhibitRevealKey } from "@/components/canvas/exhibit-modes";
+import { UsersNode } from "@/components/canvas/cards/UsersNode";
 import { FilmContext } from "@/components/canvas/film-lock";
 import { PAPER } from "@/components/canvas/theme";
+
+// Real exhibit cards mounted OUTSIDE a ReactFlow graph for QA: NodeProps is
+// wider than what the cards actually read (id / data / selected), so the demo
+// narrows the type rather than fabricating a whole node.
+const UsersDemo = UsersNode as unknown as (p: { id: string; data: unknown; selected?: boolean }) => React.ReactNode;
 
 export const Route = createFileRoute("/exhibit-demo")({
   head: () => ({ meta: [{ title: "⚡ Exhibit Layer Demo — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
@@ -58,12 +65,15 @@ function TAccountStub() {
 // ---- end of stub ------------------------------------------------------------
 
 function ExhibitDemo() {
-  // The page's only wiring: the ` reset the film controller normally provides.
+  // The page's only wiring: the film-controller keys the previewer normally
+  // provides — ` reset, Tab/Shift+Tab reveal stepping, D depth layer.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = document.activeElement as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)) return;
       if (e.code === "Backquote" || e.key === "`") clearExhibitHighlights();
+      if (e.key === "Tab" && exhibitRevealKey(e.shiftKey ? "back" : "step")) e.preventDefault();
+      if ((e.key === "d" || e.key === "D") && !e.ctrlKey && !e.metaKey && !e.altKey) exhibitDepthKey();
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
@@ -78,6 +88,15 @@ function ExhibitDemo() {
       <ReactFlowProvider>
         <FilmContext.Provider value={true}>
           <TAccountStub />
+          {/* WHO'S IT FOR? — film-mode QA mount: Tab/Shift+Tab steps the reveal,
+              D toggles the differences strip, ` clears spotlight + resets. */}
+          <div style={{ marginTop: 8 }}>
+            <UsersDemo id="demo-users" data={{ kind: "users" }} selected={false} />
+          </div>
+          {/* the same card at a mobile-ish width — the stacked degradation */}
+          <div style={{ marginTop: 8 }}>
+            <UsersDemo id="demo-users-narrow" data={{ kind: "users", w: 420, h: 760 }} selected={false} />
+          </div>
         </FilmContext.Provider>
       </ReactFlowProvider>
     </div>

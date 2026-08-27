@@ -47,7 +47,7 @@ export { activeSlots, dealCentre, defaultMemoPos, PALETTE_N, paletteSlots, rackO
 import { CALLOUT_KINDS, CalloutBody, calloutKindForCategory, nextCalloutKind } from "./cards/CalloutCard";
 import { captureAcceptable, captureCssSize, captureFeasibility, physicalSize, snapCaptureSize, verticalObsNote } from "./capture-window";
 import { clearExhibitHighlights } from "./exhibit-highlights";
-import { cycleExhibitModes, exhibitOrderKey } from "./exhibit-modes";
+import { cycleExhibitModes, exhibitDepthKey, exhibitOrderKey, exhibitRevealKey } from "./exhibit-modes";
 import { NOTE_EYEBROW } from "./frame-copy";
 import { BOSS_REVEAL_CSS, REVEAL_MS, SCRIM_ALPHA, bossLabel, labelSize, revealZone } from "./boss-reveal";
 import { unlockSfx } from "./sfx";
@@ -2174,6 +2174,11 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
         // bolt to step 1, paused, via the exhibit clear bus.
         if ((e.key === "m" || e.key === "M") && !e.ctrlKey && !e.metaKey && !e.altKey) { cycleExhibitModes(); return; }
         if (e.key === "Tab" && exhibitOrderKey(e.shiftKey ? "back" : "step")) return;
+        // AUTHORED REVEAL (Bible law 4): Tab steps a mounted reveal-sequenced
+        // exhibit; at either end of the sequence the key falls through to the
+        // walk. D toggles the exhibit's depth layer.
+        if (e.key === "Tab" && exhibitRevealKey(e.shiftKey ? "back" : "step")) return;
+        if ((e.key === "d" || e.key === "D") && !e.ctrlKey && !e.metaKey && !e.altKey) { exhibitDepthKey(); return; }
         if ((e.key === "p" || e.key === "P") && !e.ctrlKey && !e.metaKey && !e.altKey) { exhibitOrderKey("toggle"); return; }
         if (e.key === "Enter" || e.key === "Tab") { if (e.shiftKey) retreat(); else advance(); return; } // Tab = the walk (P3)
         if (e.key === "ArrowDown" || e.key === "ArrowRight") { elemNav(1); return; }
@@ -2228,6 +2233,10 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       // M/P stay free.
       if ((e.key === "m" || e.key === "M") && !e.ctrlKey && !e.metaKey && !e.altKey && cycleExhibitModes()) { e.preventDefault(); e.stopImmediatePropagation(); return; }
       if (e.key === "Tab" && !e.ctrlKey && !e.metaKey && !e.altKey && exhibitOrderKey(e.shiftKey ? "back" : "step")) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+      // AUTHORED REVEAL: same contract as the recording branch — Tab consumed
+      // only mid-sequence, D toggles the depth layer, walk keeps Tab otherwise.
+      if (e.key === "Tab" && !e.ctrlKey && !e.metaKey && !e.altKey && exhibitRevealKey(e.shiftKey ? "back" : "step")) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+      if ((e.key === "d" || e.key === "D") && !e.ctrlKey && !e.metaKey && !e.altKey && exhibitDepthKey()) { e.preventDefault(); e.stopImmediatePropagation(); return; }
       if ((e.key === "p" || e.key === "P") && !e.ctrlKey && !e.metaKey && !e.altKey && exhibitOrderKey("toggle")) { e.preventDefault(); e.stopImmediatePropagation(); return; }
       if (e.key === "Tab") { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) retreat(); else advance(); return; } // Tab = the walk (P3)
       if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight") {
