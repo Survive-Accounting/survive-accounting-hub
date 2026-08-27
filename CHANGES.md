@@ -1,3 +1,36 @@
+# Cycle modes — the Accounting Cycle exhibit's 3-CEQ mode switcher (branch `exhibit-lab-v2`)
+
+SOURCE DOCS · DEFINITIONS · ORDER — the exhibit tunes itself to the three CEQ types Lee films for
+this topic. Smallest viable version per the studio timebox; click-to-highlight untouched in every mode.
+
+- **Shared layer** `exhibit-modes.tsx` — mode chip row (authoring chrome, never on camera) + a
+  realm-shared module store (same pattern as the highlight clear bus, so authoring canvas, studio
+  preview, and film surfaces stay on the same mode) + the ORDER orbit state. The cycle card
+  *declares* `CYCLE_MODES`; nothing existing was refactored.
+- **Config** `cycle-exhibit-config.ts` — authorable per-step `{docName, icon}` source docs and
+  cram-version definitions, matched to authored step labels by ORDERED keyword rows
+  (collision-audited: post-closing → post, unadjusted → adjusted, plain "Trial Balance" last).
+  Also derives where END OF PERIOD begins (the first trial-balance step).
+- **SOURCE DOCS / DEFINITIONS** — a film click still runs the highlight cycle exactly as before,
+  PLUS a popover anchored just outside the clicked step (doc rows with lucide line icons, or the
+  one-liner definition). Click again / click elsewhere / mode switch / ` closes it.
+- **ORDER** — the boiling brand bolt orbits the oval step to step (~1s dwell; chord ≈ arc at 7–9
+  steps, last→first chord is short so the loop wraps seamlessly). The current step lights with the
+  shared glow merged into the same `ns` object — never written to the highlight store, and the
+  tease-mode source pins stay byte-identical. Dotted DURING THE PERIOD / END OF PERIOD arcs sit
+  outside the ring and hand off at the first TB step; no TB step ⇒ no arcs. GPU-composited: one
+  transform transition on a full-size wrapper (translate-% = container-%).
+- **Keys (binding audit)** — `M` cycles modes (was unbound in both keymaps; consumed only while a
+  moded exhibit is mounted). In ORDER mode `Tab`/`Shift+Tab` step the bolt (a manual step pauses
+  playback) and `P` plays/pauses — both checked BEFORE the Tab walk in BOTH the recording branch
+  and the film-popout branch, so the walk keeps Tab everywhere else; Enter still walks. `` ` ``
+  resets the bolt to step 1, paused, via the exhibit clear bus (`0` reaches it too — same bus).
+- Tests `exhibit-modes.test.ts`: mode-cycle order, both cycle vocabularies (7-step template +
+  9-step Lab labels) land on the right config entries, period-handoff indices, text diet, and
+  key-precedence / film-safety source pins. Full canvas suite: 1222 pass, 0 fail.
+
+Skipped per spec: vertical-specific work, extra modes, drag, probe revival.
+
 # Ledger exhibits — Journal Entry · T-Accounts · Financial Statements (branch `exhibit-lab-v2`)
 
 The three tools Lee remembered from earlier versions of the app, unearthed, rebuilt on the Lab's
