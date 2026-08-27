@@ -47,7 +47,7 @@ export async function runIntake(data: IntakeInput): Promise<IntakeResult> {
       source_path: data.sourcePath ?? null,
       note: data.note ?? null,
       file_paths: data.filePaths?.length ? data.filePaths : null,
-      source: `intake:${data.kind}`,
+      source: data.source ?? `intake:${data.kind}`,
       is_test: isTest,
       consent_sms_at: phone && data.smsConsent ? new Date().toISOString() : null,
     };

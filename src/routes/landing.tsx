@@ -37,6 +37,7 @@ import { STATIC_EXAM1, STATIC_EXAM2, STATIC_EXAM3, STATIC_FINAL, estTopicMin } f
 import { resolveStudentMap } from "@/lib/map-resolver.functions";
 import { getChapterNames, listCampusIntroCodes } from "@/lib/default-map.functions";
 import { logSchoolDemand, submitSyllabus , submitNotify } from "@/lib/syllabus.functions";
+import { rememberStudentEmail } from "@/lib/student-email";
 import { searchOrderProfessors, type ProfessorLite } from "@/lib/orders.functions";
 import { tagChapterMember } from "@/lib/greek-go.functions";
 import { openClaimStep, SEAT_MINIMUM, SEAT_PRICE } from "@/components/site/ChapterAccess";
@@ -1019,6 +1020,9 @@ function NotifyModal({ req, school, professorName, isTest, onClose }: { req: Not
     setBusy(true); setErr(null);
     try {
       await submitNotify({ data: { contact: contact.trim(), topic, campusId: school?.campusId ?? null, campusName: school?.name ?? null, professorName: professorName ?? null, want: req.want, examNum: req.examNum ?? null, courseCode: school?.codeVerified && school.code ? school.code : null, note: notifyNote(req), isTest: !!isTest } });
+      // The soft identity bridge (see lib/student-email): a subscribed email means Ask Lee
+      // never re-asks this visitor for their address.
+      if (contactKind(contact) === "email") rememberStudentEmail(contact.trim());
       if (isTest) { void (async () => { const { markStep } = await import("@/lib/test-mode"); markStep("notify", { want: req.want, topic }); })(); }
       setDone(true);
     } catch (e) { setErr(e instanceof Error ? e.message : "That didn't send — try again?"); }
@@ -1121,6 +1125,7 @@ function SyllabusModal({ school, framing, onClose }: { school: School | null; fr
     setBusy(true); setErr(null);
     try {
       await submitSyllabus({ data: { email: email.trim(), campusId: school?.campusId ?? null, campusName: school?.name ?? null, files: files.map((f) => ({ name: f.name, type: f.type, dataUrl: f.dataUrl })) } });
+      rememberStudentEmail(email.trim()); // identity bridge — see lib/student-email
       setDone(true);
     } catch (e) { setErr(e instanceof Error ? e.message : "Something went wrong — try again."); }
     finally { setBusy(false); }
@@ -1359,6 +1364,7 @@ function RemindLaterDialog({ path, school, professor, prefill, isTest, onClose }
     const redirect = typeof window !== "undefined" ? `${window.location.origin}${path}` : undefined;
     const { error } = await supabase.auth.signInWithOtp({ email: e, options: { emailRedirectTo: redirect, data: { sa_is_test: !!isTest } } });
     if (error) { setState("error"); setMsg(error.message); return; }
+    rememberStudentEmail(e); // identity bridge — see lib/student-email
     track("study_reminder_sent");
     setState("sent");
   };

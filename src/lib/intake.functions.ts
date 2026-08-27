@@ -34,6 +34,9 @@ const IntakeInput = z.object({
   adminLink: z.string().trim().max(300).optional().nullable(),
   note: z.string().trim().max(4000).optional().nullable(),
   filePaths: z.array(z.string()).max(10).optional().nullable(),
+  /** Overrides campus_waitlist.source (default `intake:<kind>`) — e.g. "ask-lee". Nothing
+   *  filters on the default for any kind except greek_claim, whose callers never override. */
+  source: z.string().trim().max(60).optional().nullable(),
   /** A2P: true only when the SmsConsentNote was rendered beside the phone field the student submitted. */
   smsConsent: z.boolean().optional(),
   isTest: z.boolean().optional(),
