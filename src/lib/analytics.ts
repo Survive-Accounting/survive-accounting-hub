@@ -57,6 +57,11 @@ export const SA_EVENTS = [
   "help_opened",
   "help_text_clicked",
   "help_email_clicked",
+  // Two-portal home + demo chapter experiment (08-26). Properties, not more events:
+  // portal_door_selected {door} · demo_mode_flipped {mode} · demo_adventure {action, source}.
+  "portal_door_selected",
+  "demo_mode_flipped",
+  "demo_adventure",
 ] as const;
 
 export type SaEvent = (typeof SA_EVENTS)[number];

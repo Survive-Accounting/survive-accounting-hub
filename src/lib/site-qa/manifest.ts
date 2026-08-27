@@ -514,6 +514,11 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "lab.bolt.tsx": "dev lab (noindex)",
   "study_.canvas.tsx": "internal authoring lab (noindex)",
   "study_.dashboard.tsx": "prototype (noindex)",
+  // Two-portal home experiment (08-26). Register go.demo as a real template if it graduates
+  // from sales asset to permanent surface.
+  "preview_.home.tsx": "experimental two-portal home redesign (noindex, not yet promoted)",
+  "go.demo.tsx": "demo chapter page — outreach sales asset (noindex)",
+  "go.demo.demo.tsx": "redirect → /go/demo",
   // API / cron / webhook endpoints — not pages
   "api.backfill.tsx": "token-gated backfill orchestrator endpoint",
   "api.cron.backup.tsx": "cron endpoint",

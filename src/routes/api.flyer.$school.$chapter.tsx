@@ -52,6 +52,12 @@ async function validatedRef(db: { from: (t: string) => any }, ref: string, chapt
 }
 
 async function resolve(school: string, chapter: string, ref: string | null): Promise<FlyerInput | null> {
+  // /go/demo — the demo chapter page's flyer. No campus, no chapter, no DB: a fixed generic
+  // input ("Your Chapter" at "Your School", ACCT 101) in the brand colourway. The QR encodes
+  // /go/demo/demo, which 301s to /go/demo — a scanned demo flyer lands back on the demo.
+  if (school === "demo" && chapter === "demo") {
+    return { schoolSlug: "demo", schoolName: "Your School", courseCode: "ACCT 101", chapterSlug: "demo", chapterName: "Your Chapter" };
+  }
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const db = supabaseAdmin as unknown as { from: (t: string) => any };
 

@@ -46,6 +46,7 @@ import { Route as StudyCanvasRouteImport } from './routes/study_.canvas'
 import { Route as RepJoinRouteImport } from './routes/rep_.join'
 import { Route as RepDashboardRouteImport } from './routes/rep_.dashboard'
 import { Route as RCodeRouteImport } from './routes/r.$code'
+import { Route as PreviewHomeRouteImport } from './routes/preview_.home'
 import { Route as PartnersNationalOrganizationsRouteImport } from './routes/partners.national-organizations'
 import { Route as PartnersCampusCouncilsRouteImport } from './routes/partners.campus-councils'
 import { Route as OutreachVideoArchiveRouteImport } from './routes/outreach.video-archive'
@@ -78,6 +79,7 @@ import { Route as OrderShortRefRouteImport } from './routes/order.$shortRef'
 import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
 import { Route as LabBoltRouteImport } from './routes/lab.bolt'
 import { Route as JeSplatRouteImport } from './routes/je.$'
+import { Route as GoDemoRouteImport } from './routes/go.demo'
 import { Route as ChaptersDashboardRouteImport } from './routes/chapters_.dashboard'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
 import { Route as CSlugRouteImport } from './routes/c.$slug'
@@ -97,6 +99,7 @@ import { Route as OutreachLeadfinderCampusIdRouteImport } from './routes/outreac
 import { Route as OutreachGreekOrgsVendorQueueRouteImport } from './routes/outreach.greek-orgs_.vendor-queue'
 import { Route as OutreachGreekOrgsQueueRouteImport } from './routes/outreach.greek-orgs_.queue'
 import { Route as OutreachGreekOrgsPeopleQueueRouteImport } from './routes/outreach.greek-orgs_.people-queue'
+import { Route as GoDemoDemoRouteImport } from './routes/go.demo.demo'
 import { Route as GoSchoolChapterRouteImport } from './routes/go.$school.$chapter'
 import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
 import { Route as CeqIdEditRouteImport } from './routes/ceq.$id.edit'
@@ -310,6 +313,11 @@ const RCodeRoute = RCodeRouteImport.update({
   path: '/r/$code',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PreviewHomeRoute = PreviewHomeRouteImport.update({
+  id: '/preview_/home',
+  path: '/preview/home',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PartnersNationalOrganizationsRoute =
   PartnersNationalOrganizationsRouteImport.update({
     id: '/partners/national-organizations',
@@ -474,6 +482,11 @@ const JeSplatRoute = JeSplatRouteImport.update({
   path: '/$',
   getParentRoute: () => JeRoute,
 } as any)
+const GoDemoRoute = GoDemoRouteImport.update({
+  id: '/go/demo',
+  path: '/go/demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ChaptersDashboardRoute = ChaptersDashboardRouteImport.update({
   id: '/chapters_/dashboard',
   path: '/chapters/dashboard',
@@ -572,6 +585,11 @@ const OutreachGreekOrgsPeopleQueueRoute =
     path: '/greek-orgs/people-queue',
     getParentRoute: () => OutreachRoute,
   } as any)
+const GoDemoDemoRoute = GoDemoDemoRouteImport.update({
+  id: '/demo',
+  path: '/demo',
+  getParentRoute: () => GoDemoRoute,
+} as any)
 const GoSchoolChapterRoute = GoSchoolChapterRouteImport.update({
   id: '/go/$school/$chapter',
   path: '/go/$school/$chapter',
@@ -746,6 +764,7 @@ export interface FileRoutesByFullPath {
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters/dashboard': typeof ChaptersDashboardRoute
+  '/go/demo': typeof GoDemoRouteWithChildren
   '/je/$': typeof JeSplatRoute
   '/lab/bolt': typeof LabBoltRoute
   '/o/$shortRef': typeof OShortRefRoute
@@ -778,6 +797,7 @@ export interface FileRoutesByFullPath {
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/partners/campus-councils': typeof PartnersCampusCouncilsRoute
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
+  '/preview/home': typeof PreviewHomeRoute
   '/r/$code': typeof RCodeRoute
   '/rep/dashboard': typeof RepDashboardRoute
   '/rep/join': typeof RepJoinRoute
@@ -810,6 +830,7 @@ export interface FileRoutesByFullPath {
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
   '/go/$school/$chapter': typeof GoSchoolChapterRoute
+  '/go/demo/demo': typeof GoDemoDemoRoute
   '/outreach/greek-orgs/people-queue': typeof OutreachGreekOrgsPeopleQueueRoute
   '/outreach/greek-orgs/queue': typeof OutreachGreekOrgsQueueRoute
   '/outreach/greek-orgs/vendor-queue': typeof OutreachGreekOrgsVendorQueueRoute
@@ -860,6 +881,7 @@ export interface FileRoutesByTo {
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters/dashboard': typeof ChaptersDashboardRoute
+  '/go/demo': typeof GoDemoRouteWithChildren
   '/je/$': typeof JeSplatRoute
   '/lab/bolt': typeof LabBoltRoute
   '/o/$shortRef': typeof OShortRefRoute
@@ -892,6 +914,7 @@ export interface FileRoutesByTo {
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/partners/campus-councils': typeof PartnersCampusCouncilsRoute
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
+  '/preview/home': typeof PreviewHomeRoute
   '/r/$code': typeof RCodeRoute
   '/rep/dashboard': typeof RepDashboardRoute
   '/rep/join': typeof RepJoinRoute
@@ -924,6 +947,7 @@ export interface FileRoutesByTo {
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
   '/go/$school/$chapter': typeof GoSchoolChapterRoute
+  '/go/demo/demo': typeof GoDemoDemoRoute
   '/outreach/greek-orgs/people-queue': typeof OutreachGreekOrgsPeopleQueueRoute
   '/outreach/greek-orgs/queue': typeof OutreachGreekOrgsQueueRoute
   '/outreach/greek-orgs/vendor-queue': typeof OutreachGreekOrgsVendorQueueRoute
@@ -978,6 +1002,7 @@ export interface FileRoutesById {
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters_/dashboard': typeof ChaptersDashboardRoute
+  '/go/demo': typeof GoDemoRouteWithChildren
   '/je/$': typeof JeSplatRoute
   '/lab/bolt': typeof LabBoltRoute
   '/o/$shortRef': typeof OShortRefRoute
@@ -1010,6 +1035,7 @@ export interface FileRoutesById {
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/partners/campus-councils': typeof PartnersCampusCouncilsRoute
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
+  '/preview_/home': typeof PreviewHomeRoute
   '/r/$code': typeof RCodeRoute
   '/rep_/dashboard': typeof RepDashboardRoute
   '/rep_/join': typeof RepJoinRoute
@@ -1042,6 +1068,7 @@ export interface FileRoutesById {
   '/ceq/$id/edit': typeof CeqIdEditRoute
   '/ceq/$id/tutor': typeof CeqIdTutorRoute
   '/go/$school/$chapter': typeof GoSchoolChapterRoute
+  '/go/demo/demo': typeof GoDemoDemoRoute
   '/outreach/greek-orgs_/people-queue': typeof OutreachGreekOrgsPeopleQueueRoute
   '/outreach/greek-orgs_/queue': typeof OutreachGreekOrgsQueueRoute
   '/outreach/greek-orgs_/vendor-queue': typeof OutreachGreekOrgsVendorQueueRoute
@@ -1097,6 +1124,7 @@ export interface FileRouteTypes {
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters/dashboard'
+    | '/go/demo'
     | '/je/$'
     | '/lab/bolt'
     | '/o/$shortRef'
@@ -1129,6 +1157,7 @@ export interface FileRouteTypes {
     | '/outreach/video-archive'
     | '/partners/campus-councils'
     | '/partners/national-organizations'
+    | '/preview/home'
     | '/r/$code'
     | '/rep/dashboard'
     | '/rep/join'
@@ -1161,6 +1190,7 @@ export interface FileRouteTypes {
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
     | '/go/$school/$chapter'
+    | '/go/demo/demo'
     | '/outreach/greek-orgs/people-queue'
     | '/outreach/greek-orgs/queue'
     | '/outreach/greek-orgs/vendor-queue'
@@ -1211,6 +1241,7 @@ export interface FileRouteTypes {
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters/dashboard'
+    | '/go/demo'
     | '/je/$'
     | '/lab/bolt'
     | '/o/$shortRef'
@@ -1243,6 +1274,7 @@ export interface FileRouteTypes {
     | '/outreach/video-archive'
     | '/partners/campus-councils'
     | '/partners/national-organizations'
+    | '/preview/home'
     | '/r/$code'
     | '/rep/dashboard'
     | '/rep/join'
@@ -1275,6 +1307,7 @@ export interface FileRouteTypes {
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
     | '/go/$school/$chapter'
+    | '/go/demo/demo'
     | '/outreach/greek-orgs/people-queue'
     | '/outreach/greek-orgs/queue'
     | '/outreach/greek-orgs/vendor-queue'
@@ -1328,6 +1361,7 @@ export interface FileRouteTypes {
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters_/dashboard'
+    | '/go/demo'
     | '/je/$'
     | '/lab/bolt'
     | '/o/$shortRef'
@@ -1360,6 +1394,7 @@ export interface FileRouteTypes {
     | '/outreach/video-archive'
     | '/partners/campus-councils'
     | '/partners/national-organizations'
+    | '/preview_/home'
     | '/r/$code'
     | '/rep_/dashboard'
     | '/rep_/join'
@@ -1392,6 +1427,7 @@ export interface FileRouteTypes {
     | '/ceq/$id/edit'
     | '/ceq/$id/tutor'
     | '/go/$school/$chapter'
+    | '/go/demo/demo'
     | '/outreach/greek-orgs_/people-queue'
     | '/outreach/greek-orgs_/queue'
     | '/outreach/greek-orgs_/vendor-queue'
@@ -1445,10 +1481,12 @@ export interface RootRouteChildren {
   ApiBackfillRoute: typeof ApiBackfillRoute
   CSlugRoute: typeof CSlugRoute
   ChaptersDashboardRoute: typeof ChaptersDashboardRoute
+  GoDemoRoute: typeof GoDemoRouteWithChildren
   LabBoltRoute: typeof LabBoltRoute
   OShortRefRoute: typeof OShortRefRoute
   PartnersCampusCouncilsRoute: typeof PartnersCampusCouncilsRoute
   PartnersNationalOrganizationsRoute: typeof PartnersNationalOrganizationsRoute
+  PreviewHomeRoute: typeof PreviewHomeRoute
   RCodeRoute: typeof RCodeRoute
   RepDashboardRoute: typeof RepDashboardRoute
   RepJoinRoute: typeof RepJoinRoute
@@ -1736,6 +1774,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/preview_/home': {
+      id: '/preview_/home'
+      path: '/preview/home'
+      fullPath: '/preview/home'
+      preLoaderRoute: typeof PreviewHomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/partners/national-organizations': {
       id: '/partners/national-organizations'
       path: '/partners/national-organizations'
@@ -1960,6 +2005,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof JeSplatRouteImport
       parentRoute: typeof JeRoute
     }
+    '/go/demo': {
+      id: '/go/demo'
+      path: '/go/demo'
+      fullPath: '/go/demo'
+      preLoaderRoute: typeof GoDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/chapters_/dashboard': {
       id: '/chapters_/dashboard'
       path: '/chapters/dashboard'
@@ -2092,6 +2144,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/outreach/greek-orgs/people-queue'
       preLoaderRoute: typeof OutreachGreekOrgsPeopleQueueRouteImport
       parentRoute: typeof OutreachRoute
+    }
+    '/go/demo/demo': {
+      id: '/go/demo/demo'
+      path: '/demo'
+      fullPath: '/go/demo/demo'
+      preLoaderRoute: typeof GoDemoDemoRouteImport
+      parentRoute: typeof GoDemoRoute
     }
     '/go/$school/$chapter': {
       id: '/go/$school/$chapter'
@@ -2447,6 +2506,17 @@ const AdminRepsRouteWithChildren = AdminRepsRoute._addFileChildren(
   AdminRepsRouteChildren,
 )
 
+interface GoDemoRouteChildren {
+  GoDemoDemoRoute: typeof GoDemoDemoRoute
+}
+
+const GoDemoRouteChildren: GoDemoRouteChildren = {
+  GoDemoDemoRoute: GoDemoDemoRoute,
+}
+
+const GoDemoRouteWithChildren =
+  GoDemoRoute._addFileChildren(GoDemoRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BeyondRoute: BeyondRoute,
@@ -2481,10 +2551,12 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBackfillRoute: ApiBackfillRoute,
   CSlugRoute: CSlugRoute,
   ChaptersDashboardRoute: ChaptersDashboardRoute,
+  GoDemoRoute: GoDemoRouteWithChildren,
   LabBoltRoute: LabBoltRoute,
   OShortRefRoute: OShortRefRoute,
   PartnersCampusCouncilsRoute: PartnersCampusCouncilsRoute,
   PartnersNationalOrganizationsRoute: PartnersNationalOrganizationsRoute,
+  PreviewHomeRoute: PreviewHomeRoute,
   RCodeRoute: RCodeRoute,
   RepDashboardRoute: RepDashboardRoute,
   RepJoinRoute: RepJoinRoute,

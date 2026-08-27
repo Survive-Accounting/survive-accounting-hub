@@ -328,7 +328,12 @@ export const resolveLegacyChapterSlug = createServerFn({ method: "POST" })
  *
  *  Best-effort by design — a failed log must never break a share — but the INSERT error is logged
  *  server-side rather than swallowed, so a broken pipe is discoverable. */
-export const GREEK_EVENT_KINDS = ["visit", "copy_link", "copy_message", "flyer_download", "flyer_print"] as const;
+// demo_page / demo_claim: a chapter claim SUBMITTED from /go/demo, tagged by which door opened
+// it — the demo page's own setup controls ("demo_page") vs the choose-your-adventure claim path
+// ("demo_claim"). The slugs on these two are the REAL chapter being claimed, so the event reads
+// "greek_demo_claim:<school>/<chapter>". greek_chapter_claims has no source column and migrations
+// are manual-apply, so this log is where the demo source tag lives.
+export const GREEK_EVENT_KINDS = ["visit", "copy_link", "copy_message", "flyer_download", "flyer_print", "demo_page", "demo_claim"] as const;
 
 export const logGreekEvent = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({

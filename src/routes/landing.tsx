@@ -176,6 +176,15 @@ interface LandingProps {
   storedCampusId?: string | null;
   /** School id whose professor question this visitor already skipped (cookie). */
   profSkipFor?: string | null;
+  /** EXPERIMENTAL TWO-PORTAL HOME (/preview/home, 2026-08-26). Inert unless the preview route
+   *  passes it — the live "/" renders exactly as before. `portals` renders between the hero and
+   *  the player anchor (it receives the hero CTA's own onStart so the student card scrolls the
+   *  same way); `playerHeader` renders directly above the player anchor. */
+  portalHome?: { portals: (ctx: { onStart: () => void }) => React.ReactNode; playerHeader?: React.ReactNode };
+  /** /go/demo ONLY: pins the hero to a display-only school name + course code on a page with no
+   *  real campus, and blocks a returning visitor's stored campus from repainting the demo as
+   *  their school. Never set on a live route. */
+  demoContext?: { schoolName: string; courseCode: string };
 }
 
 export function LandingPage(props: LandingProps = {}) {
@@ -187,7 +196,7 @@ export function LandingPage(props: LandingProps = {}) {
   );
 }
 
-function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlug, greek, onStartExam, chapterCount, greekOrg, greekNav, videoGate, storedCampusId, profSkipFor }: LandingProps) {
+function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlug, greek, onStartExam, chapterCount, greekOrg, greekNav, videoGate, storedCampusId, profSkipFor, portalHome, demoContext }: LandingProps) {
   // M1.4 — paint html/body navy so Safari's overscroll rubber-band matches the page instead
   // of flashing the light default at the top and bottom edges.
   useNavyDocument();
@@ -204,10 +213,13 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   const campus = useCampus();
   // The resolved campus's bolt colours, published on the page root. One source; no component
   // picks its own. Null when campus is unknown, which leaves the cycling hero to set its own.
-  const campusBolt = useMemo(
+  const campusBoltResolved = useMemo(
     () => (campus.school ? { ...boltFor(campus.school.id), accent: BOLT_ACCENTS[campus.school.id] ?? null } : null),
     [campus.school],
   );
+  // The demo page wears the brand colourway, never a stored visitor's campus — its plate says
+  // "Your School" and the bolt must not contradict it.
+  const campusBolt = demoContext ? null : campusBoltResolved;
   const preSchool = useMemo(() => (initialCampusId ? SCHOOLS.find((s) => s.campusId === initialCampusId) ?? null : null), [initialCampusId]);
   // INITIAL SCHOOL IS WHATEVER THE SERVER ALREADY KNOWS — the URL's campus or the cookie's stored
   // one, both of which campus context resolved before this render on BOTH sides. Initialising
@@ -364,9 +376,11 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   // copy interpolates. Greek wins; a known campus (URL, account, or a returning visitor's stored
   // pick) reads as a campus page; otherwise general. Campus/greek bolts inherit the page root's
   // --sa-bolt vars; the GENERAL hero rotates through every school colourway (below).
-  const heroSchoolName = school?.name ?? campus.school?.name ?? null;
+  // demoContext PINS both values: the demo page is "ACCT 101 at Your School" for every visitor,
+  // including one whose cookie remembers a real campus.
+  const heroSchoolName = demoContext ? demoContext.schoolName : (school?.name ?? campus.school?.name ?? null);
   const heroKind: "general" | "campus" | "greek" = greek ? "greek" : heroSchoolName ? "campus" : "general";
-  const heroCode = campus.code ?? (school?.codeVerified && school.code ? school.code : null);
+  const heroCode = demoContext ? demoContext.courseCode : (campus.code ?? (school?.codeVerified && school.code ? school.code : null));
 
   // HOME ROTATION — every school, flowing upward through the bolt, one campus roughly every 3.6s.
   //
@@ -566,6 +580,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
             the player, plus greek member attribution when the route wired it. */}
         <MarketingHero
           kind={heroKind}
+          compact={!!portalHome}
           code={heroCode}
           schoolShort={heroSchoolName}
           rotationCampuses={rotationCampuses}
@@ -593,6 +608,9 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
           }}
           courtesy={greek && goChapter ? <CourtesyLine schoolSlug={goChapter.schoolSlug} chapterSlug={goChapter.chapterSlug} chapterName={greek.orgName} /> : undefined}
         />
+        {/* EXPERIMENTAL /preview/home slots — nothing renders on the live routes. */}
+        {portalHome?.portals({ onStart: heroStart })}
+        {portalHome?.playerHeader}
         {/* THE STABLE SCROLL TARGET — see PLAYER_ANCHOR_ID. Empty, outside the player, and
             therefore incapable of moving while the player decides how tall it is. */}
         <div id="player" className="sa-anchor" />
