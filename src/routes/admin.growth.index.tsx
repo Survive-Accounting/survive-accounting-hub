@@ -5,7 +5,7 @@
 // always see where you are. Everything else (what a number means, why a campus ranks where
 // it does, what a badge is for) is a tooltip away, because King has to be able to read this
 // screen without having sat through the research.
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, Loader2, Pin, RotateCw, Search } from "lucide-react";
@@ -17,6 +17,7 @@ import {
 } from "@/lib/growth-dashboard.functions";
 import { growthDailyProgress } from "@/lib/growth-queue.functions";
 import { CampusPanel } from "@/components/growth/CampusPanel";
+import { getAdminWho } from "@/components/AdminGate";
 import { Accordion, Chip, Hint, MiniBolt, useDebounced } from "@/components/growth/v2";
 import { BottomSheet, LayoutSwitch } from "@/components/growth/BottomSheet";
 import { useLayoutMode } from "@/components/growth/layout-mode";
@@ -85,6 +86,15 @@ function GrowthCampusesPage() {
   const [openId, setOpenId] = useState<string | null>(search.open ?? null);
   const [moreOpen, setMoreOpen] = useState(false);
   const [limit, setLimit] = useState(50);
+  // KING LANDS ON HQ. His home is the earnings page, not the work queue — the dashboard
+  // works FOR him first. Once per tab-session so the Campuses tab still functions.
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (getAdminWho() === "king" && !sessionStorage.getItem("sa-king-landed")) {
+      sessionStorage.setItem("sa-king-landed", "1");
+      navigate({ to: "/admin/growth/king" });
+    }
+  }, [navigate]);
   // TEMPORARY A/B — see layout-mode.ts. Remove with the switch once a style wins.
   const [layout, setLayout] = useLayoutMode();
 
