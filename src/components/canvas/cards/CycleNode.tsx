@@ -9,13 +9,16 @@
 // pop-to-centre transform resized the card mid-take and is gone. Order is taught
 // with highlights now, so the pills carry no number badges. Shift-click an arrow
 // to toggle its animated-dashed style (like the element-connect arrows).
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { type NodeProps } from "@xyflow/react";
-import { GripVertical, Plus, X } from "lucide-react";
+import { Banknote, BookOpen, FileText, GripVertical, Landmark, Plus, Receipt, Scale, Table, X } from "lucide-react";
 
+import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { useCardActions } from "../BaseCard";
-import { EXHIBIT_GLOW } from "../exhibit-highlights";
+import { EXHIBIT_GLOW, useOnExhibitClear } from "../exhibit-highlights";
 import { ExhibitShell, useExhibit, type ExhibitDeclaration } from "../exhibit-base";
+import { ExhibitModeChips, useExhibitModes, type ExhibitModeDef } from "../exhibit-modes";
+import { cycleStepInfo, endOfPeriodStart, type CycleDocIcon } from "../cycle-exhibit-config";
 import { BIG_FONT, DISPLAY_FONT, NEON } from "../theme";
 import { cardId, type CycleElement, type CycleStep } from "../types";
 
@@ -31,7 +34,34 @@ const RY = 236;
 const CYCLE_CSS = `
 @keyframes cyc-dash-march { to { stroke-dashoffset: -32; } }
 .cyc-dash { animation: cyc-dash-march 0.55s linear infinite; }
+@keyframes cyc-pop-in { from { opacity: 0; } }
 `;
+
+// MODE SWITCHER (cycle-modes) — the three CEQ types Lee films for this topic.
+// Chips + M key + orbit state come from the shared exhibit-modes layer.
+const CYCLE_MODES: readonly ExhibitModeDef[] = [
+  { id: "source", label: "Source Docs" },
+  { id: "definitions", label: "Definitions" },
+  { id: "order", label: "Order", orbit: true },
+] as const;
+
+// SOURCE DOCS popover icons — basic line icons, config picks by id.
+const DOC_ICONS: Record<CycleDocIcon, typeof FileText> = {
+  invoice: FileText,
+  receipt: Receipt,
+  check: Banknote,
+  bank: Landmark,
+  journal: BookOpen,
+  ledger: Table,
+  "trial-balance": Scale,
+};
+
+// ORDER-mode period arcs sit just outside the pill ring; labels a bit further.
+const ARC_RX = RX + 72, ARC_RY = RY + 52, LBL_RX = RX + 118, LBL_RY = RY + 92;
+const periodArc = (a0: number, a1: number): string => {
+  const p = (a: number) => `${(CX + ARC_RX * Math.cos(a)).toFixed(1)} ${(CY + ARC_RY * Math.sin(a)).toFixed(1)}`;
+  return `M ${p(a0)} A ${ARC_RX} ${ARC_RY} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${p(a1)}`;
+};
 
 interface Placed extends CycleStep {
   /** angle on the ring, radians (−90° = top, clockwise). */
@@ -93,6 +123,18 @@ export function CycleNode({ id, data, selected }: NodeProps) {
   const seg = (2 * Math.PI) / n;
   const dashed = new Set(d.dashedArrows ?? []);
 
+  // ---- MODE SWITCHER (cycle-modes) ---------------------------------------
+  const { mode, orderTick, orderPlaying } = useExhibitModes(CYCLE_MODES);
+  // SOURCE DOCS / DEFINITIONS popover — one at a time; click again, click
+  // elsewhere on the card, switch modes, or ` all close it.
+  const [popStep, setPopStep] = useState<string | null>(null);
+  useOnExhibitClear(useCallback(() => setPopStep(null), []));
+  useEffect(() => { setPopStep(null); }, [mode]);
+  const orderOn = mode === "order";
+  const orderIdx = ((orderTick % n) + n) % n;
+  // END OF PERIOD begins at the first trial-balance step; −1 ⇒ skip the arcs.
+  const tbStart = endOfPeriodStart(placed.map((s) => s.text));
+
   const setStep = (sid: string, text: string) => update({ steps: steps.map((s) => (s.id === sid ? { ...s, text } : s)) });
   const addStep = () => update({ steps: [...steps, { id: cardId("cy"), text: "New step" }] });
   const removeStep = (sid: string) => { if (steps.length > 1) update({ steps: steps.filter((s) => s.id !== sid) }); };
@@ -110,6 +152,13 @@ export function CycleNode({ id, data, selected }: NodeProps) {
         </div>
       )}
 
+      {/* MODE CHIPS (cycle-modes) — pinned above the exhibit. Authoring chrome:
+          the shared chip row renders nothing on a film surface (M flips modes
+          on camera instead), so Recording Mode capture stays clean. */}
+      <div className="absolute -top-7 left-0" style={{ zIndex: 5 }}>
+        <ExhibitModeChips modes={CYCLE_MODES} />
+      </div>
+
       {/* the callout — TRANSPARENT (Lee, 08-14): pills + arcs float straight over
           the frame's world background (was an opaque navy radial that covered the
           bg watermark — Lee reversed that call). The pills carry their own
@@ -123,6 +172,8 @@ export function CycleNode({ id, data, selected }: NodeProps) {
           background: "transparent",
           border: film ? "none" : "1.5px dashed rgba(252,163,17,0.22)",
         }}
+        // click elsewhere on the card (film) → the mode popover closes
+        onClick={film ? () => setPopStep(null) : undefined}
       >
         <style>{CYCLE_CSS}</style>
         {/* flow arrows — brighter + thicker; shift-click one to toggle animated dashes */}
@@ -166,7 +217,32 @@ export function CycleNode({ id, data, selected }: NodeProps) {
               </path>
             );
           })}
+          {/* ORDER MODE period framing — two subtle dotted arcs just outside the
+              ring: DURING THE PERIOD (Analyze → … → Post) hands off to END OF
+              PERIOD at the first trial-balance step. No TB step ⇒ no arcs. */}
+          {orderOn && tbStart > 0 && (
+            <g style={{ pointerEvents: "none" }}>
+              <path d={periodArc(placed[0].ang + 0.05, placed[tbStart].ang - 0.03)} fill="none" stroke="rgba(244,239,230,0.4)" strokeWidth={2} strokeLinecap="round" strokeDasharray="1 7" style={{ vectorEffect: "non-scaling-stroke" }} />
+              {tbStart < n - 1 && (
+                <path d={periodArc(placed[tbStart].ang + 0.03, placed[n - 1].ang - 0.05)} fill="none" stroke="rgba(252,163,17,0.55)" strokeWidth={2} strokeLinecap="round" strokeDasharray="1 7" style={{ vectorEffect: "non-scaling-stroke" }} />
+              )}
+            </g>
+          )}
         </svg>
+
+        {/* ORDER MODE arc labels — HTML (not textPath: preserveAspectRatio=none
+            would distort SVG text), placed at each arc's midpoint angle. */}
+        {orderOn && tbStart > 0 && (() => {
+          const lbl = (a: number, text: string, color: string) => (
+            <div className="pointer-events-none absolute text-[10px] font-black uppercase" style={{ left: `${((CX + LBL_RX * Math.cos(a)) / VB_W) * 100}%`, top: `${((CY + LBL_RY * Math.sin(a)) / VB_H) * 100}%`, transform: "translate(-50%,-50%)", color, letterSpacing: "0.22em", whiteSpace: "nowrap", textShadow: "0 1px 6px rgba(0,0,0,0.8)" }}>{text}</div>
+          );
+          return (
+            <>
+              {lbl((placed[0].ang + placed[tbStart].ang) / 2, "During the period", "rgba(244,239,230,0.75)")}
+              {tbStart < n - 1 && lbl((placed[tbStart].ang + placed[n - 1].ang) / 2, "End of period", "rgba(252,163,17,0.9)")}
+            </>
+          );
+        })()}
 
         {/* center title */}
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-[26%] text-center">
@@ -197,7 +273,14 @@ export function CycleNode({ id, data, selected }: NodeProps) {
             (the old pop-to-centre resized the card mid-take): lit = glow, unlit
             recedes in opacity, position is constant. */}
         {placed.map((s, i) => {
-          const ns = ex.nodeStyle(s.id);
+          const raw = ex.nodeStyle(s.id);
+          // ORDER MODE: the step under the bolt lights with the shared glow,
+          // merged into the SAME style object — visual only, never written into
+          // the highlight store, so ` and the click-to-highlight states stay
+          // exactly what Lee set, and the render below stays the banked
+          // tease-mode contract (one capped in-place scale, no position writes).
+          const orderLit = orderOn && i === orderIdx;
+          const ns = orderLit ? { ...raw, lit: true, dimmed: false, scale: EXHIBIT_GLOW.litScale, opacity: 1, border: EXHIBIT_GLOW.border, boxShadow: EXHIBIT_GLOW.shadow } : raw;
           const isLit = ns.lit;
           const faded = ns.dimmed;
           return (
@@ -255,7 +338,15 @@ export function CycleNode({ id, data, selected }: NodeProps) {
                   }}
                   title={film ? "Click: normal → highlighted → blurred → normal · ` clears · 0 resets every step" : "Click to edit"}
                   onPointerDown={(e) => e.stopPropagation()}
-                  onClick={film ? ex.nodeClick(s.id) : (e) => { e.stopPropagation(); setEditingStep(s.id); }}
+                  // Film click: the highlight cycle EXACTLY as before, PLUS (in
+                  // SOURCE DOCS / DEFINITIONS mode) the anchored popover toggle.
+                  onClick={film
+                    ? (e) => {
+                        if (e.altKey) return;
+                        ex.nodeClick(s.id)?.(e);
+                        if (mode === "source" || mode === "definitions") setPopStep((prev) => (prev === s.id ? null : s.id));
+                      }
+                    : (e) => { e.stopPropagation(); setEditingStep(s.id); }}
                 >
                   {/* TEASE: the filter goes on the TEXT so the pill keeps a crisp
                       outline — the viewer sees a step is there and cannot read it. */}
@@ -276,6 +367,54 @@ export function CycleNode({ id, data, selected }: NodeProps) {
             </div>
           );
         })}
+
+        {/* ORDER MODE bolt — orbits the oval step to step (~1s dwell each; the
+            interval lives in exhibit-modes). GPU-composited: the wrapper spans
+            the whole container so translate-% equals container-%, and ONLY
+            transform animates. The px term floats it just outside its pill so
+            the orbit reads as riding the oval. Chord between adjacent steps ≈
+            the arc at 7–9 steps; the last→first chord is short, so the loop
+            wraps seamlessly. */}
+        {orderOn && placed.length > 0 && (() => {
+          const b = placed[orderIdx];
+          const dx = Math.cos(b.ang) * 64, dy = Math.sin(b.ang) * 46;
+          return (
+            <div className="pointer-events-none absolute inset-0" style={{ zIndex: 45, transform: `translate(${b.xPct}%, ${b.yPct}%) translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`, transition: "transform 620ms cubic-bezier(0.45, 0, 0.25, 1)", willChange: "transform" }}>
+              <div style={{ position: "absolute", left: 0, top: 0, transform: "translate(-50%, -50%)", filter: "drop-shadow(0 0 10px rgba(252,163,17,0.7))", opacity: orderPlaying ? 1 : 0.92 }}>
+                <BoltBoil height={38} />
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* SOURCE DOCS / DEFINITIONS popover — anchored just outside the clicked
+            step (film surfaces only; authoring clicks still edit). Content comes
+            from cycle-exhibit-config.ts, matched against the authored label. */}
+        {film && !orderOn && popStep && (() => {
+          const p = placed.find((s) => s.id === popStep);
+          if (!p) return null;
+          const info = cycleStepInfo(p.text);
+          const dx = Math.cos(p.ang) * 128, dy = Math.sin(p.ang) * 88;
+          return (
+            <div className="absolute" style={{ left: `${p.xPct}%`, top: `${p.yPct}%`, zIndex: 50, transform: `translate(-50%, -50%) translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`, animation: "cyc-pop-in 160ms ease" }}>
+              <div className="rounded-xl px-3 py-2" style={{ background: "rgba(9,13,26,0.95)", border: "1px solid rgba(252,163,17,0.7)", boxShadow: "0 10px 26px -12px rgba(0,0,0,0.9)", minWidth: 150, maxWidth: 240 }}>
+                <div className="mb-1 text-[8.5px] font-black uppercase tracking-[0.2em]" style={{ color: "#FCA311" }}>{p.text.replace(/\n/g, " ")}</div>
+                {mode === "source"
+                  ? (info && info.docs.length > 0
+                      ? info.docs.map((doc) => {
+                          const Icon = DOC_ICONS[doc.icon] ?? FileText;
+                          return (
+                            <div key={doc.docName} className="flex items-center gap-1.5 py-0.5 text-[12px] font-semibold" style={{ color: "#F4EFE6" }}>
+                              <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: NEON.yellow }} /> {doc.docName}
+                            </div>
+                          );
+                        })
+                      : <div className="text-[11px]" style={{ color: NEON.muted }}>No source docs configured</div>)
+                  : <div className="text-[12px] leading-snug" style={{ color: "#F4EFE6" }}>{info?.definition ?? "No definition configured"}</div>}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* add step (card-actions ⇒ FILM_LOCK_CSS also hides it in the popout) */}
         {!film && (
