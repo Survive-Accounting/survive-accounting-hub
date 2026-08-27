@@ -69,7 +69,9 @@ export const logPracticeEvents = createServerFn({ method: "POST" })
 // ---- "Ask me about this one" ----------------------------------------------------------------------
 /** Routes through the unified intake as kind=question (a PRIORITY kind → founder alert). The
  *  reference (e.g. 3.2.14) rides in `topic`, the shorthand in `chapter`, the stable ids in
- *  `source_path` as ceq:<setId>:<ceqId> so the admin view can group asks per question. */
+ *  `source_path` as ceq:<setId>:<ceqId> so the admin view can group asks per question. The row's
+ *  `source` column is "ask-lee" — the email-gate capture tag — which nothing filters on; the
+ *  per-question grouping keys on source_path and must keep its ceq: prefix. */
 export const askAboutQuestion = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({
     email: z.string().trim().email(),
@@ -91,7 +93,7 @@ export const askAboutQuestion = createServerFn({ method: "POST" })
       kind: "question", email: data.email, name: data.name ?? null,
       campusName: data.campusName ?? null, campusSlug: data.campusSlug ?? null,
       topic: data.reference, chapter: data.shorthand ?? null, note,
-      sourcePath: `ceq:${data.setId}:${data.ceqId}`, isTest: !!data.isTest,
+      sourcePath: `ceq:${data.setId}:${data.ceqId}`, source: "ask-lee", isTest: !!data.isTest,
     });
   });
 

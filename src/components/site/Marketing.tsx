@@ -47,8 +47,13 @@ export const MARKETING_HERO_ID = "marketing-hero";
  *  MOBILE ORDER: headline → promise → built-for → CTAs → trust chips → bolt. The bolt is
  *  branding, not content — it comes from natural DOM order (no order-first), so it can never
  *  push the CTA out of the first viewport. Desktop keeps it as the right column. */
-export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltPick, onChangeSchool, secondaryHref, onSecondary, secondaryLabel, showSecondary = true, onOpenBio, courtesy, rotationCampuses, campusBolt }: {
+export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltPick, onChangeSchool, secondaryHref, onSecondary, secondaryLabel, showSecondary = true, onOpenBio, courtesy, rotationCampuses, campusBolt, compact = false }: {
   kind: "general" | "campus" | "greek";
+  /** EXPERIMENTAL /preview/home: tighter vertical rhythm (no viewport-height reservation, the
+   *  supporting line dropped) so the portal cards under the hero are visible without scrolling.
+   *  Default false — every live page renders exactly as before. The min-height/bolt-width
+   *  overrides for .sa-hero3--compact live in PORTAL_HOME_CSS, injected only by that route. */
+  compact?: boolean;
   /** Verified course code or null — a null degrades copy, never invents a code. */
   code: string | null;
   schoolShort: string | null;
@@ -108,7 +113,7 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
     : "Cram videos + practice exams built for crushing your first accounting course.";
 
   return (
-    <section id={MARKETING_HERO_ID} className="sa-hero3 grid items-center gap-8 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12 lg:py-14" style={{ fontFamily: BRAND_SANS }}>
+    <section id={MARKETING_HERO_ID} className={compact ? "sa-hero3 sa-hero3--compact grid items-center gap-6 py-6 lg:grid-cols-[1.05fr_0.95fr] lg:gap-10 lg:py-8" : "sa-hero3 grid items-center gap-8 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12 lg:py-14"} style={{ fontFamily: BRAND_SANS }}>
       <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
         {greek && (
           <p className="mb-3 text-[12px] font-black uppercase tracking-[0.13em]" style={{ color: "var(--text-muted)" }}>
@@ -120,13 +125,16 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
           {headline}
         </h1>
 
-        {/* THE PROMISE — the benefit line, weighted ABOVE the description. */}
-        <p className="mt-5 text-[19px] font-extrabold leading-snug sm:text-[22px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
+        {/* THE PROMISE — the benefit line, weighted ABOVE the description. Compact keeps the
+            promise and drops the description: the subhead is one line there. */}
+        <p className={compact ? "mt-3 text-[19px] font-extrabold leading-snug sm:text-[22px]" : "mt-5 text-[19px] font-extrabold leading-snug sm:text-[22px]"} style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
           Practice what gets tested. Score higher.
         </p>
-        <p className="mt-2 max-w-[24ch] text-[15px] leading-snug sm:max-w-[42ch] sm:text-[16.5px]" style={{ color: "var(--brand-cream)", opacity: 0.66 }}>
-          {supporting}
-        </p>
+        {!compact && (
+          <p className="mt-2 max-w-[24ch] text-[15px] leading-snug sm:max-w-[42ch] sm:text-[16.5px]" style={{ color: "var(--brand-cream)", opacity: 0.66 }}>
+            {supporting}
+          </p>
+        )}
 
         <div className="mt-7 flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row lg:justify-start">
           <button

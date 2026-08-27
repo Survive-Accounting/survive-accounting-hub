@@ -47,6 +47,7 @@ export { activeSlots, dealCentre, defaultMemoPos, PALETTE_N, paletteSlots, rackO
 import { CALLOUT_KINDS, CalloutBody, calloutKindForCategory, nextCalloutKind } from "./cards/CalloutCard";
 import { captureAcceptable, captureCssSize, captureFeasibility, physicalSize, snapCaptureSize, verticalObsNote } from "./capture-window";
 import { clearExhibitHighlights } from "./exhibit-highlights";
+import { cycleExhibitModes, exhibitDepthKey, exhibitOrderKey, exhibitRevealKey } from "./exhibit-modes";
 import { NOTE_EYEBROW } from "./frame-copy";
 import { BOSS_REVEAL_CSS, REVEAL_MS, SCRIM_ALPHA, bossLabel, labelSize, revealZone } from "./boss-reveal";
 import { unlockSfx } from "./sfx";
@@ -2165,6 +2166,20 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
         if ((e.key === "r" || e.key === "R") && !e.ctrlKey && !e.metaKey && !e.altKey) { onExitRecording?.(); return; }
         if (isSpace) { setDealAnim("in"); repeatFiringRef.current = false; if (e.shiftKey) onPrevQuestion?.(); else onNextQuestion?.(); return; }
         if (e.key === "PageDown" || e.key === "PageUp") { if (!e.repeat) startHold(e.key === "PageDown" ? 1 : -1, win); return; } // hard push + hold-to-repeat (tease shot)
+        // EXHIBIT MODES (cycle-modes): M flips the mounted exhibit's mode chips on
+        // camera (chips themselves are authoring chrome and never render here).
+        // In ORDER mode the orbit takes Tab/Shift+Tab (manual bolt step — pauses
+        // playback) and P (play/pause) — checked BEFORE the walk so the bolt owns
+        // Tab only while ORDER is up; Enter still walks. ` (below) resets the
+        // bolt to step 1, paused, via the exhibit clear bus.
+        if ((e.key === "m" || e.key === "M") && !e.ctrlKey && !e.metaKey && !e.altKey) { cycleExhibitModes(); return; }
+        if (e.key === "Tab" && exhibitOrderKey(e.shiftKey ? "back" : "step")) return;
+        // AUTHORED REVEAL (Bible law 4): Tab steps a mounted reveal-sequenced
+        // exhibit; at either end of the sequence the key falls through to the
+        // walk. D toggles the exhibit's depth layer.
+        if (e.key === "Tab" && exhibitRevealKey(e.shiftKey ? "back" : "step")) return;
+        if ((e.key === "d" || e.key === "D") && !e.ctrlKey && !e.metaKey && !e.altKey) { exhibitDepthKey(); return; }
+        if ((e.key === "p" || e.key === "P") && !e.ctrlKey && !e.metaKey && !e.altKey) { exhibitOrderKey("toggle"); return; }
         if (e.key === "Enter" || e.key === "Tab") { if (e.shiftKey) retreat(); else advance(); return; } // Tab = the walk (P3)
         if (e.key === "ArrowDown" || e.key === "ArrowRight") { elemNav(1); return; }
         if (e.key === "ArrowUp" || e.key === "ArrowLeft") { elemNav(-1); return; }
@@ -2211,6 +2226,18 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
       // the most recent pending take, F10 keeps it. The inbox owns the action.
       if (e.key === "F8" || e.key === "F10") { e.preventDefault(); e.stopImmediatePropagation(); triageLatest(e.key === "F8" ? "trash" : "keep"); return; }
       if (filmWindow && (e.key === "f" || e.key === "F") && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); e.stopImmediatePropagation(); toggleFilmFullscreen(); return; } // F = element fullscreen on the STABLE wrapper (C1)
+      // EXHIBIT MODES (cycle-modes): same film-controller keys as the recording
+      // branch — M flips modes; ORDER mode takes Tab (orbit step) and P
+      // (play/pause). Each consumes ONLY when a moded exhibit is mounted (and,
+      // for Tab/P, its ORDER mode is up) — otherwise the walk keeps Tab and
+      // M/P stay free.
+      if ((e.key === "m" || e.key === "M") && !e.ctrlKey && !e.metaKey && !e.altKey && cycleExhibitModes()) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+      if (e.key === "Tab" && !e.ctrlKey && !e.metaKey && !e.altKey && exhibitOrderKey(e.shiftKey ? "back" : "step")) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+      // AUTHORED REVEAL: same contract as the recording branch — Tab consumed
+      // only mid-sequence, D toggles the depth layer, walk keeps Tab otherwise.
+      if (e.key === "Tab" && !e.ctrlKey && !e.metaKey && !e.altKey && exhibitRevealKey(e.shiftKey ? "back" : "step")) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+      if ((e.key === "d" || e.key === "D") && !e.ctrlKey && !e.metaKey && !e.altKey && exhibitDepthKey()) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+      if ((e.key === "p" || e.key === "P") && !e.ctrlKey && !e.metaKey && !e.altKey && exhibitOrderKey("toggle")) { e.preventDefault(); e.stopImmediatePropagation(); return; }
       if (e.key === "Tab") { e.preventDefault(); e.stopImmediatePropagation(); if (e.shiftKey) retreat(); else advance(); return; } // Tab = the walk (P3)
       if (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight") {
         // ELEMENT NAV (P3) — arrows select stem/choices. The authoring memo-nudge

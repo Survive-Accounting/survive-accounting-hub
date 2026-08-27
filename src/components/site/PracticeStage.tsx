@@ -12,6 +12,7 @@ import { CircleCheck, CircleX, Loader2, MessageCircle, RotateCcw } from "lucide-
 
 import { fetchSetPractice, type PracticeQuestion } from "@/lib/student.functions";
 import { askAboutQuestion, logPracticeEvents, type AttemptEvent } from "@/lib/practice.functions";
+import { readStudentEmail, rememberStudentEmail } from "@/lib/student-email";
 import { supabase } from "@/integrations/supabase/client";
 import { track } from "@/lib/analytics";
 
@@ -420,25 +421,49 @@ function QuestionNav({ questions, currentIndex, results, answered, onJump, onClo
   );
 }
 
-// ---- "Ask Lee about this question" — the reference (3.2.14) + shorthand ride INTO the
-//      submission but are never shown; routes through the unified intake. Closable with ×;
-//      typed text survives a close/reopen (the collapsed control says "(draft)"). -------------
+// ---- "Ask Lee about this question" — asking now asks for an email FIRST: a fair trade for
+//      Lee's time, and the first soft identity bridge. If we already have an address for this
+//      visitor (they subscribed or asked before — sa-student-email, see lib/student-email —
+//      or they're signed in), the field doesn't appear and questions submit as before. No
+//      password, no account, no verification email: the identity ladder stays parked; this is
+//      a mailbox, not an auth system. The reference (3.2.14) + shorthand still ride INTO the
+//      submission (source-tagged "ask-lee") but are never shown. Closable with ×; typed text
+//      survives a close/reopen (the collapsed control says "(draft)"). -------------
 function AskBox({ reference, shorthand, prompt, setId, ceqId, campusName, campusSlug, isTest }: { reference: string; shorthand: string | null; prompt: string; setId: string; ceqId: string; campusName?: string | null; campusSlug?: string | null; isTest?: boolean }) {
   const [open, setOpen] = useState(false);
-  const [email, setEmail] = useState(() => { try { return localStorage.getItem("sa-student-email") ?? ""; } catch { return ""; } });
+  // AskBox only mounts after an answer resolves (a client interaction), so reading storage in
+  // the initializer cannot cause a hydration mismatch. On the server it just yields null.
+  const [knownEmail, setKnownEmail] = useState<string | null>(() => readStudentEmail());
+  const [email, setEmail] = useState(() => readStudentEmail() ?? "");
+  // "change" reopens the field for someone whose remembered address is stale.
+  const [changing, setChanging] = useState(false);
   const [msg, setMsg] = useState("");
   const [state, setState] = useState<"idle" | "busy" | "sent" | "error">("idle");
   useEffect(() => { setOpen(false); setMsg(""); setState("idle"); }, [ceqId]);
+  // A signed-in student's session email counts as known — they already handed it over for the
+  // magic link, and asking again would be the exact friction this change removes.
+  useEffect(() => {
+    if (knownEmail) return;
+    let live = true;
+    void supabase.auth.getSession().then(({ data }) => {
+      const e = (data.session?.user?.email ?? "").trim();
+      if (live && e) { setKnownEmail(e); setEmail(e); }
+    }).catch(() => { /* signed out — the field asks */ });
+    return () => { live = false; };
+  }, [knownEmail]);
+  const askEmail = !knownEmail || changing;
   const send = async () => {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim()) || !msg.trim()) { setState("error"); return; }
     setState("busy");
     try {
-      try { localStorage.setItem("sa-student-email", email.trim()); } catch { /* ignore */ }
+      rememberStudentEmail(email.trim());
       await askAboutQuestion({ data: { email: email.trim(), message: msg.trim(), reference, shorthand, prompt, setId, ceqId, campusName: campusName ?? null, campusSlug: campusSlug ?? null, isTest: !!isTest } });
+      setKnownEmail(email.trim());
+      setChanging(false);
       setState("sent");
     } catch (e) { console.warn("ask failed", e); setState("error"); }
   };
-  if (state === "sent") return <p className="mt-2 px-1 text-[12px] font-semibold" style={{ color: C.green }}>✓ Sent — I'll answer this one myself, usually same day. — Lee</p>;
+  if (state === "sent") return <p className="mt-2 px-1 text-[12px] font-semibold" style={{ color: C.green }}>Got it. I answer between filming sessions — check your email. ⚡</p>;
   if (!open) {
     return (
       <button className="mt-2 flex items-center gap-1.5 px-1 text-[12px] font-bold" style={{ color: C.yellow, minHeight: 32 }} onClick={() => setOpen(true)}>
@@ -455,10 +480,20 @@ function AskBox({ reference, shorthand, prompt, setId, ceqId, campusName, campus
       </div>
       <textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={3} placeholder="How can I help?" className="mt-2 w-full rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: "#0e131b", color: C.text, border: `1px solid ${C.border}` }} />
       <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-        <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" inputMode="email" placeholder="you@school.edu — where I reply" className="min-w-0 flex-1 rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: "#0e131b", color: C.text, border: `1px solid ${C.border}`, minHeight: 44 }} />
-        <button disabled={state === "busy"} onClick={() => void send()} className="rounded-lg px-4 text-[12px] font-black uppercase tracking-wide disabled:opacity-50" style={{ background: C.yellow, color: "#0B1322", minHeight: 44 }}>{state === "busy" ? "…" : "Send"}</button>
+        {askEmail && (
+          <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" inputMode="email" placeholder="Leave an email so I can answer you" className="min-w-0 flex-1 rounded-lg px-3 py-2 text-[13px] outline-none" style={{ background: "#0e131b", color: C.text, border: `1px solid ${C.border}`, minHeight: 44 }} />
+        )}
+        <button disabled={state === "busy"} onClick={() => void send()} className={`rounded-lg px-4 text-[12px] font-black uppercase tracking-wide disabled:opacity-50${askEmail ? "" : " flex-1 sm:flex-none sm:ml-auto"}`} style={{ background: C.yellow, color: "#0B1322", minHeight: 44 }}>{state === "busy" ? "…" : "Send"}</button>
       </div>
-      {state === "error" && <p className="mt-1.5 text-[11px]" style={{ color: "#F3C6CC" }}>Add a message and a real email so I can reply.</p>}
+      {/* The address is used, so it is SHOWN — silently mailing a stored value would be the
+          creepy version of convenient. One quiet line, one way to change it. */}
+      {!askEmail && (
+        <p className="mt-1.5 px-0.5 text-[11px]" style={{ color: C.muted }}>
+          I&apos;ll answer at {knownEmail}
+          <button type="button" className="ml-1.5 underline underline-offset-2" style={{ color: C.yellow }} onClick={() => setChanging(true)}>change</button>
+        </p>
+      )}
+      {state === "error" && <p className="mt-1.5 text-[11px]" style={{ color: "#F3C6CC" }}>{askEmail ? "Add a message and a real email so I can answer you." : "Add a message so I know what to answer."}</p>}
     </div>
   );
 }

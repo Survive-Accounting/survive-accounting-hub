@@ -9,6 +9,7 @@
 import { useEffect, useState } from "react";
 
 import { contactKind, LAUNCH_WINDOW } from "@/lib/launch";
+import { rememberStudentEmail } from "@/lib/student-email";
 import { submitNotify } from "@/lib/syllabus.functions";
 import { examRequest, notifyNote } from "@/lib/notify-request";
 import type { School } from "@/routes/landing";
@@ -49,6 +50,8 @@ export function FutureExamWaitlist({ exam, school, professor, courseCode, isTest
         note: notifyNote(req),
         isTest: !!isTest,
       } });
+      // The soft identity bridge: a subscribed email means Ask Lee never re-asks for it.
+      if (contactKind(contact) === "email") rememberStudentEmail(contact.trim());
       setState("sent");
     } catch (e) {
       setState("error");

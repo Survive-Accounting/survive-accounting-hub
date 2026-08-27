@@ -1,3 +1,80 @@
+# "The Rulebook & The Cops" — standards & regulation exhibit (branch `standards-exhibit`)
+
+FASB ──writes──▶ GAAP ◀──enforces── SEC, as a relationship cheat sheet. New element kind
+`standards`, config-driven (`standards-exhibit-config.ts`, copy accuracy-audited and PINNED by
+tests: Securities EXCHANGE Act 1934 vs Securities Act 1933; GASB owns governments, GAAP copy
+never claims them; the fake government-GAAP suffix term is never rendered; AICPA = exam+ethics,
+license = state boards; Dodd-Frank/CFPB/CFTC omitted by design as commented config).
+
+- **Cram layer**: the chain + role captions (THE WRITERS / THE RULEBOOK / THE COPS), all MUST
+  KNOW. Click a tile → brightest spotlight, its arrows light, rest mutes, WHAT/DOES micro-lines
+  reveal with the 【exam-answer phrase】 in gold (Bible law 2) — the private-sector vs
+  government trap highlighted on both sides.
+- **A+ layer** (D on camera, button elsewhere; never in the reveal): GASB · IASB─writes→IFRS
+  mini-chain (the visual rhyme) · PCAOB · AICPA · FAF (spotlighting FAF draws measured connector
+  arcs to FASB + GASB) · SEC→FASB delegation line · two WHY cause→effect beats.
+- **Reveal**: blank → GAAP → +FASB+arrow → +SEC+arrow → +captions on Tab (shared reveal layer);
+  ` resets to blank + closes A+.
+- Tests `standards-exhibit.test.ts` (14): audited copy + corrections pinned, cue placement,
+  reveal shape. Browser QA on /exhibit-demo: full loop verified incl. FAF arcs (2 drawn);
+  the borderColor console warning on dev pages is PRE-EXISTING (fires on /callout-demo too).
+
+# "Who's It For?" — users + branches exhibit (branch `users-exhibit`)
+
+Internal/external users + financial/managerial accounting as ONE mirrored exhibit — the WALL
+divider is the mental model. New canvas element kind `users` (config-driven: content lives in
+`users-exhibit-config.ts`, accuracy fixes are config edits, scene data stores geometry only).
+
+- **Spotlight**: click any element → its whole side illuminates, the other mutes (0.32 +
+  desaturate), clicked element brightest; chips also reveal their one-line want; single-select
+  over the shared highlight store so ` and 0 clear it for free.
+- **Shared reveal layer** (`exhibit-modes.ts` grew a REVEAL section): authored 4-state sequence
+  (wall+headers → chips → serves+plates → mnemonics) on Tab/Shift+Tab, FILM SURFACES ONLY —
+  authoring + student always render full, so ` can never strand a blank exhibit. Tab falls
+  through to the walk at either end. D toggles the HOW THEY DIFFER strip (4 opposing pairs,
+  pair-lighting; never part of the sequence).
+- **Importance cues** (`exhibit-cues.tsx`, shared, first use): MUST KNOW / EASY POINT /
+  A+ DETAIL corner tags, session-dismissible, deliberately NOT on the ` bus. Board of
+  Directors carries the professor-variance A+ line.
+- Registered in types/templates/stage-elements/canvas nodeTypes; `exhibit-demo` dev lab now
+  mounts the card (wide + narrow) with film keys as the QA surface.
+- Tests `users-exhibit.test.ts`: classification audit pinned, text diet, reveal shape, key
+  precedence. Browser QA on /exhibit-demo: all interactions verified headless; screenshots
+  unavailable unattended (pane not displayed — known limitation).
+
+# Cycle modes — the Accounting Cycle exhibit's 3-CEQ mode switcher (branch `exhibit-lab-v2`)
+
+SOURCE DOCS · DEFINITIONS · ORDER — the exhibit tunes itself to the three CEQ types Lee films for
+this topic. Smallest viable version per the studio timebox; click-to-highlight untouched in every mode.
+
+- **Shared layer** `exhibit-modes.tsx` — mode chip row (authoring chrome, never on camera) + a
+  realm-shared module store (same pattern as the highlight clear bus, so authoring canvas, studio
+  preview, and film surfaces stay on the same mode) + the ORDER orbit state. The cycle card
+  *declares* `CYCLE_MODES`; nothing existing was refactored.
+- **Config** `cycle-exhibit-config.ts` — authorable per-step `{docName, icon}` source docs and
+  cram-version definitions, matched to authored step labels by ORDERED keyword rows
+  (collision-audited: post-closing → post, unadjusted → adjusted, plain "Trial Balance" last).
+  Also derives where END OF PERIOD begins (the first trial-balance step).
+- **SOURCE DOCS / DEFINITIONS** — a film click still runs the highlight cycle exactly as before,
+  PLUS a popover anchored just outside the clicked step (doc rows with lucide line icons, or the
+  one-liner definition). Click again / click elsewhere / mode switch / ` closes it.
+- **ORDER** — the boiling brand bolt orbits the oval step to step (~1s dwell; chord ≈ arc at 7–9
+  steps, last→first chord is short so the loop wraps seamlessly). The current step lights with the
+  shared glow merged into the same `ns` object — never written to the highlight store, and the
+  tease-mode source pins stay byte-identical. Dotted DURING THE PERIOD / END OF PERIOD arcs sit
+  outside the ring and hand off at the first TB step; no TB step ⇒ no arcs. GPU-composited: one
+  transform transition on a full-size wrapper (translate-% = container-%).
+- **Keys (binding audit)** — `M` cycles modes (was unbound in both keymaps; consumed only while a
+  moded exhibit is mounted). In ORDER mode `Tab`/`Shift+Tab` step the bolt (a manual step pauses
+  playback) and `P` plays/pauses — both checked BEFORE the Tab walk in BOTH the recording branch
+  and the film-popout branch, so the walk keeps Tab everywhere else; Enter still walks. `` ` ``
+  resets the bolt to step 1, paused, via the exhibit clear bus (`0` reaches it too — same bus).
+- Tests `exhibit-modes.test.ts`: mode-cycle order, both cycle vocabularies (7-step template +
+  9-step Lab labels) land on the right config entries, period-handoff indices, text diet, and
+  key-precedence / film-safety source pins. Full canvas suite: 1222 pass, 0 fail.
+
+Skipped per spec: vertical-specific work, extra modes, drag, probe revival.
+
 # Ledger exhibits — Journal Entry · T-Accounts · Financial Statements (branch `exhibit-lab-v2`)
 
 The three tools Lee remembered from earlier versions of the app, unearthed, rebuilt on the Lab's
