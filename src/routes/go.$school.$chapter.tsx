@@ -45,14 +45,16 @@ import { ChapterAccess } from "@/components/site/ChapterAccess";
 import { getGoChapter, goPath, listGoSchools, tagChapterMember, logGreekEvent } from "@/lib/greek-go.functions";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { readCampusPrefs } from "@/lib/campus-prefs.functions";
-import { chapterShortName } from "@/components/site/ChapterShare";
+import { chapterShortName, chapterUrl } from "@/components/site/ChapterShare";
+import { ChapterDoors, SHARE_ANCHOR } from "@/components/site/chapter/ChapterDoors";
+import { scrollToId } from "@/lib/ui-scroll";
 import { canonicalSchoolName } from "@/lib/schools";
 import { HOME_OG, ogMeta } from "@/lib/og";
 import { LandingPage } from "./landing";
 
 /** Where both hero buttons scroll to. Ids live here so the hero and the sections agree. */
 export const EXAM_ANCHOR = "exam1";
-export const ACCESS_ANCHOR = "chapter-access";
+export const ACCESS_ANCHOR = SHARE_ANCHOR;
 
 export const Route = createFileRoute("/go/$school/$chapter")({
   // The course code is fetched HERE too, not left to a client query. Without it the headline
@@ -102,6 +104,16 @@ function GoNotFoundRoute() {
   return <GoNotFound schoolSlug={school} />;
 }
 
+/** The share stamp on the current URL, or null. Reads `via` first, then the legacy `s=flyer`
+ *  that every already-printed flyer QR carries. */
+function readVia(): "link" | "groupme" | "flyer" | null {
+  if (typeof window === "undefined") return null;
+  const q = new URLSearchParams(window.location.search);
+  const v = q.get("via");
+  if (v === "link" || v === "groupme" || v === "flyer") return v;
+  return q.get("s") === "flyer" ? "flyer" : null;
+}
+
 function GoChapterPage() {
   const { school, chapter } = Route.useParams();
   const { chapter: ch, code, profSkip } = Route.useLoaderData();
@@ -117,7 +129,10 @@ function GoChapterPage() {
       if (sessionStorage.getItem(key)) return;
       sessionStorage.setItem(key, "1");
     } catch { /* private mode — log it and move on */ }
-    void logGreekEvent({ data: { kind: "visit", schoolSlug: school, chapterSlug: chapter } }).catch(() => {});
+    // WHERE THIS VISIT CAME FROM. `via` is the current stamp (share kit + new flyers); `s=flyer`
+    // is read as a legacy alias so the flyers already printed and pinned up in chapter houses
+    // keep attributing. Anything unrecognised is dropped rather than logged as junk.
+    void logGreekEvent({ data: { kind: "visit", schoolSlug: school, chapterSlug: chapter, via: readVia() } }).catch(() => {});
   }, [ch, school, chapter]);
 
   // Fire-and-forget member attribution. Saying "start Exam 1" on this chapter's own URL is the
@@ -125,6 +140,21 @@ function GoChapterPage() {
   // free exam they came for.
   const tagMember = () => {
     void tagChapterMember({ data: { schoolSlug: school, chapterSlug: chapter, source: "link" } }).catch(() => {});
+  };
+
+  // THE RIGHT DOOR. On a phone the fastest share is no UI at all: hand the native sheet the
+  // chapter link and let them pick GroupMe/Messages themselves. The kit still renders below for
+  // everything the sheet can't do (the flyer, the GroupMe wording), and desktop just scrolls to
+  // it. A cancelled share is not an error — the section is already on screen either way.
+  const openShare = () => {
+    const url = chapterUrl(school, chapter, "link");
+    const canShare = typeof navigator !== "undefined" && typeof navigator.share === "function"
+      && typeof window !== "undefined" && window.matchMedia?.("(max-width: 639px)").matches;
+    if (canShare) {
+      void navigator.share({ title: "Survive Accounting", url }).catch(() => {});
+      void logGreekEvent({ data: { kind: "copy_link", schoolSlug: school, chapterSlug: chapter, via: "link" } }).catch(() => {});
+    }
+    scrollToId(SHARE_ANCHOR);
   };
 
   // AN UNKNOWN CHAPTER IS SAID OUT LOUD (see notFoundComponent). These URLs go out in outreach; a
@@ -155,6 +185,17 @@ function GoChapterPage() {
           accessAnchor: ACCESS_ANCHOR,
         } : undefined}
         onStartExam={tagMember}
+        // THE TWO DOORS replace the hero CTA row + big bolt (2026-08-28). Left door = the same
+        // action the old "Start Exam 1 Free" had (attribution + scroll to the player).
+        greekDoors={({ onStart }) => (
+          <ChapterDoors
+            code={code}
+            letters={(ch.letters ?? "").trim() || chapterShortName(ch.chapterName, ch.letters, ch.nickname)}
+            sponsored={ch.sponsored}
+            onStartExam={onStart}
+            onShare={openShare}
+          />
+        )}
         chapterAccess={ch ? (
           <ChapterAccess
             id={ACCESS_ANCHOR}

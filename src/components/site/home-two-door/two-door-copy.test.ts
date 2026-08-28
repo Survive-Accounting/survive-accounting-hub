@@ -19,10 +19,12 @@ describe("course code token", () => {
 });
 
 describe("left door", () => {
-  test("button: Survive <code> →", () => {
-    expect(soloButtonLabel("ACCY 201")).toBe(`Survive ACCY${NBSP}201 →`);
+  // ONE-CODE RULE: on the home page the HEADLINE carries the code, so the button must not.
+  test("button carries no course code — the headline is this block's one mention", () => {
+    expect(soloButtonLabel()).toBe("Start cramming →");
+    expect(soloButtonLabel()).not.toContain("ACCY");
   });
-  test("support: muted sentence + strong free line", () => {
+  test("support: muted sentence keeps the code + strong free line", () => {
     const s = soloSupport("ACCY 201");
     expect(s.muted).toBe(`Cram-style videos & practice for ACCY${NBSP}201.`);
     expect(s.strong).toBe("Exam 1 is free.");

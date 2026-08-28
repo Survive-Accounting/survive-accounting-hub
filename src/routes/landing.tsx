@@ -63,6 +63,7 @@ import {
 } from "@/components/site/Marketing";
 import { CampusProvider, useCampus } from "@/lib/campus-context";
 import { nbspCode, nbspCodeOrNull } from "@/lib/course-code";
+import { DOOR_CARD_CSS, DOOR_CTA_VARS } from "@/components/site/home-two-door/DoorCard";
 import type { PlannerV2Bridge } from "@/components/player-v2/plan-model";
 import { readStoredCampus, rememberCampus, rememberProfSkip, SKIPPED, NOT_LISTED } from "@/lib/campus-prefs";
 import { Footer } from "@/components/site/SiteFooter";
@@ -191,6 +192,10 @@ interface LandingProps {
    *  topic-complete interstitial — WITHOUT forking the player. Type-only import: the V2 UI
    *  never enters the live bundle. */
   plannerV2?: PlannerV2Bridge;
+  /** CHAPTER PAGE DOORS (2026-08-28) — the two shared door cards render in the hero INSTEAD of
+   *  the CTA row + big bolt. A render function, not a node, because the left door needs the
+   *  hero's own start handler (scroll to player + greek member attribution). */
+  greekDoors?: (ctx: { onStart: () => void }) => React.ReactNode;
 }
 
 export function LandingPage(props: LandingProps = {}) {
@@ -202,7 +207,7 @@ export function LandingPage(props: LandingProps = {}) {
   );
 }
 
-function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlug, greek, onStartExam, chapterCount, greekOrg, greekNav, videoGate, storedCampusId, profSkipFor, demoContext, plannerV2 }: LandingProps) {
+function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlug, greek, onStartExam, chapterCount, greekOrg, greekNav, videoGate, storedCampusId, profSkipFor, demoContext, plannerV2, greekDoors }: LandingProps) {
   // M1.4 — paint html/body navy so Safari's overscroll rubber-band matches the page instead
   // of flashing the light default at the top and bottom edges.
   useNavyDocument();
@@ -540,7 +545,10 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
   };
 
   return (
-    <div style={{ ...frameThemeVars(theme), background: "var(--bg-page)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "clip", ...(campusBolt ? { ["--sa-bolt-1"]: campusBolt.c1, ["--sa-bolt-2"]: campusBolt.c2 } as React.CSSProperties : {}) }}>
+    <div style={{ ...frameThemeVars(theme), background: "var(--bg-page)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "clip", ...(campusBolt ? { ["--sa-bolt-1"]: campusBolt.c1, ["--sa-bolt-2"]: campusBolt.c2 } as React.CSSProperties : {}),
+      // The two doors bring their own CTA tokens — published only on a page that renders them.
+      ...(greekDoors ? DOOR_CTA_VARS : {}) }}>
+      {greekDoors && <style>{DOOR_CARD_CSS}</style>}
       <style>{ANIMATED_CAMPUS_BOLT_CSS}</style>
       <style>{MARKETING_CSS}</style>
       <style>{`
@@ -586,6 +594,7 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
             the player, plus greek member attribution when the route wired it. */}
         <MarketingHero
           kind={heroKind}
+          doors={greekDoors ? greekDoors({ onStart: heroStart }) : undefined}
           code={heroCode}
           schoolShort={heroSchoolName}
           rotationCampuses={rotationCampuses}

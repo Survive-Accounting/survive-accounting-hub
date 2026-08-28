@@ -57,6 +57,10 @@ export function flyerTarget(i: FlyerInput): string {
   // (or campus) page, so the student sees nothing different; only the cookie does.
   if (i.refCode) return `https://surviveaccounting.com/r/${i.refCode}`;
   return i.chapterSlug
+    // ?s=flyer IS the flyer's attribution stamp and always has been — the /go page reads it as
+    // the "flyer" share source alongside ?via=link / ?via=groupme (see readVia there). Deliberately
+    // NOT renamed to via=: every flyer already printed and pinned up in a chapter house carries
+    // this exact param, and a rename would silently orphan all of them.
     ? `https://surviveaccounting.com/go/${i.schoolSlug}/${i.chapterSlug}?s=flyer`
     : `https://surviveaccounting.com/${i.schoolSlug}?s=flyer`;
 }
