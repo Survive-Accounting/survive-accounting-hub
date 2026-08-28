@@ -112,7 +112,14 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
   const openScope = () => { track("homepage_course_scope_opened", ctx()); setScopeOpen(true); };
 
   return (
-    <div style={{ ...frameThemeVars(theme), background: "var(--bg-page)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "clip" }}>
+    <div style={{
+      ...frameThemeVars(theme), background: "var(--bg-page)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "clip",
+      // H2 CTA tokens — the two doors' solid fills. Crimson/white solo, powder/navy chapter.
+      ["--cta-solo-bg" as string]: "#CE1126",
+      ["--cta-solo-fg" as string]: "#FFFFFF",
+      ["--cta-chapter-bg" as string]: "#A8D4F0",
+      ["--cta-chapter-fg" as string]: "#0F1A2E",
+    }}>
       <style>{ANIMATED_CAMPUS_BOLT_CSS}</style>
       <style>{MARKETING_CSS}</style>
       <style>{TWO_DOOR_CSS}</style>
@@ -224,7 +231,8 @@ const DOOR_CARD: React.CSSProperties = {
   flexDirection: "column",
   alignItems: "center",
   textAlign: "center",
-  boxShadow: "0 24px 60px -30px rgba(0,0,0,0.7)",
+  // H2: the drop + a soft ambient ring around the border (Speechnotes-style float, subtle).
+  boxShadow: "0 24px 60px -30px rgba(0,0,0,0.7), 0 4px 24px -4px rgba(0,0,0,0.45)",
 };
 
 /** ONE internal grammar for both cards (FINAL MILE H1 order):
@@ -287,7 +295,7 @@ function TwoDoorCards({ code, pinnedSchoolId, onSolo, soloHref, onChapter }: {
 
   return (
     <section id={DOORS_ID} aria-label="Choose how you want to study" className="sa-anchor" style={{ fontFamily: BRAND_SANS }}>
-      <div className="mx-auto grid w-full max-w-[880px] gap-4 sm:grid-cols-2 sm:gap-5">
+      <div className="mx-auto grid w-full max-w-[880px] gap-6 sm:grid-cols-2 sm:gap-9">
         {/* LEFT DOOR — solo students. First in DOM so it stacks first on mobile. */}
         <DoorCard
           icon={
@@ -302,7 +310,7 @@ function TwoDoorCards({ code, pinnedSchoolId, onSolo, soloHref, onChapter }: {
                 href={soloHref}
                 onClick={onSolo}
                 className="inline-flex items-center justify-center transition-transform hover:scale-[1.02] focus-visible:ring-2"
-                style={{ ...BTN_BASE, background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.55)" }}
+                style={{ ...BTN_BASE, background: "var(--cta-solo-bg)", color: "var(--cta-solo-fg)" }}
               >
                 {soloButtonLabel(code)}
               </a>
@@ -311,7 +319,7 @@ function TwoDoorCards({ code, pinnedSchoolId, onSolo, soloHref, onChapter }: {
                 type="button"
                 onClick={onSolo}
                 className="transition-transform hover:scale-[1.02] focus-visible:ring-2"
-                style={{ ...BTN_BASE, background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.55)" }}
+                style={{ ...BTN_BASE, background: "var(--cta-solo-bg)", color: "var(--cta-solo-fg)" }}
               >
                 {soloButtonLabel(code)}
               </button>
@@ -335,7 +343,7 @@ function TwoDoorCards({ code, pinnedSchoolId, onSolo, soloHref, onChapter }: {
               type="button"
               onClick={() => onChapter("button")}
               className="transition-transform hover:scale-[1.02] focus-visible:ring-2"
-              style={{ ...BTN_BASE, background: "transparent", border: "1.5px solid var(--brand-cream)", color: "var(--brand-cream)" }}
+              style={{ ...BTN_BASE, background: "var(--cta-chapter-bg)", color: "var(--cta-chapter-fg)" }}
             >
               Find your chapter →
             </button>
@@ -538,7 +546,7 @@ const TWO_DOOR_CSS = `
 
 /* DOOR CARDS — one hover response for both: a hair of lift, nothing else moves. */
 .sa-door-card { transition: transform 180ms ease, box-shadow 180ms ease; }
-.sa-door-card:hover { transform: translateY(-3px); box-shadow: 0 30px 70px -28px rgba(0,0,0,0.8); }
+.sa-door-card:hover { transform: translateY(-3px); box-shadow: 0 30px 70px -28px rgba(0,0,0,0.8), 0 4px 24px -4px rgba(0,0,0,0.45); }
 @media (prefers-reduced-motion: reduce) {
   .sa-door-card, .sa-door-card:hover { transform: none; transition: none; }
 }
