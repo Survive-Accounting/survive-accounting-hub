@@ -25,6 +25,7 @@ import { UsersNode } from "./cards/UsersNode";
 import { StandardsNode } from "./cards/StandardsNode";
 import { BasisNode } from "./cards/BasisNode";
 import { CareersNode } from "./cards/CareersNode";
+import { ClassificationNode } from "./cards/ClassificationNode";
 import { MemoCardNode } from "./cards/MemoCardNode";
 import { ComputationCardNode, TAccountCardNode, MemorizeCardNode } from "./cards/OtherCards";
 import {
@@ -53,6 +54,7 @@ export const STAGE_ELEMENTS: StageElementSpec[] = [
   { label: "Rulebook & Cops", group: "Teaching", make: () => blankCard("standards"), size: { w: 960, h: 540 } },
   { label: "When It Counts", group: "Teaching", make: () => blankCard("basis"), size: { w: 960, h: 560 } },
   { label: "Accounting Careers", group: "Teaching", make: () => blankCard("careers"), size: { w: 1000, h: 600 } },
+  { label: "5 Types of Accounts", group: "Teaching", make: () => blankCard("classification"), size: { w: 1100, h: 620 } },
 
   // — Text: plain copy furniture
   { label: "Big Text", group: "Text", make: () => ({ kind: "heading", text: "A = L + E", level: 1, spartan: true, underline: false, w: 480, h: 150 }) },
@@ -124,6 +126,7 @@ export const STAGE_NODE_TYPES = {
   standards: StandardsNode,
   basis: BasisNode,
   careers: CareersNode,
+  classification: ClassificationNode,
   memo: MemoCardNode,
   examcue: ExamCueNode,
   ceqtease: CeqTeaseNode,
