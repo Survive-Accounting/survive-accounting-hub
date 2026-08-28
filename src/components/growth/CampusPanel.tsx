@@ -26,14 +26,25 @@ import { DocsPanel } from "@/components/growth/DocsPanel";
 import { ActivityFeed } from "@/components/growth/ActivityFeed";
 import { HINTS } from "@/components/growth/hints";
 import { BottomSheet } from "@/components/growth/BottomSheet";
-import { useLayoutMode } from "@/components/growth/layout-mode";
 import { cn } from "@/lib/utils";
 
-type Section = "overview" | "outreach" | "map" | "docs" | "activity";
+export type Section = "overview" | "outreach" | "map" | "docs" | "activity";
 
-export function CampusPanel({ campusId, pinned }: { campusId: string; pinned: boolean }) {
+export function CampusPanel({
+  campusId,
+  pinned,
+  initialSection,
+  outreachGapMode,
+}: {
+  campusId: string;
+  pinned: boolean;
+  /** The TASKS strip can land the sheet straight on a section (e.g. Outreach). */
+  initialSection?: Section;
+  /** …and straight into gap-filling mode inside Outreach. */
+  outreachGapMode?: boolean;
+}) {
   const qc = useQueryClient();
-  const [open, setOpen] = useState<Section | null>("overview");
+  const [open, setOpen] = useState<Section | null>(initialSection ?? "overview");
   const q = useQuery({
     queryKey: ["growth-campus-detail", campusId],
     queryFn: () => growthCampusDetail({ data: { campusId } }),
@@ -127,7 +138,7 @@ export function CampusPanel({ campusId, pinned }: { campusId: string; pinned: bo
           onToggle={() => toggle("outreach")}
           header={<SectionHead label="Outreach" note="Contacts, queue, history" />}
         >
-          <OutreachTab campusId={campusId} campusName={d.name} />
+          <OutreachTab campusId={campusId} campusName={d.name} defaultGapMode={outreachGapMode} />
         </Accordion>
         <Accordion
           open={open === "map"}
@@ -172,7 +183,6 @@ function OverviewBody({ d, campusId }: { d: CampusDetail; campusId: string }) {
   const [openProf, setOpenProf] = useState<string | null>(null);
   const [openChapter, setOpenChapter] = useState<string | null>(null);
   const [log, setLog] = useState<{ title: string; kinds: string[] } | null>(null);
-  const [layout] = useLayoutMode();
   const r = d.results;
 
   return (
@@ -339,7 +349,6 @@ function OverviewBody({ d, campusId }: { d: CampusDetail; campusId: string }) {
           {d.professors.map((p) => (
             <NestedRow
               key={p.id ?? p.name}
-              layout={layout}
               open={openProf === (p.id ?? p.name)}
               onToggle={() =>
                 setOpenProf((cur) => (cur === (p.id ?? p.name) ? null : (p.id ?? p.name)))
@@ -385,7 +394,6 @@ function OverviewBody({ d, campusId }: { d: CampusDetail; campusId: string }) {
           {d.chapters.map((c) => (
             <NestedRow
               key={c.id}
-              layout={layout}
               open={openChapter === c.id}
               onToggle={() => setOpenChapter((cur) => (cur === c.id ? null : c.id))}
               onClose={() => setOpenChapter(null)}
@@ -475,7 +483,6 @@ export { ExternalLink };
  *  that opens in place, or a row that stacks a sheet over the campus. Children are only
  *  mounted while open, so a closed row costs nothing. */
 function NestedRow({
-  layout,
   open,
   onToggle,
   onClose,
@@ -484,7 +491,6 @@ function NestedRow({
   sheetSubtitle,
   children,
 }: {
-  layout: "accordion" | "sheet";
   open: boolean;
   onToggle: () => void;
   onClose: () => void;
@@ -493,13 +499,6 @@ function NestedRow({
   sheetSubtitle?: string;
   children: React.ReactNode;
 }) {
-  if (layout === "accordion") {
-    return (
-      <Accordion level={2} open={open} onToggle={onToggle} header={header}>
-        {open && children}
-      </Accordion>
-    );
-  }
   return (
     <>
       <button

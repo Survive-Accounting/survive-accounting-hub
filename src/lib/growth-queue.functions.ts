@@ -16,6 +16,7 @@ import { z } from "zod";
 import {
   assembleQueue,
   classifyContact,
+  compareEntities,
   defaultContactFor,
   needsReview,
   renderGrowthTemplate,
@@ -68,6 +69,8 @@ export interface OutreachEntity {
   kind: "council" | "chapter" | "club";
   label: string;
   sublabel: string | null;
+  /** campus_greek_chapters.chapter_size — null until the size data lands (sorts last) */
+  size: number | null;
   contacts: OutreachContactRow[];
 }
 
@@ -79,7 +82,7 @@ export const growthOutreachContacts = createServerFn({ method: "GET" })
       db.from("growth_outreach_eligibility").select("*").eq("campus_id", data.campusId),
       db
         .from("campus_greek_chapters")
-        .select("id,council,greek_org_id")
+        .select("id,council,greek_org_id,chapter_size")
         .eq("campus_id", data.campusId)
         .is("archived_at", null),
       db.from("growth_business_clubs").select("id,name,category").eq("campus_id", data.campusId),
@@ -90,11 +93,15 @@ export const growthOutreachContacts = createServerFn({ method: "GET" })
       const { data: orgs } = await db.from("greek_orgs").select("id,name").in("id", orgIds);
       for (const o of orgs ?? []) orgNames.set(o.id, o.name);
     }
-    const chapterInfo = new Map<string, { name: string; council: string | null }>();
+    const chapterInfo = new Map<
+      string,
+      { name: string; council: string | null; size: number | null }
+    >();
     for (const c of (chapters ?? []) as any[]) {
       chapterInfo.set(c.id, {
         name: orgNames.get(c.greek_org_id) ?? "Chapter",
         council: c.council ?? null,
+        size: c.chapter_size ?? null,
       });
     }
     const clubNames = new Map<string, string>((clubs ?? []).map((c: any) => [c.id, c.name]));
@@ -130,13 +137,16 @@ export const growthOutreachContacts = createServerFn({ method: "GET" })
         label = clubNames.get(c.orgId) ?? "Business club";
         sublabel = "Student org";
       } else continue;
-      if (!byEntity.has(key)) byEntity.set(key, { key, kind, label, sublabel, contacts: [] });
+      if (!byEntity.has(key)) {
+        const size =
+          kind === "chapter" && c.chapterId ? (chapterInfo.get(c.chapterId)?.size ?? null) : null;
+        byEntity.set(key, { key, kind, label, sublabel, size, contacts: [] });
+      }
       byEntity.get(key)!.contacts.push({ ...c, class: classifyContact(c), isDefault: false });
     }
-    const kindOrder = { council: 0, chapter: 1, club: 2 } as const;
-    const entities = [...byEntity.values()].sort(
-      (a, b) => kindOrder[a.kind] - kindOrder[b.kind] || a.label.localeCompare(b.label),
-    );
+    // Councils first, then chapters biggest-first (unknown size last), clubs after —
+    // the order King should work them in, not the order the scraper found them.
+    const entities = [...byEntity.values()].sort(compareEntities);
     for (const e of entities) {
       const def = defaultContactFor(e.contacts);
       for (const c of e.contacts) c.isDefault = def != null && c.qcId === def.qcId;
@@ -699,7 +709,7 @@ export const growthCampusOutreachHistory = createServerFn({ method: "GET" })
     };
   });
 
-const DEFAULT_TARGETS = { email: 100, instagram: 20 };
+const DEFAULT_TARGETS = { email: 100, instagram: 10 };
 
 export const growthDailyProgress = createServerFn({ method: "GET" }).handler(
   async (): Promise<{
@@ -711,7 +721,9 @@ export const growthDailyProgress = createServerFn({ method: "GET" }).handler(
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const [{ data: events }, { data: settingsRow }] = await Promise.all([
-      db.from("growth_outreach_events").select("channel,direction,status,message_id")
+      db
+        .from("growth_outreach_events")
+        .select("channel,direction,status,message_id")
         .gte("occurred_at", today.toISOString()),
       db.from("site_settings").select("settings").limit(1).maybeSingle(),
     ]);
@@ -730,8 +742,9 @@ export const growthDailyProgress = createServerFn({ method: "GET" }).handler(
         // A PROVIDER MESSAGE ID IS THE ONLY PROOF A SEND HAPPENED. The legacy manual-log page
         // writes status='sent' rows with no message_id and no address; counting those once
         // showed "4 emails sent today" when nothing had left the building.
-        done: rows.filter((e) => e.channel === "email" && e.direction === "outbound" && !!e.message_id)
-          .length,
+        done: rows.filter(
+          (e) => e.channel === "email" && e.direction === "outbound" && !!e.message_id,
+        ).length,
         target: targets.email,
       },
       instagram: {
@@ -754,5 +767,109 @@ export const growthTemplates = createServerFn({ method: "GET" }).handler(
       .eq("is_active", true)
       .order("audience");
     return { templates: (data ?? []) as any[] };
+  },
+);
+
+/* ── THE TASKS STRIP (pre-launch simplification, 2026-08-27) ──────────────────────────
+   The first thing King reads every morning: quota progress, the next three campuses
+   with unworked council contacts, and how many contacts still lack an email. One
+   query bundle, computed the same honest way as everything else (provider-confirmed
+   sends only). */
+
+export interface GrowthTasks {
+  quota: {
+    emails: number;
+    emailTarget: number;
+    dms: number;
+    dmTarget: number;
+  };
+  /** Top-priority campuses with an eligible council email and ZERO outbound history. */
+  nextUp: { campusId: string; name: string; councilContacts: number; rank: number }[];
+  /** Contacts reachable only by Instagram — no email on file. */
+  gaps: {
+    total: number;
+    campuses: number;
+    topCampusId: string | null;
+    topCampusName: string | null;
+  };
+}
+
+export const growthTasks = createServerFn({ method: "GET" }).handler(
+  async (): Promise<GrowthTasks> => {
+    const db = await adminDb();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const [eventsToday, eventsAll, elig, priority, settingsRow] = await Promise.all([
+      db
+        .from("growth_outreach_events")
+        .select("channel,direction,message_id")
+        .gte("occurred_at", today.toISOString()),
+      db.from("growth_outreach_events").select("campus_id,direction").eq("direction", "outbound"),
+      db
+        .from("growth_outreach_eligibility")
+        .select("campus_id,chapter_id,council_type,email,instagram,outreach_eligible"),
+      db.from("growth_campus_priority").select("campus_id,rank").order("rank").limit(700),
+      db.from("site_settings").select("settings").limit(1).maybeSingle(),
+    ]);
+
+    const targets = {
+      ...DEFAULT_TARGETS,
+      ...((settingsRow.data?.settings as any)?.growthDailyTargets ?? {}),
+    };
+    const todayRows = (eventsToday.data ?? []) as any[];
+    const emails = todayRows.filter(
+      (e) => e.channel === "email" && e.direction === "outbound" && !!e.message_id,
+    ).length;
+    const dms = todayRows.filter((e) => e.channel === "ig_dm" && e.direction === "outbound").length;
+
+    const contacted = new Set(
+      ((eventsAll.data ?? []) as any[]).map((e) => e.campus_id).filter(Boolean),
+    );
+
+    // council emails per campus + gap counts, one pass over the eligibility view
+    const councilEmails = new Map<string, number>();
+    const gapsByCampus = new Map<string, number>();
+    for (const e of (elig.data ?? []) as any[]) {
+      if (!e.campus_id) continue;
+      if (e.council_type && !e.chapter_id && e.outreach_eligible && e.email) {
+        councilEmails.set(e.campus_id, (councilEmails.get(e.campus_id) ?? 0) + 1);
+      }
+      if (!e.email && e.instagram) {
+        gapsByCampus.set(e.campus_id, (gapsByCampus.get(e.campus_id) ?? 0) + 1);
+      }
+    }
+
+    const rankOf = new Map(((priority.data ?? []) as any[]).map((p) => [p.campus_id, p.rank]));
+    const nextUpIds = [...councilEmails.keys()]
+      .filter((id) => !contacted.has(id))
+      .sort((a, b) => (rankOf.get(a) ?? 9999) - (rankOf.get(b) ?? 9999))
+      .slice(0, 3);
+    const topGapId =
+      [...gapsByCampus.keys()].sort(
+        (a, b) => (rankOf.get(a) ?? 9999) - (rankOf.get(b) ?? 9999),
+      )[0] ?? null;
+
+    const nameIds = [...new Set([...nextUpIds, topGapId].filter(Boolean))] as string[];
+    const names = new Map<string, string>();
+    if (nameIds.length) {
+      const { data } = await db.from("campuses").select("id,name,display_name").in("id", nameIds);
+      for (const c of (data ?? []) as any[]) names.set(c.id, c.display_name || c.name);
+    }
+
+    return {
+      quota: { emails, emailTarget: targets.email, dms, dmTarget: targets.instagram },
+      nextUp: nextUpIds.map((id) => ({
+        campusId: id,
+        name: names.get(id) ?? "Campus",
+        councilContacts: councilEmails.get(id) ?? 0,
+        rank: rankOf.get(id) ?? 9999,
+      })),
+      gaps: {
+        total: [...gapsByCampus.values()].reduce((n, v) => n + v, 0),
+        campuses: gapsByCampus.size,
+        topCampusId: topGapId,
+        topCampusName: topGapId ? (names.get(topGapId) ?? null) : null,
+      },
+    };
   },
 );

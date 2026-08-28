@@ -1,33 +1,36 @@
 // /admin/growth — SURVIVE GROWTH: the shared campus operating dashboard.
 //
-// One ranked list. Click a campus and it opens IN PLACE beneath its row — the row you
-// clicked doesn't move, and a chapter or professor opens nested inside that, so you can
-// always see where you are. Everything else (what a number means, why a campus ranks where
-// it does, what a badge is for) is a tooltip away, because King has to be able to read this
-// screen without having sat through the research.
+// PRE-LAUNCH SIMPLIFICATION (2026-08-27, launch Sep 1). King lives here starting
+// Monday, so the page shows him a JOB, not just data: the TASKS strip on top says
+// what to do this morning (quota, next three campuses, contact gaps), the list below
+// says where everything else stands, and a campus opens as a bottom sheet — the
+// in-place/sheet A/B is over, sheet won, the toggle is gone.
+//
+// The table is a fixed GRID, not content-driven flex: WHY tags wrap inside their own
+// column, numbers stay right-aligned in the same positions on every row, long campus
+// names truncate instead of pushing the grid.
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Loader2, Pin, RotateCw, Search } from "lucide-react";
+import { ArrowRight, ChevronDown, Loader2, Pin, RotateCw, Search, Wrench } from "lucide-react";
 import { toast } from "sonner";
 import {
   growthCampusList,
   growthRefreshPriority,
   type GrowthCampusRow,
 } from "@/lib/growth-dashboard.functions";
-import { growthDailyProgress } from "@/lib/growth-queue.functions";
-import { CampusPanel } from "@/components/growth/CampusPanel";
+import { growthTasks, type GrowthTasks } from "@/lib/growth-queue.functions";
 import { getAdminWho } from "@/components/AdminGate";
-import { Accordion, Chip, Hint, MiniBolt, useDebounced } from "@/components/growth/v2";
-import { BottomSheet, LayoutSwitch } from "@/components/growth/BottomSheet";
-import { useLayoutMode } from "@/components/growth/layout-mode";
+import { CampusPanel, type Section } from "@/components/growth/CampusPanel";
+import { BottomSheet } from "@/components/growth/BottomSheet";
+import { Chip, Hint, MiniBolt, useDebounced } from "@/components/growth/v2";
 import { HINTS } from "@/components/growth/hints";
 import { cn } from "@/lib/utils";
 
-type Search = { open?: string; basket?: string; q?: string };
+type SearchParams = { open?: string; basket?: string; q?: string };
 
 export const Route = createFileRoute("/admin/growth/")({
-  validateSearch: (s: Record<string, unknown>): Search => ({
+  validateSearch: (s: Record<string, unknown>): SearchParams => ({
     open: typeof s.open === "string" ? s.open : undefined,
     basket: typeof s.basket === "string" ? s.basket : undefined,
     q: typeof s.q === "string" ? s.q : undefined,
@@ -76,6 +79,14 @@ const MORE_BASKETS = [
   },
 ] as const;
 
+/* THE grid. One template, used by the header row and every campus row, so columns
+   can never drift. WHY gets a hard-capped column; numerics are fixed-width and
+   right-aligned. Small screens drop WHY/PAID/GAPS (hidden cells, same template). */
+const GRID =
+  "grid grid-cols-[1.75rem_1.5rem_minmax(0,1fr)_3rem_3.5rem_4rem] " +
+  "md:grid-cols-[1.75rem_1.5rem_minmax(0,1fr)_13rem_3rem_3.5rem_2.5rem_4rem_2.75rem] " +
+  "items-center gap-x-2";
+
 function GrowthCampusesPage() {
   const search = Route.useSearch();
   const nav = Route.useNavigate();
@@ -84,10 +95,14 @@ function GrowthCampusesPage() {
   const dq = useDebounced(q, 200);
   const [basket, setBasket] = useState<string | null>(search.basket ?? null);
   const [openId, setOpenId] = useState<string | null>(search.open ?? null);
+  // Where the sheet should land when opened from the TASKS strip.
+  const [openSection, setOpenSection] = useState<Section | undefined>(undefined);
+  const [openGapMode, setOpenGapMode] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [limit, setLimit] = useState(50);
-  // KING LANDS ON HQ. His home is the earnings page, not the work queue — the dashboard
-  // works FOR him first. Once per tab-session so the Campuses tab still functions.
+
+  // KING LANDS ON HQ. His home is the earnings page, not the work queue — once per
+  // tab-session so the Campuses tab still functions afterwards.
   const navigate = useNavigate();
   useEffect(() => {
     if (getAdminWho() === "king" && !sessionStorage.getItem("sa-king-landed")) {
@@ -95,8 +110,6 @@ function GrowthCampusesPage() {
       navigate({ to: "/admin/growth/king" });
     }
   }, [navigate]);
-  // TEMPORARY A/B — see layout-mode.ts. Remove with the switch once a style wins.
-  const [layout, setLayout] = useLayoutMode();
 
   useEffect(() => setLimit(50), [dq, basket]);
   useEffect(() => {
@@ -112,9 +125,9 @@ function GrowthCampusesPage() {
     placeholderData: keepPreviousData,
     staleTime: 60_000,
   });
-  const daily = useQuery({
-    queryKey: ["growth-daily"],
-    queryFn: () => growthDailyProgress(),
+  const tasks = useQuery({
+    queryKey: ["growth-tasks"],
+    queryFn: () => growthTasks(),
     staleTime: 60_000,
   });
   const refresh = useMutation({
@@ -125,6 +138,12 @@ function GrowthCampusesPage() {
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Refresh failed"),
   });
+
+  const openCampus = (campusId: string, section?: Section, gapMode = false) => {
+    setOpenSection(section);
+    setOpenGapMode(gapMode);
+    setOpenId(campusId);
+  };
 
   const rows = list.data?.rows ?? [];
   const filtered = useMemo(() => {
@@ -142,6 +161,7 @@ function GrowthCampusesPage() {
     });
   }, [rows, dq, basket]);
   const anyPinned = rows.some((r) => r.pinned);
+  const openRow = rows.find((r) => r.campusId === openId);
 
   return (
     <div className="space-y-3">
@@ -205,16 +225,7 @@ function GrowthCampusesPage() {
             )}
           </div>
         </div>
-        <div className="ml-auto flex items-center gap-3">
-          {daily.data && (
-            <Hint text={HINTS.emailsSentToday}>
-              <span className="hidden text-[11px] text-muted-foreground md:inline">
-                Today: {daily.data.email.done}/{daily.data.email.target} emails ·{" "}
-                {daily.data.instagram.done}/{daily.data.instagram.target} DMs
-              </span>
-            </Hint>
-          )}
-          <LayoutSwitch mode={layout} onChange={setLayout} />
+        <div className="ml-auto">
           <Hint
             text={`Recompute the priority order from current data. Version ${list.data?.version ?? "—"}, last run ${
               list.data?.generatedAt ? new Date(list.data.generatedAt).toLocaleString() : "—"
@@ -236,6 +247,9 @@ function GrowthCampusesPage() {
         </div>
       </div>
 
+      {/* TASKS — the first thing King reads every morning */}
+      {tasks.data && <TasksStrip t={tasks.data} onOpen={openCampus} />}
+
       {list.isLoading && (
         <div className="flex items-center gap-2 p-8 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" /> Loading campuses…
@@ -244,50 +258,52 @@ function GrowthCampusesPage() {
 
       {!list.isLoading && (
         <div className="overflow-hidden rounded-lg border border-border bg-card">
-          {/* column headings — every one explains itself */}
-          <div className="flex items-center gap-2 border-b border-border bg-muted/40 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
-            <span className="w-4" />
-            <span className="w-7">
+          {/* column headings — same grid as the rows, so alignment cannot drift */}
+          <div
+            className={cn(
+              GRID,
+              "border-b border-border bg-muted/40 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground",
+            )}
+          >
+            <span>
               <Hint text={HINTS.rank}>#</Hint>
             </span>
-            <span className="min-w-0 flex-1">Campus / course</span>
-            <span className="hidden w-52 md:block">Why</span>
-            <span className="w-12 text-right">
+            <span />
+            <span>Campus / course</span>
+            <span className="hidden md:block">Why</span>
+            <span className="text-right">
               <Hint text={HINTS.courseReadiness}>Ready</Hint>
             </span>
-            <span className="w-16 text-right">
+            <span className="text-right">
               <Hint text={HINTS.questionsAnswered}>Students</Hint>
             </span>
-            <span className="hidden w-10 text-right sm:block">
+            <span className="hidden text-right md:block">
               <Hint text={HINTS.paid}>Paid</Hint>
             </span>
-            <span className="w-16 text-right">
+            <span className="text-right">
               <Hint text="Emails actually sent / contacts we could email at this campus.">
                 Outreach
               </Hint>
             </span>
+            <span className="hidden text-right md:block">
+              <Hint text="Contacts here that are Instagram-only — no email yet. Filling these is the gap work.">
+                Gaps
+              </Hint>
+            </span>
           </div>
 
-          {filtered.slice(0, limit).map((r) =>
-            layout === "accordion" ? (
-              <Accordion
-                key={r.campusId}
-                open={openId === r.campusId}
-                onToggle={() => setOpenId((cur) => (cur === r.campusId ? null : r.campusId))}
-                header={<CampusRowHeader r={r} />}
-              >
-                {openId === r.campusId && <CampusPanel campusId={r.campusId} pinned={r.pinned} />}
-              </Accordion>
-            ) : (
-              <button
-                key={r.campusId}
-                onClick={() => setOpenId(r.campusId)}
-                className="flex w-full items-center gap-2 border-b border-border/60 px-3 py-2 text-left last:border-b-0 hover:bg-muted/60"
-              >
-                <CampusRowHeader r={r} />
-              </button>
-            ),
-          )}
+          {filtered.slice(0, limit).map((r) => (
+            <button
+              key={r.campusId}
+              onClick={() => openCampus(r.campusId)}
+              className={cn(
+                GRID,
+                "w-full border-b border-border/60 px-3 py-2 text-left last:border-b-0 hover:bg-muted/60",
+              )}
+            >
+              <CampusRowCells r={r} />
+            </button>
+          ))}
 
           {filtered.length === 0 && (
             <div className="px-3 py-8 text-center text-xs text-muted-foreground">
@@ -305,19 +321,25 @@ function GrowthCampusesPage() {
         </div>
       )}
 
-      {layout === "sheet" && openId && (
+      {openId && (
         <BottomSheet
           open
-          onClose={() => setOpenId(null)}
+          onClose={() => {
+            setOpenId(null);
+            setOpenSection(undefined);
+            setOpenGapMode(false);
+          }}
           title={
             <span className="sa-admin-display text-sm font-semibold">
-              {rows.find((r) => r.campusId === openId)?.name ?? "Campus"}
+              {openRow?.name ?? "Campus"}
             </span>
           }
         >
           <CampusPanel
             campusId={openId}
-            pinned={!!rows.find((r) => r.campusId === openId)?.pinned}
+            pinned={!!openRow?.pinned}
+            initialSection={openSection}
+            outreachGapMode={openGapMode}
           />
         </BottomSheet>
       )}
@@ -325,24 +347,128 @@ function GrowthCampusesPage() {
   );
 }
 
-function CampusRowHeader({ r }: { r: GrowthCampusRow }) {
+/* ── TASKS strip ─────────────────────────────────────────────────────────────────── */
+
+function TasksStrip({
+  t,
+  onOpen,
+}: {
+  t: GrowthTasks;
+  onOpen: (campusId: string, section?: Section, gapMode?: boolean) => void;
+}) {
   return (
-    <span className="flex items-center gap-2">
-      <span className="w-7 shrink-0 text-xs tabular-nums text-muted-foreground">
+    <div className="grid gap-2 rounded-lg border border-border bg-card p-3 md:grid-cols-[15rem_minmax(0,1fr)_auto]">
+      {/* quota */}
+      <div className="space-y-1.5">
+        <div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Today's quota
+        </div>
+        <QuotaBar label="Emails" done={t.quota.emails} target={t.quota.emailTarget} />
+        <QuotaBar label="DMs" done={t.quota.dms} target={t.quota.dmTarget} />
+      </div>
+
+      {/* next up */}
+      <div>
+        <div className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Next up
+        </div>
+        {t.nextUp.length === 0 ? (
+          <p className="text-[11px] text-muted-foreground">
+            Every campus with council contacts has been contacted — fill gaps or run enrichment to
+            open new ones.
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {t.nextUp.map((n) => (
+              <Hint
+                key={n.campusId}
+                text={`#${n.rank} in priority · ${n.councilContacts} council contact${n.councilContacts === 1 ? "" : "s"} ready, none contacted yet. Opens straight into Outreach.`}
+              >
+                <button
+                  onClick={() => onOpen(n.campusId, "outreach")}
+                  className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] hover:border-primary/60 hover:bg-muted"
+                >
+                  <span className="font-medium">{n.name}</span>
+                  <span className="text-muted-foreground">{n.councilContacts} council</span>
+                  <ArrowRight className="size-3 text-primary" />
+                </button>
+              </Hint>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* gaps */}
+      <div className="md:text-right">
+        <div className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Gaps
+        </div>
+        {t.gaps.total === 0 ? (
+          <span className="text-[11px] text-muted-foreground">No email gaps. Clean board.</span>
+        ) : (
+          <Hint
+            text={`${t.gaps.total} contacts across ${t.gaps.campuses} campuses have Instagram but no email. Opens the highest-priority one (${t.gaps.topCampusName ?? "—"}) in gap-filling mode.`}
+          >
+            <button
+              onClick={() => t.gaps.topCampusId && onOpen(t.gaps.topCampusId, "outreach", true)}
+              className="inline-flex items-center gap-1 rounded-md border border-amber-500/50 px-2 py-1 text-[11px] text-amber-400 hover:bg-amber-500/10"
+            >
+              <Wrench className="size-3" /> {t.gaps.total} missing emails
+            </button>
+          </Hint>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function QuotaBar({ label, done, target }: { label: string; done: number; target: number }) {
+  const pct = target > 0 ? Math.min(1, done / target) : 0;
+  const met = done >= target && target > 0;
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-11 shrink-0 text-[10px] text-muted-foreground">{label}</span>
+      <div className="h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-muted">
+        <div
+          className={cn(
+            "h-full rounded-full transition-all",
+            met ? "bg-emerald-500" : "bg-primary",
+          )}
+          style={{ width: `${Math.max(pct * 100, done > 0 ? 4 : 0)}%` }}
+        />
+      </div>
+      <span
+        className={cn(
+          "w-12 shrink-0 text-right text-[10px] tabular-nums",
+          met ? "font-semibold text-emerald-400" : "text-muted-foreground",
+        )}
+      >
+        {done} / {target}
+      </span>
+    </div>
+  );
+}
+
+/* ── campus row (grid cells — MUST mirror the GRID template order) ───────────────── */
+
+function CampusRowCells({ r }: { r: GrowthCampusRow }) {
+  return (
+    <>
+      <span className="text-xs tabular-nums text-muted-foreground">
         <span className="inline-flex items-center gap-0.5">
           {r.pinned && <Pin className="size-2.5 text-primary" />}
           {r.rank}
         </span>
       </span>
       <MiniBolt primary={r.colorPrimary} secondary={r.colorSecondary} size={20} title={r.name} />
-      <span className="min-w-0 flex-1">
+      <span className="min-w-0">
         <span className="block truncate text-[13px] font-medium">{r.name}</span>
-        <span className="block text-[10px] text-muted-foreground">
+        <span className="block truncate text-[10px] text-muted-foreground">
           {[r.courseCode, r.state].filter(Boolean).join(" · ")}
         </span>
       </span>
-      <span className="hidden w-52 shrink-0 md:block">
-        <span className="flex flex-wrap gap-1">
+      <span className="hidden min-w-0 md:block">
+        <span className="flex max-w-full flex-wrap gap-1 overflow-hidden">
           {r.why.map((w) => (
             <Hint key={w} text={HINTS.why[w] ?? "Why this campus ranks here."}>
               <span className="rounded bg-muted px-1 py-0.5 text-[9px] text-muted-foreground">
@@ -352,7 +478,7 @@ function CampusRowHeader({ r }: { r: GrowthCampusRow }) {
           ))}
         </span>
       </span>
-      <span className="w-12 shrink-0 text-right text-xs tabular-nums">
+      <span className="text-right text-xs tabular-nums">
         <span
           className={cn(
             r.readiness >= 60
@@ -365,7 +491,7 @@ function CampusRowHeader({ r }: { r: GrowthCampusRow }) {
           {Math.round(r.readiness)}%
         </span>
       </span>
-      <span className="w-16 shrink-0 text-right text-xs tabular-nums">
+      <span className="text-right text-xs tabular-nums">
         {r.users > 0 ? (
           <Hint text="Students we can name at this campus.">
             <span>{r.users}</span>
@@ -380,14 +506,14 @@ function CampusRowHeader({ r }: { r: GrowthCampusRow }) {
           <span className="text-muted-foreground">—</span>
         )}
       </span>
-      <span className="hidden w-10 shrink-0 text-right text-xs tabular-nums sm:block">
+      <span className="hidden text-right text-xs tabular-nums md:block">
         {r.paid > 0 ? (
           <span className="text-emerald-400">{r.paid}</span>
         ) : (
           <span className="text-muted-foreground">—</span>
         )}
       </span>
-      <span className="w-16 shrink-0 text-right text-xs tabular-nums">
+      <span className="text-right text-xs tabular-nums">
         {r.outreachEligible > 0 ? (
           <Hint
             text={`${r.outreachSent} emails sent · ${r.outreachEligible} contacts available here.`}
@@ -402,7 +528,18 @@ function CampusRowHeader({ r }: { r: GrowthCampusRow }) {
           </Hint>
         )}
       </span>
-    </span>
+      <span className="hidden text-right text-xs tabular-nums md:block">
+        {r.contactGaps > 0 ? (
+          <Hint
+            text={`${r.contactGaps} contact${r.contactGaps === 1 ? "" : "s"} here have Instagram but no email — fill them in the campus's gap mode.`}
+          >
+            <span className="text-amber-400">{r.contactGaps}</span>
+          </Hint>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
+      </span>
+    </>
   );
 }
 

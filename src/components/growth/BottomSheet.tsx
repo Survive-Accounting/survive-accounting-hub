@@ -90,36 +90,3 @@ export function BottomSheet({
     </div>
   );
 }
-
-/** The header switch. Temporary — remove with layout-mode.ts once a style wins. */
-export function LayoutSwitch({
-  mode,
-  onChange,
-}: {
-  mode: "accordion" | "sheet";
-  onChange: (m: "accordion" | "sheet") => void;
-}) {
-  return (
-    <div className="inline-flex shrink-0 items-center gap-0.5 rounded-md border border-border p-0.5">
-      {(["accordion", "sheet"] as const).map((m) => (
-        <button
-          key={m}
-          onClick={() => onChange(m)}
-          title={
-            m === "accordion"
-              ? "Campus opens in place, beneath its row"
-              : "Campus rises from the bottom, over the list"
-          }
-          className={cn(
-            "rounded px-2 py-0.5 text-[10px] font-medium capitalize transition-colors",
-            mode === m
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:bg-muted",
-          )}
-        >
-          {m === "accordion" ? "In place" : "Bottom sheet"}
-        </button>
-      ))}
-    </div>
-  );
-}
