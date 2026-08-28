@@ -14,6 +14,9 @@ franchise recipe + state of the world; they are authoritative over ad-hoc chat c
 4. **[talkthrough-booth-prompt.md](talkthrough-booth-prompt.md)** — build spec for the
    Talkthrough Booth (Session 2 / Studio). Not yet built; paste into Session 2 when it has a lane.
 
+Companion specs: **[SURVIVE_FLAVOR_PACKS_v1.md](SURVIVE_FLAVOR_PACKS_v1.md)** — local-color
+token system (config, not code; build trigger = campus #2; codified in Master Context §2).
+
 Related in this folder: the Exam 1 CEQ bank is `scripts/curriculum/Survive_Exam1_Master_CEQ_Editorial_Pass_v1.xlsx`
 (imported live via `bun run curriculum:exam1-starter-import`). The Production Manual (.docx) and
 Exhibit Bible referenced by Master Context live outside the repo for now.
