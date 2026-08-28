@@ -30,7 +30,7 @@ import {
 import { SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { Footer } from "@/components/site/SiteFooter";
 import { TestimonialsSlider } from "@/components/site/Testimonials";
-import { ChapterFinderModal } from "@/components/site/home-two-door/ChapterFinderModal";
+import { GreekWaitlistSheet } from "@/components/site/home-two-door/GreekWaitlistSheet";
 import { boltFor, Faq, PHONE, SCHOOLS, SectionDivider, SyllabusModal, TEL, type School } from "@/routes/landing";
 import { CampusProvider, useCampus } from "@/lib/campus-context";
 import { track } from "@/lib/analytics";
@@ -177,7 +177,9 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
           onClose={() => setWaitlistOpen(false)}
         />
       )}
-      {finderOpen && <ChapterFinderModal onClose={() => setFinderOpen(false)} />}
+      {/* H4: the front door is a WAITLIST while chapters open campus by campus — the finder
+          sheet became the 3-step greek capture (school → org → email). */}
+      {finderOpen && <GreekWaitlistSheet onClose={() => setFinderOpen(false)} />}
       {scopeOpen && <CourseScopeModal onClose={() => setScopeOpen(false)} />}
       {syllabusOpen && <SyllabusModal school={schoolObj} onClose={() => setSyllabusOpen(false)} />}
     </div>
@@ -557,9 +559,11 @@ const TWO_DOOR_CSS = `
 .sa-door-ticker {
   position: relative; display: block; width: 100%; overflow: hidden; white-space: nowrap;
   background: none; border: 0; padding: 3px 0; cursor: pointer;
-  color: var(--text-muted); font-size: 13px; letter-spacing: 0.1em; line-height: 1.4;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 16%, #000 84%, transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 16%, #000 84%, transparent);
+  /* H4 diet: bigger letters (~5 org codes visible at card width) and a harder edge fade —
+     fully transparent edges, only the center ~55% at full opacity. */
+  color: var(--text-muted); font-size: 16px; letter-spacing: 0.1em; line-height: 1.4;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 22.5%, #000 77.5%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 22.5%, #000 77.5%, transparent);
 }
 @keyframes sa-door-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 .sa-door-ticker-track { display: inline-block; white-space: nowrap; animation: sa-door-marquee 70s linear infinite; }
