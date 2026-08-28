@@ -28,6 +28,7 @@ export type CardKind =
   | "users"
   | "standards"
   | "basis"
+  | "careers"
   | "logo"
   | "intro"
   | "outro"
@@ -73,6 +74,7 @@ export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
   users: "element",
   standards: "element",
   basis: "element",
+  careers: "element",
   logo: "element",
   intro: "element",
   outro: "element",
@@ -865,6 +867,15 @@ export interface BasisElement extends CardBase {
   h?: number;
 }
 
+// ---- Careers ("Who do you work for?"): the accounting careers BRANCH MAP —
+//      three trunks, their leaves, the segregated DOORS strip and the CPA
+//      badge. Config-driven (careers-exhibit-config.ts); geometry only. ----
+export interface CareersElement extends CardBase {
+  kind: "careers";
+  w?: number;
+  h?: number;
+}
+
 export interface CycleElement extends CardBase {
   kind: "cycle";
   /** Center label (default "The Accounting Cycle"). */
@@ -990,6 +1001,7 @@ export type CardData =
   | UsersElement
   | StandardsElement
   | BasisElement
+  | CareersElement
   | LogoElement
   | IntroCardElement
   | OutroCardElement

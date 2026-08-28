@@ -14,6 +14,7 @@ import { cycleExhibitModes, exhibitDepthKey, exhibitRevealKey } from "@/componen
 import { UsersNode } from "@/components/canvas/cards/UsersNode";
 import { StandardsNode } from "@/components/canvas/cards/StandardsNode";
 import { BasisNode } from "@/components/canvas/cards/BasisNode";
+import { CareersNode } from "@/components/canvas/cards/CareersNode";
 import { FilmContext } from "@/components/canvas/film-lock";
 import { PAPER } from "@/components/canvas/theme";
 
@@ -23,6 +24,7 @@ import { PAPER } from "@/components/canvas/theme";
 const UsersDemo = UsersNode as unknown as (p: { id: string; data: unknown; selected?: boolean }) => React.ReactNode;
 const StandardsDemo = StandardsNode as unknown as (p: { id: string; data: unknown; selected?: boolean }) => React.ReactNode;
 const BasisDemo = BasisNode as unknown as (p: { id: string; data: unknown; selected?: boolean }) => React.ReactNode;
+const CareersDemo = CareersNode as unknown as (p: { id: string; data: unknown; selected?: boolean }) => React.ReactNode;
 
 export const Route = createFileRoute("/exhibit-demo")({
   head: () => ({ meta: [{ title: "⚡ Exhibit Layer Demo — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
@@ -115,6 +117,13 @@ function ExhibitDemo() {
           </div>
           <div style={{ marginTop: 8 }}>
             <BasisDemo id="demo-basis-narrow" data={{ kind: "basis", w: 440, h: 640 }} selected={false} />
+          </div>
+          {/* WHO DO YOU WORK FOR? — careers branch map (Tab reveal, D = day-to-day) */}
+          <div style={{ marginTop: 8 }}>
+            <CareersDemo id="demo-careers" data={{ kind: "careers" }} selected={false} />
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <CareersDemo id="demo-careers-narrow" data={{ kind: "careers", w: 440, h: 900 }} selected={false} />
           </div>
         </FilmContext.Provider>
       </ReactFlowProvider>
