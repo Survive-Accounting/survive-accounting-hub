@@ -7,7 +7,6 @@
 //  • The left door names the visitor's REAL course code when known, else the flagship campus
 //    config's code (HOME_CAMPUS in lib/launch.ts — the same config the waitlist date lives in).
 //  • Course codes render as ONE non-breaking token ("ACCY 201" can never wrap "201" alone).
-import { GREEK_PORTAL_ORGS } from "@/components/site/portal-home/greek-portal-orgs";
 import { nbspCode } from "@/lib/course-code";
 import { HOME_CAMPUS } from "@/lib/launch";
 
@@ -26,10 +25,6 @@ export const soloSupport = (resolvedCode: string | null): { muted: string; stron
   strong: "Exam 1 is free.",
 });
 
-/** The Greek-letter ticker stream — DERIVED from the one canonical client-side org list
- *  (greek-portal-orgs.ts, which is also Lee's outreach priority order), never a second
- *  hardcoded list that could drift from it. */
-export const tickerLetters = (): string[] => GREEK_PORTAL_ORGS.map((o) => o.letters);
-
-/** One ticker line: "ΑΤΩ · ΦΣΚ · …". The marquee renders it twice for a seamless loop. */
-export const tickerLine = (): string => tickerLetters().join(" · ");
+// The Greek-letter ticker helpers that lived here were removed with the ticker itself
+// (2026-08-28). GREEK_PORTAL_ORGS is still the canonical org list — the waitlist sheet's
+// organization step and /go/demo's glyph both read it.

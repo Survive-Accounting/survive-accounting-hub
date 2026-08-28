@@ -22,28 +22,18 @@ import { useEffect, useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { FitWordmark } from "@/components/site/SiteHeader";
-import { NotListedForm } from "@/components/site/NotListedForm";
-import { GreekWaitlistSheet } from "@/components/site/home-two-door/GreekWaitlistSheet";
-import { GREEK_PORTAL_ORGS } from "@/components/site/portal-home/greek-portal-orgs";
-import { useCampus } from "@/lib/campus-context";
 import { submitNotify } from "@/lib/syllabus.functions";
 
 const PHONE = "(662) 565-8818";
 const TEL = "+16625658818";
+export const EMAIL = "lee@surviveaccounting.com";
 
 type Col = { title: string; links: Array<{ label: string; href?: string; onClick?: () => void }> };
 
 export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
-  const campus = useCampus();
-  const slug = campus.school?.slug ?? null;
   // Same-page anchors only where those sections exist; absolute everywhere else.
   const base = onLanding ? "" : "/";
-  // "Add your school" / "Add your Greek org" open the EXISTING write-in form rather than a second
-  // copy of it — same component, same table, same person reading the results.
-  const [addForm, setAddForm] = useState<null | "school" | "chapter">(null);
   const [founder, setFounder] = useState(false);
-  // H5: the badge strip's action chip opens the greek waitlist (same flow as the hero door).
-  const [greekWL, setGreekWL] = useState(false);
 
   const columns: Col[] = [
     {
@@ -58,26 +48,16 @@ export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
       ],
     },
     {
-      // "Find your chapter" covers discovery AND setup — the chapter page is where access is set
-      // up, so a separate "Set up chapter access" link was two names for one door.
-      // "campus Greek councils" and "national Greek organizations", never "IFC" or "nationals":
-      // the councils include Panhellenic, NPHC and multicultural councils, and the national body
-      // is an organization whose campus groups are its chapters.
-      title: "Greek organizations",
-      links: [
-        { label: "Find your chapter", href: slug ? `/chapters?school=${slug}` : "/chapters" },
-        { label: "For campus Greek councils", href: "/partners/campus-councils" },
-        { label: "For national Greek organizations", href: "/partners/national-organizations" },
-      ],
-    },
-    {
-      // No "Contact" item: Text Lee IS the contact path, and two links to one person read as two
-      // different things.
+      // THE GREEK COLUMN IS GONE (2026-08-28). The council and national-org pages are being
+      // iterated on privately — they live on /leeportal now and are noindexed, so a public
+      // footer link to them would be a door to a room that is being rebuilt. The ONE Greek
+      // path a visitor should find today is the homepage's chapter door (the waitlist).
+      // "Add your school" / "Add your Greek org" went with it: both opened write-in forms for
+      // a program that is not taking sign-ups at this stage.
       title: "Help",
       links: [
         { label: `Text Lee ${PHONE}`, href: `sms:${TEL}` },
-        { label: "Add your school", onClick: () => setAddForm("school") },
-        { label: "Add your Greek org", onClick: () => setAddForm("chapter") },
+        { label: `Email ${EMAIL}`, href: `mailto:${EMAIL}` },
       ],
     },
   ];
@@ -94,7 +74,9 @@ export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
       // relative + z-1: see the note at the top of this file.
       style={{ position: "relative", zIndex: 1, borderColor: "var(--border-default)", background: "var(--bg-nav)", fontFamily: BRAND_SANS }}
     >
-      <div className="mx-auto grid max-w-[1040px] grid-cols-2 gap-x-6 gap-y-8 px-5 lg:grid-cols-[1.5fr_1fr_1.15fr_1fr] lg:gap-x-8">
+      {/* Three tracks since the Greek column was removed (2026-08-28): brand + Students + Help.
+          The brand block keeps the wide track; the two link columns share the rest. */}
+      <div className="mx-auto grid max-w-[1040px] grid-cols-2 gap-x-6 gap-y-8 px-5 lg:grid-cols-[1.5fr_1fr_1fr] lg:gap-x-8">
         {/* BRAND + COMPANY. One block: mark, promise, a quiet rule, then the metadata that used to
             sprawl across a full-width centred row of its own. */}
         <div className="col-span-2 lg:col-span-1">
@@ -117,24 +99,9 @@ export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
               Learn how →
             </button>
           </p>
-          {/* The memorial moved INSIDE the Learn-How panel (FINAL MILE H5) — it lives only there now. */}
-          {/* H5 BADGE STRIP — national org letters as quiet footer-weight chips, ending in the one
-              action chip that opens the greek waitlist. Letters come from the canonical org list. */}
-          <div className="mt-3 flex max-w-[300px] flex-wrap gap-1.5">
-            {GREEK_PORTAL_ORGS.map((o) => (
-              <span key={o.letters} title={o.name} className="inline-flex items-center rounded-md px-1.5 text-[11px] font-bold" style={{ minHeight: 22, border: "1px solid var(--border-subtle)", color: "var(--text-muted)", letterSpacing: "0.06em" }}>
-                {o.letters}
-              </span>
-            ))}
-            <button
-              type="button"
-              onClick={() => setGreekWL(true)}
-              className="inline-flex items-center rounded-md px-1.5 text-[11px] font-bold hover:text-[var(--accent)]"
-              style={{ minHeight: 22, border: "1px solid var(--border-default)", color: "var(--brand-cream)", background: "none", cursor: "pointer" }}
-            >
-              Add your Greek org →
-            </button>
-          </div>
+          {/* The memorial moved INSIDE the Learn-How panel (FINAL MILE H5) — it lives only there now.
+              The Greek badge strip that briefly lived here is gone (2026-08-28): the chapter door on
+              the homepage is the single Greek entry point while the program is pre-launch. */}
         </div>
 
         {columns.map((col) => (
@@ -155,21 +122,7 @@ export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
         ))}
       </div>
 
-      {/* The write-in opens in place, under the columns, rather than as a modal over the page —
-          it is the last thing on the page and there is nothing behind it worth preserving. */}
-      {addForm && (
-        <div className="mx-auto mt-7 max-w-[420px] px-5">
-          <NotListedForm
-            kind={addForm}
-            askChapter={addForm === "chapter"}
-            title={addForm === "school" ? "Which school should I add?" : "Which Greek org should I add?"}
-            onClose={() => setAddForm(null)}
-          />
-        </div>
-      )}
-
       {founder && <FounderModal onClose={() => setFounder(false)} />}
-      {greekWL && <GreekWaitlistSheet onClose={() => setGreekWL(false)} />}
     </footer>
   );
 }

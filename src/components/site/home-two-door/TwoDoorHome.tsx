@@ -42,7 +42,7 @@ import { submitNotify } from "@/lib/syllabus.functions";
 import { examRequest, notifyNote } from "@/lib/notify-request";
 import { rememberStudentEmail } from "@/lib/student-email";
 import { readTestSession } from "@/lib/test-mode";
-import { homeCourseCode, soloButtonLabel, soloSupport, tickerLine } from "./two-door-copy";
+import { homeCourseCode, soloButtonLabel, soloSupport } from "./two-door-copy";
 import { nbspCode } from "@/lib/course-code";
 
 /** The doors section's anchor. Also aliased by the legacy #exam1 anchor below it, because every
@@ -106,7 +106,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
     track("homepage_study_solo_clicked", { ...ctx(), returning, preview: !!previewSoloHref });
     if (!previewSoloHref) setWaitlistOpen(true);
   };
-  const openChapter = (source: "button" | "ticker") => { track("homepage_chapter_clicked", { ...ctx(), source }); setFinderOpen(true); };
+  const openChapter = () => { track("homepage_chapter_clicked", ctx()); setFinderOpen(true); };
   const openScope = () => { track("homepage_course_scope_opened", ctx()); setScopeOpen(true); };
 
   return (
@@ -255,16 +255,15 @@ const DOOR_CARD: React.CSSProperties = {
 };
 
 /** ONE internal grammar for both cards (FINAL MILE H1 order):
- *  ICON → HEADING → BUTTON → SUPPORT LINE (→ ticker, right card only).
+ *  ICON → HEADING → BUTTON → SUPPORT LINE.
  *  Slots are fixed-height so headings, buttons and support lines sit on identical baselines
- *  left → right. */
-function DoorCard({ icon, title, button, support, bottom }: {
+ *  left → right. (The Greek letter ticker that briefly sat under the right card's support line
+ *  is gone — 2026-08-28, too busy. Both cards end at the support line now.) */
+function DoorCard({ icon, title, button, support }: {
   icon: React.ReactNode;
   title: string;
   button: React.ReactNode;
   support: React.ReactNode;
-  /** The card-bottom band (the Greek ticker on the right card). */
-  bottom?: React.ReactNode;
 }) {
   return (
     <div className="sa-door-card" style={DOOR_CARD}>
@@ -281,7 +280,6 @@ function DoorCard({ icon, title, button, support, bottom }: {
       {/* Support line BELOW the button (H1); balanced wrap, two lines max on mobile. */}
       <div className="sa-door-support mt-3 grid w-full place-items-center" style={{ minHeight: 38, fontFamily: BRAND_SANS }}>{support}</div>
       <div className="flex-1" />
-      {bottom && <div className="grid w-full place-items-center" style={{ height: 26 }}>{bottom}</div>}
     </div>
   );
 }
@@ -291,7 +289,7 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
   onSolo: () => void;
   /** Preview only: makes the solo CTA a link into Player V2 (onSolo still fires for tracking). */
   soloHref?: string;
-  onChapter: (source: "button" | "ticker") => void;
+  onChapter: () => void;
 }) {
   const BTN_BASE: React.CSSProperties = { minHeight: 54, width: "100%", borderRadius: 12, fontSize: 15.5, fontWeight: 900, fontFamily: BRAND_SANS };
 
@@ -342,7 +340,7 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
           button={
             <button
               type="button"
-              onClick={() => onChapter("button")}
+              onClick={onChapter}
               className="transition-transform hover:scale-[1.02] focus-visible:ring-2"
               style={{ ...BTN_BASE, background: "var(--cta-chapter-bg)", color: "var(--cta-chapter-fg)" }}
             >
@@ -354,7 +352,6 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
               Get Survive through your fraternity or sorority.
             </span>
           }
-          bottom={<GreekTicker onActivate={() => onChapter("ticker")} />}
         />
       </div>
     </section>
@@ -381,30 +378,6 @@ function ChapterHouseIcon({ height = 82 }: { height?: number }) {
       <path d="M22 71 L74 71" stroke="var(--brand-cream)" strokeWidth={4.5} strokeLinecap="round" />
       <path d="M14 78 L82 78" stroke="var(--brand-cream)" strokeWidth={4.5} strokeLinecap="round" />
     </svg>
-  );
-}
-
-// ── GREEK TICKER — the right door's support line ──────────────────────────────────────────────
-/** A slow one-line stream of supported orgs' letters, clipped inside the card, edge-faded,
- *  paused on hover/focus. Clicking it does exactly what the button above it does. It is
- *  decoration with a door behind it — never required to understand the CTA (the aria-label
- *  carries the action; the letters are aria-hidden). Reduced motion renders a static line. */
-function GreekTicker({ onActivate }: { onActivate: () => void }) {
-  // Static until the client answers — SSR-safe.
-  const [reduced, setReduced] = useState(true);
-  useEffect(() => { setReduced(!!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches); }, []);
-  const line = tickerLine();
-  return (
-    <button type="button" onClick={onActivate} className="sa-door-ticker" aria-label="Find your chapter" title="Find your chapter">
-      {reduced ? (
-        <span aria-hidden className="sa-door-ticker-static">{line}</span>
-      ) : (
-        <span aria-hidden className="sa-door-ticker-track">
-          <span>{line}&nbsp;·&nbsp;</span>
-          <span>{line}&nbsp;·&nbsp;</span>
-        </span>
-      )}
-    </button>
   );
 }
 
@@ -555,22 +528,4 @@ const TWO_DOOR_CSS = `
   .sa-door-card, .sa-door-card:hover { transform: none; transition: none; }
 }
 
-/* GREEK TICKER — one clipped line, slow, edge-faded, paused on hover/focus. */
-.sa-door-ticker {
-  position: relative; display: block; width: 100%; overflow: hidden; white-space: nowrap;
-  background: none; border: 0; padding: 3px 0; cursor: pointer;
-  /* H4 diet: bigger letters (~5 org codes visible at card width) and a harder edge fade —
-     fully transparent edges, only the center ~55% at full opacity. */
-  color: var(--text-muted); font-size: 18px; letter-spacing: 0.1em; line-height: 1.4;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 22.5%, #000 77.5%, transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 22.5%, #000 77.5%, transparent);
-}
-@keyframes sa-door-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-.sa-door-ticker-track { display: inline-block; white-space: nowrap; animation: sa-door-marquee 70s linear infinite; }
-.sa-door-ticker:hover .sa-door-ticker-track,
-.sa-door-ticker:focus-visible .sa-door-ticker-track { animation-play-state: paused; }
-.sa-door-ticker:hover { color: var(--brand-cream); }
-.sa-door-ticker:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.sa-door-ticker-static { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-@media (prefers-reduced-motion: reduce) { .sa-door-ticker-track { animation: none; } }
 `;
