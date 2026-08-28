@@ -311,7 +311,7 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
                 className="inline-flex items-center justify-center transition-transform hover:scale-[1.02] focus-visible:ring-2"
                 style={{ ...BTN_BASE, background: "var(--cta-solo-bg)", color: "var(--cta-solo-fg)" }}
               >
-                {soloButtonLabel(code)}
+                {soloButtonLabel()}
               </a>
             ) : (
               <button
@@ -320,7 +320,7 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
                 className="transition-transform hover:scale-[1.02] focus-visible:ring-2"
                 style={{ ...BTN_BASE, background: "var(--cta-solo-bg)", color: "var(--cta-solo-fg)" }}
               >
-                {soloButtonLabel(code)}
+                {soloButtonLabel()}
               </button>
             )
           }
