@@ -561,7 +561,7 @@ const TWO_DOOR_CSS = `
   background: none; border: 0; padding: 3px 0; cursor: pointer;
   /* H4 diet: bigger letters (~5 org codes visible at card width) and a harder edge fade —
      fully transparent edges, only the center ~55% at full opacity. */
-  color: var(--text-muted); font-size: 16px; letter-spacing: 0.1em; line-height: 1.4;
+  color: var(--text-muted); font-size: 18px; letter-spacing: 0.1em; line-height: 1.4;
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 22.5%, #000 77.5%, transparent);
   mask-image: linear-gradient(90deg, transparent, #000 22.5%, #000 77.5%, transparent);
 }
