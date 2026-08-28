@@ -27,11 +27,16 @@ export const Route = createFileRoute("/partners/national-organizations")({
   loader: () => listTopNationalPartners().catch(() => []),
   staleTime: 600_000,
   head: () => ({
-    meta: ogMeta({
-      title: "For national Greek organizations — free intro accounting exam prep for every chapter.",
-      description: "Give your chapters free intro accounting exam prep matched to the course each campus actually teaches. Every chapter already has a page.",
-      path: "/partners/national-organizations",
-    }),
+    meta: [
+      ...ogMeta({
+        title: "For national Greek organizations — free intro accounting exam prep for every chapter.",
+        description: "Give your chapters free intro accounting exam prep matched to the course each campus actually teaches. Every chapter already has a page.",
+        path: "/partners/national-organizations",
+      }),
+      // NOINDEX + UNLINKED (2026-08-28) — see the note on /partners/campus-councils. Parked on
+      // /leeportal while Lee iterates; the page itself is untouched.
+      { name: "robots", content: "noindex" },
+    ],
     links: [{ rel: "canonical", href: `${ORIGIN}/partners/national-organizations` }],
   }),
   component: NationalOrganizationsPage,

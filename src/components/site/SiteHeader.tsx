@@ -112,7 +112,21 @@ export function CompactLockup({ size = 19 }: { size?: number } = {}) {
 /** A nav destination. `href` starting with "#" is a SAME-PAGE anchor: it smooth-scrolls in place
  *  (honouring reduced motion via scrollToId) instead of navigating, so on /go/ chapter pages the
  *  navbar never yanks the visitor back to the homepage. */
-type NavItem = { label: string; href: string; route?: boolean; sub?: string };
+type NavItem = {
+  label: string;
+  href: string;
+  route?: boolean;
+  sub?: string;
+  /** CONTACT (2026-08-28): not a destination — the row expands in place to show both ways to
+   *  reach Lee. It used to point at `#contact`, an anchor that exists on no page, so the menu's
+   *  Contact item quietly did nothing. */
+  contact?: boolean;
+};
+
+/** The two ways to reach Lee, revealed by the menu's Contact row. */
+const LEE_PHONE = "(662) 565-8818";
+const LEE_TEL = "+16625658818";
+const LEE_EMAIL = "lee@surviveaccounting.com";
 
 /** Chapter pages contextualize the whole navbar (see chapterNav on SiteHeader). */
 export interface ChapterNav {
@@ -151,8 +165,9 @@ const onNavClick = (href: string) => (e: React.MouseEvent) => {
  *  content it switches. Closes on Escape, on tap-outside, and on choosing anything. */
 function SiteMenu({ items }: { items: NavItem[] }) {
   const [open, setOpen] = useState(false);
+  const [contact, setContact] = useState(false);
   useEffect(() => {
-    if (!open) return;
+    if (!open) { setContact(false); return; } // closing the menu collapses the contact row
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -178,27 +193,59 @@ function SiteMenu({ items }: { items: NavItem[] }) {
             className="fixed right-2 z-[202] w-[252px] overflow-hidden rounded-xl"
             style={{ top: "calc(52px + env(safe-area-inset-top, 0px))", background: "var(--bg-overlay)", border: "1px solid var(--border-default)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)" }}
           >
-            {items.map((it, i) => (
-              <a
-                key={it.label}
-                href={it.href}
-                onClick={(e) => { onNavClick(it.href)(e); setOpen(false); }}
-                className="flex items-center px-4 text-[14px] font-semibold hover:bg-white/10"
-                style={{
-                  minHeight: 46,
-                  color: "#F5EFE6",
-                  // The rule belongs to the FIRST route item, so adding another anchor above it
-                  // can never strand the divider in the wrong place.
-                  borderTop: it.route && !items[i - 1]?.route ? "1px solid var(--border-default)" : undefined,
-                  marginTop: it.route && !items[i - 1]?.route ? 8 : undefined,
-                }}
-              >
-                <span className="flex flex-col">
-                  <span>{it.label}</span>
-                  {it.sub && <span className="text-[11px] font-bold" style={{ color: "var(--accent, #FCA311)" }}>{it.sub}</span>}
-                </span>
-              </a>
-            ))}
+            {items.map((it, i) => {
+              const rowStyle: React.CSSProperties = {
+                minHeight: 46,
+                color: "#F5EFE6",
+                // The rule belongs to the FIRST route item, so adding another anchor above it
+                // can never strand the divider in the wrong place.
+                borderTop: it.route && !items[i - 1]?.route ? "1px solid var(--border-default)" : undefined,
+                marginTop: it.route && !items[i - 1]?.route ? 8 : undefined,
+              };
+              // CONTACT — expands in place; the menu stays open so both options are readable.
+              if (it.contact) {
+                return (
+                  <div key={it.label}>
+                    <button
+                      type="button"
+                      onClick={() => setContact((v) => !v)}
+                      aria-expanded={contact}
+                      className="flex w-full items-center justify-between px-4 text-left text-[14px] font-semibold hover:bg-white/10"
+                      style={{ ...rowStyle, background: "none", border: 0, borderTop: rowStyle.borderTop, cursor: "pointer" }}
+                    >
+                      <span>{it.label}</span>
+                      <span aria-hidden style={{ color: "var(--accent, #FCA311)", fontSize: 11 }}>{contact ? "▴" : "▾"}</span>
+                    </button>
+                    {contact && (
+                      <div style={{ background: "rgba(0,0,0,0.22)" }}>
+                        <a href={`sms:${LEE_TEL}`} className="flex items-center px-4 text-[13.5px] font-semibold hover:bg-white/10" style={{ minHeight: 44, color: "#F5EFE6" }}>
+                          <span style={{ color: "var(--text-muted, #94A3B8)" }}>Text:</span>
+                          <span className="ml-1.5">{LEE_PHONE}</span>
+                        </a>
+                        <a href={`mailto:${LEE_EMAIL}`} className="flex items-center px-4 text-[13.5px] font-semibold hover:bg-white/10" style={{ minHeight: 44, color: "#F5EFE6" }}>
+                          <span style={{ color: "var(--text-muted, #94A3B8)" }}>Email:</span>
+                          <span className="ml-1.5 truncate">{LEE_EMAIL}</span>
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              return (
+                <a
+                  key={it.label}
+                  href={it.href}
+                  onClick={(e) => { onNavClick(it.href)(e); setOpen(false); }}
+                  className="flex items-center px-4 text-[14px] font-semibold hover:bg-white/10"
+                  style={rowStyle}
+                >
+                  <span className="flex flex-col">
+                    <span>{it.label}</span>
+                    {it.sub && <span className="text-[11px] font-bold" style={{ color: "var(--accent, #FCA311)" }}>{it.sub}</span>}
+                  </span>
+                </a>
+              );
+            })}
           </div>
         </>
       )}
@@ -230,13 +277,14 @@ const desktopLinks = (base: string, greekHref: string): NavItem[] => [
 // the hero has scrolled away this is the only Cram-Exam-1 door still on screen. The Greek link
 // is a ROUTE, not an anchor, so it sits under a divider — mixing "jump down this page" with
 // "leave this page" in one flat list is how people lose their place.
-// (Contact stays an anchor, never mailto:/sms: — a scheme link can be claimed by an installed
-// app, which is what made tapping Contact raise "Open in inDrive?" on iOS.)
+// (Contact EXPANDS in place — see NavItem.contact. The row used to jump to `#contact`, an anchor
+// no page defines. The revealed rows are sms:/mailto: links the visitor chooses deliberately,
+// which is different from a bare menu item silently opening an installed app.)
 const menuLinks = (base: string, greekHref: string): NavItem[] => [
   { label: "Start cramming", href: `${base}#exam1` },
   { label: "Reviews", href: `${base}#reviews` },
   { label: "Meet your tutor", href: `${base}#lee` },
-  { label: "Contact", href: `${base}#contact` },
+  { label: "Contact", href: "", contact: true },
   { label: "For Fraternities & Sororities", href: greekHref, route: true, sub: "⚡ Boost chapter GPAs" },
 ];
 
@@ -252,9 +300,8 @@ const homeLinks = (): NavItem[] => [
 const homeMenuLinks = (): NavItem[] => [
   { label: "Reviews", href: "#reviews" },
   { label: "Meet your tutor", href: "#lee" },
-  // #site-footer, not the historical #contact: the two-door home has no #contact anchor and a
-  // dead menu item is worse than none. The footer carries the text/email contact routes.
-  { label: "Contact", href: "#site-footer" },
+  // Contact expands in place into Text + Email rather than jumping anywhere.
+  { label: "Contact", href: "", contact: true },
 ];
 
 export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, homeNav = false }: { wordmark?: boolean; chapterNav?: ChapterNav; /** The page renders the landing sections (#exam1, #reviews, #lee, #contact), so nav anchors stay on THIS page. */ onLanding?: boolean; /** The TWO-DOOR HOMEPAGE bar: Reviews + Meet your tutor only, no For-Greeks link, no orange CTA — see homeLinks above. */ homeNav?: boolean } = {}) {
