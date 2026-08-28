@@ -13,6 +13,7 @@ import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as WaitlistRouteImport } from './routes/waitlist'
 import { Route as ThankyouRouteImport } from './routes/thankyou'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as TalkthroughRouteImport } from './routes/talkthrough'
 import { Route as StudyRouteImport } from './routes/study'
 import { Route as StartRouteImport } from './routes/start'
 import { Route as RepRouteImport } from './routes/rep'
@@ -150,6 +151,11 @@ const ThankyouRoute = ThankyouRouteImport.update({
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TalkthroughRoute = TalkthroughRouteImport.update({
+  id: '/talkthrough',
+  path: '/talkthrough',
   getParentRoute: () => rootRouteImport,
 } as any)
 const StudyRoute = StudyRouteImport.update({
@@ -777,6 +783,7 @@ export interface FileRoutesByFullPath {
   '/rep': typeof RepRoute
   '/start': typeof StartRoute
   '/study': typeof StudyRoute
+  '/talkthrough': typeof TalkthroughRoute
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
   '/waitlist': typeof WaitlistRoute
@@ -900,6 +907,7 @@ export interface FileRoutesByTo {
   '/rep': typeof RepRoute
   '/start': typeof StartRoute
   '/study': typeof StudyRoute
+  '/talkthrough': typeof TalkthroughRoute
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
   '/waitlist': typeof WaitlistRoute
@@ -1023,6 +1031,7 @@ export interface FileRoutesById {
   '/rep': typeof RepRoute
   '/start': typeof StartRoute
   '/study': typeof StudyRoute
+  '/talkthrough': typeof TalkthroughRoute
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
   '/waitlist': typeof WaitlistRoute
@@ -1149,6 +1158,7 @@ export interface FileRouteTypes {
     | '/rep'
     | '/start'
     | '/study'
+    | '/talkthrough'
     | '/terms'
     | '/thankyou'
     | '/waitlist'
@@ -1272,6 +1282,7 @@ export interface FileRouteTypes {
     | '/rep'
     | '/start'
     | '/study'
+    | '/talkthrough'
     | '/terms'
     | '/thankyou'
     | '/waitlist'
@@ -1394,6 +1405,7 @@ export interface FileRouteTypes {
     | '/rep'
     | '/start'
     | '/study'
+    | '/talkthrough'
     | '/terms'
     | '/thankyou'
     | '/waitlist'
@@ -1519,6 +1531,7 @@ export interface RootRouteChildren {
   RepRoute: typeof RepRoute
   StartRoute: typeof StartRoute
   StudyRoute: typeof StudyRoute
+  TalkthroughRoute: typeof TalkthroughRoute
   TermsRoute: typeof TermsRoute
   ThankyouRoute: typeof ThankyouRoute
   WaitlistRoute: typeof WaitlistRoute
@@ -1592,6 +1605,13 @@ declare module '@tanstack/react-router' {
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/talkthrough': {
+      id: '/talkthrough'
+      path: '/talkthrough'
+      fullPath: '/talkthrough'
+      preLoaderRoute: typeof TalkthroughRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/study': {
@@ -2622,6 +2642,7 @@ const rootRouteChildren: RootRouteChildren = {
   RepRoute: RepRoute,
   StartRoute: StartRoute,
   StudyRoute: StudyRoute,
+  TalkthroughRoute: TalkthroughRoute,
   TermsRoute: TermsRoute,
   ThankyouRoute: ThankyouRoute,
   WaitlistRoute: WaitlistRoute,

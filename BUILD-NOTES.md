@@ -203,3 +203,108 @@ Visual QA on `/exhibit-demo` at 1100px and 460px:
 Same screenshot caveat as the Careers build: the browser pane never displayed, so QA was
 done against React's inline styles and measured geometry rather than images. A human OBS
 pass is still worth doing — the money moment to film is clicking the Unearned Revenue trap.
+
+---
+
+# BUILD NOTES — The Talkthrough Booth
+
+**Built:** 2026-08-28 overnight · branch `talkthrough-booth` off `origin/main` @ `e135b0bc`
+**Prompt:** `docs/talkthrough-booth-prompt.md` (ships in repo)
+
+## Research findings (what exists, what gets reused)
+
+| Need | Reused |
+|---|---|
+| Whisper | `src/lib/transcribe.functions.ts` (`transcribeTake`, keyed by storage path, idempotent, `OPENAI_WHISPER`/`OPENAI_API_KEY`) |
+| Audio → WAV | `transcribe-audio.ts` `wavBlob()` (16kHz mono PCM pack) — reused verbatim |
+| Staging upload | `createPipelineTestStagingUpload` + `putSignedUpload` (same door transcript-client uses for audio sidecars) |
+| Local-first persistence | Idea Bank pattern wholesale: derived queue (`syncedAt < updatedAt`), merge-by-id-newest-wins, soft delete only, module store, flush on timer/focus/online |
+| Server fn shape | `idea-bank.functions.ts`: service-role, RLS deny-by-default, client-minted ids, upsert-on-id idempotency, fails loud with isMissingSchema hint |
+| LLM generation | `suggest-visual.functions.ts` house pattern: `AI_GATEWAY_API_KEY` → `https://ai-gateway.vercel.sh/v1/chat/completions`, model env-overridable. NO new providers. |
+| CEQ focus mental model | film loop's `focusCeq` — what is focused while Lee talks is what the words are about |
+| Set data | `loadSetPool()` → set files; cards = nodes with `data.kind==="ceq"`, teaching order = `data.stageOrder` |
+| Recorder idiom | `RecorderSpike.tsx` MediaRecorder + mime picking |
+| Reference docs | `docs/SURVIVE_METHOD_v1.md`, `docs/SURVIVE_MASTER_CONTEXT_V2.md` already in repo; Exhibit Bible copied to `docs/EXHIBIT-PRODUCTION-BIBLE-v1.md` (decision: docs ship in repo + bundle via Vite `?raw` imports, so Vercel serverless can read them without filesystem access) |
+
+## Architecture decisions (overnight mode — logged, not asked)
+
+1. **Transcript durability model.** RAW TRANSCRIPTS ARE FIRST-CLASS. The durable
+   artifact is the SEGMENT (text + anchors), persisted localStorage-synchronously and
+   synced via the Idea Bank contract. Audio chunks are carriers: chunk → staging upload
+   (durable) → Whisper (from the stored path, retried forever off a localStorage queue) →
+   whisper text replaces live text in the segment. If SpeechRecognition gave live text,
+   it is persisted immediately as `source:"live"` so words exist even if audio upload
+   dies; the segment is marked pending until Whisper lands (`source:"whisper"`). Live
+   text is never shown as truth without its pending badge.
+2. **Chunking on natural pauses**: Web Audio AnalyserNode RMS silence detection
+   (~0.9s below threshold) OR a 45s hard cap → `MediaRecorder.stop()` → complete
+   container → immediately restart on the same stream. Complete files per chunk =
+   decodable → `wavBlob()` → upload → Whisper. No timeslice fragments (not valid files).
+3. **Segments know their focus**: `{sessionId, seq, focusedCeqId|null, focusedCeqLabel}`
+   stamped at chunk START (what Lee was looking at when he started saying it). Clicking
+   CEQs never touches the recorder — it only updates the stamp for the NEXT segment and
+   closes the current chunk early (a focus change is a natural boundary).
+4. **AI pass**: one server fn call per pass; strict-JSON output parsed by a pure,
+   tested module (`talkthrough-pass.ts`). Board items stored per session with
+   client-visible status. Item regenerate = same fn with `onlyKind` + item comment +
+   full verbatim transcript. Model default `anthropic/claude-sonnet-4.5`
+   (env `TALKTHROUGH_MODEL`) — synthesis job, bigger than the haiku default used for
+   one-shot visual suggestions; same gateway, same key, no new provider.
+5. **Spoken-cue tag detection** happens in the AI pass (proposed tags with quotes),
+   not live — live regexing invites false stamps mid-take.
+6. **Tables** (`20260828_0900_talkthrough_booth.sql`): `talkthrough_sessions`,
+   `talkthrough_segments`, `talkthrough_tags`, `talkthrough_board_items` — all
+   client-minted text ids, RLS deny-by-default, archived_at soft delete, same comments
+   discipline as 0115. **SQL LEE MUST RUN — never auto-run.**
+7. **Route**: `/talkthrough` (AdminGate-wrapped, studio scope, noindex). Set picker +
+   sessions list → booth → session detail (verbatim default) → board (index + per-CEQ).
+8. **No edits to the live CEQ bank** — the board is a staging area; the exhibit output
+   is a COPY-button prompt in conveyor format.
+9. **Phase 3 (doodle wall)**: shipped only if Phases 1–2 land solid; else logged as next.
+
+## Talkthrough Booth — QA performed (2026-08-28 overnight)
+
+`bun x tsc --noEmit` clean · full suite **1889 pass / 1 fail** (the known pre-existing
+bolt-palette failure only; the new site-qa manifest registration keeps that suite green).
+20 new tests: merge law, derived queue, whisper-upgrade law, wire round-trips, enum
+degradation, pass message assembly (verbatim + anchors + docs + staging-area law), pass
+parsing (full / single-key regen / garbage), per-CEQ slicing.
+
+Browser QA on `/talkthrough` (dev, AdminGate passed):
+
+- Booth home lists REAL sets from the pool with CEQ counts; sessions list with
+  date/duration/segments/words and an ● open badge.
+- Booth renders all three panes; clicking CEQs refocuses the center; all six moment
+  tags stamp and count; prompter rotates + shuffles.
+- Segments written through the real store render in the ticker with the ◌ pending
+  badge; **hard refresh mid-session lost nothing** (transcript, tags, open state,
+  pending badges all intact — the acceptance's core).
+- AI pass without a key: **fails loud** with the exact env hint, offers retry, and the
+  transcript is untouched. Item-level regenerate surfaces its own error the same way.
+- A parsed board (driven through the REAL parser) renders all seven kinds; the exhibit
+  card has the COPY button + collapsible conveyor prompt; quotes render on every item;
+  AI-proposed tags appear labeled with their verbatim quote; ACCEPT/REJECT toggle and
+  persist (7 items in localStorage, statuses correct); per-CEQ view slices correctly
+  once items reference real CEQ ids (the dropdown deliberately lists only the set's
+  actual questions).
+- Sync layer is LOUD about the missing tables: badge shows the exact migration path,
+  14 rows queued and safe locally. That is the designed behavior until the SQL runs.
+- Zero console errors.
+
+**Not verifiable headless (needs Lee's first sitting):** real mic capture (getUserMedia
+has no device in the QA pane), real Whisper round-trip (OPENAI_WHISPER lives in Vercel
+env), and a real generation pass (AI_GATEWAY_API_KEY likewise). All three ride existing,
+already-live pipelines; the local QA drove every seam around them through the real code.
+
+## SQL LEE MUST RUN
+
+- `migration/supabase-migrations/20260828_0900_talkthrough_booth.sql` — creates the four
+  talkthrough tables (RLS deny-by-default, soft-delete only). Until it runs, the booth
+  works local-first and the badge says exactly what to apply. Never auto-run.
+
+## Phase 3 (doodle wall) — logged as next, not shipped
+
+Phases 1–2 landed solid and the wall is decorative-calm by spec. Next prompt: near-black
+canvas, gold handwritten phrase-bank entries (seed list in docs/SURVIVE_METHOD_v1.md §
+phrase bank), PHRASE-tagged captures flow in, shuffle, size-by-importance, click →
+meaning/first-use, A–Z glossary view.
