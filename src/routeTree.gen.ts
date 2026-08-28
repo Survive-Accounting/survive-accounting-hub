@@ -48,6 +48,7 @@ import { Route as RepJoinRouteImport } from './routes/rep_.join'
 import { Route as RepDashboardRouteImport } from './routes/rep_.dashboard'
 import { Route as RCodeRouteImport } from './routes/r.$code'
 import { Route as PreviewHomeRouteImport } from './routes/preview_.home'
+import { Route as PreviewExam1RouteImport } from './routes/preview_.exam1'
 import { Route as PartnersNationalOrganizationsRouteImport } from './routes/partners.national-organizations'
 import { Route as PartnersCampusCouncilsRouteImport } from './routes/partners.campus-councils'
 import { Route as OutreachVideoArchiveRouteImport } from './routes/outreach.video-archive'
@@ -324,6 +325,11 @@ const RCodeRoute = RCodeRouteImport.update({
 const PreviewHomeRoute = PreviewHomeRouteImport.update({
   id: '/preview_/home',
   path: '/preview/home',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PreviewExam1Route = PreviewExam1RouteImport.update({
+  id: '/preview_/exam1',
+  path: '/preview/exam1',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PartnersNationalOrganizationsRoute =
@@ -816,6 +822,7 @@ export interface FileRoutesByFullPath {
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/partners/campus-councils': typeof PartnersCampusCouncilsRoute
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
+  '/preview/exam1': typeof PreviewExam1Route
   '/preview/home': typeof PreviewHomeRoute
   '/r/$code': typeof RCodeRoute
   '/rep/dashboard': typeof RepDashboardRoute
@@ -936,6 +943,7 @@ export interface FileRoutesByTo {
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/partners/campus-councils': typeof PartnersCampusCouncilsRoute
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
+  '/preview/exam1': typeof PreviewExam1Route
   '/preview/home': typeof PreviewHomeRoute
   '/r/$code': typeof RCodeRoute
   '/rep/dashboard': typeof RepDashboardRoute
@@ -1060,6 +1068,7 @@ export interface FileRoutesById {
   '/outreach/video-archive': typeof OutreachVideoArchiveRoute
   '/partners/campus-councils': typeof PartnersCampusCouncilsRoute
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
+  '/preview_/exam1': typeof PreviewExam1Route
   '/preview_/home': typeof PreviewHomeRoute
   '/r/$code': typeof RCodeRoute
   '/rep_/dashboard': typeof RepDashboardRoute
@@ -1185,6 +1194,7 @@ export interface FileRouteTypes {
     | '/outreach/video-archive'
     | '/partners/campus-councils'
     | '/partners/national-organizations'
+    | '/preview/exam1'
     | '/preview/home'
     | '/r/$code'
     | '/rep/dashboard'
@@ -1305,6 +1315,7 @@ export interface FileRouteTypes {
     | '/outreach/video-archive'
     | '/partners/campus-councils'
     | '/partners/national-organizations'
+    | '/preview/exam1'
     | '/preview/home'
     | '/r/$code'
     | '/rep/dashboard'
@@ -1428,6 +1439,7 @@ export interface FileRouteTypes {
     | '/outreach/video-archive'
     | '/partners/campus-councils'
     | '/partners/national-organizations'
+    | '/preview_/exam1'
     | '/preview_/home'
     | '/r/$code'
     | '/rep_/dashboard'
@@ -1523,6 +1535,7 @@ export interface RootRouteChildren {
   OShortRefRoute: typeof OShortRefRoute
   PartnersCampusCouncilsRoute: typeof PartnersCampusCouncilsRoute
   PartnersNationalOrganizationsRoute: typeof PartnersNationalOrganizationsRoute
+  PreviewExam1Route: typeof PreviewExam1Route
   PreviewHomeRoute: typeof PreviewHomeRoute
   RCodeRoute: typeof RCodeRoute
   RepDashboardRoute: typeof RepDashboardRoute
@@ -1824,6 +1837,13 @@ declare module '@tanstack/react-router' {
       path: '/preview/home'
       fullPath: '/preview/home'
       preLoaderRoute: typeof PreviewHomeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/preview_/exam1': {
+      id: '/preview_/exam1'
+      path: '/preview/exam1'
+      fullPath: '/preview/exam1'
+      preLoaderRoute: typeof PreviewExam1RouteImport
       parentRoute: typeof rootRouteImport
     }
     '/partners/national-organizations': {
@@ -2618,6 +2638,7 @@ const rootRouteChildren: RootRouteChildren = {
   OShortRefRoute: OShortRefRoute,
   PartnersCampusCouncilsRoute: PartnersCampusCouncilsRoute,
   PartnersNationalOrganizationsRoute: PartnersNationalOrganizationsRoute,
+  PreviewExam1Route: PreviewExam1Route,
   PreviewHomeRoute: PreviewHomeRoute,
   RCodeRoute: RCodeRoute,
   RepDashboardRoute: RepDashboardRoute,

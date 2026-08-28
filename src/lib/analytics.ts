@@ -80,6 +80,21 @@ export const SA_EVENTS = [
   "homepage_study_solo_clicked",
   "homepage_chapter_clicked",
   "homepage_course_scope_opened",
+  // Player V2 "Tonight's Plan" beta (08-27, /preview/exam1 only). Properties:
+  // {mode, goal, estimated_minutes, included_step_count, from_mode, to_mode, from_goal, to_goal,
+  //  topic, added_depth, estimated_minutes_added}.
+  "player_v2_opened",
+  "study_mode_viewed",
+  "study_mode_selected",
+  "goal_viewed",
+  "goal_selected",
+  "plan_generated",
+  "plan_started",
+  "plan_changed",
+  "topic_depth_opened",
+  "topic_depth_added",
+  "syllabus_upload_clicked",
+  "map_browsed",
 ] as const;
 
 export type SaEvent = (typeof SA_EVENTS)[number];

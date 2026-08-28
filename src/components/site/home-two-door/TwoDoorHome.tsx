@@ -32,7 +32,7 @@ import {
 import { SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { Footer } from "@/components/site/SiteFooter";
 import { TestimonialsSlider } from "@/components/site/Testimonials";
-import { ChapterFinderModal } from "@/components/site/portal-home/PortalCards";
+import { ChapterFinderModal } from "@/components/site/home-two-door/ChapterFinderModal";
 import { boltFor, Faq, PHONE, SCHOOLS, SectionDivider, SyllabusModal, TEL, type School } from "@/routes/landing";
 import { CampusProvider, useCampus } from "@/lib/campus-context";
 import { track } from "@/lib/analytics";
@@ -52,21 +52,25 @@ import { soloDoorCta, soloDoorDescription, tickerLine } from "./two-door-copy";
 const DOORS_ID = "doors";
 
 // ── PAGE ──────────────────────────────────────────────────────────────────────────────────────
-export function TwoDoorHome({ storedCampusId, initialCode }: {
+export function TwoDoorHome({ storedCampusId, initialCode, previewSoloHref }: {
   /** The returning visitor's campus, read from the request cookie by the route loader — same
    *  contract as LandingPage's storedCampusId (SSR renders the personalized hero, no flicker). */
   storedCampusId?: string | null;
   /** Course code resolved server-side by the loader, so the headline never gains it a beat late. */
   initialCode?: string | null;
+  /** PREVIEW ONLY (/preview/home): the left door NAVIGATES here (the private Player V2) instead
+   *  of opening the public Exam 1 waitlist. Never set on the live "/" — ordinary visitors must
+   *  keep landing on the September 1 waitlist state. */
+  previewSoloHref?: string;
 }) {
   return (
     <CampusProvider urlSchoolSlug={null} accountCampusId={null} initialCode={initialCode ?? null} initialStoredId={storedCampusId ?? null}>
-      <TwoDoorHomeInner />
+      <TwoDoorHomeInner previewSoloHref={previewSoloHref} />
     </CampusProvider>
   );
 }
 
-function TwoDoorHomeInner() {
+function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
   useNavyDocument();
   const campus = useCampus();
 
@@ -97,7 +101,12 @@ function TwoDoorHomeInner() {
   // Shared analytics context — attach what the page knows, never more.
   const ctx = () => ({ campus_id: campus.school?.id, course_code: campus.code ?? undefined });
 
-  const openSolo = () => { track("homepage_study_solo_clicked", { ...ctx(), returning }); setWaitlistOpen(true); };
+  // On the live "/" the solo door opens the public waitlist; on /preview/home it navigates into
+  // the private Player V2 instead (same event, `preview` property tells them apart).
+  const openSolo = () => {
+    track("homepage_study_solo_clicked", { ...ctx(), returning, preview: !!previewSoloHref });
+    if (!previewSoloHref) setWaitlistOpen(true);
+  };
   const openChapter = (source: "button" | "ticker") => { track("homepage_chapter_clicked", { ...ctx(), source }); setFinderOpen(true); };
   const openScope = () => { track("homepage_course_scope_opened", ctx()); setScopeOpen(true); };
 
@@ -120,6 +129,7 @@ function TwoDoorHomeInner() {
           pinnedSchoolId={campus.school?.id ?? null}
           returning={returning}
           onSolo={openSolo}
+          soloHref={previewSoloHref}
           onChapter={openChapter}
         />
 
@@ -247,11 +257,13 @@ function DoorCard({ icon, title, description, button, support }: {
   );
 }
 
-function TwoDoorCards({ code, pinnedSchoolId, returning, onSolo, onChapter }: {
+function TwoDoorCards({ code, pinnedSchoolId, returning, onSolo, soloHref, onChapter }: {
   code: string | null;
   pinnedSchoolId: string | null;
   returning: boolean;
   onSolo: () => void;
+  /** Preview only: makes the solo CTA a link into Player V2 (onSolo still fires for tracking). */
+  soloHref?: string;
   onChapter: (source: "button" | "ticker") => void;
 }) {
   // THE CYCLING BOLT — the left door's identity. A known campus pins it to that campus's own
@@ -285,14 +297,25 @@ function TwoDoorCards({ code, pinnedSchoolId, returning, onSolo, onChapter }: {
           title="Study on your own"
           description={soloDoorDescription(code)}
           button={
-            <button
-              type="button"
-              onClick={onSolo}
-              className="transition-transform hover:scale-[1.02] focus-visible:ring-2"
-              style={{ ...BTN_BASE, background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.55)" }}
-            >
-              {soloDoorCta(returning)}
-            </button>
+            soloHref ? (
+              <a
+                href={soloHref}
+                onClick={onSolo}
+                className="inline-flex items-center justify-center transition-transform hover:scale-[1.02] focus-visible:ring-2"
+                style={{ ...BTN_BASE, background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.55)" }}
+              >
+                {soloDoorCta(returning)}
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={onSolo}
+                className="transition-transform hover:scale-[1.02] focus-visible:ring-2"
+                style={{ ...BTN_BASE, background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.55)" }}
+              >
+                {soloDoorCta(returning)}
+              </button>
+            )
           }
           support={<span className="text-[12.5px]" style={{ color: "var(--text-muted)" }}>No account required.</span>}
         />
@@ -352,7 +375,7 @@ function ChapterHouseIcon({ height = 82 }: { height?: number }) {
  *  decoration with a door behind it — never required to understand the CTA (the aria-label
  *  carries the action; the letters are aria-hidden). Reduced motion renders a static line. */
 function GreekTicker({ onActivate }: { onActivate: () => void }) {
-  // Static until the client answers — SSR-safe (same pattern as SparkBolt in PortalCards).
+  // Static until the client answers — SSR-safe.
   const [reduced, setReduced] = useState(true);
   useEffect(() => { setReduced(!!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches); }, []);
   const line = tickerLine();

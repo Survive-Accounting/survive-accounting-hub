@@ -1,21 +1,23 @@
-// /preview/home — THE TWO-PORTAL HOME, as an experiment. A NEW route on main: the live "/"
-// (index.tsx → LandingPage) is untouched, and this page renders the SAME LandingPage with the
-// experimental `portalHome` slots switched on — compressed hero, the two portal cards, the
-// "COMPLETELY FREE EXAM PREP" player header, and the one pointing chevron. When the design is
-// approved, promoting it is passing the same prop from index.tsx; nothing here forks the page.
+// /preview/home — THE PREVIEW HOMEPAGE (repointed 2026-08-27).
 //
-// Deliberately NO loader (no campus-prefs cookie read): this is a design preview, not an
-// indexable page, and the client-side campus restore still runs so the player behaves.
+// The two-portal experiment that used to live here shipped (evolved) as the real two-door "/" on
+// 08-27, so this route now renders THAT page with one difference: the left door's CTA navigates
+// into the PRIVATE Player V2 preview (/preview/exam1) instead of opening the public Exam 1
+// waitlist. This is how Lee and beta testers experience the full future journey — preview home →
+// STUDY ON YOUR OWN → Tonight's Plan — while ordinary visitors on "/" keep getting the
+// September 1 waitlist.
+//
+// Deliberately NO loader (no campus-prefs cookie read): a design/beta preview, not an indexable
+// page; the client-side campus restore still personalizes after mount.
 import { createFileRoute } from "@tanstack/react-router";
 
-import { LandingPage } from "./landing";
-import { PORTAL_HOME_CSS, PlayerHeaderFreePrep, PortalCards } from "@/components/site/portal-home/PortalCards";
+import { TwoDoorHome } from "@/components/site/home-two-door/TwoDoorHome";
 
 export const Route = createFileRoute("/preview_/home")({
   head: () => ({
     meta: [
-      { title: "Two-portal home (preview) — Survive Accounting" },
-      // An experiment must never compete with the real homepage in search.
+      { title: "Preview home — Survive Accounting" },
+      // A preview must never compete with the real homepage in search.
       { name: "robots", content: "noindex" },
     ],
   }),
@@ -23,17 +25,5 @@ export const Route = createFileRoute("/preview_/home")({
 });
 
 function PreviewHome() {
-  return (
-    <LandingPage
-      portalHome={{
-        portals: ({ onStart }) => (
-          <>
-            <style>{PORTAL_HOME_CSS}</style>
-            <PortalCards onStartExam1={onStart} />
-          </>
-        ),
-        playerHeader: <PlayerHeaderFreePrep />,
-      }}
-    />
-  );
+  return <TwoDoorHome previewSoloHref="/preview/exam1" />;
 }
