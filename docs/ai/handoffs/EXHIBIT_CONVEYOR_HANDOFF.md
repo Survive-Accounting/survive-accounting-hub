@@ -1,7 +1,7 @@
 # EXHIBIT CONVEYOR — HANDOFF
 
 **Written:** 2026-08-28 00:14 UTC · **Session:** studio/exhibit conveyor (retiring)
-**Production main at handoff:** `908d74b9` — *Merge pull request #6 from cash-accrual-exhibit*
+**Exhibit stack landed at:** `908d74b9` (PR #6) · **main at handoff:** `9cec88ec` or later — always `git fetch origin` and use CURRENT `origin/main`.
 **Worktree:** `C:\Users\lee\Documents\sa-exhibit-lab` · **Branch/HEAD:** `cash-accrual-exhibit` @ `bf3f9f51` (merged into main)
 **Git status:** clean, no uncommitted work · **Open PRs:** none
 
@@ -155,7 +155,7 @@ for the next session to start on demand.
 
 ## 11. Other active sessions — ACTION REQUIRED
 
-`main` advanced to **`908d74b9`** with this work.
+`main` advanced with this work: exhibit stack at **`908d74b9`** (PR #6), handoff docs at **`9cec88ec`** (PR #7). Always integrate CURRENT `origin/main`, not a pinned sha.
 
 > **OTHER ACTIVE FEATURE BRANCHES MUST FETCH CURRENT MAIN AND INTEGRATE IT BEFORE THEIR OWN FINAL
 > MERGE.** Known active: platform/major-features, Growth/dashboard, portal/product.
