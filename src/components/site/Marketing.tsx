@@ -48,8 +48,11 @@ export const MARKETING_HERO_ID = "marketing-hero";
  *  MOBILE ORDER: headline → promise → built-for → CTAs → trust chips → bolt. The bolt is
  *  branding, not content — it comes from natural DOM order (no order-first), so it can never
  *  push the CTA out of the first viewport. Desktop keeps it as the right column. */
-export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltPick, onChangeSchool, secondaryHref, onSecondary, secondaryLabel, showSecondary = true, onOpenBio, courtesy, rotationCampuses, campusBolt }: {
+export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltPick, onChangeSchool, secondaryHref, onSecondary, secondaryLabel, showSecondary = true, onOpenBio, courtesy, rotationCampuses, campusBolt, doors }: {
   kind: "general" | "campus" | "greek";
+  /** DOORS MODE — the two shared door cards render INSTEAD of the CTA row and the big bolt, and
+   *  the hero centres itself. Set only by the chapter page today; absent everywhere else. */
+  doors?: React.ReactNode;
   /** Verified course code or null — a null degrades copy, never invents a code. */
   code: string | null;
   schoolShort: string | null;
@@ -107,6 +110,36 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
   const supporting = code
     ? `Cram videos + practice exams built for ${nbspCode(code)}.`
     : "Cram videos + practice exams built for crushing your first accounting course.";
+
+  // DOORS MODE (2026-08-28, chapter pages): the CTA row and the big right-hand bolt are replaced
+  // by the two shared door cards, and the hero becomes one centred column — the same rhythm the
+  // homepage hero has (headline → promise → chips → doors). Every other page is untouched.
+  if (doors) {
+    return (
+      <section id={MARKETING_HERO_ID} className="sa-hero-doors flex flex-col items-center pb-9 pt-10 text-center sm:pt-12" style={{ fontFamily: BRAND_SANS }}>
+        {greek && (
+          <p className="mb-3 text-[12px] font-black uppercase tracking-[0.13em]" style={{ color: "var(--text-muted)" }}>
+            {greek.orgName} <span aria-hidden style={{ opacity: 0.5 }}>•</span> {schoolShort}
+          </p>
+        )}
+        <h1 className="mx-auto max-w-[600px] text-[28px] font-black leading-[1.12] sm:text-[38px] lg:text-[44px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.015em" }}>
+          {headline}
+        </h1>
+        <p className="mt-4 text-[19px] font-extrabold leading-snug sm:text-[22px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
+          Practice what gets tested. Score higher.
+        </p>
+        <TrustChips onBio={onOpenBio} onReviews={() => scrollToId("reviews")} onPlayer={onStart} />
+        {/* Exec login stays a UTILITY, never a door — claimed chapters only. */}
+        {greek?.claimed && (
+          <a href="/chapters/dashboard" className="mt-3 text-[13.5px] underline underline-offset-4" style={{ color: "var(--text-muted)" }}>
+            Chapter exec? Log in →
+          </a>
+        )}
+        {courtesy}
+        <div className="mt-8 w-full">{doors}</div>
+      </section>
+    );
+  }
 
   return (
     <section id={MARKETING_HERO_ID} className="sa-hero3 grid items-center gap-8 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-12 lg:py-14" style={{ fontFamily: BRAND_SANS }}>
@@ -251,6 +284,10 @@ export const MARKETING_CSS = `
 .sa-hero-swap { background: none; border: 0; padding: 0; cursor: pointer; opacity: 0.75; transition: color 140ms, opacity 140ms, background-color 140ms; }
 .sa-hero-swap:hover { color: var(--brand-cream); opacity: 1; background: rgba(245,239,230,0.08); }
 .sa-hero-swap:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; color: var(--brand-cream); opacity: 1; }
+
+/* DOORS-MODE HERO: the proof strip centres at every width (the old hero left-aligns it on
+   desktop, where it sat in a left column). */
+.sa-hero-doors .sa-proof-row { justify-content: center; }
 
 /* PROOF STRIP. Quieter than every CTA: no lift, no glow, default cursor, muted text. The hover
    is a bare half-step of contrast so the badge is not dead to the pointer, nothing more. */

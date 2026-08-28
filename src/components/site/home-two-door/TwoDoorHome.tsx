@@ -42,6 +42,7 @@ import { submitNotify } from "@/lib/syllabus.functions";
 import { examRequest, notifyNote } from "@/lib/notify-request";
 import { rememberStudentEmail } from "@/lib/student-email";
 import { readTestSession } from "@/lib/test-mode";
+import { CHAPTER_BTN, DOOR_CARD_CSS, DOOR_CTA_VARS, DoorCard, DoorRow, DOOR_BTN_CLASS, SOLO_BTN } from "./DoorCard";
 import { homeCourseCode, soloButtonLabel, soloSupport } from "./two-door-copy";
 import { nbspCode } from "@/lib/course-code";
 
@@ -112,13 +113,10 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
   return (
     <div style={{
       ...frameThemeVars(theme), background: "var(--bg-page)", color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY, minHeight: "100vh", position: "relative", overflowX: "clip",
-      // H2 CTA tokens — the two doors' solid fills. Crimson/white solo, powder/navy chapter.
-      ["--cta-solo-bg" as string]: "#CE1126",
-      ["--cta-solo-fg" as string]: "#FFFFFF",
-      ["--cta-chapter-bg" as string]: "#A8D4F0",
-      ["--cta-chapter-fg" as string]: "#0F1A2E",
+      ...DOOR_CTA_VARS,
     }}>
       <style>{MARKETING_CSS}</style>
+      <style>{DOOR_CARD_CSS}</style>
       <style>{TWO_DOOR_CSS}</style>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
 
@@ -239,51 +237,6 @@ function CampusLine({ code, schoolName, schoolId }: { code: string | null; schoo
 }
 
 // ── THE TWO DOORS ─────────────────────────────────────────────────────────────────────────────
-/** ONE frame for both cards — identical width, padding, radius, elevation. See header note. */
-const DOOR_CARD: React.CSSProperties = {
-  background: "var(--bg-surface)",
-  border: "1px solid var(--border-default)",
-  borderRadius: 20,
-  padding: "28px 24px 20px",
-  minHeight: 332,
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  textAlign: "center",
-  // H2: the drop + a soft ambient ring around the border (Speechnotes-style float, subtle).
-  boxShadow: "0 24px 60px -30px rgba(0,0,0,0.7), 0 4px 24px -4px rgba(0,0,0,0.45)",
-};
-
-/** ONE internal grammar for both cards (FINAL MILE H1 order):
- *  ICON → HEADING → BUTTON → SUPPORT LINE.
- *  Slots are fixed-height so headings, buttons and support lines sit on identical baselines
- *  left → right. (The Greek letter ticker that briefly sat under the right card's support line
- *  is gone — 2026-08-28, too busy. Both cards end at the support line now.) */
-function DoorCard({ icon, title, button, support }: {
-  icon: React.ReactNode;
-  title: string;
-  button: React.ReactNode;
-  support: React.ReactNode;
-}) {
-  return (
-    <div className="sa-door-card" style={DOOR_CARD}>
-      {/* Icon envelope — same box on both sides, whatever lives inside it. */}
-      <div className="grid place-items-center" style={{ height: 118 }}>{icon}</div>
-      {/* Fixed two-line envelope so a wrapped title never pushes the buttons out of line. */}
-      <h3
-        className="mt-3 grid place-items-center text-[20px] font-black uppercase leading-tight"
-        style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "0.04em", minHeight: 52 }}
-      >
-        {title}
-      </h3>
-      <div className="mt-3 w-full">{button}</div>
-      {/* Support line BELOW the button (H1); balanced wrap, two lines max on mobile. */}
-      <div className="sa-door-support mt-3 grid w-full place-items-center" style={{ minHeight: 38, fontFamily: BRAND_SANS }}>{support}</div>
-      <div className="flex-1" />
-    </div>
-  );
-}
-
 function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
   code: string | null;
   onSolo: () => void;
@@ -291,11 +244,8 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
   soloHref?: string;
   onChapter: () => void;
 }) {
-  const BTN_BASE: React.CSSProperties = { minHeight: 54, width: "100%", borderRadius: 12, fontSize: 15.5, fontWeight: 900, fontFamily: BRAND_SANS };
-
   return (
-    <section id={DOORS_ID} aria-label="Choose how you want to study" className="sa-anchor" style={{ fontFamily: BRAND_SANS }}>
-      <div className="mx-auto grid w-full max-w-[880px] gap-6 sm:grid-cols-2 sm:gap-9">
+    <DoorRow id={DOORS_ID} label="Choose how you want to study">
         {/* LEFT DOOR — solo students. First in DOM so it stacks first on mobile. */}
         {/* H3: THE BOILING BOLT — the exact same BoltBoil the footer wordmark's "i" uses (one
             shared implementation, one speed). It is the only living thing on screen; the temple
@@ -308,8 +258,8 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
               <a
                 href={soloHref}
                 onClick={onSolo}
-                className="inline-flex items-center justify-center transition-transform hover:scale-[1.02] focus-visible:ring-2"
-                style={{ ...BTN_BASE, background: "var(--cta-solo-bg)", color: "var(--cta-solo-fg)" }}
+                className={`inline-flex items-center justify-center ${DOOR_BTN_CLASS}`}
+                style={SOLO_BTN}
               >
                 {soloButtonLabel()}
               </a>
@@ -317,8 +267,8 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
               <button
                 type="button"
                 onClick={onSolo}
-                className="transition-transform hover:scale-[1.02] focus-visible:ring-2"
-                style={{ ...BTN_BASE, background: "var(--cta-solo-bg)", color: "var(--cta-solo-fg)" }}
+                className={DOOR_BTN_CLASS}
+                style={SOLO_BTN}
               >
                 {soloButtonLabel()}
               </button>
@@ -341,8 +291,8 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
             <button
               type="button"
               onClick={onChapter}
-              className="transition-transform hover:scale-[1.02] focus-visible:ring-2"
-              style={{ ...BTN_BASE, background: "var(--cta-chapter-bg)", color: "var(--cta-chapter-fg)" }}
+              className={DOOR_BTN_CLASS}
+              style={CHAPTER_BTN}
             >
               Find your chapter →
             </button>
@@ -353,8 +303,7 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
             </span>
           }
         />
-      </div>
-    </section>
+    </DoorRow>
   );
 }
 
@@ -511,9 +460,6 @@ const TWO_DOOR_CSS = `
 /* CENTERED HERO: the proof strip centres at every width here (Marketing's own class left-aligns
    it on desktop, where the old hero had a left column). */
 .sa-two-door-hero .sa-proof-row { justify-content: center; }
-
-/* SUPPORT LINES — balanced wrap so a one-word last line can't happen (H1 one-line rule). */
-.sa-door-support { text-wrap: balance; }
 
 /* CAMPUS LINE (H3) — the v1 bolt-plate type treatment on the hero axis. */
 .sa-campus-line { font-size: 13px; font-weight: 900; letter-spacing: 0.08em; color: var(--brand-cream); white-space: nowrap; }
