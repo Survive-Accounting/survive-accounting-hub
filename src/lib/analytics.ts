@@ -75,6 +75,11 @@ export const SA_EVENTS = [
   "exam_completed",
   "retry_missed_clicked",
   "intro_reset_clicked",
+  // Two-door homepage hero (08-27). Names locked by the redesign spec; context rides as
+  // properties: {campus_id, course_code, returning, source}.
+  "homepage_study_solo_clicked",
+  "homepage_chapter_clicked",
+  "homepage_course_scope_opened",
 ] as const;
 
 export type SaEvent = (typeof SA_EVENTS)[number];

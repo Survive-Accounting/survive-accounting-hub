@@ -14,6 +14,13 @@ export const LAUNCH_WINDOW = "Fall 2026";
 /** The full launch line: "Coming Fall 2026". */
 export const LAUNCH_LINE = `Coming ${LAUNCH_WINDOW}`;
 
+/** EXAM 1'S PUBLIC RELAUNCH DATE (2026-08-27, two-door homepage spec). The new Exam 1 prep is
+ *  being rebuilt privately; the public homepage promises it for September 1 by explicit product
+ *  decision. A named day is back for THIS surface only because the spec pins it — one constant
+ *  here so the door card, the notify record and any future email can never disagree. If the date
+ *  moves, change it here and nowhere else. */
+export const EXAM1_LAUNCH_LABEL = "September 1";
+
 /** Source tag for everything captured by the landing page's "Get notified" flow. */
 export const NOTIFY_SOURCE = "landing-notify";
 
