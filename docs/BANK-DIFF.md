@@ -1,6 +1,6 @@
 # BANK-DIFF — app vs docs/data/exam1masterchoices.xlsx
 
-Generated 2026-08-28T22:09:49.723Z by scripts/bank-reconcile.ts (DRY RUN). Regenerate any time.
+Generated 2026-08-28T22:17:51.294Z by scripts/bank-reconcile.ts (APPLY). Regenerate any time.
 
 **The finding that drives everything below:** the app held TWO banks. The authored,
 stem-named sets (255 CEQs, 246 = 96% stem-matched to this sheet) were parked when the
