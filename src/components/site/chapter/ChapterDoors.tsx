@@ -20,6 +20,14 @@ import { nbspCode } from "@/lib/course-code";
 /** The share-kit section's anchor — the right door's destination. */
 export const SHARE_ANCHOR = "share-kit";
 
+/** THE LEFT DOOR'S SUPPORT LINE, as data so both states are testable without a live chapter.
+ *  `sponsored` must come from GoChapter.sponsored (a live, paid, unexpired seat pool) — there is
+ *  no aspirational middle state: a chapter that merely CLAIMED its page is not sponsored. */
+export const soloSupportLine = (sponsored: boolean, letters: string): { muted: string; strong: string } => ({
+  muted: "Cram-style videos & practice.",
+  strong: sponsored ? `Sponsored by ${letters} — every exam unlocked.` : "Exam 1 is free for the whole house.",
+});
+
 export function ChapterDoors({ code, letters, sponsored, onStartExam, onShare }: {
   /** Verified course code for this campus, or null (then the heading degrades honestly). */
   code: string | null;
@@ -43,16 +51,8 @@ export function ChapterDoors({ code, letters, sponsored, onStartExam, onShare }:
         }
         support={
           <span className="text-[13px] leading-snug" style={{ maxWidth: "34ch" }}>
-            <span style={{ color: "var(--text-muted)" }}>Cram-style videos &amp; practice. </span>
-            {sponsored ? (
-              <span className="font-bold" style={{ color: "var(--brand-cream)" }}>
-                Sponsored by {letters} — every exam unlocked.
-              </span>
-            ) : (
-              <span className="font-bold" style={{ color: "var(--brand-cream)" }}>
-                Exam 1 is free for the whole house.
-              </span>
-            )}
+            <span style={{ color: "var(--text-muted)" }}>{soloSupportLine(sponsored, letters).muted} </span>
+            <span className="font-bold" style={{ color: "var(--brand-cream)" }}>{soloSupportLine(sponsored, letters).strong}</span>
           </span>
         }
       />
