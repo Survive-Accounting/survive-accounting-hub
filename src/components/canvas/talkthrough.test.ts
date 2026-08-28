@@ -198,6 +198,30 @@ describe("pass parsing — good, partial and garbage replies", () => {
     expect(parsePass({ exhibit: { title: "no prompt" } } as never, "s1", "r", []).items).toEqual([]);
     expect(parsePass({ vibeBeats: "not an array", shorts: [{}] } as never, "s1", "r", []).items).toEqual([]);
   });
+  test("bankChanges parse into bank items; quick-kind tags round-trip the wire", () => {
+    const { items } = parsePass({ bankChanges: [
+      { action: "cut", ceqId: "q1", title: "Cut the shortcut question", proposal: "doesn't earn its slot", quote: "q" },
+      { action: "add", ceqId: null, title: "Add a trigger-word CEQ", proposal: "Prepaids are always ___", quote: "q" },
+      { action: "bogus", ceqId: "nope", title: "", proposal: "", quote: "" },
+    ] } as never, "s1", "r", ["q1"], at("2026-08-28T02:00:00Z"));
+    expect(items.map((i) => i.kind)).toEqual(["bank", "bank"]);
+    expect(items[0].ceqIds).toEqual(["q1"]);
+    expect((items[0].payload as { action: string }).action).toBe("cut");
+    expect(items[1].ceqIds).toEqual([]);
+    // quick-action tags survive the wire (they are NOT coerced to KEY)
+    const quick = { ...makeTag("s1", "REWORD", { ceqId: "q1", label: "Q1" }, at("2026-08-28T02:01:00Z")), note: "say it like the deck does" };
+    const rt = fromTagRow(toTagRow(quick));
+    expect(rt.tag).toBe("REWORD");
+    expect(rt.note).toBe("say it like the deck does");
+  });
+
+  test("quick-action notes ride the tag block into the pass messages", () => {
+    const ctx = { ...CTX, tags: [{ tag: "REWORD" as const, at: "2026-08-28T01:00:10Z", focusedCeqLabel: "Q1 · Unearned", source: "tap" as const, note: "swap liability wording" }] };
+    const { user } = buildPassMessages(ctx);
+    expect(user).toContain("Reword @");
+    expect(user).toContain(`LEE'S NOTE: "swap liability wording"`);
+  });
+
   test("extractJsonObject peels fences and wrapping prose", () => {
     expect(extractJsonObject('Sure! Here it is:\n```json\n{"a":1}\n```')).toEqual({ a: 1 });
     expect(extractJsonObject("no json here")).toBeNull();

@@ -14,7 +14,7 @@
 //   · A failed or weird reply parses to [] — a bad pass can never corrupt
 //     anything; the caller just shows the error and offers retry.
 import {
-  BOARD_KINDS, MOMENT_TAGS, newTTId,
+  BOARD_KINDS, MOMENT_TAGS, TAG_LABELS, newTTId,
   type BoardItem, type BoardKind, type MomentTag, type TalkSegment, type TalkTag,
 } from "./talkthrough";
 
@@ -35,7 +35,9 @@ export interface PassContext {
   setName: string;
   ceqs: PassCeq[];
   segments: Pick<TalkSegment, "id" | "seq" | "text" | "focusedCeqId" | "focusedCeqLabel" | "source" | "whisperPending">[];
-  tags: Pick<TalkTag, "tag" | "at" | "focusedCeqLabel" | "source">[];
+  /** Moment tags AND quick-action notes (REWORD/NEWCEQ/CUT/EXHIBIT_SPEC/TEACH
+   *  carry Lee's typed note — his own words outrank inference). */
+  tags: Pick<TalkTag, "tag" | "at" | "focusedCeqLabel" | "source" | "note">[];
   /** Reference docs, injected by the server (shipped in the bundle via ?raw). */
   docs: { method: string; bible: string; blastOff: string };
 }
@@ -70,7 +72,11 @@ export function ceqBlock(ctx: PassContext): string {
 
 export function tagBlock(ctx: PassContext): string {
   if (!ctx.tags.length) return "(none tapped)";
-  return ctx.tags.map((t) => `${t.tag} @ ${t.at}${t.focusedCeqLabel ? ` (on ${t.focusedCeqLabel})` : ""}`).join("\n");
+  return ctx.tags.map((t) => {
+    const label = TAG_LABELS[t.tag] ?? t.tag;
+    const note = t.note ? ` — LEE'S NOTE: "${t.note}"` : "";
+    return `${label} @ ${t.at}${t.focusedCeqLabel ? ` (on ${t.focusedCeqLabel})` : ""}${note}`;
+  }).join("\n");
 }
 
 const OUTPUT_SPEC = `Return ONE JSON object, nothing else, with EXACTLY these keys (every item's "quote" is a VERBATIM excerpt from the transcript — copy, never paraphrase; every "ceqIds" entry is an id from the CEQ list):
@@ -82,6 +88,7 @@ const OUTPUT_SPEC = `Return ONE JSON object, nothing else, with EXACTLY these ke
  "shorts": [{"title": str, "format": "short"|"nerdout", "pitch": str, "quote": str, "ceqIds": [str]}],
  "phrases": [{"phrase": str, "meaning": str, "quote": str}],
  "accuracyFlags": [{"claim": str, "why": str, "quote": str, "ceqIds": [str]}],
+ "bankChanges": [{"action": "add"|"reword"|"cut", "ceqId": str|null, "title": str, "proposal": str, "quote": str}],
  "proposedTags": [{"tag": "SHORT"|"NERDOUT"|"EXHIBIT"|"PHRASE"|"TALK"|"KEY", "quote": str, "seq": int}]
 }`;
 
@@ -94,6 +101,7 @@ const PASS_RULES = `RULES:
 - SHORTS / NERD OUTS: only moments that EARN it, each quoting the verbatim moment and naming its format.
 - PHRASES: reusable Lee-isms detected in the transcript that are not already in the phrase bank.
 - ACCURACY FLAGS: anything Lee said that needs verification before it reaches students. Err toward flagging.
+- BANK CHANGES: proposed adds/rewords/cuts to the question bank. Anchor each to the verbatim moment AND any REWORD/NEWCEQ/CUT quick-action note; ALSO propose changes the talk implies but Lee did not tag. "reword"/"cut" carry the ceqId; "add" leaves it null. Proposals are concrete (the new wording, or why the question does not earn its slot). Nothing auto-applies — Lee is the teacher of record.
 - PROPOSED TAGS: spoken cues like "this would be a good short" that Lee did NOT tap; seq = the [S<n>] anchor.
 - Empty arrays are fine. Never invent transcript content. Never output salary data or rankings.`;
 
@@ -121,10 +129,10 @@ export function buildRegenMessages(
 ): { system: string; user: string } {
   const base = buildPassMessages(ctx);
   const KEY: Record<BoardKind, string> = {
-    ceq_order: "ceqOrder", outline: "outline", exhibit: "exhibit",
+    ceq_order: "ceqOrder", outline: "outline", exhibit: "exhibit", bank: "bankChanges",
     vibe: "vibeBeats", short: "shorts", phrase: "phrases", accuracy: "accuracyFlags",
   };
-  const single = ["vibe", "short", "phrase", "accuracy"].includes(kind);
+  const single = ["vibe", "short", "phrase", "accuracy", "bank"].includes(kind);
   const system = base.system + `\n\nREGENERATE MODE: output ONLY the "${KEY[kind]}" key of the JSON object${single ? " (an array with EXACTLY ONE improved item)" : ""}. Same rules, same quoting law.`;
   const user = base.user + [
     `\n\n=== THE ITEM BEING REGENERATED (previous draft) ===\n${JSON.stringify(previous, null, 1)}`,
@@ -213,6 +221,12 @@ export function parsePass(
   for (const a of arr(raw.accuracyFlags).map(rec)) {
     if (!str(a.claim)) continue;
     items.push(mk("accuracy", str(a.claim), { why: str(a.why) }, str(a.quote), ids(a.ceqIds, known)));
+  }
+  for (const b of arr(raw.bankChanges).map(rec)) {
+    const action = ["add", "reword", "cut"].includes(str(b.action)) ? str(b.action) : "reword";
+    if (!str(b.title) && !str(b.proposal)) continue;
+    const cid = str(b.ceqId);
+    items.push(mk("bank", str(b.title) || action + " proposal", { action, proposal: str(b.proposal) }, str(b.quote), cid && known.has(cid) ? [cid] : []));
   }
 
   const proposedTags = arr(raw.proposedTags).map(rec)
