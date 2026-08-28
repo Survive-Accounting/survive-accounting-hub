@@ -99,7 +99,7 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
   const ceqCountByDeck = new Map<string, number>();
   // FIRST STEM per deck (lowest stageOrder) — the outline teaser, with its blur ranges for paid redaction.
   const firstCeqByDeck = new Map<string, { order: number; prompt: string; blur: { s: number; e: number }[]; shorthand: string | null }>();
-  type RawCeqData = { deckId?: string; stageOrder?: number; prompt?: string; blurRanges?: { s: number; e: number }[]; noteOnly?: boolean };
+  type RawCeqData = { deckId?: string; stageOrder?: number; prompt?: string; blurRanges?: { s: number; e: number }[]; noteOnly?: boolean; draft?: boolean; bankArchived?: string };
   // PARKED sets are authoring-only — never served, regardless of status (same law as parked topics).
   for (const o of liveDecks(owned)) {
     live.push(o.deck);
@@ -108,6 +108,9 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
       // NOTE frames are film chrome, not questions — excluded from the counter AND practice,
       // per the CeqCard contract ("excluded from the student question counter").
       if (n.data?.noteOnly) continue;
+      // DRAFTS and soft-archived cards are studio-only (master-sheet status law):
+      // they never count, never tease, never reach a student surface.
+      if (n.data?.draft || n.data?.bankArchived) continue;
       const did = n.data?.deckId;
       if (!did) continue;
       ceqCountByDeck.set(did, (ceqCountByDeck.get(did) ?? 0) + 1);
@@ -200,6 +203,11 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
     const look = shippedPub(d, "lookback");
     const cramPid = blast?.render?.muxPlaybackId ?? ((d.lessonId && pb.get(d.lessonId)) || null);
     const cramDur = pubDur(blast) ?? ((d.lessonId ? dur.get(d.lessonId) : undefined) ?? null);
+    // ALL-DRAFT SETS never reach a student: a set whose every question is
+    // draft/soft-archived AND that has no published video would render as a
+    // "0 questions" row — a count that doesn't exist (master status law).
+    const visibleCeqs = ceqCountByDeck.get(d.id) ?? 0;
+    if (visibleCeqs === 0 && !blast && !d.lessonId) continue;
     setOrderKey.set(d.id, d.sortOrder ?? Number.MAX_SAFE_INTEGER);
     topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: "landscape", playbackId: paid ? null : cramPid, ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: cramDur, hasReview: !!look, reviewPlaybackId: paid ? null : (look?.render?.muxPlaybackId ?? null), reviewRuntimeSec: pubDur(look), firstStem: stemFor(d.id, paid), shortLabel: shortFor(d.id) });
   }
@@ -286,7 +294,7 @@ export const fetchSetPractice = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as unknown as { from: (t: string) => any };
     type RawChoice = { id?: string; text?: string; correct?: boolean; feedback?: string };
-    type RawCard = { deckId?: string; stageOrder?: number; prompt?: string; shorthand?: string; noteOnly?: boolean; choices?: RawChoice[] };
+    type RawCard = { deckId?: string; stageOrder?: number; prompt?: string; shorthand?: string; noteOnly?: boolean; draft?: boolean; bankArchived?: string; choices?: RawChoice[] };
     const owned = await loadDecksDeduped(admin);
     const o = owned.get(data.setId);
     const deck = o && o.deck.status === "live" && o.deck.parked !== true ? o.deck : undefined;
@@ -294,7 +302,10 @@ export const fetchSetPractice = createServerFn({ method: "GET" })
     if (deck.access === "paid") return { status: "locked" };
     // STABLE ids: the CEQ node id (never the position) — analytics key on it, so re-ordering or
     // inserting a question never corrupts history. Display numbers are derived client-side.
-    const cards = o.nodes.filter((n) => !(n.data as RawCard | undefined)?.noteOnly).map((n) => ({ nodeId: n.id ?? "", ...(n.data as RawCard) }));
+    // noteOnly = film chrome; draft/bankArchived = studio-only (master status law).
+    const cards = o.nodes
+      .filter((n) => { const d = n.data as RawCard | undefined; return !d?.noteOnly && !d?.draft && !d?.bankArchived; })
+      .map((n) => ({ nodeId: n.id ?? "", ...(n.data as RawCard) }));
     const questions: PracticeQuestion[] = cards
       .sort((a, b) => (a.stageOrder ?? 0) - (b.stageOrder ?? 0))
       .map((c, i) => ({

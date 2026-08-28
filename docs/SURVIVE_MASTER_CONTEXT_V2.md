@@ -46,6 +46,14 @@
   sequence Definition → Core → Application → Contrast/trap → Gray
   area/B→A; exhibit is a map, not decoration; AI is a starting point,
   not the teacher of record.
+- **FLAVOR PACKS** — local color is a display-layer token system
+  ({{LOCAL.RESTAURANT}} etc.) resolved per campus from a campus
+  pack (JSON); fallback is always the generic noun. National bank
+  stays campus-neutral forever; Survive Co is never flavored; real
+  businesses only in neutral/positive scenes; no real people; banks
+  stay generic; verified spellings only. Spec:
+  SURVIVE_FLAVOR_PACKS_v1.md. Build trigger: campus #2. Pack
+  research: King, per the new-campus playbook.
 
 ## 3. STATE OF THE BUILD (canvas-v2 · TanStack Start + Supabase +
 ##    Vercel + Mux + Twilio + Resend + OpenAI Whisper)
