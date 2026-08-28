@@ -1,21 +1,30 @@
-// TWO-DOOR HOMEPAGE — the locked copy, as pure functions (2026-08-27 spec).
+// TWO-DOOR HOMEPAGE — the locked copy, as pure functions.
+// (2026-08-27 spec, revised by HOMEPAGE FINAL MILE v2 H1 on 2026-08-28.)
 //
-// Every student-facing string on the two door cards routes through here so the spec's locked
-// copy lives in exactly one place and the pieces are testable without rendering. The rules:
+// Every student-facing string on the two door cards routes through here so the locked copy
+// lives in exactly one place and the pieces are testable without rendering. The rules:
 //
-//  • The left door names the visitor's REAL course code or nothing — "built around your course"
-//    is the honest generic, never a plausible invented code (same contract as the hero).
-//  • The primary CTA flips to "Continue" only on trustworthy local progress (the guided path's
-//    own started flag) — never on a guess.
+//  • The left door names the visitor's REAL course code when known, else the flagship campus
+//    config's code (HOME_CAMPUS in lib/launch.ts — the same config the waitlist date lives in).
+//  • Course codes render as ONE non-breaking token ("ACCY 201" can never wrap "201" alone).
 import { GREEK_PORTAL_ORGS } from "@/components/site/portal-home/greek-portal-orgs";
+import { nbspCode } from "@/lib/course-code";
+import { HOME_CAMPUS } from "@/lib/launch";
 
-/** Left door description. `code` must be a VERIFIED course code or null. */
-export const soloDoorDescription = (code: string | null): string =>
-  code ? `Cram videos + practice built for ${code}.` : "Cram videos + practice built around your course.";
+/** The course code the homepage speaks: the visitor's verified code, else the flagship
+ *  campus's (config, never hardcoded in a component). Always nbsp-joined for display. */
+export const homeCourseCode = (resolvedCode: string | null): string =>
+  nbspCode(resolvedCode ?? HOME_CAMPUS.courseCode);
 
-/** Left door primary CTA. `returning` = the visitor has genuinely started Exam 1 here before. */
-export const soloDoorCta = (returning: boolean): string =>
-  returning ? "Continue Exam 1 →" : "Start Exam 1 Free →";
+/** Left door button (H1): "Survive ACCY 201 →". */
+export const soloButtonLabel = (resolvedCode: string | null): string =>
+  `Survive ${homeCourseCode(resolvedCode)} →`;
+
+/** Left door support line, two tones: muted sentence + cream "Exam 1 is free." */
+export const soloSupport = (resolvedCode: string | null): { muted: string; strong: string } => ({
+  muted: `Cram-style videos & practice for ${homeCourseCode(resolvedCode)}.`,
+  strong: "Exam 1 is free.",
+});
 
 /** The Greek-letter ticker stream — DERIVED from the one canonical client-side org list
  *  (greek-portal-orgs.ts, which is also Lee's outreach priority order), never a second

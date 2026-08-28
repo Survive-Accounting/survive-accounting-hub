@@ -1,7 +1,7 @@
 // THE TWO-DOOR HOMEPAGE (2026-08-27) — surviveaccounting.com/'s hero redesign, V1.
 //
 // One job: a stranger understands Survive in ~5 seconds and picks one of two doors —
-// STUDY ON YOUR OWN or STUDY WITH YOUR CHAPTER. The information architecture is borrowed from
+// STUDY SOLO or STUDY WITH YOUR CHAPTER. The information architecture is borrowed from
 // Speechnotes (centered promise → small credibility layer → two perfectly symmetrical doors);
 // the visual world is entirely ours (navy, cream, amber, the bolt).
 //
@@ -44,7 +44,8 @@ import { submitNotify } from "@/lib/syllabus.functions";
 import { examRequest, notifyNote } from "@/lib/notify-request";
 import { rememberStudentEmail } from "@/lib/student-email";
 import { readTestSession } from "@/lib/test-mode";
-import { soloDoorCta, soloDoorDescription, tickerLine } from "./two-door-copy";
+import { soloButtonLabel, soloSupport, tickerLine } from "./two-door-copy";
+import { nbspCode } from "@/lib/course-code";
 
 /** The doors section's anchor. Also aliased by the legacy #exam1 anchor below it, because every
  *  other page's navbar still links "/#exam1" — those visitors should land at the doors, not at a
@@ -127,7 +128,6 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
         <TwoDoorCards
           code={campus.code}
           pinnedSchoolId={campus.school?.id ?? null}
-          returning={returning}
           onSolo={openSolo}
           soloHref={previewSoloHref}
           onChapter={openChapter}
@@ -192,7 +192,7 @@ function TwoDoorHero({ code, schoolName, onOpenBio }: {
   // Same honesty rule as every hero before it: the campus version needs BOTH a school and a
   // VERIFIED course code; anything less renders the generic page, never an invented code.
   const headline = code && schoolName
-    ? <><span style={{ color: "var(--accent)" }}>{code}</span> at {schoolName} is where GPAs quietly slip.</>
+    ? <><span style={{ color: "var(--accent)" }}>{nbspCode(code)}</span> at {schoolName} is where GPAs quietly slip.</>
     : <>Intro accounting is where GPAs quietly slip.</>;
   return (
     <section id={MARKETING_HERO_ID} className="sa-two-door-hero flex flex-col items-center pb-9 pt-10 text-center sm:pt-14" style={{ fontFamily: BRAND_SANS }}>
@@ -227,40 +227,41 @@ const DOOR_CARD: React.CSSProperties = {
   boxShadow: "0 24px 60px -30px rgba(0,0,0,0.7)",
 };
 
-/** ONE internal grammar for both cards. Slots are fixed-height so the titles, descriptions,
- *  buttons and support lines sit on identical baselines left → right. */
-function DoorCard({ icon, title, description, button, support }: {
+/** ONE internal grammar for both cards (FINAL MILE H1 order):
+ *  ICON → HEADING → BUTTON → SUPPORT LINE (→ ticker, right card only).
+ *  Slots are fixed-height so headings, buttons and support lines sit on identical baselines
+ *  left → right. */
+function DoorCard({ icon, title, button, support, bottom }: {
   icon: React.ReactNode;
   title: string;
-  description: string;
   button: React.ReactNode;
   support: React.ReactNode;
+  /** The card-bottom band (the Greek ticker on the right card). */
+  bottom?: React.ReactNode;
 }) {
   return (
     <div className="sa-door-card" style={DOOR_CARD}>
       {/* Icon envelope — same box on both sides, whatever lives inside it. */}
       <div className="grid place-items-center" style={{ height: 118 }}>{icon}</div>
+      {/* Fixed two-line envelope so a wrapped title never pushes the buttons out of line. */}
       <h3
-        className="mt-4 text-[20px] font-black uppercase"
-        style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "0.04em" }}
+        className="mt-3 grid place-items-center text-[20px] font-black uppercase leading-tight"
+        style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "0.04em", minHeight: 52 }}
       >
         {title}
       </h3>
-      <p className="mt-2 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.72, minHeight: 38, maxWidth: "32ch" }}>
-        {description}
-      </p>
+      <div className="mt-3 w-full">{button}</div>
+      {/* Support line BELOW the button (H1); balanced wrap, two lines max on mobile. */}
+      <div className="sa-door-support mt-3 grid w-full place-items-center" style={{ minHeight: 38, fontFamily: BRAND_SANS }}>{support}</div>
       <div className="flex-1" />
-      <div className="w-full">{button}</div>
-      {/* Support slot — fixed height so the ticker and the one-liner occupy the same band. */}
-      <div className="mt-3 grid w-full place-items-center" style={{ height: 26 }}>{support}</div>
+      {bottom && <div className="grid w-full place-items-center" style={{ height: 26 }}>{bottom}</div>}
     </div>
   );
 }
 
-function TwoDoorCards({ code, pinnedSchoolId, returning, onSolo, soloHref, onChapter }: {
+function TwoDoorCards({ code, pinnedSchoolId, onSolo, soloHref, onChapter }: {
   code: string | null;
   pinnedSchoolId: string | null;
-  returning: boolean;
   onSolo: () => void;
   /** Preview only: makes the solo CTA a link into Player V2 (onSolo still fires for tracking). */
   soloHref?: string;
@@ -294,8 +295,7 @@ function TwoDoorCards({ code, pinnedSchoolId, returning, onSolo, soloHref, onCha
               <AnimatedCampusBolt campuses={campuses} showLabel={false} ariaLabel="Survive bolt" />
             </span>
           }
-          title="Study on your own"
-          description={soloDoorDescription(code)}
+          title="Study solo"
           button={
             soloHref ? (
               <a
@@ -304,7 +304,7 @@ function TwoDoorCards({ code, pinnedSchoolId, returning, onSolo, soloHref, onCha
                 className="inline-flex items-center justify-center transition-transform hover:scale-[1.02] focus-visible:ring-2"
                 style={{ ...BTN_BASE, background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.55)" }}
               >
-                {soloDoorCta(returning)}
+                {soloButtonLabel(code)}
               </a>
             ) : (
               <button
@@ -313,11 +313,16 @@ function TwoDoorCards({ code, pinnedSchoolId, returning, onSolo, soloHref, onCha
                 className="transition-transform hover:scale-[1.02] focus-visible:ring-2"
                 style={{ ...BTN_BASE, background: "var(--accent)", color: "#0B1220", boxShadow: "0 18px 44px -16px rgba(252,163,17,0.55)" }}
               >
-                {soloDoorCta(returning)}
+                {soloButtonLabel(code)}
               </button>
             )
           }
-          support={<span className="text-[12.5px]" style={{ color: "var(--text-muted)" }}>No account required.</span>}
+          support={
+            <span className="text-[13px] leading-snug" style={{ maxWidth: "34ch" }}>
+              <span style={{ color: "var(--text-muted)" }}>{soloSupport(code).muted}</span>{" "}
+              <span className="font-bold" style={{ color: "var(--brand-cream)" }}>{soloSupport(code).strong}</span>
+            </span>
+          }
         />
 
         {/* RIGHT DOOR — Greek chapters. Same frame, equal-weight CTA; generic chapter-house
@@ -325,7 +330,6 @@ function TwoDoorCards({ code, pinnedSchoolId, returning, onSolo, soloHref, onCha
         <DoorCard
           icon={<ChapterHouseIcon height={82} />}
           title="Study with your chapter"
-          description="Get Survive through your fraternity or sorority."
           button={
             <button
               type="button"
@@ -336,7 +340,12 @@ function TwoDoorCards({ code, pinnedSchoolId, returning, onSolo, soloHref, onCha
               Find your chapter →
             </button>
           }
-          support={<GreekTicker onActivate={() => onChapter("ticker")} />}
+          support={
+            <span className="text-[13px] leading-snug" style={{ color: "var(--text-muted)", maxWidth: "34ch" }}>
+              Get Survive through your fraternity or sorority.
+            </span>
+          }
+          bottom={<GreekTicker onActivate={() => onChapter("ticker")} />}
         />
       </div>
     </section>
@@ -523,6 +532,9 @@ const TWO_DOOR_CSS = `
 /* CENTERED HERO: the proof strip centres at every width here (Marketing's own class left-aligns
    it on desktop, where the old hero had a left column). */
 .sa-two-door-hero .sa-proof-row { justify-content: center; }
+
+/* SUPPORT LINES — balanced wrap so a one-word last line can't happen (H1 one-line rule). */
+.sa-door-support { text-wrap: balance; }
 
 /* DOOR CARDS — one hover response for both: a hair of lift, nothing else moves. */
 .sa-door-card { transition: transform 180ms ease, box-shadow 180ms ease; }

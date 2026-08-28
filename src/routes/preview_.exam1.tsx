@@ -2,7 +2,7 @@
 //
 // The full future Exam 1 journey for Lee and selected beta testers: full-screen plan builder
 // (mode · goal) → Tonight's Plan → the REAL guided player walking the plan-filtered path.
-// Reached from /preview/home's STUDY ON YOUR OWN door; no public navigation links here, and the
+// Reached from /preview/home's STUDY SOLO door; no public navigation links here, and the
 // public "/" keeps routing ordinary visitors to the September 1 waitlist.
 //
 // PREVIEW-ONLY, like /preview/home: noindex, unlinked, no loader. The player itself is the live

@@ -17,6 +17,7 @@ import { BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS } from "@/components/c
 import { AnimatedCampusBolt, type BoltCampus } from "@/components/site/bolt";
 import { CompactLockup } from "@/components/site/SiteHeader";
 import { NotListedForm } from "@/components/site/NotListedForm";
+import { nbspCode } from "@/lib/course-code";
 import { scrollToId } from "@/lib/ui-scroll";
 import { useDismiss } from "@/lib/use-dismiss";
 
@@ -99,12 +100,12 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
       }];
 
   const headline = code && schoolShort
-    ? <><span style={{ color: "var(--accent)" }}>{code}</span> at {schoolShort} is where GPAs quietly slip.</>
+    ? <><span style={{ color: "var(--accent)" }}>{nbspCode(code)}</span> at {schoolShort} is where GPAs quietly slip.</>
     : <>Intro accounting is where GPAs quietly slip.</>;
 
   // Campus pages keep the sharper personalised claim; the generic page sells the outcome.
   const supporting = code
-    ? `Cram videos + practice exams built for ${code}.`
+    ? `Cram videos + practice exams built for ${nbspCode(code)}.`
     : "Cram videos + practice exams built for crushing your first accounting course.";
 
   return (
