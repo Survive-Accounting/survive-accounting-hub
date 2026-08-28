@@ -73,3 +73,9 @@ export function groupMeMessage(opts: { claimed?: boolean; shortName?: string; co
 // The ChapterShare COMPONENT (the old accordion step-01 UI) was removed 2026-08-28 — the share
 // kit on the /go page replaced it. The helpers above stayed: the URL builder, the short-name
 // rule and the GroupMe copy are used by the share kit, the flyer, the OG card and /go/demo.
+
+/** THE TEXT MESSAGE — the same offer as the GroupMe post, trimmed for SMS. One thumb-length
+ *  message a member sends a friend directly; the GroupMe one is written for a whole group chat. */
+export function chapterTextMessage(opts: { courseLabel: string; url: string }): string {
+  return `Free ${opts.courseLabel} cram videos + practice exams — Exam 1 is free. ${opts.url}`;
+}

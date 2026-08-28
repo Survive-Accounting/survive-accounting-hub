@@ -53,7 +53,7 @@ export function FlyerBlock({ schoolSlug, chapterSlug, chapterName, title, subtit
   }, [base]);
 
   const log = (action: "flyer_download" | "flyer_print") =>
-    void logGreekEvent({ data: { kind: action === "flyer_download" ? "flyer_download" : "flyer_print", schoolSlug, chapterSlug } }).catch(() => {});
+    void logGreekEvent({ data: { kind: action === "flyer_download" ? "flyer_download" : "flyer_print", schoolSlug, chapterSlug, via: "flyer" } }).catch(() => {});
 
   const print = () => {
     log("flyer_print");

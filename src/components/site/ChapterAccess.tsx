@@ -7,20 +7,22 @@
 //
 //     headline + two doors → player → SHARE KIT → exec strip → testimonials → Meet your tutor
 //
-// The share kit is the right door's destination and is exactly three fat actions with no
-// sub-steps. The exec path shrinks to ONE quiet row, and the price — which is only ever for the
-// exec — moved inside the claim flow, so a member browsing the page never meets a number.
+// The share kit is the right door's destination: THREE TIERS side by side (K2) — send it, the
+// flyer, the meeting slide — because those are the three rooms a chapter lives in. The exec path
+// is ONE quiet row, and the price, which is only ever for the exec, lives inside the claim flow,
+// so a member browsing the page never meets a number.
 //
-// ATTRIBUTION: each share path stamps a distinct `via` on the /go URL it hands out
-// (link | groupme | flyer), and the page's existing visit log records it. No new analytics
-// system — the same expand_events row, now carrying where the visitor came from.
+// ATTRIBUTION: each path stamps a distinct `via` on the /go URL it hands out
+// (link | groupme | text | flyer | slide), and the page's visit log records it. No new analytics
+// system — the same expand_events row, carrying where the visitor came from.
 import { useEffect, useState } from "react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { useCampus } from "@/lib/campus-context";
 import { FlyerBlock } from "@/components/site/FlyerBlock";
 import { ChapterAccessForm } from "@/components/site/ChapterAccessForm";
-import { chapterShortName, chapterUrl, groupMeMessage, type ShareVia } from "@/components/site/ChapterShare";
+import { chapterShortName, chapterTextMessage, chapterUrl, groupMeMessage, type ShareVia } from "@/components/site/ChapterShare";
+import { SlideBlock } from "@/components/site/SlideBlock";
 import { logGreekEvent } from "@/lib/greek-go.functions";
 
 /** Per-member, per-semester. One place, quoted by the claim flow and the FAQ alike. */
@@ -123,27 +125,29 @@ function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, ni
   const copiedLabel = `Copied. Go share it with ${shortName}!`;
   const plain = chapterUrl(schoolSlug, chapterSlug);
 
-  const copy = async (via: Extract<ShareVia, "link" | "groupme">) => {
+  const copy = async (via: Extract<ShareVia, "link" | "groupme" | "text">) => {
     const url = chapterUrl(schoolSlug, chapterSlug, via);
-    const text = via === "link"
-      ? url
-      : groupMeMessage({ courseLabel, url });
+    const text = via === "link" ? url
+      : via === "groupme" ? groupMeMessage({ courseLabel, url })
+      : chapterTextMessage({ courseLabel, url });
     try {
       await navigator.clipboard.writeText(text);
       setCopied(via);
-      void logGreekEvent({ data: { kind: via === "link" ? "copy_link" : "copy_message", schoolSlug, chapterSlug } }).catch(() => {});
+      void logGreekEvent({ data: { kind: via === "link" ? "copy_link" : "copy_message", schoolSlug, chapterSlug, via } }).catch(() => {});
       window.setTimeout(() => setCopied((c) => (c === via ? null : c)), 2200);
     } catch { /* clipboard blocked in some in-app browsers — the visible URL below still works */ }
   };
 
-  const ACTION = "flex w-full items-center justify-between gap-3 rounded-xl px-4 text-left text-[15px] font-black focus-visible:ring-2";
+  const ACTION = "flex w-full items-center justify-between gap-3 rounded-xl px-4 text-left text-[14.5px] font-black focus-visible:ring-2";
   const actionStyle: React.CSSProperties = {
-    minHeight: 58, background: "var(--bg-surface)", border: "1px solid var(--border-default)",
+    minHeight: 54, background: "var(--bg-surface)", border: "1px solid var(--border-default)",
     color: "var(--brand-cream)", cursor: "pointer",
   };
+  const TIER_H = "text-[11.5px] font-black uppercase";
+  const tierHStyle = { color: "var(--text-muted)", letterSpacing: "0.14em" } as const;
 
   return (
-    <section id={id} className="sa-anchor mx-auto w-full max-w-[640px] px-5 py-12" style={{ fontFamily: BRAND_SANS }}>
+    <section id={id} className="sa-anchor mx-auto w-full max-w-[1040px] px-5 py-12" style={{ fontFamily: BRAND_SANS }}>
       <p className="text-center text-[11.5px] font-bold" style={{ color: "var(--text-muted)", letterSpacing: "0.16em" }}>
         SHARE KIT
       </p>
@@ -151,28 +155,52 @@ function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, ni
         Get it to the whole house.
       </h2>
 
-      <div className="mx-auto mt-7 flex w-full max-w-sm flex-col gap-2.5">
-        <button type="button" onClick={() => void copy("link")} className={ACTION} style={actionStyle}>
-          <span>{copied === "link" ? copiedLabel : "Copy chapter link"}</span>
-          <span aria-hidden style={{ color: "var(--accent)" }}>⧉</span>
-        </button>
-        <button type="button" onClick={() => void copy("groupme")} className={ACTION} style={actionStyle}>
-          <span>{copied === "groupme" ? copiedLabel : "Copy GroupMe message"}</span>
-          <span aria-hidden style={{ color: "var(--accent)" }}>⧉</span>
-        </button>
-        {/* The real generated flyer — preview, download, print. Removes itself (title included) if
-            the flyer endpoint cannot render, so a label never points at a missing thing. Its QR
-            carries via=flyer on its own. */}
-        <FlyerBlock
-          schoolSlug={schoolSlug}
-          chapterSlug={chapterSlug}
-          chapterName={chapterName}
-          title="Get the flyer"
-          subtitle="Print it and post it in the chapter house."
-        />
-        {/* The URL in plain sight: clipboard access is blocked in some in-app browsers, and a link
-            nobody can read is a dead end. Shown WITHOUT a via param — this one gets typed. */}
-        <p className="mt-1 truncate text-center text-[11.5px]" style={{ color: "var(--text-muted)" }}>{plain.replace("https://", "")}</p>
+      {/* THREE TIERS, side by side on desktop and stacked on a phone (K2). They are the three
+          rooms a chapter actually lives in: the group chat, the wall, and the meeting. Every one
+          of them is usable by any member — sharing is never gated on a claim. */}
+      <div className="mx-auto mt-8 grid w-full gap-6 lg:grid-cols-3 lg:gap-7">
+        {/* TIER 1 — SEND IT. */}
+        <div className="min-w-0">
+          <p className={TIER_H} style={tierHStyle}>Send it</p>
+          <div className="mt-3 flex flex-col gap-2.5">
+            <button type="button" onClick={() => void copy("link")} className={ACTION} style={actionStyle}>
+              <span>{copied === "link" ? copiedLabel : "Copy chapter link"}</span>
+              <span aria-hidden style={{ color: "var(--accent)" }}>⧉</span>
+            </button>
+            <button type="button" onClick={() => void copy("groupme")} className={ACTION} style={actionStyle}>
+              <span>{copied === "groupme" ? copiedLabel : "Copy GroupMe message"}</span>
+              <span aria-hidden style={{ color: "var(--accent)" }}>⧉</span>
+            </button>
+            <button type="button" onClick={() => void copy("text")} className={ACTION} style={actionStyle}>
+              <span>{copied === "text" ? copiedLabel : "Copy text message"}</span>
+              <span aria-hidden style={{ color: "var(--accent)" }}>⧉</span>
+            </button>
+          </div>
+          {/* The URL in plain sight: clipboard access is blocked in some in-app browsers, and a
+              link nobody can read is a dead end. Shown WITHOUT a stamp — this one gets typed. */}
+          <p className="mt-3 truncate text-[11.5px]" style={{ color: "var(--text-muted)" }}>{plain.replace("https://", "")}</p>
+        </div>
+
+        {/* TIER 2 — THE FLYER. */}
+        <div className="min-w-0">
+          <p className={TIER_H} style={tierHStyle}>The flyer</p>
+          <FlyerBlock
+            schoolSlug={schoolSlug}
+            chapterSlug={chapterSlug}
+            chapterName={chapterName}
+            subtitle="Print it and post it in the chapter house."
+          />
+        </div>
+
+        {/* TIER 3 — THE MEETING SLIDE. Same generator as the council partner kit. */}
+        <div className="min-w-0">
+          <p className={TIER_H} style={tierHStyle}>The meeting slide</p>
+          <SlideBlock
+            schoolSlug={schoolSlug}
+            chapterSlug={chapterSlug}
+            chapterName={chapterName}
+          />
+        </div>
       </div>
     </section>
   );

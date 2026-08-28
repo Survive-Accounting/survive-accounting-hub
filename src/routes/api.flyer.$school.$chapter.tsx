@@ -111,8 +111,12 @@ async function handle({ request, params }: { request: Request; params: { school:
     const url = new URL(request.url);
     // ?f=pdf (default, the printable flyer) · ?f=svg (the same flyer as vector)
     // ?f=slide (16:9 for a chapter meeting projector — same message, same colourway, big QR)
+    // ?f=slide&pdf=1 (that same slide as a downloadable PDF — what the chapter share kit hands
+    //   out, and the identical artwork the council partner kit puts in its ZIP; one design)
     const raw = url.searchParams.get("f");
-    const format = raw === "svg" ? "svg" : raw === "slide" ? "slide" : "pdf";
+    const wantsPdf = url.searchParams.get("pdf") === "1";
+    const format: "svg" | "slide" | "slidepdf" | "pdf" =
+      raw === "svg" ? "svg" : raw === "slide" ? (wantsPdf ? "slidepdf" : "slide") : "pdf";
     const ref = (url.searchParams.get("ref") ?? "").trim() || null;
     const input = await resolve(params.school, params.chapter, ref);
     if (!input) return new Response("Not found", { status: 404 });
@@ -120,9 +124,10 @@ async function handle({ request, params }: { request: Request; params: { school:
     // Imported HERE, not at module scope: this file lives in the CLIENT route tree, and a static
     // import drags pdf-lib and qrcode into the browser bundle — which is what produced the
     // out-of-memory build. See the header of flyer.server.ts.
-    const { flyerSvg, flyerPdf, slideSvg } = await import("@/lib/flyer.server");
+    const { flyerSvg, flyerPdf, slideSvg, slidePdf } = await import("@/lib/flyer.server");
     const body = format === "svg" ? Buffer.from(await flyerSvg(input), "utf8")
       : format === "slide" ? Buffer.from(await slideSvg(input), "utf8")
+      : format === "slidepdf" ? await slidePdf(input)
       : await flyerPdf(input);
 
     // The ETag carries everything that changes the artwork, so a course-code or colourway edit
@@ -130,7 +135,9 @@ async function handle({ request, params }: { request: Request; params: { school:
     const etag = `"${Buffer.from(`${params.school}|${params.chapter}|${input.courseCode ?? ""}|${input.refCode ?? ""}|${format}|${body.length}`).toString("base64url")}"`;
     if (request.headers.get("if-none-match") === etag) return new Response(null, { status: 304 });
 
-    const filename = `survive-${params.school}-${params.chapter}-flyer.${format}`;
+    const kind = format === "slide" || format === "slidepdf" ? "slide" : "flyer";
+    const ext = format === "svg" || format === "slide" ? format : "pdf";
+    const filename = `survive-${params.school}-${params.chapter}-${kind}.${ext}`;
     return new Response(new Uint8Array(body), {
       headers: {
         "content-type": (format === "svg" || format === "slide") ? "image/svg+xml; charset=utf-8" : "application/pdf",
