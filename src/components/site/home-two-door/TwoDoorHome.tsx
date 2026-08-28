@@ -475,7 +475,7 @@ function Exam1LaunchModal({ campusId, campusName, courseCode, onClose }: {
               New Exam 1 prep is almost ready.
             </p>
             <p className="mx-auto mt-1.5 max-w-[34ch] text-[14px] leading-snug" style={{ color: "var(--text-muted)" }}>
-              Cram videos + practice built around what actually gets tested.
+              Cram-style videos &amp; practice built on what actually gets tested.
             </p>
             <input
               type="text" inputMode="email" autoComplete="email" placeholder="you@school.edu"
