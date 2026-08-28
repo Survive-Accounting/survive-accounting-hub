@@ -522,7 +522,8 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "study_.dashboard.tsx": "prototype (noindex)",
   // Two-portal home experiment (08-26). Register go.demo as a real template if it graduates
   // from sales asset to permanent surface.
-  "preview_.home.tsx": "experimental two-portal home redesign (noindex, not yet promoted)",
+  "preview_.home.tsx": "preview homepage — the live two-door page with its solo door routed into Player V2 (noindex)",
+  "preview_.exam1.tsx": "private Player V2 'Tonight's Plan' beta (noindex, unlinked from public nav)",
   "go.demo.tsx": "demo chapter page — outreach sales asset (noindex)",
   "go.demo.demo.tsx": "redirect → /go/demo",
   // API / cron / webhook endpoints — not pages

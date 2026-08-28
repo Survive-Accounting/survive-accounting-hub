@@ -18,7 +18,7 @@ import { seedCharFromKey } from "@/lib/picker-keys";
 import { isPlayable, nextStep, setIndexOf, stagesOf, type SetStage } from "@/lib/set-flow";
 import { PracticeStage, readCoverage } from "@/components/site/PracticeStage";
 import { track } from "@/lib/analytics";
-import { buildPath, firstUnfinished, markStepDone, nextPathStep, pathProgress, pathStarted, prevPathStep, readDoneSteps, readPathPos, setPathStarted, stepMeta, stepShortLabel, topicComplete, writePathPos, type PathStep } from "@/lib/exam-path";
+import { buildPath, firstUnfinished, markStepDone, nextPathStep, pathProgress, pathStarted, prevPathStep, readDoneSteps, readPathPos, setPathStarted, stepIndex, stepMeta, stepShortLabel, topicComplete, writePathPos, type PathStep } from "@/lib/exam-path";
 import { writeResume } from "@/components/site/SaveProgress";
 import { FutureExamWaitlist } from "@/components/site/FutureExamWaitlist";
 import { StagePills } from "@/components/site/StagePills";
@@ -62,6 +62,7 @@ import {
   FloatingContact, SocialProofSection, TutorBioModal, TutorCard, type GreekMarketing,
 } from "@/components/site/Marketing";
 import { CampusProvider, useCampus } from "@/lib/campus-context";
+import type { PlannerV2Bridge } from "@/components/player-v2/plan-model";
 import { readStoredCampus, rememberCampus, rememberProfSkip, SKIPPED, NOT_LISTED } from "@/lib/campus-prefs";
 import { Footer } from "@/components/site/SiteFooter";
 import { TestimonialsSlider } from "@/components/site/Testimonials";
@@ -178,15 +179,17 @@ interface LandingProps {
   storedCampusId?: string | null;
   /** School id whose professor question this visitor already skipped (cookie). */
   profSkipFor?: string | null;
-  /** EXPERIMENTAL TWO-PORTAL HOME (/preview/home, 2026-08-26). Inert unless the preview route
-   *  passes it — the live "/" renders exactly as before. `portals` renders between the hero and
-   *  the player anchor (it receives the hero CTA's own onStart so the student card scrolls the
-   *  same way); `playerHeader` renders directly above the player anchor. */
-  portalHome?: { portals: (ctx: { onStart: () => void }) => React.ReactNode; playerHeader?: React.ReactNode };
   /** /go/demo ONLY: pins the hero to a display-only school name + course code on a page with no
    *  real campus, and blocks a returning visitor's stored campus from repainting the demo as
    *  their school. Never set on a live route. */
   demoContext?: { schoolName: string; courseCode: string };
+  /** PRIVATE PLAYER V2 "TONIGHT'S PLAN" (/preview/exam1, 2026-08-27) — the experimental-slot
+   *  pattern portalHome pioneered. Inert unless the preview route passes it; every live route
+   *  renders exactly as before. The bridge lets the plan layer (mode · goal · local depth)
+   *  filter the guided path's steps, render a plan strip above the player, and take over the
+   *  topic-complete interstitial — WITHOUT forking the player. Type-only import: the V2 UI
+   *  never enters the live bundle. */
+  plannerV2?: PlannerV2Bridge;
 }
 
 export function LandingPage(props: LandingProps = {}) {
@@ -198,7 +201,7 @@ export function LandingPage(props: LandingProps = {}) {
   );
 }
 
-function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlug, greek, onStartExam, chapterCount, greekOrg, greekNav, videoGate, storedCampusId, profSkipFor, portalHome, demoContext }: LandingProps) {
+function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlug, greek, onStartExam, chapterCount, greekOrg, greekNav, videoGate, storedCampusId, profSkipFor, demoContext, plannerV2 }: LandingProps) {
   // M1.4 — paint html/body navy so Safari's overscroll rubber-band matches the page instead
   // of flashing the light default at the top and bottom edges.
   useNavyDocument();
@@ -582,7 +585,6 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
             the player, plus greek member attribution when the route wired it. */}
         <MarketingHero
           kind={heroKind}
-          compact={!!portalHome}
           code={heroCode}
           schoolShort={heroSchoolName}
           rotationCampuses={rotationCampuses}
@@ -610,13 +612,10 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
           }}
           courtesy={greek && goChapter ? <CourtesyLine schoolSlug={goChapter.schoolSlug} chapterSlug={goChapter.chapterSlug} chapterName={greek.orgName} /> : undefined}
         />
-        {/* EXPERIMENTAL /preview/home slots — nothing renders on the live routes. */}
-        {portalHome?.portals({ onStart: heroStart })}
-        {portalHome?.playerHeader}
         {/* THE STABLE SCROLL TARGET — see PLAYER_ANCHOR_ID. Empty, outside the player, and
             therefore incapable of moving while the player decides how tall it is. */}
         <div id="player" className="sa-anchor" />
-        <ExamPlayer dataReady={!mapQ.isFetching} videoGate={videoGate} greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); track("school_not_listed"); void logCampusCodeDemand({ data: { source: "write-in" } }).catch(() => {}); rememberCampus(NOT_LISTED); }} onSkipSchool={() => { setNotListed(true); rememberCampus(SKIPPED); }} schoolSkipped={notListed && !school} initialProfSkipped={!!school && !!profSkipFor && profSkipFor === school.id} onResetQuestions={resetQuestions} resetSeq={resetSeq} onChangeProfessor={changeProfessor} onChangeSchool={changeSchoolAny} routePath={campusSlug ? `/${campusSlug}` : goChapter ? `/go/${goChapter.schoolSlug}/${goChapter.chapterSlug}` : "/"} theater={theater} onTheaterDone={() => { track("personalized_loading_completed"); setTheater(null); }} onNotify={(r) => setNotifyReq(r)} />
+        <ExamPlayer dataReady={!mapQ.isFetching} plannerV2={plannerV2} videoGate={videoGate} greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); track("school_not_listed"); void logCampusCodeDemand({ data: { source: "write-in" } }).catch(() => {}); rememberCampus(NOT_LISTED); }} onSkipSchool={() => { setNotListed(true); rememberCampus(SKIPPED); }} schoolSkipped={notListed && !school} initialProfSkipped={!!school && !!profSkipFor && profSkipFor === school.id} onResetQuestions={resetQuestions} resetSeq={resetSeq} onChangeProfessor={changeProfessor} onChangeSchool={changeSchoolAny} routePath={campusSlug ? `/${campusSlug}` : goChapter ? `/go/${goChapter.schoolSlug}/${goChapter.chapterSlug}` : "/"} theater={theater} onTheaterDone={() => { track("personalized_loading_completed"); setTheater(null); }} onNotify={(r) => setNotifyReq(r)} />
 
         {/* Value strip AFTER the player: the product proves the claims, the strip reinforces. */}
         <FeatureValueStrip code={heroCode} onSyllabus={() => openSyllabus()} />
@@ -1706,7 +1705,7 @@ function ProfessorStage({ school, onPick, onNotListed }: {
 // now lives in MatchPanel, inside the right panel, where the student is already looking.
 
 
-function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, schools, onSyllabus, professor, onPickProfessor, notListed, onNotListed, onSkipSchool, schoolSkipped, initialProfSkipped, onResetQuestions, resetSeq, onChangeProfessor, onChangeSchool, routePath, theater, onTheaterDone, dataReady, onNotify }: { resetSeq: number; dataReady?: boolean; onResetQuestions: () => void; onChangeProfessor: () => void; onChangeSchool: () => void; routePath: string; videoGate?: React.ReactNode; greekOrg?: string; exams: ExamTab[]; school: School | null; onPick: (s: School) => void; focusSignal: number; schools: School[]; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; notListed: boolean; onNotListed: () => void; onSkipSchool: () => void; /** No school named (skipped / not listed): the professor rung is moot and the player goes straight to content. */ schoolSkipped: boolean; /** The cookie says this visitor already skipped the professor question for this school. */ initialProfSkipped: boolean; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void; onNotify: (r: NotifyReq) => void }) {
+function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, schools, onSyllabus, professor, onPickProfessor, notListed, onNotListed, onSkipSchool, schoolSkipped, initialProfSkipped, onResetQuestions, resetSeq, onChangeProfessor, onChangeSchool, routePath, theater, onTheaterDone, dataReady, onNotify, plannerV2 }: { resetSeq: number; dataReady?: boolean; /** PRIVATE PLAYER V2 bridge — see LandingProps.plannerV2. Absent on every live route. */ plannerV2?: PlannerV2Bridge; onResetQuestions: () => void; onChangeProfessor: () => void; onChangeSchool: () => void; routePath: string; videoGate?: React.ReactNode; greekOrg?: string; exams: ExamTab[]; school: School | null; onPick: (s: School) => void; focusSignal: number; schools: School[]; onSyllabus: (framing?: string) => void; professor: ProfessorLite | null; onPickProfessor: (p: ProfessorLite | null) => void; notListed: boolean; onNotListed: () => void; onSkipSchool: () => void; /** No school named (skipped / not listed): the professor rung is moot and the player goes straight to content. */ schoolSkipped: boolean; /** The cookie says this visitor already skipped the professor question for this school. */ initialProfSkipped: boolean; theater: { school: School; mode: "full" | "short" } | null; onTheaterDone: () => void; onNotify: (r: NotifyReq) => void }) {
   const [activeNum, setActiveNum] = useState(1);
   const [selById, setSelById] = useState<Record<number, Sel>>({});
   // ACCORDION: exactly one topic expanded at a time (launch pass). A stored set of open keys
@@ -1882,6 +1881,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
     setOpenTopic((prev) => (prev === topicKey ? null : topicKey));
     setUserPicked(true);
     track("topic_preview_opened", { topic_id: topicKey, campus_id: school?.campusId ?? undefined });
+    plannerV2?.onMapBrowse?.();
   };
   // Start: expand, select the topic's first playable set, launch its first question.
   const startTopic = (topicKey: string) => {
@@ -1898,7 +1898,12 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
   // ── GUIDED PATH (08-26). THE PATH is the product: Start Exam 1, then keep pressing Continue.
   // Steps derive from the free tab's actual content (lib/exam-path); completion is local-first.
   const isFreeTab = active.price == null;
-  const pathSteps = useMemo<PathStep[]>(() => (isFreeTab ? buildPath(active.topics) : []), [isFreeTab, active]);
+  // The canonical map (rawPathSteps) vs TONIGHT'S PLAN (pathSteps). On every live route the two
+  // are identical; under Player V2 the plan bridge filters by mode/goal/local-depth, and every
+  // downstream mechanism (Continue, Back/Next, progress, resume, completion) walks the PLAN —
+  // that is the whole V2 integration, one filter.
+  const rawPathSteps = useMemo<PathStep[]>(() => (isFreeTab ? buildPath(active.topics) : []), [isFreeTab, active]);
+  const pathSteps = useMemo<PathStep[]>(() => (plannerV2 ? plannerV2.filterSteps(rawPathSteps) : rawPathSteps), [plannerV2, rawPathSteps]);
   const [doneMap, setDoneMap] = useState<Record<string, number>>(() => readDoneSteps());
   useEffect(() => {
     const on = () => setDoneMap(readDoneSteps());
@@ -1914,7 +1919,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
   const nextStepOnPath = nextPathStep(pathSteps, curStepId);
   const prevStepOnPath = prevPathStep(pathSteps, curStepId);
   // Interstitials.
-  const [topicDoneCard, setTopicDoneCard] = useState<{ name: string; next: PathStep } | null>(null);
+  const [topicDoneCard, setTopicDoneCard] = useState<{ name: string; key: string | null; next: PathStep } | null>(null);
   const [examDone, setExamDone] = useState(false);
   // Jump control: remount the SetFlowPanel at a requested stage (Back/Next across stages).
   const [stageReq, setStageReq] = useState<{ setId: string; stage: SetStage; n: number } | null>(null);
@@ -1938,6 +1943,13 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
   // CONTINUE — the one advance rule. Topic boundary with the topic finished → a restrained
   // interstitial; past the last step with everything done → the exam-complete state.
   const continuePath = useCallback(() => {
+    // A position OUTSIDE the plan (deep manual browsing under Player V2's filtered path) must
+    // resume at the first unfinished plan step — nextPathStep on an unknown id would return
+    // step[0] and silently teleport the student to the beginning.
+    if (curStepId && stepIndex(pathSteps, curStepId) === -1) {
+      const resume = firstUnfinished(pathSteps, readDoneSteps());
+      if (resume) { goToStep(resume); return; }
+    }
     const nxt = nextPathStep(pathSteps, curStepId);
     if (!nxt) {
       const prog = pathProgress(pathSteps, readDoneSteps());
@@ -1948,7 +1960,7 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
     const curTopicKey = cur?.topicKey ?? null;
     if (curTopicKey && nxt.topicKey !== curTopicKey && topicComplete(pathSteps, readDoneSteps(), curTopicKey)) {
       const name = active.topics.find((t) => t.key === curTopicKey)?.name ?? "Topic";
-      setTopicDoneCard({ name, next: nxt });
+      setTopicDoneCard({ name, key: curTopicKey, next: nxt });
       return;
     }
     goToStep(nxt);
@@ -2060,6 +2072,10 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
           </button>
         </div>
 
+        {/* PLAYER V2 PLAN STRIP — plan identity · progress · time left, replacing database-size
+            information (spec §17). Renders only when the plan bridge exists and the path runs. */}
+        {plannerV2 && isFreeTab && started && !entryGate && plannerV2.planStrip({ steps: pathSteps, allSteps: rawPathSteps, done: doneMap, curTopicKey: cur?.topicKey ?? null, curTopicName: curTopic?.name ?? null, goToStep })}
+
         <div className="relative">
         {/* The tease: blur + dim, pointer-events off, hidden from AT. Enough structure shows
             through to say "there is a lot here" without being readable-but-unusable. */}
@@ -2089,7 +2105,9 @@ function ExamPlayer({ videoGate, greekOrg, exams, school, onPick, focusSignal, s
                 examDone && isFreeTab ? (
                   <ExamCompleteCard steps={pathSteps} done={doneMap} onExam2={() => setActiveNum(2)} />
                 ) : topicDoneCard && isFreeTab ? (
-                  <TopicCompleteCard name={topicDoneCard.name} pct={progress.pct} next={topicDoneCard.next} onContinue={() => goToStep(topicDoneCard.next)} />
+                  plannerV2
+                    ? plannerV2.topicCompleteCard({ steps: pathSteps, allSteps: rawPathSteps, done: doneMap, goToStep, topicName: topicDoneCard.name, topicKey: topicDoneCard.key, pct: progress.pct, next: topicDoneCard.next, onContinue: () => goToStep(topicDoneCard.next) })
+                    : <TopicCompleteCard name={topicDoneCard.name} pct={progress.pct} next={topicDoneCard.next} onContinue={() => goToStep(topicDoneCard.next)} />
                 ) : isFreeTab && !started && !userPicked ? (
                   <PathStartCard school={school} onStart={startPath} onRemind={() => { setRemindOpen(true); track("study_reminder_opened"); }} />
                 ) : !curSet && curTopic && curTopic.sets.length > 0 && active.price == null ? (
