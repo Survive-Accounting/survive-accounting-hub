@@ -167,9 +167,6 @@ interface LandingProps {
   greek?: GreekMarketing;
   /** Greek member attribution, fired from the hero CTAs (was ChapterTop's onStartExam). */
   onStartExam?: () => void;
-  /** Chapter-page navbar: same-page anchors + the exec CTA. The /go/ route passes its own
-   *  anchor ids here so the navbar and the sections can never disagree about them. */
-  greekNav?: { examAnchor: string; accessAnchor: string };
   goChapter?: { schoolSlug: string; chapterSlug: string };
   /** Greek chapters known at this campus — drives the "For fraternities & sororities" secondary
    *  CTA on campus pages (hidden at 0, where it would invite people to an empty list). */
@@ -196,6 +193,10 @@ interface LandingProps {
    *  the CTA row + big bolt. A render function, not a node, because the left door needs the
    *  hero's own start handler (scroll to player + greek member attribution). */
   greekDoors?: (ctx: { onStart: () => void }) => React.ReactNode;
+  /** CHAPTER PAGES (K1.7, 2026-08-28): the embedded player is a HOME/campus surface. On a
+   *  chapter page its slot carries the claim section instead, so the embed does not render at
+   *  all — a member who wants to study presses the left door, which is the whole point of it. */
+  hidePlayer?: boolean;
 }
 
 export function LandingPage(props: LandingProps = {}) {
@@ -207,7 +208,7 @@ export function LandingPage(props: LandingProps = {}) {
   );
 }
 
-function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlug, greek, onStartExam, chapterCount, greekOrg, greekNav, videoGate, storedCampusId, profSkipFor, demoContext, plannerV2, greekDoors }: LandingProps) {
+function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlug, greek, onStartExam, chapterCount, greekOrg, videoGate, storedCampusId, profSkipFor, demoContext, plannerV2, greekDoors, hidePlayer }: LandingProps) {
   // M1.4 — paint html/body navy so Safari's overscroll rubber-band matches the page instead
   // of flashing the light default at the top and bottom edges.
   useNavyDocument();
@@ -582,8 +583,11 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
 
       {/* M1.5 — the persistent way home. On / it is the brand anchor; on /c/<slug> and the
           other pages that reuse LandingPage it is the only route back. Chapter pages swap the
-          homepage links for same-page anchors via greekNav. */}
-      <SiteHeader chapterNav={greekNav} onLanding />
+          same bar as the homepage since K1.3 — no chapter-specific variant. */}
+      {/* ONE NAVBAR (K1.3, 2026-08-28). The chapter page used to get a contextualised bar with
+          its own "Set Up Chapter Access →" CTA; claiming now lives on the page itself, directly
+          under the doors, so the bar is the same component and the same links everywhere. */}
+      <SiteHeader homeNav onLanding />
 
       {/* maxWidth + overflow-x guard (M1.1): `padding: 0 20px` on a 1040-wide box is fine on
           desktop, but any child that ignores the box (a nowrap lockup, a fixed-width panel)
@@ -625,10 +629,12 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
         {/* THE STABLE SCROLL TARGET — see PLAYER_ANCHOR_ID. Empty, outside the player, and
             therefore incapable of moving while the player decides how tall it is. */}
         <div id="player" className="sa-anchor" />
+        {!hidePlayer && (
         <ExamPlayer dataReady={!mapQ.isFetching} plannerV2={plannerV2} videoGate={videoGate} greekOrg={greekOrg} exams={exams} school={school ? (schoolsWithCodes.find((x) => x.id === school.id) ?? school) : null} onPick={pickSchool} focusSignal={focusSignal} schools={schoolsWithCodes} onSyllabus={openSyllabus} professor={professor} onPickProfessor={pickProfessor} notListed={notListed} onNotListed={() => { setNotListed(true); track("school_not_listed"); void logCampusCodeDemand({ data: { source: "write-in" } }).catch(() => {}); rememberCampus(NOT_LISTED); }} onSkipSchool={() => { setNotListed(true); rememberCampus(SKIPPED); }} schoolSkipped={notListed && !school} initialProfSkipped={!!school && !!profSkipFor && profSkipFor === school.id} onResetQuestions={resetQuestions} resetSeq={resetSeq} onChangeProfessor={changeProfessor} onChangeSchool={changeSchoolAny} routePath={campusSlug ? `/${campusSlug}` : goChapter ? `/go/${goChapter.schoolSlug}/${goChapter.chapterSlug}` : "/"} theater={theater} onTheaterDone={() => { track("personalized_loading_completed"); setTheater(null); }} onNotify={(r) => setNotifyReq(r)} />
+        )}
 
         {/* Value strip AFTER the player: the product proves the claims, the strip reinforces. */}
-        <FeatureValueStrip code={heroCode} onSyllabus={() => openSyllabus()} />
+        <FeatureValueStrip code={heroCode} onSyllabus={() => openSyllabus()} variant={hidePlayer ? "chapter" : "home"} />
 
         {/* CHAPTER ACCESS still after the product, never before it. */}
         {chapterAccess}

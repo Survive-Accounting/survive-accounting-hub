@@ -359,7 +359,7 @@ export const logGreekEvent = createServerFn({ method: "POST" })
      *  council blast) or slide (a projector QR in a chapter meeting). Appended to the event
      *  string, so the existing expand_events row answers "what actually spreads?" without a
      *  second table. Absent = arrived some other way, which is a real and common answer. */
-    via: z.enum(["link", "groupme", "flyer", "campaign", "slide"]).nullable().optional(),
+    via: z.enum(["link", "groupme", "text", "flyer", "slide", "campaign"]).nullable().optional(),
   }).parse(d))
   .handler(async ({ data }): Promise<{ ok: boolean }> => {
     try {

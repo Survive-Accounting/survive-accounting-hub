@@ -117,13 +117,17 @@ function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, ni
   courseLabel: string;
 }) {
   const [copied, setCopied] = useState<ShareVia | null>(null);
+  // Names the chapter the link is FOR — a share is an act of doing something for the house,
+  // and the confirmation should say so (K1.4).
+  const shortName = chapterShortName(chapterName, letters, nickname);
+  const copiedLabel = `Copied. Go share it with ${shortName}!`;
   const plain = chapterUrl(schoolSlug, chapterSlug);
 
   const copy = async (via: Extract<ShareVia, "link" | "groupme">) => {
     const url = chapterUrl(schoolSlug, chapterSlug, via);
     const text = via === "link"
       ? url
-      : groupMeMessage({ claimed, shortName: chapterShortName(chapterName, letters, nickname), courseLabel, url });
+      : groupMeMessage({ courseLabel, url });
     try {
       await navigator.clipboard.writeText(text);
       setCopied(via);
@@ -149,11 +153,11 @@ function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, ni
 
       <div className="mx-auto mt-7 flex w-full max-w-sm flex-col gap-2.5">
         <button type="button" onClick={() => void copy("link")} className={ACTION} style={actionStyle}>
-          <span>{copied === "link" ? "Copied. Go be a hero. ⚡" : "Copy chapter link"}</span>
+          <span>{copied === "link" ? copiedLabel : "Copy chapter link"}</span>
           <span aria-hidden style={{ color: "var(--accent)" }}>⧉</span>
         </button>
         <button type="button" onClick={() => void copy("groupme")} className={ACTION} style={actionStyle}>
-          <span>{copied === "groupme" ? "Copied. Go be a hero. ⚡" : "Copy GroupMe message"}</span>
+          <span>{copied === "groupme" ? copiedLabel : "Copy GroupMe message"}</span>
           <span aria-hidden style={{ color: "var(--accent)" }}>⧉</span>
         </button>
         {/* The real generated flyer — preview, download, print. Removes itself (title included) if

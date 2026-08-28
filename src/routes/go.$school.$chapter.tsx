@@ -106,7 +106,7 @@ function GoNotFoundRoute() {
 
 /** The share stamp on the current URL, or null. Reads `via` first, then the legacy `s=flyer`
  *  that every already-printed flyer QR carries. */
-export const SHARE_VIA = ["link", "groupme", "flyer", "campaign", "slide"] as const;
+export const SHARE_VIA = ["link", "groupme", "text", "flyer", "slide", "campaign"] as const;
 export type ShareStamp = (typeof SHARE_VIA)[number];
 export function readVia(search: string): ShareStamp | null {
   const q = new URLSearchParams(search);
@@ -176,8 +176,7 @@ function GoChapterPage() {
         profSkipFor={profSkip}
         goChapter={{ schoolSlug: school, chapterSlug: chapter }}
         // The chapter navbar variant — same-page anchors + the exec CTA. Passed from here (not
-        // derived inside landing.tsx) because this route owns both anchor ids.
-        greekNav={ch ? { examAnchor: EXAM_ANCHOR, accessAnchor: ACCESS_ANCHOR } : undefined}
+        // derived inside landing.tsx) because this route owns both anchor ids.
         // GREEK MARKETING CONTEXT — data, not a hero element. The shared MarketingHero renders
         // the eyebrow + letters CTAs from this; claim state comes straight from getGoChapter.
         greek={ch ? {
@@ -186,6 +185,7 @@ function GoChapterPage() {
           claimed: ch.claimStatus === "claimed",
           accessAnchor: ACCESS_ANCHOR,
         } : undefined}
+        hidePlayer
         onStartExam={tagMember}
         // THE TWO DOORS replace the hero CTA row + big bolt (2026-08-28). Left door = the same
         // action the old "Start Exam 1 Free" had (attribution + scroll to the player).

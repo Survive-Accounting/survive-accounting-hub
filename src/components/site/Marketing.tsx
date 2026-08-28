@@ -312,33 +312,49 @@ export const MARKETING_CSS = `
 @media (prefers-reduced-motion: reduce) { .sa-sticky-footer { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .sa-trust-chip, .sa-trust-chip:hover { transform: none; } }
 `;
-
-// ── FEATURE VALUE STRIP ───────────────────────────────────────────────────────────────────────
-/** Three scannable value cards, AFTER the player (the product proves the claims; the strip
- *  reinforces, it doesn't preface). Card 3 is context-dynamic. */
-export function FeatureValueStrip({ code, onSyllabus }: { code: string | null; onSyllabus?: () => void }) {
-  void code; // card 3 is course-generic launch copy now; the syllabus action carries the tailoring
+/** THE THREE VALUE CARDS. Card 3 differs by surface (2026-08-28):
+ *
+ *   HOME  — the actionable "Send your syllabus. I'll match it →", which opens the syllabus flow.
+ *   CHAPTER — a plain statement that the product already fits their course. A chapter member is
+ *   being asked to study, not to do the tailoring homework; the syllabus ask stays a home thing.
+ *
+ *  COPY LAW applies (see ChapterDoors): these say what a student GETS, never what we don't need. */
+export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
+  code: string | null;
+  onSyllabus?: () => void;
+  variant?: "home" | "chapter";
+}) {
   const CARDS = [
     { icon: Play, title: "Quick cram videos", body: "Nothing like your lecture videos." },
     { icon: ClipboardCheck, title: "Practice exams", body: "See the problems that matter." },
   ];
   const card = "rounded-2xl p-4";
   const cardStyle = { background: "var(--bg-surface)", border: "1px solid var(--border-default)" } as const;
+  const H = "mt-2.5 text-[15px] font-black";
+  const hStyle = { fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" } as const;
   return (
     <section className="mx-auto grid w-full max-w-[880px] gap-3 px-1 py-10 sm:grid-cols-3" style={{ fontFamily: BRAND_SANS }}>
       {CARDS.map(({ icon: Icon, title, body }) => (
         <div key={title} className={card} style={cardStyle}>
           <Icon className="h-5 w-5" style={{ color: "var(--accent)" }} aria-hidden />
-          <p className="mt-2.5 text-[15px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{title}</p>
+          <p className={H} style={hStyle}>{title}</p>
           <p className="mt-1 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>{body}</p>
         </div>
       ))}
-      {/* Card 3 is the ONE actionable card — it opens the existing syllabus flow. */}
-      <button type="button" onClick={onSyllabus} className={`${card} text-left transition-transform hover:scale-[1.01] focus-visible:ring-2`} style={cardStyle}>
-        <Target className="h-5 w-5" style={{ color: "var(--accent)" }} aria-hidden />
-        <p className="mt-2.5 text-[15px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Built around your course</p>
-        <p className="mt-1 text-[14px] leading-snug" style={{ color: "var(--accent)" }}>Send your syllabus. I&apos;ll match it →</p>
-      </button>
+      {variant === "chapter" ? (
+        <div className={card} style={cardStyle}>
+          <Target className="h-5 w-5" style={{ color: "var(--accent)" }} aria-hidden />
+          <p className={H} style={hStyle}>{code ? `Built for ${nbspCode(code)}` : "Built for your course"}</p>
+          <p className="mt-1 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>Matched to your exact course.</p>
+        </div>
+      ) : (
+        /* HOME: card 3 is the ONE actionable card — it opens the existing syllabus flow. */
+        <button type="button" onClick={onSyllabus} className={`${card} text-left transition-transform hover:scale-[1.01] focus-visible:ring-2`} style={cardStyle}>
+          <Target className="h-5 w-5" style={{ color: "var(--accent)" }} aria-hidden />
+          <p className={H} style={hStyle}>Built around your course</p>
+          <p className="mt-1 text-[14px] leading-snug" style={{ color: "var(--accent)" }}>Send your syllabus. I&apos;ll match it →</p>
+        </button>
+      )}
     </section>
   );
 }

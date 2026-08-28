@@ -2,7 +2,9 @@
 import { describe, expect, test } from "bun:test";
 
 import { chapterUrl } from "@/components/site/ChapterShare";
-import { soloSupportLine } from "./ChapterDoors";
+import { shareSupportLine, soloSupportLine } from "./ChapterDoors";
+
+const NBSP = String.fromCharCode(160); // the non-breaking space the course-code rule inserts
 
 describe("left door support line", () => {
   test("default: free for the house — never an aspirational sponsor claim", () => {
@@ -30,5 +32,25 @@ describe("share attribution", () => {
   });
   test("the plain URL — the one shown to be typed — carries no stamp", () => {
     expect(chapterUrl("auburn", "sigma-chi")).toBe("https://surviveaccounting.com/go/auburn/sigma-chi");
+  });
+});
+
+describe("right door support line (K1.2)", () => {
+  test("says what the house GETS — the plain line names the course, the bold line the payoff", () => {
+    const s = shareSupportLine("AC 210", "ΑΔΧ");
+    expect(s.muted).toBe(`Make sure everyone taking AC${NBSP}210 has the help they need.`);
+    expect(s.strong).toBe("Boost ΑΔΧ's house GPA.");
+  });
+  test("COPY LAW: never states what we don't require", () => {
+    for (const code of ["AC 210", null]) {
+      const s = shareSupportLine(code, "ΑΔΧ");
+      const all = `${s.muted} ${s.strong}`.toLowerCase();
+      for (const banned of ["no account", "no permission", "no sign-up", "no signup"]) {
+        expect(all).not.toContain(banned);
+      }
+    }
+  });
+  test("degrades honestly with no verified course code", () => {
+    expect(shareSupportLine(null, "ΑΔΧ").muted).toBe("Make sure everyone in the house has the help they need.");
   });
 });

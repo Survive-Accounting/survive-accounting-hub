@@ -156,8 +156,7 @@ function GoDemoPage() {
           // "demo" is not a campus id — it exists to block the stored-campus restore, so the
           // demo never repaints itself as a returning visitor's real school.
           initialCampusId="demo"
-          demoContext={{ schoolName: SCHOOL, courseCode: COURSE }}
-          greekNav={{ examAnchor: EXAM_ANCHOR, accessAnchor }}
+          demoContext={{ schoolName: SCHOOL, courseCode: COURSE }}
           greek={{ orgName: ORG, letters: "your chapter", claimed: false, accessAnchor }}
           chapterAccess={mode === "demo" ? <DemoChapterAccess onClaim={() => openClaim("demo-page")} /> : undefined}
           videoGate={signedIn === false ? <ChapterGate chapterName={ORG} /> : undefined}
@@ -256,7 +255,7 @@ function DemoShareTools({ admin = false }: { admin?: boolean }) {
           chapterSlug="demo"
           chapterName={ORG}
           title={admin ? "Your flyer, print-ready" : "Print flyer for the house"}
-          subtitle={admin ? "The QR goes straight to your chapter's page." : "Download a print-ready flyer with your chapter QR code."}
+          subtitle="Download a print-ready flyer with your chapter QR code."
         />
       </DemoWatermark>
       <p className="mt-2 truncate text-center text-[11.5px]" style={{ color: "var(--text-muted)" }}>

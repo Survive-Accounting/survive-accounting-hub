@@ -114,7 +114,7 @@ export function FlyerBlock({ schoolSlug, chapterSlug, chapterName, title, subtit
       </div>
 
       <p className="mt-2 text-center text-[11.5px]" style={{ color: "var(--text-muted)" }}>
-        Print it and post it in the chapter house — the QR goes straight to this page.
+        Print it and post it in the chapter house.
       </p>
     </div>
   );
