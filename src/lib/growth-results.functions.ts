@@ -83,7 +83,7 @@ export const growthResults = createServerFn({ method: "GET" }).handler(
 
     const targets = {
       email: 100,
-      instagram: 20,
+      instagram: 10,
       ...((settings.data?.settings as any)?.growthDailyTargets ?? {}),
     };
     const evs = (events.data ?? []) as any[];

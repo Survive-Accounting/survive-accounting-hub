@@ -179,3 +179,26 @@ export function needsReview(
     reasons.push("named officer not verified for the current term");
   return { review: reasons.length > 0, reasons };
 }
+
+/* ── RECIPIENT ORDER (pre-launch simplification, 2026-08-27) ─────────────────────────
+   Councils first (they unlock whole campuses), then chapters big-to-small, clubs last.
+   chapter_size is nullable — unknown sizes sort after known ones, never invented. */
+
+export interface OrderableEntity {
+  kind: "council" | "chapter" | "club";
+  label: string;
+  size: number | null;
+}
+
+export function compareEntities(a: OrderableEntity, b: OrderableEntity): number {
+  const kindOrder = { council: 0, chapter: 1, club: 2 } as const;
+  if (kindOrder[a.kind] !== kindOrder[b.kind]) return kindOrder[a.kind] - kindOrder[b.kind];
+  if (a.kind === "chapter" && b.kind === "chapter") {
+    const as = a.size,
+      bs = b.size;
+    if (as != null && bs != null && as !== bs) return bs - as; // biggest first
+    if (as != null && bs == null) return -1; // known size beats unknown
+    if (as == null && bs != null) return 1;
+  }
+  return a.label.localeCompare(b.label);
+}

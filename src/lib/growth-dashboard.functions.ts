@@ -64,6 +64,8 @@ export interface GrowthCampusRow {
   paid: number;
   outreachSent: number;
   outreachEligible: number;
+  /** contacts reachable only by Instagram — the gap-filling workload on this campus */
+  contactGaps: number;
   pinned: boolean;
   manualPriority: number | null;
 }
@@ -82,7 +84,7 @@ export const growthCampusList = createServerFn({ method: "GET" }).handler(
         "campus_id,rank,score,version,why,components,computed_at",
       ),
       selectAll(db, "growth_campus_pins", "campus_id,pinned,manual_priority"),
-      selectAll(db, "growth_outreach_eligibility", "campus_id,email,outreach_eligible"),
+      selectAll(db, "growth_outreach_eligibility", "campus_id,email,instagram,outreach_eligible"),
       selectAll(db, "growth_outreach_events", "campus_id,channel,direction,status"),
     ]);
     const campusIds = priority.map((p: any) => p.campus_id);
@@ -106,9 +108,13 @@ export const growthCampusList = createServerFn({ method: "GET" }).handler(
     );
 
     const eligOf = new Map<string, number>();
+    const gapOf = new Map<string, number>();
     for (const e of elig as any[]) {
-      if (e.campus_id && e.outreach_eligible && e.email)
+      if (!e.campus_id) continue;
+      if (e.outreach_eligible && e.email)
         eligOf.set(e.campus_id, (eligOf.get(e.campus_id) ?? 0) + 1);
+      // Instagram-only = a contact King can only DM. Filling its email is the gap work.
+      if (!e.email && e.instagram) gapOf.set(e.campus_id, (gapOf.get(e.campus_id) ?? 0) + 1);
     }
     const sentOf = new Map<string, number>();
     for (const e of events as any[]) {
@@ -148,6 +154,7 @@ export const growthCampusList = createServerFn({ method: "GET" }).handler(
         paid: 0, // filled below
         outreachSent: sentOf.get(p.campus_id) ?? 0,
         outreachEligible: eligOf.get(p.campus_id) ?? 0,
+        contactGaps: gapOf.get(p.campus_id) ?? 0,
         pinned: !!pin?.pinned,
         manualPriority: pin?.manual_priority ?? null,
       };

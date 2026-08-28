@@ -1,6 +1,7 @@
 # EXHIBIT CONVEYOR — HANDOFF
 
-**Written:** 2026-08-27 · **Session:** studio/exhibit conveyor — Careers + Account Classification (retiring)
+**Written:** 2026-08-28 · **Session:** studio — Talkthrough Booth overnight (retiring)
+**Previous:** Careers + Account Classification session (2026-08-27)
 **This session landed:** Accounting Careers (PR #9 → `33ac9ef2`) and Account Classification
 + the shared account registry (PR #11 → `179309ca`).
 **main at handoff:** `179309ca` or later — always `git fetch origin` and use CURRENT `origin/main`.
@@ -115,6 +116,25 @@ CardData union + `KIND_CATEGORY`), `templates.ts` (blank factory + label),
   readout strip with reserved height instead. Prefer the strip for dense layouts.
 - Set the `border` shorthand, never `borderColor` — mixing them warns in React.
 
+## 4b. THE TALKTHROUGH BOOTH — how exhibit prompts arrive now (built 08-28, PR #13)
+
+Lee said the shipped exhibits are not yet at his video standard and he wants to DICTATE
+iteration notes. **`/talkthrough`** is that loop: open a set, talk (Whisper canonical,
+SpeechRecognition live), segments anchor to the focused CEQ, moment tags, then "Draft
+the starting points" produces a board whose EXHIBIT items are conveyor-format Claude
+Code prompts with a COPY button. **Expect exhibit build prompts to arrive via this loop
+— treat a pasted booth prompt exactly like a Downloads prompt file.** The board is a
+staging area; transcripts are verbatim-forever. Modules: `talkthrough.ts`/`-sync`/`-audio`/
+`-pass` + `src/lib/talkthrough.functions.ts`. Reference docs ship in-repo:
+`docs/SURVIVE_METHOD_v1.md` · `docs/SURVIVE_MASTER_CONTEXT_V2.md` ·
+`docs/EXHIBIT-PRODUCTION-BIBLE-v1.md` (the Bible now lives in the repo — cite it, not Downloads).
+
+> **SQL LEE MUST RUN:** `migration/supabase-migrations/20260828_0900_talkthrough_booth.sql`
+> (four tables, RLS deny-by-default). Until then the booth is local-first with a loud
+> badge naming that file. Production pass smoke-tested live 08-28: gateway key, model
+> slug and ?raw doc bundling all verified with a real generation (9 board items).
+> Phase 3 (doodle wall) is queued in BUILD-NOTES.md.
+
 ## 5. Still queued — NOT built
 
 - **Accounting Equation Effects** — prompt + source ready ← **next**
@@ -215,8 +235,8 @@ on port 8092 for the next session.
 
 ## 12. Other active sessions — ACTION REQUIRED
 
-`main` advanced with this work: careers `33ac9ef2` (PR #9), careers handoff `f467fb69`
-(PR #10), classification `179309ca` (PR #11). Always integrate CURRENT `origin/main`.
+`main` advanced with this work: talkthrough booth `6f0da15f` (PR #13); before it careers
+(PR #9/#10) and classification (PR #11/#12). Always integrate CURRENT `origin/main`.
 
 > **OTHER ACTIVE FEATURE BRANCHES MUST FETCH CURRENT MAIN AND INTEGRATE IT BEFORE THEIR OWN
 > FINAL MERGE.** Known active: platform/major-features, Growth/dashboard, portal/product.

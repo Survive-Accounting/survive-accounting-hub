@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
   assembleQueue,
+  compareEntities,
   classifyContact,
   defaultContactFor,
   needsReview,
@@ -153,5 +154,35 @@ describe("template rendering + review gate", () => {
       "tracked_link",
     ]);
     expect(review.review).toBe(false);
+  });
+});
+
+describe("recipient order — councils, then chapters biggest-first (pre-launch pass)", () => {
+  const e = (kind: "council" | "chapter" | "club", label: string, size: number | null = null) => ({
+    kind,
+    label,
+    size,
+  });
+  it("councils always lead, clubs always trail", () => {
+    const sorted = [e("club", "WIB"), e("chapter", "Sigma Chi", 150), e("council", "IFC")].sort(
+      compareEntities,
+    );
+    expect(sorted.map((x) => x.kind)).toEqual(["council", "chapter", "club"]);
+  });
+  it("chapters sort by size, biggest first", () => {
+    const sorted = [
+      e("chapter", "Small", 40),
+      e("chapter", "Big", 200),
+      e("chapter", "Mid", 90),
+    ].sort(compareEntities);
+    expect(sorted.map((x) => x.label)).toEqual(["Big", "Mid", "Small"]);
+  });
+  it("unknown size sorts last, never invented", () => {
+    const sorted = [e("chapter", "Unknown", null), e("chapter", "Known", 12)].sort(compareEntities);
+    expect(sorted[0].label).toBe("Known");
+  });
+  it("ties fall back to the name, so the order is stable", () => {
+    const sorted = [e("chapter", "Zeta", 100), e("chapter", "Alpha", 100)].sort(compareEntities);
+    expect(sorted.map((x) => x.label)).toEqual(["Alpha", "Zeta"]);
   });
 });

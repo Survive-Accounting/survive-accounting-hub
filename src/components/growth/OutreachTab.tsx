@@ -5,7 +5,15 @@
 // (no Meta automation — deliberately not faked).
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, ExternalLink, Instagram, Loader2, Mail } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Instagram,
+  Loader2,
+  Mail,
+  Wrench,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   growthAssembleQueue,
@@ -19,7 +27,9 @@ import {
   type GrowthQueueItem,
   type OutreachEntity,
 } from "@/lib/growth-queue.functions";
+import { growthAddContact, growthUpdateContact } from "@/lib/growth-reach.functions";
 import { Pill, Section } from "@/components/growth/shared";
+import { Chip } from "@/components/growth/v2";
 import { cn } from "@/lib/utils";
 
 const CLASS_LABEL: Record<string, string> = {
@@ -37,11 +47,20 @@ const CLASS_TONE: Record<string, string> = {
   ADVISORY: "text-muted-foreground bg-muted",
 };
 
-export function OutreachTab({ campusId, campusName }: { campusId: string; campusName: string }) {
+export function OutreachTab({
+  campusId,
+  campusName,
+  defaultGapMode,
+}: {
+  campusId: string;
+  campusName: string;
+  defaultGapMode?: boolean;
+}) {
   const qc = useQueryClient();
   const [selected, setSelected] = useState<Set<string>>(new Set()); // qc ids
   const [templateKey, setTemplateKey] = useState<string>("council_intro_v1");
   const [previewing, setPreviewing] = useState(false);
+  const [gapMode, setGapMode] = useState(!!defaultGapMode);
 
   const contacts = useQuery({
     queryKey: ["growth-outreach-contacts", campusId],
@@ -143,13 +162,39 @@ export function OutreachTab({ campusId, campusName }: { campusId: string; campus
       )}
 
       <Section title="Choose recipients">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-[10px] text-muted-foreground">
+            Councils first, then chapters biggest-first.
+          </span>
+          <button
+            onClick={() => setGapMode((v) => !v)}
+            className={cn(
+              "inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px]",
+              gapMode
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border text-muted-foreground hover:bg-muted",
+            )}
+          >
+            <Wrench className="size-3" /> Fill gaps
+          </button>
+        </div>
+        {gapMode && (
+          <GapTable
+            campusId={campusId}
+            entities={entities}
+            onDone={() => {
+              setGapMode(false);
+              qc.invalidateQueries({ queryKey: ["growth-outreach-contacts", campusId] });
+            }}
+          />
+        )}
         {entities.length === 0 && (
           <div className="text-xs text-muted-foreground">
             No legitimate contacts on file for this campus yet — run ✨ Enrichment (council
             contacts) first.
           </div>
         )}
-        <div className="space-y-2">
+        <div className={cn("space-y-2", gapMode && "hidden")}>
           {entities.map((e) => {
             const def = e.contacts.find((c) => c.isDefault);
             const entityChecked =
@@ -166,15 +211,25 @@ export function OutreachTab({ campusId, campusName }: { campusId: string; campus
                     onChange={(ev) => toggleEntity(e, ev.target.checked)}
                   />
                   {e.label}
-                  {e.sublabel && (
-                    <span className="font-normal text-muted-foreground">{e.sublabel}</span>
-                  )}
-                  {!def && (
-                    <span className="font-normal text-[10px] text-amber-600">
-                      no auto-pickable email
+                  {e.kind === "council" && <Chip tone="info">council</Chip>}
+                  {e.kind === "chapter" && e.size != null && (
+                    <span className="font-normal text-[10px] tabular-nums text-muted-foreground">
+                      {e.size} members
                     </span>
                   )}
+                  {e.sublabel && e.kind !== "council" && (
+                    <span className="font-normal text-muted-foreground">{e.sublabel}</span>
+                  )}
                 </label>
+                {!def && (
+                  <InlineAddEmail
+                    campusId={campusId}
+                    entity={e}
+                    onAdded={() =>
+                      qc.invalidateQueries({ queryKey: ["growth-outreach-contacts", campusId] })
+                    }
+                  />
+                )}
                 <div className="mt-1 space-y-0.5 pl-6">
                   {e.contacts.map((c) => (
                     <div key={c.qcId} className="flex items-center gap-2 text-[11px]">
@@ -542,6 +597,184 @@ function QueuePreview({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ── GAP FILLING (pre-launch simplification, 2026-08-27) ─────────────────────────────
+   The actual bottleneck: campuses like UF where every contact is Instagram-only and
+   Build Queue is dead at "0 selectable". These two components make closing that gap a
+   ten-second job instead of a form expedition. */
+
+/** Replaces the dead "no auto-pickable email" label: click, type, save, done.
+ *  Saved through growthAddContact, so the address is outreach-ready immediately. */
+function InlineAddEmail({
+  campusId,
+  entity,
+  onAdded,
+}: {
+  campusId: string;
+  entity: OutreachEntity;
+  onAdded: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const save = useMutation({
+    mutationFn: () =>
+      growthAddContact({
+        data: {
+          campusId,
+          entityType: entity.kind === "council" ? "council" : entity.kind,
+          entityId: entity.kind === "council" ? null : entity.key.split(":")[1],
+          councilType: entity.kind === "council" ? entity.key.split(":")[1] : null,
+          contactType: "organization_general",
+          email,
+        },
+      }),
+    onSuccess: (r) => {
+      if (r.ok) {
+        toast.success(`Email added to ${entity.label} — ready for the queue.`);
+        setOpen(false);
+        setEmail("");
+        onAdded();
+      } else toast.error(r.error ?? "Couldn't add that email.");
+    },
+  });
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="ml-6 mt-0.5 inline-flex items-center gap-1 rounded border border-dashed border-amber-500/60 px-1.5 py-0.5 text-[10px] text-amber-500 hover:bg-amber-500/10"
+      >
+        <Mail className="size-2.5" /> Add email
+      </button>
+    );
+  }
+  return (
+    <form
+      className="ml-6 mt-0.5 flex items-center gap-1"
+      onSubmit={(ev) => {
+        ev.preventDefault();
+        if (email.trim()) save.mutate();
+      }}
+    >
+      <input
+        autoFocus
+        value={email}
+        onChange={(ev) => setEmail(ev.target.value)}
+        placeholder={`email for ${entity.label}…`}
+        className="w-52 rounded border border-border bg-card px-1.5 py-0.5 text-[11px]"
+      />
+      <button
+        type="submit"
+        disabled={save.isPending || !email.trim()}
+        className="rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground disabled:opacity-50"
+      >
+        {save.isPending ? "…" : "Save"}
+      </button>
+      <button
+        type="button"
+        onClick={() => setOpen(false)}
+        className="text-[10px] text-muted-foreground hover:text-foreground"
+      >
+        Cancel
+      </button>
+    </form>
+  );
+}
+
+/** Enrichment mode: every contact on the campus as one editable row — email and
+ *  Instagram fields, Tab moves between them, blur autosaves. Rows missing an email
+ *  are the work; they sort first and lose their tint the moment an address lands. */
+function GapTable({
+  campusId,
+  entities,
+  onDone,
+}: {
+  campusId: string;
+  entities: OutreachEntity[];
+  onDone: () => void;
+}) {
+  const rows = useMemo(
+    () =>
+      entities
+        .flatMap((e) => e.contacts.map((c) => ({ entity: e.label, kind: e.kind, c })))
+        .sort((a, b) => Number(!!a.c.email) - Number(!!b.c.email)),
+    [entities],
+  );
+  const missing = rows.filter((r) => !r.c.email).length;
+  return (
+    <div className="mb-3 rounded-md border border-primary/40 bg-muted/30 p-2">
+      <div className="mb-1.5 flex items-center justify-between text-[11px]">
+        <span className="font-medium">
+          {missing === 0
+            ? "Every contact here has an email."
+            : `${missing} contact${missing === 1 ? "" : "s"} missing an email`}
+        </span>
+        <button
+          onClick={onDone}
+          className="text-[10px] text-muted-foreground hover:text-foreground"
+        >
+          Done
+        </button>
+      </div>
+      <div className="max-h-80 space-y-0.5 overflow-y-auto">
+        {rows.map(({ entity, c }) => (
+          <GapRow key={c.qcId} entityLabel={entity} contact={c} campusId={campusId} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function GapRow({
+  entityLabel,
+  contact,
+  campusId,
+}: {
+  entityLabel: string;
+  contact: OutreachEntity["contacts"][number];
+  campusId: string;
+}) {
+  const qc = useQueryClient();
+  const [email, setEmail] = useState(contact.email ?? "");
+  const [instagram, setInstagram] = useState(contact.instagram ?? "");
+  const save = useMutation({
+    mutationFn: () => growthUpdateContact({ data: { qcId: contact.qcId, email, instagram } }),
+    onSuccess: (r) => {
+      if (r.ok) qc.invalidateQueries({ queryKey: ["growth-outreach-contacts", campusId] });
+      else toast.error(r.error ?? "Couldn't save.");
+    },
+  });
+  const dirty = email !== (contact.email ?? "") || instagram !== (contact.instagram ?? "");
+  return (
+    <div
+      className={cn(
+        "grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] items-center gap-1.5 rounded px-1 py-0.5",
+        !contact.email && "bg-amber-500/5",
+      )}
+    >
+      <span className="truncate text-[11px]">
+        {entityLabel}
+        {contact.name && <span className="text-muted-foreground"> · {contact.name}</span>}
+      </span>
+      <input
+        value={email}
+        onChange={(ev) => setEmail(ev.target.value)}
+        onBlur={() => dirty && save.mutate()}
+        placeholder="email…"
+        className={cn(
+          "rounded border bg-card px-1.5 py-0.5 text-[11px]",
+          contact.email ? "border-border" : "border-amber-500/50",
+        )}
+      />
+      <input
+        value={instagram}
+        onChange={(ev) => setInstagram(ev.target.value)}
+        onBlur={() => dirty && save.mutate()}
+        placeholder="@instagram…"
+        className="rounded border border-border bg-card px-1.5 py-0.5 text-[11px]"
+      />
     </div>
   );
 }
