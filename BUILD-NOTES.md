@@ -102,3 +102,104 @@ That instruction predates the exhibit conveyor: PRs #3–#7 were all branched fr
 merged to `main`, and the conveyor handoff explicitly authorises the PR-to-main flow.
 This exhibit followed the conveyor. **`CLAUDE.md` should be updated so the two stop
 contradicting each other.**
+
+---
+
+# BUILD NOTES — Account Classification ("The 5 Types of Accounts")
+
+**Built:** 2026-08-27 · branch `classification-exhibit` off `origin/main` @ `913e8b52`
+**Prompt:** `C:\Users\lee\Downloads\account-classification-exhibit-prompt.md`
+**Source pack:** `C:\Users\lee\Downloads\05_Account_Classification_Source.pdf`
+
+## Research first — what already knew about accounts
+
+The prompt's instruction was to EXTEND existing account data rather than duplicate it.
+Three modules each already held a piece, and none held the teaching metadata:
+
+| Module | What it knew | What it lacked |
+|---|---|---|
+| `exhibit-lab/rubric-model.ts` → `ACCOUNTS` | names, grouped by type | bare strings — no why, no trap, no term |
+| `exhibit-lab/rubric-view.ts` → `CONTRA`, `CURRENT_ASSET_COUNT` | the 2 contra accounts; the current/long-term seam as an index | nothing per-account |
+| `coa-groups.ts` | DB `account_type` → the 5 group headers; contras nest under their parent | it is about DB rows, not teaching |
+
+**Decision: created `account-registry.ts` as the shared superset, and did NOT rewrite the
+Rubric.** The Rubric is shipped and its account ORDER is a tested contract
+(`coaGroups` slices `ACCOUNTS.A` at a seam index; probes narrow against that list).
+Rewiring it inside this prompt would have put a live exhibit at risk for no teaching gain.
+
+Instead the registry is pinned to all three modules by test, so the migration later is
+mechanical rather than a rewrite:
+
+- every account the Rubric lists exists in the registry **with the same category**;
+- the Rubric board's `CONTRA` set is **exactly** the registry's `contra` set;
+- the Rubric's `CURRENT_ASSET_COUNT` seam **agrees** with the registry's `term` values;
+- every registry category maps onto the right `coa-groups` header, contras included.
+
+If someone edits either side into disagreement, those tests fail. **Rubric should migrate
+onto the registry in a later prompt** — that is the follow-up this build deliberately left.
+
+## Decisions taken (overnight mode)
+
+1. **Contra accounts keep their PARENT category** (`category: "equity", contra: true`)
+   rather than getting a sixth bucket. This matches both `coa-groups.ts` and
+   `rubric-view.CONTRA`, so all three agree by construction.
+2. **The why-line reads out in one fixed strip, not a popover per chip.** With five
+   columns a floating panel spills outside the card at the edge columns (the Careers
+   exhibit could afford popovers at three columns; five cannot). A strip also gives every
+   answer ONE place to appear on camera. Its height is reserved whether or not anything is
+   selected, so nothing moves — the A3 law.
+3. **Trap copy is defined once, in the registry.** A trap chip that IS an account carries
+   only `accountId` and pulls note/tag/destination from the registry; a test asserts the
+   config file does not restate any of that copy. Only the two PATTERN chips — Anything
+   "Payable", Prepaid ___ — carry their own text, because they are rules, not accounts.
+4. **EQUITY and REVENUES ship 3 cram chips, not the prompt's 4–6.** There are only three
+   equity accounts worth naming at this level (Common Stock, Retained Earnings, Dividends)
+   and padding the tile would be invented content. Test allows 3–6.
+5. **Equity is deliberately excluded from the Current/Long-term layer** — the prompt scopes
+   that toggle to assets and liabilities, and equity is not split that way. A test pins it.
+6. **No drag-and-drop**, per the prompt. Clicking is the whole interaction; a test asserts
+   no drag handlers exist in the card.
+
+## Accuracy audit (Bible law 9)
+
+- Anchors are Lee's and come straight from the deck: OWN · OWE · VALUE · EARN · COST,
+  balance sheet left of the divider, income statement right.
+- **Unearned Revenue is a CURRENT liability** — the money moment, tagged MUST KNOW.
+- Dividends = CONTRA-EQUITY (not an expense); Accumulated Depreciation = CONTRA-ASSET.
+- Payables ALWAYS liabilities; receivables and prepaids ALWAYS assets — stated as rules,
+  because that is how they are examined.
+- Intangibles (Trademarks, Copyrights, Patents, Goodwill) exist **only** in the long-term
+  asset pile of the depth layer; a test asserts they never appear in the cram state.
+
+## Open questions for Lee / Fable
+
+- The registry seeds **Wages Expense and Salaries Expense as separate accounts** (the
+  Rubric uses Wages, the prompt asked for Salaries). Both are real and professors differ.
+  If they should collapse into one with the other as an alias, that is a one-line config
+  edit — flagging rather than silently ruling.
+- Rubric migration onto the registry (above) is queued, not done.
+
+## QA performed
+
+`bun x tsc --noEmit` clean · `bun test` **1853 pass / 1 fail** (the known pre-existing
+`bolt-palette` failure). 38 new tests, all passing on first run.
+
+Visual QA on `/exhibit-demo` at 1100px and 460px:
+
+- reveal ticks 0→3 gate exactly: tiles → anchors (OWN/OWE/VALUE/EARN/COST) → chips → traps;
+- click LIABILITIES tile → it blooms, its 4 chips stay lit, the other four tiles and all
+  other chips mute to 0.3, readout shows `LIABILITIES → OWE`;
+- click a chip → its category tile takes the soft halo (not the bloom) and the readout
+  shows `Unearned Revenue → LIABILITY` plus the why-line;
+- every trap routes to its true tile with the audited line — Unearned Revenue → LIABILITY,
+  Dividends → CONTRA-EQUITY, Accumulated Depreciation → CONTRA-ASSET, COGS → EXPENSE,
+  Anything "Payable" → LIABILITY;
+- `D` swaps ASSETS and LIABILITIES to the full registry under CURRENT / LONG-TERM
+  subdividers (intangibles appear only there); the other three tiles are untouched;
+  `` ` `` closes it;
+- zero horizontal overflow at either width, in both the cram and depth states;
+- no console errors.
+
+Same screenshot caveat as the Careers build: the browser pane never displayed, so QA was
+done against React's inline styles and measured geometry rather than images. A human OBS
+pass is still worth doing — the money moment to film is clicking the Unearned Revenue trap.
