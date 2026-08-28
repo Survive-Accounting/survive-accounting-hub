@@ -37,6 +37,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { BRAND_DISPLAY } from "@/components/canvas/brand";
+import { nbspCode } from "@/lib/course-code";
 import {
   CAPTION_FADE_MS,
   CHARGE_EASE,
@@ -294,7 +295,7 @@ export function AnimatedCampusBolt({
     showLabel && (labelCampus.code || labelCampus.name) ? (
       <span className="acb-plate" style={{ fontFamily: BRAND_DISPLAY }}>
         <span className="acb-plate-for">for </span>
-        {labelCampus.code ? <span className="acb-plate-em">{labelCampus.code}</span> : null}
+        {labelCampus.code ? <span className="acb-plate-em">{nbspCode(labelCampus.code)}</span> : null}
         {labelCampus.code && labelCampus.name ? <span className="acb-plate-dot"> · </span> : null}
         {labelCampus.name ? (
           <span className="acb-plate-em">{labelCampus.name.toUpperCase()}</span>

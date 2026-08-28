@@ -21,6 +21,19 @@ export const LAUNCH_LINE = `Coming ${LAUNCH_WINDOW}`;
  *  moves, change it here and nowhere else. */
 export const EXAM1_LAUNCH_LABEL = "September 1";
 
+/** THE FLAGSHIP CAMPUS (homepage-final-mile, 2026-08-28). The homepage leads with ONE campus
+ *  story; campus #2 is a data change here, not a redesign. Display strings + colors only —
+ *  ids (campusId etc.) still resolve through the canonical school table via `id`. The hero
+ *  falls back to these when the visitor's campus is unknown; a known campus still wins. */
+export const HOME_CAMPUS = {
+  /** Picker id in src/lib/schools (resolves campusId, slug, etc.). */
+  id: "ole-miss",
+  name: "Ole Miss",
+  courseCode: "ACCY 201",
+  /** School colors for the campus line — crimson on the navy page, navy secondary. */
+  colors: { primary: "#CE1126", secondary: "#14213D" },
+} as const;
+
 /** Source tag for everything captured by the landing page's "Get notified" flow. */
 export const NOTIFY_SOURCE = "landing-notify";
 

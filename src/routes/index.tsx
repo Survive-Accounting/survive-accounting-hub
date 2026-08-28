@@ -1,5 +1,5 @@
 // "/" — THE HOMEPAGE. Redesigned 2026-08-27 into the TWO-DOOR page (components/site/home-two-door):
-// centered promise → proof chips → STUDY ON YOUR OWN | STUDY WITH YOUR CHAPTER. The live player is
+// centered promise → proof chips → STUDY SOLO | STUDY WITH YOUR CHAPTER. The live player is
 // gone from "/" — the public Exam 1 CTA enters the waitlist state (FREE · SEPTEMBER 1) while the
 // new player is rebuilt privately. LandingPage (./landing) remains the module home for the player
 // page that /$school campus pages and /go/ chapter pages still render, plus the shared
@@ -73,7 +73,7 @@ function Home() {
   const d = Route.useLoaderData();
   // TWO-DOOR HOMEPAGE (2026-08-27). The full LandingPage (hero + live player) still serves every
   // campus page (/$school) and chapter page (/go/…); "/" now renders the two-door composition —
-  // centered hero, STUDY ON YOUR OWN | STUDY WITH YOUR CHAPTER, no embedded player. The loader's
+  // centered hero, STUDY SOLO | STUDY WITH YOUR CHAPTER, no embedded player. The loader's
   // campus/code still personalize the hero server-side; profSkip is player state and unused here
   // (the cookie read is one call either way, and campus pages still consume it).
   return (

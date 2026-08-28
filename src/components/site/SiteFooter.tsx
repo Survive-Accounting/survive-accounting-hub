@@ -23,6 +23,8 @@ import { useEffect, useState } from "react";
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { FitWordmark } from "@/components/site/SiteHeader";
 import { NotListedForm } from "@/components/site/NotListedForm";
+import { GreekWaitlistSheet } from "@/components/site/home-two-door/GreekWaitlistSheet";
+import { GREEK_PORTAL_ORGS } from "@/components/site/portal-home/greek-portal-orgs";
 import { useCampus } from "@/lib/campus-context";
 import { submitNotify } from "@/lib/syllabus.functions";
 
@@ -40,6 +42,8 @@ export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
   // copy of it — same component, same table, same person reading the results.
   const [addForm, setAddForm] = useState<null | "school" | "chapter">(null);
   const [founder, setFounder] = useState(false);
+  // H5: the badge strip's action chip opens the greek waitlist (same flow as the hero door).
+  const [greekWL, setGreekWL] = useState(false);
 
   const columns: Col[] = [
     {
@@ -107,13 +111,30 @@ export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
             <a href="/terms" className="hover:text-[var(--accent)]" style={{ color: "inherit" }}>Terms</a>
           </p>
           <p className={`${metaCls} mt-2`} style={metaStyle}>
-            Created entirely by Lee Ingram.{" "}
+            Created by Lee Ingram{" "}
+            <span aria-hidden style={{ opacity: 0.5 }}>·</span>{" "}
             <button type="button" onClick={() => setFounder(true)} className="font-bold underline underline-offset-4 hover:text-[var(--accent)]" style={{ color: "var(--brand-cream)" }}>
               Learn how →
             </button>
           </p>
-          {/* The memorial is the last line of the block and carries no dates — see the brief. */}
-          <p className="mt-2 text-[13px] italic" style={{ color: "var(--text-tertiary)", letterSpacing: "0.01em" }}>In memory of Ben Ingram.</p>
+          {/* The memorial moved INSIDE the Learn-How panel (FINAL MILE H5) — it lives only there now. */}
+          {/* H5 BADGE STRIP — national org letters as quiet footer-weight chips, ending in the one
+              action chip that opens the greek waitlist. Letters come from the canonical org list. */}
+          <div className="mt-3 flex max-w-[300px] flex-wrap gap-1.5">
+            {GREEK_PORTAL_ORGS.map((o) => (
+              <span key={o.letters} title={o.name} className="inline-flex items-center rounded-md px-1.5 text-[11px] font-bold" style={{ minHeight: 22, border: "1px solid var(--border-subtle)", color: "var(--text-muted)", letterSpacing: "0.06em" }}>
+                {o.letters}
+              </span>
+            ))}
+            <button
+              type="button"
+              onClick={() => setGreekWL(true)}
+              className="inline-flex items-center rounded-md px-1.5 text-[11px] font-bold hover:text-[var(--accent)]"
+              style={{ minHeight: 22, border: "1px solid var(--border-default)", color: "var(--brand-cream)", background: "none", cursor: "pointer" }}
+            >
+              Add your Greek org →
+            </button>
+          </div>
         </div>
 
         {columns.map((col) => (
@@ -148,14 +169,15 @@ export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
       )}
 
       {founder && <FounderModal onClose={() => setFounder(false)} />}
+      {greekWL && <GreekWaitlistSheet onClose={() => setGreekWL(false)} />}
     </footer>
   );
 }
 
-/** "HOW I BUILT SURVIVE" — a secondary, one-field capture for people who came for the build story
- *  rather than the product. It writes through submitNotify, the same private table every other
- *  landing capture uses, tagged with its own topic so these are separable from exam waitlists.
- *  Deliberately quiet: this must never compete with the student CTA. */
+/** "HOW I BUILT THIS" (FINAL MILE H5) — the Learn-How panel: the build story, a quiet one-field
+ *  capture (kept from the previous panel — same submitNotify path, its own topic), and the Ben
+ *  Ingram memorial, which lives ONLY here now. Deliberately quiet: this must never compete with
+ *  the student CTA. */
 function FounderModal({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"open" | "busy" | "done" | "error">("open");
@@ -201,13 +223,15 @@ function FounderModal({ onClose }: { onClose: () => void }) {
         ) : (
           <>
             <div className="mb-2 flex items-start justify-between gap-3">
-              <p className="text-[16px] font-black" style={{ color: "var(--brand-cream)" }}>How I built Survive</p>
+              <p className="text-[16px] font-black" style={{ color: "var(--brand-cream)" }}>How I built this</p>
               <button onClick={onClose} aria-label="Close" className="grid h-7 w-7 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--text-secondary)" }}>
                 <span aria-hidden style={{ fontSize: 16, lineHeight: 1 }}>×</span>
               </button>
             </div>
             <p className="text-[14px] leading-relaxed" style={{ color: "var(--text-secondary)" }}>
-              I built Survive Accounting as a solo founder using AI tools. Want the story, stack, and lessons learned?
+              I&apos;ve grown a tutoring business for over ten years — and learned a ton the hard way. Soon I&apos;ll share free
+              lessons from building software and scalable systems, and the vision to make Survive the national brand for
+              acing weed-out courses.
             </p>
             <input
               autoFocus
@@ -229,6 +253,10 @@ function FounderModal({ onClose }: { onClose: () => void }) {
             </button>
           </>
         )}
+        {/* The memorial — quietly set apart at the bottom of the panel; its only home now. */}
+        <p className="mt-4 border-t pt-3 text-center text-[13px] italic" style={{ borderColor: "var(--border-subtle)", color: "var(--text-tertiary)", letterSpacing: "0.01em" }}>
+          In memory of Ben Ingram.
+        </p>
       </div>
     </div>
   );

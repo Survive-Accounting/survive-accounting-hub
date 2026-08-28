@@ -62,6 +62,7 @@ import {
   FloatingContact, SocialProofSection, TutorBioModal, TutorCard, type GreekMarketing,
 } from "@/components/site/Marketing";
 import { CampusProvider, useCampus } from "@/lib/campus-context";
+import { nbspCode, nbspCodeOrNull } from "@/lib/course-code";
 import type { PlannerV2Bridge } from "@/components/player-v2/plan-model";
 import { readStoredCampus, rememberCampus, rememberProfSkip, SKIPPED, NOT_LISTED } from "@/lib/campus-prefs";
 import { Footer } from "@/components/site/SiteFooter";
@@ -1051,7 +1052,7 @@ function NotifyModal({ req, school, professorName, isTest, onClose }: { req: Not
             {/* the context line — so the student can see exactly what this signup is for */}
             {(req.examLabel || school) && (
               <p className="mt-1.5 text-[11.5px]" style={{ color: "var(--text-muted)", opacity: 0.8 }}>
-                {[school?.name, school?.codeVerified && school.code ? school.code : null, professorName ? `Prof. ${professorName}` : null, req.examLabel].filter(Boolean).join(" · ")}
+                {[school?.name, school?.codeVerified && school.code ? nbspCode(school.code) : null, professorName ? `Prof. ${professorName}` : null, req.examLabel].filter(Boolean).join(" · ")}
               </p>
             )}
             <input
@@ -1295,7 +1296,7 @@ function TopicIntroCard({ topic, onJump }: { topic: ResolvedTopic; onJump: () =>
 const INTRO_TOUR_PLAYBACK_ID: string | null = null;
 function PathStartCard({ school, onStart, onRemind }: { school: School | null; onStart: () => void; onRemind: () => void }) {
   const code = school?.codeVerified && school.code ? school.code : null;
-  const who = school ? [school.name, code].filter(Boolean).join(" · ") : "Exam 1";
+  const who = school ? [school.name, nbspCodeOrNull(code)].filter(Boolean).join(" · ") : "Exam 1";
   const [tourOpen, setTourOpen] = useState(false);
   if (tourOpen && INTRO_TOUR_PLAYBACK_ID) {
     return (
@@ -1563,7 +1564,7 @@ function MatchPanel({ gateActive, school, professor, notListed, profDone, covera
             selector that deliberately isn't there. */}
         {code && school && (
           <p className="text-center text-[11.5px]" style={{ color: "var(--text-muted)" }}>
-            Course preset: {code} at {school.name}
+            Course preset: {nbspCode(code)} at {school.name}
             {onChangeSchool && <> · <button type="button" onClick={onChangeSchool} className="underline underline-offset-2" style={{ color: "var(--text-muted)", minHeight: 28 }}>Not your school?</button></>}
           </p>
         )}
@@ -2388,7 +2389,7 @@ function PlayerIdentity({ school, professor, onMatchProfessor, onChangeSchool, o
     return (
       <div className="flex items-center gap-2 rounded-xl px-2 py-1.5" style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(245,239,230,0.08)" }}>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[12.5px] font-black" style={{ color: "var(--brand-cream)" }}>{[school ? school.name : "Your school", code].filter(Boolean).join(" · ")}</div>
+          <div className="truncate text-[12.5px] font-black" style={{ color: "var(--brand-cream)" }}>{[school ? school.name : "Your school", nbspCodeOrNull(code)].filter(Boolean).join(" · ")}</div>
           <div className="truncate text-[11px]" style={{ color: "var(--text-muted)" }}>{last ? `Prof. ${last}` : school ? <button type="button" onClick={onMatchProfessor} className="font-bold" style={{ color: "var(--accent)" }}>+ Choose professor</button> : <button type="button" onClick={onChangeSchool} className="font-bold" style={{ color: "var(--accent)" }}>+ Pick my school</button>}</div>
         </div>
         {menu}
@@ -2399,7 +2400,7 @@ function PlayerIdentity({ school, professor, onMatchProfessor, onChangeSchool, o
     <div className="mb-3 border-b px-1 pb-3" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
       <div className="flex items-start gap-2.5">
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[13px] font-black" style={{ color: "var(--brand-cream)" }}>{[school ? school.name : "Your school", code].filter(Boolean).join(" · ")}</div>
+          <div className="truncate text-[13px] font-black" style={{ color: "var(--brand-cream)" }}>{[school ? school.name : "Your school", nbspCodeOrNull(code)].filter(Boolean).join(" · ")}</div>
           {last ? (
             <div className="text-[12px]" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>Prof. {last}</div>
           ) : school ? (
