@@ -37,13 +37,14 @@ async function main() {
   if (!url || !key) { console.log("✗ env not set"); process.exit(1); }
   const { createClient } = await import("@supabase/supabase-js");
   const db = createClient(url, key) as unknown as Db;
-  const plan = buildPlan(readImportRows(join(HERE, "Survive_Exam1_Global_Starter_Map.xlsx")).rows);
+  const plan = buildPlan(readImportRows(join(HERE, "Survive_Exam1_Master_CEQ_Editorial_Pass_v1.xlsx")).rows);
 
+  const EXP_SETS = plan.sets.length, EXP_CEQ = plan.ceqCount; // the workbook is the contract
   console.log("\n━━━ VALIDATION ━━━\n[workbook plan]");
   check("plan errors == 0", plan.errors.length === 0, plan.errors.slice(0, 3).join("; "));
   check("topics == 6", plan.topics.length === 6);
-  check("subtopic sets == 25", plan.sets.length === 25, `got ${plan.sets.length}`);
-  check("CEQs == 280", plan.ceqCount === 280, `got ${plan.ceqCount}`);
+  check(`subtopic sets == ${EXP_SETS}`, plan.sets.length === EXP_SETS, `got ${plan.sets.length}`);
+  check(`CEQs == ${EXP_CEQ}`, plan.ceqCount === EXP_CEQ, `got ${plan.ceqCount}`);
 
   console.log("[live scenes / dedupe]");
   const scenes = (await db.from("canvas_scenes").select("id,updated_at,nodes_json").order("updated_at", { ascending: false })).data ?? [];
@@ -53,16 +54,16 @@ async function main() {
   const owned = new Map<string, any>();
   for (const s of ordered) for (const d of (s.nodes_json?.decks ?? [])) { if (d.payloadType !== "cards" || owned.has(d.id)) continue; owned.set(d.id, { deck: d, sceneId: s.id, nodes: (s.nodes_json?.nodes ?? []).filter((n: any) => n.type === "ceq" && n.data?.deckId === d.id) }); }
   const liveOnTargets = [...owned.values()].filter((o) => o.deck.status === "live" && o.deck.parked !== true && anchorIds.includes(o.deck.topicId));
-  check("exactly 25 live sets on the 6 topics", liveOnTargets.length === 25, `got ${liveOnTargets.length}`);
+  check(`exactly ${EXP_SETS} live sets on the 6 topics`, liveOnTargets.length === EXP_SETS, `got ${liveOnTargets.length}`);
   const newDeckIds = new Set(plan.sets.map((s) => s.deckId));
-  check("all 25 live sets are the new canonical decks", liveOnTargets.every((o) => newDeckIds.has(o.deck.id)));
+  check(`all ${EXP_SETS} live sets are the canonical decks`, liveOnTargets.every((o) => newDeckIds.has(o.deck.id)));
   // winning-scene uniqueness: each new deck resolves to exactly one scene
   const dupWinning = plan.sets.filter((s) => { const sc = [...owned.values()].find((o) => o.deck.id === s.deckId); return !sc; });
   check("every canonical deck has a winning scene", dupWinning.length === 0, dupWinning.map((d) => d.deckId).join(","));
   // count CEQs across the 25 winning sets, excluding noteOnly
   let liveCeq = 0, noteOnly = 0, badChoice = 0, badCorrect = 0;
   for (const o of liveOnTargets) { for (const n of o.nodes) { if (n.data?.noteOnly) { noteOnly++; continue; } liveCeq++; const ch = n.data?.choices ?? []; if (ch.length < 2 || ch.length > 5) badChoice++; if (ch.filter((c: any) => c.correct).length !== 1) badCorrect++; } }
-  check("live CEQs across 25 sets == 280", liveCeq === 280, `got ${liveCeq}`);
+  check(`live CEQs across ${EXP_SETS} sets == ${EXP_CEQ}`, liveCeq === EXP_CEQ, `got ${liveCeq}`);
   check("no noteOnly nodes counted", noteOnly === 0, `${noteOnly} noteOnly present`);
   check("every live CEQ has 2–5 choices", badChoice === 0, `${badChoice} bad`);
   check("every live CEQ has exactly one correct", badCorrect === 0, `${badCorrect} bad`);

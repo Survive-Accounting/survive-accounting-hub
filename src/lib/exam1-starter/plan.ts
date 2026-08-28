@@ -73,7 +73,11 @@ export const TOPIC_RECONCILIATION: { order: number; canonicalName: string; legac
  *  (not deleted) but removed from every Exam-1 grouping and its old set parked. */
 export const DROPPED_FROM_EXAM1_CHAPTER_ID = "5b338fc7-b9cc-4fed-9285-24fb335c8a75"; // Trial Balances
 
-export const EXPECTED = { topics: 6, subtopics: 25, ceqs: 280 } as const;
+// Current master-bank shape (Editorial Pass v1, 2026-08-28). Informational only — the bank is now
+// editable, so counts are reported, NOT hard-enforced. Structural checks (choices/correct/dup
+// keys/dup prompts/unknown topic) remain blocking; a count that drifts as Lee adds/removes
+// questions is expected, not an error.
+export const EXPECTED = { topics: 6, subtopics: 25, ceqs: 274 } as const;
 
 export const deckIdFor = (topicOrder: number, subtopicOrder: number) => `deck-e1s-${topicOrder}-${subtopicOrder}`;
 export const sceneKeyFor = (topicOrder: number, subtopicOrder: number) => `exam1-starter/set/${topicOrder}.${subtopicOrder}`;
@@ -142,10 +146,9 @@ export function buildPlan(rows: ImportRow[]): Plan {
   for (const [id, n] of seenCeqIds) if (n > 1) errors.push(`Duplicate CEQ id "${id}" (${n}x).`);
 
   const ceqCount = allSets.reduce((a, s) => a + s.ceqs.length, 0);
-  const subtopics = allSets.length;
-  if (topics.length !== EXPECTED.topics) errors.push(`Expected ${EXPECTED.topics} topics, got ${topics.length}.`);
-  if (subtopics !== EXPECTED.subtopics) errors.push(`Expected ${EXPECTED.subtopics} subtopics, got ${subtopics}.`);
-  if (ceqCount !== EXPECTED.ceqs) errors.push(`Expected ${EXPECTED.ceqs} CEQs, got ${ceqCount}.`);
+  // Counts are informational (the bank is editable) — never a blocking error. A set with zero
+  // questions IS worth flagging (a subtopic with no rows would render empty for students).
+  for (const s of allSets) if (!s.ceqs.length) errors.push(`Subtopic "${s.name}" (${s.topicOrder}.${s.subtopicOrder}) has no questions.`);
 
   return { topics, sets: allSets, ceqCount, errors };
 }
