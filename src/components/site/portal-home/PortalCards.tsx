@@ -87,8 +87,9 @@ function SparkBolt({ hovered }: { hovered: boolean }) {
 }
 
 /** THE MINIMAL FINDER — school → organization list → that chapter's /go page. No auth exists
- *  yet, so the chapter page IS the portal destination; the finder's only job is routing there. */
-function ChapterFinderModal({ onClose }: { onClose: () => void }) {
+ *  yet, so the chapter page IS the portal destination; the finder's only job is routing there.
+ *  Exported (08-27): the two-door homepage's "Find your chapter →" opens the SAME finder. */
+export function ChapterFinderModal({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const schoolsQ = useQuery({ queryKey: ["go-schools"], queryFn: () => listGoSchools(), staleTime: 600_000, networkMode: "always" });
   useEffect(() => {

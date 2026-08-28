@@ -59,7 +59,7 @@ export const TEMPLATES: TemplateDef[] = [
     id: "homepage",
     label: "Homepage",
     category: "public",
-    description: "The main landing page — hero, pitch, and the free exam player.",
+    description: "The main landing page — centered hero and the two doors (solo / chapter).",
     routePattern: "/",
     routes: ["index.tsx", "landing.tsx"],
     extraFiles: [
@@ -67,6 +67,10 @@ export const TEMPLATES: TemplateDef[] = [
       "src/components/site/Marketing.tsx",
       "src/components/site/SiteHeader.tsx",
       "src/components/site/SiteFooter.tsx",
+      // Two-door homepage (08-27) — the composition "/" renders now, plus the org list that
+      // drives its Greek ticker.
+      "src/components/site/home-two-door",
+      "src/components/site/portal-home",
     ],
     countKey: "static",
     trafficPaths: ["/"],

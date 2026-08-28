@@ -240,7 +240,24 @@ const menuLinks = (base: string, greekHref: string): NavItem[] => [
   { label: "For Fraternities & Sororities", href: greekHref, route: true, sub: "⚡ Boost chapter GPAs" },
 ];
 
-export function SiteHeader({ wordmark = true, chapterNav, onLanding = false }: { wordmark?: boolean; chapterNav?: ChapterNav; /** The page renders the landing sections (#exam1, #reviews, #lee, #contact), so nav anchors stay on THIS page. */ onLanding?: boolean } = {}) {
+// TWO-DOOR HOMEPAGE NAV (08-27). The homepage's Greek path is one of the two doors directly
+// under the hero, so the bar drops "For Greeks" — a nav link to the thing the page is already
+// showing. The orange Start-Exam-1 CTA goes with it: the doors are the instruction, and three
+// competing "start" doors was exactly the clutter the redesign removes. Every OTHER page keeps
+// the full bar (the CTA there is the only Exam-1 door still on screen once the hero scrolls).
+const homeLinks = (): NavItem[] => [
+  { label: "Reviews", href: "#reviews" },
+  { label: "Meet your tutor", href: "#lee" },
+];
+const homeMenuLinks = (): NavItem[] => [
+  { label: "Reviews", href: "#reviews" },
+  { label: "Meet your tutor", href: "#lee" },
+  // #site-footer, not the historical #contact: the two-door home has no #contact anchor and a
+  // dead menu item is worse than none. The footer carries the text/email contact routes.
+  { label: "Contact", href: "#site-footer" },
+];
+
+export function SiteHeader({ wordmark = true, chapterNav, onLanding = false, homeNav = false }: { wordmark?: boolean; chapterNav?: ChapterNav; /** The page renders the landing sections (#exam1, #reviews, #lee, #contact), so nav anchors stay on THIS page. */ onLanding?: boolean; /** The TWO-DOOR HOMEPAGE bar: Reviews + Meet your tutor only, no For-Greeks link, no orange CTA — see homeLinks above. */ homeNav?: boolean } = {}) {
   const bar = useRef<HTMLElement>(null);
   // The Greek link carries the known campus. One source (campus context), so the navbar can never
   // name a different school from the hero beside it; pages outside a provider get the bare link.
@@ -251,9 +268,10 @@ export function SiteHeader({ wordmark = true, chapterNav, onLanding = false }: {
   // Access, Reviews, Meet Lee) and an exec-facing CTA. Generic homepage links ("For Greeks",
   // Contact) are deliberately absent there — a visitor on a chapter page is already somewhere
   // specific, and every link that navigates away is a door out of the funnel.
-  const links = chapterNav ? chapterLinks(chapterNav) : desktopLinks(base, greekHref);
-  const menuItems = chapterNav ? chapterLinks(chapterNav) : menuLinks(base, greekHref);
-  const cta: NavItem = chapterNav
+  const links = chapterNav ? chapterLinks(chapterNav) : homeNav ? homeLinks() : desktopLinks(base, greekHref);
+  const menuItems = chapterNav ? chapterLinks(chapterNav) : homeNav ? homeMenuLinks() : menuLinks(base, greekHref);
+  // null = no CTA pill at all (the two-door homepage: the doors are the CTAs).
+  const cta: NavItem | null = homeNav ? null : chapterNav
     ? { label: "Set Up Chapter Access →", href: `#${chapterNav.accessAnchor}` }
     : { label: "Start Exam 1 Free ⚡", href: `${base}#exam1` };
 
@@ -319,15 +337,18 @@ export function SiteHeader({ wordmark = true, chapterNav, onLanding = false }: {
           ))}
         </nav>
 
-        {/* THE CTA survives to tablet; only the links collapse into the hamburger there. */}
-        <a
-          href={cta.href}
-          onClick={onNavClick(cta.href)}
-          className="ml-5 hidden items-center rounded-xl px-4 text-[13.5px] font-black md:inline-flex"
-          style={{ background: "var(--accent)", color: "#0B1220", minHeight: 40 }}
-        >
-          {cta.label}
-        </a>
+        {/* THE CTA survives to tablet; only the links collapse into the hamburger there.
+            Absent entirely on the two-door homepage — the doors below the hero are the CTAs. */}
+        {cta && (
+          <a
+            href={cta.href}
+            onClick={onNavClick(cta.href)}
+            className="ml-5 hidden items-center rounded-xl px-4 text-[13.5px] font-black md:inline-flex"
+            style={{ background: "var(--accent)", color: "#0B1220", minHeight: 40 }}
+          >
+            {cta.label}
+          </a>
+        )}
 
         {/* Hidden entirely at >=1024px — everything it holds is now inline. */}
         <span className="ml-2 lg:hidden">

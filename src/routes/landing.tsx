@@ -88,8 +88,8 @@ const EXAM_ANCHOR_ID = "exam1";
  *  "click the bolt, watch the page think about it" happened. This anchor cannot move, because
  *  nothing below it can push it. #exam1 stays exactly as it was for hash links. */
 const PLAYER_ANCHOR_ID = "player";
-const PHONE = "(662) 565-8818";
-const TEL = "+16625658818";
+export const PHONE = "(662) 565-8818";
+export const TEL = "+16625658818";
 
 // THE SCHOOL LIST — derived from the generated table, never hand-maintained here.
 //
@@ -126,7 +126,7 @@ const schoolColors = (id: string) => COLOR_BY_ID.get(id) ?? { c1: BRAND_RED, c2:
 // that a dark bolt would vanish into the navy page. The white keyline and the two-colour banded
 // gradient make that unnecessary, and Lee could see the colours were wrong. A school's colours
 // are its colours.
-const boltFor = (id: string) => schoolColors(id);
+export const boltFor = (id: string) => schoolColors(id);
 
 // Static fallbacks when live data isn't published yet (the menu IS the marketing). These live in
 // lib/exam-preview so the partner "What your chapters get" preview shows the SAME outline the real
@@ -779,7 +779,7 @@ const GREEK_FAQS: Array<{ q: string; a: string }> = [
   },
 ];
 
-function Faq({ greek }: { greek?: string }) {
+export function Faq({ greek }: { greek?: string }) {
   // One question open on load, the rest behind a toggle. Seven stacked cards was a wall of text
   // between the player and the testimonials, and the first question is the one nearly everybody
   // actually has. On a chapter page that first question is "How does this work?", which is the
@@ -1089,7 +1089,7 @@ function NotifyModal({ req, school, professorName, isTest, onClose }: { req: Not
 // redirect. All "Send your syllabus" CTAs open this. Files post as base64 to the submitSyllabus fn.
 type PendingFile = { name: string; type: string; dataUrl: string; size: number };
 const ACCEPT = ".pdf,.doc,.docx,image/*";
-function SyllabusModal({ school, framing, onClose }: { school: School | null; framing?: string | null; onClose: () => void }) {
+export function SyllabusModal({ school, framing, onClose }: { school: School | null; framing?: string | null; onClose: () => void }) {
   const [files, setFiles] = useState<PendingFile[]>([]);
   const [email, setEmail] = useState("");
   const [drag, setDrag] = useState(false);
@@ -2786,7 +2786,7 @@ function Poster({ school, exam, topicName, stem, onNotify, entitled, onBuy }: { 
 // Testimonials moved to components/site/Testimonials — the partner pages show the same student
 // proof, and a route file cannot be imported by a component.
 
-function SectionDivider() {
+export function SectionDivider() {
   return <div aria-hidden className="mx-auto my-12 h-px w-full max-w-[200px]" style={{ background: "var(--bg-surface)" }} />;
 }
 

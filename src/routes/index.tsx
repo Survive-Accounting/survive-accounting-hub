@@ -1,7 +1,8 @@
-// "/" — THE HOMEPAGE. Promoted 2026-08-13 from /landing: the navy/bolt Exam-1 player (pick your
-// school → free Exam 1 → the paid tabs' notify capture) is now what a stranger lands on.
-//
-// The page itself lives in ./landing, which stays the module home for LandingPage + the shared
+// "/" — THE HOMEPAGE. Redesigned 2026-08-27 into the TWO-DOOR page (components/site/home-two-door):
+// centered promise → proof chips → STUDY ON YOUR OWN | STUDY WITH YOUR CHAPTER. The live player is
+// gone from "/" — the public Exam 1 CTA enters the waitlist state (FREE · SEPTEMBER 1) while the
+// new player is rebuilt privately. LandingPage (./landing) remains the module home for the player
+// page that /$school campus pages and /go/ chapter pages still render, plus the shared
 // CampusSelector/Footer/SCHOOLS that /chapters, /c/$slug and /expand import. This route only owns
 // the HOMEPAGE CONCERNS the old marketing page owned: indexable meta, canonical, OG, and the
 // Organization/WebSite JSON-LD (which must exist on exactly one page — it moved off /waitlist).
@@ -13,7 +14,7 @@ import { HOME_OG, ogMeta } from "@/lib/og";
 import { readCampusPrefs } from "@/lib/campus-prefs.functions";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { schoolById } from "@/lib/schools";
-import { LandingPage } from "./landing";
+import { TwoDoorHome } from "@/components/site/home-two-door/TwoDoorHome";
 
 // Organization + EducationalOrganization + WebSite JSON-LD (rendered into the home DOM so it SSRs
 // for crawlers). sameAs is intentionally omitted — no confirmed Survive Accounting brand social
@@ -70,10 +71,15 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const d = Route.useLoaderData();
+  // TWO-DOOR HOMEPAGE (2026-08-27). The full LandingPage (hero + live player) still serves every
+  // campus page (/$school) and chapter page (/go/…); "/" now renders the two-door composition —
+  // centered hero, STUDY ON YOUR OWN | STUDY WITH YOUR CHAPTER, no embedded player. The loader's
+  // campus/code still personalize the hero server-side; profSkip is player state and unused here
+  // (the cookie read is one call either way, and campus pages still consume it).
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(ORG_JSONLD) }} />
-      <LandingPage storedCampusId={d?.campus ?? null} profSkipFor={d?.profSkip ?? null} />
+      <TwoDoorHome storedCampusId={d?.campus ?? null} initialCode={d?.code ?? null} />
     </>
   );
 }
