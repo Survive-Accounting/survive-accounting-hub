@@ -301,6 +301,24 @@ if (easyPoints && easyPoints.chapter_number !== 0) {
   if (error) throw new Error(`Easy Points renumber: ${error.message}`);
 }
 
+// 7a½. EXAM-UNIT MEMBERSHIP — the player's exam tab renders only chapters
+// enrolled in an active exam_units row (exam_unit_chapters, many-to-many).
+// Every master chapter joins Exam 1; Easy Points stays enrolled. Idempotent.
+{
+  const { data: units } = await db.from("exam_units").select("id,course_id,name,status").eq("course_id", courseId).eq("status", "active");
+  const exam1 = (units ?? []).find((u: { name: string }) => u.name === "Exam 1");
+  if (exam1) {
+    const { data: mem } = await db.from("exam_unit_chapters").select("chapter_id").eq("exam_unit_id", (exam1 as { id: string }).id);
+    const have = new Set(((mem ?? []) as { chapter_id: string }[]).map((m) => m.chapter_id));
+    const wanted = [...chapterIdByTopic.values(), ...(easyPoints ? [easyPoints.id] : [])];
+    for (const cid of wanted) {
+      if (have.has(cid)) continue;
+      const { error } = await db.from("exam_unit_chapters").insert({ exam_unit_id: (exam1 as { id: string }).id, chapter_id: cid });
+      if (error) throw new Error(`exam unit membership: ${error.message}`);
+    }
+  }
+}
+
 // 7b. reconcile master content into the authored sets
 for (const s of masterSets) {
   let home = setHome.get(s.setStem);
