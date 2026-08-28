@@ -799,15 +799,36 @@ export const growthTasks = createServerFn({ method: "GET" }).handler(
     const db = await adminDb();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    // PostgREST pages at 1000 rows, and the eligibility view holds 4,000+ — an unpaged
+    // select here silently dropped every council row past the cap and told King "every
+    // campus has been contacted" on a board with zero outreach. Page the big reads.
+    const pageAll = async (table: string, columns: string, filter?: (q: any) => any) => {
+      const out: any[] = [];
+      for (let from = 0; ; from += 1000) {
+        let qy = db
+          .from(table)
+          .select(columns)
+          .range(from, from + 999);
+        if (filter) qy = filter(qy);
+        const { data: page, error } = await qy;
+        if (error) throw new Error(`${table}: ${error.message}`);
+        out.push(...(page ?? []));
+        if (!page || page.length < 1000) break;
+      }
+      return out;
+    };
     const [eventsToday, eventsAll, elig, priority, settingsRow] = await Promise.all([
       db
         .from("growth_outreach_events")
         .select("channel,direction,message_id")
         .gte("occurred_at", today.toISOString()),
-      db.from("growth_outreach_events").select("campus_id,direction").eq("direction", "outbound"),
-      db
-        .from("growth_outreach_eligibility")
-        .select("campus_id,chapter_id,council_type,email,instagram,outreach_eligible"),
+      pageAll("growth_outreach_events", "campus_id,direction", (qy) =>
+        qy.eq("direction", "outbound"),
+      ),
+      pageAll(
+        "growth_outreach_eligibility",
+        "campus_id,chapter_id,council_type,email,instagram,outreach_eligible",
+      ),
       db.from("growth_campus_priority").select("campus_id,rank").order("rank").limit(700),
       db.from("site_settings").select("settings").limit(1).maybeSingle(),
     ]);
@@ -822,14 +843,12 @@ export const growthTasks = createServerFn({ method: "GET" }).handler(
     ).length;
     const dms = todayRows.filter((e) => e.channel === "ig_dm" && e.direction === "outbound").length;
 
-    const contacted = new Set(
-      ((eventsAll.data ?? []) as any[]).map((e) => e.campus_id).filter(Boolean),
-    );
+    const contacted = new Set((eventsAll as any[]).map((e) => e.campus_id).filter(Boolean));
 
     // council emails per campus + gap counts, one pass over the eligibility view
     const councilEmails = new Map<string, number>();
     const gapsByCampus = new Map<string, number>();
-    for (const e of (elig.data ?? []) as any[]) {
+    for (const e of elig as any[]) {
       if (!e.campus_id) continue;
       if (e.council_type && !e.chapter_id && e.outreach_eligible && e.email) {
         councilEmails.set(e.campus_id, (councilEmails.get(e.campus_id) ?? 0) + 1);
