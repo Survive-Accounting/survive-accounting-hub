@@ -18,7 +18,11 @@ import { StudentPreview, previewCampus } from "@/components/site/StudentPreview"
 import { ShareChaptersModal } from "@/components/site/ShareChaptersModal";
 import { FeatureValueStrip } from "@/components/site/Marketing";
 import { getCouncilPartner } from "@/lib/partners.functions";
-import { LEE_PHONE_DISPLAY, LEE_SMS_HREF, councilGroupMessage, councilPresidentEmail, problemHeadline } from "@/lib/partners";
+import { LEE_PHONE_DISPLAY, LEE_SMS_HREF, councilGroupMessage, councilPresidentEmail, liftHeadline, liftSubhead } from "@/lib/partners";
+import { CouncilDoors, CAMPAIGN_ANCHOR, KIT_ANCHOR } from "@/components/site/council/CouncilDoors";
+import { CampaignBuilder } from "@/components/site/council/CampaignBuilder";
+import { DOOR_CARD_CSS, DOOR_CTA_VARS } from "@/components/site/home-two-door/DoorCard";
+import { scrollToId } from "@/lib/ui-scroll";
 import { boltForSlug } from "@/lib/schools";
 import { boltCampusFor } from "@/components/site/bolt";
 import { ogMeta } from "@/lib/og";
@@ -61,8 +65,28 @@ export const Route = createFileRoute("/partners/council/$school/$council")({
 function CouncilPartnerPage() {
   const d = Route.useLoaderData();
   const [share, setShare] = useState(false);
+  const [kitBusy, setKitBusy] = useState(false);
   const bolt = boltForSlug(d.schoolSlug);
   const course = d.courseCode ?? "intro accounting";
+
+  // THE KIT. One ZIP built on the server (a flyer and a meeting slide for every chapter, plus the
+  // four cover PDFs). The council name rides along so the READ-ME cover can name them. A plain
+  // anchor download rather than fetch+blob: a 30-chapter kit is several MB and the browser's own
+  // download UI beats anything we would build. The section scrolls into view either way, so a slow
+  // build never looks like a dead button.
+  const downloadKit = () => {
+    setKitBusy(true);
+    const a = document.createElement("a");
+    a.href = `/api/partner-kit/${d.schoolSlug}/${d.councilSlug}?council_name=${encodeURIComponent(d.councilName)}`;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    scrollToId(KIT_ANCHOR);
+    // The request belongs to the browser now; we cannot observe completion, so the button releases
+    // on a timer rather than pretending to know.
+    window.setTimeout(() => setKitBusy(false), 6000);
+  };
 
   const bc = boltCampusFor(d.schoolSlug, { name: d.schoolName, code: d.courseCode });
   const preview = previewCampus({ key: d.schoolSlug, name: d.schoolName, code: d.courseCode, primary: bc.primary, secondary: bc.secondary, href: `/${d.schoolSlug}` });
@@ -81,20 +105,25 @@ function CouncilPartnerPage() {
 
   return (
     <PartnerPageShell boltVars={bolt} faqs={COUNCIL_FAQS(course)}>
+      {/* C1 — LIFT, NOT FEAR. A council officer owns the system, not the grade (see the note above
+          problemHeadline in lib/partners.ts). The course code appears exactly once in this block,
+          in the sub. The Text-Lee button stays exactly as it was: it is the partner move here. */}
       <PartnerHero
         eyebrow={`${d.councilName} at ${d.schoolName}`}
-        headline={problemHeadline(d.courseCode, d.schoolName)}
-        subhead="Help every chapter get ahead of it."
-        body={`Free Exam 1 cram videos + practice exams built for ${course}.`}
+        headline={liftHeadline()}
+        subhead={liftSubhead(d.courseCode)}
+        body=""
         bolt={[bc]}
         boltLabel={`${course} · ${d.schoolName}`}
-        actions={
-          <>
-            <PartnerPrimary onClick={() => setShare(true)}>Share with all chapters →</PartnerPrimary>
-            <PartnerSecondary href={LEE_SMS_HREF}>Text Lee {LEE_PHONE_DISPLAY}</PartnerSecondary>
-          </>
-        }
+        actions={<PartnerSecondary href={LEE_SMS_HREF}>Text Lee {LEE_PHONE_DISPLAY}</PartnerSecondary>}
       />
+
+      {/* C2 — THE TWO CHANNELS: digital and in-room. Same door component as the home and chapter
+          pages, so all three surfaces stay one design. */}
+      <div style={DOOR_CTA_VARS}>
+        <style>{DOOR_CARD_CSS}</style>
+        <CouncilDoors onBuildBlast={() => scrollToId(CAMPAIGN_ANCHOR)} onDownloadKit={downloadKit} kitBusy={kitBusy} />
+      </div>
 
       <PartnerSection title="What your chapters get">
         <StudentPreview campuses={[preview]} />
@@ -110,6 +139,29 @@ function CouncilPartnerPage() {
         </div>
         <div className="mt-6 flex justify-center sm:justify-start">
           <PartnerPrimary onClick={() => setShare(true)}>Share with all chapters →</PartnerPrimary>
+        </div>
+      </PartnerSection>
+
+      {/* C3 — THE CAMPAIGN BUILDER. Assembles their send; never sends for them. */}
+      <CampaignBuilder
+        id={CAMPAIGN_ANCHOR}
+        schoolSlug={d.schoolSlug}
+        schoolName={d.schoolName}
+        councilSlug={d.councilSlug}
+        councilName={d.councilName}
+        courseCode={d.courseCode}
+        chapters={d.chapters}
+      />
+
+      {/* C4 — THE PARTNER KIT, described where its door lands. */}
+      <PartnerSection id={KIT_ANCHOR} title="The partner kit" note="One folder, ready to hand out">
+        <p className="max-w-[62ch] text-[14.5px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+          A printable flyer and a projector slide for every one of your {d.totalChapters} chapters —
+          each with that chapter&apos;s own QR code — plus a one-page read-me, who I am, what is free
+          and what a chapter can choose to sponsor, and a sample invoice so nothing is a surprise.
+        </p>
+        <div className="mt-4">
+          <PartnerPrimary onClick={downloadKit}>{kitBusy ? "Building your kit…" : "Download the partner kit →"}</PartnerPrimary>
         </div>
       </PartnerSection>
 

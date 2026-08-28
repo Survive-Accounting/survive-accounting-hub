@@ -106,11 +106,13 @@ function GoNotFoundRoute() {
 
 /** The share stamp on the current URL, or null. Reads `via` first, then the legacy `s=flyer`
  *  that every already-printed flyer QR carries. */
-function readVia(): "link" | "groupme" | "flyer" | null {
-  if (typeof window === "undefined") return null;
-  const q = new URLSearchParams(window.location.search);
+export const SHARE_VIA = ["link", "groupme", "flyer", "campaign", "slide"] as const;
+export type ShareStamp = (typeof SHARE_VIA)[number];
+export function readVia(search: string): ShareStamp | null {
+  const q = new URLSearchParams(search);
   const v = q.get("via");
-  if (v === "link" || v === "groupme" || v === "flyer") return v;
+  if (SHARE_VIA.includes(v as ShareStamp)) return v as ShareStamp;
+  // Legacy: every flyer already printed and pinned up carries ?s=flyer.
   return q.get("s") === "flyer" ? "flyer" : null;
 }
 
@@ -132,7 +134,7 @@ function GoChapterPage() {
     // WHERE THIS VISIT CAME FROM. `via` is the current stamp (share kit + new flyers); `s=flyer`
     // is read as a legacy alias so the flyers already printed and pinned up in chapter houses
     // keep attributing. Anything unrecognised is dropped rather than logged as junk.
-    void logGreekEvent({ data: { kind: "visit", schoolSlug: school, chapterSlug: chapter, via: readVia() } }).catch(() => {});
+    void logGreekEvent({ data: { kind: "visit", schoolSlug: school, chapterSlug: chapter, via: readVia(window.location.search) } }).catch(() => {});
   }, [ch, school, chapter]);
 
   // Fire-and-forget member attribution. Saying "start Exam 1" on this chapter's own URL is the

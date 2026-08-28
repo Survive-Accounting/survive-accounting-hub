@@ -79,8 +79,9 @@ export function ChapterDoors({ code, letters, sponsored, onStartExam, onShare }:
 /** THE FLYER MARK — the right door's icon, drawn in the bolt's hand-drawn language: a jagged
  *  page fold, the bolt on the page, a QR-dot corner. Static, like the temple on the homepage:
  *  the boiling bolt opposite is the only living thing on screen. Strokes wear the cream token;
- *  the bolt fill and the two lit QR dots wear the brand crimson/accent tokens. */
-function FlyerMark({ height = 112 }: { height?: number }) {
+ *  the bolt fill and the two lit QR dots wear the brand crimson/accent tokens.
+ *  Exported: the council page uses the same mark for its in-room door. */
+export function FlyerMark({ height = 112 }: { height?: number }) {
   const w = Math.round(height * (84 / 96));
   return (
     <svg viewBox="0 0 84 96" width={w} height={height} fill="none" aria-hidden style={{ display: "block" }}>

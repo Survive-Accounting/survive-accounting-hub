@@ -129,6 +129,7 @@ import { Route as AdminGrowthActivityRouteImport } from './routes/admin.growth.a
 import { Route as PartnersCouncilSchoolCouncilRouteImport } from './routes/partners.council.$school.$council'
 import { Route as GoSchoolCouncilCouncilRouteImport } from './routes/go.$school.council.$council'
 import { Route as ChaptersKitSchoolChapterRouteImport } from './routes/chapters_.kit.$school.$chapter'
+import { Route as ApiPartnerKitSchoolCouncilRouteImport } from './routes/api.partner-kit.$school.$council'
 import { Route as ApiOgSchoolChapterRouteImport } from './routes/api.og.$school.$chapter'
 import { Route as ApiFlyerSchoolChapterRouteImport } from './routes/api.flyer.$school.$chapter'
 import { Route as AdminRepsViewPartnerIdRouteImport } from './routes/admin.reps.view.$partnerId'
@@ -743,6 +744,12 @@ const ChaptersKitSchoolChapterRoute =
     path: '/chapters/kit/$school/$chapter',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPartnerKitSchoolCouncilRoute =
+  ApiPartnerKitSchoolCouncilRouteImport.update({
+    id: '/api/partner-kit/$school/$council',
+    path: '/api/partner-kit/$school/$council',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOgSchoolChapterRoute = ApiOgSchoolChapterRouteImport.update({
   id: '/api/og/$school/$chapter',
   path: '/api/og/$school/$chapter',
@@ -880,6 +887,7 @@ export interface FileRoutesByFullPath {
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
+  '/api/partner-kit/$school/$council': typeof ApiPartnerKitSchoolCouncilRoute
   '/chapters/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
   '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
   '/partners/council/$school/$council': typeof PartnersCouncilSchoolCouncilRoute
@@ -1002,6 +1010,7 @@ export interface FileRoutesByTo {
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
+  '/api/partner-kit/$school/$council': typeof ApiPartnerKitSchoolCouncilRoute
   '/chapters/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
   '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
   '/partners/council/$school/$council': typeof PartnersCouncilSchoolCouncilRoute
@@ -1128,6 +1137,7 @@ export interface FileRoutesById {
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
+  '/api/partner-kit/$school/$council': typeof ApiPartnerKitSchoolCouncilRoute
   '/chapters_/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
   '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
   '/partners/council/$school/$council': typeof PartnersCouncilSchoolCouncilRoute
@@ -1255,6 +1265,7 @@ export interface FileRouteTypes {
     | '/admin/reps/view/$partnerId'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
+    | '/api/partner-kit/$school/$council'
     | '/chapters/kit/$school/$chapter'
     | '/go/$school/council/$council'
     | '/partners/council/$school/$council'
@@ -1377,6 +1388,7 @@ export interface FileRouteTypes {
     | '/admin/reps/view/$partnerId'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
+    | '/api/partner-kit/$school/$council'
     | '/chapters/kit/$school/$chapter'
     | '/go/$school/council/$council'
     | '/partners/council/$school/$council'
@@ -1502,6 +1514,7 @@ export interface FileRouteTypes {
     | '/admin/reps/view/$partnerId'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
+    | '/api/partner-kit/$school/$council'
     | '/chapters_/kit/$school/$chapter'
     | '/go/$school/council/$council'
     | '/partners/council/$school/$council'
@@ -1572,6 +1585,7 @@ export interface RootRouteChildren {
   GoSchoolIndexRoute: typeof GoSchoolIndexRoute
   ApiFlyerSchoolChapterRoute: typeof ApiFlyerSchoolChapterRoute
   ApiOgSchoolChapterRoute: typeof ApiOgSchoolChapterRoute
+  ApiPartnerKitSchoolCouncilRoute: typeof ApiPartnerKitSchoolCouncilRoute
   ChaptersKitSchoolChapterRoute: typeof ChaptersKitSchoolChapterRoute
   GoSchoolCouncilCouncilRoute: typeof GoSchoolCouncilCouncilRoute
   PartnersCouncilSchoolCouncilRoute: typeof PartnersCouncilSchoolCouncilRoute
@@ -2419,6 +2433,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChaptersKitSchoolChapterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/partner-kit/$school/$council': {
+      id: '/api/partner-kit/$school/$council'
+      path: '/api/partner-kit/$school/$council'
+      fullPath: '/api/partner-kit/$school/$council'
+      preLoaderRoute: typeof ApiPartnerKitSchoolCouncilRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/og/$school/$chapter': {
       id: '/api/og/$school/$chapter'
       path: '/api/og/$school/$chapter'
@@ -2683,6 +2704,7 @@ const rootRouteChildren: RootRouteChildren = {
   GoSchoolIndexRoute: GoSchoolIndexRoute,
   ApiFlyerSchoolChapterRoute: ApiFlyerSchoolChapterRoute,
   ApiOgSchoolChapterRoute: ApiOgSchoolChapterRoute,
+  ApiPartnerKitSchoolCouncilRoute: ApiPartnerKitSchoolCouncilRoute,
   ChaptersKitSchoolChapterRoute: ChaptersKitSchoolChapterRoute,
   GoSchoolCouncilCouncilRoute: GoSchoolCouncilCouncilRoute,
   PartnersCouncilSchoolCouncilRoute: PartnersCouncilSchoolCouncilRoute,

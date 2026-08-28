@@ -65,6 +65,16 @@ export function flyerTarget(i: FlyerInput): string {
     : `https://surviveaccounting.com/${i.schoolSlug}?s=flyer`;
 }
 
+/** THE MEETING SLIDE'S QR. Same destination, its own stamp — a scan from a projector in a chapter
+ *  meeting is a different channel from a flyer on a wall, and the partner kit is the only thing
+ *  that produces one. Rep attribution still wins, exactly as on the flyer. */
+export function slideTarget(i: FlyerInput): string {
+  if (i.refCode) return `https://surviveaccounting.com/r/${i.refCode}`;
+  return i.chapterSlug
+    ? `https://surviveaccounting.com/go/${i.schoolSlug}/${i.chapterSlug}?via=slide`
+    : `https://surviveaccounting.com/${i.schoolSlug}?via=slide`;
+}
+
 // ── colourway, with the guard the template could not know it needed ──────────────────────────
 //
 // The flyer background is #14213D — which is EXACTLY Ole Miss's c1. Drawn as specified, half the
@@ -93,8 +103,8 @@ export function colorway(schoolSlug: string): { c1: string; c2: string } {
 /** Course code, never blank and never invented. */
 export const heroCode = (i: FlyerInput) => (i.courseCode ?? "").trim() || "INTRO ACCOUNTING";
 
-async function qrDataUri(i: FlyerInput): Promise<string> {
-  return QRCode.toDataURL(flyerTarget(i), {
+async function qrDataUri(i: FlyerInput, target = flyerTarget(i)): Promise<string> {
+  return QRCode.toDataURL(target, {
     errorCorrectionLevel: "H",   // as specified
     margin: 0,                   // the white card IS the quiet zone — deliberately not shrunk
     width: 600,
@@ -150,7 +160,7 @@ export async function flyerSvg(i: FlyerInput): Promise<string> {
 export async function slideSvg(i: FlyerInput): Promise<string> {
   const { c1, c2 } = colorway(i.schoolSlug);
   const code = heroCode(i);
-  const qr = await qrDataUri(i);
+  const qr = await qrDataUri(i, slideTarget(i));
   // The headline runs at 150 for a short code and steps down as the code grows, same rule the
   // flyer uses — just scaled for the shorter landscape measure.
   const codeSize = Math.round(courseFontSize(code) * 0.62);
@@ -219,6 +229,62 @@ function centre(page: PDFPage, text: string, yTop: number, size: number, font: P
     x: 306 - w / 2, y: Y(yTop), size: s, font, color: hex(color),
     ...(track ? { characterSpacing: track } : {}),
   });
+}
+
+/** THE MEETING SLIDE, as a PDF — 16:9 landscape, one page, for the projector in a chapter
+ *  meeting. Same content and colourway as slideSvg (which is the on-screen preview), drawn with
+ *  the same pdf-lib primitives the flyer uses, because the same "no rasteriser" constraint at the
+ *  top of this file applies. Left column reads at the back of the room; the QR is 40% of the
+ *  height on the right and encodes slideTarget (?via=slide). */
+export async function slidePdf(i: FlyerInput): Promise<Buffer> {
+  const { c1, c2 } = colorway(i.schoolSlug);
+  const code = heroCode(i);
+  const f = await faces();
+
+  const doc = await PDFDocument.create();
+  doc.registerFontkit(fontkit);
+  doc.setTitle(`${i.chapterName ?? i.schoolName} — meeting slide`);
+  const bold = await doc.embedFont(f["Poppins-Bold"]);
+  const semi = await doc.embedFont(f["Poppins-SemiBold"]);
+  const reg = await doc.embedFont(f["Poppins-Regular"]);
+  const ital = await doc.embedFont(f["Poppins-Italic"]);
+
+  // 16:9 at a comfortable projector size (13.33in × 7.5in at 72pt/in).
+  const W = 960, H = 540;
+  const page = doc.addPage([W, H]);
+  page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: hex(BG) });
+  page.drawRectangle({ x: 0, y: H - 5, width: W, height: 5, color: hex("#F5A623") });
+  page.drawRectangle({ x: 0, y: 0, width: W, height: 5, color: hex("#F5A623") });
+
+  const L = 60;                       // left margin
+  const top = (y: number) => H - y;   // measure down from the top like the SVG does
+  page.drawText("survive", { x: L, y: top(78), size: 36, font: bold, color: hex("#F5F1E8") });
+  page.drawText("ACCOUNTING", { x: L + 2, y: top(96), size: 11, font: semi, color: hex("#8B97BD"), ...{ characterSpacing: 6 } });
+
+  if (i.chapterName) {
+    page.drawText(i.chapterName.toUpperCase(), { x: L, y: top(160), size: 17, font: bold, color: hex("#F5A623"), ...{ characterSpacing: 3 } });
+  }
+  page.drawText(code, { x: L, y: top(228), size: Math.min(58, courseFontSize(code) * 0.2), font: bold, color: hex("#F5F1E8") });
+  page.drawText("Exam 1 is free for the house.", { x: L, y: top(284), size: 30, font: bold, color: hex("#F5F1E8") });
+  page.drawText("Cram videos + practice built on what actually gets tested.", { x: L, y: top(320), size: 16, font: reg, color: hex("#B9C2DC") });
+
+  page.drawRectangle({ x: L, y: top(410), width: 300, height: 42, color: hex("#F5A623") });
+  page.drawText("SCAN IT — EXAM 1 IS FREE", { x: L + 22, y: top(398), size: 15, font: bold, color: hex("#14213D"), ...{ characterSpacing: 2 } });
+  page.drawText("surviveaccounting.com", { x: L, y: top(470), size: 15, font: semi, color: hex("#F5F1E8") });
+  if (i.chapterName) page.drawText(`Shared by ${i.chapterName}`, { x: L, y: top(496), size: 12, font: ital, color: hex("#8B97BD") });
+
+  // The bolt, between the copy and the QR.
+  const bs = 1.15;
+  page.drawSvgPath(BOLT_OUTER, { x: 630 - 45.4 * bs, y: top(120), scale: bs, color: hex(c1), borderColor: rgb(1, 1, 1), borderWidth: 8 * bs });
+  page.drawSvgPath(BOLT_RIGHT, { x: 630 - 45.4 * bs, y: top(120), scale: bs, color: hex(c2) });
+
+  // The QR, big enough to scan from the back row.
+  const q = 216;
+  page.drawRectangle({ x: W - q - 60 - 16, y: 60 - 16, width: q + 32, height: q + 32, color: rgb(1, 1, 1) });
+  const qr = await doc.embedPng(await qrDataUri(i, slideTarget(i)));
+  page.drawImage(qr, { x: W - q - 60, y: 60, width: q, height: q });
+
+  return Buffer.from(await doc.save());
 }
 
 export async function flyerPdf(i: FlyerInput): Promise<Buffer> {

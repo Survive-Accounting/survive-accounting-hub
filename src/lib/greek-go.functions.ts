@@ -355,12 +355,17 @@ export const logGreekEvent = createServerFn({ method: "POST" })
     kind: z.enum(GREEK_EVENT_KINDS),
     schoolSlug: z.string().trim().min(1).max(80),
     chapterSlug: z.string().trim().min(1).max(60),
+    /** WHERE THEY CAME FROM — the share stamp on the /go URL: link, groupme, flyer, campaign (a
+     *  council blast) or slide (a projector QR in a chapter meeting). Appended to the event
+     *  string, so the existing expand_events row answers "what actually spreads?" without a
+     *  second table. Absent = arrived some other way, which is a real and common answer. */
+    via: z.enum(["link", "groupme", "flyer", "campaign", "slide"]).nullable().optional(),
   }).parse(d))
   .handler(async ({ data }): Promise<{ ok: boolean }> => {
     try {
       const db = await admin();
       const { error } = await db.from("expand_events")
-        .insert({ event: `greek_${data.kind}:${data.schoolSlug}/${data.chapterSlug}` });
+        .insert({ event: `greek_${data.kind}:${data.schoolSlug}/${data.chapterSlug}${data.via ? `?via=${data.via}` : ""}` });
       if (error) { console.warn("logGreekEvent insert failed:", error.message); return { ok: false }; }
       return { ok: true };
     } catch (e) {

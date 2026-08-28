@@ -7,6 +7,8 @@
 // where GPAs quietly slip.") and describe the offer as "free intro accounting exam prep", because
 // "Exam 1" means nothing to someone who has not yet seen a campus page.
 
+import { nbspCode } from "@/lib/course-code";
+
 /** A chapter on a council page — the same identity a /go/ page uses, never a parallel one. */
 export type PartnerChapterRow = {
   name: string;
@@ -54,10 +56,28 @@ export function orgSlugify(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-/** THE ONE PROBLEM LINE. Campus surfaces pass a course + school; everything else gets the
- *  course-neutral version — the same sentence the student pages open with. */
+// ── WHO FEELS WHAT ────────────────────────────────────────────────────────────────────────────
+// FEAR FOR THE OWNER OF THE GRADE, LIFT FOR THE OWNER OF THE SYSTEM.
+//
+// A student and a chapter member own the grade that is slipping, so their pages name the fear:
+// "ACCY 201 at Ole Miss is where GPAs quietly slip." A COUNCIL officer owns the system, not the
+// grade — nobody's transcript is on the line in that room, and telling them their chapters are
+// failing is an accusation, not an offer. Council surfaces lead with the lift they can create:
+// "Raise GPAs across every chapter." Same product, opposite emotional address; do not swap them.
+
+/** THE ONE PROBLEM LINE — for the people who own the grade (solo + chapter pages). Campus
+ *  surfaces pass a course + school; everything else gets the course-neutral version. */
 export const problemHeadline = (code?: string | null, school?: string | null) =>
   code && school ? `${code} at ${school} is where GPAs quietly slip.` : "Intro accounting is where GPAs quietly slip.";
+
+/** THE LIFT LINE — for the people who own the system (council pages). */
+export const liftHeadline = () => "Raise GPAs across every chapter.";
+
+/** The council sub, naming the course exactly once in this block (the headline carries none). */
+export const liftSubhead = (code?: string | null) =>
+  code
+    ? `Share a free resource built for ${nbspCode(code)} — cram videos & practice that match the exams.`
+    : "Share a free resource built for your campus's intro accounting course — cram videos & practice that match the exams.";
 
 /** What Survive gives a partner's students, stated the same way on every partner surface. */
 export const PARTNER_OFFER = "Free intro accounting exam prep";
