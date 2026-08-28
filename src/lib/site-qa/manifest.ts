@@ -514,6 +514,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "callout-demo.tsx": "dev lab (noindex)",
   "exhibit-demo.tsx": "dev lab (noindex)",
   "exhibit-lab.tsx": "dev lab (noindex)",
+  "talkthrough.tsx": "studio tool — Talkthrough Booth (AdminGate, noindex)",
   "intro-outro.tsx": "dev lab (noindex)",
   "logo-lab.tsx": "dev lab (noindex)",
   "lab.bolt.tsx": "dev lab (noindex)",
