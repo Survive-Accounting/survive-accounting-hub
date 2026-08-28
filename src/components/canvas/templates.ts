@@ -61,6 +61,8 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
       return { kind: "basis", w: 960, h: 560 };
     case "careers":
       return { kind: "careers", w: 1000, h: 600 };
+    case "classification":
+      return { kind: "classification", w: 1100, h: 620 };
     case "cycle":
       return {
         kind: "cycle",
@@ -277,6 +279,7 @@ export const CARD_KIND_LABEL: Record<CardData["kind"], string> = {
   standards: "Rulebook & Cops",
   basis: "When It Counts",
   careers: "Accounting Careers",
+  classification: "5 Types of Accounts",
   memo: "Memo",
   paygate: "Payment Gate",
   signupgate: "Signup Gate",

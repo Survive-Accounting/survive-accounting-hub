@@ -1,201 +1,237 @@
 # EXHIBIT CONVEYOR — HANDOFF
 
-**Written:** 2026-08-27 · **Session:** studio/exhibit conveyor — Accounting Careers (retiring)
-**Careers exhibit landed at:** `d01df668`, merged to main as `33ac9ef2` (PR #9)
-**main at handoff:** `33ac9ef2` or later — always `git fetch origin` and use CURRENT `origin/main`.
-**Worktree:** `C:\Users\lee\Documents\sa-exhibit-lab` · **Branch/HEAD:** `careers-exhibit` @ `d01df668` (merged)
+**Written:** 2026-08-27 · **Session:** studio/exhibit conveyor — Careers + Account Classification (retiring)
+**This session landed:** Accounting Careers (PR #9 → `33ac9ef2`) and Account Classification
++ the shared account registry (PR #11 → `179309ca`).
+**main at handoff:** `179309ca` or later — always `git fetch origin` and use CURRENT `origin/main`.
+**Worktree:** `C:\Users\lee\Documents\sa-exhibit-lab` · **Branch/HEAD:** `classification-exhibit` @ `5b6b64db` (merged)
 **Git status:** clean, no uncommitted work · **Open PRs:** none
 
 ---
 
 ## 1. Shipped and verified live
 
-PRs **#3, #4, #5, #6, #7** and now **#9** are all MERGED.
-
-Verified **by content**, not by deploy status — the route is fetched, its `/assets/*.js`
-chunks are downloaded and grepped for feature-unique strings. Chunk filenames change on
-every rebuild, so a green Vercel status proves nothing; *always* re-grep.
+PRs **#3–#11** are all MERGED. Verified **by content**, not by deploy status — the route is
+fetched, its `/assets/*.js` chunks downloaded and grepped for feature-unique strings. Chunk
+filenames change on every rebuild, so a green Vercel badge proves nothing; *always* re-grep.
 
 | Route | Result |
 |---|---|
-| `/leeportal` | 200 · "Lee Portal", Creative + Business doors present |
+| `/leeportal` | 200 · Creative + Business doors |
 | `/study/canvas` | 200 · cycle modes present |
-| `/exhibit-demo` | 200 · all exhibit cards present, Careers included |
+| `/exhibit-demo` | 200 · all six exhibit cards present |
 
 Exhibit content confirmed in the live bundles:
 
 - **Who's It For?** — `for the ManaGERs`, `Will they repay us?`, `Follows GAAP`
 - **The Rulebook & The Cops** — `THE RULEBOOK`, `private-sector`, `U.S. government agency`
 - **When It Counts** — `WHEN CASH MOVES ≠ WHEN IT COUNTS`
-- **Accounting Careers** — verified in `CareersNode-lXFd2rZJ.js` (chunk name as of this
-  build; it WILL change on the next one): `Who do you work for`, `PRIVATE / CORPORATE`,
-  `GOVERNMENT & NONPROFIT`, `DOORS IT OPENS`, `not accounting jobs`, `Investing / VC / PE`,
-  `STATE-issued license`, `EXTERNAL AUDITOR`, `Internal auditor = employee`,
-  `Longer hours in busy season` — 10/10 present. Vercel status for `33ac9ef2`: `success`.
-- **Importance cues** — `Must know`, `Easy point`, `A+ detail`
+- **Accounting Careers** — `PRIVATE / CORPORATE`, `DOORS IT OPENS`, `STATE-issued license`,
+  `Internal auditor = employee`, `Investing / VC / PE` (10/10 checked strings)
+- **Account Classification** — `Trap accounts`, `Unearned Revenue`, `CONTRA-EQUITY`,
+  `Payables are ALWAYS liabilities`, `Accumulated Depreciation`
 
 ## 2. Exhibits DEPLOYED (do not rebuild)
 
-1. **Accounting Cycle mode switcher** — SOURCE DOCS / DEFINITIONS / ORDER (`cards/CycleNode.tsx`, `cycle-exhibit-config.ts`)
-2. **Who's It For?** — internal/external users + financial/managerial (`cards/UsersNode.tsx`, `users-exhibit-config.ts`)
-3. **The Rulebook & The Cops** — standards & regulation (`cards/StandardsNode.tsx`, `standards-exhibit-config.ts`)
+1. **Accounting Cycle mode switcher** (`cards/CycleNode.tsx`, `cycle-exhibit-config.ts`)
+2. **Who's It For?** (`cards/UsersNode.tsx`, `users-exhibit-config.ts`)
+3. **The Rulebook & The Cops** (`cards/StandardsNode.tsx`, `standards-exhibit-config.ts`)
 4. **When It Counts** — cash vs. accrual (`cards/BasisNode.tsx`, `cash-accrual-config.ts`)
-5. **Accounting Careers** — "Who do you work for?", the BRANCH MAP family's first outing
-   (`cards/CareersNode.tsx`, `careers-exhibit-config.ts`, `careers-exhibit.test.ts`)
+5. **Accounting Careers** — BRANCH MAP (`cards/CareersNode.tsx`, `careers-exhibit-config.ts`)
+6. **Account Classification** — CLASSIFIER (`cards/ClassificationNode.tsx`,
+   `classification-exhibit-config.ts`) **+ `account-registry.ts`, shared**
 
-> ⚠ **#4 was built ahead of its curriculum slot.** It belongs at the head of *Adjusting Entries
-> & Trial Balance*. It is built, tested and live — it is **not** the next thing to work on.
+> ⚠ **#4 was built ahead of its curriculum slot.** It belongs at the head of *Adjusting
+> Entries & Trial Balance*. Built, tested, live — not the next thing to work on.
 
-## 3. Shared infrastructure available (verified on main)
+## 3. THE SHARED ACCOUNT REGISTRY — read this before any account work
+
+`src/components/canvas/account-registry.ts` is now the single source of truth for
+*what kind of account is this, and why*:
+
+```
+{ id, label, category, contra?, whyLine, trap?, term?, intangible?, aliases? }
+```
+
+**Equation Effects, journal-entry teaching and statement classification are meant to consume
+it — do not seed new account lists.** `accountByLabel()` resolves aliases, so a module
+holding bare strings (like the Rubric) can look itself up.
+
+It is PINNED BY TEST against the three modules that previously each knew a piece:
+`rubric-model.ACCOUNTS` (same categories), `rubric-view.CONTRA` (identical contra set) and
+its `CURRENT_ASSET_COUNT` seam (agreeing terms), and `coa-groups.groupNameForType`. Edit
+either side into disagreement and `classification-exhibit.test.ts` fails.
+
+> **QUEUED FOLLOW-UP — Rubric migration.** The Rubric was deliberately NOT rewritten: it is
+> shipped and its account ORDER is a tested contract (`coaGroups` slices `ACCOUNTS.A` at a
+> seam index; probes narrow against that list). Migrating it onto the registry is a
+> standalone prompt, made safe by the pins above.
+
+## 4. Shared infrastructure available (verified on main)
 
 Reuse these. Do not reimplement.
 
 | Primitive | File | Notes |
 |---|---|---|
-| Spotlight / highlights | `exhibit-highlights.ts` | click-to-glow, `cycleState` (normal→lit→blurred), edge glow, module-level clear bus |
-| Exhibit base | `exhibit-base.tsx` | `useExhibit(decl)` + `ExhibitShell`; a card DECLARES nodes/adjacency/min-size, gets film-lock + chrome free |
-| Mode chips + M key | `exhibit-modes.tsx` | `useExhibitModes`, `ExhibitModeChips` (authoring chrome — hidden on film), `nextModeId` |
-| Authored reveal | `exhibit-modes.tsx` | `useExhibitReveal(maxTick)`; **film surfaces only** (authoring/student render full) |
+| Spotlight / highlights | `exhibit-highlights.ts` | click-to-glow, `cycleState`, edge glow, module-level clear bus |
+| Exhibit base | `exhibit-base.tsx` | `useExhibit(decl)` + `ExhibitShell`; declare nodes/adjacency/min-size, get film-lock + chrome free |
+| Mode chips + M key | `exhibit-modes.tsx` | `useExhibitModes`, `ExhibitModeChips` (authoring chrome — hidden on film) |
+| Authored reveal | `exhibit-modes.tsx` | `useExhibitReveal(maxTick)`; **film surfaces only** |
 | Depth layer | `exhibit-modes.tsx` | `setExhibitDepth` / `exhibitDepthKey`; never part of a reveal sequence |
-| Importance cues | `exhibit-cues.tsx` | `CueTag` — MUST KNOW / EASY POINT / A+ DETAIL, session-dismissible, deliberately NOT on the `` ` `` bus |
-| 【exam-answer phrase】 | `standards-exhibit-config.ts` | `splitHighlights()` — import it; both Standards and Careers render Bible law 2 through it |
-| Single-select + co-lighting | `cards/StandardsNode.tsx`, `cards/CareersNode.tsx` | the `primary` pattern: clicked node takes the full bloom, co-lit relations take a soft accent halo |
-| Film lock / popout | `film-lock.ts`, `CeqPreviewer.tsx` | geometry locked on camera, keyboard isolation, zero chrome in Recording Mode |
+| Importance cues | `exhibit-cues.tsx` | `CueTag` — MUST KNOW / EASY POINT / A+ DETAIL, session-dismissible |
+| 【exam-answer phrase】 | `standards-exhibit-config.ts` | `splitHighlights()` — import it |
+| Single-select + co-lighting | `StandardsNode` · `CareersNode` · `ClassificationNode` | clicked node = full bloom; co-lit relations = soft accent halo |
+| Account data | `account-registry.ts` | see §3 |
+| Film lock / popout | `film-lock.ts`, `CeqPreviewer.tsx` | locked geometry, keyboard isolation, zero chrome in Recording Mode |
 
-**Keyboard (film surfaces)** — wired in `CeqPreviewer.tsx` in BOTH the recording branch and the
-film-popout branch, each checked *before* the Tab walk so Tab still walks elsewhere:
+**Keyboard (film surfaces)** — wired in `CeqPreviewer.tsx` in BOTH the recording branch and
+the film-popout branch, each checked *before* the Tab walk:
 
-- `M` cycle modes · `Tab` / `Shift+Tab` step authored reveal (falls through to the walk at either end)
-- `D` toggle depth layer · `P` play/pause orbit (cycle ORDER mode) · `` ` `` reset all · `0` reset exhibit nodes
+- `M` cycle modes · `Tab` / `Shift+Tab` step authored reveal (falls through at either end)
+- `D` toggle depth layer · `P` play/pause orbit · `` ` `` reset all · `0` reset exhibit nodes
 - `\` open/close film popout · `F` fullscreen the popout
 
 **Registering a new exhibit kind** — five places: `types.ts` (CardKind union + interface +
-CardData union + `KIND_CATEGORY`), `templates.ts` (blank factory + label), `stage-elements.tsx`
-(import + STAGE_ELEMENTS + STAGE_NODE_TYPES), `routes/study_.canvas.tsx` (import + nodeTypes +
-add-menu), `routes/exhibit-demo.tsx` (QA mount, wide + narrow).
+CardData union + `KIND_CATEGORY`), `templates.ts` (blank factory + label),
+`stage-elements.tsx` (import + STAGE_ELEMENTS + STAGE_NODE_TYPES), `routes/study_.canvas.tsx`
+(import + nodeTypes + add-menu), `routes/exhibit-demo.tsx` (QA mount, wide + narrow).
 
 **Conventions that bite:**
 
-- Content lives in a per-exhibit config file (Bible law 8).
+- Content lives in a per-exhibit config file (Bible law 8); shared *account* content lives
+  in the registry (§3).
 - Every source-pin test MUST normalise CRLF at read
   (`readFileSync(...,"utf8").split("\r\n").join("\n")`) — a test enforces this.
-- **Source files have MIXED line endings — even within one file.** A scripted patch that
-  assumes one EOL will silently fail to match. Try LF *and* CRLF per pattern.
+- **Source files have MIXED line endings, even within one file.** A scripted patch that
+  assumes one EOL silently matches zero times. Try LF *and* CRLF per pattern.
 - Emphasis is opacity/border/shadow only, never geometry.
-- **Give a reveal band's hidden state precedence over the muted state.** If an
-  `emphasis()` spread lands after `opacity: 0`, a spotlight resurrects unrevealed
-  elements on camera. See `emphasisIn()` in `CareersNode.tsx` and its pinning test.
-- Don't scan a config *file* for banned words in a test — the file's own accuracy notes
-  name what is banned and will trip it. Scan the rendered strings instead.
+- **Give a reveal band's hidden state precedence over the muted state** — otherwise a
+  spotlight resurrects unrevealed elements on camera. See `emphasisIn()` in `CareersNode`
+  and `ClassificationNode`, and the tests pinning the ordering.
+- **Don't scan a config FILE for banned words in a test** — the file's own accuracy notes
+  name what is banned and will trip it. Scan the rendered strings.
+- **Popovers stop scaling at ~4 columns.** Careers (3 columns) can hang a panel under a
+  chip; Classification (5) cannot without spilling outside the card — it uses one fixed
+  readout strip with reserved height instead. Prefer the strip for dense layouts.
+- Set the `border` shorthand, never `borderColor` — mixing them warns in React.
 
-## 4. Still queued — NOT built
+## 5. Still queued — NOT built
 
-- **Principles & Assumptions** — source only, **no implementation prompt yet** (needs a Fable design pass)
-- **Account Classification** — prompt + source ready ← **next**
-- **Accounting Equation Effects** — prompt + source ready
+- **Accounting Equation Effects** — prompt + source ready ← **next**
+- **Principles & Assumptions** — source only, **no implementation prompt yet**
+- **Rubric → account-registry migration** (§3), standalone prompt
 - subsequent Journal Entry / Exam 1 exhibits as separately designed
 
-## 5. Asset paths (do not paste these into prompts — reference them)
+## 6. Asset paths (reference, don't paste into prompts)
 
 | Asset | Path |
 |---|---|
 | Exhibit Production Bible v1 | `C:\Users\lee\Downloads\Survive_Exhibit_Production_Bible_v1.md` |
-| Account Classification prompt | `C:\Users\lee\Downloads\account-classification-exhibit-prompt.md` |
-| Account Classification source | `C:\Users\lee\Downloads\05_Account_Classification_Source.pdf` |
 | Equation Effects prompt | `C:\Users\lee\Downloads\equation-effects-exhibit-prompt.md` |
 | Equation Effects source | `C:\Users\lee\Downloads\06_Accounting_Equation_Effects_Source.pdf` |
 | Principles & Assumptions source (no prompt) | `C:\Users\lee\Downloads\02_Principles_Assumptions_Source.pdf` |
-| Careers prompt / source (built) | `C:\Users\lee\Downloads\careers-exhibit-prompt.md` · `04_Accounting_Careers_Source.pdf` |
-| Standards source (built) | `C:\Users\lee\Downloads\03_Standards_Regulation_Source.pdf` |
-| Cash vs Accrual design v2 (built) | `C:\Users\lee\Downloads\cash-accrual-exhibit-DESIGN-v2.md` |
-| Careers build notes + decisions | `BUILD-NOTES.md` (repo root) |
+| Careers prompt / source (built) | `careers-exhibit-prompt.md` · `04_Accounting_Careers_Source.pdf` |
+| Classification prompt / source (built) | `account-classification-exhibit-prompt.md` · `05_Account_Classification_Source.pdf` |
+| Standards source (built) | `03_Standards_Regulation_Source.pdf` |
+| Cash vs Accrual design v2 (built) | `cash-accrual-exhibit-DESIGN-v2.md` |
+| Build notes + decisions (both this session's exhibits) | `BUILD-NOTES.md` (repo root) |
 | Multi-session repo bible | `docs/SESSION-CONTEXT.md` |
 | Exhibit QA route | `src/routes/exhibit-demo.tsx` → `/exhibit-demo` |
 
-## 6. NEXT EXHIBIT
+## 7. NEXT EXHIBIT
 
 ```
-NEXT EXHIBIT:  Account Classification (CLASSIFIER family)
-BUILD INPUT:   C:\Users\lee\Downloads\account-classification-exhibit-prompt.md
-SOURCE PACK:   C:\Users\lee\Downloads\05_Account_Classification_Source.pdf
+NEXT EXHIBIT:  Accounting Equation Effects
+BUILD INPUT:   C:\Users\lee\Downloads\equation-effects-exhibit-prompt.md
+SOURCE PACK:   C:\Users\lee\Downloads\06_Accounting_Equation_Effects_Source.pdf
 CONTROLLING:   C:\Users\lee\Downloads\Survive_Exhibit_Production_Bible_v1.md
-NEXT ACTION:   cd sa-exhibit-lab → git fetch origin → git checkout -b classification-exhibit origin/main
-               → read the prompt + Bible → build reusing §3 primitives → tsc + bun test
-               → QA on /exhibit-demo (wide + narrow) → commit → push branch → PR → merge
+NEXT ACTION:   cd sa-exhibit-lab → git fetch origin → git checkout -b equation-effects-exhibit origin/main
+               → read the prompt + Bible → CONSUME account-registry.ts (§3), do not seed
+               new account lists → build reusing §4 primitives → tsc + bun test
+               → QA on /exhibit-demo (wide + narrow) → commit → push → PR → merge
                → verify live BY CONTENT (grep the chunks)
 ```
 
-**Why Classification and not Principles:** unchanged from the last handoff — Principles has
-**only a source PDF, no implementation prompt**. *Action for Lee/Fable: run a design pass on
-Principles & Assumptions so it can enter the conveyor.*
+**Principles & Assumptions is still blocked**: source PDF only, no implementation prompt.
+*Action for Lee/Fable: run a design pass on it so it can enter the conveyor.*
 
-## 7. Testing status
+## 8. Testing status
 
-- Full suite at handoff: **1809 pass / 1 fail**; `tsc --noEmit` clean.
-  (Careers added 31 tests: 1778 → 1809.)
+- Full suite at handoff: **1853 pass / 1 fail**; `tsc --noEmit` clean.
+  (Careers +31, Classification +38.)
 - **Known pre-existing failure — NOT yours:** `src/components/site/bolt/bolt-palette.test.ts`
   → *"the whole table produces distinct accents, campus by campus"*. 119 campuses yield 93
-  distinct accents; test needs `> 95.2`. Root cause: only **95 distinct primaries** exist, and
-  `deriveAccent` is a pure function of the primary, so identical inputs *must* collide. **Fix
-  belongs to the landing/public-web session**: dedupe by primary before asserting. Confirmed
-  it fails on pristine `origin/main` untouched by exhibit work.
-- **Known console warning — pre-existing:** a React "mixing shorthand and non-shorthand style
-  properties" warning on dev pages. Reproduces on `/callout-demo` with no exhibit code
-  mounted. Avoid it in new cards by always setting the `border` shorthand, never `borderColor`.
+  distinct accents; the test needs `> 95.2`. Only **95 distinct primaries** exist and
+  `deriveAccent` is a pure function of the primary, so identical inputs *must* collide.
+  **Fix belongs to the landing/public-web session**: dedupe by primary before asserting.
+  Confirmed it fails on pristine `origin/main` untouched by exhibit work.
+- **Known console warning — pre-existing:** a React "mixing shorthand and non-shorthand
+  style properties" warning on dev pages; reproduces on `/callout-demo` with no exhibit
+  mounted. Avoid it in new cards by always setting the `border` shorthand.
 
-## 8. Filming
+## 9. Filming
 
-Entry: **surviveaccounting.com/leeportal** → **Creative** → **Studio Canvas** (or `/study/canvas`).
-`\` opens the film popout · `F11` fullscreen for OBS.
-Add exhibits from the canvas element menu, **Teaching** group: *Accounting Cycle*, *Who's It For?*,
-*Rulebook & Cops*, *When It Counts*, *Accounting Careers*. On film, exhibits start at reveal step 0
-— `Tab` walks the reveal, `D` opens the depth layer, click to spotlight, `` ` `` resets. Mode chips
-are authoring-only chrome and never appear in Recording Mode capture; use `M` on camera.
+Entry: **surviveaccounting.com/leeportal** → **Creative** → **Studio Canvas**
+(or `/study/canvas`). `\` opens the film popout · `F11` fullscreen for OBS.
+Add exhibits from the canvas element menu, **Teaching** group: *Accounting Cycle*,
+*Who's It For?*, *Rulebook & Cops*, *When It Counts*, *Accounting Careers*,
+*5 Types of Accounts*.
 
-**Careers on camera:** `Tab` walks trunks → PUBLIC leaves → PRIVATE leaves → GOV/NP → doors strip
-→ CPA badge + Big Four caption. Click a trunk to spotlight a whole branch; click **Internal Audit**
-to crosslight **Audit** under PUBLIC with the external-vs-internal contrast line — that is the
-most-tested trap in the topic and the beat worth pausing on. `D` opens public-vs-private day to day.
+**`/exhibit-demo` is the QA page** — every exhibit mounted at once, already in film mode,
+each at desktop and narrow widths. No canvas, no login. Use it to click through everything
+in one scroll; use `/study/canvas` to actually film.
 
-## 9. DO NOT REDO
+**Careers on camera:** `Tab` walks trunks → PUBLIC → PRIVATE → GOV/NP → doors → CPA badge.
+Click **Internal Audit** to crosslight **Audit** with the external-vs-internal contrast.
+`D` opens public-vs-private day to day.
 
-- Do **not** rebuild any exhibit in §2, or the primitives in §3.
-- Do **not** rebuild Accounting Careers or Cash vs. Accrual — both are live.
-- Do **not** "fix" the bolt-palette test here; it belongs to another session (§7).
+**Classification on camera:** `Tab` walks tiles → anchors → chips → traps. The money moment
+is clicking the **Unearned Revenue** trap: it lights LIABILITIES and reads out "revenue in
+the name, liability in reality — you OWE the service." `D` regroups assets and liabilities
+into Current / Long-term (intangibles appear only there).
+
+## 10. DO NOT REDO
+
+- Do **not** rebuild any exhibit in §2, or the primitives in §4.
+- Do **not** seed a new account list — consume `account-registry.ts` (§3).
+- Do **not** rewrite the Rubric as a side quest; its migration is its own prompt (§3).
+- Do **not** "fix" the bolt-palette test here; it belongs to another session (§8).
 - Do **not** re-run the full pre-merge QA suite for already-shipped exhibits.
-- Do **not** hand-merge `src/routeTree.gen.ts` — it is generated; regenerate via dev/build.
+- Do **not** hand-merge `src/routeTree.gen.ts` — it is generated.
 - Do **not** touch other worktrees' branches.
 
-## 10. Processes / ports
+## 11. Processes / ports
 
-**No dev server left running.** The preview server this session started on **8092** was stopped.
-`.claude/launch.json` (in `C:\Users\lee\Documents`) has an `exhibit-lab-dev` entry on port 8092
-for the next session to start on demand.
+**No dev server left running.** The preview server on **8092** was stopped and its tab
+closed. `.claude/launch.json` (in `C:\Users\lee\Documents`) has an `exhibit-lab-dev` entry
+on port 8092 for the next session.
 
-> **Visual QA caveat learned this session:** when the browser pane is not displayed, the page
-> stops compositing — `requestAnimationFrame` never fires and CSS transitions freeze, so
-> `getComputedStyle(...).opacity` reports the *pre-transition* value and screenshots time out.
-> Read React's **inline** styles and measured geometry instead; they are the truth about what
-> the reveal/emphasis logic set. A human OBS pass is still worth doing before filming.
+> **Visual QA caveat:** when the browser pane is not displayed the page stops compositing —
+> `requestAnimationFrame` never fires, CSS transitions freeze, screenshots time out, and
+> `getComputedStyle(...).opacity` reports the *pre-transition* value. Read React's **inline**
+> styles and measured geometry instead. Also: long async probe loops that repeatedly reset
+> the reveal store hang the hidden pane — drive one interaction per call. A human OBS pass
+> is still worth doing before filming.
 
-## 11. Other active sessions — ACTION REQUIRED
+## 12. Other active sessions — ACTION REQUIRED
 
-`main` advanced with this work: careers exhibit at **`33ac9ef2`** (PR #9).
-Always integrate CURRENT `origin/main`, not a pinned sha.
+`main` advanced with this work: careers `33ac9ef2` (PR #9), careers handoff `f467fb69`
+(PR #10), classification `179309ca` (PR #11). Always integrate CURRENT `origin/main`.
 
-> **OTHER ACTIVE FEATURE BRANCHES MUST FETCH CURRENT MAIN AND INTEGRATE IT BEFORE THEIR OWN FINAL
-> MERGE.** Known active: platform/major-features, Growth/dashboard, portal/product.
+> **OTHER ACTIVE FEATURE BRANCHES MUST FETCH CURRENT MAIN AND INTEGRATE IT BEFORE THEIR OWN
+> FINAL MERGE.** Known active: platform/major-features, Growth/dashboard, portal/product.
 > Their branches were **not** modified by this session.
 
-Expect `src/routeTree.gen.ts` and `src/lib/analytics.ts` to conflict — both are append-heavy shared
-files. `analytics.ts` conflicts are almost always "keep both event lists". Regenerate the route tree.
-Careers touched no route tree (it mounts on the existing `/exhibit-demo`), so it adds no conflict there.
+Expect `src/routeTree.gen.ts` and `src/lib/analytics.ts` to conflict — both append-heavy
+shared files. `analytics.ts` conflicts are almost always "keep both event lists".
+Neither exhibit this session touched the route tree (both mount on the existing
+`/exhibit-demo`), so they add no conflict there.
 
 **Permission note:** direct `git push` to `main` and `gh pr merge` are permitted for agent
-sessions on this machine (user-level `~/.claude/settings.json` allow-rules, force-push denied).
-Prefer the PR flow anyway; it is what the Vercel integration and the other sessions expect.
+sessions on this machine (user-level `~/.claude/settings.json` allow-rules, force-push
+denied). Prefer the PR flow — it is what the Vercel integration and other sessions expect.
 
-**Repo `CLAUDE.md` contradicts the conveyor.** It still says "Branch `canvas-v2`. NEVER checkout
-or merge to main." Every exhibit PR (#3–#9) branched from and merged to `main` under the
-conveyor's explicit instruction. **`CLAUDE.md` needs updating so the two stop disagreeing** —
-flagged, deliberately not changed by this session.
+**Repo `CLAUDE.md` contradicts the conveyor.** It still says "Branch `canvas-v2`. NEVER
+checkout or merge to main." Every exhibit PR (#3–#11) branched from and merged to `main`
+under the conveyor's explicit instruction. **`CLAUDE.md` needs updating so the two stop
+disagreeing** — flagged twice now, deliberately not self-resolved.

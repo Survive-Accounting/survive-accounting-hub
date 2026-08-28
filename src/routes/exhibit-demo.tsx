@@ -15,6 +15,7 @@ import { UsersNode } from "@/components/canvas/cards/UsersNode";
 import { StandardsNode } from "@/components/canvas/cards/StandardsNode";
 import { BasisNode } from "@/components/canvas/cards/BasisNode";
 import { CareersNode } from "@/components/canvas/cards/CareersNode";
+import { ClassificationNode } from "@/components/canvas/cards/ClassificationNode";
 import { FilmContext } from "@/components/canvas/film-lock";
 import { PAPER } from "@/components/canvas/theme";
 
@@ -25,6 +26,7 @@ const UsersDemo = UsersNode as unknown as (p: { id: string; data: unknown; selec
 const StandardsDemo = StandardsNode as unknown as (p: { id: string; data: unknown; selected?: boolean }) => React.ReactNode;
 const BasisDemo = BasisNode as unknown as (p: { id: string; data: unknown; selected?: boolean }) => React.ReactNode;
 const CareersDemo = CareersNode as unknown as (p: { id: string; data: unknown; selected?: boolean }) => React.ReactNode;
+const ClassificationDemo = ClassificationNode as unknown as (p: { id: string; data: unknown; selected?: boolean }) => React.ReactNode;
 
 export const Route = createFileRoute("/exhibit-demo")({
   head: () => ({ meta: [{ title: "⚡ Exhibit Layer Demo — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
@@ -124,6 +126,13 @@ function ExhibitDemo() {
           </div>
           <div style={{ marginTop: 8 }}>
             <CareersDemo id="demo-careers-narrow" data={{ kind: "careers", w: 440, h: 900 }} selected={false} />
+          </div>
+          {/* THE 5 TYPES OF ACCOUNTS — classifier (Tab reveal, D = Current/Long-term) */}
+          <div style={{ marginTop: 8 }}>
+            <ClassificationDemo id="demo-classification" data={{ kind: "classification" }} selected={false} />
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <ClassificationDemo id="demo-classification-narrow" data={{ kind: "classification", w: 460, h: 1200 }} selected={false} />
           </div>
         </FilmContext.Provider>
       </ReactFlowProvider>

@@ -75,6 +75,7 @@ import { UsersNode } from "@/components/canvas/cards/UsersNode";
 import { StandardsNode } from "@/components/canvas/cards/StandardsNode";
 import { BasisNode } from "@/components/canvas/cards/BasisNode";
 import { CareersNode } from "@/components/canvas/cards/CareersNode";
+import { ClassificationNode } from "@/components/canvas/cards/ClassificationNode";
 import { configureSfx, playSfx, preloadSfx, SFX_DEFAULT, type SfxConfig, type SfxEvent } from "@/components/canvas/sfx";
 import { framePartIds, framePartLabels, materializeFrame, REST_TARGET, WHOLE_TARGET } from "@/components/canvas/choreo";
 import { ChoreoScrubber } from "@/components/canvas/ChoreoScrubber";
@@ -865,6 +866,7 @@ const nodeTypes = {
   standards: StandardsNode,
   basis: BasisNode,
   careers: CareersNode,
+  classification: ClassificationNode,
   memo: MemoCardNode,
   paygate: GateNode,
   signupgate: GateNode,
@@ -1067,6 +1069,7 @@ const ADD_ELEMENT_BLANKS: { label: string; make: () => CardData }[] = [
   { label: "Rulebook & Cops", make: () => blankCard("standards") },
   { label: "When It Counts", make: () => blankCard("basis") },
   { label: "Accounting Careers", make: () => blankCard("careers") },
+  { label: "5 Types of Accounts", make: () => blankCard("classification") },
   { label: "Logo", make: () => blankCard("logo") },
   { label: "Intro card", make: () => blankCard("intro") },
   { label: "Outro card", make: () => blankCard("outro") },

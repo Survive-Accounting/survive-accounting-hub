@@ -39,8 +39,10 @@ const log = (...a: unknown[]) => console.log(...a);
 async function main() {
   const args = process.argv.slice(2);
   const apply = args.includes("--apply");
-  const xlsxPath = args.find((a) => !a.startsWith("--")) || join(HERE, "Survive_Exam1_Global_Starter_Map.xlsx");
-  const reportPath = (() => { const i = args.indexOf("--report"); return i >= 0 ? args[i + 1] : join(HERE, "..", "..", "EXAM1_GLOBAL_STARTER_MAP_REPORT.md"); })();
+  const reportIdx = args.indexOf("--report");
+  const reportPath = reportIdx >= 0 ? args[reportIdx + 1] : join(HERE, "..", "..", "EXAM1_GLOBAL_STARTER_MAP_REPORT.md");
+  // the workbook = first bare arg that isn't a flag OR a flag's value (e.g. the --report path)
+  const xlsxPath = args.find((a, i) => !a.startsWith("--") && i !== reportIdx + 1) || join(HERE, "Survive_Exam1_Master_CEQ_Editorial_Pass_v1.xlsx");
 
   log(`\n━━━ EXAM 1 GLOBAL STARTER MAP ${apply ? "APPLY" : "DRY-RUN"} ━━━`);
   log(`workbook: ${xlsxPath}`);

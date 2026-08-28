@@ -29,6 +29,7 @@ export type CardKind =
   | "standards"
   | "basis"
   | "careers"
+  | "classification"
   | "logo"
   | "intro"
   | "outro"
@@ -75,6 +76,7 @@ export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
   standards: "element",
   basis: "element",
   careers: "element",
+  classification: "element",
   logo: "element",
   intro: "element",
   outro: "element",
@@ -876,6 +878,16 @@ export interface CareersElement extends CardBase {
   h?: number;
 }
 
+// ---- Classification ("The 5 Types of Accounts"): the CLASSIFIER exhibit —
+//      five type tiles, the traps band, and the Current/Long-term depth
+//      layer. Account data comes from the SHARED account-registry.ts;
+//      exhibit content from classification-exhibit-config.ts. Geometry only. ----
+export interface ClassificationElement extends CardBase {
+  kind: "classification";
+  w?: number;
+  h?: number;
+}
+
 export interface CycleElement extends CardBase {
   kind: "cycle";
   /** Center label (default "The Accounting Cycle"). */
@@ -1002,6 +1014,7 @@ export type CardData =
   | StandardsElement
   | BasisElement
   | CareersElement
+  | ClassificationElement
   | LogoElement
   | IntroCardElement
   | OutroCardElement
