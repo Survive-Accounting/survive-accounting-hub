@@ -1,25 +1,32 @@
-// The two-door homepage's locked copy rules (2026-08-27 spec). These strings are LOCKED —
-// a failure here means the homepage stopped saying what the spec says, not that the test
-// needs updating.
+// The two-door homepage's locked copy rules (HOMEPAGE FINAL MILE v2 H1, 2026-08-28). These
+// strings are LOCKED — a failure here means the homepage stopped saying what the spec says,
+// not that the test needs updating.
 import { describe, expect, test } from "bun:test";
 
 import { GREEK_PORTAL_ORGS } from "@/components/site/portal-home/greek-portal-orgs";
-import { soloDoorCta, soloDoorDescription, tickerLetters, tickerLine } from "./two-door-copy";
+import { HOME_CAMPUS } from "@/lib/launch";
+import { homeCourseCode, soloButtonLabel, soloSupport, tickerLetters, tickerLine } from "./two-door-copy";
 
-describe("left door description", () => {
-  test("names the verified course code exactly", () => {
-    expect(soloDoorDescription("ACCY 201")).toBe("Cram videos + practice built for ACCY 201.");
-    expect(soloDoorDescription("ACCT 2110")).toBe("Cram videos + practice built for ACCT 2110.");
+const NBSP = "\u00A0";
+
+describe("course code token", () => {
+  test("known code renders nbsp-joined so the number can never wrap alone", () => {
+    expect(homeCourseCode("ACCY 201")).toBe(`ACCY${NBSP}201`);
+    expect(homeCourseCode("ACCT 2110")).toBe(`ACCT${NBSP}2110`);
   });
-  test("never invents a code — null degrades to the generic line", () => {
-    expect(soloDoorDescription(null)).toBe("Cram videos + practice built around your course.");
+  test("unknown code falls back to the flagship campus config, never a hardcoded string", () => {
+    expect(homeCourseCode(null)).toBe(HOME_CAMPUS.courseCode.replace(/ /g, NBSP));
   });
 });
 
-describe("left door CTA", () => {
-  test("new visitor starts, returning visitor continues", () => {
-    expect(soloDoorCta(false)).toBe("Start Exam 1 Free →");
-    expect(soloDoorCta(true)).toBe("Continue Exam 1 →");
+describe("left door", () => {
+  test("button: Survive <code> →", () => {
+    expect(soloButtonLabel("ACCY 201")).toBe(`Survive ACCY${NBSP}201 →`);
+  });
+  test("support: muted sentence + strong free line", () => {
+    const s = soloSupport("ACCY 201");
+    expect(s.muted).toBe(`Cram-style videos & practice for ACCY${NBSP}201.`);
+    expect(s.strong).toBe("Exam 1 is free.");
   });
 });
 

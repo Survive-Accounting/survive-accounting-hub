@@ -4,7 +4,7 @@
 // 08-27, so this route now renders THAT page with one difference: the left door's CTA navigates
 // into the PRIVATE Player V2 preview (/preview/exam1) instead of opening the public Exam 1
 // waitlist. This is how Lee and beta testers experience the full future journey — preview home →
-// STUDY ON YOUR OWN → Tonight's Plan — while ordinary visitors on "/" keep getting the
+// STUDY SOLO → Tonight's Plan — while ordinary visitors on "/" keep getting the
 // September 1 waitlist.
 //
 // Deliberately NO loader (no campus-prefs cookie read): a design/beta preview, not an indexable
