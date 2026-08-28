@@ -99,7 +99,7 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
   const ceqCountByDeck = new Map<string, number>();
   // FIRST STEM per deck (lowest stageOrder) — the outline teaser, with its blur ranges for paid redaction.
   const firstCeqByDeck = new Map<string, { order: number; prompt: string; blur: { s: number; e: number }[]; shorthand: string | null }>();
-  type RawCeqData = { deckId?: string; stageOrder?: number; prompt?: string; blurRanges?: { s: number; e: number }[]; noteOnly?: boolean };
+  type RawCeqData = { deckId?: string; stageOrder?: number; prompt?: string; blurRanges?: { s: number; e: number }[]; noteOnly?: boolean; draft?: boolean; bankArchived?: string };
   // PARKED sets are authoring-only — never served, regardless of status (same law as parked topics).
   for (const o of liveDecks(owned)) {
     live.push(o.deck);
@@ -108,6 +108,9 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
       // NOTE frames are film chrome, not questions — excluded from the counter AND practice,
       // per the CeqCard contract ("excluded from the student question counter").
       if (n.data?.noteOnly) continue;
+      // DRAFTS and soft-archived cards are studio-only (master-sheet status law):
+      // they never count, never tease, never reach a student surface.
+      if (n.data?.draft || n.data?.bankArchived) continue;
       const did = n.data?.deckId;
       if (!did) continue;
       ceqCountByDeck.set(did, (ceqCountByDeck.get(did) ?? 0) + 1);
@@ -286,7 +289,7 @@ export const fetchSetPractice = createServerFn({ method: "GET" })
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const admin = supabaseAdmin as unknown as { from: (t: string) => any };
     type RawChoice = { id?: string; text?: string; correct?: boolean; feedback?: string };
-    type RawCard = { deckId?: string; stageOrder?: number; prompt?: string; shorthand?: string; noteOnly?: boolean; choices?: RawChoice[] };
+    type RawCard = { deckId?: string; stageOrder?: number; prompt?: string; shorthand?: string; noteOnly?: boolean; draft?: boolean; bankArchived?: string; choices?: RawChoice[] };
     const owned = await loadDecksDeduped(admin);
     const o = owned.get(data.setId);
     const deck = o && o.deck.status === "live" && o.deck.parked !== true ? o.deck : undefined;
@@ -294,7 +297,10 @@ export const fetchSetPractice = createServerFn({ method: "GET" })
     if (deck.access === "paid") return { status: "locked" };
     // STABLE ids: the CEQ node id (never the position) — analytics key on it, so re-ordering or
     // inserting a question never corrupts history. Display numbers are derived client-side.
-    const cards = o.nodes.filter((n) => !(n.data as RawCard | undefined)?.noteOnly).map((n) => ({ nodeId: n.id ?? "", ...(n.data as RawCard) }));
+    // noteOnly = film chrome; draft/bankArchived = studio-only (master status law).
+    const cards = o.nodes
+      .filter((n) => { const d = n.data as RawCard | undefined; return !d?.noteOnly && !d?.draft && !d?.bankArchived; })
+      .map((n) => ({ nodeId: n.id ?? "", ...(n.data as RawCard) }));
     const questions: PracticeQuestion[] = cards
       .sort((a, b) => (a.stageOrder ?? 0) - (b.stageOrder ?? 0))
       .map((c, i) => ({

@@ -308,3 +308,50 @@ Phases 1–2 landed solid and the wall is decorative-calm by spec. Next prompt: 
 canvas, gold handwritten phrase-bank entries (seed list in docs/SURVIVE_METHOD_v1.md §
 phrase bank), PHRASE-tagged captures flow in, shuffle, size-by-importance, click →
 meaning/first-use, A–Z glossary view.
+
+---
+
+# BUILD NOTES — Booth + Bank + Player + PDF (pre-filming pass, 2026-08-28)
+
+## D1 — ONE BANK: the investigation (files/tables, named)
+
+**Where the player reads:** `src/lib/student.functions.ts` → `loadDecksDeduped` scans
+`canvas_scenes.nodes_json`, keeps decks `payloadType==="cards" && status==="live" && !parked`,
+groups by `deck.topicId` → `chapters` table. Practice questions come from `fetchSetPractice`
+over the same decks. **Where the Booth read:** `loadSetPool` (set-FILE scene docs regardless
+of deck status). There is no separate questions table — both stores are `canvas_scenes`.
+
+**How they diverged:** two GENERATIONS of the bank live in the same table.
+
+1. The AUTHORED sets (`deck-ch*-full`, `deck-msr*` — stem-named, per-set SETFILE rows):
+   Lee's real bank. 255 CEQs; **246 (96%) stem-match the master sheet**; their decks
+   already point at the master's 10-topic chapters (Analyzing Transactions #2 …
+   Principles & Assumptions #10). They sat status=archived/draft + parked.
+2. The `exam1-starter` "global starter map" import (`deck-e1s-*`): 6 topics / 25 subtopic
+   sets / 274 differently-authored CEQs — the "Which shortcut is most reliable?" style.
+   It became the live player bank; only ~53 of its stems trace to the master. The Booth
+   never saw it (its scenes are not setFile docs) — which is exactly the two-store
+   symptom in the prompt.
+
+**The fix (applied by `scripts/bank-reconcile.ts`):** reinstate the authored sets as the
+one live bank; reconcile the master sheet into them in place (choices file-wins, `*` =
+correct, overflow `choice_e:` parsed out of notes; shorthand/needs_exhibit/notes carried
+onto card data; status → `data.draft`); soft-archive the 6 untraceable authored CEQs
+(`data.bankArchived`); soft-archive the 21 superseded e1s sets (deck status archived +
+parked + archivedReason). **Four e1s sets have no master coverage** (Internal vs. external
+users, Financial vs. managerial, Standards & regulation, Accounting careers — the Easy
+Points family): the standing law says app sets absent from the file are REPORTED, never
+deleted, so they stay live under Easy Points (pinned chapter_number 0) awaiting Lee's call.
+Chapters renumber to master order 1–10; "Adjusting Entries & Trial Balance" renames to the
+master's "Adjusting Entries"; "The Accounting Cycle" chapter is created.
+
+**Student-facing counts change on purpose:** 274 (starter-map bank) → 141 visible
+(102 master live-candidates + 39 kept Easy-Points questions); 154 master drafts are
+studio-only until flipped. The code gate for `draft`/`bankArchived` landed in
+`student.functions.ts` BEFORE the data apply, so drafts never leaked.
+
+Decisions logged, not asked (overnight rules): Easy Points kept live · chapter numbering
+(master order 1–10, Easy Points 0) · deck names become the master set_stems (the player's
+`setLabel` was already built to strip quotes/[ ] from stem-style names) · analytics ids:
+question history keys on CEQ node ids, so the bank swap orphans (never corrupts) history
+written against starter-map ids.
