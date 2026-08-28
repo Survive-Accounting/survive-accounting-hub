@@ -261,3 +261,50 @@ pass is still worth doing — the money moment to film is clicking the Unearned 
 8. **No edits to the live CEQ bank** — the board is a staging area; the exhibit output
    is a COPY-button prompt in conveyor format.
 9. **Phase 3 (doodle wall)**: shipped only if Phases 1–2 land solid; else logged as next.
+
+## Talkthrough Booth — QA performed (2026-08-28 overnight)
+
+`bun x tsc --noEmit` clean · full suite **1889 pass / 1 fail** (the known pre-existing
+bolt-palette failure only; the new site-qa manifest registration keeps that suite green).
+20 new tests: merge law, derived queue, whisper-upgrade law, wire round-trips, enum
+degradation, pass message assembly (verbatim + anchors + docs + staging-area law), pass
+parsing (full / single-key regen / garbage), per-CEQ slicing.
+
+Browser QA on `/talkthrough` (dev, AdminGate passed):
+
+- Booth home lists REAL sets from the pool with CEQ counts; sessions list with
+  date/duration/segments/words and an ● open badge.
+- Booth renders all three panes; clicking CEQs refocuses the center; all six moment
+  tags stamp and count; prompter rotates + shuffles.
+- Segments written through the real store render in the ticker with the ◌ pending
+  badge; **hard refresh mid-session lost nothing** (transcript, tags, open state,
+  pending badges all intact — the acceptance's core).
+- AI pass without a key: **fails loud** with the exact env hint, offers retry, and the
+  transcript is untouched. Item-level regenerate surfaces its own error the same way.
+- A parsed board (driven through the REAL parser) renders all seven kinds; the exhibit
+  card has the COPY button + collapsible conveyor prompt; quotes render on every item;
+  AI-proposed tags appear labeled with their verbatim quote; ACCEPT/REJECT toggle and
+  persist (7 items in localStorage, statuses correct); per-CEQ view slices correctly
+  once items reference real CEQ ids (the dropdown deliberately lists only the set's
+  actual questions).
+- Sync layer is LOUD about the missing tables: badge shows the exact migration path,
+  14 rows queued and safe locally. That is the designed behavior until the SQL runs.
+- Zero console errors.
+
+**Not verifiable headless (needs Lee's first sitting):** real mic capture (getUserMedia
+has no device in the QA pane), real Whisper round-trip (OPENAI_WHISPER lives in Vercel
+env), and a real generation pass (AI_GATEWAY_API_KEY likewise). All three ride existing,
+already-live pipelines; the local QA drove every seam around them through the real code.
+
+## SQL LEE MUST RUN
+
+- `migration/supabase-migrations/20260828_0900_talkthrough_booth.sql` — creates the four
+  talkthrough tables (RLS deny-by-default, soft-delete only). Until it runs, the booth
+  works local-first and the badge says exactly what to apply. Never auto-run.
+
+## Phase 3 (doodle wall) — logged as next, not shipped
+
+Phases 1–2 landed solid and the wall is decorative-calm by spec. Next prompt: near-black
+canvas, gold handwritten phrase-bank entries (seed list in docs/SURVIVE_METHOD_v1.md §
+phrase bank), PHRASE-tagged captures flow in, shuffle, size-by-importance, click →
+meaning/first-use, A–Z glossary view.
