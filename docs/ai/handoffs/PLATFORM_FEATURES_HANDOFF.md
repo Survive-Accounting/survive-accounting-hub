@@ -1,7 +1,25 @@
 # PLATFORM / MAJOR FEATURES — SESSION HANDOFF
 
 **Written:** 2026-08-27 18:15 CST · by the LANDING/platform session (sa-growth-dashboard)
+**Updated:** 2026-08-27 (late) — TWO-DOOR HOMEPAGE V1 shipped, see §0.
 **Read this before starting any platform feature work.** Read `docs/SESSION-CONTEXT.md` first for repo-wide rules.
+
+---
+
+## 0. TWO-DOOR HOMEPAGE V1 — MERGED AND LIVE (2026-08-27)
+
+"/" no longer renders LandingPage + the live player. It renders `TwoDoorHome`
+(`src/components/site/home-two-door/`): centered hero → proof chips → STUDY ON YOUR OWN |
+STUDY WITH YOUR CHAPTER → course-scope line → reviews/Lee → value strip → FAQ. The public
+Exam 1 CTA opens the **waitlist modal (FREE · SEPTEMBER 1**, `EXAM1_LAUNCH_LABEL` in
+`src/lib/launch.ts`) → existing `submitNotify`/campus_waitlist — BY DESIGN, while the new
+player is rebuilt privately. Campus pages (/$school) and /go/ pages still render the full
+LandingPage + player, untouched. Built in worktree `sa-homepage-two-door` (branch
+`feature/homepage-two-door-v1`, merged @ main `892482f3`), **verified live by content**
+(homepage strings present, campus-page player intact, no old orange nav CTA). Full detail:
+`HOMEPAGE_TWO_DOOR_V1_REPORT.md` (repo root). Do not re-add the player or a third CTA to "/".
+/preview/home (the old two-portal experiment this supersedes) is still deployed + noindexed —
+cleanup candidate once Lee confirms the new "/".
 
 ---
 
