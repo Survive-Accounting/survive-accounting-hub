@@ -22,9 +22,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
-import {
-  ANIMATED_CAMPUS_BOLT_CSS, AnimatedCampusBolt, BOLT_ACCENTS, orderCampuses, type BoltCampus,
-} from "@/components/site/bolt";
+import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import {
   FeatureValueStrip, FloatingContact, MARKETING_CSS, MARKETING_HERO_ID, SocialProofSection,
   TrustChips, TutorBioModal, TutorCard,
@@ -39,12 +37,12 @@ import { track } from "@/lib/analytics";
 import { pathStarted } from "@/lib/exam-path";
 import { scrollToId } from "@/lib/ui-scroll";
 import { useDismiss } from "@/lib/use-dismiss";
-import { contactKind, EXAM1_LAUNCH_LABEL } from "@/lib/launch";
+import { contactKind, EXAM1_LAUNCH_LABEL, HOME_CAMPUS } from "@/lib/launch";
 import { submitNotify } from "@/lib/syllabus.functions";
 import { examRequest, notifyNote } from "@/lib/notify-request";
 import { rememberStudentEmail } from "@/lib/student-email";
 import { readTestSession } from "@/lib/test-mode";
-import { soloButtonLabel, soloSupport, tickerLine } from "./two-door-copy";
+import { homeCourseCode, soloButtonLabel, soloSupport, tickerLine } from "./two-door-copy";
 import { nbspCode } from "@/lib/course-code";
 
 /** The doors section's anchor. Also aliased by the legacy #exam1 anchor below it, because every
@@ -120,7 +118,6 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
       ["--cta-chapter-bg" as string]: "#A8D4F0",
       ["--cta-chapter-fg" as string]: "#0F1A2E",
     }}>
-      <style>{ANIMATED_CAMPUS_BOLT_CSS}</style>
       <style>{MARKETING_CSS}</style>
       <style>{TWO_DOOR_CSS}</style>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.34} animate /></div>
@@ -128,13 +125,12 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
       <SiteHeader homeNav onLanding />
 
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px", width: "100%", overflowX: "clip" }}>
-        <TwoDoorHero code={campus.code} schoolName={campus.school?.name ?? null} onOpenBio={() => setBioOpen(true)} />
+        <TwoDoorHero code={campus.code} schoolName={campus.school?.name ?? null} schoolId={campus.school?.id ?? null} onOpenBio={() => setBioOpen(true)} />
 
         {/* Legacy compatibility: every other page's navbar still links "/#exam1". */}
         <div id="exam1" className="sa-anchor" />
         <TwoDoorCards
           code={campus.code}
-          pinnedSchoolId={campus.school?.id ?? null}
           onSolo={openSolo}
           soloHref={previewSoloHref}
           onChapter={openChapter}
@@ -191,9 +187,10 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
 // ── HERO — CENTERED, QUIET ────────────────────────────────────────────────────────────────────
 /** Headline → promise → proof chips, all on one centered axis. No CTA here and no bolt: the
  *  doors immediately below are the only instruction, and the bolt lives in the left one. */
-function TwoDoorHero({ code, schoolName, onOpenBio }: {
+function TwoDoorHero({ code, schoolName, schoolId, onOpenBio }: {
   code: string | null;
   schoolName: string | null;
+  schoolId: string | null;
   onOpenBio: () => void;
 }) {
   // Same honesty rule as every hero before it: the campus version needs BOTH a school and a
@@ -212,10 +209,30 @@ function TwoDoorHero({ code, schoolName, onOpenBio }: {
       <p className="mt-4 text-[19px] font-extrabold leading-snug sm:text-[22px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
         Practice what gets tested. Score higher.
       </p>
+      {/* THE CAMPUS LINE (FINAL MILE H3) — restored from homepage v1's bolt plate ("for ACCY 201
+          · OLE MISS"), updated to current tokens. The campus name wears the school color; both
+          values fall back to the flagship campus config (HOME_CAMPUS) so campus #2 is a data
+          change, and a visitor's own resolved campus still wins. */}
+      <CampusLine code={code} schoolName={schoolName} schoolId={schoolId} />
       {/* The three proof points — the "small credibility layer" between promise and doors.
           "Built for exam week" points at the doors: they are what backs the claim now. */}
       <TrustChips onBio={onOpenBio} onReviews={() => scrollToId("reviews")} onPlayer={() => scrollToId(DOORS_ID)} />
     </section>
+  );
+}
+
+/** THE CAMPUS LINE — "for ACCY 201 · OLE MISS", the v1 bolt-plate treatment on the hero's
+ *  centered axis. Name colored by the school's own primary (config-driven default). */
+function CampusLine({ code, schoolName, schoolId }: { code: string | null; schoolName: string | null; schoolId: string | null }) {
+  const name = schoolName ?? HOME_CAMPUS.name;
+  const color = schoolId ? boltFor(schoolId).c1 : HOME_CAMPUS.colors.primary;
+  return (
+    <p className="sa-campus-line mt-4" style={{ fontFamily: BRAND_DISPLAY }}>
+      <span className="sa-campus-line-for">for </span>
+      <span className="sa-campus-line-em">{homeCourseCode(code)}</span>
+      <span className="sa-campus-line-dot"> · </span>
+      <span className="sa-campus-line-em" style={{ color }}>{name.toUpperCase()}</span>
+    </p>
   );
 }
 
@@ -267,42 +284,24 @@ function DoorCard({ icon, title, button, support, bottom }: {
   );
 }
 
-function TwoDoorCards({ code, pinnedSchoolId, onSolo, soloHref, onChapter }: {
+function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
   code: string | null;
-  pinnedSchoolId: string | null;
   onSolo: () => void;
   /** Preview only: makes the solo CTA a link into Player V2 (onSolo still fires for tracking). */
   soloHref?: string;
   onChapter: (source: "button" | "ticker") => void;
 }) {
-  // THE CYCLING BOLT — the left door's identity. A known campus pins it to that campus's own
-  // colourway; otherwise it flows through every school in the curated order, exactly like the
-  // old hero bolt, just door-sized. No plate (showLabel=false): the description line under the
-  // title already names the course, and the right card has no equivalent slot.
-  const campuses = useMemo<BoltCampus[]>(() => {
-    if (pinnedSchoolId) {
-      const s = SCHOOLS.find((x) => x.id === pinnedSchoolId);
-      const c = boltFor(pinnedSchoolId);
-      return [{ id: pinnedSchoolId, name: s?.name, code: null, primary: c.c1, secondary: c.c2, accent: BOLT_ACCENTS[pinnedSchoolId] ?? null }];
-    }
-    return orderCampuses(SCHOOLS.map((s) => {
-      const c = boltFor(s.id);
-      return { id: s.id, name: s.name, code: null, primary: c.c1, secondary: c.c2, accent: BOLT_ACCENTS[s.id] ?? null };
-    }));
-  }, [pinnedSchoolId]);
-
   const BTN_BASE: React.CSSProperties = { minHeight: 54, width: "100%", borderRadius: 12, fontSize: 15.5, fontWeight: 900, fontFamily: BRAND_SANS };
 
   return (
     <section id={DOORS_ID} aria-label="Choose how you want to study" className="sa-anchor" style={{ fontFamily: BRAND_SANS }}>
       <div className="mx-auto grid w-full max-w-[880px] gap-6 sm:grid-cols-2 sm:gap-9">
         {/* LEFT DOOR — solo students. First in DOM so it stacks first on mobile. */}
+        {/* H3: THE BOILING BOLT — the exact same BoltBoil the footer wordmark's "i" uses (one
+            shared implementation, one speed). It is the only living thing on screen; the temple
+            opposite stays still. prefers-reduced-motion serves BoltBoil's built-in static frame. */}
         <DoorCard
-          icon={
-            <span aria-hidden style={{ width: 86, display: "block" }}>
-              <AnimatedCampusBolt campuses={campuses} showLabel={false} ariaLabel="Survive bolt" />
-            </span>
-          }
+          icon={<span aria-hidden style={{ display: "block" }}><BoltBoil height={112} /></span>}
           title="Study solo"
           button={
             soloHref ? (
@@ -360,28 +359,25 @@ function TwoDoorCards({ code, pinnedSchoolId, onSolo, soloHref, onChapter }: {
   );
 }
 
-// ── RIGHT DOOR VISUAL — a generic chapter house ───────────────────────────────────────────────
-/** A quiet Greek-revival house in the brand line style: pediment, columns, base. Deliberately
- *  NOT any organization's letters — generic visitors get a generic Greek visual. */
+// ── RIGHT DOOR VISUAL — the hand-drawn temple (FINAL MILE H3) ─────────────────────────────────
+/** The chapter temple in the bolt's hand-drawn language: jagged pediment with a lightning bite,
+ *  zigzag columns, one orange dot. Static on purpose — the bolt is the only living thing on
+ *  screen. Strokes wear the cream token; the dot wears the brand accent token. */
 function ChapterHouseIcon({ height = 82 }: { height?: number }) {
-  const w = Math.round(height * (96 / 78));
+  const w = Math.round(height * (96 / 86));
   return (
-    <svg viewBox="0 0 96 78" width={w} height={height} fill="none" aria-hidden style={{ display: "block" }}>
-      <g stroke="var(--brand-cream)" strokeWidth={4} strokeLinecap="round" strokeLinejoin="round" opacity={0.92}>
-        {/* pediment */}
-        <path d="M10 30 L48 9 L86 30" />
-        {/* architrave */}
-        <path d="M16 38 H80" />
-        {/* columns */}
-        <path d="M26 46 V64" />
-        <path d="M41 46 V64" />
-        <path d="M55 46 V64" />
-        <path d="M70 46 V64" />
-        {/* stylobate + step */}
-        <path d="M18 70 H78" />
-      </g>
-      {/* one quiet accent: the doorway lamp — ties the house to the brand amber without shouting */}
-      <circle cx="48" cy="21" r="2.6" fill="var(--accent)" opacity={0.9} />
+    <svg viewBox="0 0 96 86" width={w} height={height} fill="none" aria-hidden style={{ display: "block" }}>
+      <path d="M12 32 L40 13 L46 19 L56 9 L84 32 Z"
+        stroke="var(--brand-cream)" strokeWidth={4.5}
+        strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx="50" cy="25" r="3" fill="var(--accent)" />
+      <path d="M18 39 L78 39" stroke="var(--brand-cream)" strokeWidth={4.5} strokeLinecap="round" />
+      <path d="M29 46 L27 54 L31 57 L29 65" stroke="var(--brand-cream)" strokeWidth={4.5} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M42 46 L40 54 L44 57 L42 65" stroke="var(--brand-cream)" strokeWidth={4.5} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M55 46 L53 54 L57 57 L55 65" stroke="var(--brand-cream)" strokeWidth={4.5} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M68 46 L66 54 L70 57 L68 65" stroke="var(--brand-cream)" strokeWidth={4.5} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M22 71 L74 71" stroke="var(--brand-cream)" strokeWidth={4.5} strokeLinecap="round" />
+      <path d="M14 78 L82 78" stroke="var(--brand-cream)" strokeWidth={4.5} strokeLinecap="round" />
     </svg>
   );
 }
@@ -543,6 +539,12 @@ const TWO_DOOR_CSS = `
 
 /* SUPPORT LINES — balanced wrap so a one-word last line can't happen (H1 one-line rule). */
 .sa-door-support { text-wrap: balance; }
+
+/* CAMPUS LINE (H3) — the v1 bolt-plate type treatment on the hero axis. */
+.sa-campus-line { font-size: 13px; font-weight: 900; letter-spacing: 0.08em; color: var(--brand-cream); white-space: nowrap; }
+.sa-campus-line-for { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; opacity: 0.55; text-transform: none; }
+.sa-campus-line-em { opacity: 0.92; }
+.sa-campus-line-dot { opacity: 0.45; }
 
 /* DOOR CARDS — one hover response for both: a hair of lift, nothing else moves. */
 .sa-door-card { transition: transform 180ms ease, box-shadow 180ms ease; }
