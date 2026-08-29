@@ -7,7 +7,8 @@
 import { describe, expect, test } from "bun:test";
 
 import {
-  BOARD_KINDS, MOMENT_TAGS, applyWhisperText, boardForCeq, docPendingCount, emptyDoc,
+  BOARD_KINDS, MOMENT_TAGS, applyWhisperText, boardForCeq, canonicalStamp, contextOfSegment,
+  docPendingCount, emptyDoc, isContextTag, openContext, segmentsInContext, stampLabel,
   fromBoardItemRow, fromSegmentRow, fromSessionRow, fromTagRow, isPending, makeSegment,
   makeSession, makeTag, mergeRows, sessionMeta, sessionSegments, toBoardItemRow,
   toSegmentRow, toSessionRow, toTagRow, touchRow,
@@ -113,6 +114,65 @@ describe("views + wire round-trip", () => {
     const item = fromBoardItemRow({ id: "b", session_id: "s", run_id: "r", kind: "nope", title: "", payload: {}, quote: "", ceq_ids: [], status: "nope", comment: "", created_at: "x", updated_at: "x", archived_at: null });
     expect(BOARD_KINDS).toContain(item.kind);
     expect(item.status).toBe("suggested");
+  });
+});
+
+describe("B1.5 — the sync-backlog bug, pinned forever", () => {
+  test("a server-format ack (…+00:00) settles a client-format row (…Z)", () => {
+    const seg = makeSegment("s1", 0, { ceqId: null, label: null }, at("2026-08-28T21:28:41.673Z"));
+    // client updatedAt: "…Z"; PostgREST echoes the SAME instant as "+00:00".
+    const acked = { ...seg, syncedAt: "2026-08-28T21:28:41.673+00:00" };
+    expect(acked.syncedAt < acked.updatedAt).toBe(true); // the string trap that caused "27 unsynced"
+    expect(isPending(acked)).toBe(false);                // the fix: compare instants
+  });
+  test("a genuinely newer edit still re-queues", () => {
+    const seg = makeSegment("s1", 0, { ceqId: null, label: null }, at("2026-08-28T21:28:41.673Z"));
+    const acked = { ...seg, syncedAt: "2026-08-28T21:28:41.673+00:00" };
+    const edited = touchRow(acked, { text: "later" } as Partial<TalkSegment>, at("2026-08-28T21:30:00.000Z"));
+    expect(isPending(edited)).toBe(true);
+  });
+  test("merge also compares instants, not strings", () => {
+    const base = { ...makeSegment("s1", 0, { ceqId: null, label: null }, at("2026-08-28T21:00:00.000Z")), syncedAt: "2026-08-28T21:00:00.000+00:00" };
+    const incoming = { ...base, text: "server copy", updatedAt: "2026-08-28T21:00:00.000+00:00", syncedAt: "2026-08-28T21:00:00.000+00:00" };
+    // same instant — incoming (server) wins the >= tie instead of losing the string race
+    expect(mergeRows([base], [incoming])[0].text).toBe("server copy");
+  });
+});
+
+describe("B1/B2 — contexts, stars and the stamp fold", () => {
+  test("legacy v1 tags fold into the v2 vocabulary at read (never rewritten)", () => {
+    expect(canonicalStamp("SHORT")).toBe("short");
+    expect(canonicalStamp("TALK")).toBe("review_vibe");
+    expect(canonicalStamp("EXHIBIT_SPEC")).toBe("exhibit");
+    expect(canonicalStamp("TEACH")).toBe("blast_off");
+    expect(canonicalStamp("reword")).toBe("reword");
+    expect(canonicalStamp("nonsense")).toBeNull();
+    expect(stampLabel("NERDOUT")).toBe("Nerd Out");
+    expect(stampLabel("revise_choices")).toBe("Revise Choices");
+  });
+  test("segments group under the open context by TIME WINDOW — a derived view", () => {
+    const open = { ...makeTag("s1", "reword" as never, { ceqId: "q3", label: "Q3" }, at("2026-08-29T01:00:00Z")), endedAt: "2026-08-29T01:02:00Z" };
+    const later = { ...makeTag("s1", "blast_off" as never, { ceqId: null, label: null }, at("2026-08-29T01:02:00Z")), endedAt: null };
+    const inFirst = { ...makeSegment("s1", 0, { ceqId: "q3", label: "Q3" }, at("2026-08-29T01:00:30Z")), text: "say it plainer" };
+    const inSecond = { ...makeSegment("s1", 1, { ceqId: null, label: null }, at("2026-08-29T01:03:00Z")), text: "open with the trap" };
+    const before = { ...makeSegment("s1", 2, { ceqId: null, label: null }, at("2026-08-29T00:59:00Z")), text: "general talk" };
+    expect(contextOfSegment(inFirst, [open, later])?.id).toBe(open.id);
+    expect(contextOfSegment(inSecond, [open, later])?.id).toBe(later.id); // still-open window
+    expect(contextOfSegment(before, [open, later])).toBeNull();          // untagged = general set talk
+    expect(segmentsInContext([inFirst, inSecond, before], open).map((x) => x.text)).toEqual(["say it plainer"]);
+  });
+  test("openContext returns the un-closed tap stamp; stars never open contexts", () => {
+    const star = { ...makeTag("s1", "short" as never, { ceqId: "q1", label: "Q1" }, at("2026-08-29T01:00:00Z")), starred: true, endedAt: null };
+    const ctx = { ...makeTag("s1", "review_vibe" as never, { ceqId: null, label: null }, at("2026-08-29T01:01:00Z")), endedAt: null };
+    expect(openContext([star, ctx], "s1")?.id).toBe(ctx.id);
+    expect(isContextTag(star)).toBe(false);
+  });
+  test("v2 tag fields round-trip the wire", () => {
+    const t = { ...makeTag("s1", "memo" as never, { ceqId: "q1", label: "Q1" }, at("2026-08-29T01:00:00Z")), endedAt: "2026-08-29T01:01:00Z", starred: true };
+    const rt = fromTagRow(toTagRow(t));
+    expect(rt.endedAt).toBe("2026-08-29T01:01:00Z");
+    expect(rt.starred).toBe(true);
+    expect(rt.tag).toBe("memo"); // v2 stamps survive (not coerced to KEY)
   });
 });
 

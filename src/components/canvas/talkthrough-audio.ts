@@ -119,6 +119,13 @@ export class TalkthroughRecorder {
     };
   }
 
+  /** B1 — a context OPEN/CLOSE is a natural boundary too: cut the current
+   *  chunk so no audio words straddle the window, without touching the
+   *  stream. No-op when idle or nothing was said yet. */
+  markBoundary(): void {
+    if (this.rec && this.spokeThisChunk && Date.now() - this.chunkStartedAt > MIN_CHUNK_MS) this.cutChunk();
+  }
+
   /** THE COVERAGE ANCHOR. A focus change closes the current chunk (a natural
    *  boundary — the words belong to what was on screen) without ever touching
    *  the stream; the next segment carries the new stamp. */

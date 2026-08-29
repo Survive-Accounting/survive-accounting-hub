@@ -26,7 +26,7 @@ import { ArrowLeft, Check, ChevronDown, ChevronRight, Copy, Mic, Shuffle, Square
 import { AdminGate } from "@/components/AdminGate";
 import { loadBoothBank, runTalkthroughPass, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import {
-  BOARD_KIND_LABELS, BOARD_KINDS, BOARD_STATUSES, INTERACTION_VOCAB, MOMENT_TAGS, QUICK_KINDS, TAG_LABELS,
+  BOARD_KIND_LABELS, BOARD_KINDS, BOARD_STATUSES, INTERACTION_VOCAB, MOMENT_TAGS, QUICK_KINDS, TAG_LABELS, stampLabel,
   boardForCeq, listSessions, makeSession, makeTag, newTTId, sessionBoard, sessionMeta,
   sessionSegments, sessionTags, touchRow,
   type BoardItem, type BoardStatus, type QuickKind, type TalkSegment, type TalkSession,
@@ -616,7 +616,7 @@ function SessionView({ tt, session, set, onResume }: { tt: TTState; session: Tal
               <h3 style={{ fontSize: 10.5, letterSpacing: "0.22em", color: NEON.muted, textTransform: "uppercase", margin: "14px 0 6px" }}>Moments & quick notes</h3>
               {tags.map((t) => (
                 <div key={t.id} style={{ fontSize: 12, color: t.source === "ai" ? GOLD : CREAM, marginBottom: 2 }}>
-                  {TAG_LABELS[t.tag] ?? t.tag}{t.focusedCeqLabel ? ` · ${t.focusedCeqLabel}` : ""}{t.source === "ai" ? " · AI-proposed" : ""}
+                  {stampLabel(t.tag)}{t.focusedCeqLabel ? ` · ${t.focusedCeqLabel}` : ""}{t.source === "ai" ? " · AI-proposed" : ""}
                   {t.note && <span style={{ color: NEON.muted }}> — “{t.note}”</span>}
                 </div>
               ))}

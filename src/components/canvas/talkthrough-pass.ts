@@ -14,7 +14,7 @@
 //   · A failed or weird reply parses to [] — a bad pass can never corrupt
 //     anything; the caller just shows the error and offers retry.
 import {
-  BOARD_KINDS, MOMENT_TAGS, TAG_LABELS, newTTId,
+  BOARD_KINDS, MOMENT_TAGS, newTTId, stampLabel,
   type BoardItem, type BoardKind, type MomentTag, type TalkSegment, type TalkTag,
 } from "./talkthrough";
 
@@ -73,7 +73,7 @@ export function ceqBlock(ctx: PassContext): string {
 export function tagBlock(ctx: PassContext): string {
   if (!ctx.tags.length) return "(none tapped)";
   return ctx.tags.map((t) => {
-    const label = TAG_LABELS[t.tag] ?? t.tag;
+    const label = stampLabel(t.tag);
     const note = t.note ? ` — LEE'S NOTE: "${t.note}"` : "";
     return `${label} @ ${t.at}${t.focusedCeqLabel ? ` (on ${t.focusedCeqLabel})` : ""}${note}`;
   }).join("\n");

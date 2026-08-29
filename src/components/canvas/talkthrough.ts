@@ -39,7 +39,12 @@ export interface TTRow {
   syncedAt?: string | null;
 }
 
-export const isPending = (r: TTRow): boolean => !r.syncedAt || r.syncedAt < r.updatedAt;
+/** THE SYNC-BACKLOG BUG (B1.5, diagnosed 08-29): PostgREST echoes timestamptz
+ *  as "…+00:00" while the client writes "…Z". STRING comparison said every
+ *  acknowledged row was still behind — pending forever ("27 unsynced · will
+ *  retry"). Compare INSTANTS, never strings. */
+const ts = (s: string | null | undefined): number => (s ? new Date(s).getTime() : 0);
+export const isPending = (r: TTRow): boolean => !r.syncedAt || ts(r.syncedAt) < ts(r.updatedAt);
 export const pendingRows = <T extends TTRow>(rows: T[]): T[] => rows.filter(isPending);
 
 export const newTTId = (prefix: string, now = new Date()): string =>
@@ -59,7 +64,7 @@ export function mergeRows<T extends TTRow>(local: T[], incoming: T[]): T[] {
     const l = by.get(inc.id);
     if (!l) { by.set(inc.id, inc); continue; }
     if (isPending(l)) { continue; }                       // local edit not yet pushed
-    by.set(inc.id, inc.updatedAt >= l.updatedAt ? inc : l);
+    by.set(inc.id, ts(inc.updatedAt) >= ts(l.updatedAt) ? inc : l);
   }
   return [...by.values()];
 }
@@ -102,19 +107,103 @@ export type MomentTag = (typeof MOMENT_TAGS)[number];
  *  for EXHIBIT_SPEC, an optional interaction-vocabulary pick. */
 export const QUICK_KINDS = ["REWORD", "NEWCEQ", "CUT", "EXHIBIT_SPEC", "TEACH"] as const;
 export type QuickKind = (typeof QUICK_KINDS)[number];
-export type TagKind = MomentTag | QuickKind;
-export const TAG_LABELS: Record<TagKind, string> = {
+export type TagKind = MomentTag | QuickKind | StampKind2;
+/** Forward declaration alias — the stamp union is declared below with its
+ *  taxonomy; the tag row type needs it here. Kept in lockstep by tests. */
+type StampKind2 =
+  | "reword" | "revise_choices" | "edit_other"
+  | "blast_off" | "review_vibe"
+  | "short" | "nerdout" | "exhibit" | "phrase" | "trigger_word" | "tip_trick" | "cheat_code" | "real_world" | "memo";
+export const TAG_LABELS: Record<MomentTag | QuickKind, string> = {
   SHORT: "Short", NERDOUT: "Nerd Out", EXHIBIT: "Exhibit idea",
   PHRASE: "Phrase", TALK: "Talk moment", KEY: "Key",
   REWORD: "Reword", NEWCEQ: "New CEQ", CUT: "Cut", EXHIBIT_SPEC: "Exhibit spec", TEACH: "How I'd teach it",
 };
 export const INTERACTION_VOCAB = ["COMPARE", "CLASSIFIER", "MAP/FLOW", "SCENARIO", "CHEAT SHEET", "CONCEPT+EXAMPLE", "BRANCH MAP"] as const;
 
+/** B2 — THE STAMP BOARD, three labeled groups. Every stamp is a click-IN /
+ *  click-OUT CONTEXT (B1): open on press, closed on re-press or when another
+ *  stamp opens. Old sessions keep their v1 tags; canonicalStamp() folds them
+ *  into this vocabulary at read so they still render and synthesize. */
+export const STAMP_KINDS = [
+  "reword", "revise_choices", "edit_other",
+  "blast_off", "review_vibe",
+  "short", "nerdout", "exhibit", "phrase", "trigger_word", "tip_trick", "cheat_code", "real_world", "memo",
+] as const;
+export type StampKind = (typeof STAMP_KINDS)[number];
+
+export const STAMP_GROUPS: readonly { id: string; label: string; kinds: readonly StampKind[] }[] = [
+  { id: "edit", label: "EDIT THE CEQ", kinds: ["reword", "revise_choices", "edit_other"] },
+  { id: "plan", label: "PLAN", kinds: ["blast_off", "review_vibe"] },
+  { id: "make", label: "MAKE THIS A…", kinds: ["short", "nerdout", "exhibit", "phrase", "trigger_word", "tip_trick", "cheat_code", "real_world", "memo"] },
+] as const;
+
+export const STAMP_LABELS: Record<StampKind, string> = {
+  reword: "Reword", revise_choices: "Revise Choices", edit_other: "Anything Else",
+  blast_off: "Blast Off", review_vibe: "Review Vibe",
+  short: "Short", nerdout: "Nerd Out", exhibit: "Exhibit", phrase: "Phrase",
+  trigger_word: "Trigger Word", tip_trick: "Tip/Trick", cheat_code: "Cheat Code",
+  real_world: "Real World Example", memo: "Memo",
+};
+
+/** EDIT stamps are instruction contexts — closing one fires a background
+ *  micro-model draft (B0) stored on the CEQ as a PENDING EDIT. */
+export const EDIT_STAMPS: readonly StampKind[] = ["reword", "revise_choices", "edit_other"];
+
+/** v1 → v2 fold, applied AT READ ONLY (stored tags are never rewritten). */
+export const LEGACY_STAMP_MAP: Record<string, StampKind> = {
+  SHORT: "short", NERDOUT: "nerdout", EXHIBIT: "exhibit", PHRASE: "phrase",
+  TALK: "review_vibe", KEY: "tip_trick",
+  REWORD: "reword", NEWCEQ: "edit_other", CUT: "edit_other", EXHIBIT_SPEC: "exhibit", TEACH: "blast_off",
+};
+export const canonicalStamp = (tag: string): StampKind | null =>
+  (STAMP_KINDS as readonly string[]).includes(tag) ? (tag as StampKind) : LEGACY_STAMP_MAP[tag] ?? null;
+export const stampLabel = (tag: string): string => {
+  const c = canonicalStamp(tag);
+  return c ? STAMP_LABELS[c] : (TAG_LABELS as Record<string, string>)[tag] ?? tag;
+};
+
+// ---- B1: contexts as a DERIVED view over time windows ---------------------
+// A context = a tap-sourced tag with an open/closed window [at, endedAt).
+// Segments group under a context purely by timestamp overlap: transcript rows
+// are never rewritten (Transcript Law), and old sessions render unchanged.
+
+export const isContextTag = (t: TalkTag): boolean => t.source === "tap" && !t.starred && canonicalStamp(t.tag) !== null;
+
+/** The currently OPEN context of a session, if any. */
+export const openContext = (tags: TalkTag[], sessionId: string): TalkTag | null =>
+  tags.filter((t) => t.sessionId === sessionId && !t.archivedAt && isContextTag(t) && t.endedAt == null)
+    .sort((a, b) => b.at.localeCompare(a.at))[0] ?? null;
+
+/** The context a segment belongs to: the latest-opened window containing its
+ *  start. Untagged talk (no window) stays general set talk. */
+export function contextOfSegment(seg: TalkSegment, tags: TalkTag[]): TalkTag | null {
+  const s = new Date(seg.startedAt).getTime();
+  let best: TalkTag | null = null;
+  for (const t of tags) {
+    if (!isContextTag(t) || t.archivedAt) continue;
+    const a = new Date(t.at).getTime();
+    const b = t.endedAt ? new Date(t.endedAt).getTime() : Number.POSITIVE_INFINITY;
+    if (s >= a && s < b && (!best || a > new Date(best.at).getTime())) best = t;
+  }
+  return best;
+}
+
+/** All non-empty segments inside a context's window, in order. */
+export const segmentsInContext = (segs: TalkSegment[], t: TalkTag): TalkSegment[] =>
+  segs.filter((s) => contextOfSegment(s, [t])?.id === t.id && s.text.trim());
+
 export interface TalkTag extends TTRow {
   sessionId: string;
   tag: TagKind;
   /** The moment stamped (tap time, or the spoken cue's segment start). */
   at: string;
+  /** B1 — a stamp is a click-IN/click-OUT CONTEXT: open while endedAt is null.
+   *  Segments group under a context by TIME WINDOW [at, endedAt] — a derived
+   *  view; segment rows are never rewritten (Transcript Law). */
+  endedAt?: string | null;
+  /** B1 — "come back to this": a bookmark on {stamp, ceq}; no context opened. */
+  starred?: boolean;
   focusedCeqId?: string | null;
   focusedCeqLabel?: string | null;
   /** 'tap' = Lee's ground truth; 'ai' = Phase-2 proposal from a spoken cue. */
@@ -274,9 +363,9 @@ export interface SegmentRow { id: string; session_id: string; seq: number; text:
 export const toSegmentRow = (s: TalkSegment): SegmentRow => ({ id: s.id, session_id: s.sessionId, seq: s.seq, text: s.text, source: s.source, whisper_pending: s.whisperPending, audio_path: s.audioPath ?? null, focused_ceq_id: s.focusedCeqId ?? null, focused_ceq_label: s.focusedCeqLabel ?? null, started_at: s.startedAt, ended_at: s.endedAt ?? null, created_at: s.createdAt, updated_at: s.updatedAt, archived_at: s.archivedAt ?? null });
 export const fromSegmentRow = (r: SegmentRow): TalkSegment => ({ id: r.id, sessionId: r.session_id, seq: r.seq, text: r.text, source: (r.source === "whisper" ? "whisper" : "live"), whisperPending: r.whisper_pending, audioPath: r.audio_path, focusedCeqId: r.focused_ceq_id, focusedCeqLabel: r.focused_ceq_label, startedAt: r.started_at, endedAt: r.ended_at, createdAt: r.created_at, updatedAt: r.updated_at, archivedAt: r.archived_at, syncedAt: r.updated_at });
 
-export interface TagRow { id: string; session_id: string; tag: string; at: string; focused_ceq_id: string | null; focused_ceq_label: string | null; source: string; note: string | null; created_at: string; updated_at: string; archived_at: string | null }
-export const toTagRow = (t: TalkTag): TagRow => ({ id: t.id, session_id: t.sessionId, tag: t.tag, at: t.at, focused_ceq_id: t.focusedCeqId ?? null, focused_ceq_label: t.focusedCeqLabel ?? null, source: t.source, note: t.note ?? null, created_at: t.createdAt, updated_at: t.updatedAt, archived_at: t.archivedAt ?? null });
-export const fromTagRow = (r: TagRow): TalkTag => ({ id: r.id, sessionId: r.session_id, tag: ([...MOMENT_TAGS, ...QUICK_KINDS] as readonly string[]).includes(r.tag) ? (r.tag as TagKind) : "KEY", at: r.at, focusedCeqId: r.focused_ceq_id, focusedCeqLabel: r.focused_ceq_label, source: r.source === "ai" ? "ai" : "tap", note: r.note, createdAt: r.created_at, updatedAt: r.updated_at, archivedAt: r.archived_at, syncedAt: r.updated_at });
+export interface TagRow { id: string; session_id: string; tag: string; at: string; ended_at?: string | null; starred?: boolean; focused_ceq_id: string | null; focused_ceq_label: string | null; source: string; note: string | null; created_at: string; updated_at: string; archived_at: string | null }
+export const toTagRow = (t: TalkTag): TagRow => ({ id: t.id, session_id: t.sessionId, tag: t.tag, at: t.at, ended_at: t.endedAt ?? null, starred: !!t.starred, focused_ceq_id: t.focusedCeqId ?? null, focused_ceq_label: t.focusedCeqLabel ?? null, source: t.source, note: t.note ?? null, created_at: t.createdAt, updated_at: t.updatedAt, archived_at: t.archivedAt ?? null });
+export const fromTagRow = (r: TagRow): TalkTag => ({ id: r.id, sessionId: r.session_id, tag: ([...MOMENT_TAGS, ...QUICK_KINDS, ...STAMP_KINDS] as readonly string[]).includes(r.tag) ? (r.tag as TagKind) : "KEY", at: r.at, endedAt: r.ended_at ?? null, starred: !!r.starred, focusedCeqId: r.focused_ceq_id, focusedCeqLabel: r.focused_ceq_label, source: r.source === "ai" ? "ai" : "tap", note: r.note, createdAt: r.created_at, updatedAt: r.updated_at, archivedAt: r.archived_at, syncedAt: r.updated_at });
 
 export interface BoardItemRow { id: string; session_id: string; run_id: string; kind: string; title: string; payload: Record<string, unknown>; quote: string; ceq_ids: string[]; status: string; comment: string; created_at: string; updated_at: string; archived_at: string | null }
 export const toBoardItemRow = (b: BoardItem): BoardItemRow => ({ id: b.id, session_id: b.sessionId, run_id: b.runId, kind: b.kind, title: b.title, payload: b.payload, quote: b.quote, ceq_ids: b.ceqIds, status: b.status, comment: b.comment, created_at: b.createdAt, updated_at: b.updatedAt, archived_at: b.archivedAt ?? null });
