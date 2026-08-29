@@ -11,6 +11,8 @@ import { useQuery } from "@tanstack/react-query";
 import { CircleCheck, CircleX, Loader2, MessageCircle, RotateCcw } from "lucide-react";
 
 import { fetchSetPractice, type PracticeQuestion } from "@/lib/student.functions";
+import { requestPracticePack } from "@/lib/practice-pack.functions";
+import { LeadMagnetGate } from "@/components/site/LeadMagnetGate";
 import { askAboutQuestion, logPracticeEvents, type AttemptEvent } from "@/lib/practice.functions";
 import { readStudentEmail, rememberStudentEmail } from "@/lib/student-email";
 import { supabase } from "@/integrations/supabase/client";
@@ -84,6 +86,10 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
   // Auto-advance after a CORRECT answer only. No visible toggle any more (header stays clean);
   // it can still be switched on via localStorage sa-cram-auto=1.
   const [autoAdvance] = useState(() => { try { return localStorage.getItem("sa-cram-auto") === "1"; } catch { return false; } });
+  // PRACTICE PACK spotlight (D5): glow the print icon once when the student
+  // completes a set OR answers 5 questions this session — whichever first.
+  const [packSpot, setPackSpot] = useState(false);
+  const packSpotDone = useRef((() => { try { return localStorage.getItem("sa-pack-spot") === "1"; } catch { return true; } })());
   const startedAt = useRef(Date.now());
   const revealedAt = useRef(Date.now());
   const userId = useRef<string | null>(null);
@@ -106,6 +112,14 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
   // results screen), not on the Continue click, so progress and the rail ✓ update in view.
   const finishedOnce = useRef(false);
   useEffect(() => { if (finished && !finishedOnce.current) { finishedOnce.current = true; onFinished?.(); } }, [finished, onFinished]);
+  useEffect(() => {
+    if (packSpotDone.current) return;
+    if (finished || Object.keys(pickedBy).length >= 5) {
+      packSpotDone.current = true;
+      try { localStorage.setItem("sa-pack-spot", "1"); } catch { /* fine */ }
+      setPackSpot(true);
+    }
+  }, [finished, pickedBy]);
   // Test Mode: mark step 5 the moment the "You've been through" screen renders — provided the
   // pass ran with at least one correct + one incorrect (matches the spec's completion criterion).
   useEffect(() => {
@@ -252,6 +266,17 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
         )}
         {statusLabel && <span className="ml-auto rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider" style={{ background: C.yellow, color: "#0B1322" }}>{statusLabel}</span>}
         {!statusLabel && <span className="ml-auto" />}
+        {/* PRINTABLE PACK (D5) — subtle from the start; glows once at the
+            completion/5-answer moment. Free Exam-1 content only (the endpoint
+            enforces it); the link arrives by EMAIL — that's the point. */}
+        <LeadMagnetGate
+          tooltip="Printable pack"
+          prompt="Get this practice as a printable PDF — emailed to you."
+          cta="Email me the pack →"
+          sentCopy="Sent. Go check your email — then keep going."
+          spotlight={packSpot}
+          onRequest={(email) => requestPracticePack({ data: { email, campusName: campusName ?? null, campusSlug: campusSlug ?? null, sourcePath: typeof location !== "undefined" ? location.pathname : null, isTest: !!isTest } })}
+        />
       </div>
 
       {navOpen && (

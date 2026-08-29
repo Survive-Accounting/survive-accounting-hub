@@ -87,6 +87,7 @@ import { Route as GoDemoRouteImport } from './routes/go.demo'
 import { Route as ChaptersDashboardRouteImport } from './routes/chapters_.dashboard'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
 import { Route as CSlugRouteImport } from './routes/c.$slug'
+import { Route as ApiPracticePackRouteImport } from './routes/api.practice-pack'
 import { Route as ApiBackfillRouteImport } from './routes/api.backfill'
 import { Route as AdminSiteQaRouteImport } from './routes/admin.site-qa'
 import { Route as AdminRepsRouteImport } from './routes/admin.reps'
@@ -529,6 +530,11 @@ const CSlugRoute = CSlugRouteImport.update({
   path: '/c/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPracticePackRoute = ApiPracticePackRouteImport.update({
+  id: '/api/practice-pack',
+  path: '/api/practice-pack',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiBackfillRoute = ApiBackfillRouteImport.update({
   id: '/api/backfill',
   path: '/api/backfill',
@@ -807,6 +813,7 @@ export interface FileRoutesByFullPath {
   '/admin/reps': typeof AdminRepsRouteWithChildren
   '/admin/site-qa': typeof AdminSiteQaRoute
   '/api/backfill': typeof ApiBackfillRoute
+  '/api/practice-pack': typeof ApiPracticePackRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters/dashboard': typeof ChaptersDashboardRoute
@@ -931,6 +938,7 @@ export interface FileRoutesByTo {
   '/$school/rep': typeof SchoolRepRoute
   '/admin/site-qa': typeof AdminSiteQaRoute
   '/api/backfill': typeof ApiBackfillRoute
+  '/api/practice-pack': typeof ApiPracticePackRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters/dashboard': typeof ChaptersDashboardRoute
@@ -1059,6 +1067,7 @@ export interface FileRoutesById {
   '/admin/reps': typeof AdminRepsRouteWithChildren
   '/admin/site-qa': typeof AdminSiteQaRoute
   '/api/backfill': typeof ApiBackfillRoute
+  '/api/practice-pack': typeof ApiPracticePackRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters_/dashboard': typeof ChaptersDashboardRoute
@@ -1188,6 +1197,7 @@ export interface FileRouteTypes {
     | '/admin/reps'
     | '/admin/site-qa'
     | '/api/backfill'
+    | '/api/practice-pack'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters/dashboard'
@@ -1312,6 +1322,7 @@ export interface FileRouteTypes {
     | '/$school/rep'
     | '/admin/site-qa'
     | '/api/backfill'
+    | '/api/practice-pack'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters/dashboard'
@@ -1439,6 +1450,7 @@ export interface FileRouteTypes {
     | '/admin/reps'
     | '/admin/site-qa'
     | '/api/backfill'
+    | '/api/practice-pack'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters_/dashboard'
@@ -1567,6 +1579,7 @@ export interface RootRouteChildren {
   AdminRepsRoute: typeof AdminRepsRouteWithChildren
   AdminSiteQaRoute: typeof AdminSiteQaRoute
   ApiBackfillRoute: typeof ApiBackfillRoute
+  ApiPracticePackRoute: typeof ApiPracticePackRoute
   CSlugRoute: typeof CSlugRoute
   ChaptersDashboardRoute: typeof ChaptersDashboardRoute
   GoDemoRoute: typeof GoDemoRouteWithChildren
@@ -2152,6 +2165,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/practice-pack': {
+      id: '/api/practice-pack'
+      path: '/api/practice-pack'
+      fullPath: '/api/practice-pack'
+      preLoaderRoute: typeof ApiPracticePackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/backfill': {
       id: '/api/backfill'
       path: '/api/backfill'
@@ -2694,6 +2714,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRepsRoute: AdminRepsRouteWithChildren,
   AdminSiteQaRoute: AdminSiteQaRoute,
   ApiBackfillRoute: ApiBackfillRoute,
+  ApiPracticePackRoute: ApiPracticePackRoute,
   CSlugRoute: CSlugRoute,
   ChaptersDashboardRoute: ChaptersDashboardRoute,
   GoDemoRoute: GoDemoRouteWithChildren,

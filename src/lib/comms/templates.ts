@@ -453,6 +453,10 @@ export const confirmTemplateFor = (kind: IntakeKind): TemplateKey => {
     case "tutoring_request": return "confirm_tutoring_request";
     case "outreach_page": return "confirm_outreach_page";
     case "question": return "confirm_question";
+    // The pack email itself (with the link) is sent by the practice-pack fn;
+    // intake runs with skipConfirmation, so this mapping is a never-sent
+    // fallback — the generic school_request confirmation is the safe shape.
+    case "practice_pack": return "confirm_school_request";
   }
 };
 
