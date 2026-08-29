@@ -434,3 +434,127 @@ Env overrides AI_MODEL_MICRO / AI_MODEL_SYNTHESIS make a swap a config edit.
 fallback → a retryable surfaced error; every call logs model + tokens + cost
 (the QA hook for "swap the string → verify in logs") and returns usage for the
 studio cost line (stamped into item payloads as _usage — no new table).
+
+## B1 — manual segments, stars, pause, scrollback, and the sync-backlog bug
+
+Contexts are DERIVED views over the untouched transcript: a stamp tap opens a
+context (a tag with an `[at, endedAt)` window; tapping it again or tapping
+another stamp closes it), and segments group by timestamp overlap. No segment
+row is ever rewritten — Transcript Law. Per-stamp ★ bookmarks star the moment;
+pause/resume cuts a chunk boundary; the booth scrolls back through the whole
+verbatim transcript live.
+
+**The "27 unsynced · will retry" bug, actually diagnosed:** PostgREST echoes
+timestamptz as `…+00:00`; the client writes `…Z`. The pending check was a
+STRING compare (`syncedAt < updatedAt`), so an acked row never settled and the
+badge accumulated forever. Fixed with a numeric-instant compare in both
+talkthrough.ts and idea-bank.ts (the same latent bug), pinned by regression
+tests. The badge is also now a tap-to-retry (pull + flush on click).
+
+SQL LEE MUST RUN: `migration/supabase-migrations/20260829_0900_talkthrough_v2.sql`
+(adds `ended_at` + `starred` to talkthrough_tags — additive). Until it runs,
+the server strips the two fields and retries once, loudly; stars and context
+windows simply don't persist server-side.
+
+## B2 — the stamp taxonomy
+
+Three groups as config (STAMP_KINDS/STAMP_GROUPS/STAMP_LABELS): EDIT THE CEQ
+(Reword / Revise Choices / Anything Else), PLAN (Blast Off / Vibe / Real World
+/ Compare), MAKE THIS A… (Exhibit / Memo / Short / Nerd-Out / Cheat Code).
+LEGACY_STAMP_MAP folds v1 tags at read (`canonicalStamp`) — old sessions render
+under the new names without a data rewrite. Closing an EDIT context fires a
+background micro draft (proposed stem/choices land as a pending board item;
+nothing touches the bank without an APPROVE).
+
+## B3 — End Session → Review
+
+Pre-flight first (stamp counts + stars, per-kind include checkboxes default-on,
+vibe-plan toggle, GO or Keep talking). GO ends the session and queues a
+CLIENT-SIDE background job (serverless has no worker): the synthesis call runs
+from the tab while Lee talks in the next set. Status is honest — CAPTURING /
+QUEUED / GENERATING / READY (a script item exists on the board) / ERROR with
+retry — mirrored to localStorage, and a boot sweep demotes any stranded
+"generating" flag to a retryable ERROR so the list never lies. The review
+board: script (printable), CEQ edits (current-vs-proposed, APPROVE writes to
+the owning scene via applyCeqEdit, inline override with radio-correct), ideas,
+vibe plan. APPROVE or ARCHIVE only — no reject, archive never deletes.
+
+## B4 — the Bank
+
+Browse/refine/finalize everything approved, grouped by kind and topic, with
+search, sort, inline title/body edits, a quote picker over the session's own
+segments, CALLOUT_TAGS as config (Memorize This / Formula to Remember / Cheat
+Code / Real World / Nerd Out), FINAL star, and status cycling.
+
+## B5 — film picks + the handoff
+
+🎬 INCLUDE IN VIDEO on any approved item → the set's FILM PICKS tray (drag +
+▲▼ ordering). "Insert picks into the set → frames" writes memo cards through
+the EXISTING card system (idempotent node ids `memo-pick-<itemId>`, stageOrder
+9000+, deckCategory ceq:set-memo). "Open film mode →" opens /study/canvas in a
+new tab with a 2-minute localStorage intent; the canvas consumes it once and
+calls openPool(setId) — pool mode, studio focused on the set. (Gauntlet caught
+the first cut calling bare openStudioSet, which landed empty behind the home
+overlay on a fresh tab; fixed and re-verified end-to-end.) The film popout
+stays on Lee's own \ key — popup blockers never eat it.
+
+## B6 — Exhibit mode
+
+Everything stamped Exhibit (or approved as an exhibit idea) is a card under its
+topic. A card can keep being dictated on (its own session, same capture
+mechanics), reference any of the six shipped exhibits ("what I'd keep / what
+I'd change"), and draft a Bible-compliant conveyor prompt (summary + full
+prompt + COPY). Copy/paste into the conveyor remains the integration — nothing
+runs itself.
+
+## B7 — style memory
+
+📌 pin on any comment distills it (micro lane) into a one-line style note per
+kind (script/exhibit/memo/short/general), banked globally as board items.
+Every generation call carries its kind's notes plus up to 3 recent approved
+items as examples. The Style tab lists and prunes them (archive, never delete).
+
+## B8 — one-take blast attach
+
+ATTACH TAKE on a READY session ingests a video URL via the existing Mux path
+and pushes a `{kind:"blast", state:"draft", oneTake:true}` publication onto the
+deck. Draft state is student-invisible by construction (shippedPub filters
+state==="shipped") — publishing stays a deliberate, separate act.
+
+## Booth v2 QA gauntlet (2026-08-29)
+
+1 ✓ Registry is config (both entries + prices + env overrides); every ai.server
+  call logs model/tokens/cost — swap the string, see it in the logs. Unit tests
+  cover costOf/sumUsage.
+2 ✓ Contexts open/close/switch as derived tag windows; segment grouping and
+  canonicalStamp folding pinned by unit tests (stamp mechanics during live
+  capture are mic-gated — the pane blocks capture, so that's a filming-day
+  check; yesterday's real 25-segment session renders correctly under v2).
+3 ✓ THE SYNC FIX, live: the pane's store that showed "27 unsynced" drained to
+  0 / "all synced" on first load with the numeric compare; tap-to-retry works.
+4 ✓ Honest statuses, live: Generate with no local AI key → QUEUED→GENERATING→
+  ERROR "AI_GATEWAY_API_KEY is not configured on the server — the transcript is
+  untouched." + retry; a faked stranded "generating" flag demoted to
+  "interrupted (tab closed?) — retry" on reload; home rows chip correctly.
+5 ✓ Booth, live: stamp board renders all three groups with per-stamp ★; mic
+  denial fails loud ("Permission denied" inline); End Session → Review present.
+6 ✓ SessionView, live: verbatim scrollback ([S0]…[S24] with Q anchors), FILM
+  PICKS tray, Generate review, Open film mode. Bank/Exhibits/Style tabs all
+  render with honest empty states and all six topic filters.
+7 ✓ Film handoff, live end-to-end: write intent → /study/canvas → pool mode
+  opens with the set focused, studio + film controls up, intent consumed
+  (null after one use). Found+fixed the home-overlay bug doing this.
+8 ✓ parseReview/parseMicroEdit degrade to zero items/null on garbage; bogus
+  ceq ids and idea kinds are dropped; two-correct choice sets refused. Pinned
+  by unit tests (11 tests, 42 asserts, all green).
+9 ✓ Full suite: 1945 pass / 1 fail — the KNOWN pre-existing bolt-palette
+  derived-accent failure only. tsc clean.
+10 ◦ PROD-ONLY items for filming day: real generation output + cost line
+  (needs AI_GATEWAY_API_KEY), insertFilmPicks writing real memo frames, Mux
+  one-take ingest, style-note distillation. All fail loud + retryable if
+  anything's off. No test data was written to the shared DB.
+
+SQL LEE MUST RUN (before stars/context windows persist):
+`migration/supabase-migrations/20260829_0900_talkthrough_v2.sql`
+
+B9 (control-room skin): ON HOLD per the prompt — not built.
