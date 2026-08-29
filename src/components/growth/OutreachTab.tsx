@@ -12,6 +12,7 @@ import {
   Instagram,
   Loader2,
   Mail,
+  Sparkles,
   Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -61,6 +62,7 @@ export function OutreachTab({
   const [templateKey, setTemplateKey] = useState<string>("council_intro_v1");
   const [previewing, setPreviewing] = useState(false);
   const [gapMode, setGapMode] = useState(!!defaultGapMode);
+  const [showAll, setShowAll] = useState(false); // reveal the non-priority organizations
 
   const contacts = useQuery({
     queryKey: ["growth-outreach-contacts", campusId],
@@ -105,6 +107,8 @@ export function OutreachTab({
   });
 
   const entities = contacts.data?.entities ?? [];
+  const priorityEntities = useMemo(() => entities.filter((e) => e.priorityGroup), [entities]);
+  const restEntities = useMemo(() => entities.filter((e) => !e.priorityGroup), [entities]);
   const selectableCount = useMemo(
     () =>
       entities
@@ -126,6 +130,140 @@ export function OutreachTab({
       }
       return next;
     });
+  };
+
+  const PRIORITY_BADGE: Record<string, string> = {
+    fraternity: "top fraternity",
+    sorority: "top sorority",
+    club: "Women in Business",
+  };
+
+  const renderEntity = (e: OutreachEntity) => {
+    const def = e.contacts.find((c) => c.isDefault);
+    const entityChecked =
+      def != null &&
+      selected.has(def.qcId) &&
+      ![...e.contacts.filter((c) => !c.isDefault)].some((c) => selected.has(c.qcId));
+    return (
+      <div
+        key={e.key}
+        className={cn(
+          "rounded-md border p-2",
+          e.priorityGroup ? "border-primary/40 bg-primary/[0.03]" : "border-border",
+        )}
+      >
+        <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold">
+          <input
+            type="checkbox"
+            disabled={!def}
+            checked={entityChecked || e.contacts.some((c) => selected.has(c.qcId))}
+            onChange={(ev) => toggleEntity(e, ev.target.checked)}
+          />
+          {e.label}
+          {e.kind === "council" && <Chip tone="info">council</Chip>}
+          {e.priorityGroup && e.priorityGroup !== "council" && (
+            <Chip tone="good">{PRIORITY_BADGE[e.priorityGroup]}</Chip>
+          )}
+          {e.kind === "chapter" && e.size != null && (
+            <span className="font-normal text-[10px] tabular-nums text-muted-foreground">
+              {e.size} members
+            </span>
+          )}
+          {e.sublabel && e.kind !== "council" && (
+            <span className="font-normal text-muted-foreground">{e.sublabel}</span>
+          )}
+        </label>
+        {!def && (
+          <InlineAddEmail
+            campusId={campusId}
+            entity={e}
+            onAdded={() =>
+              qc.invalidateQueries({ queryKey: ["growth-outreach-contacts", campusId] })
+            }
+          />
+        )}
+        <div className="mt-1 space-y-0.5 pl-6">
+          {e.contacts.map((c) => (
+            <div key={c.qcId} className="flex items-center gap-2 text-[11px]">
+              {c.email ? (
+                <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(c.qcId)}
+                    disabled={
+                      !c.outreachEligible || c.class === "VERIFY" || c.class === "ADVISORY"
+                    }
+                    onChange={(ev) =>
+                      setSelected((prev) => {
+                        const next = new Set(prev);
+                        if (ev.target.checked) next.add(c.qcId);
+                        else next.delete(c.qcId);
+                        return next;
+                      })
+                    }
+                  />
+                  <Mail className="size-3 shrink-0 text-muted-foreground" />
+                  <span className="truncate">{c.email}</span>
+                  {c.name && (
+                    <span className="truncate text-muted-foreground">
+                      · {c.name}
+                      {c.role ? ` (${c.role})` : ""}
+                    </span>
+                  )}
+                </label>
+              ) : (
+                <span className="flex min-w-0 flex-1 items-center gap-1.5 pl-[18px]">
+                  <Instagram className="size-3 shrink-0 text-muted-foreground" />
+                  {c.instagram ? (
+                    <a
+                      href={
+                        c.instagram.startsWith("http")
+                          ? c.instagram
+                          : `https://instagram.com/${c.instagram.replace(/^@/, "")}`
+                      }
+                      target="_blank"
+                      rel="noreferrer"
+                      className="truncate underline"
+                    >
+                      {c.instagram}
+                    </a>
+                  ) : (
+                    <span className="text-muted-foreground">no reachable path</span>
+                  )}
+                  {c.instagram && (
+                    <button
+                      onClick={() =>
+                        logDm.mutate({
+                          chapterId: c.chapterId,
+                          councilType: c.councilType,
+                          qcId: c.qcId,
+                        })
+                      }
+                      className="shrink-0 rounded border border-border px-1.5 text-[10px] hover:bg-muted"
+                    >
+                      Log DM
+                    </button>
+                  )}
+                </span>
+              )}
+              <span
+                className={cn(
+                  "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold",
+                  CLASS_TONE[c.class],
+                )}
+                title={
+                  c.class === "VERIFY"
+                    ? "Named officer without current-term evidence — verify before use"
+                    : undefined
+                }
+              >
+                {CLASS_LABEL[c.class]}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   if (contacts.isLoading)
@@ -195,124 +333,23 @@ export function OutreachTab({
           </div>
         )}
         <div className={cn("space-y-2", gapMode && "hidden")}>
-          {entities.map((e) => {
-            const def = e.contacts.find((c) => c.isDefault);
-            const entityChecked =
-              def != null &&
-              selected.has(def.qcId) &&
-              ![...e.contacts.filter((c) => !c.isDefault)].some((c) => selected.has(c.qcId));
-            return (
-              <div key={e.key} className="rounded-md border border-border p-2">
-                <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold">
-                  <input
-                    type="checkbox"
-                    disabled={!def}
-                    checked={entityChecked || e.contacts.some((c) => selected.has(c.qcId))}
-                    onChange={(ev) => toggleEntity(e, ev.target.checked)}
-                  />
-                  {e.label}
-                  {e.kind === "council" && <Chip tone="info">council</Chip>}
-                  {e.kind === "chapter" && e.size != null && (
-                    <span className="font-normal text-[10px] tabular-nums text-muted-foreground">
-                      {e.size} members
-                    </span>
-                  )}
-                  {e.sublabel && e.kind !== "council" && (
-                    <span className="font-normal text-muted-foreground">{e.sublabel}</span>
-                  )}
-                </label>
-                {!def && (
-                  <InlineAddEmail
-                    campusId={campusId}
-                    entity={e}
-                    onAdded={() =>
-                      qc.invalidateQueries({ queryKey: ["growth-outreach-contacts", campusId] })
-                    }
-                  />
-                )}
-                <div className="mt-1 space-y-0.5 pl-6">
-                  {e.contacts.map((c) => (
-                    <div key={c.qcId} className="flex items-center gap-2 text-[11px]">
-                      {c.email ? (
-                        <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5">
-                          <input
-                            type="checkbox"
-                            checked={selected.has(c.qcId)}
-                            disabled={
-                              !c.outreachEligible || c.class === "VERIFY" || c.class === "ADVISORY"
-                            }
-                            onChange={(ev) =>
-                              setSelected((prev) => {
-                                const next = new Set(prev);
-                                if (ev.target.checked) next.add(c.qcId);
-                                else next.delete(c.qcId);
-                                return next;
-                              })
-                            }
-                          />
-                          <Mail className="size-3 shrink-0 text-muted-foreground" />
-                          <span className="truncate">{c.email}</span>
-                          {c.name && (
-                            <span className="truncate text-muted-foreground">
-                              · {c.name}
-                              {c.role ? ` (${c.role})` : ""}
-                            </span>
-                          )}
-                        </label>
-                      ) : (
-                        <span className="flex min-w-0 flex-1 items-center gap-1.5 pl-[18px]">
-                          <Instagram className="size-3 shrink-0 text-muted-foreground" />
-                          {c.instagram ? (
-                            <a
-                              href={
-                                c.instagram.startsWith("http")
-                                  ? c.instagram
-                                  : `https://instagram.com/${c.instagram.replace(/^@/, "")}`
-                              }
-                              target="_blank"
-                              rel="noreferrer"
-                              className="truncate underline"
-                            >
-                              {c.instagram}
-                            </a>
-                          ) : (
-                            <span className="text-muted-foreground">no reachable path</span>
-                          )}
-                          {c.instagram && (
-                            <button
-                              onClick={() =>
-                                logDm.mutate({
-                                  chapterId: c.chapterId,
-                                  councilType: c.councilType,
-                                  qcId: c.qcId,
-                                })
-                              }
-                              className="shrink-0 rounded border border-border px-1.5 text-[10px] hover:bg-muted"
-                            >
-                              Log DM
-                            </button>
-                          )}
-                        </span>
-                      )}
-                      <span
-                        className={cn(
-                          "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold",
-                          CLASS_TONE[c.class],
-                        )}
-                        title={
-                          c.class === "VERIFY"
-                            ? "Named officer without current-term evidence — verify before use"
-                            : undefined
-                        }
-                      >
-                        {CLASS_LABEL[c.class]}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+          {priorityEntities.length > 0 && (
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
+              <Sparkles className="size-3" /> Priority targets — councils, top 5s &amp; Women in
+              Business
+            </div>
+          )}
+          {priorityEntities.map(renderEntity)}
+          {restEntities.length > 0 && (
+            <button
+              onClick={() => setShowAll((v) => !v)}
+              className="flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-border py-1.5 text-[11px] text-muted-foreground hover:bg-muted"
+            >
+              {showAll ? "Hide" : "Show"} {restEntities.length} more organization
+              {restEntities.length === 1 ? "" : "s"}
+            </button>
+          )}
+          {showAll && restEntities.map(renderEntity)}
         </div>
       </Section>
 
