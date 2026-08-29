@@ -10,7 +10,10 @@ const POS = { x: 520, y: 210 };
 
 export interface DeckJson { id: string; name: string; slots: never[]; access: string; filter: null; status: string; runMode: string; topicId: string; courseId: string; lessonId: null; parked: boolean; sortOrder: number; payloadType: string; showSkeletons: boolean; createdAt: string; updatedAt: string; publications: never[]; }
 export interface CeqNodeJson { id: string; type: string; position: { x: number; y: number }; selected: boolean; data: Record<string, unknown>; }
-export interface SetSceneJson { decks: DeckJson[]; nodes: CeqNodeJson[]; source: string; }
+// setFile/schema_version/edges make this a valid Studio SET FILE (loadSetPool reads only
+// setFile rows) — so a scene written here is seen by BOTH the Studio and the student dedupe.
+// The chrome-preserving path is exam1-setfile-reconcile.ts; this is the bare-CEQ baseline.
+export interface SetSceneJson { setFile: true; schema_version: number; decks: DeckJson[]; nodes: CeqNodeJson[]; edges: never[]; source: string; }
 
 export function buildDeck(set: SetPlan, topicId: string): DeckJson {
   return {
@@ -39,8 +42,10 @@ export function buildCeqNode(set: SetPlan, ceq: SetPlan["ceqs"][number], topicId
 /** Full nodes_json for one set's scene (1 deck + its CEQ nodes), deterministic and replace-safe. */
 export function buildSetScene(set: SetPlan, topicId: string): SetSceneJson {
   return {
+    setFile: true, schema_version: 5,
     decks: [buildDeck(set, topicId)],
     nodes: set.ceqs.map((c) => buildCeqNode(set, c, topicId)),
+    edges: [],
     source: "exam1-global-starter-map-v1",
   };
 }
