@@ -111,6 +111,7 @@ import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe.webhoo
 import { Route as ApiCronWeeklyDigestRouteImport } from './routes/api.cron.weekly-digest'
 import { Route as ApiCronKingDigestRouteImport } from './routes/api.cron.king-digest'
 import { Route as ApiCronCommsSequencesRouteImport } from './routes/api.cron.comms-sequences'
+import { Route as ApiCronChapterReportsRouteImport } from './routes/api.cron.chapter-reports'
 import { Route as ApiCronBackupRouteImport } from './routes/api.cron.backup'
 import { Route as AdminRepsRosterRouteImport } from './routes/admin.reps.roster'
 import { Route as AdminRepsPartnersRouteImport } from './routes/admin.reps.partners'
@@ -652,6 +653,11 @@ const ApiCronCommsSequencesRoute = ApiCronCommsSequencesRouteImport.update({
   path: '/api/cron/comms-sequences',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronChapterReportsRoute = ApiCronChapterReportsRouteImport.update({
+  id: '/api/cron/chapter-reports',
+  path: '/api/cron/chapter-reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronBackupRoute = ApiCronBackupRouteImport.update({
   id: '/api/cron/backup',
   path: '/api/cron/backup',
@@ -864,6 +870,7 @@ export interface FileRoutesByFullPath {
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
   '/admin/reps/roster': typeof AdminRepsRosterRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
+  '/api/cron/chapter-reports': typeof ApiCronChapterReportsRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
@@ -987,6 +994,7 @@ export interface FileRoutesByTo {
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
   '/admin/reps/roster': typeof AdminRepsRosterRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
+  '/api/cron/chapter-reports': typeof ApiCronChapterReportsRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
@@ -1114,6 +1122,7 @@ export interface FileRoutesById {
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
   '/admin/reps/roster': typeof AdminRepsRosterRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
+  '/api/cron/chapter-reports': typeof ApiCronChapterReportsRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
@@ -1242,6 +1251,7 @@ export interface FileRouteTypes {
     | '/admin/reps/partners'
     | '/admin/reps/roster'
     | '/api/cron/backup'
+    | '/api/cron/chapter-reports'
     | '/api/cron/comms-sequences'
     | '/api/cron/king-digest'
     | '/api/cron/weekly-digest'
@@ -1365,6 +1375,7 @@ export interface FileRouteTypes {
     | '/admin/reps/partners'
     | '/admin/reps/roster'
     | '/api/cron/backup'
+    | '/api/cron/chapter-reports'
     | '/api/cron/comms-sequences'
     | '/api/cron/king-digest'
     | '/api/cron/weekly-digest'
@@ -1491,6 +1502,7 @@ export interface FileRouteTypes {
     | '/admin/reps/partners'
     | '/admin/reps/roster'
     | '/api/cron/backup'
+    | '/api/cron/chapter-reports'
     | '/api/cron/comms-sequences'
     | '/api/cron/king-digest'
     | '/api/cron/weekly-digest'
@@ -1574,6 +1586,7 @@ export interface RootRouteChildren {
   SchoolIndexRoute: typeof SchoolIndexRoute
   UIndexRoute: typeof UIndexRoute
   ApiCronBackupRoute: typeof ApiCronBackupRoute
+  ApiCronChapterReportsRoute: typeof ApiCronChapterReportsRoute
   ApiCronCommsSequencesRoute: typeof ApiCronCommsSequencesRoute
   ApiCronKingDigestRoute: typeof ApiCronKingDigestRoute
   ApiCronWeeklyDigestRoute: typeof ApiCronWeeklyDigestRoute
@@ -2307,6 +2320,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronCommsSequencesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/chapter-reports': {
+      id: '/api/cron/chapter-reports'
+      path: '/api/cron/chapter-reports'
+      fullPath: '/api/cron/chapter-reports'
+      preLoaderRoute: typeof ApiCronChapterReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/backup': {
       id: '/api/cron/backup'
       path: '/api/cron/backup'
@@ -2693,6 +2713,7 @@ const rootRouteChildren: RootRouteChildren = {
   SchoolIndexRoute: SchoolIndexRoute,
   UIndexRoute: UIndexRoute,
   ApiCronBackupRoute: ApiCronBackupRoute,
+  ApiCronChapterReportsRoute: ApiCronChapterReportsRoute,
   ApiCronCommsSequencesRoute: ApiCronCommsSequencesRoute,
   ApiCronKingDigestRoute: ApiCronKingDigestRoute,
   ApiCronWeeklyDigestRoute: ApiCronWeeklyDigestRoute,

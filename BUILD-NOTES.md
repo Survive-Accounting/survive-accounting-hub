@@ -355,3 +355,27 @@ Decisions logged, not asked (overnight rules): Easy Points kept live · chapter 
 `setLabel` was already built to strip quotes/[ ] from stem-style names) · analytics ids:
 question history keys on CEQ node ids, so the bank swap orphans (never corrupts) history
 written against starter-map ids.
+
+## Chapter signup reports (K5, 2026-08-29)
+
+**Queue/cron choice — reused, not built.** The stack already runs Vercel Cron against
+`/api/cron/*` routes authorised by a shared `CRON_SECRET` bearer (backup, weekly-digest,
+comms-sequences, king-digest). The chapter reports use the same pattern rather than introducing a
+queue: one route, `/api/cron/chapter-reports`, with `?kind=surge` (hourly) and `?kind=weekly`
+(two UTC entries, DST-safe, gated to 8am Chicago exactly like the existing weekly digest). No new
+infrastructure, one auth story, and the crons are visible in `vercel.json` beside the others.
+
+**Sending is OFF until deliberately enabled.** `CHAPTER_REPORTS_ENABLED=1` is the switch. Without
+it every run is a dry run: real counts, real dedupe checks, and a logged line per chapter saying
+what it *would* have sent — and no email. The cron's JSON response reports `mode: "dry_run" |
+"live"` so the two can never be confused.
+
+**It refuses to send without its dedupe table.** `chapter_report_sends` (migration
+20260829_0900, manual-apply) is the duplicate protection. If the table is missing the run logs
+loudly and returns nothing rather than emailing without it.
+
+**What the numbers mean.** Signups are rows in `greek_chapter_members` created inside the window —
+real people, counted at send time. The source split comes from stamped visits in the same window
+(`greek_visit:<school>/<chapter>?via=<stamp>`), so it describes where the *traffic* came from, not
+which link each individual signup used; the copy says "Mostly from your GroupMe link" and never
+claims per-signup attribution. A week with no activity sends nothing.
