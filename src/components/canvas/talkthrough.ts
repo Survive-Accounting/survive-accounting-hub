@@ -350,6 +350,35 @@ export function sessionMeta(d: TTDoc, s: TalkSession): { segments: number; durat
   };
 }
 
+/** B7 — style memory's output-kind vocabulary. Every generation call carries
+ *  its kind's notes + up to 3 recent APPROVED items of that kind as examples
+ *  (context steering, not training). */
+export const STYLE_KINDS = ["script", "exhibit", "memo", "short", "general"] as const;
+export type StyleKind = (typeof STYLE_KINDS)[number];
+
+/** Which style-note bucket an item's generations draw from. */
+export function styleKindFor(item: BoardItem): StyleKind {
+  if (item.kind === "script" || item.kind === "vibe_plan") return "script";
+  const k = item.kind === "idea" ? String((item.payload as { kind?: string }).kind ?? "") : item.kind;
+  if (k === "exhibit") return "exhibit";
+  if (k === "memo" || k === "phrase" || k === "trigger_word") return "memo";
+  if (k === "short" || k === "nerdout") return "short";
+  return "general";
+}
+
+/** Up to N recent APPROVED items of a style kind, newest first, trimmed —
+ *  the few-shot examples every generation call carries (oldest drop first). */
+export function recentApprovedExamples(d: TTDoc, kind: StyleKind, n = 3): string[] {
+  return d.boardItems
+    .filter((b) => !b.archivedAt && ["approved", "final", "in_production", "done"].includes(b.status) && b.kind !== "style_note" && styleKindFor(b) === kind)
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+    .slice(0, n)
+    .map((b) => {
+      const body = String((b.payload as { body?: unknown; proposal?: unknown; pitch?: unknown }).body ?? (b.payload as { proposal?: unknown }).proposal ?? (b.payload as { pitch?: unknown }).pitch ?? "");
+      return `${b.title}${body ? ` — ${body.slice(0, 360)}` : ""}`;
+    });
+}
+
 /** B7 — the style notes for an output kind: one line each, prunable in the
  *  studio. Stored as kind "style_note" items under the "global" session. */
 export function styleNotesFor(d: TTDoc, kind: string): string[] {

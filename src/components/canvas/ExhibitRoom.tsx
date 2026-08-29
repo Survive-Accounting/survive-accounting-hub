@@ -12,7 +12,7 @@ import { Check, Copy, Mic, RefreshCw } from "lucide-react";
 import { EXHIBIT_REGISTRY, runExhibitDraft, type BoothTopic } from "@/lib/talkthrough.functions";
 import { BIG_FONT, NEON } from "./theme";
 import {
-  sessionSegments, styleNotesFor, touchRow,
+  recentApprovedExamples, sessionSegments, styleNotesFor, touchRow,
   type BoardItem, type TTDoc,
 } from "./talkthrough";
 import { putBoardItem, ttState } from "./talkthrough-sync";
@@ -98,7 +98,7 @@ function ExhibitCard({ item, doc, onDictate }: { item: BoardItem; doc: TTDoc; on
           transcript: cardSegs.map((s) => s.text.trim()).join(" ").slice(0, 60_000),
           referenceId: refId,
           keepChange,
-          styleNotes: styleNotesFor(ttState().doc, "exhibit"),
+          styleNotes: [...styleNotesFor(ttState().doc, "exhibit"), ...recentApprovedExamples(ttState().doc, "exhibit").map((e) => `EXAMPLE (approved earlier): ${e}`)].slice(0, 12),
         },
       });
       const raw = extractJsonObject(r.text);

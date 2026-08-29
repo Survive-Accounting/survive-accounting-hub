@@ -13,9 +13,10 @@ import { RefreshCw, Star, X } from "lucide-react";
 import { runMicro, type BoothTopic } from "@/lib/talkthrough.functions";
 import { BIG_FONT, NEON } from "./theme";
 import {
-  sessionSegments, stampLabel, styleNotesFor, touchRow,
+  recentApprovedExamples, sessionSegments, stampLabel, styleKindFor, styleNotesFor, touchRow,
   type BoardItem, type TTDoc,
 } from "./talkthrough";
+import { pinStyleNote } from "./talkthrough-review";
 import { putBoardItem } from "./talkthrough-sync";
 import { filmPickOf, toggleFilmPick } from "./FilmPicks";
 
@@ -146,7 +147,8 @@ function BankItem({ item, doc, setTopic, sessionSet }: {
   const generate = async () => {
     setBusy(true); setErr(null);
     try {
-      const notes = styleNotesFor(doc, "memo");
+      const styleKind = styleKindFor(item);
+      const notes = [...styleNotesFor(doc, styleKind), ...recentApprovedExamples(doc, styleKind).map((e) => `EXAMPLE (approved earlier): ${e}`)].slice(0, 12);
       const system = [
         "You draft ONE short piece of teaching content for Lee (accounting tutor). Match his cadence — plain, confident, a little loose. Return PLAIN TEXT only, no JSON, no headings.",
         notes.length ? `STYLE NOTES (obey):\n${notes.map((n) => `- ${n}`).join("\n")}` : "",
@@ -270,6 +272,14 @@ function BankItem({ item, doc, setTopic, sessionSet }: {
       <div className="mt-3 flex items-center gap-2">
         <input value={comment} placeholder="revision notes (optional)…" onChange={(e) => setComment(e.target.value)}
           style={{ flex: 1, background: "rgba(9,13,26,0.7)", border: `1px solid ${EDGE}`, borderRadius: 8, color: CREAM, fontSize: 12, padding: "5px 10px" }} />
+        <button
+          title='PIN "remember this" — distill into a standing style note'
+          className="rounded-lg px-2 py-1.5 text-xs" style={{ border: `1px solid ${EDGE}`, color: NEON.muted }}
+          disabled={busy || !comment.trim()}
+          onClick={() => { setBusy(true); setErr(null); pinStyleNote(item, comment).catch((e) => setErr(e instanceof Error ? e.message : String(e))).finally(() => setBusy(false)); }}
+        >
+          📌
+        </button>
         <button className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs" style={{ border: `1px solid ${GOLD}88`, color: busy ? NEON.muted : GOLD }} disabled={busy} onClick={() => void generate()}>
           <RefreshCw className="h-3 w-3" /> {busy ? "drafting…" : body ? "Regenerate with my notes" : "Generate a starting point"}
         </button>

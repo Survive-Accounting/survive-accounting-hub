@@ -30,7 +30,7 @@ import {
   boardForCeq, listSessions, makeSession, makeTag, newTTId, sessionBoard, sessionMeta,
   sessionSegments, sessionTags, touchRow,
   styleNotesFor,
-  type BoardItem, type BoardStatus, type StampKind, type TalkSegment, type TalkSession, type TalkTag,
+  type BoardItem, type BoardStatus, type StampKind, type TTDoc, type TalkSegment, type TalkSession, type TalkTag,
 } from "@/components/canvas/talkthrough";
 import { flushTT, pullTT, putBoardItem, putBoardItems, putSession, putTag, startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
 import { TalkthroughRecorder, drainWhisperQueue, speechRecognitionAvailable, type BoothStatus } from "@/components/canvas/talkthrough-audio";
@@ -75,7 +75,7 @@ const boothToPassCeq = (c: BoothCeq): PassCeq => ({
 
 // ------------------------------------------------------------------- shell
 
-type View = { mode: "home" } | { mode: "bank" } | { mode: "exhibits" } | { mode: "booth"; sessionId: string } | { mode: "session"; sessionId: string };
+type View = { mode: "home" } | { mode: "bank" } | { mode: "exhibits" } | { mode: "style" } | { mode: "booth"; sessionId: string } | { mode: "session"; sessionId: string };
 
 function TalkthroughApp() {
   const [tt, setTT] = useState<TTState>(() => ttState());
@@ -124,6 +124,11 @@ function TalkthroughApp() {
           onClick={() => setView(view.mode === "exhibits" ? { mode: "home" } : { mode: "exhibits" })}>
           Exhibits
         </button>
+        <button className="rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider"
+          style={view.mode === "style" ? { background: GOLD, color: "#0B1322" } : { border: `1px solid ${EDGE}`, color: NEON.muted }}
+          onClick={() => setView(view.mode === "style" ? { mode: "home" } : { mode: "style" })}>
+          Style
+        </button>
         <SyncBadge tt={tt} />
       </header>
 
@@ -131,6 +136,7 @@ function TalkthroughApp() {
 
       {view.mode === "home" && <Home tt={tt} topics={topics} onOpenSet={openSet} onOpenSession={(id) => setView({ mode: "session", sessionId: id })} />}
       {view.mode === "bank" && <BankView doc={tt.doc} topics={topics} />}
+      {view.mode === "style" && <StyleView doc={tt.doc} />}
       {view.mode === "exhibits" && (
         <ExhibitRoom
           doc={tt.doc}
@@ -592,6 +598,44 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
   );
 }
 
+
+/** B7.2 — the style-memory view: one line per note, per output kind, prunable
+ *  (archive = prune; never deleted). Pinned comments distill into these. */
+function StyleView({ doc }: { doc: TTDoc }) {
+  const notes = doc.boardItems.filter((b) => b.kind === "style_note" && !b.archivedAt && b.status !== "archived");
+  const kinds = ["script", "exhibit", "memo", "short", "general"];
+  return (
+    <div style={{ maxWidth: 760 }}>
+      <div style={{ color: NEON.muted, fontSize: 12.5, marginBottom: 14 }}>
+        Pinned "remember this" comments distill into these standing rules. Every generation call carries its kind's notes (plus up to 3 recent approved items as examples). Prune freely — archive never deletes.
+      </div>
+      {notes.length === 0 && <div style={{ color: NEON.muted, fontSize: 14 }}>No style notes yet — 📌 pin a comment on any generated item.</div>}
+      {kinds.map((k) => {
+        const list = notes.filter((n) => String((n.payload as { forKind?: string }).forKind) === k);
+        if (!list.length) return null;
+        return (
+          <div key={k} className="mb-4">
+            <h3 style={{ fontSize: 11, letterSpacing: "0.2em", color: GOLD, textTransform: "uppercase", marginBottom: 6 }}>{k}</h3>
+            {list.map((n) => (
+              <div key={n.id} className="mb-1 flex items-start gap-2 rounded-xl px-3 py-2" style={{ background: PANEL, border: `1px solid ${EDGE}` }}>
+                <div className="min-w-0 flex-1">
+                  <div style={{ fontSize: 13, color: CREAM }}>{String((n.payload as { line?: string }).line ?? n.title)}</div>
+                  {!!(n.payload as { sourceComment?: string }).sourceComment && (
+                    <div style={{ fontSize: 10.5, color: NEON.muted, marginTop: 2 }}>from: “{String((n.payload as { sourceComment?: string }).sourceComment)}”</div>
+                  )}
+                </div>
+                <button className="rounded-full px-2 py-0.5 text-[9.5px] font-bold uppercase" style={{ border: `1px solid ${EDGE}`, color: NEON.muted }}
+                  onClick={() => putBoardItem(touchRow(n, { status: "archived" } as Partial<BoardItem>))}>
+                  prune
+                </button>
+              </div>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function SegmentLine({ seg, ctx }: { seg: TalkSegment; ctx?: TalkTag | null }) {
   if (!seg.text) return null;

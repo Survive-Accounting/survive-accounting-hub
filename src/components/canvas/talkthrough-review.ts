@@ -10,11 +10,12 @@
 // localStorage so a killed tab shows ERROR with a retry rather than lying
 // with a forever-GENERATING. A failed or interrupted pass never touches the
 // transcript (Transcript Law).
-import { runTalkthroughReview } from "@/lib/talkthrough.functions";
+import { runMicro, runTalkthroughReview } from "@/lib/talkthrough.functions";
 
 import {
-  canonicalStamp, makeTag, newTTId, segmentsInContext, sessionBoard, sessionSegments, sessionTags, styleNotesFor,
-  type TTDoc, type TalkSession,
+  canonicalStamp, makeTag, newTTId, recentApprovedExamples, segmentsInContext, sessionBoard, sessionSegments, sessionTags,
+  styleKindFor, styleNotesFor,
+  type BoardItem, type TTDoc, type TalkSession,
 } from "./talkthrough";
 import { parseReview, type PassCeq } from "./talkthrough-pass";
 import { putBoardItem, putBoardItems, putTag, ttState } from "./talkthrough-sync";
@@ -91,7 +92,7 @@ export function queueReview(req: ReviewRequest): void {
           segments: segs.map((s) => ({ id: s.id, seq: s.seq, text: s.text, focusedCeqId: s.focusedCeqId ?? null, focusedCeqLabel: s.focusedCeqLabel ?? null, source: s.source, whisperPending: s.whisperPending })),
           stamps,
           excludedKinds: req.excludedKinds,
-          styleNotes: styleNotesFor(doc, "script"),
+          styleNotes: [...styleNotesFor(doc, "script"), ...recentApprovedExamples(doc, "script").map((e) => `EXAMPLE (approved earlier): ${e}`)].slice(0, 12),
           wantVibePlan: req.wantVibePlan,
         },
       });
@@ -116,6 +117,29 @@ export function queueReview(req: ReviewRequest): void {
   })();
 }
 
+/** B7 — PIN "remember this": distill a comment into a one-line style note for
+ *  the item's output kind (micro lane) and bank it globally. Every future
+ *  generation of that kind carries it; prunable in the Style view. */
+export async function pinStyleNote(item: BoardItem, comment: string): Promise<void> {
+  const kind = styleKindFor(item);
+  const r = await runMicro({
+    data: {
+      system: `Distill the teacher's feedback into ONE imperative style rule for future ${kind} generation. Under 120 characters. Return the rule text only — no quotes, no preamble.`,
+      user: comment,
+      maxOutput: 120,
+    },
+  });
+  const line = r.text.trim().replace(/^["']|["']$/g, "").slice(0, 160);
+  if (!line) throw new Error("distillation came back empty — try rephrasing the note");
+  const iso = new Date().toISOString();
+  putBoardItem({
+    id: newTTId("ttb"), sessionId: "global", runId: "style", kind: "style_note",
+    title: line, payload: { forKind: kind, line, sourceComment: comment, _usage: r.usage },
+    quote: "", ceqIds: [], status: "approved", comment: "",
+    createdAt: iso, updatedAt: iso, syncedAt: null,
+  });
+}
+
 /** Item-level regenerate on the v2 board (script / ceq_edit / idea / vibe_plan). */
 export async function regenerateReviewItem(sessionId: string, itemId: string, ceqs: PassCeq[], comment: string): Promise<void> {
   const doc = ttState().doc;
@@ -130,7 +154,7 @@ export async function regenerateReviewItem(sessionId: string, itemId: string, ce
       segments: segs.map((s) => ({ id: s.id, seq: s.seq, text: s.text, focusedCeqId: s.focusedCeqId ?? null, focusedCeqLabel: s.focusedCeqLabel ?? null, source: s.source, whisperPending: s.whisperPending })),
       stamps: [],
       excludedKinds: [],
-      styleNotes: styleNotesFor(doc, kind === "script" ? "script" : "memo"),
+      styleNotes: [...styleNotesFor(doc, styleKindFor(item)), ...recentApprovedExamples(doc, styleKindFor(item)).map((e) => `EXAMPLE (approved earlier): ${e}`)].slice(0, 12),
       wantVibePlan: kind === "vibe_plan",
       regen: { kind, previous: item.payload, comments: [comment, item.comment].filter(Boolean) },
     },

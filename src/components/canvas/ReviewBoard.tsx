@@ -16,6 +16,7 @@ import {
 } from "./talkthrough";
 import { putBoardItem } from "./talkthrough-sync";
 import { filmPickOf, toggleFilmPick } from "./FilmPicks";
+import { pinStyleNote } from "./talkthrough-review";
 import type { MicroEditProposal, PassCeq } from "./talkthrough-pass";
 
 const CREAM = "#F4EFE6";
@@ -94,6 +95,7 @@ function ItemShell({ item, children, onRegen, printable, film }: {
 }) {
   const [comment, setComment] = useState(item.comment);
   const [busy, setBusy] = useState(false);
+  const [pinned, setPinned] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const saveComment = () => { if (comment !== item.comment) putBoardItem(touchRow(item, { comment } as Partial<BoardItem>)); };
   const setStatus = (s: "approved" | "archived") =>
@@ -137,6 +139,15 @@ function ItemShell({ item, children, onRegen, printable, film }: {
         <div className="mt-3 flex items-center gap-2 tt-chrome">
           <input value={comment} placeholder="your note on this item…" onChange={(e) => setComment(e.target.value)} onBlur={saveComment}
             style={{ flex: 1, background: "rgba(9,13,26,0.7)", border: `1px solid ${EDGE}`, borderRadius: 8, color: CREAM, fontSize: 12, padding: "6px 10px" }} />
+          <button
+            title='PIN "remember this" — distill into a standing style note for this output kind'
+            className="rounded-lg px-2 py-1.5 text-xs"
+            style={{ border: `1px solid ${EDGE}`, color: pinned ? GOLD : NEON.muted }}
+            disabled={busy || !comment.trim()}
+            onClick={() => { setBusy(true); setErr(null); pinStyleNote(item, comment).then(() => setPinned(true)).catch((e) => setErr(e instanceof Error ? e.message : String(e))).finally(() => setBusy(false)); }}
+          >
+            📌
+          </button>
           <button className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs" style={{ border: `1px solid ${GOLD}88`, color: busy ? NEON.muted : GOLD }} disabled={busy}
             onClick={() => { saveComment(); setBusy(true); setErr(null); onRegen(comment).catch((e) => setErr(e instanceof Error ? e.message : String(e))).finally(() => setBusy(false)); }}>
             <RefreshCw className="h-3 w-3" /> {busy ? "regenerating…" : "Regenerate with my notes"}
