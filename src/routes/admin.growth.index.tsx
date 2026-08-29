@@ -23,6 +23,7 @@ import { growthTasks, type GrowthTasks } from "@/lib/growth-queue.functions";
 import { getAdminWho } from "@/components/AdminGate";
 import { CampusPanel, type Section } from "@/components/growth/CampusPanel";
 import { BottomSheet } from "@/components/growth/BottomSheet";
+import { GrowthAnnouncement } from "@/components/growth/GrowthAnnouncement";
 import { Chip, Hint, MiniBolt, useDebounced } from "@/components/growth/v2";
 import { HINTS } from "@/components/growth/hints";
 import { cn } from "@/lib/utils";
@@ -165,6 +166,9 @@ function GrowthCampusesPage() {
 
   return (
     <div className="space-y-3">
+      {/* the week's focus, pinned up top */}
+      <GrowthAnnouncement />
+
       {/* controls */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative">
