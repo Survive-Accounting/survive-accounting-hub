@@ -410,3 +410,27 @@ written against starter-map ids.
   the "What type of account is [ ]?" set. Verified through the player's own pipeline:
   type set 29 → 33 visible, bank 141 → 145. The prod practice pack regenerated itself on
   the next request (bank-hash ETag rolled; the new PDF includes them).
+
+---
+
+# BUILD NOTES — Talkthrough Booth v2 (B0–B8, 2026-08-29)
+
+## B0 — model registry choices (and why)
+
+Installed `ai@7` + `@ai-sdk/gateway` (the Vercel AI SDK; plain "provider/model"
+strings route through the AI Gateway with the ONE existing AI_GATEWAY_API_KEY —
+no provider SDKs anywhere). `src/lib/ai-registry.ts` is the config:
+
+- **micro → `anthropic/claude-haiku-4.5`** ($1/$5 per Mtok). Criteria: cheapest
+  tier from a top provider with solid instruction-following. It is already this
+  repo's proven micro model (suggest-visual has run on it in production).
+- **synthesis → `anthropic/claude-sonnet-4.5`** ($3/$15 per Mtok, 200k context).
+  Criteria: current flagship class, ≥100k context for transcript + METHOD +
+  Production Manual + Bible payloads. The booth's v1 pass has run on it in
+  production since launch — a known-good pairing.
+
+Env overrides AI_MODEL_MICRO / AI_MODEL_SYNTHESIS make a swap a config edit.
+`ai.server.ts` is the one door: 2 attempts with backoff → one cross-registry
+fallback → a retryable surfaced error; every call logs model + tokens + cost
+(the QA hook for "swap the string → verify in logs") and returns usage for the
+studio cost line (stamped into item payloads as _usage — no new table).

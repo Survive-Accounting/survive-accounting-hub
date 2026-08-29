@@ -107,10 +107,8 @@ export const stagingPublicUrl = createServerFn({ method: "POST" })
 
 // ----------------------------------------------------------------- the pass
 
-const AI_TIMEOUT_MS = 180_000;
-// A synthesis job over a long transcript — bigger default than the one-shot
-// haiku suggestions elsewhere; same gateway, same key, env-overridable.
-const DEFAULT_MODEL = "anthropic/claude-sonnet-4.5";
+// B0: generation goes through the ONE ai.server door (Vercel AI SDK over the
+// Gateway, task->model registry, retries + fallback + usage). No fetch here.
 
 const passCeq = z.object({
   id: z.string().max(200), label: z.string().max(400), stem: z.string().max(8000),
@@ -141,10 +139,7 @@ const passInput = z.object({
  *  A failure here is a thrown, human-readable error; it never touches data. */
 export const runTalkthroughPass = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => passInput.parse(d))
-  .handler(async ({ data }): Promise<{ text: string; model: string }> => {
-    const aiKey = process.env.AI_GATEWAY_API_KEY;
-    if (!aiKey) throw new Error("AI_GATEWAY_API_KEY is not configured on the server — the AI pass needs the existing gateway key");
-    const model = process.env.TALKTHROUGH_MODEL || DEFAULT_MODEL;
+  .handler(async ({ data }): Promise<{ text: string; model: string; usage: { inputTokens: number; outputTokens: number; costUsd: number } }> => {
 
     // The reference docs ship in the serverless bundle — ?raw, resolved at build.
     const [method, bible, blastOff] = await Promise.all([
@@ -164,21 +159,9 @@ export const runTalkthroughPass = createServerFn({ method: "POST" })
       ? buildRegenMessages(ctx, data.regen.kind as BoardKind, data.regen.previous, data.regen.comment)
       : buildPassMessages(ctx);
 
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), AI_TIMEOUT_MS);
-    try {
-      const res = await fetch("https://ai-gateway.vercel.sh/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${aiKey}` },
-        body: JSON.stringify({ model, max_tokens: 16_000, messages: [{ role: "system", content: system }, { role: "user", content: user }] }),
-        signal: ctrl.signal,
-      });
-      if (!res.ok) throw new Error(`AI pass failed (${res.status}): ${(await res.text()).slice(0, 300)}`);
-      const json = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-      const text = json.choices?.[0]?.message?.content ?? "";
-      if (!text.trim()) throw new Error("AI pass returned an empty reply — retry");
-      return { text, model };
-    } finally { clearTimeout(timer); }
+    const { runAiTask } = await import("@/lib/ai.server");
+    const r = await runAiTask("synthesis", { system, user });
+    return { text: r.text, model: r.usage.model, usage: { inputTokens: r.usage.inputTokens, outputTokens: r.usage.outputTokens, costUsd: r.usage.costUsd } };
   });
 
 // ------------------------------------------------------------ booth bank
@@ -246,3 +229,21 @@ export const loadBoothBank = createServerFn({ method: "POST" }).handler(async ()
   }
   return { topics: list };
 });
+
+// ------------------------------------------------------------- micro door
+
+/** B0's micro lane — background drafts (rewords, choice revisions, memo
+ *  drafts, style distillation) fired the moment a stamp context closes.
+ *  Prompt assembly stays in pure client modules (testable); this is only the
+ *  registry call + usage. */
+export const runMicro = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    system: z.string().max(40_000),
+    user: z.string().max(80_000),
+    maxOutput: z.number().int().min(1).max(2_000).optional(),
+  }).parse(d))
+  .handler(async ({ data }) => {
+    const { runAiTask } = await import("@/lib/ai.server");
+    const r = await runAiTask("micro", { system: data.system, user: data.user, maxOutput: data.maxOutput });
+    return { text: r.text, model: r.usage.model, usage: { inputTokens: r.usage.inputTokens, outputTokens: r.usage.outputTokens, costUsd: r.usage.costUsd } };
+  });
