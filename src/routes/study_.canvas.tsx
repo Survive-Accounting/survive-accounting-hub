@@ -3761,6 +3761,15 @@ function PresentCanvas() {
 
   const openStudio = useCallback((ceqId?: string) => { setStudioFocusCeq(ceqId ?? null); setCeqStudioOpen(true); }, []);
   const openStudioSet = useCallback((setId: string) => { setStudioFocusSet(setId); setStudioFocusCeq(null); setCeqStudioOpen(true); }, []);
+  // FILM HANDOFF (Booth B5, additive): a new tab opened from the Talkthrough
+  // Booth carries an intent flag — consume it ONCE and focus that set's
+  // studio. Nothing else changes; the film popout stays on Lee's own  key.
+  useEffect(() => {
+    void import("@/lib/film-handoff").then(({ consumeFilmHandoff }) => {
+      const h = consumeFilmHandoff();
+      if (h) openStudioSet(h.setId);
+    });
+  }, [openStudioSet]);
   const openBranding = useCallback(() => setBrandingOpen(true), []);
   const openMemos = useCallback(() => setMemosOpen(true), []);
   // One-time utilities, moved out of the Studio footer into File. Use the route's rf + decks.

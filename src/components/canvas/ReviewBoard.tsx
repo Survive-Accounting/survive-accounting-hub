@@ -15,6 +15,7 @@ import {
   type BoardItem, type TTDoc, type TalkSession, type TalkTag,
 } from "./talkthrough";
 import { putBoardItem } from "./talkthrough-sync";
+import { filmPickOf, toggleFilmPick } from "./FilmPicks";
 import type { MicroEditProposal, PassCeq } from "./talkthrough-pass";
 
 const CREAM = "#F4EFE6";
@@ -84,10 +85,12 @@ export function PreFlight({ doc, session, onGo, onCancel }: {
 
 // ───────────────────────────────────────────────────── shared item chrome
 
-function ItemShell({ item, children, onRegen, printable }: {
+function ItemShell({ item, children, onRegen, printable, film }: {
   item: BoardItem; children: React.ReactNode;
   onRegen?: (comment: string) => Promise<void>;
   printable?: boolean;
+  /** B5 — when set, the 🎬 INCLUDE-IN-VIDEO toggle targets this set. */
+  film?: { doc: TTDoc; setId: string };
 }) {
   const [comment, setComment] = useState(item.comment);
   const [busy, setBusy] = useState(false);
@@ -101,6 +104,16 @@ function ItemShell({ item, children, onRegen, printable }: {
       <div className="flex items-center gap-2">
         <div style={{ fontWeight: 700, fontSize: 14, color: CREAM }}>{item.title}</div>
         <div className="ml-auto flex gap-1 tt-chrome">
+          {film && item.status === "approved" && (
+            <button
+              title={filmPickOf(item)?.setId === film.setId ? "In the film picks — click to remove" : "INCLUDE IN VIDEO for this set"}
+              className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+              style={filmPickOf(item)?.setId === film.setId ? { background: GOLD, color: "#0B1322" } : { border: `1px solid ${EDGE}`, color: NEON.muted }}
+              onClick={() => toggleFilmPick(film.doc, item, film.setId)}
+            >
+              🎬
+            </button>
+          )}
           {printable && (
             <button title="Print / side-screen view" className="rounded-full px-2 py-0.5" style={{ border: `1px solid ${EDGE}`, color: NEON.muted }} onClick={() => window.print()}>
               <Printer className="h-3 w-3" />
@@ -137,10 +150,10 @@ function ItemShell({ item, children, onRegen, printable }: {
 
 // ────────────────────────────────────────────────────────── kind renders
 
-function ScriptCard({ item, onRegen }: { item: BoardItem; onRegen: (c: string) => Promise<void> }) {
+function ScriptCard({ item, onRegen, film }: { item: BoardItem; onRegen: (c: string) => Promise<void>; film?: { doc: TTDoc; setId: string } }) {
   const p = item.payload as { beats?: { title: string; coversCeqIds: string[]; voice: string[]; emphasize: string; notes: string }[]; triggerWords?: string[]; compareContrasts?: string[] };
   return (
-    <ItemShell item={item} onRegen={onRegen} printable>
+    <ItemShell item={item} onRegen={onRegen} printable film={film}>
       {(p.beats ?? []).map((b, i) => (
         <div key={i} style={{ marginBottom: 12 }}>
           <div style={{ fontFamily: BIG_FONT, fontWeight: 800, fontSize: 14.5 }}>{i + 1}. {b.title} <span style={{ color: NEON.muted, fontSize: 11, fontWeight: 400 }}>({b.coversCeqIds.length} CEQs)</span></div>
@@ -245,10 +258,10 @@ function CeqEditCard({ item, ceq, onRegen }: { item: BoardItem; ceq: PassCeq | n
   );
 }
 
-function IdeaCard({ item, onRegen }: { item: BoardItem; onRegen: (c: string) => Promise<void> }) {
+function IdeaCard({ item, onRegen, film }: { item: BoardItem; onRegen: (c: string) => Promise<void>; film?: { doc: TTDoc; setId: string } }) {
   const p = item.payload as { kind?: string; body?: string };
   return (
-    <ItemShell item={item} onRegen={onRegen}>
+    <ItemShell item={item} onRegen={onRegen} film={film}>
       <span className="rounded-full px-2 py-0.5 text-[10px] font-bold uppercase" style={{ border: `1px solid ${EDGE}`, color: GOLD, marginRight: 6 }}>{stampLabel(p.kind ?? "idea")}</span>
       {p.body ?? ""}
     </ItemShell>
@@ -272,10 +285,12 @@ function VibePlanCard({ item, onRegen }: { item: BoardItem; onRegen: (c: string)
 
 // ───────────────────────────────────────────────────────────── the board
 
-export function ReviewBoardV2({ items, ceqs, onRegen }: {
+export function ReviewBoardV2({ items, ceqs, onRegen, film }: {
   items: BoardItem[];
   ceqs: PassCeq[];
   onRegen: (itemId: string, comment: string) => Promise<void>;
+  /** B5 — enables the 🎬 pick toggle, targeting this set. */
+  film?: { doc: TTDoc; setId: string };
 }) {
   const script = items.filter((b) => b.kind === "script");
   const edits = items.filter((b) => b.kind === "ceq_edit");
@@ -293,7 +308,7 @@ export function ReviewBoardV2({ items, ceqs, onRegen }: {
       {script.map((b) => (
         <div key={b.id} className="mb-4">
           <h3 style={{ fontSize: 11, letterSpacing: "0.2em", color: GOLD, textTransform: "uppercase", marginBottom: 6 }}>The Script</h3>
-          <ScriptCard item={b} onRegen={regen(b.id)} />
+          <ScriptCard item={b} onRegen={regen(b.id)} film={film} />
         </div>
       ))}
       {edits.length > 0 && (
@@ -305,7 +320,7 @@ export function ReviewBoardV2({ items, ceqs, onRegen }: {
       {[...byKind.entries()].map(([k, list]) => (
         <div key={k} className="mb-4">
           <h3 style={{ fontSize: 11, letterSpacing: "0.2em", color: GOLD, textTransform: "uppercase", marginBottom: 6 }}>{stampLabel(k)}s</h3>
-          {list.map((b) => <IdeaCard key={b.id} item={b} onRegen={regen(b.id)} />)}
+          {list.map((b) => <IdeaCard key={b.id} item={b} onRegen={regen(b.id)} film={film} />)}
         </div>
       ))}
       {vibes.length > 0 && (

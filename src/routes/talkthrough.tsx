@@ -37,6 +37,7 @@ import { TalkthroughRecorder, drainWhisperQueue, speechRecognitionAvailable, typ
 import { buildMicroEditMessages, extractJsonObject, parseMicroEdit, parsePass, type PassCeq } from "@/components/canvas/talkthrough-pass";
 import { PreFlight, ReviewBoardV2 } from "@/components/canvas/ReviewBoard";
 import { BankView } from "@/components/canvas/BankView";
+import { FilmPicksTray, openFilmMode } from "@/components/canvas/FilmPicks";
 import { queueReview, regenerateReviewItem, reviewStateOf, subscribeReview, sweepStrandedReviews } from "@/components/canvas/talkthrough-review";
 import { sumUsage, type AiUsage } from "@/lib/ai-registry";
 import { BIG_FONT, DISPLAY_FONT, NEON } from "@/components/canvas/theme";
@@ -667,6 +668,9 @@ function SessionView({ tt, session, set, onResume }: { tt: TTState; session: Tal
         {!session.endedAt && (
           <button className="rounded-xl px-3 py-1.5 text-xs" style={{ border: `1px solid #3BF5A0`, color: "#3BF5A0" }} onClick={onResume}>● resume talking</button>
         )}
+        <button className="rounded-xl px-3 py-1.5 text-xs font-bold" style={{ border: `1px solid ${GOLD}`, color: GOLD }} onClick={() => openFilmMode(session.setId)}>
+          Open film mode →
+        </button>
         <div className="ml-auto flex items-center gap-3">
           {usage.calls > 0 && (
             <span title={`${usage.calls} generation call${usage.calls === 1 ? "" : "s"}`} style={{ color: NEON.muted, fontSize: 11 }}>
@@ -703,6 +707,8 @@ function SessionView({ tt, session, set, onResume }: { tt: TTState; session: Tal
         </div>
       )}
 
+      <FilmPicksTray doc={tt.doc} setId={session.setId} setName={setLabel(session.setName)} />
+
       <div className="flex gap-5" style={{ alignItems: "flex-start" }}>
         <section className="rounded-2xl p-4" style={{ background: PANEL, border: `1px solid ${EDGE}`, width: 460, flexShrink: 0, maxHeight: "70vh", overflowY: "auto" }}>
           <h3 style={{ fontSize: 10.5, letterSpacing: "0.22em", color: NEON.muted, textTransform: "uppercase", marginBottom: 8 }}>Verbatim transcript</h3>
@@ -729,6 +735,7 @@ function SessionView({ tt, session, set, onResume }: { tt: TTState; session: Tal
               items={v2Items}
               ceqs={passCeqs}
               onRegen={(itemId, comment) => regenerateReviewItem(session.id, itemId, passCeqs, comment)}
+              film={{ doc: tt.doc, setId: session.setId }}
             />
           )}
           {board.length === 0 ? (

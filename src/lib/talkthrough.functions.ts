@@ -343,3 +343,51 @@ export const applyCeqEdit = createServerFn({ method: "POST" })
     if (up.error) rethrow(up.error);
     return { ok: true as const, sceneId };
   });
+
+// -------------------------------------------------------- B5: film picks
+
+/** PICKED MEMOS BECOME FRAMES: upsert each pick as a memo card in the set's
+ *  owning scene, through the EXISTING memo/callout card system (same data
+ *  shape DeckManager materializes — no new renderer). Node ids are derived
+ *  from the bank item id, so re-inserting UPDATES rather than duplicates,
+ *  and reordering just rewrites stageOrder. Lee-triggered only. */
+export const insertFilmPicks = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    setId: z.string().min(1).max(120),
+    picks: z.array(z.object({
+      itemId: z.string().min(1).max(130),
+      title: z.string().max(300),
+      body: z.string().max(8000),
+      tags: z.array(z.string().max(40)).max(8),
+      order: z.number().int().min(0).max(500),
+    })).min(1).max(60),
+  }).parse(d))
+  .handler(async ({ data }) => {
+    const db = await admin();
+    const { loadDecksDeduped } = await import("@/lib/student.functions");
+    const owned = await loadDecksDeduped(db as never);
+    const o = owned.get(data.setId);
+    if (!o) throw new Error("set not found");
+    const { data: row, error } = await db.from("canvas_scenes").select("id,nodes_json").eq("id", o.sceneId).single();
+    if (error) rethrow(error);
+    const j = row.nodes_json as { nodes?: { id: string; type?: string; data?: Record<string, unknown> }[] };
+    j.nodes ??= [];
+    for (const pick of data.picks) {
+      const nodeId = `memo-pick-${pick.itemId}`;
+      const body = pick.tags.length ? `${pick.body}` : pick.body;
+      const dataObj: Record<string, unknown> = {
+        kind: "memo", memoKind: "note", title: pick.title, body,
+        category: pick.tags[0] ?? "Callout", calloutTags: pick.tags,
+        deckId: data.setId, deckMember: true, tucked: true,
+        stageOrder: 9000 + pick.order, slotIndex: 9000 + pick.order,
+        deckCategory: "ceq:set-memo", deckPos: { x: 0, y: 0 },
+        provenance: "talkthrough-film-pick",
+      };
+      const existing = j.nodes.find((n) => n.id === nodeId);
+      if (existing) existing.data = { ...existing.data, ...dataObj };
+      else j.nodes.push({ id: nodeId, type: "memo", position: { x: 0, y: 0 }, data: dataObj } as never);
+    }
+    const up = await db.from("canvas_scenes").update({ nodes_json: j }).eq("id", o.sceneId);
+    if (up.error) rethrow(up.error);
+    return { ok: true as const, inserted: data.picks.length };
+  });

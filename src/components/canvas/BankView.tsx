@@ -17,6 +17,7 @@ import {
   type BoardItem, type TTDoc,
 } from "./talkthrough";
 import { putBoardItem } from "./talkthrough-sync";
+import { filmPickOf, toggleFilmPick } from "./FilmPicks";
 
 const CREAM = "#F4EFE6";
 const GOLD = "#FCA311";
@@ -179,6 +180,16 @@ function BankItem({ item, doc, setTopic, sessionSet }: {
           <div style={{ fontWeight: 700, fontSize: 14, color: CREAM, cursor: "text" }} title="Click to edit" onClick={() => setEditingTitle(true)}>{item.title}</div>
         )}
         <div className="ml-auto flex items-center gap-1.5">
+          {(() => { const setId = sessionSet.get(item.sessionId); return setId ? (
+            <button
+              title={filmPickOf(item)?.setId === setId ? "In the film picks — click to remove" : "INCLUDE IN VIDEO for this item's set"}
+              className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+              style={filmPickOf(item)?.setId === setId ? { background: GOLD, color: "#0B1322" } : { border: `1px solid ${EDGE}`, color: NEON.muted }}
+              onClick={() => toggleFilmPick(doc, item, setId)}
+            >
+              🎬
+            </button>
+          ) : null; })()}
           <button
             title={isFinal ? "FINAL — the version Lee will use (click to unmark)" : "Mark FINAL"}
             className="rounded-full p-1"
