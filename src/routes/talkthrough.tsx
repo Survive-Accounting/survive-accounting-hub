@@ -35,6 +35,9 @@ import {
 import { flushTT, pullTT, putBoardItem, putBoardItems, putSession, putTag, startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
 import { TalkthroughRecorder, drainWhisperQueue, speechRecognitionAvailable, type BoothStatus } from "@/components/canvas/talkthrough-audio";
 import { buildMicroEditMessages, extractJsonObject, parseMicroEdit, parsePass, type PassCeq } from "@/components/canvas/talkthrough-pass";
+import { PreFlight, ReviewBoardV2 } from "@/components/canvas/ReviewBoard";
+import { queueReview, regenerateReviewItem, reviewStateOf, subscribeReview, sweepStrandedReviews } from "@/components/canvas/talkthrough-review";
+import { sumUsage, type AiUsage } from "@/lib/ai-registry";
 import { BIG_FONT, DISPLAY_FONT, NEON } from "@/components/canvas/theme";
 
 export const Route = createFileRoute("/talkthrough")({
@@ -76,8 +79,11 @@ function TalkthroughApp() {
   const [topics, setTopics] = useState<BoothTopic[] | null>(null);
   const [bankError, setBankError] = useState<string | null>(null);
   const [view, setView] = useState<View>({ mode: "home" });
+  const [preflight, setPreflight] = useState<TalkSession | null>(null);
+  const [, forceReview] = useState(0);
 
-  useEffect(() => { startTT(); return subscribeTT(setTT); }, []);
+  useEffect(() => { startTT(); sweepStrandedReviews(); const un = subscribeReview(() => forceReview((n) => n + 1)); return () => { un(); }; }, []);
+  useEffect(() => subscribeTT(setTT), []);
   useEffect(() => {
     loadBoothBank().then((b) => setTopics(b.topics)).catch((e) => setBankError(e instanceof Error ? e.message : String(e)));
   }, []);
@@ -114,9 +120,22 @@ function TalkthroughApp() {
         <Booth
           key={session.id}
           tt={tt} session={session} set={boothSet} topics={topics} onSwitchSet={openSet}
-          onEnd={() => {
-            putSession(touchRow(session, { endedAt: new Date().toISOString() } as Partial<TalkSession>));
-            setView({ mode: "session", sessionId: session.id });
+          onEnd={() => setPreflight(session)}
+        />
+      )}
+      {preflight && (
+        <PreFlight
+          doc={tt.doc}
+          session={preflight}
+          onCancel={() => setPreflight(null)}
+          onGo={(excludedKinds, wantVibePlan) => {
+            const ses = preflight;
+            setPreflight(null);
+            putSession(touchRow(ses, { endedAt: new Date().toISOString() } as Partial<TalkSession>));
+            const ceqs = (allSets.find((x) => x.id === ses.setId)?.ceqs ?? []).map(boothToPassCeq);
+            queueReview({ session: ses, ceqs, excludedKinds, wantVibePlan });
+            // Lee immediately opens the next set — back to the path.
+            setView({ mode: "home" });
           }}
         />
       )}
@@ -266,13 +285,19 @@ function Home({ tt, topics, onOpenSet, onOpenSession }: {
           {sessions.map((s) => {
             const m = sessionMeta(tt.doc, s);
             const board = sessionBoard(tt.doc, s.id);
+            const rs = reviewStateOf(tt.doc, s);
+            const chip = rs.state === "capturing" ? { t: "CAPTURING", c: "#3BF5A0" }
+              : rs.state === "queued" ? { t: "QUEUED", c: NEON.muted as string }
+              : rs.state === "generating" ? { t: "GENERATING…", c: "#7DD3FC" }
+              : rs.state === "ready" ? { t: "READY", c: GOLD }
+              : rs.state === "error" ? { t: "ERROR", c: "#F87171" } : null;
             return (
               <button key={s.id} className="flex items-center gap-4 rounded-xl px-4 py-2 text-left" style={{ background: PANEL, border: `1px solid ${EDGE}` }} onClick={() => onOpenSession(s.id)}>
                 <div style={{ fontWeight: 700, fontSize: 13, minWidth: 240 }}>{setLabel(s.setName)}</div>
                 <div style={{ color: NEON.muted, fontSize: 12 }}>{new Date(s.startedAt).toLocaleString()}</div>
                 <div style={{ color: NEON.muted, fontSize: 12 }}>{Math.round(m.durationMs / 60000)}m · {m.segments} segments · {m.words} words</div>
                 {board.length > 0 && <div style={{ color: GOLD, fontSize: 11 }}>board: {board.length}</div>}
-                {!s.endedAt && <div style={{ color: "#3BF5A0", fontSize: 11 }}>● open</div>}
+                {chip && <div className="rounded-full px-2 py-0.5 text-[9.5px] font-black uppercase tracking-wider" style={{ border: `1px solid ${chip.c}55`, color: chip.c }} title={rs.error ?? undefined}>{chip.t}</div>}
               </button>
             );
           })}
@@ -567,6 +592,13 @@ function SessionView({ tt, session, set, onResume }: { tt: TTState; session: Tal
 
   useEffect(() => { void drainWhisperQueue(session.id); }, [session.id]);
 
+  // B3 — honest review status + the B0 cost line (studio-only).
+  const rs = reviewStateOf(tt.doc, session);
+  const V2_KINDS = ["script", "ceq_edit", "idea", "vibe_plan"];
+  const v2Items = board.filter((b) => V2_KINDS.includes(b.kind));
+  const legacyItems = board.filter((b) => !V2_KINDS.includes(b.kind) && b.kind !== "style_note" && b.kind !== "take");
+  const usage = sumUsage(board.map((b) => (b.payload as { _usage?: AiUsage })._usage).filter((u): u is AiUsage => !!u));
+
   const passCeqs = (set?.ceqs ?? []).map(boothToPassCeq);
   const passContext = useCallback(() => ({
     setName: session.setName,
@@ -627,15 +659,36 @@ function SessionView({ tt, session, set, onResume }: { tt: TTState; session: Tal
         {!session.endedAt && (
           <button className="rounded-xl px-3 py-1.5 text-xs" style={{ border: `1px solid #3BF5A0`, color: "#3BF5A0" }} onClick={onResume}>● resume talking</button>
         )}
-        <button
-          className="ml-auto flex items-center gap-2 rounded-xl px-4 py-2"
-          style={{ border: `1.5px solid ${GOLD}`, color: running ? NEON.muted : GOLD, fontFamily: BIG_FONT, fontWeight: 800 }}
-          disabled={running}
-          onClick={() => void runPass()}
-        >
-          <Wand2 className="h-4 w-4" /> {running ? "Drafting… (keep working)" : board.length ? "Re-draft the starting points" : "Draft the starting points"}
-        </button>
+        <div className="ml-auto flex items-center gap-3">
+          {usage.calls > 0 && (
+            <span title={`${usage.calls} generation call${usage.calls === 1 ? "" : "s"}`} style={{ color: NEON.muted, fontSize: 11 }}>
+              ≈${usage.costUsd.toFixed(3)} · {(usage.inputTokens / 1000).toFixed(1)}k in / {(usage.outputTokens / 1000).toFixed(1)}k out
+            </span>
+          )}
+          {(rs.state === "queued" || rs.state === "generating") && (
+            <span className="rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-wider" style={{ border: "1px solid #7DD3FC55", color: "#7DD3FC" }}>
+              {rs.state === "queued" ? "QUEUED" : "GENERATING…"}
+            </span>
+          )}
+          <button
+            className="flex items-center gap-2 rounded-xl px-4 py-2"
+            style={{ border: `1.5px solid ${GOLD}`, color: running || rs.state === "generating" ? NEON.muted : GOLD, fontFamily: BIG_FONT, fontWeight: 800 }}
+            disabled={running || rs.state === "generating" || rs.state === "queued"}
+            onClick={() => queueReview({ session, ceqs: passCeqs, excludedKinds: [], wantVibePlan: tags.some((t) => canonicalStamp(t.tag) === "review_vibe") })}
+          >
+            <Wand2 className="h-4 w-4" /> {v2Items.length ? "Regenerate review" : "Generate review"}
+          </button>
+        </div>
       </div>
+      {rs.state === "error" && (
+        <div className="rounded-xl px-4 py-2" style={{ border: "1px solid #F87171", color: "#F87171", fontSize: 13 }}>
+          {rs.error ?? "generation failed"} — the transcript is untouched.
+          <button style={{ textDecoration: "underline", marginLeft: 8 }}
+            onClick={() => queueReview({ session, ceqs: passCeqs, excludedKinds: [], wantVibePlan: tags.some((t) => canonicalStamp(t.tag) === "review_vibe") })}>
+            retry
+          </button>
+        </div>
+      )}
       {passError && (
         <div className="rounded-xl px-4 py-2" style={{ border: "1px solid #F87171", color: "#F87171", fontSize: 13 }}>
           {passError} <button style={{ textDecoration: "underline", marginLeft: 8 }} onClick={() => void runPass()}>retry</button>
@@ -663,11 +716,18 @@ function SessionView({ tt, session, set, onResume }: { tt: TTState; session: Tal
         </section>
 
         <section className="flex-1">
+          {v2Items.length > 0 && (
+            <ReviewBoardV2
+              items={v2Items}
+              ceqs={passCeqs}
+              onRegen={(itemId, comment) => regenerateReviewItem(session.id, itemId, passCeqs, comment)}
+            />
+          )}
           {board.length === 0 ? (
             <div style={{ color: NEON.muted, fontSize: 14, padding: 20 }}>
-              No board yet. {session.endedAt ? "Push the button — every output traces to a verbatim quote." : "End the session (or run the pass on what's captured so far)."}
+              No board yet. {session.endedAt ? "Generate the review — every output traces to a verbatim quote." : "End the session (or generate on what's captured so far)."}
             </div>
-          ) : (
+          ) : legacyItems.length === 0 ? null : (
             <>
               <div className="mb-3 flex items-center gap-2">
                 {(["index", "perceq"] as const).map((v) => (
@@ -687,7 +747,7 @@ function SessionView({ tt, session, set, onResume }: { tt: TTState; session: Tal
               </div>
               {boardView === "index"
                 ? BOARD_KINDS.map((k) => {
-                    const items = board.filter((b) => b.kind === k);
+                    const items = legacyItems.filter((b) => b.kind === k);
                     if (!items.length) return null;
                     return (
                       <div key={k} className="mb-4">
@@ -697,7 +757,7 @@ function SessionView({ tt, session, set, onResume }: { tt: TTState; session: Tal
                     );
                   })
                 : perCeq
-                  ? boardForCeq(board, perCeq).map((b) => <ItemCard key={b.id} item={b} onRegen={regenItem} />)
+                  ? boardForCeq(legacyItems, perCeq).map((b) => <ItemCard key={b.id} item={b} onRegen={regenItem} />)
                   : <div style={{ color: NEON.muted, fontSize: 13 }}>Pick a question to see everything about it.</div>}
             </>
           )}

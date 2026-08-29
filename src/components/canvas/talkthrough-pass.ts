@@ -299,3 +299,145 @@ export function parseMicroEdit(text: string): MicroEditProposal | null {
   if (!stem && !choices) return null;
   return { proposedStem: stem, proposedChoices: choices, note: typeof raw.note === "string" ? raw.note : "" };
 }
+
+// ───────────────────────────── B3: the End Session → Review synthesis
+
+export interface ReviewContext extends PassContext {
+  /** Stamp contexts + stars, canonicalized, with their spoken windows. */
+  stamps: { kind: string; ceqLabel: string | null; starred: boolean; spoken: string }[];
+  /** Pre-flight exclusions: canonical stamp kinds Lee unchecked. */
+  excludedKinds: string[];
+  /** B7 style notes for the script kind. */
+  styleNotes: string[];
+  /** Whether Review Vibe was stamped (drives the vibe plan section). */
+  wantVibePlan: boolean;
+}
+
+const REVIEW_SPEC = `Return ONE JSON object, nothing else (every "quote" is a VERBATIM transcript excerpt — copy, never paraphrase; ceq ids come from the CEQ list):
+{
+ "script": {"title": str, "beats": [{"title": str, "coversCeqIds": [str], "voice": [str], "emphasize": str, "notes": str}], "triggerWords": [str], "compareContrasts": [str]},
+ "ceqEdits": [{"ceqId": str, "proposedStem": str|null, "proposedChoices": [{"text": str, "correct": bool, "feedback": str|null}]|null, "why": str, "quote": str}],
+ "ideas": [{"kind": "short"|"nerdout"|"exhibit"|"memo"|"phrase"|"trigger_word"|"tip_trick"|"cheat_code"|"real_world", "title": str, "body": str, "quote": str, "ceqIds": [str]}],
+ "vibePlan": {"title": str, "beats": [{"title": str, "why": str, "talkPrompt": str, "quote": str}]}|null,
+ "proposedStamps": [{"kind": str, "quote": str, "seq": int}]
+}`;
+
+const REVIEW_RULES = `RULES:
+- You are drafting STARTING POINTS for Lee, the teacher of record. Nothing auto-applies; his hands make real changes. Write in Lee's cadence (the METHOD doc) — his phrases verbatim over paraphrase.
+- THE SCRIPT is the headline output, always generated: a concise Blast Off script/strategy in GROUPED BEATS (never question-by-question). "voice" lines are Lee's own camera-ready sentences QUOTED VERBATIM from the transcript wherever they exist; write connective tissue only where he left gaps. Name what to EMPHASIZE, the trigger words, the compare/contrasts and patterns he called out.
+- CEQ EDITS: propose an edit ONLY where the talk motivates one (beyond the stamp-drafted edits listed as already pending). proposedChoices is the FULL list with exactly one correct.
+- IDEAS: one item per idea, kind from the MAKE THIS A vocabulary; each quotes the verbatim moment that earned it. Memo = a definition/callout worth banking beside a CEQ.
+- VIBE PLAN only when asked for; deeper-pass beats with talk-back prompts.
+- PROPOSED STAMPS: moments Lee's words clearly imply but he didn't press; seq = the [S<n>] anchor.
+- Respect the exclusions: produce NOTHING of an excluded kind.
+- Empty arrays are fine. Never invent transcript content.`;
+
+/** Transcript with context annotations — the contexts ARE the outline. */
+export function reviewTranscriptBlock(ctx: ReviewContext): string {
+  return transcriptBlock(ctx);
+}
+
+/** Item-level regenerate on the v2 board: same full context, one key, Lee's
+ *  notes and the item's comment thread outranking the previous draft. */
+export function buildReviewRegenMessages(
+  ctx: ReviewContext, kind: "script" | "ceq_edit" | "idea" | "vibe_plan",
+  previous: Record<string, unknown>, comments: string[],
+): { system: string; user: string } {
+  const base = buildReviewMessages(ctx);
+  const KEY: Record<string, string> = { script: "script", ceq_edit: "ceqEdits", idea: "ideas", vibe_plan: "vibePlan" };
+  const single = kind === "idea" || kind === "ceq_edit";
+  const system = `${base.system}\n\nREGENERATE MODE: output ONLY the "${KEY[kind]}" key of the JSON object${single ? " (an array with EXACTLY ONE improved item)" : ""}. Same rules, same quoting law.`;
+  const notes = comments.filter(Boolean).map((c) => `- ${c}`).join("\n") || "(no note — take another, better swing)";
+  const user = [
+    base.user,
+    `\n=== THE ITEM BEING REGENERATED (previous draft) ===\n${JSON.stringify(previous, null, 1).slice(0, 8000)}`,
+    `\n=== LEE'S NOTES ON IT (these outrank the previous draft) ===\n${notes}`,
+  ].join("\n");
+  return { system, user };
+}
+
+export function buildReviewMessages(ctx: ReviewContext): { system: string; user: string } {
+  const system = [
+    "You turn a teacher's verbatim talkthrough of a question set into a filming-ready review board.",
+    "\n=== THE SURVIVE METHOD (voice + pedagogy) ===\n", cap(ctx.docs.method),
+    "\n=== BLAST OFF PRODUCTION STRUCTURE ===\n", cap(ctx.docs.blastOff),
+    "\n=== EXHIBIT PRODUCTION BIBLE ===\n", cap(ctx.docs.bible),
+    ctx.styleNotes.length ? `\n=== LEE'S STANDING STYLE NOTES (obey) ===\n${ctx.styleNotes.map((n) => `- ${n}`).join("\n")}` : "",
+    "\n", REVIEW_RULES, "\n", REVIEW_SPEC,
+  ].join("");
+  const stampBlock = ctx.stamps.length
+    ? ctx.stamps.map((s) => `${s.starred ? "★ " : ""}${s.kind}${s.ceqLabel ? ` (on ${s.ceqLabel})` : ""}${s.spoken ? ` — said: "${s.spoken.slice(0, 400)}"` : ""}`).join("\n")
+    : "(none pressed)";
+  const user = [
+    `SET: ${ctx.setName}`,
+    `\n=== CEQs IN TEACHING ORDER ===\n${ceqBlock(ctx)}`,
+    `\n=== STAMPS LEE PRESSED (with what he said inside each) ===\n${stampBlock}`,
+    ctx.excludedKinds.length ? `\n=== EXCLUDED KINDS (produce nothing of these) ===\n${ctx.excludedKinds.join(" · ")}` : "",
+    `\n=== VIBE PLAN WANTED: ${ctx.wantVibePlan ? "YES" : "no"} ===`,
+    `\n=== VERBATIM TRANSCRIPT ===\n${reviewTranscriptBlock(ctx)}`,
+  ].filter(Boolean).join("\n");
+  return { system, user };
+}
+
+const IDEA_KINDS = ["short", "nerdout", "exhibit", "memo", "phrase", "trigger_word", "tip_trick", "cheat_code", "real_world"] as const;
+
+/** Model JSON → v2 board items. Same laws as parsePass: degrade, never throw. */
+export function parseReview(
+  raw: Record<string, unknown>, sessionId: string, runId: string, knownCeqIds: string[], now = new Date(),
+): ParsedPass {
+  const known = new Set(knownCeqIds);
+  const items: BoardItem[] = [];
+  const iso = now.toISOString();
+  let n = 0;
+  const mk = (kind: BoardKind, title: string, payload: Record<string, unknown>, quote: string, ceqIds: string[]): BoardItem => ({
+    id: `${newTTId("ttb", now)}-${n++}`,
+    sessionId, runId, kind, title: title || "(untitled)", payload, quote, ceqIds,
+    status: "suggested", comment: "", createdAt: iso, updatedAt: iso, syncedAt: null,
+  });
+  const str2 = (v: unknown): string => (typeof v === "string" ? v : "");
+  const arr2 = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+  const rec2 = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+
+  const script = rec2(raw.script);
+  if (arr2(script.beats).length) {
+    const beats = arr2(script.beats).map(rec2).map((b) => ({
+      title: str2(b.title),
+      coversCeqIds: arr2(b.coversCeqIds).map(str2).filter((x) => known.has(x)),
+      voice: arr2(b.voice).map(str2).filter(Boolean),
+      emphasize: str2(b.emphasize),
+      notes: str2(b.notes),
+    }));
+    items.push(mk("script", str2(script.title) || "The Script", {
+      beats,
+      triggerWords: arr2(script.triggerWords).map(str2).filter(Boolean),
+      compareContrasts: arr2(script.compareContrasts).map(str2).filter(Boolean),
+    }, beats[0]?.voice[0] ?? "", beats.flatMap((b) => b.coversCeqIds)));
+  }
+
+  for (const e of arr2(raw.ceqEdits).map(rec2)) {
+    const cid = str2(e.ceqId);
+    if (!known.has(cid)) continue;
+    const proposal = parseMicroEdit(JSON.stringify({ proposedStem: e.proposedStem, proposedChoices: e.proposedChoices, note: e.why }));
+    if (!proposal) continue;
+    items.push(mk("ceq_edit", `Edit · ${cid.slice(0, 10)}`, { stamp: "synthesis", ceqId: cid, state: "ready", proposed: proposal, instruction: str2(e.why) }, str2(e.quote), [cid]));
+  }
+
+  for (const i of arr2(raw.ideas).map(rec2)) {
+    const kind = (IDEA_KINDS as readonly string[]).includes(str2(i.kind)) ? str2(i.kind) : null;
+    if (!kind || (!str2(i.title) && !str2(i.body))) continue;
+    items.push(mk("idea", str2(i.title) || kind, { kind, body: str2(i.body) }, str2(i.quote), arr2(i.ceqIds).map(str2).filter((x) => known.has(x))));
+  }
+
+  const vibe = rec2(raw.vibePlan);
+  if (arr2(vibe.beats).length) {
+    items.push(mk("vibe_plan", str2(vibe.title) || "Vibe plan", {
+      beats: arr2(vibe.beats).map(rec2).map((b) => ({ title: str2(b.title), why: str2(b.why), talkPrompt: str2(b.talkPrompt), quote: str2(b.quote) })),
+    }, str2(arr2(vibe.beats).map(rec2)[0]?.quote), []));
+  }
+
+  const proposedTags = arr2(raw.proposedStamps).map(rec2)
+    .map((t) => ({ tag: str2(t.kind) as MomentTag, quote: str2(t.quote), seq: typeof t.seq === "number" ? t.seq : -1 }))
+    .filter((t) => t.quote && !!t.tag);
+
+  return { items, proposedTags };
+}

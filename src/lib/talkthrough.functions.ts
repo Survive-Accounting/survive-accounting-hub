@@ -259,3 +259,87 @@ export const runMicro = createServerFn({ method: "POST" })
     const r = await runAiTask("micro", { system: data.system, user: data.user, maxOutput: data.maxOutput });
     return { text: r.text, model: r.usage.model, usage: { inputTokens: r.usage.inputTokens, outputTokens: r.usage.outputTokens, costUsd: r.usage.costUsd } };
   });
+
+// ---------------------------------------------------------- B3: review + apply
+
+const reviewStamp = z.object({ kind: z.string().max(30), ceqLabel: z.string().max(400).nullable(), starred: z.boolean(), spoken: z.string().max(8000) });
+const reviewInput = z.object({
+  setName: z.string().max(400),
+  ceqs: z.array(passCeq).max(200),
+  segments: z.array(passSegment).max(3000),
+  stamps: z.array(reviewStamp).max(300),
+  excludedKinds: z.array(z.string().max(30)).max(30),
+  styleNotes: z.array(z.string().max(300)).max(12),
+  wantVibePlan: z.boolean(),
+  regen: z.object({
+    kind: z.enum(["script", "ceq_edit", "idea", "vibe_plan"]),
+    previous: z.record(z.string(), z.unknown()),
+    comments: z.array(z.string().max(4000)).max(10),
+  }).optional(),
+});
+
+/** B3 — the End Session synthesis. Returns raw text + usage; the pure parser
+ *  turns it into the review board client-side. Runs on the synthesis lane. */
+export const runTalkthroughReview = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => reviewInput.parse(d))
+  .handler(async ({ data }) => {
+    const [method, bible, blastOff] = await Promise.all([
+      import("../../docs/SURVIVE_METHOD_v1.md?raw").then((m) => m.default),
+      import("../../docs/EXHIBIT-PRODUCTION-BIBLE-v1.md?raw").then((m) => m.default),
+      import("../../docs/SURVIVE_MASTER_CONTEXT_V2.md?raw").then((m) => m.default),
+    ]);
+    const { buildReviewMessages, buildReviewRegenMessages } = await import("@/components/canvas/talkthrough-pass");
+    const ctxForBuild = {
+      setName: data.setName,
+      ceqs: data.ceqs,
+      segments: data.segments.map((s) => ({ ...s, focusedCeqId: s.focusedCeqId ?? null, focusedCeqLabel: s.focusedCeqLabel ?? null })),
+      tags: [],
+      docs: { method, bible, blastOff },
+      stamps: data.stamps,
+      excludedKinds: data.excludedKinds,
+      styleNotes: data.styleNotes,
+      wantVibePlan: data.wantVibePlan,
+    };
+    const { system, user } = data.regen
+      ? buildReviewRegenMessages(ctxForBuild, data.regen.kind, data.regen.previous, data.regen.comments)
+      : buildReviewMessages(ctxForBuild);
+    const { runAiTask } = await import("@/lib/ai.server");
+    const r = await runAiTask("synthesis", { system, user });
+    return { text: r.text, model: r.usage.model, usage: { inputTokens: r.usage.inputTokens, outputTokens: r.usage.outputTokens, costUsd: r.usage.costUsd } };
+  });
+
+/** B3 — APPROVE APPLIES TO THE BANK: write an approved edit (or Lee's inline
+ *  override) onto the CEQ node in its owning scene. Lee-approved only — the
+ *  client calls this from an explicit APPROVE/SAVE action, never automatically.
+ *  The write is surgical: prompt and/or choices, nothing else on the node. */
+export const applyCeqEdit = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    ceqNodeId: z.string().min(1).max(200),
+    stem: z.string().trim().min(1).max(8000).optional(),
+    choices: z.array(z.object({ text: z.string().trim().min(1).max(2000), correct: z.boolean(), feedback: z.string().max(4000).nullable() })).min(2).max(12).optional(),
+  }).refine((x) => x.stem || x.choices, { message: "nothing to apply" }).parse(d))
+  .handler(async ({ data }) => {
+    if (data.choices && data.choices.filter((c) => c.correct).length !== 1) throw new Error("choices must have exactly one correct answer");
+    const db = await admin();
+    const { loadDecksDeduped } = await import("@/lib/student.functions");
+    const owned = await loadDecksDeduped(db as never);
+    // find the owning deck + scene for this node id (same ownership the player reads)
+    let sceneId: string | null = null;
+    for (const o of owned.values()) {
+      if ((o.nodes as { id: string }[]).some((n) => n.id === data.ceqNodeId)) { sceneId = o.sceneId; break; }
+    }
+    if (!sceneId) throw new Error("CEQ not found in any live set");
+    const { data: row, error } = await db.from("canvas_scenes").select("id,nodes_json").eq("id", sceneId).single();
+    if (error) rethrow(error);
+    const j = row.nodes_json as { nodes?: { id: string; data?: Record<string, unknown> }[] };
+    const node = (j.nodes ?? []).find((n) => n.id === data.ceqNodeId);
+    if (!node) throw new Error("CEQ node vanished from its scene — refresh and retry");
+    node.data ??= {};
+    if (data.stem) node.data.prompt = data.stem;
+    if (data.choices) node.data.choices = data.choices.map((c, i) => ({ id: `c${i}`, text: c.text, correct: c.correct, ...(c.feedback ? { feedback: c.feedback } : {}) }));
+    (node.data as Record<string, unknown>).editedVia = "talkthrough-review";
+    (node.data as Record<string, unknown>).editedAt = new Date().toISOString();
+    const up = await db.from("canvas_scenes").update({ nodes_json: j }).eq("id", sceneId);
+    if (up.error) rethrow(up.error);
+    return { ok: true as const, sceneId };
+  });
