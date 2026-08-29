@@ -379,6 +379,7 @@ function ClaimSheet({ chapterName, shortName, schoolSlug, chapterSlug, claim, on
               schoolSlug={schoolSlug}
               chapterSlug={chapterSlug}
               chapterName={chapterName}
+              shortName={shortName}
               onClose={onClose}
               onDone={() => { setSubmitted(true); onPending(); }}
             />

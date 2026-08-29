@@ -111,7 +111,7 @@ function Flyer({ name, school, url }: { name: string; school: string; url: strin
       <p style={{ marginTop: "5%", fontSize: "clamp(13px, 2.8cqw, 17px)", fontWeight: 900, fontFamily: BRAND_SANS, wordBreak: "break-all" }}>{url}</p>
 
       <p style={{ marginTop: "auto", fontSize: "clamp(11px, 2.1cqw, 13px)", lineHeight: 1.5, color: "#44506A", fontFamily: BRAND_SANS }}>
-        Every Exam 1 topic, free — no card, no account.<br />
+        Every Exam 1 topic, free for the whole house.<br />
         {school ? `${school} · ` : ""}Taught by a tutor who&apos;s done this since 2015.
       </p>
     </div>

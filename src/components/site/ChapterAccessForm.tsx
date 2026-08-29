@@ -170,16 +170,20 @@ function RoleSelect({ value, onChange, id }: { value: string; onChange: (v: stri
   );
 }
 
-export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, onClose, onDone }: {
+export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, shortName, onClose, onDone }: {
   schoolSlug: string;
   chapterSlug: string;
   chapterName: string;
+  /** What students call the chapter ("ADPi") — how the form addresses them, matching the
+   *  benefit lines above it. Falls back to the full name when the roster has no shorthand. */
+  shortName?: string;
   onClose: () => void;
   /** Fired on a successful submit, so the section can move its claim state to pending without a
    *  reload — the loader-fetched claimStatus is stale the moment this succeeds. */
   onDone?: () => void;
 }) {
   const uid = useId();
+  const who = shortName?.trim() || chapterName;
   const [name, setName] = useState("");
   const [position, setPosition] = useState("");
   const [email, setEmail] = useState("");
@@ -236,7 +240,7 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, onClos
         style={{ background: "rgba(252,163,17,0.08)", border: "1px solid rgba(252,163,17,0.35)", fontFamily: BRAND_SANS }}
       >
         <p className="text-[17px] font-black" style={{ color: "var(--brand-cream)" }}>
-          {intent === "committed" ? `Let's set up ${chapterName}'s seats.` : "You've got the dashboard ✓"}
+          {intent === "committed" ? `Let's set up ${who}'s seats.` : "You've got the dashboard ✓"}
         </p>
         {/* Says what happens next and by when. "We'll be in touch" is what a form says when nobody
             is actually going to read it. */}
@@ -323,7 +327,7 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, onClos
           "how fast do you want to move", not as a qualifying gate on the way in. */}
       <fieldset className="mt-4" style={{ border: 0, padding: 0, margin: "16px 0 0" }}>
         <legend className="mb-2 text-[12px] font-black uppercase" style={{ color: "var(--text-muted)", letterSpacing: "0.1em" }}>
-          Where&rsquo;s {chapterName} at?
+          Where&rsquo;s {who} at?
         </legend>
         <div className="flex flex-col gap-1.5">
           {([

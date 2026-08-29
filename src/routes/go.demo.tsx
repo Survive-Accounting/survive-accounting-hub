@@ -156,7 +156,7 @@ function GoDemoPage() {
           // "demo" is not a campus id — it exists to block the stored-campus restore, so the
           // demo never repaints itself as a returning visitor's real school.
           initialCampusId="demo"
-          demoContext={{ schoolName: SCHOOL, courseCode: COURSE }}
+          demoContext={{ schoolName: SCHOOL, courseCode: COURSE }}
           greek={{ orgName: ORG, letters: "your chapter", claimed: false, accessAnchor }}
           chapterAccess={mode === "demo" ? <DemoChapterAccess onClaim={() => openClaim("demo-page")} /> : undefined}
           videoGate={signedIn === false ? <ChapterGate chapterName={ORG} /> : undefined}

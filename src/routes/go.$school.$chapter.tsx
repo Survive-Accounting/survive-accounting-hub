@@ -176,7 +176,7 @@ function GoChapterPage() {
         profSkipFor={profSkip}
         goChapter={{ schoolSlug: school, chapterSlug: chapter }}
         // The chapter navbar variant — same-page anchors + the exec CTA. Passed from here (not
-        // derived inside landing.tsx) because this route owns both anchor ids.
+        // derived inside landing.tsx) because this route owns both anchor ids.
         // GREEK MARKETING CONTEXT — data, not a hero element. The shared MarketingHero renders
         // the eyebrow + letters CTAs from this; claim state comes straight from getGoChapter.
         greek={ch ? {
