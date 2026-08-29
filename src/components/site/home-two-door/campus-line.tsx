@@ -14,6 +14,9 @@ export const CAMPUS_LINE_CSS = `
 .sa-campus-line-for { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; opacity: 0.55; text-transform: none; }
 .sa-campus-line-em { opacity: 0.92; white-space: nowrap; }
 .sa-campus-line-dot { opacity: 0.45; }
+/* The unplaced state's own affordance: it is a real invitation, so it underlines like one. */
+.sa-campus-pick { text-decoration: underline; text-underline-offset: 4px; }
+.sa-campus-pick:hover { opacity: 1; }
 `;
 
 /** The line itself. Callers compose the spans with <CampusFor>/<CampusEm>/<CampusDot>. */

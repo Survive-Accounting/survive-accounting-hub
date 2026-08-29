@@ -43,7 +43,10 @@ import { examRequest, notifyNote } from "@/lib/notify-request";
 import { rememberStudentEmail } from "@/lib/student-email";
 import { readTestSession } from "@/lib/test-mode";
 import { CHAPTER_BTN, DOOR_CARD_CSS, DOOR_CTA_VARS, DoorCard, DoorRow, DOOR_BTN_CLASS, SOLO_BTN } from "./DoorCard";
+import { ArrowLeftRight } from "lucide-react";
+
 import { GREEK_HOUSE_CSS, GreekHouseMark } from "@/components/site/chapter/GreekHouseMark";
+import { SchoolSwitchSheet } from "./SchoolSwitchSheet";
 
 import { CAMPUS_LINE_CSS, CampusEm, CampusFor, CampusLine } from "./campus-line";
 import { soloButtonLabel, soloSupport } from "./two-door-copy";
@@ -99,6 +102,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [finderOpen, setFinderOpen] = useState(false);
   const [scopeOpen, setScopeOpen] = useState(false);
+  const [switchOpen, setSwitchOpen] = useState(false);
   const [syllabusOpen, setSyllabusOpen] = useState(false);
 
   // Shared analytics context — attach what the page knows, never more.
@@ -126,7 +130,13 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
       <SiteHeader homeNav onLanding />
 
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px", width: "100%", overflowX: "clip" }}>
-        <TwoDoorHero code={campus.code} schoolName={campus.school?.name ?? null} schoolId={campus.school?.id ?? null} onOpenBio={() => setBioOpen(true)} />
+        <TwoDoorHero
+          code={campus.code}
+          schoolName={campus.school?.name ?? null}
+          schoolId={campus.school?.id ?? null}
+          onOpenBio={() => setBioOpen(true)}
+          onSwitchSchool={() => { track("homepage_school_switch_opened", ctx()); setSwitchOpen(true); }}
+        />
 
         {/* Legacy compatibility: every other page's navbar still links "/#exam1". */}
         <div id="exam1" className="sa-anchor" />
@@ -183,8 +193,14 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
       )}
       {/* H4: the front door is a WAITLIST while chapters open campus by campus — the finder
           sheet became the 3-step greek capture (school → org → email). */}
-      {finderOpen && <GreekWaitlistSheet onClose={() => setFinderOpen(false)} />}
+      {finderOpen && (
+        <GreekWaitlistSheet
+          onClose={() => setFinderOpen(false)}
+          initialSchoolSlug={campus.school ? SCHOOLS.find((s) => s.id === campus.school!.id)?.slug ?? null : null}
+        />
+      )}
       {scopeOpen && <CourseScopeModal onClose={() => setScopeOpen(false)} />}
+      {switchOpen && <SchoolSwitchSheet onClose={() => setSwitchOpen(false)} />}
       {syllabusOpen && <SyllabusModal school={schoolObj} onClose={() => setSyllabusOpen(false)} />}
     </div>
   );
@@ -193,11 +209,12 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
 // ── HERO — CENTERED, QUIET ────────────────────────────────────────────────────────────────────
 /** Headline → promise → proof chips, all on one centered axis. No CTA here and no bolt: the
  *  doors immediately below are the only instruction, and the bolt lives in the left one. */
-function TwoDoorHero({ code, schoolName, schoolId, onOpenBio }: {
+function TwoDoorHero({ code, schoolName, schoolId, onOpenBio, onSwitchSchool }: {
   code: string | null;
   schoolName: string | null;
   schoolId: string | null;
   onOpenBio: () => void;
+  onSwitchSchool: () => void;
 }) {
   // Same honesty rule as every hero before it: the campus version needs BOTH a school and a
   // VERIFIED course code; anything less renders the generic page, never an invented code.
@@ -217,9 +234,9 @@ function TwoDoorHero({ code, schoolName, schoolId, onOpenBio }: {
       </p>
       {/* THE CAMPUS LINE (FINAL MILE H3) — restored from homepage v1's bolt plate ("for ACCY 201
           · OLE MISS"), updated to current tokens. The campus name wears the school color; both
-          values fall back to the flagship campus config (HOME_CAMPUS) so campus #2 is a data
-          change, and a visitor's own resolved campus still wins. */}
-      <HomeCampusLine schoolName={schoolName} schoolId={schoolId} />
+          change, and a visitor's own resolved campus still wins. An UNRESOLVED campus names no
+          school at all — see HomeCampusLine. */}
+      <HomeCampusLine schoolName={schoolName} schoolId={schoolId} onSwitch={onSwitchSchool} />
       {/* The three proof points — the "small credibility layer" between promise and doors.
           "Built for exam week" points at the doors: they are what backs the claim now. */}
       <TrustChips onBio={onOpenBio} onReviews={() => scrollToId("reviews")} onPlayer={() => scrollToId(DOORS_ID)} />
@@ -234,15 +251,56 @@ function TwoDoorHero({ code, schoolName, schoolId, onOpenBio }: {
  *  the accent colour the solo button repeats; saying it twice in two type sizes made the hero
  *  read as a form field rather than a sentence. The chapter page uses the same component to say
  *  "for ALPHA DELTA CHI · ALABAMA" in this exact slot. */
-function HomeCampusLine({ schoolName, schoolId }: { schoolName: string | null; schoolId: string | null }) {
-  const name = schoolName ?? HOME_CAMPUS.name;
+function HomeCampusLine({ schoolName, schoolId, onSwitch }: {
+  schoolName: string | null;
+  schoolId: string | null;
+  onSwitch: () => void;
+}) {
+  // AN UNPLACED VISITOR IS NOT TOLD THEY GO TO THE FLAGSHIP. The line used to fall back to
+  // HOME_CAMPUS whenever the campus was unresolved, which put "for OLE MISS students" directly
+  // under a headline that had just said the honest, generic "Intro accounting is where GPAs
+  // quietly slip." — the page contradicting itself in two consecutive lines. When we do not know
+  // the school, the line stops claiming one and becomes the invitation to tell us; the swap
+  // control beside it is then the answer to a question the page actually asked.
+  const known = !!schoolName;
   const color = schoolId ? boltFor(schoolId).c1 : HOME_CAMPUS.colors.primary;
   return (
-    <CampusLine>
-      <CampusFor>for </CampusFor>
-      <CampusEm color={color}>{name.toUpperCase()}</CampusEm>
-      <CampusFor> students</CampusFor>
-    </CampusLine>
+    <span className="mt-4 inline-flex items-center gap-0.5">
+      <CampusLine className="">
+        {known ? (
+          <>
+            <CampusFor>for </CampusFor>
+            <CampusEm color={color}>{schoolName.toUpperCase()}</CampusEm>
+            <CampusFor> students</CampusFor>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={onSwitch}
+            className="sa-campus-pick"
+            style={{ background: "none", border: 0, padding: 0, font: "inherit", color: "inherit", cursor: "pointer" }}
+          >
+            <CampusFor>pick your school </CampusFor>
+          </button>
+        )}
+      </CampusLine>
+      {/* THE SWAP, RIGHT WHERE THE CLAIM IS. This line asserts which school the visitor goes to,
+          and the assertion is a guess (a cookie, or the flagship default). The control that
+          corrects it belongs against the word it corrects — not in a menu, and not in a player
+          this page does not have. Same icon and same affordance the campus pages use under their
+          bolt plate, so it means the same thing in both places. Deliberately NOT an ✕: nothing is
+          being closed or removed, one school is being exchanged for another. */}
+      <button
+        type="button"
+        onClick={onSwitch}
+        aria-label="Change school"
+        title="Change school"
+        className="sa-hero-swap inline-flex items-center justify-center rounded-full"
+        style={{ color: "var(--text-muted)", width: 34, height: 34 }}
+      >
+        <ArrowLeftRight size={13} aria-hidden />
+      </button>
+    </span>
   );
 }
 

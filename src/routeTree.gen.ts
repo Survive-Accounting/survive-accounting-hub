@@ -48,6 +48,7 @@ import { Route as StudyCanvasRouteImport } from './routes/study_.canvas'
 import { Route as RepJoinRouteImport } from './routes/rep_.join'
 import { Route as RepDashboardRouteImport } from './routes/rep_.dashboard'
 import { Route as RCodeRouteImport } from './routes/r.$code'
+import { Route as PreviewStudentplayerv1RouteImport } from './routes/preview_.studentplayerv1'
 import { Route as PreviewHomeRouteImport } from './routes/preview_.home'
 import { Route as PreviewExam1RouteImport } from './routes/preview_.exam1'
 import { Route as PartnersNationalOrganizationsRouteImport } from './routes/partners.national-organizations'
@@ -328,6 +329,11 @@ const RepDashboardRoute = RepDashboardRouteImport.update({
 const RCodeRoute = RCodeRouteImport.update({
   id: '/r/$code',
   path: '/r/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PreviewStudentplayerv1Route = PreviewStudentplayerv1RouteImport.update({
+  id: '/preview_/studentplayerv1',
+  path: '/preview/studentplayerv1',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PreviewHomeRoute = PreviewHomeRouteImport.update({
@@ -844,6 +850,7 @@ export interface FileRoutesByFullPath {
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
   '/preview/exam1': typeof PreviewExam1Route
   '/preview/home': typeof PreviewHomeRoute
+  '/preview/studentplayerv1': typeof PreviewStudentplayerv1Route
   '/r/$code': typeof RCodeRoute
   '/rep/dashboard': typeof RepDashboardRoute
   '/rep/join': typeof RepJoinRoute
@@ -968,6 +975,7 @@ export interface FileRoutesByTo {
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
   '/preview/exam1': typeof PreviewExam1Route
   '/preview/home': typeof PreviewHomeRoute
+  '/preview/studentplayerv1': typeof PreviewStudentplayerv1Route
   '/r/$code': typeof RCodeRoute
   '/rep/dashboard': typeof RepDashboardRoute
   '/rep/join': typeof RepJoinRoute
@@ -1096,6 +1104,7 @@ export interface FileRoutesById {
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
   '/preview_/exam1': typeof PreviewExam1Route
   '/preview_/home': typeof PreviewHomeRoute
+  '/preview_/studentplayerv1': typeof PreviewStudentplayerv1Route
   '/r/$code': typeof RCodeRoute
   '/rep_/dashboard': typeof RepDashboardRoute
   '/rep_/join': typeof RepJoinRoute
@@ -1225,6 +1234,7 @@ export interface FileRouteTypes {
     | '/partners/national-organizations'
     | '/preview/exam1'
     | '/preview/home'
+    | '/preview/studentplayerv1'
     | '/r/$code'
     | '/rep/dashboard'
     | '/rep/join'
@@ -1349,6 +1359,7 @@ export interface FileRouteTypes {
     | '/partners/national-organizations'
     | '/preview/exam1'
     | '/preview/home'
+    | '/preview/studentplayerv1'
     | '/r/$code'
     | '/rep/dashboard'
     | '/rep/join'
@@ -1476,6 +1487,7 @@ export interface FileRouteTypes {
     | '/partners/national-organizations'
     | '/preview_/exam1'
     | '/preview_/home'
+    | '/preview_/studentplayerv1'
     | '/r/$code'
     | '/rep_/dashboard'
     | '/rep_/join'
@@ -1575,6 +1587,7 @@ export interface RootRouteChildren {
   PartnersNationalOrganizationsRoute: typeof PartnersNationalOrganizationsRoute
   PreviewExam1Route: typeof PreviewExam1Route
   PreviewHomeRoute: typeof PreviewHomeRoute
+  PreviewStudentplayerv1Route: typeof PreviewStudentplayerv1Route
   RCodeRoute: typeof RCodeRoute
   RepDashboardRoute: typeof RepDashboardRoute
   RepJoinRoute: typeof RepJoinRoute
@@ -1877,6 +1890,13 @@ declare module '@tanstack/react-router' {
       path: '/r/$code'
       fullPath: '/r/$code'
       preLoaderRoute: typeof RCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/preview_/studentplayerv1': {
+      id: '/preview_/studentplayerv1'
+      path: '/preview/studentplayerv1'
+      fullPath: '/preview/studentplayerv1'
+      preLoaderRoute: typeof PreviewStudentplayerv1RouteImport
       parentRoute: typeof rootRouteImport
     }
     '/preview_/home': {
@@ -2702,6 +2722,7 @@ const rootRouteChildren: RootRouteChildren = {
   PartnersNationalOrganizationsRoute: PartnersNationalOrganizationsRoute,
   PreviewExam1Route: PreviewExam1Route,
   PreviewHomeRoute: PreviewHomeRoute,
+  PreviewStudentplayerv1Route: PreviewStudentplayerv1Route,
   RCodeRoute: RCodeRoute,
   RepDashboardRoute: RepDashboardRoute,
   RepJoinRoute: RepJoinRoute,
