@@ -19,6 +19,7 @@ import { Route as StartRouteImport } from './routes/start'
 import { Route as RepRouteImport } from './routes/rep'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PreviewRouteImport } from './routes/preview'
+import { Route as PracticeDemoRouteImport } from './routes/practice-demo'
 import { Route as OutreachRouteImport } from './routes/outreach'
 import { Route as OrderRouteImport } from './routes/order'
 import { Route as OnboardRouteImport } from './routes/onboard'
@@ -86,6 +87,7 @@ import { Route as GoDemoRouteImport } from './routes/go.demo'
 import { Route as ChaptersDashboardRouteImport } from './routes/chapters_.dashboard'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
 import { Route as CSlugRouteImport } from './routes/c.$slug'
+import { Route as ApiPracticePackRouteImport } from './routes/api.practice-pack'
 import { Route as ApiBackfillRouteImport } from './routes/api.backfill'
 import { Route as AdminSiteQaRouteImport } from './routes/admin.site-qa'
 import { Route as AdminRepsRouteImport } from './routes/admin.reps'
@@ -129,6 +131,7 @@ import { Route as AdminGrowthActivityRouteImport } from './routes/admin.growth.a
 import { Route as PartnersCouncilSchoolCouncilRouteImport } from './routes/partners.council.$school.$council'
 import { Route as GoSchoolCouncilCouncilRouteImport } from './routes/go.$school.council.$council'
 import { Route as ChaptersKitSchoolChapterRouteImport } from './routes/chapters_.kit.$school.$chapter'
+import { Route as ApiPartnerKitSchoolCouncilRouteImport } from './routes/api.partner-kit.$school.$council'
 import { Route as ApiOgSchoolChapterRouteImport } from './routes/api.og.$school.$chapter'
 import { Route as ApiFlyerSchoolChapterRouteImport } from './routes/api.flyer.$school.$chapter'
 import { Route as AdminRepsViewPartnerIdRouteImport } from './routes/admin.reps.view.$partnerId'
@@ -181,6 +184,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
 const PreviewRoute = PreviewRouteImport.update({
   id: '/preview',
   path: '/preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PracticeDemoRoute = PracticeDemoRouteImport.update({
+  id: '/practice-demo',
+  path: '/practice-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OutreachRoute = OutreachRouteImport.update({
@@ -522,6 +530,11 @@ const CSlugRoute = CSlugRouteImport.update({
   path: '/c/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPracticePackRoute = ApiPracticePackRouteImport.update({
+  id: '/api/practice-pack',
+  path: '/api/practice-pack',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiBackfillRoute = ApiBackfillRouteImport.update({
   id: '/api/backfill',
   path: '/api/backfill',
@@ -743,6 +756,12 @@ const ChaptersKitSchoolChapterRoute =
     path: '/chapters/kit/$school/$chapter',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPartnerKitSchoolCouncilRoute =
+  ApiPartnerKitSchoolCouncilRouteImport.update({
+    id: '/api/partner-kit/$school/$council',
+    path: '/api/partner-kit/$school/$council',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOgSchoolChapterRoute = ApiOgSchoolChapterRouteImport.update({
   id: '/api/og/$school/$chapter',
   path: '/api/og/$school/$chapter',
@@ -778,6 +797,7 @@ export interface FileRoutesByFullPath {
   '/onboard': typeof OnboardRoute
   '/order': typeof OrderRouteWithChildren
   '/outreach': typeof OutreachRouteWithChildren
+  '/practice-demo': typeof PracticeDemoRoute
   '/preview': typeof PreviewRoute
   '/privacy': typeof PrivacyRoute
   '/rep': typeof RepRoute
@@ -793,6 +813,7 @@ export interface FileRoutesByFullPath {
   '/admin/reps': typeof AdminRepsRouteWithChildren
   '/admin/site-qa': typeof AdminSiteQaRoute
   '/api/backfill': typeof ApiBackfillRoute
+  '/api/practice-pack': typeof ApiPracticePackRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters/dashboard': typeof ChaptersDashboardRoute
@@ -880,6 +901,7 @@ export interface FileRoutesByFullPath {
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
+  '/api/partner-kit/$school/$council': typeof ApiPartnerKitSchoolCouncilRoute
   '/chapters/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
   '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
   '/partners/council/$school/$council': typeof PartnersCouncilSchoolCouncilRoute
@@ -902,6 +924,7 @@ export interface FileRoutesByTo {
   '/logo-lab': typeof LogoLabRoute
   '/onboard': typeof OnboardRoute
   '/order': typeof OrderRouteWithChildren
+  '/practice-demo': typeof PracticeDemoRoute
   '/preview': typeof PreviewRoute
   '/privacy': typeof PrivacyRoute
   '/rep': typeof RepRoute
@@ -915,6 +938,7 @@ export interface FileRoutesByTo {
   '/$school/rep': typeof SchoolRepRoute
   '/admin/site-qa': typeof AdminSiteQaRoute
   '/api/backfill': typeof ApiBackfillRoute
+  '/api/practice-pack': typeof ApiPracticePackRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters/dashboard': typeof ChaptersDashboardRoute
@@ -1002,6 +1026,7 @@ export interface FileRoutesByTo {
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
+  '/api/partner-kit/$school/$council': typeof ApiPartnerKitSchoolCouncilRoute
   '/chapters/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
   '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
   '/partners/council/$school/$council': typeof PartnersCouncilSchoolCouncilRoute
@@ -1026,6 +1051,7 @@ export interface FileRoutesById {
   '/onboard': typeof OnboardRoute
   '/order': typeof OrderRouteWithChildren
   '/outreach': typeof OutreachRouteWithChildren
+  '/practice-demo': typeof PracticeDemoRoute
   '/preview': typeof PreviewRoute
   '/privacy': typeof PrivacyRoute
   '/rep': typeof RepRoute
@@ -1041,6 +1067,7 @@ export interface FileRoutesById {
   '/admin/reps': typeof AdminRepsRouteWithChildren
   '/admin/site-qa': typeof AdminSiteQaRoute
   '/api/backfill': typeof ApiBackfillRoute
+  '/api/practice-pack': typeof ApiPracticePackRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters_/dashboard': typeof ChaptersDashboardRoute
@@ -1128,6 +1155,7 @@ export interface FileRoutesById {
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
+  '/api/partner-kit/$school/$council': typeof ApiPartnerKitSchoolCouncilRoute
   '/chapters_/kit/$school/$chapter': typeof ChaptersKitSchoolChapterRoute
   '/go/$school/council/$council': typeof GoSchoolCouncilCouncilRoute
   '/partners/council/$school/$council': typeof PartnersCouncilSchoolCouncilRoute
@@ -1153,6 +1181,7 @@ export interface FileRouteTypes {
     | '/onboard'
     | '/order'
     | '/outreach'
+    | '/practice-demo'
     | '/preview'
     | '/privacy'
     | '/rep'
@@ -1168,6 +1197,7 @@ export interface FileRouteTypes {
     | '/admin/reps'
     | '/admin/site-qa'
     | '/api/backfill'
+    | '/api/practice-pack'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters/dashboard'
@@ -1255,6 +1285,7 @@ export interface FileRouteTypes {
     | '/admin/reps/view/$partnerId'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
+    | '/api/partner-kit/$school/$council'
     | '/chapters/kit/$school/$chapter'
     | '/go/$school/council/$council'
     | '/partners/council/$school/$council'
@@ -1277,6 +1308,7 @@ export interface FileRouteTypes {
     | '/logo-lab'
     | '/onboard'
     | '/order'
+    | '/practice-demo'
     | '/preview'
     | '/privacy'
     | '/rep'
@@ -1290,6 +1322,7 @@ export interface FileRouteTypes {
     | '/$school/rep'
     | '/admin/site-qa'
     | '/api/backfill'
+    | '/api/practice-pack'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters/dashboard'
@@ -1377,6 +1410,7 @@ export interface FileRouteTypes {
     | '/admin/reps/view/$partnerId'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
+    | '/api/partner-kit/$school/$council'
     | '/chapters/kit/$school/$chapter'
     | '/go/$school/council/$council'
     | '/partners/council/$school/$council'
@@ -1400,6 +1434,7 @@ export interface FileRouteTypes {
     | '/onboard'
     | '/order'
     | '/outreach'
+    | '/practice-demo'
     | '/preview'
     | '/privacy'
     | '/rep'
@@ -1415,6 +1450,7 @@ export interface FileRouteTypes {
     | '/admin/reps'
     | '/admin/site-qa'
     | '/api/backfill'
+    | '/api/practice-pack'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters_/dashboard'
@@ -1502,6 +1538,7 @@ export interface FileRouteTypes {
     | '/admin/reps/view/$partnerId'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
+    | '/api/partner-kit/$school/$council'
     | '/chapters_/kit/$school/$chapter'
     | '/go/$school/council/$council'
     | '/partners/council/$school/$council'
@@ -1526,6 +1563,7 @@ export interface RootRouteChildren {
   OnboardRoute: typeof OnboardRoute
   OrderRoute: typeof OrderRouteWithChildren
   OutreachRoute: typeof OutreachRouteWithChildren
+  PracticeDemoRoute: typeof PracticeDemoRoute
   PreviewRoute: typeof PreviewRoute
   PrivacyRoute: typeof PrivacyRoute
   RepRoute: typeof RepRoute
@@ -1541,6 +1579,7 @@ export interface RootRouteChildren {
   AdminRepsRoute: typeof AdminRepsRouteWithChildren
   AdminSiteQaRoute: typeof AdminSiteQaRoute
   ApiBackfillRoute: typeof ApiBackfillRoute
+  ApiPracticePackRoute: typeof ApiPracticePackRoute
   CSlugRoute: typeof CSlugRoute
   ChaptersDashboardRoute: typeof ChaptersDashboardRoute
   GoDemoRoute: typeof GoDemoRouteWithChildren
@@ -1572,6 +1611,7 @@ export interface RootRouteChildren {
   GoSchoolIndexRoute: typeof GoSchoolIndexRoute
   ApiFlyerSchoolChapterRoute: typeof ApiFlyerSchoolChapterRoute
   ApiOgSchoolChapterRoute: typeof ApiOgSchoolChapterRoute
+  ApiPartnerKitSchoolCouncilRoute: typeof ApiPartnerKitSchoolCouncilRoute
   ChaptersKitSchoolChapterRoute: typeof ChaptersKitSchoolChapterRoute
   GoSchoolCouncilCouncilRoute: typeof GoSchoolCouncilCouncilRoute
   PartnersCouncilSchoolCouncilRoute: typeof PartnersCouncilSchoolCouncilRoute
@@ -1647,6 +1687,13 @@ declare module '@tanstack/react-router' {
       path: '/preview'
       fullPath: '/preview'
       preLoaderRoute: typeof PreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/practice-demo': {
+      id: '/practice-demo'
+      path: '/practice-demo'
+      fullPath: '/practice-demo'
+      preLoaderRoute: typeof PracticeDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/outreach': {
@@ -2118,6 +2165,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/practice-pack': {
+      id: '/api/practice-pack'
+      path: '/api/practice-pack'
+      fullPath: '/api/practice-pack'
+      preLoaderRoute: typeof ApiPracticePackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/backfill': {
       id: '/api/backfill'
       path: '/api/backfill'
@@ -2419,6 +2473,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChaptersKitSchoolChapterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/partner-kit/$school/$council': {
+      id: '/api/partner-kit/$school/$council'
+      path: '/api/partner-kit/$school/$council'
+      fullPath: '/api/partner-kit/$school/$council'
+      preLoaderRoute: typeof ApiPartnerKitSchoolCouncilRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/og/$school/$chapter': {
       id: '/api/og/$school/$chapter'
       path: '/api/og/$school/$chapter'
@@ -2637,6 +2698,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardRoute: OnboardRoute,
   OrderRoute: OrderRouteWithChildren,
   OutreachRoute: OutreachRouteWithChildren,
+  PracticeDemoRoute: PracticeDemoRoute,
   PreviewRoute: PreviewRoute,
   PrivacyRoute: PrivacyRoute,
   RepRoute: RepRoute,
@@ -2652,6 +2714,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRepsRoute: AdminRepsRouteWithChildren,
   AdminSiteQaRoute: AdminSiteQaRoute,
   ApiBackfillRoute: ApiBackfillRoute,
+  ApiPracticePackRoute: ApiPracticePackRoute,
   CSlugRoute: CSlugRoute,
   ChaptersDashboardRoute: ChaptersDashboardRoute,
   GoDemoRoute: GoDemoRouteWithChildren,
@@ -2683,6 +2746,7 @@ const rootRouteChildren: RootRouteChildren = {
   GoSchoolIndexRoute: GoSchoolIndexRoute,
   ApiFlyerSchoolChapterRoute: ApiFlyerSchoolChapterRoute,
   ApiOgSchoolChapterRoute: ApiOgSchoolChapterRoute,
+  ApiPartnerKitSchoolCouncilRoute: ApiPartnerKitSchoolCouncilRoute,
   ChaptersKitSchoolChapterRoute: ChaptersKitSchoolChapterRoute,
   GoSchoolCouncilCouncilRoute: GoSchoolCouncilCouncilRoute,
   PartnersCouncilSchoolCouncilRoute: PartnersCouncilSchoolCouncilRoute,

@@ -3,9 +3,8 @@
 // not that the test needs updating.
 import { describe, expect, test } from "bun:test";
 
-import { GREEK_PORTAL_ORGS } from "@/components/site/portal-home/greek-portal-orgs";
 import { HOME_CAMPUS } from "@/lib/launch";
-import { homeCourseCode, soloButtonLabel, soloSupport, tickerLetters, tickerLine } from "./two-door-copy";
+import { homeCourseCode, soloButtonLabel, soloSupport } from "./two-door-copy";
 
 const NBSP = "\u00A0";
 
@@ -20,29 +19,14 @@ describe("course code token", () => {
 });
 
 describe("left door", () => {
-  test("button: Survive <code> →", () => {
-    expect(soloButtonLabel("ACCY 201")).toBe(`Survive ACCY${NBSP}201 →`);
+  // ONE-CODE RULE: on the home page the HEADLINE carries the code, so the button must not.
+  test("button carries no course code — the headline is this block's one mention", () => {
+    expect(soloButtonLabel()).toBe("Start cramming →");
+    expect(soloButtonLabel()).not.toContain("ACCY");
   });
-  test("support: muted sentence + strong free line", () => {
+  test("support: muted sentence keeps the code + strong free line", () => {
     const s = soloSupport("ACCY 201");
     expect(s.muted).toBe(`Cram-style videos & practice for ACCY${NBSP}201.`);
     expect(s.strong).toBe("Exam 1 is free.");
-  });
-});
-
-describe("greek ticker", () => {
-  test("derives from the canonical org list — same letters, same order, no second list", () => {
-    expect(tickerLetters()).toEqual(GREEK_PORTAL_ORGS.map((o) => o.letters));
-    expect(tickerLetters().length).toBeGreaterThanOrEqual(10);
-  });
-  test("letters are real Greek characters, not Latin lookalikes", () => {
-    for (const letters of tickerLetters()) {
-      expect(letters).toMatch(/^[Α-Ω]+$/); // Greek capital letters only
-    }
-  });
-  test("one line, dot-separated", () => {
-    const line = tickerLine();
-    expect(line.startsWith(GREEK_PORTAL_ORGS[0]!.letters)).toBe(true);
-    expect(line).toContain(" · ");
   });
 });

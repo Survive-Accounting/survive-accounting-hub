@@ -122,7 +122,7 @@ const passSegment = z.object({
   focusedCeqId: z.string().max(200).nullable().optional(), focusedCeqLabel: z.string().max(400).nullable().optional(),
   source: z.enum(["live", "whisper"]), whisperPending: z.boolean(),
 });
-const passTag = z.object({ tag: z.string().max(20), at: iso, focusedCeqLabel: z.string().max(400).nullable().optional(), source: z.enum(["tap", "ai"]) });
+const passTag = z.object({ tag: z.string().max(20), at: iso, focusedCeqLabel: z.string().max(400).nullable().optional(), source: z.enum(["tap", "ai"]), note: z.string().max(4000).nullable().optional() });
 
 const passInput = z.object({
   setName: z.string().max(400),
@@ -130,7 +130,7 @@ const passInput = z.object({
   segments: z.array(passSegment).max(3000),
   tags: z.array(passTag).max(500),
   regen: z.object({
-    kind: z.enum(["ceq_order", "outline", "exhibit", "vibe", "short", "phrase", "accuracy"]),
+    kind: z.enum(["ceq_order", "outline", "exhibit", "bank", "vibe", "short", "phrase", "accuracy"]),
     previous: z.record(z.string(), z.unknown()),
     comment: z.string().max(20_000),
   }).optional(),
@@ -157,7 +157,7 @@ export const runTalkthroughPass = createServerFn({ method: "POST" })
       setName: data.setName,
       ceqs: data.ceqs,
       segments: data.segments.map((s) => ({ ...s, focusedCeqId: s.focusedCeqId ?? null, focusedCeqLabel: s.focusedCeqLabel ?? null })),
-      tags: data.tags.map((t) => ({ tag: t.tag as never, at: t.at, focusedCeqLabel: t.focusedCeqLabel ?? null, source: t.source })),
+      tags: data.tags.map((t) => ({ tag: t.tag as never, at: t.at, focusedCeqLabel: t.focusedCeqLabel ?? null, source: t.source, note: t.note ?? null })),
       docs: { method, bible, blastOff },
     };
     const { system, user } = data.regen
@@ -180,3 +180,69 @@ export const runTalkthroughPass = createServerFn({ method: "POST" })
       return { text, model };
     } finally { clearTimeout(timer); }
   });
+
+// ------------------------------------------------------------ booth bank
+
+/** THE BOOTH'S BANK — the SAME store the student player reads (canvas_scenes
+ *  via student.functions' loadDecksDeduped: live, unparked card decks grouped
+ *  by chapter), with the studio-only extras a student never sees: draft CEQs
+ *  (DRAFT-chipped in the booth), needs_exhibit and the master sheet's notes.
+ *  Soft-archived cards stay out everywhere. One store, two dress codes. */
+export interface BoothCeq {
+  id: string;
+  label: string;
+  stem: string;
+  choices: { text: string; correct: boolean; feedback?: string }[];
+  draft: boolean;
+  noteOnly: boolean;
+  needsExhibit: string | null;
+  masterNotes: string | null;
+}
+export interface BoothSetInfo { id: string; name: string; ceqs: BoothCeq[]; liveCount: number; draftCount: number }
+export interface BoothTopic { id: string; name: string; number: number | null; sets: BoothSetInfo[] }
+
+export const loadBoothBank = createServerFn({ method: "POST" }).handler(async (): Promise<{ topics: BoothTopic[] }> => {
+  const { loadDecksDeduped, liveDecks } = await import("@/lib/student.functions");
+  const db = await admin();
+  const owned = await loadDecksDeduped(db as never);
+  type CardData = { deckId?: string; stageOrder?: number; prompt?: string; shorthand?: string; title?: string; noteOnly?: boolean; draft?: boolean; bankArchived?: string; needsExhibit?: string; masterNotes?: string; choices?: { text?: string; correct?: boolean; feedback?: string }[] };
+  const { data: chapterRows, error } = await db.from("chapters").select("id,chapter_name,chapter_number");
+  if (error) rethrow(error);
+  const chById = new Map((chapterRows ?? []).map((c: { id: string; chapter_name: string; chapter_number: number }) => [c.id, c]));
+
+  const topics = new Map<string, BoothTopic>();
+  for (const o of liveDecks(owned)) {
+    const d = o.deck as { id: string; name: string; topicId?: string | null; sortOrder?: number };
+    const ch = d.topicId ? chById.get(d.topicId) as { id: string; chapter_name: string; chapter_number: number } | undefined : undefined;
+    const tid = ch?.id ?? "__untopiced";
+    if (!topics.has(tid)) topics.set(tid, { id: tid, name: ch?.chapter_name ?? "More", number: ch?.chapter_number ?? 9999, sets: [] });
+    const cards = (o.nodes as { id: string; data?: CardData }[])
+      .map((n) => ({ id: n.id, d: n.data ?? {} }))
+      .filter((c) => !c.d.bankArchived)
+      .sort((a, b) => (a.d.stageOrder ?? 0) - (b.d.stageOrder ?? 0));
+    const ceqs: BoothCeq[] = cards.map((c, i) => ({
+      id: c.id,
+      label: String(c.d.shorthand || `Q${i + 1}`),
+      stem: String(c.d.prompt ?? ""),
+      choices: (Array.isArray(c.d.choices) ? c.d.choices : []).map((ch2) => ({ text: String(ch2.text ?? ""), correct: !!ch2.correct, ...(ch2.feedback ? { feedback: String(ch2.feedback) } : {}) })),
+      draft: !!c.d.draft,
+      noteOnly: !!c.d.noteOnly,
+      needsExhibit: c.d.needsExhibit ? String(c.d.needsExhibit) : null,
+      masterNotes: c.d.masterNotes ? String(c.d.masterNotes) : null,
+    }));
+    topics.get(tid)!.sets.push({
+      id: d.id, name: d.name, ceqs,
+      liveCount: ceqs.filter((c) => !c.draft && !c.noteOnly).length,
+      draftCount: ceqs.filter((c) => c.draft && !c.noteOnly).length,
+    });
+  }
+  const list = [...topics.values()].sort((a, b) => (a.number ?? 9999) - (b.number ?? 9999) || a.name.localeCompare(b.name));
+  for (const t of list) {
+    const key = new Map(t.sets.map((s) => {
+      const o = owned.get(s.id);
+      return [s.id, (o?.deck as { sortOrder?: number } | undefined)?.sortOrder ?? 9999];
+    }));
+    t.sets.sort((a, b) => (key.get(a.id)! - key.get(b.id)!) || a.name.localeCompare(b.name));
+  }
+  return { topics: list };
+});

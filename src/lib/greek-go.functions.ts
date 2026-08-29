@@ -47,6 +47,10 @@ export interface GoChapter {
   claimStatus: "unclaimed" | "pending" | "claimed";
   /** Members banked against this chapter so far. Real count or 0 — never a decorative number. */
   members: number;
+  /** TRUE only while the chapter holds an active, unexpired seat pool — i.e. someone actually
+   *  paid and the term has not lapsed. Drives the "Sponsored by …" line on the /go page; false
+   *  is the honest default, including when the lookup fails. */
+  sponsored: boolean;
 }
 
 /** Resolve a /go/ URL to its chapter. Returns null for an unknown school or chapter, which the
@@ -87,9 +91,19 @@ export const getGoChapter = createServerFn({ method: "POST" })
     // joined = 0. Reported as-is.
     const { data: shell } = await db.from("greek_chapters").select("id").eq("campus_greek_chapter_id", row.id).maybeSingle();
     let members = 0;
+    // SPONSORED = a seat pool that is ACTIVE AND UNEXPIRED — the same rule chapter-seats uses to
+    // decide which pool it is managing ("active and unexpired; an expired term is history"). The
+    // /go page says "Sponsored by ΑΔΧ" only when this is true, so the badge can never outrun the
+    // money. Best-effort: any failure here reads as NOT sponsored, which is the honest default.
+    let sponsored = false;
     if (shell?.id) {
       const { count } = await db.from("greek_chapter_members").select("*", { count: "exact", head: true }).eq("chapter_id", shell.id);
       members = count ?? 0;
+      const { data: pools } = await db.from("chapter_seat_pools")
+        .select("status,expires_at").eq("chapter_id", shell.id).eq("status", "active").limit(20);
+      const now = Date.now();
+      sponsored = ((pools ?? []) as Array<{ expires_at: string | null }>).some((p) =>
+        !p.expires_at || new Date(p.expires_at).getTime() > now);
     }
 
     return {
@@ -104,6 +118,7 @@ export const getGoChapter = createServerFn({ method: "POST" })
       council: row.council ?? null,
       claimStatus: (row.claim_status ?? "unclaimed") as GoChapter["claimStatus"],
       members,
+      sponsored,
     };
   });
 
@@ -340,12 +355,17 @@ export const logGreekEvent = createServerFn({ method: "POST" })
     kind: z.enum(GREEK_EVENT_KINDS),
     schoolSlug: z.string().trim().min(1).max(80),
     chapterSlug: z.string().trim().min(1).max(60),
+    /** WHERE THEY CAME FROM — the share stamp on the /go URL: link, groupme, flyer, campaign (a
+     *  council blast) or slide (a projector QR in a chapter meeting). Appended to the event
+     *  string, so the existing expand_events row answers "what actually spreads?" without a
+     *  second table. Absent = arrived some other way, which is a real and common answer. */
+    via: z.enum(["link", "groupme", "flyer", "campaign", "slide"]).nullable().optional(),
   }).parse(d))
   .handler(async ({ data }): Promise<{ ok: boolean }> => {
     try {
       const db = await admin();
       const { error } = await db.from("expand_events")
-        .insert({ event: `greek_${data.kind}:${data.schoolSlug}/${data.chapterSlug}` });
+        .insert({ event: `greek_${data.kind}:${data.schoolSlug}/${data.chapterSlug}${data.via ? `?via=${data.via}` : ""}` });
       if (error) { console.warn("logGreekEvent insert failed:", error.message); return { ok: false }; }
       return { ok: true };
     } catch (e) {

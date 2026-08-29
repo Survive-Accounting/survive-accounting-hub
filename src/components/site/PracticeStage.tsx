@@ -11,6 +11,8 @@ import { useQuery } from "@tanstack/react-query";
 import { CircleCheck, CircleX, Loader2, MessageCircle, RotateCcw } from "lucide-react";
 
 import { fetchSetPractice, type PracticeQuestion } from "@/lib/student.functions";
+import { requestPracticePack } from "@/lib/practice-pack.functions";
+import { LeadMagnetGate } from "@/components/site/LeadMagnetGate";
 import { askAboutQuestion, logPracticeEvents, type AttemptEvent } from "@/lib/practice.functions";
 import { readStudentEmail, rememberStudentEmail } from "@/lib/student-email";
 import { supabase } from "@/integrations/supabase/client";
@@ -84,6 +86,10 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
   // Auto-advance after a CORRECT answer only. No visible toggle any more (header stays clean);
   // it can still be switched on via localStorage sa-cram-auto=1.
   const [autoAdvance] = useState(() => { try { return localStorage.getItem("sa-cram-auto") === "1"; } catch { return false; } });
+  // PRACTICE PACK spotlight (D5): glow the print icon once when the student
+  // completes a set OR answers 5 questions this session — whichever first.
+  const [packSpot, setPackSpot] = useState(false);
+  const packSpotDone = useRef((() => { try { return localStorage.getItem("sa-pack-spot") === "1"; } catch { return true; } })());
   const startedAt = useRef(Date.now());
   const revealedAt = useRef(Date.now());
   const userId = useRef<string | null>(null);
@@ -106,6 +112,14 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
   // results screen), not on the Continue click, so progress and the rail ✓ update in view.
   const finishedOnce = useRef(false);
   useEffect(() => { if (finished && !finishedOnce.current) { finishedOnce.current = true; onFinished?.(); } }, [finished, onFinished]);
+  useEffect(() => {
+    if (packSpotDone.current) return;
+    if (finished || Object.keys(pickedBy).length >= 5) {
+      packSpotDone.current = true;
+      try { localStorage.setItem("sa-pack-spot", "1"); } catch { /* fine */ }
+      setPackSpot(true);
+    }
+  }, [finished, pickedBy]);
   // Test Mode: mark step 5 the moment the "You've been through" screen renders — provided the
   // pass ran with at least one correct + one incorrect (matches the spec's completion criterion).
   useEffect(() => {
@@ -226,20 +240,9 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
       {/* QUESTION HEADER — "Q1 / 8" and the status pill. The curriculum reference (3.2.14) is
           NOT shown to students: it rides into analytics and Ask-Lee submissions only. Keyboard
           shortcuts still work (↑↓ ⏎ ←→, Shift+→) without a hint strip. */}
+      {/* HEADER — retry label / save chip / status pill only. The question counter
+          moved BELOW the choices (free-surf nav): one counter, not two. */}
       <div className="flex shrink-0 items-center gap-2 px-4 pt-3 sm:px-5">
-        {/* Q1 / 8 is the NAVIGATOR trigger — opens the set map (QuestionNav) below it. */}
-        <button
-          type="button"
-          onClick={() => setNavOpen((v) => !v)}
-          aria-haspopup="dialog"
-          aria-expanded={navOpen}
-          aria-label={`Question ${order[pos] + 1} of ${questions.length}. Open question navigator`}
-          className="flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-black uppercase tracking-wider tabular-nums"
-          style={{ background: C.yellow, color: "#0B1322", minHeight: 28 }}
-        >
-          Q{order[pos] + 1} / {questions.length}
-          <span aria-hidden style={{ fontSize: 9, marginLeft: 2 }}>{navOpen ? "▴" : "▾"}</span>
-        </button>
         {pass > 1 && <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: C.muted }}>Retry · {pos + 1} of {total}</span>}
         {/* SAVE PROGRESS chip — signed-out students see it once they have something worth saving
             (at least one answer in this session); a signed-in student sees a small green mark. */}
@@ -263,6 +266,17 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
         )}
         {statusLabel && <span className="ml-auto rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider" style={{ background: C.yellow, color: "#0B1322" }}>{statusLabel}</span>}
         {!statusLabel && <span className="ml-auto" />}
+        {/* PRINTABLE PACK (D5) — subtle from the start; glows once at the
+            completion/5-answer moment. Free Exam-1 content only (the endpoint
+            enforces it); the link arrives by EMAIL — that's the point. */}
+        <LeadMagnetGate
+          tooltip="Printable pack"
+          prompt="Get this practice as a printable PDF — emailed to you."
+          cta="Email me the pack →"
+          sentCopy="Sent. Go check your email — then keep going."
+          spotlight={packSpot}
+          onRequest={(email) => requestPracticePack({ data: { email, campusName: campusName ?? null, campusSlug: campusSlug ?? null, sourcePath: typeof location !== "undefined" ? location.pathname : null, isTest: !!isTest } })}
+        />
       </div>
 
       {navOpen && (
@@ -316,6 +330,49 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
             <AskBox reference={fullRef(pos)} shorthand={cur.shorthand} prompt={cur.prompt} setId={setId} ceqId={cur.id} campusName={campusName} campusSlug={campusSlug} isTest={isTest} />
           </div>
         )}
+
+        {/* THE COUNTER — centered below the choices, < and > flanking. Always
+            visible: students surf freely without answering (← / → mirror the
+            buttons; selection state per question is preserved). No < on the
+            first question; > on the last follows the existing set-advance
+            behavior (the completion screen, which leads on). The counter is
+            still the set-map trigger. */}
+        <div className="mt-4 flex items-center justify-center gap-3">
+          {pos > 0 ? (
+            <button
+              type="button"
+              aria-label="Previous question"
+              className="rounded-full px-3 text-[15px] font-black"
+              style={{ color: C.muted, border: `1px solid ${C.border}`, minHeight: 32, minWidth: 40 }}
+              onClick={() => goTo(pos - 1)}
+            >
+              ‹
+            </button>
+          ) : (
+            <span aria-hidden style={{ minWidth: 40 }} />
+          )}
+          <button
+            type="button"
+            onClick={() => setNavOpen((v) => !v)}
+            aria-haspopup="dialog"
+            aria-expanded={navOpen}
+            aria-label={`Question ${order[pos] + 1} of ${questions.length}. Open question navigator`}
+            className="flex items-center gap-1 rounded-full px-3 py-0.5 text-[11.5px] font-black uppercase tracking-wider tabular-nums"
+            style={{ background: C.yellow, color: "#0B1322", minHeight: 30 }}
+          >
+            Q{order[pos] + 1} / {questions.length}
+            <span aria-hidden style={{ fontSize: 9, marginLeft: 2 }}>{navOpen ? "▴" : "▾"}</span>
+          </button>
+          <button
+            type="button"
+            aria-label={pos + 1 < total ? "Next question" : "Finish set"}
+            className="rounded-full px-3 text-[15px] font-black"
+            style={{ color: C.muted, border: `1px solid ${C.border}`, minHeight: 32, minWidth: 40 }}
+            onClick={() => goTo(pos + 1, true)}
+          >
+            ›
+          </button>
+        </div>
       </div>
 
       {/* MOBILE NEXT — thumb-reachable, FIXED to the viewport bottom (the player card is
@@ -323,12 +380,9 @@ export function PracticeStage({ setId, questions: override, onDone, doneLabel, o
           resolved, so it never covers the choices. Desktop: static under the card, ⏎ also works. */}
       {resolved && (
         <div className="fixed inset-x-0 bottom-0 z-30 bg-[linear-gradient(0deg,rgba(5,8,16,0.96)_60%,rgba(5,8,16,0)_100%)] p-3 sm:static sm:bg-none sm:p-0 sm:px-5 sm:pb-4">
-          <div className="flex items-center gap-3">
-            {pos > 0 && <button className="shrink-0 px-2 text-[12px] font-bold" style={{ color: C.muted, minHeight: 44 }} onClick={() => goTo(pos - 1)}>← Back</button>}
-            <button className="min-w-0 flex-1 rounded-xl text-[14px] font-black uppercase tracking-wide sm:text-[12.5px]" style={{ background: C.yellow, color: "#0B1322", minHeight: 48 }} onClick={advance}>
-              {pos + 1 < total ? "Next →" : "Finish set →"}
-            </button>
-          </div>
+          <button className="w-full rounded-xl text-[14px] font-black uppercase tracking-wide sm:text-[12.5px]" style={{ background: C.yellow, color: "#0B1322", minHeight: 48 }} onClick={advance}>
+            {pos + 1 < total ? "Next →" : "Finish set →"}
+          </button>
         </div>
       )}
     </div>

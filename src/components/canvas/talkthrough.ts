@@ -97,14 +97,22 @@ export interface TalkSegment extends TTRow {
 
 export const MOMENT_TAGS = ["SHORT", "NERDOUT", "EXHIBIT", "PHRASE", "TALK", "KEY"] as const;
 export type MomentTag = (typeof MOMENT_TAGS)[number];
-export const TAG_LABELS: Record<MomentTag, string> = {
+/** D3 — the last-pass QUICK ACTIONS. Same store as moment tags (a stamp on the
+ *  timeline anchored to {ceq, time}), but each carries Lee's typed note and,
+ *  for EXHIBIT_SPEC, an optional interaction-vocabulary pick. */
+export const QUICK_KINDS = ["REWORD", "NEWCEQ", "CUT", "EXHIBIT_SPEC", "TEACH"] as const;
+export type QuickKind = (typeof QUICK_KINDS)[number];
+export type TagKind = MomentTag | QuickKind;
+export const TAG_LABELS: Record<TagKind, string> = {
   SHORT: "Short", NERDOUT: "Nerd Out", EXHIBIT: "Exhibit idea",
   PHRASE: "Phrase", TALK: "Talk moment", KEY: "Key",
+  REWORD: "Reword", NEWCEQ: "New CEQ", CUT: "Cut", EXHIBIT_SPEC: "Exhibit spec", TEACH: "How I'd teach it",
 };
+export const INTERACTION_VOCAB = ["COMPARE", "CLASSIFIER", "MAP/FLOW", "SCENARIO", "CHEAT SHEET", "CONCEPT+EXAMPLE", "BRANCH MAP"] as const;
 
 export interface TalkTag extends TTRow {
   sessionId: string;
-  tag: MomentTag;
+  tag: TagKind;
   /** The moment stamped (tap time, or the spoken cue's segment start). */
   at: string;
   focusedCeqId?: string | null;
@@ -115,10 +123,10 @@ export interface TalkTag extends TTRow {
   note?: string | null;
 }
 
-export const BOARD_KINDS = ["ceq_order", "outline", "exhibit", "vibe", "short", "phrase", "accuracy"] as const;
+export const BOARD_KINDS = ["ceq_order", "outline", "exhibit", "bank", "vibe", "short", "phrase", "accuracy"] as const;
 export type BoardKind = (typeof BOARD_KINDS)[number];
 export const BOARD_KIND_LABELS: Record<BoardKind, string> = {
-  ceq_order: "CEQ order", outline: "Blast Off outline", exhibit: "Exhibit",
+  ceq_order: "CEQ order", outline: "Blast Off outline", exhibit: "Exhibit", bank: "Bank changes",
   vibe: "Vibe beats", short: "Shorts / Nerd Outs", phrase: "Phrases", accuracy: "Accuracy flags",
 };
 
@@ -163,7 +171,7 @@ export function makeSegment(
 }
 
 export function makeTag(
-  sessionId: string, tag: MomentTag,
+  sessionId: string, tag: TagKind,
   focus: { ceqId: string | null; label: string | null },
   now = new Date(),
 ): TalkTag {
@@ -268,7 +276,7 @@ export const fromSegmentRow = (r: SegmentRow): TalkSegment => ({ id: r.id, sessi
 
 export interface TagRow { id: string; session_id: string; tag: string; at: string; focused_ceq_id: string | null; focused_ceq_label: string | null; source: string; note: string | null; created_at: string; updated_at: string; archived_at: string | null }
 export const toTagRow = (t: TalkTag): TagRow => ({ id: t.id, session_id: t.sessionId, tag: t.tag, at: t.at, focused_ceq_id: t.focusedCeqId ?? null, focused_ceq_label: t.focusedCeqLabel ?? null, source: t.source, note: t.note ?? null, created_at: t.createdAt, updated_at: t.updatedAt, archived_at: t.archivedAt ?? null });
-export const fromTagRow = (r: TagRow): TalkTag => ({ id: r.id, sessionId: r.session_id, tag: (MOMENT_TAGS as readonly string[]).includes(r.tag) ? (r.tag as MomentTag) : "KEY", at: r.at, focusedCeqId: r.focused_ceq_id, focusedCeqLabel: r.focused_ceq_label, source: r.source === "ai" ? "ai" : "tap", note: r.note, createdAt: r.created_at, updatedAt: r.updated_at, archivedAt: r.archived_at, syncedAt: r.updated_at });
+export const fromTagRow = (r: TagRow): TalkTag => ({ id: r.id, sessionId: r.session_id, tag: ([...MOMENT_TAGS, ...QUICK_KINDS] as readonly string[]).includes(r.tag) ? (r.tag as TagKind) : "KEY", at: r.at, focusedCeqId: r.focused_ceq_id, focusedCeqLabel: r.focused_ceq_label, source: r.source === "ai" ? "ai" : "tap", note: r.note, createdAt: r.created_at, updatedAt: r.updated_at, archivedAt: r.archived_at, syncedAt: r.updated_at });
 
 export interface BoardItemRow { id: string; session_id: string; run_id: string; kind: string; title: string; payload: Record<string, unknown>; quote: string; ceq_ids: string[]; status: string; comment: string; created_at: string; updated_at: string; archived_at: string | null }
 export const toBoardItemRow = (b: BoardItem): BoardItemRow => ({ id: b.id, session_id: b.sessionId, run_id: b.runId, kind: b.kind, title: b.title, payload: b.payload, quote: b.quote, ceq_ids: b.ceqIds, status: b.status, comment: b.comment, created_at: b.createdAt, updated_at: b.updatedAt, archived_at: b.archivedAt ?? null });

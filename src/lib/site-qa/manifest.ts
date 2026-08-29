@@ -514,6 +514,8 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "callout-demo.tsx": "dev lab (noindex)",
   "exhibit-demo.tsx": "dev lab (noindex)",
   "exhibit-lab.tsx": "dev lab (noindex)",
+  "practice-demo.tsx": "dev lab (noindex) — shared PracticeStage QA mount",
+  "api.practice-pack.tsx": "server endpoint (PDF lead magnet), no page",
   "talkthrough.tsx": "studio tool — Talkthrough Booth (AdminGate, noindex)",
   "intro-outro.tsx": "dev lab (noindex)",
   "logo-lab.tsx": "dev lab (noindex)",
@@ -534,6 +536,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "api.cron.comms-sequences.tsx": "cron endpoint",
   "api.cron.weekly-digest.tsx": "cron endpoint",
   "api.flyer.$school.$chapter.tsx": "generated image endpoint",
+  "api.partner-kit.$school.$council.tsx": "generated ZIP endpoint (council partner kit)",
   "api.og.$school.$chapter.tsx": "generated image endpoint",
   "api.stripe.webhook.tsx": "webhook endpoint",
 };

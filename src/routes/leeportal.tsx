@@ -72,6 +72,11 @@ const SIDES: PortalSide[] = [
       { label: "Requests / Orders", href: "/outreach/orders", note: "Every inbound request and order." },
       { label: "Comms", href: "/outreach/comms", note: "Comms console, demand list, practice analytics." },
       { label: "Chapters Queue", href: "/outreach/chapters", note: "Pending chapter approvals." },
+      // PARKED HERE 2026-08-28: both pages were pulled out of the public footer while Lee keeps
+      // iterating on them. They still render normally — they are just unlinked and noindexed, so
+      // this portal is now the only way back to them.
+      { label: "Council Page (WIP)", href: "/partners/campus-councils", note: "Generic campus-Greek-council page. Unlinked + noindex — iterating." },
+      { label: "National Org Page (WIP)", href: "/partners/national-organizations", note: "Generic national-organization page. Unlinked + noindex — iterating." },
       { label: "Site QA", href: "/admin/site-qa", note: "Page templates + change detection." },
       { label: "Video Archive", href: "/outreach/video-archive", note: "Vimeo → Mux migration." },
       { label: "Backups", href: "/outreach/backups", note: "Nightly R2 backup status." },

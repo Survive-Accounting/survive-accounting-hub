@@ -7,18 +7,25 @@
 //  • The left door names the visitor's REAL course code when known, else the flagship campus
 //    config's code (HOME_CAMPUS in lib/launch.ts — the same config the waitlist date lives in).
 //  • Course codes render as ONE non-breaking token ("ACCY 201" can never wrap "201" alone).
-import { GREEK_PORTAL_ORGS } from "@/components/site/portal-home/greek-portal-orgs";
 import { nbspCode } from "@/lib/course-code";
 import { HOME_CAMPUS } from "@/lib/launch";
+
+// ── THE ONE-CODE RULE ─────────────────────────────────────────────────────────────────────────
+// THE COURSE CODE APPEARS EXACTLY ONCE PER SURFACE BLOCK — headline OR card, never both.
+// On the HOME page the hero headline carries it in orange ("ACCY 201 at Ole Miss is where GPAs
+// quietly slip."), so the left card's BUTTON must not repeat it — that put the code on screen
+// three times in one glance. The card's support line keeps it, because that line is the block's
+// one mention. On the CHAPTER page the split is the other way round: the left door's HEADING is
+// the code ("SURVIVE AC 210"), so that card's support line drops it.
+// Wherever it renders it stays non-breaking and comes from config, never a literal.
 
 /** The course code the homepage speaks: the visitor's verified code, else the flagship
  *  campus's (config, never hardcoded in a component). Always nbsp-joined for display. */
 export const homeCourseCode = (resolvedCode: string | null): string =>
   nbspCode(resolvedCode ?? HOME_CAMPUS.courseCode);
 
-/** Left door button (H1): "Survive ACCY 201 →". */
-export const soloButtonLabel = (resolvedCode: string | null): string =>
-  `Survive ${homeCourseCode(resolvedCode)} →`;
+/** Left door button. Code-free ON PURPOSE — see the one-code rule above. */
+export const soloButtonLabel = (): string => "Start cramming →";
 
 /** Left door support line, two tones: muted sentence + cream "Exam 1 is free." */
 export const soloSupport = (resolvedCode: string | null): { muted: string; strong: string } => ({
@@ -26,10 +33,6 @@ export const soloSupport = (resolvedCode: string | null): { muted: string; stron
   strong: "Exam 1 is free.",
 });
 
-/** The Greek-letter ticker stream — DERIVED from the one canonical client-side org list
- *  (greek-portal-orgs.ts, which is also Lee's outreach priority order), never a second
- *  hardcoded list that could drift from it. */
-export const tickerLetters = (): string[] => GREEK_PORTAL_ORGS.map((o) => o.letters);
-
-/** One ticker line: "ΑΤΩ · ΦΣΚ · …". The marquee renders it twice for a seamless loop. */
-export const tickerLine = (): string => tickerLetters().join(" · ");
+// The Greek-letter ticker helpers that lived here were removed with the ticker itself
+// (2026-08-28). GREEK_PORTAL_ORGS is still the canonical org list — the waitlist sheet's
+// organization step and /go/demo's glyph both read it.

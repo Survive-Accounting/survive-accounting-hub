@@ -308,3 +308,105 @@ Phases 1–2 landed solid and the wall is decorative-calm by spec. Next prompt: 
 canvas, gold handwritten phrase-bank entries (seed list in docs/SURVIVE_METHOD_v1.md §
 phrase bank), PHRASE-tagged captures flow in, shuffle, size-by-importance, click →
 meaning/first-use, A–Z glossary view.
+
+---
+
+# BUILD NOTES — Booth + Bank + Player + PDF (pre-filming pass, 2026-08-28)
+
+## D1 — ONE BANK: the investigation (files/tables, named)
+
+**Where the player reads:** `src/lib/student.functions.ts` → `loadDecksDeduped` scans
+`canvas_scenes.nodes_json`, keeps decks `payloadType==="cards" && status==="live" && !parked`,
+groups by `deck.topicId` → `chapters` table. Practice questions come from `fetchSetPractice`
+over the same decks. **Where the Booth read:** `loadSetPool` (set-FILE scene docs regardless
+of deck status). There is no separate questions table — both stores are `canvas_scenes`.
+
+**How they diverged:** two GENERATIONS of the bank live in the same table.
+
+1. The AUTHORED sets (`deck-ch*-full`, `deck-msr*` — stem-named, per-set SETFILE rows):
+   Lee's real bank. 255 CEQs; **246 (96%) stem-match the master sheet**; their decks
+   already point at the master's 10-topic chapters (Analyzing Transactions #2 …
+   Principles & Assumptions #10). They sat status=archived/draft + parked.
+2. The `exam1-starter` "global starter map" import (`deck-e1s-*`): 6 topics / 25 subtopic
+   sets / 274 differently-authored CEQs — the "Which shortcut is most reliable?" style.
+   It became the live player bank; only ~53 of its stems trace to the master. The Booth
+   never saw it (its scenes are not setFile docs) — which is exactly the two-store
+   symptom in the prompt.
+
+**The fix (applied by `scripts/bank-reconcile.ts`):** reinstate the authored sets as the
+one live bank; reconcile the master sheet into them in place (choices file-wins, `*` =
+correct, overflow `choice_e:` parsed out of notes; shorthand/needs_exhibit/notes carried
+onto card data; status → `data.draft`); soft-archive the 6 untraceable authored CEQs
+(`data.bankArchived`); soft-archive the 21 superseded e1s sets (deck status archived +
+parked + archivedReason). **Four e1s sets have no master coverage** (Internal vs. external
+users, Financial vs. managerial, Standards & regulation, Accounting careers — the Easy
+Points family): the standing law says app sets absent from the file are REPORTED, never
+deleted, so they stay live under Easy Points (pinned chapter_number 0) awaiting Lee's call.
+Chapters renumber to master order 1–10; "Adjusting Entries & Trial Balance" renames to the
+master's "Adjusting Entries"; "The Accounting Cycle" chapter is created.
+
+**Student-facing counts change on purpose:** 274 (starter-map bank) → 141 visible
+(102 master live-candidates + 39 kept Easy-Points questions); 154 master drafts are
+studio-only until flipped. The code gate for `draft`/`bankArchived` landed in
+`student.functions.ts` BEFORE the data apply, so drafts never leaked.
+
+Decisions logged, not asked (overnight rules): Easy Points kept live · chapter numbering
+(master order 1–10, Easy Points 0) · deck names become the master set_stems (the player's
+`setLabel` was already built to strip quotes/[ ] from stem-style names) · analytics ids:
+question history keys on CEQ node ids, so the bank swap orphans (never corrupts) history
+written against starter-map ids.
+
+## D2–D5 — logged decisions (beyond the commit messages)
+
+- **D2/D3 landed as one commit** — the tree, quick actions and BANK CHANGES section share
+  the same route/model files and could not be split honestly. Deviation from the
+  per-section commit ritual, noted.
+- **Set-switch mid-booth** finalizes the current chunk and stops dictation (a deliberate
+  context boundary; both sessions stay open). Clicking CEQs inside a set never touches
+  the stream (the standing rule).
+- **Quick actions ride the tags store** (new kinds REWORD/NEWCEQ/CUT/EXHIBIT_SPEC/TEACH,
+  notes carried verbatim into the AI pass with "LEE'S NOTE:" priority framing).
+- **D4:** free surfing already existed via the keyboard; the work was the counter move
+  (one counter, below the choices, still the set-map trigger) + always-visible ‹ ›.
+  Added `/practice-demo` (noindex dev lab) because every live mount of the shared player
+  is behind the waitlist gate, a campus, or auth — the pattern exhibit-demo set.
+- **D5:** `config.pdfPromoCode` interpreted as env `PDF_PROMO_CODE` (server config surface
+  here is env; no config module exists). Intake enum widened with `practice_pack`
+  (labels + a never-sent confirmation fallback). chapterId is accepted by the fn but no
+  practice surface currently knows it — passed null (logged, not invented).
+- **PROD ORDERING NOTE:** the bank data apply reached the shared production DB hours
+  before this code deploys; until the deploy lands, prod's old code serves the authored
+  bank WITH draft-flagged questions visible (inflated counts, real content, no paid
+  leak). Resolves on deploy; verified by content below.
+
+## Booth+bank QA sweep (the gauntlet)
+
+1 ✓ BANK-DIFF.md lists every untraceable CEQ; the shortcut-style bank is soft-archived
+  whole ("Which shortcut is most reliable?" lives in `deck-e1s-2-1`, archived); the four
+  trigger-word CEQs sit as drafts tagged `lee-shortcut-triggers` at the top of the report.
+2 ✓ Player and Booth read the same store by construction (loadBoothBank reuses
+  loadDecksDeduped/liveDecks). Spot-checks: type set 29 live (player) / 29+4 draft
+  (booth) / 29 master · cycle 12/12/12 · JE-for 24 (in Recording 42) / 24 / 24. Drafts
+  chipped in the Booth, gated out of counts, stems, practice and the tree.
+3 ✓ Booth tree mirrors the player (11 topics, master order, counts); recording-services
+  survive set browsing; quick actions anchor {ceq, timestamp, note}; hard refresh loses
+  nothing (retested after the D2 rebuild).
+4 ✓ Counter below the choices, centered, ‹ › flanking; no ‹ on Q1; › on the last follows
+  the existing completion behavior; answers preserved while surfing; ←/→ mirror; no
+  keyboard-handler changes so film-mode isolation untouched (suite green).
+5 ✓ PDF: 141/141 free live questions in teaching order; drafts + paid absent (grepped);
+  answer key + feedback; QR → /?via=pdf; promo slot absent with env unset; 304 on ETag;
+  the paid-content guard attacked directly by tests (throws, fails closed); capture row
+  landed (is_test) with the send-failed flag when Resend has no local key. The real
+  Resend send needs prod env — first live use verifies it.
+
+## 2026-08-29 — Lee-authorized data actions
+
+- **Talkthrough migration RUN** (Lee's explicit instruction) via the house runner
+  (`run_sql.ts --apply`, token pulled from Vercel and deleted after). All four
+  talkthrough tables verified by read — and the local-first clients flushed their queued
+  rows the moment the tables existed (3 sessions + 2 tags synced immediately).
+- **Trigger-word CEQs APPROVED**: the four `lee-shortcut-triggers` drafts flipped live in
+  the "What type of account is [ ]?" set. Verified through the player's own pipeline:
+  type set 29 → 33 visible, bank 141 → 145. The prod practice pack regenerated itself on
+  the next request (bank-hash ETag rolled; the new PDF includes them).

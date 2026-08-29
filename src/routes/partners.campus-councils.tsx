@@ -27,11 +27,17 @@ const SHOWCASE = ["ole-miss", "alabama", "texas-am", "lsu", "georgia"];
 
 export const Route = createFileRoute("/partners/campus-councils")({
   head: () => ({
-    meta: ogMeta({
-      title: "For campus Greek councils — free intro accounting exam prep for every chapter.",
-      description: "IFC, Panhellenic, NPHC and MGC councils: give every chapter on your campus free intro accounting exam prep, matched to the course your school actually teaches.",
-      path: "/partners/campus-councils",
-    }),
+    meta: [
+      ...ogMeta({
+        title: "For campus Greek councils — free intro accounting exam prep for every chapter.",
+        description: "IFC, Panhellenic, NPHC and MGC councils: give every chapter on your campus free intro accounting exam prep, matched to the course your school actually teaches.",
+        path: "/partners/campus-councils",
+      }),
+      // NOINDEX + UNLINKED (2026-08-28). Pulled out of the public footer while Lee iterates on
+      // this page; it is reachable from /leeportal and from any link already in the wild, and it
+      // renders exactly as before. Remove this one line to put it back in front of the public.
+      { name: "robots", content: "noindex" },
+    ],
     links: [{ rel: "canonical", href: `${ORIGIN}/partners/campus-councils` }],
   }),
   component: CampusCouncilsPage,

@@ -1,6 +1,6 @@
-// SHARE IT WITH THE HOUSE — step 1 of chapter onboarding. Available to anyone, on day one,
-// with nothing claimed: the moment a chapter is most likely to spread the link is the minute
-// they first see the page, and nothing here costs anything or exposes anything private.
+// CHAPTER SHARE — the vocabulary every sharing surface speaks: the canonical /go URL (with its
+// attribution stamp), the chapter's natural short name, and the GroupMe message. Pure functions
+// only; the UI that uses them is the /go page's share kit (see ChapterAccess).
 //
 // THE GROUPME MESSAGE DEPENDS ON CLAIM STATE. An unclaimed chapter's message must not say the
 // chapter "partnered" with us — nobody agreed to anything, and a member would rightly ask who
@@ -10,15 +10,13 @@
 //
 // Every action logs to expand_events via logGreekEvent ("greek_<kind>:<school>/<chapter>").
 // Logging is fire-and-forget — analytics must never break a share.
-import { useState } from "react";
+/** WHERE A SHARED LINK CAME FROM. Each path hands out a distinct stamp so we learn what actually
+ *  spreads. "flyer" is encoded by the printed QR itself (see flyerTarget). */
+export type ShareVia = "link" | "groupme" | "flyer";
 
-import { BRAND_SANS } from "@/components/canvas/brand";
-import { FlyerBlock } from "@/components/site/FlyerBlock";
-import { logGreekEvent } from "@/lib/greek-go.functions";
-
-/** One place, so the copied link and the printed flyer can never disagree. */
-export const chapterUrl = (schoolSlug: string, chapterSlug: string) =>
-  `https://surviveaccounting.com/go/${schoolSlug}/${chapterSlug}`;
+/** One place, so the copied link, the printed flyer and the visit log can never disagree. */
+export const chapterUrl = (schoolSlug: string, chapterSlug: string, via?: ShareVia) =>
+  `https://surviveaccounting.com/go/${schoolSlug}/${chapterSlug}${via ? `?via=${via}` : ""}`;
 
 /** Greek-letter words whose Latin initial is how houses ACTUALLY abbreviate them. Chi maps to X
  *  ("Alpha Chi Omega" → "AXO"). Phi and Psi are deliberately ABSENT: their real-world shorthands
@@ -65,64 +63,6 @@ export function groupMeMessage(opts: { claimed: boolean; shortName: string; cour
     : `For anyone taking ${courseLabel} — Survive Accounting has free cram videos + practice exams to help you ace your exams. Go check them out!\nStart studying here:\n${url}`;
 }
 
-export function ChapterShare({ schoolSlug, chapterSlug, chapterName, letters, nickname, claimed, courseLabel }: {
-  schoolSlug: string;
-  chapterSlug: string;
-  chapterName: string;
-  letters?: string | null;
-  /** Roster nickname ("ADPi") — the preferred short name in all share copy. */
-  nickname?: string | null;
-  /** Approved chapters get the partnership GroupMe copy; pending stays on the unclaimed copy. */
-  claimed: boolean;
-  /** The course code when verified ("ACG 2021"), else a plain-English fallback. */
-  courseLabel: string;
-}) {
-  const [copied, setCopied] = useState<"link" | "text" | null>(null);
-  const url = chapterUrl(schoolSlug, chapterSlug);
-
-  const track = (kind: "copy_link" | "copy_message") => {
-    void logGreekEvent({ data: { kind, schoolSlug, chapterSlug } }).catch(() => {});
-  };
-
-  const copy = async (kind: "link" | "text") => {
-    const text = kind === "link"
-      ? url
-      : groupMeMessage({ claimed, shortName: chapterShortName(chapterName, letters, nickname), courseLabel, url });
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(kind);
-      track(kind === "link" ? "copy_link" : "copy_message");
-      window.setTimeout(() => setCopied((c) => (c === kind ? null : c)), 1800);
-    } catch { /* clipboard blocked — the field below still shows the URL */ }
-  };
-
-  const BTN: React.CSSProperties = {
-    minHeight: 46, background: "var(--bg-surface)",
-    border: "1px solid var(--border-default)", color: "var(--brand-cream)",
-  };
-
-  return (
-    <div className="mx-auto w-full max-w-sm" style={{ fontFamily: BRAND_SANS }}>
-      <div className="flex flex-col gap-2">
-        <button type="button" onClick={() => void copy("link")} className="w-full rounded-xl px-4 text-[14px] font-bold focus-visible:ring-2" style={BTN}>
-          {copied === "link" ? "Link copied ⚡" : "Copy chapter link"}
-        </button>
-        <button type="button" onClick={() => void copy("text")} className="w-full rounded-xl px-4 text-[14px] font-bold focus-visible:ring-2" style={BTN}>
-          {copied === "text" ? "Message copied ⚡" : "Copy GroupMe message"}
-        </button>
-      </div>
-      {/* The real generated flyer — preview, download, print. Hides itself (title included) if
-          the flyer endpoint cannot render, so no label ever points at a missing thing. */}
-      <FlyerBlock
-        schoolSlug={schoolSlug}
-        chapterSlug={chapterSlug}
-        chapterName={chapterName}
-        title="Print flyer for the house"
-        subtitle="Download a print-ready flyer with your chapter QR code."
-      />
-      {/* The URL in plain sight: clipboard access is blocked in some in-app browsers, and a link
-          nobody can read is a dead end. */}
-      <p className="mt-2 truncate text-center text-[11.5px]" style={{ color: "var(--text-muted)" }}>{url.replace("https://", "")}</p>
-    </div>
-  );
-}
+// The ChapterShare COMPONENT (the old accordion step-01 UI) was removed 2026-08-28 — the share
+// kit on the /go page replaced it. The helpers above stayed: the URL builder, the short-name
+// rule and the GroupMe copy are used by the share kit, the flyer, the OG card and /go/demo.
