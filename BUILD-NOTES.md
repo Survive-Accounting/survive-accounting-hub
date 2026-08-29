@@ -355,3 +355,47 @@ Decisions logged, not asked (overnight rules): Easy Points kept live · chapter 
 `setLabel` was already built to strip quotes/[ ] from stem-style names) · analytics ids:
 question history keys on CEQ node ids, so the bank swap orphans (never corrupts) history
 written against starter-map ids.
+
+## D2–D5 — logged decisions (beyond the commit messages)
+
+- **D2/D3 landed as one commit** — the tree, quick actions and BANK CHANGES section share
+  the same route/model files and could not be split honestly. Deviation from the
+  per-section commit ritual, noted.
+- **Set-switch mid-booth** finalizes the current chunk and stops dictation (a deliberate
+  context boundary; both sessions stay open). Clicking CEQs inside a set never touches
+  the stream (the standing rule).
+- **Quick actions ride the tags store** (new kinds REWORD/NEWCEQ/CUT/EXHIBIT_SPEC/TEACH,
+  notes carried verbatim into the AI pass with "LEE'S NOTE:" priority framing).
+- **D4:** free surfing already existed via the keyboard; the work was the counter move
+  (one counter, below the choices, still the set-map trigger) + always-visible ‹ ›.
+  Added `/practice-demo` (noindex dev lab) because every live mount of the shared player
+  is behind the waitlist gate, a campus, or auth — the pattern exhibit-demo set.
+- **D5:** `config.pdfPromoCode` interpreted as env `PDF_PROMO_CODE` (server config surface
+  here is env; no config module exists). Intake enum widened with `practice_pack`
+  (labels + a never-sent confirmation fallback). chapterId is accepted by the fn but no
+  practice surface currently knows it — passed null (logged, not invented).
+- **PROD ORDERING NOTE:** the bank data apply reached the shared production DB hours
+  before this code deploys; until the deploy lands, prod's old code serves the authored
+  bank WITH draft-flagged questions visible (inflated counts, real content, no paid
+  leak). Resolves on deploy; verified by content below.
+
+## Booth+bank QA sweep (the gauntlet)
+
+1 ✓ BANK-DIFF.md lists every untraceable CEQ; the shortcut-style bank is soft-archived
+  whole ("Which shortcut is most reliable?" lives in `deck-e1s-2-1`, archived); the four
+  trigger-word CEQs sit as drafts tagged `lee-shortcut-triggers` at the top of the report.
+2 ✓ Player and Booth read the same store by construction (loadBoothBank reuses
+  loadDecksDeduped/liveDecks). Spot-checks: type set 29 live (player) / 29+4 draft
+  (booth) / 29 master · cycle 12/12/12 · JE-for 24 (in Recording 42) / 24 / 24. Drafts
+  chipped in the Booth, gated out of counts, stems, practice and the tree.
+3 ✓ Booth tree mirrors the player (11 topics, master order, counts); recording-services
+  survive set browsing; quick actions anchor {ceq, timestamp, note}; hard refresh loses
+  nothing (retested after the D2 rebuild).
+4 ✓ Counter below the choices, centered, ‹ › flanking; no ‹ on Q1; › on the last follows
+  the existing completion behavior; answers preserved while surfing; ←/→ mirror; no
+  keyboard-handler changes so film-mode isolation untouched (suite green).
+5 ✓ PDF: 141/141 free live questions in teaching order; drafts + paid absent (grepped);
+  answer key + feedback; QR → /?via=pdf; promo slot absent with env unset; 304 on ETag;
+  the paid-content guard attacked directly by tests (throws, fails closed); capture row
+  landed (is_test) with the send-failed flag when Resend has no local key. The real
+  Resend send needs prod env — first live use verifies it.
