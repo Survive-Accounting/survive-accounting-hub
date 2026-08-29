@@ -13,6 +13,8 @@ import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { getChapterDashboard, setChapterDigest, type ChapterDashboard } from "@/lib/greek-chapters.functions";
 import { assignSeat, transferChapterOwnership } from "@/lib/greek-seats.functions";
 import { getChapterSeatState, type ChapterSeatState } from "@/lib/chapter-seats.functions";
+import { SEAT_PRICE } from "@/components/site/ChapterAccess";
+import { scrollToId } from "@/lib/ui-scroll";
 import { SeatOfferBlock, SeatPurchase } from "@/components/site/SeatOffer";
 import { SeatDashboard } from "@/components/site/SeatDashboard";
 import { ChapterShareKit } from "@/components/site/ShareKit";
@@ -189,7 +191,8 @@ function Dashboard({ data, token, onDigest, onReload }: { data: ChapterDashboard
   };
 
   const seatSection = (
-    <div className="mt-6 grid gap-6">
+    // id: the locked panels' one CTA scrolls here — the seat offer IS the unlock.
+    <div id="seats" className="sa-anchor mt-6 grid gap-6">
       {showBuy ? (
         <SeatPurchase
           chapterId={data.chapterId}
@@ -255,21 +258,35 @@ function Dashboard({ data, token, onDigest, onReload }: { data: ChapterDashboard
         </div>
       </div>
 
+{/* THE TOP LINE IS ALWAYS REAL AND ALWAYS VISIBLE (K4.1) — an unpaid chapter sees its true
+          signup numbers, including zero. A locked dashboard that also hid the count would be a
+          dashboard with nothing in it, and a zero we hide is a zero we look like we are hiding.
+          "Signed up" and "New this week" both come from real member rows; nothing is projected. */}
       <div className="mt-3 grid grid-cols-3 gap-3">
-        {[["Members joined", data.membersJoined], ["Sets completed", data.setsCompleted], ["Active this week", data.activeThisWeek]].map(([label, n]) => (
+        {[["Signed up", data.membersJoined], ["New this week", data.activeThisWeek], ["Sets completed", data.setsCompleted]].map(([label, n]) => (
           <div key={label as string} className="rounded-2xl px-3 py-4 text-center" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)" }}>
             <div className="text-[24px] font-black" style={{ color: "var(--accent)" }}>{n as number}</div>
             <div className="mt-0.5 text-[11px]" style={{ color: "var(--text-muted)" }}>{label as string}</div>
           </div>
         ))}
       </div>
+      {data.membersJoined === 0 && (
+        <p className="mt-2 text-center text-[12.5px]" style={{ color: "var(--text-muted)" }}>
+          Share the link to get the first ones in.
+        </p>
+      )}
 
       {/* TERM SEATS — the offer, the purchase flow and (once a pool is active) seat management.
           Placed under the aggregate numbers and above the roster, because it is the decision the
           numbers argue for. The free roster below is untouched. */}
       {seatSection}
 
-      <div className="mt-3 overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)" }}>
+      {/* LOCKED, NOT HIDDEN (K4.1). An unpaid chapter can see that the member list, the activity
+          detail and exam management EXIST and what unlocks them — hiding them would make the
+          dashboard look empty rather than gated, and the exec would never know what they'd get. */}
+      {!data.sponsored && <LockedPanels chapterName={data.chapterName} onSponsor={() => scrollToId("seats")} />}
+
+      <div className="mt-3 overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.05)", border: "1px solid rgba(245,239,230,0.12)", ...(data.sponsored ? {} : { display: "none" }) }}>
         <div className="flex items-center justify-between border-b px-4 py-2.5" style={{ borderColor: "rgba(245,239,230,0.1)" }}>
           <span className="text-[12px] font-black uppercase tracking-wide" style={{ color: "var(--brand-cream)" }}>Roster</span>
           <span className="text-[11px]" style={{ color: "var(--text-muted)" }}>{data.roster.length} members</span>
@@ -352,6 +369,50 @@ function Dashboard({ data, token, onDigest, onReload }: { data: ChapterDashboard
       )}
 
       <p className="mt-2 text-center text-[11px]" style={{ color: "var(--text-muted)" }}>Semester seats are $100/member (10 min) — text me and I'll set it up.</p>
+    </div>
+  );
+}
+
+/** THE LOCKED PANELS (K4.1) — what an unpaid chapter can SEE but not open.
+ *
+ *  Three rows, each naming exactly what it holds and one line saying what unlocks it. No blurred
+ *  fake data behind the lock: a blurred roster of invented names is a lie told at low resolution,
+ *  and this dashboard's whole promise is that its numbers are real. The lock is honest about
+ *  being a lock. */
+function LockedPanels({ chapterName, onSponsor }: { chapterName: string; onSponsor: () => void }) {
+  const ROWS: Array<{ title: string; note: string }> = [
+    { title: "Who signed up", note: "Every member by name, with when they joined." },
+    { title: "Who's actually studying", note: "Practice attempts and sets completed, per member." },
+    { title: "Exams 2, 3 & the Final", note: "Assign and manage access for your members." },
+  ];
+  return (
+    <div className="mt-3 overflow-hidden rounded-2xl" style={{ background: "rgba(245,239,230,0.04)", border: "1px solid rgba(245,239,230,0.12)" }}>
+      {ROWS.map((r, i) => (
+        <div
+          key={r.title}
+          className="flex items-start gap-3 px-4 py-3.5"
+          style={{ borderTop: i === 0 ? undefined : "1px solid rgba(245,239,230,0.08)" }}
+        >
+          <span aria-hidden className="mt-0.5 shrink-0 text-[14px]" style={{ color: "var(--text-muted)" }}>🔒</span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[13.5px] font-black" style={{ color: "var(--brand-cream)" }}>{r.title}</div>
+            <div className="mt-0.5 text-[12px]" style={{ color: "var(--text-muted)" }}>{r.note}</div>
+            <div className="mt-1 text-[12px] font-bold" style={{ color: "var(--accent)" }}>
+              Unlocks when {chapterName} sponsors seats.
+            </div>
+          </div>
+        </div>
+      ))}
+      <div className="px-4 pb-4 pt-1">
+        <button
+          type="button"
+          onClick={onSponsor}
+          className="w-full rounded-xl px-4 text-[14px] font-black"
+          style={{ minHeight: 48, background: "var(--accent)", color: "#0B1220", border: 0, cursor: "pointer" }}
+        >
+          Sponsor seats — ${SEAT_PRICE}/member
+        </button>
+      </div>
     </div>
   );
 }
