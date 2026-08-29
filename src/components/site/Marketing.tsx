@@ -15,6 +15,8 @@ import { ArrowLeftRight, ClipboardCheck, Play, Target, MessageCircle } from "luc
 
 import { BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS } from "@/components/canvas/brand";
 import { AnimatedCampusBolt, type BoltCampus } from "@/components/site/bolt";
+import { GREEK_HOUSE_CSS } from "@/components/site/chapter/GreekHouseMark";
+import { CAMPUS_LINE_CSS, CampusDot, CampusEm, CampusFor, CampusLine } from "@/components/site/home-two-door/campus-line";
 import { CompactLockup } from "@/components/site/SiteHeader";
 import { NotListedForm } from "@/components/site/NotListedForm";
 import { nbspCode } from "@/lib/course-code";
@@ -116,18 +118,21 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
   // homepage hero has (headline → promise → chips → doors). Every other page is untouched.
   if (doors) {
     return (
-      <section id={MARKETING_HERO_ID} className="sa-hero-doors flex flex-col items-center pb-9 pt-10 text-center sm:pt-12" style={{ fontFamily: BRAND_SANS }}>
-        {greek && (
-          <p className="mb-3 text-[12px] font-black uppercase tracking-[0.13em]" style={{ color: "var(--text-muted)" }}>
-            {greek.orgName} <span aria-hidden style={{ opacity: 0.5 }}>•</span> {schoolShort}
-          </p>
-        )}
-        <h1 className="mx-auto max-w-[600px] text-[28px] font-black leading-[1.12] sm:text-[38px] lg:text-[44px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.015em" }}>
+      <section id={MARKETING_HERO_ID} className="sa-hero-doors flex flex-col items-center pb-9 pt-10 text-center sm:pt-14" style={{ fontFamily: BRAND_SANS }}>
+        <h1 className="mx-auto max-w-[600px] text-[30px] font-black leading-[1.12] sm:text-[40px] lg:text-[44px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.015em" }}>
           {headline}
         </h1>
         <p className="mt-4 text-[19px] font-extrabold leading-snug sm:text-[22px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
           Practice what gets tested. Score higher.
         </p>
+        {greek && (
+          <CampusLine>
+            <CampusFor>for </CampusFor>
+            <CampusEm>{greek.orgName.toUpperCase()}</CampusEm>
+            <CampusDot />
+            <CampusEm>{(schoolShort ?? "").toUpperCase()}</CampusEm>
+          </CampusLine>
+        )}
         <TrustChips onBio={onOpenBio} onReviews={() => scrollToId("reviews")} onPlayer={onStart} />
         {/* Exec login stays a UTILITY, never a door — claimed chapters only. */}
         {greek?.claimed && (
@@ -136,7 +141,7 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
           </a>
         )}
         {courtesy}
-        <div className="mt-8 w-full">{doors}</div>
+        <div className="mt-10 w-full sm:mt-12">{doors}</div>
       </section>
     );
   }
@@ -278,6 +283,8 @@ export function TrustChips({ onBio, onReviews, onPlayer }: { onBio: () => void; 
 
 /** Chip hover/focus styling — subtle brightness + a hair of lift, quick, reduced-motion safe. */
 export const MARKETING_CSS = `
+${CAMPUS_LINE_CSS}
+${GREEK_HOUSE_CSS}
 /* CHANGE-SCHOOL SWAP. A 44px touch target around a 16px glyph, so it is quiet to look at and still
    comfortably tappable on a phone. It brightens rather than growing — nothing under the bolt should
    move on hover except the bolt. */

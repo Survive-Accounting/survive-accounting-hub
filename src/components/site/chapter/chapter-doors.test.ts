@@ -38,7 +38,7 @@ describe("share attribution", () => {
 describe("right door support line (K1.2)", () => {
   test("says what the house GETS — the plain line names the course, the bold line the payoff", () => {
     const s = shareSupportLine("AC 210", "ΑΔΧ");
-    expect(s.muted).toBe(`Make sure everyone taking AC${NBSP}210 has the help they need.`);
+    expect(s.muted).toBe(`Studying for AC${NBSP}210 just got way easier.`);
     expect(s.strong).toBe("Boost ΑΔΧ's house GPA.");
   });
   test("COPY LAW: never states what we don't require", () => {
@@ -51,6 +51,6 @@ describe("right door support line (K1.2)", () => {
     }
   });
   test("degrades honestly with no verified course code", () => {
-    expect(shareSupportLine(null, "ΑΔΧ").muted).toBe("Make sure everyone in the house has the help they need.");
+    expect(shareSupportLine(null, "ΑΔΧ").muted).toBe("Intro accounting just got way easier.");
   });
 });

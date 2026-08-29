@@ -645,10 +645,14 @@ function LandingPageInner({ initialCampusId, goChapter, chapterAccess, campusSlu
             height via --sa-header-h, same as #exam1 and #chapter-access. The #lee anchor lives
             on the tutor column inside the row. */}
         <div id="reviews" className="sa-anchor" />
-        <SocialProofSection
-          testimonials={<TestimonialsSlider />}
-          tutor={<TutorCard onMore={() => setBioOpen(true)} />}
-        />
+        {/* Air above the proof block, matching the homepage: it answers a NEW question ("is this
+            real?") and needs to look like a new thought, not the tail of the section above it. */}
+        <div className="pt-10 sm:pt-14">
+          <SocialProofSection
+            testimonials={<TestimonialsSlider />}
+            tutor={<TutorCard onMore={() => setBioOpen(true)} />}
+          />
+        </div>
         <SectionDivider />
         {/* FAQ sits at the BOTTOM (08-25): objections come after the product and the proof. */}
         <Faq greek={greekOrg || undefined} />

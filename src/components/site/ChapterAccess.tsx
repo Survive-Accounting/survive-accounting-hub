@@ -23,6 +23,7 @@ import { FlyerBlock } from "@/components/site/FlyerBlock";
 import { ChapterAccessForm } from "@/components/site/ChapterAccessForm";
 import { chapterShortName, chapterTextMessage, chapterUrl, groupMeMessage, type ShareVia } from "@/components/site/ChapterShare";
 import { SlideBlock } from "@/components/site/SlideBlock";
+import { TIER_ACTION, TierCard, TierRow } from "@/components/site/home-two-door/DoorCard";
 import { logGreekEvent } from "@/lib/greek-go.functions";
 import { scrollToId } from "@/lib/ui-scroll";
 
@@ -76,9 +77,19 @@ export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, letter
       scrollToId("claim");
       setClaimOpen(true);
     }, 60);
-    const off = window.setTimeout(() => setHighlight(false), 2600);
-    return () => { window.clearTimeout(t); window.clearTimeout(off); };
+    return () => window.clearTimeout(t);
   }, []);
+
+  // THE HIGHLIGHT OUTLIVES THE SHEET. It used to clear on a 2.6s timer from page load — but the
+  // same deep link opens the sheet 60ms in, and the sheet is a full-screen overlay, so the ring
+  // spent its whole life behind the thing it was meant to point at and was gone by the time the
+  // exec closed it. Now it clears 2.6s after the sheet closes, which is the first moment anyone
+  // can actually see it.
+  useEffect(() => {
+    if (!highlight || claimOpen) return;
+    const off = window.setTimeout(() => setHighlight(false), 2600);
+    return () => window.clearTimeout(off);
+  }, [highlight, claimOpen]);
   const { code } = useCampus();
   const courseLabel = code ?? "Intro Accounting";
   const shortName = chapterShortName(chapterName, letters, nickname);
@@ -93,34 +104,6 @@ export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, letter
 
   return (
     <>
-      {/* THE EXEC STRIP — one quiet row, directly under the doors (K3.1). Above the share kit
-          because an exec running this for their house is looking for exactly this; still quiet,
-          because most visitors are members and the share kit is what THEY came for. */}
-      <section id="claim" className="sa-anchor mx-auto w-full max-w-[640px] px-5 pt-6">
-        <button
-          type="button"
-          onClick={() => setClaimOpen(true)}
-          className="flex w-full items-center justify-between gap-3 rounded-xl px-4 text-left transition-colors hover:bg-white/[0.04] focus-visible:ring-2"
-          style={{
-            minHeight: 56,
-            background: highlight ? "rgba(252,163,17,0.10)" : "rgba(0,0,0,0.18)",
-            border: `1px solid ${highlight ? "var(--accent)" : "var(--border-default)"}`,
-            boxShadow: highlight ? "0 0 0 3px rgba(252,163,17,0.25)" : undefined,
-            transition: "background-color 200ms, border-color 200ms, box-shadow 200ms",
-            fontFamily: BRAND_SANS, color: "var(--brand-cream)", cursor: "pointer",
-          }}
-        >
-          <span className="text-[14px] font-bold">
-            {claim === "claimed"
-              ? "Chapter exec? Open your chapter dashboard →"
-              : claim === "pending"
-                ? "Chapter exec? A claim for this chapter is in review →"
-                : "Chapter exec? Claim your chapter dashboard →"}
-          </span>
-          <span aria-hidden style={{ color: "var(--accent)" }}>›</span>
-        </button>
-      </section>
-
       <ShareKitSection
         id={id}
         schoolSlug={schoolSlug}
@@ -129,8 +112,11 @@ export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, letter
         letters={letters}
         nickname={nickname}
         claimed={claim === "claimed"}
+        claimState={claim}
         courseLabel={courseLabel}
         onShared={onShared}
+        onClaim={() => setClaimOpen(true)}
+        highlight={highlight}
       />
 
       {/* THE NUDGE. A card under the kit, dismissible, never blocking — and never shown to a
@@ -200,7 +186,7 @@ function markShareNudge(school: string, chapter: string): void {
 // ── THE SHARE KIT ─────────────────────────────────────────────────────────────────────────────
 /** Three fat actions, in the order they get used, and nothing else. Every action hands out a
  *  URL stamped with where it came from. */
-function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, nickname, claimed, courseLabel, onShared }: {
+function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, nickname, claimed, claimState, courseLabel, onShared, onClaim, highlight }: {
   id: string;
   schoolSlug: string;
   chapterSlug: string;
@@ -208,9 +194,14 @@ function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, ni
   letters?: string | null;
   nickname?: string | null;
   claimed: boolean;
+  /** Full claim state — the exec tier says something different for each. */
+  claimState: ClaimState;
   courseLabel: string;
   /** Fires on ANY completed share — copy, flyer download/print, slide download (K4.3). */
   onShared: () => void;
+  onClaim: () => void;
+  /** ?claim=1 landed here — ring the exec tier so an emailed link points at something visible. */
+  highlight: boolean;
 }) {
   const [copied, setCopied] = useState<ShareVia | null>(null);
   // Names the chapter the link is FOR — a share is an act of doing something for the house,
@@ -233,13 +224,7 @@ function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, ni
     } catch { /* clipboard blocked in some in-app browsers — the visible URL below still works */ }
   };
 
-  const ACTION = "flex w-full items-center justify-between gap-3 rounded-xl px-4 text-left text-[14.5px] font-black focus-visible:ring-2";
-  const actionStyle: React.CSSProperties = {
-    minHeight: 54, background: "var(--bg-surface)", border: "1px solid var(--border-default)",
-    color: "var(--brand-cream)", cursor: "pointer",
-  };
-  const TIER_H = "text-[11.5px] font-black uppercase";
-  const tierHStyle = { color: "var(--text-muted)", letterSpacing: "0.14em" } as const;
+  const ACTION = "flex w-full items-center justify-center gap-2 px-3 text-center focus-visible:ring-2";
 
   return (
     <section id={id} className="sa-anchor mx-auto w-full max-w-[1040px] px-5 py-12" style={{ fontFamily: BRAND_SANS }}>
@@ -247,59 +232,164 @@ function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, ni
         SHARE KIT
       </p>
       <h2 className="mx-auto mt-3 max-w-[24ch] text-center text-[21px] font-black leading-[1.15] sm:text-[25px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.01em" }}>
-        Get it to the whole house.
+        Make sure the whole house has this.
       </h2>
 
-      {/* THREE TIERS, side by side on desktop and stacked on a phone (K2). They are the three
-          rooms a chapter actually lives in: the group chat, the wall, and the meeting. Every one
-          of them is usable by any member — sharing is never gated on a claim. */}
-      <div className="mx-auto mt-8 grid w-full gap-6 lg:grid-cols-3 lg:gap-7">
+      {/* THREE TIER DOORS — the same door language as the hero, one size down, so the page reads
+          as a staircase: two big doors (study / spread) then three smaller ones (how to spread).
+          They are the three rooms a chapter lives in — the group chat, the house, the meeting —
+          and then the exec's room. Every sharing action is usable by any member; only the last
+          tier is for an exec, which is why it is last. */}
+      <TierRow>
         {/* TIER 1 — SEND IT. */}
-        <div className="min-w-0">
-          <p className={TIER_H} style={tierHStyle}>Send it</p>
-          <div className="mt-3 flex flex-col gap-2.5">
-            <button type="button" onClick={() => void copy("link")} className={ACTION} style={actionStyle}>
-              <span>{copied === "link" ? copiedLabel : "Copy chapter link"}</span>
-              <span aria-hidden style={{ color: "var(--accent)" }}>⧉</span>
-            </button>
-            <button type="button" onClick={() => void copy("groupme")} className={ACTION} style={actionStyle}>
-              <span>{copied === "groupme" ? copiedLabel : "Copy GroupMe message"}</span>
-              <span aria-hidden style={{ color: "var(--accent)" }}>⧉</span>
-            </button>
-            <button type="button" onClick={() => void copy("text")} className={ACTION} style={actionStyle}>
-              <span>{copied === "text" ? copiedLabel : "Copy text message"}</span>
-              <span aria-hidden style={{ color: "var(--accent)" }}>⧉</span>
-            </button>
-          </div>
+        <TierCard
+          icon={<SendMark />}
+          title="Send it"
+          blurb="Into the group chat, or straight to one person."
+        >
+          <button type="button" onClick={() => void copy("link")} className={ACTION} style={TIER_ACTION}>
+            {copied === "link" ? copiedLabel : "Copy the link"}
+          </button>
+          <button type="button" onClick={() => void copy("groupme")} className={ACTION} style={TIER_ACTION}>
+            {copied === "groupme" ? copiedLabel : "Copy a GroupMe post"}
+          </button>
+          <button type="button" onClick={() => void copy("text")} className={ACTION} style={TIER_ACTION}>
+            {copied === "text" ? copiedLabel : "Copy a text message"}
+          </button>
           {/* The URL in plain sight: clipboard access is blocked in some in-app browsers, and a
               link nobody can read is a dead end. Shown WITHOUT a stamp — this one gets typed. */}
-          <p className="mt-3 truncate text-[11.5px]" style={{ color: "var(--text-muted)" }}>{plain.replace("https://", "")}</p>
-        </div>
+          <p className="truncate text-[11px]" style={{ color: "var(--text-muted)" }}>{plain.replace("https://", "")}</p>
+        </TierCard>
 
-        {/* TIER 2 — THE FLYER. */}
-        <div className="min-w-0">
-          <p className={TIER_H} style={tierHStyle}>The flyer</p>
+        {/* TIER 2 — PUT IT UP. The printed flyer and the meeting slide do the same job (put it in
+            front of a room), so they share a tier and free the third one for the exec. Both render
+            compact here: actions only, no preview thumbnail, with "Preview it" as a quiet link. */}
+        <TierCard
+          icon={<PostMark />}
+          title="Put it up"
+          blurb="On the wall, and on the screen at chapter."
+        >
           <FlyerBlock
+            compact
             schoolSlug={schoolSlug}
             chapterSlug={chapterSlug}
             chapterName={chapterName}
-            subtitle="Print it and post it in the chapter house."
             onShared={onShared}
           />
-        </div>
-
-        {/* TIER 3 — THE MEETING SLIDE. Same generator as the council partner kit. */}
-        <div className="min-w-0">
-          <p className={TIER_H} style={tierHStyle}>The meeting slide</p>
           <SlideBlock
+            compact
             schoolSlug={schoolSlug}
             chapterSlug={chapterSlug}
             chapterName={chapterName}
             onShared={onShared}
           />
-        </div>
-      </div>
+        </TierCard>
+
+        {/* TIER 3 — THE EXEC'S DOOR. Replaces the grey "Chapter exec?" strip that used to sit
+            above the kit, where it read as an admin bar on a marketing page.
+            THE PRICE IS NOW PUBLIC HERE, reversing the earlier rule that "a member browsing the
+            page never meets a number" — Lee's call, and the reasoning holds: by this point the
+            reader has scrolled past every free thing on offer, so the number reads as the upgrade
+            at the end of a staircase rather than a toll at the door. Both numbers are shown,
+            because the Greek rate IS the pitch and one price alone is not a deal. */}
+        <ExecTier
+          shortName={shortName}
+          claimState={claimState}
+          highlight={highlight}
+          onClaim={onClaim}
+        />
+      </TierRow>
     </section>
+  );
+}
+
+// ── TIER 3 — THE EXEC'S DOOR ──────────────────────────────────────────────────────────────────
+/** Carries the id="claim" anchor and the ?claim=1 highlight the old exec strip owned, so every
+ *  outreach link already sent still lands on something that lights up. */
+function ExecTier({ shortName, claimState, highlight, onClaim }: {
+  shortName: string;
+  claimState: ClaimState;
+  highlight: boolean;
+  onClaim: () => void;
+}) {
+  const cta = claimState === "claimed"
+    ? "Open your dashboard →"
+    : claimState === "pending"
+      ? "Your claim is in review →"
+      : "Get your academic exec dashboard →";
+  return (
+    <div
+      id="claim"
+      className="sa-anchor flex min-w-0"
+      style={{
+        borderRadius: 16,
+        ...(highlight ? { outline: "2px solid var(--accent)", outlineOffset: 3 } : null),
+      }}
+    >
+      <TierCard
+        icon={<ExecMark />}
+        title="Run it for the house"
+        blurb={<>See who is actually studying, and cover every exam for {shortName}.</>}
+      >
+        {/* THE GREEK RATE. Two numbers, because the deal IS the message. */}
+        <p className="text-[12.5px] leading-snug" style={{ color: "var(--text-muted)" }}>
+          <span style={{ textDecoration: "line-through", opacity: 0.75 }}>${INDIVIDUAL_PRICE}</span>{" "}
+          <span className="font-black" style={{ color: "var(--brand-cream)" }}>${SEAT_PRICE}/member</span>
+          <br />
+          <span className="font-black" style={{ color: "var(--accent)" }}>Greek rate</span> — every exam, all semester.
+        </p>
+        <button
+          type="button"
+          onClick={onClaim}
+          className="flex w-full items-center justify-center px-3 text-center focus-visible:ring-2"
+          style={{ ...TIER_ACTION, background: "var(--cta-chapter-bg)", color: "var(--cta-chapter-fg)", border: "none" }}
+        >
+          {cta}
+        </button>
+      </TierCard>
+    </div>
+  );
+}
+
+// ── TIER MARKS ────────────────────────────────────────────────────────────────────────────────
+// Half-size, in the same hand-drawn language as the doors above them: cream strokes, round caps,
+// one accent highlight each. Static — the flag on the door's house is the only motion in this
+// column, and a tier that also moved would fight it.
+const MARK = { stroke: "var(--brand-cream)", strokeWidth: 3.5, strokeLinecap: "round", strokeLinejoin: "round" } as const;
+
+function SendMark() {
+  return (
+    <svg viewBox="0 0 56 48" width={56} height={48} fill="none" aria-hidden style={{ display: "block" }}>
+      <path d="M6 10 L38 10 L38 32 L20 32 L12 40 L12 32 L6 32 Z" {...MARK} />
+      <path d="M14 18 L30 18" {...MARK} />
+      <path d="M14 25 L25 25" {...MARK} />
+      <path d="M42 8 L50 16 L42 24" stroke="var(--accent)" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function PostMark() {
+  return (
+    <svg viewBox="0 0 56 48" width={56} height={48} fill="none" aria-hidden style={{ display: "block" }}>
+      <path d="M12 10 L38 10 L44 16 L44 42 L12 42 Z" {...MARK} />
+      <path d="M38 10 L38 16 L44 16" {...MARK} />
+      <path d="M19 24 L37 24" {...MARK} />
+      <path d="M19 32 L31 32" {...MARK} />
+      <circle cx="28" cy="6" r="3.2" fill="var(--accent)" />
+    </svg>
+  );
+}
+
+function ExecMark() {
+  return (
+    <svg viewBox="0 0 56 48" width={56} height={48} fill="none" aria-hidden style={{ display: "block" }}>
+      <path d="M10 40 L10 28" {...MARK} />
+      <path d="M22 40 L22 20" {...MARK} />
+      <path d="M34 40 L34 12" {...MARK} />
+      <path d="M5 44 L47 44" {...MARK} />
+      <path d="M41 24 L50 13" stroke="var(--accent)" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M42 11 L51 12 L50 21" stroke="var(--accent)" strokeWidth={3.5} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
 }
 
@@ -329,13 +419,13 @@ function ClaimSheet({ chapterName, shortName, schoolSlug, chapterSlug, claim, on
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Claim your chapter"
+        aria-label="Get your academic exec dashboard"
         className="w-full max-w-[420px] rounded-t-2xl p-5 sm:rounded-2xl"
         style={{ background: "var(--bg-overlay)", border: "1px solid var(--border-default)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)", paddingBottom: "max(20px, env(safe-area-inset-bottom, 0px))", fontFamily: BRAND_SANS }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex items-start justify-between gap-3">
-          <h3 className="text-[17px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Claim your chapter</h3>
+          <h3 className="pr-2 text-[17px] font-black leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Get your academic exec dashboard</h3>
           <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--brand-cream)", background: "none", border: 0, cursor: "pointer" }}>×</button>
         </div>
 
@@ -358,24 +448,15 @@ function ClaimSheet({ chapterName, shortName, schoolSlug, chapterSlug, claim, on
           <>
             {!submitted && (
               <>
-                <ul className="mb-4 flex flex-col gap-2" style={{ listStyle: "none", margin: "0 0 16px", padding: 0 }}>
-                  {[
-                    `See ${shortName}'s usage — who's signed up, who's studying`,
-                    "Manage access for Exams 2, 3 & the Final",
-                    `Sponsor full access for your members — $${SEAT_PRICE}/member (individually it's $${INDIVIDUAL_PRICE} — chapters get the deal)`,
-                  ].map((line) => (
-                    <li key={line} className="flex items-start gap-2 text-[13px] leading-snug" style={{ color: "var(--brand-cream)" }}>
-                      <span aria-hidden className="shrink-0 font-black" style={{ color: "var(--accent)" }}>✓</span>
-                      <span>{line}</span>
-                    </li>
-                  ))}
-                </ul>
-                <p className="mb-3 text-center text-[13px] font-bold" style={{ color: "var(--text-muted)" }}>
-                  Claiming is free. Exam 1 stays free for every member.
+                <p className="mb-3 text-[13px] leading-snug" style={{ color: "var(--text-muted)" }}>
+                  See {shortName}&apos;s usage and manage access for Exams 2, 3 &amp; the Final.{" "}
+                  <span className="font-bold" style={{ color: "var(--brand-cream)" }}>Setting it up is free</span>{" "}
+                  — Exam 1 stays free for every member either way.
                 </p>
               </>
             )}
             <ChapterAccessForm
+              bare
               schoolSlug={schoolSlug}
               chapterSlug={chapterSlug}
               chapterName={chapterName}

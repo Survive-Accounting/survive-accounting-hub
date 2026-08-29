@@ -170,7 +170,7 @@ function RoleSelect({ value, onChange, id }: { value: string; onChange: (v: stri
   );
 }
 
-export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, shortName, onClose, onDone }: {
+export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, shortName, onClose, onDone, bare = false }: {
   schoolSlug: string;
   chapterSlug: string;
   chapterName: string;
@@ -181,6 +181,9 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, shortN
   /** Fired on a successful submit, so the section can move its claim state to pending without a
    *  reload — the loader-fetched claimStatus is stale the moment this succeeds. */
   onDone?: () => void;
+  /** TRUE when this form is already inside a titled sheet: suppresses its own heading and close
+   *  button so the reader is not given two of each. */
+  bare?: boolean;
 }) {
   const uid = useId();
   const who = shortName?.trim() || chapterName;
@@ -275,19 +278,27 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, shortN
 
   return (
     <div className="relative mx-auto max-w-sm rounded-2xl p-5 text-left" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", fontFamily: BRAND_SANS }}>
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Close"
-        className="absolute right-1.5 top-1.5 grid place-items-center rounded-full hover:bg-white/10"
-        style={{ width: 40, height: 40, color: "var(--text-muted)", lineHeight: 1 }}
-      >
-        <span aria-hidden style={{ fontSize: 18 }}>×</span>
-      </button>
+      {!bare && (
+        <>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute right-1.5 top-1.5 grid place-items-center rounded-full hover:bg-white/10"
+            style={{ width: 40, height: 40, color: "var(--text-muted)", lineHeight: 1 }}
+          >
+            <span aria-hidden style={{ fontSize: 18 }}>×</span>
+          </button>
 
-      <p className="mb-4 pr-10 text-[15px] font-black" style={{ color: "var(--brand-cream)" }}>Claim {chapterName}&apos;s page</p>
+          <p className="mb-4 pr-10 text-[15px] font-black" style={{ color: "var(--brand-cream)" }}>Set up {chapterName}&apos;s dashboard</p>
+        </>
+      )}
 
-      <div className="grid gap-3.5">
+      {/* FOUR FIELDS, TWO ROWS — who you are, then how to reach you. Stacked, this was a column
+          of four boxes that read as a form to survive; paired, it reads as two questions. It
+          collapses to one column under 420px, where two columns would only make both too narrow
+          to type a real email into. */}
+      <div className="sa-claim-grid grid gap-3.5">
         <div>
           <label style={LABEL} htmlFor={`${uid}-name`}>Your name</label>
           <input
@@ -318,9 +329,16 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, shortN
             type="tel" autoComplete="tel" inputMode="tel" placeholder="(662) 555-0134"
             className="sa-field" style={FIELD}
           />
-          <SmsConsentNote />
         </div>
       </div>
+
+      {/* THE SMS DISCLOSURE, in its shortest compliant form. Lee asked for it to become an
+          "SMS policy" link, and it nearly is: one quiet line plus "Message terms" behind a
+          toggle. It cannot become ONLY a link — A2P 10DLC requires the consent essentials
+          (what you get, rates, STOP) to be visible AT the point of capture, and hiding all of it
+          is what makes a submitted number an unconsented one. This is the compact variant the
+          notify modal already uses, so the two forms now disclose identically. */}
+      <SmsConsentNote compact />
 
       {/* K3 — ONE willingness question, required, immediately before the button. Deliberately
           the last thing they answer: by here they have already decided to claim, so this reads as
@@ -371,10 +389,10 @@ export function ChapterAccessForm({ schoolSlug, chapterSlug, chapterName, shortN
         onClick={() => void submit()}
         disabled={!ok || busy}
         aria-busy={busy}
-        className="mt-4 w-full rounded-xl text-[15px] font-black transition-opacity disabled:opacity-40"
+        className="mt-4 w-full rounded-xl text-[14px] font-black leading-tight transition-opacity disabled:opacity-40"
         style={{ minHeight: 52, background: "var(--accent)", color: "#0B1220" }}
       >
-        {busy ? "Sending request…" : "Claim my chapter →"}
+        {busy ? "Sending request…" : "Get your academic exec dashboard →"}
       </button>
     </div>
   );

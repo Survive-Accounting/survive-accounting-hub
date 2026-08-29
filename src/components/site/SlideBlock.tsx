@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { logGreekEvent } from "@/lib/greek-go.functions";
 
-export function SlideBlock({ schoolSlug, chapterSlug, chapterName, title, subtitle, onShared }: {
+export function SlideBlock({ schoolSlug, chapterSlug, chapterName, title, subtitle, onShared, compact = false }: {
   schoolSlug: string;
   chapterSlug: string;
   chapterName?: string;
@@ -21,6 +21,8 @@ export function SlideBlock({ schoolSlug, chapterSlug, chapterName, title, subtit
   subtitle?: string;
   /** Fires when the visitor downloads the slide — feeds the K4.3 nudge. */
   onShared?: () => void;
+  /** TIER MODE — see the same flag on FlyerBlock. */
+  compact?: boolean;
 }) {
   const [svg, setSvg] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -47,6 +49,23 @@ export function SlideBlock({ schoolSlug, chapterSlug, chapterName, title, subtit
     minHeight: 46, background: "rgba(245,239,230,0.06)",
     border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)",
   };
+
+  const take = () => { onShared?.(); void logGreekEvent({ data: { kind: "flyer_download", schoolSlug, chapterSlug, via: "slide" } }).catch(() => {}); };
+
+  if (compact) {
+    return (
+      <div className="flex w-full flex-col gap-2" style={{ fontFamily: BRAND_SANS }}>
+        <a href={pdf} download={filename} onClick={take}
+           className="flex items-center justify-center gap-1.5 rounded-[10px] px-3 text-[13.5px] font-black" style={BTN}>
+          <span aria-hidden>⬇</span> Get the slide
+        </a>
+        <a href={pdf} target="_blank" rel="noreferrer" className="text-[11.5px] underline underline-offset-4"
+           style={{ color: "var(--text-muted)" }}>
+          Preview it
+        </a>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto mt-3 w-full max-w-sm" style={{ fontFamily: BRAND_SANS }}>

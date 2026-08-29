@@ -25,6 +25,7 @@ import {
   CHAPTER_BTN, DOOR_BTN_CLASS, DoorCard, DoorRow, SOLO_BTN,
 } from "@/components/site/home-two-door/DoorCard";
 import { nbspCode } from "@/lib/course-code";
+import { GreekHouseMark } from "./GreekHouseMark";
 
 /** The share-kit section's anchor — the right door's destination. */
 export const SHARE_ANCHOR = "share-kit";
@@ -42,8 +43,8 @@ export const soloSupportLine = (sponsored: boolean, letters: string): { muted: s
  *  the course code lives here, because the left block spends its one use on its heading. */
 export const shareSupportLine = (code: string | null, letters: string): { muted: string; strong: string } => ({
   muted: code
-    ? `Make sure everyone taking ${nbspCode(code)} has the help they need.`
-    : "Make sure everyone in the house has the help they need.",
+    ? `Studying for ${nbspCode(code)} just got way easier.`
+    : "Intro accounting just got way easier.",
   strong: `Boost ${letters}'s house GPA.`,
 });
 
@@ -78,11 +79,11 @@ export function ChapterDoors({ code, letters, sponsored, onStartExam, onShare }:
 
       {/* RIGHT DOOR — spreading it. Deliberately open to every member, not just exec. */}
       <DoorCard
-        icon={<FlyerMark height={112} />}
+        icon={<GreekHouseMark height={112} variant="chapter" />}
         title="Spread the word"
         button={
           <button type="button" onClick={onShare} className={DOOR_BTN_CLASS} style={CHAPTER_BTN}>
-            Get the share kit →
+            See sharing options →
           </button>
         }
         support={

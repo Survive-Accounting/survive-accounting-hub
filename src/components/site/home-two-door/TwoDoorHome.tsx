@@ -43,7 +43,10 @@ import { examRequest, notifyNote } from "@/lib/notify-request";
 import { rememberStudentEmail } from "@/lib/student-email";
 import { readTestSession } from "@/lib/test-mode";
 import { CHAPTER_BTN, DOOR_CARD_CSS, DOOR_CTA_VARS, DoorCard, DoorRow, DOOR_BTN_CLASS, SOLO_BTN } from "./DoorCard";
-import { homeCourseCode, soloButtonLabel, soloSupport } from "./two-door-copy";
+import { GREEK_HOUSE_CSS, GreekHouseMark } from "@/components/site/chapter/GreekHouseMark";
+
+import { CAMPUS_LINE_CSS, CampusEm, CampusFor, CampusLine } from "./campus-line";
+import { soloButtonLabel, soloSupport } from "./two-door-copy";
 import { nbspCode } from "@/lib/course-code";
 
 /** The doors section's anchor. Also aliased by the legacy #exam1 anchor below it, because every
@@ -127,6 +130,7 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
 
         {/* Legacy compatibility: every other page's navbar still links "/#exam1". */}
         <div id="exam1" className="sa-anchor" />
+        <div className="pt-2 sm:pt-4" />
         <TwoDoorCards
           code={campus.code}
           onSolo={openSolo}
@@ -149,16 +153,18 @@ function TwoDoorHomeInner({ previewSoloHref }: { previewSoloHref?: string }) {
           </button>
         </p>
 
-        {/* SOCIAL PROOF (reviews + Meet Lee), then the value strip as the existing lightweight
-            "how Survive works", then FAQ — the pre-redesign sections, reordered, nothing new. */}
+        {/* WHAT IT IS, then WHETHER IT IS REAL. The three value points sit right under the
+            scope line — they finish the sentence the doors started — and the proof follows. */}
+        <FeatureValueStrip code={campus.code} onSyllabus={() => setSyllabusOpen(true)} />
+
         <div id="reviews" className="sa-anchor" />
-        <div className="pt-12">
+        {/* Air above the proof block: it is a new thought, not a continuation of the strip. */}
+        <div className="pt-10 sm:pt-14">
           <SocialProofSection
             testimonials={<TestimonialsSlider />}
             tutor={<TutorCard onMore={() => setBioOpen(true)} />}
           />
         </div>
-        <FeatureValueStrip code={campus.code} onSyllabus={() => setSyllabusOpen(true)} />
         <SectionDivider />
         <Faq />
       </main>
@@ -213,7 +219,7 @@ function TwoDoorHero({ code, schoolName, schoolId, onOpenBio }: {
           · OLE MISS"), updated to current tokens. The campus name wears the school color; both
           values fall back to the flagship campus config (HOME_CAMPUS) so campus #2 is a data
           change, and a visitor's own resolved campus still wins. */}
-      <CampusLine code={code} schoolName={schoolName} schoolId={schoolId} />
+      <HomeCampusLine schoolName={schoolName} schoolId={schoolId} />
       {/* The three proof points — the "small credibility layer" between promise and doors.
           "Built for exam week" points at the doors: they are what backs the claim now. */}
       <TrustChips onBio={onOpenBio} onReviews={() => scrollToId("reviews")} onPlayer={() => scrollToId(DOORS_ID)} />
@@ -221,18 +227,22 @@ function TwoDoorHero({ code, schoolName, schoolId, onOpenBio }: {
   );
 }
 
-/** THE CAMPUS LINE — "for ACCY 201 · OLE MISS", the v1 bolt-plate treatment on the hero's
- *  centered axis. Name colored by the school's own primary (config-driven default). */
-function CampusLine({ code, schoolName, schoolId }: { code: string | null; schoolName: string | null; schoolId: string | null }) {
+/** THE HOMEPAGE'S CAMPUS LINE — "for ALABAMA students", the v1 bolt-plate treatment on the
+ *  hero's centered axis. Name colored by the school's own primary (config-driven default).
+ *
+ *  IT NAMES THE CAMPUS, NOT THE COURSE. The headline one line above already says the code, in
+ *  the accent colour the solo button repeats; saying it twice in two type sizes made the hero
+ *  read as a form field rather than a sentence. The chapter page uses the same component to say
+ *  "for ALPHA DELTA CHI · ALABAMA" in this exact slot. */
+function HomeCampusLine({ schoolName, schoolId }: { schoolName: string | null; schoolId: string | null }) {
   const name = schoolName ?? HOME_CAMPUS.name;
   const color = schoolId ? boltFor(schoolId).c1 : HOME_CAMPUS.colors.primary;
   return (
-    <p className="sa-campus-line mt-4" style={{ fontFamily: BRAND_DISPLAY }}>
-      <span className="sa-campus-line-for">for </span>
-      <span className="sa-campus-line-em">{homeCourseCode(code)}</span>
-      <span className="sa-campus-line-dot"> · </span>
-      <span className="sa-campus-line-em" style={{ color }}>{name.toUpperCase()}</span>
-    </p>
+    <CampusLine>
+      <CampusFor>for </CampusFor>
+      <CampusEm color={color}>{name.toUpperCase()}</CampusEm>
+      <CampusFor> students</CampusFor>
+    </CampusLine>
   );
 }
 
@@ -285,7 +295,7 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
         {/* RIGHT DOOR — Greek chapters. Same frame, equal-weight CTA; generic chapter-house
             visual (never one org's letters as the site's default branding). */}
         <DoorCard
-          icon={<ChapterHouseIcon height={82} />}
+          icon={<GreekHouseMark height={96} variant="home" />}
           title="Study with your chapter"
           button={
             <button
@@ -298,8 +308,12 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
             </button>
           }
           support={
-            <span className="text-[13px] leading-snug" style={{ color: "var(--text-muted)", maxWidth: "34ch" }}>
-              Get Survive through your fraternity or sorority.
+            <span className="text-[13px] leading-snug" style={{ maxWidth: "34ch" }}>
+              <span style={{ color: "var(--text-muted)" }}>
+                Get Survive through your{" "}
+                <span className="font-bold" style={{ color: "var(--brand-cream)" }}>fraternity or sorority</span>.{" "}
+              </span>
+              <span className="font-bold" style={{ color: "var(--brand-cream)" }}>Boost GPAs.</span>
             </span>
           }
         />
@@ -307,28 +321,6 @@ function TwoDoorCards({ code, onSolo, soloHref, onChapter }: {
   );
 }
 
-// ── RIGHT DOOR VISUAL — the hand-drawn temple (FINAL MILE H3) ─────────────────────────────────
-/** The chapter temple in the bolt's hand-drawn language: jagged pediment with a lightning bite,
- *  zigzag columns, one orange dot. Static on purpose — the bolt is the only living thing on
- *  screen. Strokes wear the cream token; the dot wears the brand accent token. */
-function ChapterHouseIcon({ height = 82 }: { height?: number }) {
-  const w = Math.round(height * (96 / 86));
-  return (
-    <svg viewBox="0 0 96 86" width={w} height={height} fill="none" aria-hidden style={{ display: "block" }}>
-      <path d="M12 32 L40 13 L46 19 L56 9 L84 32 Z"
-        stroke="var(--brand-cream)" strokeWidth={4.5}
-        strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx="50" cy="25" r="3" fill="var(--accent)" />
-      <path d="M18 39 L78 39" stroke="var(--brand-cream)" strokeWidth={4.5} strokeLinecap="round" />
-      <path d="M29 46 L27 54 L31 57 L29 65" stroke="var(--brand-cream)" strokeWidth={4.5} strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M42 46 L40 54 L44 57 L42 65" stroke="var(--brand-cream)" strokeWidth={4.5} strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M55 46 L53 54 L57 57 L55 65" stroke="var(--brand-cream)" strokeWidth={4.5} strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M68 46 L66 54 L70 57 L68 65" stroke="var(--brand-cream)" strokeWidth={4.5} strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M22 71 L74 71" stroke="var(--brand-cream)" strokeWidth={4.5} strokeLinecap="round" />
-      <path d="M14 78 L82 78" stroke="var(--brand-cream)" strokeWidth={4.5} strokeLinecap="round" />
-    </svg>
-  );
-}
 
 // ── EXAM 1 LAUNCH / WAITLIST MODAL ────────────────────────────────────────────────────────────
 /** The PUBLIC Exam 1 state while the new player is rebuilt privately: an intentional launch
@@ -462,10 +454,8 @@ const TWO_DOOR_CSS = `
 .sa-two-door-hero .sa-proof-row { justify-content: center; }
 
 /* CAMPUS LINE (H3) — the v1 bolt-plate type treatment on the hero axis. */
-.sa-campus-line { font-size: 13px; font-weight: 900; letter-spacing: 0.08em; color: var(--brand-cream); white-space: nowrap; }
-.sa-campus-line-for { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; opacity: 0.55; text-transform: none; }
-.sa-campus-line-em { opacity: 0.92; }
-.sa-campus-line-dot { opacity: 0.45; }
+${CAMPUS_LINE_CSS}
+${GREEK_HOUSE_CSS}
 
 /* DOOR CARDS — one hover response for both: a hair of lift, nothing else moves. */
 .sa-door-card { transition: transform 180ms ease, box-shadow 180ms ease; }
