@@ -399,3 +399,14 @@ written against starter-map ids.
   the paid-content guard attacked directly by tests (throws, fails closed); capture row
   landed (is_test) with the send-failed flag when Resend has no local key. The real
   Resend send needs prod env — first live use verifies it.
+
+## 2026-08-29 — Lee-authorized data actions
+
+- **Talkthrough migration RUN** (Lee's explicit instruction) via the house runner
+  (`run_sql.ts --apply`, token pulled from Vercel and deleted after). All four
+  talkthrough tables verified by read — and the local-first clients flushed their queued
+  rows the moment the tables existed (3 sessions + 2 tags synced immediately).
+- **Trigger-word CEQs APPROVED**: the four `lee-shortcut-triggers` drafts flipped live in
+  the "What type of account is [ ]?" set. Verified through the player's own pipeline:
+  type set 29 → 33 visible, bank 141 → 145. The prod practice pack regenerated itself on
+  the next request (bank-hash ETag rolled; the new PDF includes them).
