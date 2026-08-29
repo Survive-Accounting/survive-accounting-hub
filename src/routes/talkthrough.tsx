@@ -38,6 +38,7 @@ import { buildMicroEditMessages, extractJsonObject, parseMicroEdit, parsePass, t
 import { PreFlight, ReviewBoardV2 } from "@/components/canvas/ReviewBoard";
 import { BankView } from "@/components/canvas/BankView";
 import { FilmPicksTray, openFilmMode } from "@/components/canvas/FilmPicks";
+import { ExhibitRoom, exhibitSessionId } from "@/components/canvas/ExhibitRoom";
 import { queueReview, regenerateReviewItem, reviewStateOf, subscribeReview, sweepStrandedReviews } from "@/components/canvas/talkthrough-review";
 import { sumUsage, type AiUsage } from "@/lib/ai-registry";
 import { BIG_FONT, DISPLAY_FONT, NEON } from "@/components/canvas/theme";
@@ -74,7 +75,7 @@ const boothToPassCeq = (c: BoothCeq): PassCeq => ({
 
 // ------------------------------------------------------------------- shell
 
-type View = { mode: "home" } | { mode: "bank" } | { mode: "booth"; sessionId: string } | { mode: "session"; sessionId: string };
+type View = { mode: "home" } | { mode: "bank" } | { mode: "exhibits" } | { mode: "booth"; sessionId: string } | { mode: "session"; sessionId: string };
 
 function TalkthroughApp() {
   const [tt, setTT] = useState<TTState>(() => ttState());
@@ -118,6 +119,11 @@ function TalkthroughApp() {
           onClick={() => setView(view.mode === "bank" ? { mode: "home" } : { mode: "bank" })}>
           The Bank
         </button>
+        <button className="rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider"
+          style={view.mode === "exhibits" ? { background: GOLD, color: "#0B1322" } : { border: `1px solid ${EDGE}`, color: NEON.muted }}
+          onClick={() => setView(view.mode === "exhibits" ? { mode: "home" } : { mode: "exhibits" })}>
+          Exhibits
+        </button>
         <SyncBadge tt={tt} />
       </header>
 
@@ -125,6 +131,22 @@ function TalkthroughApp() {
 
       {view.mode === "home" && <Home tt={tt} topics={topics} onOpenSet={openSet} onOpenSession={(id) => setView({ mode: "session", sessionId: id })} />}
       {view.mode === "bank" && <BankView doc={tt.doc} topics={topics} />}
+      {view.mode === "exhibits" && (
+        <ExhibitRoom
+          doc={tt.doc}
+          topics={topics}
+          onDictate={(item) => {
+            // B6.2 — an exhibit card carries its own dictation session; the
+            // Booth's capture mechanics are unchanged (no set = general talk).
+            const sid = exhibitSessionId(item.id);
+            const open = tt.doc.sessions.find((x) => x.id.startsWith("tts-") && x.setId === sid && !x.endedAt);
+            if (open) { setView({ mode: "booth", sessionId: open.id }); return; }
+            const ses = makeSession(sid, `Exhibit · ${item.title}`);
+            putSession(ses);
+            setView({ mode: "booth", sessionId: ses.id });
+          }}
+        />
+      )}
       {view.mode === "booth" && session && (
         <Booth
           key={session.id}

@@ -391,3 +391,66 @@ export const insertFilmPicks = createServerFn({ method: "POST" })
     if (up.error) rethrow(up.error);
     return { ok: true as const, inserted: data.picks.length };
   });
+
+// ------------------------------------------------------ B6: exhibit drafts
+
+/** The shipped-exhibit registry (B6.3) — what "reference an existing exhibit"
+ *  offers. The config SOURCE ships in the bundle via ?raw so the draft pass
+ *  can ground itself in the real interaction/config shape. Config, not code:
+ *  a new shipped exhibit is one line here. */
+export const EXHIBIT_REGISTRY = [
+  { id: "cycle", label: "Accounting Cycle (modes + orbit)" },
+  { id: "users", label: "Who's It For? (mirrored wall)" },
+  { id: "standards", label: "Rulebook & Cops (chain)" },
+  { id: "basis", label: "When It Counts (cash vs accrual)" },
+  { id: "careers", label: "Accounting Careers (branch map)" },
+  { id: "classification", label: "5 Types of Accounts (classifier)" },
+] as const;
+export type ExhibitRefId = (typeof EXHIBIT_REGISTRY)[number]["id"];
+
+const exhibitConfigSource = async (id: string): Promise<string> => {
+  switch (id) {
+    case "cycle": return (await import("@/components/canvas/cycle-exhibit-config.ts?raw")).default;
+    case "users": return (await import("@/components/canvas/users-exhibit-config.ts?raw")).default;
+    case "standards": return (await import("@/components/canvas/standards-exhibit-config.ts?raw")).default;
+    case "basis": return (await import("@/components/canvas/cash-accrual-config.ts?raw")).default;
+    case "careers": return (await import("@/components/canvas/careers-exhibit-config.ts?raw")).default;
+    case "classification": return (await import("@/components/canvas/classification-exhibit-config.ts?raw")).default;
+    default: return "";
+  }
+};
+
+/** B6.4 — draft a conveyor-format Claude Code prompt for an exhibit card:
+ *  Bible-compliant (rule sandwich, importance cues, config-not-code), from
+ *  the reference config + Lee's notes + style notes. Synthesis lane. */
+export const runExhibitDraft = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    title: z.string().max(300),
+    body: z.string().max(8000),
+    quotes: z.array(z.string().max(4000)).max(20),
+    transcript: z.string().max(60_000),
+    referenceId: z.string().max(30).nullable(),
+    keepChange: z.string().max(8000),
+    styleNotes: z.array(z.string().max(300)).max(12),
+  }).parse(d))
+  .handler(async ({ data }) => {
+    const bible = (await import("../../docs/EXHIBIT-PRODUCTION-BIBLE-v1.md?raw")).default;
+    const refSource = data.referenceId ? await exhibitConfigSource(data.referenceId) : "";
+    const system = [
+      "You draft ONE exhibit build prompt for the Survive Accounting conveyor. It must be Bible-compliant: ONE exhibit, the rule sandwich, a LAYOUT section, INTERACTIONS + REVEAL, importance cues (MUST KNOW / EASY POINT / A+ DETAIL), config-not-code, film-safe ship rules, and it ends by naming the next exhibit as 'TBD by Lee'. Match the conveyor prompt format the Bible describes.",
+      `\n=== EXHIBIT PRODUCTION BIBLE ===\n${bible.slice(0, 28_000)}`,
+      refSource ? `\n=== REFERENCE EXHIBIT CONFIG (ground the interaction + config shape in this) ===\n${refSource.slice(0, 24_000)}` : "",
+      data.styleNotes.length ? `\n=== LEE'S STANDING STYLE NOTES (obey) ===\n${data.styleNotes.map((n) => `- ${n}`).join("\n")}` : "",
+      `\nReturn ONE JSON object, nothing else: {"summary": str (one paragraph), "prompt": str (the full conveyor prompt, markdown)}`,
+    ].filter(Boolean).join("\n");
+    const user = [
+      `EXHIBIT IDEA: ${data.title}`,
+      data.body ? `LEE'S NOTES: ${data.body}` : "",
+      data.keepChange ? `WHAT I'D KEEP / WHAT I'D CHANGE (vs the reference): ${data.keepChange}` : "",
+      data.quotes.length ? `VERBATIM MOMENTS:\n${data.quotes.map((q) => `"${q}"`).join("\n")}` : "",
+      data.transcript ? `DICTATION ON THIS CARD (verbatim):\n${data.transcript}` : "",
+    ].filter(Boolean).join("\n\n");
+    const { runAiTask } = await import("@/lib/ai.server");
+    const r = await runAiTask("synthesis", { system, user, maxOutput: 8_000 });
+    return { text: r.text, model: r.usage.model, usage: { inputTokens: r.usage.inputTokens, outputTokens: r.usage.outputTokens, costUsd: r.usage.costUsd } };
+  });
