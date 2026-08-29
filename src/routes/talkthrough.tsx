@@ -36,6 +36,7 @@ import { flushTT, pullTT, putBoardItem, putBoardItems, putSession, putTag, start
 import { TalkthroughRecorder, drainWhisperQueue, speechRecognitionAvailable, type BoothStatus } from "@/components/canvas/talkthrough-audio";
 import { buildMicroEditMessages, extractJsonObject, parseMicroEdit, parsePass, type PassCeq } from "@/components/canvas/talkthrough-pass";
 import { PreFlight, ReviewBoardV2 } from "@/components/canvas/ReviewBoard";
+import { BankView } from "@/components/canvas/BankView";
 import { queueReview, regenerateReviewItem, reviewStateOf, subscribeReview, sweepStrandedReviews } from "@/components/canvas/talkthrough-review";
 import { sumUsage, type AiUsage } from "@/lib/ai-registry";
 import { BIG_FONT, DISPLAY_FONT, NEON } from "@/components/canvas/theme";
@@ -72,7 +73,7 @@ const boothToPassCeq = (c: BoothCeq): PassCeq => ({
 
 // ------------------------------------------------------------------- shell
 
-type View = { mode: "home" } | { mode: "booth"; sessionId: string } | { mode: "session"; sessionId: string };
+type View = { mode: "home" } | { mode: "bank" } | { mode: "booth"; sessionId: string } | { mode: "session"; sessionId: string };
 
 function TalkthroughApp() {
   const [tt, setTT] = useState<TTState>(() => ttState());
@@ -88,7 +89,7 @@ function TalkthroughApp() {
     loadBoothBank().then((b) => setTopics(b.topics)).catch((e) => setBankError(e instanceof Error ? e.message : String(e)));
   }, []);
 
-  const session = view.mode !== "home" ? tt.doc.sessions.find((s) => s.id === view.sessionId) ?? null : null;
+  const session = view.mode === "booth" || view.mode === "session" ? tt.doc.sessions.find((s) => s.id === view.sessionId) ?? null : null;
   const allSets = (topics ?? []).flatMap((t) => t.sets);
   const boothSet = session ? allSets.find((s) => s.id === session.setId) ?? null : null;
 
@@ -110,12 +111,19 @@ function TalkthroughApp() {
           </button>
         )}
         <div style={{ fontFamily: BIG_FONT, fontWeight: 800, fontSize: 20, letterSpacing: "0.04em" }}>🎙 TALKTHROUGH BOOTH</div>
+        {/* B4 — the content bank lives beside the booth. */}
+        <button className="rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider"
+          style={view.mode === "bank" ? { background: GOLD, color: "#0B1322" } : { border: `1px solid ${EDGE}`, color: NEON.muted }}
+          onClick={() => setView(view.mode === "bank" ? { mode: "home" } : { mode: "bank" })}>
+          The Bank
+        </button>
         <SyncBadge tt={tt} />
       </header>
 
       {bankError && <div style={{ color: "#F87171", fontSize: 13, marginBottom: 10 }}>Could not load the bank: {bankError}</div>}
 
       {view.mode === "home" && <Home tt={tt} topics={topics} onOpenSet={openSet} onOpenSession={(id) => setView({ mode: "session", sessionId: id })} />}
+      {view.mode === "bank" && <BankView doc={tt.doc} topics={topics} />}
       {view.mode === "booth" && session && (
         <Booth
           key={session.id}
@@ -142,7 +150,7 @@ function TalkthroughApp() {
       {view.mode === "session" && session && (
         <SessionView tt={tt} session={session} set={boothSet} onResume={() => setView({ mode: "booth", sessionId: session.id })} />
       )}
-      {view.mode !== "home" && !session && <div style={{ color: NEON.muted }}>Session not found locally yet — syncing…</div>}
+      {(view.mode === "booth" || view.mode === "session") && !session && <div style={{ color: NEON.muted }}>Session not found locally yet — syncing…</div>}
     </div>
   );
 }
