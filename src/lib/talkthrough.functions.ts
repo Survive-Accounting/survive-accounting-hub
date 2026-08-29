@@ -454,3 +454,50 @@ export const runExhibitDraft = createServerFn({ method: "POST" })
     const r = await runAiTask("synthesis", { system, user, maxOutput: 8_000 });
     return { text: r.text, model: r.usage.model, usage: { inputTokens: r.usage.inputTokens, outputTokens: r.usage.outputTokens, costUsd: r.usage.costUsd } };
   });
+
+// ---------------------------------------------------- B8: one-take attach
+
+/** B8 — attach ONE video to {session, set}: staged upload (done client-side,
+ *  the flyer's direct-to-storage door) → Mux asset via the EXISTING ingest
+ *  (createAssetFromUrl) → a DRAFT publication on the deck marked ONE-TAKE
+ *  BLAST. state:"draft" never reaches students (shippedPub filters on
+ *  state==="shipped"). Minimal on purpose: no stitch, no trims — the full
+ *  pipeline integration is logged in BUILD-NOTES.md, not built. */
+export const attachOneTakeBlast = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    sessionId: z.string().min(1).max(120),
+    setId: z.string().min(1).max(120),
+    stagedUrl: z.string().url().max(600),
+    stagedPath: z.string().min(1).max(500),
+  }).parse(d))
+  .handler(async ({ data }) => {
+    const { createAssetFromUrl } = await import("@/lib/mux.server");
+    const asset = await createAssetFromUrl(data.stagedUrl);
+    const playbackId = asset.playback_ids?.[0]?.id ?? null;
+
+    const db = await admin();
+    const { loadDecksDeduped } = await import("@/lib/student.functions");
+    const owned = await loadDecksDeduped(db as never);
+    const o = owned.get(data.setId);
+    if (!o) throw new Error("set not found");
+    const { data: row, error } = await db.from("canvas_scenes").select("id,nodes_json").eq("id", o.sceneId).single();
+    if (error) rethrow(error);
+    const j = row.nodes_json as { decks?: { id: string; publications?: Record<string, unknown>[] }[] };
+    const deck = (j.decks ?? []).find((d2) => d2.id === data.setId);
+    if (!deck) throw new Error("deck vanished from its scene");
+    deck.publications ??= [];
+    deck.publications.push({
+      id: `pub-onetake-${Date.now().toString(36)}`,
+      kind: "blast",
+      state: "draft",                    // DRAFT — invisible to students until shipped
+      oneTake: true,
+      label: "ONE-TAKE BLAST",
+      sessionId: data.sessionId,
+      sourcePath: data.stagedPath,
+      render: { muxPlaybackId: playbackId, durationS: null, muxAssetId: asset.id },
+      createdAt: new Date().toISOString(),
+    });
+    const up = await db.from("canvas_scenes").update({ nodes_json: j }).eq("id", o.sceneId);
+    if (up.error) rethrow(up.error);
+    return { ok: true as const, assetId: asset.id, playbackId, muxStatus: asset.status };
+  });

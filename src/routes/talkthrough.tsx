@@ -24,7 +24,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Check, ChevronDown, ChevronRight, Copy, Mic, Shuffle, Square, Wand2, X } from "lucide-react";
 
 import { AdminGate } from "@/components/AdminGate";
-import { loadBoothBank, runMicro, runTalkthroughPass, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
+import { attachOneTakeBlast, loadBoothBank, runMicro, runTalkthroughPass, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import {
   BOARD_KIND_LABELS, BOARD_KINDS, BOARD_STATUSES, EDIT_STAMPS, STAMP_GROUPS, STAMP_LABELS, canonicalStamp, contextOfSegment, openContext, segmentsInContext, stampLabel,
   boardForCeq, listSessions, makeSession, makeTag, newTTId, sessionBoard, sessionMeta,
@@ -599,6 +599,56 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
 }
 
 
+/** B8 — ONE-TAKE BLAST attach: one video, staged upload → the existing Mux
+ *  ingest → a DRAFT publication on the deck. No stitch, no trims. */
+function AttachTake({ session, doc }: { session: TalkSession; doc: TTDoc }) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const existing = doc.boardItems.find((b) => b.kind === "take" && b.sessionId === session.id && !b.archivedAt);
+  const pick = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "video/*";
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      setNote(null);
+      try {
+        setBusy("uploading…");
+        const { createPipelineTestStagingUpload } = await import("@/lib/publish.functions");
+        const { putSignedUpload } = await import("@/components/canvas/ceq-takes");
+        const ext = (file.name.split(".").pop() ?? "mp4").toLowerCase();
+        const staged = await createPipelineTestStagingUpload({ data: { ext, folder: "one-take" } });
+        const err = await putSignedUpload(staged.path, staged.token, file);
+        if (err) throw new Error(err);
+        setBusy("ingesting to Mux…");
+        const r = await attachOneTakeBlast({ data: { sessionId: session.id, setId: session.setId, stagedUrl: staged.publicUrl, stagedPath: staged.path } });
+        const iso = new Date().toISOString();
+        putBoardItem({
+          id: newTTId("ttb"), sessionId: session.id, runId: "take", kind: "take",
+          title: `ONE-TAKE BLAST · ${file.name}`,
+          payload: { assetId: r.assetId, playbackId: r.playbackId, muxStatus: r.muxStatus, path: staged.path },
+          quote: "", ceqIds: [], status: "approved", comment: "",
+          createdAt: iso, updatedAt: iso, syncedAt: null,
+        });
+        setNote(`✓ draft ONE-TAKE BLAST on the set (Mux ${r.muxStatus})`);
+      } catch (e) {
+        setNote(`⚠ ${e instanceof Error ? e.message : String(e)}`);
+      } finally { setBusy(null); }
+    };
+    input.click();
+  };
+  return (
+    <span className="flex items-center gap-2">
+      <button className="rounded-xl px-3 py-1.5 text-xs font-bold" style={{ border: `1px solid #7DD3FC`, color: busy ? NEON.muted : "#7DD3FC" }} disabled={!!busy} onClick={pick}>
+        {busy ?? (existing ? "Attach another take →" : "Attach take →")}
+      </button>
+      {existing && !note && <span style={{ color: NEON.muted, fontSize: 10.5 }}>1 draft take attached</span>}
+      {note && <span style={{ color: note.startsWith("✓") ? "#3BF5A0" : "#F87171", fontSize: 10.5 }}>{note}</span>}
+    </span>
+  );
+}
+
 /** B7.2 — the style-memory view: one line per note, per output kind, prunable
  *  (archive = prune; never deleted). Pinned comments distill into these. */
 function StyleView({ doc }: { doc: TTDoc }) {
@@ -737,6 +787,7 @@ function SessionView({ tt, session, set, onResume }: { tt: TTState; session: Tal
         <button className="rounded-xl px-3 py-1.5 text-xs font-bold" style={{ border: `1px solid ${GOLD}`, color: GOLD }} onClick={() => openFilmMode(session.setId)}>
           Open film mode →
         </button>
+        {rs.state === "ready" && <AttachTake session={session} doc={tt.doc} />}
         <div className="ml-auto flex items-center gap-3">
           {usage.calls > 0 && (
             <span title={`${usage.calls} generation call${usage.calls === 1 ? "" : "s"}`} style={{ color: NEON.muted, fontSize: 11 }}>
