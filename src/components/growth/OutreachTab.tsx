@@ -718,6 +718,16 @@ function GapTable({
           Done
         </button>
       </div>
+      <p className="mb-1.5 text-[10px] text-muted-foreground">
+        Instagram here means the <strong className="text-foreground">person's own handle</strong> —
+        the exec you'd DM — not the chapter's public account.
+      </p>
+      {/* column headers so "which field is which" is never ambiguous */}
+      <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] gap-1.5 px-1 pb-1 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <span>Contact</span>
+        <span>Email</span>
+        <span>Personal Instagram</span>
+      </div>
       <div className="max-h-80 space-y-0.5 overflow-y-auto">
         {rows.map(({ entity, c }) => (
           <GapRow key={c.qcId} entityLabel={entity} contact={c} campusId={campusId} />
@@ -772,7 +782,8 @@ function GapRow({
         value={instagram}
         onChange={(ev) => setInstagram(ev.target.value)}
         onBlur={() => dirty && save.mutate()}
-        placeholder="@instagram…"
+        placeholder="@personal handle…"
+        title="The person's own Instagram, not the chapter account"
         className="rounded border border-border bg-card px-1.5 py-0.5 text-[11px]"
       />
     </div>
