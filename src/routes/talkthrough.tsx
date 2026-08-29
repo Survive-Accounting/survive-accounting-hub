@@ -24,16 +24,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Check, ChevronDown, ChevronRight, Copy, Mic, Shuffle, Square, Wand2, X } from "lucide-react";
 
 import { AdminGate } from "@/components/AdminGate";
-import { loadBoothBank, runTalkthroughPass, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
+import { loadBoothBank, runMicro, runTalkthroughPass, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import {
-  BOARD_KIND_LABELS, BOARD_KINDS, BOARD_STATUSES, INTERACTION_VOCAB, MOMENT_TAGS, QUICK_KINDS, TAG_LABELS, stampLabel,
+  BOARD_KIND_LABELS, BOARD_KINDS, BOARD_STATUSES, EDIT_STAMPS, STAMP_GROUPS, STAMP_LABELS, canonicalStamp, contextOfSegment, openContext, segmentsInContext, stampLabel,
   boardForCeq, listSessions, makeSession, makeTag, newTTId, sessionBoard, sessionMeta,
   sessionSegments, sessionTags, touchRow,
-  type BoardItem, type BoardStatus, type QuickKind, type TalkSegment, type TalkSession,
+  styleNotesFor,
+  type BoardItem, type BoardStatus, type StampKind, type TalkSegment, type TalkSession, type TalkTag,
 } from "@/components/canvas/talkthrough";
-import { putBoardItem, putBoardItems, putSession, putTag, startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
+import { flushTT, pullTT, putBoardItem, putBoardItems, putSession, putTag, startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
 import { TalkthroughRecorder, drainWhisperQueue, speechRecognitionAvailable, type BoothStatus } from "@/components/canvas/talkthrough-audio";
-import { extractJsonObject, parsePass, type PassCeq } from "@/components/canvas/talkthrough-pass";
+import { buildMicroEditMessages, extractJsonObject, parseMicroEdit, parsePass, type PassCeq } from "@/components/canvas/talkthrough-pass";
 import { BIG_FONT, DISPLAY_FONT, NEON } from "@/components/canvas/theme";
 
 export const Route = createFileRoute("/talkthrough")({
@@ -128,16 +129,22 @@ function TalkthroughApp() {
 }
 
 function SyncBadge({ tt }: { tt: TTState }) {
-  const label = tt.error ? `⚠ ${tt.error}` : tt.pending > 0 ? `${tt.pending} unsynced${tt.syncing ? " · syncing…" : " · will retry"}` : "all synced";
+  // B1.5 — the badge is also the RETRY NOW tap.
+  const label = tt.error ? `⚠ ${tt.error}` : tt.pending > 0 ? `${tt.pending} unsynced${tt.syncing ? " · syncing…" : " · tap to retry"}` : "all synced";
   const color = tt.error ? "#F87171" : tt.pending > 0 ? GOLD : "#3BF5A0";
   return (
-    <div className="ml-auto rounded-full px-3 py-1 text-[11px]" style={{ border: `1px solid ${color}55`, color }} title="Local-first: every word is already saved on this device; this shows the server copy.">
+    <button
+      type="button"
+      className="ml-auto rounded-full px-3 py-1 text-[11px]"
+      style={{ border: `1px solid ${color}55`, color, background: "transparent", cursor: "pointer" }}
+      title="Local-first: every word is already saved on this device. Tap to retry the server sync now."
+      onClick={() => { void pullTT(); void flushTT(); }}
+    >
       {label}
-    </div>
+    </button>
   );
 }
 
-// ------------------------------------------------------ the exam-path tree
 
 function PathTree({ topics, activeSetId, activeCeqs, focusId, onSet, onCeq }: {
   topics: BoothTopic[] | null;
@@ -290,11 +297,9 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
   const rec = recRef.current;
   const [focusId, setFocusId] = useState<string | null>(null);
   const [micError, setMicError] = useState<string | null>(null);
-  const [tagFlash, setTagFlash] = useState<string | null>(null);
+  const [paused, setPaused] = useState(false);
   const [nudge, setNudge] = useState(0);
-  const [quickOpen, setQuickOpen] = useState<QuickKind | null>(null);
-  const [quickText, setQuickText] = useState("");
-  const [quickVocab, setQuickVocab] = useState<string | null>(null);
+  const [showCount, setShowCount] = useState(4); // B1.4 scrollback window
   const status: BoothStatus = rec.status();
 
   useEffect(() => { const t = setInterval(() => setNudge((n) => (n + 1) % NUDGES.length), 18_000); return () => clearInterval(t); }, []);
@@ -305,42 +310,83 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
   const focused = ceqs?.find((c) => c.id === focusId) ?? null;
   const focusIndex = focused && ceqs ? ceqs.indexOf(focused) : -1;
   const focusPayload = { ceqId: focused?.id ?? null, label: focused ? `Q${focusIndex + 1} · ${focused.label}` : null };
+  const allTags = sessionTags(tt.doc, session.id);
+  const ctx = openContext(allTags, session.id);
   const segs = sessionSegments(tt.doc, session.id);
-  const recent = segs.slice(-3);
+  const recent = segs.slice(-showCount);
+  const stars = allTags.filter((t) => t.starred && !t.archivedAt);
+  const pendingEdits = sessionBoard(tt.doc, session.id).filter((b) => b.kind === "ceq_edit");
 
   const clickCeq = (c: BoothCeq | null) => {
     setFocusId(c?.id ?? null);
-    setQuickOpen(null);
     const idx = c && ceqs ? ceqs.indexOf(c) : -1;
     rec.setFocus(c?.id ?? null, c ? `Q${idx + 1} · ${c.label}` : null); // never interrupts the stream
   };
-  const tap = (tag: (typeof MOMENT_TAGS)[number]) => {
-    putTag(makeTag(session.id, tag, focusPayload));
-    setTagFlash(tag);
-    setTimeout(() => setTagFlash(null), 700);
+
+  /** B2 — closing an EDIT context fires the background micro draft. Capture is
+   *  never blocked: the pending item exists immediately; the draft fills in. */
+  const fireEditDraft = (closed: TalkTag) => {
+    const stamp = canonicalStamp(closed.tag);
+    if (!stamp || !(EDIT_STAMPS as readonly string[]).includes(stamp)) return;
+    const ceq = set?.ceqs.find((c) => c.id === closed.focusedCeqId);
+    if (!ceq) return;
+    // Give the in-flight chunk a beat to persist its live text, then draft.
+    window.setTimeout(() => {
+      const doc = ttState().doc;
+      const closedNow = doc.tags.find((t) => t.id === closed.id) ?? closed;
+      const spoken = segmentsInContext(sessionSegments(doc, session.id), closedNow).map((s) => s.text.trim()).filter(Boolean).join(" ");
+      if (!spoken) return; // nothing said — nothing to draft
+      const iso = new Date().toISOString();
+      const item: BoardItem = {
+        id: newTTId("ttb"), sessionId: session.id, runId: "micro", kind: "ceq_edit",
+        title: `${STAMP_LABELS[stamp as never] ?? stamp} · ${ceq.label}`,
+        payload: { stamp, ceqId: ceq.id, ceqLabel: ceq.label, instruction: spoken, current: { stem: ceq.stem, choices: ceq.choices }, state: "drafting" },
+        quote: spoken, ceqIds: [ceq.id], status: "pending", comment: "",
+        createdAt: iso, updatedAt: iso, syncedAt: null,
+      };
+      putBoardItem(item);
+      const msgs = buildMicroEditMessages({ stamp: stamp as never, ceq: boothToPassCeq(ceq), instruction: spoken, styleNotes: styleNotesFor(tt.doc, "memo") });
+      runMicro({ data: { system: msgs.system, user: msgs.user } })
+        .then((r) => {
+          const proposal = parseMicroEdit(r.text);
+          const fresh = ttState().doc.boardItems.find((b) => b.id === item.id) ?? item;
+          putBoardItem(touchRow(fresh, proposal
+            ? { status: "suggested", payload: { ...fresh.payload, state: "ready", proposed: proposal, _usage: r.usage } }
+            : { status: "suggested", payload: { ...fresh.payload, state: "error", error: "draft didn't parse — regenerate", _usage: r.usage } } as never));
+        })
+        .catch((e) => {
+          const fresh = ttState().doc.boardItems.find((b) => b.id === item.id) ?? item;
+          putBoardItem(touchRow(fresh, { status: "suggested", payload: { ...fresh.payload, state: "error", error: e instanceof Error ? e.message : String(e) } } as never));
+        });
+    }, 1400);
   };
-  const saveQuick = () => {
-    if (!quickOpen) return;
-    const note = quickOpen === "EXHIBIT_SPEC" && quickVocab ? `[${quickVocab}] ${quickText}`.trim() : quickText.trim();
-    if (!note) { setQuickOpen(null); return; }
-    const t = makeTag(session.id, quickOpen, focusPayload);
-    putTag({ ...t, note });
-    setQuickOpen(null); setQuickText(""); setQuickVocab(null);
+
+  /** B1 — stamps are click-IN/click-OUT contexts. Same stamp closes; a
+   *  different stamp auto-closes the current and opens the new one. */
+  const stamp = (kind: StampKind) => {
+    const now = new Date().toISOString();
+    rec.markBoundary(); // words never straddle a context edge
+    if (ctx) {
+      const closed = touchRow(ctx, { endedAt: now } as Partial<TalkTag>);
+      putTag(closed);
+      fireEditDraft(closed);
+      if (canonicalStamp(ctx.tag) === kind && ctx.focusedCeqId === focusPayload.ceqId) return; // toggled off
+    }
+    putTag({ ...makeTag(session.id, kind as never, focusPayload), endedAt: null });
   };
-  /** D2: switching SETS mid-booth is a deliberate context boundary — the
-   *  recorder flushes and stops (this session stays open); the new set gets
-   *  its own session. Clicking CEQs inside the set never touches the stream. */
-  const switchSet = (s: BoothSetInfo) => {
-    if (s.id === session.setId) return;
-    rec.stop();
-    onSwitchSet(s);
+  /** B1.2 — star = a bookmark on {stamp, ceq}; no context opened. */
+  const star = (kind: StampKind) => {
+    putTag({ ...makeTag(session.id, kind as never, focusPayload), starred: true, endedAt: new Date().toISOString() });
   };
+
+  const startMic = () => { setMicError(null); setPaused(false); rec.start().catch((e) => setMicError(e instanceof Error ? e.message : String(e))); };
+  const pauseMic = () => { rec.stop(); setPaused(true); }; // mic RELEASED; session stays open
 
   return (
     <div className="flex gap-4" style={{ alignItems: "stretch", minHeight: "78vh" }}>
       {/* LEFT — the Exam 1 path, exactly the player's shape */}
       <div style={{ width: 330, flexShrink: 0 }}>
-        <PathTree topics={topics} activeSetId={session.setId} activeCeqs={ceqs} focusId={focusId} onSet={switchSet} onCeq={clickCeq} />
+        <PathTree topics={topics} activeSetId={session.setId} activeCeqs={ceqs} focusId={focusId} onSet={(x) => { rec.stop(); onSwitchSet(x); }} onCeq={clickCeq} />
         {!set && <div style={{ color: NEON.muted, fontSize: 12, marginTop: 8 }}>Set not in the live bank — you can still talk; segments anchor to the session.</div>}
       </div>
 
@@ -356,6 +402,12 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
             <span style={{ color: GOLD, fontSize: 11, fontWeight: 700 }}>GENERAL SET TALK</span>
           )}
           {focused?.draft && <DraftChip />}
+          {focused && pendingEdits.some((b) => (b.payload as { ceqId?: string }).ceqId === focused.id) && (
+            <span style={{ fontSize: 10, color: "#7DD3FC" }}>
+              {pendingEdits.filter((b) => (b.payload as { ceqId?: string }).ceqId === focused.id).map((b) => (b.payload as { state?: string }).state === "drafting" ? "✎ drafting…" : "✎ edit ready").join(" · ")}
+            </span>
+          )}
+          <span className="ml-auto" style={{ fontSize: 10.5, color: stars.length ? GOLD : NEON.muted }}>★ {stars.length}</span>
         </div>
 
         {focused ? (
@@ -372,7 +424,6 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
                 </div>
               ))}
             </div>
-            {/* D3.3 — Lee's own prior notes from the master sheet, in view while he talks */}
             {(focused.needsExhibit || focused.masterNotes) && (
               <div className="mt-4 rounded-xl px-3 py-2" style={{ border: `1px dashed ${EDGE}`, maxWidth: 640 }}>
                 {focused.needsExhibit && <div style={{ fontSize: 11, color: GOLD }}>needs_exhibit: {focused.needsExhibit}</div>}
@@ -386,9 +437,14 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
           </div>
         )}
 
-        {/* live transcript ticker */}
+        {/* transcript — scrollback upward (B1.4), grouped by context chip */}
         <div className="mt-6 flex flex-col gap-1.5">
-          {recent.map((s) => <SegmentLine key={s.id} seg={s} />)}
+          {segs.length > showCount && (
+            <button className="text-left" style={{ color: NEON.muted, fontSize: 11, background: "transparent", border: "none", cursor: "pointer" }} onClick={() => setShowCount((n) => n + 50)}>
+              earlier ↑ ({segs.length - showCount} more)
+            </button>
+          )}
+          {recent.map((s) => <SegmentLine key={s.id} seg={s} ctx={contextOfSegment(s, allTags)} />)}
           {status.recording && (
             <div style={{ fontSize: 13, color: GOLD, fontStyle: "italic", minHeight: 20 }}>
               {status.interim || (status.liveAvailable ? "…" : "listening (Whisper text lands in seconds)…")}
@@ -397,106 +453,82 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
         </div>
       </div>
 
-      {/* RIGHT — booth chrome: recorder, prompter, tags, quick actions */}
-      <div className="flex flex-col gap-3" style={{ width: 300, flexShrink: 0, overflowY: "auto", maxHeight: "82vh" }}>
-        <button
-          className="flex items-center justify-center gap-2 rounded-2xl px-4 py-4"
-          style={{ background: status.recording ? "rgba(248,113,113,0.16)" : "rgba(59,245,160,0.12)", border: `1.5px solid ${status.recording ? "#F87171" : "#3BF5A0"}`, fontFamily: BIG_FONT, fontWeight: 800, fontSize: 16 }}
-          onClick={() => {
-            if (status.recording) rec.stop();
-            else { setMicError(null); rec.start().catch((e) => setMicError(e instanceof Error ? e.message : String(e))); }
-          }}
-        >
-          {status.recording ? <><Square className="h-4 w-4" /> STOP</> : <><Mic className="h-4 w-4" /> START TALKING</>}
-        </button>
+      {/* RIGHT — recorder, prompter, THE STAMP BOARD */}
+      <div className="flex flex-col gap-3" style={{ width: 310, flexShrink: 0, overflowY: "auto", maxHeight: "82vh" }}>
+        <div className="flex gap-2">
+          <button
+            className="flex flex-1 items-center justify-center gap-2 rounded-2xl px-3 py-3.5"
+            style={{ background: status.recording ? "rgba(248,113,113,0.16)" : "rgba(59,245,160,0.12)", border: `1.5px solid ${status.recording ? "#F87171" : "#3BF5A0"}`, fontFamily: BIG_FONT, fontWeight: 800, fontSize: 14 }}
+            onClick={() => { if (status.recording) pauseMic(); else startMic(); }}
+          >
+            {status.recording ? <><Square className="h-4 w-4" /> PAUSE</> : <><Mic className="h-4 w-4" /> {paused ? "RESUME" : "START TALKING"}</>}
+          </button>
+        </div>
+        {paused && !status.recording && <div style={{ color: NEON.muted, fontSize: 10.5 }}>Paused — mic released. Resume continues this session exactly here (survives reloads).</div>}
         {micError && <div style={{ color: "#F87171", fontSize: 12 }}>{micError}</div>}
-        {!speechRecognitionAvailable() && <div style={{ color: NEON.muted, fontSize: 10.5 }}>Live captions unavailable — chunked Whisper alone (text lands within seconds).</div>}
+        {!speechRecognitionAvailable() && <div style={{ color: NEON.muted, fontSize: 10.5 }}>Live captions unavailable — chunked Whisper alone.</div>}
+
+        {/* open-context banner */}
+        {ctx && (
+          <div className="rounded-xl px-3 py-2" style={{ background: "rgba(252,163,17,0.12)", border: `1.5px solid ${GOLD}` }}>
+            <div style={{ fontSize: 10, letterSpacing: "0.18em", color: GOLD, textTransform: "uppercase", fontWeight: 900 }}>context open</div>
+            <div style={{ fontSize: 12.5, color: CREAM, marginTop: 2 }}>
+              {stampLabel(ctx.tag)}{ctx.focusedCeqLabel ? ` · ${ctx.focusedCeqLabel}` : " · set"} — click the stamp again to close
+            </div>
+          </div>
+        )}
 
         {/* prompter */}
-        <div className="rounded-2xl p-4" style={{ background: PANEL, border: `1px solid ${EDGE}` }}>
+        <div className="rounded-2xl p-3.5" style={{ background: PANEL, border: `1px solid ${EDGE}` }}>
           <div className="flex items-center justify-between">
             <div style={{ fontSize: 10, letterSpacing: "0.22em", color: NEON.muted, textTransform: "uppercase" }}>Prompter</div>
             <button title="Shuffle" style={{ color: NEON.muted }} onClick={() => setNudge((n) => (n + 1 + Math.floor(Math.random() * (NUDGES.length - 1))) % NUDGES.length)}>
               <Shuffle className="h-3.5 w-3.5" />
             </button>
           </div>
-          <div style={{ fontFamily: BIG_FONT, fontSize: 18, fontWeight: 700, lineHeight: 1.3, marginTop: 6, minHeight: 48 }}>{NUDGES[nudge]}</div>
+          <div style={{ fontFamily: BIG_FONT, fontSize: 16.5, fontWeight: 700, lineHeight: 1.3, marginTop: 5, minHeight: 42 }}>{NUDGES[nudge]}</div>
         </div>
 
-        {/* moment tags */}
-        <div className="grid grid-cols-3 gap-1.5">
-          {MOMENT_TAGS.map((t) => (
-            <button
-              key={t}
-              className="rounded-xl px-1 py-2.5"
-              style={{
-                background: tagFlash === t ? "rgba(252,163,17,0.3)" : PANEL,
-                border: `1.5px solid ${tagFlash === t ? GOLD : EDGE}`,
-                fontFamily: BIG_FONT, fontWeight: 800, fontSize: 11, transition: "background 150ms ease",
-              }}
-              onClick={() => tap(t)}
-            >
-              {TAG_LABELS[t]}
-            </button>
-          ))}
-        </div>
-
-        {/* D3 — quick actions on the focused CEQ */}
-        <div className="rounded-2xl p-3" style={{ background: PANEL, border: `1px solid ${EDGE}` }}>
-          <div style={{ fontSize: 10, letterSpacing: "0.22em", color: NEON.muted, textTransform: "uppercase", marginBottom: 6 }}>
-            Quick actions {focused ? `· Q${focusIndex + 1}` : "· set"}
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {QUICK_KINDS.map((k) => (
-              <button
-                key={k}
-                className="rounded-full px-2.5 py-1"
-                style={{
-                  fontSize: 10.5, fontWeight: 800,
-                  background: quickOpen === k ? GOLD : "rgba(9,13,26,0.7)",
-                  color: quickOpen === k ? "#0B1322" : CREAM,
-                  border: `1px solid ${quickOpen === k ? GOLD : EDGE}`,
-                }}
-                onClick={() => { setQuickOpen(quickOpen === k ? null : k); setQuickText(""); setQuickVocab(null); }}
-              >
-                {TAG_LABELS[k]}
-              </button>
-            ))}
-          </div>
-          {quickOpen && (
-            <div className="mt-2 flex flex-col gap-1.5">
-              {quickOpen === "EXHIBIT_SPEC" && (
-                <div className="flex flex-wrap gap-1">
-                  {INTERACTION_VOCAB.map((v) => (
-                    <button key={v} className="rounded-full px-2 py-0.5" style={{ fontSize: 9, fontWeight: 800, background: quickVocab === v ? "rgba(252,163,17,0.25)" : "transparent", color: quickVocab === v ? GOLD : NEON.muted, border: `1px solid ${quickVocab === v ? GOLD : EDGE}` }} onClick={() => setQuickVocab(quickVocab === v ? null : v)}>
-                      {v}
+        {/* B2 — THE STAMP BOARD: three labeled groups; every stamp opens a
+            context; ★ bookmarks {stamp, ceq} without opening one. */}
+        {STAMP_GROUPS.map((g) => (
+          <div key={g.id}>
+            <div style={{ fontSize: 9.5, letterSpacing: "0.22em", color: NEON.muted, textTransform: "uppercase", fontWeight: 900, marginBottom: 4 }}>{g.label}</div>
+            <div className="flex flex-wrap gap-1.5">
+              {g.kinds.map((k) => {
+                const active = !!ctx && canonicalStamp(ctx.tag) === k;
+                return (
+                  <div key={k} className="flex items-stretch" style={{ borderRadius: 10, overflow: "hidden", border: `1.5px solid ${active ? GOLD : EDGE}` }}>
+                    <button
+                      className="px-2.5 py-1.5"
+                      style={{ background: active ? GOLD : PANEL, color: active ? "#0B1322" : CREAM, fontFamily: BIG_FONT, fontWeight: 800, fontSize: 11 }}
+                      onClick={() => stamp(k)}
+                    >
+                      {STAMP_LABELS[k]}
                     </button>
-                  ))}
-                </div>
-              )}
-              <textarea
-                value={quickText}
-                autoFocus
-                rows={2}
-                placeholder={{ REWORD: "this stem/choice should say…", NEWCEQ: "we need a question here about…", CUT: "doesn't earn its slot because…", EXHIBIT_SPEC: "here's the exhibit this needs…", TEACH: "the beat / order / analogy…" }[quickOpen]}
-                onChange={(e) => setQuickText(e.target.value)}
-                style={{ background: "rgba(9,13,26,0.7)", border: `1px solid ${EDGE}`, borderRadius: 8, color: CREAM, fontSize: 12, padding: "6px 8px", resize: "vertical" }}
-              />
-              <button className="rounded-lg px-3 py-1.5 text-xs font-bold" style={{ background: GOLD, color: "#0B1322" }} onClick={saveQuick}>
-                Stamp it — keep talking
-              </button>
+                    <button
+                      title="Star — come back to this (no context)"
+                      className="px-1.5"
+                      style={{ background: active ? "rgba(11,19,34,0.25)" : "rgba(9,13,26,0.7)", color: stars.some((t) => canonicalStamp(t.tag) === k && t.focusedCeqId === focusPayload.ceqId) ? GOLD : NEON.muted, fontSize: 11 }}
+                      onClick={(e) => { e.stopPropagation(); star(k); }}
+                    >
+                      ★
+                    </button>
+                  </div>
+                );
+              })}
             </div>
-          )}
-        </div>
-        <div style={{ color: NEON.muted, fontSize: 10.5 }}>{sessionTags(tt.doc, session.id).length} moments stamped</div>
+          </div>
+        ))}
 
         <div className="mt-auto flex flex-col gap-2">
           {(status.uploadQueue > 0 || status.transcribeQueue > 0) && (
             <div style={{ color: NEON.muted, fontSize: 11 }}>background: {status.uploadQueue} uploading · {status.transcribeQueue} awaiting Whisper</div>
           )}
           {status.lastError && <div style={{ color: "#F87171", fontSize: 11 }}>retrying: {status.lastError}</div>}
-          <button className="rounded-xl px-4 py-2.5" style={{ border: `1.5px solid ${GOLD}`, color: GOLD, fontFamily: BIG_FONT, fontWeight: 800 }} onClick={() => { rec.stop(); onEnd(); }}>
-            END SESSION → review
+          {/* B3 — THE primary next action */}
+          <button className="rounded-xl px-4 py-3" style={{ background: GOLD, color: "#0B1322", fontFamily: BIG_FONT, fontWeight: 800, fontSize: 15 }} onClick={() => { rec.stop(); onEnd(); }}>
+            End Session → Review
           </button>
         </div>
       </div>
@@ -504,11 +536,17 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
   );
 }
 
-function SegmentLine({ seg }: { seg: TalkSegment }) {
+
+function SegmentLine({ seg, ctx }: { seg: TalkSegment; ctx?: TalkTag | null }) {
   if (!seg.text) return null;
   return (
     <div style={{ fontSize: 13, lineHeight: 1.45 }}>
       <span style={{ color: NEON.muted, fontSize: 10.5 }}>[S{seg.seq}]{seg.focusedCeqLabel ? ` ${seg.focusedCeqLabel} · ` : " "}</span>
+      {ctx && (
+        <span className="rounded-full px-1.5" style={{ fontSize: 9, fontWeight: 900, letterSpacing: "0.08em", color: GOLD, border: `1px solid ${GOLD}55`, marginRight: 5, verticalAlign: "middle" }}>
+          {stampLabel(ctx.tag)}
+        </span>
+      )}
       {seg.text}
       {seg.whisperPending && <span title="Live text — Whisper canonical copy pending" style={{ color: GOLD, fontSize: 10, marginLeft: 6 }}>◌ pending</span>}
     </div>
@@ -672,6 +710,7 @@ function SessionView({ tt, session, set, onResume }: { tt: TTState; session: Tal
 // --------------------------------------------------------------- item card
 
 const STATUS_COLORS: Record<BoardStatus, string> = {
+  pending: NEON.muted as string, approved: "#3BF5A0", archived: "#F87171", in_production: "#7DD3FC", done: "#A78BFA", final: GOLD,
   suggested: NEON.muted as string, accepted: "#3BF5A0", edited: "#7DD3FC", rejected: "#F87171", built: GOLD, filmed: "#A78BFA",
 };
 

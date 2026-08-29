@@ -212,14 +212,19 @@ export interface TalkTag extends TTRow {
   note?: string | null;
 }
 
-export const BOARD_KINDS = ["ceq_order", "outline", "exhibit", "bank", "vibe", "short", "phrase", "accuracy"] as const;
+export const BOARD_KINDS = ["ceq_order", "outline", "exhibit", "bank", "vibe", "short", "phrase", "accuracy", "ceq_edit", "script", "idea", "vibe_plan", "style_note", "take"] as const;
 export type BoardKind = (typeof BOARD_KINDS)[number];
 export const BOARD_KIND_LABELS: Record<BoardKind, string> = {
   ceq_order: "CEQ order", outline: "Blast Off outline", exhibit: "Exhibit", bank: "Bank changes",
   vibe: "Vibe beats", short: "Shorts / Nerd Outs", phrase: "Phrases", accuracy: "Accuracy flags",
+  ceq_edit: "CEQ edits", script: "The Script", idea: "Content ideas", vibe_plan: "Vibe plan",
+  style_note: "Style note", take: "Take",
 };
 
-export const BOARD_STATUSES = ["suggested", "accepted", "edited", "rejected", "built", "filmed"] as const;
+/** v2 flow: PENDING (drafting) → SUGGESTED → APPROVE or ARCHIVE (no reject;
+ *  archive is recoverable). Bank lifecycle: APPROVED → IN PRODUCTION → DONE,
+ *  plus FINAL. v1 statuses stay so old boards render. */
+export const BOARD_STATUSES = ["pending", "suggested", "approved", "archived", "in_production", "done", "final", "accepted", "edited", "rejected", "built", "filmed"] as const;
 export type BoardStatus = (typeof BOARD_STATUSES)[number];
 
 export interface BoardItem extends TTRow {
@@ -343,6 +348,16 @@ export function sessionMeta(d: TTDoc, s: TalkSession): { segments: number; durat
     durationMs: Math.max(0, new Date(end).getTime() - new Date(s.startedAt).getTime()),
     words: segs.reduce((n, x) => n + (x.text ? x.text.trim().split(/\s+/).length : 0), 0),
   };
+}
+
+/** B7 — the style notes for an output kind: one line each, prunable in the
+ *  studio. Stored as kind "style_note" items under the "global" session. */
+export function styleNotesFor(d: TTDoc, kind: string): string[] {
+  return d.boardItems
+    .filter((b) => b.kind === "style_note" && !b.archivedAt && b.status !== "archived" && (b.payload as { forKind?: string }).forKind === kind)
+    .map((b) => String((b.payload as { line?: string }).line ?? b.title).trim())
+    .filter(Boolean)
+    .slice(0, 12);
 }
 
 /** Board slice for the per-CEQ view: everything that touches one question. */

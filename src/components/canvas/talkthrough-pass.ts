@@ -128,12 +128,13 @@ export function buildRegenMessages(
   ctx: PassContext, kind: BoardKind, previous: Record<string, unknown>, comment: string,
 ): { system: string; user: string } {
   const base = buildPassMessages(ctx);
-  const KEY: Record<BoardKind, string> = {
+  const KEY: Partial<Record<BoardKind, string>> = {
     ceq_order: "ceqOrder", outline: "outline", exhibit: "exhibit", bank: "bankChanges",
     vibe: "vibeBeats", short: "shorts", phrase: "phrases", accuracy: "accuracyFlags",
+    script: "script", idea: "ideas", vibe_plan: "vibePlan", ceq_edit: "ceqEdits",
   };
   const single = ["vibe", "short", "phrase", "accuracy", "bank"].includes(kind);
-  const system = base.system + `\n\nREGENERATE MODE: output ONLY the "${KEY[kind]}" key of the JSON object${single ? " (an array with EXACTLY ONE improved item)" : ""}. Same rules, same quoting law.`;
+  const system = base.system + `\n\nREGENERATE MODE: output ONLY the "${KEY[kind] ?? kind}" key of the JSON object${single ? " (an array with EXACTLY ONE improved item)" : ""}. Same rules, same quoting law.`;
   const user = base.user + [
     `\n\n=== THE ITEM BEING REGENERATED (previous draft) ===\n${JSON.stringify(previous, null, 1)}`,
     `\n=== LEE'S NOTES ON IT (these outrank the previous draft) ===\n${comment.trim() || "(no note — just take another, better swing)"}`,
@@ -238,3 +239,63 @@ export function parsePass(
 
 /** Sanity check the module stays honest about kinds. */
 export const ALL_BOARD_KINDS: readonly BoardKind[] = BOARD_KINDS;
+
+// ─────────────────────────────── B2: micro edits (background CEQ drafts)
+
+/** What an EDIT-stamp context knows when it closes: the CEQ as it stands and
+ *  what Lee SAID should change (his verbatim words are the instruction). */
+export interface MicroEditContext {
+  stamp: "reword" | "revise_choices" | "edit_other";
+  ceq: PassCeq;
+  instruction: string;
+  /** B7 style notes for this kind, one line each (may be empty). */
+  styleNotes: string[];
+}
+
+const MICRO_SPEC = `Return ONE JSON object, nothing else:
+{"proposedStem": str|null, "proposedChoices": [{"text": str, "correct": bool, "feedback": str|null}]|null, "note": str}
+- proposedStem: the rewritten stem, or null if the stem should not change.
+- proposedChoices: the FULL revised choice list (exactly one correct), or null if choices should not change.
+- note: one line on what you changed and why, in plain words.`;
+
+export function buildMicroEditMessages(ctx: MicroEditContext): { system: string; user: string } {
+  const focus = ctx.stamp === "reword" ? "Rewrite the STEM as instructed. Only touch choices if the instruction demands it."
+    : ctx.stamp === "revise_choices" ? "Revise the CHOICES as instructed (keep exactly one correct; keep feedback lines unless told otherwise). Only touch the stem if the instruction demands it."
+    : "Apply the instruction to whichever parts it names.";
+  const system = [
+    "You draft edits to one multiple-choice accounting question for Lee, the teacher of record. His spoken instruction is the spec — follow his wording preferences verbatim where he gives them. Never invent facts; keep intro-course level; no salary data.",
+    focus,
+    ctx.styleNotes.length ? `STYLE NOTES (Lee's standing preferences — obey):\n${ctx.styleNotes.map((n) => `- ${n}`).join("\n")}` : "",
+    MICRO_SPEC,
+  ].filter(Boolean).join("\n\n");
+  const user = [
+    `THE QUESTION AS IT STANDS:\nSTEM: ${ctx.ceq.stem}`,
+    `CHOICES:\n${ctx.ceq.choices.map((c, i) => `${String.fromCharCode(65 + i)}. ${c.correct ? "✔ " : ""}${c.text}${c.feedback ? ` — fb: ${c.feedback}` : ""}`).join("\n")}`,
+    `\nLEE'S SPOKEN INSTRUCTION (verbatim):\n"${ctx.instruction}"`,
+  ].join("\n");
+  return { system, user };
+}
+
+export interface MicroEditProposal {
+  proposedStem: string | null;
+  proposedChoices: { text: string; correct: boolean; feedback: string | null }[] | null;
+  note: string;
+}
+
+/** Parse the micro reply. Garbage → null (the item shows a retryable error). */
+export function parseMicroEdit(text: string): MicroEditProposal | null {
+  const raw = extractJsonObject(text);
+  if (!raw) return null;
+  const stem = typeof raw.proposedStem === "string" && raw.proposedStem.trim() ? raw.proposedStem.trim() : null;
+  let choices: MicroEditProposal["proposedChoices"] = null;
+  if (Array.isArray(raw.proposedChoices)) {
+    const list = raw.proposedChoices
+      .map((c) => (c && typeof c === "object" ? c as Record<string, unknown> : null))
+      .filter((c): c is Record<string, unknown> => !!c)
+      .map((c) => ({ text: String(c.text ?? "").trim(), correct: !!c.correct, feedback: typeof c.feedback === "string" && c.feedback.trim() ? c.feedback.trim() : null }))
+      .filter((c) => c.text);
+    if (list.length >= 2 && list.filter((c) => c.correct).length === 1) choices = list;
+  }
+  if (!stem && !choices) return null;
+  return { proposedStem: stem, proposedChoices: choices, note: typeof raw.note === "string" ? raw.note : "" };
+}
