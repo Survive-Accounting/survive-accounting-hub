@@ -12,11 +12,22 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, ChevronDown, Loader2, Pin, RotateCw, Search, Wrench } from "lucide-react";
+import {
+  Archive,
+  ArrowRight,
+  ChevronDown,
+  Loader2,
+  Pin,
+  Plus,
+  RotateCw,
+  Search,
+  Wrench,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   growthCampusList,
   growthRefreshPriority,
+  growthSetParked,
   type GrowthCampusRow,
 } from "@/lib/growth-dashboard.functions";
 import { growthTasks, type GrowthTasks } from "@/lib/growth-queue.functions";
@@ -81,12 +92,14 @@ const MORE_BASKETS = [
 ] as const;
 
 /* THE grid. One template, used by the header row and every campus row, so columns
-   can never drift. WHY gets a hard-capped column; numerics are fixed-width and
-   right-aligned. Small screens drop WHY/PAID/GAPS (hidden cells, same template). */
+   can never drift. V2 columns: rank · bolt · campus · est-seats · practice-Qs · emails ·
+   Greek sold · individual sold · action. Numerics are fixed-width and right-aligned.
+   Small screens keep only seats + the action; Qs/emails/Greek/individual hide (same
+   template, cells collapse). */
 const GRID =
-  "grid grid-cols-[1.75rem_1.5rem_minmax(0,1fr)_3rem_3.5rem_4rem] " +
-  "md:grid-cols-[1.75rem_1.5rem_minmax(0,1fr)_13rem_3rem_3.5rem_2.5rem_4rem_2.75rem] " +
-  "items-center gap-x-2";
+  "grid grid-cols-[1.75rem_1.5rem_minmax(0,1fr)_4.5rem_9.5rem] " +
+  "md:grid-cols-[1.75rem_1.5rem_minmax(0,1fr)_5.5rem_3.5rem_3.5rem_3.5rem_3.5rem_9.5rem] " +
+  "items-center gap-x-2.5";
 
 function GrowthCampusesPage() {
   const search = Route.useSearch();
@@ -101,6 +114,10 @@ function GrowthCampusesPage() {
   const [openGapMode, setOpenGapMode] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [limit, setLimit] = useState(50);
+  // V2: sort the list by priority (default) or by estimated market size.
+  const [sort, setSort] = useState<"priority" | "seats">("priority");
+  // V2 launch list: King's board defaults to the working set; parked/all on demand.
+  const [listView, setListView] = useState<"launch" | "parked" | "all">("launch");
 
   // KING LANDS ON HQ. His home is the earnings page, not the work queue — once per
   // tab-session so the Campuses tab still functions afterwards.
@@ -139,6 +156,14 @@ function GrowthCampusesPage() {
     },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Refresh failed"),
   });
+  const park = useMutation({
+    mutationFn: (v: { campusId: string; parked: boolean }) => growthSetParked({ data: v }),
+    onSuccess: (_r, v) => {
+      toast.success(v.parked ? "Parked — off the launch list" : "Back on the launch list");
+      qc.invalidateQueries({ queryKey: ["growth-campus-list"] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't update"),
+  });
 
   const openCampus = (campusId: string, section?: Section, gapMode = false) => {
     setOpenSection(section);
@@ -147,9 +172,13 @@ function GrowthCampusesPage() {
   };
 
   const rows = list.data?.rows ?? [];
+  const parkedCount = useMemo(() => rows.filter((r) => r.parked).length, [rows]);
   const filtered = useMemo(() => {
     const needle = dq.trim().toLowerCase();
-    return rows.filter((r) => {
+    const out = rows.filter((r) => {
+      // Launch-list view: King's board is the working set unless he asks for parked/all.
+      if (listView === "launch" && r.parked) return false;
+      if (listView === "parked" && !r.parked) return false;
       if (basket === "pinned") {
         if (!r.pinned) return false;
       } else if (basket && !r.baskets.includes(basket)) return false;
@@ -160,7 +189,12 @@ function GrowthCampusesPage() {
         (r.courseCode ?? "").toLowerCase().includes(needle)
       );
     });
-  }, [rows, dq, basket]);
+    if (sort === "seats") {
+      // Biggest markets first; campuses with no estimate sink to the bottom.
+      out.sort((a, b) => (b.estSeats ?? -1) - (a.estSeats ?? -1));
+    }
+    return out;
+  }, [rows, dq, basket, listView, sort]);
   const anyPinned = rows.some((r) => r.pinned);
   const openRow = rows.find((r) => r.campusId === openId);
 
@@ -254,6 +288,32 @@ function GrowthCampusesPage() {
       {/* TASKS — the first thing King reads every morning */}
       {tasks.data && <TasksStrip t={tasks.data} onOpen={openCampus} />}
 
+      {/* launch-list view + sort — King works the launch set, sorts by size when pruning */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex overflow-hidden rounded-md border border-border text-[11px]">
+          <SegBtn active={listView === "launch"} onClick={() => setListView("launch")}>
+            Launch list
+          </SegBtn>
+          <SegBtn active={listView === "parked"} onClick={() => setListView("parked")}>
+            Parked{parkedCount > 0 ? ` (${parkedCount})` : ""}
+          </SegBtn>
+          <SegBtn active={listView === "all"} onClick={() => setListView("all")}>
+            All
+          </SegBtn>
+        </div>
+        <div className="ml-auto flex items-center gap-1.5 text-[11px] text-muted-foreground">
+          <span>Sort</span>
+          <div className="inline-flex overflow-hidden rounded-md border border-border">
+            <SegBtn active={sort === "priority"} onClick={() => setSort("priority")}>
+              Priority
+            </SegBtn>
+            <SegBtn active={sort === "seats"} onClick={() => setSort("seats")}>
+              Est. seats
+            </SegBtn>
+          </div>
+        </div>
+      </div>
+
       {list.isLoading && (
         <div className="flex items-center gap-2 p-8 text-sm text-muted-foreground">
           <Loader2 className="size-4 animate-spin" /> Loading campuses…
@@ -266,7 +326,7 @@ function GrowthCampusesPage() {
           <div
             className={cn(
               GRID,
-              "border-b border-border bg-muted/40 px-3 py-1.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground",
+              "border-b border-border bg-muted/40 px-3 py-2 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground",
             )}
           >
             <span>
@@ -274,39 +334,50 @@ function GrowthCampusesPage() {
             </span>
             <span />
             <span>Campus / course</span>
-            <span className="hidden md:block">Why</span>
-            <span className="text-right">
-              <Hint text={HINTS.courseReadiness}>Ready</Hint>
-            </span>
-            <span className="text-right">
-              <Hint text={HINTS.questionsAnswered}>Students</Hint>
+            <button
+              onClick={() => setSort(sort === "seats" ? "priority" : "seats")}
+              className={cn(
+                "flex items-center justify-end gap-1 text-right uppercase tracking-wider hover:text-foreground",
+                sort === "seats" && "text-primary",
+              )}
+            >
+              <Hint text="Estimated Intro-1 seats per academic year — the market size. Click to sort.">
+                <span>Est. seats</span>
+              </Hint>
+              <ChevronDown className={cn("size-2.5", sort === "seats" ? "opacity-100" : "opacity-30")} />
+            </button>
+            <span className="hidden text-right md:block">
+              <Hint text={HINTS.questionsAnswered}>Prac. Qs</Hint>
             </span>
             <span className="hidden text-right md:block">
-              <Hint text={HINTS.paid}>Paid</Hint>
-            </span>
-            <span className="text-right">
-              <Hint text="Emails actually sent / contacts we could email at this campus.">
-                Outreach
-              </Hint>
+              <Hint text="Emails actually sent from here (provider-confirmed).">Emails</Hint>
             </span>
             <span className="hidden text-right md:block">
-              <Hint text="Contacts here that are Instagram-only — no email yet. Filling these is the gap work.">
-                Gaps
-              </Hint>
+              <Hint text="Seats a chapter bought in bulk at this campus.">Greek</Hint>
             </span>
+            <span className="hidden text-right md:block">
+              <Hint text="Individual exam purchases — one student, one exam.">Indiv.</Hint>
+            </span>
+            <span className="text-right">Contacts</span>
           </div>
 
           {filtered.slice(0, limit).map((r) => (
-            <button
+            <div
               key={r.campusId}
               onClick={() => openCampus(r.campusId)}
               className={cn(
                 GRID,
-                "w-full border-b border-border/60 px-3 py-2 text-left last:border-b-0 hover:bg-muted/60",
+                "w-full cursor-pointer border-b border-border/60 px-3 py-3.5 text-left last:border-b-0 hover:bg-muted/50",
+                r.parked && "opacity-55",
               )}
             >
-              <CampusRowCells r={r} />
-            </button>
+              <CampusRowCells
+                r={r}
+                onAdd={() => openCampus(r.campusId, "outreach")}
+                onPark={() => park.mutate({ campusId: r.campusId, parked: !r.parked })}
+                parkPending={park.isPending && park.variables?.campusId === r.campusId}
+              />
+            </div>
           ))}
 
           {filtered.length === 0 && (
@@ -455,95 +526,149 @@ function QuotaBar({ label, done, target }: { label: string; done: number; target
 
 /* ── campus row (grid cells — MUST mirror the GRID template order) ───────────────── */
 
-function CampusRowCells({ r }: { r: GrowthCampusRow }) {
+function CampusRowCells({
+  r,
+  onAdd,
+  onPark,
+  parkPending,
+}: {
+  r: GrowthCampusRow;
+  onAdd: () => void;
+  onPark: () => void;
+  parkPending: boolean;
+}) {
   return (
     <>
+      {/* rank */}
       <span className="text-xs tabular-nums text-muted-foreground">
         <span className="inline-flex items-center gap-0.5">
           {r.pinned && <Pin className="size-2.5 text-primary" />}
           {r.rank}
         </span>
       </span>
-      <MiniBolt primary={r.colorPrimary} secondary={r.colorSecondary} size={20} title={r.name} />
+      {/* bolt */}
+      <MiniBolt primary={r.colorPrimary} secondary={r.colorSecondary} size={22} title={r.name} />
+      {/* campus + course */}
       <span className="min-w-0">
-        <span className="block truncate text-[13px] font-medium">{r.name}</span>
-        <span className="block truncate text-[10px] text-muted-foreground">
-          {[r.courseCode, r.state].filter(Boolean).join(" · ")}
+        <span className="block truncate text-sm font-medium">{r.name}</span>
+        <span className="block truncate text-[11px] text-muted-foreground">
+          {[r.courseCode, r.state].filter(Boolean).join(" · ") || "—"}
         </span>
       </span>
-      <span className="hidden min-w-0 md:block">
-        <span className="flex max-w-full flex-wrap gap-1 overflow-hidden">
-          {r.why.map((w) => (
-            <Hint key={w} text={HINTS.why[w] ?? "Why this campus ranks here."}>
-              <span className="rounded bg-muted px-1 py-0.5 text-[9px] text-muted-foreground">
-                {w}
-              </span>
-            </Hint>
-          ))}
-        </span>
-      </span>
-      <span className="text-right text-xs tabular-nums">
-        <span
-          className={cn(
-            r.readiness >= 60
-              ? "text-emerald-400"
-              : r.readiness >= 30
-                ? "text-amber-400"
-                : "text-muted-foreground",
-          )}
-        >
-          {Math.round(r.readiness)}%
-        </span>
-      </span>
-      <span className="text-right text-xs tabular-nums">
-        {r.users > 0 ? (
-          <Hint text="Students we can name at this campus.">
-            <span>{r.users}</span>
-          </Hint>
-        ) : r.attempts > 0 ? (
-          <Hint
-            text={`${r.attempts} practice questions answered, but nobody signed in — we don't know who they are yet.`}
-          >
-            <span className="text-muted-foreground">{r.attempts} Q</span>
+      {/* est seats — the sort key, visible on every screen */}
+      <span className="text-right text-[13px] font-medium tabular-nums">
+        {r.estSeats != null ? (
+          <Hint text={`~${r.estSeats.toLocaleString()} estimated Intro-1 seats per year.`}>
+            <span>~{r.estSeats.toLocaleString()}</span>
           </Hint>
         ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
-      </span>
-      <span className="hidden text-right text-xs tabular-nums md:block">
-        {r.paid > 0 ? (
-          <span className="text-emerald-400">{r.paid}</span>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        )}
-      </span>
-      <span className="text-right text-xs tabular-nums">
-        {r.outreachEligible > 0 ? (
-          <Hint
-            text={`${r.outreachSent} emails sent · ${r.outreachEligible} contacts available here.`}
-          >
-            <span className={cn(r.outreachSent > 0 ? "" : "text-muted-foreground")}>
-              {r.outreachSent} / {r.outreachEligible}
-            </span>
-          </Hint>
-        ) : (
-          <Hint text="No usable contacts on file yet. Open the campus and run ✨ Enrichment, or add one by hand.">
+          <Hint text="No seat estimate on file for this campus yet.">
             <span className="text-muted-foreground">—</span>
           </Hint>
         )}
       </span>
+      {/* practice Qs answered */}
       <span className="hidden text-right text-xs tabular-nums md:block">
-        {r.contactGaps > 0 ? (
-          <Hint
-            text={`${r.contactGaps} contact${r.contactGaps === 1 ? "" : "s"} here have Instagram but no email — fill them in the campus's gap mode.`}
-          >
-            <span className="text-amber-400">{r.contactGaps}</span>
+        {r.attempts > 0 ? (
+          <Hint text={`${r.attempts.toLocaleString()} practice questions answered here.`}>
+            <span>{r.attempts.toLocaleString()}</span>
           </Hint>
         ) : (
           <span className="text-muted-foreground">—</span>
         )}
       </span>
+      {/* emails sent */}
+      <span className="hidden text-right text-xs tabular-nums md:block">
+        {r.outreachSent > 0 ? (
+          <Hint text={`${r.outreachSent} emails sent from this campus.`}>
+            <span>{r.outreachSent}</span>
+          </Hint>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
+      </span>
+      {/* Greek seats sold */}
+      <span className="hidden text-right text-xs tabular-nums md:block">
+        {r.soldGreek > 0 ? (
+          <Hint text={`${r.soldGreek} seats bought by chapters here.`}>
+            <span className="text-emerald-400">{r.soldGreek}</span>
+          </Hint>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
+      </span>
+      {/* individual purchases */}
+      <span className="hidden text-right text-xs tabular-nums md:block">
+        {r.soldIndividual > 0 ? (
+          <Hint text={`${r.soldIndividual} individual exam purchases here.`}>
+            <span className="text-primary">{r.soldIndividual}</span>
+          </Hint>
+        ) : (
+          <span className="text-muted-foreground">—</span>
+        )}
+      </span>
+      {/* action — the main job */}
+      <span className="flex items-center justify-end gap-1.5">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onAdd();
+          }}
+          className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1.5 text-[11px] font-semibold text-primary-foreground hover:opacity-90"
+        >
+          <Plus className="size-3" /> Contacts
+        </button>
+        <Hint
+          text={
+            r.parked
+              ? "Parked — click to put this campus back on the launch list."
+              : "Park — take this campus off the launch list (no outreach for now)."
+          }
+        >
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onPark();
+            }}
+            disabled={parkPending}
+            className="rounded-md border border-border p-1.5 text-muted-foreground hover:bg-muted disabled:opacity-50"
+            aria-label={r.parked ? "Un-park campus" : "Park campus"}
+          >
+            {parkPending ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : r.parked ? (
+              <RotateCw className="size-3" />
+            ) : (
+              <Archive className="size-3" />
+            )}
+          </button>
+        </Hint>
+      </span>
     </>
+  );
+}
+
+function SegBtn({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "px-2.5 py-1 text-[11px] transition-colors",
+        active
+          ? "bg-primary/15 font-medium text-primary"
+          : "text-muted-foreground hover:bg-muted",
+      )}
+    >
+      {children}
+    </button>
   );
 }
 

@@ -59,15 +59,22 @@ export interface GrowthCampusRow {
   colorSecondary: string | null;
   courseCode: string | null;
   readiness: number; // 0-100 research-readiness from the priority components
+  /** Estimated Intro-1 seats per year — the V2 sort key and market-size signal. */
+  estSeats: number | null;
   users: number; // identified users (0 shown as em-dash by the UI when unknown-vs-zero matters)
-  attempts: number;
-  paid: number;
+  attempts: number; // practice questions answered (non-test)
+  paid: number; // legacy single count = individual (stripe) purchases; kept for back-compat
+  /** Sold, split (V2): Greek = seats a chapter bought in bulk; individual = one student, one exam. */
+  soldGreek: number;
+  soldIndividual: number;
   outreachSent: number;
   outreachEligible: number;
   /** contacts reachable only by Instagram — the gap-filling workload on this campus */
   contactGaps: number;
   pinned: boolean;
   manualPriority: number | null;
+  /** V2 launch list: parked = pruned out of King's board and (later) the school pickers. */
+  parked: boolean;
 }
 
 export const growthCampusList = createServerFn({ method: "GET" }).handler(
@@ -77,16 +84,23 @@ export const growthCampusList = createServerFn({ method: "GET" }).handler(
     version: string | null;
   }> => {
     const db = await adminDb();
-    const [priority, pins, elig, events] = await Promise.all([
+    const [priority, pins, elig, events, market] = await Promise.all([
       selectAll(
         db,
         "growth_campus_priority",
         "campus_id,rank,score,version,why,components,computed_at",
       ),
-      selectAll(db, "growth_campus_pins", "campus_id,pinned,manual_priority"),
+      // select * so a pre-migration DB (no `parked` column yet) still returns rows instead of 400ing;
+      // `parked` reads as undefined → false until 20260829_1200 is applied.
+      selectAll(db, "growth_campus_pins", "*"),
       selectAll(db, "growth_outreach_eligibility", "campus_id,email,instagram,outreach_eligible"),
       selectAll(db, "growth_outreach_events", "campus_id,channel,direction,status"),
+      selectAll(db, "campus_market_intelligence", "campus_id,estimated_intro1_annual"),
     ]);
+    const estSeatsOf = new Map<string, number | null>();
+    for (const m of market as any[]) {
+      if (m.campus_id) estSeatsOf.set(m.campus_id, m.estimated_intro1_annual ?? null);
+    }
     const campusIds = priority.map((p: any) => p.campus_id);
     const campuses = new Map<string, any>();
     for (let i = 0; i < campusIds.length; i += 200) {
@@ -149,14 +163,18 @@ export const growthCampusList = createServerFn({ method: "GET" }).handler(
         colorSecondary: c.color_secondary ?? null,
         courseCode: codeOf.get(p.campus_id) ?? jsonCode,
         readiness: Number(comp.readiness ?? 0),
+        estSeats: estSeatsOf.get(p.campus_id) ?? null,
         users: 0,
         attempts: 0,
         paid: 0, // filled below
+        soldGreek: 0, // filled below
+        soldIndividual: 0, // filled below
         outreachSent: sentOf.get(p.campus_id) ?? 0,
         outreachEligible: eligOf.get(p.campus_id) ?? 0,
         contactGaps: gapOf.get(p.campus_id) ?? 0,
         pinned: !!pin?.pinned,
         manualPriority: pin?.manual_priority ?? null,
+        parked: !!pin?.parked,
       };
     });
 
@@ -164,12 +182,27 @@ export const growthCampusList = createServerFn({ method: "GET" }).handler(
     const bySlugId = new Map<string, string>();
     for (const [id, c] of campuses) if (c.slug) bySlugId.set(c.slug, id);
     const rowOf = new Map(rows.map((r) => [r.campusId, r]));
-    const [attempts, ents] = await Promise.all([
+    const [attempts, ents, pools, greekChapters] = await Promise.all([
       selectAll(db, "practice_attempts", "campus,user_id", (q) => q.not("is_test", "is", true)),
       selectAll(db, "student_entitlements", "campus_id,user_id,source", (q) =>
         q.is("revoked_at", null).not("is_test", "is", true),
       ),
+      // Greek seats bought — sum of seat pools, mirroring the Results page (non-test, any status).
+      selectAll(db, "chapter_seat_pools", "chapter_id,seats_total,is_test", (q) =>
+        q.not("is_test", "is", true),
+      ),
+      selectAll(db, "campus_greek_chapters", "id,campus_id", (q) => q.is("archived_at", null)),
     ]);
+    const campusOfChapter = new Map<string, string>();
+    for (const ch of greekChapters as any[]) {
+      if (ch.id && ch.campus_id) campusOfChapter.set(ch.id, ch.campus_id);
+    }
+    for (const pool of pools as any[]) {
+      const campusId = pool.chapter_id ? campusOfChapter.get(pool.chapter_id) : undefined;
+      if (!campusId) continue;
+      const r = rowOf.get(campusId);
+      if (r) r.soldGreek += pool.seats_total ?? 0;
+    }
     const usersOf = new Map<string, Set<string>>();
     for (const a of attempts as any[]) {
       const id = a.campus ? bySlugId.get(a.campus) : undefined;
@@ -188,7 +221,11 @@ export const growthCampusList = createServerFn({ method: "GET" }).handler(
       if (!r) continue;
       if (!usersOf.has(e.campus_id)) usersOf.set(e.campus_id, new Set());
       usersOf.get(e.campus_id)!.add(e.user_id);
-      if (e.source === "stripe") r.paid++;
+      // Individual purchase — one student, one exam. The $150 semester pass will fold in here later.
+      if (e.source === "stripe") {
+        r.paid++;
+        r.soldIndividual++;
+      }
     }
     for (const [id, users] of usersOf) {
       const r = rowOf.get(id);
@@ -236,6 +273,31 @@ export const growthSetPin = createServerFn({ method: "POST" })
         updated_by: who,
         updated_at: new Date().toISOString(),
       },
+      { onConflict: "campus_id" },
+    );
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/** Park / un-park a campus — the launch-list toggle. Parked campuses drop out of King's
+ *  default board (and, in a later phase, the student school pickers). */
+export const growthSetParked = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({ campusId: z.string().uuid(), parked: z.boolean() }).parse(d),
+  )
+  .handler(async ({ data }): Promise<{ ok: boolean }> => {
+    const { assertAdmin, adminSessionOk } = await import("@/lib/admin-session.functions");
+    await assertAdmin();
+    const who = (await adminSessionOk())?.email ?? "admin";
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const db = supabaseAdmin as unknown as DB;
+    const { error } = await db.from("growth_campus_pins").upsert(
+      {
+        campus_id: data.campusId,
+        parked: data.parked,
+        updated_by: who,
+        updated_at: new Date().toISOString(),
+      } as any, // `parked` added in 20260829_1200; regenerate types.ts after applying
       { onConflict: "campus_id" },
     );
     if (error) throw new Error(error.message);
