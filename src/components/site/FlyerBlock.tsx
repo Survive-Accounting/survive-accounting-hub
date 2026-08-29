@@ -17,7 +17,7 @@ import { useEffect, useState } from "react";
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { logGreekEvent } from "@/lib/greek-go.functions";
 
-export function FlyerBlock({ schoolSlug, chapterSlug, chapterName, title, subtitle }: {
+export function FlyerBlock({ schoolSlug, chapterSlug, chapterName, title, subtitle, onShared }: {
   schoolSlug: string;
   /** "campus" for the campus-wide flyer. */
   chapterSlug: string;
@@ -26,6 +26,8 @@ export function FlyerBlock({ schoolSlug, chapterSlug, chapterName, title, subtit
    *  point at a flyer that failed to render. */
   title?: string;
   subtitle?: string;
+  /** Fires when the visitor actually takes the flyer (download or print) — feeds the K4.3 nudge. */
+  onShared?: () => void;
 }) {
   const [failed, setFailed] = useState(false);
   const [svg, setSvg] = useState<string | null>(null);
@@ -52,8 +54,8 @@ export function FlyerBlock({ schoolSlug, chapterSlug, chapterName, title, subtit
     return () => { live = false; };
   }, [base]);
 
-  const log = (action: "flyer_download" | "flyer_print") =>
-    void logGreekEvent({ data: { kind: action === "flyer_download" ? "flyer_download" : "flyer_print", schoolSlug, chapterSlug, via: "flyer" } }).catch(() => {});
+  const log = (action: "flyer_download" | "flyer_print") => (onShared?.(),
+    void logGreekEvent({ data: { kind: action === "flyer_download" ? "flyer_download" : "flyer_print", schoolSlug, chapterSlug, via: "flyer" } }).catch(() => {}));
 
   const print = () => {
     log("flyer_print");

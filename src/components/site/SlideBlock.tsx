@@ -13,12 +13,14 @@ import { useEffect, useState } from "react";
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { logGreekEvent } from "@/lib/greek-go.functions";
 
-export function SlideBlock({ schoolSlug, chapterSlug, chapterName, title, subtitle }: {
+export function SlideBlock({ schoolSlug, chapterSlug, chapterName, title, subtitle, onShared }: {
   schoolSlug: string;
   chapterSlug: string;
   chapterName?: string;
   title?: string;
   subtitle?: string;
+  /** Fires when the visitor downloads the slide — feeds the K4.3 nudge. */
+  onShared?: () => void;
 }) {
   const [svg, setSvg] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
@@ -69,7 +71,7 @@ export function SlideBlock({ schoolSlug, chapterSlug, chapterName, title, subtit
         <a
           href={pdf}
           download={filename}
-          onClick={() => void logGreekEvent({ data: { kind: "flyer_download", schoolSlug, chapterSlug, via: "slide" } }).catch(() => {})}
+          onClick={() => { onShared?.(); void logGreekEvent({ data: { kind: "flyer_download", schoolSlug, chapterSlug, via: "slide" } }).catch(() => {}); }}
           className="flex items-center justify-center gap-1.5 rounded-xl px-3 text-[13.5px] font-bold"
           style={BTN}
         >

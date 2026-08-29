@@ -24,10 +24,14 @@ import { ChapterAccessForm } from "@/components/site/ChapterAccessForm";
 import { chapterShortName, chapterTextMessage, chapterUrl, groupMeMessage, type ShareVia } from "@/components/site/ChapterShare";
 import { SlideBlock } from "@/components/site/SlideBlock";
 import { logGreekEvent } from "@/lib/greek-go.functions";
+import { scrollToId } from "@/lib/ui-scroll";
 
 /** Per-member, per-semester. One place, quoted by the claim flow and the FAQ alike. */
 export const SEAT_PRICE = 100;
 export const SEAT_MINIMUM = 10;
+/** What ONE student pays for the same access on their own. The chapter rate is a discount off
+ *  this, and saying so is the whole of benefit line 3 — never quote one without the other. */
+export const INDIVIDUAL_PRICE = 150;
 
 type ClaimState = "unclaimed" | "pending" | "claimed";
 
@@ -55,30 +59,56 @@ export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, letter
     window.addEventListener(OPEN_CLAIM_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_CLAIM_EVENT, onOpen);
   }, []);
+
+  // ── K4.2 — THE DEEP LINK ────────────────────────────────────────────────────────────────────
+  // ?claim=1 (what goes in an email to an exec) and #claim (the anchor alias) both land on the
+  // strip, open the sheet, and mark the strip so the eye lands where the link promised. One shot
+  // per load: re-opening the sheet after they close it would be a trap, not a convenience.
+  const [highlight, setHighlight] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const q = new URLSearchParams(window.location.search);
+    const wants = q.get("claim") === "1" || window.location.hash === "#claim";
+    if (!wants) return;
+    setHighlight(true);
+    // After paint: the section has to exist before it can be scrolled to.
+    const t = window.setTimeout(() => {
+      scrollToId("claim");
+      setClaimOpen(true);
+    }, 60);
+    const off = window.setTimeout(() => setHighlight(false), 2600);
+    return () => { window.clearTimeout(t); window.clearTimeout(off); };
+  }, []);
   const { code } = useCampus();
   const courseLabel = code ?? "Intro Accounting";
+  const shortName = chapterShortName(chapterName, letters, nickname);
+
+  // K4.3 — shown once per session, after the visitor has actually shared something.
+  const [nudge, setNudge] = useState(false);
+  const onShared = () => {
+    if (shareNudgeSeen(schoolSlug, chapterSlug)) return;
+    markShareNudge(schoolSlug, chapterSlug);
+    setNudge(true);
+  };
 
   return (
     <>
-      <ShareKitSection
-        id={id}
-        schoolSlug={schoolSlug}
-        chapterSlug={chapterSlug}
-        chapterName={chapterName}
-        letters={letters}
-        nickname={nickname}
-        claimed={claim === "claimed"}
-        courseLabel={courseLabel}
-      />
-
-      {/* THE EXEC STRIP — one quiet row. The exec path is real but it is not what this page is
-          about, and it must never outrank the share kit above it. */}
-      <section className="mx-auto w-full max-w-[640px] px-5 pb-4">
+      {/* THE EXEC STRIP — one quiet row, directly under the doors (K3.1). Above the share kit
+          because an exec running this for their house is looking for exactly this; still quiet,
+          because most visitors are members and the share kit is what THEY came for. */}
+      <section id="claim" className="sa-anchor mx-auto w-full max-w-[640px] px-5 pt-6">
         <button
           type="button"
           onClick={() => setClaimOpen(true)}
           className="flex w-full items-center justify-between gap-3 rounded-xl px-4 text-left transition-colors hover:bg-white/[0.04] focus-visible:ring-2"
-          style={{ minHeight: 56, background: "rgba(0,0,0,0.18)", border: "1px solid var(--border-default)", fontFamily: BRAND_SANS, color: "var(--brand-cream)", cursor: "pointer" }}
+          style={{
+            minHeight: 56,
+            background: highlight ? "rgba(252,163,17,0.10)" : "rgba(0,0,0,0.18)",
+            border: `1px solid ${highlight ? "var(--accent)" : "var(--border-default)"}`,
+            boxShadow: highlight ? "0 0 0 3px rgba(252,163,17,0.25)" : undefined,
+            transition: "background-color 200ms, border-color 200ms, box-shadow 200ms",
+            fontFamily: BRAND_SANS, color: "var(--brand-cream)", cursor: "pointer",
+          }}
         >
           <span className="text-[14px] font-bold">
             {claim === "claimed"
@@ -91,9 +121,55 @@ export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, letter
         </button>
       </section>
 
+      <ShareKitSection
+        id={id}
+        schoolSlug={schoolSlug}
+        chapterSlug={chapterSlug}
+        chapterName={chapterName}
+        letters={letters}
+        nickname={nickname}
+        claimed={claim === "claimed"}
+        courseLabel={courseLabel}
+        onShared={onShared}
+      />
+
+      {/* THE NUDGE. A card under the kit, dismissible, never blocking — and never shown to a
+          chapter that already claimed, who would only be told to do what they have done. */}
+      {nudge && claim === "unclaimed" && (
+        <section className="mx-auto w-full max-w-[640px] px-5 pb-2">
+          <div
+            role="status"
+            className="flex items-start gap-3 rounded-xl px-4 py-3"
+            style={{ background: "rgba(252,163,17,0.08)", border: "1px solid rgba(252,163,17,0.35)", fontFamily: BRAND_SANS }}
+          >
+            <span className="min-w-0 flex-1 text-[13.5px] leading-snug" style={{ color: "var(--brand-cream)" }}>
+              Running this for {shortName}?{" "}
+              <button
+                type="button"
+                onClick={() => { setNudge(false); setClaimOpen(true); }}
+                className="font-bold underline underline-offset-4"
+                style={{ background: "none", border: 0, padding: 0, color: "var(--accent)", cursor: "pointer" }}
+              >
+                Claim the chapter dashboard — see who signs up. →
+              </button>
+            </span>
+            <button
+              type="button"
+              onClick={() => setNudge(false)}
+              aria-label="Dismiss"
+              className="shrink-0 rounded-full px-1.5 hover:bg-white/10"
+              style={{ color: "var(--text-muted)", background: "none", border: 0, cursor: "pointer", minHeight: 28 }}
+            >
+              ×
+            </button>
+          </div>
+        </section>
+      )}
+
       {claimOpen && (
         <ClaimSheet
           chapterName={chapterName}
+          shortName={shortName}
           schoolSlug={schoolSlug}
           chapterSlug={chapterSlug}
           claim={claim}
@@ -105,10 +181,26 @@ export function ChapterAccess({ id, chapterName, schoolSlug, chapterSlug, letter
   );
 }
 
+/** THE POST-SHARE NUDGE (K4.3). Someone who just shared is, right now, the most likely person
+ *  on the page to be the one running this for their house — so this is the one moment worth
+ *  asking. Rules, all of them deliberate:
+ *    · ONCE PER SESSION. A second share is someone doing the thing we want; interrupting it
+ *      twice would punish them for it.
+ *    · NEVER BLOCKING. A card under the kit, not a modal — the share they just made must not
+ *      need dismissing before it can be repeated.
+ *    · Dismissal is remembered for the session, not forever: a new visit is a new conversation. */
+const NUDGE_KEY = "sa-share-nudge";
+function shareNudgeSeen(school: string, chapter: string): boolean {
+  try { return sessionStorage.getItem(`${NUDGE_KEY}:${school}/${chapter}`) === "1"; } catch { return true; }
+}
+function markShareNudge(school: string, chapter: string): void {
+  try { sessionStorage.setItem(`${NUDGE_KEY}:${school}/${chapter}`, "1"); } catch { /* private mode */ }
+}
+
 // ── THE SHARE KIT ─────────────────────────────────────────────────────────────────────────────
 /** Three fat actions, in the order they get used, and nothing else. Every action hands out a
  *  URL stamped with where it came from. */
-function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, nickname, claimed, courseLabel }: {
+function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, nickname, claimed, courseLabel, onShared }: {
   id: string;
   schoolSlug: string;
   chapterSlug: string;
@@ -117,6 +209,8 @@ function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, ni
   nickname?: string | null;
   claimed: boolean;
   courseLabel: string;
+  /** Fires on ANY completed share — copy, flyer download/print, slide download (K4.3). */
+  onShared: () => void;
 }) {
   const [copied, setCopied] = useState<ShareVia | null>(null);
   // Names the chapter the link is FOR — a share is an act of doing something for the house,
@@ -133,6 +227,7 @@ function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, ni
     try {
       await navigator.clipboard.writeText(text);
       setCopied(via);
+      onShared();
       void logGreekEvent({ data: { kind: via === "link" ? "copy_link" : "copy_message", schoolSlug, chapterSlug, via } }).catch(() => {});
       window.setTimeout(() => setCopied((c) => (c === via ? null : c)), 2200);
     } catch { /* clipboard blocked in some in-app browsers — the visible URL below still works */ }
@@ -189,6 +284,7 @@ function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, ni
             chapterSlug={chapterSlug}
             chapterName={chapterName}
             subtitle="Print it and post it in the chapter house."
+            onShared={onShared}
           />
         </div>
 
@@ -199,6 +295,7 @@ function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, ni
             schoolSlug={schoolSlug}
             chapterSlug={chapterSlug}
             chapterName={chapterName}
+            onShared={onShared}
           />
         </div>
       </div>
@@ -210,8 +307,10 @@ function ShareKitSection({ id, schoolSlug, chapterSlug, chapterName, letters, ni
 /** The exec's sheet: the same claim form as before, unchanged, plus the two things that used to
  *  sit in public — the price and the dashboard reassurance — now shown only to the person they
  *  are for, after they have said they are an exec by opening this. */
-function ClaimSheet({ chapterName, schoolSlug, chapterSlug, claim, onPending, onClose }: {
+function ClaimSheet({ chapterName, shortName, schoolSlug, chapterSlug, claim, onPending, onClose }: {
   chapterName: string;
+  /** The chapter as students say it ("ADPi") — what the benefit lines address. */
+  shortName: string;
   schoolSlug: string;
   chapterSlug: string;
   claim: ClaimState;
@@ -258,9 +357,23 @@ function ClaimSheet({ chapterName, schoolSlug, chapterSlug, claim, onPending, on
         ) : (
           <>
             {!submitted && (
-              <p className="mb-3 text-center text-[13.5px] font-bold leading-relaxed" style={{ color: "var(--brand-cream)" }}>
-                Claiming is free. Exam 1 stays free for every member.
-              </p>
+              <>
+                <ul className="mb-4 flex flex-col gap-2" style={{ listStyle: "none", margin: "0 0 16px", padding: 0 }}>
+                  {[
+                    `See ${shortName}'s usage — who's signed up, who's studying`,
+                    "Manage access for Exams 2, 3 & the Final",
+                    `Sponsor full access for your members — $${SEAT_PRICE}/member (individually it's $${INDIVIDUAL_PRICE} — chapters get the deal)`,
+                  ].map((line) => (
+                    <li key={line} className="flex items-start gap-2 text-[13px] leading-snug" style={{ color: "var(--brand-cream)" }}>
+                      <span aria-hidden className="shrink-0 font-black" style={{ color: "var(--accent)" }}>✓</span>
+                      <span>{line}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="mb-3 text-center text-[13px] font-bold" style={{ color: "var(--text-muted)" }}>
+                  Claiming is free. Exam 1 stays free for every member.
+                </p>
+              </>
             )}
             <ChapterAccessForm
               schoolSlug={schoolSlug}
@@ -269,25 +382,9 @@ function ClaimSheet({ chapterName, schoolSlug, chapterSlug, claim, onPending, on
               onClose={onClose}
               onDone={() => { setSubmitted(true); onPending(); }}
             />
-            {!submitted && (
-              <>
-                {/* WHAT THE EXEC GETS — the old public "See your chapter studying" section, reduced
-                    to the one line an exec actually needs before typing their number. */}
-                <p className="mt-3 text-center text-[12.5px]" style={{ color: "var(--text-muted)" }}>
-                  You&apos;ll get a dashboard showing how the house is using it.
-                </p>
-                {/* THE PRICE LIVES HERE AND NOWHERE ELSE (2026-08-28). It is only ever relevant to
-                    an exec, and it was previously on the public page where every member met it. */}
-                <div className="mt-3 rounded-xl px-4 py-3.5 text-center" style={{ background: "rgba(0,0,0,0.18)", border: "1px solid var(--border-default)" }}>
-                  <p className="text-[11.5px] font-black uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>Later, if you want it</p>
-                  <p className="mt-1.5 text-[16px] font-black" style={{ color: "var(--accent)" }}>${SEAT_PRICE} per member, per semester</p>
-                  <p className="mt-0.5 text-[12px] font-bold" style={{ color: "var(--text-muted)" }}>{SEAT_MINIMUM}-seat minimum</p>
-                  <p className="mx-auto mt-2 max-w-[42ch] text-[12.5px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-                    Full-semester access unlocks Exams 2, 3, and the Final for the members your chapter sponsors.
-                  </p>
-                </div>
-              </>
-            )}
+            {/* The pricing CARD is gone (K3.5) — the deal now lives in benefit line 3 above the
+                form, where it reads as something the chapter GETS rather than a rate card bolted
+                to the bottom of a free action. Price still appears ONLY in this claim context. */}
           </>
         )}
       </div>

@@ -65,6 +65,9 @@ export const submitChapterClaim = createServerFn({ method: "POST" })
     position: z.string().trim().min(1).max(60),
     email: z.string().trim().email().max(200),
     phone: z.string().trim().min(7).max(20),
+    // K3 — WHERE THE CHAPTER SAID IT WAS AT, in its own words. Lead scoring, never shown back to
+    // the exec as a score. "committed" routes to the hot path, where Lee is alerted to close it.
+    intent: z.enum(["committed", "curious", "exploring"]),
   }).parse(d))
   .handler(async ({ data }): Promise<{ ok: boolean; error?: string; claimId?: string; notifyPending?: boolean }> => {
     const db = await admin();
@@ -97,14 +100,25 @@ export const submitChapterClaim = createServerFn({ method: "POST" })
       if (asg?.id) sourcing = { partnerId: asg.partner_id as string, assignmentId: asg.id as string, isTest: !!asg.is_test };
     } catch { /* pre-migration or transient — claim proceeds unattributed */ }
 
-    const { data: inserted, error } = await db.from("greek_chapter_claims").insert({
+    // INTENT IS WRITTEN, NOT ASSUMED. The column arrives with migration 20260829_0900, which is
+    // manual-apply. If it has not been run, the insert fails on the unknown column — so we retry
+    // WITHOUT intent (the exec's claim must never be lost to our own deploy order) and log the
+    // gap loudly, because a claim engine silently discarding its lead score is exactly the
+    // invisible breakage the house rules forbid.
+    const baseRow = {
       campus_greek_chapter_id: ch.campusGreekChapterId,
       name: data.name, position: data.position, email: data.email, phone,
       // Snapshot: how many members this chapter had already banked at the moment of the claim.
       // Recorded now because it is the number that made the claim interesting, and it keeps moving.
       members_at_claim: ch.members,
       ...(sourcing ? { sourcing_partner_id: sourcing.partnerId, sourcing_assignment_id: sourcing.assignmentId } : {}),
-    }).select("id").single();
+    };
+    let { data: inserted, error } = await db.from("greek_chapter_claims")
+      .insert({ ...baseRow, intent: data.intent }).select("id").single();
+    if (error) {
+      console.warn(`[claim] insert with intent failed (${error.message}) — retrying without it. If this says "intent" does not exist, migration 20260829_0900 has not been applied.`);
+      ({ data: inserted, error } = await db.from("greek_chapter_claims").insert(baseRow).select("id").single());
+    }
     if (error) return { ok: false, error: "Couldn't save that — try again in a moment." };
 
     if (sourcing) {
@@ -186,6 +200,52 @@ async function runClaimIntake(claimId: string | null, isTest: boolean): Promise<
       adminLink: `https://surviveaccounting.com/outreach/greek-claims?claim=${claimId}`,
       sourcePath: goPath(ch.schoolSlug, ch.chapterSlug), smsConsent: true, isTest,
     });
+
+    // ── THE HOT LEAD (K3.3) ──────────────────────────────────────────────────────────────────
+    //
+    // A chapter that answered "We're ready to sponsor seats" is a different event from a chapter
+    // that is browsing, and the page has already promised them Lee will text WITHIN THE HOUR. So
+    // this is a second, deliberately louder alert on top of the standard intake one — to LEE,
+    // never to the chapter — carrying the number he needs to make that call.
+    //
+    // ┌─ STRIPE SEAM ───────────────────────────────────────────────────────────────────────────┐
+    // │ When payments go live this is where checkout joins (or replaces) the text-Lee promise:  │
+    // │ create a Checkout Session for SEAT_MINIMUM seats at SEAT_PRICE against this chapter,    │
+    // │ and return its URL so the confirmation can offer "Pay now" alongside "Lee will text     │
+    // │ you". Everything needed is already here: the chapter, the claimant, and the intent.     │
+    // │ Deliberately NOT enabled in this pass — no live checkout, no price is charged today.    │
+    // └─────────────────────────────────────────────────────────────────────────────────────────┘
+    if ((claim.intent as string | null) === "committed" && !isTest) {
+      try {
+        // RAW senders, not the template pipeline: this is an internal operator alert to Lee, not
+        // a templated message to a lead, and it must not be suppressed, capped or unsubscribed.
+        const { FOUNDER_EMAIL, FOUNDER_PHONE } = await import("@/lib/comms/send.server");
+        const { sendResendEmail } = await import("@/lib/email.server");
+        const { sendSms } = await import("@/lib/greek-chapters.functions");
+        const goUrl = `https://surviveaccounting.com${goPath(ch.schoolSlug, ch.chapterSlug)}`;
+        const who = `${claim.name as string} (${claim.position as string})`;
+        const seats = `${ch.members} member${ch.members === 1 ? "" : "s"} banked`;
+        const line = `READY TO SPONSOR — ${ch.chapterName} at ${ch.schoolName}. ${who} · ${claim.phone as string} · ${seats}. They were told you'd text within the hour.`;
+        await sendResendEmail({
+          to: FOUNDER_EMAIL,
+          subject: `🔥 ${ch.chapterName} is ready to sponsor seats`,
+          text: `${line}
+${claim.email as string}
+${goUrl}`,
+          html: [
+            `<p><b>${ch.chapterName}</b> at <b>${ch.schoolName}</b> answered &quot;we&rsquo;re ready to sponsor seats&quot;.</p>`,
+            `<p>${who}<br><a href="tel:${claim.phone as string}">${claim.phone as string}</a><br>${claim.email as string}</p>`,
+            `<p>${seats}. <a href="${goUrl}">Chapter page</a></p>`,
+            `<p><b>They were told you would text within the hour.</b></p>`,
+          ].join(""),
+        }).catch(() => undefined);
+        if (FOUNDER_PHONE) await sendSms(FOUNDER_PHONE, line).catch(() => undefined);
+      } catch (e) {
+        // The claim and the standard intake already succeeded; a failed hot-lead ping must never
+        // undo them. It is logged so a silent miss is still a visible miss.
+        console.warn("hot-lead alert failed (claim saved, intake sent)", e instanceof Error ? e.message : e);
+      }
+    }
     return { ok: true };
   } catch (e) {
     console.warn("claim intake failed (claim saved)", e instanceof Error ? e.message : e);
