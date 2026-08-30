@@ -22,10 +22,11 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
+  growthBoard,
   growthCampusContactSlots,
-  growthKingBoard,
   growthSaveCampusContacts,
   type BoardCampus,
+  type BoardOwner,
 } from "@/lib/growth-tranche.functions";
 import { CampusPanel } from "@/components/growth/CampusPanel";
 import { BottomSheet } from "@/components/growth/BottomSheet";
@@ -37,31 +38,65 @@ export const Route = createFileRoute("/admin/growth/tranches")({
 
 type Door = "data" | "contacts" | "results";
 
+const OWNERS: { id: BoardOwner; label: string }[] = [
+  { id: "lee", label: "Lee" },
+  { id: "king", label: "King" },
+  { id: "ej", label: "EJ" },
+];
+
 function TranchesPage() {
-  const board = useQuery({ queryKey: ["king-board"], queryFn: () => growthKingBoard() });
+  const [owner, setOwner] = useState<BoardOwner>("king");
+  const board = useQuery({ queryKey: ["board", owner], queryFn: () => growthBoard({ data: { owner } }) });
   const [openTranche, setOpenTranche] = useState<number | null>(1);
   const [picked, setPicked] = useState<BoardCampus | null>(null);
   const [door, setDoor] = useState<Door | null>(null);
 
-  if (board.isLoading)
-    return (
-      <div className="flex h-64 items-center justify-center text-muted-foreground">
-        <Loader2 className="size-5 animate-spin" />
-      </div>
-    );
   const tranches = board.data?.tranches ?? [];
+  const ownerLabel = OWNERS.find((o) => o.id === owner)?.label ?? "";
 
   return (
     <div className="mx-auto max-w-2xl space-y-3">
-      <div className="flex items-baseline gap-2">
-        <h1 className="sa-admin-display text-lg font-semibold uppercase tracking-wide">Your tranches</h1>
+      <div className="flex flex-wrap items-baseline gap-2">
+        <h1 className="sa-admin-display text-lg font-semibold uppercase tracking-wide">
+          {owner === "lee" ? "Lee's tranches" : owner === "ej" ? "EJ's tranches" : "King's tranches"}
+          {owner === "lee" && <span className="ml-1.5 text-[11px] font-normal normal-case tracking-normal text-muted-foreground">Founder</span>}
+        </h1>
         <span className="ml-auto text-xs text-muted-foreground">
           <strong className="text-foreground">{(board.data?.totalSeats ?? 0).toLocaleString()}</strong>{" "}
-          est. students across your campuses
+          est. students
         </span>
       </div>
 
-      {tranches.length === 0 && (
+      {/* Whose tranches */}
+      <div className="inline-flex overflow-hidden rounded-lg border border-border text-xs">
+        {OWNERS.map((o) => (
+          <button
+            key={o.id}
+            onClick={() => { setOwner(o.id); setOpenTranche(1); }}
+            className={cn(
+              "px-3.5 py-1.5 font-medium",
+              owner === o.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted",
+            )}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+
+      {board.isLoading && (
+        <div className="flex h-40 items-center justify-center text-muted-foreground">
+          <Loader2 className="size-5 animate-spin" />
+        </div>
+      )}
+
+      {!board.isLoading && board.data?.ready === false && (
+        <div className="rounded-lg border border-dashed border-border p-6 text-center">
+          <p className="text-sm font-medium">{ownerLabel} isn't set up yet</p>
+          <p className="mt-1 text-xs text-muted-foreground">Add {ownerLabel} as a user and assign tranches — this view will fill in automatically.</p>
+        </div>
+      )}
+
+      {!board.isLoading && board.data?.ready !== false && tranches.length === 0 && (
         <p className="text-xs text-muted-foreground">
           No tranches yet — commit the semester pre-build at /admin/growth/prebuild.
         </p>

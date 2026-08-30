@@ -182,7 +182,7 @@ export const growthPartnerActivity = createServerFn({ method: "GET" })
     };
   });
 
-// FOUNDER bucket — Ole Miss + the Florida cluster. Lee's; excluded from partner tranches.
+// FOUNDER bucket — Ole Miss + the Florida cluster + LSU. Lee's; excluded from partner tranches.
 const FOUNDER_NAMES = [
   "University of Mississippi",
   "University of Florida",
@@ -191,6 +191,7 @@ const FOUNDER_NAMES = [
   "Florida Gulf Coast University",
   "University of Central Florida",
   "University of South Florida",
+  "Louisiana State University",
 ];
 
 async function eligibleForTranches(db: DB): Promise<{
@@ -284,21 +285,39 @@ export interface BoardTranche {
   campuses: BoardCampus[];
 }
 
-export const growthKingBoard = createServerFn({ method: "GET" }).handler(
-  async (): Promise<{ tranches: BoardTranche[]; totalSeats: number }> => {
-    const db = await adminDb();
-    const { KING_EMAIL } = await import("@/lib/growth-comp.functions");
-    const { data: king } = await db
-      .from("referral_partners")
-      .select("id")
-      .ilike("email", KING_EMAIL)
-      .maybeSingle();
-    const { data: rows } = await db
-      .from("partner_tranches")
-      .select("tranche_number,label,status,campus_ids")
-      .eq("pool", "king")
-      .eq("partner_id", king?.id ?? "00000000-0000-0000-0000-000000000000")
-      .order("tranche_number", { ascending: true });
+// Owner-filtered board. King works his numbered pool; Lee owns the Founder carve-out;
+// EJ is a placeholder until he's added as a user (no tranches yet).
+export type BoardOwner = "lee" | "king" | "ej";
+
+export const growthBoard = createServerFn({ method: "GET" })
+  .inputValidator((d: { owner: BoardOwner }) => d)
+  .handler(
+    async ({ data }): Promise<{ tranches: BoardTranche[]; totalSeats: number; owner: BoardOwner; ready: boolean }> => {
+      const owner = data.owner;
+      // EJ isn't a user yet — show an empty, explained board.
+      if (owner === "ej") return { tranches: [], totalSeats: 0, owner, ready: false };
+
+      const db = await adminDb();
+      let query = db
+        .from("partner_tranches")
+        .select("tranche_number,label,status,campus_ids")
+        .order("tranche_number", { ascending: true });
+      if (owner === "king") {
+        const { KING_EMAIL } = await import("@/lib/growth-comp.functions");
+        const { data: king } = await db.from("referral_partners").select("id").ilike("email", KING_EMAIL).maybeSingle();
+        query = query.eq("pool", "king").eq("partner_id", king?.id ?? "00000000-0000-0000-0000-000000000000");
+      } else {
+        // Lee = the Founder pool (Ole Miss + Florida cluster + LSU).
+        query = query.eq("pool", "founder");
+      }
+      const { data: rows } = await query;
+      const { tranches, totalSeats } = await hydrateTranches(db, (rows ?? []) as any[]);
+      return { tranches, totalSeats, owner, ready: true };
+    },
+  );
+
+// Turn partner_tranches rows into hydrated board tranches (names, est seats, contact progress).
+async function hydrateTranches(db: DB, rows: any[]): Promise<{ tranches: BoardTranche[]; totalSeats: number }> {
     const allIds = [...new Set(((rows ?? []) as any[]).flatMap((t) => t.campus_ids ?? []))];
     const [names, market, elig] = await Promise.all([
       allIds.length ? db.from("campuses").select("id,name,display_name,state,campus_status").in("id", allIds) : Promise.resolve({ data: [] }),
@@ -336,8 +355,7 @@ export const growthKingBoard = createServerFn({ method: "GET" }).handler(
       return { label: t.label || `T${t.tranche_number}`, number: t.tranche_number, status: t.status, totalSeats: tSeats, campuses };
     });
     return { tranches, totalSeats };
-  },
-);
+}
 
 // ── Add-contacts modal: what slots exist for a campus, and a bulk save ────────────────
 export interface ContactSlots {
