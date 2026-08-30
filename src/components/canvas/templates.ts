@@ -67,17 +67,31 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
       return {
         kind: "cycle",
         title: "The Accounting Cycle",
+        // THE NINE STEPS, in the order the bank teaches them — the same list as
+        // exhibit-lab/cycle-model.ts CYCLE_STEPS and the correct answer to
+        // "Which list shows the full accounting cycle in the correct order?"
+        // (deck-e1s-1-1). A new cycle element must not seed a shorter summary:
+        // an unlabeled 7-step ring next to a 9-step CEQ answer is a filmed
+        // contradiction. Steps stay author-editable on the canvas.
         steps: [
           { id: cardId("cy"), text: "Analyze transactions" },
-          { id: cardId("cy"), text: "Record JEs" },
-          { id: cardId("cy"), text: "Post to Ledger" },
-          { id: cardId("cy"), text: "Trial Balance" },
-          { id: cardId("cy"), text: "Adj Entries" },
-          { id: cardId("cy"), text: "Financial Stmts" },
-          { id: cardId("cy"), text: "Year End Closed" },
+          { id: cardId("cy"), text: "Record journal entries" },
+          { id: cardId("cy"), text: "Post to T accounts" },
+          { id: cardId("cy"), text: "Make unadjusted trial balance" },
+          { id: cardId("cy"), text: "Record adjusting entries" },
+          { id: cardId("cy"), text: "Make adjusted trial balance" },
+          { id: cardId("cy"), text: "Prep financial statements" },
+          { id: cardId("cy"), text: "Record closing entries" },
+          { id: cardId("cy"), text: "Make post-closing trial balance" },
         ],
-        w: 620,
-        h: 380,
+        // Sized so NINE pills never collide. Pills are positioned as a % of the
+        // 1000×600 viewBox but sized in real px (capped at 200 wide), so the
+        // gap between pill centres is (ovalPerimeter / steps) × (width / 1000)
+        // ≈ 2003/9 × w/1000. At the old 620 seed that is 138px — pills overlap;
+        // at 900 it is exactly 200px — touching; at 1100 it is 245px — clean.
+        // 1100×660 also keeps the viewBox's 5:3 aspect, so the arcs stay round.
+        w: 1100,
+        h: 660,
       };
     case "memo":
       return { kind: "memo", memoKind: "note", title: "", body: "" };

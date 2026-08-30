@@ -10,6 +10,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Crown, Download, FileText, Loader2, Mail, PartyPopper, Send } from "lucide-react";
+import { renderQueryState } from "@/components/growth/QueryState";
 import { toast } from "sonner";
 import {
   growthCompSummary,
@@ -40,13 +41,8 @@ function KingHq() {
   const [who, setWho] = useState<string | null>(null);
   useEffect(() => setWho(getAdminWho()), []);
 
-  if (q.isLoading || !q.data) {
-    return (
-      <div className="flex h-64 items-center justify-center text-muted-foreground">
-        <Loader2 className="size-5 animate-spin" />
-      </div>
-    );
-  }
+  const gate = renderQueryState(q, { label: "King HQ" });
+  if (gate || !q.data) return <div className="py-10">{gate}</div>;
   const v = q.data;
   const s = v.summary;
   const isKing = who === "king";

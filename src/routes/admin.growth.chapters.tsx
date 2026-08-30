@@ -28,6 +28,7 @@ import {
   relTime,
 } from "@/components/growth/shared";
 import { OutreachActions } from "@/components/growth/OutreachActions";
+import { renderQueryState } from "@/components/growth/QueryState";
 import { councilSlugOf } from "@/lib/growth-util";
 import { toast } from "sonner";
 
@@ -245,7 +246,7 @@ function ChapterDrawer({
       subtitle={d ? [d.campusName, d.letters].filter(Boolean).join(" · ") : undefined}
     >
       {!d ? (
-        <div className="py-10 text-center text-sm text-muted-foreground">Loading…</div>
+        renderQueryState(q, { label: "chapter" }) ?? <div className="py-10 text-center text-sm text-muted-foreground">Not found.</div>
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2">

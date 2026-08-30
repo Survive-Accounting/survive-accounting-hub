@@ -114,6 +114,7 @@ function CampaignsPage() {
               onToggle={() => setOpenId((v) => (v === c.id ? null : c.id))}
               onAction={(action) => {
                 if (action === "cancel" && !window.confirm("Cancel this campaign? Its queued emails are discarded.")) return;
+                if (action === "approve_now" && !window.confirm(`Send now? ${c.emailCount} emails + ${c.dmCount} DMs go out for ${c.campusName ?? "this campus"}. This can't be undone.`)) return;
                 act.mutate({ campaignId: c.id, action });
               }}
               busy={act.isPending}

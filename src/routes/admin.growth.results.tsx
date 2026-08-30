@@ -7,7 +7,7 @@
 // it. A pool of 40 with 3 claimed is a support problem that a revenue figure alone hides.
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2 } from "lucide-react";
+import { renderQueryState } from "@/components/growth/QueryState";
 import { growthResults } from "@/lib/growth-results.functions";
 import { Hint, Metric, money } from "@/components/growth/v2";
 import { ActivityFeed } from "@/components/growth/ActivityFeed";
@@ -20,13 +20,8 @@ export const Route = createFileRoute("/admin/growth/results")({
 function ResultsPage() {
   const q = useQuery({ queryKey: ["growth-results"], queryFn: () => growthResults() });
 
-  if (q.isLoading || !q.data) {
-    return (
-      <div className="flex h-64 items-center justify-center text-muted-foreground">
-        <Loader2 className="size-5 animate-spin" />
-      </div>
-    );
-  }
+  const gate = renderQueryState(q, { label: "the scoreboard" });
+  if (gate || !q.data) return <div className="py-10">{gate}</div>;
   const r = q.data;
   const seatFillRate =
     r.seats.bought > 0 ? Math.round((r.seats.claimed / r.seats.bought) * 100) : null;

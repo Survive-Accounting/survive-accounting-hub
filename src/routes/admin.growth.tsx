@@ -53,7 +53,8 @@ const TABS = [
 ] as const;
 
 const MORE_TABS = [
-  { to: "/admin/growth/tranches", label: "Tranches", icon: Layers },
+  { to: "/admin/growth/king", label: "King HQ", icon: Rocket },
+  { to: "/admin/growth/tranches", label: "Batches", icon: Layers },
   { to: "/admin/growth/campuses", label: "Campus table", icon: Building2 },
   { to: "/admin/growth/chapters", label: "Chapters", icon: GraduationCap },
   { to: "/admin/growth/councils", label: "Councils", icon: Landmark },
@@ -68,12 +69,16 @@ function GrowthShell() {
   useEffect(() => setWho(getAdminWho()), []);
   // The workspace wears the product's navy — see .sa-admin-dark in styles.css.
   useAdminDarkDocument();
+  // Cold Outreach is its own focused surface — it carries its own two-tab header, so the broader
+  // Growth nav is hidden there (see the v2 spec: strip everything else away).
+  const bare = pathname.startsWith("/admin/growth/coldoutreach");
 
   return (
     <AdminGate>
       <AdminSessionGate>
         <Toaster richColors position="top-center" />
         <div className="flex min-h-screen flex-col bg-background">
+          {!bare && (
           <header className="sticky top-0 z-20 border-b border-border bg-background/95 backdrop-blur">
             <div className="mx-auto flex w-full max-w-[1400px] items-center gap-4 px-5 py-2.5">
               <div className="flex items-center gap-2">
@@ -108,12 +113,13 @@ function GrowthShell() {
                 <MoreMenu pathname={pathname} />
               </nav>
               {who && (
-                <span className="hidden shrink-0 rounded-full border px-2 py-0.5 text-[11px] capitalize text-muted-foreground sm:inline">
+                <span className="shrink-0 rounded-full border px-2 py-0.5 text-[11px] capitalize text-muted-foreground">
                   {who}
                 </span>
               )}
             </div>
           </header>
+          )}
           <main className="mx-auto w-full max-w-[1400px] flex-1 px-5 py-5">
             <Outlet />
           </main>

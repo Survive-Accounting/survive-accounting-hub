@@ -37,6 +37,7 @@ import { BottomSheet } from "@/components/growth/BottomSheet";
 import { GrowthAnnouncement } from "@/components/growth/GrowthAnnouncement";
 import { Chip, Hint, MiniBolt, useDebounced } from "@/components/growth/v2";
 import { HINTS } from "@/components/growth/hints";
+import { renderQueryState } from "@/components/growth/QueryState";
 import { cn } from "@/lib/utils";
 
 type SearchParams = { open?: string; basket?: string; q?: string };
@@ -314,13 +315,9 @@ function GrowthCampusesPage() {
         </div>
       </div>
 
-      {list.isLoading && (
-        <div className="flex items-center gap-2 p-8 text-sm text-muted-foreground">
-          <Loader2 className="size-4 animate-spin" /> Loading campuses…
-        </div>
-      )}
+      {(list.isLoading || list.isError) && renderQueryState(list, { label: "campuses" })}
 
-      {!list.isLoading && (
+      {!list.isLoading && !list.isError && (
         <div className="overflow-hidden rounded-lg border border-border bg-card">
           {/* column headings — same grid as the rows, so alignment cannot drift */}
           <div

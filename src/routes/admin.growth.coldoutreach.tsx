@@ -1,11 +1,10 @@
 // /admin/growth/coldoutreach — THE enrichment surface. The next 48 hours are one job: get
 // rich contact data in, one campus at a time, fast. Everything else is deliberately off the
 // path. Add Contacts is the only live door; a campus should take minutes, not half an hour.
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  BarChart3,
   Building2,
   Check,
   ChevronDown,
@@ -18,7 +17,6 @@ import {
   Plus,
   Recycle,
   Search,
-  UserPlus,
   Users,
   X,
 } from "lucide-react";
@@ -26,6 +24,7 @@ import { toast } from "sonner";
 import {
   growthBoard,
   growthCampusContactSlots,
+  growthRenameClub,
   growthSaveCampusContacts,
   type BoardCampus,
   type BoardOwner,
@@ -36,6 +35,8 @@ import {
 } from "@/lib/growth-tranche.functions";
 import { growthUpdateContact } from "@/lib/growth-reach.functions";
 import { BottomSheet } from "@/components/growth/BottomSheet";
+import { ColdHeader } from "@/components/growth/ColdHeader";
+import { renderQueryState } from "@/components/growth/QueryState";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/growth/coldoutreach")({
@@ -54,27 +55,37 @@ async function copyText(text: string, okMsg: string) {
     toast.error("Couldn't copy — clipboard is blocked here.");
   }
 }
-/** A prefilled search: a magnifier that opens Google, and a Copy button for the query text. */
-function SearchPair({ query, label }: { query: string; label?: string }) {
+// Role-search dropdown. Searching for an individual by role surfaces their personal Instagram —
+// the field we most want and the one an org-level search never returns. Priority order.
+const ROLE_SEARCHES: { label: string; q: (campus: string, org: string) => string }[] = [
+  { label: "Scholarship / Academic Chair", q: (c, o) => `"${c}" "${o}" scholarship chair OR academic chair` },
+  { label: "President", q: (c, o) => `"${c}" "${o}" president 2026` },
+  { label: "Vice President", q: (c, o) => `"${c}" "${o}" vice president 2026` },
+  { label: "Treasurer", q: (c, o) => `"${c}" "${o}" treasurer 2026` },
+  { label: "The organization itself", q: (c, o) => `"${c}" "${o}" instagram` },
+];
+function RoleSearch({ campus, org }: { campus: string; org: string }) {
+  const [open, setOpen] = useState(false);
   return (
-    <span className="inline-flex items-center gap-0.5">
+    <span className="relative inline-block shrink-0">
       <button
         type="button"
-        title={`Google: ${query}`}
-        onClick={(e) => { e.stopPropagation(); googleSearch(query); }}
-        className="inline-grid size-5 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+        title="Search for a contact by role — opens a prefilled Google search"
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        className="inline-flex items-center gap-0.5 rounded border border-border px-1.5 py-0.5 text-[9px] text-muted-foreground hover:bg-muted hover:text-foreground"
       >
-        <Search className="size-3" />
+        <Search className="size-2.5" /> Search ▾
       </button>
-      <button
-        type="button"
-        title="Copy search text"
-        onClick={(e) => { e.stopPropagation(); copyText(query, "Search text copied."); }}
-        className="inline-grid size-5 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
-      >
-        <Copy className="size-3" />
-      </button>
-      {label && <span className="text-[9px] text-muted-foreground">{label}</span>}
+      {open && (
+        <div className="absolute left-0 top-full z-40 mt-0.5 w-52 rounded-md border border-border bg-background p-1 shadow-lg" onMouseLeave={() => setOpen(false)}>
+          <div className="px-2 py-0.5 text-[9px] uppercase tracking-wide text-muted-foreground/70">Search for…</div>
+          {ROLE_SEARCHES.map((rs) => (
+            <button key={rs.label} onClick={(e) => { e.stopPropagation(); googleSearch(rs.q(campus, org)); setOpen(false); }} className="block w-full rounded px-2 py-1 text-left text-[10px] hover:bg-muted">
+              {rs.label}
+            </button>
+          ))}
+        </div>
+      )}
     </span>
   );
 }
@@ -107,7 +118,6 @@ function ColdOutreachPage() {
   const board = useQuery({ queryKey: ["co-board", owner], queryFn: () => growthBoard({ data: { owner } }) });
   const [openTranche, setOpenTranche] = useState<number | null>(1);
   const [picked, setPicked] = useState<BoardCampus | null>(null);
-  const [door, setDoor] = useState<"menu" | "contacts">("menu");
 
   const tranches = board.data?.tranches ?? [];
   const ownerLabel = OWNERS.find((o) => o.id === owner)?.label ?? "";
@@ -116,38 +126,35 @@ function ColdOutreachPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-3">
-      <div>
-        <div className="flex flex-wrap items-baseline gap-2">
-          <h1 className="sa-admin-display text-lg font-semibold uppercase tracking-wide">Cold Outreach</h1>
-          <span className="text-[11px] text-muted-foreground">Enrichment — one campus at a time</span>
-          <Link to="/admin/growth/coldoutreach/schedule" className="ml-auto inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium hover:bg-muted">
-            Schedule →
-          </Link>
-          <span className="text-xs text-muted-foreground">
+      <ColdHeader
+        tab="enrichment"
+        right={
+          <span title="Campuses with a complete contact set, out of your assigned batches" className="text-xs text-muted-foreground">
             <strong className="text-emerald-400">{readyCount}</strong> / {totalCampuses} ready
           </span>
+        }
+      />
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex overflow-hidden rounded-lg border border-border text-xs">
+          {OWNERS.map((o) => (
+            <button
+              key={o.id}
+              onClick={() => { setOwner(o.id); setOpenTranche(1); }}
+              className={cn("px-3.5 py-1.5 font-medium", owner === o.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}
+            >
+              {o.label}
+            </button>
+          ))}
         </div>
+        <PipLegend />
       </div>
 
-      <div className="inline-flex overflow-hidden rounded-lg border border-border text-xs">
-        {OWNERS.map((o) => (
-          <button
-            key={o.id}
-            onClick={() => { setOwner(o.id); setOpenTranche(1); }}
-            className={cn("px-3.5 py-1.5 font-medium", owner === o.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
-
-      {board.isLoading && (
-        <div className="flex h-40 items-center justify-center text-muted-foreground"><Loader2 className="size-5 animate-spin" /></div>
-      )}
-      {!board.isLoading && board.data?.ready === false && (
+      {renderQueryState(board)}
+      {!board.isLoading && !board.isError && board.data?.ready === false && (
         <div className="rounded-lg border border-dashed border-border p-6 text-center">
           <p className="text-sm font-medium">{ownerLabel} isn't set up yet</p>
-          <p className="mt-1 text-xs text-muted-foreground">Add {ownerLabel} as a user and assign tranches — this view fills in automatically.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Add {ownerLabel} as a user and assign batches — this view fills in automatically.</p>
         </div>
       )}
 
@@ -161,8 +168,8 @@ function ColdOutreachPage() {
               className={cn("flex w-full items-center gap-2 px-3 py-2 text-left", t.status === "active" ? "bg-primary/[0.04]" : "bg-card")}
             >
               {open ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-              <span className="sa-admin-display text-sm font-semibold">Tranche {t.label}</span>
-              <span className="ml-auto text-[11px] text-muted-foreground">
+              <span className="sa-admin-display text-sm font-semibold">Batch {t.label}</span>
+              <span title="Campuses ready for outreach in this batch · estimated students / yr" className="ml-auto text-[11px] text-muted-foreground">
                 <span className="text-emerald-400">{ready}</span>/{t.campuses.length} ready · {t.totalSeats.toLocaleString()} est.
               </span>
             </button>
@@ -171,7 +178,7 @@ function ColdOutreachPage() {
                 {t.campuses.map((c) => (
                   <button
                     key={c.campusId}
-                    onClick={() => { setPicked(c); setDoor("menu"); }}
+                    onClick={() => setPicked(c)}
                     className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-muted/50"
                   >
                     <span className="min-w-0 flex-1">
@@ -197,52 +204,43 @@ function ColdOutreachPage() {
         );
       })}
 
-      {picked && door === "menu" && (
-        <BottomSheet open onClose={() => setPicked(null)} title={<span className="sa-admin-display text-sm font-semibold">{picked.name}</span>}>
-          <div className="grid grid-cols-3 gap-2 p-1">
-            <DoorTile icon={Building2} label="Campus Data" soon />
-            <DoorTile icon={UserPlus} label="Add Contacts" primary onClick={() => setDoor("contacts")} />
-            <DoorTile icon={BarChart3} label="View Results" soon />
-          </div>
-        </BottomSheet>
-      )}
-      {picked && door === "contacts" && (
+      {/* Campus click opens Add Contacts directly — no dead-tile door menu. */}
+      {picked && (
         <AddContacts campus={picked} onClose={() => setPicked(null)} onSaved={() => board.refetch()} />
       )}
     </div>
   );
 }
 
-function DoorTile({ icon: Icon, label, onClick, primary, soon }: { icon: any; label: string; onClick?: () => void; primary?: boolean; soon?: boolean }) {
+function PipLegend() {
+  const dot = (tone: string, label: string, icon?: ReactNode) => (
+    <span className="inline-flex items-center gap-1">
+      <span className={cn("inline-grid size-3.5 place-items-center rounded-full", tone)}>{icon}</span>
+      {label}
+    </span>
+  );
   return (
-    <button
-      onClick={onClick}
-      disabled={soon}
-      className={cn(
-        "relative flex flex-col items-center gap-1.5 rounded-lg border px-2 py-5 text-center",
-        primary ? "border-primary bg-primary/10 text-primary ring-1 ring-primary/30" : "border-border",
-        soon && "cursor-not-allowed opacity-45",
-      )}
-    >
-      <Icon className="size-5" />
-      <span className="text-[11px] font-medium">{label}</span>
-      {soon && <span className="absolute right-1 top-1 rounded-full bg-muted px-1.5 py-0.5 text-[8px] uppercase tracking-wide text-muted-foreground">Soon</span>}
-    </button>
+    <div className="ml-auto flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[9px] text-muted-foreground" title="Contacts on file: councils · chapters · clubs · personal Instagrams">
+      {dot("bg-emerald-500/15", "Councils")}
+      {dot("bg-primary/15", "Chapters")}
+      {dot("bg-sky-500/15", "Clubs")}
+      {dot("bg-pink-500/15", "IG", <Instagram className="size-2 text-pink-400" />)}
+    </div>
   );
 }
 
 function ContactPips({ c }: { c: BoardCampus }) {
   const pip = (n: number, tone: string, title: string, icon?: ReactNode) => (
-    <span title={title} className={cn("grid h-5 min-w-5 place-items-center gap-0.5 rounded-full px-1 text-[9px] font-semibold", n > 0 ? tone : "bg-muted text-muted-foreground")}>
+    <span title={title} className={cn("grid h-5 min-w-5 place-items-center gap-0.5 rounded-full px-1 text-[10px] font-semibold", n > 0 ? tone : "bg-muted text-muted-foreground")}>
       {icon}{n}
     </span>
   );
   return (
     <span className="flex shrink-0 items-center gap-1">
-      {pip(c.councilContacts, "bg-emerald-500/15 text-emerald-400", "Council contacts")}
-      {pip(c.greekContacts, "bg-primary/15 text-primary", "Greek chapter contacts")}
-      {pip(c.clubContacts, "bg-sky-500/15 text-sky-400", "Club contacts")}
-      {pip(c.personalIgs, "bg-pink-500/15 text-pink-400", "Personal Instagram handles", <Instagram className="size-2.5" />)}
+      {pip(c.councilContacts, "bg-emerald-500/15 text-emerald-400", "Council / FSL contacts on file")}
+      {pip(c.greekContacts, "bg-primary/15 text-primary", "Greek chapter contacts on file")}
+      {pip(c.clubContacts, "bg-sky-500/15 text-sky-400", "Business club contacts on file")}
+      {pip(c.personalIgs, "bg-pink-500/15 text-pink-400", "Personal Instagram handles — our highest-value field", <Instagram className="size-2.5" />)}
     </span>
   );
 }
@@ -299,7 +297,8 @@ function neededList(r: CampusReadiness): string[] {
 function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClose: () => void; onSaved: () => void }) {
   const qc = useQueryClient();
   const slots = useQuery({ queryKey: ["co-slots", campus.campusId], queryFn: () => growthCampusContactSlots({ data: { campusId: campus.campusId } }) });
-  const [open, setOpen] = useState<Record<string, boolean>>({ councils: true, chapters: false, clubs: false, rep: false });
+  const [open, setOpen] = useState<Record<string, boolean>>({ councils: true, chapters: false, clubs: false });
+  const [showAll, setShowAll] = useState<Record<string, boolean>>({});
   const [rows, setRows] = useState<Row[]>([]);
   const [roleFilter, setRoleFilter] = useState(false);
   const restored = useRef(false);
@@ -400,16 +399,23 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
     if (!list.length) return null;
     const needed = list.filter((ch) => ch.needed);
     const optional = list.filter((ch) => !ch.needed);
+    const shown = !!showAll[type];
     return (
       <div className="space-y-1.5">
         <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">{heading}</div>
         {needed.map((ch) => renderChapter(ch))}
-        {optional.length > 0 && (
+        {optional.length > 0 && !shown && (
+          <button onClick={() => setShowAll((o) => ({ ...o, [type]: true }))} className="text-[10px] text-primary hover:underline">
+            Show all {list.length} {type === "fraternity" ? "fraternities" : "sororities"} ▾
+          </button>
+        )}
+        {optional.length > 0 && shown && (
           <>
             <div className="flex items-center gap-2 pt-1 text-[9px] uppercase tracking-wide text-muted-foreground/70">
               <span className="h-px flex-1 bg-border" /> optional <span className="h-px flex-1 bg-border" />
             </div>
             {optional.map((ch) => renderChapter(ch))}
+            <button onClick={() => setShowAll((o) => ({ ...o, [type]: false }))} className="text-[10px] text-muted-foreground hover:underline">Show less ▴</button>
           </>
         )}
       </div>
@@ -419,8 +425,7 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
     <EntityRow
       key={ch.id}
       name={ch.name}
-      sub={ch.size != null ? <span className="shrink-0 text-muted-foreground">{ch.size}</span> : null}
-      searchQuery={`"${campus.name}" "${ch.name}" instagram`}
+      sub={ch.size != null ? <span title="Members (chapter size)" className="shrink-0 text-muted-foreground">{ch.size}</span> : null}
       existing={ch.contacts}
       notFound={ch.notFound}
       muted={!ch.needed}
@@ -468,7 +473,7 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
                     <EntityRow
                       key={c.type}
                       name={c.label}
-                      searchQuery={councilQuery(campus.name, c.type, c.label)}
+                      searchOrg={c.type === "fsl" ? "fraternity sorority life office" : `${c.label} council`}
                       existing={c.contacts}
                       notFound={c.notFound}
                       person
@@ -489,6 +494,7 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
 
               {section("chapters", 2, "Greek Chapters", "Top 5 fraternities + top 5 sororities", Users,
                 <>
+                  <p className="text-[10px] text-muted-foreground">Ranked by chapter size where we have it, alphabetically where we don't. Top 5 is what the DM budget supports.</p>
                   {chapterGroup("fraternity", "Fraternities")}
                   {chapterGroup("sorority", "Sororities")}
                 </>,
@@ -496,48 +502,22 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
 
               {section("clubs", 3, "Business Clubs", "Women in Business, Finance, Investing — one contact", Building2,
                 <>
-                  <div className="flex flex-wrap gap-1.5">
-                    {CLUB_SEARCHES.map(([label, q]) => (
-                      <span key={label} className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
-                        {label} <SearchPair query={q(campus.name)} />
-                      </span>
-                    ))}
-                  </div>
-                  {(s.clubs).map((cl) => (
+                  {(s.clubTypes ?? []).map((cl) => (
                     <EntityRow
-                      key={cl.id}
+                      key={cl.clubType}
                       name={cl.name}
-                      sub={cl.category ? <span className="shrink-0 text-muted-foreground">{cl.category.replace(/_/g, " ")}</span> : null}
-                      searchQuery={`"${campus.name}" "${cl.name}" instagram`}
+                      searchOrg={cl.name}
+                      headerExtra={<RenameClub campusId={campus.campusId} clubType={cl.clubType} name={cl.name} onRenamed={() => qc.invalidateQueries({ queryKey: ["co-slots", campus.campusId] })} />}
                       existing={cl.contacts}
                       notFound={cl.notFound}
                       person
-                      onAdd={() => add({ kind: "club", entityId: cl.id, label: cl.name })}
+                      onAdd={() => add({ kind: "club", entityId: cl.clubId, newClubName: cl.name, newClubCategory: cl.clubType, label: cl.name })}
                       campusName={campus.name}
                       onEdited={() => qc.invalidateQueries({ queryKey: ["co-slots", campus.campusId] })}
                     >
-                      {rowsFor((r) => r.kind === "club" && r.entityId === cl.id)}
+                      {rowsFor((r) => r.kind === "club" && r.newClubCategory === cl.clubType)}
                     </EntityRow>
                   ))}
-                  <NewClub onAdd={(name, category) => add({ kind: "club", newClubName: name, newClubCategory: category, label: name })} />
-                  {rows.filter((r) => r.kind === "club" && !r.entityId && r.newClubCategory !== "campus_rep").map((r) => (
-                    <div key={r.key} className="rounded border border-dashed border-border p-2">
-                      <div className="mb-1 text-[11px] font-medium">{r.newClubName} <span className="text-muted-foreground">({(r.newClubCategory ?? "").replace(/_/g, " ")})</span></div>
-                      <NewContactRow r={r} set={set} remove={remove} campusName={campus.name} />
-                    </div>
-                  ))}
-                </>,
-              )}
-
-              {section("rep", 4, "Campus Rep Promotion", "A specific individual — optional", UserPlus,
-                <>
-                  <p className="text-[11px] text-muted-foreground">Add a rep candidate (a specific person). We'll follow up with a tracked link. Optional — never blocks READY.</p>
-                  {rows.filter((r) => r.kind === "club" && r.newClubCategory === "campus_rep").map((r) => (
-                    <NewContactRow key={r.key} r={r} set={set} remove={remove} forcePerson campusName={campus.name} />
-                  ))}
-                  <button onClick={() => add({ kind: "club", newClubName: "Campus Rep", newClubCategory: "campus_rep", isPerson: true, label: "Rep" })} className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline">
-                    <Plus className="size-3" /> rep candidate
-                  </button>
                 </>,
               )}
             </>
@@ -559,17 +539,30 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
   );
 }
 
-const CLUB_SEARCHES: [string, (u: string) => string][] = [
-  ["Women in Business", (u) => `"${u}" "Women in Business" instagram`],
-  ["Finance Club", (u) => `"${u}" finance club instagram`],
-  ["Investing Club", (u) => `"${u}" investing OR investment club instagram`],
-  ["Beta Alpha Psi", (u) => `"${u}" "Beta Alpha Psi" accounting`],
-];
-function councilQuery(campus: string, type: string, label: string) {
-  if (type === "fsl") return `"${campus}" fraternity sorority life office staff`;
-  if (type === "ifc") return `"${campus}" IFC interfraternity council executive board`;
-  if (type === "panhellenic") return `"${campus}" panhellenic council executive board`;
-  return `"${campus}" ${label} council executive board`;
+// Rename a preloaded club to the campus's actual name ("Florida Women in Business (FWIB)"),
+// keeping its type. Creates the row on first save.
+function RenameClub({ campusId, clubType, name, onRenamed }: { campusId: string; clubType: string; name: string; onRenamed: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(name);
+  const m = useMutation({
+    mutationFn: () => growthRenameClub({ data: { campusId, clubType, name: val.trim() } }),
+    onSuccess: (r) => { if (r.ok) { toast.success("Club renamed."); setEditing(false); onRenamed(); } else toast.error(r.error ?? "Rename failed"); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Rename failed"),
+  });
+  if (!editing) {
+    return (
+      <button type="button" onClick={(e) => { e.stopPropagation(); setVal(name); setEditing(true); }} title="Rename to the campus's actual club name" className="shrink-0 text-[9px] text-muted-foreground underline decoration-dotted hover:text-foreground">
+        rename
+      </button>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+      <input value={val} onChange={(e) => setVal(e.target.value)} className="w-32 rounded border border-border bg-background px-1.5 py-0.5 text-[10px]" />
+      <button type="button" onClick={() => val.trim() && m.mutate()} disabled={m.isPending} className="text-[9px] font-medium text-primary disabled:opacity-40">save</button>
+      <button type="button" onClick={() => setEditing(false)} className="text-[9px] text-muted-foreground">✕</button>
+    </span>
+  );
 }
 
 function ReadinessBar({ r, personalIgs }: { r: CampusReadiness; personalIgs: number }) {
@@ -595,9 +588,9 @@ function ReadinessBar({ r, personalIgs }: { r: CampusReadiness; personalIgs: num
 // One org (council / chapter / club): clickable name, search, existing contacts (each editable),
 // not-found state, and any in-progress add rows.
 function EntityRow({
-  name, sub, searchQuery, existing, notFound, muted, onAdd, campusName, onEdited, children,
+  name, searchOrg, sub, headerExtra, existing, notFound, muted, onAdd, campusName, onEdited, children,
 }: {
-  name: string; sub?: ReactNode; searchQuery: string; existing: ExistingContact[];
+  name: string; searchOrg?: string; sub?: ReactNode; headerExtra?: ReactNode; existing: ExistingContact[];
   notFound: boolean; muted?: boolean; person?: boolean; onAdd: () => void; campusName: string;
   onEdited: () => void; children: ReactNode;
 }) {
@@ -605,11 +598,12 @@ function EntityRow({
   return (
     <div className={cn("space-y-1", (muted || settled) && "opacity-45 transition-opacity hover:opacity-100")}>
       <div className="flex items-center gap-2 text-[11px] font-medium">
-        <button onClick={onAdd} className="min-w-0 truncate text-left hover:text-primary hover:underline" title="Add a contact">{name}</button>
+        <button onClick={onAdd} className="min-w-0 truncate text-left hover:text-primary hover:underline" title="Click to add a contact">{name}</button>
         {sub}
-        <SearchPair query={searchQuery} />
+        <RoleSearch campus={campusName} org={searchOrg ?? name} />
+        {headerExtra}
         {existing.length > 0 && <span className="shrink-0 text-emerald-400">✓ {existing.length}</span>}
-        {settled && <span className="shrink-0 inline-flex items-center gap-0.5 italic text-amber-500/80"><Check className="size-2.5" /> not found</span>}
+        {settled && <span className="shrink-0 inline-flex items-center gap-0.5 italic text-amber-400"><Check className="size-2.5" /> not found</span>}
         <button onClick={onAdd} className="ml-auto inline-flex shrink-0 items-center gap-0.5 text-primary hover:underline"><Plus className="size-3" /> contact</button>
       </div>
       {existing.map((c) => <ExistingRow key={c.id} c={c} campusName={campusName} onEdited={onEdited} />)}
@@ -653,8 +647,8 @@ function ExistingRow({ c, campusName, onEdited }: { c: ExistingContact; campusNa
       <Check className="size-2.5 shrink-0 text-emerald-400" />
       <span className="min-w-0 truncate">{line}</span>
       {c.isPerson && c.instagram && <Instagram className="size-2.5 shrink-0 text-pink-400" />}
-      {c.isRoleAccount && <Recycle className="size-2.5 shrink-0 text-amber-500" />}
-      <button onClick={() => setEditing(true)} title="Edit" className="ml-auto opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"><Pencil className="size-3" /></button>
+      {c.isRoleAccount && <Recycle className="size-2.5 shrink-0 text-amber-400" />}
+      <button onClick={() => setEditing(true)} title="Edit this contact" className="ml-auto inline-flex shrink-0 items-center gap-0.5 rounded border border-border px-1.5 py-0.5 text-[9px] hover:bg-muted hover:text-foreground"><Pencil className="size-2.5" /> Edit</button>
     </div>
   );
 }
@@ -721,18 +715,3 @@ function NewContactRow({ r, set, remove, forcePerson, campusName }: { r: Row; se
   );
 }
 
-function NewClub({ onAdd }: { onAdd: (name: string, category: string) => void }) {
-  const [name, setName] = useState("");
-  const [cat, setCat] = useState("women_in_business");
-  return (
-    <form onSubmit={(e) => { e.preventDefault(); if (name.trim()) { onAdd(name.trim(), cat); setName(""); } }} className="flex items-center gap-1.5">
-      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Add a club…" className="min-w-0 flex-1 rounded border border-dashed border-border bg-background px-2 py-1 text-[11px]" />
-      <select value={cat} onChange={(e) => setCat(e.target.value)} className="rounded border border-border bg-card px-1.5 py-1 text-[11px]">
-        <option value="women_in_business">Women in Business</option>
-        <option value="finance">Finance</option>
-        <option value="investing">Investing</option>
-      </select>
-      <button type="submit" disabled={!name.trim()} className="rounded bg-primary px-2 py-1 text-[11px] font-medium text-primary-foreground disabled:opacity-40">Add</button>
-    </form>
-  );
-}

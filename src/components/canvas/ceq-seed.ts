@@ -20,11 +20,17 @@ const q = (stem: string, correct: string, ...d: string[]): SQ => ({ stem, choice
 const tf = (stem: string, ans: boolean): SQ => ({ stem, choices: ans ? [{ text: "True", correct: true }, { text: "False" }] : [{ text: "True" }, { text: "False", correct: true }] });
 
 // ---- Foundations 30-account COA (name → classification) ---------------------
+// Names here MUST resolve through account-registry.accountByLabel (label or
+// alias) — this seed and the registry are two of the four places account
+// classification lives, and a name only one of them knows is silent drift.
+// "Building" was renamed to "Buildings" on 2026-08-30 for exactly that reason.
+// Taxes Payable and Dividends Payable are still seed-only (absent from the
+// registry) — see docs/CURRICULUM-INVARIANTS.md.
 type AType = "Asset" | "Liability" | "Equity" | "Revenue" | "Expense";
 const COA: { name: string; type: AType }[] = [
   { name: "Cash", type: "Asset" }, { name: "Accounts Receivable", type: "Asset" }, { name: "Supplies", type: "Asset" },
   { name: "Prepaid Insurance", type: "Asset" }, { name: "Prepaid Rent", type: "Asset" }, { name: "Inventory", type: "Asset" },
-  { name: "Equipment", type: "Asset" }, { name: "Land", type: "Asset" }, { name: "Building", type: "Asset" },
+  { name: "Equipment", type: "Asset" }, { name: "Land", type: "Asset" }, { name: "Buildings", type: "Asset" },
   { name: "Accumulated Depreciation", type: "Asset" }, // contra-asset (classified under Assets) — trap
   { name: "Accounts Payable", type: "Liability" }, { name: "Notes Payable", type: "Liability" }, { name: "Unearned Revenue", type: "Liability" },
   { name: "Salaries Payable", type: "Liability" }, { name: "Interest Payable", type: "Liability" }, { name: "Taxes Payable", type: "Liability" },

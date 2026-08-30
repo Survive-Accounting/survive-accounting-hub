@@ -4,7 +4,8 @@
 // written until Lee approves.
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Crown, Loader2, Users } from "lucide-react";
+import { Check, Crown, Users } from "lucide-react";
+import { renderQueryState } from "@/components/growth/QueryState";
 import { toast } from "sonner";
 import { growthCommitPreBuild, growthPreBuildProposal } from "@/lib/growth-tranche.functions";
 import { cn } from "@/lib/utils";
@@ -30,12 +31,8 @@ function PreBuildPage() {
     onError: (e) => toast.error(e instanceof Error ? e.message : "Commit failed"),
   });
 
-  if (q.isLoading || !q.data)
-    return (
-      <div className="flex h-64 items-center justify-center text-muted-foreground">
-        <Loader2 className="size-5 animate-spin" />
-      </div>
-    );
+  const gate = renderQueryState(q, { label: "the pre-build" });
+  if (gate || !q.data) return <div className="py-10">{gate}</div>;
   const { king, unassigned, founder, eligibleCount } = q.data;
 
   return (

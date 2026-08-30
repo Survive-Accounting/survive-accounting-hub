@@ -1,20 +1,28 @@
 // EXHIBIT MODES (cycle-modes) tests — the mode cycle order is the M key's
-// contract, the config matcher must land BOTH cycle vocabularies (the 7-step
-// canvas template and the Lab's 9-step labels) on the right entries, and the
-// film-controller wiring must keep its precedence (orbit keys before the walk)
-// and its film-safety (chips never on camera).
+// contract, the config matcher must land BOTH cycle vocabularies (the legacy
+// 7-step shorthand and the canonical 9-step labels) on the right entries, and
+// the film-controller wiring must keep its precedence (orbit keys before the
+// walk) and its film-safety (chips never on camera).
+//
+// 2026-08-30: the canvas template now seeds the canonical NINE steps (it used
+// to seed the 7-step shorthand, which contradicted the bank's own answer to
+// "Which list shows the full accounting cycle in the correct order?"). The
+// 7-step vocabulary is still matched — hand-authored and legacy labels use it —
+// but it is no longer what a new element starts with, which the last test pins.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 
 import { nextModeId } from "./exhibit-modes";
 import { CYCLE_STEP_INFO, cycleStepInfo, endOfPeriodStart } from "./cycle-exhibit-config";
+import { CYCLE_STEPS } from "./exhibit-lab/cycle-model";
+import { blankCard } from "./templates";
 
 const previewerSrc = readFileSync(join(import.meta.dir, "CeqPreviewer.tsx"), "utf8").split("\r\n").join("\n");
 const modesSrc = readFileSync(join(import.meta.dir, "exhibit-modes.tsx"), "utf8").split("\r\n").join("\n");
 const cycleSrc = readFileSync(join(import.meta.dir, "cards", "CycleNode.tsx"), "utf8").split("\r\n").join("\n");
 
-// The two vocabularies the matcher must serve.
+// The two vocabularies the matcher must serve (shorthand = legacy/hand-authored).
 const TEMPLATE_7 = [
   ["Analyze transactions", "analyze"],
   ["Record JEs", "journalize"],
@@ -95,5 +103,25 @@ describe("film-controller wiring (source pins)", () => {
   test("the cycle card mounts the shared chips and keeps click-to-highlight in film", () => {
     expect(cycleSrc).toContain("<ExhibitModeChips modes={CYCLE_MODES} />");
     expect(cycleSrc).toContain("ex.nodeClick(s.id)?.(e);");
+  });
+});
+
+// A new cycle element is the ring Lee films. If it seeds a different list from
+// the one the bank teaches, the exhibit and the CEQ answer disagree ON CAMERA —
+// which is exactly what a 7-step seed did until 2026-08-30.
+describe("the seeded cycle element agrees with the bank", () => {
+  const seeded = (blankCard("cycle") as { steps: { text: string }[] }).steps.map((s) => s.text);
+
+  test("seeds the canonical nine, in cycle-model's order", () => {
+    expect(seeded).toEqual(CYCLE_STEPS.map((s) => s.text));
+    expect(seeded).toHaveLength(9);
+  });
+  test("every seeded label resolves to a DISTINCT config entry", () => {
+    const ids = seeded.map((l) => cycleStepInfo(l)?.id);
+    expect(ids).toEqual(LAB_9.map(([, id]) => id));
+    expect(new Set(ids).size).toBe(9); // no two steps collapse onto one entry
+  });
+  test("the end-of-period handoff lands on the unadjusted trial balance", () => {
+    expect(endOfPeriodStart(seeded)).toBe(3);
   });
 });
