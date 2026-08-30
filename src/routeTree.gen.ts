@@ -148,8 +148,8 @@ import { Route as ApiPartnerKitSchoolCouncilRouteImport } from './routes/api.par
 import { Route as ApiOgSchoolChapterRouteImport } from './routes/api.og.$school.$chapter'
 import { Route as ApiFlyerSchoolChapterRouteImport } from './routes/api.flyer.$school.$chapter'
 import { Route as AdminRepsViewPartnerIdRouteImport } from './routes/admin.reps.view.$partnerId'
+import { Route as AdminGrowthColdoutreachScheduleRouteImport } from './routes/admin.growth.coldoutreach_.schedule'
 import { Route as AdminGrowthColdoutreachEngagedRouteImport } from './routes/admin.growth.coldoutreach_.engaged'
-import { Route as AdminGrowthColdoutreachScheduleRouteImport } from './routes/admin.growth.coldoutreach.schedule'
 
 const WelcomeRoute = WelcomeRouteImport.update({
   id: '/welcome',
@@ -857,17 +857,17 @@ const AdminRepsViewPartnerIdRoute = AdminRepsViewPartnerIdRouteImport.update({
   path: '/view/$partnerId',
   getParentRoute: () => AdminRepsRoute,
 } as any)
+const AdminGrowthColdoutreachScheduleRoute =
+  AdminGrowthColdoutreachScheduleRouteImport.update({
+    id: '/coldoutreach_/schedule',
+    path: '/coldoutreach/schedule',
+    getParentRoute: () => AdminGrowthRoute,
+  } as any)
 const AdminGrowthColdoutreachEngagedRoute =
   AdminGrowthColdoutreachEngagedRouteImport.update({
     id: '/coldoutreach_/engaged',
     path: '/coldoutreach/engaged',
     getParentRoute: () => AdminGrowthRoute,
-  } as any)
-const AdminGrowthColdoutreachScheduleRoute =
-  AdminGrowthColdoutreachScheduleRouteImport.update({
-    id: '/schedule',
-    path: '/schedule',
-    getParentRoute: () => AdminGrowthColdoutreachRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -962,7 +962,7 @@ export interface FileRoutesByFullPath {
   '/admin/growth/campaigns': typeof AdminGrowthCampaignsRoute
   '/admin/growth/campuses': typeof AdminGrowthCampusesRoute
   '/admin/growth/chapters': typeof AdminGrowthChaptersRoute
-  '/admin/growth/coldoutreach': typeof AdminGrowthColdoutreachRouteWithChildren
+  '/admin/growth/coldoutreach': typeof AdminGrowthColdoutreachRoute
   '/admin/growth/contacts': typeof AdminGrowthContactsRoute
   '/admin/growth/councils': typeof AdminGrowthCouncilsRoute
   '/admin/growth/greek': typeof AdminGrowthGreekRoute
@@ -1003,8 +1003,8 @@ export interface FileRoutesByFullPath {
   '/go/$school/': typeof GoSchoolIndexRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
   '/s/$campus/': typeof SCampusIndexRoute
-  '/admin/growth/coldoutreach/schedule': typeof AdminGrowthColdoutreachScheduleRoute
   '/admin/growth/coldoutreach/engaged': typeof AdminGrowthColdoutreachEngagedRoute
+  '/admin/growth/coldoutreach/schedule': typeof AdminGrowthColdoutreachScheduleRoute
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
@@ -1102,7 +1102,7 @@ export interface FileRoutesByTo {
   '/admin/growth/campaigns': typeof AdminGrowthCampaignsRoute
   '/admin/growth/campuses': typeof AdminGrowthCampusesRoute
   '/admin/growth/chapters': typeof AdminGrowthChaptersRoute
-  '/admin/growth/coldoutreach': typeof AdminGrowthColdoutreachRouteWithChildren
+  '/admin/growth/coldoutreach': typeof AdminGrowthColdoutreachRoute
   '/admin/growth/contacts': typeof AdminGrowthContactsRoute
   '/admin/growth/councils': typeof AdminGrowthCouncilsRoute
   '/admin/growth/greek': typeof AdminGrowthGreekRoute
@@ -1143,8 +1143,8 @@ export interface FileRoutesByTo {
   '/go/$school': typeof GoSchoolIndexRoute
   '/outreach/leadfinder': typeof OutreachLeadfinderIndexRoute
   '/s/$campus': typeof SCampusIndexRoute
-  '/admin/growth/coldoutreach/schedule': typeof AdminGrowthColdoutreachScheduleRoute
   '/admin/growth/coldoutreach/engaged': typeof AdminGrowthColdoutreachEngagedRoute
+  '/admin/growth/coldoutreach/schedule': typeof AdminGrowthColdoutreachScheduleRoute
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
@@ -1246,7 +1246,7 @@ export interface FileRoutesById {
   '/admin/growth/campaigns': typeof AdminGrowthCampaignsRoute
   '/admin/growth/campuses': typeof AdminGrowthCampusesRoute
   '/admin/growth/chapters': typeof AdminGrowthChaptersRoute
-  '/admin/growth/coldoutreach': typeof AdminGrowthColdoutreachRouteWithChildren
+  '/admin/growth/coldoutreach': typeof AdminGrowthColdoutreachRoute
   '/admin/growth/contacts': typeof AdminGrowthContactsRoute
   '/admin/growth/councils': typeof AdminGrowthCouncilsRoute
   '/admin/growth/greek': typeof AdminGrowthGreekRoute
@@ -1287,8 +1287,8 @@ export interface FileRoutesById {
   '/go/$school/': typeof GoSchoolIndexRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
   '/s/$campus/': typeof SCampusIndexRoute
-  '/admin/growth/coldoutreach/schedule': typeof AdminGrowthColdoutreachScheduleRoute
   '/admin/growth/coldoutreach_/engaged': typeof AdminGrowthColdoutreachEngagedRoute
+  '/admin/growth/coldoutreach_/schedule': typeof AdminGrowthColdoutreachScheduleRoute
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
@@ -1432,8 +1432,8 @@ export interface FileRouteTypes {
     | '/go/$school/'
     | '/outreach/leadfinder/'
     | '/s/$campus/'
-    | '/admin/growth/coldoutreach/schedule'
     | '/admin/growth/coldoutreach/engaged'
+    | '/admin/growth/coldoutreach/schedule'
     | '/admin/reps/view/$partnerId'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
@@ -1572,8 +1572,8 @@ export interface FileRouteTypes {
     | '/go/$school'
     | '/outreach/leadfinder'
     | '/s/$campus'
-    | '/admin/growth/coldoutreach/schedule'
     | '/admin/growth/coldoutreach/engaged'
+    | '/admin/growth/coldoutreach/schedule'
     | '/admin/reps/view/$partnerId'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
@@ -1715,8 +1715,8 @@ export interface FileRouteTypes {
     | '/go/$school/'
     | '/outreach/leadfinder/'
     | '/s/$campus/'
-    | '/admin/growth/coldoutreach/schedule'
     | '/admin/growth/coldoutreach_/engaged'
+    | '/admin/growth/coldoutreach_/schedule'
     | '/admin/reps/view/$partnerId'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
@@ -2782,19 +2782,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRepsViewPartnerIdRouteImport
       parentRoute: typeof AdminRepsRoute
     }
+    '/admin/growth/coldoutreach_/schedule': {
+      id: '/admin/growth/coldoutreach_/schedule'
+      path: '/coldoutreach/schedule'
+      fullPath: '/admin/growth/coldoutreach/schedule'
+      preLoaderRoute: typeof AdminGrowthColdoutreachScheduleRouteImport
+      parentRoute: typeof AdminGrowthRoute
+    }
     '/admin/growth/coldoutreach_/engaged': {
       id: '/admin/growth/coldoutreach_/engaged'
       path: '/coldoutreach/engaged'
       fullPath: '/admin/growth/coldoutreach/engaged'
       preLoaderRoute: typeof AdminGrowthColdoutreachEngagedRouteImport
       parentRoute: typeof AdminGrowthRoute
-    }
-    '/admin/growth/coldoutreach/schedule': {
-      id: '/admin/growth/coldoutreach/schedule'
-      path: '/schedule'
-      fullPath: '/admin/growth/coldoutreach/schedule'
-      preLoaderRoute: typeof AdminGrowthColdoutreachScheduleRouteImport
-      parentRoute: typeof AdminGrowthColdoutreachRoute
     }
   }
 }
@@ -2909,26 +2909,12 @@ const OutreachRouteWithChildren = OutreachRoute._addFileChildren(
   OutreachRouteChildren,
 )
 
-interface AdminGrowthColdoutreachRouteChildren {
-  AdminGrowthColdoutreachScheduleRoute: typeof AdminGrowthColdoutreachScheduleRoute
-}
-
-const AdminGrowthColdoutreachRouteChildren: AdminGrowthColdoutreachRouteChildren =
-  {
-    AdminGrowthColdoutreachScheduleRoute: AdminGrowthColdoutreachScheduleRoute,
-  }
-
-const AdminGrowthColdoutreachRouteWithChildren =
-  AdminGrowthColdoutreachRoute._addFileChildren(
-    AdminGrowthColdoutreachRouteChildren,
-  )
-
 interface AdminGrowthRouteChildren {
   AdminGrowthActivityRoute: typeof AdminGrowthActivityRoute
   AdminGrowthCampaignsRoute: typeof AdminGrowthCampaignsRoute
   AdminGrowthCampusesRoute: typeof AdminGrowthCampusesRoute
   AdminGrowthChaptersRoute: typeof AdminGrowthChaptersRoute
-  AdminGrowthColdoutreachRoute: typeof AdminGrowthColdoutreachRouteWithChildren
+  AdminGrowthColdoutreachRoute: typeof AdminGrowthColdoutreachRoute
   AdminGrowthContactsRoute: typeof AdminGrowthContactsRoute
   AdminGrowthCouncilsRoute: typeof AdminGrowthCouncilsRoute
   AdminGrowthGreekRoute: typeof AdminGrowthGreekRoute
@@ -2941,6 +2927,7 @@ interface AdminGrowthRouteChildren {
   AdminGrowthTranchesRoute: typeof AdminGrowthTranchesRoute
   AdminGrowthIndexRoute: typeof AdminGrowthIndexRoute
   AdminGrowthColdoutreachEngagedRoute: typeof AdminGrowthColdoutreachEngagedRoute
+  AdminGrowthColdoutreachScheduleRoute: typeof AdminGrowthColdoutreachScheduleRoute
 }
 
 const AdminGrowthRouteChildren: AdminGrowthRouteChildren = {
@@ -2948,7 +2935,7 @@ const AdminGrowthRouteChildren: AdminGrowthRouteChildren = {
   AdminGrowthCampaignsRoute: AdminGrowthCampaignsRoute,
   AdminGrowthCampusesRoute: AdminGrowthCampusesRoute,
   AdminGrowthChaptersRoute: AdminGrowthChaptersRoute,
-  AdminGrowthColdoutreachRoute: AdminGrowthColdoutreachRouteWithChildren,
+  AdminGrowthColdoutreachRoute: AdminGrowthColdoutreachRoute,
   AdminGrowthContactsRoute: AdminGrowthContactsRoute,
   AdminGrowthCouncilsRoute: AdminGrowthCouncilsRoute,
   AdminGrowthGreekRoute: AdminGrowthGreekRoute,
@@ -2961,6 +2948,7 @@ const AdminGrowthRouteChildren: AdminGrowthRouteChildren = {
   AdminGrowthTranchesRoute: AdminGrowthTranchesRoute,
   AdminGrowthIndexRoute: AdminGrowthIndexRoute,
   AdminGrowthColdoutreachEngagedRoute: AdminGrowthColdoutreachEngagedRoute,
+  AdminGrowthColdoutreachScheduleRoute: AdminGrowthColdoutreachScheduleRoute,
 }
 
 const AdminGrowthRouteWithChildren = AdminGrowthRoute._addFileChildren(

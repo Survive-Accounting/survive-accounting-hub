@@ -17,7 +17,14 @@ import {
 import { addDays, dowOf, seasonWeeks } from "@/lib/growth-schedule-core";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/admin/growth/coldoutreach/schedule")({ component: SchedulePage });
+// FLAT, NOT NESTED — the file is admin.growth.coldoutreach_.schedule.tsx.
+//
+// As admin.growth.coldoutreach.schedule.tsx this was generated as a CHILD of
+// /admin/growth/coldoutreach, and that parent renders a full dashboard with no <Outlet/>, so the
+// child never mounted: the URL rendered the dashboard and this page was unreachable. The trailing
+// underscore opts out of the nesting. The URL is unchanged, and the dashboard's own
+// <Link to="/admin/growth/coldoutreach/schedule"> keeps working.
+export const Route = createFileRoute("/admin/growth/coldoutreach_/schedule")({ component: SchedulePage });
 
 const DOW = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
