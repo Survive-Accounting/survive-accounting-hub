@@ -16,6 +16,7 @@ import {
   type CampaignView,
 } from "@/lib/growth-campaign.functions";
 import { growthQueueList } from "@/lib/growth-queue.functions";
+import { PartnerActivityFeed } from "@/components/growth/PartnerActivityFeed";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/growth/campaigns")({
@@ -122,6 +123,8 @@ function CampaignsPage() {
       )}
 
       {openCampaign && <ReviewMessages campaignTag={openCampaign.campaignTag} campusId={openCampaign.campusId} />}
+
+      <PartnerActivityFeed />
     </div>
   );
 }

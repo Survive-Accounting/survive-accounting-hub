@@ -115,6 +115,73 @@ export interface TrancheView {
   progress: TrancheProgress | null;
 }
 
+export interface ActivityItem {
+  id: string;
+  partnerId: string | null;
+  partnerName: string | null;
+  campusId: string | null;
+  campusName: string | null;
+  kind: string;
+  summary: string;
+  createdAt: string;
+}
+
+/** The partner activity feed — one chronological stream across all partners, filterable
+ *  by partner. Lee's 30-seconds-a-day skim surface. */
+export const growthPartnerActivity = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) =>
+    z
+      .object({ partnerId: z.string().uuid().nullable().optional(), limit: z.number().max(200).optional() })
+      .parse(d ?? {}),
+  )
+  .handler(async ({ data }): Promise<{ items: ActivityItem[] }> => {
+    const db = await adminDb();
+    let q = db
+      .from("partner_activity")
+      .select("id,partner_id,campus_id,kind,summary,created_at")
+      .order("created_at", { ascending: false })
+      .limit(data.limit ?? 100);
+    if (data.partnerId) q = q.eq("partner_id", data.partnerId);
+    const { data: rows } = await q;
+    const list = (rows ?? []) as any[];
+    const partnerIds = [...new Set(list.map((r) => r.partner_id).filter(Boolean))];
+    const campusIds = [...new Set(list.map((r) => r.campus_id).filter(Boolean))];
+    const pNames = new Map<string, string>();
+    const cNames = new Map<string, string>();
+    await Promise.all([
+      partnerIds.length
+        ? db
+            .from("referral_partners")
+            .select("id,name")
+            .in("id", partnerIds)
+            .then(({ data }: any) => {
+              for (const p of data ?? []) pNames.set(p.id, p.name);
+            })
+        : Promise.resolve(),
+      campusIds.length
+        ? db
+            .from("campuses")
+            .select("id,display_name,name")
+            .in("id", campusIds)
+            .then(({ data }: any) => {
+              for (const c of data ?? []) cNames.set(c.id, c.display_name || c.name);
+            })
+        : Promise.resolve(),
+    ]);
+    return {
+      items: list.map((r) => ({
+        id: r.id,
+        partnerId: r.partner_id ?? null,
+        partnerName: r.partner_id ? (pNames.get(r.partner_id) ?? null) : null,
+        campusId: r.campus_id ?? null,
+        campusName: r.campus_id ? (cNames.get(r.campus_id) ?? null) : null,
+        kind: r.kind,
+        summary: r.summary,
+        createdAt: r.created_at,
+      })),
+    };
+  });
+
 export interface PartnerLite {
   id: string;
   name: string;
