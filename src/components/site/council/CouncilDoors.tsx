@@ -23,7 +23,10 @@ import {
 
 /** Section anchors — the doors' destinations. */
 export const SHARE_ANCHOR = "share";
-export const KIT_ANCHOR = "meeting-materials";
+export const KIT_ANCHOR = "materials";
+/** The chapter list. It lives inside the share section's "Send individually" tab, so this anchor
+ *  lands there AND opens that tab — see CouncilShare's hash handling. */
+export const CHAPTERS_ANCHOR = "chapters";
 
 export function CouncilDoors({ onShare, onDownloadKit, kitBusy, previewHref, bolt }: {
   onShare: () => void;

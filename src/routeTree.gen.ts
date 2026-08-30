@@ -95,11 +95,14 @@ import { Route as AdminSiteQaRouteImport } from './routes/admin.site-qa'
 import { Route as AdminRepsRouteImport } from './routes/admin.reps'
 import { Route as AdminGrowthRouteImport } from './routes/admin.growth'
 import { Route as SchoolRepRouteImport } from './routes/$school.rep'
+import { Route as SCampusIndexRouteImport } from './routes/s.$campus.index'
 import { Route as OutreachLeadfinderIndexRouteImport } from './routes/outreach.leadfinder.index'
 import { Route as GoSchoolIndexRouteImport } from './routes/go.$school.index'
 import { Route as AdminRepsIndexRouteImport } from './routes/admin.reps.index'
 import { Route as AdminGrowthIndexRouteImport } from './routes/admin.growth.index'
 import { Route as StudyScenariosSlugRouteImport } from './routes/study_.scenarios.$slug'
+import { Route as SCampusCouncilRouteImport } from './routes/s.$campus.council'
+import { Route as SCampusChapterRouteImport } from './routes/s.$campus.$chapter'
 import { Route as PartnersNationalOrgRouteImport } from './routes/partners.national.$org'
 import { Route as OutreachSchoolSlugRouteImport } from './routes/outreach_.school.$slug'
 import { Route as OutreachLeadfinderCampusIdRouteImport } from './routes/outreach.leadfinder.$campusId'
@@ -579,6 +582,11 @@ const SchoolRepRoute = SchoolRepRouteImport.update({
   path: '/$school/rep',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SCampusIndexRoute = SCampusIndexRouteImport.update({
+  id: '/s/$campus/',
+  path: '/s/$campus/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OutreachLeadfinderIndexRoute = OutreachLeadfinderIndexRouteImport.update({
   id: '/leadfinder/',
   path: '/leadfinder/',
@@ -602,6 +610,16 @@ const AdminGrowthIndexRoute = AdminGrowthIndexRouteImport.update({
 const StudyScenariosSlugRoute = StudyScenariosSlugRouteImport.update({
   id: '/study_/scenarios/$slug',
   path: '/study/scenarios/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SCampusCouncilRoute = SCampusCouncilRouteImport.update({
+  id: '/s/$campus/council',
+  path: '/s/$campus/council',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SCampusChapterRoute = SCampusChapterRouteImport.update({
+  id: '/s/$campus/$chapter',
+  path: '/s/$campus/$chapter',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PartnersNationalOrgRoute = PartnersNationalOrgRouteImport.update({
@@ -956,11 +974,14 @@ export interface FileRoutesByFullPath {
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
   '/partners/national/$org': typeof PartnersNationalOrgRoute
+  '/s/$campus/$chapter': typeof SCampusChapterRoute
+  '/s/$campus/council': typeof SCampusCouncilRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
   '/admin/growth/': typeof AdminGrowthIndexRoute
   '/admin/reps/': typeof AdminRepsIndexRoute
   '/go/$school/': typeof GoSchoolIndexRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
+  '/s/$campus/': typeof SCampusIndexRoute
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
@@ -1090,11 +1111,14 @@ export interface FileRoutesByTo {
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach/school/$slug': typeof OutreachSchoolSlugRoute
   '/partners/national/$org': typeof PartnersNationalOrgRoute
+  '/s/$campus/$chapter': typeof SCampusChapterRoute
+  '/s/$campus/council': typeof SCampusCouncilRoute
   '/study/scenarios/$slug': typeof StudyScenariosSlugRoute
   '/admin/growth': typeof AdminGrowthIndexRoute
   '/admin/reps': typeof AdminRepsIndexRoute
   '/go/$school': typeof GoSchoolIndexRoute
   '/outreach/leadfinder': typeof OutreachLeadfinderIndexRoute
+  '/s/$campus': typeof SCampusIndexRoute
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
@@ -1228,11 +1252,14 @@ export interface FileRoutesById {
   '/outreach/leadfinder/$campusId': typeof OutreachLeadfinderCampusIdRoute
   '/outreach_/school/$slug': typeof OutreachSchoolSlugRoute
   '/partners/national/$org': typeof PartnersNationalOrgRoute
+  '/s/$campus/$chapter': typeof SCampusChapterRoute
+  '/s/$campus/council': typeof SCampusCouncilRoute
   '/study_/scenarios/$slug': typeof StudyScenariosSlugRoute
   '/admin/growth/': typeof AdminGrowthIndexRoute
   '/admin/reps/': typeof AdminRepsIndexRoute
   '/go/$school/': typeof GoSchoolIndexRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
+  '/s/$campus/': typeof SCampusIndexRoute
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
@@ -1367,11 +1394,14 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder/$campusId'
     | '/outreach/school/$slug'
     | '/partners/national/$org'
+    | '/s/$campus/$chapter'
+    | '/s/$campus/council'
     | '/study/scenarios/$slug'
     | '/admin/growth/'
     | '/admin/reps/'
     | '/go/$school/'
     | '/outreach/leadfinder/'
+    | '/s/$campus/'
     | '/admin/reps/view/$partnerId'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
@@ -1501,11 +1531,14 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder/$campusId'
     | '/outreach/school/$slug'
     | '/partners/national/$org'
+    | '/s/$campus/$chapter'
+    | '/s/$campus/council'
     | '/study/scenarios/$slug'
     | '/admin/growth'
     | '/admin/reps'
     | '/go/$school'
     | '/outreach/leadfinder'
+    | '/s/$campus'
     | '/admin/reps/view/$partnerId'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
@@ -1638,11 +1671,14 @@ export interface FileRouteTypes {
     | '/outreach/leadfinder/$campusId'
     | '/outreach_/school/$slug'
     | '/partners/national/$org'
+    | '/s/$campus/$chapter'
+    | '/s/$campus/council'
     | '/study_/scenarios/$slug'
     | '/admin/growth/'
     | '/admin/reps/'
     | '/go/$school/'
     | '/outreach/leadfinder/'
+    | '/s/$campus/'
     | '/admin/reps/view/$partnerId'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
@@ -1719,8 +1755,11 @@ export interface RootRouteChildren {
   GoSchoolChapterRoute: typeof GoSchoolChapterRoute
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
   PartnersNationalOrgRoute: typeof PartnersNationalOrgRoute
+  SCampusChapterRoute: typeof SCampusChapterRoute
+  SCampusCouncilRoute: typeof SCampusCouncilRoute
   StudyScenariosSlugRoute: typeof StudyScenariosSlugRoute
   GoSchoolIndexRoute: typeof GoSchoolIndexRoute
+  SCampusIndexRoute: typeof SCampusIndexRoute
   ApiFlyerSchoolChapterRoute: typeof ApiFlyerSchoolChapterRoute
   ApiOgSchoolChapterRoute: typeof ApiOgSchoolChapterRoute
   ApiPartnerKitSchoolCouncilRoute: typeof ApiPartnerKitSchoolCouncilRoute
@@ -2333,6 +2372,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SchoolRepRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/s/$campus/': {
+      id: '/s/$campus/'
+      path: '/s/$campus'
+      fullPath: '/s/$campus/'
+      preLoaderRoute: typeof SCampusIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/outreach/leadfinder/': {
       id: '/outreach/leadfinder/'
       path: '/leadfinder'
@@ -2366,6 +2412,20 @@ declare module '@tanstack/react-router' {
       path: '/study/scenarios/$slug'
       fullPath: '/study/scenarios/$slug'
       preLoaderRoute: typeof StudyScenariosSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/s/$campus/council': {
+      id: '/s/$campus/council'
+      path: '/s/$campus/council'
+      fullPath: '/s/$campus/council'
+      preLoaderRoute: typeof SCampusCouncilRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/s/$campus/$chapter': {
+      id: '/s/$campus/$chapter'
+      path: '/s/$campus/$chapter'
+      fullPath: '/s/$campus/$chapter'
+      preLoaderRoute: typeof SCampusChapterRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/partners/national/$org': {
@@ -2931,8 +2991,11 @@ const rootRouteChildren: RootRouteChildren = {
   GoSchoolChapterRoute: GoSchoolChapterRoute,
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
   PartnersNationalOrgRoute: PartnersNationalOrgRoute,
+  SCampusChapterRoute: SCampusChapterRoute,
+  SCampusCouncilRoute: SCampusCouncilRoute,
   StudyScenariosSlugRoute: StudyScenariosSlugRoute,
   GoSchoolIndexRoute: GoSchoolIndexRoute,
+  SCampusIndexRoute: SCampusIndexRoute,
   ApiFlyerSchoolChapterRoute: ApiFlyerSchoolChapterRoute,
   ApiOgSchoolChapterRoute: ApiOgSchoolChapterRoute,
   ApiPartnerKitSchoolCouncilRoute: ApiPartnerKitSchoolCouncilRoute,

@@ -22,7 +22,7 @@
 // MOBILE IS THE REAL SURFACE. She is reading this on a phone, in a cold email, between classes.
 // Tabs 1 and 2 are built for that; tab 3's table is honestly labelled as a desktop job rather
 // than crushed into a phone as three unreadable columns.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { councilChapterLinksPost } from "@/lib/partners";
@@ -38,8 +38,10 @@ const TABS: Array<{ key: TabKey; label: string }> = [
   { key: "email", label: "Email them" },
 ];
 
-export function CouncilShare({ id, chapters, courseCode, emailTab }: {
+export function CouncilShare({ id, chaptersAnchorId, chapters, courseCode, emailTab }: {
   id: string;
+  /** The #chapters email anchor. Landing on it opens the tab that actually holds the list. */
+  chaptersAnchorId?: string;
   chapters: PartnerChapterRow[];
   courseCode: string | null;
   /** Tab 3's content — the existing table, passed in so this component owns the CHOICE between
@@ -47,6 +49,19 @@ export function CouncilShare({ id, chapters, courseCode, emailTab }: {
   emailTab: React.ReactNode;
 }) {
   const [tab, setTab] = useState<TabKey>("post");
+
+  // AN EMAIL LINKING TO #chapters WANTS THE CHAPTER LIST, not the group-chat post that happens to
+  // be the default tab. Landing on that anchor selects the tab the list is in, so the officer
+  // sees what the link promised instead of the right section with the wrong panel open.
+  useEffect(() => {
+    if (typeof window === "undefined" || !chaptersAnchorId) return;
+    const openIfChapters = () => {
+      if (window.location.hash === `#${chaptersAnchorId}`) setTab("individual");
+    };
+    openIfChapters();
+    window.addEventListener("hashchange", openIfChapters);
+    return () => window.removeEventListener("hashchange", openIfChapters);
+  }, [chaptersAnchorId]);
 
   const withLinks = useMemo(
     () => chapters.map((c) => ({ ...c, url: `${ORIGIN}${c.goPath}` })),
@@ -95,6 +110,8 @@ export function CouncilShare({ id, chapters, courseCode, emailTab }: {
           );
         })}
       </div>
+
+      {chaptersAnchorId && <div id={chaptersAnchorId} className="sa-anchor" />}
 
       <div
         role="tabpanel"

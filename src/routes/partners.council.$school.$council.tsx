@@ -18,7 +18,7 @@ import { StudentPreview, previewCampus } from "@/components/site/StudentPreview"
 import { FeatureValueStrip } from "@/components/site/Marketing";
 import { getCouncilPartner } from "@/lib/partners.functions";
 import { liftHeadline, liftSubhead } from "@/lib/partners";
-import { CouncilDoors, SHARE_ANCHOR, KIT_ANCHOR } from "@/components/site/council/CouncilDoors";
+import { CouncilDoors, SHARE_ANCHOR, KIT_ANCHOR, CHAPTERS_ANCHOR } from "@/components/site/council/CouncilDoors";
 import { CouncilHero } from "@/components/site/council/CouncilHero";
 import { CouncilShare } from "@/components/site/council/CouncilShare";
 import { CampaignBuilder } from "@/components/site/council/CampaignBuilder";
@@ -134,6 +134,7 @@ function CouncilPartnerPage() {
           officer cannot find on a second visit, and it is the one thing this page is for. */}
       <CouncilShare
         id={SHARE_ANCHOR}
+        chaptersAnchorId={CHAPTERS_ANCHOR}
         chapters={d.chapters}
         courseCode={d.courseCode}
         emailTab={
