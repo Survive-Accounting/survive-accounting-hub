@@ -85,8 +85,18 @@ export const growthAddContact = createServerFn({ method: "POST" })
     }
 
     const now = new Date().toISOString();
+    // contact_source is constrained (gcq_source_ck) to a fixed set — map the manual entry to the
+    // bucket that matches what it's a contact FOR. "manual" is NOT allowed and silently rejected.
+    const contactSource =
+      data.contactType === "staff_advisor"
+        ? "growth_advisors"
+        : data.entityType === "council"
+          ? "campus_council_contacts"
+          : data.entityType === "club"
+            ? "growth_business_clubs"
+            : "growth_public_contacts";
     const row = {
-      contact_source: "manual",
+      contact_source: contactSource,
       source_id: crypto.randomUUID(),
       campus_id: data.campusId,
       entity_type: data.entityType,

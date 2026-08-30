@@ -27,6 +27,8 @@ import {
   growthSaveCampusContacts,
   type BoardCampus,
   type BoardOwner,
+  type CampusReadiness,
+  type ExistingContact,
 } from "@/lib/growth-tranche.functions";
 import { CampusPanel } from "@/components/growth/CampusPanel";
 import { BottomSheet } from "@/components/growth/BottomSheet";
@@ -132,7 +134,14 @@ function TranchesPage() {
                     className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-muted/50"
                   >
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px] font-medium">{c.name}</span>
+                      <span className="flex items-center gap-1.5">
+                        <span className="truncate text-[13px] font-medium">{c.name}</span>
+                        {c.readiness?.ready && (
+                          <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[8.5px] font-bold uppercase tracking-wide text-emerald-400">
+                            <Check className="size-2.5" /> Ready
+                          </span>
+                        )}
+                      </span>
                       <span className="block text-[10px] text-muted-foreground">
                         {[c.state, `~${(c.seats ?? 0).toLocaleString()} students`].filter(Boolean).join(" · ")}
                       </span>
@@ -257,6 +266,7 @@ type Row = {
   newClubCategory: string | null;
   label: string;
   isPerson: boolean;
+  notFound: boolean;
   name: string;
   role: string;
   email: string;
@@ -272,23 +282,102 @@ const emptyRow = (o: Partial<Row>): Row => ({
   newClubCategory: o.newClubCategory ?? null,
   label: o.label ?? "",
   isPerson: o.isPerson ?? false,
+  notFound: false,
   name: "",
   role: "",
   email: "",
   instagram: "",
 });
 
+// Readiness summary shown at the top of the modal (reflects what's already saved).
+function ReadinessBar({ r }: { r: CampusReadiness }) {
+  const item = (ok: boolean, label: string) => (
+    <span className={cn("inline-flex items-center gap-0.5", ok ? "text-emerald-400" : "text-muted-foreground")}>
+      {ok ? <Check className="size-3" /> : <span className="inline-block size-1.5 rounded-full bg-current opacity-40" />} {label}
+    </span>
+  );
+  return (
+    <div className={cn(
+      "flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border p-2 text-[11px]",
+      r.ready ? "border-emerald-500/40 bg-emerald-500/10" : "border-border bg-muted/30",
+    )}>
+      {r.ready
+        ? <span className="font-bold uppercase tracking-wide text-emerald-400">🎉 Ready for outreach!</span>
+        : <span className="font-medium">Needed:</span>}
+      {item(r.councilOk, "Council")}
+      {item(r.fratsCovered >= r.fratsTotal, `Frats ${r.fratsCovered}/${r.fratsTotal}`)}
+      {item(r.sororitiesCovered >= r.sororitiesTotal, `Sororities ${r.sororitiesCovered}/${r.sororitiesTotal}`)}
+      {item(r.clubOk, "Club")}
+    </div>
+  );
+}
+
+// Existing (already-saved) contacts, read-only.
+function ExistingList({ contacts }: { contacts: ExistingContact[] }) {
+  if (!contacts.length) return null;
+  return (
+    <div className="space-y-0.5 pl-1">
+      {contacts.map((c) => {
+        const ig = c.instagram ? `@${String(c.instagram).replace(/^@/, "")}` : null;
+        const label = [c.name, c.role, c.email, ig].filter(Boolean).join(" · ") || "contact";
+        return (
+          <div key={c.id} className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            <Check className="size-2.5 shrink-0 text-emerald-400" />
+            <span className="truncate">{label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// One entity's block — a clickable name (adds a contact), a Google search, existing contacts,
+// the not-found state, and any in-progress rows. Shared by councils / chapters / clubs.
+function EntityBlock({
+  name, kindLabel, searchQuery, existing, notFound, muted, onAdd, children,
+}: {
+  name: string;
+  kindLabel?: ReactNode;
+  searchQuery: string;
+  existing: ExistingContact[];
+  notFound: boolean;
+  muted?: boolean;
+  onAdd: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className={cn("space-y-1", muted && "opacity-45 transition-opacity hover:opacity-100")}>
+      <div className="flex items-center gap-2 text-[11px] font-medium">
+        <button onClick={onAdd} className="min-w-0 truncate text-left hover:text-primary hover:underline" title="Add a contact">
+          {name}
+        </button>
+        {kindLabel}
+        <FindBtn query={searchQuery} />
+        {existing.length > 0 && <span className="shrink-0 text-emerald-400">✓ {existing.length}</span>}
+        {notFound && existing.length === 0 && <span className="shrink-0 italic text-amber-500/80">not found</span>}
+        <button onClick={onAdd} className="ml-auto inline-flex shrink-0 items-center gap-0.5 text-primary hover:underline">
+          <Plus className="size-3" /> contact
+        </button>
+      </div>
+      <ExistingList contacts={existing} />
+      {children}
+    </div>
+  );
+}
+
 function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClose: () => void; onSaved: () => void }) {
   const qc = useQueryClient();
   const slots = useQuery({ queryKey: ["contact-slots", campus.campusId], queryFn: () => growthCampusContactSlots({ data: { campusId: campus.campusId } }) });
-  const [open, setOpen] = useState<Record<string, boolean>>({ councils: true, chapters: false, rep: false, clubs: false });
+  const [open, setOpen] = useState<Record<string, boolean>>({ councils: true, chapters: false, clubs: false, rep: false });
   const [rows, setRows] = useState<Row[]>([]);
 
   const set = (key: string, patch: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
   const add = (r: Partial<Row>) => setRows((rs) => [...rs, emptyRow(r)]);
   const remove = (key: string) => setRows((rs) => rs.filter((r) => r.key !== key));
+  const rowsFor = (pred: (r: Row) => boolean) => rows.filter(pred).map((r) => <ContactRow key={r.key} r={r} set={set} remove={remove} campusName={campus.name} />);
 
-  const filled = rows.filter((r) => r.email.trim() || r.instagram.trim());
+  // A row is ready to submit if it's a real contact (email/IG) or an explicit "not found".
+  const filled = rows.filter((r) => r.notFound || r.email.trim() || r.instagram.trim());
   const save = useMutation({
     mutationFn: () =>
       growthSaveCampusContacts({
@@ -301,6 +390,7 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
             newClubName: r.newClubName,
             newClubCategory: r.newClubCategory,
             isPerson: r.isPerson,
+            notFound: r.notFound,
             name: r.name || null,
             role: r.role || null,
             email: r.email || null,
@@ -309,7 +399,7 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
         },
       }),
     onSuccess: (r) => {
-      toast.success(`Nice work! ${r.saved} contact${r.saved === 1 ? "" : "s"} saved for ${campus.name}.`, {
+      toast.success(`Nice work! ${r.saved} saved for ${campus.name}.`, {
         description: r.errors.length ? `${r.errors.length} skipped (dupes / invalid).` : undefined,
       });
       qc.invalidateQueries({ queryKey: ["contact-slots", campus.campusId] });
@@ -336,86 +426,104 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
     );
   };
 
+  const chapterGroup = (type: "fraternity" | "sorority", heading: string) => {
+    const list = (s?.chapters ?? []).filter((ch) => ch.orgType === type);
+    if (!list.length) return null;
+    return (
+      <div className="space-y-1.5">
+        <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          {heading} <span className="font-normal normal-case">· top 5 needed</span>
+        </div>
+        {list.map((ch) => (
+          <EntityBlock
+            key={ch.id}
+            name={ch.name}
+            kindLabel={
+              ch.size != null
+                ? <span className="shrink-0 text-muted-foreground">{ch.size}</span>
+                : !ch.needed
+                  ? <span className="shrink-0 text-[9px] text-muted-foreground">#{ch.rank}</span>
+                  : null
+            }
+            searchQuery={`${ch.name} ${campus.name} instagram`}
+            existing={ch.contacts}
+            notFound={ch.notFound}
+            muted={!ch.needed}
+            onAdd={() => add({ kind: "chapter", entityId: ch.id, label: ch.name })}
+          >
+            {rowsFor((r) => r.kind === "chapter" && r.entityId === ch.id)}
+          </EntityBlock>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <BottomSheet
       open
       onClose={onClose}
-      title={
-        <span className="flex items-center gap-2">
-          <span className="sa-admin-display text-sm font-semibold">Add contacts · {campus.name}</span>
-        </span>
-      }
+      title={<span className="sa-admin-display text-sm font-semibold">Add contacts · {campus.name}</span>}
     >
       {slots.isLoading ? (
         <Loader2 className="size-4 animate-spin text-muted-foreground" />
       ) : (
         <div className="space-y-2 pb-24">
+          <ReadinessBar r={campus.readiness} />
+          <p className="px-1 text-[10px] text-muted-foreground">
+            Click a name (or <span className="text-primary">+ contact</span>) to add — stack as many as you want, then Save once.
+          </p>
+
           {section("councils", 1, "IFC & Panhellenic Councils", "Highest leverage — one yes opens 15+ chapters", Landmark,
             <>
               {(s?.councils ?? []).map((c) => (
-                <div key={c.type} className="space-y-1.5">
-                  <div className="flex items-center gap-2 text-[11px] font-medium">
-                    {c.label}
-                    <FindBtn query={`${campus.name} ${c.label} instagram`} />
-                    {c.has > 0 && <span className="text-emerald-400">✓ {c.has}</span>}
-                    <button onClick={() => add({ kind: "council", councilType: c.type, label: c.label })} className="ml-auto inline-flex items-center gap-0.5 text-primary hover:underline">
-                      <Plus className="size-3" /> contact
-                    </button>
-                  </div>
-                  {rows.filter((r) => r.kind === "council" && r.councilType === c.type).map((r) => (
-                    <ContactRow key={r.key} r={r} set={set} remove={remove} campusName={campus.name} />
-                  ))}
-                </div>
+                <EntityBlock
+                  key={c.type}
+                  name={c.label}
+                  searchQuery={`${campus.name} ${c.label} council instagram`}
+                  existing={c.contacts}
+                  notFound={c.notFound}
+                  onAdd={() => add({ kind: "council", councilType: c.type, label: c.label })}
+                >
+                  {rowsFor((r) => r.kind === "council" && r.councilType === c.type)}
+                </EntityBlock>
               ))}
             </>,
           )}
-          {section("chapters", 2, "Greek Chapters", "Top 5 fraternities & sororities", Users,
+
+          {section("chapters", 2, "Greek Chapters", "Top 5 fraternities + top 5 sororities", Users,
             <>
-              {(s?.chapters ?? []).slice(0, 20).map((ch) => (
-                <div key={ch.id} className="space-y-1.5">
-                  <div className="flex items-center gap-2 text-[11px] font-medium">
-                    {ch.name}
-                    <FindBtn query={`${ch.name} ${campus.name} instagram`} />
-                    {ch.size != null && <span className="text-muted-foreground">{ch.size}</span>}
-                    {ch.has > 0 && <span className="text-emerald-400">✓ {ch.has}</span>}
-                    <button onClick={() => add({ kind: "chapter", entityId: ch.id, label: ch.name })} className="ml-auto inline-flex items-center gap-0.5 text-primary hover:underline">
-                      <Plus className="size-3" /> contact
-                    </button>
-                  </div>
-                  {rows.filter((r) => r.kind === "chapter" && r.entityId === ch.id).map((r) => (
-                    <ContactRow key={r.key} r={r} set={set} remove={remove} campusName={campus.name} />
-                  ))}
-                </div>
-              ))}
+              {chapterGroup("fraternity", "Fraternities")}
+              {chapterGroup("sorority", "Sororities")}
             </>,
           )}
-          {section("rep", 3, "Campus Rep Promotion", "A student who'll rep the campus", UserPlus,
+
+          {section("clubs", 3, "Women in Business, Finance & Investing Clubs", "At least one club contact", Building2,
             <>
-              <p className="text-[11px] text-muted-foreground">Add a rep candidate (a person). We'll follow up to set them up with a tracked link.</p>
-              {rows.filter((r) => r.kind === "club" && r.newClubCategory === "campus_rep").map((r) => (
-                <ContactRow key={r.key} r={r} set={set} remove={remove} forcePerson campusName={campus.name} />
-              ))}
-              <button onClick={() => add({ kind: "club", newClubName: "Campus Rep", newClubCategory: "campus_rep", isPerson: true, label: "Rep" })} className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline">
-                <Plus className="size-3" /> rep candidate
-              </button>
-            </>,
-          )}
-          {section("clubs", 4, "Women in Business, Finance & Investing Clubs", "Add a club and its contact", Building2,
-            <>
+              <div className="flex flex-wrap gap-1.5">
+                {([["Women in Business", "women in business club"], ["Finance Club", "finance club"], ["Investing Club", "investing club"]] as const).map(([label, q]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => googleSearch(`${campus.name} ${q} instagram`)}
+                    title={`Google: ${campus.name} ${q}`}
+                    className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground hover:bg-muted hover:text-foreground"
+                  >
+                    <Search className="size-3" /> {label}
+                  </button>
+                ))}
+              </div>
               {(s?.clubs ?? []).map((cl) => (
-                <div key={cl.id} className="space-y-1.5">
-                  <div className="flex items-center gap-2 text-[11px] font-medium">
-                    {cl.name}
-                    <FindBtn query={`${cl.name} ${campus.name} instagram`} />
-                    {cl.category && <span className="text-muted-foreground">{cl.category.replace(/_/g, " ")}</span>}
-                    <button onClick={() => add({ kind: "club", entityId: cl.id, label: cl.name })} className="ml-auto inline-flex items-center gap-0.5 text-primary hover:underline">
-                      <Plus className="size-3" /> contact
-                    </button>
-                  </div>
-                  {rows.filter((r) => r.kind === "club" && r.entityId === cl.id).map((r) => (
-                    <ContactRow key={r.key} r={r} set={set} remove={remove} campusName={campus.name} />
-                  ))}
-                </div>
+                <EntityBlock
+                  key={cl.id}
+                  name={cl.name}
+                  kindLabel={cl.category ? <span className="shrink-0 text-muted-foreground">{cl.category.replace(/_/g, " ")}</span> : null}
+                  searchQuery={`${cl.name} ${campus.name} instagram`}
+                  existing={cl.contacts}
+                  notFound={cl.notFound}
+                  onAdd={() => add({ kind: "club", entityId: cl.id, label: cl.name })}
+                >
+                  {rowsFor((r) => r.kind === "club" && r.entityId === cl.id)}
+                </EntityBlock>
               ))}
               <NewClub onAdd={(name, category) => add({ kind: "club", newClubName: name, newClubCategory: category, label: name })} />
               {rows.filter((r) => r.kind === "club" && !r.entityId && r.newClubCategory !== "campus_rep").map((r) => (
@@ -426,17 +534,29 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
               ))}
             </>,
           )}
+
+          {section("rep", 4, "Campus Rep Promotion", "A specific individual — optional", UserPlus,
+            <>
+              <p className="text-[11px] text-muted-foreground">Add a rep candidate (a specific person). We'll follow up to set them up with a tracked link.</p>
+              {rows.filter((r) => r.kind === "club" && r.newClubCategory === "campus_rep").map((r) => (
+                <ContactRow key={r.key} r={r} set={set} remove={remove} forcePerson campusName={campus.name} />
+              ))}
+              <button onClick={() => add({ kind: "club", newClubName: "Campus Rep", newClubCategory: "campus_rep", isPerson: true, label: "Rep" })} className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline">
+                <Plus className="size-3" /> rep candidate
+              </button>
+            </>,
+          )}
         </div>
       )}
 
       <div className="sticky bottom-0 -mx-4 flex items-center gap-2 border-t border-border bg-background px-4 py-2.5">
-        <span className="text-[11px] text-muted-foreground">{filled.length} contact{filled.length === 1 ? "" : "s"} ready</span>
+        <span className="text-[11px] text-muted-foreground">{filled.length} to save</span>
         <button
           onClick={() => save.mutate()}
           disabled={filled.length === 0 || save.isPending}
           className="ml-auto rounded-md bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-40"
         >
-          {save.isPending ? "Saving…" : `Save ${filled.length} contact${filled.length === 1 ? "" : "s"}`}
+          {save.isPending ? "Saving…" : `Save ${filled.length}`}
         </button>
       </div>
     </BottomSheet>
@@ -444,38 +564,45 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
 }
 
 function ContactRow({ r, set, remove, forcePerson, campusName }: { r: Row; set: (k: string, p: Partial<Row>) => void; remove: (k: string) => void; forcePerson?: boolean; campusName: string }) {
-  const person = forcePerson || r.isPerson;
+  const person = !r.notFound && (forcePerson || r.isPerson);
   return (
     <div className="rounded-md border border-border bg-card p-2">
       <div className="mb-1.5 flex items-center gap-2">
         {!forcePerson && (
           <div className="inline-flex overflow-hidden rounded border border-border text-[10px]">
-            <button onClick={() => set(r.key, { isPerson: false })} className={cn("px-2 py-0.5", !r.isPerson ? "bg-primary/15 text-primary" : "text-muted-foreground")}>Organization</button>
-            <button onClick={() => set(r.key, { isPerson: true })} className={cn("px-2 py-0.5", r.isPerson ? "bg-primary/15 text-primary" : "text-muted-foreground")}>Person</button>
+            <button onClick={() => set(r.key, { isPerson: false, notFound: false })} className={cn("px-2 py-0.5", !r.isPerson && !r.notFound ? "bg-primary/15 text-primary" : "text-muted-foreground")}>Organization</button>
+            <button onClick={() => set(r.key, { isPerson: true, notFound: false })} className={cn("px-2 py-0.5", r.isPerson && !r.notFound ? "bg-primary/15 text-primary" : "text-muted-foreground")}>Person</button>
+            <button onClick={() => set(r.key, { notFound: true, isPerson: false })} className={cn("px-2 py-0.5", r.notFound ? "bg-amber-500/15 text-amber-500" : "text-muted-foreground")}>Not found</button>
           </div>
         )}
         <button onClick={() => remove(r.key)} className="ml-auto text-muted-foreground hover:text-foreground"><X className="size-3.5" /></button>
       </div>
-      {person && (
-        <div className="mb-1.5 grid grid-cols-2 gap-1.5">
-          <input value={r.name} onChange={(e) => set(r.key, { name: e.target.value })} placeholder="Name" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
-          <input value={r.role} onChange={(e) => set(r.key, { role: e.target.value })} placeholder="Role (e.g. President)" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
-        </div>
+      {r.notFound ? (
+        <p className="text-[10px] italic text-muted-foreground">We'll record that {r.label || "this"} was checked and no contact was found.</p>
+      ) : (
+        <>
+          {person && (
+            <div className="mb-1.5 grid grid-cols-2 gap-1.5">
+              <input value={r.name} onChange={(e) => set(r.key, { name: e.target.value })} placeholder="Name" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
+              <input value={r.role} onChange={(e) => set(r.key, { role: e.target.value })} placeholder="Role (e.g. President)" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-1.5">
+            <input value={r.email} onChange={(e) => set(r.key, { email: e.target.value })} placeholder="Email" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
+            <input value={r.instagram} onChange={(e) => set(r.key, { instagram: e.target.value })} placeholder={person ? "@personal IG" : "@org IG"} className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
+          </div>
+          <div className="mt-1.5 flex items-center gap-2 text-[10px]">
+            <button
+              type="button"
+              onClick={() => copyText(dmTemplate(person && r.name.trim() ? r.name.trim() : r.label, campusName), "DM copied — paste it into their Instagram.")}
+              className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <Copy className="size-3" /> Copy DM
+            </button>
+            {r.label && <FindBtn query={`${r.label} ${campusName} instagram`} />}
+          </div>
+        </>
       )}
-      <div className="grid grid-cols-2 gap-1.5">
-        <input value={r.email} onChange={(e) => set(r.key, { email: e.target.value })} placeholder="Email" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
-        <input value={r.instagram} onChange={(e) => set(r.key, { instagram: e.target.value })} placeholder={person ? "@personal IG" : "@org IG"} className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
-      </div>
-      <div className="mt-1.5 flex items-center gap-2 text-[10px]">
-        <button
-          type="button"
-          onClick={() => copyText(dmTemplate(person && r.name.trim() ? r.name.trim() : r.label, campusName), "DM copied — paste it into their Instagram.")}
-          className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <Copy className="size-3" /> Copy DM
-        </button>
-        {r.label && <FindBtn query={`${r.label} ${campusName} instagram`} />}
-      </div>
     </div>
   );
 }

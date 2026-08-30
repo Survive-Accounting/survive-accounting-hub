@@ -267,6 +267,17 @@ async function eligibleForTranches(db: DB): Promise<{
 }
 
 // ── King's working board: his tranches, campuses, est students, contact progress ─────
+// READY FOR OUTREACH rule: ≥1 council contact, ≥1 club contact, and every top-5 fraternity
+// and top-5 sorority is "covered" (has a contact OR was marked not-found). Rep is optional.
+export interface CampusReadiness {
+  councilOk: boolean;
+  clubOk: boolean;
+  fratsCovered: number;
+  fratsTotal: number; // capped at 5
+  sororitiesCovered: number;
+  sororitiesTotal: number; // capped at 5
+  ready: boolean;
+}
 export interface BoardCampus {
   campusId: string;
   name: string;
@@ -276,6 +287,7 @@ export interface BoardCampus {
   councilContacts: number;
   greekContacts: number;
   clubContacts: number;
+  readiness: CampusReadiness;
 }
 export interface BoardTranche {
   label: string;
@@ -316,18 +328,80 @@ export const growthBoard = createServerFn({ method: "GET" })
     },
   );
 
-// Turn partner_tranches rows into hydrated board tranches (names, est seats, contact progress).
+// fraternity | sorority | other, from greek_orgs.org_type.
+export function normOrgType(t: string | null | undefined): "fraternity" | "sorority" | "other" {
+  const s = (t ?? "").toLowerCase();
+  if (s.includes("soror")) return "sorority";
+  if (s.includes("frat")) return "fraternity";
+  return "other";
+}
+// A contact row counts as a real contact only if it carries an email or an Instagram handle.
+// Rows with neither are "not found" markers (see growthSaveCampusContacts).
+const isRealContact = (c: any) => !!((c.email && String(c.email).trim()) || (c.instagram && String(c.instagram).trim()));
+
+// Fetch id->org_type for a set of org ids, chunked so a big .in() never overflows the URL.
+async function orgTypeMap(db: DB, orgIds: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  for (let i = 0; i < orgIds.length; i += 150) {
+    const { data } = await db.from("greek_orgs").select("id,org_type").in("id", orgIds.slice(i, i + 150));
+    for (const o of (data ?? []) as any[]) out.set(o.id, o.org_type);
+  }
+  return out;
+}
+
+// READY rule, computed for one campus from its chapters and contact rows.
+function readinessFor(chaps: { id: string; orgType: string; size: number | null }[], contacts: any[]): CampusReadiness {
+  const councilOk = contacts.some((c) => c.entity_type === "council" && isRealContact(c));
+  const clubOk = contacts.some((c) => c.entity_type === "club" && isRealContact(c));
+  // covered = the chapter has any row at all — a real contact, or a not-found marker.
+  const covered = new Set<string>();
+  for (const c of contacts) {
+    if (c.entity_type === "chapter" && c.entity_id) covered.add(c.entity_id);
+  }
+  const top = (type: "fraternity" | "sorority") =>
+    chaps.filter((c) => normOrgType(c.orgType) === type).sort((a, b) => (b.size ?? -1) - (a.size ?? -1)).slice(0, 5);
+  const fratsTop = top("fraternity");
+  const sororitiesTop = top("sorority");
+  const fratsCovered = fratsTop.filter((c) => covered.has(c.id)).length;
+  const sororitiesCovered = sororitiesTop.filter((c) => covered.has(c.id)).length;
+  return {
+    councilOk,
+    clubOk,
+    fratsTotal: fratsTop.length,
+    fratsCovered,
+    sororitiesTotal: sororitiesTop.length,
+    sororitiesCovered,
+    ready:
+      councilOk && clubOk && fratsCovered === fratsTop.length && sororitiesCovered === sororitiesTop.length,
+  };
+}
+
+// Turn partner_tranches rows into hydrated board tranches (names, est seats, contact progress, READY).
 async function hydrateTranches(db: DB, rows: any[]): Promise<{ tranches: BoardTranche[]; totalSeats: number }> {
     const allIds = [...new Set(((rows ?? []) as any[]).flatMap((t) => t.campus_ids ?? []))];
-    const [names, market, elig] = await Promise.all([
+    const [names, market, elig, chaps] = await Promise.all([
       allIds.length ? db.from("campuses").select("id,name,display_name,state,campus_status").in("id", allIds) : Promise.resolve({ data: [] }),
       allIds.length ? db.from("campus_market_intelligence").select("campus_id,estimated_intro1_annual").in("campus_id", allIds) : Promise.resolve({ data: [] }),
-      allIds.length ? db.from("growth_contact_qc").select("campus_id,entity_type").in("campus_id", allIds) : Promise.resolve({ data: [] }),
+      allIds.length ? db.from("growth_contact_qc").select("campus_id,entity_type,entity_id,council_type,email,instagram").in("campus_id", allIds) : Promise.resolve({ data: [] }),
+      allIds.length ? db.from("campus_greek_chapters").select("id,campus_id,greek_org_id,chapter_size").in("campus_id", allIds).is("archived_at", null) : Promise.resolve({ data: [] }),
     ]);
     const nameOf = new Map<string, any>(((names as any).data ?? []).map((c: any) => [c.id, c]));
     const seatsOf = new Map<string, number>(((market as any).data ?? []).filter((m: any) => m.estimated_intro1_annual != null).map((m: any) => [m.campus_id, m.estimated_intro1_annual]));
+
+    const orgType = await orgTypeMap(db, [...new Set(((chaps as any).data ?? []).map((c: any) => c.greek_org_id).filter(Boolean) as string[])]);
+    const chapsBy = new Map<string, { id: string; orgType: string; size: number | null }[]>();
+    for (const c of ((chaps as any).data ?? []) as any[]) {
+      const arr = chapsBy.get(c.campus_id) ?? [];
+      arr.push({ id: c.id, orgType: orgType.get(c.greek_org_id) ?? "other", size: c.chapter_size ?? null });
+      chapsBy.set(c.campus_id, arr);
+    }
+    const contactsBy = new Map<string, any[]>();
     const cc = new Map<string, { council: number; greek: number; club: number }>();
     for (const e of ((elig as any).data ?? []) as any[]) {
+      const arr = contactsBy.get(e.campus_id) ?? [];
+      arr.push(e);
+      contactsBy.set(e.campus_id, arr);
+      if (!isRealContact(e)) continue; // not-found markers don't count as contacts
       const a = cc.get(e.campus_id) ?? { council: 0, greek: 0, club: 0 };
       if (e.entity_type === "council") a.council++;
       else if (e.entity_type === "chapter") a.greek++;
@@ -348,6 +422,7 @@ async function hydrateTranches(db: DB, rows: any[]): Promise<{ tranches: BoardTr
           councilContacts: a.council,
           greekContacts: a.greek,
           clubContacts: a.club,
+          readiness: readinessFor(chapsBy.get(id) ?? [], contactsBy.get(id) ?? []),
         };
       });
       const tSeats = campuses.reduce((n, c) => n + (c.seats ?? 0), 0);
@@ -358,11 +433,41 @@ async function hydrateTranches(db: DB, rows: any[]): Promise<{ tranches: BoardTr
 }
 
 // ── Add-contacts modal: what slots exist for a campus, and a bulk save ────────────────
-export interface ContactSlots {
-  councils: { type: string; label: string; has: number }[];
-  chapters: { id: string; name: string; size: number | null; has: number }[];
-  clubs: { id: string; name: string; category: string | null }[];
+export interface ExistingContact {
+  id: string;
+  name: string | null;
+  role: string | null;
+  email: string | null;
+  instagram: string | null;
+  isPerson: boolean;
 }
+export interface CouncilSlot { type: string; label: string; contacts: ExistingContact[]; notFound: boolean }
+export interface ChapterSlot {
+  id: string;
+  name: string;
+  orgType: "fraternity" | "sorority" | "other";
+  size: number | null;
+  rank: number; // 1-based within its org type, by size
+  needed: boolean; // top 5 of its type — required for READY
+  contacts: ExistingContact[];
+  notFound: boolean;
+}
+export interface ClubSlot { id: string; name: string; category: string | null; contacts: ExistingContact[]; notFound: boolean }
+export interface ContactSlots {
+  councils: CouncilSlot[];
+  chapters: ChapterSlot[];
+  clubs: ClubSlot[];
+}
+
+const PERSON_CONTACT_TYPES = new Set(["student_officer", "chapter_exec", "staff_advisor"]);
+const toExisting = (c: any): ExistingContact => ({
+  id: c.id,
+  name: c.name ?? null,
+  role: c.role ?? null,
+  email: c.email ?? null,
+  instagram: c.instagram ?? null,
+  isPerson: PERSON_CONTACT_TYPES.has(c.contact_type) || !!(c.name && String(c.name).trim()),
+});
 
 export const growthCampusContactSlots = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => z.object({ campusId: z.string().uuid() }).parse(d))
@@ -371,32 +476,79 @@ export const growthCampusContactSlots = createServerFn({ method: "GET" })
     const [{ data: chapters }, { data: clubs }, { data: contacts }] = await Promise.all([
       db.from("campus_greek_chapters").select("id,council,greek_org_id,chapter_size").eq("campus_id", data.campusId).is("archived_at", null),
       db.from("growth_business_clubs").select("id,name,category").eq("campus_id", data.campusId),
-      db.from("growth_contact_qc").select("entity_type,entity_id,council_type").eq("campus_id", data.campusId),
+      db.from("growth_contact_qc").select("id,entity_type,entity_id,council_type,contact_type,name,role,email,instagram").eq("campus_id", data.campusId),
     ]);
     const orgIds = [...new Set(((chapters ?? []) as any[]).map((c) => c.greek_org_id).filter(Boolean))];
-    const orgNames = new Map<string, string>();
+    const orgName = new Map<string, string>();
+    const orgKind = new Map<string, string>();
     if (orgIds.length) {
-      const { data: orgs } = await db.from("greek_orgs").select("id,name").in("id", orgIds);
-      for (const o of orgs ?? []) orgNames.set(o.id, o.name);
+      const { data: orgs } = await db.from("greek_orgs").select("id,name,org_type").in("id", orgIds);
+      for (const o of orgs ?? []) { orgName.set(o.id, o.name); orgKind.set(o.id, o.org_type); }
     }
-    const councilHas = new Map<string, number>();
-    const chapHas = new Map<string, number>();
-    for (const c of ((contacts ?? []) as any[])) {
-      if (c.entity_type === "council" && c.council_type) councilHas.set(c.council_type, (councilHas.get(c.council_type) ?? 0) + 1);
-      if (c.entity_type === "chapter" && c.entity_id) chapHas.set(c.entity_id, (chapHas.get(c.entity_id) ?? 0) + 1);
+
+    // Group contacts by target. Real contacts show; a target with only markerless (no email/IG) rows is "not found".
+    const councilReal = new Map<string, ExistingContact[]>();
+    const councilNF = new Set<string>();
+    const chapReal = new Map<string, ExistingContact[]>();
+    const chapNF = new Set<string>();
+    const clubReal = new Map<string, ExistingContact[]>();
+    const clubNF = new Set<string>();
+    for (const c of (contacts ?? []) as any[]) {
+      const real = isRealContact(c);
+      if (c.entity_type === "council" && c.council_type) {
+        if (real) (councilReal.get(c.council_type) ?? councilReal.set(c.council_type, []).get(c.council_type)!).push(toExisting(c));
+        else councilNF.add(c.council_type);
+      } else if (c.entity_type === "chapter" && c.entity_id) {
+        if (real) (chapReal.get(c.entity_id) ?? chapReal.set(c.entity_id, []).get(c.entity_id)!).push(toExisting(c));
+        else chapNF.add(c.entity_id);
+      } else if (c.entity_type === "club" && c.entity_id) {
+        if (real) (clubReal.get(c.entity_id) ?? clubReal.set(c.entity_id, []).get(c.entity_id)!).push(toExisting(c));
+        else clubNF.add(c.entity_id);
+      }
     }
+
     const COUNCILS = [
       { type: "ifc", label: "IFC" },
       { type: "panhellenic", label: "Panhellenic" },
       { type: "nphc", label: "NPHC" },
       { type: "mgc", label: "MGC" },
     ];
+
+    // Rank chapters within their org type by size; top 5 of each type are "needed".
+    const rankCounter = new Map<string, number>();
+    const chapterSlots: ChapterSlot[] = ((chapters ?? []) as any[])
+      .map((c) => ({ raw: c, kind: normOrgType(orgKind.get(c.greek_org_id)), size: c.chapter_size ?? null }))
+      .sort((a, b) => (b.size ?? -1) - (a.size ?? -1))
+      .map(({ raw, kind, size }) => {
+        const rank = (rankCounter.get(kind) ?? 0) + 1;
+        rankCounter.set(kind, rank);
+        return {
+          id: raw.id,
+          name: orgName.get(raw.greek_org_id) ?? "Chapter",
+          orgType: kind,
+          size,
+          rank,
+          needed: (kind === "fraternity" || kind === "sorority") && rank <= 5,
+          contacts: chapReal.get(raw.id) ?? [],
+          notFound: chapNF.has(raw.id) && !(chapReal.get(raw.id)?.length),
+        };
+      });
+
     return {
-      councils: COUNCILS.map((c) => ({ ...c, has: councilHas.get(c.type) ?? 0 })),
-      chapters: ((chapters ?? []) as any[])
-        .map((c) => ({ id: c.id, name: orgNames.get(c.greek_org_id) ?? "Chapter", size: c.chapter_size ?? null, has: chapHas.get(c.id) ?? 0 }))
-        .sort((a, b) => (b.size ?? -1) - (a.size ?? -1)),
-      clubs: ((clubs ?? []) as any[]).map((c) => ({ id: c.id, name: c.name, category: c.category ?? null })),
+      councils: COUNCILS.map((c) => ({
+        type: c.type,
+        label: c.label,
+        contacts: councilReal.get(c.type) ?? [],
+        notFound: councilNF.has(c.type) && !(councilReal.get(c.type)?.length),
+      })),
+      chapters: chapterSlots,
+      clubs: ((clubs ?? []) as any[]).map((c) => ({
+        id: c.id,
+        name: c.name,
+        category: c.category ?? null,
+        contacts: clubReal.get(c.id) ?? [],
+        notFound: clubNF.has(c.id) && !(clubReal.get(c.id)?.length),
+      })),
     };
   });
 
@@ -407,6 +559,7 @@ const ContactInput = z.object({
   newClubName: z.string().trim().max(160).nullable().optional(),
   newClubCategory: z.string().max(60).nullable().optional(),
   isPerson: z.boolean(),
+  notFound: z.boolean().optional(), // "we looked, there's no contact" — a marker row, not a real contact
   name: z.string().trim().max(160).nullable().optional(),
   role: z.string().trim().max(160).nullable().optional(),
   email: z.string().trim().max(200).nullable().optional(),
@@ -422,13 +575,13 @@ export const growthSaveCampusContacts = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<{ saved: number; errors: string[] }> => {
     const { growthAddContact } = await import("@/lib/growth-reach.functions");
     const db = await adminDb();
+    const { adminSessionOk } = await import("@/lib/admin-session.functions");
+    const who = (await adminSessionOk())?.email ?? "admin";
     let saved = 0;
     const errors: string[] = [];
     const clubCache = new Map<string, string>();
-    for (const c of data.contacts) {
-      if (!c.email && !c.instagram) continue; // nothing to save
+    const resolveClub = async (c: (typeof data.contacts)[number]): Promise<string | null> => {
       let entityId = c.entityId ?? null;
-      // create a club on the fly
       if (c.kind === "club" && !entityId && c.newClubName) {
         const key = c.newClubName.toLowerCase();
         entityId = clubCache.get(key) ?? null;
@@ -442,6 +595,38 @@ export const growthSaveCampusContacts = createServerFn({ method: "POST" })
           if (entityId) clubCache.set(key, entityId);
         }
       }
+      return entityId;
+    };
+    for (const c of data.contacts) {
+      const entityId = await resolveClub(c);
+      // "Not found" — record that we looked, as a marker row (no email/IG). It doesn't count as a
+      // contact, but it satisfies the READY "covered" check for a chapter and clears the visual gap.
+      if (c.notFound) {
+        const now = new Date().toISOString();
+        const source =
+          c.kind === "council" ? "campus_council_contacts" : c.kind === "club" ? "growth_business_clubs" : "growth_public_contacts";
+        const { error } = await db.from("growth_contact_qc").insert({
+          contact_source: source, // gcq_source_ck-allowed; "manual" is rejected
+          source_id: crypto.randomUUID(),
+          campus_id: data.campusId,
+          entity_type: c.kind,
+          entity_id: entityId,
+          council_type: c.kind === "council" ? c.councilType ?? null : null,
+          contact_type: "unknown",
+          confidence: "low",
+          source_type: "manual_entry",
+          freshness_status: "unknown",
+          outreach_eligible: false,
+          qc_action: "reject",
+          qc_by: who,
+          qc_at: now,
+          qc_notes: `Marked not found by ${who}`,
+        });
+        if (error) errors.push(error.message);
+        else saved++;
+        continue;
+      }
+      if (!c.email && !c.instagram) continue; // nothing to save
       const r = await growthAddContact({
         data: {
           campusId: data.campusId,
