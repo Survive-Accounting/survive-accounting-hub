@@ -67,12 +67,31 @@ export interface BasisExample {
   kind: "revenue" | "expense";
 }
 
+// SHARED SCENARIO — DO NOT EDIT ONE SIDE ALONE (2026-08-30).
+// The EXPENSE example below is the SAME scenario as the live CEQ
+// deck-e1s-1-4 "A company uses electricity in December but pays the bill in
+// January. Under accrual accounting, when is the expense normally
+// recognized?" → "December, when the cost is incurred" (its feedback calls
+// itself "the bridge to adjusting entries", i.e. this exhibit). The CEQ is
+// the source of truth: it is the graded artifact and it tees this exhibit up.
+// The exhibit cannot import it — CEQs live in canvas_scenes.nodes_json and
+// load async, this is a static module — so the two are kept word-aligned by
+// hand. Change the CEQ and you must change these three strings, and vice
+// versa. (Making the exhibit read the CEQ needs the CEQ→exhibit data link
+// that does not exist yet; see the 2026-08-30 component audit.)
+//
+// The REVENUE example is deliberately NOT that CEQ. It is a SECOND, DIFFERENT
+// illustration (a service in a mid-year month), not a drifted copy of
+// deck-e1s-1-4's December product sale — different months on purpose, so
+// switching examples visibly moves the columns and accrual doesn't read as a
+// year-end-only rule. Same rule, different instance: leave the months alone.
 export const BASIS_EXAMPLES: readonly BasisExample[] = [
   {
     id: "expense",
     label: "Expense",
     months: ["DECEMBER", "JANUARY"],
-    action: { month: "DECEMBER", text: "Utilities consumed — cost incurred" },
+    // Wording tracks the CEQ's "uses electricity ... pays the bill".
+    action: { month: "DECEMBER", text: "Electricity used — cost incurred" },
     cash: { month: "JANUARY", text: "Bill paid" },
     // ACCRUAL stamps DECEMBER: the month the cost was INCURRED. Never January.
     stamps: { accrual: "DECEMBER", cash: "JANUARY" },
