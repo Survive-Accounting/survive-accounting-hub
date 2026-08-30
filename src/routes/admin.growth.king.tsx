@@ -21,6 +21,8 @@ import {
 import { fmtUsd, MILESTONES } from "@/lib/growth-comp-core";
 import { getAdminWho } from "@/components/AdminGate";
 import { ActivityFeed } from "@/components/growth/ActivityFeed";
+import { growthPartners } from "@/lib/growth-tranche.functions";
+import { TranchePanel } from "@/components/growth/TranchePanel";
 import { Chip, Hint, InfoDot } from "@/components/growth/v2";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -117,6 +119,9 @@ function KingHq() {
         </p>
       </div>
 
+      {/* tranches — the campus territory that unlocks on results */}
+      <KingTranches />
+
       {/* where the money came from — the mini venn */}
       <div className="rounded-xl border border-border bg-card p-5">
         <div className="mb-2 flex items-center gap-1.5">
@@ -193,6 +198,22 @@ function KingHq() {
         </h2>
         <ActivityFeed compact />
       </div>
+    </div>
+  );
+}
+
+function KingTranches() {
+  const partners = useQuery({ queryKey: ["growth-partners"], queryFn: () => growthPartners() });
+  const kingPartnerId = partners.data?.kingPartnerId ?? null;
+  if (!kingPartnerId) return null; // no partner row / tranches not set up — stay quiet
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <div className="mb-2 flex items-center gap-1.5">
+        <h2 className="sa-admin-display text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          Your campus territory
+        </h2>
+      </div>
+      <TranchePanel partnerId={kingPartnerId} partnerFacing />
     </div>
   );
 }

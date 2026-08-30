@@ -118,6 +118,7 @@ import { Route as AdminRepsRosterRouteImport } from './routes/admin.reps.roster'
 import { Route as AdminRepsPartnersRouteImport } from './routes/admin.reps.partners'
 import { Route as AdminRepsLinksRouteImport } from './routes/admin.reps.links'
 import { Route as AdminRepsConversionsRouteImport } from './routes/admin.reps.conversions'
+import { Route as AdminGrowthTranchesRouteImport } from './routes/admin.growth.tranches'
 import { Route as AdminGrowthResultsRouteImport } from './routes/admin.growth.results'
 import { Route as AdminGrowthOutreachRouteImport } from './routes/admin.growth.outreach'
 import { Route as AdminGrowthOrgsRouteImport } from './routes/admin.growth.orgs'
@@ -689,6 +690,11 @@ const AdminRepsConversionsRoute = AdminRepsConversionsRouteImport.update({
   path: '/conversions',
   getParentRoute: () => AdminRepsRoute,
 } as any)
+const AdminGrowthTranchesRoute = AdminGrowthTranchesRouteImport.update({
+  id: '/tranches',
+  path: '/tranches',
+  getParentRoute: () => AdminGrowthRoute,
+} as any)
 const AdminGrowthResultsRoute = AdminGrowthResultsRouteImport.update({
   id: '/results',
   path: '/results',
@@ -873,6 +879,7 @@ export interface FileRoutesByFullPath {
   '/admin/growth/orgs': typeof AdminGrowthOrgsRoute
   '/admin/growth/outreach': typeof AdminGrowthOutreachRoute
   '/admin/growth/results': typeof AdminGrowthResultsRoute
+  '/admin/growth/tranches': typeof AdminGrowthTranchesRoute
   '/admin/reps/conversions': typeof AdminRepsConversionsRoute
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
@@ -998,6 +1005,7 @@ export interface FileRoutesByTo {
   '/admin/growth/orgs': typeof AdminGrowthOrgsRoute
   '/admin/growth/outreach': typeof AdminGrowthOutreachRoute
   '/admin/growth/results': typeof AdminGrowthResultsRoute
+  '/admin/growth/tranches': typeof AdminGrowthTranchesRoute
   '/admin/reps/conversions': typeof AdminRepsConversionsRoute
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
@@ -1127,6 +1135,7 @@ export interface FileRoutesById {
   '/admin/growth/orgs': typeof AdminGrowthOrgsRoute
   '/admin/growth/outreach': typeof AdminGrowthOutreachRoute
   '/admin/growth/results': typeof AdminGrowthResultsRoute
+  '/admin/growth/tranches': typeof AdminGrowthTranchesRoute
   '/admin/reps/conversions': typeof AdminRepsConversionsRoute
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
@@ -1257,6 +1266,7 @@ export interface FileRouteTypes {
     | '/admin/growth/orgs'
     | '/admin/growth/outreach'
     | '/admin/growth/results'
+    | '/admin/growth/tranches'
     | '/admin/reps/conversions'
     | '/admin/reps/links'
     | '/admin/reps/partners'
@@ -1382,6 +1392,7 @@ export interface FileRouteTypes {
     | '/admin/growth/orgs'
     | '/admin/growth/outreach'
     | '/admin/growth/results'
+    | '/admin/growth/tranches'
     | '/admin/reps/conversions'
     | '/admin/reps/links'
     | '/admin/reps/partners'
@@ -1510,6 +1521,7 @@ export interface FileRouteTypes {
     | '/admin/growth/orgs'
     | '/admin/growth/outreach'
     | '/admin/growth/results'
+    | '/admin/growth/tranches'
     | '/admin/reps/conversions'
     | '/admin/reps/links'
     | '/admin/reps/partners'
@@ -2382,6 +2394,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRepsConversionsRouteImport
       parentRoute: typeof AdminRepsRoute
     }
+    '/admin/growth/tranches': {
+      id: '/admin/growth/tranches'
+      path: '/tranches'
+      fullPath: '/admin/growth/tranches'
+      preLoaderRoute: typeof AdminGrowthTranchesRouteImport
+      parentRoute: typeof AdminGrowthRoute
+    }
     '/admin/growth/results': {
       id: '/admin/growth/results'
       path: '/results'
@@ -2625,6 +2644,7 @@ interface AdminGrowthRouteChildren {
   AdminGrowthOrgsRoute: typeof AdminGrowthOrgsRoute
   AdminGrowthOutreachRoute: typeof AdminGrowthOutreachRoute
   AdminGrowthResultsRoute: typeof AdminGrowthResultsRoute
+  AdminGrowthTranchesRoute: typeof AdminGrowthTranchesRoute
   AdminGrowthIndexRoute: typeof AdminGrowthIndexRoute
 }
 
@@ -2639,6 +2659,7 @@ const AdminGrowthRouteChildren: AdminGrowthRouteChildren = {
   AdminGrowthOrgsRoute: AdminGrowthOrgsRoute,
   AdminGrowthOutreachRoute: AdminGrowthOutreachRoute,
   AdminGrowthResultsRoute: AdminGrowthResultsRoute,
+  AdminGrowthTranchesRoute: AdminGrowthTranchesRoute,
   AdminGrowthIndexRoute: AdminGrowthIndexRoute,
 }
 

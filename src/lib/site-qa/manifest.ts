@@ -449,6 +449,7 @@ export const TEMPLATES: TemplateDef[] = [
       "admin.growth.results.tsx",
       "admin.growth.activity.tsx",
       "admin.growth.king.tsx",
+      "admin.growth.tranches.tsx",
       "admin.growth.intelligence.tsx",
     ],
     countKey: "static",
