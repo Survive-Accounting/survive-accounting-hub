@@ -7,20 +7,6 @@
       "schedule": "0 4 * * *"
     },
     {
-      "comment": "Chapter signup surge sweep. TEMPORARILY daily (was hourly '5 * * * *') — the hourly schedule instant-failed the Vercel deploy (plan cron-frequency limit). Restore hourly once the plan allows sub-daily crons.",
-      "path": "/api/cron/chapter-reports?kind=surge",
-      "schedule": "5 13 * * *"
-    },
-    {
-      "comment": "Weekly chapter digest. Two UTC entries, DST-safe: the handler only works at 8am Chicago, so exactly one fires year-round.",
-      "path": "/api/cron/chapter-reports?kind=weekly",
-      "schedule": "0 13 * * 0"
-    },
-    {
-      "path": "/api/cron/chapter-reports?kind=weekly",
-      "schedule": "0 14 * * 0"
-    },
-    {
       "path": "/api/cron/weekly-digest",
       "schedule": "0 13 * * 0"
     },
