@@ -5,6 +5,7 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { ExternalLink, RotateCw } from "lucide-react";
 import { getGrowthOrgDetail, listGrowthOrgs, type OrgRow } from "@/lib/growth-admin.functions";
+import { renderQueryState } from "@/components/growth/QueryState";
 import {
   Drawer,
   EmptyRow,
@@ -130,7 +131,7 @@ function OrgDrawer({ orgId, onClose }: { orgId: string | null; onClose: () => vo
       subtitle={d ? [d.letters, d.council].filter(Boolean).join(" · ") : undefined}
     >
       {!d ? (
-        <div className="py-10 text-center text-sm text-muted-foreground">Loading…</div>
+        renderQueryState(q, { label: "organization" }) ?? <div className="py-10 text-center text-sm text-muted-foreground">Not found.</div>
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-2">

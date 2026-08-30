@@ -480,13 +480,24 @@ export interface ChapterSlot {
   notFound: boolean;
 }
 export interface ClubSlot { id: string; name: string; category: string | null; contacts: ExistingContact[]; notFound: boolean }
+// The three preloaded business-club rows. clubId is null until a contact/rename creates the row;
+// name is the campus's custom name if set, else the default label. Type is fixed, name is editable.
+export interface ClubTypeSlot { clubType: string; defaultLabel: string; clubId: string | null; name: string; contacts: ExistingContact[]; notFound: boolean }
 export interface ContactSlots {
   councils: CouncilSlot[];
   chapters: ChapterSlot[];
   clubs: ClubSlot[];
+  clubTypes: ClubTypeSlot[];
   readiness: CampusReadiness;
   personalIgs: number;
 }
+export const CLUB_TYPES: { clubType: string; defaultLabel: string }[] = [
+  { clubType: "women_in_business", defaultLabel: "Women in Business" },
+  { clubType: "finance", defaultLabel: "Finance Club" },
+  { clubType: "investing", defaultLabel: "Investing Club" },
+];
+// growth_business_clubs.normalized_name is NOT NULL (dedupe key: campus_id,category,normalized_name).
+const clubNorm = (s: string) => (s || "").toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "").slice(0, 200) || "club";
 
 const toExisting = (c: any): ExistingContact => ({
   id: c.id,
@@ -580,6 +591,20 @@ export const growthCampusContactSlots = createServerFn({ method: "GET" })
         contacts: clubReal.get(c.id) ?? [],
         notFound: clubNF.has(c.id) && !(clubReal.get(c.id)?.length),
       })),
+      // The three preloaded rows: one per fixed type, bound to the campus's club of that category
+      // if it exists (custom name + contacts), otherwise a virtual row created on first save/rename.
+      clubTypes: CLUB_TYPES.map((t) => {
+        const row = ((clubs ?? []) as any[]).find((c) => (c.category ?? "women_in_business") === t.clubType);
+        const clubId = row?.id ?? null;
+        return {
+          clubType: t.clubType,
+          defaultLabel: t.defaultLabel,
+          clubId,
+          name: row?.name || t.defaultLabel,
+          contacts: clubId ? clubReal.get(clubId) ?? [] : [],
+          notFound: !!clubId && clubNF.has(clubId) && !(clubReal.get(clubId)?.length),
+        };
+      }),
       readiness: readinessFor(
         chapterSlots.map((c) => ({ id: c.id, name: c.name, orgType: c.orgType, size: c.size })),
         (contacts ?? []) as any[],
@@ -620,20 +645,25 @@ export const growthSaveCampusContacts = createServerFn({ method: "POST" })
     const errors: string[] = [];
     const clubCache = new Map<string, string>();
     const resolveClub = async (c: (typeof data.contacts)[number]): Promise<string | null> => {
-      let entityId = c.entityId ?? null;
-      if (c.kind === "club" && !entityId && c.newClubName) {
-        const key = c.newClubName.toLowerCase();
-        entityId = clubCache.get(key) ?? null;
-        if (!entityId) {
-          const { data: club } = await db
-            .from("growth_business_clubs")
-            .insert({ campus_id: data.campusId, name: c.newClubName, category: c.newClubCategory || "women_in_business" })
-            .select("id")
-            .maybeSingle();
-          entityId = club?.id ?? null;
-          if (entityId) clubCache.set(key, entityId);
-        }
+      if (c.kind !== "club" || c.entityId) return c.entityId ?? null;
+      // Fixed club types are one row per (campus, category) — find it before creating so multiple
+      // contacts of the same type reuse the row (and a rename doesn't fork it).
+      const category = c.newClubCategory || "women_in_business";
+      const key = category.toLowerCase();
+      if (clubCache.has(key)) return clubCache.get(key)!;
+      const { data: existing } = await db
+        .from("growth_business_clubs").select("id").eq("campus_id", data.campusId).eq("category", category).limit(1).maybeSingle();
+      let entityId = existing?.id ?? null;
+      if (!entityId) {
+        const clubName = c.newClubName || category.replace(/_/g, " ");
+        const { data: club } = await db
+          .from("growth_business_clubs")
+          .insert({ campus_id: data.campusId, name: clubName, category, normalized_name: clubNorm(clubName), source_url: "manual_entry", source_type: "manual_entry" })
+          .select("id")
+          .maybeSingle();
+        entityId = club?.id ?? null;
       }
+      if (entityId) clubCache.set(key, entityId);
       return entityId;
     };
     for (const c of data.contacts) {
@@ -684,6 +714,25 @@ export const growthSaveCampusContacts = createServerFn({ method: "POST" })
       else if (r.error) errors.push(r.error);
     }
     return { saved, errors };
+  });
+
+/** Rename a campus's business club of a fixed type (e.g. "Florida Women in Business (FWIB)"),
+ *  keeping its type. Creates the row if it doesn't exist yet. */
+export const growthRenameClub = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({ campusId: z.string().uuid(), clubType: z.string().max(60), name: z.string().trim().min(1).max(160) }).parse(d),
+  )
+  .handler(async ({ data }): Promise<{ ok: boolean; clubId?: string; error?: string }> => {
+    const db = await adminDb();
+    const { data: existing } = await db
+      .from("growth_business_clubs").select("id").eq("campus_id", data.campusId).eq("category", data.clubType).limit(1).maybeSingle();
+    if (existing?.id) {
+      const { error } = await db.from("growth_business_clubs").update({ name: data.name }).eq("id", existing.id);
+      return error ? { ok: false, error: error.message } : { ok: true, clubId: existing.id };
+    }
+    const { data: ins, error } = await db
+      .from("growth_business_clubs").insert({ campus_id: data.campusId, name: data.name, category: data.clubType, normalized_name: clubNorm(data.name), source_url: "manual_entry", source_type: "manual_entry" }).select("id").maybeSingle();
+    return error ? { ok: false, error: error.message } : { ok: true, clubId: ins?.id };
   });
 
 export interface GreekUnknown {

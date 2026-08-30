@@ -28,6 +28,7 @@ import {
   useGrowthWho,
 } from "@/components/growth/shared";
 import { OutreachActions } from "@/components/growth/OutreachActions";
+import { renderQueryState } from "@/components/growth/QueryState";
 import { EntityPicker, type PickedEntity } from "@/components/growth/EntityPicker";
 import { Timeline } from "./admin.growth.chapters";
 import { toast } from "sonner";
@@ -377,7 +378,7 @@ function ContactDrawer({
       subtitle={c?.title ?? undefined}
     >
       {!c ? (
-        <div className="py-10 text-center text-sm text-muted-foreground">Loading…</div>
+        renderQueryState(detail, { label: "contact" }) ?? <div className="py-10 text-center text-sm text-muted-foreground">Not found.</div>
       ) : (
         <>
           <Section title="Details">

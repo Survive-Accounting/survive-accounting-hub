@@ -15,6 +15,7 @@ import {
   type ScheduleItemView, type ScheduleDayView, type Owner,
 } from "@/lib/growth-schedule.functions";
 import { addDays, dowOf, seasonWeeks } from "@/lib/growth-schedule-core";
+import { ColdHeader } from "@/components/growth/ColdHeader";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/admin/growth/coldoutreach/schedule")({ component: SchedulePage });
@@ -45,16 +46,17 @@ function SchedulePage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Link to="/admin/growth/coldoutreach" className="text-[11px] text-muted-foreground hover:text-foreground">← Enrichment</Link>
-        <h1 className="sa-admin-display text-lg font-semibold uppercase tracking-wide">Outreach Schedule</h1>
-        <span className="hidden text-[11px] text-muted-foreground sm:inline">Sun–Fri · one sequence per contact, both channels</span>
-        <div className="ml-auto inline-flex overflow-hidden rounded-lg border border-border text-xs">
-          {OWNERS.map((o) => (
-            <button key={o.id} onClick={() => setOwner(o.id)} className={cn("px-3 py-1.5 font-medium", owner === o.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>{o.label}</button>
-          ))}
-        </div>
-      </div>
+      <ColdHeader
+        tab="sends"
+        right={
+          <div className="inline-flex overflow-hidden rounded-lg border border-border text-xs">
+            {OWNERS.map((o) => (
+              <button key={o.id} onClick={() => setOwner(o.id)} className={cn("px-3 py-1.5 font-medium", owner === o.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>{o.label}</button>
+            ))}
+          </div>
+        }
+      />
+      <p className="px-1 text-[11px] text-muted-foreground">Sun–Fri · one sequence per contact, both channels. Instagram is manual; email goes through Instantly.</p>
 
       {/* week nav */}
       <div className="flex items-center gap-2">

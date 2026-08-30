@@ -445,7 +445,6 @@ export const TEMPLATES: TemplateDef[] = [
       "admin.growth.councils.tsx",
       "admin.growth.orgs.tsx",
       "admin.growth.contacts.tsx",
-      "admin.growth.outreach.tsx",
       "admin.growth.results.tsx",
       "admin.growth.activity.tsx",
       "admin.growth.king.tsx",
