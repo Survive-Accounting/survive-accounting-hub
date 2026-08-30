@@ -182,6 +182,89 @@ export const growthPartnerActivity = createServerFn({ method: "GET" })
     };
   });
 
+// FOUNDER bucket — Ole Miss + the Florida cluster. Lee's; excluded from partner tranches.
+const FOUNDER_NAMES = [
+  "University of Mississippi",
+  "University of Florida",
+  "Florida International University",
+  "Florida Atlantic University",
+  "Florida Gulf Coast University",
+  "University of Central Florida",
+  "University of South Florida",
+];
+
+async function eligibleForTranches(db: DB): Promise<{
+  eligible: import("@/lib/growth-tranche-assign-core").AssignCampus[];
+  founder: { campusId: string; name: string; seats: number | null }[];
+}> {
+  const [{ data: campuses }, { data: market }, { data: codes }, elig] = await Promise.all([
+    db
+      .from("campuses")
+      .select("id,name,display_name,campus_status,greek_status,greek_status_override,course_family_codes_json")
+      .in("campus_status", ["ready", "live"])
+      .is("merged_into_id", null)
+      .limit(5000),
+    db.from("campus_market_intelligence").select("campus_id,estimated_intro1_annual").limit(5000),
+    db.from("course_intel_campus_status").select("campus_id,course_code").limit(5000),
+    (async () => {
+      const out: any[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data } = await db
+          .from("growth_outreach_eligibility")
+          .select("campus_id,council_type,email,instagram")
+          .range(from, from + 999);
+        out.push(...(data ?? []));
+        if (!data || data.length < 1000) break;
+      }
+      return out;
+    })(),
+  ]);
+  const seatsOf = new Map<string, number>(
+    ((market ?? []) as any[]).filter((m) => m.estimated_intro1_annual != null).map((m) => [m.campus_id, m.estimated_intro1_annual]),
+  );
+  const codeOf = new Map<string, string>(((codes ?? []) as any[]).filter((c) => c.course_code).map((c) => [c.campus_id, c.course_code]));
+  const agg = new Map<string, { council: boolean; email: boolean; ig: boolean; n: number }>();
+  for (const e of elig as any[]) {
+    if (!e.campus_id) continue;
+    const a = agg.get(e.campus_id) ?? { council: false, email: false, ig: false, n: 0 };
+    a.n++;
+    if (e.council_type) a.council = true;
+    if (e.email) a.email = true;
+    if (e.instagram) a.ig = true;
+    agg.set(e.campus_id, a);
+  }
+  const founderSet = new Set(FOUNDER_NAMES.map((n) => n.toLowerCase()));
+  // Founder campuses are the carve-out regardless of status — fetch them independently so
+  // Ole Miss (which may be backlog, not ready) still appears and is never draftable.
+  const { data: founderRows } = await db
+    .from("campuses")
+    .select("id,name,display_name")
+    .is("merged_into_id", null)
+    .limit(5000);
+  const founder = ((founderRows ?? []) as any[])
+    .filter((c) => founderSet.has(String(c.display_name || c.name).toLowerCase()))
+    .map((c) => ({ campusId: c.id, name: c.display_name || c.name, seats: seatsOf.get(c.id) ?? null }));
+
+  const eligible: import("@/lib/growth-tranche-assign-core").AssignCampus[] = [];
+  for (const c of (campuses ?? []) as any[]) {
+    const name = c.display_name || c.name;
+    const seats = seatsOf.get(c.id) ?? null;
+    if (founderSet.has(String(name).toLowerCase())) continue; // never draft a founder campus
+    const a = agg.get(c.id) ?? { council: false, email: false, ig: false, n: 0 };
+    const hasCourse = !!(codeOf.get(c.id) ?? c.course_family_codes_json?.intro_1);
+    const readiness = 25 * (Number(hasCourse) + Number(a.council) + Number(a.email) + Number(a.ig));
+    eligible.push({
+      campusId: c.id,
+      name,
+      seats,
+      greekStatus: (c.greek_status_override ?? c.greek_status ?? "unknown") as any,
+      readiness,
+      contacts: a.n,
+    });
+  }
+  return { eligible, founder };
+}
+
 export interface GreekUnknown {
   campusId: string;
   name: string;
@@ -418,6 +501,94 @@ export const growthAutoAssignTranches = createServerFn({ method: "POST" })
     }
     return { assigned };
   });
+
+/** Propose the full semester split (does NOT write). Founder carve-out, King T1–5,
+ *  Unassigned A–E, flagship-first, snake-drafted, balanced pairs. A human approves it. */
+export const growthPreBuildProposal = createServerFn({ method: "GET" }).handler(async () => {
+  const db = await adminDb();
+  const { assignSemester } = await import("@/lib/growth-tranche-assign-core");
+  const { eligible, founder } = await eligibleForTranches(db);
+  const result = assignSemester(eligible);
+  return { ...result, founder, eligibleCount: eligible.length };
+});
+
+/** Commit the proposal: (re)write King's 5 + Unassigned A–E + Founder into partner_tranches,
+ *  and promote the two flagship tranches (T1 + A) to campus_status='live' so the picker has
+ *  content. Deterministic recompute — approving commits the current split. */
+export const growthCommitPreBuild = createServerFn({ method: "POST" }).handler(
+  async (): Promise<{ ok: boolean; king: number; unassigned: number; founder: number; promoted: number }> => {
+    const db = await adminDb();
+    const { assignSemester } = await import("@/lib/growth-tranche-assign-core");
+    const { eligible, founder } = await eligibleForTranches(db);
+    const result = assignSemester(eligible);
+
+    const { KING_EMAIL } = await import("@/lib/growth-comp.functions");
+    const { data: king } = await db
+      .from("referral_partners")
+      .select("id")
+      .ilike("email", KING_EMAIL)
+      .maybeSingle();
+    const kingId = king?.id ?? null;
+
+    // Rebuild the pre-build pools (idempotent).
+    await db.from("partner_tranches").delete().in("pool", ["king", "unassigned", "founder"]);
+    const now = new Date().toISOString();
+    const rows: any[] = [];
+    result.king.forEach((t) =>
+      rows.push({
+        partner_id: kingId,
+        pool: "king",
+        tranche_number: t.number,
+        label: t.label,
+        status: t.number === 1 ? "active" : "locked",
+        campus_ids: t.campuses.map((c) => c.campusId),
+        tier_label: t.number === 1 ? "Flagship" : null,
+        unlocked_at: t.number === 1 ? now : null,
+      }),
+    );
+    result.unassigned.forEach((t) =>
+      rows.push({
+        partner_id: null,
+        pool: "unassigned",
+        tranche_number: t.number,
+        label: t.label,
+        status: "locked",
+        campus_ids: t.campuses.map((c) => c.campusId),
+        tier_label: t.number === 1 ? "Flagship" : null,
+      }),
+    );
+    rows.push({
+      partner_id: null,
+      pool: "founder",
+      tranche_number: 1,
+      label: "Founder",
+      status: "active",
+      campus_ids: founder.map((f) => f.campusId),
+      tier_label: "Founder — Lee",
+      unlocked_at: now,
+    });
+    const { error } = await db.from("partner_tranches").insert(rows);
+    if (error) throw new Error(error.message);
+
+    // Promote the flagship tranches to live so the student picker has content.
+    const flagshipIds = [...result.king[0].campuses, ...result.unassigned[0].campuses].map((c) => c.campusId);
+    let promoted = 0;
+    if (flagshipIds.length) {
+      const { error: pErr } = await db
+        .from("campuses")
+        .update({ campus_status_override: "live", campus_status: "live" })
+        .in("id", flagshipIds);
+      if (!pErr) promoted = flagshipIds.length;
+    }
+    await logPartnerActivity(db, {
+      partnerId: kingId,
+      kind: "tranche_unlocked",
+      summary: `Semester pre-built — King T1 active + 4 locked, Unassigned A–E, Founder (${founder.length}); ${promoted} flagships promoted live`,
+      meta: { king: result.king.length, unassigned: result.unassigned.length, founder: founder.length, promoted },
+    });
+    return { ok: true, king: result.king.length, unassigned: result.unassigned.length, founder: founder.length, promoted };
+  },
+);
 
 /** Continuous evaluate-and-unlock. Idempotent: unlocks the next tranche only when the
  *  active one clears BOTH bars (15 launched AND 5 responded). Called on dashboard load
