@@ -265,6 +265,184 @@ async function eligibleForTranches(db: DB): Promise<{
   return { eligible, founder };
 }
 
+// ── King's working board: his tranches, campuses, est students, contact progress ─────
+export interface BoardCampus {
+  campusId: string;
+  name: string;
+  state: string | null;
+  seats: number | null; // estimated students / yr
+  campusStatus: string | null;
+  councilContacts: number;
+  greekContacts: number;
+  clubContacts: number;
+}
+export interface BoardTranche {
+  label: string;
+  number: number;
+  status: string;
+  totalSeats: number;
+  campuses: BoardCampus[];
+}
+
+export const growthKingBoard = createServerFn({ method: "GET" }).handler(
+  async (): Promise<{ tranches: BoardTranche[]; totalSeats: number }> => {
+    const db = await adminDb();
+    const { KING_EMAIL } = await import("@/lib/growth-comp.functions");
+    const { data: king } = await db
+      .from("referral_partners")
+      .select("id")
+      .ilike("email", KING_EMAIL)
+      .maybeSingle();
+    const { data: rows } = await db
+      .from("partner_tranches")
+      .select("tranche_number,label,status,campus_ids")
+      .eq("pool", "king")
+      .eq("partner_id", king?.id ?? "00000000-0000-0000-0000-000000000000")
+      .order("tranche_number", { ascending: true });
+    const allIds = [...new Set(((rows ?? []) as any[]).flatMap((t) => t.campus_ids ?? []))];
+    const [names, market, elig] = await Promise.all([
+      allIds.length ? db.from("campuses").select("id,name,display_name,state,campus_status").in("id", allIds) : Promise.resolve({ data: [] }),
+      allIds.length ? db.from("campus_market_intelligence").select("campus_id,estimated_intro1_annual").in("campus_id", allIds) : Promise.resolve({ data: [] }),
+      allIds.length ? db.from("growth_contact_qc").select("campus_id,entity_type").in("campus_id", allIds) : Promise.resolve({ data: [] }),
+    ]);
+    const nameOf = new Map<string, any>(((names as any).data ?? []).map((c: any) => [c.id, c]));
+    const seatsOf = new Map<string, number>(((market as any).data ?? []).filter((m: any) => m.estimated_intro1_annual != null).map((m: any) => [m.campus_id, m.estimated_intro1_annual]));
+    const cc = new Map<string, { council: number; greek: number; club: number }>();
+    for (const e of ((elig as any).data ?? []) as any[]) {
+      const a = cc.get(e.campus_id) ?? { council: 0, greek: 0, club: 0 };
+      if (e.entity_type === "council") a.council++;
+      else if (e.entity_type === "chapter") a.greek++;
+      else if (e.entity_type === "club") a.club++;
+      cc.set(e.campus_id, a);
+    }
+    let totalSeats = 0;
+    const tranches: BoardTranche[] = ((rows ?? []) as any[]).map((t) => {
+      const campuses: BoardCampus[] = (t.campus_ids ?? []).map((id: string) => {
+        const c = nameOf.get(id) ?? {};
+        const a = cc.get(id) ?? { council: 0, greek: 0, club: 0 };
+        return {
+          campusId: id,
+          name: c.display_name || c.name || id.slice(0, 8),
+          state: c.state ?? null,
+          seats: seatsOf.get(id) ?? null,
+          campusStatus: c.campus_status ?? null,
+          councilContacts: a.council,
+          greekContacts: a.greek,
+          clubContacts: a.club,
+        };
+      });
+      const tSeats = campuses.reduce((n, c) => n + (c.seats ?? 0), 0);
+      totalSeats += tSeats;
+      return { label: t.label || `T${t.tranche_number}`, number: t.tranche_number, status: t.status, totalSeats: tSeats, campuses };
+    });
+    return { tranches, totalSeats };
+  },
+);
+
+// ── Add-contacts modal: what slots exist for a campus, and a bulk save ────────────────
+export interface ContactSlots {
+  councils: { type: string; label: string; has: number }[];
+  chapters: { id: string; name: string; size: number | null; has: number }[];
+  clubs: { id: string; name: string; category: string | null }[];
+}
+
+export const growthCampusContactSlots = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => z.object({ campusId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<ContactSlots> => {
+    const db = await adminDb();
+    const [{ data: chapters }, { data: clubs }, { data: contacts }] = await Promise.all([
+      db.from("campus_greek_chapters").select("id,council,greek_org_id,chapter_size").eq("campus_id", data.campusId).is("archived_at", null),
+      db.from("growth_business_clubs").select("id,name,category").eq("campus_id", data.campusId),
+      db.from("growth_contact_qc").select("entity_type,entity_id,council_type").eq("campus_id", data.campusId),
+    ]);
+    const orgIds = [...new Set(((chapters ?? []) as any[]).map((c) => c.greek_org_id).filter(Boolean))];
+    const orgNames = new Map<string, string>();
+    if (orgIds.length) {
+      const { data: orgs } = await db.from("greek_orgs").select("id,name").in("id", orgIds);
+      for (const o of orgs ?? []) orgNames.set(o.id, o.name);
+    }
+    const councilHas = new Map<string, number>();
+    const chapHas = new Map<string, number>();
+    for (const c of ((contacts ?? []) as any[])) {
+      if (c.entity_type === "council" && c.council_type) councilHas.set(c.council_type, (councilHas.get(c.council_type) ?? 0) + 1);
+      if (c.entity_type === "chapter" && c.entity_id) chapHas.set(c.entity_id, (chapHas.get(c.entity_id) ?? 0) + 1);
+    }
+    const COUNCILS = [
+      { type: "ifc", label: "IFC" },
+      { type: "panhellenic", label: "Panhellenic" },
+      { type: "nphc", label: "NPHC" },
+      { type: "mgc", label: "MGC" },
+    ];
+    return {
+      councils: COUNCILS.map((c) => ({ ...c, has: councilHas.get(c.type) ?? 0 })),
+      chapters: ((chapters ?? []) as any[])
+        .map((c) => ({ id: c.id, name: orgNames.get(c.greek_org_id) ?? "Chapter", size: c.chapter_size ?? null, has: chapHas.get(c.id) ?? 0 }))
+        .sort((a, b) => (b.size ?? -1) - (a.size ?? -1)),
+      clubs: ((clubs ?? []) as any[]).map((c) => ({ id: c.id, name: c.name, category: c.category ?? null })),
+    };
+  });
+
+const ContactInput = z.object({
+  kind: z.enum(["council", "chapter", "club"]),
+  entityId: z.string().uuid().nullable().optional(),
+  councilType: z.string().max(40).nullable().optional(),
+  newClubName: z.string().trim().max(160).nullable().optional(),
+  newClubCategory: z.string().max(60).nullable().optional(),
+  isPerson: z.boolean(),
+  name: z.string().trim().max(160).nullable().optional(),
+  role: z.string().trim().max(160).nullable().optional(),
+  email: z.string().trim().max(200).nullable().optional(),
+  instagram: z.string().trim().max(300).nullable().optional(),
+});
+
+/** Bulk-save a campus's contacts from the Add-contacts modal. Creates clubs on the fly.
+ *  contact_type marks org vs person. Returns how many landed. */
+export const growthSaveCampusContacts = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({ campusId: z.string().uuid(), contacts: z.array(ContactInput).max(200) }).parse(d),
+  )
+  .handler(async ({ data }): Promise<{ saved: number; errors: string[] }> => {
+    const { growthAddContact } = await import("@/lib/growth-reach.functions");
+    const db = await adminDb();
+    let saved = 0;
+    const errors: string[] = [];
+    const clubCache = new Map<string, string>();
+    for (const c of data.contacts) {
+      if (!c.email && !c.instagram) continue; // nothing to save
+      let entityId = c.entityId ?? null;
+      // create a club on the fly
+      if (c.kind === "club" && !entityId && c.newClubName) {
+        const key = c.newClubName.toLowerCase();
+        entityId = clubCache.get(key) ?? null;
+        if (!entityId) {
+          const { data: club } = await db
+            .from("growth_business_clubs")
+            .insert({ campus_id: data.campusId, name: c.newClubName, category: c.newClubCategory || "women_in_business" })
+            .select("id")
+            .maybeSingle();
+          entityId = club?.id ?? null;
+          if (entityId) clubCache.set(key, entityId);
+        }
+      }
+      const r = await growthAddContact({
+        data: {
+          campusId: data.campusId,
+          entityType: c.kind,
+          entityId,
+          councilType: c.kind === "council" ? c.councilType ?? null : null,
+          contactType: c.isPerson ? "student_officer" : "organization_general",
+          name: c.isPerson ? c.name ?? null : null,
+          role: c.isPerson ? c.role ?? null : null,
+          email: c.email ?? null,
+          instagram: c.instagram ?? null,
+        },
+      });
+      if (r.ok) saved++;
+      else if (r.error) errors.push(r.error);
+    }
+    return { saved, errors };
+  });
+
 export interface GreekUnknown {
   campusId: string;
   name: string;
