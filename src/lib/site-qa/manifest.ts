@@ -537,6 +537,8 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "s.$campus.index.tsx": "DM destination — one screen, pick your chapter (noindex)",
   "s.$campus.$chapter.tsx": "chapter share screen — link + ready-to-paste GroupMe message (noindex)",
   "s.$campus.council.tsx": "council share screen — one message with every chapter link (noindex)",
+  "admin.growth.coldoutreach_.engaged.tsx": "Engaged contacts — who actually moved: replies, ref clicks, forwards (admin, noindex)",
+  "preview_.templates.tsx": "the template test harness — every reusable template with a known-good sample and its checklist (noindex)",
   "go.demo.tsx": "demo chapter page — outreach sales asset (noindex)",
   "go.demo.demo.tsx": "redirect → /go/demo",
   // API / cron / webhook endpoints — not pages

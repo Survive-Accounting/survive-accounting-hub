@@ -50,6 +50,7 @@ import { Route as StudyCanvasRouteImport } from './routes/study_.canvas'
 import { Route as RepJoinRouteImport } from './routes/rep_.join'
 import { Route as RepDashboardRouteImport } from './routes/rep_.dashboard'
 import { Route as RCodeRouteImport } from './routes/r.$code'
+import { Route as PreviewTemplatesRouteImport } from './routes/preview_.templates'
 import { Route as PreviewStudentplayerv1RouteImport } from './routes/preview_.studentplayerv1'
 import { Route as PreviewHomeRouteImport } from './routes/preview_.home'
 import { Route as PreviewExam1RouteImport } from './routes/preview_.exam1'
@@ -147,6 +148,7 @@ import { Route as ApiPartnerKitSchoolCouncilRouteImport } from './routes/api.par
 import { Route as ApiOgSchoolChapterRouteImport } from './routes/api.og.$school.$chapter'
 import { Route as ApiFlyerSchoolChapterRouteImport } from './routes/api.flyer.$school.$chapter'
 import { Route as AdminRepsViewPartnerIdRouteImport } from './routes/admin.reps.view.$partnerId'
+import { Route as AdminGrowthColdoutreachEngagedRouteImport } from './routes/admin.growth.coldoutreach_.engaged'
 
 const WelcomeRoute = WelcomeRouteImport.update({
   id: '/welcome',
@@ -351,6 +353,11 @@ const RepDashboardRoute = RepDashboardRouteImport.update({
 const RCodeRoute = RCodeRouteImport.update({
   id: '/r/$code',
   path: '/r/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PreviewTemplatesRoute = PreviewTemplatesRouteImport.update({
+  id: '/preview_/templates',
+  path: '/preview/templates',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PreviewStudentplayerv1Route = PreviewStudentplayerv1RouteImport.update({
@@ -849,6 +856,12 @@ const AdminRepsViewPartnerIdRoute = AdminRepsViewPartnerIdRouteImport.update({
   path: '/view/$partnerId',
   getParentRoute: () => AdminRepsRoute,
 } as any)
+const AdminGrowthColdoutreachEngagedRoute =
+  AdminGrowthColdoutreachEngagedRouteImport.update({
+    id: '/coldoutreach_/engaged',
+    path: '/coldoutreach/engaged',
+    getParentRoute: () => AdminGrowthRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -926,6 +939,7 @@ export interface FileRoutesByFullPath {
   '/preview/exam1': typeof PreviewExam1Route
   '/preview/home': typeof PreviewHomeRoute
   '/preview/studentplayerv1': typeof PreviewStudentplayerv1Route
+  '/preview/templates': typeof PreviewTemplatesRoute
   '/r/$code': typeof RCodeRoute
   '/rep/dashboard': typeof RepDashboardRoute
   '/rep/join': typeof RepJoinRoute
@@ -982,6 +996,7 @@ export interface FileRoutesByFullPath {
   '/go/$school/': typeof GoSchoolIndexRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
   '/s/$campus/': typeof SCampusIndexRoute
+  '/admin/growth/coldoutreach/engaged': typeof AdminGrowthColdoutreachEngagedRoute
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
@@ -1063,6 +1078,7 @@ export interface FileRoutesByTo {
   '/preview/exam1': typeof PreviewExam1Route
   '/preview/home': typeof PreviewHomeRoute
   '/preview/studentplayerv1': typeof PreviewStudentplayerv1Route
+  '/preview/templates': typeof PreviewTemplatesRoute
   '/r/$code': typeof RCodeRoute
   '/rep/dashboard': typeof RepDashboardRoute
   '/rep/join': typeof RepJoinRoute
@@ -1119,6 +1135,7 @@ export interface FileRoutesByTo {
   '/go/$school': typeof GoSchoolIndexRoute
   '/outreach/leadfinder': typeof OutreachLeadfinderIndexRoute
   '/s/$campus': typeof SCampusIndexRoute
+  '/admin/growth/coldoutreach/engaged': typeof AdminGrowthColdoutreachEngagedRoute
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
@@ -1204,6 +1221,7 @@ export interface FileRoutesById {
   '/preview_/exam1': typeof PreviewExam1Route
   '/preview_/home': typeof PreviewHomeRoute
   '/preview_/studentplayerv1': typeof PreviewStudentplayerv1Route
+  '/preview_/templates': typeof PreviewTemplatesRoute
   '/r/$code': typeof RCodeRoute
   '/rep_/dashboard': typeof RepDashboardRoute
   '/rep_/join': typeof RepJoinRoute
@@ -1260,6 +1278,7 @@ export interface FileRoutesById {
   '/go/$school/': typeof GoSchoolIndexRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
   '/s/$campus/': typeof SCampusIndexRoute
+  '/admin/growth/coldoutreach_/engaged': typeof AdminGrowthColdoutreachEngagedRoute
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
@@ -1346,6 +1365,7 @@ export interface FileRouteTypes {
     | '/preview/exam1'
     | '/preview/home'
     | '/preview/studentplayerv1'
+    | '/preview/templates'
     | '/r/$code'
     | '/rep/dashboard'
     | '/rep/join'
@@ -1402,6 +1422,7 @@ export interface FileRouteTypes {
     | '/go/$school/'
     | '/outreach/leadfinder/'
     | '/s/$campus/'
+    | '/admin/growth/coldoutreach/engaged'
     | '/admin/reps/view/$partnerId'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
@@ -1483,6 +1504,7 @@ export interface FileRouteTypes {
     | '/preview/exam1'
     | '/preview/home'
     | '/preview/studentplayerv1'
+    | '/preview/templates'
     | '/r/$code'
     | '/rep/dashboard'
     | '/rep/join'
@@ -1539,6 +1561,7 @@ export interface FileRouteTypes {
     | '/go/$school'
     | '/outreach/leadfinder'
     | '/s/$campus'
+    | '/admin/growth/coldoutreach/engaged'
     | '/admin/reps/view/$partnerId'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
@@ -1623,6 +1646,7 @@ export interface FileRouteTypes {
     | '/preview_/exam1'
     | '/preview_/home'
     | '/preview_/studentplayerv1'
+    | '/preview_/templates'
     | '/r/$code'
     | '/rep_/dashboard'
     | '/rep_/join'
@@ -1679,6 +1703,7 @@ export interface FileRouteTypes {
     | '/go/$school/'
     | '/outreach/leadfinder/'
     | '/s/$campus/'
+    | '/admin/growth/coldoutreach_/engaged'
     | '/admin/reps/view/$partnerId'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
@@ -1735,6 +1760,7 @@ export interface RootRouteChildren {
   PreviewExam1Route: typeof PreviewExam1Route
   PreviewHomeRoute: typeof PreviewHomeRoute
   PreviewStudentplayerv1Route: typeof PreviewStudentplayerv1Route
+  PreviewTemplatesRoute: typeof PreviewTemplatesRoute
   RCodeRoute: typeof RCodeRoute
   RepDashboardRoute: typeof RepDashboardRoute
   RepJoinRoute: typeof RepJoinRoute
@@ -2055,6 +2081,13 @@ declare module '@tanstack/react-router' {
       path: '/r/$code'
       fullPath: '/r/$code'
       preLoaderRoute: typeof RCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/preview_/templates': {
+      id: '/preview_/templates'
+      path: '/preview/templates'
+      fullPath: '/preview/templates'
+      preLoaderRoute: typeof PreviewTemplatesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/preview_/studentplayerv1': {
@@ -2736,6 +2769,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRepsViewPartnerIdRouteImport
       parentRoute: typeof AdminRepsRoute
     }
+    '/admin/growth/coldoutreach_/engaged': {
+      id: '/admin/growth/coldoutreach_/engaged'
+      path: '/coldoutreach/engaged'
+      fullPath: '/admin/growth/coldoutreach/engaged'
+      preLoaderRoute: typeof AdminGrowthColdoutreachEngagedRouteImport
+      parentRoute: typeof AdminGrowthRoute
+    }
   }
 }
 
@@ -2866,6 +2906,7 @@ interface AdminGrowthRouteChildren {
   AdminGrowthResultsRoute: typeof AdminGrowthResultsRoute
   AdminGrowthTranchesRoute: typeof AdminGrowthTranchesRoute
   AdminGrowthIndexRoute: typeof AdminGrowthIndexRoute
+  AdminGrowthColdoutreachEngagedRoute: typeof AdminGrowthColdoutreachEngagedRoute
 }
 
 const AdminGrowthRouteChildren: AdminGrowthRouteChildren = {
@@ -2885,6 +2926,7 @@ const AdminGrowthRouteChildren: AdminGrowthRouteChildren = {
   AdminGrowthResultsRoute: AdminGrowthResultsRoute,
   AdminGrowthTranchesRoute: AdminGrowthTranchesRoute,
   AdminGrowthIndexRoute: AdminGrowthIndexRoute,
+  AdminGrowthColdoutreachEngagedRoute: AdminGrowthColdoutreachEngagedRoute,
 }
 
 const AdminGrowthRouteWithChildren = AdminGrowthRoute._addFileChildren(
@@ -2971,6 +3013,7 @@ const rootRouteChildren: RootRouteChildren = {
   PreviewExam1Route: PreviewExam1Route,
   PreviewHomeRoute: PreviewHomeRoute,
   PreviewStudentplayerv1Route: PreviewStudentplayerv1Route,
+  PreviewTemplatesRoute: PreviewTemplatesRoute,
   RCodeRoute: RCodeRoute,
   RepDashboardRoute: RepDashboardRoute,
   RepJoinRoute: RepJoinRoute,

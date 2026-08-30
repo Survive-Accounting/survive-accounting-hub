@@ -8,7 +8,7 @@
 // STATIC SEGMENT, DYNAMIC SIBLING: this route and /s/$campus/$chapter share a level. TanStack
 // matches the static "council" first, so a chapter can never be slugged into shadowing it.
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { ShareButton, ShareFootnote, ShareHeading, ShareScreen } from "@/components/site/share/ShareScreen";
@@ -18,7 +18,8 @@ import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { boltForSlug, schoolBySlug } from "@/lib/schools";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
 import { councilChapterLinksPost } from "@/lib/partners";
-import { currentContactRef, rememberContactRef, withRef } from "@/lib/contact-ref";
+import { currentContactRef, withRef } from "@/lib/contact-ref";
+import { useRecordRefVisit } from "@/components/site/share/useRecordRefVisit";
 
 const ORIGIN = "https://surviveaccounting.com";
 
@@ -40,6 +41,7 @@ export const Route = createFileRoute("/s/$campus/council")({
       code: codes.find((c) => c.campusId === school.campusId)?.code ?? null,
       name: school.name,
       slug: school.slug,
+      campusId: school.campusId,
     };
   },
   staleTime: 600_000,
@@ -48,13 +50,13 @@ export const Route = createFileRoute("/s/$campus/council")({
 });
 
 function CouncilSharePage() {
-  const { code, name, slug } = Route.useLoaderData();
+  const { code, name, slug, campusId } = Route.useLoaderData();
   const { c: councilParam } = Route.useSearch();
   const council = councilBySlug((councilParam ?? "").trim().toLowerCase());
   const bolt = boltForSlug(slug);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => { rememberContactRef(currentContactRef()); }, []);
+  useRecordRefVisit(campusId);
   const ref = typeof window === "undefined" ? null : currentContactRef();
 
   const q = useQuery({

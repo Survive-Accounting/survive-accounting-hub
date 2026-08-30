@@ -9,7 +9,7 @@
 // the brief. The three answers cover everyone a DM can reach: a chapter person, a council person,
 // and a student who is neither.
 import { createFileRoute, notFound, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Bolt, BRAND_SANS } from "@/components/canvas/brand";
@@ -18,7 +18,8 @@ import { ShareButton, ShareFootnote, ShareHeading, ShareScreen } from "@/compone
 import { listGoChapters } from "@/lib/greek-go.functions";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { boltForSlug, schoolBySlug } from "@/lib/schools";
-import { currentContactRef, rememberContactRef, withRef } from "@/lib/contact-ref";
+import { currentContactRef, withRef } from "@/lib/contact-ref";
+import { useRecordRefVisit } from "@/components/site/share/useRecordRefVisit";
 import { nbspCode } from "@/lib/course-code";
 
 export const Route = createFileRoute("/s/$campus/")({
@@ -28,7 +29,10 @@ export const Route = createFileRoute("/s/$campus/")({
     const school = schoolBySlug(params.campus);
     if (!school) throw notFound();
     const codes = await listCampusIntroCodes({ data: { ids: [school.campusId] } }).catch(() => []);
-    return { code: codes.find((c) => c.campusId === school.campusId)?.code ?? null, name: school.name, slug: school.slug };
+    return {
+      code: codes.find((c) => c.campusId === school.campusId)?.code ?? null,
+      name: school.name, slug: school.slug, campusId: school.campusId,
+    };
   },
   staleTime: 600_000,
   head: () => ({ meta: [{ name: "robots", content: "noindex" }] }),
@@ -42,12 +46,13 @@ export const Route = createFileRoute("/s/$campus/")({
 });
 
 function CampusSharePage() {
-  const { code, name, slug } = Route.useLoaderData();
+  const { code, name, slug, campusId } = Route.useLoaderData();
   const nav = useNavigate();
   const bolt = boltForSlug(slug);
 
-  // The ref that brought them, persisted for the window so it survives every hop from here.
-  useEffect(() => { rememberContactRef(currentContactRef()); }, []);
+  // The ref that brought them: persisted for the window, and logged so a forwarded link is
+  // visible as a visit against whoever sent it.
+  useRecordRefVisit(campusId);
   const ref = typeof window === "undefined" ? null : currentContactRef();
 
   const q = useQuery({

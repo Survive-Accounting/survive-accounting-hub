@@ -14,7 +14,7 @@
 // If the intent really was to replace the full page, that is a routing change — this screen is a
 // component and would serve either path unchanged.
 import { createFileRoute, notFound } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { ShareButton, ShareFootnote, ShareHeading, ShareScreen } from "@/components/site/share/ShareScreen";
@@ -23,7 +23,8 @@ import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { boltForSlug, schoolBySlug } from "@/lib/schools";
 import { chapterShortName } from "@/components/site/ChapterShare";
 import { copyToClipboard } from "@/lib/copy-to-clipboard";
-import { currentContactRef, rememberContactRef, withRef } from "@/lib/contact-ref";
+import { currentContactRef, withRef } from "@/lib/contact-ref";
+import { useRecordRefVisit } from "@/components/site/share/useRecordRefVisit";
 import { nbspCode } from "@/lib/course-code";
 
 const ORIGIN = "https://surviveaccounting.com";
@@ -39,6 +40,7 @@ export const Route = createFileRoute("/s/$campus/$chapter")({
       code: codes.find((c) => c.campusId === school.campusId)?.code ?? null,
       schoolName: school.name,
       schoolSlug: school.slug,
+      campusId: school.campusId,
       chapterSlug: params.chapter,
       chapterName: chapter.chapterName,
       letters: (chapter.letters ?? "").trim() || chapterShortName(chapter.chapterName, chapter.letters, chapter.nickname),
@@ -60,7 +62,7 @@ function ChapterSharePage() {
   const bolt = boltForSlug(d.schoolSlug);
   const [copied, setCopied] = useState<"link" | "message" | null>(null);
 
-  useEffect(() => { rememberContactRef(currentContactRef()); }, []);
+  useRecordRefVisit(d.campusId);
   const ref = typeof window === "undefined" ? null : currentContactRef();
 
   // THE LINK THEY HAND OUT CARRIES THE TAG THAT BROUGHT THEM. This is the whole mechanism by
