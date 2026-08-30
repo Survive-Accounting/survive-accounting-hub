@@ -329,7 +329,10 @@ ${GREEK_HOUSE_CSS}
 export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
   code: string | null;
   onSyllabus?: () => void;
-  variant?: "home" | "chapter";
+  /** "council" reframes card 3 for someone who is not taking the course: a council officer is
+   *  sharing this for her CHAPTERS, and "Built around your course" addressed a student who
+   *  isn't in the room. */
+  variant?: "home" | "chapter" | "council";
 }) {
   const CARDS = [
     { icon: Play, title: "Quick cram videos", body: "Nothing like your lecture videos." },
@@ -348,7 +351,13 @@ export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
           <p className="mt-1 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>{body}</p>
         </div>
       ))}
-      {variant === "chapter" ? (
+      {variant === "council" ? (
+        <div className={card} style={cardStyle}>
+          <Target className="h-5 w-5" style={{ color: "var(--accent)" }} aria-hidden />
+          <p className={H} style={hStyle}>{code ? `Built for ${nbspCode(code)}` : "Built for your campus"}</p>
+          <p className="mt-1 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>Matched to the course your chapters actually take.</p>
+        </div>
+      ) : variant === "chapter" ? (
         <div className={card} style={cardStyle}>
           <Target className="h-5 w-5" style={{ color: "var(--accent)" }} aria-hidden />
           <p className={H} style={hStyle}>{code ? `Built for ${nbspCode(code)}` : "Built for your course"}</p>
@@ -369,7 +378,14 @@ export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
 // ── SOCIAL PROOF: testimonials + tutor in one row ────────────────────────────────────────────
 /** Desktop: ~60/40 row — reviews left, tutor card right. Mobile: stacked, reviews first.
  *  Content arrives as slots so this module never imports from the landing route. */
-export function SocialProofSection({ testimonials, tutor }: { testimonials: React.ReactNode; tutor: React.ReactNode }) {
+export function SocialProofSection({ testimonials, tutor, testimonialsHeading = "What students are saying" }: {
+  testimonials: React.ReactNode;
+  tutor: React.ReactNode;
+  /** WHOSE students. Every review on file is from Ole Miss, and on an Alabama council page a bare
+   *  "What students are saying" reads as a claim about Alabama students that the cards underneath
+   *  then quietly contradict. Naming the campus turns a mismatch into transparency. */
+  testimonialsHeading?: string;
+}) {
   // BOTH headings are rendered HERE, on one baseline — the column contents start level, which
   // is what makes the row read as one section rather than two stacked boxes.
   const H = ({ children }: { children: React.ReactNode }) => (
@@ -378,7 +394,7 @@ export function SocialProofSection({ testimonials, tutor }: { testimonials: Reac
   return (
     <section className="mx-auto grid w-full max-w-[1040px] items-start gap-8 lg:grid-cols-[3fr_2fr]" style={{ fontFamily: BRAND_SANS }}>
       <div className="min-w-0">
-        <H>What students are saying</H>
+        <H>{testimonialsHeading}</H>
         {testimonials}
       </div>
       <div className="min-w-0" id="lee">

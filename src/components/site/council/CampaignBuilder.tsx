@@ -1,4 +1,10 @@
-// THE CAMPAIGN BUILDER (2026-08-28) — the council page's "Send it now" destination.
+// THE EMAIL TAB (2026-08-29) — the council share section's THIRD and slowest channel.
+//
+// It used to be the ONLY way to share: eighteen rows asking a council officer to type an address
+// she does not know from memory, standing between a cold email and a share. It is now the last
+// resort for the rare officer who genuinely has the list, reached behind two faster tabs (see
+// council/CouncilShare.tsx), and it no longer asks anyone to type a roster by hand — the list
+// downloads as a spreadsheet and pastes back in bulk.
 //
 // ── THE HARD RULE ─────────────────────────────────────────────────────────────────────────────
 //
@@ -60,7 +66,7 @@ export function chapterSms(d: { chapterName: string; courseLabel: string; url: s
   return `Free ${d.courseLabel} exam prep for ${d.chapterName} — Exam 1 is free for every member. Your chapter's page: ${d.url}`;
 }
 
-/** The blast body: a short note in the council's voice, then EVERY chapter's own tagged link so
+/** The email body: a short note in the council's voice, then EVERY chapter's own tagged link so
  *  each chair can grab theirs out of one email. */
 export function campaignEmailBody(d: {
   identity: CampaignIdentity;
@@ -85,6 +91,63 @@ export function campaignEmailBody(d: {
   ].join("\n");
 }
 
+/** MATCH A PASTED ROSTER TO OUR CHAPTERS — pure, so the matching rules are pinned by a test
+ *  rather than discovered in production with somebody's real spreadsheet.
+ *
+ *  Accepts what actually comes out of Excel and Google Sheets: tab-separated on paste, comma-
+ *  separated from a .csv export. A header row is detected and skipped rather than silently
+ *  imported as a chapter called "Chapter".
+ *
+ *  MATCHING IS FORGIVING BECAUSE HER SHEET IS NOT OURS. "AXO", "Alpha Chi Omega", "alpha chi
+ *  omega " and "Alpha Chi" all have to find the same row, because that is the range of things a
+ *  council roster actually contains. Anything we cannot place is REPORTED, never dropped
+ *  silently — an import that quietly ignores four rows is worse than one that fails. */
+export function parseRoster(
+  text: string,
+  chapters: Array<{ slug: string; name: string; letters: string | null }>,
+): { rows: Record<string, CampaignRow>; matched: number; unmatched: string[] } {
+  const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const index = new Map<string, string>();
+  for (const c of chapters) {
+    index.set(norm(c.name), c.slug);
+    if (c.letters) index.set(norm(c.letters), c.slug);
+  }
+
+  const rows: Record<string, CampaignRow> = {};
+  const unmatched: string[] = [];
+  let matched = 0;
+
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const cells = (line.includes("\t") ? line.split("\t") : line.split(",")).map((c) => c.trim().replace(/^"|"$/g, ""));
+    const label = cells[0] ?? "";
+    if (!label) continue;
+    // A header row names a column, not a chapter.
+    if (/^(chapter|organization|org|name|house)$/i.test(label)) continue;
+
+    const key = norm(label);
+    let slug = index.get(key);
+    // A partial match ("Alpha Chi" for "Alpha Chi Omega") counts only when it is UNAMBIGUOUS.
+    // Guessing between two chapters is how the wrong president gets emailed.
+    if (!slug) {
+      const hits = chapters.filter((c) => norm(c.name).startsWith(key) || key.startsWith(norm(c.name)));
+      if (hits.length === 1) slug = hits[0].slug;
+    }
+    if (!slug) { unmatched.push(label); continue; }
+
+    const rest = cells.slice(1);
+    const email = rest.find((v) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)) ?? "";
+    const mobile = rest.find((v) => v !== email && (v.match(/\d/g)?.length ?? 0) >= 10) ?? "";
+    if (!email && !mobile) { unmatched.push(label); continue; }
+
+    rows[slug] = { email, mobile };
+    matched += 1;
+  }
+
+  return { rows, matched, unmatched };
+}
+
 export function CampaignBuilder({ id, schoolSlug, schoolName, councilSlug, councilName, courseCode, chapters, campusId }: {
   id: string;
   schoolSlug: string;
@@ -101,6 +164,9 @@ export function CampaignBuilder({ id, schoolSlug, schoolName, councilSlug, counc
   const [savedId, setSavedId] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importNote, setImportNote] = useState<string | null>(null);
 
   // Restore AFTER mount — this page server-renders, and localStorage does not exist there.
   useEffect(() => {
@@ -148,7 +214,7 @@ export function CampaignBuilder({ id, schoolSlug, schoolName, councilSlug, counc
     finally { setBusy(false); }
   };
 
-  /** THE BLAST. A mailto with every entered chair address and the full link table. Opens in THEIR
+  /** THE SEND. A mailto with every entered chair address and the full link table. Opens in THEIR
    *  client, sends under THEIR name. Nothing leaves this page. */
   const openEmail = () => {
     void saveIdentity();
@@ -181,6 +247,45 @@ export function CampaignBuilder({ id, schoolSlug, schoolName, councilSlug, counc
     XLSX.writeFile(wb, `Survive-${schoolName.replace(/\s+/g, "-")}-${councilName.replace(/\s+/g, "-")}-chapters.xlsx`);
   };
 
+  /** Apply a pasted or uploaded roster. Merges onto what is already typed rather than replacing
+   *  it: an officer who filled three rows by hand and then imports the rest should not lose three. */
+  const applyImport = (text: string) => {
+    const { rows: parsed, matched, unmatched } = parseRoster(text, chapters);
+    if (matched === 0) {
+      setImportNote(`Nothing matched. Put the chapter name in the first column — the names on this page are the ones to match.`);
+      return;
+    }
+    setRows((prev) => {
+      const next = { ...prev };
+      for (const [slug, row] of Object.entries(parsed)) next[slug] = { ...{ email: "", mobile: "" }, ...next[slug], ...row };
+      writeJson(rowsKey(schoolSlug, councilSlug), next);
+      return next;
+    });
+    setImportNote(
+      unmatched.length
+        ? `Filled ${matched} chapter${matched === 1 ? "" : "s"}. Couldn't place: ${unmatched.slice(0, 6).join(", ")}${unmatched.length > 6 ? ` +${unmatched.length - 6} more` : ""}.`
+        : `Filled ${matched} chapter${matched === 1 ? "" : "s"}.`,
+    );
+  };
+
+  /** A .csv/.txt is read as text; a workbook is parsed with the xlsx already in the bundle and
+   *  flattened to the same tab-separated shape the paste path takes, so ONE parser sees both. */
+  const importFile = async (file: File) => {
+    try {
+      if (/\.(xlsx|xls)$/i.test(file.name)) {
+        const XLSX = await import("xlsx");
+        const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const grid = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1, blankrows: false, raw: false });
+        applyImport(grid.map((r) => (r ?? []).join("\t")).join("\n"));
+      } else {
+        applyImport(await file.text());
+      }
+    } catch {
+      setImportNote("I couldn't read that file. A .csv export, or pasting the cells straight in, both work.");
+    }
+  };
+
   const FIELD: React.CSSProperties = {
     minHeight: 42, width: "100%", borderRadius: 10, padding: "0 10px", fontSize: 15,
     background: "rgba(0,0,0,0.32)", border: "1px solid var(--border-default)", color: "var(--brand-cream)",
@@ -188,14 +293,63 @@ export function CampaignBuilder({ id, schoolSlug, schoolName, councilSlug, counc
   const BTN: React.CSSProperties = { minHeight: 46, borderRadius: 12, fontSize: 14.5, fontWeight: 900, fontFamily: BRAND_SANS, cursor: "pointer" };
 
   return (
-    <section id={id} className="sa-anchor mt-16" style={{ fontFamily: BRAND_SANS }}>
-      <h2 className="text-[22px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
-        {identity.name ? `Build the blast, ${identity.name}.` : "Build the blast."}
-      </h2>
-      <p className="mt-2 max-w-[62ch] text-[14.5px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
-        Fill in whoever you have — you can send with three addresses or thirty. Everything sends from
-        your own inbox and phone, under your name. We never message your chapters ourselves.
+    <div id={id} className="sa-anchor" style={{ fontFamily: BRAND_SANS }}>
+      <p className="max-w-[62ch] text-[14px] leading-relaxed" style={{ color: "var(--text-muted)" }}>
+        Only if you already have the addresses — otherwise the first two tabs are faster. Fill in
+        whoever you have; three is fine.
       </p>
+
+      {/* BULK IN, BULK OUT — the two ways to avoid typing eighteen rows, above the eighteen rows
+          so they are found before the typing starts rather than after. */}
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <button
+          type="button"
+          onClick={() => void downloadXlsx()}
+          className="focus-visible:ring-2"
+          style={{ ...BTN, flex: 1, background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
+        >
+          Download chapter list (.xlsx)
+        </button>
+        <button
+          type="button"
+          onClick={() => { setImportOpen((v) => !v); setImportNote(null); }}
+          aria-expanded={importOpen}
+          className="focus-visible:ring-2"
+          style={{ ...BTN, flex: 1, background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
+        >
+          {importOpen ? "Close import" : "Import chapter list"}
+        </button>
+      </div>
+
+      {importOpen && (
+        <div className="mt-3 rounded-2xl p-4" style={{ background: "rgba(0,0,0,0.22)", border: "1px solid var(--border-default)" }}>
+          <p className="text-[13px] leading-snug" style={{ color: "var(--text-muted)" }}>
+            Paste straight from Excel or Google Sheets — chapter name first, then the email and
+            mobile. Or upload the .csv / .xlsx.
+          </p>
+          <textarea
+            value={importText}
+            onChange={(e) => setImportText(e.target.value)}
+            rows={5}
+            placeholder={"Alpha Chi Omega\tchair@school.edu\t(555) 010-0134"}
+            aria-label="Paste your chapter roster"
+            className="mt-2.5 w-full rounded-xl p-3 outline-none"
+            style={{ fontSize: 14, background: "rgba(0,0,0,0.32)", border: "1px solid var(--border-default)", color: "var(--brand-cream)", fontFamily: BRAND_SANS }}
+          />
+          <div className="mt-2.5 flex flex-col gap-2 sm:flex-row">
+            <button type="button" onClick={() => applyImport(importText)} disabled={!importText.trim()} className="focus-visible:ring-2 disabled:opacity-45" style={{ ...BTN, flex: 1, background: "var(--accent)", color: "#0B1220", border: 0 }}>
+              Fill the table
+            </button>
+            <label className="flex cursor-pointer items-center justify-center focus-visible:ring-2" style={{ ...BTN, flex: 1, background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}>
+              Upload a file
+              <input type="file" accept=".csv,.tsv,.txt,.xlsx,.xls" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) void importFile(f); e.target.value = ""; }} />
+            </label>
+          </div>
+          {/* SAID OUT LOUD, both ways. A silent import that placed 14 of 18 rows looks identical
+              to one that placed all 18 until an officer notices four chapters never heard from her. */}
+          {importNote && <p className="mt-2.5 text-[12.5px] leading-snug" role="status" style={{ color: "var(--brand-cream)" }}>{importNote}</p>}
+        </div>
+      )}
 
       {/* WHO'S SENDING — two fields plus a way for Lee to reach them back. */}
       <div className="mt-5 grid gap-2.5 sm:grid-cols-3">
@@ -213,8 +367,12 @@ export function CampaignBuilder({ id, schoolSlug, schoolName, councilSlug, counc
         </div>
       </div>
 
-      {/* THE TABLE — one row per chapter. Paste-friendly; every keystroke persists locally. */}
-      <div className="mt-6 overflow-hidden rounded-2xl" style={{ border: "1px solid var(--border-default)" }}>
+      {/* THE TABLE — one row per chapter, stacking to a card per chapter on a phone. Every
+          keystroke persists locally, so a refresh mid-roster never costs the work. */}
+      <p className="mt-6 text-[12.5px] sm:hidden" style={{ color: "var(--text-muted)" }}>
+        Typing a full roster is easier on a laptop — or import it above.
+      </p>
+      <div className="mt-3 overflow-hidden rounded-2xl sm:mt-6" style={{ border: "1px solid var(--border-default)" }}>
         <div className="hidden grid-cols-[1.3fr_1.2fr_0.9fr_auto] gap-3 px-4 py-2.5 text-[11.5px] font-black uppercase tracking-wide sm:grid" style={{ background: "rgba(0,0,0,0.28)", color: "var(--text-muted)" }}>
           <span>Chapter</span>
           <span>Academic chair or president</span>
@@ -256,22 +414,14 @@ export function CampaignBuilder({ id, schoolSlug, schoolName, councilSlug, counc
         ))}
       </div>
 
-      <div className="mt-5 flex flex-col gap-2.5 sm:flex-row">
+      <div className="mt-5">
         <button
           type="button"
           onClick={openEmail}
-          className="transition-transform hover:scale-[1.01] focus-visible:ring-2"
-          style={{ ...BTN, flex: 1, background: "var(--cta-solo-bg, #CE1126)", color: "var(--cta-solo-fg, #FFF)", border: 0 }}
+          className="w-full transition-transform hover:scale-[1.01] focus-visible:ring-2"
+          style={{ ...BTN, background: "var(--cta-solo-bg, #CE1126)", color: "var(--cta-solo-fg, #FFF)", border: 0 }}
         >
           Open the email →
-        </button>
-        <button
-          type="button"
-          onClick={() => void downloadXlsx()}
-          className="focus-visible:ring-2"
-          style={{ ...BTN, flex: 1, background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}
-        >
-          Download chapter list (.xlsx)
         </button>
       </div>
       <p className="mt-2.5 text-[12.5px]" style={{ color: "var(--text-muted)" }}>
@@ -279,6 +429,6 @@ export function CampaignBuilder({ id, schoolSlug, schoolName, councilSlug, counc
           ? `Opens your mail app addressed to ${enteredEmails.length} chapter${enteredEmails.length === 1 ? "" : "s"}, with every chapter's link in the body.`
           : "Add a chair's email above and it will be addressed for you — or open it empty and paste your own list."}
       </p>
-    </section>
+    </div>
   );
 }

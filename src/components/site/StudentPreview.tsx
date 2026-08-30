@@ -40,10 +40,20 @@ export function previewCampus(o: { key: string; name: string; code: string | nul
   return o;
 }
 
-export function StudentPreview({ campuses, label = "Student preview" }: {
+export function StudentPreview({ campuses, label = "Student preview", chrome = true }: {
   /** One campus (a council page) or several (a national page → a campus switcher appears). */
   campuses: PreviewCampus[];
   label?: string;
+  /** FALSE drops the mocked exam tabs, the "Student preview" badge and the footer link, leaving
+   *  only the two things that are real: the course's own topic list with its timings, and one
+   *  worked practice question.
+   *
+   *  WHY THE OPTION EXISTS. On the council page those two are the strongest proof — they are what
+   *  makes the page look built for that course rather than generated from a template — but the
+   *  chrome around them is a STATIC PICTURE of a player that has since changed, and a picture of
+   *  the product that disagrees with the product is worth less than no picture at all. The real
+   *  thing is one click away behind door 3. */
+  chrome?: boolean;
 }) {
   const [i, setI] = useState(0);
   const idx = Math.min(i, campuses.length - 1);
@@ -62,13 +72,15 @@ export function StudentPreview({ campuses, label = "Student preview" }: {
         <span className="inline-block shrink-0" style={{ height: 34, width: 21 }}><Bolt c1={pal.leftColor} c2={pal.rightColor} title={`${c.name} bolt`} /></span>
         <span className="min-w-0 flex-1 truncate text-[13px] font-black" style={{ color: "var(--brand-cream)" }}>{codeLine || c.name.toUpperCase()}</span>
         {campuses.length > 1 && <CampusSwitcher campuses={campuses} idx={idx} onPick={setI} />}
-        <span className="rounded-full px-2.5 py-1 text-[10.5px] font-black uppercase" style={{ background: "rgba(0,107,166,0.28)", color: "var(--accent-info-text)", letterSpacing: "0.1em" }}>{label}</span>
+        {chrome && (
+          <span className="rounded-full px-2.5 py-1 text-[10.5px] font-black uppercase" style={{ background: "rgba(0,107,166,0.28)", color: "var(--accent-info-text)", letterSpacing: "0.1em" }}>{label}</span>
+        )}
       </div>
 
       <div className="grid gap-0 md:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
         {/* LEFT — the exam menu + Exam 1 outline. */}
         <div className="border-b md:border-b-0 md:border-r" style={{ borderColor: "var(--border-default)" }}>
-          <PreviewTabs />
+          {chrome && <PreviewTabs />}
           <div className="p-3">
             <div className="mb-2 px-1">
               <span className="text-[10.5px] font-black uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>What&apos;s on Exam 1?</span>
@@ -91,12 +103,18 @@ export function StudentPreview({ campuses, label = "Student preview" }: {
         <PreviewQuestion />
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t px-4 py-3" style={{ borderColor: "var(--border-default)" }}>
-        <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>Exam 1 is free for every member.</span>
-        <a href={c.href} className="text-[13px] font-black underline underline-offset-4" style={{ color: "var(--accent)" }}>
-          Open the full student experience →
-        </a>
-      </div>
+      {chrome ? (
+        <div className="flex items-center justify-between gap-3 border-t px-4 py-3" style={{ borderColor: "var(--border-default)" }}>
+          <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>Exam 1 is free for every member.</span>
+          <a href={c.href} className="text-[13px] font-black underline underline-offset-4" style={{ color: "var(--accent)" }}>
+            Open the full student experience →
+          </a>
+        </div>
+      ) : (
+        <div className="border-t px-4 py-3" style={{ borderColor: "var(--border-default)" }}>
+          <span className="text-[12px]" style={{ color: "var(--text-muted)" }}>Exam 1 is free for every member.</span>
+        </div>
+      )}
     </div>
   );
 }

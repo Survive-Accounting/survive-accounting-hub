@@ -144,11 +144,27 @@ export function TierRow({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** The row both pages lay their two doors out in — same max width, same gap, same stacking. */
-export function DoorRow({ id, label, children }: { id?: string; label: string; children: React.ReactNode }) {
+/** The row every page lays its doors out in — same max width, same gap, same stacking.
+ *
+ *  THREE-UP is the council page: one audience, three channels. The row widens rather than
+ *  shrinking the cards, so a door is the same object on every surface and only the number of
+ *  them changes. Three across is a desktop layout only — at sm they are still two, and on a
+ *  phone they stack, because three 280px cards side by side is a row of business cards. */
+export function DoorRow({ id, label, children, cols = 2 }: {
+  id?: string;
+  label: string;
+  children: React.ReactNode;
+  cols?: 2 | 3;
+}) {
   return (
     <section id={id} aria-label={label} className="sa-anchor" style={{ fontFamily: BRAND_SANS }}>
-      <div className="mx-auto grid w-full max-w-[880px] gap-6 sm:grid-cols-2 sm:gap-9">{children}</div>
+      <div
+        className={cols === 3
+          ? "mx-auto grid w-full max-w-[1100px] gap-6 sm:grid-cols-2 sm:gap-7 lg:grid-cols-3"
+          : "mx-auto grid w-full max-w-[880px] gap-6 sm:grid-cols-2 sm:gap-9"}
+      >
+        {children}
+      </div>
     </section>
   );
 }
