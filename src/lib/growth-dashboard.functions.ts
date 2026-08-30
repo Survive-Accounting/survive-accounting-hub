@@ -107,10 +107,15 @@ export const growthCampusList = createServerFn({ method: "GET" }).handler(
       const { data } = await db
         .from("campuses")
         .select(
-          "id,name,display_name,slug,state,color_primary,color_secondary,course_family_codes_json",
+          "id,name,display_name,slug,state,color_primary,color_secondary,course_family_codes_json,campus_status,merged_into_id",
         )
         .in("id", campusIds.slice(i, i + 200));
-      for (const c of data ?? []) campuses.set(c.id, c);
+      // ENFORCE campus_status (canonical source): excluded/merged campuses — the deduped
+      // archived twins — never appear on the board, regardless of their priority rank.
+      for (const c of data ?? []) {
+        if (c.campus_status === "excluded" || c.merged_into_id) continue;
+        campuses.set(c.id, c);
+      }
     }
     const { data: codes } = await db
       .from("course_intel_campus_status")
@@ -142,7 +147,9 @@ export const growthCampusList = createServerFn({ method: "GET" }).handler(
     }
     const pinOf = new Map<string, any>((pins as any[]).map((p) => [p.campus_id, p]));
 
-    const rows: GrowthCampusRow[] = (priority as any[]).map((p) => {
+    const rows: GrowthCampusRow[] = (priority as any[])
+      .filter((p) => campuses.has(p.campus_id)) // drop excluded/merged (not in the map)
+      .map((p) => {
       const c = campuses.get(p.campus_id) ?? {};
       const comp = (p.components ?? {}) as any;
       const jsonCode =

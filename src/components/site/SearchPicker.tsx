@@ -39,7 +39,7 @@ export type PickerItem = {
   aliases?: string[];
 };
 
-export function SearchPicker({ items, value, placeholder, searchPlaceholder, disabled, disabledHint, onPick, ariaLabel }: {
+export function SearchPicker({ items, value, placeholder, searchPlaceholder, disabled, disabledHint, onPick, ariaLabel, renderEmpty }: {
   items: PickerItem[];
   value: string | null;
   placeholder: string;
@@ -49,6 +49,8 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
   disabledHint?: string;
   onPick: (value: string) => void;
   ariaLabel?: string;
+  /** Custom empty state (e.g. "Request your school"), given the current query. */
+  renderEmpty?: (query: string) => React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -215,7 +217,11 @@ export function SearchPicker({ items, value, placeholder, searchPlaceholder, dis
                 </button>
               </li>
             ))}
-            {!results.length && <li className="px-3.5 py-3 text-[13px] italic" style={{ color: "var(--text-muted)" }}>No matches.</li>}
+            {!results.length && (
+              <li className="px-3.5 py-3 text-[13px]" style={{ color: "var(--text-muted)" }}>
+                {renderEmpty ? renderEmpty(q) : <span className="italic">No matches.</span>}
+              </li>
+            )}
           </ul>
         </div>,
         </>, document.body,
