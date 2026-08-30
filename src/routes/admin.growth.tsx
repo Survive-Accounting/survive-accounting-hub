@@ -17,6 +17,7 @@ import {
   Network,
   Radar,
   Rocket,
+  Send,
   Users2,
 } from "lucide-react";
 import { AdminGate, getAdminWho } from "@/components/AdminGate";
@@ -44,14 +45,15 @@ export const Route = createFileRoute("/admin/growth")({
 // no message_id) and one accidental visit put four phantom emails on the daily counter.
 // It comes back when it's wired to real sends, not before.
 const TABS = [
+  { to: "/admin/growth/coldoutreach", label: "Cold Outreach", icon: Send },
   { to: "/admin/growth", label: "Campuses", icon: Building2, exact: true },
   { to: "/admin/growth/campaigns", label: "Campaigns", icon: Rocket },
-  { to: "/admin/growth/tranches", label: "Tranches", icon: Layers },
   { to: "/admin/growth/activity", label: "Activity", icon: Activity },
   { to: "/admin/growth/results", label: "Results", icon: BarChart3 },
 ] as const;
 
 const MORE_TABS = [
+  { to: "/admin/growth/tranches", label: "Tranches", icon: Layers },
   { to: "/admin/growth/campuses", label: "Campus table", icon: Building2 },
   { to: "/admin/growth/chapters", label: "Chapters", icon: GraduationCap },
   { to: "/admin/growth/councils", label: "Councils", icon: Landmark },

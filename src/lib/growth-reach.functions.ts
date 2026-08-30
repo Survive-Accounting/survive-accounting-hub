@@ -59,6 +59,7 @@ export const growthAddContact = createServerFn({ method: "POST" })
         role: z.string().trim().max(160).nullable().optional(),
         email: z.string().trim().max(200).nullable().optional(),
         instagram: z.string().trim().max(300).nullable().optional(),
+        isRoleAccount: z.boolean().optional(),
         sourceUrl: z.string().trim().max(500).nullable().optional(),
         note: z.string().trim().max(1000).nullable().optional(),
       })
@@ -108,6 +109,7 @@ export const growthAddContact = createServerFn({ method: "POST" })
       role: data.role?.trim() || null,
       email,
       instagram,
+      is_role_account: data.isRoleAccount ?? false,
       source_url: data.sourceUrl?.trim() || null,
       source_type: "manual_entry",
       confidence: "high", // a human found it and vouched for it
@@ -137,6 +139,7 @@ export const growthUpdateContact = createServerFn({ method: "POST" })
         role: z.string().trim().max(160).nullable().optional(),
         email: z.string().trim().max(200).nullable().optional(),
         instagram: z.string().trim().max(300).nullable().optional(),
+        isRoleAccount: z.boolean().optional(),
         sourceUrl: z.string().trim().max(500).nullable().optional(),
         contactType: z.enum(CONTACT_TYPES).optional(),
         note: z.string().trim().max(1000).nullable().optional(),
@@ -161,6 +164,7 @@ export const growthUpdateContact = createServerFn({ method: "POST" })
     if (data.role !== undefined) patch.role = data.role?.trim() || null;
     if (data.email !== undefined) patch.email = data.email?.trim().toLowerCase() || null;
     if (data.instagram !== undefined) patch.instagram = cleanHandle(data.instagram);
+    if (data.isRoleAccount !== undefined) patch.is_role_account = data.isRoleAccount;
     if (data.sourceUrl !== undefined) patch.source_url = data.sourceUrl?.trim() || null;
     if (data.contactType !== undefined) patch.contact_type = data.contactType;
     if (data.note !== undefined) patch.qc_notes = data.note?.trim() || null;
