@@ -56,7 +56,11 @@ export async function gatherPriorityInputs(db: DB): Promise<PriorityInput[]> {
       "campus_market_intelligence",
       "campus_id,segment,business_bachelors,growth_momentum_score,dup:raw_json->>duplicate_primary",
     ),
-    selectAll(db, "campuses", "id,name,display_name,slug"),
+    // ENFORCE campus_status: a re-rank never ranks a deduped/excluded campus (the archived
+    // twins). campus_status is the single universe source — not the raw campuses table.
+    selectAll(db, "campuses", "id,name,display_name,slug", (q) =>
+      q.neq("campus_status", "excluded").is("merged_into_id", null),
+    ),
     selectAll(
       db,
       "growth_outreach_eligibility",

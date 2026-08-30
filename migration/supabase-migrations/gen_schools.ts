@@ -48,40 +48,21 @@ const EXTRA_ALIASES: Record<string, string[]> = {
 const hasAliases = !(await db.from("campuses").select("search_aliases").limit(1)).error;
 const cols = `id,name,slug,short_name,state,color_primary,color_secondary,course_family_codes_json,is_sec${hasAliases ? ",search_aliases" : ""}`;
 
-const { data: bySlug } = await db.from("campuses").select(cols).in("slug", seedCsv.map((r) => r.slug)).is("archived_at", null);
-const { data: sec } = await db.from("campuses").select(cols).eq("is_sec", true).is("archived_at", null);
 
-// FAIL-SOFT: this generator runs at build time (vercel.json prepends it to the build). If the SEC
-// fetch came back empty the DB is unreachable or misconfigured -- do NOT rewrite the file with a
-// broken/partial list, which would blank the homepage picker. Keep the last-good committed file.
-if (!sec?.length) { console.warn("gen_schools: SEC fetch empty -- DB unreachable? Keeping committed schools.generated.ts."); process.exit(0); }
-
-// READY campuses auto-added to the picker: live, coloured, with >=1 greek chapter AND a professor
-// signal (an RMP match or a scraped faculty page). This is the rule that makes a newly-ready campus
-// appear on the homepage the next time the site deploys -- no hand-editing of the seed list. SEC and
-// the original seed set are always kept (unioned) so a campus already shown never silently drops.
-const chapterCampusIds = new Set<string>();
-for (let from = 0; ; from += 1000) {
-  const { data, error } = await db.from("campus_greek_chapters").select("campus_id").range(from, from + 999);
-  if (error) { console.warn(`gen_schools: greek read failed (${error.message}); proceeding with SEC+seed only.`); break; }
-  if (!data?.length) break;
-  for (const r of data as any[]) if (r.campus_id) chapterCampusIds.add(r.campus_id);
-  if (data.length < 1000) break;
+// THE PICKER IS THE LIVE SET (campus_status='live') AND NOTHING ELSE — the curated,
+// serve-able schools. archived_at is retired; campus_status is the single source of truth
+// (see the canonical-status work). A campus needs a slug + colours to render in the picker.
+// FAIL-SOFT: if the live set is empty (e.g. the semester pre-build hasn't been committed yet,
+// so no flagship is promoted to 'live'), keep the last-good committed file rather than blank
+// the homepage — the picker flips to the live set on the first build after live is populated.
+const { data: liveRows, error: liveErr } = await db.from("campuses").select(cols)
+  .eq("campus_status", "live").not("slug", "is", null).not("color_primary", "is", null);
+if (liveErr || !liveRows?.length) {
+  console.warn("gen_schools: live set empty/unreadable -- keeping committed schools.generated.ts (no blank picker).");
+  process.exit(0);
 }
-const { data: readyRows } = await db.from("campuses").select(cols)
-  .is("archived_at", null).not("slug", "is", null).not("color_primary", "is", null)
-  .or("rmp_school_id.not.is.null,faculty_page_url.not.is.null");
-const ready = (readyRows ?? []).filter((c: any) => chapterCampusIds.has(c.id));
-
 const seen = new Set<string>();
-const rows: any[] = [...(sec ?? []), ...(bySlug ?? []), ...ready].filter((c: any) => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
-// Seed rows whose DB slug we deliberately kept are not found by seed slug -- pick them up by name.
-for (const r of seedCsv) {
-  if (rows.some((c) => c.slug === r.slug)) continue;
-  const { data } = await db.from("campuses").select(cols).ilike("name", r.campus_name).is("archived_at", null).limit(1);
-  const hit: any = data?.[0];
-  if (hit && !seen.has(hit.id)) { seen.add(hit.id); rows.push(hit); }
-}
+const rows: any[] = (liveRows as any[]).filter((c) => { if (seen.has(c.id)) return false; seen.add(c.id); return true; });
 
 /** slug -> brand.tsx id. Explicit, because the DISPLAY name is not the brand id: Missouri
  *  displays as "Mizzou" but its brand entry is keyed "missouri", and deriving the key from the
