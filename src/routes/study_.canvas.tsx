@@ -141,6 +141,7 @@ import { CameraBubble } from "@/components/canvas/CameraBubble";
 import { FrameRearrangeGrid } from "@/components/canvas/FrameRearrangeGrid";
 import { BrandBar, BrandWatermark } from "@/components/canvas/BrandBar";
 import { CanvasNavbar } from "@/components/canvas/CanvasNavbar";
+import { UsageTelemetryProvider } from "@/components/usage/UsageTelemetryProvider";
 
 // Panels that can be popped out to the director's second-monitor window.
 type PopKey = "teleprompter" | "cuesheet" | "deck" | "script" | "runtimer" | "outline" | "ceqstudio";
@@ -5694,6 +5695,9 @@ function PresentCanvas() {
            sidebar; the old toolbar/drawer/pager live on under "View archive" (v1).
            Film mode renders neither — the stage wrapper fills the root exactly as
            before, so takes are pixel-identical. */}
+      {/* USAGE TELEMETRY (admin) — logs interaction/impression on instrumented elements
+          (data-sa-el) so dashboards can be simplified on evidence. Null render; never blocks. */}
+      <UsageTelemetryProvider surface="study-canvas" userId={null} />
       {chrome && !chromeV1 && (
         <CanvasNavbar
           sceneName={sceneName}
