@@ -558,3 +558,23 @@ SQL LEE MUST RUN (before stars/context windows persist):
 `migration/supabase-migrations/20260829_0900_talkthrough_v2.sql`
 
 B9 (control-room skin): ON HOLD per the prompt — not built.
+
+## 2026-08-30 — Booth punch list from Lee's first v2 sitting
+
+- **Ghost segments diagnosed**: they were WHISPER HALLUCINATIONS on near-silent
+  chunks. One keyboard clack crossed the RMS threshold, the whole quiet chunk
+  shipped, and Whisper — trained on a world of video outros — invented "don't
+  forget to like and subscribe" / "ご視聴ありがとうございました". Two-layer fix:
+  chunks now need ≥400ms of ACCUMULATED loud time to ship at all, and a Whisper
+  result matching the stock-outro/no-letters patterns is dropped (logged loud)
+  when the live mic ALSO heard nothing. Live text always wins — words the
+  browser heard are never dropped. Pinned by unit tests.
+- Stamp reorg (config only, no data rewrite): EDIT THE CEQ → **BANK A NEW:**
+  (Phrase/Trigger Word/Tip/Cheat Code/Real World/Other Memo — these ARE the
+  banked items, template-styled, no generated memos) → **TO MAKE LATER**
+  (Blast Off/Other Short/Nerd Out/Review Vibes) → Exhibit separated below.
+- Keyboard: ↑↓←→ walk the stamp board (dashed blue cursor), Enter starts/stops
+  the selected stamp, Space next CEQ, Shift+Space back (lands on General).
+  An OPEN stamp pulses gold — lights on. Inputs/textareas are exempt.
+- Qs with stamped data light gold (● in the path tree). "General set talk" →
+  "General set brainstorm". Sync badge tooltip now explains synced vs unsynced.

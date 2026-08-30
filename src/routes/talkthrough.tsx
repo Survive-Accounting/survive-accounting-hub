@@ -20,7 +20,7 @@
 // Studio scope only. AdminGate'd, noindexed. Raw transcripts are first-class:
 // the verbatim view is the default and nothing here can rewrite one.
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Check, ChevronDown, ChevronRight, Copy, Mic, Shuffle, Square, Wand2, X } from "lucide-react";
 
 import { AdminGate } from "@/components/AdminGate";
@@ -193,7 +193,7 @@ function SyncBadge({ tt }: { tt: TTState }) {
       type="button"
       className="ml-auto rounded-full px-3 py-1 text-[11px]"
       style={{ border: `1px solid ${color}55`, color, background: "transparent", cursor: "pointer" }}
-      title="Local-first: every word is already saved on this device. Tap to retry the server sync now."
+      title={"SYNCED = copied to the server (safe even if this device dies).\nEverything you say is saved ON THIS DEVICE the instant you say it — 'N unsynced' means N rows are still waiting to copy up. It retries by itself; tap to retry right now."}
       onClick={() => { void pullTT(); void flushTT(); }}
     >
       {label}
@@ -202,7 +202,7 @@ function SyncBadge({ tt }: { tt: TTState }) {
 }
 
 
-function PathTree({ topics, activeSetId, activeCeqs, focusId, onSet, onCeq }: {
+function PathTree({ topics, activeSetId, activeCeqs, focusId, onSet, onCeq, stampedCeqIds }: {
   topics: BoothTopic[] | null;
   activeSetId: string | null;
   /** The active set's CEQs — rendered inside the tree under that set. */
@@ -210,6 +210,8 @@ function PathTree({ topics, activeSetId, activeCeqs, focusId, onSet, onCeq }: {
   focusId: string | null;
   onSet: (s: BoothSetInfo) => void;
   onCeq?: (c: BoothCeq | null) => void;
+  /** CEQs that already carry stamped data this session — lit in the tree. */
+  stampedCeqIds?: Set<string>;
 }) {
   const [openTopics, setOpenTopics] = useState<Set<string>>(new Set());
   // The topic holding the active set opens itself.
@@ -265,23 +267,27 @@ function PathTree({ topics, activeSetId, activeCeqs, focusId, onSet, onCeq }: {
                         style={{ background: focusId === null ? "rgba(252,163,17,0.14)" : "transparent", border: "none", color: focusId === null ? GOLD : NEON.muted, fontSize: 11 }}
                         onClick={() => onCeq(null)}
                       >
-                        General set talk
+                        General set brainstorm
                       </button>
-                      {activeCeqs.map((c, i) => (
-                        <button
-                          key={c.id}
-                          className="rounded-md px-2 py-1 text-left"
-                          style={{
-                            background: focusId === c.id ? "rgba(252,163,17,0.14)" : "transparent",
-                            border: "none", color: focusId === c.id ? CREAM : NEON.muted, fontSize: 11,
-                            opacity: c.noteOnly ? 0.6 : 1,
-                          }}
-                          onClick={() => onCeq(c)}
-                        >
-                          <span style={{ fontWeight: 700 }}>Q{i + 1}</span> · {(c.stem || c.label).slice(0, 44)}
-                          {c.draft && <DraftChip />}
-                        </button>
-                      ))}
+                      {activeCeqs.map((c, i) => {
+                        const stamped = !!stampedCeqIds?.has(c.id);
+                        return (
+                          <button
+                            key={c.id}
+                            className="rounded-md px-2 py-1 text-left"
+                            style={{
+                              background: focusId === c.id ? "rgba(252,163,17,0.14)" : "transparent",
+                              border: "none", color: focusId === c.id ? CREAM : stamped ? CREAM : NEON.muted, fontSize: 11,
+                              opacity: c.noteOnly ? 0.6 : 1,
+                            }}
+                            onClick={() => onCeq(c)}
+                          >
+                            <span style={{ fontWeight: 700, color: stamped ? GOLD : undefined }}>Q{i + 1}</span> · {(c.stem || c.label).slice(0, 44)}
+                            {stamped && <span title="Has stamped data this session" style={{ color: GOLD, marginLeft: 4 }}>●</span>}
+                            {c.draft && <DraftChip />}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -377,6 +383,15 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
   const segs = sessionSegments(tt.doc, session.id);
   const recent = segs.slice(-showCount);
   const stars = allTags.filter((t) => t.starred && !t.archivedAt);
+  // CEQs that already carry stamps/stars this session — lit gold in the tree.
+  const stampedCeqIds = useMemo(
+    () => new Set(allTags.filter((t) => !t.archivedAt && t.focusedCeqId).map((t) => t.focusedCeqId!)),
+    [allTags],
+  );
+  // Keyboard: ↑↓←→ walk the stamp board, Enter starts/stops the selected
+  // stamp, Space next CEQ, Shift+Space previous (General ← Q1).
+  const flatStamps = useMemo(() => STAMP_GROUPS.flatMap((g) => g.kinds), []);
+  const [selStamp, setSelStamp] = useState<StampKind | null>(null);
   const pendingEdits = sessionBoard(tt.doc, session.id).filter((b) => b.kind === "ceq_edit");
 
   const clickCeq = (c: BoothCeq | null) => {
@@ -441,6 +456,39 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
     putTag({ ...makeTag(session.id, kind as never, focusPayload), starred: true, endedAt: new Date().toISOString() });
   };
 
+  /** Space / Shift+Space CEQ surfing. dir=+1 walks Q1→Qn and stops at the
+   *  end; dir=-1 walks back and lands on General set brainstorm before Q1. */
+  const surfCeq = (dir: 1 | -1) => {
+    if (!ceqs?.length) return;
+    if (dir === 1) clickCeq(ceqs[Math.min(focusIndex + 1, ceqs.length - 1)]);
+    else if (focusIndex <= 0) clickCeq(null);
+    else clickCeq(ceqs[focusIndex - 1]);
+  };
+  // The handlers close over per-render state; the ONE listener reads the
+  // latest through this ref so it never has to re-bind.
+  const keys = useRef({ stamp, surfCeq, selStamp, flatStamps });
+  keys.current = { stamp, surfCeq, selStamp, flatStamps };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      const k = keys.current;
+      const move = (d: 1 | -1) => {
+        e.preventDefault();
+        setSelStamp((s) => {
+          const i = s ? k.flatStamps.indexOf(s) : d === 1 ? -1 : 0;
+          return k.flatStamps[(i + d + k.flatStamps.length) % k.flatStamps.length];
+        });
+      };
+      if (e.key === "ArrowDown" || e.key === "ArrowRight") move(1);
+      else if (e.key === "ArrowUp" || e.key === "ArrowLeft") move(-1);
+      else if (e.key === "Enter") { if (k.selStamp) { e.preventDefault(); k.stamp(k.selStamp); } }
+      else if (e.key === " ") { e.preventDefault(); k.surfCeq(e.shiftKey ? -1 : 1); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   const startMic = () => { setMicError(null); setPaused(false); rec.start().catch((e) => setMicError(e instanceof Error ? e.message : String(e))); };
   const pauseMic = () => { rec.stop(); setPaused(true); }; // mic RELEASED; session stays open
 
@@ -448,7 +496,7 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
     <div className="flex gap-4" style={{ alignItems: "stretch", minHeight: "78vh" }}>
       {/* LEFT — the Exam 1 path, exactly the player's shape */}
       <div style={{ width: 330, flexShrink: 0 }}>
-        <PathTree topics={topics} activeSetId={session.setId} activeCeqs={ceqs} focusId={focusId} onSet={(x) => { rec.stop(); onSwitchSet(x); }} onCeq={clickCeq} />
+        <PathTree topics={topics} activeSetId={session.setId} activeCeqs={ceqs} focusId={focusId} onSet={(x) => { rec.stop(); onSwitchSet(x); }} onCeq={clickCeq} stampedCeqIds={stampedCeqIds} />
         {!set && <div style={{ color: NEON.muted, fontSize: 12, marginTop: 8 }}>Set not in the live bank — you can still talk; segments anchor to the session.</div>}
       </div>
 
@@ -461,7 +509,7 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
               Q{focusIndex + 1} / {ceqs?.length ?? "?"}
             </span>
           ) : (
-            <span style={{ color: GOLD, fontSize: 11, fontWeight: 700 }}>GENERAL SET TALK</span>
+            <span style={{ color: GOLD, fontSize: 11, fontWeight: 700 }}>GENERAL SET BRAINSTORM</span>
           )}
           {focused?.draft && <DraftChip />}
           {focused && pendingEdits.some((b) => (b.payload as { ceqId?: string }).ceqId === focused.id) && (
@@ -551,20 +599,35 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
           <div style={{ fontFamily: BIG_FONT, fontSize: 16.5, fontWeight: 700, lineHeight: 1.3, marginTop: 5, minHeight: 42 }}>{NUDGES[nudge]}</div>
         </div>
 
-        {/* B2 — THE STAMP BOARD: three labeled groups; every stamp opens a
-            context; ★ bookmarks {stamp, ceq} without opening one. */}
+        {/* B2 — THE STAMP BOARD. Every stamp opens a context; ★ bookmarks
+            {stamp, ceq} without opening one. Keyboard: ↑↓←→ select, Enter
+            starts/stops. An OPEN stamp glows like a light left on; the
+            keyboard cursor is the dashed blue ring. An empty group label
+            (Exhibit) renders as a separated tail — not one of the video
+            options. */}
+        <style>{`@keyframes tt-stamp-glow{0%,100%{box-shadow:0 0 5px 1px rgba(252,163,17,.5)}50%{box-shadow:0 0 16px 5px rgba(252,163,17,.9)}}`}</style>
         {STAMP_GROUPS.map((g) => (
-          <div key={g.id}>
-            <div style={{ fontSize: 9.5, letterSpacing: "0.22em", color: NEON.muted, textTransform: "uppercase", fontWeight: 900, marginBottom: 4 }}>{g.label}</div>
+          <div key={g.id} style={g.label ? undefined : { marginTop: 2, borderTop: `1px dashed ${EDGE}`, paddingTop: 8 }}>
+            {g.label && <div style={{ fontSize: 9.5, letterSpacing: "0.22em", color: NEON.muted, textTransform: "uppercase", fontWeight: 900, marginBottom: 4 }}>{g.label}</div>}
             <div className="flex flex-wrap gap-1.5">
               {g.kinds.map((k) => {
                 const active = !!ctx && canonicalStamp(ctx.tag) === k;
+                const selected = selStamp === k;
                 return (
-                  <div key={k} className="flex items-stretch" style={{ borderRadius: 10, overflow: "hidden", border: `1.5px solid ${active ? GOLD : EDGE}` }}>
+                  <div
+                    key={k}
+                    className="flex items-stretch"
+                    style={{
+                      borderRadius: 10, overflow: "hidden",
+                      border: `1.5px solid ${active ? GOLD : EDGE}`,
+                      outline: selected ? "2px dashed #7DD3FC" : "none", outlineOffset: 1,
+                      animation: active ? "tt-stamp-glow 1.5s ease-in-out infinite" : "none",
+                    }}
+                  >
                     <button
                       className="px-2.5 py-1.5"
                       style={{ background: active ? GOLD : PANEL, color: active ? "#0B1322" : CREAM, fontFamily: BIG_FONT, fontWeight: 800, fontSize: 11 }}
-                      onClick={() => stamp(k)}
+                      onClick={() => { setSelStamp(k); stamp(k); }}
                     >
                       {STAMP_LABELS[k]}
                     </button>
@@ -582,6 +645,9 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
             </div>
           </div>
         ))}
+        <div style={{ color: NEON.muted, fontSize: 9.5, lineHeight: 1.5 }}>
+          ⌨ ↑↓←→ select a stamp · Enter start/stop it · Space next Q · Shift+Space back
+        </div>
 
         <div className="mt-auto flex flex-col gap-2">
           {(status.uploadQueue > 0 || status.transcribeQueue > 0) && (
