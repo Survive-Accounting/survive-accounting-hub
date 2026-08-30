@@ -19,12 +19,20 @@ import { ANIMATED_CAMPUS_BOLT_CSS } from "@/components/site/bolt";
 /** A partner FAQ entry — same card treatment as the student FAQ. */
 export type PartnerFaq = { q: string; a: string };
 
-export function PartnerPageShell({ boltVars, children, faqs, faqTitle = "Questions partners ask" }: {
+export function PartnerPageShell({ boltVars, children, faqs, faqTitle = "Common questions.", testimonialsHeading, homeNav = false }: {
   /** The campus colourway to publish on the page root, when the page belongs to one campus. */
   boltVars?: { c1: string; c2: string } | null;
   children: React.ReactNode;
   faqs: PartnerFaq[];
+  /** "Questions partners ask" told the reader she was a partner before she agreed to be one. */
   faqTitle?: string;
+  /** Passed through so a campus page can say WHOSE students are quoted — see SocialProofSection. */
+  testimonialsHeading?: string;
+  /** THE HOMEPAGE BAR: Reviews + Meet your tutor, no orange CTA. The council page uses it so the
+   *  officer meets the same navbar she would on "/" — and because its two anchors (#reviews,
+   *  #lee) both resolve on this page, which is what makes the homepage bar honest here. The
+   *  default stays the generic partner bar for every other partner surface. */
+  homeNav?: boolean;
 }) {
   useNavyDocument();
   const [bio, setBio] = useState(false);
@@ -41,7 +49,7 @@ export function PartnerPageShell({ boltVars, children, faqs, faqTitle = "Questio
       <style>{ANIMATED_CAMPUS_BOLT_CSS}</style>
       <div style={{ position: "fixed", inset: 0, zIndex: 0 }}><FrameBackground variant="orbital" intensity={0.3} animate /></div>
 
-      <SiteHeader />
+      <SiteHeader homeNav={homeNav} />
       <main style={{ position: "relative", zIndex: 1, maxWidth: 1040, margin: "0 auto", padding: "0 20px", width: "100%" }}>
         {children}
 
@@ -58,7 +66,7 @@ export function PartnerPageShell({ boltVars, children, faqs, faqTitle = "Questio
             the same tutor and the same reviews; rebuilding a B2B version of this would be both
             more work and less honest. */}
         <div className="mt-16" id="reviews">
-          <SocialProofSection testimonials={<TestimonialsSlider />} tutor={<TutorCard onMore={() => setBio(true)} />} />
+          <SocialProofSection testimonials={<TestimonialsSlider />} tutor={<TutorCard onMore={() => setBio(true)} />} testimonialsHeading={testimonialsHeading} />
         </div>
       </main>
 

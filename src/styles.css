@@ -721,6 +721,13 @@ html.sa-navy body {
 }
 .sa-field::placeholder { color: var(--text-tertiary, #7C89A4); opacity: 1; }
 
+/* THE CLAIM FORM'S FIELD GRID — name + role on one row, email + mobile on the next, so four
+   boxes read as two questions instead of a column to survive. One column below 420px, where two
+   would leave neither wide enough to type a real email address into. */
+@media (min-width: 420px) {
+  .sa-claim-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════════════════════
    ADMIN DARK (Growth V2) — the internal workspace wearing the product's clothes.
 

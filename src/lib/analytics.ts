@@ -80,6 +80,10 @@ export const SA_EVENTS = [
   "homepage_study_solo_clicked",
   "homepage_chapter_clicked",
   "homepage_course_scope_opened",
+  // The campus-line swap (08-29). Worth counting on its own: a high rate here means the campus
+  // the cookie/flagship default resolves is WRONG often, which is a data problem wearing a UI
+  // costume. Same properties as its siblings.
+  "homepage_school_switch_opened",
   // Player V2 "Tonight's Plan" beta (08-27, /preview/exam1 only). Properties:
   // {mode, goal, estimated_minutes, included_step_count, from_mode, to_mode, from_goal, to_goal,
   //  topic, added_depth, estimated_minutes_added}.

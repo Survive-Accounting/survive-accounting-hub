@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as WaitlistRouteImport } from './routes/waitlist'
+import { Route as TheCampaignRouteImport } from './routes/the-campaign'
 import { Route as ThankyouRouteImport } from './routes/thankyou'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TalkthroughRouteImport } from './routes/talkthrough'
@@ -49,6 +50,7 @@ import { Route as StudyCanvasRouteImport } from './routes/study_.canvas'
 import { Route as RepJoinRouteImport } from './routes/rep_.join'
 import { Route as RepDashboardRouteImport } from './routes/rep_.dashboard'
 import { Route as RCodeRouteImport } from './routes/r.$code'
+import { Route as PreviewStudentplayerv1RouteImport } from './routes/preview_.studentplayerv1'
 import { Route as PreviewHomeRouteImport } from './routes/preview_.home'
 import { Route as PreviewExam1RouteImport } from './routes/preview_.exam1'
 import { Route as PartnersNationalOrganizationsRouteImport } from './routes/partners.national-organizations'
@@ -114,6 +116,7 @@ import { Route as ApiCronWeeklyDigestRouteImport } from './routes/api.cron.weekl
 import { Route as ApiCronKingDigestRouteImport } from './routes/api.cron.king-digest'
 import { Route as ApiCronGrowthCampaignsRouteImport } from './routes/api.cron.growth-campaigns'
 import { Route as ApiCronCommsSequencesRouteImport } from './routes/api.cron.comms-sequences'
+import { Route as ApiCronChapterReportsRouteImport } from './routes/api.cron.chapter-reports'
 import { Route as ApiCronBackupRouteImport } from './routes/api.cron.backup'
 import { Route as AdminRepsRosterRouteImport } from './routes/admin.reps.roster'
 import { Route as AdminRepsPartnersRouteImport } from './routes/admin.reps.partners'
@@ -149,6 +152,11 @@ const WelcomeRoute = WelcomeRouteImport.update({
 const WaitlistRoute = WaitlistRouteImport.update({
   id: '/waitlist',
   path: '/waitlist',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TheCampaignRoute = TheCampaignRouteImport.update({
+  id: '/the-campaign',
+  path: '/the-campaign',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ThankyouRoute = ThankyouRouteImport.update({
@@ -339,6 +347,11 @@ const RepDashboardRoute = RepDashboardRouteImport.update({
 const RCodeRoute = RCodeRouteImport.update({
   id: '/r/$code',
   path: '/r/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PreviewStudentplayerv1Route = PreviewStudentplayerv1RouteImport.update({
+  id: '/preview_/studentplayerv1',
+  path: '/preview/studentplayerv1',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PreviewHomeRoute = PreviewHomeRouteImport.update({
@@ -674,6 +687,11 @@ const ApiCronCommsSequencesRoute = ApiCronCommsSequencesRouteImport.update({
   path: '/api/cron/comms-sequences',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronChapterReportsRoute = ApiCronChapterReportsRouteImport.update({
+  id: '/api/cron/chapter-reports',
+  path: '/api/cron/chapter-reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronBackupRoute = ApiCronBackupRouteImport.update({
   id: '/api/cron/backup',
   path: '/api/cron/backup',
@@ -836,6 +854,7 @@ export interface FileRoutesByFullPath {
   '/talkthrough': typeof TalkthroughRoute
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
+  '/the-campaign': typeof TheCampaignRoute
   '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
@@ -882,6 +901,7 @@ export interface FileRoutesByFullPath {
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
   '/preview/exam1': typeof PreviewExam1Route
   '/preview/home': typeof PreviewHomeRoute
+  '/preview/studentplayerv1': typeof PreviewStudentplayerv1Route
   '/r/$code': typeof RCodeRoute
   '/rep/dashboard': typeof RepDashboardRoute
   '/rep/join': typeof RepJoinRoute
@@ -912,6 +932,7 @@ export interface FileRoutesByFullPath {
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
   '/admin/reps/roster': typeof AdminRepsRosterRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
+  '/api/cron/chapter-reports': typeof ApiCronChapterReportsRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
@@ -968,6 +989,7 @@ export interface FileRoutesByTo {
   '/talkthrough': typeof TalkthroughRoute
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
+  '/the-campaign': typeof TheCampaignRoute
   '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
@@ -1012,6 +1034,7 @@ export interface FileRoutesByTo {
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
   '/preview/exam1': typeof PreviewExam1Route
   '/preview/home': typeof PreviewHomeRoute
+  '/preview/studentplayerv1': typeof PreviewStudentplayerv1Route
   '/r/$code': typeof RCodeRoute
   '/rep/dashboard': typeof RepDashboardRoute
   '/rep/join': typeof RepJoinRoute
@@ -1042,6 +1065,7 @@ export interface FileRoutesByTo {
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
   '/admin/reps/roster': typeof AdminRepsRosterRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
+  '/api/cron/chapter-reports': typeof ApiCronChapterReportsRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
@@ -1100,6 +1124,7 @@ export interface FileRoutesById {
   '/talkthrough': typeof TalkthroughRoute
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
+  '/the-campaign': typeof TheCampaignRoute
   '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
@@ -1146,6 +1171,7 @@ export interface FileRoutesById {
   '/partners/national-organizations': typeof PartnersNationalOrganizationsRoute
   '/preview_/exam1': typeof PreviewExam1Route
   '/preview_/home': typeof PreviewHomeRoute
+  '/preview_/studentplayerv1': typeof PreviewStudentplayerv1Route
   '/r/$code': typeof RCodeRoute
   '/rep_/dashboard': typeof RepDashboardRoute
   '/rep_/join': typeof RepJoinRoute
@@ -1176,6 +1202,7 @@ export interface FileRoutesById {
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
   '/admin/reps/roster': typeof AdminRepsRosterRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
+  '/api/cron/chapter-reports': typeof ApiCronChapterReportsRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
   '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
@@ -1235,6 +1262,7 @@ export interface FileRouteTypes {
     | '/talkthrough'
     | '/terms'
     | '/thankyou'
+    | '/the-campaign'
     | '/waitlist'
     | '/welcome'
     | '/$school/rep'
@@ -1281,6 +1309,7 @@ export interface FileRouteTypes {
     | '/partners/national-organizations'
     | '/preview/exam1'
     | '/preview/home'
+    | '/preview/studentplayerv1'
     | '/r/$code'
     | '/rep/dashboard'
     | '/rep/join'
@@ -1311,6 +1340,7 @@ export interface FileRouteTypes {
     | '/admin/reps/partners'
     | '/admin/reps/roster'
     | '/api/cron/backup'
+    | '/api/cron/chapter-reports'
     | '/api/cron/comms-sequences'
     | '/api/cron/growth-campaigns'
     | '/api/cron/king-digest'
@@ -1367,6 +1397,7 @@ export interface FileRouteTypes {
     | '/talkthrough'
     | '/terms'
     | '/thankyou'
+    | '/the-campaign'
     | '/waitlist'
     | '/welcome'
     | '/$school/rep'
@@ -1411,6 +1442,7 @@ export interface FileRouteTypes {
     | '/partners/national-organizations'
     | '/preview/exam1'
     | '/preview/home'
+    | '/preview/studentplayerv1'
     | '/r/$code'
     | '/rep/dashboard'
     | '/rep/join'
@@ -1441,6 +1473,7 @@ export interface FileRouteTypes {
     | '/admin/reps/partners'
     | '/admin/reps/roster'
     | '/api/cron/backup'
+    | '/api/cron/chapter-reports'
     | '/api/cron/comms-sequences'
     | '/api/cron/growth-campaigns'
     | '/api/cron/king-digest'
@@ -1498,6 +1531,7 @@ export interface FileRouteTypes {
     | '/talkthrough'
     | '/terms'
     | '/thankyou'
+    | '/the-campaign'
     | '/waitlist'
     | '/welcome'
     | '/$school/rep'
@@ -1544,6 +1578,7 @@ export interface FileRouteTypes {
     | '/partners/national-organizations'
     | '/preview_/exam1'
     | '/preview_/home'
+    | '/preview_/studentplayerv1'
     | '/r/$code'
     | '/rep_/dashboard'
     | '/rep_/join'
@@ -1574,6 +1609,7 @@ export interface FileRouteTypes {
     | '/admin/reps/partners'
     | '/admin/reps/roster'
     | '/api/cron/backup'
+    | '/api/cron/chapter-reports'
     | '/api/cron/comms-sequences'
     | '/api/cron/growth-campaigns'
     | '/api/cron/king-digest'
@@ -1632,6 +1668,7 @@ export interface RootRouteChildren {
   TalkthroughRoute: typeof TalkthroughRoute
   TermsRoute: typeof TermsRoute
   ThankyouRoute: typeof ThankyouRoute
+  TheCampaignRoute: typeof TheCampaignRoute
   WaitlistRoute: typeof WaitlistRoute
   WelcomeRoute: typeof WelcomeRoute
   SchoolRepRoute: typeof SchoolRepRoute
@@ -1649,6 +1686,7 @@ export interface RootRouteChildren {
   PartnersNationalOrganizationsRoute: typeof PartnersNationalOrganizationsRoute
   PreviewExam1Route: typeof PreviewExam1Route
   PreviewHomeRoute: typeof PreviewHomeRoute
+  PreviewStudentplayerv1Route: typeof PreviewStudentplayerv1Route
   RCodeRoute: typeof RCodeRoute
   RepDashboardRoute: typeof RepDashboardRoute
   RepJoinRoute: typeof RepJoinRoute
@@ -1660,6 +1698,7 @@ export interface RootRouteChildren {
   SchoolIndexRoute: typeof SchoolIndexRoute
   UIndexRoute: typeof UIndexRoute
   ApiCronBackupRoute: typeof ApiCronBackupRoute
+  ApiCronChapterReportsRoute: typeof ApiCronChapterReportsRoute
   ApiCronCommsSequencesRoute: typeof ApiCronCommsSequencesRoute
   ApiCronGrowthCampaignsRoute: typeof ApiCronGrowthCampaignsRoute
   ApiCronKingDigestRoute: typeof ApiCronKingDigestRoute
@@ -1692,6 +1731,13 @@ declare module '@tanstack/react-router' {
       path: '/waitlist'
       fullPath: '/waitlist'
       preLoaderRoute: typeof WaitlistRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/the-campaign': {
+      id: '/the-campaign'
+      path: '/the-campaign'
+      fullPath: '/the-campaign'
+      preLoaderRoute: typeof TheCampaignRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/thankyou': {
@@ -1958,6 +2004,13 @@ declare module '@tanstack/react-router' {
       path: '/r/$code'
       fullPath: '/r/$code'
       preLoaderRoute: typeof RCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/preview_/studentplayerv1': {
+      id: '/preview_/studentplayerv1'
+      path: '/preview/studentplayerv1'
+      fullPath: '/preview/studentplayerv1'
+      preLoaderRoute: typeof PreviewStudentplayerv1RouteImport
       parentRoute: typeof rootRouteImport
     }
     '/preview_/home': {
@@ -2415,6 +2468,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronCommsSequencesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/chapter-reports': {
+      id: '/api/cron/chapter-reports'
+      path: '/api/cron/chapter-reports'
+      fullPath: '/api/cron/chapter-reports'
+      preLoaderRoute: typeof ApiCronChapterReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/backup': {
       id: '/api/cron/backup'
       path: '/api/cron/backup'
@@ -2811,6 +2871,7 @@ const rootRouteChildren: RootRouteChildren = {
   TalkthroughRoute: TalkthroughRoute,
   TermsRoute: TermsRoute,
   ThankyouRoute: ThankyouRoute,
+  TheCampaignRoute: TheCampaignRoute,
   WaitlistRoute: WaitlistRoute,
   WelcomeRoute: WelcomeRoute,
   SchoolRepRoute: SchoolRepRoute,
@@ -2828,6 +2889,7 @@ const rootRouteChildren: RootRouteChildren = {
   PartnersNationalOrganizationsRoute: PartnersNationalOrganizationsRoute,
   PreviewExam1Route: PreviewExam1Route,
   PreviewHomeRoute: PreviewHomeRoute,
+  PreviewStudentplayerv1Route: PreviewStudentplayerv1Route,
   RCodeRoute: RCodeRoute,
   RepDashboardRoute: RepDashboardRoute,
   RepJoinRoute: RepJoinRoute,
@@ -2839,6 +2901,7 @@ const rootRouteChildren: RootRouteChildren = {
   SchoolIndexRoute: SchoolIndexRoute,
   UIndexRoute: UIndexRoute,
   ApiCronBackupRoute: ApiCronBackupRoute,
+  ApiCronChapterReportsRoute: ApiCronChapterReportsRoute,
   ApiCronCommsSequencesRoute: ApiCronCommsSequencesRoute,
   ApiCronGrowthCampaignsRoute: ApiCronGrowthCampaignsRoute,
   ApiCronKingDigestRoute: ApiCronKingDigestRoute,

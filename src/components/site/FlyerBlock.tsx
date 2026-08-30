@@ -17,7 +17,7 @@ import { useEffect, useState } from "react";
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { logGreekEvent } from "@/lib/greek-go.functions";
 
-export function FlyerBlock({ schoolSlug, chapterSlug, chapterName, title, subtitle }: {
+export function FlyerBlock({ schoolSlug, chapterSlug, chapterName, title, subtitle, onShared, compact = false }: {
   schoolSlug: string;
   /** "campus" for the campus-wide flyer. */
   chapterSlug: string;
@@ -26,6 +26,13 @@ export function FlyerBlock({ schoolSlug, chapterSlug, chapterName, title, subtit
    *  point at a flyer that failed to render. */
   title?: string;
   subtitle?: string;
+  /** Fires when the visitor actually takes the flyer (download or print) — feeds the K4.3 nudge. */
+  onShared?: () => void;
+  /** TIER MODE: the actions only, no preview thumbnail and no caption, sized to sit inside a
+   *  share-kit tier door. The SVG is still fetched — it is the liveness probe that decides
+   *  whether these buttons appear at all, and a button pointing at a broken generator is worse
+   *  than no button. */
+  compact?: boolean;
 }) {
   const [failed, setFailed] = useState(false);
   const [svg, setSvg] = useState<string | null>(null);
@@ -52,8 +59,8 @@ export function FlyerBlock({ schoolSlug, chapterSlug, chapterName, title, subtit
     return () => { live = false; };
   }, [base]);
 
-  const log = (action: "flyer_download" | "flyer_print") =>
-    void logGreekEvent({ data: { kind: action === "flyer_download" ? "flyer_download" : "flyer_print", schoolSlug, chapterSlug } }).catch(() => {});
+  const log = (action: "flyer_download" | "flyer_print") => (onShared?.(),
+    void logGreekEvent({ data: { kind: action === "flyer_download" ? "flyer_download" : "flyer_print", schoolSlug, chapterSlug, via: "flyer" } }).catch(() => {}));
 
   const print = () => {
     log("flyer_print");
@@ -69,6 +76,28 @@ export function FlyerBlock({ schoolSlug, chapterSlug, chapterName, title, subtit
     minHeight: 46, background: "rgba(245,239,230,0.06)",
     border: "1px solid rgba(245,239,230,0.16)", color: "var(--brand-cream)",
   };
+
+  if (compact) {
+    return (
+      <div className="flex w-full flex-col gap-2" style={{ fontFamily: BRAND_SANS }}>
+        {isPhone ? (
+          <a href={pdf} download={filename} onClick={() => log("flyer_download")}
+             className="flex items-center justify-center gap-1.5 rounded-[10px] px-3 text-[13.5px] font-black" style={BTN}>
+            <span aria-hidden>⬇</span> Save the flyer
+          </a>
+        ) : (
+          <button type="button" onClick={print}
+                  className="flex items-center justify-center gap-1.5 rounded-[10px] px-3 text-[13.5px] font-black" style={BTN}>
+            <span aria-hidden>🖨</span> Print the flyer
+          </button>
+        )}
+        <a href={pdf} target="_blank" rel="noreferrer" className="text-[11.5px] underline underline-offset-4"
+           style={{ color: "var(--text-muted)" }}>
+          Preview it
+        </a>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto mt-3 w-full max-w-sm" style={{ fontFamily: BRAND_SANS }}>
@@ -114,7 +143,7 @@ export function FlyerBlock({ schoolSlug, chapterSlug, chapterName, title, subtit
       </div>
 
       <p className="mt-2 text-center text-[11.5px]" style={{ color: "var(--text-muted)" }}>
-        Print it and post it in the chapter house — the QR goes straight to this page.
+        Print it and post it in the chapter house.
       </p>
     </div>
   );

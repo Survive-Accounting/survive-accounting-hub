@@ -7,15 +7,25 @@
 //   LEFT  — the member who came to study. Boiling bolt, the course code as its HEADING, and the
 //           same action the old "Start Exam 1 Free" CTA had (scroll to the player + tag the
 //           member for chapter attribution).
-//   RIGHT — anyone spreading it. NOT exec-only: no account, no permission, no claim needed.
+//   RIGHT — anyone spreading it. Every member can, not just exec — the card sells the result
+//           (the whole house gets the help) rather than the absence of a gate.
 //
-// ONE-CODE RULE (see two-door-copy.ts): the code lives in the LEFT DOOR'S HEADING here, so this
-// card's support line deliberately does not repeat it.
+// ONE-CODE RULE (see two-door-copy.ts): the code lives in the LEFT DOOR'S HEADING here, so that
+// card's support line does not repeat it; the RIGHT card spends its one use on its support line.
+//
+// ── COPY LAW ──────────────────────────────────────────────────────────────────────────────────
+// DESCRIBE WHAT THEY GET, NEVER WHAT WE DON'T REQUIRE.
+// Platform mechanics — "no account", "no permission needed", "no sign-up" — are facts about our
+// plumbing, not benefits to a student. They also plant the idea that an account was a thing to
+// worry about. This card used to read "Anyone in the house can share it. No account, no
+// permission needed."; it now says what sharing DOES: everyone taking the course gets the help,
+// and the house GPA goes up. Applies to every student-facing string on this page.
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import {
   CHAPTER_BTN, DOOR_BTN_CLASS, DoorCard, DoorRow, SOLO_BTN,
 } from "@/components/site/home-two-door/DoorCard";
 import { nbspCode } from "@/lib/course-code";
+import { GreekHouseMark } from "./GreekHouseMark";
 
 /** The share-kit section's anchor — the right door's destination. */
 export const SHARE_ANCHOR = "share-kit";
@@ -26,6 +36,16 @@ export const SHARE_ANCHOR = "share-kit";
 export const soloSupportLine = (sponsored: boolean, letters: string): { muted: string; strong: string } => ({
   muted: "Cram-style videos & practice.",
   strong: sponsored ? `Sponsored by ${letters} — every exam unlocked.` : "Exam 1 is free for the whole house.",
+});
+
+/** THE RIGHT DOOR'S SUPPORT LINE. Says what the house GETS (help, a better GPA) — never what we
+ *  do not require of them; see the COPY LAW at the top of this file. This block's single use of
+ *  the course code lives here, because the left block spends its one use on its heading. */
+export const shareSupportLine = (code: string | null, letters: string): { muted: string; strong: string } => ({
+  muted: code
+    ? `Studying for ${nbspCode(code)} just got way easier.`
+    : "Intro accounting just got way easier.",
+  strong: `Boost ${letters}'s house GPA.`,
 });
 
 export function ChapterDoors({ code, letters, sponsored, onStartExam, onShare }: {
@@ -43,7 +63,7 @@ export function ChapterDoors({ code, letters, sponsored, onStartExam, onShare }:
       {/* LEFT DOOR — the member here to study. First in DOM, so it stacks first on mobile. */}
       <DoorCard
         icon={<span aria-hidden style={{ display: "block" }}><BoltBoil height={112} /></span>}
-        title={code ? `Survive ${nbspCode(code)}` : "Start studying"}
+        title={code ? `Survive · ${nbspCode(code)}` : "Start studying"}
         button={
           <button type="button" onClick={onStartExam} className={DOOR_BTN_CLASS} style={SOLO_BTN}>
             Start cramming →
@@ -59,16 +79,17 @@ export function ChapterDoors({ code, letters, sponsored, onStartExam, onShare }:
 
       {/* RIGHT DOOR — spreading it. Deliberately open to every member, not just exec. */}
       <DoorCard
-        icon={<FlyerMark height={112} />}
+        icon={<GreekHouseMark height={112} variant="chapter" />}
         title="Spread the word"
         button={
           <button type="button" onClick={onShare} className={DOOR_BTN_CLASS} style={CHAPTER_BTN}>
-            Get the share kit →
+            See sharing options →
           </button>
         }
         support={
-          <span className="text-[13px] leading-snug" style={{ color: "var(--text-muted)", maxWidth: "34ch" }}>
-            Anyone in the house can share it. No account, no permission needed.
+          <span className="text-[13px] leading-snug" style={{ maxWidth: "34ch" }}>
+            <span style={{ color: "var(--text-muted)" }}>{shareSupportLine(code, letters).muted} </span>
+            <span className="font-bold" style={{ color: "var(--brand-cream)" }}>{shareSupportLine(code, letters).strong}</span>
           </span>
         }
       />

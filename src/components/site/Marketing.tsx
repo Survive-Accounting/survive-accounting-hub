@@ -15,6 +15,8 @@ import { ArrowLeftRight, ClipboardCheck, Play, Target, MessageCircle } from "luc
 
 import { BRAND_BLUE, BRAND_DISPLAY, BRAND_RED, BRAND_SANS } from "@/components/canvas/brand";
 import { AnimatedCampusBolt, type BoltCampus } from "@/components/site/bolt";
+import { GREEK_HOUSE_CSS } from "@/components/site/chapter/GreekHouseMark";
+import { CAMPUS_LINE_CSS, CampusDot, CampusEm, CampusFor, CampusLine } from "@/components/site/home-two-door/campus-line";
 import { CompactLockup } from "@/components/site/SiteHeader";
 import { NotListedForm } from "@/components/site/NotListedForm";
 import { nbspCode } from "@/lib/course-code";
@@ -116,18 +118,21 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
   // homepage hero has (headline → promise → chips → doors). Every other page is untouched.
   if (doors) {
     return (
-      <section id={MARKETING_HERO_ID} className="sa-hero-doors flex flex-col items-center pb-9 pt-10 text-center sm:pt-12" style={{ fontFamily: BRAND_SANS }}>
-        {greek && (
-          <p className="mb-3 text-[12px] font-black uppercase tracking-[0.13em]" style={{ color: "var(--text-muted)" }}>
-            {greek.orgName} <span aria-hidden style={{ opacity: 0.5 }}>•</span> {schoolShort}
-          </p>
-        )}
-        <h1 className="mx-auto max-w-[600px] text-[28px] font-black leading-[1.12] sm:text-[38px] lg:text-[44px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.015em" }}>
+      <section id={MARKETING_HERO_ID} className="sa-hero-doors flex flex-col items-center pb-9 pt-10 text-center sm:pt-14" style={{ fontFamily: BRAND_SANS }}>
+        <h1 className="mx-auto max-w-[600px] text-[30px] font-black leading-[1.12] sm:text-[40px] lg:text-[44px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.015em" }}>
           {headline}
         </h1>
         <p className="mt-4 text-[19px] font-extrabold leading-snug sm:text-[22px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
           Practice what gets tested. Score higher.
         </p>
+        {greek && (
+          <CampusLine>
+            <CampusFor>for </CampusFor>
+            <CampusEm>{greek.orgName.toUpperCase()}</CampusEm>
+            <CampusDot />
+            <CampusEm>{(schoolShort ?? "").toUpperCase()}</CampusEm>
+          </CampusLine>
+        )}
         <TrustChips onBio={onOpenBio} onReviews={() => scrollToId("reviews")} onPlayer={onStart} />
         {/* Exec login stays a UTILITY, never a door — claimed chapters only. */}
         {greek?.claimed && (
@@ -136,7 +141,7 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
           </a>
         )}
         {courtesy}
-        <div className="mt-8 w-full">{doors}</div>
+        <div className="mt-10 w-full sm:mt-12">{doors}</div>
       </section>
     );
   }
@@ -278,6 +283,8 @@ export function TrustChips({ onBio, onReviews, onPlayer }: { onBio: () => void; 
 
 /** Chip hover/focus styling — subtle brightness + a hair of lift, quick, reduced-motion safe. */
 export const MARKETING_CSS = `
+${CAMPUS_LINE_CSS}
+${GREEK_HOUSE_CSS}
 /* CHANGE-SCHOOL SWAP. A 44px touch target around a 16px glyph, so it is quiet to look at and still
    comfortably tappable on a phone. It brightens rather than growing — nothing under the bolt should
    move on hover except the bolt. */
@@ -312,33 +319,58 @@ export const MARKETING_CSS = `
 @media (prefers-reduced-motion: reduce) { .sa-sticky-footer { transition: none; } }
 @media (prefers-reduced-motion: reduce) { .sa-trust-chip, .sa-trust-chip:hover { transform: none; } }
 `;
-
-// ── FEATURE VALUE STRIP ───────────────────────────────────────────────────────────────────────
-/** Three scannable value cards, AFTER the player (the product proves the claims; the strip
- *  reinforces, it doesn't preface). Card 3 is context-dynamic. */
-export function FeatureValueStrip({ code, onSyllabus }: { code: string | null; onSyllabus?: () => void }) {
-  void code; // card 3 is course-generic launch copy now; the syllabus action carries the tailoring
+/** THE THREE VALUE CARDS. Card 3 differs by surface (2026-08-28):
+ *
+ *   HOME  — the actionable "Send your syllabus. I'll match it →", which opens the syllabus flow.
+ *   CHAPTER — a plain statement that the product already fits their course. A chapter member is
+ *   being asked to study, not to do the tailoring homework; the syllabus ask stays a home thing.
+ *
+ *  COPY LAW applies (see ChapterDoors): these say what a student GETS, never what we don't need. */
+export function FeatureValueStrip({ code, onSyllabus, variant = "home" }: {
+  code: string | null;
+  onSyllabus?: () => void;
+  /** "council" reframes card 3 for someone who is not taking the course: a council officer is
+   *  sharing this for her CHAPTERS, and "Built around your course" addressed a student who
+   *  isn't in the room. */
+  variant?: "home" | "chapter" | "council";
+}) {
   const CARDS = [
     { icon: Play, title: "Quick cram videos", body: "Nothing like your lecture videos." },
     { icon: ClipboardCheck, title: "Practice exams", body: "See the problems that matter." },
   ];
   const card = "rounded-2xl p-4";
   const cardStyle = { background: "var(--bg-surface)", border: "1px solid var(--border-default)" } as const;
+  const H = "mt-2.5 text-[15px] font-black";
+  const hStyle = { fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" } as const;
   return (
     <section className="mx-auto grid w-full max-w-[880px] gap-3 px-1 py-10 sm:grid-cols-3" style={{ fontFamily: BRAND_SANS }}>
       {CARDS.map(({ icon: Icon, title, body }) => (
         <div key={title} className={card} style={cardStyle}>
           <Icon className="h-5 w-5" style={{ color: "var(--accent)" }} aria-hidden />
-          <p className="mt-2.5 text-[15px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{title}</p>
+          <p className={H} style={hStyle}>{title}</p>
           <p className="mt-1 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>{body}</p>
         </div>
       ))}
-      {/* Card 3 is the ONE actionable card — it opens the existing syllabus flow. */}
-      <button type="button" onClick={onSyllabus} className={`${card} text-left transition-transform hover:scale-[1.01] focus-visible:ring-2`} style={cardStyle}>
-        <Target className="h-5 w-5" style={{ color: "var(--accent)" }} aria-hidden />
-        <p className="mt-2.5 text-[15px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Built around your course</p>
-        <p className="mt-1 text-[14px] leading-snug" style={{ color: "var(--accent)" }}>Send your syllabus. I&apos;ll match it →</p>
-      </button>
+      {variant === "council" ? (
+        <div className={card} style={cardStyle}>
+          <Target className="h-5 w-5" style={{ color: "var(--accent)" }} aria-hidden />
+          <p className={H} style={hStyle}>{code ? `Built for ${nbspCode(code)}` : "Built for your campus"}</p>
+          <p className="mt-1 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>Matched to the course your chapters actually take.</p>
+        </div>
+      ) : variant === "chapter" ? (
+        <div className={card} style={cardStyle}>
+          <Target className="h-5 w-5" style={{ color: "var(--accent)" }} aria-hidden />
+          <p className={H} style={hStyle}>{code ? `Built for ${nbspCode(code)}` : "Built for your course"}</p>
+          <p className="mt-1 text-[14px] leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.65 }}>Matched to your exact course.</p>
+        </div>
+      ) : (
+        /* HOME: card 3 is the ONE actionable card — it opens the existing syllabus flow. */
+        <button type="button" onClick={onSyllabus} className={`${card} text-left transition-transform hover:scale-[1.01] focus-visible:ring-2`} style={cardStyle}>
+          <Target className="h-5 w-5" style={{ color: "var(--accent)" }} aria-hidden />
+          <p className={H} style={hStyle}>Built around your course</p>
+          <p className="mt-1 text-[14px] leading-snug" style={{ color: "var(--accent)" }}>Send your syllabus. I&apos;ll match it →</p>
+        </button>
+      )}
     </section>
   );
 }
@@ -346,7 +378,14 @@ export function FeatureValueStrip({ code, onSyllabus }: { code: string | null; o
 // ── SOCIAL PROOF: testimonials + tutor in one row ────────────────────────────────────────────
 /** Desktop: ~60/40 row — reviews left, tutor card right. Mobile: stacked, reviews first.
  *  Content arrives as slots so this module never imports from the landing route. */
-export function SocialProofSection({ testimonials, tutor }: { testimonials: React.ReactNode; tutor: React.ReactNode }) {
+export function SocialProofSection({ testimonials, tutor, testimonialsHeading = "What students are saying" }: {
+  testimonials: React.ReactNode;
+  tutor: React.ReactNode;
+  /** WHOSE students. Every review on file is from Ole Miss, and on an Alabama council page a bare
+   *  "What students are saying" reads as a claim about Alabama students that the cards underneath
+   *  then quietly contradict. Naming the campus turns a mismatch into transparency. */
+  testimonialsHeading?: string;
+}) {
   // BOTH headings are rendered HERE, on one baseline — the column contents start level, which
   // is what makes the row read as one section rather than two stacked boxes.
   const H = ({ children }: { children: React.ReactNode }) => (
@@ -355,7 +394,7 @@ export function SocialProofSection({ testimonials, tutor }: { testimonials: Reac
   return (
     <section className="mx-auto grid w-full max-w-[1040px] items-start gap-8 lg:grid-cols-[3fr_2fr]" style={{ fontFamily: BRAND_SANS }}>
       <div className="min-w-0">
-        <H>What students are saying</H>
+        <H>{testimonialsHeading}</H>
         {testimonials}
       </div>
       <div className="min-w-0" id="lee">

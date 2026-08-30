@@ -2,17 +2,16 @@
 // attribution stamp), the chapter's natural short name, and the GroupMe message. Pure functions
 // only; the UI that uses them is the /go page's share kit (see ChapterAccess).
 //
-// THE GROUPME MESSAGE DEPENDS ON CLAIM STATE. An unclaimed chapter's message must not say the
-// chapter "partnered" with us — nobody agreed to anything, and a member would rightly ask who
-// wrote that. Claimed pages get the partnership framing under the chapter's own shorthand.
-// Neither message mentions professors or promises campus-specific mapping: campuses onboard
-// faster than maps do, and copy that outruns the product is how trust is spent.
+// THE GROUPME MESSAGE IS ONE LOCKED TEMPLATE for every chapter — see the note on it below for why
+// the old claim-dependent "partnered with" variant is gone. It mentions no professor and promises
+// no campus-specific mapping: campuses onboard faster than maps do, and copy that outruns the
+// product is how trust is spent.
 //
 // Every action logs to expand_events via logGreekEvent ("greek_<kind>:<school>/<chapter>").
 // Logging is fire-and-forget — analytics must never break a share.
 /** WHERE A SHARED LINK CAME FROM. Each path hands out a distinct stamp so we learn what actually
  *  spreads. "flyer" is encoded by the printed QR itself (see flyerTarget). */
-export type ShareVia = "link" | "groupme" | "flyer";
+export type ShareVia = "link" | "groupme" | "text" | "flyer" | "slide";
 
 /** One place, so the copied link, the printed flyer and the visit log can never disagree. */
 export const chapterUrl = (schoolSlug: string, chapterSlug: string, via?: ShareVia) =>
@@ -55,14 +54,28 @@ export function chapterShortName(chapterName: string, letters?: string | null, n
   return chapterName;
 }
 
-/** The message someone actually pastes into GroupMe. Written to be forwarded verbatim. */
-export function groupMeMessage(opts: { claimed: boolean; shortName: string; courseLabel: string; url: string }): string {
-  const { claimed, shortName, courseLabel, url } = opts;
-  return claimed
-    ? `Hey everyone — ${shortName} partnered with Survive Accounting to help boost our chapter GPA in ${courseLabel}. There are cram videos + practice exams available — go check them out!\nStart studying here:\n${url}`
-    : `For anyone taking ${courseLabel} — Survive Accounting has free cram videos + practice exams to help you ace your exams. Go check them out!\nStart studying here:\n${url}`;
+/** THE GROUPME MESSAGE — LOCKED TEMPLATE (2026-08-28). Do not rewrite; only the course code and
+ *  the link are substituted, and the blank line before "Start studying here:" is part of it.
+ *
+ *  ONE MESSAGE FOR EVERY CHAPTER, claimed or not. The old copy had a second variant for claimed
+ *  chapters that said the chapter "partnered with Survive Accounting" — an endorsement nobody
+ *  actually agreed to, whose appearance depended on state the reader could not see. `claimed` is
+ *  still accepted so existing callers compile, and is deliberately ignored. */
+export function groupMeMessage(opts: { claimed?: boolean; shortName?: string; courseLabel: string; url: string }): string {
+  return [
+    `For anyone taking ${opts.courseLabel} — Survive Accounting has free cram videos + practice exams to help you ace your exams. Go check them out!`,
+    "",
+    "Start studying here:",
+    opts.url,
+  ].join("\n");
 }
 
 // The ChapterShare COMPONENT (the old accordion step-01 UI) was removed 2026-08-28 — the share
 // kit on the /go page replaced it. The helpers above stayed: the URL builder, the short-name
 // rule and the GroupMe copy are used by the share kit, the flyer, the OG card and /go/demo.
+
+/** THE TEXT MESSAGE — the same offer as the GroupMe post, trimmed for SMS. One thumb-length
+ *  message a member sends a friend directly; the GroupMe one is written for a whole group chat. */
+export function chapterTextMessage(opts: { courseLabel: string; url: string }): string {
+  return `Free ${opts.courseLabel} cram videos + practice exams — Exam 1 is free. ${opts.url}`;
+}

@@ -47,20 +47,25 @@ describe("chapterShortName", () => {
 describe("groupMeMessage", () => {
   const url = chapterUrl("florida-state-university", "alpha-tau-omega");
 
-  test("unclaimed copy never speaks for the chapter and never mentions professors", () => {
-    const m = groupMeMessage({ claimed: false, shortName: "ATO", courseLabel: "ACG 2021", url });
+  // LOCKED TEMPLATE (2026-08-28). One message for every chapter — the old claimed/unclaimed split
+  // is gone, because the claimed variant asserted a partnership nobody agreed to. These assertions
+  // are the lock: they fail if anyone edits the wording, which is the point.
+  test("the locked template, character for character", () => {
+    const m = groupMeMessage({ courseLabel: "ACG 2021", url });
     expect(m).toBe(
-      `For anyone taking ACG 2021 — Survive Accounting has free cram videos + practice exams to help you ace your exams. Go check them out!\nStart studying here:\n${url}`,
+      `For anyone taking ACG 2021 — Survive Accounting has free cram videos + practice exams to help you ace your exams. Go check them out!\n\nStart studying here:\n${url}`,
     );
-    expect(m).not.toContain("partnered");
-    expect(m.toLowerCase()).not.toContain("professor");
   });
 
-  test("claimed copy carries the partnership under the shorthand", () => {
-    const m = groupMeMessage({ claimed: true, shortName: "ATO", courseLabel: "ACG 2021", url });
-    expect(m).toBe(
-      `Hey everyone — ATO partnered with Survive Accounting to help boost our chapter GPA in ACG 2021. There are cram videos + practice exams available — go check them out!\nStart studying here:\n${url}`,
-    );
+  test("claim state cannot change a single character of it", () => {
+    const base = groupMeMessage({ courseLabel: "ACG 2021", url });
+    expect(groupMeMessage({ claimed: true, shortName: "ATO", courseLabel: "ACG 2021", url })).toBe(base);
+    expect(groupMeMessage({ claimed: false, shortName: "ATO", courseLabel: "ACG 2021", url })).toBe(base);
+  });
+
+  test("never speaks for the chapter, never mentions professors", () => {
+    const m = groupMeMessage({ courseLabel: "ACG 2021", url });
+    expect(m).not.toContain("partnered");
     expect(m.toLowerCase()).not.toContain("professor");
   });
 

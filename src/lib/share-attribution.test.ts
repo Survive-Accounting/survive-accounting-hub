@@ -16,7 +16,7 @@ const validator = z.object({
   kind: z.enum(["visit", "copy_link", "copy_message", "flyer_download", "flyer_print", "demo_page", "demo_claim"]),
   schoolSlug: z.string().trim().min(1).max(80),
   chapterSlug: z.string().trim().min(1).max(60),
-  via: z.enum(["link", "groupme", "flyer", "campaign", "slide"]).nullable().optional(),
+  via: z.enum(["link", "groupme", "text", "flyer", "slide", "campaign"]).nullable().optional(),
 });
 
 describe("reading the stamp off a URL", () => {

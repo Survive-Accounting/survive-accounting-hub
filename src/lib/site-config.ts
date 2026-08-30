@@ -31,3 +31,19 @@ export const ENABLE_PREPAY = false;
  *  explains what he's building and invites testers to help shape it. Paste a
  *  YouTube/Vimeo URL (or bare YouTube ID). Empty = the video slot is hidden. */
 export const PREVIEW_VISION_VIDEO_URL = "";
+
+// ── /the-campaign ─────────────────────────────────────────────────────────────────────────────
+// The private page Lee shares by email with his personal network. All three slots are EMPTY
+// until he supplies the files, and each one degrades to nothing rather than to a broken frame or
+// a dead link — the page reads correctly with all of them blank.
+
+/** The ~2 minute campaign video. YouTube/Vimeo URL, a bare YouTube ID, or a direct media URL.
+ *  Empty = the player is not rendered at all. Never autoplays with sound either way. */
+export const CAMPAIGN_VIDEO_URL = "";
+
+/** Poster frame for the video. Empty = a plain dark frame with the play button. */
+export const CAMPAIGN_VIDEO_POSTER = "";
+
+/** The full written report, as a PDF. Empty = the link under the deck is not rendered, rather
+ *  than shipped pointing at a 404. */
+export const CAMPAIGN_REPORT_PDF = "";

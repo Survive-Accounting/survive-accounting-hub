@@ -76,8 +76,8 @@ export const liftHeadline = () => "Raise GPAs across every chapter.";
 /** The council sub, naming the course exactly once in this block (the headline carries none). */
 export const liftSubhead = (code?: string | null) =>
   code
-    ? `Share a free resource built for ${nbspCode(code)} — cram videos & practice that match the exams.`
-    : "Share a free resource built for your campus's intro accounting course — cram videos & practice that match the exams.";
+    ? `Share a free resource for ${nbspCode(code)} — the weed-out course where GPAs quietly slip.`
+    : "Share a free resource for your campus's intro accounting course — the weed-out course where GPAs quietly slip.";
 
 /** What Survive gives a partner's students, stated the same way on every partner surface. */
 export const PARTNER_OFFER = "Free intro accounting exam prep";
@@ -117,6 +117,29 @@ export function councilPresidentEmail(d: { councilName: string; schoolName: stri
 export function councilGroupMessage(d: { schoolName: string; courseCode: string | null; schoolSlug: string }): string {
   const course = d.courseCode ?? "intro accounting";
   return `Free ${course} exam prep for the house ⚡ Exam 1 is free for every member. Each chapter has its own page — find yours: ${ORIGIN}/chapters?school=${d.schoolSlug}`;
+}
+
+/** THE GROUP-CHAT POST — one message, every chapter's own link, ready to paste.
+ *
+ *  Written to be READ ON A PHONE IN A GROUP CHAT: no subject line, no salutation ceremony, no
+ *  signature block. The credential sits at the bottom because a group chat reads top-down and the
+ *  links are what people are scrolling for.
+ *
+ *  Deliberately NOT stamped with ?via=: this message gets pasted, forwarded and retyped, and a
+ *  query string that survives one hop and not the next produces attribution that is confidently
+ *  wrong. The campaign email keeps its stamp because it is sent once, from one place. */
+export function councilChapterLinksPost(d: {
+  courseCode: string | null;
+  chapters: Array<{ name: string; letters?: string | null; url: string }>;
+}): string {
+  const course = d.courseCode ?? "intro accounting";
+  return [
+    `Hey all — free exam prep for ${course}, the first exam is completely free. Each chapter has its own link:`,
+    ``,
+    ...d.chapters.map((c) => `${c.name} — ${c.url.replace("https://", "")}`),
+    ``,
+    `Made by a tutor who's worked with 1,000+ accounting students.`,
+  ].join("\n");
 }
 
 /** The email a national officer sends down the chain to chapter leaders. */

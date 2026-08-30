@@ -155,7 +155,7 @@ async function rateSheetPdf(d: KitInput): Promise<Buffer> {
 
   let y = 232;
   T(s, "FREE, FOR EVERY MEMBER", y, 12, s.bold, AMBER, 1.2); y += 22;
-  y = para(s, "Exam 1 — cram videos and practice — is free for every member of every chapter. No card, no account, no minimum, nothing for the council to sign.", y, 12, s.reg, BODY);
+  y = para(s, "Exam 1 — cram videos and practice — is free for every member of every chapter, at no cost to the council.", y, 12, s.reg, BODY);
 
   y += 20;
   T(s, "IF A CHAPTER WANTS THE REST", y, 12, s.bold, AMBER, 1.2); y += 24;

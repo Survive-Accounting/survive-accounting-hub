@@ -7,6 +7,20 @@
       "schedule": "0 4 * * *"
     },
     {
+      "comment": "Chapter signup surge sweep. Hourly; each run only emails a chapter whose signups crossed the threshold in the last 60 minutes, capped at one per chapter per 24h.",
+      "path": "/api/cron/chapter-reports?kind=surge",
+      "schedule": "5 * * * *"
+    },
+    {
+      "comment": "Weekly chapter digest. Two UTC entries, DST-safe: the handler only works at 8am Chicago, so exactly one fires year-round.",
+      "path": "/api/cron/chapter-reports?kind=weekly",
+      "schedule": "0 13 * * 0"
+    },
+    {
+      "path": "/api/cron/chapter-reports?kind=weekly",
+      "schedule": "0 14 * * 0"
+    },
+    {
       "path": "/api/cron/weekly-digest",
       "schedule": "0 13 * * 0"
     },
