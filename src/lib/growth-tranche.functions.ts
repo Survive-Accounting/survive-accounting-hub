@@ -182,6 +182,81 @@ export const growthPartnerActivity = createServerFn({ method: "GET" })
     };
   });
 
+export interface GreekUnknown {
+  campusId: string;
+  name: string;
+  state: string | null;
+  courseCode: string | null;
+  seats: number | null;
+  campusStatus: string | null;
+}
+
+/** Campuses whose Greek presence is still 'unknown', biggest markets first — the one-time
+ *  manual classification pass. Top ~30 covers tranches 1-2; the tail rides the 0.7 default. */
+export const growthGreekUnknowns = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => z.object({ limit: z.number().max(150).optional() }).parse(d ?? {}))
+  .handler(async ({ data }): Promise<{ items: GreekUnknown[] }> => {
+    const db = await adminDb();
+    const { data: rows } = await db
+      .from("campuses")
+      .select(
+        "id,name,display_name,state,campus_status,greek_status,greek_status_override,course_family_codes_json,merged_into_id",
+      )
+      .is("merged_into_id", null)
+      .limit(4000);
+    const unknownIds = new Set(
+      ((rows ?? []) as any[])
+        .filter(
+          (c) =>
+            (c.greek_status_override ?? c.greek_status ?? "unknown") === "unknown" &&
+            c.campus_status !== "excluded",
+        )
+        .map((c) => c.id),
+    );
+    // Fetch the small market/course tables whole and map — an .in() with hundreds of UUIDs
+    // overflows the request URL and silently returns nothing.
+    const [{ data: market }, { data: codes }] = await Promise.all([
+      db.from("campus_market_intelligence").select("campus_id,estimated_intro1_annual").limit(5000),
+      db.from("course_intel_campus_status").select("campus_id,course_code").limit(5000),
+    ]);
+    const seatsOf = new Map<string, number>(
+      ((market ?? []) as any[]).filter((m) => m.estimated_intro1_annual != null).map((m) => [m.campus_id, m.estimated_intro1_annual]),
+    );
+    const codeOf = new Map<string, string>(
+      ((codes ?? []) as any[]).filter((c) => c.course_code).map((c) => [c.campus_id, c.course_code]),
+    );
+    const items: GreekUnknown[] = ((rows ?? []) as any[])
+      .filter((c) => unknownIds.has(c.id) && seatsOf.has(c.id))
+      .map((c) => ({
+        campusId: c.id,
+        name: c.display_name || c.name,
+        state: c.state ?? null,
+        courseCode: codeOf.get(c.id) ?? (c.course_family_codes_json?.intro_1 ?? null),
+        seats: seatsOf.get(c.id) ?? null,
+        campusStatus: c.campus_status ?? null,
+      }))
+      .sort((a, b) => (b.seats ?? 0) - (a.seats ?? 0))
+      .slice(0, data.limit ?? 40);
+    return { items };
+  });
+
+/** Set a campus's Greek presence (manual classification → greek_status_override). */
+export const growthSetGreekStatus = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z
+      .object({ campusId: z.string().uuid(), status: z.enum(["strong", "present", "none", "unknown"]) })
+      .parse(d),
+  )
+  .handler(async ({ data }): Promise<{ ok: boolean }> => {
+    const db = await adminDb();
+    const { error } = await db
+      .from("campuses")
+      .update({ greek_status_override: data.status === "unknown" ? null : data.status })
+      .eq("id", data.campusId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
 export interface PartnerLite {
   id: string;
   name: string;

@@ -125,6 +125,7 @@ import { Route as AdminGrowthOutreachRouteImport } from './routes/admin.growth.o
 import { Route as AdminGrowthOrgsRouteImport } from './routes/admin.growth.orgs'
 import { Route as AdminGrowthKingRouteImport } from './routes/admin.growth.king'
 import { Route as AdminGrowthIntelligenceRouteImport } from './routes/admin.growth.intelligence'
+import { Route as AdminGrowthGreekRouteImport } from './routes/admin.growth.greek'
 import { Route as AdminGrowthCouncilsRouteImport } from './routes/admin.growth.councils'
 import { Route as AdminGrowthContactsRouteImport } from './routes/admin.growth.contacts'
 import { Route as AdminGrowthChaptersRouteImport } from './routes/admin.growth.chapters'
@@ -727,6 +728,11 @@ const AdminGrowthIntelligenceRoute = AdminGrowthIntelligenceRouteImport.update({
   path: '/intelligence',
   getParentRoute: () => AdminGrowthRoute,
 } as any)
+const AdminGrowthGreekRoute = AdminGrowthGreekRouteImport.update({
+  id: '/greek',
+  path: '/greek',
+  getParentRoute: () => AdminGrowthRoute,
+} as any)
 const AdminGrowthCouncilsRoute = AdminGrowthCouncilsRouteImport.update({
   id: '/councils',
   path: '/councils',
@@ -887,6 +893,7 @@ export interface FileRoutesByFullPath {
   '/admin/growth/chapters': typeof AdminGrowthChaptersRoute
   '/admin/growth/contacts': typeof AdminGrowthContactsRoute
   '/admin/growth/councils': typeof AdminGrowthCouncilsRoute
+  '/admin/growth/greek': typeof AdminGrowthGreekRoute
   '/admin/growth/intelligence': typeof AdminGrowthIntelligenceRoute
   '/admin/growth/king': typeof AdminGrowthKingRoute
   '/admin/growth/orgs': typeof AdminGrowthOrgsRoute
@@ -1015,6 +1022,7 @@ export interface FileRoutesByTo {
   '/admin/growth/chapters': typeof AdminGrowthChaptersRoute
   '/admin/growth/contacts': typeof AdminGrowthContactsRoute
   '/admin/growth/councils': typeof AdminGrowthCouncilsRoute
+  '/admin/growth/greek': typeof AdminGrowthGreekRoute
   '/admin/growth/intelligence': typeof AdminGrowthIntelligenceRoute
   '/admin/growth/king': typeof AdminGrowthKingRoute
   '/admin/growth/orgs': typeof AdminGrowthOrgsRoute
@@ -1147,6 +1155,7 @@ export interface FileRoutesById {
   '/admin/growth/chapters': typeof AdminGrowthChaptersRoute
   '/admin/growth/contacts': typeof AdminGrowthContactsRoute
   '/admin/growth/councils': typeof AdminGrowthCouncilsRoute
+  '/admin/growth/greek': typeof AdminGrowthGreekRoute
   '/admin/growth/intelligence': typeof AdminGrowthIntelligenceRoute
   '/admin/growth/king': typeof AdminGrowthKingRoute
   '/admin/growth/orgs': typeof AdminGrowthOrgsRoute
@@ -1280,6 +1289,7 @@ export interface FileRouteTypes {
     | '/admin/growth/chapters'
     | '/admin/growth/contacts'
     | '/admin/growth/councils'
+    | '/admin/growth/greek'
     | '/admin/growth/intelligence'
     | '/admin/growth/king'
     | '/admin/growth/orgs'
@@ -1408,6 +1418,7 @@ export interface FileRouteTypes {
     | '/admin/growth/chapters'
     | '/admin/growth/contacts'
     | '/admin/growth/councils'
+    | '/admin/growth/greek'
     | '/admin/growth/intelligence'
     | '/admin/growth/king'
     | '/admin/growth/orgs'
@@ -1539,6 +1550,7 @@ export interface FileRouteTypes {
     | '/admin/growth/chapters'
     | '/admin/growth/contacts'
     | '/admin/growth/councils'
+    | '/admin/growth/greek'
     | '/admin/growth/intelligence'
     | '/admin/growth/king'
     | '/admin/growth/orgs'
@@ -2468,6 +2480,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminGrowthIntelligenceRouteImport
       parentRoute: typeof AdminGrowthRoute
     }
+    '/admin/growth/greek': {
+      id: '/admin/growth/greek'
+      path: '/greek'
+      fullPath: '/admin/growth/greek'
+      preLoaderRoute: typeof AdminGrowthGreekRouteImport
+      parentRoute: typeof AdminGrowthRoute
+    }
     '/admin/growth/councils': {
       id: '/admin/growth/councils'
       path: '/councils'
@@ -2679,6 +2698,7 @@ interface AdminGrowthRouteChildren {
   AdminGrowthChaptersRoute: typeof AdminGrowthChaptersRoute
   AdminGrowthContactsRoute: typeof AdminGrowthContactsRoute
   AdminGrowthCouncilsRoute: typeof AdminGrowthCouncilsRoute
+  AdminGrowthGreekRoute: typeof AdminGrowthGreekRoute
   AdminGrowthIntelligenceRoute: typeof AdminGrowthIntelligenceRoute
   AdminGrowthKingRoute: typeof AdminGrowthKingRoute
   AdminGrowthOrgsRoute: typeof AdminGrowthOrgsRoute
@@ -2695,6 +2715,7 @@ const AdminGrowthRouteChildren: AdminGrowthRouteChildren = {
   AdminGrowthChaptersRoute: AdminGrowthChaptersRoute,
   AdminGrowthContactsRoute: AdminGrowthContactsRoute,
   AdminGrowthCouncilsRoute: AdminGrowthCouncilsRoute,
+  AdminGrowthGreekRoute: AdminGrowthGreekRoute,
   AdminGrowthIntelligenceRoute: AdminGrowthIntelligenceRoute,
   AdminGrowthKingRoute: AdminGrowthKingRoute,
   AdminGrowthOrgsRoute: AdminGrowthOrgsRoute,

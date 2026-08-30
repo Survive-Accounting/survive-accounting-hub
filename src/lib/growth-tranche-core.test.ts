@@ -2,10 +2,24 @@ import { describe, it, expect } from "bun:test";
 import {
   evaluateTranche,
   trancheProgressLabel,
+  greekPriority,
   TRANCHE_LAUNCH_TARGET,
   TRANCHE_RESPONSE_TARGET,
   type TrancheCampusState,
 } from "./growth-tranche-core";
+
+describe("greekPriority", () => {
+  it("scales seats by the Greek multiplier", () => {
+    expect(greekPriority(1000, "strong")).toBe(1300);
+    expect(greekPriority(1000, "present")).toBe(1000);
+    expect(greekPriority(1000, "unknown")).toBe(700);
+    expect(greekPriority(1000, "none")).toBe(0);
+  });
+  it("defaults null greek to the 0.7 unknown multiplier and null seats to 0", () => {
+    expect(greekPriority(1000, null)).toBe(700);
+    expect(greekPriority(null, "strong")).toBe(0);
+  });
+});
 
 const campuses = (launched: number, responded: number, total = 20): TrancheCampusState[] =>
   Array.from({ length: total }, (_, i) => ({
