@@ -112,6 +112,7 @@ import { Route as CeqCourseSlugChapterSlugRouteImport } from './routes/ceq.$cour
 import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe.webhook'
 import { Route as ApiCronWeeklyDigestRouteImport } from './routes/api.cron.weekly-digest'
 import { Route as ApiCronKingDigestRouteImport } from './routes/api.cron.king-digest'
+import { Route as ApiCronGrowthCampaignsRouteImport } from './routes/api.cron.growth-campaigns'
 import { Route as ApiCronCommsSequencesRouteImport } from './routes/api.cron.comms-sequences'
 import { Route as ApiCronBackupRouteImport } from './routes/api.cron.backup'
 import { Route as AdminRepsRosterRouteImport } from './routes/admin.reps.roster'
@@ -128,6 +129,7 @@ import { Route as AdminGrowthCouncilsRouteImport } from './routes/admin.growth.c
 import { Route as AdminGrowthContactsRouteImport } from './routes/admin.growth.contacts'
 import { Route as AdminGrowthChaptersRouteImport } from './routes/admin.growth.chapters'
 import { Route as AdminGrowthCampusesRouteImport } from './routes/admin.growth.campuses'
+import { Route as AdminGrowthCampaignsRouteImport } from './routes/admin.growth.campaigns'
 import { Route as AdminGrowthActivityRouteImport } from './routes/admin.growth.activity'
 import { Route as PartnersCouncilSchoolCouncilRouteImport } from './routes/partners.council.$school.$council'
 import { Route as GoSchoolCouncilCouncilRouteImport } from './routes/go.$school.council.$council'
@@ -660,6 +662,11 @@ const ApiCronKingDigestRoute = ApiCronKingDigestRouteImport.update({
   path: '/api/cron/king-digest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronGrowthCampaignsRoute = ApiCronGrowthCampaignsRouteImport.update({
+  id: '/api/cron/growth-campaigns',
+  path: '/api/cron/growth-campaigns',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronCommsSequencesRoute = ApiCronCommsSequencesRouteImport.update({
   id: '/api/cron/comms-sequences',
   path: '/api/cron/comms-sequences',
@@ -738,6 +745,11 @@ const AdminGrowthChaptersRoute = AdminGrowthChaptersRouteImport.update({
 const AdminGrowthCampusesRoute = AdminGrowthCampusesRouteImport.update({
   id: '/campuses',
   path: '/campuses',
+  getParentRoute: () => AdminGrowthRoute,
+} as any)
+const AdminGrowthCampaignsRoute = AdminGrowthCampaignsRouteImport.update({
+  id: '/campaigns',
+  path: '/campaigns',
   getParentRoute: () => AdminGrowthRoute,
 } as any)
 const AdminGrowthActivityRoute = AdminGrowthActivityRouteImport.update({
@@ -870,6 +882,7 @@ export interface FileRoutesByFullPath {
   '/outreach/': typeof OutreachIndexRoute
   '/u/': typeof UIndexRoute
   '/admin/growth/activity': typeof AdminGrowthActivityRoute
+  '/admin/growth/campaigns': typeof AdminGrowthCampaignsRoute
   '/admin/growth/campuses': typeof AdminGrowthCampusesRoute
   '/admin/growth/chapters': typeof AdminGrowthChaptersRoute
   '/admin/growth/contacts': typeof AdminGrowthContactsRoute
@@ -886,6 +899,7 @@ export interface FileRoutesByFullPath {
   '/admin/reps/roster': typeof AdminRepsRosterRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
+  '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
@@ -996,6 +1010,7 @@ export interface FileRoutesByTo {
   '/outreach': typeof OutreachIndexRoute
   '/u': typeof UIndexRoute
   '/admin/growth/activity': typeof AdminGrowthActivityRoute
+  '/admin/growth/campaigns': typeof AdminGrowthCampaignsRoute
   '/admin/growth/campuses': typeof AdminGrowthCampusesRoute
   '/admin/growth/chapters': typeof AdminGrowthChaptersRoute
   '/admin/growth/contacts': typeof AdminGrowthContactsRoute
@@ -1012,6 +1027,7 @@ export interface FileRoutesByTo {
   '/admin/reps/roster': typeof AdminRepsRosterRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
+  '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
@@ -1126,6 +1142,7 @@ export interface FileRoutesById {
   '/outreach/': typeof OutreachIndexRoute
   '/u/': typeof UIndexRoute
   '/admin/growth/activity': typeof AdminGrowthActivityRoute
+  '/admin/growth/campaigns': typeof AdminGrowthCampaignsRoute
   '/admin/growth/campuses': typeof AdminGrowthCampusesRoute
   '/admin/growth/chapters': typeof AdminGrowthChaptersRoute
   '/admin/growth/contacts': typeof AdminGrowthContactsRoute
@@ -1142,6 +1159,7 @@ export interface FileRoutesById {
   '/admin/reps/roster': typeof AdminRepsRosterRoute
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
+  '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
@@ -1257,6 +1275,7 @@ export interface FileRouteTypes {
     | '/outreach/'
     | '/u/'
     | '/admin/growth/activity'
+    | '/admin/growth/campaigns'
     | '/admin/growth/campuses'
     | '/admin/growth/chapters'
     | '/admin/growth/contacts'
@@ -1273,6 +1292,7 @@ export interface FileRouteTypes {
     | '/admin/reps/roster'
     | '/api/cron/backup'
     | '/api/cron/comms-sequences'
+    | '/api/cron/growth-campaigns'
     | '/api/cron/king-digest'
     | '/api/cron/weekly-digest'
     | '/api/stripe/webhook'
@@ -1383,6 +1403,7 @@ export interface FileRouteTypes {
     | '/outreach'
     | '/u'
     | '/admin/growth/activity'
+    | '/admin/growth/campaigns'
     | '/admin/growth/campuses'
     | '/admin/growth/chapters'
     | '/admin/growth/contacts'
@@ -1399,6 +1420,7 @@ export interface FileRouteTypes {
     | '/admin/reps/roster'
     | '/api/cron/backup'
     | '/api/cron/comms-sequences'
+    | '/api/cron/growth-campaigns'
     | '/api/cron/king-digest'
     | '/api/cron/weekly-digest'
     | '/api/stripe/webhook'
@@ -1512,6 +1534,7 @@ export interface FileRouteTypes {
     | '/outreach/'
     | '/u/'
     | '/admin/growth/activity'
+    | '/admin/growth/campaigns'
     | '/admin/growth/campuses'
     | '/admin/growth/chapters'
     | '/admin/growth/contacts'
@@ -1528,6 +1551,7 @@ export interface FileRouteTypes {
     | '/admin/reps/roster'
     | '/api/cron/backup'
     | '/api/cron/comms-sequences'
+    | '/api/cron/growth-campaigns'
     | '/api/cron/king-digest'
     | '/api/cron/weekly-digest'
     | '/api/stripe/webhook'
@@ -1613,6 +1637,7 @@ export interface RootRouteChildren {
   UIndexRoute: typeof UIndexRoute
   ApiCronBackupRoute: typeof ApiCronBackupRoute
   ApiCronCommsSequencesRoute: typeof ApiCronCommsSequencesRoute
+  ApiCronGrowthCampaignsRoute: typeof ApiCronGrowthCampaignsRoute
   ApiCronKingDigestRoute: typeof ApiCronKingDigestRoute
   ApiCronWeeklyDigestRoute: typeof ApiCronWeeklyDigestRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
@@ -2352,6 +2377,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronKingDigestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/growth-campaigns': {
+      id: '/api/cron/growth-campaigns'
+      path: '/api/cron/growth-campaigns'
+      fullPath: '/api/cron/growth-campaigns'
+      preLoaderRoute: typeof ApiCronGrowthCampaignsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/comms-sequences': {
       id: '/api/cron/comms-sequences'
       path: '/api/cron/comms-sequences'
@@ -2462,6 +2494,13 @@ declare module '@tanstack/react-router' {
       path: '/campuses'
       fullPath: '/admin/growth/campuses'
       preLoaderRoute: typeof AdminGrowthCampusesRouteImport
+      parentRoute: typeof AdminGrowthRoute
+    }
+    '/admin/growth/campaigns': {
+      id: '/admin/growth/campaigns'
+      path: '/campaigns'
+      fullPath: '/admin/growth/campaigns'
+      preLoaderRoute: typeof AdminGrowthCampaignsRouteImport
       parentRoute: typeof AdminGrowthRoute
     }
     '/admin/growth/activity': {
@@ -2635,6 +2674,7 @@ const OutreachRouteWithChildren = OutreachRoute._addFileChildren(
 
 interface AdminGrowthRouteChildren {
   AdminGrowthActivityRoute: typeof AdminGrowthActivityRoute
+  AdminGrowthCampaignsRoute: typeof AdminGrowthCampaignsRoute
   AdminGrowthCampusesRoute: typeof AdminGrowthCampusesRoute
   AdminGrowthChaptersRoute: typeof AdminGrowthChaptersRoute
   AdminGrowthContactsRoute: typeof AdminGrowthContactsRoute
@@ -2650,6 +2690,7 @@ interface AdminGrowthRouteChildren {
 
 const AdminGrowthRouteChildren: AdminGrowthRouteChildren = {
   AdminGrowthActivityRoute: AdminGrowthActivityRoute,
+  AdminGrowthCampaignsRoute: AdminGrowthCampaignsRoute,
   AdminGrowthCampusesRoute: AdminGrowthCampusesRoute,
   AdminGrowthChaptersRoute: AdminGrowthChaptersRoute,
   AdminGrowthContactsRoute: AdminGrowthContactsRoute,
@@ -2757,6 +2798,7 @@ const rootRouteChildren: RootRouteChildren = {
   UIndexRoute: UIndexRoute,
   ApiCronBackupRoute: ApiCronBackupRoute,
   ApiCronCommsSequencesRoute: ApiCronCommsSequencesRoute,
+  ApiCronGrowthCampaignsRoute: ApiCronGrowthCampaignsRoute,
   ApiCronKingDigestRoute: ApiCronKingDigestRoute,
   ApiCronWeeklyDigestRoute: ApiCronWeeklyDigestRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,

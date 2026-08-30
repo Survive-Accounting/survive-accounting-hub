@@ -29,6 +29,8 @@ import {
   type OutreachEntity,
 } from "@/lib/growth-queue.functions";
 import { growthAddContact, growthUpdateContact } from "@/lib/growth-reach.functions";
+import { growthLaunchCampaign, type LaunchResult } from "@/lib/growth-campaign.functions";
+import { Rocket } from "lucide-react";
 import { Pill, Section } from "@/components/growth/shared";
 import { Chip } from "@/components/growth/v2";
 import { cn } from "@/lib/utils";
@@ -63,6 +65,7 @@ export function OutreachTab({
   const [previewing, setPreviewing] = useState(false);
   const [gapMode, setGapMode] = useState(!!defaultGapMode);
   const [showAll, setShowAll] = useState(false); // reveal the non-priority organizations
+  const [launchResult, setLaunchResult] = useState<LaunchResult | null>(null);
 
   const contacts = useQuery({
     queryKey: ["growth-outreach-contacts", campusId],
@@ -104,6 +107,19 @@ export function OutreachTab({
       toast.success("DM logged");
       qc.invalidateQueries({ queryKey: ["growth-outreach-history", campusId] });
     },
+  });
+  const launch = useMutation({
+    mutationFn: () => growthLaunchCampaign({ data: { campusId, templateKey } }),
+    onSuccess: (r) => {
+      setLaunchResult(r);
+      if (r.ok)
+        toast.success(
+          `Queued · ${r.emailCount} emails, ${r.dmCount} DMs · sends ${r.sendAtLabel} · under review`,
+        );
+      else toast.error(`${r.failures?.length ?? 0} issue(s) blocked the launch`);
+      qc.invalidateQueries({ queryKey: ["growth-queue", campusId] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Launch failed"),
   });
 
   const entities = contacts.data?.entities ?? [];
@@ -353,27 +369,70 @@ export function OutreachTab({
         </div>
       </Section>
 
+      {/* LAUNCH CAMPAIGN — one click builds the queue for this campus and schedules it for
+          the next business day. Auto-approved, but under review until it sends. */}
       {entities.length > 0 && (
+        <div className="rounded-md border border-primary/40 bg-primary/[0.04] p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={templateKey}
+              onChange={(e) => setTemplateKey(e.target.value)}
+              className="rounded-md border border-border bg-card px-2 py-1.5 text-xs"
+            >
+              {(templates.data?.templates ?? []).map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => launch.mutate()}
+              disabled={launch.isPending}
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-40"
+            >
+              {launch.isPending ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Rocket className="size-3.5" />
+              )}
+              Launch Campaign
+            </button>
+            <span className="text-[10px] text-muted-foreground">
+              Sends 9:00 AM the next business day · cancelable until then
+            </span>
+          </div>
+          {launchResult && !launchResult.ok && launchResult.failures && (
+            <div className="mt-2 space-y-1 rounded border border-red-500/40 bg-red-500/5 p-2">
+              <div className="text-[11px] font-semibold text-red-400">
+                Blocked — fix these, then launch again:
+              </div>
+              {launchResult.failures.map((f, i) => (
+                <div key={i} className="text-[11px] text-red-300">
+                  · {f.problem}
+                </div>
+              ))}
+            </div>
+          )}
+          {launchResult?.ok && (
+            <div className="mt-2 rounded border border-emerald-500/40 bg-emerald-500/5 p-2 text-[11px] text-emerald-300">
+              Queued · {launchResult.emailCount} emails, {launchResult.dmCount} DMs · sends{" "}
+              {launchResult.sendAtLabel} · under review
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Manual build-and-send (per-contact selection) stays available underneath. */}
+      {entities.length > 0 && selected.size > 0 && (
         <div className="sticky bottom-0 flex items-center gap-2 border-t border-border bg-background py-2">
-          <select
-            value={templateKey}
-            onChange={(e) => setTemplateKey(e.target.value)}
-            className="rounded-md border border-border bg-card px-2 py-1.5 text-xs"
-          >
-            {(templates.data?.templates ?? []).map((t) => (
-              <option key={t.key} value={t.key}>
-                {t.name}
-              </option>
-            ))}
-          </select>
           <button
             onClick={() => assemble.mutate()}
             disabled={selected.size === 0 || assemble.isPending}
-            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-40"
+            className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-40"
           >
             {assemble.isPending
               ? "Assembling…"
-              : `Build queue (${selected.size} selected · ${selectableCount} selectable)`}
+              : `Build queue from selection (${selected.size} · ${selectableCount} selectable)`}
           </button>
         </div>
       )}
