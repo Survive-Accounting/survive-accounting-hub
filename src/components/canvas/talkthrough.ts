@@ -132,18 +132,22 @@ export const STAMP_KINDS = [
 ] as const;
 export type StampKind = (typeof STAMP_KINDS)[number];
 
+/** Lee's 08-30 reorg: bankable memo content in the middle (these ARE the
+ *  banked items — template styles, no generated memos), video work LAST, and
+ *  Exhibit set apart from the video options (empty label = separated tail). */
 export const STAMP_GROUPS: readonly { id: string; label: string; kinds: readonly StampKind[] }[] = [
   { id: "edit", label: "EDIT THE CEQ", kinds: ["reword", "revise_choices", "edit_other"] },
-  { id: "plan", label: "PLAN", kinds: ["blast_off", "review_vibe"] },
-  { id: "make", label: "MAKE THIS A…", kinds: ["short", "nerdout", "exhibit", "phrase", "trigger_word", "tip_trick", "cheat_code", "real_world", "memo"] },
+  { id: "bank", label: "BANK A NEW:", kinds: ["phrase", "trigger_word", "tip_trick", "cheat_code", "real_world", "memo"] },
+  { id: "later", label: "TO MAKE LATER", kinds: ["blast_off", "short", "nerdout", "review_vibe"] },
+  { id: "exhibit", label: "", kinds: ["exhibit"] },
 ] as const;
 
 export const STAMP_LABELS: Record<StampKind, string> = {
   reword: "Reword", revise_choices: "Revise Choices", edit_other: "Anything Else",
-  blast_off: "Blast Off", review_vibe: "Review Vibe",
-  short: "Short", nerdout: "Nerd Out", exhibit: "Exhibit", phrase: "Phrase",
+  blast_off: "Blast Off", review_vibe: "Review Vibes",
+  short: "Other Short", nerdout: "Nerd Out", exhibit: "Exhibit", phrase: "Phrase",
   trigger_word: "Trigger Word", tip_trick: "Tip/Trick", cheat_code: "Cheat Code",
-  real_world: "Real World Example", memo: "Memo",
+  real_world: "Real World Example", memo: "Other Memo",
 };
 
 /** EDIT stamps are instruction contexts — closing one fires a background

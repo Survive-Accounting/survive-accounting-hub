@@ -3,6 +3,7 @@
 import { describe, expect, test } from "bun:test";
 
 import { AI_REGISTRY, costOf, sumUsage } from "@/lib/ai-registry";
+import { isWhisperHallucination } from "./talkthrough-audio";
 import {
   BOARD_KINDS, emptyDoc, recentApprovedExamples, styleKindFor, styleNotesFor,
   type BoardItem,
@@ -101,6 +102,25 @@ describe("B3 — the review pass", () => {
   });
   test("garbage degrades to zero items", () => {
     expect(parseReview({} as never, "s", "r", []).items).toEqual([]);
+  });
+});
+
+describe("whisper hallucination filter (the ghost-segment bug)", () => {
+  test("stock outros with no live text are noise", () => {
+    expect(isWhisperHallucination("If you like this video, don't forget to like it and subscribe to my channel. Thank you for watching!", "")).toBe(true);
+    expect(isWhisperHallucination("ご視聴ありがとうございました", "")).toBe(true);
+    expect(isWhisperHallucination("Thank you.", "")).toBe(true);
+    expect(isWhisperHallucination("❤❤❤❤❤", "")).toBe(true);
+    expect(isWhisperHallucination("Subtitles by the Amara.org community", "")).toBe(true);
+  });
+  test("live-text corroboration always wins — never drop words Lee said", () => {
+    expect(isWhisperHallucination("Thank you.", "thank you")).toBe(false);
+    expect(isWhisperHallucination("subscribe to my channel", "I would never say subscribe to my channel in a CEQ")).toBe(false);
+  });
+  test("real dictation passes, digits included", () => {
+    expect(isWhisperHallucination("Debits on the left, credits on the right.", "")).toBe(false);
+    expect(isWhisperHallucination("5. 6. 7. 8. 9. 10. 11. 13.", "")).toBe(false);
+    expect(isWhisperHallucination("", "")).toBe(false);
   });
 });
 
