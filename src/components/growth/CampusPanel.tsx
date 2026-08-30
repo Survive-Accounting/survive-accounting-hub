@@ -6,7 +6,7 @@
 //
 // Three sections, same as V1 — Overview / Outreach / Topic Map — but as accordions rather
 // than tabs, because with disclosure the whole campus is one scrollable column.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, Loader2, Pin, PinOff } from "lucide-react";
 import { toast } from "sonner";
@@ -26,9 +26,12 @@ import { DocsPanel } from "@/components/growth/DocsPanel";
 import { ActivityFeed } from "@/components/growth/ActivityFeed";
 import { HINTS } from "@/components/growth/hints";
 import { BottomSheet } from "@/components/growth/BottomSheet";
+import { getAdminWho } from "@/components/AdminGate";
 import { cn } from "@/lib/utils";
 
-export type Section = "overview" | "outreach" | "map" | "docs" | "activity";
+// V2: King's drawer is contacts-first. The heavy analytics (full overview, topic map,
+// documents) collapse into a Lee-only "Deep view" so they stop bleeding into his worklist.
+export type Section = "outreach" | "snapshot" | "activity" | "deep";
 
 export function CampusPanel({
   campusId,
@@ -44,7 +47,12 @@ export function CampusPanel({
   outreachGapMode?: boolean;
 }) {
   const qc = useQueryClient();
-  const [open, setOpen] = useState<Section | null>(initialSection ?? "overview");
+  // Contacts-first: the drawer lands on Outreach unless told otherwise.
+  const [open, setOpen] = useState<Section | null>(initialSection ?? "outreach");
+  // Identity tailors the view: King never sees the analytical deep view / readiness noise.
+  const [who, setWho] = useState<string | null>(null);
+  useEffect(() => setWho(getAdminWho()), []);
+  const isLee = who != null && who !== "king";
   const q = useQuery({
     queryKey: ["growth-campus-detail", campusId],
     queryFn: () => growthCampusDetail({ data: { campusId } }),
@@ -88,7 +96,7 @@ export function CampusPanel({
               .join(" · ")}
           </div>
         </div>
-        {readiness != null && (
+        {isLee && readiness != null && (
           <Hint text={HINTS.courseReadiness}>
             <div className="rounded-md border border-border bg-card px-2 py-1 text-center">
               <div className="sa-admin-display text-sm font-semibold">{Math.round(readiness)}%</div>
@@ -112,7 +120,7 @@ export function CampusPanel({
         </div>
       </div>
 
-      {d.priority && (
+      {isLee && d.priority && (
         <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
           <Hint text={HINTS.rank}>
             <span className="rounded bg-muted px-1.5 py-0.5 font-medium">#{d.priority.rank}</span>
@@ -126,33 +134,21 @@ export function CampusPanel({
       )}
 
       <div className="rounded-lg border border-border bg-card">
-        <Accordion
-          open={open === "overview"}
-          onToggle={() => toggle("overview")}
-          header={<SectionHead label="Overview" note="Launch state, professors, chapters" />}
-        >
-          <OverviewBody d={d} campusId={campusId} />
-        </Accordion>
+        {/* THE JOB — recipients first, open by default */}
         <Accordion
           open={open === "outreach"}
           onToggle={() => toggle("outreach")}
-          header={<SectionHead label="Outreach" note="Contacts, queue, history" />}
+          header={<SectionHead label="Add contacts" note="Councils, chapters, clubs — email & IG" />}
         >
           <OutreachTab campusId={campusId} campusName={d.name} defaultGapMode={outreachGapMode} />
         </Accordion>
+        {/* a few lines of context, not the whole market panel */}
         <Accordion
-          open={open === "map"}
-          onToggle={() => toggle("map")}
-          header={<SectionHead label="Topic Map" note="Starter vs campus map, approvals" />}
+          open={open === "snapshot"}
+          onToggle={() => toggle("snapshot")}
+          header={<SectionHead label="Snapshot" note="Course, size, demand, sold" />}
         >
-          <TopicMapTab campusId={campusId} />
-        </Accordion>
-        <Accordion
-          open={open === "docs"}
-          onToggle={() => toggle("docs")}
-          header={<SectionHead label="Documents" note="Scraped + student-submitted" />}
-        >
-          <DocsPanel campusId={campusId} />
+          <SnapshotBody d={d} />
         </Accordion>
         <Accordion
           open={open === "activity"}
@@ -161,7 +157,100 @@ export function CampusPanel({
         >
           <ActivityFeed campusId={campusId} compact />
         </Accordion>
+        {/* DEEP VIEW — the analytics, out of King's path. Lee only. */}
+        {isLee && (
+          <Accordion
+            open={open === "deep"}
+            onToggle={() => toggle("deep")}
+            header={
+              <SectionHead label="Deep view" note="Market, professors, topic map, documents · Lee" />
+            }
+          >
+            <DeepView d={d} campusId={campusId} />
+          </Accordion>
+        )}
       </div>
+    </div>
+  );
+}
+
+/* ── SNAPSHOT — King's few-line context strip ─────────────────────────────────────────── */
+
+function SnapshotBody({ d }: { d: CampusDetail }) {
+  const r = d.results;
+  const exam1 = d.exams.find((e) => /1/.test(e.name)) ?? d.exams[0];
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Metric
+          label="Est. seats / yr"
+          value={d.market?.estimatedIntro1 ?? null}
+          hint={HINTS.estIntro1}
+        />
+        <Metric
+          label="Practice Qs"
+          value={r.questionsAnswered || null}
+          hint={HINTS.questionsAnswered}
+        />
+        <Metric
+          label="Individual sold"
+          value={r.paid || null}
+          tone={r.paid ? "good" : "default"}
+          hint="Individual exam purchases here — one student, one exam."
+        />
+        <Metric label="Waitlist" value={r.waitlist || null} hint={HINTS.waitlist} />
+      </div>
+      <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+        <span className="rounded bg-muted px-1.5 py-0.5">
+          {[d.courseCode, d.courseTitle ?? "Intro Financial Accounting"].filter(Boolean).join(" · ")}
+        </span>
+        {exam1 && (
+          <Hint text={HINTS.examStatus(exam1.topics, exam1.coveredTopics, exam1.level)}>
+            <span className="inline-flex items-center gap-1.5 rounded border border-border px-1.5 py-0.5">
+              {exam1.name}
+              <Chip
+                tone={
+                  exam1.status === "READY" ? "good" : exam1.status === "PARTIAL" ? "warn" : "neutral"
+                }
+              >
+                {exam1.status.replace("_", " ")}
+              </Chip>
+            </span>
+          </Hint>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── DEEP VIEW — the old analytics, kept but off King's board ──────────────────────────── */
+
+function DeepView({ d, campusId }: { d: CampusDetail; campusId: string }) {
+  const [open, setOpen] = useState<"overview" | "map" | "docs" | null>("overview");
+  const toggle = (s: "overview" | "map" | "docs") => setOpen((cur) => (cur === s ? null : s));
+  return (
+    <div className="rounded-md border border-border">
+      <Accordion
+        open={open === "overview"}
+        onToggle={() => toggle("overview")}
+        header={<SectionHead label="Overview" note="Market, checklist, professors, chapters" />}
+      >
+        <OverviewBody d={d} campusId={campusId} />
+      </Accordion>
+      <Accordion
+        open={open === "map"}
+        onToggle={() => toggle("map")}
+        header={<SectionHead label="Topic Map" note="Starter vs campus map, approvals" />}
+      >
+        <TopicMapTab campusId={campusId} />
+      </Accordion>
+      <Accordion
+        open={open === "docs"}
+        onToggle={() => toggle("docs")}
+        header={<SectionHead label="Documents" note="Scraped + student-submitted" />}
+      >
+        <DocsPanel campusId={campusId} />
+      </Accordion>
     </div>
   );
 }

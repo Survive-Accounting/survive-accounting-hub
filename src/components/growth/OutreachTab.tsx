@@ -12,6 +12,7 @@ import {
   Instagram,
   Loader2,
   Mail,
+  Sparkles,
   Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -28,6 +29,8 @@ import {
   type OutreachEntity,
 } from "@/lib/growth-queue.functions";
 import { growthAddContact, growthUpdateContact } from "@/lib/growth-reach.functions";
+import { growthLaunchCampaign, type LaunchResult } from "@/lib/growth-campaign.functions";
+import { Rocket } from "lucide-react";
 import { Pill, Section } from "@/components/growth/shared";
 import { Chip } from "@/components/growth/v2";
 import { cn } from "@/lib/utils";
@@ -61,6 +64,8 @@ export function OutreachTab({
   const [templateKey, setTemplateKey] = useState<string>("council_intro_v1");
   const [previewing, setPreviewing] = useState(false);
   const [gapMode, setGapMode] = useState(!!defaultGapMode);
+  const [showAll, setShowAll] = useState(false); // reveal the non-priority organizations
+  const [launchResult, setLaunchResult] = useState<LaunchResult | null>(null);
 
   const contacts = useQuery({
     queryKey: ["growth-outreach-contacts", campusId],
@@ -103,8 +108,23 @@ export function OutreachTab({
       qc.invalidateQueries({ queryKey: ["growth-outreach-history", campusId] });
     },
   });
+  const launch = useMutation({
+    mutationFn: () => growthLaunchCampaign({ data: { campusId, templateKey } }),
+    onSuccess: (r) => {
+      setLaunchResult(r);
+      if (r.ok)
+        toast.success(
+          `Queued · ${r.emailCount} emails, ${r.dmCount} DMs · sends ${r.sendAtLabel} · under review`,
+        );
+      else toast.error(`${r.failures?.length ?? 0} issue(s) blocked the launch`);
+      qc.invalidateQueries({ queryKey: ["growth-queue", campusId] });
+    },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Launch failed"),
+  });
 
   const entities = contacts.data?.entities ?? [];
+  const priorityEntities = useMemo(() => entities.filter((e) => e.priorityGroup), [entities]);
+  const restEntities = useMemo(() => entities.filter((e) => !e.priorityGroup), [entities]);
   const selectableCount = useMemo(
     () =>
       entities
@@ -126,6 +146,140 @@ export function OutreachTab({
       }
       return next;
     });
+  };
+
+  const PRIORITY_BADGE: Record<string, string> = {
+    fraternity: "top fraternity",
+    sorority: "top sorority",
+    club: "Women in Business",
+  };
+
+  const renderEntity = (e: OutreachEntity) => {
+    const def = e.contacts.find((c) => c.isDefault);
+    const entityChecked =
+      def != null &&
+      selected.has(def.qcId) &&
+      ![...e.contacts.filter((c) => !c.isDefault)].some((c) => selected.has(c.qcId));
+    return (
+      <div
+        key={e.key}
+        className={cn(
+          "rounded-md border p-2",
+          e.priorityGroup ? "border-primary/40 bg-primary/[0.03]" : "border-border",
+        )}
+      >
+        <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold">
+          <input
+            type="checkbox"
+            disabled={!def}
+            checked={entityChecked || e.contacts.some((c) => selected.has(c.qcId))}
+            onChange={(ev) => toggleEntity(e, ev.target.checked)}
+          />
+          {e.label}
+          {e.kind === "council" && <Chip tone="info">council</Chip>}
+          {e.priorityGroup && e.priorityGroup !== "council" && (
+            <Chip tone="good">{PRIORITY_BADGE[e.priorityGroup]}</Chip>
+          )}
+          {e.kind === "chapter" && e.size != null && (
+            <span className="font-normal text-[10px] tabular-nums text-muted-foreground">
+              {e.size} members
+            </span>
+          )}
+          {e.sublabel && e.kind !== "council" && (
+            <span className="font-normal text-muted-foreground">{e.sublabel}</span>
+          )}
+        </label>
+        {!def && (
+          <InlineAddEmail
+            campusId={campusId}
+            entity={e}
+            onAdded={() =>
+              qc.invalidateQueries({ queryKey: ["growth-outreach-contacts", campusId] })
+            }
+          />
+        )}
+        <div className="mt-1 space-y-0.5 pl-6">
+          {e.contacts.map((c) => (
+            <div key={c.qcId} className="flex items-center gap-2 text-[11px]">
+              {c.email ? (
+                <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(c.qcId)}
+                    disabled={
+                      !c.outreachEligible || c.class === "VERIFY" || c.class === "ADVISORY"
+                    }
+                    onChange={(ev) =>
+                      setSelected((prev) => {
+                        const next = new Set(prev);
+                        if (ev.target.checked) next.add(c.qcId);
+                        else next.delete(c.qcId);
+                        return next;
+                      })
+                    }
+                  />
+                  <Mail className="size-3 shrink-0 text-muted-foreground" />
+                  <span className="truncate">{c.email}</span>
+                  {c.name && (
+                    <span className="truncate text-muted-foreground">
+                      · {c.name}
+                      {c.role ? ` (${c.role})` : ""}
+                    </span>
+                  )}
+                </label>
+              ) : (
+                <span className="flex min-w-0 flex-1 items-center gap-1.5 pl-[18px]">
+                  <Instagram className="size-3 shrink-0 text-muted-foreground" />
+                  {c.instagram ? (
+                    <a
+                      href={
+                        c.instagram.startsWith("http")
+                          ? c.instagram
+                          : `https://instagram.com/${c.instagram.replace(/^@/, "")}`
+                      }
+                      target="_blank"
+                      rel="noreferrer"
+                      className="truncate underline"
+                    >
+                      {c.instagram}
+                    </a>
+                  ) : (
+                    <span className="text-muted-foreground">no reachable path</span>
+                  )}
+                  {c.instagram && (
+                    <button
+                      onClick={() =>
+                        logDm.mutate({
+                          chapterId: c.chapterId,
+                          councilType: c.councilType,
+                          qcId: c.qcId,
+                        })
+                      }
+                      className="shrink-0 rounded border border-border px-1.5 text-[10px] hover:bg-muted"
+                    >
+                      Log DM
+                    </button>
+                  )}
+                </span>
+              )}
+              <span
+                className={cn(
+                  "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold",
+                  CLASS_TONE[c.class],
+                )}
+                title={
+                  c.class === "VERIFY"
+                    ? "Named officer without current-term evidence — verify before use"
+                    : undefined
+                }
+              >
+                {CLASS_LABEL[c.class]}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   if (contacts.isLoading)
@@ -195,148 +349,90 @@ export function OutreachTab({
           </div>
         )}
         <div className={cn("space-y-2", gapMode && "hidden")}>
-          {entities.map((e) => {
-            const def = e.contacts.find((c) => c.isDefault);
-            const entityChecked =
-              def != null &&
-              selected.has(def.qcId) &&
-              ![...e.contacts.filter((c) => !c.isDefault)].some((c) => selected.has(c.qcId));
-            return (
-              <div key={e.key} className="rounded-md border border-border p-2">
-                <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold">
-                  <input
-                    type="checkbox"
-                    disabled={!def}
-                    checked={entityChecked || e.contacts.some((c) => selected.has(c.qcId))}
-                    onChange={(ev) => toggleEntity(e, ev.target.checked)}
-                  />
-                  {e.label}
-                  {e.kind === "council" && <Chip tone="info">council</Chip>}
-                  {e.kind === "chapter" && e.size != null && (
-                    <span className="font-normal text-[10px] tabular-nums text-muted-foreground">
-                      {e.size} members
-                    </span>
-                  )}
-                  {e.sublabel && e.kind !== "council" && (
-                    <span className="font-normal text-muted-foreground">{e.sublabel}</span>
-                  )}
-                </label>
-                {!def && (
-                  <InlineAddEmail
-                    campusId={campusId}
-                    entity={e}
-                    onAdded={() =>
-                      qc.invalidateQueries({ queryKey: ["growth-outreach-contacts", campusId] })
-                    }
-                  />
-                )}
-                <div className="mt-1 space-y-0.5 pl-6">
-                  {e.contacts.map((c) => (
-                    <div key={c.qcId} className="flex items-center gap-2 text-[11px]">
-                      {c.email ? (
-                        <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-1.5">
-                          <input
-                            type="checkbox"
-                            checked={selected.has(c.qcId)}
-                            disabled={
-                              !c.outreachEligible || c.class === "VERIFY" || c.class === "ADVISORY"
-                            }
-                            onChange={(ev) =>
-                              setSelected((prev) => {
-                                const next = new Set(prev);
-                                if (ev.target.checked) next.add(c.qcId);
-                                else next.delete(c.qcId);
-                                return next;
-                              })
-                            }
-                          />
-                          <Mail className="size-3 shrink-0 text-muted-foreground" />
-                          <span className="truncate">{c.email}</span>
-                          {c.name && (
-                            <span className="truncate text-muted-foreground">
-                              · {c.name}
-                              {c.role ? ` (${c.role})` : ""}
-                            </span>
-                          )}
-                        </label>
-                      ) : (
-                        <span className="flex min-w-0 flex-1 items-center gap-1.5 pl-[18px]">
-                          <Instagram className="size-3 shrink-0 text-muted-foreground" />
-                          {c.instagram ? (
-                            <a
-                              href={
-                                c.instagram.startsWith("http")
-                                  ? c.instagram
-                                  : `https://instagram.com/${c.instagram.replace(/^@/, "")}`
-                              }
-                              target="_blank"
-                              rel="noreferrer"
-                              className="truncate underline"
-                            >
-                              {c.instagram}
-                            </a>
-                          ) : (
-                            <span className="text-muted-foreground">no reachable path</span>
-                          )}
-                          {c.instagram && (
-                            <button
-                              onClick={() =>
-                                logDm.mutate({
-                                  chapterId: c.chapterId,
-                                  councilType: c.councilType,
-                                  qcId: c.qcId,
-                                })
-                              }
-                              className="shrink-0 rounded border border-border px-1.5 text-[10px] hover:bg-muted"
-                            >
-                              Log DM
-                            </button>
-                          )}
-                        </span>
-                      )}
-                      <span
-                        className={cn(
-                          "shrink-0 rounded px-1.5 py-0.5 text-[9px] font-semibold",
-                          CLASS_TONE[c.class],
-                        )}
-                        title={
-                          c.class === "VERIFY"
-                            ? "Named officer without current-term evidence — verify before use"
-                            : undefined
-                        }
-                      >
-                        {CLASS_LABEL[c.class]}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+          {priorityEntities.length > 0 && (
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-primary">
+              <Sparkles className="size-3" /> Priority targets — councils, top 5s &amp; Women in
+              Business
+            </div>
+          )}
+          {priorityEntities.map(renderEntity)}
+          {restEntities.length > 0 && (
+            <button
+              onClick={() => setShowAll((v) => !v)}
+              className="flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-border py-1.5 text-[11px] text-muted-foreground hover:bg-muted"
+            >
+              {showAll ? "Hide" : "Show"} {restEntities.length} more organization
+              {restEntities.length === 1 ? "" : "s"}
+            </button>
+          )}
+          {showAll && restEntities.map(renderEntity)}
         </div>
       </Section>
 
+      {/* LAUNCH CAMPAIGN — one click builds the queue for this campus and schedules it for
+          the next business day. Auto-approved, but under review until it sends. */}
       {entities.length > 0 && (
+        <div className="rounded-md border border-primary/40 bg-primary/[0.04] p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={templateKey}
+              onChange={(e) => setTemplateKey(e.target.value)}
+              className="rounded-md border border-border bg-card px-2 py-1.5 text-xs"
+            >
+              {(templates.data?.templates ?? []).map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => launch.mutate()}
+              disabled={launch.isPending}
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-40"
+            >
+              {launch.isPending ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Rocket className="size-3.5" />
+              )}
+              Launch Campaign
+            </button>
+            <span className="text-[10px] text-muted-foreground">
+              Sends 9:00 AM the next business day · cancelable until then
+            </span>
+          </div>
+          {launchResult && !launchResult.ok && launchResult.failures && (
+            <div className="mt-2 space-y-1 rounded border border-red-500/40 bg-red-500/5 p-2">
+              <div className="text-[11px] font-semibold text-red-400">
+                Blocked — fix these, then launch again:
+              </div>
+              {launchResult.failures.map((f, i) => (
+                <div key={i} className="text-[11px] text-red-300">
+                  · {f.problem}
+                </div>
+              ))}
+            </div>
+          )}
+          {launchResult?.ok && (
+            <div className="mt-2 rounded border border-emerald-500/40 bg-emerald-500/5 p-2 text-[11px] text-emerald-300">
+              Queued · {launchResult.emailCount} emails, {launchResult.dmCount} DMs · sends{" "}
+              {launchResult.sendAtLabel} · under review
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Manual build-and-send (per-contact selection) stays available underneath. */}
+      {entities.length > 0 && selected.size > 0 && (
         <div className="sticky bottom-0 flex items-center gap-2 border-t border-border bg-background py-2">
-          <select
-            value={templateKey}
-            onChange={(e) => setTemplateKey(e.target.value)}
-            className="rounded-md border border-border bg-card px-2 py-1.5 text-xs"
-          >
-            {(templates.data?.templates ?? []).map((t) => (
-              <option key={t.key} value={t.key}>
-                {t.name}
-              </option>
-            ))}
-          </select>
           <button
             onClick={() => assemble.mutate()}
             disabled={selected.size === 0 || assemble.isPending}
-            className="rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-40"
+            className="rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-40"
           >
             {assemble.isPending
               ? "Assembling…"
-              : `Build queue (${selected.size} selected · ${selectableCount} selectable)`}
+              : `Build queue from selection (${selected.size} · ${selectableCount} selectable)`}
           </button>
         </div>
       )}
@@ -718,6 +814,16 @@ function GapTable({
           Done
         </button>
       </div>
+      <p className="mb-1.5 text-[10px] text-muted-foreground">
+        Instagram here means the <strong className="text-foreground">person's own handle</strong> —
+        the exec you'd DM — not the chapter's public account.
+      </p>
+      {/* column headers so "which field is which" is never ambiguous */}
+      <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] gap-1.5 px-1 pb-1 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <span>Contact</span>
+        <span>Email</span>
+        <span>Personal Instagram</span>
+      </div>
       <div className="max-h-80 space-y-0.5 overflow-y-auto">
         {rows.map(({ entity, c }) => (
           <GapRow key={c.qcId} entityLabel={entity} contact={c} campusId={campusId} />
@@ -772,7 +878,8 @@ function GapRow({
         value={instagram}
         onChange={(ev) => setInstagram(ev.target.value)}
         onBlur={() => dirty && save.mutate()}
-        placeholder="@instagram…"
+        placeholder="@personal handle…"
+        title="The person's own Instagram, not the chapter account"
         className="rounded border border-border bg-card px-1.5 py-0.5 text-[11px]"
       />
     </div>

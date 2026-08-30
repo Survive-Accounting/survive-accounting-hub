@@ -69,8 +69,12 @@ export interface OutreachEntity {
   kind: "council" | "chapter" | "club";
   label: string;
   sublabel: string | null;
-  /** campus_greek_chapters.chapter_size — null until the size data lands (sorts last) */
+  /** Chapter members — greek_chapter_academic_metrics.latest_member_count, falling back to
+   *  campus_greek_chapters.chapter_size. Drives biggest-first and the top-5 priority pick. */
   size: number | null;
+  /** V2 Phase 3: the targets to fill first. council + top-5 IFC + top-5 Panhellenic +
+   *  Women-in-Business clubs. null = work-it-later. */
+  priorityGroup: "council" | "fraternity" | "sorority" | "club" | null;
   contacts: OutreachContactRow[];
 }
 
@@ -78,15 +82,26 @@ export const growthOutreachContacts = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => z.object({ campusId: z.string().uuid() }).parse(d))
   .handler(async ({ data }): Promise<{ entities: OutreachEntity[] }> => {
     const db = await adminDb();
-    const [{ data: rows }, { data: chapters }, { data: clubs }] = await Promise.all([
-      db.from("growth_outreach_eligibility").select("*").eq("campus_id", data.campusId),
-      db
-        .from("campus_greek_chapters")
-        .select("id,council,greek_org_id,chapter_size")
-        .eq("campus_id", data.campusId)
-        .is("archived_at", null),
-      db.from("growth_business_clubs").select("id,name,category").eq("campus_id", data.campusId),
-    ]);
+    const [{ data: rows }, { data: chapters }, { data: clubs }, { data: metrics }] =
+      await Promise.all([
+        db.from("growth_outreach_eligibility").select("*").eq("campus_id", data.campusId),
+        db
+          .from("campus_greek_chapters")
+          .select("id,council,greek_org_id,chapter_size")
+          .eq("campus_id", data.campusId)
+          .is("archived_at", null),
+        db.from("growth_business_clubs").select("id,name,category").eq("campus_id", data.campusId),
+        // Real chapter sizes live here (chapter_size is still empty); prefer latest_member_count.
+        db
+          .from("greek_chapter_academic_metrics")
+          .select("campus_greek_chapter_id,latest_member_count")
+          .eq("campus_id", data.campusId),
+      ]);
+    const memberCountOf = new Map<string, number>();
+    for (const m of (metrics ?? []) as any[]) {
+      if (m.campus_greek_chapter_id && m.latest_member_count != null)
+        memberCountOf.set(m.campus_greek_chapter_id, m.latest_member_count);
+    }
     const orgIds = [...new Set((chapters ?? []).map((c: any) => c.greek_org_id).filter(Boolean))];
     const orgNames = new Map<string, string>();
     if (orgIds.length) {
@@ -101,9 +116,12 @@ export const growthOutreachContacts = createServerFn({ method: "GET" })
       chapterInfo.set(c.id, {
         name: orgNames.get(c.greek_org_id) ?? "Chapter",
         council: c.council ?? null,
-        size: c.chapter_size ?? null,
+        size: memberCountOf.get(c.id) ?? c.chapter_size ?? null,
       });
     }
+    const clubCategory = new Map<string, string | null>(
+      (clubs ?? []).map((c: any) => [c.id, c.category ?? null]),
+    );
     const clubNames = new Map<string, string>((clubs ?? []).map((c: any) => [c.id, c.name]));
 
     const byEntity = new Map<string, OutreachEntity>();
@@ -140,13 +158,87 @@ export const growthOutreachContacts = createServerFn({ method: "GET" })
       if (!byEntity.has(key)) {
         const size =
           kind === "chapter" && c.chapterId ? (chapterInfo.get(c.chapterId)?.size ?? null) : null;
-        byEntity.set(key, { key, kind, label, sublabel, size, contacts: [] });
+        byEntity.set(key, { key, kind, label, sublabel, size, priorityGroup: null, contacts: [] });
       }
       byEntity.get(key)!.contacts.push({ ...c, class: classifyContact(c), isDefault: false });
     }
-    // Councils first, then chapters biggest-first (unknown size last), clubs after —
-    // the order King should work them in, not the order the scraper found them.
-    const entities = [...byEntity.values()].sort(compareEntities);
+
+    // Surface chapters/clubs that have NO contact yet as empty entities, so the top-5
+    // priority targets still show up for King to go fill (an empty entity renders its
+    // Add-email affordance). Without this, a big fraternity with no contact row would be
+    // invisible — exactly the ones King most needs to chase.
+    for (const c of (chapters ?? []) as any[]) {
+      const key = `chapter:${c.id}`;
+      if (byEntity.has(key)) continue;
+      const info = chapterInfo.get(c.id);
+      byEntity.set(key, {
+        key,
+        kind: "chapter",
+        label: info?.name ?? "Chapter",
+        sublabel: (info?.council ?? "").toUpperCase() || null,
+        size: info?.size ?? null,
+        priorityGroup: null,
+        contacts: [],
+      });
+    }
+    for (const c of (clubs ?? []) as any[]) {
+      const key = `club:${c.id}`;
+      if (byEntity.has(key)) continue;
+      byEntity.set(key, {
+        key,
+        kind: "club",
+        label: c.name ?? "Business club",
+        sublabel: "Student org",
+        size: null,
+        priorityGroup: null,
+        contacts: [],
+      });
+    }
+
+    const entities = [...byEntity.values()];
+
+    // ── PRIORITY TARGETS (V2 Phase 3) ──────────────────────────────────────────────
+    // The rows King fills first: every council, the top-5 fraternities and top-5
+    // sororities by member count, and any Women-in-Business club. The rest are still
+    // here, just below the fold. Council text is free-form, so match, don't ===.
+    const councilKind = (raw: string | null): "fraternity" | "sorority" | null => {
+      const s = (raw ?? "").toLowerCase();
+      if (/ifc|interfratern/.test(s)) return "fraternity";
+      if (/panhel|\bphc\b/.test(s)) return "sorority";
+      return null; // NPHC / MGC / multicultural — their councils are still priority, chapters aren't
+    };
+    const bySizeDesc = (a: OutreachEntity, b: OutreachEntity) =>
+      (b.size ?? -1) - (a.size ?? -1) || a.label.localeCompare(b.label);
+    const frats: OutreachEntity[] = [];
+    const sororities: OutreachEntity[] = [];
+    for (const e of entities) {
+      if (e.kind === "council") {
+        e.priorityGroup = "council";
+      } else if (e.kind === "chapter") {
+        const info = chapterInfo.get(e.key.split(":")[1]);
+        const ck = councilKind(info?.council ?? e.sublabel);
+        if (ck === "fraternity") frats.push(e);
+        else if (ck === "sorority") sororities.push(e);
+      } else if (e.kind === "club") {
+        const cat = (clubCategory.get(e.key.split(":")[1]) ?? "").toLowerCase();
+        if (/women|wib/.test(cat) || /women in business/.test(e.label.toLowerCase()))
+          e.priorityGroup = "club";
+      }
+    }
+    for (const e of frats.sort(bySizeDesc).slice(0, 5)) e.priorityGroup = "fraternity";
+    for (const e of sororities.sort(bySizeDesc).slice(0, 5)) e.priorityGroup = "sorority";
+
+    // Priority group first (council → frat → sorority → club), biggest-first inside it;
+    // everything else keeps the old council/size ordering underneath.
+    const groupRank: Record<string, number> = { council: 0, fraternity: 1, sorority: 2, club: 3 };
+    entities.sort((a, b) => {
+      const ap = a.priorityGroup ? groupRank[a.priorityGroup] : 9;
+      const bp = b.priorityGroup ? groupRank[b.priorityGroup] : 9;
+      if (ap !== bp) return ap - bp;
+      if (a.priorityGroup && b.priorityGroup) return bySizeDesc(a, b);
+      return compareEntities(a, b);
+    });
+
     for (const e of entities) {
       const def = defaultContactFor(e.contacts);
       for (const c of e.contacts) c.isDefault = def != null && c.qcId === def.qcId;
@@ -799,15 +891,36 @@ export const growthTasks = createServerFn({ method: "GET" }).handler(
     const db = await adminDb();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    // PostgREST pages at 1000 rows, and the eligibility view holds 4,000+ — an unpaged
+    // select here silently dropped every council row past the cap and told King "every
+    // campus has been contacted" on a board with zero outreach. Page the big reads.
+    const pageAll = async (table: string, columns: string, filter?: (q: any) => any) => {
+      const out: any[] = [];
+      for (let from = 0; ; from += 1000) {
+        let qy = db
+          .from(table)
+          .select(columns)
+          .range(from, from + 999);
+        if (filter) qy = filter(qy);
+        const { data: page, error } = await qy;
+        if (error) throw new Error(`${table}: ${error.message}`);
+        out.push(...(page ?? []));
+        if (!page || page.length < 1000) break;
+      }
+      return out;
+    };
     const [eventsToday, eventsAll, elig, priority, settingsRow] = await Promise.all([
       db
         .from("growth_outreach_events")
         .select("channel,direction,message_id")
         .gte("occurred_at", today.toISOString()),
-      db.from("growth_outreach_events").select("campus_id,direction").eq("direction", "outbound"),
-      db
-        .from("growth_outreach_eligibility")
-        .select("campus_id,chapter_id,council_type,email,instagram,outreach_eligible"),
+      pageAll("growth_outreach_events", "campus_id,direction", (qy) =>
+        qy.eq("direction", "outbound"),
+      ),
+      pageAll(
+        "growth_outreach_eligibility",
+        "campus_id,chapter_id,council_type,email,instagram,outreach_eligible",
+      ),
       db.from("growth_campus_priority").select("campus_id,rank").order("rank").limit(700),
       db.from("site_settings").select("settings").limit(1).maybeSingle(),
     ]);
@@ -822,14 +935,12 @@ export const growthTasks = createServerFn({ method: "GET" }).handler(
     ).length;
     const dms = todayRows.filter((e) => e.channel === "ig_dm" && e.direction === "outbound").length;
 
-    const contacted = new Set(
-      ((eventsAll.data ?? []) as any[]).map((e) => e.campus_id).filter(Boolean),
-    );
+    const contacted = new Set((eventsAll as any[]).map((e) => e.campus_id).filter(Boolean));
 
     // council emails per campus + gap counts, one pass over the eligibility view
     const councilEmails = new Map<string, number>();
     const gapsByCampus = new Map<string, number>();
-    for (const e of (elig.data ?? []) as any[]) {
+    for (const e of elig as any[]) {
       if (!e.campus_id) continue;
       if (e.council_type && !e.chapter_id && e.outreach_eligible && e.email) {
         councilEmails.set(e.campus_id, (councilEmails.get(e.campus_id) ?? 0) + 1);

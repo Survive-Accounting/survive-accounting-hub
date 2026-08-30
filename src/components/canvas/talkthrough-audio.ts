@@ -55,6 +55,35 @@ const SILENCE_RMS = 0.014;      // speech sits well above; room tone below
 const MIN_CHUNK_MS = 2500;      // never cut mid-word on a breath
 const MAX_CHUNK_MS = 45_000;    // hard cap — text must land within seconds
 const TICK_MS = 120;
+// A chunk ships to Whisper only after this much ACCUMULATED loud time. One
+// keyboard clack or a chair creak crosses SILENCE_RMS for a tick or two;
+// real speech holds it for many. Near-silent chunks fed to Whisper are what
+// hallucinate "don't forget to like and subscribe" — never send them.
+const MIN_VOICED_MS = 400;
+
+/** Whisper invents stock YouTube-outro phrases (in several languages) when
+ *  given near-silence — its training data is full of quiet video endings.
+ *  When the browser's live recognition ALSO heard nothing, text matching
+ *  these is noise, not Lee. Verbatim transcripts are for words Lee SAID;
+ *  dropping machine noise before it becomes a segment honors that. */
+const HALLUCINATION_PATTERNS: RegExp[] = [
+  /like\s*(it\s*)?(,|and)?\s*subscribe/i,
+  /don'?t forget to (like|subscribe)/i,
+  /thank(s| you) for watching/i,
+  /subscribe to (my|the|our) channel/i,
+  /see you (in the next|next) (video|time)/i,
+  /^thank you[.!]?$/i,
+  /ご視聴|チャンネル登録|ありがとうございました/,
+  /amara\.org|subtitles by|sous-titres|sottotitoli|untertitel|시청해|구독/i,
+  /www\.|https?:\/\//i,
+];
+export function isWhisperHallucination(whisperText: string, liveText: string): boolean {
+  if (liveText.trim()) return false; // the live mic heard real words — trust Whisper
+  const t = whisperText.trim();
+  if (!t) return false;
+  if (!/[a-zA-Z0-9]/.test(t)) return true; // Lee dictates in English; CJK-only / emoji-only = noise (digits are real — he reads sequences aloud)
+  return HALLUCINATION_PATTERNS.some((p) => p.test(t));
+}
 
 function pickAudioMime(): string {
   const c = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
@@ -92,6 +121,7 @@ export class TalkthroughRecorder {
   private chunkStartedAt = 0;
   private lastLoudAt = 0;
   private spokeThisChunk = false;
+  private voicedMs = 0; // accumulated loud time this chunk — the ship gate
   private stopping = false;
   private uploadQ: { seg: TalkSegment; blob: Blob }[] = [];
   private uploading = false;
@@ -117,6 +147,13 @@ export class TalkthroughRecorder {
       transcribeQueue: pendingWhisper,
       lastError: this.lastError,
     };
+  }
+
+  /** B1 — a context OPEN/CLOSE is a natural boundary too: cut the current
+   *  chunk so no audio words straddle the window, without touching the
+   *  stream. No-op when idle or nothing was said yet. */
+  markBoundary(): void {
+    if (this.rec && this.spokeThisChunk && Date.now() - this.chunkStartedAt > MIN_CHUNK_MS) this.cutChunk();
   }
 
   /** THE COVERAGE ANCHOR. A focus change closes the current chunk (a natural
@@ -200,6 +237,7 @@ export class TalkthroughRecorder {
     this.interim = "";
     this.chunks = [];
     this.spokeThisChunk = false;
+    this.voicedMs = 0;
     this.chunkStartedAt = Date.now();
     this.lastLoudAt = Date.now();
     const rec = new MediaRecorder(this.stream, pickAudioMime() ? { mimeType: pickAudioMime() } : undefined);
@@ -224,7 +262,7 @@ export class TalkthroughRecorder {
     for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
     const rms = Math.sqrt(sum / buf.length);
     const now = Date.now();
-    if (rms >= SILENCE_RMS) { this.lastLoudAt = now; this.spokeThisChunk = true; }
+    if (rms >= SILENCE_RMS) { this.lastLoudAt = now; this.spokeThisChunk = true; this.voicedMs += TICK_MS; }
     const dur = now - this.chunkStartedAt;
     const quiet = now - this.lastLoudAt;
     if ((this.spokeThisChunk && quiet >= SILENCE_MS && dur >= MIN_CHUNK_MS) || dur >= MAX_CHUNK_MS) {
@@ -240,7 +278,10 @@ export class TalkthroughRecorder {
     if (seg) {
       const ended = touchRow(seg, { endedAt: new Date().toISOString(), text: this.liveFinal || seg.text } as Partial<TalkSegment>);
       putSegment(ended);
-      if (blob && this.spokeThisChunk) {
+      if (blob && (this.voicedMs >= MIN_VOICED_MS || ended.text)) {
+        // Sustained voice, or the live mic heard actual words (never drop
+        // those). A lone keyboard clack fails both and is never sent —
+        // near-silence is what makes Whisper hallucinate.
         this.uploadQ.push({ seg: ended, blob });
         void this.drainUploads();
       } else if (!ended.text) {
@@ -341,7 +382,11 @@ export async function drainWhisperQueue(sessionId: string): Promise<string | nul
         const url = await stagingPublicUrl({ data: { path: seg.audioPath! } });
         const row = await transcribeTake({ data: { path: seg.audioPath!, url: url.publicUrl, name: "talkthrough.wav" } });
         const fresh = ttState().doc.segments.find((s) => s.id === seg.id) ?? seg;
-        const text = row.text.trim();
+        let text = row.text.trim();
+        if (isWhisperHallucination(text, fresh.text)) {
+          console.log(`[talkthrough] dropped whisper hallucination (no live text to back it): "${text.slice(0, 80)}"`);
+          text = "";
+        }
         putSegment(text
           ? applyWhisperText(fresh, text)
           : // Whisper heard nothing (breath, rustle): keep live text if any, else archive.

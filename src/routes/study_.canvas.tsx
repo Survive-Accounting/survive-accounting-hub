@@ -141,6 +141,7 @@ import { CameraBubble } from "@/components/canvas/CameraBubble";
 import { FrameRearrangeGrid } from "@/components/canvas/FrameRearrangeGrid";
 import { BrandBar, BrandWatermark } from "@/components/canvas/BrandBar";
 import { CanvasNavbar } from "@/components/canvas/CanvasNavbar";
+import { UsageTelemetryProvider } from "@/components/usage/UsageTelemetryProvider";
 
 // Panels that can be popped out to the director's second-monitor window.
 type PopKey = "teleprompter" | "cuesheet" | "deck" | "script" | "runtimer" | "outline" | "ceqstudio";
@@ -3761,6 +3762,17 @@ function PresentCanvas() {
 
   const openStudio = useCallback((ceqId?: string) => { setStudioFocusCeq(ceqId ?? null); setCeqStudioOpen(true); }, []);
   const openStudioSet = useCallback((setId: string) => { setStudioFocusSet(setId); setStudioFocusCeq(null); setCeqStudioOpen(true); }, []);
+  // FILM HANDOFF (Booth B5, additive): a new tab opened from the Talkthrough
+  // Booth carries an intent flag — consume it ONCE and enter pool mode focused
+  // on that set (a fresh tab boots to the home overlay, so bare
+  // setCeqStudioOpen would land behind it with no decks loaded). The film
+  // popout stays on Lee's own \ key.
+  useEffect(() => {
+    void import("@/lib/film-handoff").then(({ consumeFilmHandoff }) => {
+      const h = consumeFilmHandoff();
+      if (h) void openPoolRef.current(h.setId);
+    });
+  }, []);
   const openBranding = useCallback(() => setBrandingOpen(true), []);
   const openMemos = useCallback(() => setMemosOpen(true), []);
   // One-time utilities, moved out of the Studio footer into File. Use the route's rf + decks.
@@ -5683,6 +5695,9 @@ function PresentCanvas() {
            sidebar; the old toolbar/drawer/pager live on under "View archive" (v1).
            Film mode renders neither — the stage wrapper fills the root exactly as
            before, so takes are pixel-identical. */}
+      {/* USAGE TELEMETRY (admin) — logs interaction/impression on instrumented elements
+          (data-sa-el) so dashboards can be simplified on evidence. Null render; never blocks. */}
+      <UsageTelemetryProvider surface="study-canvas" userId={null} />
       {chrome && !chromeV1 && (
         <CanvasNavbar
           sceneName={sceneName}

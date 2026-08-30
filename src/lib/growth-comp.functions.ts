@@ -200,7 +200,7 @@ export const kingDocUrl = createServerFn({ method: "POST" })
 
 /* ── King's email digest ──────────────────────────────────────────────────────────── */
 
-export const KING_EMAIL = "king@surviveaccounting.com";
+export const KING_EMAIL = "jking.cim@gmail.com";
 const DASHBOARD_URL = "https://surviveaccounting.com/admin/growth/king";
 
 /** Plain text on purpose — Lee's spec: "just plain text stuff and a link to dashboard". */

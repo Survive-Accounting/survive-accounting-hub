@@ -79,7 +79,10 @@ export interface IdeaNote {
 export const KEY_V2 = "sa-idea-bank-v2";
 export const KEY_V1 = "sa-idea-bank";        // read for recovery; NEVER cleared
 
-export const isPending = (n: IdeaNote): boolean => !n.syncedAt || n.syncedAt < n.updatedAt;
+// Same timestamp-format bug as the Booth's sync backlog (B1.5): PostgREST
+// echoes "+00:00", the client writes "Z" — string comparison never settles.
+const _ts = (s: string | null | undefined): number => (s ? new Date(s).getTime() : 0);
+export const isPending = (n: IdeaNote): boolean => !n.syncedAt || _ts(n.syncedAt) < _ts(n.updatedAt);
 export const pendingNotes = (list: IdeaNote[]): IdeaNote[] => list.filter(isPending);
 
 export const newId = (now = new Date()): string => `idea-${now.getTime()}-${Math.floor(Math.random() * 1e6)}`;
@@ -106,7 +109,7 @@ export function mergeNotes(local: IdeaNote[], incoming: IdeaNote[]): IdeaNote[] 
     const l = by.get(r.id);
     if (!l) { by.set(r.id, r); continue; }
     if (isPending(l)) { by.set(r.id, l); continue; }   // local edit not yet pushed
-    by.set(r.id, r.updatedAt >= l.updatedAt ? r : l);
+    by.set(r.id, _ts(r.updatedAt) >= _ts(l.updatedAt) ? r : l);
   }
   return [...by.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }

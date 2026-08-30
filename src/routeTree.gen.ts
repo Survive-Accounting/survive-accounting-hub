@@ -20,6 +20,7 @@ import { Route as StartRouteImport } from './routes/start'
 import { Route as RepRouteImport } from './routes/rep'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PreviewRouteImport } from './routes/preview'
+import { Route as PracticeDemoRouteImport } from './routes/practice-demo'
 import { Route as OutreachRouteImport } from './routes/outreach'
 import { Route as OrderRouteImport } from './routes/order'
 import { Route as OnboardRouteImport } from './routes/onboard'
@@ -88,6 +89,7 @@ import { Route as GoDemoRouteImport } from './routes/go.demo'
 import { Route as ChaptersDashboardRouteImport } from './routes/chapters_.dashboard'
 import { Route as CeqCreateRouteImport } from './routes/ceq.create'
 import { Route as CSlugRouteImport } from './routes/c.$slug'
+import { Route as ApiPracticePackRouteImport } from './routes/api.practice-pack'
 import { Route as ApiBackfillRouteImport } from './routes/api.backfill'
 import { Route as AdminSiteQaRouteImport } from './routes/admin.site-qa'
 import { Route as AdminRepsRouteImport } from './routes/admin.reps'
@@ -112,6 +114,7 @@ import { Route as CeqCourseSlugChapterSlugRouteImport } from './routes/ceq.$cour
 import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe.webhook'
 import { Route as ApiCronWeeklyDigestRouteImport } from './routes/api.cron.weekly-digest'
 import { Route as ApiCronKingDigestRouteImport } from './routes/api.cron.king-digest'
+import { Route as ApiCronGrowthCampaignsRouteImport } from './routes/api.cron.growth-campaigns'
 import { Route as ApiCronCommsSequencesRouteImport } from './routes/api.cron.comms-sequences'
 import { Route as ApiCronChapterReportsRouteImport } from './routes/api.cron.chapter-reports'
 import { Route as ApiCronBackupRouteImport } from './routes/api.cron.backup'
@@ -119,15 +122,19 @@ import { Route as AdminRepsRosterRouteImport } from './routes/admin.reps.roster'
 import { Route as AdminRepsPartnersRouteImport } from './routes/admin.reps.partners'
 import { Route as AdminRepsLinksRouteImport } from './routes/admin.reps.links'
 import { Route as AdminRepsConversionsRouteImport } from './routes/admin.reps.conversions'
+import { Route as AdminGrowthTranchesRouteImport } from './routes/admin.growth.tranches'
 import { Route as AdminGrowthResultsRouteImport } from './routes/admin.growth.results'
+import { Route as AdminGrowthPrebuildRouteImport } from './routes/admin.growth.prebuild'
 import { Route as AdminGrowthOutreachRouteImport } from './routes/admin.growth.outreach'
 import { Route as AdminGrowthOrgsRouteImport } from './routes/admin.growth.orgs'
 import { Route as AdminGrowthKingRouteImport } from './routes/admin.growth.king'
 import { Route as AdminGrowthIntelligenceRouteImport } from './routes/admin.growth.intelligence'
+import { Route as AdminGrowthGreekRouteImport } from './routes/admin.growth.greek'
 import { Route as AdminGrowthCouncilsRouteImport } from './routes/admin.growth.councils'
 import { Route as AdminGrowthContactsRouteImport } from './routes/admin.growth.contacts'
 import { Route as AdminGrowthChaptersRouteImport } from './routes/admin.growth.chapters'
 import { Route as AdminGrowthCampusesRouteImport } from './routes/admin.growth.campuses'
+import { Route as AdminGrowthCampaignsRouteImport } from './routes/admin.growth.campaigns'
 import { Route as AdminGrowthActivityRouteImport } from './routes/admin.growth.activity'
 import { Route as PartnersCouncilSchoolCouncilRouteImport } from './routes/partners.council.$school.$council'
 import { Route as GoSchoolCouncilCouncilRouteImport } from './routes/go.$school.council.$council'
@@ -190,6 +197,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
 const PreviewRoute = PreviewRouteImport.update({
   id: '/preview',
   path: '/preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PracticeDemoRoute = PracticeDemoRouteImport.update({
+  id: '/practice-demo',
+  path: '/practice-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OutreachRoute = OutreachRouteImport.update({
@@ -536,6 +548,11 @@ const CSlugRoute = CSlugRouteImport.update({
   path: '/c/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPracticePackRoute = ApiPracticePackRouteImport.update({
+  id: '/api/practice-pack',
+  path: '/api/practice-pack',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiBackfillRoute = ApiBackfillRouteImport.update({
   id: '/api/backfill',
   path: '/api/backfill',
@@ -660,6 +677,11 @@ const ApiCronKingDigestRoute = ApiCronKingDigestRouteImport.update({
   path: '/api/cron/king-digest',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCronGrowthCampaignsRoute = ApiCronGrowthCampaignsRouteImport.update({
+  id: '/api/cron/growth-campaigns',
+  path: '/api/cron/growth-campaigns',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronCommsSequencesRoute = ApiCronCommsSequencesRouteImport.update({
   id: '/api/cron/comms-sequences',
   path: '/api/cron/comms-sequences',
@@ -695,9 +717,19 @@ const AdminRepsConversionsRoute = AdminRepsConversionsRouteImport.update({
   path: '/conversions',
   getParentRoute: () => AdminRepsRoute,
 } as any)
+const AdminGrowthTranchesRoute = AdminGrowthTranchesRouteImport.update({
+  id: '/tranches',
+  path: '/tranches',
+  getParentRoute: () => AdminGrowthRoute,
+} as any)
 const AdminGrowthResultsRoute = AdminGrowthResultsRouteImport.update({
   id: '/results',
   path: '/results',
+  getParentRoute: () => AdminGrowthRoute,
+} as any)
+const AdminGrowthPrebuildRoute = AdminGrowthPrebuildRouteImport.update({
+  id: '/prebuild',
+  path: '/prebuild',
   getParentRoute: () => AdminGrowthRoute,
 } as any)
 const AdminGrowthOutreachRoute = AdminGrowthOutreachRouteImport.update({
@@ -720,6 +752,11 @@ const AdminGrowthIntelligenceRoute = AdminGrowthIntelligenceRouteImport.update({
   path: '/intelligence',
   getParentRoute: () => AdminGrowthRoute,
 } as any)
+const AdminGrowthGreekRoute = AdminGrowthGreekRouteImport.update({
+  id: '/greek',
+  path: '/greek',
+  getParentRoute: () => AdminGrowthRoute,
+} as any)
 const AdminGrowthCouncilsRoute = AdminGrowthCouncilsRouteImport.update({
   id: '/councils',
   path: '/councils',
@@ -738,6 +775,11 @@ const AdminGrowthChaptersRoute = AdminGrowthChaptersRouteImport.update({
 const AdminGrowthCampusesRoute = AdminGrowthCampusesRouteImport.update({
   id: '/campuses',
   path: '/campuses',
+  getParentRoute: () => AdminGrowthRoute,
+} as any)
+const AdminGrowthCampaignsRoute = AdminGrowthCampaignsRouteImport.update({
+  id: '/campaigns',
+  path: '/campaigns',
   getParentRoute: () => AdminGrowthRoute,
 } as any)
 const AdminGrowthActivityRoute = AdminGrowthActivityRouteImport.update({
@@ -803,6 +845,7 @@ export interface FileRoutesByFullPath {
   '/onboard': typeof OnboardRoute
   '/order': typeof OrderRouteWithChildren
   '/outreach': typeof OutreachRouteWithChildren
+  '/practice-demo': typeof PracticeDemoRoute
   '/preview': typeof PreviewRoute
   '/privacy': typeof PrivacyRoute
   '/rep': typeof RepRoute
@@ -819,6 +862,7 @@ export interface FileRoutesByFullPath {
   '/admin/reps': typeof AdminRepsRouteWithChildren
   '/admin/site-qa': typeof AdminSiteQaRoute
   '/api/backfill': typeof ApiBackfillRoute
+  '/api/practice-pack': typeof ApiPracticePackRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters/dashboard': typeof ChaptersDashboardRoute
@@ -870,15 +914,19 @@ export interface FileRoutesByFullPath {
   '/outreach/': typeof OutreachIndexRoute
   '/u/': typeof UIndexRoute
   '/admin/growth/activity': typeof AdminGrowthActivityRoute
+  '/admin/growth/campaigns': typeof AdminGrowthCampaignsRoute
   '/admin/growth/campuses': typeof AdminGrowthCampusesRoute
   '/admin/growth/chapters': typeof AdminGrowthChaptersRoute
   '/admin/growth/contacts': typeof AdminGrowthContactsRoute
   '/admin/growth/councils': typeof AdminGrowthCouncilsRoute
+  '/admin/growth/greek': typeof AdminGrowthGreekRoute
   '/admin/growth/intelligence': typeof AdminGrowthIntelligenceRoute
   '/admin/growth/king': typeof AdminGrowthKingRoute
   '/admin/growth/orgs': typeof AdminGrowthOrgsRoute
   '/admin/growth/outreach': typeof AdminGrowthOutreachRoute
+  '/admin/growth/prebuild': typeof AdminGrowthPrebuildRoute
   '/admin/growth/results': typeof AdminGrowthResultsRoute
+  '/admin/growth/tranches': typeof AdminGrowthTranchesRoute
   '/admin/reps/conversions': typeof AdminRepsConversionsRoute
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
@@ -886,6 +934,7 @@ export interface FileRoutesByFullPath {
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/chapter-reports': typeof ApiCronChapterReportsRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
+  '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
@@ -931,6 +980,7 @@ export interface FileRoutesByTo {
   '/logo-lab': typeof LogoLabRoute
   '/onboard': typeof OnboardRoute
   '/order': typeof OrderRouteWithChildren
+  '/practice-demo': typeof PracticeDemoRoute
   '/preview': typeof PreviewRoute
   '/privacy': typeof PrivacyRoute
   '/rep': typeof RepRoute
@@ -945,6 +995,7 @@ export interface FileRoutesByTo {
   '/$school/rep': typeof SchoolRepRoute
   '/admin/site-qa': typeof AdminSiteQaRoute
   '/api/backfill': typeof ApiBackfillRoute
+  '/api/practice-pack': typeof ApiPracticePackRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters/dashboard': typeof ChaptersDashboardRoute
@@ -996,15 +1047,19 @@ export interface FileRoutesByTo {
   '/outreach': typeof OutreachIndexRoute
   '/u': typeof UIndexRoute
   '/admin/growth/activity': typeof AdminGrowthActivityRoute
+  '/admin/growth/campaigns': typeof AdminGrowthCampaignsRoute
   '/admin/growth/campuses': typeof AdminGrowthCampusesRoute
   '/admin/growth/chapters': typeof AdminGrowthChaptersRoute
   '/admin/growth/contacts': typeof AdminGrowthContactsRoute
   '/admin/growth/councils': typeof AdminGrowthCouncilsRoute
+  '/admin/growth/greek': typeof AdminGrowthGreekRoute
   '/admin/growth/intelligence': typeof AdminGrowthIntelligenceRoute
   '/admin/growth/king': typeof AdminGrowthKingRoute
   '/admin/growth/orgs': typeof AdminGrowthOrgsRoute
   '/admin/growth/outreach': typeof AdminGrowthOutreachRoute
+  '/admin/growth/prebuild': typeof AdminGrowthPrebuildRoute
   '/admin/growth/results': typeof AdminGrowthResultsRoute
+  '/admin/growth/tranches': typeof AdminGrowthTranchesRoute
   '/admin/reps/conversions': typeof AdminRepsConversionsRoute
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
@@ -1012,6 +1067,7 @@ export interface FileRoutesByTo {
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/chapter-reports': typeof ApiCronChapterReportsRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
+  '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
@@ -1059,6 +1115,7 @@ export interface FileRoutesById {
   '/onboard': typeof OnboardRoute
   '/order': typeof OrderRouteWithChildren
   '/outreach': typeof OutreachRouteWithChildren
+  '/practice-demo': typeof PracticeDemoRoute
   '/preview': typeof PreviewRoute
   '/privacy': typeof PrivacyRoute
   '/rep': typeof RepRoute
@@ -1075,6 +1132,7 @@ export interface FileRoutesById {
   '/admin/reps': typeof AdminRepsRouteWithChildren
   '/admin/site-qa': typeof AdminSiteQaRoute
   '/api/backfill': typeof ApiBackfillRoute
+  '/api/practice-pack': typeof ApiPracticePackRoute
   '/c/$slug': typeof CSlugRoute
   '/ceq/create': typeof CeqCreateRoute
   '/chapters_/dashboard': typeof ChaptersDashboardRoute
@@ -1126,15 +1184,19 @@ export interface FileRoutesById {
   '/outreach/': typeof OutreachIndexRoute
   '/u/': typeof UIndexRoute
   '/admin/growth/activity': typeof AdminGrowthActivityRoute
+  '/admin/growth/campaigns': typeof AdminGrowthCampaignsRoute
   '/admin/growth/campuses': typeof AdminGrowthCampusesRoute
   '/admin/growth/chapters': typeof AdminGrowthChaptersRoute
   '/admin/growth/contacts': typeof AdminGrowthContactsRoute
   '/admin/growth/councils': typeof AdminGrowthCouncilsRoute
+  '/admin/growth/greek': typeof AdminGrowthGreekRoute
   '/admin/growth/intelligence': typeof AdminGrowthIntelligenceRoute
   '/admin/growth/king': typeof AdminGrowthKingRoute
   '/admin/growth/orgs': typeof AdminGrowthOrgsRoute
   '/admin/growth/outreach': typeof AdminGrowthOutreachRoute
+  '/admin/growth/prebuild': typeof AdminGrowthPrebuildRoute
   '/admin/growth/results': typeof AdminGrowthResultsRoute
+  '/admin/growth/tranches': typeof AdminGrowthTranchesRoute
   '/admin/reps/conversions': typeof AdminRepsConversionsRoute
   '/admin/reps/links': typeof AdminRepsLinksRoute
   '/admin/reps/partners': typeof AdminRepsPartnersRoute
@@ -1142,6 +1204,7 @@ export interface FileRoutesById {
   '/api/cron/backup': typeof ApiCronBackupRoute
   '/api/cron/chapter-reports': typeof ApiCronChapterReportsRoute
   '/api/cron/comms-sequences': typeof ApiCronCommsSequencesRoute
+  '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
@@ -1190,6 +1253,7 @@ export interface FileRouteTypes {
     | '/onboard'
     | '/order'
     | '/outreach'
+    | '/practice-demo'
     | '/preview'
     | '/privacy'
     | '/rep'
@@ -1206,6 +1270,7 @@ export interface FileRouteTypes {
     | '/admin/reps'
     | '/admin/site-qa'
     | '/api/backfill'
+    | '/api/practice-pack'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters/dashboard'
@@ -1257,15 +1322,19 @@ export interface FileRouteTypes {
     | '/outreach/'
     | '/u/'
     | '/admin/growth/activity'
+    | '/admin/growth/campaigns'
     | '/admin/growth/campuses'
     | '/admin/growth/chapters'
     | '/admin/growth/contacts'
     | '/admin/growth/councils'
+    | '/admin/growth/greek'
     | '/admin/growth/intelligence'
     | '/admin/growth/king'
     | '/admin/growth/orgs'
     | '/admin/growth/outreach'
+    | '/admin/growth/prebuild'
     | '/admin/growth/results'
+    | '/admin/growth/tranches'
     | '/admin/reps/conversions'
     | '/admin/reps/links'
     | '/admin/reps/partners'
@@ -1273,6 +1342,7 @@ export interface FileRouteTypes {
     | '/api/cron/backup'
     | '/api/cron/chapter-reports'
     | '/api/cron/comms-sequences'
+    | '/api/cron/growth-campaigns'
     | '/api/cron/king-digest'
     | '/api/cron/weekly-digest'
     | '/api/stripe/webhook'
@@ -1318,6 +1388,7 @@ export interface FileRouteTypes {
     | '/logo-lab'
     | '/onboard'
     | '/order'
+    | '/practice-demo'
     | '/preview'
     | '/privacy'
     | '/rep'
@@ -1332,6 +1403,7 @@ export interface FileRouteTypes {
     | '/$school/rep'
     | '/admin/site-qa'
     | '/api/backfill'
+    | '/api/practice-pack'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters/dashboard'
@@ -1383,15 +1455,19 @@ export interface FileRouteTypes {
     | '/outreach'
     | '/u'
     | '/admin/growth/activity'
+    | '/admin/growth/campaigns'
     | '/admin/growth/campuses'
     | '/admin/growth/chapters'
     | '/admin/growth/contacts'
     | '/admin/growth/councils'
+    | '/admin/growth/greek'
     | '/admin/growth/intelligence'
     | '/admin/growth/king'
     | '/admin/growth/orgs'
     | '/admin/growth/outreach'
+    | '/admin/growth/prebuild'
     | '/admin/growth/results'
+    | '/admin/growth/tranches'
     | '/admin/reps/conversions'
     | '/admin/reps/links'
     | '/admin/reps/partners'
@@ -1399,6 +1475,7 @@ export interface FileRouteTypes {
     | '/api/cron/backup'
     | '/api/cron/chapter-reports'
     | '/api/cron/comms-sequences'
+    | '/api/cron/growth-campaigns'
     | '/api/cron/king-digest'
     | '/api/cron/weekly-digest'
     | '/api/stripe/webhook'
@@ -1445,6 +1522,7 @@ export interface FileRouteTypes {
     | '/onboard'
     | '/order'
     | '/outreach'
+    | '/practice-demo'
     | '/preview'
     | '/privacy'
     | '/rep'
@@ -1461,6 +1539,7 @@ export interface FileRouteTypes {
     | '/admin/reps'
     | '/admin/site-qa'
     | '/api/backfill'
+    | '/api/practice-pack'
     | '/c/$slug'
     | '/ceq/create'
     | '/chapters_/dashboard'
@@ -1512,15 +1591,19 @@ export interface FileRouteTypes {
     | '/outreach/'
     | '/u/'
     | '/admin/growth/activity'
+    | '/admin/growth/campaigns'
     | '/admin/growth/campuses'
     | '/admin/growth/chapters'
     | '/admin/growth/contacts'
     | '/admin/growth/councils'
+    | '/admin/growth/greek'
     | '/admin/growth/intelligence'
     | '/admin/growth/king'
     | '/admin/growth/orgs'
     | '/admin/growth/outreach'
+    | '/admin/growth/prebuild'
     | '/admin/growth/results'
+    | '/admin/growth/tranches'
     | '/admin/reps/conversions'
     | '/admin/reps/links'
     | '/admin/reps/partners'
@@ -1528,6 +1611,7 @@ export interface FileRouteTypes {
     | '/api/cron/backup'
     | '/api/cron/chapter-reports'
     | '/api/cron/comms-sequences'
+    | '/api/cron/growth-campaigns'
     | '/api/cron/king-digest'
     | '/api/cron/weekly-digest'
     | '/api/stripe/webhook'
@@ -1575,6 +1659,7 @@ export interface RootRouteChildren {
   OnboardRoute: typeof OnboardRoute
   OrderRoute: typeof OrderRouteWithChildren
   OutreachRoute: typeof OutreachRouteWithChildren
+  PracticeDemoRoute: typeof PracticeDemoRoute
   PreviewRoute: typeof PreviewRoute
   PrivacyRoute: typeof PrivacyRoute
   RepRoute: typeof RepRoute
@@ -1591,6 +1676,7 @@ export interface RootRouteChildren {
   AdminRepsRoute: typeof AdminRepsRouteWithChildren
   AdminSiteQaRoute: typeof AdminSiteQaRoute
   ApiBackfillRoute: typeof ApiBackfillRoute
+  ApiPracticePackRoute: typeof ApiPracticePackRoute
   CSlugRoute: typeof CSlugRoute
   ChaptersDashboardRoute: typeof ChaptersDashboardRoute
   GoDemoRoute: typeof GoDemoRouteWithChildren
@@ -1614,6 +1700,7 @@ export interface RootRouteChildren {
   ApiCronBackupRoute: typeof ApiCronBackupRoute
   ApiCronChapterReportsRoute: typeof ApiCronChapterReportsRoute
   ApiCronCommsSequencesRoute: typeof ApiCronCommsSequencesRoute
+  ApiCronGrowthCampaignsRoute: typeof ApiCronGrowthCampaignsRoute
   ApiCronKingDigestRoute: typeof ApiCronKingDigestRoute
   ApiCronWeeklyDigestRoute: typeof ApiCronWeeklyDigestRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
@@ -1707,6 +1794,13 @@ declare module '@tanstack/react-router' {
       path: '/preview'
       fullPath: '/preview'
       preLoaderRoute: typeof PreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/practice-demo': {
+      id: '/practice-demo'
+      path: '/practice-demo'
+      fullPath: '/practice-demo'
+      preLoaderRoute: typeof PracticeDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/outreach': {
@@ -2185,6 +2279,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/practice-pack': {
+      id: '/api/practice-pack'
+      path: '/api/practice-pack'
+      fullPath: '/api/practice-pack'
+      preLoaderRoute: typeof ApiPracticePackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/backfill': {
       id: '/api/backfill'
       path: '/api/backfill'
@@ -2353,6 +2454,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCronKingDigestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cron/growth-campaigns': {
+      id: '/api/cron/growth-campaigns'
+      path: '/api/cron/growth-campaigns'
+      fullPath: '/api/cron/growth-campaigns'
+      preLoaderRoute: typeof ApiCronGrowthCampaignsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/comms-sequences': {
       id: '/api/cron/comms-sequences'
       path: '/api/cron/comms-sequences'
@@ -2402,11 +2510,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRepsConversionsRouteImport
       parentRoute: typeof AdminRepsRoute
     }
+    '/admin/growth/tranches': {
+      id: '/admin/growth/tranches'
+      path: '/tranches'
+      fullPath: '/admin/growth/tranches'
+      preLoaderRoute: typeof AdminGrowthTranchesRouteImport
+      parentRoute: typeof AdminGrowthRoute
+    }
     '/admin/growth/results': {
       id: '/admin/growth/results'
       path: '/results'
       fullPath: '/admin/growth/results'
       preLoaderRoute: typeof AdminGrowthResultsRouteImport
+      parentRoute: typeof AdminGrowthRoute
+    }
+    '/admin/growth/prebuild': {
+      id: '/admin/growth/prebuild'
+      path: '/prebuild'
+      fullPath: '/admin/growth/prebuild'
+      preLoaderRoute: typeof AdminGrowthPrebuildRouteImport
       parentRoute: typeof AdminGrowthRoute
     }
     '/admin/growth/outreach': {
@@ -2437,6 +2559,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminGrowthIntelligenceRouteImport
       parentRoute: typeof AdminGrowthRoute
     }
+    '/admin/growth/greek': {
+      id: '/admin/growth/greek'
+      path: '/greek'
+      fullPath: '/admin/growth/greek'
+      preLoaderRoute: typeof AdminGrowthGreekRouteImport
+      parentRoute: typeof AdminGrowthRoute
+    }
     '/admin/growth/councils': {
       id: '/admin/growth/councils'
       path: '/councils'
@@ -2463,6 +2592,13 @@ declare module '@tanstack/react-router' {
       path: '/campuses'
       fullPath: '/admin/growth/campuses'
       preLoaderRoute: typeof AdminGrowthCampusesRouteImport
+      parentRoute: typeof AdminGrowthRoute
+    }
+    '/admin/growth/campaigns': {
+      id: '/admin/growth/campaigns'
+      path: '/campaigns'
+      fullPath: '/admin/growth/campaigns'
+      preLoaderRoute: typeof AdminGrowthCampaignsRouteImport
       parentRoute: typeof AdminGrowthRoute
     }
     '/admin/growth/activity': {
@@ -2636,29 +2772,37 @@ const OutreachRouteWithChildren = OutreachRoute._addFileChildren(
 
 interface AdminGrowthRouteChildren {
   AdminGrowthActivityRoute: typeof AdminGrowthActivityRoute
+  AdminGrowthCampaignsRoute: typeof AdminGrowthCampaignsRoute
   AdminGrowthCampusesRoute: typeof AdminGrowthCampusesRoute
   AdminGrowthChaptersRoute: typeof AdminGrowthChaptersRoute
   AdminGrowthContactsRoute: typeof AdminGrowthContactsRoute
   AdminGrowthCouncilsRoute: typeof AdminGrowthCouncilsRoute
+  AdminGrowthGreekRoute: typeof AdminGrowthGreekRoute
   AdminGrowthIntelligenceRoute: typeof AdminGrowthIntelligenceRoute
   AdminGrowthKingRoute: typeof AdminGrowthKingRoute
   AdminGrowthOrgsRoute: typeof AdminGrowthOrgsRoute
   AdminGrowthOutreachRoute: typeof AdminGrowthOutreachRoute
+  AdminGrowthPrebuildRoute: typeof AdminGrowthPrebuildRoute
   AdminGrowthResultsRoute: typeof AdminGrowthResultsRoute
+  AdminGrowthTranchesRoute: typeof AdminGrowthTranchesRoute
   AdminGrowthIndexRoute: typeof AdminGrowthIndexRoute
 }
 
 const AdminGrowthRouteChildren: AdminGrowthRouteChildren = {
   AdminGrowthActivityRoute: AdminGrowthActivityRoute,
+  AdminGrowthCampaignsRoute: AdminGrowthCampaignsRoute,
   AdminGrowthCampusesRoute: AdminGrowthCampusesRoute,
   AdminGrowthChaptersRoute: AdminGrowthChaptersRoute,
   AdminGrowthContactsRoute: AdminGrowthContactsRoute,
   AdminGrowthCouncilsRoute: AdminGrowthCouncilsRoute,
+  AdminGrowthGreekRoute: AdminGrowthGreekRoute,
   AdminGrowthIntelligenceRoute: AdminGrowthIntelligenceRoute,
   AdminGrowthKingRoute: AdminGrowthKingRoute,
   AdminGrowthOrgsRoute: AdminGrowthOrgsRoute,
   AdminGrowthOutreachRoute: AdminGrowthOutreachRoute,
+  AdminGrowthPrebuildRoute: AdminGrowthPrebuildRoute,
   AdminGrowthResultsRoute: AdminGrowthResultsRoute,
+  AdminGrowthTranchesRoute: AdminGrowthTranchesRoute,
   AdminGrowthIndexRoute: AdminGrowthIndexRoute,
 }
 
@@ -2718,6 +2862,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardRoute: OnboardRoute,
   OrderRoute: OrderRouteWithChildren,
   OutreachRoute: OutreachRouteWithChildren,
+  PracticeDemoRoute: PracticeDemoRoute,
   PreviewRoute: PreviewRoute,
   PrivacyRoute: PrivacyRoute,
   RepRoute: RepRoute,
@@ -2734,6 +2879,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRepsRoute: AdminRepsRouteWithChildren,
   AdminSiteQaRoute: AdminSiteQaRoute,
   ApiBackfillRoute: ApiBackfillRoute,
+  ApiPracticePackRoute: ApiPracticePackRoute,
   CSlugRoute: CSlugRoute,
   ChaptersDashboardRoute: ChaptersDashboardRoute,
   GoDemoRoute: GoDemoRouteWithChildren,
@@ -2757,6 +2903,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronBackupRoute: ApiCronBackupRoute,
   ApiCronChapterReportsRoute: ApiCronChapterReportsRoute,
   ApiCronCommsSequencesRoute: ApiCronCommsSequencesRoute,
+  ApiCronGrowthCampaignsRoute: ApiCronGrowthCampaignsRoute,
   ApiCronKingDigestRoute: ApiCronKingDigestRoute,
   ApiCronWeeklyDigestRoute: ApiCronWeeklyDigestRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,

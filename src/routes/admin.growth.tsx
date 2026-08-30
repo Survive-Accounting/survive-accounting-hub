@@ -13,8 +13,10 @@ import {
   Building2,
   GraduationCap,
   Landmark,
+  Layers,
   Network,
   Radar,
+  Rocket,
   Users2,
 } from "lucide-react";
 import { AdminGate, getAdminWho } from "@/components/AdminGate";
@@ -43,6 +45,8 @@ export const Route = createFileRoute("/admin/growth")({
 // It comes back when it's wired to real sends, not before.
 const TABS = [
   { to: "/admin/growth", label: "Campuses", icon: Building2, exact: true },
+  { to: "/admin/growth/campaigns", label: "Campaigns", icon: Rocket },
+  { to: "/admin/growth/tranches", label: "Tranches", icon: Layers },
   { to: "/admin/growth/activity", label: "Activity", icon: Activity },
   { to: "/admin/growth/results", label: "Results", icon: BarChart3 },
 ] as const;

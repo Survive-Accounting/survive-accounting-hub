@@ -61,10 +61,15 @@ async function main() {
   const dupWinning = plan.sets.filter((s) => { const sc = [...owned.values()].find((o) => o.deck.id === s.deckId); return !sc; });
   check("every canonical deck has a winning scene", dupWinning.length === 0, dupWinning.map((d) => d.deckId).join(","));
   // count CEQs across the 25 winning sets, excluding noteOnly
-  let liveCeq = 0, noteOnly = 0, badChoice = 0, badCorrect = 0;
-  for (const o of liveOnTargets) { for (const n of o.nodes) { if (n.data?.noteOnly) { noteOnly++; continue; } liveCeq++; const ch = n.data?.choices ?? []; if (ch.length < 2 || ch.length > 5) badChoice++; if (ch.filter((c: any) => c.correct).length !== 1) badCorrect++; } }
-  check(`live CEQs across ${EXP_SETS} sets == ${EXP_CEQ}`, liveCeq === EXP_CEQ, `got ${liveCeq}`);
-  check("no noteOnly nodes counted", noteOnly === 0, `${noteOnly} noteOnly present`);
+  let liveCeq = 0, noteOnly = 0, badChoice = 0, badCorrect = 0, notesInterleaved = 0;
+  for (const o of liveOnTargets) {
+    const qOrders: number[] = [], nOrders: number[] = [];
+    for (const n of o.nodes) { const so = n.data?.stageOrder ?? 0; if (n.data?.noteOnly) { noteOnly++; nOrders.push(so); continue; } liveCeq++; qOrders.push(so); const ch = n.data?.choices ?? []; if (ch.length < 2 || ch.length > 5) badChoice++; if (ch.filter((c: any) => c.correct).length !== 1) badCorrect++; }
+    // note frames belong at the START (intro) or END (outro) — never BETWEEN questions
+    if (qOrders.length) { const minQ = Math.min(...qOrders), maxQ = Math.max(...qOrders); if (nOrders.some((x) => x > minQ && x < maxQ)) notesInterleaved++; }
+  }
+  check(`live CEQs across ${EXP_SETS} sets == ${EXP_CEQ}`, liveCeq === EXP_CEQ, `got ${liveCeq} (noteOnly ${noteOnly} excluded)`);
+  check("note frames only at start/end (never between questions)", notesInterleaved === 0, `${notesInterleaved} sets with a note between questions`);
   check("every live CEQ has 2–5 choices", badChoice === 0, `${badChoice} bad`);
   check("every live CEQ has exactly one correct", badCorrect === 0, `${badCorrect} bad`);
   // dup ceq ids / prompts within a set

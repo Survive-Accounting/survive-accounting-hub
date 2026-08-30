@@ -3,6 +3,7 @@ export const INTAKE_KINDS = [
   "notify_exam", "save_progress", "syllabus", "greek_member", "greek_claim",
   "rep", "school_request", "tutoring_request", "outreach_page", "referral",
   "question", // "Ask me about this one" from cram mode — reference + shorthand + message
+  "practice_pack", // lead magnet: emailed printable practice pack (free content only)
 ] as const;
 export type IntakeKind = (typeof INTAKE_KINDS)[number];
 
@@ -18,6 +19,7 @@ export const KIND_LABEL: Record<IntakeKind, string> = {
   greek_claim: "Chapter claim",
   rep: "Campus rep",
   school_request: "School request",
+  practice_pack: "Practice pack (PDF)",
   tutoring_request: "Tutoring request",
   outreach_page: "Campus page signup",
   referral: "Referral",

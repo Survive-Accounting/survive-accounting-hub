@@ -5,13 +5,15 @@
 // Dashboard v1 chrome (old toolbar + drawer) — nothing was deleted, only gated.
 // Authoring-only: the route renders it when `chrome && v2`; film mode never sees it.
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Archive, ChevronDown, Clapperboard, Download, Eraser, Eye, FilePlus2, FolderOpen, Home as HomeIcon, Keyboard, ListOrdered, Plus, RotateCcw, Save, Sprout, Upload } from "lucide-react";
+import { Archive, ChevronDown, Clapperboard, ClipboardList, Download, Eraser, Eye, FilePlus2, FolderOpen, Home as HomeIcon, Keyboard, ListOrdered, Plus, RotateCcw, Save, Sprout, Upload } from "lucide-react";
 
 import { NEON } from "./theme";
+import { copyActivityLogPrompt, type UsageRange } from "@/lib/usage-prompt";
 
-function NavMenuRow({ icon, label, danger, onClick }: { icon: ReactNode; label: string; danger?: boolean; onClick: () => void }) {
+function NavMenuRow({ icon, label, danger, onClick, saEl }: { icon: ReactNode; label: string; danger?: boolean; onClick: () => void; saEl?: string }) {
   return (
     <button
+      data-sa-el={saEl}
       className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-[12px] font-medium transition-colors"
       style={{ color: danger ? "#FF8B9E" : NEON.text }}
       onMouseEnter={(e) => (e.currentTarget.style.background = danger ? "rgba(255,92,108,0.14)" : "rgba(252,163,17,0.12)")}
@@ -62,9 +64,18 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
     window.addEventListener("pointerdown", onDown);
     return () => { window.removeEventListener("keydown", onKey, true); window.removeEventListener("pointerdown", onDown); };
   }, [fileOpen]);
-  const item = (icon: ReactNode, label: string, fn: () => void, danger?: boolean) => (
-    <NavMenuRow icon={icon} label={label} danger={danger} onClick={() => { setFileOpen(false); fn(); }} />
+  const item = (icon: ReactNode, label: string, fn: () => void, danger?: boolean, saEl?: string) => (
+    <NavMenuRow icon={icon} label={label} danger={danger} saEl={saEl} onClick={() => { setFileOpen(false); fn(); }} />
   );
+  // File → Copy activity log prompt (usage telemetry). Builds a ready-to-paste Claude Code
+  // prompt from this surface's session data and copies it. Per-user id wiring is a follow-up.
+  const [copiedNote, setCopiedNote] = useState<string | null>(null);
+  const copyLog = async (range: UsageRange) => {
+    setFileOpen(false);
+    const { copied } = await copyActivityLogPrompt("study-canvas", range, null);
+    setCopiedNote(copied ? "Activity log prompt copied — paste into Claude Code." : "Copy failed — clipboard blocked.");
+    setTimeout(() => setCopiedNote(null), 4000);
+  };
 
   return (
     <div className="relative z-[65] flex h-11 shrink-0 items-center gap-2 px-3" style={{ background: "rgba(9,14,26,0.97)", borderBottom: `1px solid ${NEON.borderSoft}` }}>
@@ -72,6 +83,7 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
           the brand now). Closes the current scene view back to the home state, with the same
           unsaved-changes guard as closing a tab. */}
       <button
+        data-sa-el="nav-home"
         className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[12px] font-bold"
         style={homeActive ? { color: "#0B1322", background: NEON.yellow, border: `1px solid ${NEON.yellow}` } : { color: NEON.text, border: `1px solid ${NEON.borderSoft}` }}
         onClick={onHome}
@@ -80,9 +92,14 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
         <HomeIcon className="h-3.5 w-3.5" /> Home
       </button>
 
+      {copiedNote && (
+        <span className="rounded-md px-2 py-1 text-[11px] font-semibold" style={{ color: "#0B1322", background: NEON.yellow }}>{copiedNote}</span>
+      )}
+
       {/* FILE */}
       <div className="relative" ref={ref}>
         <button
+          data-sa-el="nav-file"
           className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[12px] font-bold"
           style={{ color: fileOpen ? "#0B1322" : NEON.text, background: fileOpen ? NEON.yellow : "transparent", border: `1px solid ${fileOpen ? NEON.yellow : NEON.borderSoft}` }}
           onClick={() => setFileOpen((v) => !v)}
@@ -92,29 +109,34 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
         {fileOpen && (
           <div className="absolute left-0 top-9 z-[70] w-60 rounded-xl p-1.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.borderSoft}`, boxShadow: "0 18px 40px -16px rgba(0,0,0,0.7)" }}>
             {/* Set-dependent rows hide on the home state — there is nothing open to save/export/reset. */}
-            {!homeActive && item(<Save className="h-3.5 w-3.5" />, poolMode ? "Save all sets" : "Save", onSave)}
-            {!homeActive && !poolMode && item(<FilePlus2 className="h-3.5 w-3.5" />, "Save as new", onSaveAs)}
+            {!homeActive && item(<Save className="h-3.5 w-3.5" />, poolMode ? "Save all sets" : "Save", onSave, false, "file-save")}
+            {!homeActive && !poolMode && item(<FilePlus2 className="h-3.5 w-3.5" />, "Save as new", onSaveAs, false, "file-save-as")}
             {/* In pool mode the outline opens sets; this dialog is the PARKED whiteboard door. */}
-            {item(<FolderOpen className="h-3.5 w-3.5" />, poolMode || homeActive ? "Open canvas view — experimental" : "Open… (sets + folders)", onLoad)}
+            {item(<FolderOpen className="h-3.5 w-3.5" />, poolMode || homeActive ? "Open canvas view — experimental" : "Open… (sets + folders)", onLoad, false, "file-open")}
             <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
-            {!homeActive && item(<Download className="h-3.5 w-3.5" />, "Export (.json + .md)", onExport)}
-            {item(<Upload className="h-3.5 w-3.5" />, "Import from file", onImport)}
-            {!poolMode && item(<Plus className="h-3.5 w-3.5" />, "New set", onNewTab)}
+            {!homeActive && item(<Download className="h-3.5 w-3.5" />, "Export (.json + .md)", onExport, false, "file-export")}
+            {item(<Upload className="h-3.5 w-3.5" />, "Import from file", onImport, false, "file-import")}
+            {!poolMode && item(<Plus className="h-3.5 w-3.5" />, "New set", onNewTab, false, "file-new-set")}
+            <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
+            {/* USAGE TELEMETRY — export a Claude Code prompt from this surface's session data. */}
+            {item(<ClipboardList className="h-3.5 w-3.5" />, "Copy activity log — this session", () => void copyLog("session"), false, "file-copy-activity-log")}
+            {item(<ClipboardList className="h-3.5 w-3.5" />, "Copy activity log — last 7 days", () => void copyLog("7d"))}
+            {item(<ClipboardList className="h-3.5 w-3.5" />, "Copy activity log — last 30 days", () => void copyLog("30d"))}
             <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
             {/* Hotkeys + Studio moved in from the top bar (header consolidation) — the shortcuts
                 keep working; the labels say so. */}
-            {item(<Keyboard className="h-3.5 w-3.5" />, "Hotkeys — press ?", onHotkeys)}
-            {!poolMode && item(<ListOrdered className="h-3.5 w-3.5" />, "Open Studio", onOpenStudio)}
+            {item(<Keyboard className="h-3.5 w-3.5" />, "Hotkeys — press ?", onHotkeys, false, "file-hotkeys")}
+            {!poolMode && item(<ListOrdered className="h-3.5 w-3.5" />, "Open Studio", onOpenStudio, false, "file-open-studio")}
             {onSeedExam1 && <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />}
             {onSeedExam1 && item(<Sprout className="h-3.5 w-3.5" />, "Exam 1 master seed…", onSeedExam1)}
             {onShorthandBackfill && item(<Eraser className="h-3.5 w-3.5" />, "Generate missing shorthands", onShorthandBackfill)}
             {!homeActive && !poolMode && <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />}
-            {!homeActive && !poolMode && item(<Sprout className="h-3.5 w-3.5" />, "Seed starter sets", onSeedSets)}
-            {!homeActive && !poolMode && item(<Eraser className="h-3.5 w-3.5" />, "Clean set names", onCleanNames)}
+            {!homeActive && !poolMode && item(<Sprout className="h-3.5 w-3.5" />, "Seed starter sets", onSeedSets, false, "file-seed-sets")}
+            {!homeActive && !poolMode && item(<Eraser className="h-3.5 w-3.5" />, "Clean set names", onCleanNames, false, "file-clean-names")}
             {!homeActive && !poolMode && <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />}
-            {!homeActive && !poolMode && item(<RotateCcw className="h-3.5 w-3.5" />, "Reset… (canvas · CEQs · both)", onReset, true)}
+            {!homeActive && !poolMode && item(<RotateCcw className="h-3.5 w-3.5" />, "Reset… (canvas · CEQs · both)", onReset, true, "file-reset")}
             <div className="my-1 h-px" style={{ background: NEON.borderSoft }} />
-            {item(<Archive className="h-3.5 w-3.5" />, "View archive: Dashboard v1", onViewV1)}
+            {item(<Archive className="h-3.5 w-3.5" />, "View archive: Dashboard v1", onViewV1, false, "file-view-archive")}
           </div>
         )}
       </div>
@@ -123,6 +145,7 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
           cut player · take rail. Prominent by design: this is the button Lee hits when
           he sits down to film. */}
       <button
+        data-sa-el="nav-pipeline"
         className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[12px] font-black uppercase tracking-wide"
         style={{ color: "#FF8B9E", border: "1px solid rgba(255,90,110,0.55)" }}
         onClick={onPipeline}
@@ -134,6 +157,7 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
       {/* EXHIBIT LAB (v2) — the authoring/filming zone for exhibits + probes.
           A plain link to its own route: no canvas state, no scene writes. */}
       <a
+        data-sa-el="nav-exhibit-lab"
         href="/exhibit-lab"
         target="_blank"
         rel="noreferrer"
@@ -166,6 +190,7 @@ export function CanvasNavbar({ sceneName, setSceneName, savedNote, onSave, onSav
 
       {/* STUDENT VIEW — coming soon (disabled on purpose) */}
       <button
+        data-sa-el="nav-student-view"
         className="flex cursor-not-allowed items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold opacity-50"
         style={{ color: NEON.muted, border: `1px dashed ${NEON.borderSoft}` }}
         disabled

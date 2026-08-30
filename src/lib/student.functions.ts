@@ -187,6 +187,11 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
     let top = topics.get(t.id); if (!top) { top = { id: t.id, name: t.name ?? "Topic", shortLabel: t.short, number: t.number, sets: [] }; topics.set(t.id, top); course.topics.push(top); } return top;
   };
   for (const d of live) {
+    // ALL-DRAFT SETS never reach a student (master status law): a set whose
+    // every question is draft/soft-archived AND that has no published video
+    // would render as a "0 questions" row — a count that doesn't exist. The
+    // check runs BEFORE ensureTopic so it can't materialize an empty topic.
+    if ((ceqCountByDeck.get(d.id) ?? 0) === 0 && !shippedPub(d, "blast") && !d.lessonId) continue;
     const ch = d.topicId ? chById.get(d.topicId) : undefined;
     const courseId = ch?.courseId ?? d.courseId ?? null;
     if (!courseId) continue;
@@ -203,11 +208,6 @@ export const fetchStudentTree = createServerFn({ method: "GET" })
     const look = shippedPub(d, "lookback");
     const cramPid = blast?.render?.muxPlaybackId ?? ((d.lessonId && pb.get(d.lessonId)) || null);
     const cramDur = pubDur(blast) ?? ((d.lessonId ? dur.get(d.lessonId) : undefined) ?? null);
-    // ALL-DRAFT SETS never reach a student: a set whose every question is
-    // draft/soft-archived AND that has no published video would render as a
-    // "0 questions" row — a count that doesn't exist (master status law).
-    const visibleCeqs = ceqCountByDeck.get(d.id) ?? 0;
-    if (visibleCeqs === 0 && !blast && !d.lessonId) continue;
     setOrderKey.set(d.id, d.sortOrder ?? Number.MAX_SAFE_INTEGER);
     topic.sets.push({ id: d.id, name: setName(d.name), access: paid ? "paid" : "free", orientation: "landscape", playbackId: paid ? null : cramPid, ceqCount: ceqCountByDeck.get(d.id) ?? 0, runtimeSec: cramDur, hasReview: !!look, reviewPlaybackId: paid ? null : (look?.render?.muxPlaybackId ?? null), reviewRuntimeSec: pubDur(look), firstStem: stemFor(d.id, paid), shortLabel: shortFor(d.id) });
   }

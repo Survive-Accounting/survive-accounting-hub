@@ -43,6 +43,14 @@
     {
       "path": "/api/cron/king-digest",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/growth-campaigns",
+      "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/cron/growth-campaigns",
+      "schedule": "0 15 * * *"
     }
   ]
 }
