@@ -67,17 +67,27 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
       return {
         kind: "cycle",
         title: "The Accounting Cycle",
+        // THE NINE STEPS, in the order the bank teaches them — the same list as
+        // exhibit-lab/cycle-model.ts CYCLE_STEPS and the correct answer to
+        // "Which list shows the full accounting cycle in the correct order?"
+        // (deck-e1s-1-1). A new cycle element must not seed a shorter summary:
+        // an unlabeled 7-step ring next to a 9-step CEQ answer is a filmed
+        // contradiction. Steps stay author-editable on the canvas.
         steps: [
           { id: cardId("cy"), text: "Analyze transactions" },
-          { id: cardId("cy"), text: "Record JEs" },
-          { id: cardId("cy"), text: "Post to Ledger" },
-          { id: cardId("cy"), text: "Trial Balance" },
-          { id: cardId("cy"), text: "Adj Entries" },
-          { id: cardId("cy"), text: "Financial Stmts" },
-          { id: cardId("cy"), text: "Year End Closed" },
+          { id: cardId("cy"), text: "Record journal entries" },
+          { id: cardId("cy"), text: "Post to T accounts" },
+          { id: cardId("cy"), text: "Make unadjusted trial balance" },
+          { id: cardId("cy"), text: "Record adjusting entries" },
+          { id: cardId("cy"), text: "Make adjusted trial balance" },
+          { id: cardId("cy"), text: "Prep financial statements" },
+          { id: cardId("cy"), text: "Record closing entries" },
+          { id: cardId("cy"), text: "Make post-closing trial balance" },
         ],
-        w: 620,
-        h: 380,
+        // Matches CycleNode's own fallback (900×560) and the sibling exhibits'
+        // scale; the old 620×380 seed crowded the ring at nine pills.
+        w: 900,
+        h: 560,
       };
     case "memo":
       return { kind: "memo", memoKind: "note", title: "", body: "" };
