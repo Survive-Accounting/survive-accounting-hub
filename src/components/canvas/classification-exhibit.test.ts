@@ -117,6 +117,26 @@ describe("registry ↔ the modules that already knew some of this", () => {
       expect(groupNameForType(dbType)).toBe(EXPECTED[a.category]);
     }
   });
+
+  // THE FOURTH COPY. ceq-seed's COA generated the live chapter decks, so a name
+  // it knows and the registry doesn't is a classification taught to students
+  // that no exhibit can look up — that is how "Building" vs "Buildings" got in
+  // (fixed 2026-08-30). Parsed from source because COA is not exported.
+  test("every ceq-seed COA name resolves here, with the same category", () => {
+    const seedSrc = readFileSync(join(import.meta.dir, "ceq-seed.ts"), "utf8").split("\r\n").join("\n");
+    const start = seedSrc.indexOf("const COA:");
+    const block = seedSrc.slice(start, seedSrc.indexOf("];", start));
+    const rows = [...block.matchAll(/name: "([^"]+)", type: "([^"]+)"/g)].map((m) => ({ name: m[1], type: m[2] }));
+    expect(rows.length).toBeGreaterThan(25); // the parse actually found the table
+
+    const KNOWN_SEED_ONLY = new Set(["Taxes Payable", "Dividends Payable"]); // see docs/CURRICULUM-INVARIANTS.md
+    for (const r of rows) {
+      if (KNOWN_SEED_ONLY.has(r.name)) continue;
+      const a = accountByLabel(r.name);
+      expect(a, `ceq-seed teaches "${r.name}" but the registry cannot resolve it`).toBeDefined();
+      expect(a!.category, `"${r.name}" category disagrees with ceq-seed`).toBe(r.type.toLowerCase());
+    }
+  });
 });
 
 // ───────────────────────────────────────────── 2. the exhibit
