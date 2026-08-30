@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WelcomeRouteImport } from './routes/welcome'
 import { Route as WaitlistRouteImport } from './routes/waitlist'
+import { Route as TheCampaignRouteImport } from './routes/the-campaign'
 import { Route as ThankyouRouteImport } from './routes/thankyou'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TalkthroughRouteImport } from './routes/talkthrough'
@@ -144,6 +145,11 @@ const WelcomeRoute = WelcomeRouteImport.update({
 const WaitlistRoute = WaitlistRouteImport.update({
   id: '/waitlist',
   path: '/waitlist',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TheCampaignRoute = TheCampaignRouteImport.update({
+  id: '/the-campaign',
+  path: '/the-campaign',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ThankyouRoute = ThankyouRouteImport.update({
@@ -805,6 +811,7 @@ export interface FileRoutesByFullPath {
   '/talkthrough': typeof TalkthroughRoute
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
+  '/the-campaign': typeof TheCampaignRoute
   '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
@@ -932,6 +939,7 @@ export interface FileRoutesByTo {
   '/talkthrough': typeof TalkthroughRoute
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
+  '/the-campaign': typeof TheCampaignRoute
   '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
@@ -1059,6 +1067,7 @@ export interface FileRoutesById {
   '/talkthrough': typeof TalkthroughRoute
   '/terms': typeof TermsRoute
   '/thankyou': typeof ThankyouRoute
+  '/the-campaign': typeof TheCampaignRoute
   '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
@@ -1189,6 +1198,7 @@ export interface FileRouteTypes {
     | '/talkthrough'
     | '/terms'
     | '/thankyou'
+    | '/the-campaign'
     | '/waitlist'
     | '/welcome'
     | '/$school/rep'
@@ -1316,6 +1326,7 @@ export interface FileRouteTypes {
     | '/talkthrough'
     | '/terms'
     | '/thankyou'
+    | '/the-campaign'
     | '/waitlist'
     | '/welcome'
     | '/$school/rep'
@@ -1442,6 +1453,7 @@ export interface FileRouteTypes {
     | '/talkthrough'
     | '/terms'
     | '/thankyou'
+    | '/the-campaign'
     | '/waitlist'
     | '/welcome'
     | '/$school/rep'
@@ -1571,6 +1583,7 @@ export interface RootRouteChildren {
   TalkthroughRoute: typeof TalkthroughRoute
   TermsRoute: typeof TermsRoute
   ThankyouRoute: typeof ThankyouRoute
+  TheCampaignRoute: typeof TheCampaignRoute
   WaitlistRoute: typeof WaitlistRoute
   WelcomeRoute: typeof WelcomeRoute
   SchoolRepRoute: typeof SchoolRepRoute
@@ -1631,6 +1644,13 @@ declare module '@tanstack/react-router' {
       path: '/waitlist'
       fullPath: '/waitlist'
       preLoaderRoute: typeof WaitlistRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/the-campaign': {
+      id: '/the-campaign'
+      path: '/the-campaign'
+      fullPath: '/the-campaign'
+      preLoaderRoute: typeof TheCampaignRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/thankyou': {
@@ -2706,6 +2726,7 @@ const rootRouteChildren: RootRouteChildren = {
   TalkthroughRoute: TalkthroughRoute,
   TermsRoute: TermsRoute,
   ThankyouRoute: ThankyouRoute,
+  TheCampaignRoute: TheCampaignRoute,
   WaitlistRoute: WaitlistRoute,
   WelcomeRoute: WelcomeRoute,
   SchoolRepRoute: SchoolRepRoute,

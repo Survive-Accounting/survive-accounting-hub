@@ -526,6 +526,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "preview_.home.tsx": "preview homepage — the live two-door page with its solo door routed into Player V2 (noindex)",
   "preview_.exam1.tsx": "private Player V2 'Tonight's Plan' beta (noindex, unlinked from public nav)",
   "preview_.studentplayerv1.tsx": "the V1 student player on its own, kept reachable for comparison against future players (noindex; the real archive is the git tag player-v1-2026-08-29)",
+  "the-campaign.tsx": "Lee's private campaign page for his personal network — video, 15-slide deck, referral form (noindex+nofollow, shared by email, linked from nowhere)",
   "go.demo.tsx": "demo chapter page — outreach sales asset (noindex)",
   "go.demo.demo.tsx": "redirect → /go/demo",
   // API / cron / webhook endpoints — not pages
