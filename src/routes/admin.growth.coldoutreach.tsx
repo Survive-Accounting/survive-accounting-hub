@@ -1,7 +1,7 @@
 // /admin/growth/coldoutreach — THE enrichment surface. The next 48 hours are one job: get
 // rich contact data in, one campus at a time, fast. Everything else is deliberately off the
 // path. Add Contacts is the only live door; a campus should take minutes, not half an hour.
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -120,7 +120,10 @@ function ColdOutreachPage() {
         <div className="flex flex-wrap items-baseline gap-2">
           <h1 className="sa-admin-display text-lg font-semibold uppercase tracking-wide">Cold Outreach</h1>
           <span className="text-[11px] text-muted-foreground">Enrichment — one campus at a time</span>
-          <span className="ml-auto text-xs text-muted-foreground">
+          <Link to="/admin/growth/coldoutreach/schedule" className="ml-auto inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium hover:bg-muted">
+            Schedule →
+          </Link>
+          <span className="text-xs text-muted-foreground">
             <strong className="text-emerald-400">{readyCount}</strong> / {totalCampuses} ready
           </span>
         </div>
