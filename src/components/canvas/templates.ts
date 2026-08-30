@@ -84,10 +84,14 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
           { id: cardId("cy"), text: "Record closing entries" },
           { id: cardId("cy"), text: "Make post-closing trial balance" },
         ],
-        // Matches CycleNode's own fallback (900×560) and the sibling exhibits'
-        // scale; the old 620×380 seed crowded the ring at nine pills.
-        w: 900,
-        h: 560,
+        // Sized so NINE pills never collide. Pills are positioned as a % of the
+        // 1000×600 viewBox but sized in real px (capped at 200 wide), so the
+        // gap between pill centres is (ovalPerimeter / steps) × (width / 1000)
+        // ≈ 2003/9 × w/1000. At the old 620 seed that is 138px — pills overlap;
+        // at 900 it is exactly 200px — touching; at 1100 it is 245px — clean.
+        // 1100×660 also keeps the viewBox's 5:3 aspect, so the arcs stay round.
+        w: 1100,
+        h: 660,
       };
     case "memo":
       return { kind: "memo", memoKind: "note", title: "", body: "" };
