@@ -11,9 +11,11 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Copy,
   Landmark,
   Loader2,
   Plus,
+  Search,
   UserPlus,
   Users,
   X,
@@ -176,6 +178,40 @@ function DoorBtn({ icon: Icon, label, onClick, primary }: { icon: any; label: st
   );
 }
 
+// ── QUICK ACTIONS ────────────────────────────────────────────────────────────────────
+// King spends his time finding council/chapter pages and DMing them. Two shortcuts:
+// a 🔍 that opens a prefilled Google search (find the IG/page in one click, no typing),
+// and a "Copy DM" that puts a ready outreach message on the clipboard to paste into IG.
+function googleSearch(query: string) {
+  window.open(`https://www.google.com/search?q=${encodeURIComponent(query)}`, "_blank", "noopener,noreferrer");
+}
+async function copyText(text: string, okMsg: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success(okMsg);
+  } catch {
+    toast.error("Couldn't copy — clipboard is blocked here.");
+  }
+}
+/** Small inline Google-search button. Stops propagation so it never triggers the row toggle. */
+function FindBtn({ query }: { query: string }) {
+  return (
+    <button
+      type="button"
+      title={`Google: ${query}`}
+      onClick={(e) => { e.stopPropagation(); googleSearch(query); }}
+      className="inline-grid size-5 shrink-0 place-items-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
+    >
+      <Search className="size-3" />
+    </button>
+  );
+}
+/** A pre-filled Instagram DM. Entity is the org name / Greek letters; season keeps it timely. */
+function dmTemplate(entity: string, campusName: string) {
+  const org = entity.trim() || "y'all";
+  return `Hey ${org}! 👋 I'm with Survive Accounting. This Fall we're giving Intro Accounting students at ${campusName} a free Exam 1 study tool, and a few chapters are already sharing it with their members. Can I send you the link so ${org} can pass it along? It's free and takes 2 minutes. 🙏`;
+}
+
 // ── ADD CONTACTS ─────────────────────────────────────────────────────────────────────
 type Row = {
   key: string;
@@ -285,13 +321,14 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
                 <div key={c.type} className="space-y-1.5">
                   <div className="flex items-center gap-2 text-[11px] font-medium">
                     {c.label}
+                    <FindBtn query={`${campus.name} ${c.label} instagram`} />
                     {c.has > 0 && <span className="text-emerald-400">✓ {c.has}</span>}
                     <button onClick={() => add({ kind: "council", councilType: c.type, label: c.label })} className="ml-auto inline-flex items-center gap-0.5 text-primary hover:underline">
                       <Plus className="size-3" /> contact
                     </button>
                   </div>
                   {rows.filter((r) => r.kind === "council" && r.councilType === c.type).map((r) => (
-                    <ContactRow key={r.key} r={r} set={set} remove={remove} />
+                    <ContactRow key={r.key} r={r} set={set} remove={remove} campusName={campus.name} />
                   ))}
                 </div>
               ))}
@@ -303,6 +340,7 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
                 <div key={ch.id} className="space-y-1.5">
                   <div className="flex items-center gap-2 text-[11px] font-medium">
                     {ch.name}
+                    <FindBtn query={`${ch.name} ${campus.name} instagram`} />
                     {ch.size != null && <span className="text-muted-foreground">{ch.size}</span>}
                     {ch.has > 0 && <span className="text-emerald-400">✓ {ch.has}</span>}
                     <button onClick={() => add({ kind: "chapter", entityId: ch.id, label: ch.name })} className="ml-auto inline-flex items-center gap-0.5 text-primary hover:underline">
@@ -310,7 +348,7 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
                     </button>
                   </div>
                   {rows.filter((r) => r.kind === "chapter" && r.entityId === ch.id).map((r) => (
-                    <ContactRow key={r.key} r={r} set={set} remove={remove} />
+                    <ContactRow key={r.key} r={r} set={set} remove={remove} campusName={campus.name} />
                   ))}
                 </div>
               ))}
@@ -320,7 +358,7 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
             <>
               <p className="text-[11px] text-muted-foreground">Add a rep candidate (a person). We'll follow up to set them up with a tracked link.</p>
               {rows.filter((r) => r.kind === "club" && r.newClubCategory === "campus_rep").map((r) => (
-                <ContactRow key={r.key} r={r} set={set} remove={remove} forcePerson />
+                <ContactRow key={r.key} r={r} set={set} remove={remove} forcePerson campusName={campus.name} />
               ))}
               <button onClick={() => add({ kind: "club", newClubName: "Campus Rep", newClubCategory: "campus_rep", isPerson: true, label: "Rep" })} className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline">
                 <Plus className="size-3" /> rep candidate
@@ -333,13 +371,14 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
                 <div key={cl.id} className="space-y-1.5">
                   <div className="flex items-center gap-2 text-[11px] font-medium">
                     {cl.name}
+                    <FindBtn query={`${cl.name} ${campus.name} instagram`} />
                     {cl.category && <span className="text-muted-foreground">{cl.category.replace(/_/g, " ")}</span>}
                     <button onClick={() => add({ kind: "club", entityId: cl.id, label: cl.name })} className="ml-auto inline-flex items-center gap-0.5 text-primary hover:underline">
                       <Plus className="size-3" /> contact
                     </button>
                   </div>
                   {rows.filter((r) => r.kind === "club" && r.entityId === cl.id).map((r) => (
-                    <ContactRow key={r.key} r={r} set={set} remove={remove} />
+                    <ContactRow key={r.key} r={r} set={set} remove={remove} campusName={campus.name} />
                   ))}
                 </div>
               ))}
@@ -347,7 +386,7 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
               {rows.filter((r) => r.kind === "club" && !r.entityId && r.newClubCategory !== "campus_rep").map((r) => (
                 <div key={r.key} className="rounded border border-dashed border-border p-2">
                   <div className="mb-1 text-[11px] font-medium">{r.newClubName} <span className="text-muted-foreground">({(r.newClubCategory ?? "").replace(/_/g, " ")})</span></div>
-                  <ContactRow r={r} set={set} remove={remove} />
+                  <ContactRow r={r} set={set} remove={remove} campusName={campus.name} />
                 </div>
               ))}
             </>,
@@ -369,7 +408,7 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
   );
 }
 
-function ContactRow({ r, set, remove, forcePerson }: { r: Row; set: (k: string, p: Partial<Row>) => void; remove: (k: string) => void; forcePerson?: boolean }) {
+function ContactRow({ r, set, remove, forcePerson, campusName }: { r: Row; set: (k: string, p: Partial<Row>) => void; remove: (k: string) => void; forcePerson?: boolean; campusName: string }) {
   const person = forcePerson || r.isPerson;
   return (
     <div className="rounded-md border border-border bg-card p-2">
@@ -391,6 +430,16 @@ function ContactRow({ r, set, remove, forcePerson }: { r: Row; set: (k: string, 
       <div className="grid grid-cols-2 gap-1.5">
         <input value={r.email} onChange={(e) => set(r.key, { email: e.target.value })} placeholder="Email" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
         <input value={r.instagram} onChange={(e) => set(r.key, { instagram: e.target.value })} placeholder={person ? "@personal IG" : "@org IG"} className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
+      </div>
+      <div className="mt-1.5 flex items-center gap-2 text-[10px]">
+        <button
+          type="button"
+          onClick={() => copyText(dmTemplate(person && r.name.trim() ? r.name.trim() : r.label, campusName), "DM copied — paste it into their Instagram.")}
+          className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <Copy className="size-3" /> Copy DM
+        </button>
+        {r.label && <FindBtn query={`${r.label} ${campusName} instagram`} />}
       </div>
     </div>
   );
