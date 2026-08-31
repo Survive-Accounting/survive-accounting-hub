@@ -55,6 +55,28 @@ export const STATUS_COLOR: Record<Status, string> = {
   PARKED: "#6B7280",
 };
 
+/** Everyone shares one vault. The person who notices the problem is usually
+ *  not Lee, so the capture path has to be as short for King and McKinsey as
+ *  it is for him. This is for FILTERING, never for permissions. */
+export const PEOPLE = ["lee", "king", "mckinsey"] as const;
+export type Person = (typeof PEOPLE)[number];
+export const PERSON_LABEL: Record<Person, string> = { lee: "Lee", king: "King", mckinsey: "McKinsey" };
+
+/** How an idea arrived. A broken inbound path is invisible without this. */
+export const SOURCE_KINDS = ["web", "voice", "sms", "email"] as const;
+export type SourceKind = (typeof SOURCE_KINDS)[number];
+export const SOURCE_ICON: Record<SourceKind, string> = { web: "⌨", voice: "🎙", sms: "💬", email: "✉" };
+
+export interface Attachment {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  /** Supabase storage path in the existing canvas-media bucket. */
+  path: string;
+  url: string;
+}
+
 export interface Idea {
   id: string;
   title: string;
@@ -66,6 +88,12 @@ export interface Idea {
   context: Record<string, string>;
   promptMd: string | null;
   promptFilename: string | null;
+  createdBy: string;
+  sourceKind: SourceKind;
+  attachments: Attachment[];
+  /** The recording is kept even when transcription fails — the audio IS the idea. */
+  audioPath: string | null;
+  transcriptStatus: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -105,6 +133,11 @@ export function searchIdeas(ideas: readonly Idea[], q: string): Idea[] {
   return ideas.filter((i) => `${i.title} ${i.body} ${i.subcategory}`.toLowerCase().includes(n));
 }
 
+/** UNSORTED is a derived BUCKET, not a category. An uncategorised idea is
+ *  fine — auto-categorising one would be guessing, and the vocabulary should
+ *  not grow a slot that means "we did not ask". */
+export const isUnsorted = (i: Idea): boolean => i.categories.length === 0;
+
 export type SortKey = "date" | "category" | "status";
 
 export function sortIdeas(ideas: readonly Idea[], key: SortKey): Idea[] {
@@ -114,10 +147,15 @@ export function sortIdeas(ideas: readonly Idea[], key: SortKey): Idea[] {
   return out.sort((a, b) => (a.categories[0] ?? "~").localeCompare(b.categories[0] ?? "~") || b.updatedAt.localeCompare(a.updatedAt));
 }
 
-export function filterIdeas(ideas: readonly Idea[], f: { category?: Category | null; status?: Status | null; q?: string }): Idea[] {
+export function filterIdeas(ideas: readonly Idea[], f: {
+  category?: Category | null; status?: Status | null; q?: string;
+  person?: string | null; unsorted?: boolean;
+}): Idea[] {
   let out = searchIdeas(ideas, f.q ?? "");
-  if (f.category) out = out.filter((i) => i.categories.includes(f.category!));
+  if (f.unsorted) out = out.filter(isUnsorted);
+  else if (f.category) out = out.filter((i) => i.categories.includes(f.category!));
   if (f.status) out = out.filter((i) => i.status === f.status);
+  if (f.person) out = out.filter((i) => i.createdBy === f.person);
   return out;
 }
 

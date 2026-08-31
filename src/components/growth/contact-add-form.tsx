@@ -87,13 +87,13 @@ export function AddForm({ draft, editing, notFoundPending, coveredRoles, campusN
   return (
     <div className="rounded-md border border-primary/40 bg-card p-2">
       <div className="mb-1.5 flex items-center gap-2">
-        <div className="inline-flex overflow-hidden rounded border border-border text-[10px]">
-          <button type="button" onClick={() => onSwitch("org")} className={cn("px-2 py-0.5", mode === "org" ? "bg-primary/15 text-primary" : "text-muted-foreground")}>Organization</button>
-          <button type="button" onClick={() => onSwitch("person")} className={cn("px-2 py-0.5", mode === "person" ? "bg-primary/15 text-primary" : "text-muted-foreground")}>Person</button>
-          <button type="button" onClick={() => onSwitch("notfound")} className={cn("px-2 py-0.5", mode === "notfound" ? "bg-amber-500/15 text-amber-500" : "text-muted-foreground")}>Not found</button>
+        <div className="inline-flex shrink-0 overflow-hidden rounded border border-border text-[10px]">
+          <button type="button" onClick={() => onSwitch("org")} className={cn("whitespace-nowrap px-2 py-1", mode === "org" ? "bg-primary/15 text-primary" : "text-muted-foreground")}>Organization</button>
+          <button type="button" onClick={() => onSwitch("person")} className={cn("whitespace-nowrap px-2 py-1", mode === "person" ? "bg-primary/15 text-primary" : "text-muted-foreground")}>Person</button>
+          <button type="button" onClick={() => onSwitch("notfound")} className={cn("whitespace-nowrap px-2 py-1", mode === "notfound" ? "bg-amber-500/15 text-amber-500" : "text-muted-foreground")}>Not found</button>
         </div>
-        <span className="text-[9px] uppercase tracking-wide text-muted-foreground/60">{editing ? "editing" : "new"}</span>
-        <button type="button" onClick={onCancel} title="Cancel" className="ml-auto text-muted-foreground hover:text-foreground"><X className="size-3.5" /></button>
+        <span className="hidden text-[9px] uppercase tracking-wide text-muted-foreground/60 sm:inline">{editing ? "editing" : "new"}</span>
+        <button type="button" onClick={onCancel} title="Cancel" className="ml-auto grid size-8 place-items-center text-muted-foreground hover:text-foreground"><X className="size-4" /></button>
       </div>
 
       {mode === "notfound" ? (
@@ -143,7 +143,7 @@ export function AddForm({ draft, editing, notFoundPending, coveredRoles, campusN
           )}
           {/* Instagram sits beside name — a personal IG is the highest-value field, so it's called out
               and kept handle-narrow (a handle is ~15 chars; a wide box invites a paragraph). */}
-          <div className="mb-0.5 grid grid-cols-[1fr_150px] gap-1.5">
+          <div className="mb-0.5 grid grid-cols-1 gap-1.5 sm:grid-cols-[1fr_160px]">
             <div>
               <div className="mb-0.5 flex items-center gap-1.5">
                 <label className="text-[9px] text-muted-foreground">Their name</label>
@@ -182,8 +182,8 @@ export function AddForm({ draft, editing, notFoundPending, coveredRoles, campusN
                 <Recycle className="size-3" /> role account
               </label>
               <div className="ml-auto flex items-center gap-1.5">
-                <button type="button" onClick={onCancel} className="rounded border border-border px-2.5 py-0.5 text-muted-foreground hover:bg-muted">Cancel</button>
-                <button type="button" onClick={clickAdd} disabled={!canAdd} title={canAdd ? undefined : "Add a name, email, or Instagram first"} className="rounded bg-primary px-3 py-0.5 font-semibold text-primary-foreground disabled:opacity-40">{editing ? "Update" : "Add"}</button>
+                <button type="button" onClick={onCancel} className="rounded border border-border px-3 py-1.5 text-muted-foreground hover:bg-muted">Cancel</button>
+                <button type="button" onClick={clickAdd} disabled={!canAdd} title={canAdd ? undefined : "Add a name, email, or Instagram first"} className="rounded bg-primary px-4 py-1.5 font-semibold text-primary-foreground disabled:opacity-40">{editing ? "Update" : "Add"}</button>
               </div>
             </div>
           )}
@@ -191,13 +191,13 @@ export function AddForm({ draft, editing, notFoundPending, coveredRoles, campusN
       ) : (
         // Organization: email + Instagram only. No name, no role chips, no role-account box.
         <>
-          <div className="grid grid-cols-2 gap-1.5">
-            <input autoFocus value={draft.email} onChange={(e) => onChange({ email: e.target.value })} placeholder="Email" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
-            <input value={draft.instagram} onChange={(e) => onChange({ instagram: atHandle(e.target.value) })} placeholder="@org IG" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
+          <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+            <input autoFocus value={draft.email} onChange={(e) => onChange({ email: e.target.value })} placeholder="Email" className="rounded border border-border bg-background px-2 py-1.5 text-[11px]" />
+            <input value={draft.instagram} onChange={(e) => onChange({ instagram: atHandle(e.target.value) })} placeholder="@org IG" className="rounded border border-border bg-background px-2 py-1.5 text-[11px]" />
           </div>
           <div className="mt-1.5 flex items-center justify-end gap-1.5 text-[10px]">
-            <button type="button" onClick={onCancel} className="rounded border border-border px-2.5 py-0.5 text-muted-foreground hover:bg-muted">Cancel</button>
-            <button type="button" onClick={() => onAdd()} disabled={!canAdd} title={canAdd ? undefined : "Add an email or Instagram first"} className="rounded bg-primary px-3 py-0.5 font-semibold text-primary-foreground disabled:opacity-40">{editing ? "Update" : "Add"}</button>
+            <button type="button" onClick={onCancel} className="rounded border border-border px-3 py-1.5 text-muted-foreground hover:bg-muted">Cancel</button>
+            <button type="button" onClick={() => onAdd()} disabled={!canAdd} title={canAdd ? undefined : "Add an email or Instagram first"} className="rounded bg-primary px-4 py-1.5 font-semibold text-primary-foreground disabled:opacity-40">{editing ? "Update" : "Add"}</button>
           </div>
         </>
       )}
