@@ -32,6 +32,12 @@ import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { IntroSting } from "@/components/frames";
 import { supabase } from "@/integrations/supabase/client";
 import { useStudentAuth } from "@/lib/use-student-auth";
+import { LEARN_MODE_CSS, LEARN_MODES, MODE_BLURB, MODE_LABEL, modeStyle, type LearnMode } from "@/components/learn/learn-modes";
+import { ModeBolt } from "@/components/learn/ModeBolt";
+import { VideoCard } from "@/components/learn/VideoCard";
+import { ExamRail, type ExamTabState } from "@/components/learn/ExamRail";
+import { GreekDoor } from "@/components/learn/GreekDoor";
+import { Spine, useVisibleTopic, type SpineTopic } from "@/components/learn/Spine";
 
 type ProgressState = "unstarted" | "in_progress" | "complete";
 /** One set's progress. positionSec/durationSec power resume + the watched strip; updatedAt
@@ -513,6 +519,14 @@ function LearnShell() {
   const isNarrow = useIsNarrow();
   const [mapOpen, setMapOpen] = useState(false);
 
+  // ── MODE ────────────────────────────────────────────────────────────────────────────────────
+  // The mode IS the stage of whatever is open, because the three modes are the three points on
+  // one set's path — cram it, practise it, review it. When nothing is playing the student can
+  // still switch, so the surface can be looked around before committing to a video.
+  const [pickedMode, setPickedMode] = useState<LearnMode>("cram");
+  const [examNum, setExamNum] = useState<number | null>(null);
+  const railRef = useRef<HTMLDivElement>(null);
+
   // AUTH (magic link) + per-set PROGRESSION. Signed-in rows live in student_set_progress under
   // RLS (student sees + writes only their own). Signed-out (and demo) persists to localStorage
   // so a preview tester keeps progress across reloads — local only, nothing merges up.
@@ -644,6 +658,138 @@ function LearnShell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courses, allTopics, search.set, search.stage]);
 
+  // The active mode follows the open stage; otherwise it is whatever the student picked.
+  const mode: LearnMode = (playing?.stage as LearnMode | undefined) ?? pickedMode;
+
+  // ── THE EXAM RAIL ───────────────────────────────────────────────────────────────────────────
+  // Units ARE the exams in this tree ("Exam 1", "Exam 2", …). Anything we have live becomes an
+  // available tab; the standard four are always shown so a student can see what is coming and
+  // ask to be told when it lands. A unit whose name is not an exam is left out rather than
+  // renamed into one.
+  const examTabs = useMemo<ExamTabState[]>(() => {
+    const byNum = new Map<number, { label: string; videos: number }>();
+    for (const c of courses) {
+      for (const u of c.units) {
+        const m = /exam\s*(\d+)/i.exec(u.name);
+        const isFinal = /final/i.test(u.name);
+        const num = m ? Number(m[1]) : isFinal ? 4 : null;
+        if (num == null) continue;
+        const videos = u.topics.reduce((n, t) => n + t.sets.length, 0);
+        const prev = byNum.get(num);
+        byNum.set(num, { label: isFinal ? "Final" : `Exam ${num}`, videos: (prev?.videos ?? 0) + videos });
+      }
+    }
+    return [1, 2, 3, 4].map((n) => {
+      const hit = byNum.get(n);
+      return {
+        num: n,
+        label: n === 4 ? "Final" : `Exam ${n}`,
+        available: (hit?.videos ?? 0) > 0,
+        videoCount: hit?.videos ?? 0,
+      };
+    });
+  }, [courses]);
+
+  // Default to the first exam that actually has videos.
+  useEffect(() => {
+    if (examNum != null) return;
+    const first = examTabs.find((e) => e.available);
+    if (first) setExamNum(first.num);
+  }, [examTabs, examNum]);
+
+  // ── THE UP-NEXT RAIL ────────────────────────────────────────────────────────────────────────
+  // Every playable set in the selected exam, in course order, flattened. This is what makes the
+  // spine meaningful: the rail crosses topic boundaries as it scrolls, and the spine follows.
+  const railItems = useMemo(() => {
+    const out: { set: StudentSet; topic: StudentTopic; courseName: string }[] = [];
+    for (const c of courses) {
+      for (const u of c.units) {
+        const m = /exam\s*(\d+)/i.exec(u.name);
+        const num = m ? Number(m[1]) : /final/i.test(u.name) ? 4 : null;
+        if (examNum != null && num !== examNum) continue;
+        for (const t of u.topics) for (const set of t.sets) out.push({ set, topic: t, courseName: c.name });
+      }
+      // Loose topics (not under an exam unit) ride along when no exam filter is active.
+      if (examNum == null) for (const t of c.topics) for (const set of t.sets) out.push({ set, topic: t, courseName: c.name });
+    }
+    const seen = new Set<string>();
+    return out.filter((i) => (seen.has(i.set.id) ? false : (seen.add(i.set.id), true)));
+  }, [courses, examNum]);
+
+  // WHICH TOPIC THE SCROLL IS ON. Falls back to the selected topic so the spine is never blank.
+  const { visibleTopicId, registerCard } = useVisibleTopic(railRef);
+  const spineActiveId = visibleTopicId ?? topicId;
+
+  const spineTopics = useMemo<SpineTopic[]>(() => {
+    const out: SpineTopic[] = [];
+    for (const c of courses) {
+      for (const u of c.units) {
+        for (const t of u.topics) {
+          out.push({
+            id: t.id, label: campusId && t.number != null ? `Ch ${t.number} · ${t.name}` : t.name,
+            groupId: u.id, groupLabel: u.name,
+            total: t.sets.length,
+            done: t.sets.filter((x) => progress[x.id]?.state === "complete").length,
+            locked: t.sets.length > 0 && t.sets.every((x) => x.access === "paid") && !unlockedTopics.has(t.id),
+          });
+        }
+      }
+      for (const t of c.topics) {
+        out.push({
+          id: t.id, label: t.name, groupId: c.id, groupLabel: c.name,
+          total: t.sets.length,
+          done: t.sets.filter((x) => progress[x.id]?.state === "complete").length,
+          locked: t.sets.length > 0 && t.sets.every((x) => x.access === "paid") && !unlockedTopics.has(t.id),
+        });
+      }
+    }
+    return out;
+  }, [courses, campusId, progress, unlockedTopics]);
+
+  const spinePosition = useMemo(() => {
+    const i = spineTopics.findIndex((t) => t.id === spineActiveId);
+    return i >= 0 ? { index: i + 1, total: spineTopics.length } : null;
+  }, [spineTopics, spineActiveId]);
+
+  // CLICKING AN UP-NEXT CARD loads it in the player and returns the page to the player — the
+  // YouTube behaviour. Without the scroll, a student clicking a card twelve rows down watches a
+  // video they cannot see.
+  const playerRef = useRef<HTMLDivElement>(null);
+  const openFromRail = (t: StudentTopic, set: StudentSet) => {
+    setTopicId(t.id);
+    void openSet(t, set);
+    window.requestAnimationFrame(() => {
+      playerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
+  // ONE LIST OF CARDS, rendered by the wide rail and by the narrow layout alike.
+  const railCards = (compact: boolean) => (
+    <>
+      {railItems.map(({ set, topic, courseName }) => {
+        const p = progress[set.id];
+        const hasThumb = !!set.playbackId && set.playbackId !== DEMO_PLAYBACK;
+        const locked = set.access === "paid" && !unlockedTopics.has(topic.id);
+        return (
+          <div key={set.id} data-rail-card ref={registerCard(topic.id)}>
+            <VideoCard
+              title={set.name}
+              thumbUrl={hasThumb ? muxThumb(set.playbackId!) : null}
+              durationSec={set.runtimeSec}
+              meta={`${courseName} · ${chip(topic)}`}
+              locked={locked}
+              complete={p?.state === "complete"}
+              watched={p?.durationSec ? Math.min(1, p.positionSec / p.durationSec) : 0}
+              active={playing?.set.id === set.id}
+              onOpen={() => openFromRail(topic, set)}
+              compact={compact}
+            />
+          </div>
+        );
+      })}
+    </>
+  );
+
   // Per-course / per-unit completion — the outline's progress bars.
   const doneOf = (sets: StudentSet[]) => sets.filter((s) => progress[s.id]?.state === "complete").length;
   const unitStats = (ts: StudentTopic[]) => { let d = 0, n = 0; for (const t of ts) { d += doneOf(t.sets); n += t.sets.length; } return { d, n }; };
@@ -745,7 +891,11 @@ function LearnShell() {
   };
 
   return (
-    <div className="fixed inset-0 flex flex-col" style={{ background: "#070B14", color: NEON.text, fontFamily: "'Rubik', system-ui, sans-serif" }}>
+    <div
+      className="lm-root fixed inset-0 flex flex-col"
+      style={{ ...modeStyle(mode), fontFamily: "'Rubik', system-ui, sans-serif" }}
+    >
+      <style>{LEARN_MODE_CSS}</style>
       {/* NAVBAR — mirrors the Study Canvas navbar shell */}
       <div className="flex h-11 shrink-0 items-center gap-2 px-3" style={{ background: "rgba(9,14,26,0.97)", borderBottom: `1px solid ${NEON.borderSoft}` }}>
         <span className="inline-block h-5 w-4"><BrandLogo mode="bolt" c1="#C62828" c2="#1565C0" size={20} /></span>
@@ -786,63 +936,195 @@ function LearnShell() {
       )}
 
       <div className="flex min-h-0 flex-1">
-        {/* OUTLINE — Course › Topic › CEQ Set (live only), accordion. Hidden on narrow. */}
+        {/* ── SPINE — the course map, tracking the rail's scroll. ─────────────────────────── */}
         {!isNarrow && (
-          <aside className="w-[264px] shrink-0 overflow-y-auto px-1.5 py-2" style={{ borderRight: `1px solid ${NEON.borderSoft}`, background: "rgba(9,14,26,0.6)" }}>
-            <div className="px-1 pb-1 text-[9px] font-bold uppercase tracking-[0.14em]" style={{ color: NEON.muted }}>Course map</div>
-            {courseMap}
+          <aside
+            className="lm-surface w-[248px] shrink-0 px-2 py-3"
+            style={{ borderRight: "1px solid var(--lm-border)" }}
+          >
+            {isLoading ? (
+              <p className="flex items-center gap-1.5 px-1.5 py-2 text-[11px] italic" style={{ color: "var(--lm-muted)" }}>
+                <Loader2 className="h-3 w-3 animate-spin" /> Loading…
+              </p>
+            ) : spineTopics.length === 0 ? (
+              <p className="px-1.5 py-2 text-[11px] italic leading-snug" style={{ color: "var(--lm-muted)" }}>
+                No live videos yet — check back soon.
+              </p>
+            ) : (
+              <Spine
+                topics={spineTopics}
+                activeId={spineActiveId}
+                position={spinePosition}
+                onPick={(id) => {
+                  setTopicId(id);
+                  // Jump the rail to that topic's first card — picking a topic in the spine and
+                  // having the rail stay put is the same bug as a spine that does not follow.
+                  const firstIdx = railItems.findIndex((r) => r.topic.id === id);
+                  if (firstIdx >= 0) {
+                    railRef.current?.querySelectorAll("[data-rail-card]")[firstIdx]
+                      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }
+                }}
+              />
+            )}
           </aside>
         )}
 
-        {/* MAIN — continue-watching rail + the selected topic's video-poster grid */}
-        <main className="min-w-0 flex-1 overflow-y-auto" style={{ padding: isNarrow ? 14 : 24 }}>
+        {/* ── PLAYER — the centre column. ─────────────────────────────────────────────────── */}
+        <main className="min-w-0 flex-1 overflow-y-auto" style={{ padding: isNarrow ? 14 : 20 }}>
           {demo && (
-            <div className="mb-4 rounded-xl px-3.5 py-2.5 text-[11.5px]" style={{ border: `1px dashed rgba(56,217,245,0.5)`, color: NEON.cyan }}>
+            <div className="mb-4 rounded-xl px-3.5 py-2.5 text-[11.5px]" style={{ border: "1px dashed var(--lm-accent)", color: "var(--lm-accent)" }}>
               <b>Demo preview.</b> Placeholder content — nothing here is live and nothing is saved to the server. Drop <span style={{ fontFamily: "monospace" }}>?demo=1</span> from the URL for real data.
             </div>
           )}
-          {isLoading && <div className="grid h-full place-items-center text-[12px]" style={{ color: NEON.muted }}><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading your videos…</div>}
-          {isError && <div className="grid h-full place-items-center text-[12px]" style={{ color: "#F3C6CC" }}>Something went wrong loading videos. <button className="ml-1 underline" onClick={() => q.refetch()}>Retry</button></div>}
-          {!isLoading && !isError && !current && courses.length > 0 && <div className="grid h-full place-items-center text-[12px]" style={{ color: NEON.muted }}>Pick a topic from the course map.</div>}
-          {!isLoading && !isError && courses.length === 0 && (
-            <div className="grid h-full place-items-center text-center">
-              <div><div className="mx-auto mb-3 inline-block h-16"><BoltBoil height={64} /></div><p className="text-[13px] font-bold" style={{ color: NEON.text }}>Cram videos are on the way.</p><p className="mt-1 text-[11.5px]" style={{ color: NEON.muted }}>Nothing is live yet — check back soon.</p></div>
-            </div>
-          )}
-          {continueRail.length > 0 && current && (
-            <div className="mb-6">
-              <div className="mb-2 text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: NEON.muted }}>Continue watching</div>
-              <div className="flex gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: "thin" }}>{continueRail.map(railTile)}</div>
-            </div>
-          )}
-          {current && (
-            <>
-              <div className="mb-4 flex items-baseline gap-2">
-                <h1 className="text-[20px] font-black" style={{ color: NEON.text }}>{current.t.name}</h1>
-                <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: NEON.muted }}>{current.c.name} · {current.t.sets.length} video{current.t.sets.length === 1 ? "" : "s"}</span>
+
+          {/* EXAMS — the organizing spine of the product, at the top where it belongs. */}
+          <ExamRail
+            exams={examTabs}
+            activeNum={examNum}
+            onPick={setExamNum}
+            campusId={campusId}
+            campusName={campuses.find((c) => c.id === campusId)?.name ?? null}
+            courseCode={null}
+          />
+
+          {/* MODE SWITCHER — three skins of one surface. */}
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {LEARN_MODES.map((m) => {
+              const on = m === mode;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setPickedMode(m)}
+                  className="rounded-full px-3.5 py-1.5 text-[12px] font-black uppercase tracking-wide"
+                  style={{
+                    background: on ? "var(--lm-accent)" : "transparent",
+                    color: on ? "var(--lm-accent-ink)" : "var(--lm-muted)",
+                    border: `1px solid ${on ? "var(--lm-accent)" : "var(--lm-border)"}`,
+                    cursor: "pointer",
+                  }}
+                >
+                  {MODE_LABEL[m]}
+                </button>
+              );
+            })}
+            <span className="ml-1 text-[11.5px]" style={{ color: "var(--lm-muted)" }}>{MODE_BLURB[mode]}</span>
+          </div>
+
+          <div ref={playerRef} className="mt-4 scroll-mt-4">
+            {isError ? (
+              <div className="grid place-items-center rounded-2xl py-16 text-center text-[12px]" style={{ border: "1px dashed var(--lm-border)", color: "#F3C6CC" }}>
+                Something went wrong loading videos. <button className="ml-1 underline" onClick={() => q.refetch()}>Retry</button>
               </div>
-              {current.t.sets.length === 0 ? (
-                <div className="grid place-items-center rounded-2xl py-16 text-center text-[12px]" style={{ border: `1px dashed ${NEON.borderSoft}`, color: NEON.muted }}>No videos in this topic yet.</div>
-              ) : (
-                <div className="grid gap-4" style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${isNarrow ? 150 : 240}px, 1fr))` }}>
-                  {current.t.sets.map((s) => <SetPoster key={s.id} set={s} topicChip={chip(current.t)} accent={accent} prog={progress[s.id]} unlocked={unlockedTopics.has(current.t.id)} demo={demo} onOpen={() => void openSet(current.t, s)} />)}
+            ) : playing && !isNarrow ? (
+              <SetPlayer
+                key={`${playing.set.id}:${playing.stage}`}
+                inline
+                set={playing.set}
+                sets={playing.topic.sets}
+                stage={playing.stage}
+                topicNumber={playing.topic.number}
+                campusName={campuses.find((c) => c.id === campusId)?.name ?? null}
+                chipText={chip(playing.topic)}
+                startAt={playing.stage === "cram" && progress[playing.set.id]?.state === "in_progress" ? (progress[playing.set.id]?.positionSec ?? 0) : 0}
+                demo={demo}
+                onClose={() => setPlaying(null)}
+                onStarted={() => markProgress(playing.set.id, "in_progress")}
+                onComplete={() => markProgress(playing.set.id, "complete")}
+                onPosition={(pos, dur) => markPosition(playing.set.id, pos, dur)}
+                onGoto={(setId, stage) => {
+                  const target = playing.topic.sets.find((x) => x.id === setId);
+                  if (target) void openSet(playing.topic, target, stage);
+                }}
+              />
+            ) : (
+              /* NOTHING PLAYING — the mode's bolt holds the frame rather than a blank box, and
+                 REVIEW gets its nebula behind it. */
+              <div
+                className="lm-surface relative grid place-items-center overflow-hidden rounded-2xl"
+                style={{ border: "1px solid var(--lm-border)", minHeight: 320 }}
+              >
+                {mode === "review" && <span className="lm-nebula" aria-hidden />}
+                <div className="relative z-[1] text-center">
+                  <div className="mx-auto mb-3 inline-block"><ModeBolt mode={mode} height={92} /></div>
+                  <p className="text-[13.5px] font-bold" style={{ color: "var(--lm-text)" }}>
+                    {isLoading ? "Loading your videos…" : railItems.length ? "Pick a video to start." : "Cram videos are on the way."}
+                  </p>
+                  <p className="mt-1 text-[11.5px]" style={{ color: "var(--lm-muted)" }}>
+                    {isLoading ? "" : railItems.length ? MODE_BLURB[mode] : "Nothing is live yet — check back soon."}
+                  </p>
                 </div>
-              )}
-              {/* PRACTICE PLACEHOLDER — the sets already carry their CEQ counts; the student
-                  practice player is a future pass, so this states what will live here. */}
-              {current.t.sets.some((s) => s.ceqCount > 0) && (
-                <div className="mt-5 flex items-center gap-3 rounded-2xl px-4 py-3.5" style={{ border: `1px dashed ${NEON.borderSoft}` }}>
-                  <Zap className="h-4 w-4 shrink-0" style={{ color: NEON.yellow }} />
-                  <div className="min-w-0">
-                    <div className="text-[12px] font-black uppercase tracking-wide" style={{ color: NEON.text }}>Practice questions</div>
-                    <div className="text-[11.5px]" style={{ color: NEON.muted }}>{current.t.sets.reduce((a, s) => a + s.ceqCount, 0)} questions are authored for {current.t.name} — the practice player lands here soon.</div>
-                  </div>
-                  <span className="ml-auto shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }}>Coming soon</span>
-                </div>
-              )}
-            </>
+              </div>
+            )}
+          </div>
+
+          {/* NARROW: the rail's cards, inline. A phone has no right-hand column, and a video
+              surface with no videos on it is not a layout choice. */}
+          {isNarrow && railItems.length > 0 && (
+            <div className="mt-5">
+              <div className="pb-2 text-[9.5px] font-black uppercase tracking-[0.16em]" style={{ color: "var(--lm-muted)" }}>
+                Up next
+              </div>
+              <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}>
+                {railCards(true)}
+              </div>
+            </div>
           )}
+
+          {/* THE GREEK DOOR — a billboard in the flow, skippable, never a modal. */}
+          <GreekDoor
+            campusId={campusId}
+            campusName={campuses.find((c) => c.id === campusId)?.name ?? null}
+            courseCode={null}
+          />
+
+          {/* PRACTICE PLACEHOLDER — unchanged. When the practice player lands this becomes a
+              mode switch rather than a separate page, which is why it sits under the player. */}
+          {current && current.t.sets.some((x) => x.ceqCount > 0) && (
+            <div className="mt-5 flex items-center gap-3 rounded-2xl px-4 py-3.5" style={{ border: "1px dashed var(--lm-border)" }}>
+              <Zap className="h-4 w-4 shrink-0" style={{ color: "var(--lm-accent)" }} />
+              <div className="min-w-0">
+                <div className="text-[12px] font-black uppercase tracking-wide" style={{ color: "var(--lm-text)" }}>Practice questions</div>
+                <div className="text-[11.5px]" style={{ color: "var(--lm-muted)" }}>{current.t.sets.reduce((a, x) => a + x.ceqCount, 0)} questions are authored for {current.t.name} — the practice player lands here soon.</div>
+              </div>
+              <span className="ml-auto shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider" style={{ color: "var(--lm-muted)", border: "1px solid var(--lm-border)" }}>Coming soon</span>
+            </div>
+          )}
+
+          {/* V1 PLAYER — deliberately small. v1 is not deleted or routed around; it stays
+              working until v2 is genuinely complete. */}
+          <div className="mt-6 flex justify-center pb-4">
+            <a
+              href="/preview/studentplayerv1"
+              className="rounded-lg px-3 py-1.5 text-[11.5px] font-bold"
+              style={{ color: "var(--lm-muted)", border: "1px solid var(--lm-border)" }}
+            >
+              Open classic player
+            </a>
+          </div>
         </main>
+
+        {/* ── UP NEXT — the scrolling rail the spine follows (wide only; the narrow layout
+             renders the same cards inline under the player). ──────────────────────────────── */}
+        {!isNarrow && (
+          <aside
+            ref={railRef}
+            className="lm-surface w-[320px] shrink-0 overflow-y-auto px-3 py-3"
+            style={{ borderLeft: "1px solid var(--lm-border)" }}
+          >
+            <div className="pb-2 text-[9.5px] font-black uppercase tracking-[0.16em]" style={{ color: "var(--lm-muted)" }}>
+              Up next
+            </div>
+            {railItems.length === 0 ? (
+              <p className="px-1 py-2 text-[11.5px] italic" style={{ color: "var(--lm-muted)" }}>
+                {isLoading ? "Loading…" : "Nothing in this exam yet."}
+              </p>
+            ) : (
+              <div className="flex flex-col gap-2.5">{railCards(true)}</div>
+            )}
+          </aside>
+        )}
       </div>
 
       {/* NARROW course-map sheet — same map markup as the sidebar, full-screen. */}
@@ -856,7 +1138,7 @@ function LearnShell() {
         </div>
       )}
 
-      {playing && (
+      {playing && isNarrow && (
         <SetPlayer
           key={`${playing.set.id}:${playing.stage}`}
           set={playing.set}

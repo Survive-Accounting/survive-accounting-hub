@@ -11,14 +11,14 @@
 // rather than stopping.
 //
 // ── HOW IT KNOWS WHERE THE SCROLL IS ──────────────────────────────────────────────────────────
-// The up-next rail tells it. Each card in the rail registers its topic id, an IntersectionObserver
-// watches which cards are actually on screen, and the topmost visible one wins. That is why the
-// spine "slides as the boundary crosses": the winner changes the moment the first card of the
-// next topic becomes the highest visible card.
+// The up-next rail tells it. Each card registers its topic id, and on every scroll frame the
+// card nearest the top of the rail's reading band wins. That is why the spine "slides as the
+// boundary crosses": the winner changes the moment the first card of the next topic reaches the
+// line, and because the signal is continuous the marker animates rather than stepping.
 //
 // Observing the RAIL rather than the spine is deliberate — the spine is short and rarely
 // scrolls, so watching it would tell us nothing about where the student is reading.
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { Circle, CircleCheck, CircleDot, Lock } from "lucide-react";
 
@@ -45,14 +45,33 @@ export function Spine({ topics, activeId, onPick, position }: {
   const rowRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const [marker, setMarker] = useState<{ top: number; height: number } | null>(null);
 
+  // Read by the ref callback, which cannot close over the latest activeId.
+  const activeRef = useRef<string | null>(activeId);
+  activeRef.current = activeId;
+
+  const measure = (el: HTMLButtonElement | null) => {
+    if (!el) return;
+    setMarker((prev) =>
+      prev && prev.top === el.offsetTop && prev.height === el.offsetHeight
+        ? prev
+        : { top: el.offsetTop, height: el.offsetHeight });
+  };
+
+  /** Stores the row AND measures it when it is the active one. */
+  const attachRow = (id: string) => (el: HTMLButtonElement | null) => {
+    rowRefs.current[id] = el;
+    if (el && id === activeRef.current) measure(el);
+  };
+
   // MEASURE AFTER LAYOUT, not after paint: reading the row's offset in useEffect can catch a
   // frame where the list has rendered but the fonts have not settled, which puts the marker a
   // few pixels off on first load and then jumps it.
   useLayoutEffect(() => {
-    const el = activeId ? rowRefs.current[activeId] : null;
-    const list = listRef.current;
-    if (!el || !list) { setMarker(null); return; }
-    setMarker({ top: el.offsetTop, height: el.offsetHeight });
+    if (!activeId) { setMarker(null); return; }
+    const el = rowRefs.current[activeId];
+    // No element yet is NOT "no marker" — the ref callback will measure it the moment it mounts.
+    if (el) measure(el);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId, topics]);
 
   // Keep the active row in view when the scroll moves the spine past the fold — but never
@@ -116,7 +135,7 @@ export function Spine({ topics, activeId, onPick, position }: {
               return (
                 <button
                   key={t.id}
-                  ref={(el) => { rowRefs.current[t.id] = el; }}
+                  ref={attachRow(t.id)}
                   type="button"
                   onClick={() => onPick(t.id)}
                   title={`${t.label} · ${t.total} video${t.total === 1 ? "" : "s"}`}
@@ -151,52 +170,107 @@ export function Spine({ topics, activeId, onPick, position }: {
   );
 }
 
+export type VisibleCandidate = { topicId: string; top: number; bottom: number };
+
+/** THE READING BAND. A line sits 18% down the rail, and the card crossing it is what the student
+ *  is reading.
+ *
+ *  WHY A LINE AND NOT "THE TOPMOST VISIBLE CARD": the topmost visible card is usually one whose
+ *  last few pixels are still on screen, which makes the spine lag a whole topic behind the eye.
+ *  The 18% line is far enough down that the card under it is genuinely in view, and near enough
+ *  to the top that the spine changes as a boundary arrives rather than after it has gone past.
+ *
+ *  Cards entirely outside the rail are ignored. When none crosses the line the NEAREST one wins,
+ *  so a rail scrolled between two cards still answers rather than going blank.
+ *
+ *  Pure and DOM-free on purpose — see the note in the hook below. */
+export function pickVisibleTopic(
+  root: { top: number; height: number },
+  cards: VisibleCandidate[],
+): string | null {
+  const line = root.top + root.height * 0.18;
+  const bottom = root.top + root.height;
+  let bestId: string | null = null;
+  let bestDist = Infinity;
+  for (const c of cards) {
+    if (c.bottom < root.top || c.top > bottom) continue;
+    const dist = c.top <= line && c.bottom >= line ? 0 : Math.abs(c.top - line);
+    // Strictly less-than keeps the FIRST card at a given distance, so a tie resolves to the one
+    // earlier in the rail — the one the student reached first.
+    if (dist < bestDist) { bestDist = dist; bestId = c.topicId; }
+  }
+  return bestId;
+}
+
 /** WHICH TOPIC IS THE STUDENT LOOKING AT.
  *
- *  Every up-next card registers itself with its topic id; this reports the topic of the HIGHEST
- *  visible card. Returns null when nothing is on screen, so the caller can fall back to the
- *  selected topic rather than blanking the spine.
+ *  Every up-next card registers itself with its topic id; this reports the topic of the card
+ *  nearest the top of the rail's reading band. Returns null when nothing qualifies, so the caller
+ *  can fall back to the selected topic rather than blanking the spine.
  *
- *  rootMargin trims the top of the viewport so a card half-hidden behind the sticky player does
- *  not count as "what you are looking at". */
+ *  ── WHY SCROLL POSITION AND NOT IntersectionObserver ────────────────────────────────────────
+ *  IntersectionObserver was the first implementation and it is the usual answer, but it reports
+ *  in discrete steps: it fires when a card crosses a threshold and says nothing in between. The
+ *  spine is supposed to SLIDE as the boundary crosses, which means it wants a continuous signal,
+ *  and a scroll handler is exactly that — the marker's transform then animates from wherever it
+ *  was to wherever it should be, every frame the rail moves.
+ *
+ *  It is also the version that can be verified: an occluded or backgrounded document suspends
+ *  IntersectionObserver callbacks entirely, so the observer build could not be exercised in a
+ *  headless pane at all. This one can.
+ *
+ *  Reads are rAF-throttled: a scroll event can fire many times per frame, and measuring every
+ *  one would do layout work the browser then throws away. */
 export function useVisibleTopic(rootRef: React.RefObject<HTMLElement | null>): {
   visibleTopicId: string | null;
   registerCard: (topicId: string) => (el: HTMLElement | null) => void;
 } {
   const [visibleTopicId, setVisible] = useState<string | null>(null);
-  const els = useRef<Map<Element, string>>(new Map());
-  const observer = useRef<IntersectionObserver | null>(null);
-  const onScreen = useRef<Map<Element, number>>(new Map());
+  const cards = useRef<Map<HTMLElement, string>>(new Map());
+  const frame = useRef<number | null>(null);
+
+  const measure = useCallback(() => {
+    frame.current = null;
+    const root = rootRef.current;
+    if (!root || cards.current.size === 0) return;
+
+    const box = root.getBoundingClientRect();
+    const items: VisibleCandidate[] = [];
+    for (const [el, topicId] of cards.current) {
+      if (!el.isConnected) { cards.current.delete(el); continue; }
+      const r = el.getBoundingClientRect();
+      items.push({ topicId, top: r.top, bottom: r.bottom });
+    }
+    const next = pickVisibleTopic({ top: box.top, height: box.height }, items);
+    setVisible((prev) => (prev === next ? prev : next));
+  }, [rootRef]);
+
+  const schedule = useCallback(() => {
+    if (frame.current != null) return;
+    frame.current = requestAnimationFrame(measure);
+  }, [measure]);
 
   useEffect(() => {
-    const root = rootRef.current ?? null;
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const e of entries) {
-          if (e.isIntersecting) onScreen.current.set(e.target, e.boundingClientRect.top);
-          else onScreen.current.delete(e.target);
-        }
-        // The topmost visible card wins — that is the one whose topic the reader is in.
-        let bestEl: Element | null = null;
-        let bestTop = Infinity;
-        for (const [el, top] of onScreen.current) {
-          if (top < bestTop) { bestTop = top; bestEl = el; }
-        }
-        setVisible(bestEl ? els.current.get(bestEl) ?? null : null);
-      },
-      { root, rootMargin: "-12% 0px -55% 0px", threshold: 0 },
-    );
-    observer.current = io;
-    // Anything registered before the observer existed is picked up now.
-    for (const el of els.current.keys()) io.observe(el);
-    return () => { io.disconnect(); observer.current = null; onScreen.current.clear(); };
-  }, [rootRef]);
+    const root = rootRef.current;
+    if (!root) return;
+    root.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    // First read after mount, so the spine is correct before anyone scrolls.
+    schedule();
+    return () => {
+      root.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      if (frame.current != null) cancelAnimationFrame(frame.current);
+      frame.current = null;
+    };
+  }, [rootRef, schedule]);
 
   const registerCard = (topicId: string) => (el: HTMLElement | null) => {
     if (!el) return;
-    if (els.current.get(el) === topicId) return;
-    els.current.set(el, topicId);
-    observer.current?.observe(el);
+    if (cards.current.get(el) === topicId) return;
+    cards.current.set(el, topicId);
+    // A newly-mounted card can change the answer (the rail just filled in).
+    schedule();
   };
 
   return { visibleTopicId, registerCard };
