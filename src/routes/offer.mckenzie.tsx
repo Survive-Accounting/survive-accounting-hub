@@ -164,15 +164,26 @@ function Offer() {
           The slot stays EMPTY until the real photo is dropped in — nothing is substituted. */}
       {OFFER_PHOTO_URL && (
         <div className="mb-8 flex justify-center">
-          <img
-            src={OFFER_PHOTO_URL}
-            alt="Mckenzie Ingram"
-            className="object-cover"
+          <div
+            className="relative overflow-hidden"
             style={{
               width: 168, height: 168, borderRadius: "50%",
-              boxShadow: "0 20px 50px -20px rgba(0,0,0,0.8)",
+              boxShadow: "0 20px 50px -20px rgba(0,0,0,0.85)",
+              // A hairline ring so the circle reads as a portrait frame against the navy rather
+              // than as a photo that happens to be round.
+              outline: "1px solid rgba(245,239,230,0.18)", outlineOffset: 2,
+              background: "rgba(0,0,0,0.3)",
             }}
-          />
+          >
+            {/* See the note above: the crop is done by size + offset, not object-fit, because
+                cover cannot reach the top sixth of a 3:4 image inside a square. */}
+            <img
+              src={OFFER_PHOTO_URL}
+              alt="Mckenzie Ingram"
+              className="absolute max-w-none"
+              style={{ width: "209.7%", left: "-40.8%", top: "-11.9%" }}
+            />
+          </div>
         </div>
       )}
 

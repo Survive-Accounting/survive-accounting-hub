@@ -53,4 +53,4 @@ export const CAMPAIGN_REPORT_PDF = "";
  *  dropped in — the page renders without it rather than substituting anything.
  *
  *  Drop the file at public/offer/mckenzie.jpg and set this to "/offer/mckenzie.jpg". */
-export const OFFER_PHOTO_URL = "";
+export const OFFER_PHOTO_URL = "/offer/mckenzie.jpg";
