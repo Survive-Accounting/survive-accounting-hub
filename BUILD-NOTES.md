@@ -601,3 +601,21 @@ B9 (control-room skin): ON HOLD per the prompt — not built.
   An OPEN stamp pulses gold — lights on. Inputs/textareas are exempt.
 - Qs with stamped data light gold (● in the path tree). "General set talk" →
   "General set brainstorm". Sync badge tooltip now explains synced vs unsynced.
+
+## 2026-08-31 — Lee-authorized data action: talkthrough v2 migration RUN
+
+`20260829_0900_talkthrough_v2.sql` applied to production via the house runner
+(`run_sql.ts --apply`; token pulled from Vercel with `vercel env pull` and
+`.env.vercel` deleted immediately after). Four statements, all additive:
+`ended_at timestamptz` and `starred boolean not null default false` on
+`public.talkthrough_tags`, plus their column comments.
+
+VERIFIED BY READ, not by the runner's OK: `information_schema.columns` shows
+both columns live with the right types and default. Then verified by BEHAVIOUR —
+a tag carrying both a closed context window and a star was flushed, pulled back,
+and returned from the server with `ended_at` in the server's `+00:00` format
+(proof it round-tripped rather than sitting local) and `starred: true`. Sync
+drained to 0 pending, no errors. The probe tag was soft-archived afterwards.
+
+Booth stars and context windows now persist across machines; the client's
+strip-and-retry degradation for the missing columns is no longer exercised.
