@@ -258,7 +258,7 @@ export function CareersNode({ id, data, selected }: NodeProps) {
   };
 
   return (
-    <ExhibitShell id={id} decl={decl} posLock={d.posLock} selected={selected} width={w} minHeight={h}>
+    <ExhibitShell id={id} kind="careers" decl={decl} posLock={d.posLock} selected={selected} width={w} minHeight={h}>
       {!film && (
         <div className={`absolute -left-5 top-1/2 flex -translate-y-1/2 cursor-move items-center transition-opacity ${selected || d.posLock ? "opacity-70" : "opacity-0 group-hover/el:opacity-70"}`} title="Drag to move" style={{ color: NEON.muted }}>
           <GripVertical className="h-4 w-4" />

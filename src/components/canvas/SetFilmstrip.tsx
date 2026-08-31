@@ -202,7 +202,7 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
   // student-facing numbering: CEQ frames only — notes are breath, not questions
   let ceqN = 0;
   return (
-    <div className="flex w-48 shrink-0 border-r" style={{ borderColor: NEON.borderSoft, background: "rgba(0,0,0,0.18)" }}>
+    <div data-sa-el="spine" data-sa-panel="spine" className="flex w-48 shrink-0 border-r" style={{ borderColor: NEON.borderSoft, background: "rgba(0,0,0,0.18)" }}>
       {/* FORMULA NOTE (P6) — the set's creative intent, always in view while
           authoring. Display-only; edited in the Production profile panel. */}
       {formulaNote && (
@@ -212,7 +212,7 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
       )}
       {/* RUN MAP RAIL — the miniature of the whole set. */}
       {items.length > 0 && (
-        <div className="flex w-4 shrink-0 flex-col py-1" title="Run map — click a segment to jump to that run">
+        <div data-sa-el="spine-run-map" className="flex w-4 shrink-0 flex-col py-1" title="Run map — click a segment to jump to that run">
           {segs.map((s) => {
             const active = (s.run ?? null) === currentRun && currentRun !== null ? true : s.run === null && currentRun === null && items[s.start] && qId ? s.start <= items.findIndex((x) => x.id === qId) && items.findIndex((x) => x.id === qId) < s.start + s.count : false;
             return (
@@ -236,7 +236,7 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
           <button
             className="grid h-5 w-5 shrink-0 place-items-center rounded"
             style={{ color: menuOpen ? "#0B1322" : NEON.muted, background: menuOpen ? NEON.yellow : "transparent", border: `1px solid ${menuOpen ? NEON.yellow : NEON.borderSoft}` }}
-            onClick={() => setMenuOpen((v) => !v)}
+            data-sa-el="spine-menu" onClick={() => setMenuOpen((v) => !v)}
             title="Frame menu — density, shuffle choices, and the ★/boss/chaching/short markers"
           >
             <MoreVertical className="h-3.5 w-3.5" />
@@ -253,7 +253,7 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
                 <span className="text-[8.5px] font-bold uppercase tracking-widest" style={{ color: NEON.muted }}>Density</span>
                 <span className="ml-auto flex gap-0.5">
                   {DENSITY_STEPS.map((s) => (
-                    <button key={s} className="rounded px-1.5 text-[9px] font-black tabular-nums" style={{ color: density === s ? "#0B1322" : NEON.muted, background: density === s ? NEON.yellow : "transparent", border: `1px solid ${density === s ? NEON.yellow : NEON.borderSoft}` }} onClick={() => setDensity(s)} title={`${s} frame${s === 1 ? "" : "s"} per screen`}>{s}</button>
+                    <button key={s} className="rounded px-1.5 text-[9px] font-black tabular-nums" style={{ color: density === s ? "#0B1322" : NEON.muted, background: density === s ? NEON.yellow : "transparent", border: `1px solid ${density === s ? NEON.yellow : NEON.borderSoft}` }} data-sa-el="spine-density" onClick={() => setDensity(s)} title={`${s} frame${s === 1 ? "" : "s"} per screen`}>{s}</button>
                   ))}
                 </span>
               </div>
@@ -263,25 +263,25 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
                   {selected.size > 0 ? `${selected.size} selected` : "This frame"}
                   <span className="ml-1 normal-case tracking-normal opacity-70">· ctrl/shift-click to pick</span>
                 </div>
-                <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: NEON.yellow }} onClick={() => { setMenuOpen(false); actions.shuffleChoices(); }} title="Reorder each selected question's choices so the answer stops living at A. Chains and arrows follow their choice; “None of these” stays last.">
+                <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: NEON.yellow }} data-sa-el="spine-shuffle-choices" onClick={() => { setMenuOpen(false); actions.shuffleChoices(); }} title="Reorder each selected question's choices so the answer stops living at A. Chains and arrows follow their choice; “None of these” stays last.">
                   🔀 Shuffle choices
                 </button>
                 <div className="grid grid-cols-2 gap-1">
-                  <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#FFD23F", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.star(); }} title="Star — performer's note; inert for stitch/publish">★ Star</button>
-                  <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.boss(); }} title="Boss card — fires the cram-launch cue on deal">👑 Boss</button>
-                  <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.chaching(); }} title="Chaching on the correct-Enter (on by default)">💰 Chaching</button>
-                  <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#FF8B9E", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.short(); }} title="Flag as shorts-worthy — joins the Shorts queue">🎬 Short</button>
-                  {actions.frameMode && <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: NEON.yellow }} onClick={() => { setMenuOpen(false); actions.frameMode!(); }} title="Cycle a NON-CEQ frame: note → intro → outro. Just a label and a starting point — every element on any frame is deletable, so you can always strip it bare and rebuild.">◑ Frame mode</button>}
-                  {actions.armUploads && <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: actions.armedLabel ? "#0B1322" : "#B79CFF", background: actions.armedLabel ? "#B79CFF" : "transparent", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.armUploads!(); }} title="ARM UPLOADS — every take you finish (F9 stop in OBS) banks against these frames automatically. Re-arm to replace the target.">🎯 Arm uploads{actions.armedLabel ? " · " + actions.armedLabel : ""}</button>}
+                  <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#FFD23F", border: `1px solid ${NEON.borderSoft}` }} data-sa-el="spine-mark-star" onClick={() => { setMenuOpen(false); actions.star(); }} title="Star — performer's note; inert for stitch/publish">★ Star</button>
+                  <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: NEON.yellow, border: `1px solid ${NEON.borderSoft}` }} data-sa-el="spine-mark-boss" onClick={() => { setMenuOpen(false); actions.boss(); }} title="Boss card — fires the cram-launch cue on deal">👑 Boss</button>
+                  <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} data-sa-el="spine-mark-chaching" onClick={() => { setMenuOpen(false); actions.chaching(); }} title="Chaching on the correct-Enter (on by default)">💰 Chaching</button>
+                  <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#FF8B9E", border: `1px solid ${NEON.borderSoft}` }} data-sa-el="spine-mark-short" onClick={() => { setMenuOpen(false); actions.short(); }} title="Flag as shorts-worthy — joins the Shorts queue">🎬 Short</button>
+                  {actions.frameMode && <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: NEON.yellow }} data-sa-el="spine-frame-mode" onClick={() => { setMenuOpen(false); actions.frameMode!(); }} title="Cycle a NON-CEQ frame: note → intro → outro. Just a label and a starting point — every element on any frame is deletable, so you can always strip it bare and rebuild.">◑ Frame mode</button>}
+                  {actions.armUploads && <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: actions.armedLabel ? "#0B1322" : "#B79CFF", background: actions.armedLabel ? "#B79CFF" : "transparent", border: `1px solid ${NEON.borderSoft}` }} data-sa-el="spine-arm-uploads" onClick={() => { setMenuOpen(false); actions.armUploads!(); }} title="ARM UPLOADS — every take you finish (F9 stop in OBS) banks against these frames automatically. Re-arm to replace the target.">🎯 Arm uploads{actions.armedLabel ? " · " + actions.armedLabel : ""}</button>}
                   {actions.uploadClip && (<>
-                    <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: "#3BF5A0" }} onClick={() => { setMenuOpen(false); uploadRef.current?.click(); }} title="Upload ONE clip that covers the selected frames (a run filmed in one take) — or just the open frame. It attaches to the first frame of the span; review it on the Publish side.">{"⬆ Upload clip" + ((sel?.size ?? 0) > 1 ? " · " + sel!.size + " frames" : "")}</button>
+                    <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: "#3BF5A0" }} data-sa-el="spine-upload-clip" onClick={() => { setMenuOpen(false); uploadRef.current?.click(); }} title="Upload ONE clip that covers the selected frames (a run filmed in one take) — or just the open frame. It attaches to the first frame of the span; review it on the Publish side.">{"⬆ Upload clip" + ((sel?.size ?? 0) > 1 ? " · " + sel!.size + " frames" : "")}</button>
                     <input ref={uploadRef} type="file" accept="video/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) actions.uploadClip!(f); }} />
                   </>)}
-                  {actions.revealAnswers && <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: actions.revealAnswersOn ? "#0B1322" : "#3BF5A0", background: actions.revealAnswersOn ? "#3BF5A0" : "transparent", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.revealAnswers!(); }} title="SET-LEVEL: every CEQ deals with its correct choice already resolved-green (silent) — for recap/review sets. Toggle any time.">✓ Answers revealed{actions.revealAnswersOn ? " · ON" : ""}</button>}
-                  {actions.ignoreLayout && <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#8FD3FF", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.ignoreLayout!(); }} title="This frame ignores the set layout — the base frame never places it, apply-to-all skips it. Its own hand-placed geometry governs.">📐 Ignore set layout</button>}
-                  {actions.profile && <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: NEON.cyan }} onClick={() => { setMenuOpen(false); actions.profile!(); }} title="Per-set production profile — style, clip mapping, note budget, callout defaults, formula note, templates">⚙ Production profile…</button>}
-                  {actions.dissect && <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#B79CFF", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.dissect!(); }} title="Dissect — plan this CEQ as a SEQUENCE of short surgical clips (setup / the trap / resolution…) instead of one run-covered take">🔬 Dissect…</button>}
-                  <button className="col-span-2 rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} onClick={() => { setMenuOpen(false); actions.free(); }} title="Include in the FREE cut">🆓 Free</button>
+                  {actions.revealAnswers && <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: actions.revealAnswersOn ? "#0B1322" : "#3BF5A0", background: actions.revealAnswersOn ? "#3BF5A0" : "transparent", border: `1px solid ${NEON.borderSoft}` }} data-sa-el="spine-reveal-answers" onClick={() => { setMenuOpen(false); actions.revealAnswers!(); }} title="SET-LEVEL: every CEQ deals with its correct choice already resolved-green (silent) — for recap/review sets. Toggle any time.">✓ Answers revealed{actions.revealAnswersOn ? " · ON" : ""}</button>}
+                  {actions.ignoreLayout && <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#8FD3FF", border: `1px solid ${NEON.borderSoft}` }} data-sa-el="spine-ignore-layout" onClick={() => { setMenuOpen(false); actions.ignoreLayout!(); }} title="This frame ignores the set layout — the base frame never places it, apply-to-all skips it. Its own hand-placed geometry governs.">📐 Ignore set layout</button>}
+                  {actions.profile && <button className="rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/10" style={{ color: NEON.cyan }} data-sa-el="spine-production-profile" onClick={() => { setMenuOpen(false); actions.profile!(); }} title="Per-set production profile — style, clip mapping, note budget, callout defaults, formula note, templates">⚙ Production profile…</button>}
+                  {actions.dissect && <button className="rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#B79CFF", border: `1px solid ${NEON.borderSoft}` }} data-sa-el="spine-dissect" onClick={() => { setMenuOpen(false); actions.dissect!(); }} title="Dissect — plan this CEQ as a SEQUENCE of short surgical clips (setup / the trap / resolution…) instead of one run-covered take">🔬 Dissect…</button>}
+                  <button className="col-span-2 rounded px-1.5 py-1 text-[10px] font-bold hover:bg-white/10" style={{ color: "#3BF5A0", border: `1px solid ${NEON.borderSoft}` }} data-sa-el="spine-mark-free" onClick={() => { setMenuOpen(false); actions.free(); }} title="Include in the FREE cut">🆓 Free</button>
                 </div>
                 {/* RUN LETTERS — a run = the span you capture in ONE take. Tap a letter
                     already used in this set, take the next one, or clear. Fill down
@@ -354,7 +354,7 @@ export function SetFilmstrip({ items, qId, onSelect, onInsert, sel, onSelChange,
             const sameRun = !active && currentRun !== null && normRun(it.run) === currentRun;
             const label = (it.shorthand || it.stem || (it.noteOnly ? "Note" : "Question")).trim();
             return (
-              <div key={it.id} className="flex shrink-0 flex-col" data-strip-frame={it.id}>
+              <div key={it.id} data-sa-el="spine-frame-row" className="flex shrink-0 flex-col" data-strip-frame={it.id}>
                 <button
                   className="relative flex w-full flex-col justify-center gap-0.5 rounded-lg px-1.5 py-1 text-left"
                   style={{

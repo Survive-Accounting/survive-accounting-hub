@@ -2366,26 +2366,26 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
               {/* PRACTICE BAR — hover the preview, then Tab/Enter/Space/` (mouse-free;
                   Page Down / Page Up also deal next / previous — presenter-remote friendly).
                   Ctrl+click a choice/memo/arrow = spotlight · +Shift = 🔥 · +Alt+Shift = 🚨. */}
-              <div className="flex shrink-0 items-center gap-1.5 border-t px-2 py-1.5" style={{ borderColor: NEON.borderSoft, background: "rgba(11,19,34,0.9)", display: recording ? "none" : undefined }}>
+              <div data-sa-el="preview-transport" data-sa-panel="preview-transport" className="flex shrink-0 items-center gap-1.5 border-t px-2 py-1.5" style={{ borderColor: NEON.borderSoft, background: "rgba(11,19,34,0.9)", display: recording ? "none" : undefined }}>
                 {/* TRANSPORT DIET (film-run fixes §2.4) — the play/pause + reset buttons, the
                     practice timer and the "N/M shown" counter are GONE: none of them survived a
                     real film run (` still resets, Shift+` still sweeps). What's left is the row's
                     actual job — FILM, VIEW, this set's clip stack, and the per-CEQ flags. */}
                 {filmWin ? (<>
-                  <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#0B0F1E", background: "#FF8B9E", border: "1px solid #FF8B9E" }} onClick={() => toggleFilm()} title="Close the film window"><Clapperboard className="h-3.5 w-3.5" /> Filming{filmV2 ? " · V2" : ""}</button>
+                  <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#0B0F1E", background: "#FF8B9E", border: "1px solid #FF8B9E" }} data-sa-el="preview-close-film" onClick={() => toggleFilm()} title="Close the film window"><Clapperboard className="h-3.5 w-3.5" /> Filming{filmV2 ? " · V2" : ""}</button>
                   {/* FRAME CROSSFADE duration (Step 3) — the Space-walk transition, GPU
                       opacity only. Instant removes it entirely for max snap. */}
                   <span className="flex h-6 items-center gap-0.5 rounded px-1 text-[8.5px] font-bold uppercase" style={{ color: NEON.muted, border: `1px solid ${NEON.borderSoft}` }} title="Frame crossfade — how long a Space walk fades the new question in. Opacity only (clean in OBS); Instant = hard cut.">
                     fade
                     {([["off", 0], ["120", 120], ["150", 150], ["180", 180]] as const).map(([lbl, ms]) => (
-                      <button key={ms} className="rounded px-1 text-[8.5px] font-black" style={{ color: fadeMs === ms ? "#0B0F1E" : NEON.text, background: fadeMs === ms ? "#B79CFF" : "transparent" }} onClick={() => setFade(ms)} title={ms === 0 ? "Instant — no fade (hard cut)" : `${ms}ms opacity crossfade`}>{lbl}</button>
+                      <button key={ms} className="rounded px-1 text-[8.5px] font-black" style={{ color: fadeMs === ms ? "#0B0F1E" : NEON.text, background: fadeMs === ms ? "#B79CFF" : "transparent" }} data-sa-el="preview-fade" onClick={() => setFade(ms)} title={ms === 0 ? "Instant — no fade (hard cut)" : `${ms}ms opacity crossfade`}>{lbl}</button>
                     ))}
                   </span>
-                  <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9px] font-bold uppercase" style={{ color: cursorOn ? "#0B0F1E" : NEON.muted, background: cursorOn ? "#7FB2E8" : "transparent", border: `1px solid ${NEON.borderSoft}` }} onClick={() => setCursor(!cursorOn)} title="Brand cursor — the split-bolt pointer + click-boil, drawn in the page so OBS captures it. Turn OFF ‘Capture Cursor’ on your OBS source so the OS arrow doesn’t double up.">🖱 bolt {cursorOn ? "on" : "off"}</button>
+                  <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9px] font-bold uppercase" style={{ color: cursorOn ? "#0B0F1E" : NEON.muted, background: cursorOn ? "#7FB2E8" : "transparent", border: `1px solid ${NEON.borderSoft}` }} data-sa-el="preview-bolt-cursor" onClick={() => setCursor(!cursorOn)} title="Brand cursor — the split-bolt pointer + click-boil, drawn in the page so OBS captures it. Turn OFF ‘Capture Cursor’ on your OBS source so the OS arrow doesn’t double up.">🖱 bolt {cursorOn ? "on" : "off"}</button>
                 </>) : (<>
                   <button data-sa-el="film-row" className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#FF8B9E", border: "1px solid rgba(255,139,158,0.5)" }} onClick={() => toggleFilm(false)} title="FILM V1 — the stack: every frame mounted in a vertical strip, the camera pans between them. The proven mode."><Clapperboard className="h-3.5 w-3.5" /> Film V1</button>
-                  <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#B79CFF", border: "1px solid rgba(183,156,255,0.5)" }} onClick={() => toggleFilm(true)} title="FILM V2 (EXPERIMENT) — ONE stationary frame, built for SPEED: the camera never moves (the black-flash class of glitches is structurally impossible), CEQs crossfade in place (140ms), memos spacewalk/enterwalk exactly as in V1.">V2 ⚡</button>
-                  <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.5)" }} onClick={() => toggleFilm(undefined, true)} title="CAPTURE WINDOW — the film popout snapped so its inner canvas is EXACTLY 1920x1080 physical pixels (display-scaling aware). OBS window-capture at Reset Transform = pixel-perfect 1:1. A size badge verifies (auto-hides on your first keypress; window focus re-checks and re-snaps). Uses your V1/V2 preference; F = fullscreen.">🎯 Capture</button>
+                  <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#B79CFF", border: "1px solid rgba(183,156,255,0.5)" }} data-sa-el="film-v2" onClick={() => toggleFilm(true)} title="FILM V2 (EXPERIMENT) — ONE stationary frame, built for SPEED: the camera never moves (the black-flash class of glitches is structurally impossible), CEQs crossfade in place (140ms), memos spacewalk/enterwalk exactly as in V1.">V2 ⚡</button>
+                  <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: "#3BF5A0", border: "1px solid rgba(59,245,160,0.5)" }} data-sa-el="film-capture" onClick={() => toggleFilm(undefined, true)} title="CAPTURE WINDOW — the film popout snapped so its inner canvas is EXACTLY 1920x1080 physical pixels (display-scaling aware). OBS window-capture at Reset Transform = pixel-perfect 1:1. A size badge verifies (auto-hides on your first keypress; window focus re-checks and re-snaps). Uses your V1/V2 preference; F = fullscreen.">🎯 Capture</button>
                 </>)}
                 {/* COMPOSITION GUIDES — thirds grid + safe zones (title-safe, camera,
                     watermark, end-screen) for laying out the CEQ; drag a slot/card and
@@ -2396,52 +2396,52 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                     lived here as five separate controls. FILM stays top-level (a mode, not a
                     view); play/reset stay. */}
                 <div className="relative">
-                  <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: viewMenuOpen ? "#0B0F1E" : NEON.text, background: viewMenuOpen ? NEON.yellow : "transparent", border: `1px solid ${viewMenuOpen ? NEON.yellow : NEON.borderSoft}` }} onClick={() => setViewMenuOpen((v) => !v)} title="View — student chrome, guides, layout overlay, overview, world backdrop. Choices persist per user (the world is per set).">
+                  <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: viewMenuOpen ? "#0B0F1E" : NEON.text, background: viewMenuOpen ? NEON.yellow : "transparent", border: `1px solid ${viewMenuOpen ? NEON.yellow : NEON.borderSoft}` }} data-sa-el="preview-view-menu" onClick={() => setViewMenuOpen((v) => !v)} title="View — student chrome, guides, layout overlay, overview, world backdrop. Choices persist per user (the world is per set).">
                     <Eye className="h-3.5 w-3.5" /> View <ChevronDown className="h-3 w-3" style={{ transform: "rotate(180deg)" }} />
                   </button>
                   {viewMenuOpen && (
                     <>
                       <div className="fixed inset-0 z-[68]" onClick={() => setViewMenuOpen(false)} />
                       <div className="absolute bottom-8 left-0 z-[69] flex w-56 flex-col gap-0.5 rounded-lg p-1.5" style={{ background: NEON.panelSolid, border: `1px solid ${NEON.border}`, boxShadow: "0 -12px 32px -12px rgba(0,0,0,0.7)" }}>
-                        <button className="flex items-center gap-2 rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: viewStudent ? "#3BF5A0" : NEON.muted }} onClick={() => setViewStudent(!viewStudent)} title='Topic label + "N of M" counter filmed on the CEQ box. The counter counts CEQ frames only — notes never count.'>
+                        <button className="flex items-center gap-2 rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: viewStudent ? "#3BF5A0" : NEON.muted }} data-sa-el="view-student-chrome" onClick={() => setViewStudent(!viewStudent)} title='Topic label + "N of M" counter filmed on the CEQ box. The counter counts CEQ frames only — notes never count.'>
                           <span className="w-3 text-center">{viewStudent ? "✓" : ""}</span> Student chrome
                         </button>
-                        <button className="flex items-center gap-2 rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: guidesOn ? "#7EF3C0" : NEON.muted }} onClick={toggleGuides} title="Rule-of-thirds + safe zones, with drag-to-snap (Alt = free placement)">
+                        <button className="flex items-center gap-2 rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: guidesOn ? "#7EF3C0" : NEON.muted }} data-sa-el="view-guides" onClick={toggleGuides} title="Rule-of-thirds + safe zones, with drag-to-snap (Alt = free placement)">
                           <span className="w-3 text-center">{guidesOn ? "✓" : ""}</span> Guides
                         </button>
                         {/* SHORTS SAFE-ZONES — 9:16 only. Toggle the overlay, then pick the
                             platform whose caption/rail you're composing around. */}
                         {frameW < frameH && (<>
-                          <button className="flex items-center gap-2 rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: platformGuides ? "#FF8B9E" : NEON.muted }} onClick={() => setPlatformGuides(!platformGuides)} title="Shade each platform's caption + action-rail zones so the CEQ never lands under them. Authoring only — never on the filmed frame.">
+                          <button className="flex items-center gap-2 rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: platformGuides ? "#FF8B9E" : NEON.muted }} data-sa-el="view-shorts-safe-zone" onClick={() => setPlatformGuides(!platformGuides)} title="Shade each platform's caption + action-rail zones so the CEQ never lands under them. Authoring only — never on the filmed frame.">
                             <span className="w-3 text-center">{platformGuides ? "✓" : ""}</span> Shorts safe zone
                           </button>
                           {platformGuides && (
                             <div className="flex items-center gap-1 px-1.5 pb-1">
                               {VERTICAL_PLATFORMS.map((pf) => (
-                                <button key={pf} className="flex-1 rounded px-1 py-0.5 text-[9px] font-black uppercase" style={{ color: vplatform === pf ? "#0B1322" : NEON.muted, background: vplatform === pf ? "#FF8B9E" : "transparent", border: `1px solid ${NEON.borderSoft}` }} onClick={() => setPlatformStore(pf)} title={`Show ${PLATFORM_LABEL[pf]}'s safe area`}>{PLATFORM_LABEL[pf]}</button>
+                                <button key={pf} className="flex-1 rounded px-1 py-0.5 text-[9px] font-black uppercase" style={{ color: vplatform === pf ? "#0B1322" : NEON.muted, background: vplatform === pf ? "#FF8B9E" : "transparent", border: `1px solid ${NEON.borderSoft}` }} data-sa-el={`view-platform-${pf}`} onClick={() => setPlatformStore(pf)} title={`Show ${PLATFORM_LABEL[pf]}'s safe area`}>{PLATFORM_LABEL[pf]}</button>
                               ))}
                             </div>
                           )}
                         </>)}
                         {onEditLayout && !layoutMode && (
-                          <button className="flex items-center gap-2 rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: NEON.yellow }} onClick={onEditLayout} title="Open the set's BASE FRAME — the master layout every frame deals from. You'll get the apply choice when you're done.">
+                          <button className="flex items-center gap-2 rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: NEON.yellow }} data-sa-el="view-edit-set-layout" onClick={onEditLayout} title="Open the set's BASE FRAME — the master layout every frame deals from. You'll get the apply choice when you're done.">
                             <span className="w-3 text-center">▦</span> Edit set layout…
                           </button>
                         )}
                         {onSetLayoutMode && !layoutMode && (
-                          <button className="flex items-center gap-2 rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: layoutOn === false ? NEON.muted : NEON.cyan }} onClick={() => onSetLayoutMode(layoutOn === false)} title="Deals conform to the Q0 layout; new memos snap to the next active slot. Off = fully freeform. (Per set — it drives filmed geometry.)">
+                          <button className="flex items-center gap-2 rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: layoutOn === false ? NEON.muted : NEON.cyan }} data-sa-el="view-layout-overlay" onClick={() => onSetLayoutMode(layoutOn === false)} title="Deals conform to the Q0 layout; new memos snap to the next active slot. Off = fully freeform. (Per set — it drives filmed geometry.)">
                             <span className="w-3 text-center">{layoutOn === false ? "" : "✓"}</span> Layout overlay
                           </button>
                         )}
                         {deckCeqIds && deckCeqIds.length > 1 && activeIdx >= 0 && (
-                          <button className="flex items-center gap-2 rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: overview ? NEON.cyan : NEON.muted }} onClick={() => setOverview((v) => !v)} title="Stack every frame vertically — zoom out to see the whole set, click one to glide to it">
+                          <button className="flex items-center gap-2 rounded px-1.5 py-1 text-left text-[10.5px] font-bold hover:bg-white/5" style={{ color: overview ? NEON.cyan : NEON.muted }} data-sa-el="view-overview" onClick={() => setOverview((v) => !v)} title="Stack every frame vertically — zoom out to see the whole set, click one to glide to it">
                             <span className="w-3 text-center">{overview ? "✓" : ""}</span> Overview
                           </button>
                         )}
                         {onSetWorld && (
                           <div className="mt-0.5 flex items-center gap-1.5 border-t px-1.5 pt-1.5" style={{ borderColor: NEON.borderSoft }}>
                             <span className="text-[9px] font-bold uppercase" style={{ color: NEON.muted }}>World</span>
-                            <select className="h-6 min-w-0 flex-1 rounded px-1 text-[9.5px] font-bold uppercase" style={{ color: world ? NEON.yellow : NEON.muted, background: "transparent", border: `1px solid ${NEON.borderSoft}` }} value={world ?? ""} onChange={(e) => onSetWorld(e.target.value || undefined)} title="Per-set backdrop behind the CEQ in the previewer + film mode">
+                            <select className="h-6 min-w-0 flex-1 rounded px-1 text-[9.5px] font-bold uppercase" style={{ color: world ? NEON.yellow : NEON.muted, background: "transparent", border: `1px solid ${NEON.borderSoft}` }} value={world ?? ""} data-sa-el="view-world-picker" onChange={(e) => onSetWorld(e.target.value || undefined)} title="Per-set backdrop behind the CEQ in the previewer + film mode">
                               <option value="">No world</option>
                               {WORLDS.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
                             </select>
@@ -2455,7 +2455,7 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
                     stack belongs beside FILM, not beside the authoring controls. Supplied by
                     the Studio, which owns the per-question take data. */}
                 {transportLeft}
-                {layoutMode && onSaveBaseline && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} onClick={standardLandscape} title="Standard Landscape — set a camera-safe baseline in one click: CEQ card top-left, three memo slots down the right above the camera box (the other two off). Tweak from there; writes the set's layout.">Standard</button>}
+                {layoutMode && onSaveBaseline && <button className="flex h-6 items-center gap-1 rounded px-1.5 text-[9.5px] font-bold uppercase" style={{ color: NEON.cyan, border: `1px solid ${NEON.borderSoft}` }} data-sa-el="preview-standard-landscape" onClick={standardLandscape} title="Standard Landscape — set a camera-safe baseline in one click: CEQ card top-left, three memo slots down the right above the camera box (the other two off). Tweak from there; writes the set's layout.">Standard</button>}
                 {/* NAMED TEMPLATES — save the current arrangement under a name (reusable
                     across sets); pick one to apply it to this set's layout, then
                     "Apply to all" stamps every CEQ. */}
