@@ -26,6 +26,7 @@ import {
   type AdminRepRow, type RepApplicationCard,
 } from "@/lib/rep-admin.functions";
 import { REP_COVERAGES, REP_COVERAGE_LABEL, REP_STATUS_LABEL, type RepCoverage, type RepStatus } from "@/lib/rep-shared";
+import { CALL_CAPTURE_PROMPTS } from "@/lib/rep-copy";
 
 export const Route = createFileRoute("/admin/reps/roster")({
   component: RosterPage,
@@ -259,8 +260,8 @@ function ApplicationCard({ a, refresh }: { a: RepApplicationCard; refresh: () =>
           </div>
         </div>
         <div className="grid min-w-[200px] flex-1 gap-0.5">
-          <label className="text-[10px] font-semibold uppercase text-muted-foreground">Call notes</label>
-          <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="What they said on the call…" className="h-8 text-xs" />
+          <label className="text-[10px] font-semibold uppercase text-muted-foreground" title={CALL_CAPTURE_PROMPTS.join(" · ")}>Call notes — {CALL_CAPTURE_PROMPTS.length} things to capture</label>
+          <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={CALL_CAPTURE_PROMPTS[0]} className="h-8 text-xs" />
         </div>
         <Select value={coverage} onValueChange={(v) => setCoverage(v as RepCoverage)}>
           <SelectTrigger className="h-8 w-[190px] text-xs"><SelectValue placeholder="Coverage (for approve)" /></SelectTrigger>

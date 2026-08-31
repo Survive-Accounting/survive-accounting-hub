@@ -5,11 +5,13 @@
 // VOICE RULE (Lee, spec §0): from Lee, a person. First person, short, every one invites a
 // reply. No marketing chrome. Subjects are sentence case. [TEST] prefixes test sends.
 import type { IntakeKind } from "@/lib/comms/kinds";
+import { declineCopy } from "@/lib/rep-copy";
 
 export type TemplateKey =
   | "confirm_notify_exam" | "confirm_save_progress" | "confirm_syllabus" | "confirm_greek_member"
   | "confirm_greek_claim" | "confirm_rep" | "confirm_school_request" | "confirm_tutoring_request"
   | "confirm_outreach_page" | "confirm_question" | "confirm_chapter_seats" | "confirm_chapter_approved"
+  | "rep_declined"
   | "seq_exam_t10" | "seq_exam_t3" | "seq_exam_t1" | "seq_post_exam1_d1" | "seq_post_exam1_d7" | "seq_meet_lee"
   | "broadcast_exam_live"
   | "founder_priority" | "founder_batched";
@@ -181,6 +183,12 @@ function blocksFor(key: TemplateKey, c: TemplateCtx): { subject: string; blocks:
         ].filter(Boolean),
         sms: `${c.chapter ?? "Your chapter"} is covered for ${c.term ?? "this term"} - assign seats: surviveaccounting.com/chapters/dashboard - Lee`,
       };
+    case "rep_declined": {
+      // Short, warm, door left open. A declined applicant is still a student who might use the
+      // product and tell their chapter — this must never read as a rejection letter.
+      const d = declineCopy({ firstName: n, campusName: c.school ?? null });
+      return { subject: d.subject, blocks: [...d.blocks, sig], sms: `Hey ${n} - can't bring you on as a campus rep right now, keeping it small while I figure out what works. If that changes I'll come back to you first. Exam 1 is free either way. - Lee` };
+    }
     case "confirm_rep":
       return {
         subject: "Got your campus rep application",
@@ -434,6 +442,7 @@ function footerFor(category: TemplateCategory, c: TemplateCtx, html: boolean): s
 }
 
 export function categoryOf(key: TemplateKey): TemplateCategory {
+  if (key === "rep_declined") return "transactional"; // a reply to their own application
   if (key.startsWith("founder_")) return "founder";
   if (key.startsWith("confirm_")) return "transactional";
   return "marketing"; // sequences + broadcast carry unsubscribe (CAN-SPAM)
