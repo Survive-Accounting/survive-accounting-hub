@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import SiteNavbar from "@/components/landing/SiteNavbar";
 import SiteFooter from "@/components/landing/SiteFooter";
+import { emailLinkProps } from "@/lib/email-link";
 
 export const Route = createFileRoute("/terms")({
   head: () => ({
@@ -68,7 +69,7 @@ function TermsPage() {
         </Section>
 
         <Section title="11. Contact">
-          Questions about these terms? Email us at <a href="mailto:lee@surviveaccounting.com" className="underline">lee@surviveaccounting.com</a>.
+          Questions about these terms? Email us at <a {...emailLinkProps("Terms question")} className="underline">lee@surviveaccounting.com</a>.
         </Section>
       </div>
       <SiteFooter />

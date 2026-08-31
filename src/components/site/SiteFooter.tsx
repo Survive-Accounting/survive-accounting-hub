@@ -16,19 +16,56 @@
 // "opaque" — nothing here is faded, it was being covered — and it also swallowed every click,
 // because elementFromPoint over a footer link returned the background div. One line fixes both.
 //
-// LAYOUT: brand + company metadata in one left block, three link columns to its right. Horizontal
-// rather than a tall stack with a big centred metadata slab underneath.
+// AND WHY THE LEARN-HOW PANEL IS A PORTAL (2026-08-31) — the bug that line caused.
+//
+// `position: relative; z-index: 1` makes this footer a STACKING CONTEXT. Everything inside it,
+// however high its z-index, is confined to the footer's own level of 1. The Learn-How panel asked
+// for z-index 300 and got "300, but inside a box that ranks 1" — while SiteHeader is a sticky
+// z-index:200 element in the ROOT context, which outranks it. Measured on a 390x844 viewport with
+// the panel open: elementFromPoint(195, 28) returned the navbar wordmark, not the panel's
+// backdrop. The dim never covered the top 55px, the navbar stayed bright and tappable over the
+// dialog, and on a short viewport (landscape, or an open keyboard) the bar covered the panel's
+// own header — its close button included.
+//
+// A portal to document.body takes the panel OUT of this stacking context entirely, which is the
+// only real fix; raising z-index here cannot work, because the number is not the problem.
+//
+// LAYOUT (rebuilt 2026-08-31): compact. Brand + one metadata line, then the link columns, then a
+// single legal line. The standalone domain line is gone — the visitor is ON the domain — and the
+// memorial has come back out of the modal to sit under the legal row where it belongs.
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+
+import { Mail, Phone } from "lucide-react";
 
 import { BRAND_SANS } from "@/components/canvas/brand";
 import { FitWordmark } from "@/components/site/SiteHeader";
+import { EMAIL_SUBJECT, LEE_EMAIL, emailLinkProps } from "@/lib/email-link";
 import { submitNotify } from "@/lib/syllabus.functions";
 
 const PHONE = "(662) 565-8818";
 const TEL = "+16625658818";
-export const EMAIL = "lee@surviveaccounting.com";
+/** Re-exported: call sites imported EMAIL from here before the helper existed. */
+export const EMAIL = LEE_EMAIL;
 
-type Col = { title: string; links: Array<{ label: string; href?: string; onClick?: () => void }> };
+/** A footer column. `icon` renders before the label — Help's rows carry one, Students' do not.
+ *
+ *  ── THE THIRD COLUMN ───────────────────────────────────────────────────────────────────────
+ *  A GREEKS column is coming. Adding it must be a DATA change: push a third object into
+ *  `columns` below and the grid widens on its own, because the template is derived from
+ *  `columns.length` rather than written out as `lg:grid-cols-[1.5fr_1fr_1fr]`. Nothing about the
+ *  layout is hard-coded to two. */
+type Col = {
+  title: string;
+  links: Array<{
+    label: string;
+    href?: string;
+    onClick?: () => void;
+    icon?: React.ReactNode;
+    /** External (the Gmail composer) — needs target/rel, which a same-tab anchor must not carry. */
+    external?: boolean;
+  }>;
+};
 
 export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
   // Same-page anchors only where those sections exist; absolute everywhere else.
@@ -52,74 +89,93 @@ export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
       // iterated on privately — they live on /leeportal now and are noindexed, so a public
       // footer link to them would be a door to a room that is being rebuilt. The ONE Greek
       // path a visitor should find today is the homepage's chapter door (the waitlist).
-      // "Add your school" / "Add your Greek org" went with it: both opened write-in forms for
-      // a program that is not taking sign-ups at this stage.
       title: "Help",
       links: [
-        { label: `Text Lee ${PHONE}`, href: `sms:${TEL}` },
-        { label: `Email ${EMAIL}`, href: `mailto:${EMAIL}` },
+        { label: "Text Lee", href: `sms:${TEL}`, icon: <Phone className="h-3.5 w-3.5 shrink-0" aria-hidden /> },
+        // NOT mailto: — see lib/email-link.ts. On a phone with no mail handler registered,
+        // mailto: opened whatever claimed the scheme (inDrive, in the reported case).
+        { label: LEE_EMAIL, ...emailLinkProps(EMAIL_SUBJECT.footer), external: true, icon: <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden /> },
       ],
     },
   ];
 
-  const linkCls = "inline-flex items-center text-left text-[14px] font-semibold transition-colors hover:text-[var(--accent)]";
-  const linkStyle = { color: "var(--brand-cream)", minHeight: 34 } as const;
-  const metaCls = "text-[13px]";
+  // 2026 is the floor, not the value: the spec requires 2026, and a hardcoded year silently goes
+  // stale the moment the calendar turns.
+  const year = Math.max(2026, new Date().getFullYear());
+
+  const linkCls = "inline-flex items-center gap-1.5 text-left text-[13px] font-semibold transition-colors hover:text-[var(--accent)]";
+  const linkStyle = { color: "var(--brand-cream)", minHeight: 26 } as const;
   const metaStyle = { color: "var(--text-secondary)" } as const;
 
   return (
     <footer
       id="site-footer"
-      className="border-t pt-9 pb-8"
+      className="border-t pt-3 pb-3"
       // relative + z-1: see the note at the top of this file.
       style={{ position: "relative", zIndex: 1, borderColor: "var(--border-default)", background: "var(--bg-nav)", fontFamily: BRAND_SANS }}
     >
-      {/* Three tracks since the Greek column was removed (2026-08-28): brand + Students + Help.
-          The brand block keeps the wide track; the two link columns share the rest. */}
-      <div className="mx-auto grid max-w-[1040px] grid-cols-2 gap-x-6 gap-y-8 px-5 lg:grid-cols-[1.5fr_1fr_1fr] lg:gap-x-8">
-        {/* BRAND + COMPANY. One block: mark, promise, a quiet rule, then the metadata that used to
-            sprawl across a full-width centred row of its own. */}
-        <div className="col-span-2 lg:col-span-1">
-          <div className="max-w-[180px]"><FitWordmark size={50} style={{ alignItems: "flex-start" }} /></div>
-          <p className="mt-2 text-[14px]" style={{ color: "var(--text-secondary)" }}>Cram what&apos;s on your exam.</p>
+      <div className="mx-auto max-w-[1040px] px-5">
+        {/* BRAND — mark, promise, rule, and the one line of attribution. */}
+        <div className="max-w-[120px]"><FitWordmark size={30} style={{ alignItems: "flex-start" }} /></div>
+        <p className="mt-0.5 text-[13px]" style={metaStyle}>Cram what&apos;s on your exam.</p>
 
-          <div className="my-4 h-px w-full max-w-[240px]" style={{ background: "var(--border-subtle)" }} />
+        <div className="my-1.5 h-px w-full max-w-[200px]" style={{ background: "var(--border-subtle)" }} />
 
-          <p className={metaCls} style={metaStyle}>Earned Wisdom LLC</p>
-          <p className={metaCls} style={metaStyle}>surviveaccounting.com</p>
-          <p className={`${metaCls} mt-0.5`} style={metaStyle}>
+        <p className="text-[12.5px]" style={metaStyle}>
+          Created by Lee Ingram{" "}
+          <span aria-hidden style={{ opacity: 0.5 }}>·</span>{" "}
+          <button type="button" onClick={() => setFounder(true)} className="font-bold underline underline-offset-4 hover:text-[var(--accent)]" style={{ color: "var(--brand-cream)" }}>
+            Learn how →
+          </button>
+        </p>
+
+        {/* THE LINK COLUMNS. Template derived from columns.length — adding GREEKS is a data
+            change, not a layout rewrite. Two columns fit a 390px phone side by side; three will
+            wrap to two rows there and sit in one row from 640px up, which is why the mobile
+            template caps at 2 and the sm: one takes the full count. */}
+        <div
+          className="mt-2.5 grid gap-x-4 gap-y-4"
+          style={{ gridTemplateColumns: `repeat(${Math.min(columns.length, 2)}, minmax(0, 1fr))` }}
+        >
+          {columns.map((col) => (
+            <nav key={col.title} aria-label={col.title} style={{ gridColumn: "span 1" }}>
+              <p className="mb-0.5 text-[10px] font-black uppercase" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>{col.title}</p>
+              <ul>
+                {col.links.map((l) => (
+                  <li key={l.label}>
+                    {l.href ? (
+                      <a
+                        href={l.href}
+                        className={`${linkCls} max-w-full`}
+                        style={linkStyle}
+                        {...(l.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                      >
+                        {l.icon}
+                        <span className="truncate">{l.label}</span>
+                      </a>
+                    ) : (
+                      <button type="button" onClick={l.onClick} className={linkCls} style={linkStyle}>{l.icon}<span className="truncate">{l.label}</span></button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ))}
+        </div>
+
+        {/* LEGAL — one line. The standalone surveyaccounting.com line that used to sit above this
+            is deleted: it named the domain the visitor is already on. */}
+        <div className="mt-2.5 border-t pt-2" style={{ borderColor: "var(--border-subtle)" }}>
+          <p className="text-[11.5px]" style={metaStyle}>
+            © {year} Earned Wisdom LLC
+            <span aria-hidden className="px-1.5" style={{ opacity: 0.5 }}>·</span>
             <a href="/privacy" className="hover:text-[var(--accent)]" style={{ color: "inherit" }}>Privacy</a>
             <span aria-hidden className="px-1.5" style={{ opacity: 0.5 }}>·</span>
             <a href="/terms" className="hover:text-[var(--accent)]" style={{ color: "inherit" }}>Terms</a>
           </p>
-          <p className={`${metaCls} mt-2`} style={metaStyle}>
-            Created by Lee Ingram{" "}
-            <span aria-hidden style={{ opacity: 0.5 }}>·</span>{" "}
-            <button type="button" onClick={() => setFounder(true)} className="font-bold underline underline-offset-4 hover:text-[var(--accent)]" style={{ color: "var(--brand-cream)" }}>
-              Learn how →
-            </button>
-          </p>
-          {/* The memorial moved INSIDE the Learn-How panel (FINAL MILE H5) — it lives only there now.
-              The Greek badge strip that briefly lived here is gone (2026-08-28): the chapter door on
-              the homepage is the single Greek entry point while the program is pre-launch. */}
+          {/* The memorial. Quiet, last, and never a marketing element. */}
+          <p className="mt-0.5 text-[11.5px] italic" style={{ color: "var(--text-tertiary)" }}>In memory of Ben Ingram.</p>
         </div>
-
-        {columns.map((col) => (
-          <nav key={col.title} aria-label={col.title}>
-            <p className="mb-1.5 text-[11px] font-black uppercase" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>{col.title}</p>
-            <ul>
-              {col.links.map((l) => (
-                <li key={l.label}>
-                  {l.href ? (
-                    <a href={l.href} className={linkCls} style={linkStyle}>{l.label}</a>
-                  ) : (
-                    <button type="button" onClick={l.onClick} className={linkCls} style={linkStyle}>{l.label}</button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </nav>
-        ))}
       </div>
 
       {founder && <FounderModal onClose={() => setFounder(false)} />}
@@ -127,35 +183,54 @@ export function Footer({ onLanding = false }: { onLanding?: boolean } = {}) {
   );
 }
 
-/** "HOW I BUILT THIS" (FINAL MILE H5) — the Learn-How panel: the build story, a quiet one-field
- *  capture (kept from the previous panel — same submitNotify path, its own topic), and the Ben
- *  Ingram memorial, which lives ONLY here now. Deliberately quiet: this must never compete with
- *  the student CTA. */
+/** "HOW I BUILT THIS" — the Learn-How panel: the build story and a quiet one-field capture.
+ *  Deliberately quiet: this must never compete with the student CTA.
+ *
+ *  PORTALLED TO document.body — see the stacking-context note at the top of this file. It is the
+ *  fix for the panel rendering under the navbar, and it is not optional: any overlay rendered as
+ *  a descendant of this footer inherits the same ceiling. */
 function FounderModal({ onClose }: { onClose: () => void }) {
   const [email, setEmail] = useState("");
   const [state, setState] = useState<"open" | "busy" | "done" | "error">("open");
+  const [mounted, setMounted] = useState(false);
   const ok = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
+
+  // createPortal needs a real document. On the server there isn't one, and rendering the panel
+  // into the footer "just for SSR" would reintroduce the exact bug — so it renders nothing until
+  // the client has mounted. Nobody can have clicked the button before then anyway.
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", onKey);
-    const prev = document.documentElement.style.overflow;
-    document.documentElement.style.overflow = "hidden";
-    return () => { document.removeEventListener("keydown", onKey); document.documentElement.style.overflow = prev; };
+    // SCROLL LOCK. `overflow: hidden` on <html> alone is a no-op in iOS Safari — the page keeps
+    // scrolling behind the dialog — so the body is pinned at the current offset and restored on
+    // close. Without the restore, closing the panel teleports the visitor to the top of the page.
+    const y = window.scrollY;
+    const html = document.documentElement;
+    const body = document.body;
+    const prev = { htmlOverflow: html.style.overflow, position: body.style.position, top: body.style.top, width: body.style.width };
+    html.style.overflow = "hidden";
+    body.style.position = "fixed";
+    body.style.top = `-${y}px`;
+    body.style.width = "100%";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      html.style.overflow = prev.htmlOverflow;
+      body.style.position = prev.position;
+      body.style.top = prev.top;
+      body.style.width = prev.width;
+      window.scrollTo(0, y);
+    };
   }, [onClose]);
 
-  const send = async () => {
-    if (!ok || state === "busy") return;
-    setState("busy");
-    try {
-      await submitNotify({ data: { contact: email.trim(), topic: "How I built Survive" } });
-      setState("done");
-    } catch { setState("error"); }
-  };
+  if (!mounted) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[300] grid place-items-center px-4"
+      // items-end on a phone, centred from 640px up — the same bottom-sheet-on-mobile shape every
+      // overlay in this pass uses, so "where does a panel come from" has one answer.
+      className="fixed inset-0 z-[300] flex items-end justify-center overflow-y-auto sm:items-center sm:px-4"
       style={{ background: "rgba(5,8,16,0.72)" }}
       onClick={onClose}
       role="dialog"
@@ -163,8 +238,17 @@ function FounderModal({ onClose }: { onClose: () => void }) {
       aria-label="How I built Survive"
     >
       <div
-        className="w-full max-w-[400px] rounded-2xl p-5 text-left"
-        style={{ background: "var(--bg-overlay)", border: "1px solid var(--border-default)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)", fontFamily: BRAND_SANS }}
+        className="w-full max-w-[400px] overflow-y-auto rounded-t-2xl p-5 text-left sm:rounded-2xl"
+        style={{
+          background: "var(--bg-overlay)",
+          border: "1px solid var(--border-default)",
+          boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)",
+          fontFamily: BRAND_SANS,
+          // NEVER TALLER THAN THE SCREEN. Without this the panel is clipped with no way to
+          // scroll it the moment the viewport is short — a landscape phone, or an open keyboard.
+          maxHeight: "min(88dvh, 88vh)",
+          paddingBottom: "max(20px, env(safe-area-inset-bottom, 0px))",
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {state === "done" ? (
@@ -177,7 +261,7 @@ function FounderModal({ onClose }: { onClose: () => void }) {
           <>
             <div className="mb-2 flex items-start justify-between gap-3">
               <p className="text-[16px] font-black" style={{ color: "var(--brand-cream)" }}>How I built this</p>
-              <button onClick={onClose} aria-label="Close" className="grid h-7 w-7 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--text-secondary)" }}>
+              <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--text-secondary)" }}>
                 <span aria-hidden style={{ fontSize: 16, lineHeight: 1 }}>×</span>
               </button>
             </div>
@@ -206,11 +290,17 @@ function FounderModal({ onClose }: { onClose: () => void }) {
             </button>
           </>
         )}
-        {/* The memorial — quietly set apart at the bottom of the panel; its only home now. */}
-        <p className="mt-4 border-t pt-3 text-center text-[13px] italic" style={{ borderColor: "var(--border-subtle)", color: "var(--text-tertiary)", letterSpacing: "0.01em" }}>
-          In memory of Ben Ingram.
-        </p>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
+
+  async function send() {
+    if (!ok || state === "busy") return;
+    setState("busy");
+    try {
+      await submitNotify({ data: { contact: email.trim(), topic: "How I built Survive" } });
+      setState("done");
+    } catch { setState("error"); }
+  }
 }

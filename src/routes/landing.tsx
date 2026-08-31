@@ -11,6 +11,7 @@ import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent, type RefObject } from "react";
 import { createPortal } from "react-dom";
+import { EMAIL_SUBJECT, emailLinkProps } from "@/lib/email-link";
 import { ChevronDown, GraduationCap, Lock, MessageCircle, MoreHorizontal, RotateCcw, X } from "lucide-react";
 
 import { fetchStudentTree, type StudentSet, type StudentTopic } from "@/lib/student.functions";
@@ -2372,13 +2373,14 @@ function PlayerIdentity({ school, professor, onMatchProfessor, onChangeSchool, o
       {menuOpen && (
         <div role="menu" aria-label="Player options" className="absolute right-0 z-30 mt-1 w-[230px] rounded-xl p-1.5" style={{ background: "#0b1020", border: "1px solid var(--border-default)", boxShadow: "0 16px 40px -20px rgba(0,0,0,0.9)" }}>
           {helpOpen ? (
-            // GET HELP — a tiny human submenu, never a page scroll. sms:/mailto: go straight to Lee.
+            // GET HELP — a tiny human submenu, never a page scroll. The sms: link and the GMAIL COMPOSE
+            // link go straight to Lee; mailto: is never used (see lib/email-link.ts).
             <div>
               <a role="menuitem" href={`sms:${LEE_TEL}`} onClick={() => { track("help_text_clicked"); setMenuOpen(false); setHelpOpen(false); }} className="block w-full rounded-lg px-2.5 py-2 text-left hover:bg-white/10" style={{ minHeight: 44 }}>
                 <span className="block text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>Text Lee</span>
                 <span className="block text-[11px]" style={{ color: "var(--text-muted)" }}>{LEE_PHONE}</span>
               </a>
-              <a role="menuitem" href={`mailto:${LEE_EMAIL}`} onClick={() => { track("help_email_clicked"); setMenuOpen(false); setHelpOpen(false); }} className="block w-full rounded-lg px-2.5 py-2 text-left hover:bg-white/10" style={{ minHeight: 44 }}>
+              <a role="menuitem" {...emailLinkProps(EMAIL_SUBJECT.footer)} onClick={() => { track("help_email_clicked"); setMenuOpen(false); setHelpOpen(false); }} className="block w-full rounded-lg px-2.5 py-2 text-left hover:bg-white/10" style={{ minHeight: 44 }}>
                 <span className="block text-[13px] font-bold" style={{ color: "var(--brand-cream)" }}>Email Lee</span>
                 <span className="block text-[11px]" style={{ color: "var(--text-muted)" }}>{LEE_EMAIL}</span>
               </a>

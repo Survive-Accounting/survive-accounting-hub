@@ -14,6 +14,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { SurviveWordmark } from "@/components/brand-cards/bolt-boil";
+import { EMAIL_SUBJECT, emailLinkProps } from "@/lib/email-link";
 import { scrollToId } from "@/lib/ui-scroll";
 import { useCampus } from "@/lib/campus-context";
 
@@ -222,7 +223,7 @@ function SiteMenu({ items }: { items: NavItem[] }) {
                           <span style={{ color: "var(--text-muted, #94A3B8)" }}>Text:</span>
                           <span className="ml-1.5">{LEE_PHONE}</span>
                         </a>
-                        <a href={`mailto:${LEE_EMAIL}`} className="flex items-center px-4 text-[13.5px] font-semibold hover:bg-white/10" style={{ minHeight: 44, color: "#F5EFE6" }}>
+                        <a {...emailLinkProps(EMAIL_SUBJECT.footer)} className="flex items-center px-4 text-[13.5px] font-semibold hover:bg-white/10" style={{ minHeight: 44, color: "#F5EFE6" }}>
                           <span style={{ color: "var(--text-muted, #94A3B8)" }}>Email:</span>
                           <span className="ml-1.5 truncate">{LEE_EMAIL}</span>
                         </a>
@@ -278,8 +279,9 @@ const desktopLinks = (base: string, greekHref: string): NavItem[] => [
 // is a ROUTE, not an anchor, so it sits under a divider — mixing "jump down this page" with
 // "leave this page" in one flat list is how people lose their place.
 // (Contact EXPANDS in place — see NavItem.contact. The row used to jump to `#contact`, an anchor
-// no page defines. The revealed rows are sms:/mailto: links the visitor chooses deliberately,
-// which is different from a bare menu item silently opening an installed app.)
+// no page defines. The revealed rows are an sms: link and a GMAIL COMPOSE link the visitor
+// chooses deliberately — never mailto:, which on a phone with no mail handler opens whatever
+// app claimed the scheme. See lib/email-link.ts.)
 const menuLinks = (base: string, greekHref: string): NavItem[] => [
   { label: "Start cramming", href: `${base}#exam1` },
   { label: "Reviews", href: `${base}#reviews` },

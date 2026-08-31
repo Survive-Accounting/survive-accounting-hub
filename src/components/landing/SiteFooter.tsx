@@ -4,6 +4,8 @@
 import { useState } from "react";
 import { Instagram, Mail, ExternalLink } from "lucide-react";
 
+import { EMAIL_SUBJECT, LEE_EMAIL, emailLinkProps } from "@/lib/email-link";
+
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -96,9 +98,11 @@ export default function SiteFooter(_props: SiteFooterProps = {}) {
                 className={`${linkClass} inline-flex items-center gap-2`} style={muted}>
                 <Instagram className="h-4 w-4" /> @grooveginger
               </a>
-              <a href="mailto:lee@surviveaccounting.com"
+              {/* Gmail compose, not mailto: — on a phone with no registered mail handler,
+                  mailto: hands off to whatever claimed the scheme. See lib/email-link.ts. */}
+              <a {...emailLinkProps(EMAIL_SUBJECT.footer)}
                 className={`${linkClass} inline-flex items-center gap-2`} style={muted}>
-                <Mail className="h-4 w-4" /> lee@surviveaccounting.com
+                <Mail className="h-4 w-4" /> {LEE_EMAIL}
               </a>
             </nav>
           </div>

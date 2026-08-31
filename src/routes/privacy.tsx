@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import SiteNavbar from "@/components/landing/SiteNavbar";
 import SiteFooter from "@/components/landing/SiteFooter";
+import { emailLinkProps } from "@/lib/email-link";
 
 export const Route = createFileRoute("/privacy")({
   head: () => ({
@@ -71,7 +72,7 @@ function PrivacyPage() {
         </Section>
 
         <Section title="10. Contact">
-          Questions about this policy? Email us at <a href="mailto:lee@surviveaccounting.com" className="underline">lee@surviveaccounting.com</a>.
+          Questions about this policy? Email us at <a {...emailLinkProps("Privacy question")} className="underline">lee@surviveaccounting.com</a>.
         </Section>
       </div>
       <SiteFooter />
