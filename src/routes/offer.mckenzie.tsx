@@ -39,6 +39,35 @@ import { scrollToId } from "@/lib/ui-scroll";
 /** Both buttons and the task CTA open a text to Lee. No form, no fields. */
 const LEE_SMS = "sms:+16012018759";
 
+/** THE GOALS. "~" on every figure because these are goals, not forecasts — she will read them
+ *  as arithmetic and is owed the distinction. One array, read by both the table and the cards. */
+const VISION_ROWS = [
+  { when: "Fall 2026", campuses: "8+ campuses", revenue: "~$42,000" },
+  { when: "Fall 2028", campuses: "50 campuses", revenue: "~$1,000,000" },
+  { when: "Fall 2029", campuses: "250 campuses", revenue: "~$5,000,000" },
+  { when: "Fall 2030", campuses: "500 campuses", revenue: "~$10,000,000" },
+];
+
+/** One array, read by the table and by the phone cards. `bold` is only the title — the thing
+ *  she is actually being offered. */
+const JOB_DETAILS: Array<{ label: string; value: React.ReactNode; bold?: boolean }> = [
+  { label: "Title", value: "Director of Experience", bold: true },
+  { label: "Reports to", value: "Yourself. JK — me too." },
+  { label: "Hours", value: "~10/week to start. Measured in campus launches you assist, not hours." },
+  {
+    label: "Compensation",
+    value: (
+      <>
+        2% of revenue to your spending account. 2% to mine.
+        <br />
+        At $1M/year — the 2030 goal — that&apos;s $20k each.
+      </>
+    ),
+  },
+  { label: "Start date", value: "Monday, September 14" },
+  { label: "Equity", value: "We already own 100% of it together, butterbean." },
+];
+
 const TASK_ID = "task";
 const VISION_ID = "vision";
 
@@ -240,34 +269,73 @@ function Offer() {
 
       {/* ── 7. THE VISION ───────────────────────────────────────────────────────────────────── */}
       <section id={VISION_ID} className="sa-anchor mt-14">
-        <div className="overflow-x-auto rounded-2xl" style={{ border: "1px solid var(--border-default)" }}>
+        {/* WIDE: a proper table, dollars right-aligned. */}
+        <div className="hidden overflow-hidden rounded-2xl sm:block" style={{ border: "1px solid var(--border-default)" }}>
           <table className="w-full text-left" style={{ borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "rgba(0,0,0,0.25)" }}>
+                <th className="px-4 py-2.5 text-[10.5px] font-black uppercase" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>When</th>
+                <th className="px-4 py-2.5 text-[10.5px] font-black uppercase" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>Campus goal</th>
+                <th className="px-4 py-2.5 text-right text-[10.5px] font-black uppercase" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>Revenue goal</th>
+              </tr>
+            </thead>
             <tbody>
-              {[
-                ["Fall 2026", "8+ campuses", "$30,000 – $150,000"],
-                ["50 campuses", "~$20k each per year", "$1,000,000"],
-                ["250 campuses", "", "$5,000,000"],
-                ["500 campuses", "2030", "$10,000,000"],
-              ].map(([a, b, c], i) => (
-                <tr key={a} style={{ borderTop: i === 0 ? undefined : "1px solid var(--border-subtle)" }}>
-                  <td className="px-4 py-3 text-[12.5px] font-black uppercase" style={{ color: "var(--brand-cream)", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>{a}</td>
-                  <td className="px-4 py-3 text-[13px]" style={{ color: "var(--text-muted)" }}>{b}</td>
-                  <td className="px-4 py-3 text-right text-[15px] font-black tabular-nums" style={{ color: "var(--accent)", whiteSpace: "nowrap" }}>{c}</td>
+              {VISION_ROWS.map((r, i) => (
+                <tr key={r.when} style={{ borderTop: `1px solid var(--border-subtle)` }}>
+                  <td className="px-4 py-3 text-[13.5px] font-black" style={{ color: "var(--brand-cream)", whiteSpace: "nowrap" }}>{r.when}</td>
+                  <td className="px-4 py-3 text-[13.5px]" style={{ color: "var(--brand-cream)", opacity: 0.85, whiteSpace: "nowrap" }}>{r.campuses}</td>
+                  <td className="px-4 py-3 text-right text-[15px] font-black tabular-nums" style={{ color: "var(--accent)", whiteSpace: "nowrap" }}>{r.revenue}</td>
                 </tr>
               ))}
-              <tr style={{ borderTop: "1px solid var(--border-subtle)" }}>
-                <td className="px-4 py-3 align-top text-[12.5px] font-black uppercase" style={{ color: "var(--brand-cream)", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>And then</td>
-                <td className="px-4 py-3 text-[13px]" colSpan={2} style={{ color: "var(--brand-cream)", opacity: 0.85 }}>
-                  Intro &amp; Intermediate Accounting complete<br />
-                  Finance · Stats · Chemistry<br />
-                  Same platform, new courses, same Greek niche
-                </td>
-              </tr>
             </tbody>
           </table>
         </div>
 
-        <div className="mt-5 flex flex-col gap-3 text-[15px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.9 }}>
+        {/* NARROW: one card per row. A card cannot truncate, which a squeezed column always can. */}
+        <div className="flex flex-col gap-2 sm:hidden">
+          {VISION_ROWS.map((r) => (
+            <div key={r.when} className="rounded-xl px-4 py-3" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-[13px] font-black" style={{ color: "var(--brand-cream)" }}>{r.when}</span>
+                <span className="text-[16px] font-black tabular-nums" style={{ color: "var(--accent)" }}>{r.revenue}</span>
+              </div>
+              <div className="mt-0.5 text-[12.5px]" style={{ color: "var(--text-muted)" }}>{r.campuses}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Moved out of the table — inside it, it was clutter in a column of goals. */}
+        <p className="mt-3 text-[13.5px]" style={{ color: "var(--text-muted)" }}>
+          That&apos;s about $20k per campus, per year.
+        </p>
+
+        {/* ── WHAT COMES AFTER ACCOUNTING ──────────────────────────────────────────────────── */}
+        <div className="mt-8 rounded-2xl px-5 py-6 text-center" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
+          <div className="mx-auto mb-4 inline-block"><BoltBoil height={56} /></div>
+          <p className="text-[18px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "0.22em" }}>
+            s u r v<span style={{ color: "var(--accent)" }}>⚡</span>v e
+          </p>
+
+          <ul className="mx-auto mt-5 flex max-w-[36ch] flex-col gap-2 text-left" style={{ listStyle: "none", padding: 0, margin: "20px auto 0" }}>
+            {[
+              "Survive Accounting — Intro & Intermediate, complete",
+              "Survive Finance",
+              "Survive Stats",
+              "Survive Chemistry",
+            ].map((line) => (
+              <li key={line} className="flex items-start gap-2.5 text-[14px]" style={{ color: "var(--brand-cream)" }}>
+                <span aria-hidden className="shrink-0 font-black" style={{ color: "var(--accent)" }}>✓</span>
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+
+          <p className="mt-5 text-[13.5px]" style={{ color: "var(--text-muted)" }}>
+            Same platform. New courses. Same Greek niche. Scales quickly.
+          </p>
+        </div>
+
+        <div className="mt-6 flex flex-col gap-3 text-[15px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.9 }}>
           <p>
             Each campus becomes a small business that mostly runs itself — us, some VAs, maybe a few
             employees at the right time.
@@ -276,26 +344,46 @@ function Offer() {
         </div>
       </section>
 
-      {/* ── 8. TERMS ────────────────────────────────────────────────────────────────────────── */}
+      {/* ── 8. JOB DETAILS ──────────────────────────────────────────────────────────────────
+           Same table-to-blocks switch as the vision, for the same reason: a two-column row with
+           a long value truncates on a phone, and these values are the offer. */}
       <section className="mt-14">
-        <div className="overflow-hidden rounded-2xl" style={{ border: "1px solid var(--border-default)" }}>
+        <h2 className="mb-4 text-[11.5px] font-black uppercase" style={{ color: "var(--text-muted)", letterSpacing: "0.16em" }}>
+          Job details
+        </h2>
+
+        {/* WIDE */}
+        <div className="hidden overflow-hidden rounded-2xl sm:block" style={{ border: "1px solid var(--border-default)" }}>
           <table className="w-full text-left" style={{ borderCollapse: "collapse" }}>
             <tbody>
-              {[
-                ["Title", <>Director of Experience</>],
-                ["Reports to", <>Yourself.</>],
-                ["Hours", <>~10/week to start. Measured in campus launches you assist, not hours.</>],
-                ["Compensation", <>2% of revenue to your spending account. 2% to mine.<br />At $1M/year — the 2030 goal — that&apos;s $20k each.</>],
-                ["Start date", <>Monday, September 14</>],
-                ["Equity", <>We already own 100% of it together, butterbean.</>],
-              ].map(([label, value], i) => (
-                <tr key={String(label)} style={{ borderTop: i === 0 ? undefined : "1px solid var(--border-subtle)" }}>
-                  <td className="px-4 py-3 align-top text-[11.5px] font-black uppercase" style={{ color: "var(--text-muted)", letterSpacing: "0.12em", whiteSpace: "nowrap" }}>{label as string}</td>
-                  <td className="px-4 py-3 text-[14.5px] leading-relaxed" style={{ color: "var(--brand-cream)" }}>{value}</td>
+              {JOB_DETAILS.map((d, i) => (
+                <tr key={d.label} style={{ borderTop: i === 0 ? undefined : "1px solid var(--border-subtle)" }}>
+                  <td
+                    className="px-4 py-3.5 align-top text-[10.5px] font-black uppercase"
+                    style={{ color: "var(--text-muted)", letterSpacing: "0.14em", whiteSpace: "nowrap", width: "1%" }}
+                  >
+                    {d.label}
+                  </td>
+                  <td
+                    className="px-4 py-3.5 text-[14.5px] leading-relaxed"
+                    style={{ color: "var(--brand-cream)", fontWeight: d.bold ? 900 : 400 }}
+                  >
+                    {d.value}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* NARROW */}
+        <div className="flex flex-col gap-2 sm:hidden">
+          {JOB_DETAILS.map((d) => (
+            <div key={d.label} className="rounded-xl px-4 py-3" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
+              <div className="text-[10.5px] font-black uppercase" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>{d.label}</div>
+              <div className="mt-1 text-[14.5px] leading-relaxed" style={{ color: "var(--brand-cream)", fontWeight: d.bold ? 900 : 400 }}>{d.value}</div>
+            </div>
+          ))}
         </div>
       </section>
 
