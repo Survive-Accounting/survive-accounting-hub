@@ -203,6 +203,7 @@ export function TextElementNode({ id, data, selected }: NodeProps) {
   return (
     <div
       onPointerDownCapture={toFront}
+      data-sa-el={`node-${(data as { kind?: string }).kind ?? "element"}`}
       className="group/el animate-in fade-in relative rounded-lg duration-150"
       style={{
         width: d.w ?? 300,
@@ -355,6 +356,7 @@ export function ExamCueNode({ id, data, selected }: NodeProps) {
   return (
     <div
       onPointerDownCapture={toFront}
+      data-sa-el={`node-${(data as { kind?: string }).kind ?? "element"}`}
       className="group/el animate-in fade-in relative duration-150"
       style={{ width: w, minHeight: h }}
     >
@@ -544,7 +546,7 @@ export function CeqHookNode({ id, data, selected }: NodeProps) {
   }, [beats, w, h, shown, editIdx, beatSize]);
 
   return (
-    <div onPointerDownCapture={toFront} className="group/el relative" style={{ width: w, height: h }}>
+    <div data-sa-el={`node-${(data as { kind?: string }).kind ?? "element"}`} onPointerDownCapture={toFront} className="group/el relative" style={{ width: w, height: h }}>
       <ConnectionDots />
       {!cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
       <ElementResizer id={id} selected={selected && !cleanShot} minWidth={360} minHeight={180} />
@@ -622,7 +624,7 @@ export function FrameBoltNode({ id, data, selected }: NodeProps) {
   const h = d.h ?? 420;
   const boltH = Math.round(Math.min(h, w / 0.62) * 0.96); // fill the box, keep the bolt's aspect
   return (
-    <div onPointerDownCapture={toFront} className="group/el relative" style={{ width: w, height: h }}>
+    <div data-sa-el={`node-${(data as { kind?: string }).kind ?? "element"}`} onPointerDownCapture={toFront} className="group/el relative" style={{ width: w, height: h }}>
       <ConnectionDots />
       {!cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
       <ElementResizer id={id} selected={selected && !cleanShot} minWidth={80} minHeight={100} keepAspect />
@@ -669,7 +671,7 @@ export function CeqTeaseNode({ id, data, selected }: NodeProps) {
   }, [d.text, w, h, emoji, editing]);
 
   return (
-    <div onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150" style={{ width: w, height: h }}>
+    <div data-sa-el={`node-${(data as { kind?: string }).kind ?? "element"}`} onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150" style={{ width: w, height: h }}>
       <style>{EXAMCUE_CSS}</style>
       <ConnectionDots />
       {!editing && !cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
@@ -735,6 +737,7 @@ export function GateNode({ id, data, selected }: NodeProps) {
   return (
     <div
       onPointerDownCapture={toFront}
+      data-sa-el={`node-${(data as { kind?: string }).kind ?? "element"}`}
       className="group/el animate-in fade-in relative duration-150"
       style={{ width: d.w ?? 640, height: 46 }}
     >
@@ -837,7 +840,7 @@ export function LogoCardNode({ id, data, selected }: NodeProps) {
   const cycleMode = () => { const i = LOGO_MODES.findIndex((m) => m.id === mode); update({ mode: LOGO_MODES[(i + 1) % LOGO_MODES.length].id }); };
 
   return (
-    <div onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150" style={{ width: w, minHeight: h }}>
+    <div data-sa-el={`node-${(data as { kind?: string }).kind ?? "element"}`} onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150" style={{ width: w, minHeight: h }}>
       <ConnectionDots />
       {!cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
       <ElementResizer id={id} selected={selected && !cleanShot} minWidth={64} minHeight={48} />
@@ -863,12 +866,12 @@ export function LogoCardNode({ id, data, selected }: NodeProps) {
 // Each renders src/components/brand-cards/* scaled to the node box (scale = w/1920). Being
 // "element" kinds they choreograph-reveal as a whole; their own entrance re-fires on frame
 // entry in film via a bumped playKey. A hover toolbar (authoring only) edits their fields.
-const ELEM_TOOLBAR = "card-actions absolute -bottom-8 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-lg px-1.5 py-1 opacity-0 transition-opacity group-hover/el:opacity-100";
-const ELEM_BTN = "nodrag h-5 rounded px-1.5 text-[8.5px] font-bold uppercase";
+export const ELEM_TOOLBAR = "card-actions absolute -bottom-8 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-lg px-1.5 py-1 opacity-0 transition-opacity group-hover/el:opacity-100";
+export const ELEM_BTN = "nodrag h-5 rounded px-1.5 text-[8.5px] font-bold uppercase";
 
 /** Bump a playKey each time this element (re)enters the current frame in FILM, so the card's
  *  own entrance animation replays on the take. Static (0) in authoring. */
-function useFrameEntryReplay(id: string) {
+export function useFrameEntryReplay(id: string) {
   const nav = useFrameNav();
   const rf = useReactFlow();
   const inFrame = nav.currentFrameId != null && rf.getNode(id)?.parentId === nav.currentFrameId;
@@ -889,7 +892,7 @@ export function IntroCardNode({ id, data, selected }: NodeProps) {
   const w = d.w ?? 800, h = d.h ?? 450;
   const { nav, playKey, bump } = useFrameEntryReplay(id);
   return (
-    <div onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150" style={{ width: w, minHeight: h }}>
+    <div data-sa-el={`node-${(data as { kind?: string }).kind ?? "element"}`} onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150" style={{ width: w, minHeight: h }}>
       <ConnectionDots />
       {!cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
       <ElementResizer id={id} selected={selected && !cleanShot} minWidth={240} minHeight={135} keepAspect />
@@ -915,7 +918,7 @@ export function OutroCardNode({ id, data, selected }: NodeProps) {
   const w = d.w ?? 800, h = d.h ?? 450;
   const { nav, playKey, bump } = useFrameEntryReplay(id);
   return (
-    <div onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150" style={{ width: w, minHeight: h }}>
+    <div data-sa-el={`node-${(data as { kind?: string }).kind ?? "element"}`} onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150" style={{ width: w, minHeight: h }}>
       <ConnectionDots />
       {!cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
       <ElementResizer id={id} selected={selected && !cleanShot} minWidth={240} minHeight={135} keepAspect />
@@ -944,7 +947,7 @@ export function CornerBoltNode({ id, data, selected }: NodeProps) {
   const w = d.w ?? 800, h = d.h ?? 450;
   const corner = d.corner ?? "tr";
   return (
-    <div onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150" style={{ width: w, minHeight: h }}>
+    <div data-sa-el={`node-${(data as { kind?: string }).kind ?? "element"}`} onPointerDownCapture={toFront} className="group/el animate-in fade-in relative duration-150" style={{ width: w, minHeight: h }}>
       <ConnectionDots />
       {!cleanShot && <ElementChrome id={id} posLock={d.posLock} selected={selected} />}
       <ElementResizer id={id} selected={selected && !cleanShot} minWidth={240} minHeight={135} keepAspect />

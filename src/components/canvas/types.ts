@@ -40,7 +40,15 @@ export type CardKind =
   | "signupgate"
   | "asklee"
   | "submitproblem"
-  | "shareinvite";
+  | "shareinvite"
+  // BLAST OFF vertical frames (Lee, 2026-08-30) — the 9:16 cards every Blast
+  // Off opens, punctuates and closes with. Rendered by components/blastoff/.
+  | "blastintro"
+  | "blastfoye"
+  | "blastphrase"
+  | "blastcheat"
+  | "blasttip"
+  | "blastoutro";
 
 /** NODE CATEGORIES (design elements run):
  *  - card: teaching content — full contract (deck, flip-help, modes).
@@ -51,6 +59,12 @@ export type CardKind =
 export type NodeCategory = "card" | "element" | "bridge";
 
 export const KIND_CATEGORY: Record<CardKind, NodeCategory> = {
+  blastintro: "element",
+  blastfoye: "element",
+  blastphrase: "element",
+  blastcheat: "element",
+  blasttip: "element",
+  blastoutro: "element",
   je: "card",
   schedule: "card",
   computation: "card",
@@ -797,6 +811,51 @@ export interface LogoElement extends CardBase {
 //      to the node box (scale = w/1920). `transparent` drops the navy for OBS keying.
 //      Their own entrance (wordmark snap / plate wipe / tagline fade) re-fires on
 //      frame-entry in film. Being "element" kinds, choreograph reveals them whole. ----
+// ---- BLAST OFF (Lee, 2026-08-30): the vertical 9:16 frame family. -----------
+//      Every Blast Off is: intro, found-on-your-exam, the questions, outro —
+//      with phrase / cheat-code / tip frames dropped in between as needed.
+//      These carry CONTENT ONLY; the look lives in components/blastoff/ so a
+//      phrase always looks like a phrase, in every video, forever.
+export interface BlastIntroElement extends CardBase {
+  kind: "blastintro";
+  /** The set name Lee is about to blast off on. */
+  topic?: string;
+  tutor?: string;
+  transparent?: boolean;
+}
+export interface BlastFoyeElement extends CardBase {
+  kind: "blastfoye";
+  /** Absent = generate from the set the frame sits in. Present = Lee edited it. */
+  canonical?: string;
+  variations?: string[];
+  transparent?: boolean;
+}
+export interface BlastPhraseElement extends CardBase {
+  kind: "blastphrase";
+  text?: string;
+  /** Talkthrough bank item this came from, when picked rather than typed. */
+  bankItemId?: string;
+  transparent?: boolean;
+}
+export interface BlastCheatElement extends CardBase {
+  kind: "blastcheat";
+  cheatTitle?: string;
+  body?: string;
+  bankItemId?: string;
+  transparent?: boolean;
+}
+export interface BlastTipElement extends CardBase {
+  kind: "blasttip";
+  text?: string;
+  bankItemId?: string;
+  transparent?: boolean;
+}
+export interface BlastOutroElement extends CardBase {
+  kind: "blastoutro";
+  tagline?: string;
+  domain?: string;
+  transparent?: boolean;
+}
 export interface IntroCardElement extends CardBase {
   kind: "intro";
   /** Topic/title shown in the plate (no chapter number). Legacy — the animated intro
@@ -990,6 +1049,12 @@ export interface ListCard extends CardBase {
 }
 
 export type CardData =
+  | BlastIntroElement
+  | BlastFoyeElement
+  | BlastPhraseElement
+  | BlastCheatElement
+  | BlastTipElement
+  | BlastOutroElement
   | JeCard
   | ScheduleCard
   | ComputationCard
