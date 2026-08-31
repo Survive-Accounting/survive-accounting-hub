@@ -29,6 +29,7 @@ import { claimMyOrders, fetchMyUnlockedTopics, getSetPlayback } from "@/lib/enti
 import { NEON } from "@/components/canvas/theme";
 import { BrandLogo, Bolt, BRAND_RED, BRAND_BLUE } from "@/components/canvas/brand";
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
+import { LearnIntro } from "@/components/brand/LearnIntro";
 import { IntroSting } from "@/components/frames";
 import { supabase } from "@/integrations/supabase/client";
 import { useStudentAuth } from "@/lib/use-student-auth";
@@ -896,6 +897,10 @@ function LearnShell() {
       style={{ ...modeStyle(mode), fontFamily: "'Rubik', system-ui, sans-serif" }}
     >
       <style>{LEARN_MODE_CSS}</style>
+      {/* FIRST-ARRIVAL INTRO — the drawn wordmark, once per visitor, then it settles into this
+          nav (docs/BRAND-ANIMATION.md). Self-gating: reduced motion and return visits render
+          nothing at all. */}
+      <LearnIntro />
       {/* NAVBAR — mirrors the Study Canvas navbar shell */}
       <div className="flex h-11 shrink-0 items-center gap-2 px-3" style={{ background: "rgba(9,14,26,0.97)", borderBottom: `1px solid ${NEON.borderSoft}` }}>
         <span className="inline-block h-5 w-4"><BrandLogo mode="bolt" c1="#C62828" c2="#1565C0" size={20} /></span>

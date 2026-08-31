@@ -88,6 +88,7 @@ import { Route as OutreachActiveRosterRouteImport } from './routes/outreach.acti
 import { Route as OrderShortRefRouteImport } from './routes/order.$shortRef'
 import { Route as OfferMckenzieRouteImport } from './routes/offer.mckenzie'
 import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
+import { Route as LabBrandRouteImport } from './routes/lab.brand'
 import { Route as LabBoltRouteImport } from './routes/lab.bolt'
 import { Route as JeSplatRouteImport } from './routes/je.$'
 import { Route as GoDemoRouteImport } from './routes/go.demo'
@@ -559,6 +560,11 @@ const OShortRefRoute = OShortRefRouteImport.update({
   path: '/o/$shortRef',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LabBrandRoute = LabBrandRouteImport.update({
+  id: '/lab/brand',
+  path: '/lab/brand',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LabBoltRoute = LabBoltRouteImport.update({
   id: '/lab/bolt',
   path: '/lab/bolt',
@@ -974,6 +980,7 @@ export interface FileRoutesByFullPath {
   '/go/demo': typeof GoDemoRouteWithChildren
   '/je/$': typeof JeSplatRoute
   '/lab/bolt': typeof LabBoltRoute
+  '/lab/brand': typeof LabBrandRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/offer/mckenzie': typeof OfferMckenzieRoute
   '/order/$shortRef': typeof OrderShortRefRoute
@@ -1123,6 +1130,7 @@ export interface FileRoutesByTo {
   '/go/demo': typeof GoDemoRouteWithChildren
   '/je/$': typeof JeSplatRoute
   '/lab/bolt': typeof LabBoltRoute
+  '/lab/brand': typeof LabBrandRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/offer/mckenzie': typeof OfferMckenzieRoute
   '/order/$shortRef': typeof OrderShortRefRoute
@@ -1275,6 +1283,7 @@ export interface FileRoutesById {
   '/go/demo': typeof GoDemoRouteWithChildren
   '/je/$': typeof JeSplatRoute
   '/lab/bolt': typeof LabBoltRoute
+  '/lab/brand': typeof LabBrandRoute
   '/o/$shortRef': typeof OShortRefRoute
   '/offer/mckenzie': typeof OfferMckenzieRoute
   '/order/$shortRef': typeof OrderShortRefRoute
@@ -1429,6 +1438,7 @@ export interface FileRouteTypes {
     | '/go/demo'
     | '/je/$'
     | '/lab/bolt'
+    | '/lab/brand'
     | '/o/$shortRef'
     | '/offer/mckenzie'
     | '/order/$shortRef'
@@ -1578,6 +1588,7 @@ export interface FileRouteTypes {
     | '/go/demo'
     | '/je/$'
     | '/lab/bolt'
+    | '/lab/brand'
     | '/o/$shortRef'
     | '/offer/mckenzie'
     | '/order/$shortRef'
@@ -1729,6 +1740,7 @@ export interface FileRouteTypes {
     | '/go/demo'
     | '/je/$'
     | '/lab/bolt'
+    | '/lab/brand'
     | '/o/$shortRef'
     | '/offer/mckenzie'
     | '/order/$shortRef'
@@ -1880,6 +1892,7 @@ export interface RootRouteChildren {
   ChaptersDashboardRoute: typeof ChaptersDashboardRoute
   GoDemoRoute: typeof GoDemoRouteWithChildren
   LabBoltRoute: typeof LabBoltRoute
+  LabBrandRoute: typeof LabBrandRoute
   OShortRefRoute: typeof OShortRefRoute
   OfferMckenzieRoute: typeof OfferMckenzieRoute
   PartnersCampusCouncilsRoute: typeof PartnersCampusCouncilsRoute
@@ -2477,6 +2490,13 @@ declare module '@tanstack/react-router' {
       path: '/o/$shortRef'
       fullPath: '/o/$shortRef'
       preLoaderRoute: typeof OShortRefRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/lab/brand': {
+      id: '/lab/brand'
+      path: '/lab/brand'
+      fullPath: '/lab/brand'
+      preLoaderRoute: typeof LabBrandRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/lab/bolt': {
@@ -3228,6 +3248,7 @@ const rootRouteChildren: RootRouteChildren = {
   ChaptersDashboardRoute: ChaptersDashboardRoute,
   GoDemoRoute: GoDemoRouteWithChildren,
   LabBoltRoute: LabBoltRoute,
+  LabBrandRoute: LabBrandRoute,
   OShortRefRoute: OShortRefRoute,
   OfferMckenzieRoute: OfferMckenzieRoute,
   PartnersCampusCouncilsRoute: PartnersCampusCouncilsRoute,
