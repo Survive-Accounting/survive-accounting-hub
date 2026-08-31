@@ -504,6 +504,11 @@ export const recordManualConversion = createServerFn({ method: "POST" })
 // order-submit from the ref cookie. This scans those, reads each order's CURRENT total_cents/status
 // from the orders table (trusted), and for any that is now priced+paid with no purchase conversion
 // yet, records the purchase + commission. Idempotent (the unique conversion guard).
+//
+// DORMANT since 2026-08-30: made-to-order is closed (submitOrder refuses) and its referral hook is
+// removed, so no new subject_type='order' conversions can appear — and none ever did (zero in
+// production). Kept, not deleted: it is idempotent, reads real revenue, and would be the correct
+// tool if historical order attribution ever needed replaying. Expect it to report 0 rows.
 // ────────────────────────────────────────────────────────────────────────────────
 const PAID_STATUSES = new Set(["paid", "approved", "delivered"]);
 

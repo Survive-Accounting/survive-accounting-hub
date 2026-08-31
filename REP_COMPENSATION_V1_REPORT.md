@@ -59,6 +59,7 @@ Piper Test · Ole Miss: 9 simulated chapter-link signups + **1 real click→memb
 
 ## 8. Deferred / notes
 
-- Free signups currently capture at **chapter join** (`/go`) and order submit; a student who scans the campus flyer and studies without ever joining a chapter or ordering isn't counted yet — the identify-time hook is the next small addition if campus-flyer numbers look low.
+- **What a free signup actually is** (Lee, 08-30): *someone used the material through the rep's link and gave us their email.* Today the only capture that meets that bar is the **chapter join** on `/go` (email comes from the magic-link account). A student who scans a campus flyer, studies, and never joins a chapter is **not counted yet** — that email-capture hook is the open piece, and Lee has more spec coming for it.
+- **Correction (08-30):** an earlier draft of this report also listed "order submit" as a signup capture. That was wrong. `/order` is the **made-to-order video flow, which is closed** — its referral hook never fired once in production (zero `subject_type='order'` conversions). The hook has been removed and the endpoint closed; see `ORDER_FLOW_DEPRECATION.md`. No rep's signup count ever depended on it.
 - Refund reversal after queueing = manual void in the ledger (documented above); before queueing it's automatic.
 - Suite: **2,062 pass / 1 pre-existing fail** (bolt-palette) · tsc clean · build green.

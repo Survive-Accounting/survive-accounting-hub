@@ -2,6 +2,18 @@
 // prep flow (/order). Inserts go through the SERVICE-ROLE client (supabaseAdmin)
 // because orders/order_chapters are deny-by-default RLS — anon writes would
 // silently fail. New tables are reached via `as never`/`as any` casts (no typegen).
+//
+// ── DEPRECATED 2026-08-30: THE MADE-TO-ORDER FLOW IS CLOSED ──────────────────────────────────
+// We do not run real-time make-to-order any more. `/order` has redirected to the homepage since
+// 2026-08-20, but that redirect only closed the UI — `submitOrder` is a server function, i.e. a
+// live HTTP endpoint anything could still POST to, and it kept writing `orders` rows. It now
+// REFUSES before touching the database (see the handler).
+//
+// What stays: the READ surfaces. `orders` holds one real row (2026-07-10) plus the admin console,
+// weekly digest, entitlements and growth rollups that read it — closing the intake must not
+// orphan history, so nothing here deletes data and no read path changed.
+//
+// NOT the same thing as `/start` (syllabus-first tutoring request) — separate flow, untouched.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { isIntro1Qualified } from "./course-intel-shared";
@@ -311,116 +323,10 @@ export type SubmitOrderResult = {
 export const submitOrder = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => submitOrderSchema.parse(d))
   .handler(async ({ data }): Promise<SubmitOrderResult> => {
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const chapters = data.chapters ?? [];
-    const isMTO = data.tier === "made_to_order";
-    // A Help Video REQUEST has no finalized price: pricing is only computed
-    // when a concrete chapterCountOnly is provided (kept for back-compat). The
-    // request flow passes chapterCountOnly = null, so subtotal/total stay $0 and
-    // delivery is null until Lee builds a preview and sets an unlock price.
-    const hasFinalCount = typeof data.chapterCountOnly === "number" && data.chapterCountOnly > 0;
-    const chapterCount = hasFinalCount ? (data.chapterCountOnly as number) : 0;
-    const priced = isMTO && hasFinalCount;
-
-    const pricing = computeOrderPricing({
-      chapterCount,
-      examDate: data.examDate ?? null,
-      timeframe: data.examTimeframe ?? null,
-      rush: !!data.rush,
-    });
-
-    const orderRow: Record<string, unknown> = {
-      first_name: data.firstName,
-      last_name: data.lastName,
-      email: data.email.toLowerCase(),
-      phone: data.phone,
-      campus_id: data.campusId ?? null,
-      campus_text: data.campusText ?? null,
-      course_family: data.courseFamily ?? null,
-      course_code: data.courseCode ?? null,
-      course_name: data.courseName ?? null,
-      professor_name: data.professorName ?? null,
-      professor_lead_id: data.professorLeadId ?? null,
-      textbook_name: data.textbookName ?? null,
-      textbook_family_id: data.textbookFamilyId ?? null,
-      textbook_notes: data.textbookNotes ?? null,
-      exam_date: data.examDate ?? null,
-      exam_timeframe: data.examTimeframe ?? null,
-      tier: data.tier,
-      chapter_count: chapterCount,
-      chapter_count_only: data.chapterCountOnly ?? null,
-      request_scope: data.requestScope ?? null,
-      request_notes: data.requestNotes ?? null,
-      // Unified with the tracker's editable field: the confirmation-step textarea
-      // writes special_requests, which the /order/$shortRef tracker pre-fills and
-      // lets the student refine. (The redundant special_instructions column was
-      // dropped live — one field, submit-time + tracker-editable.)
-      special_requests: data.specialInstructions ?? null,
-      attachments_json: data.attachments ?? [],
-      // requested_options is superseded by `interests` and no longer written.
-      interests: data.interests ?? null,
-      is_accounting_major: data.isAccountingMajor ?? null,
-      referral_source: data.referralSource ?? null,
-      referral_source_detail: data.referralSourceDetail ?? null,
-      interested_in_group: data.interestedInGroup ?? false,
-      group_size: data.groupSize ?? null,
-      awaiting_syllabus: true,
-      subtotal_cents: priced ? pricing.subtotalCents : 0,
-      rush: priced ? pricing.rush : false,
-      rush_fee_cents: priced ? pricing.rushFeeCents : 0,
-      total_cents: priced ? pricing.totalCents : 0,
-      delivery_estimate_days: priced ? pricing.standardDays : null,
-      delivery_target_date: priced ? pricing.deliveryTargetDate : null,
-      source: "order_flow",
-      status: "new",
-    };
-
-    const { data: inserted, error } = await (supabaseAdmin.from("orders" as never) as any)
-      .insert(orderRow).select("id,short_ref").single();
-    if (error) throw new Error(error.message);
-    const orderId = inserted.id as string;
-    const shortRef = inserted.short_ref as string;
-
-    if (chapters.length) {
-      const rows = chapters.map((c, i) => ({
-        order_id: orderId,
-        chapter_label: c.chapterLabel,
-        chapter_number: c.chapterNumber ?? null,
-        struggle_note: c.struggleNote ?? null,
-        position: i,
-      }));
-      const { error: chErr } = await (supabaseAdmin.from("order_chapters" as never) as any).insert(rows);
-      if (chErr) throw new Error(chErr.message);
-    }
-
-    // Referral attribution (best-effort, non-blocking). If this browser carries a first-party
-    // `sa_ref` cookie from a /r/<code> click within the window, record a SIGNUP conversion that
-    // ties this order to that referral partner — the durable join the Conversions "Sync order
-    // purchases" reconcile later turns into a purchase + commission from the real order total.
-    // Wrapped so a referral hiccup can NEVER break order creation.
-    try {
-      const { getRequest } = await import("@tanstack/react-start/server");
-      const { recordConversionForRequest } = await import("@/lib/referral.server");
-      await recordConversionForRequest(getRequest(), {
-        kind: "signup",
-        subjectType: "order",
-        subjectId: orderId,
-        email: orderRow.email as string,
-        amountCents: 0,
-      });
-    } catch (e) {
-      console.warn("referral attribution skipped:", (e as Error).message);
-    }
-
-    return {
-      shortRef,
-      tier: data.tier,
-      chapterCount,
-      subtotalCents: orderRow.subtotal_cents as number,
-      rush: orderRow.rush as boolean,
-      rushFeeCents: orderRow.rush_fee_cents as number,
-      totalCents: orderRow.total_cents as number,
-      deliveryTargetDate: orderRow.delivery_target_date as string | null,
-      deliveryEstimateDays: orderRow.delivery_estimate_days as number | null,
-    };
+    // CLOSED 2026-08-30 — see the deprecation note at the top of this file. The made-to-order
+    // flow is not run any more, so this refuses instead of writing an order. The previous
+    // implementation (pricing, order + order_chapters insert, notify, and a referral hook that
+    // never once fired in production) is preserved in git history if it is ever restored.
+    void data;
+    throw new Error("The made-to-order request flow is closed. Exam 1 is free at surviveaccounting.com.");
   });

@@ -167,10 +167,13 @@ export const TEMPLATES: TemplateDef[] = [
   },
   {
     id: "order-intake",
-    label: "Request a Video",
+    label: "Request a Video (closed)",
     category: "public",
-    description: "Free intake for a personalized exam-prep video, with a status tracker.",
-    routePattern: "/order · /start",
+    // Made-to-order is CLOSED (2026-08-30): /order redirects home and submitOrder refuses, so no
+    // new orders can be created. /start (syllabus-first tutoring request) is separate and still
+    // live. The status tracker stays reachable for the one historical order.
+    description: "Closed — made-to-order requests are no longer accepted. /start (tutoring request) is still live; the order tracker remains for existing orders.",
+    routePattern: "/order (closed) · /start",
     routes: ["order.tsx", "start.tsx", "order.$shortRef.tsx"],
     extraFiles: ["src/lib/orders.functions.ts", "src/lib/order-tracker.functions.ts"],
     countKey: "static",
