@@ -8,8 +8,18 @@ import { describe, expect, test } from "bun:test";
 
 import { DOOR_BTN, DOOR_CARD, DOOR_CTA_VARS, TIER_ACTION, TIER_CARD } from "./DoorCard";
 
-const px = (v: unknown): number => (typeof v === "number" ? v : Number.NaN);
-const topPad = (padding: unknown): number => Number(String(padding).split(" ")[0].replace("px", ""));
+// A door's vertical values became `var(--door-min-h, 332px)` on 2026-08-31, so the PHONE can
+// shrink them without a second component. The desktop number is still there — it is the var's
+// fallback — so the parser learns to read one rather than the assertions being loosened. A value
+// that is neither a number nor a resolvable px fallback still yields NaN and still fails.
+const px = (v: unknown): number => {
+  if (typeof v === "number") return v;
+  const s = String(v);
+  const fallback = /var\([^,]+,\s*(-?[\d.]+)px\s*\)/.exec(s);
+  if (fallback) return Number(fallback[1]);
+  return /^-?[\d.]+px$/.test(s.trim()) ? Number(s.replace("px", "")) : Number.NaN;
+};
+const topPad = (padding: unknown): number => px(String(padding).trim().split(/\s+(?![^(]*\))/)[0]);
 const radius = (v: unknown): number => px(v);
 
 describe("tier cards are a step DOWN from door cards", () => {
