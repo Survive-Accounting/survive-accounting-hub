@@ -1,0 +1,17 @@
+{
+  "name": "Survive — Learn",
+  "short_name": "Survive",
+  "description": "Cram what's on your exam.",
+  "start_url": "/learn",
+  "scope": "/learn",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#070B14",
+  "theme_color": "#0D1730",
+  "categories": ["education"],
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/brand-logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/brand-logo.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

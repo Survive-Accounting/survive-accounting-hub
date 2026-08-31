@@ -17,7 +17,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, Circle, CircleCheck, CircleDot, ListTree, Lock, LogOut, Mail, Play, X, Loader2, Zap } from "lucide-react";
+import { ChevronDown, ChevronRight, Circle, CircleCheck, CircleDot, Lock, Mail, Play, X, Loader2, Zap } from "lucide-react";
 
 import { useDismiss } from "@/lib/use-dismiss";
 import { joinPricingWaitlist } from "@/lib/pricing-api";
@@ -27,17 +27,25 @@ import { PracticeStage } from "@/components/site/PracticeStage";
 import { listOverrideCampuses, type CampusOpt } from "@/lib/campus-overrides.functions";
 import { claimMyOrders, fetchMyUnlockedTopics, getSetPlayback } from "@/lib/entitlements.functions";
 import { NEON } from "@/components/canvas/theme";
-import { BrandLogo, Bolt, BRAND_RED, BRAND_BLUE } from "@/components/canvas/brand";
+import { Bolt, BRAND_RED, BRAND_BLUE } from "@/components/canvas/brand";
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
 import { IntroSting } from "@/components/frames";
 import { supabase } from "@/integrations/supabase/client";
 import { useStudentAuth } from "@/lib/use-student-auth";
-import { LEARN_MODE_CSS, LEARN_MODES, MODE_BLURB, MODE_LABEL, modeStyle, type LearnMode } from "@/components/learn/learn-modes";
+import { LEARN_MODE_CSS, MODE_BLURB, modeStyle, type LearnMode } from "@/components/learn/learn-modes";
 import { ModeBolt } from "@/components/learn/ModeBolt";
 import { VideoCard } from "@/components/learn/VideoCard";
 import { ExamRail, type ExamTabState } from "@/components/learn/ExamRail";
 import { GreekDoor } from "@/components/learn/GreekDoor";
 import { Spine, useVisibleTopic, type SpineTopic } from "@/components/learn/Spine";
+import { LearnHeader, LearnTabBar, TAB_BAR_SPACER, type LearnTab } from "@/components/learn/AppChrome";
+import { ACCOUNT_CSS, AccountTab } from "@/components/learn/AccountTab";
+import { LearnMenu, PromoSlider } from "@/components/learn/HouseAds";
+import { InstallPrompt } from "@/components/learn/InstallPrompt";
+import { LEARN_PLAN_LAYOUT, PlanView, type PlanTopic } from "@/components/learn/PlanView";
+import { StudyPath } from "@/components/learn/StudyPath";
+import { useSetupChecklist } from "@/lib/learn-setup";
+import { readCommitment, writeCommitment, type PlanCommitment } from "@/lib/study-plan";
 
 type ProgressState = "unstarted" | "in_progress" | "complete";
 /** One set's progress. positionSec/durationSec power resume + the watched strip; updatedAt
@@ -45,7 +53,7 @@ type ProgressState = "unstarted" | "in_progress" | "complete";
  *  student_set_progress (position columns degrade gracefully until 20260820_1500 applies). */
 type Prog = { state: ProgressState; positionSec: number; durationSec: number | null; updatedAt: number };
 
-type LearnSearch = { campus?: string; topic?: string; set?: string; stage?: SetStage; demo?: boolean };
+type LearnSearch = { campus?: string; topic?: string; set?: string; stage?: SetStage; demo?: boolean; layout?: "rail" | "grid"; path?: boolean };
 
 export const Route = createFileRoute("/learn")({
   validateSearch: (s: Record<string, unknown>): LearnSearch => ({
@@ -55,8 +63,24 @@ export const Route = createFileRoute("/learn")({
     set: typeof s.set === "string" && s.set ? s.set : undefined,
     stage: s.stage === "cram" || s.stage === "practice" || s.stage === "review" ? s.stage : undefined,
     demo: s.demo === true || s.demo === 1 || s.demo === "1" || s.demo === "true" ? true : undefined,
+    // ?layout=grid — compare the new topic-rail plan view against the old two-column grid
+    // without a deploy. See components/learn/PlanView.tsx.
+    layout: s.layout === "grid" || s.layout === "rail" ? s.layout : undefined,
+    // ?path=1 — force the guided path back open after committing, so it can be walked again.
+    path: s.path === true || s.path === 1 || s.path === "1" || s.path === "true" ? true : undefined,
   }),
-  head: () => ({ meta: [{ title: "⚡ Learn — Survive Accounting" }, { name: "robots", content: "noindex" }] }),
+  head: () => ({
+    meta: [
+      { title: "⚡ Learn — Survive Accounting" },
+      { name: "robots", content: "noindex" },
+      // STANDALONE MODE. Safari will not let a site hide its own address bar; the only route is
+      // the student installing this to their home screen, and these two are what make that
+      // produce a full-screen app rather than a browser tab with a bookmark.
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "mobile-web-app-capable", content: "yes" },
+    ],
+    links: [{ rel: "manifest", href: "/learn.webmanifest" }],
+  }),
   component: LearnShell,
 });
 
@@ -519,6 +543,28 @@ function LearnShell() {
   const isNarrow = useIsNarrow();
   const [mapOpen, setMapOpen] = useState(false);
 
+  // ── THE APP SHELL'S OWN STATE (2026-08-31) ────────────────────────────────────────────────
+  // The bottom tab bar's four tabs. cram/practice/review are the three modes of ONE surface, so
+  // picking one sets pickedMode below and the content does not change; account is a different
+  // screen entirely. Modelled as a tab rather than as a route because a route change would drop
+  // the tree query and re-fetch on every tap.
+  const [tab, setTab] = useState<LearnTab>("cram");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const setup = useSetupChecklist();
+
+
+  // THE GUIDED PATH. Shown until the student either commits to a plan or skips it — both of
+  // which are decisions, and neither of which should be asked for twice. Starts null and is
+  // filled in an effect: reading localStorage during render would put the server and the client
+  // out of step, and a hydration mismatch here means no button on this surface works.
+  const [commitment, setCommitment] = useState<PlanCommitment | null>(null);
+  const [pathAnswered, setPathAnswered] = useState<boolean | null>(null);
+  useEffect(() => {
+    const c = readCommitment();
+    setCommitment(c);
+    setPathAnswered(!!c || (() => { try { return localStorage.getItem("sa-learn-path-skipped") === "1"; } catch { return false; } })());
+  }, []);
+
   // ── MODE ────────────────────────────────────────────────────────────────────────────────────
   // The mode IS the stage of whatever is open, because the three modes are the three points on
   // one set's path — cram it, practise it, review it. When nothing is playing the student can
@@ -532,6 +578,16 @@ function LearnShell() {
   // so a preview tester keeps progress across reloads — local only, nothing merges up.
   const { userId, email, signOut } = useStudentAuth();
   const [signInOpen, setSignInOpen] = useState(false);
+  // WHO IS THIS. Session first; "Mckenzie" is the stand-in Lee asked for until a name column
+  // exists. TODO(name): student_profile has no display name, so a signed-in student is greeted by
+  // the local part of their email — better than a stranger's name, worse than theirs. Replace both
+  // branches when a profile name lands.
+  const studentName = useMemo(() => {
+    const local = (email ?? "").split("@")[0]?.trim();
+    if (!local) return "Mckenzie";
+    const first = local.split(/[._-]/)[0];
+    return first ? first.charAt(0).toUpperCase() + first.slice(1) : "Mckenzie";
+  }, [email]);
   const [progress, setProgress] = useState<Record<string, Prog>>({});
   const localKey = demo ? "sa-learn-progress-demo" : "sa-learn-progress";
   const useLocal = demo || !userId;
@@ -661,6 +717,14 @@ function LearnShell() {
   // The active mode follows the open stage; otherwise it is whatever the student picked.
   const mode: LearnMode = (playing?.stage as LearnMode | undefined) ?? pickedMode;
 
+  // THE TAB BAR AND THE MODE ARE THE SAME CHOICE. cram/practice/review are three views of one
+  // surface, so picking a tab picks the mode; account is the one tab that is a different screen.
+  const pickTab = (t: LearnTab) => {
+    setTab(t);
+    if (t !== "account") setPickedMode(t as LearnMode);
+  };
+
+
   // ── THE EXAM RAIL ───────────────────────────────────────────────────────────────────────────
   // Units ARE the exams in this tree ("Exam 1", "Exam 2", …). Anything we have live becomes an
   // available tab; the standard four are always shown so a student can see what is coming and
@@ -715,6 +779,45 @@ function LearnShell() {
     const seen = new Set<string>();
     return out.filter((i) => (seen.has(i.set.id) ? false : (seen.add(i.set.id), true)));
   }, [courses, examNum]);
+
+  // ── WHEN THE GUIDED PATH SHOWS ─────────────────────────────────────────────────────────────
+  // Never while pathAnswered is still null: that is the pre-hydration state, and flashing a
+  // setup flow at a student who answered it last week — for the one frame before localStorage is
+  // read — is worse than a beat of nothing. ?path=1 forces it back for a re-walk. It also never
+  // shows over a deep link (?set=…): someone handed a link to a specific video is not asking to
+  // be onboarded.
+  const showPath = (search.path === true) || (pathAnswered === false && !search.set && !isLoading && railItems.length > 0);
+
+  // What the estimate is ABOUT: the selected exam's sets, so the number on screen answers
+  // "how long is Exam 1" rather than "how long is everything".
+  const planSets = useMemo(() => railItems.map((r) => r.set), [railItems]);
+
+  // ── THE PLAN VIEW'S TOPIC RAIL ─────────────────────────────────────────────────────────────
+  // Built from railItems rather than from the tree, so the rail lists exactly the topics whose
+  // videos are on screen. A topic in the tree with nothing in this exam would otherwise render
+  // as an empty row — a heading promising videos that are not there.
+  const planLayout = search.layout ?? LEARN_PLAN_LAYOUT;
+  const planTopics = useMemo<PlanTopic[]>(() => {
+    const byTopic = new Map<string, PlanTopic>();
+    for (const { set, topic, courseName } of railItems) {
+      let row = byTopic.get(topic.id);
+      if (!row) {
+        row = {
+          id: topic.id,
+          label: campusId && topic.number != null ? `Ch ${topic.number} · ${topic.name}` : topic.name,
+          groupLabel: examTabs.find((e) => e.num === examNum)?.label ?? courseName,
+          done: 0, total: 0,
+          locked: true,
+        };
+        byTopic.set(topic.id, row);
+      }
+      row.total += 1;
+      if (progress[set.id]?.state === "complete") row.done += 1;
+      // Locked only if EVERY set in it is paid and unowned — one free video makes a topic open.
+      if (!(set.access === "paid" && !unlockedTopics.has(topic.id))) row.locked = false;
+    }
+    return [...byTopic.values()];
+  }, [railItems, campusId, progress, unlockedTopics, examTabs, examNum]);
 
   // WHICH TOPIC THE SCROLL IS ON. Falls back to the selected topic so the spine is never blank.
   const { visibleTopicId, registerCard } = useVisibleTopic(railRef);
@@ -783,6 +886,36 @@ function LearnShell() {
               active={playing?.set.id === set.id}
               onOpen={() => openFromRail(topic, set)}
               compact={compact}
+            />
+          </div>
+        );
+      })}
+    </>
+  );
+
+  // THE SAME CARDS, ONE TOPIC AT A TIME — what the plan view's horizontal rows are made of.
+  // Deliberately the same VideoCard the grid and the wide rail use: two layouts of one list, not
+  // two lists. `w-[168px] shrink-0` and the snap point are the only things that differ, because
+  // a card in a sideways scroller must not stretch to fill the row.
+  const railCardsFor = (topicId_: string) => (
+    <>
+      {railItems.filter((r) => r.topic.id === topicId_).map(({ set, topic, courseName }) => {
+        const p = progress[set.id];
+        const hasThumb = !!set.playbackId && set.playbackId !== DEMO_PLAYBACK;
+        const locked = set.access === "paid" && !unlockedTopics.has(topic.id);
+        return (
+          <div key={set.id} data-rail-card ref={registerCard(topic.id)} className="w-[168px] shrink-0" style={{ scrollSnapAlign: "start" }}>
+            <VideoCard
+              title={set.name}
+              thumbUrl={hasThumb ? muxThumb(set.playbackId!) : null}
+              durationSec={set.runtimeSec}
+              meta={`${courseName} · ${chip(topic)}`}
+              locked={locked}
+              complete={p?.state === "complete"}
+              watched={p?.durationSec ? Math.min(1, p.positionSec / p.durationSec) : 0}
+              active={playing?.set.id === set.id}
+              onOpen={() => openFromRail(topic, set)}
+              compact
             />
           </div>
         );
@@ -896,46 +1029,30 @@ function LearnShell() {
       style={{ ...modeStyle(mode), fontFamily: "'Rubik', system-ui, sans-serif" }}
     >
       <style>{LEARN_MODE_CSS}</style>
-      {/* NAVBAR — mirrors the Study Canvas navbar shell */}
-      <div className="flex h-11 shrink-0 items-center gap-2 px-3" style={{ background: "rgba(9,14,26,0.97)", borderBottom: `1px solid ${NEON.borderSoft}` }}>
-        <span className="inline-block h-5 w-4"><BrandLogo mode="bolt" c1="#C62828" c2="#1565C0" size={20} /></span>
-        <span className="text-[12px] font-black uppercase tracking-[0.12em]" style={{ color: NEON.text }}>Survive · Learn</span>
-        {demo && <span className="rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider" style={{ color: "#0B1322", background: NEON.cyan }}>Demo</span>}
-        <div className="min-w-0 flex-1" />
-        {campuses.length > 0 && (
-          <select
-            className="max-w-[190px] truncate rounded-lg px-1.5 py-1 text-[11px] font-bold outline-none"
-            style={{ background: "transparent", color: campusId ? NEON.cyan : NEON.muted, border: `1px solid ${NEON.borderSoft}` }}
-            value={campusId ?? ""}
-            onChange={(e) => setCampusId(e.target.value || null)}
-            title="View chapter numbering + order as a specific campus's textbook"
-          >
-            <option value="">Default view</option>
-            {campuses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        )}
-        {userId ? (
-          <div className="flex items-center gap-2">
-            <span className="hidden max-w-[180px] truncate text-[11px] sm:inline" style={{ color: NEON.muted }} title={email ?? undefined}>{email}</span>
-            <button className="grid h-7 w-7 place-items-center rounded-lg" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={signOut} title="Sign out"><LogOut className="h-3.5 w-3.5" /></button>
-          </div>
-        ) : (
-          <button className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold" style={{ color: "#0B1322", background: NEON.yellow }} onClick={() => setSignInOpen(true)}><Mail className="h-3.5 w-3.5" /> Sign in</button>
-        )}
-      </div>
-
-      {/* NARROW: the course map lives behind a button + sheet instead of a fixed sidebar. */}
-      {isNarrow && (
-        <div className="flex h-10 shrink-0 items-center gap-2 px-3" style={{ background: "rgba(9,14,26,0.8)", borderBottom: `1px solid ${NEON.borderSoft}` }}>
-          <button className="flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[11.5px] font-bold" style={{ color: NEON.text, border: `1px solid ${NEON.borderSoft}` }} onClick={() => setMapOpen(true)}>
-            <ListTree className="h-3.5 w-3.5 shrink-0" style={{ color: NEON.yellow }} />
-            <span className="truncate">{current ? (campusId && current.t.number != null ? `Ch ${current.t.number} · ${current.t.name}` : current.t.name) : "Course map"}</span>
-            <ChevronDown className="h-3 w-3 shrink-0" style={{ color: NEON.muted }} />
-          </button>
+      <style>{ACCOUNT_CSS}</style>
+      {/* THE OLD NAVBAR IS GONE (2026-08-31). It was the Study Canvas shell — brand strip, campus
+          <select>, sign-in button — which is chrome for a tool, not for a student surface. What
+          replaces it is LearnHeader: the animated wordmark, the greeting, where you are, and the
+          two controls that must be reachable from every screen (Help, and the house menu). The
+          campus selector and sign-in moved to the Account tab, where setup belongs. */}
+      <LearnHeader
+        name={studentName}
+        examLabel={examTabs.find((e) => e.num === examNum)?.label ?? null}
+        topicLabel={current ? (campusId && current.t.number != null ? `Ch ${current.t.number} · ${current.t.name}` : current.t.name) : null}
+        onPickTopic={() => setMapOpen(true)}
+        onOpenMenu={() => setMenuOpen(true)}
+      />
+      {demo && (
+        <div className="shrink-0 px-4 pb-1">
+          <span className="rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider" style={{ color: "#0B1322", background: NEON.cyan }}>Demo</span>
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1">
+      {/* THE FIXED TAB BAR'S HEIGHT COMES OFF THE WHOLE ROW, not just the centre column. On a
+          wide screen the spine and the up-next rail are their own scrollers running to the
+          bottom of the viewport, so without this their last ~57px sit underneath the bar —
+          measured at 1280x860: asides ended at 860, the bar started at 803. */}
+      <div className="flex min-h-0 flex-1" style={{ paddingBottom: TAB_BAR_SPACER }}>
         {/* ── SPINE — the course map, tracking the rail's scroll. ─────────────────────────── */}
         {!isNarrow && (
           <aside
@@ -971,7 +1088,65 @@ function LearnShell() {
         )}
 
         {/* ── PLAYER — the centre column. ─────────────────────────────────────────────────── */}
+        {/* The bottom padding is the FIXED TAB BAR's height. Without it the last card of the
+            scroll sits underneath the bar and cannot be reached — the classic mobile-app bug. */}
         <main className="min-w-0 flex-1 overflow-y-auto" style={{ padding: isNarrow ? 14 : 20 }}>
+          {/* ── ACCOUNT is a different screen, not a different mode. ──────────────────────── */}
+          {tab === "account" ? (
+            <div className="mx-auto w-full max-w-[520px]">
+              <AccountTab
+                state={setup.state}
+                toggle={setup.toggle}
+                justChecked={setup.justChecked}
+                remaining={setup.remaining}
+                email={email}
+                onSignIn={() => setSignInOpen(true)}
+                onSignOut={signOut}
+              />
+              {/* The campus view moved here from the old navbar: it is setup, and setup lives on
+                  the setup screen. Only campuses with real overrides are offered — the rest
+                  resolve to the course default, so choosing one would change nothing. */}
+              {campuses.length > 0 && (
+                <div className="mt-6 border-t pt-4" style={{ borderColor: "var(--lm-border)" }}>
+                  <p className="text-[12.5px] font-bold" style={{ color: "var(--lm-text)" }}>Chapter numbering</p>
+                  <p className="mt-0.5 text-[12px]" style={{ color: "var(--lm-muted)" }}>
+                    See the course ordered the way your campus's textbook orders it.
+                  </p>
+                  <select
+                    className="mt-2 w-full truncate rounded-lg px-3 text-[14px] font-bold outline-none"
+                    style={{ minHeight: 44, background: "rgba(0,0,0,0.3)", color: campusId ? "var(--lm-accent)" : "var(--lm-muted)", border: "1px solid var(--lm-border)" }}
+                    value={campusId ?? ""}
+                    onChange={(e) => setCampusId(e.target.value || null)}
+                  >
+                    <option value="">Default view</option>
+                    {campuses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              )}
+              <div className="mt-8"><PromoSlider /></div>
+            </div>
+          ) : showPath ? (
+            /* ── THE GUIDED PATH — modes, target grade, then the plan. Shown once. ──────── */
+            <StudyPath
+              sets={planSets}
+              examLabel={examTabs.find((e) => e.num === examNum)?.label ?? null}
+              onSkip={() => { try { localStorage.setItem("sa-learn-path-skipped", "1"); } catch { /* ignore */ } setPathAnswered(true); }}
+              onCommit={(c) => {
+                const rec: PlanCommitment = {
+                  modes: c.modes, grade: c.grade,
+                  estimatedSeconds: c.seconds, estimateMeasured: c.measured,
+                  committedAt: Date.now(), examNum,
+                };
+                writeCommitment(rec);
+                setCommitment(rec);
+                setPathAnswered(true);
+                // The plan's first mode becomes the surface's mode — a student who said "cram
+                // and practice" should land on cram, not on whatever tab was last open.
+                if (c.modes[0]) { setPickedMode(c.modes[0] as LearnMode); setTab(c.modes[0] as LearnTab); }
+              }}
+            />
+          ) : (
+          <>
           {demo && (
             <div className="mb-4 rounded-xl px-3.5 py-2.5 text-[11.5px]" style={{ border: "1px dashed var(--lm-accent)", color: "var(--lm-accent)" }}>
               <b>Demo preview.</b> Placeholder content — nothing here is live and nothing is saved to the server. Drop <span style={{ fontFamily: "monospace" }}>?demo=1</span> from the URL for real data.
@@ -988,29 +1163,11 @@ function LearnShell() {
             courseCode={null}
           />
 
-          {/* MODE SWITCHER — three skins of one surface. */}
-          <div className="mt-3 flex flex-wrap items-center gap-1.5">
-            {LEARN_MODES.map((m) => {
-              const on = m === mode;
-              return (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setPickedMode(m)}
-                  className="rounded-full px-3.5 py-1.5 text-[12px] font-black uppercase tracking-wide"
-                  style={{
-                    background: on ? "var(--lm-accent)" : "transparent",
-                    color: on ? "var(--lm-accent-ink)" : "var(--lm-muted)",
-                    border: `1px solid ${on ? "var(--lm-accent)" : "var(--lm-border)"}`,
-                    cursor: "pointer",
-                  }}
-                >
-                  {MODE_LABEL[m]}
-                </button>
-              );
-            })}
-            <span className="ml-1 text-[11.5px]" style={{ color: "var(--lm-muted)" }}>{MODE_BLURB[mode]}</span>
-          </div>
+          {/* THE MODE CHIP ROW IS GONE (2026-08-31). The bottom tab bar is the mode switcher
+              now, and two controls for one choice — twelve pixels apart in the scroll, on a
+              phone — is how a student ends up unsure which one they are looking at. The blurb
+              rides along under the empty-player frame below, where it still explains the mode
+              without needing a control beside it. */}
 
           <div ref={playerRef} className="mt-4 scroll-mt-4">
             {isError ? (
@@ -1059,16 +1216,37 @@ function LearnShell() {
             )}
           </div>
 
-          {/* NARROW: the rail's cards, inline. A phone has no right-hand column, and a video
-              surface with no videos on it is not a layout choice. */}
+          {/* ── THE PLAN, ON A PHONE ───────────────────────────────────────────────────────────
+              Two layouts, one flag, so Lee can compare them without a deploy:
+
+                RAIL (default) — topics down the page like a syllabus, each topic's videos
+                  scrolling sideways. The vertical axis means "further through the course" and
+                  the horizontal axis means "further through this topic".
+                GRID (?layout=grid) — the two-column card grid this surface had, where scrolling
+                  down means BOTH of those at once, which is why a student cannot tell how far
+                  through they are.
+
+              Wide screens are untouched: they already have a spine on the left and a rail on the
+              right, which is the same information in the space that affords it. */}
           {isNarrow && railItems.length > 0 && (
             <div className="mt-5">
-              <div className="pb-2 text-[9.5px] font-black uppercase tracking-[0.16em]" style={{ color: "var(--lm-muted)" }}>
-                Up next
-              </div>
-              <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}>
-                {railCards(true)}
-              </div>
+              {planLayout === "rail" ? (
+                <PlanView
+                  topics={planTopics}
+                  activeId={topicId}
+                  onPick={(id) => setTopicId(id)}
+                  renderRow={(id) => railCardsFor(id)}
+                />
+              ) : (
+                <>
+                  <div className="pb-2 text-[9.5px] font-black uppercase tracking-[0.16em]" style={{ color: "var(--lm-muted)" }}>
+                    Up next
+                  </div>
+                  <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))" }}>
+                    {railCards(true)}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -1103,6 +1281,12 @@ function LearnShell() {
               Open classic player
             </a>
           </div>
+
+          {/* HOUSE ADS — the bottom-of-scroll slot. Renders nothing while the flag is off; see
+              components/learn/HouseAds.tsx for why it ships dark. */}
+          <div className="mt-6"><PromoSlider /></div>
+          </>
+          )}
         </main>
 
         {/* ── UP NEXT — the scrolling rail the spine follows (wide only; the narrow layout
@@ -1163,12 +1347,22 @@ function LearnShell() {
       {signInOpen && <SignInDialog onClose={() => setSignInOpen(false)} />}
       {/* HONEST-PAYWALL: retryable fetch-failure toast — the honest alternative to a false paywall. */}
       {fetchNote && (
-        <div className="fixed bottom-4 left-1/2 z-[120] flex -translate-x-1/2 items-center gap-3 rounded-xl px-4 py-2.5 text-[12.5px] font-semibold shadow-xl" style={{ background: "#141a2c", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}>
+        // Sits ABOVE the tab bar rather than over it — a toast that covers the navigation is a
+        // toast the student has to dismiss before they can move.
+        <div className="fixed left-1/2 z-[125] flex -translate-x-1/2 items-center gap-3 rounded-xl px-4 py-2.5 text-[12.5px] font-semibold shadow-xl" style={{ bottom: `calc(${TAB_BAR_SPACER} + 12px)`, background: "#141a2c", border: `1px solid ${NEON.borderSoft}`, color: NEON.text }}>
           <span>{fetchNote.msg}</span>
           {fetchNote.retry && <button className="rounded-lg px-2.5 py-1 text-[11.5px] font-black uppercase tracking-wide" style={{ background: NEON.yellow, color: "#0B1322" }} onClick={fetchNote.retry}>Retry</button>}
           <button className="text-[11px] font-bold" style={{ color: NEON.muted }} onClick={() => setFetchNote(null)}>✕</button>
         </div>
       )}
+
+      {/* ── THE APP SHELL'S FURNITURE ─────────────────────────────────────────────────────────
+          The tab bar is always mounted, including behind the guided path: a student who opens
+          the path and decides they want Account instead should not have to finish a setup flow
+          to get there. */}
+      <LearnTabBar active={tab} onPick={pickTab} accountBadge={setup.remaining} />
+      {menuOpen && <LearnMenu onClose={() => setMenuOpen(false)} />}
+      <InstallPrompt />
     </div>
   );
 }
