@@ -93,6 +93,20 @@ export function blankCard(kind: CardData["kind"], preset?: SchedulePreset): Card
         w: 1100,
         h: 660,
       };
+    // BLAST OFF frames: 9:16, authored at half capture size (540x960) so the
+    // whole frame fits on screen without distorting the aspect.
+    case "blastintro":
+      return { kind: "blastintro", topic: "", tutor: "Lee Ingram", w: 540, h: 960 };
+    case "blastfoye":
+      return { kind: "blastfoye", w: 540, h: 960 };
+    case "blastphrase":
+      return { kind: "blastphrase", text: "", w: 540, h: 960 };
+    case "blastcheat":
+      return { kind: "blastcheat", cheatTitle: "", body: "", w: 540, h: 960 };
+    case "blasttip":
+      return { kind: "blasttip", text: "", w: 540, h: 960 };
+    case "blastoutro":
+      return { kind: "blastoutro", w: 540, h: 960 };
     case "memo":
       return { kind: "memo", memoKind: "note", title: "", body: "" };
     case "paygate":
@@ -264,6 +278,12 @@ export function scheduleTemplate(preset: SchedulePreset): CardData {
 }
 
 export const CARD_KIND_LABEL: Record<CardData["kind"], string> = {
+  blastintro: "Blast Off intro",
+  blastfoye: "Found on your exam",
+  blastphrase: "Phrase frame",
+  blastcheat: "Cheat code frame",
+  blasttip: "Tip frame",
+  blastoutro: "Blast Off outro",
   je: "Journal Entry",
   schedule: "Schedule",
   computation: "Computation",
