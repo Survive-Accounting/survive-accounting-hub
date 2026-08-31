@@ -22,6 +22,7 @@ import { FoundOnYourExam } from "@/components/blastoff/FoundOnYourExam";
 import { SurviveIntro } from "@/components/blastoff/SurviveIntro";
 import { SurviveOutro } from "@/components/blastoff/SurviveOutro";
 import { V } from "@/components/blastoff/stage";
+import { HighlightContext, useTextHighlights } from "@/components/canvas/text-highlights";
 import {
   FRAME_LABEL, INSERT_KINDS, insertFrame, moveFrame, newFrameId, reconcilePlan, removeFrame,
   type BlastFrame, type BlastFrameKind, type BlastPlan,
@@ -293,7 +294,7 @@ function FrameView({ frame, set, scale, progress, showAnswer }: {
       return <TipFrame text={frame.text ?? ""} scale={scale} progress={progress} />;
     case "ceq":
       return ceq
-        ? <CeqFrame label={ceq.label} stem={ceq.stem} choices={ceq.choices} showAnswer={showAnswer} scale={scale} progress={progress} />
+        ? <CeqFrame ceqId={ceq.id} label={ceq.label} stem={ceq.stem} choices={ceq.choices} showAnswer={showAnswer} scale={scale} progress={progress} />
         : <CeqFrame stem="This question is no longer in the bank." scale={scale} progress={progress} />;
     case "exhibit":
       return <CeqFrame label="Exhibit" stem={frame.exhibitRef ? `Exhibit: ${frame.exhibitRef}` : "Exhibit — film it from Exhibit Lab"} scale={scale} progress={progress} />;
@@ -311,6 +312,10 @@ function Capture({ set, onExit }: { set: BoothSetInfo; onExit: () => void }) {
   const [i, setI] = useState(0);
   const [answer, setAnswer] = useState(false);
   const [chrome, setChrome] = useState(true);
+  // The SHARED highlight store (canvas/text-highlights) — same gesture, same
+  // offsets, same gold as the canvas. Session-scoped, so marks survive walking
+  // between frames within a rip and die only on ` or leaving capture.
+  const { api: hlApi, clearAll: clearAllTextHls } = useTextHighlights();
 
   const frames = plan?.frames ?? [];
   const n = frames.length;
@@ -324,6 +329,10 @@ function Capture({ set, onExit }: { set: BoothSetInfo; onExit: () => void }) {
         if (e.shiftKey) { setI((v) => Math.max(0, v - 1)); setAnswer(false); }
         else { setI((v) => Math.min(n - 1, v + 1)); setAnswer(false); }
       } else if (e.key === "Enter") { e.preventDefault(); setAnswer((v) => !v); }
+      // ` = the full wipe, same mental model as every other filming surface:
+      // temporary state goes, nothing saved is touched. Lee reaches for this
+      // without thinking, so it has to exist the moment highlighting does.
+      else if (e.code === "Backquote" || e.key === "`") { e.preventDefault(); clearAllTextHls(); setAnswer(false); }
       else if (e.key === "Escape") { e.preventDefault(); onExit(); }
       else if (e.key.toLowerCase() === "h") { e.preventDefault(); setChrome((v) => !v); }
     };
@@ -344,6 +353,7 @@ function Capture({ set, onExit }: { set: BoothSetInfo; onExit: () => void }) {
 
   const frame = frames[Math.min(i, n - 1)];
   return (
+    <HighlightContext.Provider value={hlApi}>
     <div style={{ minHeight: "100vh", background: "#000", display: "grid", placeItems: "center", position: "relative" }}>
       <FrameView frame={frame} set={set} scale={scale} showAnswer={answer} />
       {chrome && (
@@ -354,9 +364,10 @@ function Capture({ set, onExit }: { set: BoothSetInfo; onExit: () => void }) {
         }}>
           <span style={{ color: GOLD, fontWeight: 800 }}>{i + 1} / {n}</span>
           <span>{FRAME_LABEL[frame.kind]}</span>
-          <span>space next · shift+space back · enter answer · H hide this · esc exit</span>
+          <span>space next · shift+space back · enter answer · ` resets · H hide this · esc exit</span>
         </div>
       )}
     </div>
+    </HighlightContext.Provider>
   );
 }
