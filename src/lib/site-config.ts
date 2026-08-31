@@ -47,3 +47,10 @@ export const CAMPAIGN_VIDEO_POSTER = "";
 /** The full written report, as a PDF. Empty = the link under the deck is not rendered, rather
  *  than shipped pointing at a 404. */
 export const CAMPAIGN_REPORT_PDF = "";
+
+// ── /offer/mckenzie ───────────────────────────────────────────────────────────────────────────
+/** Mckenzie's headshot, shown in a circle at the top of the offer. EMPTY until the real photo is
+ *  dropped in — the page renders without it rather than substituting anything.
+ *
+ *  Drop the file at public/offer/mckenzie.jpg and set this to "/offer/mckenzie.jpg". */
+export const OFFER_PHOTO_URL = "";

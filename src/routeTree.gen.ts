@@ -85,6 +85,7 @@ import { Route as OutreachCampaignMetricsRouteImport } from './routes/outreach.c
 import { Route as OutreachBackupsRouteImport } from './routes/outreach.backups'
 import { Route as OutreachActiveRosterRouteImport } from './routes/outreach.active-roster'
 import { Route as OrderShortRefRouteImport } from './routes/order.$shortRef'
+import { Route as OfferMckenzieRouteImport } from './routes/offer.mckenzie'
 import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
 import { Route as LabBoltRouteImport } from './routes/lab.bolt'
 import { Route as JeSplatRouteImport } from './routes/je.$'
@@ -539,6 +540,11 @@ const OrderShortRefRoute = OrderShortRefRouteImport.update({
   path: '/$shortRef',
   getParentRoute: () => OrderRoute,
 } as any)
+const OfferMckenzieRoute = OfferMckenzieRouteImport.update({
+  id: '/offer/mckenzie',
+  path: '/offer/mckenzie',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OShortRefRoute = OShortRefRouteImport.update({
   id: '/o/$shortRef',
   path: '/o/$shortRef',
@@ -944,6 +950,7 @@ export interface FileRoutesByFullPath {
   '/je/$': typeof JeSplatRoute
   '/lab/bolt': typeof LabBoltRoute
   '/o/$shortRef': typeof OShortRefRoute
+  '/offer/mckenzie': typeof OfferMckenzieRoute
   '/order/$shortRef': typeof OrderShortRefRoute
   '/outreach/active-roster': typeof OutreachActiveRosterRoute
   '/outreach/backups': typeof OutreachBackupsRoute
@@ -1088,6 +1095,7 @@ export interface FileRoutesByTo {
   '/je/$': typeof JeSplatRoute
   '/lab/bolt': typeof LabBoltRoute
   '/o/$shortRef': typeof OShortRefRoute
+  '/offer/mckenzie': typeof OfferMckenzieRoute
   '/order/$shortRef': typeof OrderShortRefRoute
   '/outreach/active-roster': typeof OutreachActiveRosterRoute
   '/outreach/backups': typeof OutreachBackupsRoute
@@ -1235,6 +1243,7 @@ export interface FileRoutesById {
   '/je/$': typeof JeSplatRoute
   '/lab/bolt': typeof LabBoltRoute
   '/o/$shortRef': typeof OShortRefRoute
+  '/offer/mckenzie': typeof OfferMckenzieRoute
   '/order/$shortRef': typeof OrderShortRefRoute
   '/outreach/active-roster': typeof OutreachActiveRosterRoute
   '/outreach/backups': typeof OutreachBackupsRoute
@@ -1384,6 +1393,7 @@ export interface FileRouteTypes {
     | '/je/$'
     | '/lab/bolt'
     | '/o/$shortRef'
+    | '/offer/mckenzie'
     | '/order/$shortRef'
     | '/outreach/active-roster'
     | '/outreach/backups'
@@ -1528,6 +1538,7 @@ export interface FileRouteTypes {
     | '/je/$'
     | '/lab/bolt'
     | '/o/$shortRef'
+    | '/offer/mckenzie'
     | '/order/$shortRef'
     | '/outreach/active-roster'
     | '/outreach/backups'
@@ -1674,6 +1685,7 @@ export interface FileRouteTypes {
     | '/je/$'
     | '/lab/bolt'
     | '/o/$shortRef'
+    | '/offer/mckenzie'
     | '/order/$shortRef'
     | '/outreach/active-roster'
     | '/outreach/backups'
@@ -1820,6 +1832,7 @@ export interface RootRouteChildren {
   GoDemoRoute: typeof GoDemoRouteWithChildren
   LabBoltRoute: typeof LabBoltRoute
   OShortRefRoute: typeof OShortRefRoute
+  OfferMckenzieRoute: typeof OfferMckenzieRoute
   PartnersCampusCouncilsRoute: typeof PartnersCampusCouncilsRoute
   PartnersNationalOrganizationsRoute: typeof PartnersNationalOrganizationsRoute
   PreviewExam1Route: typeof PreviewExam1Route
@@ -2392,6 +2405,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/order/$shortRef'
       preLoaderRoute: typeof OrderShortRefRouteImport
       parentRoute: typeof OrderRoute
+    }
+    '/offer/mckenzie': {
+      id: '/offer/mckenzie'
+      path: '/offer/mckenzie'
+      fullPath: '/offer/mckenzie'
+      preLoaderRoute: typeof OfferMckenzieRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/o/$shortRef': {
       id: '/o/$shortRef'
@@ -3127,6 +3147,7 @@ const rootRouteChildren: RootRouteChildren = {
   GoDemoRoute: GoDemoRouteWithChildren,
   LabBoltRoute: LabBoltRoute,
   OShortRefRoute: OShortRefRoute,
+  OfferMckenzieRoute: OfferMckenzieRoute,
   PartnersCampusCouncilsRoute: PartnersCampusCouncilsRoute,
   PartnersNationalOrganizationsRoute: PartnersNationalOrganizationsRoute,
   PreviewExam1Route: PreviewExam1Route,
