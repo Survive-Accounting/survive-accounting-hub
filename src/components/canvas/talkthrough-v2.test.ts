@@ -5,8 +5,8 @@ import { describe, expect, test } from "bun:test";
 import { AI_REGISTRY, costOf, sumUsage } from "@/lib/ai-registry";
 import { isWhisperHallucination } from "./talkthrough-audio";
 import {
-  BOARD_KINDS, emptyDoc, ghostSegments, recentApprovedExamples, styleKindFor, styleNotesFor,
-  type BoardItem, type TalkSegment,
+  BOARD_KINDS, emptyDoc, ghostSegments, isSessionIdle, makeTag, recentApprovedExamples, styleKindFor, styleNotesFor,
+  type BoardItem, type TalkSegment, type TalkSession,
 } from "./talkthrough";
 import {
   buildMicroEditMessages, buildReviewMessages, buildReviewRegenMessages, parseMicroEdit, parseReview,
@@ -185,6 +185,51 @@ describe("ghost sweep — the ones written before the gate existed", () => {
     const d = emptyDoc();
     d.segments.push(seg({ seq: 1, text: "Thank you for watching!", archivedAt: "2026-08-30T00:00:00Z" }));
     expect(ghostSegments(d, "s1", isWhisperHallucination)).toHaveLength(0);
+  });
+});
+
+describe("idle sessions stop claiming to be capturing", () => {
+  const T0 = new Date("2026-08-30T12:00:00Z").getTime();
+  const iso = (msAgo: number) => new Date(T0 - msAgo).toISOString();
+  const mkSession = (over: Partial<TalkSession> = {}): TalkSession => ({
+    id: "s1", setId: "deck-1", setName: "Accounting cycle order",
+    startedAt: iso(24 * 3600_000), endedAt: null,
+    createdAt: iso(24 * 3600_000), updatedAt: iso(24 * 3600_000), syncedAt: null,
+    ...over,
+  });
+  const withSegAt = (msAgo: number) => {
+    const d = emptyDoc();
+    d.sessions.push(mkSession());
+    d.segments.push({
+      id: "g1", sessionId: "s1", seq: 0, text: "words", source: "whisper", whisperPending: false,
+      audioPath: null, focusedCeqId: null, focusedCeqLabel: null,
+      startedAt: iso(msAgo), endedAt: iso(msAgo),
+      createdAt: iso(msAgo), updatedAt: iso(msAgo), syncedAt: null,
+    });
+    return d;
+  };
+
+  test("recent activity is still capturing; an hour of nothing is idle", () => {
+    expect(isSessionIdle(withSegAt(5 * 60_000), mkSession(), T0)).toBe(false);   // 5 min ago
+    expect(isSessionIdle(withSegAt(59 * 60_000), mkSession(), T0)).toBe(false);  // just inside
+    expect(isSessionIdle(withSegAt(61 * 60_000), mkSession(), T0)).toBe(true);   // just past
+    expect(isSessionIdle(withSegAt(23 * 3600_000), mkSession(), T0)).toBe(true); // Lee's real case
+  });
+  test("an ENDED session is never 'idle-open' — it is simply finished", () => {
+    const d = withSegAt(23 * 3600_000);
+    expect(isSessionIdle(d, mkSession({ endedAt: iso(22 * 3600_000) }), T0)).toBe(false);
+  });
+  test("a stamp counts as activity too, not just segments", () => {
+    const d = withSegAt(23 * 3600_000);
+    d.tags.push({
+      ...makeTag("s1", "reword", { ceqId: null, label: null }),
+      at: iso(2 * 60_000), endedAt: iso(60_000),
+    });
+    expect(isSessionIdle(d, mkSession(), T0)).toBe(false);
+  });
+  test("a brand-new session with nothing in it yet is capturing", () => {
+    const d = emptyDoc();
+    expect(isSessionIdle(d, mkSession({ startedAt: iso(30_000) }), T0)).toBe(false);
   });
 });
 

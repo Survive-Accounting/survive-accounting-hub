@@ -367,6 +367,29 @@ export function sessionMeta(d: TTDoc, s: TalkSession): { segments: number; durat
   };
 }
 
+/** The last moment anything happened in a session — its newest segment or
+ *  stamp, falling back to when it started. Used to tell a session that is
+ *  genuinely being captured from one Lee walked away from hours ago. */
+export function lastActivityAt(d: TTDoc, s: TalkSession): string {
+  const segs = sessionSegments(d, s.id);
+  const tags = sessionTags(d, s.id);
+  return [
+    s.startedAt,
+    segs[segs.length - 1]?.endedAt ?? segs[segs.length - 1]?.startedAt,
+    tags[tags.length - 1]?.at,
+  ].filter((x): x is string => !!x)
+    .reduce((a, b) => (new Date(b).getTime() > new Date(a).getTime() ? b : a));
+}
+
+/** An open session with no activity for this long is idle, not capturing. Long
+ *  enough that a real pause — thinking, reading the next CEQ, a coffee — never
+ *  trips it; short enough that a session abandoned overnight stops claiming to
+ *  be live. */
+export const IDLE_AFTER_MS = 60 * 60_000;
+
+export const isSessionIdle = (d: TTDoc, s: TalkSession, now = Date.now()): boolean =>
+  !s.endedAt && now - new Date(lastActivityAt(d, s)).getTime() >= IDLE_AFTER_MS;
+
 /** B7 — style memory's output-kind vocabulary. Every generation call carries
  *  its kind's notes + up to 3 recent APPROVED items of that kind as examples
  *  (context steering, not training). */
