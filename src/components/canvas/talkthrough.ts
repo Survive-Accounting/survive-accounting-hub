@@ -328,6 +328,19 @@ export function sessionSegments(d: TTDoc, sessionId: string): TalkSegment[] {
     .sort((a, b) => a.seq - b.seq || a.startedAt.localeCompare(b.startedAt));
 }
 
+/** GHOST SEGMENTS — Whisper's stock-outro hallucinations that were already
+ *  written before the capture-side gate existed (2026-08-30). The gate stops
+ *  new ones; these are the ones already sitting in the transcript.
+ *
+ *  Transcript Law protects the words LEE SAID. These are machine noise, so
+ *  they can go — but never silently: this only FINDS them, the UI shows the
+ *  exact list, and removal is the usual soft archive (recoverable, syncs like
+ *  any other edit). Only whisper-sourced rows qualify; anything the live mic
+ *  heard is Lee's and is never offered. */
+export function ghostSegments(d: TTDoc, sessionId: string, isGhost: (whisper: string, live: string) => boolean): TalkSegment[] {
+  return sessionSegments(d, sessionId).filter((s) => s.source === "whisper" && isGhost(s.text, ""));
+}
+
 export function sessionTags(d: TTDoc, sessionId: string): TalkTag[] {
   return d.tags.filter((t) => t.sessionId === sessionId && !t.archivedAt).sort((a, b) => a.at.localeCompare(b.at));
 }
@@ -353,6 +366,29 @@ export function sessionMeta(d: TTDoc, s: TalkSession): { segments: number; durat
     words: segs.reduce((n, x) => n + (x.text ? x.text.trim().split(/\s+/).length : 0), 0),
   };
 }
+
+/** The last moment anything happened in a session — its newest segment or
+ *  stamp, falling back to when it started. Used to tell a session that is
+ *  genuinely being captured from one Lee walked away from hours ago. */
+export function lastActivityAt(d: TTDoc, s: TalkSession): string {
+  const segs = sessionSegments(d, s.id);
+  const tags = sessionTags(d, s.id);
+  return [
+    s.startedAt,
+    segs[segs.length - 1]?.endedAt ?? segs[segs.length - 1]?.startedAt,
+    tags[tags.length - 1]?.at,
+  ].filter((x): x is string => !!x)
+    .reduce((a, b) => (new Date(b).getTime() > new Date(a).getTime() ? b : a));
+}
+
+/** An open session with no activity for this long is idle, not capturing. Long
+ *  enough that a real pause — thinking, reading the next CEQ, a coffee — never
+ *  trips it; short enough that a session abandoned overnight stops claiming to
+ *  be live. */
+export const IDLE_AFTER_MS = 60 * 60_000;
+
+export const isSessionIdle = (d: TTDoc, s: TalkSession, now = Date.now()): boolean =>
+  !s.endedAt && now - new Date(lastActivityAt(d, s)).getTime() >= IDLE_AFTER_MS;
 
 /** B7 — style memory's output-kind vocabulary. Every generation call carries
  *  its kind's notes + up to 3 recent APPROVED items of that kind as examples

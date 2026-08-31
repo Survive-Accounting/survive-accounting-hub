@@ -27,13 +27,13 @@ import { AdminGate } from "@/components/AdminGate";
 import { attachOneTakeBlast, loadBoothBank, runMicro, runTalkthroughPass, type BoothCeq, type BoothSetInfo, type BoothTopic } from "@/lib/talkthrough.functions";
 import {
   BOARD_KIND_LABELS, BOARD_KINDS, BOARD_STATUSES, EDIT_STAMPS, STAMP_GROUPS, STAMP_LABELS, canonicalStamp, contextOfSegment, openContext, segmentsInContext, stampLabel,
-  boardForCeq, listSessions, makeSession, makeTag, newTTId, sessionBoard, sessionMeta,
+  boardForCeq, ghostSegments, listSessions, makeSession, makeTag, newTTId, sessionBoard, sessionMeta,
   sessionSegments, sessionTags, touchRow,
   styleNotesFor,
   type BoardItem, type BoardStatus, type StampKind, type TTDoc, type TalkSegment, type TalkSession, type TalkTag,
 } from "@/components/canvas/talkthrough";
-import { flushTT, pullTT, putBoardItem, putBoardItems, putSession, putTag, startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
-import { TalkthroughRecorder, drainWhisperQueue, speechRecognitionAvailable, type BoothStatus } from "@/components/canvas/talkthrough-audio";
+import { flushTT, pullTT, putBoardItem, putBoardItems, putSegment, putSession, putTag, startTT, subscribeTT, ttState, type TTState } from "@/components/canvas/talkthrough-sync";
+import { TalkthroughRecorder, drainWhisperQueue, isWhisperHallucination, speechRecognitionAvailable, type BoothStatus } from "@/components/canvas/talkthrough-audio";
 import { buildMicroEditMessages, extractJsonObject, parseMicroEdit, parsePass, type PassCeq } from "@/components/canvas/talkthrough-pass";
 import { PreFlight, ReviewBoardV2 } from "@/components/canvas/ReviewBoard";
 import { BankView } from "@/components/canvas/BankView";
@@ -330,6 +330,7 @@ function Home({ tt, topics, onOpenSet, onOpenSession }: {
             const board = sessionBoard(tt.doc, s.id);
             const rs = reviewStateOf(tt.doc, s);
             const chip = rs.state === "capturing" ? { t: "CAPTURING", c: "#3BF5A0" }
+              : rs.state === "stale" ? { t: "IDLE", c: NEON.muted as string }
               : rs.state === "queued" ? { t: "QUEUED", c: NEON.muted as string }
               : rs.state === "generating" ? { t: "GENERATING…", c: "#7DD3FC" }
               : rs.state === "ready" ? { t: "READY", c: GOLD }
@@ -340,7 +341,7 @@ function Home({ tt, topics, onOpenSet, onOpenSession }: {
                 <div style={{ color: NEON.muted, fontSize: 12 }}>{new Date(s.startedAt).toLocaleString()}</div>
                 <div style={{ color: NEON.muted, fontSize: 12 }}>{Math.round(m.durationMs / 60000)}m · {m.segments} segments · {m.words} words</div>
                 {board.length > 0 && <div style={{ color: GOLD, fontSize: 11 }}>board: {board.length}</div>}
-                {chip && <div className="rounded-full px-2 py-0.5 text-[9.5px] font-black uppercase tracking-wider" style={{ border: `1px solid ${chip.c}55`, color: chip.c }} title={rs.error ?? undefined}>{chip.t}</div>}
+                {chip && <div className="rounded-full px-2 py-0.5 text-[9.5px] font-black uppercase tracking-wider" style={{ border: `1px solid ${chip.c}55`, color: chip.c }} title={rs.error ?? (rs.state === "stale" ? "Open but nothing captured for over an hour — click to resume; it picks up exactly where you left off." : undefined)}>{chip.t}</div>}
               </button>
             );
           })}
@@ -549,6 +550,7 @@ function Booth({ tt, session, set, topics, onSwitchSet, onEnd }: {
 
         {/* transcript — scrollback upward (B1.4), grouped by context chip */}
         <div className="mt-6 flex flex-col gap-1.5">
+          <GhostSweep doc={tt.doc} sessionId={session.id} />
           {segs.length > showCount && (
             <button className="text-left" style={{ color: NEON.muted, fontSize: 11, background: "transparent", border: "none", cursor: "pointer" }} onClick={() => setShowCount((n) => n + 50)}>
               earlier ↑ ({segs.length - showCount} more)
@@ -753,6 +755,52 @@ function StyleView({ doc }: { doc: TTDoc }) {
   );
 }
 
+/** GHOST SWEEP — the hallucinations Whisper wrote into the transcript before
+ *  the capture-side gate existed. Never removes anything on its own: it shows
+ *  the exact lines and waits for a click. Archive is soft and syncs like any
+ *  other edit, so a mistake is recoverable. */
+function GhostSweep({ doc, sessionId }: { doc: TTDoc; sessionId: string }) {
+  const [open, setOpen] = useState(false);
+  const [done, setDone] = useState(0);
+  const ghosts = useMemo(() => ghostSegments(doc, sessionId, isWhisperHallucination), [doc, sessionId]);
+  if (!ghosts.length) {
+    return done > 0
+      ? <div style={{ color: "#3BF5A0", fontSize: 11, marginBottom: 6 }}>✓ removed {done} ghost segment{done === 1 ? "" : "s"} — archived, not deleted</div>
+      : null;
+  }
+  const remove = () => {
+    const at = new Date().toISOString();
+    for (const g of ghosts) putSegment(touchRow(g, { archivedAt: at } as Partial<TalkSegment>));
+    setDone((n) => n + ghosts.length);
+    setOpen(false);
+  };
+  return (
+    <div className="rounded-xl px-3 py-2" style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.35)", marginBottom: 8 }}>
+      <div className="flex items-center gap-2" style={{ flexWrap: "wrap" }}>
+        <span style={{ fontSize: 11.5, color: "#F87171", fontWeight: 700 }}>
+          {ghosts.length} ghost segment{ghosts.length === 1 ? "" : "s"} — Whisper filled silence with video-outro noise
+        </span>
+        <button className="text-[11px]" style={{ color: NEON.muted, textDecoration: "underline", background: "none", border: "none", cursor: "pointer" }} onClick={() => setOpen((v) => !v)}>
+          {open ? "hide" : "show"}
+        </button>
+        <button className="ml-auto rounded-lg px-2.5 py-1 text-[11px] font-bold" style={{ border: "1.5px solid #F87171", color: "#F87171", background: "transparent", cursor: "pointer" }} onClick={remove}>
+          Remove {ghosts.length}
+        </button>
+      </div>
+      {open && (
+        <div className="mt-2 flex flex-col gap-1">
+          {ghosts.map((g) => (
+            <div key={g.id} style={{ fontSize: 11, color: NEON.muted }}>[S{g.seq}] {g.text.slice(0, 120)}</div>
+          ))}
+        </div>
+      )}
+      <div style={{ fontSize: 9.5, color: NEON.muted, marginTop: 4 }}>
+        Only whisper-sourced lines are offered — anything the live mic heard is yours and is never listed. Removal archives; it never deletes.
+      </div>
+    </div>
+  );
+}
+
 function SegmentLine({ seg, ctx }: { seg: TalkSegment; ctx?: TalkTag | null }) {
   if (!seg.text) return null;
   return (
@@ -896,6 +944,7 @@ function SessionView({ tt, session, set, onResume }: { tt: TTState; session: Tal
         <section className="rounded-2xl p-4" style={{ background: PANEL, border: `1px solid ${EDGE}`, width: 460, flexShrink: 0, maxHeight: "70vh", overflowY: "auto" }}>
           <h3 style={{ fontSize: 10.5, letterSpacing: "0.22em", color: NEON.muted, textTransform: "uppercase", marginBottom: 8 }}>Verbatim transcript</h3>
           {segs.length === 0 && <div style={{ color: NEON.muted, fontSize: 13 }}>Nothing captured yet.</div>}
+          <GhostSweep doc={tt.doc} sessionId={session.id} />
           <div className="flex flex-col gap-2">
             {segs.map((s) => <SegmentLine key={s.id} seg={s} />)}
           </div>

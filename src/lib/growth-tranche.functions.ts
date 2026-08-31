@@ -438,6 +438,7 @@ export interface ExistingContact {
   instagram: string | null;
   isPerson: boolean;
   isRoleAccount: boolean;
+  igRoleAccount: boolean;
 }
 export interface CouncilSlot { type: string; label: string; contacts: ExistingContact[]; notFound: boolean }
 export interface ChapterSlot {
@@ -478,6 +479,7 @@ const toExisting = (c: any): ExistingContact => ({
   instagram: c.instagram ?? null,
   isPerson: isPersonContact(c),
   isRoleAccount: !!c.is_role_account,
+  igRoleAccount: !!c.ig_role_account,
 });
 
 export const growthCampusContactSlots = createServerFn({ method: "GET" })
@@ -487,7 +489,7 @@ export const growthCampusContactSlots = createServerFn({ method: "GET" })
     const [{ data: chapters }, { data: clubs }, { data: contacts }] = await Promise.all([
       db.from("campus_greek_chapters").select("id,council,greek_org_id,chapter_size").eq("campus_id", data.campusId).is("archived_at", null),
       db.from("growth_business_clubs").select("id,name,category").eq("campus_id", data.campusId),
-      db.from("growth_contact_qc").select("id,entity_type,entity_id,council_type,contact_type,name,role,email,instagram,is_role_account").eq("campus_id", data.campusId),
+      db.from("growth_contact_qc").select("id,entity_type,entity_id,council_type,contact_type,name,role,email,instagram,is_role_account,ig_role_account").eq("campus_id", data.campusId),
     ]);
     const orgIds = [...new Set(((chapters ?? []) as any[]).map((c) => c.greek_org_id).filter(Boolean))];
     const orgName = new Map<string, string>();
@@ -595,6 +597,7 @@ const ContactInput = z.object({
   isPerson: z.boolean(),
   notFound: z.boolean().optional(), // "we looked, there's no contact" — a marker row, not a real contact
   isRoleAccount: z.boolean().optional(),
+  igRoleAccount: z.boolean().optional(),
   name: z.string().trim().max(160).nullable().optional(),
   role: z.string().trim().max(160).nullable().optional(),
   email: z.string().trim().max(200).nullable().optional(),
@@ -679,6 +682,7 @@ export const growthSaveCampusContacts = createServerFn({ method: "POST" })
           email: c.email ?? null,
           instagram: c.instagram ?? null,
           isRoleAccount: c.isRoleAccount ?? false,
+          igRoleAccount: c.igRoleAccount ?? false,
         },
       });
       if (r.ok) saved++;

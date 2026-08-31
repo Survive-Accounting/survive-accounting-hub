@@ -601,3 +601,65 @@ B9 (control-room skin): ON HOLD per the prompt — not built.
   An OPEN stamp pulses gold — lights on. Inputs/textareas are exempt.
 - Qs with stamped data light gold (● in the path tree). "General set talk" →
   "General set brainstorm". Sync badge tooltip now explains synced vs unsynced.
+
+## 2026-08-31 — Lee-authorized data action: talkthrough v2 migration RUN
+
+`20260829_0900_talkthrough_v2.sql` applied to production via the house runner
+(`run_sql.ts --apply`; token pulled from Vercel with `vercel env pull` and
+`.env.vercel` deleted immediately after). Four statements, all additive:
+`ended_at timestamptz` and `starred boolean not null default false` on
+`public.talkthrough_tags`, plus their column comments.
+
+VERIFIED BY READ, not by the runner's OK: `information_schema.columns` shows
+both columns live with the right types and default. Then verified by BEHAVIOUR —
+a tag carrying both a closed context window and a star was flushed, pulled back,
+and returned from the server with `ended_at` in the server's `+00:00` format
+(proof it round-tripped rather than sitting local) and `starred: true`. Sync
+drained to 0 pending, no errors. The probe tag was soft-archived afterwards.
+
+Booth stars and context windows now persist across machines; the client's
+strip-and-retry degradation for the missing columns is no longer exercised.
+
+## 2026-08-31 — Ideas to Save (prompt vault) + its migration RUN
+
+`20260831_0900_ideas_vault.sql` applied to production via the house runner
+(token pulled from Vercel, `.env.vercel` deleted immediately after). Verified by
+read: `public.ideas` exists with all 12 columns. Verified by behaviour: an idea
+captured with ⌘I from /blast-off round-tripped with its categories, subcategory
+and auto-captured source path, appeared in /admin/ideas, and ranked correctly in
+Prioritize. The test row was deleted afterwards (0 rows remain).
+
+Design decisions worth keeping: the pill counts only IDEA + DRAFTED, because
+that is the work still in Lee's hands. There is no delete — PARKED is the
+archive. Prioritize is computed per-ask rather than stored, and is allowed to
+answer "none of these — go film", which is often correct. The dock mounts once
+in __root and hides itself on /admin/ideas so it can never cover Prioritize.
+
+## 2026-08-31 — Idea Vault: capture from anywhere (+ migration RUN)
+
+`20260831_1200_ideas_capture_anywhere.sql` applied and verified by read (all
+five columns live: created_by, source_kind, attachments, audio_path,
+transcript_status). Secrets pulled from Vercel and deleted after.
+
+Mobile verified at 375px: no horizontal scroll, manifest linked, drawer
+full-width, mic + attach + categories all reachable. Voice reuses the Talk Box
+transcription path with the same VAD gate and hallucination blocklist, and the
+audio is retained whatever the transcript does.
+
+SMS + email are public webhooks whose ONLY guard is the env allowlist; a test
+pins that an unconfigured path matches nobody, so it fails closed.
+
+### LEE MUST WIRE (not done here — these cost money / change DNS)
+1. Twilio: buy a second number, set its Messaging webhook to
+   `https://surviveaccounting.com/api/ideas/sms` (HTTP POST).
+2. Vercel env: `IDEAS_SMS_LEE`, `IDEAS_SMS_KING`, `IDEAS_SMS_MCKINSEY` (E.164),
+   and `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` if not already set (needed to
+   fetch MMS media).
+3. Inbound email for `ideas@surviveaccounting.co` (note: the prompt says .co,
+   the live domain is .com — confirm which) routed to
+   `https://surviveaccounting.com/api/ideas/email`. Any provider works: the
+   endpoint accepts JSON or form-data and reads Resend/Postmark/SendGrid field
+   names.
+4. Vercel env: `IDEAS_EMAIL_LEE`, `IDEAS_EMAIL_KING`, `IDEAS_EMAIL_MCKINSEY`.
+
+Until 2 and 4 are set the endpoints are live but recognise nobody — by design.

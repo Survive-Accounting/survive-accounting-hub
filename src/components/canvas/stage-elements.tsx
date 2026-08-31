@@ -6,6 +6,7 @@
 // study_.canvas.tsx) were wired to the v1 toolbar, which v2 chrome hides — that's
 // why the palette "disappeared". They live here now, merged, grouped, and sorted
 // alphabetically inside each group.
+import { BlastCheatNode, BlastFoyeNode, BlastIntroNode, BlastOutroNode, BlastPhraseNode, BlastTipNode } from "./cards/BlastOffNodes";
 import { blankCard, formulaAle, scheduleTemplate } from "./templates";
 import { cardId, type CardData } from "./types";
 
@@ -36,13 +37,20 @@ import {
 /** What the Add menu offers. `group` drives the headings; entries sort A→Z inside. */
 export interface StageElementSpec {
   label: string;
-  group: "Teaching" | "Text" | "Data" | "Brand" | "Media";
+  group: "Blast Off" | "Teaching" | "Text" | "Data" | "Brand" | "Media";
   make: () => CardData;
   /** Rough on-stage size, so a fresh element lands centred and unclipped. */
   size?: { w: number; h: number };
 }
 
 export const STAGE_ELEMENTS: StageElementSpec[] = [
+  // — Blast Off: the vertical 9:16 frames. Authored at 540x960 (half capture).
+  { label: "Blast Off intro", group: "Blast Off", make: () => blankCard("blastintro"), size: { w: 540, h: 960 } },
+  { label: "Found on your exam", group: "Blast Off", make: () => blankCard("blastfoye"), size: { w: 540, h: 960 } },
+  { label: "Phrase", group: "Blast Off", make: () => blankCard("blastphrase"), size: { w: 540, h: 960 } },
+  { label: "Cheat code", group: "Blast Off", make: () => blankCard("blastcheat"), size: { w: 540, h: 960 } },
+  { label: "Tip / Trick", group: "Blast Off", make: () => blankCard("blasttip"), size: { w: 540, h: 960 } },
+  { label: "Blast Off outro", group: "Blast Off", make: () => blankCard("blastoutro"), size: { w: 540, h: 960 } },
   // — Teaching: the accounting objects Lee draws on while explaining
   { label: "A = L + E", group: "Teaching", make: () => formulaAle() },
   { label: "Accounting Cycle", group: "Teaching", make: () => blankCard("cycle"), size: { w: 900, h: 560 } },
@@ -91,7 +99,7 @@ export const STAGE_ELEMENTS: StageElementSpec[] = [
   { label: "Video", group: "Media", make: () => blankCard("video") },
 ];
 
-export const STAGE_GROUPS = ["Teaching", "Text", "Data", "Brand", "Media"] as const;
+export const STAGE_GROUPS = ["Blast Off", "Teaching", "Text", "Data", "Brand", "Media"] as const;
 
 /** Grouped + alphabetised, ready to render. */
 export function groupedStageElements(query = ""): { group: string; items: StageElementSpec[] }[] {
@@ -106,6 +114,12 @@ export function groupedStageElements(query = ""): { group: string; items: StageE
  *  previewer exactly as it does on canvas (same code path, no drift). Element kinds
  *  are unwrapped (they never deck, so no face-down wrapper). */
 export const STAGE_NODE_TYPES = {
+  blastintro: BlastIntroNode,
+  blastfoye: BlastFoyeNode,
+  blastphrase: BlastPhraseNode,
+  blastcheat: BlastCheatNode,
+  blasttip: BlastTipNode,
+  blastoutro: BlastOutroNode,
   heading: HeadingCardNode,
   text: TextElementNode,
   list: ListCardNode,

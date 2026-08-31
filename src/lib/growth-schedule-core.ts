@@ -88,9 +88,11 @@ export interface SchedOrg {
 export interface SchedCampus {
   campusId: string;
   name: string;
+  priority: number | null; // outreach send-order; lower first, null last
   orgs: SchedOrg[];
 }
 export interface PriorTouch {
+  id: string;
   campusId: string;
   orgKey: string;
   contactId: string | null;
@@ -129,6 +131,7 @@ export function rankChannels(org: SchedOrg): { contact: SchedContact; channels: 
 
 // ── the plan ─────────────────────────────────────────────────────────────────────────────
 export interface SeqItem {
+  order: number; // position in the day's priority-ordered fill (items + gaps share one sequence)
   date: string;
   campusId: string;
   campusName: string;
@@ -183,15 +186,18 @@ export function orderedOrgs(c: SchedCampus): SchedOrg[] {
   return [...councils, ...chapters, ...clubs];
 }
 
-// Suppression + cooldown from the touch log.
-function orgBlockedUntil(touches: PriorTouch[], campusId: string, orgKey: string): { cooldownUntil: string | null; suppressedUntil: string | null; hostile: boolean } {
+// Suppression + cooldown from the touch log. Only touches scheduled STRICTLY BEFORE `date` block:
+// a touch dated `date` itself is this day's own send, so marking it sent must not make its row
+// vanish from the day it belongs to — cooldown/suppression apply to later days only.
+function orgBlockedUntil(touches: PriorTouch[], campusId: string, orgKey: string, date: string): { cooldownUntil: string | null; suppressedUntil: string | null; hostile: boolean } {
   let cooldownUntil: string | null = null;
   let suppressedUntil: string | null = null;
   let hostile = false;
   for (const t of touches) {
     if (t.campusId !== campusId || t.orgKey !== orgKey) continue;
-    if (t.sentAt) { const c = addDays(t.scheduledDate, ORG_COOLDOWN_DAYS); if (!cooldownUntil || c > cooldownUntil) cooldownUntil = c; }
+    if (t.scheduledDate >= date) continue; // this-day or future touch doesn't block this day
     if (t.outcome === "hostile") hostile = true;
+    if (t.sentAt) { const c = addDays(t.scheduledDate, ORG_COOLDOWN_DAYS); if (!cooldownUntil || c > cooldownUntil) cooldownUntil = c; }
     if (t.repliedAt) { const s = addDays(t.scheduledDate, REPLY_SUPPRESS_DAYS); if (!suppressedUntil || s > suppressedUntil) suppressedUntil = s; }
   }
   return { cooldownUntil, suppressedUntil, hostile };
@@ -233,11 +239,13 @@ export function planRange(input: PlanInput): DayPlan[] {
   const scheduledOrgThisWeek = new Set<string>(); // campusId|orgKey — one contact per org per week (S4)
   const plans: DayPlan[] = [];
 
-  // Flatten targets in a stable campus-depth order.
+  // Campuses in outreach-priority order (lower first, NULL last, stable within a tie). Then each
+  // campus's orgs in their fixed council→chapter→club order. This flat list is THE priority ranking
+  // the day-fill deals from.
+  const orderedCampuses = [...input.campuses].sort((a, b) => (a.priority ?? 1e9) - (b.priority ?? 1e9));
   const targets: { campus: SchedCampus; org: SchedOrg }[] = [];
-  for (const campus of input.campuses) for (const org of orderedOrgs(campus)) targets.push({ campus, org });
+  for (const campus of orderedCampuses) for (const org of orderedOrgs(campus)) targets.push({ campus, org });
 
-  let cursor = 0; // index into targets, advances across days
   for (const date of days) {
     const sender = senderFor(date);
     const { dm: dmCap, email: emailCap } = capsFor(date);
@@ -245,6 +253,7 @@ export function planRange(input: PlanInput): DayPlan[] {
     const dmFollowBudget = doFollow ? followupBudget(dmCap) : 0;
     const emailFollowBudget = doFollow ? followupBudget(emailCap) : 0;
     let dmUsed = 0, emailUsed = 0, dmFollowUsed = 0, emailFollowUsed = 0;
+    let seq = 0; // priority position within the day, shared by items and gaps
     const items: SeqItem[] = [];
     const gaps: SeqItem[] = [];
 
@@ -268,48 +277,54 @@ export function planRange(input: PlanInput): DayPlan[] {
         if (canDm) { dmUsed++; dmFollowUsed++; }
         if (canEmail) { emailUsed++; emailFollowUsed++; }
         scheduledOrgThisWeek.add(`${f.campusId}|${f.orgKey}`);
-        items.push(makeItem(date, campus, org, resolved.contact, use, use.length < chans.length, "follow_up"));
+        items.push(makeItem(seq++, date, campus, org, resolved.contact, use, use.length < chans.length, "follow_up"));
       }
     }
 
-    // 2) New sequences, campus-depth, until both tracks are full for the day.
-    while (cursor < targets.length && (dmUsed < dmCap || emailUsed < emailCap)) {
-      const { campus, org } = targets[cursor];
+    // 2) New sequences — RE-SCAN the whole priority list each day, filling both tracks up to their
+    // caps with real contacts (items) and contactless orgs (gaps, which occupy a slot too). One org
+    // per week (scheduledOrgThisWeek). An org that can't fit today's caps is DEFERRED (continue) to a
+    // later day, never breaking the day early — so email keeps filling when DM is full, and every
+    // slot in the day's budget renders in priority order.
+    for (const { campus, org } of targets) {
+      if (dmUsed >= dmCap && emailUsed >= emailCap) break;
       const wk = `${campus.campusId}|${org.orgKey}`;
-      cursor++;
       if (scheduledOrgThisWeek.has(wk)) continue;
-      const block = orgBlockedUntil(input.touches, campus.campusId, org.orgKey);
+      const block = orgBlockedUntil(input.touches, campus.campusId, org.orgKey, date);
       if (block.hostile) continue;
       if (block.cooldownUntil && date < block.cooldownUntil) continue;
       if (block.suppressedUntil && date < block.suppressedUntil) continue;
 
       const resolved = rankChannels(org);
       if (!resolved) {
-        // Work order — a target with no contact.
-        gaps.push(makeGap(date, campus, org));
+        // Work order — a target with no contact. Occupies a slot on its natural channel.
+        const natural: Track = org.kind === "council" ? "email" : "dm";
+        if (natural === "dm" ? dmUsed >= dmCap : emailUsed >= emailCap) continue; // that track full — another day
+        if (natural === "dm") dmUsed++; else emailUsed++;
+        scheduledOrgThisWeek.add(wk);
+        gaps.push(makeGap(seq++, date, campus, org));
         continue;
       }
       const chans = resolved.channels;
       const wantDm = chans.some((c) => c.track === "dm");
       const wantEmail = chans.some((c) => c.track === "email");
-      // Budget (S6): reserve both, or single-channel on the track with room. Never DM-and-drop-email.
+      // Budget (S6): reserve both, or single-channel on the track with room.
       const roomDm = dmUsed < dmCap, roomEmail = emailUsed < emailCap;
       let use: ChannelPlan[] = [];
       if (wantDm && wantEmail) {
         if (roomDm && roomEmail) { use = chans; dmUsed++; emailUsed++; }
         else if (roomDm) { use = chans.filter((c) => c.track === "dm"); dmUsed++; }
         else if (roomEmail) { use = chans.filter((c) => c.track === "email"); emailUsed++; }
-        else { cursor--; break; } // day full — retry this target tomorrow
+        else continue; // both full — a later target with a free track may still fit
       } else if (wantDm) {
-        if (!roomDm) { cursor--; break; } // keep this target for a day with DM room — but avoid infinite loop below
+        if (!roomDm) continue; // defer to a day with DM room
         use = chans; dmUsed++;
       } else {
-        if (!roomEmail) { cursor--; break; }
+        if (!roomEmail) continue; // defer to a day with email room
         use = chans; emailUsed++;
       }
       scheduledOrgThisWeek.add(wk);
-      items.push(makeItem(date, campus, org, resolved.contact, use, use.length < chans.length, "new"));
-      // guard: if we decremented cursor and broke, stop the while for the day
+      items.push(makeItem(seq++, date, campus, org, resolved.contact, use, use.length < chans.length, "new"));
     }
 
     plans.push({ date, sender, dmCap, emailCap, items, gaps });
@@ -317,9 +332,9 @@ export function planRange(input: PlanInput): DayPlan[] {
   return plans;
 }
 
-function makeItem(date: string, campus: SchedCampus, org: SchedOrg, contact: SchedContact, channels: ChannelPlan[], single: boolean, kind: Kind): SeqItem {
+function makeItem(order: number, date: string, campus: SchedCampus, org: SchedOrg, contact: SchedContact, channels: ChannelPlan[], single: boolean, kind: Kind): SeqItem {
   return {
-    date, campusId: campus.campusId, campusName: campus.name, orgKey: org.orgKey, orgKind: org.kind, orgLabel: org.label,
+    order, date, campusId: campus.campusId, campusName: campus.name, orgKey: org.orgKey, orgKind: org.kind, orgLabel: org.label,
     roleTarget: roleTargetFor(org, contact), kind,
     contactId: contact.id, contactName: contact.name, contactRole: contact.role,
     channels, singleChannel: single,
@@ -328,10 +343,10 @@ function makeItem(date: string, campus: SchedCampus, org: SchedOrg, contact: Sch
     gapLabel: null,
   };
 }
-function makeGap(date: string, campus: SchedCampus, org: SchedOrg): SeqItem {
+function makeGap(order: number, date: string, campus: SchedCampus, org: SchedOrg): SeqItem {
   const roleLabel = org.kind === "council" ? (org.councilType === "fsl" ? "Greek Life / FSL Office" : `${org.label} (officer)`) : org.kind === "chapter" ? org.label : org.label;
   return {
-    date, campusId: campus.campusId, campusName: campus.name, orgKey: org.orgKey, orgKind: org.kind, orgLabel: org.label,
+    order, date, campusId: campus.campusId, campusName: campus.name, orgKey: org.orgKey, orgKind: org.kind, orgLabel: org.label,
     roleTarget: roleTargetFor(org, null), kind: "new",
     contactId: null, contactName: null, contactRole: null, channels: [], singleChannel: false,
     prewarmedAt: null, igFollowed: false, igLiked: false, followUpDate: null,

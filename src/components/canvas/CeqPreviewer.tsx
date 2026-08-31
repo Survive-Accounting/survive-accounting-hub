@@ -41,6 +41,7 @@ import { openPopoutWindow, PanelPopout } from "./PanelPopout";
 import { WorldBackground } from "./WorldBackground";
 import { WORLDS } from "./worlds";
 import { BoltBoil } from "@/components/brand-cards/bolt-boil";
+import { Emph, HighlightContext, SEL_EMPH_CSS, readRangeIn, useTextHighlights } from "./text-highlights";
 import { renderInline } from "./inline-md";
 import { activeSlots, CARD_H, CARD_W, dealCentre, defaultMemoPos, PALETTE_N, paletteSlots, rackOf, resolveCardSpot, resolveMemoSpot, templateFor, withInstanceSpot } from "./ceq-geom";
 export { activeSlots, dealCentre, defaultMemoPos, PALETTE_N, paletteSlots, rackOf } from "./ceq-geom";
@@ -74,15 +75,9 @@ const PracticeContext = createContext<{ emph: number | null; resolved: Set<numbe
  *  keyed by question/memo id, the perfArrows pattern — because node components
  *  DO unmount (memo nodes on every walk-away; the arriving card for one commit
  *  before the arrival-gap fix). Session-level state survives everything. */
-const HighlightContext = createContext<{
-  stem: (qid: string) => { a: number; b: number } | null;
-  setStem: (qid: string, r: { a: number; b: number } | null) => void;
-  choice: (qid: string, i: number) => { a: number; b: number } | null;
-  setChoice: (qid: string, i: number, r: { a: number; b: number }) => void;
-  clearCeq: (qid: string) => void;
-  memo: (mid: string) => { a: number; b: number } | null;
-  setMemo: (mid: string, r: { a: number; b: number } | null) => void;
-}>({ stem: () => null, setStem: () => {}, choice: () => null, setChoice: () => {}, clearCeq: () => {}, memo: () => null, setMemo: () => {} });
+// (HighlightContext, its store, the selection reader, the .sa-sel-emph render
+//  and its CSS now live in ./text-highlights — /blast-off films the same
+//  questions and must not carry a second copy of this gesture.)
 /** The set of currently-revealed chain-memo node ids (read by memo chips). */
 const RevealContext = createContext<Set<string>>(new Set());
 /** Live resize: write a node's data.scale (mini + main store). */
@@ -159,8 +154,7 @@ ${BOSS_REVEAL_CSS}
 .sa-pv-node ::selection { background: rgba(252,163,17,0.9); color: #0B0F1E; }
 /* KEPT SELECTION EMPHASIS (Lee) — after you release, the highlighted text stays BOLD +
    amber; when the memo is spotlit it also grows a touch, so it reads as "spotlighted". */
-.sa-sel-emph { font-weight: 900; background: rgba(252,163,17,0.92); color: #0B0F1E; border-radius: 3px; padding: 0 2px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
-.sa-sel-emph-spot { font-size: 1.18em; }
+${SEL_EMPH_CSS.trim()}
 .sa-pv-node ::-moz-selection { background: rgba(252,163,17,0.9); color: #0B0F1E; }
 /* FREE-ARROW endpoint dots in film: faint (so they barely read on camera) but grabbable,
    and they pop to full on hover so Lee can aim the arrow mid-take. */
@@ -423,13 +417,8 @@ function CeqPreviewNode({ id, data }: NodeProps) {
   const stemPlain = stripInlineMarks(d.stem || "Question");
   const readStemSelection = () => {
     if (!film) return;
-    const el = stemRef.current; const win = el?.ownerDocument.defaultView; const sel = win?.getSelection();
-    if (!el || !sel || sel.rangeCount === 0 || sel.isCollapsed) return;
-    const r = sel.getRangeAt(0);
-    if (!el.contains(r.commonAncestorContainer)) return;
-    const pre = r.cloneRange(); pre.selectNodeContents(el); pre.setEnd(r.startContainer, r.startOffset);
-    const a = pre.toString().length, b = a + r.toString().length;
-    if (b > a) hlx.setStem(id, { a, b });
+    const r = readRangeIn(stemRef.current);
+    if (r) hlx.setStem(id, r);
   };
   const canEditStem = !film && !!editStem && !d.layoutBadge;
   // PERSISTENT TEXT HIGHLIGHTS (Lee, film): choice-text ranges live here; the
@@ -544,7 +533,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
           title={canEditStem ? "Double-click to edit the question" : undefined}
           style={{ minWidth: 0, flex: 1, fontSize: 24 * s, fontWeight: 800, lineHeight: 1.25, color: PAPER.ink, whiteSpace: "pre-wrap", ...(film ? { userSelect: "text", WebkitUserSelect: "text", cursor: "text" } : canEditStem ? { cursor: "text" } : {}) }}
         >
-          {stemSel && stemSel.a < stemPlain.length ? (<>{stemPlain.slice(0, stemSel.a)}<span className="sa-sel-emph">{stemPlain.slice(stemSel.a, stemSel.b)}</span>{stemPlain.slice(stemSel.b)}</>) : renderInline(d.stem || "Question")}
+          <Emph text={stemPlain} range={stemSel} fallback={renderInline(d.stem || "Question")} />
         </div>
         </div>
       )}
@@ -594,7 +583,7 @@ function CeqPreviewNode({ id, data }: NodeProps) {
                     if (b > a) hlx.setChoice(id, i, { a, b });
                   } : undefined}
                   style={film ? { userSelect: "text", WebkitUserSelect: "text" } : undefined}
-                >{(() => { const hc = hlx.choice(id, i); const t = c.text || ""; return hc && hc.a < t.length ? (<>{t.slice(0, hc.a)}<span className="sa-sel-emph">{t.slice(hc.a, hc.b)}</span>{t.slice(hc.b)}</>) : t; })()}</span></TextAnchor>
+                ><Emph text={c.text || ""} range={hlx.choice(id, i)} /></span></TextAnchor>
               </span>
             </div>
           );
@@ -1134,19 +1123,8 @@ function Inner({ transportLeft, transportRight, ceqId, mainRf, mainSig, frameW, 
   // PERFORMANCE ARROWS (Lee) — freehand live-pointer arrows, session-only (never saved).
   const [perfArrows, setPerfArrows] = useState<PerfArrow[]>([]);
   // TEXT HIGHLIGHTS (film) — survive every walk; the backtick wipes; box/memo clicks clear.
-  const [stemHls, setStemHls] = useState<Map<string, { a: number; b: number }>>(() => new Map());
-  const [choiceHls, setChoiceHls] = useState<Map<string, { a: number; b: number }>>(() => new Map());
-  const [memoHls, setMemoHls] = useState<Map<string, { a: number; b: number }>>(() => new Map());
-  const clearAllTextHls = useCallback(() => { setStemHls((m) => (m.size ? new Map() : m)); setChoiceHls((m) => (m.size ? new Map() : m)); setMemoHls((m) => (m.size ? new Map() : m)); }, []);
-  const hlApi = useMemo(() => ({
-    stem: (qid: string) => stemHls.get(qid) ?? null,
-    setStem: (qid: string, r: { a: number; b: number } | null) => setStemHls((m) => { const x = new Map(m); if (r) x.set(qid, r); else x.delete(qid); return x; }),
-    choice: (qid: string, i: number) => choiceHls.get(qid + "|" + i) ?? null,
-    setChoice: (qid: string, i: number, r: { a: number; b: number }) => setChoiceHls((m) => new Map(m).set(qid + "|" + i, r)),
-    clearCeq: (qid: string) => { setStemHls((m) => { if (!m.has(qid)) return m; const x = new Map(m); x.delete(qid); return x; }); setChoiceHls((m) => { const x = new Map([...m].filter(([k]) => !k.startsWith(qid + "|"))); return x.size === m.size ? m : x; }); },
-    memo: (mid: string) => memoHls.get(mid) ?? null,
-    setMemo: (mid: string, r: { a: number; b: number } | null) => setMemoHls((m) => { const x = new Map(m); if (r) x.set(mid, r); else x.delete(mid); return x; }),
-  }), [stemHls, choiceHls, memoHls]);
+  const { api: hlApi, clearAll: clearAllTextHls } = useTextHighlights();
+
   const [selPerf, setSelPerf] = useState<string | null>(null);
   const addPerfArrow = (a: Omit<PerfArrow, "id">) => setPerfArrows((p) => [...p, { ...a, id: `pa${p.length}_${Math.round(a.x2 * 99991)}_${Math.round(a.y2 * 9973)}` }]);
   const [selEdgeIds, setSelEdgeIds] = useState<Set<string>>(new Set());

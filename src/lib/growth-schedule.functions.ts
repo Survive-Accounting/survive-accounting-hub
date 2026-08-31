@@ -27,7 +27,7 @@ const whoNow = async (): Promise<string> => {
 export type Owner = "lee" | "king" | "ej";
 const POOL: Record<Exclude<Owner, "ej">, string> = { lee: "founder", king: "king" };
 
-async function ownerCampusIds(db: DB, owner: Owner): Promise<string[]> {
+export async function ownerCampusIds(db: DB, owner: Owner): Promise<string[]> {
   if (owner === "ej") return [];
   let q = db.from("partner_tranches").select("campus_ids,partner_id,pool").eq("pool", POOL[owner]);
   if (owner === "king") {
@@ -61,16 +61,27 @@ async function fetchOrgMeta(db: DB, orgIds: string[]): Promise<Map<string, { nam
   return out;
 }
 
-async function buildSchedCampuses(db: DB, campusIds: string[]): Promise<{ campuses: SchedCampus[]; slugOf: Map<string, string | null> }> {
-  if (!campusIds.length) return { campuses: [], slugOf: new Map() };
+// Per-campus metadata the board needs beyond the pure engine: colours (for the bolt), and the
+// two readiness axes — data (course code / chapters seeded / colours) and contacts.
+export interface SchedCampusMeta {
+  campusId: string; name: string; slug: string | null;
+  colorPrimary: string | null; colorSecondary: string | null;
+  contactReady: boolean; contactCount: number; coveredCount: number; neededCount: number;
+  dataReady: boolean; dataChecks: { courseCode: boolean; chaptersSeeded: boolean; colors: boolean };
+}
+
+export async function buildSchedCampuses(db: DB, campusIds: string[]): Promise<{ campuses: SchedCampus[]; slugOf: Map<string, string | null>; meta: Map<string, SchedCampusMeta> }> {
+  if (!campusIds.length) return { campuses: [], slugOf: new Map(), meta: new Map() };
   const [camps, chaps, clubs, contacts] = await Promise.all([
-    db.from("campuses").select("id,name,display_name,slug").in("id", campusIds),
+    db.from("campuses").select("id,name,display_name,slug,color_primary,color_secondary,course_family_codes_json,outreach_priority").in("id", campusIds),
     db.from("campus_greek_chapters").select("id,campus_id,greek_org_id,chapter_size").in("campus_id", campusIds).is("archived_at", null),
     db.from("growth_business_clubs").select("id,campus_id,name").in("campus_id", campusIds),
     db.from("growth_contact_qc").select("id,campus_id,entity_type,entity_id,council_type,contact_type,name,role,email,instagram,is_role_account,prewarmed_at,ig_followed,ig_liked").in("campus_id", campusIds),
   ]);
   const orgMeta = await fetchOrgMeta(db, [...new Set(((chaps as any).data ?? []).map((c: any) => c.greek_org_id).filter(Boolean) as string[])]);
+  const campRow = new Map<string, any>(((camps as any).data ?? []).map((c: any) => [c.id, c]));
   const slugOf = new Map<string, string | null>(((camps as any).data ?? []).map((c: any) => [c.id, c.slug ?? null]));
+  const meta = new Map<string, SchedCampusMeta>();
   const nameOf = new Map<string, string>(((camps as any).data ?? []).map((c: any) => [c.id, c.display_name || c.name]));
 
   // group real contacts by campus + target
@@ -105,16 +116,43 @@ async function buildSchedCampuses(db: DB, campusIds: string[]): Promise<{ campus
       const contacts = cs.filter((c) => c.entity_type === "club" && c.entity_id === cl.id).map(toContact);
       orgs.push({ orgKey: `club:${cl.id}`, kind: "club", label: cl.name, councilType: null, orgType: null, rank: null, needed: true, contacts });
     }
-    return { campusId: id, name: nameOf.get(id) ?? id.slice(0, 8), orgs };
+
+    // readiness axes
+    const has = (pred: (o: SchedOrg) => boolean) => orgs.some((o) => pred(o) && o.contacts.length > 0);
+    const frats = orgs.filter((o) => o.kind === "chapter" && o.orgType === "fraternity");
+    const soros = orgs.filter((o) => o.kind === "chapter" && o.orgType === "sorority");
+    const councilOk = has((o) => o.kind === "council");
+    const fratOk = frats.length === 0 || frats.some((o) => o.contacts.length > 0);
+    const soroOk = soros.length === 0 || soros.some((o) => o.contacts.length > 0);
+    const clubOk = has((o) => o.kind === "club");
+    const neededOrgs = orgs.filter((o) => o.kind === "council" || (o.kind === "chapter" && o.needed) || o.kind === "club");
+    const row = campRow.get(id) ?? {};
+    const dataChecks = {
+      courseCode: !!(row.course_family_codes_json?.intro_1),
+      chaptersSeeded: (chapsByCampus.get(id)?.length ?? 0) > 0,
+      colors: !!row.color_primary,
+    };
+    meta.set(id, {
+      campusId: id, name: nameOf.get(id) ?? id.slice(0, 8), slug: row.slug ?? null,
+      colorPrimary: row.color_primary ?? null, colorSecondary: row.color_secondary ?? null,
+      contactReady: councilOk && fratOk && soroOk && clubOk,
+      contactCount: orgs.reduce((n, o) => n + o.contacts.length, 0),
+      coveredCount: neededOrgs.filter((o) => o.contacts.length > 0).length,
+      neededCount: neededOrgs.length,
+      dataReady: dataChecks.courseCode && dataChecks.chaptersSeeded && dataChecks.colors,
+      dataChecks,
+    });
+
+    return { campusId: id, name: nameOf.get(id) ?? id.slice(0, 8), priority: (campRow.get(id)?.outreach_priority ?? null) as number | null, orgs };
   });
-  return { campuses, slugOf };
+  return { campuses, slugOf, meta };
 }
 
 async function fetchTouches(db: DB, campusIds: string[]): Promise<PriorTouch[]> {
   if (!campusIds.length) return [];
-  const { data } = await db.from("outreach_touch").select("campus_id,org_key,contact_qc_id,source_channel,kind,scheduled_date,sent_at,replied_at,outcome").in("campus_id", campusIds);
+  const { data } = await db.from("outreach_touch").select("id,campus_id,org_key,contact_qc_id,source_channel,kind,scheduled_date,sent_at,replied_at,outcome").in("campus_id", campusIds);
   return ((data ?? []) as any[]).map((t) => ({
-    campusId: t.campus_id, orgKey: t.org_key, contactId: t.contact_qc_id, channel: t.source_channel, kind: t.kind,
+    id: t.id, campusId: t.campus_id, orgKey: t.org_key, contactId: t.contact_qc_id, channel: t.source_channel, kind: t.kind,
     scheduledDate: t.scheduled_date, sentAt: t.sent_at, repliedAt: t.replied_at, outcome: t.outcome,
   }));
 }
@@ -142,46 +180,91 @@ function renderMessages(item: SeqItem, slug: string | null): { dm?: string; emai
   return out;
 }
 
-// ── views ────────────────────────────────────────────────────────────────────────────────
-export interface ScheduleItemView extends SeqItem { messages: { dm?: string; email?: string; story?: string }; slug: string | null }
-export interface ScheduleDayView {
-  date: string; sender: string; dmCap: number; emailCap: number;
-  items: ScheduleItemView[]; gaps: SeqItem[];
-  dmUsed: number; emailUsed: number;
+// ── grouped board view: day → [IG column, Email column] → sections → campuses → contacts ──
+export type SchedSection = "councils" | "chapters" | "rep";
+const SECTION_LABEL: Record<SchedSection, string> = { councils: "Councils & FSL", chapters: "Greek Chapters", rep: "Campus Rep Search" };
+const sectionOfKind = (kind: string): SchedSection => (kind === "council" ? "councils" : kind === "chapter" ? "chapters" : "rep");
+
+export interface SchedContactView {
+  channel: "dm" | "email"; gap: boolean; contactId: string | null;
+  orgKey: string; orgLabel: string; isPerson: boolean; name: string | null; role: string | null;
+  handle: string | null; kind: "new" | "follow_up"; messages: { dm?: string; email?: string; story?: string };
+  sent: boolean; replied: boolean; touchId: string | null; // send/reply state from the touch log
 }
+export interface SchedCampusCol extends SchedCampusMeta { contacts: SchedContactView[] }
+export interface SchedSectionCol { section: SchedSection; label: string; campuses: SchedCampusCol[] }
+// budget = the day's cap for this track; filled = real contacts; gaps = contactless slots; the
+// remainder (budget - filled - gaps) is unassigned — no target left this week.
+export interface SchedColumn { channel: "dm" | "email"; readyToSend: number; gaps: number; budget: number; sections: SchedSectionCol[] }
+export interface SchedDay { date: string; sender: string; columns: SchedColumn[] }
 export interface ScheduleWeekView {
   ready: boolean; owner: Owner; weekStart: string;
   weeks: { start: string; end: string; index: number }[];
-  days: ScheduleDayView[];
+  days: SchedDay[];
   stats: { slots: number; gaps: number; sent: number; replies: number };
 }
+
+const emptyCol = (channel: "dm" | "email", budget: number): SchedColumn => ({ channel, readyToSend: 0, gaps: 0, budget, sections: [] });
+const defaultMeta = (cid: string): SchedCampusMeta => ({ campusId: cid, name: cid.slice(0, 8), slug: null, colorPrimary: null, colorSecondary: null, contactReady: false, contactCount: 0, coveredCount: 0, neededCount: 0, dataReady: false, dataChecks: { courseCode: false, chaptersSeeded: false, colors: false } });
 
 export const growthScheduleWeek = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => z.object({ owner: z.enum(["lee", "king", "ej"]), weekStart: z.string() }).parse(d))
   .handler(async ({ data }): Promise<ScheduleWeekView> => {
     const weeks = seasonWeeks();
-    if (data.owner === "ej") return { ready: false, owner: "ej", weekStart: data.weekStart, weeks, days: [], stats: { slots: 0, gaps: 0, sent: 0, replies: 0 } };
+    const from = weekStartOf(data.weekStart);
+    if (data.owner === "ej") return { ready: false, owner: "ej", weekStart: from, weeks, days: [], stats: { slots: 0, gaps: 0, sent: 0, replies: 0 } };
     const db = await adminDb();
     const campusIds = await ownerCampusIds(db, data.owner);
-    const { campuses, slugOf } = await buildSchedCampuses(db, campusIds);
+    const { campuses, slugOf, meta } = await buildSchedCampuses(db, campusIds);
     const touches = await fetchTouches(db, campusIds);
-    const from = weekStartOf(data.weekStart);
     const plan = planRange({ from, to: addDays(from, 6), campuses, touches });
+    const ownerSender = data.owner === "lee" ? "lee" : "king"; // founder-first: only the day's owner populates
 
-    // sent/replied lookup for this week's dates
-    const sentKeys = new Map<string, PriorTouch>();
-    for (const t of touches) sentKeys.set(`${t.scheduledDate}|${t.campusId}|${t.orgKey}`, t);
+    // Index touches so each rendered row can show its real sent/replied state (and the touch id the
+    // sent/replied checkboxes toggle). A DM row is "sent" via a dm OR story_reply touch on its date.
+    const touchAt = (campusId: string, orgKey: string, contactId: string | null, channel: "dm" | "email", date: string) =>
+      touches.find((t) => t.campusId === campusId && t.orgKey === orgKey && t.contactId === contactId && t.scheduledDate === date
+        && (channel === "email" ? t.channel === "email" : t.channel === "dm" || t.channel === "story_reply"));
 
-    const days: ScheduleDayView[] = plan.map((d: DayPlan) => {
-      const items: ScheduleItemView[] = d.items.map((it) => ({ ...it, messages: renderMessages(it, slugOf.get(it.campusId) ?? null), slug: slugOf.get(it.campusId) ?? null }));
-      return {
-        date: d.date, sender: d.sender, dmCap: d.dmCap, emailCap: d.emailCap, items, gaps: d.gaps,
-        dmUsed: d.items.filter((i) => i.channels.some((c) => c.track === "dm")).length,
-        emailUsed: d.items.filter((i) => i.channels.some((c) => c.track === "email")).length,
-      };
+    const contactView = (channel: "dm" | "email", it: SeqItem, date: string): SchedContactView => {
+      const ch = it.channels.find((c) => c.track === channel);
+      const t = touchAt(it.campusId, it.orgKey, it.contactId, channel, date);
+      return { channel, gap: false, contactId: it.contactId, orgKey: it.orgKey, orgLabel: it.orgLabel, isPerson: !!(it.contactName && it.contactName.trim()), name: it.contactName, role: it.contactRole, handle: ch?.handle ?? null, kind: it.kind, messages: renderMessages(it, slugOf.get(it.campusId) ?? null), sent: !!t?.sentAt, replied: !!t?.repliedAt, touchId: t?.id ?? null };
+    };
+    const gapView = (channel: "dm" | "email", g: SeqItem): SchedContactView => ({ channel, gap: true, contactId: null, orgKey: g.orgKey, orgLabel: g.orgLabel, isPerson: false, name: null, role: null, handle: null, kind: "new", messages: {}, sent: false, replied: false, touchId: null });
+
+    const days: SchedDay[] = plan.map((d: DayPlan) => {
+      if (d.sender !== ownerSender) return { date: d.date, sender: d.sender, columns: [emptyCol("dm", d.dmCap), emptyCol("email", d.emailCap)] };
+      const columns: SchedColumn[] = (["dm", "email"] as const).map((channel) => {
+        const budget = channel === "dm" ? d.dmCap : d.emailCap;
+        // Merge items + gaps and re-sort by the engine's priority `order`, so campuses appear in
+        // strict priority order within a section (Ole Miss before LSU), each with its filled and gap
+        // slots interleaved — not all filled campuses first, then all gap ones.
+        const ordered: { order: number; campusId: string; cv: SchedContactView }[] = [];
+        for (const it of d.items) if (it.channels.some((c) => c.track === channel)) ordered.push({ order: it.order, campusId: it.campusId, cv: contactView(channel, it, d.date) });
+        // gaps go in the org's natural channel: councils are email-first, everyone else DM-first
+        for (const g of d.gaps) { const col = g.orgKind === "council" ? "email" : "dm"; if (col === channel) ordered.push({ order: g.order, campusId: g.campusId, cv: gapView(channel, g) }); }
+        const rows = ordered.sort((a, b) => a.order - b.order).map(({ campusId, cv }) => ({ campusId, cv }));
+        const secMap = new Map<SchedSection, Map<string, SchedContactView[]>>();
+        for (const { campusId, cv } of rows) {
+          const sec = sectionOfKind(cv.orgKey.split(":")[0]);
+          const byCampus = secMap.get(sec) ?? new Map<string, SchedContactView[]>();
+          const arr = byCampus.get(campusId) ?? [];
+          arr.push(cv); byCampus.set(campusId, arr); secMap.set(sec, byCampus);
+        }
+        const sections: SchedSectionCol[] = (["councils", "chapters", "rep"] as SchedSection[])
+          .map((section) => {
+            const byCampus = secMap.get(section) ?? new Map<string, SchedContactView[]>();
+            const camps = [...byCampus.entries()].map(([cid, contacts]) => ({ ...(meta.get(cid) ?? defaultMeta(cid)), contacts }));
+            return { section, label: SECTION_LABEL[section], campuses: camps };
+          })
+          .filter((s) => s.campuses.length > 0);
+        return { channel, readyToSend: rows.filter((r) => !r.cv.gap).length, gaps: rows.filter((r) => r.cv.gap).length, budget, sections };
+      });
+      return { date: d.date, sender: d.sender, columns };
     });
-    const allItems = plan.flatMap((d) => d.items);
-    const allGaps = plan.flatMap((d) => d.gaps);
+
+    const allItems = plan.flatMap((d) => d.items), allGaps = plan.flatMap((d) => d.gaps);
     const sent = touches.filter((t) => t.sentAt && t.scheduledDate >= from && t.scheduledDate <= addDays(from, 6)).length;
     const replies = touches.filter((t) => t.repliedAt && t.scheduledDate >= from && t.scheduledDate <= addDays(from, 6)).length;
     return { ready: true, owner: data.owner, weekStart: from, weeks, days, stats: { slots: allItems.length, gaps: allGaps.length, sent, replies } };
@@ -219,6 +302,16 @@ export const growthMarkTouch = createServerFn({ method: "POST" })
   }).parse(d))
   .handler(async ({ data }): Promise<{ ok: boolean; id?: string; error?: string }> => {
     const db = await adminDb(); const who = await whoNow();
+    // Idempotent: the "sent" checkbox may re-fire. One touch per (campus, org, contact, channel, day).
+    let findQ = db.from("outreach_touch").select("id")
+      .eq("campus_id", data.campusId).eq("org_key", data.orgKey).eq("source_channel", data.channel)
+      .eq("scheduled_date", data.scheduledDate);
+    findQ = data.contactId ? findQ.eq("contact_qc_id", data.contactId) : findQ.is("contact_qc_id", null);
+    const { data: existing } = await findQ.maybeSingle();
+    if (existing?.id) {
+      await db.from("outreach_touch").update({ sent_at: new Date().toISOString() }).eq("id", existing.id);
+      return { ok: true, id: existing.id };
+    }
     const { data: ins, error } = await db.from("outreach_touch").insert({
       campus_id: data.campusId, org_key: data.orgKey, contact_qc_id: data.contactId ?? null,
       source_channel: data.channel, sender: data.sender, kind: data.kind, scheduled_date: data.scheduledDate,
@@ -226,6 +319,28 @@ export const growthMarkTouch = createServerFn({ method: "POST" })
     }).select("id").maybeSingle();
     if (error) return { ok: false, error: error.message };
     return { ok: true, id: ins?.id };
+  });
+
+// Un-send: unchecking "sent" removes the touch (which also lifts the org's cooldown). Only touches
+// with no reply logged are removable — a reply is a record we don't silently drop.
+export const growthDeleteTouch = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ touchId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
+    const db = await adminDb();
+    const { error } = await db.from("outreach_touch").delete().eq("id", data.touchId).is("replied_at", null);
+    return error ? { ok: false, error: error.message } : { ok: true };
+  });
+
+// Toggle the "replied" checkbox on an already-sent touch. Sets/clears replied_at; outcome stays null
+// (the richer reply-with-outcome flow is growthMarkReply). replied_at drives the 7-day suppression.
+export const growthMarkReplied = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ touchId: z.string().uuid(), replied: z.boolean() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
+    const db = await adminDb();
+    const { error } = await db.from("outreach_touch")
+      .update({ replied_at: data.replied ? new Date().toISOString() : null, updated_at: new Date().toISOString() })
+      .eq("id", data.touchId);
+    return error ? { ok: false, error: error.message } : { ok: true };
   });
 
 export const growthMarkReply = createServerFn({ method: "POST" })

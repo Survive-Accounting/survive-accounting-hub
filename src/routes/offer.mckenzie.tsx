@@ -1,0 +1,472 @@
+// /offer/mckenzie — a job offer, for Mckenzie.
+//
+// A private page Lee texts to his wife. Not a document: something she opens at an airport, reads
+// in three minutes, and feels something about.
+//
+// ── THE COPY IS LEE'S, VERBATIM ───────────────────────────────────────────────────────────────
+// Every line of prose on this page was written by him and is reproduced exactly — the jokes, the
+// contractions, "plz help", "butterbean", the lot. It is not marketing copy and must never be
+// smoothed into any. If a future pass is tempted to "tighten" a sentence here: don't. The voice
+// IS the product on this page.
+//
+// SHE IS ANALYTICAL, so numbers are stated plainly and never propped up with adjectives. The
+// vision is a table because she will read the numbers first; the terms are a table for the same
+// reason. Nowhere does a word do a number's job.
+//
+// Mobile first — she is opening this on a phone.
+//
+// NO email capture, no urgency, no countdown, no analytics beyond the site pixel, no stock
+// photography. Both buttons text him; she is not a lead.
+//
+// ── THERE IS NO PASSWORD ON THIS PAGE ─────────────────────────────────────────────────────────
+// It had one. OFFER_PASSWORD never reached Vercel, the gate is fail-closed by design, and so it
+// refused everyone including Lee — he asked for it to come off rather than chase the env var.
+// The page is unlisted (noindex, nofollow, linked from nowhere) but it is NOT protected: anyone
+// with the URL can read it, and public/offer/mckenzie.jpg was already fetchable regardless.
+// The working gate is one commit back in history if it is ever wanted again.
+import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+
+import { BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
+import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/components/frames";
+import { useNavyDocument } from "@/components/site/SiteHeader";
+import { BoltBoil } from "@/components/brand-cards/bolt-boil";
+import { DOOR_CARD_CSS, DOOR_CTA_VARS } from "@/components/site/home-two-door/DoorCard";
+import { OFFER_PHOTO_URL } from "@/lib/site-config";
+import { ogMeta } from "@/lib/og";
+import { scrollToId } from "@/lib/ui-scroll";
+
+/** Both buttons and the task CTA open a text to Lee. No form, no fields. */
+const LEE_SMS = "sms:+16012018759";
+
+/** THE GOALS. "~" on every figure because these are goals, not forecasts — she will read them
+ *  as arithmetic and is owed the distinction. One array, read by both the table and the cards. */
+const VISION_ROWS = [
+  { when: "Fall 2026", campuses: "8+ campuses", revenue: "~$42,000" },
+  { when: "Fall 2028", campuses: "50 campuses", revenue: "~$1,000,000" },
+  { when: "Fall 2029", campuses: "250 campuses", revenue: "~$5,000,000" },
+  { when: "Fall 2030", campuses: "500 campuses", revenue: "~$10,000,000" },
+];
+
+/** One array, read by the table and by the phone cards. `bold` is only the title — the thing
+ *  she is actually being offered. */
+const JOB_DETAILS: Array<{ label: string; value: React.ReactNode; bold?: boolean }> = [
+  { label: "Title", value: "Director of Experience", bold: true },
+  { label: "Reports to", value: "Yourself. JK — me too." },
+  { label: "Hours", value: "~10/week to start. Measured in campus launches you assist, not hours." },
+  {
+    label: "Compensation",
+    value: (
+      <>
+        2% of revenue to your spending account. 2% to mine.
+        <br />
+        At $1M/year — the 2030 goal — that&apos;s $20k each.
+      </>
+    ),
+  },
+  { label: "Start date", value: "Monday, September 14" },
+  { label: "Equity", value: "We already own 100% of it together, butterbean." },
+];
+
+const TASK_ID = "task";
+const VISION_ID = "vision";
+
+export const Route = createFileRoute("/offer/mckenzie")({
+  head: () => ({
+    meta: [
+      ...ogMeta({
+        title: "Formal Job Offer — Mckenzie Ingram",
+        description: "Director of Experience · Survive Accounting",
+        path: "/offer/mckenzie",
+      }),
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
+  component: OfferPage,
+});
+
+function OfferPage() {
+  useNavyDocument();
+
+  return (
+    <div
+      style={{
+        ...frameThemeVars(DEFAULT_FRAME_THEME),
+        ...DOOR_CTA_VARS,
+        background: "var(--bg-page)", color: "var(--brand-cream)",
+        minHeight: "100dvh", position: "relative", overflowX: "clip",
+        fontFamily: BRAND_SANS,
+      }}
+    >
+      <style>{DOOR_CARD_CSS}</style>
+      <div style={{ position: "fixed", inset: 0, zIndex: 0 }}>
+        <FrameBackground variant="orbital" intensity={0.3} animate />
+      </div>
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <Offer />
+      </div>
+    </div>
+  );
+}
+
+// ── THE OFFER ─────────────────────────────────────────────────────────────────────────────────
+function Offer() {
+  return (
+    <main className="mx-auto w-full max-w-[680px] px-5 pb-24 pt-10 sm:pt-14">
+      {/* THE HEADSHOT. A circle at the top, the way a job offer carries the person it is for.
+          The slot stays EMPTY until the real photo is dropped in — nothing is substituted. */}
+      {OFFER_PHOTO_URL && (
+        <div className="mb-8 flex justify-center">
+          <div
+            className="relative overflow-hidden"
+            style={{
+              width: 168, height: 168, borderRadius: "50%",
+              boxShadow: "0 20px 50px -20px rgba(0,0,0,0.85)",
+              // A hairline ring so the circle reads as a portrait frame against the navy rather
+              // than as a photo that happens to be round.
+              outline: "1px solid rgba(245,239,230,0.18)", outlineOffset: 2,
+              background: "rgba(0,0,0,0.3)",
+            }}
+          >
+            {/* See the note above: the crop is done by size + offset, not object-fit, because
+                cover cannot reach the top sixth of a 3:4 image inside a square. */}
+            <img
+              src={OFFER_PHOTO_URL}
+              alt="Mckenzie Ingram"
+              className="absolute max-w-none"
+              style={{ width: "209.7%", left: "-40.8%", top: "-11.9%" }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ── 3. HERO ─────────────────────────────────────────────────────────────────────────── */}
+      <section className="text-center">
+        <div className="mx-auto mb-6 inline-block"><BoltBoil height={84} /></div>
+
+        <p className="text-[11.5px] font-black uppercase" style={{ color: "var(--accent)", letterSpacing: "0.18em" }}>
+          Formal job offer
+        </p>
+        <h1 className="mt-3 text-[30px] font-black leading-tight sm:text-[36px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
+          Mckenzie Ingram
+        </h1>
+        <p className="mt-1 text-[17px] font-extrabold" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", opacity: 0.85 }}>
+          Director of Experience
+        </p>
+        <p className="mt-1 text-[13px] uppercase" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>
+          Survive Accounting
+        </p>
+      </section>
+
+      <section className="mt-12 text-center">
+        <p className="mx-auto max-w-[24ch] text-[24px] font-black leading-[1.2] sm:text-[30px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
+          I think I&apos;ve built the road map to a seven-figure business for us.
+        </p>
+        <p className="mx-auto mt-5 max-w-[30ch] text-[17px] font-bold leading-snug" style={{ color: "var(--brand-cream)", opacity: 0.86 }}>
+          I can&apos;t draw the map and drive the car at the same time.
+        </p>
+        {/* Its own line. It is the joke and the actual ask. */}
+        <p className="mt-5 text-[19px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--accent)" }}>
+          plz help
+        </p>
+      </section>
+
+      {/* ── 4. THE JOB ──────────────────────────────────────────────────────────────────────── */}
+      <section className="mt-14">
+        <p className="text-[15px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.9 }}>
+          For Survive to succeed, three people have to have a great experience:
+        </p>
+
+        <div className="mt-4 flex flex-col gap-2">
+          {[
+            ["Campus reps", "sign up and start sharing with chapters immediately"],
+            ["Scholarship chairs", "sign their chapter up and start inviting members"],
+            ["Students", "sign up and start studying"],
+          ].map(([who, what]) => (
+            <div
+              key={who}
+              className="rounded-xl px-4 py-3"
+              style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}
+            >
+              <div className="text-[11.5px] font-black uppercase" style={{ color: "var(--accent)", letterSpacing: "0.14em" }}>{who}</div>
+              <div className="mt-0.5 text-[14px]" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>{what}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6 flex flex-col gap-4 text-[15px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.9 }}>
+          <p>The faster and easier we make it for those three, the faster this grows.</p>
+          <p>
+            This is where you can help. It isn&apos;t a technical role. It&apos;s pulling up what I build on
+            your phone or laptop and telling me when it&apos;s annoying or confusing — and how the
+            process should work instead.
+          </p>
+          <p>
+            I bring the big ideas, the teaching, the videos, and the building. I need you to bring
+            your brain, your Svetlana vibes, and your Leo queen energy.
+          </p>
+          <p>
+            Once there&apos;s enough revenue coming in, we hire VAs — managed by King — until neither of
+            us is doing any of the work.
+          </p>
+        </div>
+      </section>
+
+      {/* ── 5. TWO DOORS ────────────────────────────────────────────────────────────────────── */}
+      <section className="mt-14 grid gap-4 sm:grid-cols-2">
+        <button
+          type="button"
+          onClick={() => scrollToId(TASK_ID)}
+          className="sa-door-card flex flex-col items-center rounded-2xl px-5 py-6 text-center"
+          style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", cursor: "pointer" }}
+        >
+          <span className="mb-3 inline-block"><BoltBoil height={72} /></span>
+          <span className="text-[15px] font-black uppercase" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "0.04em" }}>
+            Try a small task
+          </span>
+          <span className="mt-3 w-full rounded-xl px-4 py-3 text-[14.5px] font-black" style={{ background: "var(--cta-solo-bg)", color: "var(--cta-solo-fg)" }}>
+            A task for the airport →
+          </span>
+          <span className="mt-3 text-[13px]" style={{ color: "var(--text-muted)" }}>Easy to learn. Huge impact.</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => scrollToId(VISION_ID)}
+          className="sa-door-card flex flex-col items-center rounded-2xl px-5 py-6 text-center"
+          style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", cursor: "pointer" }}
+        >
+          <span className="mb-3 inline-block"><GlobeMark height={72} /></span>
+          <span className="text-[15px] font-black uppercase" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "0.04em" }}>
+            See the vision
+          </span>
+          <span className="mt-3 w-full rounded-xl px-4 py-3 text-[14.5px] font-black" style={{ background: "var(--cta-chapter-bg)", color: "var(--cta-chapter-fg)" }}>
+            2030 and beyond →
+          </span>
+          <span className="mt-3 text-[13px]" style={{ color: "var(--text-muted)" }}>500 campuses. New courses, same niche.</span>
+        </button>
+      </section>
+
+      {/* ── 6. THE SMALL TASK ───────────────────────────────────────────────────────────────── */}
+      <section id={TASK_ID} className="sa-anchor mt-14 rounded-2xl px-5 py-6" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
+        <p className="text-[11.5px] font-black uppercase" style={{ color: "var(--accent)", letterSpacing: "0.16em" }}>
+          Your first task — perfect for an airport
+        </p>
+        <h2 className="mt-3 text-[20px] font-black leading-snug" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
+          Find personal Instagram handles for scholarship chairs.
+        </h2>
+        <p className="mt-3 text-[14.5px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.85 }}>
+          It&apos;s the most valuable data we collect. I built a system for finding them at scale.
+        </p>
+        <a
+          href={`${LEE_SMS}?&body=${encodeURIComponent("Walk me through the Instagram handles task")}`}
+          className="mt-5 inline-flex w-full items-center justify-center rounded-xl px-5 text-[15px] font-black sm:w-auto"
+          style={{ minHeight: 52, background: "var(--accent)", color: "#0B1220" }}
+        >
+          I&apos;ll walk you through it →
+        </a>
+      </section>
+
+      {/* ── 7. THE VISION ───────────────────────────────────────────────────────────────────── */}
+      <section id={VISION_ID} className="sa-anchor mt-14">
+        {/* WIDE: a proper table, dollars right-aligned. */}
+        <div className="hidden overflow-hidden rounded-2xl sm:block" style={{ border: "1px solid var(--border-default)" }}>
+          <table className="w-full text-left" style={{ borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "rgba(0,0,0,0.25)" }}>
+                <th className="px-4 py-2.5 text-[10.5px] font-black uppercase" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>When</th>
+                <th className="px-4 py-2.5 text-[10.5px] font-black uppercase" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>Campus goal</th>
+                <th className="px-4 py-2.5 text-right text-[10.5px] font-black uppercase" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>Revenue goal</th>
+              </tr>
+            </thead>
+            <tbody>
+              {VISION_ROWS.map((r, i) => (
+                <tr key={r.when} style={{ borderTop: `1px solid var(--border-subtle)` }}>
+                  <td className="px-4 py-3 text-[13.5px] font-black" style={{ color: "var(--brand-cream)", whiteSpace: "nowrap" }}>{r.when}</td>
+                  <td className="px-4 py-3 text-[13.5px]" style={{ color: "var(--brand-cream)", opacity: 0.85, whiteSpace: "nowrap" }}>{r.campuses}</td>
+                  <td className="px-4 py-3 text-right text-[15px] font-black tabular-nums" style={{ color: "var(--accent)", whiteSpace: "nowrap" }}>{r.revenue}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* NARROW: one card per row. A card cannot truncate, which a squeezed column always can. */}
+        <div className="flex flex-col gap-2 sm:hidden">
+          {VISION_ROWS.map((r) => (
+            <div key={r.when} className="rounded-xl px-4 py-3" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-[13px] font-black" style={{ color: "var(--brand-cream)" }}>{r.when}</span>
+                <span className="text-[16px] font-black tabular-nums" style={{ color: "var(--accent)" }}>{r.revenue}</span>
+              </div>
+              <div className="mt-0.5 text-[12.5px]" style={{ color: "var(--text-muted)" }}>{r.campuses}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Moved out of the table — inside it, it was clutter in a column of goals. */}
+        <p className="mt-3 text-[13.5px]" style={{ color: "var(--text-muted)" }}>
+          That&apos;s about $20k per campus, per year.
+        </p>
+
+        {/* ── WHAT COMES AFTER ACCOUNTING ──────────────────────────────────────────────────── */}
+        <div className="mt-8 rounded-2xl px-5 py-6 text-center" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
+          <div className="mx-auto mb-4 inline-block"><BoltBoil height={56} /></div>
+          <p className="text-[18px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "0.22em" }}>
+            s u r v<span style={{ color: "var(--accent)" }}>⚡</span>v e
+          </p>
+
+          <ul className="mx-auto mt-5 flex max-w-[36ch] flex-col gap-2 text-left" style={{ listStyle: "none", padding: 0, margin: "20px auto 0" }}>
+            {[
+              "Survive Accounting — Intro & Intermediate, complete",
+              "Survive Finance",
+              "Survive Stats",
+              "Survive Chemistry",
+            ].map((line) => (
+              <li key={line} className="flex items-start gap-2.5 text-[14px]" style={{ color: "var(--brand-cream)" }}>
+                <span aria-hidden className="shrink-0 font-black" style={{ color: "var(--accent)" }}>✓</span>
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
+
+          <p className="mt-5 text-[13.5px]" style={{ color: "var(--text-muted)" }}>
+            Same platform. New courses. Same Greek niche. Scales quickly.
+          </p>
+        </div>
+
+        <div className="mt-6 flex flex-col gap-3 text-[15px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.9 }}>
+          <p>
+            Each campus becomes a small business that mostly runs itself — us, some VAs, maybe a few
+            employees at the right time.
+          </p>
+          <p className="font-black" style={{ color: "var(--brand-cream)", opacity: 1 }}>2030 = initiate dream life.</p>
+        </div>
+      </section>
+
+      {/* ── 8. JOB DETAILS ──────────────────────────────────────────────────────────────────
+           Same table-to-blocks switch as the vision, for the same reason: a two-column row with
+           a long value truncates on a phone, and these values are the offer. */}
+      <section className="mt-14">
+        <h2 className="mb-4 text-[11.5px] font-black uppercase" style={{ color: "var(--text-muted)", letterSpacing: "0.16em" }}>
+          Job details
+        </h2>
+
+        {/* WIDE */}
+        <div className="hidden overflow-hidden rounded-2xl sm:block" style={{ border: "1px solid var(--border-default)" }}>
+          <table className="w-full text-left" style={{ borderCollapse: "collapse" }}>
+            <tbody>
+              {JOB_DETAILS.map((d, i) => (
+                <tr key={d.label} style={{ borderTop: i === 0 ? undefined : "1px solid var(--border-subtle)" }}>
+                  <td
+                    className="px-4 py-3.5 align-top text-[10.5px] font-black uppercase"
+                    style={{ color: "var(--text-muted)", letterSpacing: "0.14em", whiteSpace: "nowrap", width: "1%" }}
+                  >
+                    {d.label}
+                  </td>
+                  <td
+                    className="px-4 py-3.5 text-[14.5px] leading-relaxed"
+                    style={{ color: "var(--brand-cream)", fontWeight: d.bold ? 900 : 400 }}
+                  >
+                    {d.value}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* NARROW */}
+        <div className="flex flex-col gap-2 sm:hidden">
+          {JOB_DETAILS.map((d) => (
+            <div key={d.label} className="rounded-xl px-4 py-3" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
+              <div className="text-[10.5px] font-black uppercase" style={{ color: "var(--text-muted)", letterSpacing: "0.14em" }}>{d.label}</div>
+              <div className="mt-1 text-[14.5px] leading-relaxed" style={{ color: "var(--brand-cream)", fontWeight: d.bold ? 900 : 400 }}>{d.value}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── 9. THE CLOSE ────────────────────────────────────────────────────────────────────── */}
+      {/* TYPED, NOT DESIGNED. No bullets, no cards, no accent colour — a letter that happens to
+          be on a webpage. Anything decorative added here would make it read as content. */}
+      <section className="mt-16">
+        <p className="text-[19px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>
+          Time to be a real man
+        </p>
+
+        <div className="mt-4 flex flex-col gap-4 text-[15.5px] leading-relaxed" style={{ color: "var(--brand-cream)", opacity: 0.92 }}>
+          <p>It&apos;s long overdue that I put down my pride and ask you for more help.</p>
+          <p>
+            As Director of Experience, you&apos;ll help us build simple tools and processes for the
+            people who make this business work — campus reps, VAs, scholarship chairs, and the
+            students using Survive to study.
+          </p>
+          <p>
+            I want every student on our platform to feel the way you feel when we go to Costco
+            together.
+          </p>
+          <p>
+            Let&apos;s do this together, because I can&apos;t do it alone. And you&apos;re my favorite person.
+          </p>
+          <p>
+            I know you&apos;ve been struggling with a sense of purpose. I hope this shows you how I see
+            you, and gives you a path to one. A fully delegated business, beautiful babies in a
+            mountain home — mother-in-law suite included. Let&apos;s put some magick together and make
+            it happen.
+          </p>
+          <p>Love you. Can&apos;t wait to see you soon.</p>
+        </div>
+      </section>
+
+      {/* ── 11. BUTTONS ─────────────────────────────────────────────────────────────────────── */}
+      <Answer />
+    </main>
+  );
+}
+
+/** Both text Lee and leave a small confirmation on the page. No form, no fields. */
+function Answer() {
+  const [said, setSaid] = useState<null | "yes" | "talk">(null);
+  return (
+    <section className="mt-12">
+      <div className="grid gap-3 sm:grid-cols-2">
+        <a
+          href={`${LEE_SMS}?&body=${encodeURIComponent("I accept this offer")}`}
+          onClick={() => setSaid("yes")}
+          className="inline-flex items-center justify-center rounded-xl px-5 text-center text-[15px] font-black"
+          style={{ minHeight: 54, background: "var(--cta-solo-bg)", color: "var(--cta-solo-fg)" }}
+        >
+          I accept this offer
+        </a>
+        <a
+          href={`${LEE_SMS}?&body=${encodeURIComponent("Let's talk more about it")}`}
+          onClick={() => setSaid("talk")}
+          className="inline-flex items-center justify-center rounded-xl px-5 text-center text-[15px] font-black"
+          style={{ minHeight: 54, background: "var(--cta-chapter-bg)", color: "var(--cta-chapter-fg)" }}
+        >
+          Let&apos;s talk more about it
+        </a>
+      </div>
+
+      {said && (
+        <p className="mt-4 text-center text-[14px] font-bold" style={{ color: "var(--accent)" }}>
+          {said === "yes" ? "That opened a text to me. Send it and it's official ⚡" : "That opened a text to me — say whatever you want."}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** DOOR 2's mark — a globe, drawn in the same hand-drawn language as the site's other icons. */
+function GlobeMark({ height = 72 }: { height?: number }) {
+  return (
+    <svg viewBox="0 0 72 72" width={height} height={height} fill="none" aria-hidden style={{ display: "block" }}>
+      <circle cx="36" cy="36" r="26" stroke="var(--brand-cream)" strokeWidth={4} />
+      <ellipse cx="36" cy="36" rx="11" ry="26" stroke="var(--brand-cream)" strokeWidth={3.5} />
+      <path d="M11 28 H61" stroke="var(--brand-cream)" strokeWidth={3.5} strokeLinecap="round" />
+      <path d="M11 44 H61" stroke="var(--brand-cream)" strokeWidth={3.5} strokeLinecap="round" />
+      <circle cx="47" cy="24" r="3.5" fill="var(--accent)" />
+    </svg>
+  );
+}

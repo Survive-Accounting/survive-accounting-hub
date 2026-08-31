@@ -37,11 +37,14 @@ import { Route as ExhibitDemoRouteImport } from './routes/exhibit-demo'
 import { Route as ChaptersRouteImport } from './routes/chapters'
 import { Route as CeqRouteImport } from './routes/ceq'
 import { Route as CalloutDemoRouteImport } from './routes/callout-demo'
+import { Route as BlastoffDemoRouteImport } from './routes/blastoff-demo'
+import { Route as BlastOffRouteImport } from './routes/blast-off'
 import { Route as BeyondRouteImport } from './routes/beyond'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UIndexRouteImport } from './routes/u.index'
 import { Route as OutreachIndexRouteImport } from './routes/outreach.index'
 import { Route as SchoolIndexRouteImport } from './routes/$school.index'
+import { Route as VaTokenRouteImport } from './routes/va.$token'
 import { Route as UTokenRouteImport } from './routes/u.$token'
 import { Route as TSlugRouteImport } from './routes/t.$slug'
 import { Route as StudyFoundationsRouteImport } from './routes/study_.foundations'
@@ -83,6 +86,7 @@ import { Route as OutreachCampaignMetricsRouteImport } from './routes/outreach.c
 import { Route as OutreachBackupsRouteImport } from './routes/outreach.backups'
 import { Route as OutreachActiveRosterRouteImport } from './routes/outreach.active-roster'
 import { Route as OrderShortRefRouteImport } from './routes/order.$shortRef'
+import { Route as OfferMckenzieRouteImport } from './routes/offer.mckenzie'
 import { Route as OShortRefRouteImport } from './routes/o.$shortRef'
 import { Route as LabBoltRouteImport } from './routes/lab.bolt'
 import { Route as JeSplatRouteImport } from './routes/je.$'
@@ -94,6 +98,7 @@ import { Route as ApiPracticePackRouteImport } from './routes/api.practice-pack'
 import { Route as ApiBackfillRouteImport } from './routes/api.backfill'
 import { Route as AdminSiteQaRouteImport } from './routes/admin.site-qa'
 import { Route as AdminRepsRouteImport } from './routes/admin.reps'
+import { Route as AdminIdeasRouteImport } from './routes/admin.ideas'
 import { Route as AdminGrowthRouteImport } from './routes/admin.growth'
 import { Route as SchoolRepRouteImport } from './routes/$school.rep'
 import { Route as SCampusIndexRouteImport } from './routes/s.$campus.index'
@@ -116,6 +121,8 @@ import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
 import { Route as CeqIdEditRouteImport } from './routes/ceq.$id.edit'
 import { Route as CeqCourseSlugChapterSlugRouteImport } from './routes/ceq.$courseSlug.$chapterSlug'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe.webhook'
+import { Route as ApiIdeasSmsRouteImport } from './routes/api.ideas.sms'
+import { Route as ApiIdeasEmailRouteImport } from './routes/api.ideas.email'
 import { Route as ApiCronWeeklyDigestRouteImport } from './routes/api.cron.weekly-digest'
 import { Route as ApiCronKingDigestRouteImport } from './routes/api.cron.king-digest'
 import { Route as ApiCronGrowthCampaignsRouteImport } from './routes/api.cron.growth-campaigns'
@@ -147,8 +154,11 @@ import { Route as ApiPartnerKitSchoolCouncilRouteImport } from './routes/api.par
 import { Route as ApiOgSchoolChapterRouteImport } from './routes/api.og.$school.$chapter'
 import { Route as ApiFlyerSchoolChapterRouteImport } from './routes/api.flyer.$school.$chapter'
 import { Route as AdminRepsViewPartnerIdRouteImport } from './routes/admin.reps.view.$partnerId'
+import { Route as AdminGrowthColdoutreachTeamRouteImport } from './routes/admin.growth.coldoutreach.team'
 import { Route as AdminGrowthColdoutreachScheduleRouteImport } from './routes/admin.growth.coldoutreach.schedule'
+import { Route as AdminGrowthColdoutreachFeedbackRouteImport } from './routes/admin.growth.coldoutreach.feedback'
 import { Route as AdminGrowthColdoutreachEngagedRouteImport } from './routes/admin.growth.coldoutreach.engaged'
+import { Route as AdminGrowthColdoutreachActivityRouteImport } from './routes/admin.growth.coldoutreach.activity'
 
 const WelcomeRoute = WelcomeRouteImport.update({
   id: '/welcome',
@@ -290,6 +300,16 @@ const CalloutDemoRoute = CalloutDemoRouteImport.update({
   path: '/callout-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BlastoffDemoRoute = BlastoffDemoRouteImport.update({
+  id: '/blastoff-demo',
+  path: '/blastoff-demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlastOffRoute = BlastOffRouteImport.update({
+  id: '/blast-off',
+  path: '/blast-off',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BeyondRoute = BeyondRouteImport.update({
   id: '/beyond',
   path: '/beyond',
@@ -313,6 +333,11 @@ const OutreachIndexRoute = OutreachIndexRouteImport.update({
 const SchoolIndexRoute = SchoolIndexRouteImport.update({
   id: '/$school/',
   path: '/$school/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VaTokenRoute = VaTokenRouteImport.update({
+  id: '/va/$token',
+  path: '/va/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UTokenRoute = UTokenRouteImport.update({
@@ -524,6 +549,11 @@ const OrderShortRefRoute = OrderShortRefRouteImport.update({
   path: '/$shortRef',
   getParentRoute: () => OrderRoute,
 } as any)
+const OfferMckenzieRoute = OfferMckenzieRouteImport.update({
+  id: '/offer/mckenzie',
+  path: '/offer/mckenzie',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const OShortRefRoute = OShortRefRouteImport.update({
   id: '/o/$shortRef',
   path: '/o/$shortRef',
@@ -577,6 +607,11 @@ const AdminSiteQaRoute = AdminSiteQaRouteImport.update({
 const AdminRepsRoute = AdminRepsRouteImport.update({
   id: '/admin/reps',
   path: '/admin/reps',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminIdeasRoute = AdminIdeasRouteImport.update({
+  id: '/admin/ideas',
+  path: '/admin/ideas',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminGrowthRoute = AdminGrowthRouteImport.update({
@@ -691,6 +726,16 @@ const CeqCourseSlugChapterSlugRoute =
 const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   id: '/api/stripe/webhook',
   path: '/api/stripe/webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiIdeasSmsRoute = ApiIdeasSmsRouteImport.update({
+  id: '/api/ideas/sms',
+  path: '/api/ideas/sms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiIdeasEmailRoute = ApiIdeasEmailRouteImport.update({
+  id: '/api/ideas/email',
+  path: '/api/ideas/email',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCronWeeklyDigestRoute = ApiCronWeeklyDigestRouteImport.update({
@@ -852,10 +897,22 @@ const AdminRepsViewPartnerIdRoute = AdminRepsViewPartnerIdRouteImport.update({
   path: '/view/$partnerId',
   getParentRoute: () => AdminRepsRoute,
 } as any)
+const AdminGrowthColdoutreachTeamRoute =
+  AdminGrowthColdoutreachTeamRouteImport.update({
+    id: '/team',
+    path: '/team',
+    getParentRoute: () => AdminGrowthColdoutreachRoute,
+  } as any)
 const AdminGrowthColdoutreachScheduleRoute =
   AdminGrowthColdoutreachScheduleRouteImport.update({
     id: '/schedule',
     path: '/schedule',
+    getParentRoute: () => AdminGrowthColdoutreachRoute,
+  } as any)
+const AdminGrowthColdoutreachFeedbackRoute =
+  AdminGrowthColdoutreachFeedbackRouteImport.update({
+    id: '/feedback',
+    path: '/feedback',
     getParentRoute: () => AdminGrowthColdoutreachRoute,
   } as any)
 const AdminGrowthColdoutreachEngagedRoute =
@@ -864,10 +921,18 @@ const AdminGrowthColdoutreachEngagedRoute =
     path: '/engaged',
     getParentRoute: () => AdminGrowthColdoutreachRoute,
   } as any)
+const AdminGrowthColdoutreachActivityRoute =
+  AdminGrowthColdoutreachActivityRouteImport.update({
+    id: '/activity',
+    path: '/activity',
+    getParentRoute: () => AdminGrowthColdoutreachRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/beyond': typeof BeyondRoute
+  '/blast-off': typeof BlastOffRoute
+  '/blastoff-demo': typeof BlastoffDemoRoute
   '/callout-demo': typeof CalloutDemoRoute
   '/ceq': typeof CeqRouteWithChildren
   '/chapters': typeof ChaptersRoute
@@ -898,6 +963,7 @@ export interface FileRoutesByFullPath {
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
   '/admin/growth': typeof AdminGrowthRouteWithChildren
+  '/admin/ideas': typeof AdminIdeasRoute
   '/admin/reps': typeof AdminRepsRouteWithChildren
   '/admin/site-qa': typeof AdminSiteQaRoute
   '/api/backfill': typeof ApiBackfillRoute
@@ -909,6 +975,7 @@ export interface FileRoutesByFullPath {
   '/je/$': typeof JeSplatRoute
   '/lab/bolt': typeof LabBoltRoute
   '/o/$shortRef': typeof OShortRefRoute
+  '/offer/mckenzie': typeof OfferMckenzieRoute
   '/order/$shortRef': typeof OrderShortRefRoute
   '/outreach/active-roster': typeof OutreachActiveRosterRoute
   '/outreach/backups': typeof OutreachBackupsRoute
@@ -950,6 +1017,7 @@ export interface FileRoutesByFullPath {
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/u/$token': typeof UTokenRoute
+  '/va/$token': typeof VaTokenRoute
   '/$school/': typeof SchoolIndexRoute
   '/outreach/': typeof OutreachIndexRoute
   '/u/': typeof UIndexRoute
@@ -976,6 +1044,8 @@ export interface FileRoutesByFullPath {
   '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
+  '/api/ideas/email': typeof ApiIdeasEmailRoute
+  '/api/ideas/sms': typeof ApiIdeasSmsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
@@ -996,8 +1066,11 @@ export interface FileRoutesByFullPath {
   '/go/$school/': typeof GoSchoolIndexRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
   '/s/$campus/': typeof SCampusIndexRoute
+  '/admin/growth/coldoutreach/activity': typeof AdminGrowthColdoutreachActivityRoute
   '/admin/growth/coldoutreach/engaged': typeof AdminGrowthColdoutreachEngagedRoute
+  '/admin/growth/coldoutreach/feedback': typeof AdminGrowthColdoutreachFeedbackRoute
   '/admin/growth/coldoutreach/schedule': typeof AdminGrowthColdoutreachScheduleRoute
+  '/admin/growth/coldoutreach/team': typeof AdminGrowthColdoutreachTeamRoute
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
@@ -1010,6 +1083,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/beyond': typeof BeyondRoute
+  '/blast-off': typeof BlastOffRoute
+  '/blastoff-demo': typeof BlastoffDemoRoute
   '/callout-demo': typeof CalloutDemoRoute
   '/ceq': typeof CeqRouteWithChildren
   '/chapters': typeof ChaptersRoute
@@ -1038,6 +1113,7 @@ export interface FileRoutesByTo {
   '/waitlist': typeof WaitlistRoute
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
+  '/admin/ideas': typeof AdminIdeasRoute
   '/admin/site-qa': typeof AdminSiteQaRoute
   '/api/backfill': typeof ApiBackfillRoute
   '/api/practice-pack': typeof ApiPracticePackRoute
@@ -1048,6 +1124,7 @@ export interface FileRoutesByTo {
   '/je/$': typeof JeSplatRoute
   '/lab/bolt': typeof LabBoltRoute
   '/o/$shortRef': typeof OShortRefRoute
+  '/offer/mckenzie': typeof OfferMckenzieRoute
   '/order/$shortRef': typeof OrderShortRefRoute
   '/outreach/active-roster': typeof OutreachActiveRosterRoute
   '/outreach/backups': typeof OutreachBackupsRoute
@@ -1089,6 +1166,7 @@ export interface FileRoutesByTo {
   '/study/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/u/$token': typeof UTokenRoute
+  '/va/$token': typeof VaTokenRoute
   '/$school': typeof SchoolIndexRoute
   '/outreach': typeof OutreachIndexRoute
   '/u': typeof UIndexRoute
@@ -1114,6 +1192,8 @@ export interface FileRoutesByTo {
   '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
+  '/api/ideas/email': typeof ApiIdeasEmailRoute
+  '/api/ideas/sms': typeof ApiIdeasSmsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
@@ -1134,8 +1214,11 @@ export interface FileRoutesByTo {
   '/go/$school': typeof GoSchoolIndexRoute
   '/outreach/leadfinder': typeof OutreachLeadfinderIndexRoute
   '/s/$campus': typeof SCampusIndexRoute
+  '/admin/growth/coldoutreach/activity': typeof AdminGrowthColdoutreachActivityRoute
   '/admin/growth/coldoutreach/engaged': typeof AdminGrowthColdoutreachEngagedRoute
+  '/admin/growth/coldoutreach/feedback': typeof AdminGrowthColdoutreachFeedbackRoute
   '/admin/growth/coldoutreach/schedule': typeof AdminGrowthColdoutreachScheduleRoute
+  '/admin/growth/coldoutreach/team': typeof AdminGrowthColdoutreachTeamRoute
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
@@ -1149,6 +1232,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/beyond': typeof BeyondRoute
+  '/blast-off': typeof BlastOffRoute
+  '/blastoff-demo': typeof BlastoffDemoRoute
   '/callout-demo': typeof CalloutDemoRoute
   '/ceq': typeof CeqRouteWithChildren
   '/chapters': typeof ChaptersRoute
@@ -1179,6 +1264,7 @@ export interface FileRoutesById {
   '/welcome': typeof WelcomeRoute
   '/$school/rep': typeof SchoolRepRoute
   '/admin/growth': typeof AdminGrowthRouteWithChildren
+  '/admin/ideas': typeof AdminIdeasRoute
   '/admin/reps': typeof AdminRepsRouteWithChildren
   '/admin/site-qa': typeof AdminSiteQaRoute
   '/api/backfill': typeof ApiBackfillRoute
@@ -1190,6 +1276,7 @@ export interface FileRoutesById {
   '/je/$': typeof JeSplatRoute
   '/lab/bolt': typeof LabBoltRoute
   '/o/$shortRef': typeof OShortRefRoute
+  '/offer/mckenzie': typeof OfferMckenzieRoute
   '/order/$shortRef': typeof OrderShortRefRoute
   '/outreach/active-roster': typeof OutreachActiveRosterRoute
   '/outreach/backups': typeof OutreachBackupsRoute
@@ -1231,6 +1318,7 @@ export interface FileRoutesById {
   '/study_/foundations': typeof StudyFoundationsRoute
   '/t/$slug': typeof TSlugRoute
   '/u/$token': typeof UTokenRoute
+  '/va/$token': typeof VaTokenRoute
   '/$school/': typeof SchoolIndexRoute
   '/outreach/': typeof OutreachIndexRoute
   '/u/': typeof UIndexRoute
@@ -1257,6 +1345,8 @@ export interface FileRoutesById {
   '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
+  '/api/ideas/email': typeof ApiIdeasEmailRoute
+  '/api/ideas/sms': typeof ApiIdeasSmsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
@@ -1277,8 +1367,11 @@ export interface FileRoutesById {
   '/go/$school/': typeof GoSchoolIndexRoute
   '/outreach/leadfinder/': typeof OutreachLeadfinderIndexRoute
   '/s/$campus/': typeof SCampusIndexRoute
+  '/admin/growth/coldoutreach/activity': typeof AdminGrowthColdoutreachActivityRoute
   '/admin/growth/coldoutreach/engaged': typeof AdminGrowthColdoutreachEngagedRoute
+  '/admin/growth/coldoutreach/feedback': typeof AdminGrowthColdoutreachFeedbackRoute
   '/admin/growth/coldoutreach/schedule': typeof AdminGrowthColdoutreachScheduleRoute
+  '/admin/growth/coldoutreach/team': typeof AdminGrowthColdoutreachTeamRoute
   '/admin/reps/view/$partnerId': typeof AdminRepsViewPartnerIdRoute
   '/api/flyer/$school/$chapter': typeof ApiFlyerSchoolChapterRoute
   '/api/og/$school/$chapter': typeof ApiOgSchoolChapterRoute
@@ -1293,6 +1386,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/beyond'
+    | '/blast-off'
+    | '/blastoff-demo'
     | '/callout-demo'
     | '/ceq'
     | '/chapters'
@@ -1323,6 +1418,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/$school/rep'
     | '/admin/growth'
+    | '/admin/ideas'
     | '/admin/reps'
     | '/admin/site-qa'
     | '/api/backfill'
@@ -1334,6 +1430,7 @@ export interface FileRouteTypes {
     | '/je/$'
     | '/lab/bolt'
     | '/o/$shortRef'
+    | '/offer/mckenzie'
     | '/order/$shortRef'
     | '/outreach/active-roster'
     | '/outreach/backups'
@@ -1375,6 +1472,7 @@ export interface FileRouteTypes {
     | '/study/foundations'
     | '/t/$slug'
     | '/u/$token'
+    | '/va/$token'
     | '/$school/'
     | '/outreach/'
     | '/u/'
@@ -1401,6 +1499,8 @@ export interface FileRouteTypes {
     | '/api/cron/growth-campaigns'
     | '/api/cron/king-digest'
     | '/api/cron/weekly-digest'
+    | '/api/ideas/email'
+    | '/api/ideas/sms'
     | '/api/stripe/webhook'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
@@ -1421,8 +1521,11 @@ export interface FileRouteTypes {
     | '/go/$school/'
     | '/outreach/leadfinder/'
     | '/s/$campus/'
+    | '/admin/growth/coldoutreach/activity'
     | '/admin/growth/coldoutreach/engaged'
+    | '/admin/growth/coldoutreach/feedback'
     | '/admin/growth/coldoutreach/schedule'
+    | '/admin/growth/coldoutreach/team'
     | '/admin/reps/view/$partnerId'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
@@ -1435,6 +1538,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/beyond'
+    | '/blast-off'
+    | '/blastoff-demo'
     | '/callout-demo'
     | '/ceq'
     | '/chapters'
@@ -1463,6 +1568,7 @@ export interface FileRouteTypes {
     | '/waitlist'
     | '/welcome'
     | '/$school/rep'
+    | '/admin/ideas'
     | '/admin/site-qa'
     | '/api/backfill'
     | '/api/practice-pack'
@@ -1473,6 +1579,7 @@ export interface FileRouteTypes {
     | '/je/$'
     | '/lab/bolt'
     | '/o/$shortRef'
+    | '/offer/mckenzie'
     | '/order/$shortRef'
     | '/outreach/active-roster'
     | '/outreach/backups'
@@ -1514,6 +1621,7 @@ export interface FileRouteTypes {
     | '/study/foundations'
     | '/t/$slug'
     | '/u/$token'
+    | '/va/$token'
     | '/$school'
     | '/outreach'
     | '/u'
@@ -1539,6 +1647,8 @@ export interface FileRouteTypes {
     | '/api/cron/growth-campaigns'
     | '/api/cron/king-digest'
     | '/api/cron/weekly-digest'
+    | '/api/ideas/email'
+    | '/api/ideas/sms'
     | '/api/stripe/webhook'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
@@ -1559,8 +1669,11 @@ export interface FileRouteTypes {
     | '/go/$school'
     | '/outreach/leadfinder'
     | '/s/$campus'
+    | '/admin/growth/coldoutreach/activity'
     | '/admin/growth/coldoutreach/engaged'
+    | '/admin/growth/coldoutreach/feedback'
     | '/admin/growth/coldoutreach/schedule'
+    | '/admin/growth/coldoutreach/team'
     | '/admin/reps/view/$partnerId'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
@@ -1573,6 +1686,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/beyond'
+    | '/blast-off'
+    | '/blastoff-demo'
     | '/callout-demo'
     | '/ceq'
     | '/chapters'
@@ -1603,6 +1718,7 @@ export interface FileRouteTypes {
     | '/welcome'
     | '/$school/rep'
     | '/admin/growth'
+    | '/admin/ideas'
     | '/admin/reps'
     | '/admin/site-qa'
     | '/api/backfill'
@@ -1614,6 +1730,7 @@ export interface FileRouteTypes {
     | '/je/$'
     | '/lab/bolt'
     | '/o/$shortRef'
+    | '/offer/mckenzie'
     | '/order/$shortRef'
     | '/outreach/active-roster'
     | '/outreach/backups'
@@ -1655,6 +1772,7 @@ export interface FileRouteTypes {
     | '/study_/foundations'
     | '/t/$slug'
     | '/u/$token'
+    | '/va/$token'
     | '/$school/'
     | '/outreach/'
     | '/u/'
@@ -1681,6 +1799,8 @@ export interface FileRouteTypes {
     | '/api/cron/growth-campaigns'
     | '/api/cron/king-digest'
     | '/api/cron/weekly-digest'
+    | '/api/ideas/email'
+    | '/api/ideas/sms'
     | '/api/stripe/webhook'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
@@ -1701,8 +1821,11 @@ export interface FileRouteTypes {
     | '/go/$school/'
     | '/outreach/leadfinder/'
     | '/s/$campus/'
+    | '/admin/growth/coldoutreach/activity'
     | '/admin/growth/coldoutreach/engaged'
+    | '/admin/growth/coldoutreach/feedback'
     | '/admin/growth/coldoutreach/schedule'
+    | '/admin/growth/coldoutreach/team'
     | '/admin/reps/view/$partnerId'
     | '/api/flyer/$school/$chapter'
     | '/api/og/$school/$chapter'
@@ -1716,6 +1839,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BeyondRoute: typeof BeyondRoute
+  BlastOffRoute: typeof BlastOffRoute
+  BlastoffDemoRoute: typeof BlastoffDemoRoute
   CalloutDemoRoute: typeof CalloutDemoRoute
   CeqRoute: typeof CeqRouteWithChildren
   ChaptersRoute: typeof ChaptersRoute
@@ -1746,6 +1871,7 @@ export interface RootRouteChildren {
   WelcomeRoute: typeof WelcomeRoute
   SchoolRepRoute: typeof SchoolRepRoute
   AdminGrowthRoute: typeof AdminGrowthRouteWithChildren
+  AdminIdeasRoute: typeof AdminIdeasRoute
   AdminRepsRoute: typeof AdminRepsRouteWithChildren
   AdminSiteQaRoute: typeof AdminSiteQaRoute
   ApiBackfillRoute: typeof ApiBackfillRoute
@@ -1755,6 +1881,7 @@ export interface RootRouteChildren {
   GoDemoRoute: typeof GoDemoRouteWithChildren
   LabBoltRoute: typeof LabBoltRoute
   OShortRefRoute: typeof OShortRefRoute
+  OfferMckenzieRoute: typeof OfferMckenzieRoute
   PartnersCampusCouncilsRoute: typeof PartnersCampusCouncilsRoute
   PartnersNationalOrganizationsRoute: typeof PartnersNationalOrganizationsRoute
   PreviewExam1Route: typeof PreviewExam1Route
@@ -1769,6 +1896,7 @@ export interface RootRouteChildren {
   StudyFoundationsRoute: typeof StudyFoundationsRoute
   TSlugRoute: typeof TSlugRoute
   UTokenRoute: typeof UTokenRoute
+  VaTokenRoute: typeof VaTokenRoute
   SchoolIndexRoute: typeof SchoolIndexRoute
   UIndexRoute: typeof UIndexRoute
   ApiCronBackupRoute: typeof ApiCronBackupRoute
@@ -1777,6 +1905,8 @@ export interface RootRouteChildren {
   ApiCronGrowthCampaignsRoute: typeof ApiCronGrowthCampaignsRoute
   ApiCronKingDigestRoute: typeof ApiCronKingDigestRoute
   ApiCronWeeklyDigestRoute: typeof ApiCronWeeklyDigestRoute
+  ApiIdeasEmailRoute: typeof ApiIdeasEmailRoute
+  ApiIdeasSmsRoute: typeof ApiIdeasSmsRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
   GoSchoolChapterRoute: typeof GoSchoolChapterRoute
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
@@ -1992,6 +2122,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CalloutDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/blastoff-demo': {
+      id: '/blastoff-demo'
+      path: '/blastoff-demo'
+      fullPath: '/blastoff-demo'
+      preLoaderRoute: typeof BlastoffDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blast-off': {
+      id: '/blast-off'
+      path: '/blast-off'
+      fullPath: '/blast-off'
+      preLoaderRoute: typeof BlastOffRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/beyond': {
       id: '/beyond'
       path: '/beyond'
@@ -2025,6 +2169,13 @@ declare module '@tanstack/react-router' {
       path: '/$school'
       fullPath: '/$school/'
       preLoaderRoute: typeof SchoolIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/va/$token': {
+      id: '/va/$token'
+      path: '/va/$token'
+      fullPath: '/va/$token'
+      preLoaderRoute: typeof VaTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/u/$token': {
@@ -2314,6 +2465,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrderShortRefRouteImport
       parentRoute: typeof OrderRoute
     }
+    '/offer/mckenzie': {
+      id: '/offer/mckenzie'
+      path: '/offer/mckenzie'
+      fullPath: '/offer/mckenzie'
+      preLoaderRoute: typeof OfferMckenzieRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/o/$shortRef': {
       id: '/o/$shortRef'
       path: '/o/$shortRef'
@@ -2389,6 +2547,13 @@ declare module '@tanstack/react-router' {
       path: '/admin/reps'
       fullPath: '/admin/reps'
       preLoaderRoute: typeof AdminRepsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/ideas': {
+      id: '/admin/ideas'
+      path: '/admin/ideas'
+      fullPath: '/admin/ideas'
+      preLoaderRoute: typeof AdminIdeasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/growth': {
@@ -2543,6 +2708,20 @@ declare module '@tanstack/react-router' {
       path: '/api/stripe/webhook'
       fullPath: '/api/stripe/webhook'
       preLoaderRoute: typeof ApiStripeWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ideas/sms': {
+      id: '/api/ideas/sms'
+      path: '/api/ideas/sms'
+      fullPath: '/api/ideas/sms'
+      preLoaderRoute: typeof ApiIdeasSmsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ideas/email': {
+      id: '/api/ideas/email'
+      path: '/api/ideas/email'
+      fullPath: '/api/ideas/email'
+      preLoaderRoute: typeof ApiIdeasEmailRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/cron/weekly-digest': {
@@ -2762,6 +2941,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRepsViewPartnerIdRouteImport
       parentRoute: typeof AdminRepsRoute
     }
+    '/admin/growth/coldoutreach/team': {
+      id: '/admin/growth/coldoutreach/team'
+      path: '/team'
+      fullPath: '/admin/growth/coldoutreach/team'
+      preLoaderRoute: typeof AdminGrowthColdoutreachTeamRouteImport
+      parentRoute: typeof AdminGrowthColdoutreachRoute
+    }
     '/admin/growth/coldoutreach/schedule': {
       id: '/admin/growth/coldoutreach/schedule'
       path: '/schedule'
@@ -2769,11 +2955,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminGrowthColdoutreachScheduleRouteImport
       parentRoute: typeof AdminGrowthColdoutreachRoute
     }
+    '/admin/growth/coldoutreach/feedback': {
+      id: '/admin/growth/coldoutreach/feedback'
+      path: '/feedback'
+      fullPath: '/admin/growth/coldoutreach/feedback'
+      preLoaderRoute: typeof AdminGrowthColdoutreachFeedbackRouteImport
+      parentRoute: typeof AdminGrowthColdoutreachRoute
+    }
     '/admin/growth/coldoutreach/engaged': {
       id: '/admin/growth/coldoutreach/engaged'
       path: '/engaged'
       fullPath: '/admin/growth/coldoutreach/engaged'
       preLoaderRoute: typeof AdminGrowthColdoutreachEngagedRouteImport
+      parentRoute: typeof AdminGrowthColdoutreachRoute
+    }
+    '/admin/growth/coldoutreach/activity': {
+      id: '/admin/growth/coldoutreach/activity'
+      path: '/activity'
+      fullPath: '/admin/growth/coldoutreach/activity'
+      preLoaderRoute: typeof AdminGrowthColdoutreachActivityRouteImport
       parentRoute: typeof AdminGrowthColdoutreachRoute
     }
   }
@@ -2890,15 +3090,21 @@ const OutreachRouteWithChildren = OutreachRoute._addFileChildren(
 )
 
 interface AdminGrowthColdoutreachRouteChildren {
+  AdminGrowthColdoutreachActivityRoute: typeof AdminGrowthColdoutreachActivityRoute
   AdminGrowthColdoutreachEngagedRoute: typeof AdminGrowthColdoutreachEngagedRoute
+  AdminGrowthColdoutreachFeedbackRoute: typeof AdminGrowthColdoutreachFeedbackRoute
   AdminGrowthColdoutreachScheduleRoute: typeof AdminGrowthColdoutreachScheduleRoute
+  AdminGrowthColdoutreachTeamRoute: typeof AdminGrowthColdoutreachTeamRoute
   AdminGrowthColdoutreachIndexRoute: typeof AdminGrowthColdoutreachIndexRoute
 }
 
 const AdminGrowthColdoutreachRouteChildren: AdminGrowthColdoutreachRouteChildren =
   {
+    AdminGrowthColdoutreachActivityRoute: AdminGrowthColdoutreachActivityRoute,
     AdminGrowthColdoutreachEngagedRoute: AdminGrowthColdoutreachEngagedRoute,
+    AdminGrowthColdoutreachFeedbackRoute: AdminGrowthColdoutreachFeedbackRoute,
     AdminGrowthColdoutreachScheduleRoute: AdminGrowthColdoutreachScheduleRoute,
+    AdminGrowthColdoutreachTeamRoute: AdminGrowthColdoutreachTeamRoute,
     AdminGrowthColdoutreachIndexRoute: AdminGrowthColdoutreachIndexRoute,
   }
 
@@ -2981,6 +3187,8 @@ const GoDemoRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BeyondRoute: BeyondRoute,
+  BlastOffRoute: BlastOffRoute,
+  BlastoffDemoRoute: BlastoffDemoRoute,
   CalloutDemoRoute: CalloutDemoRoute,
   CeqRoute: CeqRouteWithChildren,
   ChaptersRoute: ChaptersRoute,
@@ -3011,6 +3219,7 @@ const rootRouteChildren: RootRouteChildren = {
   WelcomeRoute: WelcomeRoute,
   SchoolRepRoute: SchoolRepRoute,
   AdminGrowthRoute: AdminGrowthRouteWithChildren,
+  AdminIdeasRoute: AdminIdeasRoute,
   AdminRepsRoute: AdminRepsRouteWithChildren,
   AdminSiteQaRoute: AdminSiteQaRoute,
   ApiBackfillRoute: ApiBackfillRoute,
@@ -3020,6 +3229,7 @@ const rootRouteChildren: RootRouteChildren = {
   GoDemoRoute: GoDemoRouteWithChildren,
   LabBoltRoute: LabBoltRoute,
   OShortRefRoute: OShortRefRoute,
+  OfferMckenzieRoute: OfferMckenzieRoute,
   PartnersCampusCouncilsRoute: PartnersCampusCouncilsRoute,
   PartnersNationalOrganizationsRoute: PartnersNationalOrganizationsRoute,
   PreviewExam1Route: PreviewExam1Route,
@@ -3034,6 +3244,7 @@ const rootRouteChildren: RootRouteChildren = {
   StudyFoundationsRoute: StudyFoundationsRoute,
   TSlugRoute: TSlugRoute,
   UTokenRoute: UTokenRoute,
+  VaTokenRoute: VaTokenRoute,
   SchoolIndexRoute: SchoolIndexRoute,
   UIndexRoute: UIndexRoute,
   ApiCronBackupRoute: ApiCronBackupRoute,
@@ -3042,6 +3253,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronGrowthCampaignsRoute: ApiCronGrowthCampaignsRoute,
   ApiCronKingDigestRoute: ApiCronKingDigestRoute,
   ApiCronWeeklyDigestRoute: ApiCronWeeklyDigestRoute,
+  ApiIdeasEmailRoute: ApiIdeasEmailRoute,
+  ApiIdeasSmsRoute: ApiIdeasSmsRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
   GoSchoolChapterRoute: GoSchoolChapterRoute,
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
