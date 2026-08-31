@@ -245,6 +245,15 @@ export async function assertVa(): Promise<{ vaId: string; name: string; team: st
   return { vaId: r.vaId, name: r.name ?? "VA", team: r.team ?? "king" };
 }
 
+/** Throw unless a real admin (Lee/King) — a VA session (email `va:<id>`) is refused. For pay/roster
+ *  and anything a VA must never see. */
+export async function assertAdminNotVa(): Promise<string> {
+  let email: string | undefined;
+  try { const r = await adminSessionOk(); if (r.ok) email = r.email; } catch { /* fall through */ }
+  if (!email || email.startsWith("va:")) throw new Error("Not authorised.");
+  return email;
+}
+
 /** Verify the passcode cookie. Returns the operator's email for attribution, or null. */
 async function emailFromPassCookie(raw: string | undefined | null): Promise<string | null> {
   if (!raw) return null;

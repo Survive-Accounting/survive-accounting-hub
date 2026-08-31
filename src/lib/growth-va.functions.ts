@@ -6,7 +6,7 @@
 // LAW: service-role client + admin/VA gate imported dynamically inside handlers only.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { assertVa } from "@/lib/admin-session.functions";
+import { assertVa, assertAdminNotVa } from "@/lib/admin-session.functions";
 import { ownerCampusIds, buildSchedCampuses } from "@/lib/growth-schedule.functions";
 
 type DB = { from: (t: string) => any };
@@ -15,6 +15,17 @@ const adminDb = async (): Promise<DB> => {
   return supabaseAdmin as unknown as DB;
 };
 const todayYmd = () => { try { return new Date().toISOString().slice(0, 10); } catch { return "2026-09-01"; } };
+const curMonth = () => { try { return new Date().toISOString().slice(0, 7); } catch { return "2026-09"; } };
+
+// Pay defaults (cents). Per-VA overrides live on growth_va; NULL falls back to these.
+const RATE_READY = 400; // $4 per campus reaching READY
+const RATE_IG = 100; // $1 per personal Instagram
+const PERSON_TYPES = new Set(["student_officer", "chapter_exec", "staff_advisor"]);
+function monthBounds(month: string): { start: string; end: string } {
+  const [y, m] = month.split("-").map(Number);
+  const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+  return { start: `${month}-01`, end: `${next}-01` };
+}
 
 export interface VaCampusCard { campusId: string; name: string; courseCode: string | null; coveredCount: number; neededCount: number }
 export interface VaQueueView { vaName: string; team: string; doneToday: number; remaining: number; current: VaCampusCard | null }
@@ -81,20 +92,37 @@ export const growthVaFinishCampus = createServerFn({ method: "POST" })
     return { ok: true, ready };
   });
 
-/** Report a problem — stored AND emailed to Lee with the campus, user, page and browser. */
+/** Report a problem — stored AND emailed to Lee with the campus, user, page, browser, and any
+ *  screenshots (uploaded server-side to the public va-problems bucket). */
 export const growthVaProblem = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => z.object({
     note: z.string().trim().min(1).max(4000),
     campusId: z.string().uuid().nullable().optional(),
     page: z.string().max(300).optional(), userAgent: z.string().max(500).optional(),
-    screenshotUrls: z.array(z.string().max(1000)).max(6).optional(),
+    screenshots: z.array(z.object({ name: z.string().max(120).optional(), dataUrl: z.string().max(8_000_000) })).max(4).optional(),
   }).parse(d))
   .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
     const { vaId, name } = await assertVa();
     const db = await adminDb();
     let campusName: string | null = null;
     if (data.campusId) { try { const { data: c } = await db.from("campuses").select("name,display_name").eq("id", data.campusId).maybeSingle(); campusName = c?.display_name || c?.name || null; } catch { /* ignore */ } }
-    await db.from("growth_va_problem").insert({ va_id: vaId, campus_id: data.campusId ?? null, note: data.note.trim(), page: data.page ?? null, user_agent: data.userAgent ?? null, screenshot_urls: data.screenshotUrls ?? null });
+
+    // Upload screenshots (data URLs) to the public bucket; collect the resulting URLs.
+    const urls: string[] = [];
+    const storage = (db as unknown as { storage?: { from: (b: string) => any } }).storage;
+    for (const sh of (data.screenshots ?? [])) {
+      const m = sh.dataUrl.match(/^data:(image\/[\w.+-]+);base64,(.+)$/);
+      if (!m || !storage) continue;
+      try {
+        const ext = (m[1].split("/")[1] || "png").replace(/[^\w]/g, "");
+        const buf = Buffer.from(m[2], "base64");
+        const path = `${vaId}/${crypto.randomUUID()}.${ext}`;
+        const { error: upErr } = await storage.from("va-problems").upload(path, buf, { contentType: m[1], upsert: false });
+        if (!upErr) { const pub = storage.from("va-problems").getPublicUrl(path); const u = pub?.data?.publicUrl; if (u) urls.push(u); }
+      } catch { /* skip a bad image */ }
+    }
+
+    await db.from("growth_va_problem").insert({ va_id: vaId, campus_id: data.campusId ?? null, note: data.note.trim(), page: data.page ?? null, user_agent: data.userAgent ?? null, screenshot_urls: urls.length ? urls : null });
     try {
       const { sendResendEmail } = await import("@/lib/email.server");
       const text = [
@@ -103,9 +131,82 @@ export const growthVaProblem = createServerFn({ method: "POST" })
         `Campus:  ${campusName ?? "—"}`,
         `Page:    ${data.page ?? "—"}`,
         `Browser: ${data.userAgent ?? "—"}`,
-        data.screenshotUrls?.length ? `Screenshots:\n${data.screenshotUrls.join("\n")}` : "Screenshots: none",
+        urls.length ? `Screenshots:\n${urls.join("\n")}` : "Screenshots: none",
       ].join("\n");
       await sendResendEmail({ to: "lee@surviveaccounting.com", subject: `VA problem — ${name}${campusName ? ` · ${campusName}` : ""}`, text });
     } catch { /* stored regardless of email */ }
     return { ok: true };
+  });
+
+// ── Lee's view (assertAdminNotVa — a VA session is refused so pay never leaks) ───────────────
+export interface VaPayRow {
+  id: string; name: string; team: string; active: boolean; token: string;
+  campusesReady: number; personalIgs: number; contacts: number; notFound: number;
+  rateReadyCents: number; rateIgCents: number; payReadyCents: number; payIgCents: number; payTotalCents: number;
+}
+export interface VaTeamPay { team: string; label: string; rows: VaPayRow[]; subtotalCents: number }
+export interface VaRosterView { month: string; teams: VaTeamPay[]; totalCents: number }
+
+/** The Payments table: per-VA READY campuses + personal IGs → pay, grouped by team, for a month. */
+export const growthVaRoster = createServerFn({ method: "GET" })
+  .inputValidator((d: unknown) => z.object({ month: z.string().regex(/^\d{4}-\d{2}$/).optional() }).parse(d ?? {}))
+  .handler(async ({ data }): Promise<VaRosterView> => {
+    await assertAdminNotVa();
+    const db = await adminDb();
+    const month = data.month ?? curMonth();
+    const { start, end } = monthBounds(month);
+    const [{ data: vas }, { data: claims }, { data: qc }] = await Promise.all([
+      db.from("growth_va").select("id,token,name,team,active,rate_ready_cents,rate_ig_cents").order("created_at", { ascending: true }),
+      db.from("growth_va_campus").select("va_id,reached_ready,completed_at").eq("reached_ready", true).gte("completed_at", start).lt("completed_at", end),
+      db.from("growth_contact_qc").select("qc_by,contact_type,name,instagram,outreach_eligible,created_at").like("qc_by", "va:%").gte("created_at", start).lt("created_at", end),
+    ]);
+    const ready = new Map<string, number>();
+    for (const c of (claims ?? []) as any[]) ready.set(c.va_id, (ready.get(c.va_id) ?? 0) + 1);
+    const igs = new Map<string, number>(), contacts = new Map<string, number>(), nf = new Map<string, number>();
+    for (const r of (qc ?? []) as any[]) {
+      const id = String(r.qc_by).slice(3); // strip "va:"
+      if (r.outreach_eligible === false) { nf.set(id, (nf.get(id) ?? 0) + 1); continue; }
+      contacts.set(id, (contacts.get(id) ?? 0) + 1);
+      const isPerson = PERSON_TYPES.has(r.contact_type) || !!(r.name && String(r.name).trim());
+      if (isPerson && r.instagram && String(r.instagram).trim()) igs.set(id, (igs.get(id) ?? 0) + 1);
+    }
+    const rows: VaPayRow[] = ((vas ?? []) as any[]).map((v) => {
+      const rr = v.rate_ready_cents ?? RATE_READY, ri = v.rate_ig_cents ?? RATE_IG;
+      const cr = ready.get(v.id) ?? 0, ig = igs.get(v.id) ?? 0;
+      return { id: v.id, name: v.name, team: v.team, active: v.active, token: v.token, campusesReady: cr, personalIgs: ig, contacts: contacts.get(v.id) ?? 0, notFound: nf.get(v.id) ?? 0, rateReadyCents: rr, rateIgCents: ri, payReadyCents: cr * rr, payIgCents: ig * ri, payTotalCents: cr * rr + ig * ri };
+    });
+    const teams: VaTeamPay[] = [];
+    for (const team of ["king", "lee"]) {
+      const trows = rows.filter((r) => r.team === team);
+      if (trows.length) teams.push({ team, label: team === "king" ? "King's team" : "Lee's team", rows: trows, subtotalCents: trows.reduce((n, r) => n + r.payTotalCents, 0) });
+    }
+    return { month, teams, totalCents: rows.reduce((n, r) => n + r.payTotalCents, 0) };
+  });
+
+/** Add a VA — generates their private-link token. */
+export const growthVaCreate = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ name: z.string().trim().min(1).max(80), team: z.enum(["king", "lee"]).default("king"), rateReadyCents: z.number().int().min(0).max(100000).nullable().optional(), rateIgCents: z.number().int().min(0).max(100000).nullable().optional() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; id?: string; token?: string; error?: string }> => {
+    await assertAdminNotVa();
+    const db = await adminDb();
+    const token = `vk_${crypto.randomUUID().replace(/-/g, "").slice(0, 18)}`;
+    const { data: ins, error } = await db.from("growth_va").insert({ name: data.name.trim(), team: data.team, token, rate_ready_cents: data.rateReadyCents ?? null, rate_ig_cents: data.rateIgCents ?? null }).select("id,token").maybeSingle();
+    if (error) return { ok: false, error: error.message };
+    return { ok: true, id: ins?.id, token: ins?.token };
+  });
+
+/** Edit a VA — name, team, active, or rate overrides. */
+export const growthVaUpdate = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), name: z.string().trim().min(1).max(80).optional(), active: z.boolean().optional(), team: z.enum(["king", "lee"]).optional(), rateReadyCents: z.number().int().min(0).max(100000).nullable().optional(), rateIgCents: z.number().int().min(0).max(100000).nullable().optional() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
+    await assertAdminNotVa();
+    const db = await adminDb();
+    const patch: Record<string, unknown> = {};
+    if (data.name !== undefined) patch.name = data.name.trim();
+    if (data.active !== undefined) patch.active = data.active;
+    if (data.team !== undefined) patch.team = data.team;
+    if (data.rateReadyCents !== undefined) patch.rate_ready_cents = data.rateReadyCents;
+    if (data.rateIgCents !== undefined) patch.rate_ig_cents = data.rateIgCents;
+    const { error } = await db.from("growth_va").update(patch).eq("id", data.id);
+    return error ? { ok: false, error: error.message } : { ok: true };
   });

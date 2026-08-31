@@ -115,11 +115,22 @@ export function VaHelp({ campusId, onHowItWorks }: { campusId: string | null; on
 
 function ReportProblem({ campusId, onClose, onBack }: { campusId: string | null; onClose: () => void; onBack: () => void }) {
   const [note, setNote] = useState("");
+  const [shots, setShots] = useState<{ name: string; dataUrl: string }[]>([]);
+  const addFiles = (files: FileList | null) => {
+    if (!files) return;
+    for (const f of Array.from(files).slice(0, 4)) {
+      if (!f.type.startsWith("image/")) continue;
+      const reader = new FileReader();
+      reader.onload = () => setShots((s) => (s.length >= 4 ? s : [...s, { name: f.name, dataUrl: String(reader.result) }]));
+      reader.readAsDataURL(f);
+    }
+  };
   const m = useMutation({
     mutationFn: () => growthVaProblem({ data: {
       note: note.trim(), campusId: campusId ?? null,
       page: typeof window !== "undefined" ? window.location.href.slice(0, 300) : undefined,
       userAgent: typeof navigator !== "undefined" ? navigator.userAgent.slice(0, 500) : undefined,
+      screenshots: shots.length ? shots : undefined,
     } }),
     onSuccess: (r) => { if (r.ok) { toast.success("Got it — Lee will see this."); onClose(); } else toast.error(r.error ?? "Couldn't send"); },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't send"),
@@ -136,7 +147,26 @@ function ReportProblem({ campusId, onClose, onBack }: { campusId: string | null;
           <label className="mb-1 block text-[12px] font-medium text-muted-foreground">What happened?</label>
           <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={4} autoFocus placeholder="Tell Lee what went wrong — a stuck button, a confusing step, anything." className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm" />
         </div>
-        <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Upload className="size-3" /> The campus, your name, this page and your browser are attached automatically.</p>
+        <div>
+          <div className="flex items-center gap-2">
+            <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-[12px] font-medium hover:bg-muted">
+              <Upload className="size-3.5" /> Add screenshot
+              <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+            </label>
+            <span className="text-[11px] text-muted-foreground">optional{shots.length ? ` · ${shots.length}/4` : ""}</span>
+          </div>
+          {shots.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {shots.map((s, i) => (
+                <span key={i} className="relative">
+                  <img src={s.dataUrl} alt="" className="size-14 rounded-lg border border-border object-cover" />
+                  <button onClick={() => setShots((arr) => arr.filter((_, j) => j !== i))} className="absolute -right-1.5 -top-1.5 grid size-5 place-items-center rounded-full bg-foreground text-background"><X className="size-3" /></button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <p className="text-[11px] text-muted-foreground">The campus, your name, this page and your browser are attached automatically.</p>
         <button onClick={() => note.trim() && m.mutate()} disabled={!note.trim() || m.isPending} className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-40">{m.isPending ? "Sending…" : "Send"}</button>
       </div>
     </div>
