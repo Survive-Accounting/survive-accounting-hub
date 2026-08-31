@@ -12,14 +12,26 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminGate } from "@/components/AdminGate";
 import { listIdeas, saveIdea } from "@/lib/ideas.functions";
 import {
-  CATEGORIES, CATEGORY_LABEL, FOCUS_LABEL, STATUSES, STATUS_COLOR, STATUS_HINT, TIME_LABEL,
+  CATEGORIES, CATEGORY_LABEL, FOCUS_LABEL, PEOPLE, PERSON_LABEL, SOURCE_ICON, STATUSES, STATUS_COLOR, STATUS_HINT, TIME_LABEL,
   filterIdeas, prioritize, sortIdeas,
   type Category, type Focus, type Idea, type Recommendation, type SortKey, type Status, type TimeBox,
 } from "@/components/ideas/model";
 
 export const Route = createFileRoute("/admin/ideas")({
   component: IdeasRoute,
-  head: () => ({ meta: [{ title: "Ideas to Save — Survive" }, { name: "robots", content: "noindex" }] }),
+  // ADD TO HOME SCREEN: on a phone this opens standalone, like an app, with
+  // no install and no store. That alone covers most of "capture from
+  // anywhere" and needs no integrations.
+  head: () => ({
+    meta: [
+      { title: "Ideas to Save — Survive" },
+      { name: "robots", content: "noindex" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-title", content: "Ideas" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+    ],
+    links: [{ rel: "manifest", href: "/ideas.webmanifest" }],
+  }),
 });
 
 const GOLD = "#FCA311";
@@ -38,6 +50,8 @@ function Ideas() {
   const [cat, setCat] = useState<Category | null>(null);
   const [status, setStatus] = useState<Status | null>(null);
   const [sort, setSort] = useState<SortKey>("date");
+  const [person, setPerson] = useState<string | null>(null);
+  const [unsorted, setUnsorted] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const [prio, setPrio] = useState(false);
 
@@ -47,20 +61,25 @@ function Ideas() {
   }, []);
   useEffect(refresh, [refresh]);
 
-  const shown = useMemo(() => sortIdeas(filterIdeas(ideas, { category: cat, status, q }), sort), [ideas, cat, status, q, sort]);
+  const shown = useMemo(() => sortIdeas(filterIdeas(ideas, { category: cat, status, q, person, unsorted }), sort), [ideas, cat, status, q, sort, person, unsorted]);
 
   const patch = useCallback((i: Idea, p: Partial<Idea>) => {
     const next = { ...i, ...p };
     setIdeas((v) => v.map((x) => (x.id === i.id ? next : x)));
+    // EVERY field goes back, always. saveIdea is a whole-row upsert with zod
+    // defaults, so omitting attachments or audio here would silently erase a
+    // voice note the moment Lee changed a status.
     saveIdea({ data: {
       id: next.id, title: next.title, body: next.body, categories: next.categories,
       subcategory: next.subcategory, status: next.status, sourcePath: next.sourcePath,
       context: next.context, promptMd: next.promptMd, promptFilename: next.promptFilename,
+      createdBy: next.createdBy, sourceKind: next.sourceKind, attachments: next.attachments,
+      audioPath: next.audioPath, transcriptStatus: next.transcriptStatus,
     } }).then(refresh).catch((e) => setErr(e instanceof Error ? e.message : String(e)));
   }, [refresh]);
 
   return (
-    <div style={{ minHeight: "100vh", background: BG, color: CREAM, fontFamily: "'Rubik', system-ui, sans-serif", padding: "20px 26px 80px" }}>
+    <div style={{ minHeight: "100vh", background: BG, color: CREAM, fontFamily: "'Rubik', system-ui, sans-serif", padding: "16px clamp(12px, 4vw, 26px) 90px" }}>
       <header className="flex items-center gap-3" style={{ marginBottom: 16, flexWrap: "wrap" }}>
         <h1 style={{ fontFamily: "'League Spartan', sans-serif", fontWeight: 800, fontSize: 21, letterSpacing: "0.06em", textTransform: "uppercase", margin: 0 }}>
           ⚡ Ideas to Save
@@ -76,13 +95,21 @@ function Ideas() {
 
       <div className="flex items-center" style={{ gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
         <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="search titles and bodies…"
-          style={{ background: "rgba(9,13,26,0.7)", border: `1px solid ${EDGE}`, borderRadius: 10, color: CREAM, fontSize: 12.5, padding: "6px 11px", outline: "none", minWidth: 240 }} />
+          style={{ background: "rgba(9,13,26,0.7)", border: `1px solid ${EDGE}`, borderRadius: 10, color: CREAM, fontSize: 16, padding: "9px 12px", outline: "none", flex: "1 1 200px", minWidth: 0, minHeight: 40 }} />
         <Select value={cat ?? ""} onChange={(v) => setCat((v || null) as Category | null)}
           options={[["", "All categories"], ...CATEGORIES.map((c) => [c, CATEGORY_LABEL[c]] as [string, string])]} />
         <Select value={status ?? ""} onChange={(v) => setStatus((v || null) as Status | null)}
           options={[["", "All statuses"], ...STATUSES.map((s) => [s, s] as [string, string])]} />
         <Select value={sort} onChange={(v) => setSort(v as SortKey)}
           options={[["date", "Newest"], ["category", "By category"], ["status", "By status"]]} />
+        {/* Everyone shares the vault; this is filtering, not permissions. */}
+        <Select value={person ?? ""} onChange={(v) => setPerson(v || null)}
+          options={[["", "Everyone"], ...PEOPLE.map((x) => [x, PERSON_LABEL[x]] as [string, string])]} />
+        {/* An uncategorised idea is fine — this is where they wait. */}
+        <button onClick={() => setUnsorted((v) => !v)}
+          style={{ background: unsorted ? GOLD : "transparent", color: unsorted ? "#0B1322" : CREAM, border: `1px solid ${unsorted ? GOLD : EDGE}`, borderRadius: 10, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", minHeight: 38 }}>
+          Unsorted
+        </button>
         <span style={{ fontSize: 11.5, color: MUTED }}>{shown.length} shown</span>
       </div>
 
@@ -107,7 +134,7 @@ function Ideas() {
 function Select({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: [string, string][] }) {
   return (
     <select value={value} onChange={(e) => onChange(e.target.value)}
-      style={{ background: "rgba(9,13,26,0.7)", border: `1px solid ${EDGE}`, borderRadius: 10, color: CREAM, fontSize: 12.5, padding: "6px 10px", outline: "none" }}>
+      style={{ background: "rgba(9,13,26,0.7)", border: `1px solid ${EDGE}`, borderRadius: 10, color: CREAM, fontSize: 16, padding: "8px 10px", outline: "none", minHeight: 40 }}>
       {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
     </select>
   );
@@ -150,6 +177,9 @@ function Row({ idea, expanded, onToggle, onPatch }: {
           <div style={{ fontWeight: 700, fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{idea.title || "(untitled)"}</div>
           <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
             <span style={{ color: STATUS_COLOR[idea.status], fontWeight: 700 }}>{idea.status.toLowerCase()}</span>
+            {" "}{SOURCE_ICON[idea.sourceKind]}
+            {idea.createdBy ? ` · ${idea.createdBy}` : ""}
+            {idea.attachments.length ? ` · ${idea.attachments.length} file${idea.attachments.length === 1 ? "" : "s"}` : ""}
             {idea.promptMd ? " · has prompt.md" : ""}
             {idea.sourcePath ? ` · from ${idea.sourcePath}` : ""}
             {" · "}{new Date(idea.createdAt).toLocaleDateString()}
@@ -209,6 +239,28 @@ function Row({ idea, expanded, onToggle, onPatch }: {
                 placeholder="Paste the prompt markdown here…"
                 style={{ width: "100%", background: "rgba(9,13,26,0.8)", border: `1px solid ${EDGE}`, borderRadius: 10, color: CREAM, fontSize: 12.5, padding: 10, fontFamily: "ui-monospace, monospace", outline: "none" }} />
               <Btn onClick={() => { onPatch({ promptMd: md, status: idea.status === "IDEA" ? "DRAFTED" : idea.status }); setPaste(false); }}>Attach</Btn>
+            </div>
+          )}
+
+          {/* ATTACHMENTS — each individually downloadable, because the actual
+              workflow is: write the prompt on a laptop, open it on a phone in
+              another room, paste it into Claude Code. */}
+          {(idea.attachments.length > 0 || idea.audioPath) && (
+            <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 5 }}>
+              {idea.audioPath && (
+                <div className="flex items-center" style={{ gap: 8, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 11.5, color: MUTED }}>🎙 voice note</span>
+                  {idea.transcriptStatus && idea.transcriptStatus !== "ok" && (
+                    <span style={{ fontSize: 10.5, color: "#FCA311" }}>transcript {idea.transcriptStatus} — the audio is the idea</span>
+                  )}
+                </div>
+              )}
+              {idea.attachments.map((a) => (
+                <a key={a.id} href={a.url} target="_blank" rel="noreferrer" download={a.name}
+                  style={{ fontSize: 11.5, color: "#7DD3FC", textDecoration: "underline" }}>
+                  📎 {a.name} <span style={{ color: MUTED }}>({Math.max(1, Math.round(a.size / 1024))} KB)</span>
+                </a>
+              ))}
             </div>
           )}
 

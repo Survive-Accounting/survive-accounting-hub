@@ -6,7 +6,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-import { CATEGORIES, STATUSES, type Idea } from "@/components/ideas/model";
+import { CATEGORIES, SOURCE_KINDS, STATUSES, type Attachment, type Idea, type SourceKind } from "@/components/ideas/model";
 
 const MISSING = "ideas table missing — apply migration/supabase-migrations/20260831_0900_ideas_vault.sql";
 
@@ -26,6 +26,9 @@ interface Row {
   id: string; title: string; body: string; categories: string[] | null; subcategory: string;
   status: string; source_path: string; context: Record<string, string> | null;
   prompt_md: string | null; prompt_filename: string | null;
+  created_by: string | null; source_kind: string | null;
+  attachments: Attachment[] | null;
+  audio_path: string | null; transcript_status: string | null;
   created_at: string; updated_at: string;
 }
 
@@ -37,6 +40,10 @@ const toIdea = (r: Row): Idea => ({
   sourcePath: r.source_path ?? "",
   context: r.context ?? {},
   promptMd: r.prompt_md, promptFilename: r.prompt_filename,
+  createdBy: r.created_by ?? "",
+  sourceKind: (SOURCE_KINDS as readonly string[]).includes(r.source_kind ?? "") ? (r.source_kind as SourceKind) : "web",
+  attachments: Array.isArray(r.attachments) ? r.attachments : [],
+  audioPath: r.audio_path, transcriptStatus: r.transcript_status,
   createdAt: r.created_at, updatedAt: r.updated_at,
 });
 
@@ -60,6 +67,14 @@ const ideaInput = z.object({
   // build prompts, and truncating one silently would be worse than a failure.
   promptMd: z.string().max(400_000).nullable().default(null),
   promptFilename: z.string().max(200).nullable().default(null),
+  createdBy: z.string().max(40).default(""),
+  sourceKind: z.enum(SOURCE_KINDS).default("web"),
+  attachments: z.array(z.object({
+    id: z.string().max(80), name: z.string().max(300), mime: z.string().max(120),
+    size: z.number().int().nonnegative(), path: z.string().max(400), url: z.string().max(1000),
+  })).max(40).default([]),
+  audioPath: z.string().max(400).nullable().default(null),
+  transcriptStatus: z.string().max(20).nullable().default(null),
 });
 
 export const saveIdea = createServerFn({ method: "POST" })
@@ -78,6 +93,11 @@ export const saveIdea = createServerFn({ method: "POST" })
       context: data.context,
       prompt_md: data.promptMd,
       prompt_filename: data.promptFilename,
+      created_by: data.createdBy,
+      source_kind: data.sourceKind,
+      attachments: data.attachments,
+      audio_path: data.audioPath,
+      transcript_status: data.transcriptStatus,
       updated_at: now,
     }, { onConflict: "id" }).select().single();
     if (error) rethrow(error);

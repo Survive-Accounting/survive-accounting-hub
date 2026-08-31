@@ -634,3 +634,32 @@ that is the work still in Lee's hands. There is no delete — PARKED is the
 archive. Prioritize is computed per-ask rather than stored, and is allowed to
 answer "none of these — go film", which is often correct. The dock mounts once
 in __root and hides itself on /admin/ideas so it can never cover Prioritize.
+
+## 2026-08-31 — Idea Vault: capture from anywhere (+ migration RUN)
+
+`20260831_1200_ideas_capture_anywhere.sql` applied and verified by read (all
+five columns live: created_by, source_kind, attachments, audio_path,
+transcript_status). Secrets pulled from Vercel and deleted after.
+
+Mobile verified at 375px: no horizontal scroll, manifest linked, drawer
+full-width, mic + attach + categories all reachable. Voice reuses the Talk Box
+transcription path with the same VAD gate and hallucination blocklist, and the
+audio is retained whatever the transcript does.
+
+SMS + email are public webhooks whose ONLY guard is the env allowlist; a test
+pins that an unconfigured path matches nobody, so it fails closed.
+
+### LEE MUST WIRE (not done here — these cost money / change DNS)
+1. Twilio: buy a second number, set its Messaging webhook to
+   `https://surviveaccounting.com/api/ideas/sms` (HTTP POST).
+2. Vercel env: `IDEAS_SMS_LEE`, `IDEAS_SMS_KING`, `IDEAS_SMS_MCKINSEY` (E.164),
+   and `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` if not already set (needed to
+   fetch MMS media).
+3. Inbound email for `ideas@surviveaccounting.co` (note: the prompt says .co,
+   the live domain is .com — confirm which) routed to
+   `https://surviveaccounting.com/api/ideas/email`. Any provider works: the
+   endpoint accepts JSON or form-data and reads Resend/Postmark/SendGrid field
+   names.
+4. Vercel env: `IDEAS_EMAIL_LEE`, `IDEAS_EMAIL_KING`, `IDEAS_EMAIL_MCKINSEY`.
+
+Until 2 and 4 are set the endpoints are live but recognise nobody — by design.

@@ -120,6 +120,8 @@ import { Route as CeqIdTutorRouteImport } from './routes/ceq.$id.tutor'
 import { Route as CeqIdEditRouteImport } from './routes/ceq.$id.edit'
 import { Route as CeqCourseSlugChapterSlugRouteImport } from './routes/ceq.$courseSlug.$chapterSlug'
 import { Route as ApiStripeWebhookRouteImport } from './routes/api.stripe.webhook'
+import { Route as ApiIdeasSmsRouteImport } from './routes/api.ideas.sms'
+import { Route as ApiIdeasEmailRouteImport } from './routes/api.ideas.email'
 import { Route as ApiCronWeeklyDigestRouteImport } from './routes/api.cron.weekly-digest'
 import { Route as ApiCronKingDigestRouteImport } from './routes/api.cron.king-digest'
 import { Route as ApiCronGrowthCampaignsRouteImport } from './routes/api.cron.growth-campaigns'
@@ -719,6 +721,16 @@ const ApiStripeWebhookRoute = ApiStripeWebhookRouteImport.update({
   path: '/api/stripe/webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiIdeasSmsRoute = ApiIdeasSmsRouteImport.update({
+  id: '/api/ideas/sms',
+  path: '/api/ideas/sms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiIdeasEmailRoute = ApiIdeasEmailRouteImport.update({
+  id: '/api/ideas/email',
+  path: '/api/ideas/email',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCronWeeklyDigestRoute = ApiCronWeeklyDigestRouteImport.update({
   id: '/api/cron/weekly-digest',
   path: '/api/cron/weekly-digest',
@@ -1018,6 +1030,8 @@ export interface FileRoutesByFullPath {
   '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
+  '/api/ideas/email': typeof ApiIdeasEmailRoute
+  '/api/ideas/sms': typeof ApiIdeasSmsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
@@ -1162,6 +1176,8 @@ export interface FileRoutesByTo {
   '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
+  '/api/ideas/email': typeof ApiIdeasEmailRoute
+  '/api/ideas/sms': typeof ApiIdeasSmsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
@@ -1311,6 +1327,8 @@ export interface FileRoutesById {
   '/api/cron/growth-campaigns': typeof ApiCronGrowthCampaignsRoute
   '/api/cron/king-digest': typeof ApiCronKingDigestRoute
   '/api/cron/weekly-digest': typeof ApiCronWeeklyDigestRoute
+  '/api/ideas/email': typeof ApiIdeasEmailRoute
+  '/api/ideas/sms': typeof ApiIdeasSmsRoute
   '/api/stripe/webhook': typeof ApiStripeWebhookRoute
   '/ceq/$courseSlug/$chapterSlug': typeof CeqCourseSlugChapterSlugRoute
   '/ceq/$id/edit': typeof CeqIdEditRoute
@@ -1461,6 +1479,8 @@ export interface FileRouteTypes {
     | '/api/cron/growth-campaigns'
     | '/api/cron/king-digest'
     | '/api/cron/weekly-digest'
+    | '/api/ideas/email'
+    | '/api/ideas/sms'
     | '/api/stripe/webhook'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
@@ -1605,6 +1625,8 @@ export interface FileRouteTypes {
     | '/api/cron/growth-campaigns'
     | '/api/cron/king-digest'
     | '/api/cron/weekly-digest'
+    | '/api/ideas/email'
+    | '/api/ideas/sms'
     | '/api/stripe/webhook'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
@@ -1753,6 +1775,8 @@ export interface FileRouteTypes {
     | '/api/cron/growth-campaigns'
     | '/api/cron/king-digest'
     | '/api/cron/weekly-digest'
+    | '/api/ideas/email'
+    | '/api/ideas/sms'
     | '/api/stripe/webhook'
     | '/ceq/$courseSlug/$chapterSlug'
     | '/ceq/$id/edit'
@@ -1855,6 +1879,8 @@ export interface RootRouteChildren {
   ApiCronGrowthCampaignsRoute: typeof ApiCronGrowthCampaignsRoute
   ApiCronKingDigestRoute: typeof ApiCronKingDigestRoute
   ApiCronWeeklyDigestRoute: typeof ApiCronWeeklyDigestRoute
+  ApiIdeasEmailRoute: typeof ApiIdeasEmailRoute
+  ApiIdeasSmsRoute: typeof ApiIdeasSmsRoute
   ApiStripeWebhookRoute: typeof ApiStripeWebhookRoute
   GoSchoolChapterRoute: typeof GoSchoolChapterRoute
   OutreachSchoolSlugRoute: typeof OutreachSchoolSlugRoute
@@ -2651,6 +2677,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiStripeWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ideas/sms': {
+      id: '/api/ideas/sms'
+      path: '/api/ideas/sms'
+      fullPath: '/api/ideas/sms'
+      preLoaderRoute: typeof ApiIdeasSmsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/ideas/email': {
+      id: '/api/ideas/email'
+      path: '/api/ideas/email'
+      fullPath: '/api/ideas/email'
+      preLoaderRoute: typeof ApiIdeasEmailRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cron/weekly-digest': {
       id: '/api/cron/weekly-digest'
       path: '/api/cron/weekly-digest'
@@ -3170,6 +3210,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCronGrowthCampaignsRoute: ApiCronGrowthCampaignsRoute,
   ApiCronKingDigestRoute: ApiCronKingDigestRoute,
   ApiCronWeeklyDigestRoute: ApiCronWeeklyDigestRoute,
+  ApiIdeasEmailRoute: ApiIdeasEmailRoute,
+  ApiIdeasSmsRoute: ApiIdeasSmsRoute,
   ApiStripeWebhookRoute: ApiStripeWebhookRoute,
   GoSchoolChapterRoute: GoSchoolChapterRoute,
   OutreachSchoolSlugRoute: OutreachSchoolSlugRoute,
