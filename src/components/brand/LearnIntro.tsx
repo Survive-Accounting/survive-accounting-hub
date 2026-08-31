@@ -1,28 +1,28 @@
-// LEARN INTRO — the drawn wordmark, full screen for a beat on a student's FIRST arrival at
-// /learn, then it settles away into the nav (the static mark up there is the same mark — the
-// overlay fading is the settle). Once per visitor (localStorage), skippable with a click/key,
-// and prefers-reduced-motion never shows it at all: a student who asked for less motion gets
-// their course list immediately, not a still frame blocking it.
+// LEARN INTRO — the REAL wordmark (surv⚡ve, bolt boiling — same mark as the homepage footer)
+// full screen for a beat with "Loading cram videos..." beneath, then it fades and you're in the
+// dashboard. A boot splash, not a performance: it shows on every arrival, covers the moment the
+// student tree is actually loading, and stays SHORT.
+//
+// (The hand-drawn stroke-on wordmark that used to live here was rejected 2026-08-31 — see
+// docs/BRAND-ANIMATION.md. The boil IS the brand animation.)
+//
+// prefers-reduced-motion never shows it: those students get their course list immediately.
+// A click skips it early.
 import { useEffect, useState } from "react";
 
-import { AnimatedWordmark } from "@/components/brand/AnimatedWordmark";
+import { BRAND_CREAM, SurviveWordmark } from "@/components/brand-cards/bolt-boil";
 
-const SEEN_KEY = "sa-learn-intro";
+const HOLD_MS = 1400;
 const FADE_MS = 420;
 
 export function LearnIntro() {
-  const [phase, setPhase] = useState<"hidden" | "drawing" | "fading">("hidden");
+  const [phase, setPhase] = useState<"hidden" | "showing" | "fading">("hidden");
 
   useEffect(() => {
-    try {
-      if (localStorage.getItem(SEEN_KEY) === "seen") return;
-      if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
-        localStorage.setItem(SEEN_KEY, "seen");
-        return;
-      }
-      localStorage.setItem(SEEN_KEY, "seen"); // marked on show — once per visitor, even mid-draw reloads
-      setPhase("drawing");
-    } catch { /* private mode: no way to remember it — skip rather than replay forever */ }
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    setPhase("showing");
+    const hold = window.setTimeout(() => setPhase("fading"), HOLD_MS);
+    return () => window.clearTimeout(hold);
   }, []);
 
   useEffect(() => {
@@ -40,12 +40,13 @@ export function LearnIntro() {
       className="fixed inset-0 z-[130] grid cursor-pointer place-items-center"
       style={{ background: "#0A1220", opacity: phase === "fading" ? 0 : 1, transition: `opacity ${FADE_MS}ms ease` }}
     >
-      <AnimatedWordmark
-        speed={1.15}
-        showAccounting
-        size={92}
-        onDone={() => window.setTimeout(() => setPhase("fading"), 380)}
-      />
+      <div className="flex flex-col items-center gap-4">
+        {/* No boilFrame → the wordmark's own CSS boil runs, exactly like the footer mark. */}
+        <SurviveWordmark size={72} />
+        <p style={{ fontFamily: "'Rubik', system-ui, sans-serif", fontWeight: 600, fontSize: 14, letterSpacing: "0.04em", color: BRAND_CREAM, opacity: 0.7 }}>
+          Loading cram videos...
+        </p>
+      </div>
     </div>
   );
 }

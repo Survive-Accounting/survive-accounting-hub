@@ -3,11 +3,13 @@
 Both pieces shipped the same day the spec was parked. This doc is now the spec AND the map of
 what exists:
 
-- **AnimatedWordmark** — `src/components/brand/AnimatedWordmark.tsx`; letterforms (hand-authored
-  single-stroke marker glyphs) in `wordmark-glyphs.ts` — tweak numbers there, eyeball at
-  /lab/brand. Pure function of `progress` (pathLength=1 normalisation, no getTotalLength);
-  self-drives once at `speed` only when `progress` is omitted. Mounted: /learn first arrival
-  (`LearnIntro.tsx` — once per visitor, click-to-skip, reduced-motion never shows it).
+- **Drawn wordmark — ATTEMPTED AND REJECTED (same day).** Hand-authored single-stroke glyphs +
+  stroke-dashoffset draw-on shipped, Lee's verdict: "looks horrible." Deleted. The lesson: the
+  draw-on idea needs REAL letterforms — traced from Lee's actual handwriting (the videos) — not
+  invented curves; do not re-attempt without that input. The /learn intro instead uses the REAL
+  SurviveWordmark (bolt boiling, same mark as the footer) with "Loading cram videos..." beneath,
+  as a short boot splash on every arrival (`LearnIntro.tsx` — click-to-skip, reduced-motion
+  never shows it). The boil IS the brand animation.
 - **CampusGlobe** — `src/components/brand/CampusGlobe.tsx` + `src/lib/globe/`. Live tiers from
   campuses.campus_status (shell/backlog=dim · ready=brighter · live=lit+pulsing rings); arcs from
   REAL approved chapter claims only (zero pre-launch = zero arcs, honestly); school colours where
@@ -18,9 +20,9 @@ what exists:
   throw). Lazy via IntersectionObserver; `eager` skips the gate for the lab and for offline
   rendering (no scrolling exists there). Mounted: /the-campaign hero (real arcs only) and
   /lab/brand (with a clearly-labelled sample-arcs preview toggle).
-- **/lab/brand** — both standalone mounts, progress scrubber proving determinism.
-- NOT yet mounted: bio video intros (Remotion-side — drive `progress` per frame) and /learn
-  Review mode (possible later).
+- **/lab/brand** — the globe standalone (with the labelled sample-arcs preview).
+- NOT yet mounted: bio video intros (Remotion-side — drive the globe's `progress` per frame;
+  the wordmark side waits on real traced letterforms) and /learn Review mode (possible later).
 
 Original spec below, kept verbatim.
 
