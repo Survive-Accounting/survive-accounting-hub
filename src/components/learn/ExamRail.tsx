@@ -12,8 +12,9 @@
 // It writes through joinPricingWaitlist with the exam number attached, the same store the pricing
 // waitlist already uses. No new table, and the exam number is what makes the list segmentable.
 import { useState } from "react";
-import { Check, Lock, Mail } from "lucide-react";
+import { Check, Lock, Mail, X } from "lucide-react";
 
+import { usePersistedDismiss } from "@/lib/device-prefs";
 import { joinPricingWaitlist } from "@/lib/pricing-api";
 
 export type ExamTabState = {
@@ -35,6 +36,11 @@ export function ExamRail({ exams, activeNum, onPick, campusId, campusName, cours
 }) {
   const [waitlistFor, setWaitlistFor] = useState<number | null>(null);
 
+  // DISMISSAL PERSISTS PER DEVICE. One key for the whole rail rather than one per exam: a student
+  // who has said "not now" to Exam 2 has said it about the pitch, not about that specific tab,
+  // and asking them again on the Final is the behaviour they were dismissing.
+  const [pitchOff, dismissPitch, restorePitch] = usePersistedDismiss("learn-exam-waitlist");
+
   return (
     <div className="w-full">
       <div className="flex w-full gap-1.5 overflow-x-auto pb-1">
@@ -44,7 +50,15 @@ export function ExamRail({ exams, activeNum, onPick, campusId, campusName, cours
             <button
               key={e.num}
               type="button"
-              onClick={() => (e.available ? onPick(e.num) : setWaitlistFor((n) => (n === e.num ? null : e.num)))}
+              // A DISMISSAL IS RESPECTED, INCLUDING HERE. Tapping a locked exam after the pitch
+              // has been dismissed does NOT bring the panel back — it shows the one-line link
+              // below instead, and that link is what restores it. Auto-restoring on tap would
+              // make the persisted flag decorative: the panel would return the first time the
+              // student touched a locked tab, which is the exact moment they dismissed it from.
+              onClick={() => {
+                if (e.available) { onPick(e.num); return; }
+                setWaitlistFor((n) => (n === e.num ? null : e.num));
+              }}
               className="lm-surface shrink-0 rounded-xl border px-4 py-2.5 text-left focus-visible:ring-2"
               style={{
                 minWidth: 132,
@@ -79,15 +93,29 @@ export function ExamRail({ exams, activeNum, onPick, campusId, campusName, cours
         })}
       </div>
 
-      {waitlistFor != null && (
+      {waitlistFor != null && !pitchOff && (
         <ExamWaitlist
           examNum={waitlistFor}
           label={exams.find((e) => e.num === waitlistFor)?.label ?? `Exam ${waitlistFor}`}
           campusId={campusId}
           campusName={campusName}
           courseCode={courseCode}
-          onClose={() => setWaitlistFor(null)}
+          onClose={() => { dismissPitch(); setWaitlistFor(null); }}
         />
+      )}
+
+      {/* DISMISSED, BUT NOT A DEAD END. A persisted dismissal that removes the only way to ask
+          for the email would be worse than the card — a student who wants Exam 2 the week before
+          Exam 2 must still have a door. This is that door, one quiet line instead of a panel. */}
+      {waitlistFor != null && pitchOff && (
+        <button
+          type="button"
+          onClick={restorePitch}
+          className="mt-2 text-[12px] font-bold underline underline-offset-4"
+          style={{ color: "var(--lm-muted)", background: "none", border: 0, cursor: "pointer", minHeight: 36 }}
+        >
+          Email me when {exams.find((e) => e.num === waitlistFor)?.label ?? `Exam ${waitlistFor}`} is up →
+        </button>
       )}
     </div>
   );
@@ -145,9 +173,25 @@ function ExamWaitlist({ examNum, label, campusId, campusName, courseCode, onClos
         </p>
       ) : (
         <>
-          <p className="text-[13px] font-bold" style={{ color: "var(--lm-text)" }}>
-            {label} isn&apos;t up yet. Want me to email you when it is?
-          </p>
+          {/* THE DISMISS IS A CORNER ×, not a word at the end of a row. On a 390px phone the old
+              "Not now" was the third item in a stack, below a full-width send button — the last
+              thing on screen and the easiest thing to miss. A × in the corner is where a person
+              looks for a way out. */}
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-[13px] font-bold" style={{ color: "var(--lm-text)" }}>
+              {label} isn&apos;t up yet. Want me to email you when it is?
+            </p>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Dismiss"
+              title="Dismiss — I won't ask again on this device"
+              className="-mr-1.5 -mt-1 grid shrink-0 place-items-center rounded-full hover:bg-white/10"
+              style={{ height: 32, width: 32, color: "var(--lm-muted)", background: "none", border: 0, cursor: "pointer" }}
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
           <div className="mt-2 flex flex-col gap-2 sm:flex-row">
             <input
               autoFocus
@@ -174,14 +218,7 @@ function ExamWaitlist({ examNum, label, campusId, campusName, courseCode, onClos
             >
               <Mail className="h-4 w-4" /> {busy ? "Sending…" : "Email me"}
             </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="shrink-0 rounded-lg px-3 text-[12.5px] font-bold"
-              style={{ minHeight: 44, color: "var(--lm-muted)", background: "none", border: 0, cursor: "pointer" }}
-            >
-              Not now
-            </button>
+            {/* "Not now" moved to the corner × above — see the note there. */}
           </div>
           {err && <p role="alert" className="mt-1.5 text-[12px]" style={{ color: "#F3C6CC" }}>{err}</p>}
         </>

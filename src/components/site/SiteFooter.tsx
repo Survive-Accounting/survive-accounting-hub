@@ -42,6 +42,7 @@ import { BRAND_SANS } from "@/components/canvas/brand";
 import { FitWordmark } from "@/components/site/SiteHeader";
 import { EMAIL_SUBJECT, LEE_EMAIL, emailLinkProps } from "@/lib/email-link";
 import { submitNotify } from "@/lib/syllabus.functions";
+import { useScrollLock } from "@/lib/use-scroll-lock";
 
 const PHONE = "(662) 565-8818";
 const TEL = "+16625658818";
@@ -200,28 +201,14 @@ function FounderModal({ onClose }: { onClose: () => void }) {
   // the client has mounted. Nobody can have clicked the button before then anyway.
   useEffect(() => setMounted(true), []);
 
+  // SCROLL LOCK — one implementation for every overlay on the site. See lib/use-scroll-lock.ts
+  // for why `overflow: hidden` on <html> is a no-op in iOS Safari and what replaces it.
+  useScrollLock();
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     document.addEventListener("keydown", onKey);
-    // SCROLL LOCK. `overflow: hidden` on <html> alone is a no-op in iOS Safari — the page keeps
-    // scrolling behind the dialog — so the body is pinned at the current offset and restored on
-    // close. Without the restore, closing the panel teleports the visitor to the top of the page.
-    const y = window.scrollY;
-    const html = document.documentElement;
-    const body = document.body;
-    const prev = { htmlOverflow: html.style.overflow, position: body.style.position, top: body.style.top, width: body.style.width };
-    html.style.overflow = "hidden";
-    body.style.position = "fixed";
-    body.style.top = `-${y}px`;
-    body.style.width = "100%";
-    return () => {
-      document.removeEventListener("keydown", onKey);
-      html.style.overflow = prev.htmlOverflow;
-      body.style.position = prev.position;
-      body.style.top = prev.top;
-      body.style.width = prev.width;
-      window.scrollTo(0, y);
-    };
+    return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
   if (!mounted) return null;

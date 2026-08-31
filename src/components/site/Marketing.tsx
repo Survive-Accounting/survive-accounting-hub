@@ -118,7 +118,7 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
   // homepage hero has (headline → promise → chips → doors). Every other page is untouched.
   if (doors) {
     return (
-      <section id={MARKETING_HERO_ID} className="sa-hero-doors flex flex-col items-center pb-9 pt-10 text-center sm:pt-14" style={{ fontFamily: BRAND_SANS }}>
+      <section id={MARKETING_HERO_ID} className="sa-hero-doors flex flex-col items-center pb-6 pt-6 text-center sm:pb-9 sm:pt-14" style={{ fontFamily: BRAND_SANS }}>
         <h1 className="mx-auto max-w-[600px] text-[30px] font-black leading-[1.12] sm:text-[40px] lg:text-[44px]" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "-0.015em" }}>
           {headline}
         </h1>
@@ -141,7 +141,7 @@ export function MarketingHero({ kind, code, schoolShort, greek, onStart, onBoltP
           </a>
         )}
         {courtesy}
-        <div className="mt-10 w-full sm:mt-12">{doors}</div>
+        <div className="mt-6 w-full sm:mt-12">{doors}</div>
       </section>
     );
   }

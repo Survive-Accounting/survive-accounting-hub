@@ -22,6 +22,7 @@ import { useCampus } from "@/lib/campus-context";
 import { FlyerBlock } from "@/components/site/FlyerBlock";
 import { ChapterAccessForm } from "@/components/site/ChapterAccessForm";
 import { chapterShortName, chapterTextMessage, chapterUrl, groupMeMessage, type ShareVia } from "@/components/site/ChapterShare";
+import { Sheet } from "@/components/site/Sheet";
 import { SlideBlock } from "@/components/site/SlideBlock";
 import { TIER_ACTION, TierCard, TierRow } from "@/components/site/home-two-door/DoorCard";
 import { logGreekEvent } from "@/lib/greek-go.functions";
@@ -408,27 +409,21 @@ function ClaimSheet({ chapterName, shortName, schoolSlug, chapterSlug, claim, on
   onClose: () => void;
 }) {
   const [submitted, setSubmitted] = useState(false);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
 
+  // THE SHEET IS SHARED NOW (2026-08-31). What used to be here was a hand-rolled overlay with
+  // three measured defects on a 390x844 phone, and together they made this form a DEAD END:
+  //
+  //   * The panel rendered 854px tall in an 844px viewport, so no backdrop was tappable.
+  //   * The × sat at (353, 27) — under the sticky navbar. elementFromPoint returned the navbar,
+  //     because a z-[240] overlay declared inside <main> (position:relative; z-index:1) cannot
+  //     outrank a z-200 sticky header that lives in the root stacking context.
+  //   * `items-end` + `overflow-y-auto` sends overflow past the container's START edge, the one
+  //     direction scrolling cannot reach — so the heading was unreachable too.
+  //
+  // Escape still closed it. There is no Escape key on a phone. See components/site/Sheet.tsx.
   return (
-    <div className="fixed inset-0 z-[240] flex items-end justify-center overflow-y-auto sm:items-center sm:px-4" style={{ background: "rgba(5,8,16,0.72)" }} onClick={onClose}>
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Get your academic exec dashboard"
-        className="w-full max-w-[420px] rounded-t-2xl p-5 sm:rounded-2xl"
-        style={{ background: "var(--bg-overlay)", border: "1px solid var(--border-default)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)", paddingBottom: "max(20px, env(safe-area-inset-bottom, 0px))", fontFamily: BRAND_SANS }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <h3 className="pr-2 text-[17px] font-black leading-tight" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Get your academic exec dashboard</h3>
-          <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--brand-cream)", background: "none", border: 0, cursor: "pointer" }}>×</button>
-        </div>
-
+    <Sheet title="Get your academic exec dashboard" onClose={onClose}>
+      <>
         {claim === "claimed" ? (
           <div className="rounded-xl p-4 text-center" style={{ background: "rgba(252,163,17,0.08)", border: "1px solid rgba(252,163,17,0.35)" }}>
             <p className="text-[14px] font-black" style={{ color: "var(--brand-cream)" }}>✓ Page claimed</p>
@@ -469,7 +464,7 @@ function ClaimSheet({ chapterName, shortName, schoolSlug, chapterSlug, claim, on
                 to the bottom of a free action. Price still appears ONLY in this claim context. */}
           </>
         )}
-      </div>
-    </div>
+      </>
+    </Sheet>
   );
 }

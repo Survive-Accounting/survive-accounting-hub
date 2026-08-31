@@ -33,6 +33,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Bolt, BRAND_DISPLAY, BRAND_SANS } from "@/components/canvas/brand";
 import { SearchPicker } from "@/components/site/SearchPicker";
+import { Sheet } from "@/components/site/Sheet";
 import { listCampusIntroCodes } from "@/lib/default-map.functions";
 import { listGoChapters } from "@/lib/greek-go.functions";
 import { ALL_SCHOOLS, boltForSlug, schoolBySlug } from "@/lib/schools";
@@ -136,20 +137,17 @@ export function GreekWaitlistSheet({ onClose, initialSchoolSlug }: {
     }
   };
 
+  // THE SHELL IS SHARED (2026-08-31). This was a hand-rolled overlay with the same defects as
+  // every other one on the site: an `items-end` flex container with `overflow-y-auto` (overflow
+  // escapes past the START edge, where scrolling cannot reach it), no height cap, a 32px close
+  // target, and no
+  // scroll lock — so dragging inside the sheet scrolled the homepage behind it. The school and
+  // organization pickers inside can make this panel tall, which is exactly when those bite.
+  //
+  // Everything shaped now comes from components/site/Sheet.tsx.
   return (
-    <div className="fixed inset-0 z-[240] flex items-end justify-center overflow-y-auto sm:items-center sm:px-4" style={{ background: "rgba(5,8,16,0.72)" }} onClick={onClose}>
-      <div
-        role="dialog"
-        aria-label="Find your chapter"
-        className="w-full max-w-[420px] rounded-t-2xl p-5 sm:rounded-2xl"
-        style={{ background: "var(--bg-overlay)", border: "1px solid var(--border-default)", boxShadow: "0 30px 70px -20px rgba(0,0,0,0.85)", paddingBottom: "max(20px, env(safe-area-inset-bottom, 0px))", fontFamily: BRAND_SANS }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-3 flex items-start justify-between gap-3">
-          <h3 className="text-[17px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Find your chapter</h3>
-          <button onClick={onClose} className="grid h-8 w-8 shrink-0 place-items-center rounded-full hover:bg-white/10" style={{ color: "var(--brand-cream)", background: "none", border: 0, cursor: "pointer" }} aria-label="Close">×</button>
-        </div>
-
+    <Sheet title="Find your chapter" onClose={onClose}>
+      <>
         {done ? (
           <p className="py-4 text-center text-[15px] font-bold leading-relaxed" style={{ color: "var(--brand-cream)" }}>
             You&apos;re on the list. When {done} opens, you&apos;re first to know.
@@ -235,7 +233,7 @@ export function GreekWaitlistSheet({ onClose, initialSchoolSlug }: {
             </button>
           </div>
         )}
-      </div>
-    </div>
+      </>
+    </Sheet>
   );
 }

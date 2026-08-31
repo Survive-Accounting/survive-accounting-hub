@@ -17,8 +17,11 @@ export const DOOR_CARD: React.CSSProperties = {
   background: "var(--bg-surface)",
   border: "1px solid var(--border-default)",
   borderRadius: 20,
-  padding: "28px 24px 20px",
-  minHeight: 332,
+  // Every vertical value is a CSS var so the PHONE can shrink them without a second
+  // component. See DOOR_CARD_CSS: below 640px the icon envelope, the padding and the floor all
+  // step down, which is what took the chapter hero from 1.34 screens tall to under one.
+  padding: "var(--door-pad-y, 28px) 24px 20px",
+  minHeight: "var(--door-min-h, 332px)",
   display: "flex",
   flexDirection: "column",
   alignItems: "center",
@@ -65,17 +68,17 @@ export function DoorCard({ icon, title, button, support }: {
   return (
     <div className="sa-door-card" style={DOOR_CARD}>
       {/* Icon envelope — same box on every door, whatever lives inside it. */}
-      <div className="grid place-items-center" style={{ height: 118 }}>{icon}</div>
+      <div className="sa-door-icon grid place-items-center" style={{ height: "var(--door-icon-h, 118px)" }}>{icon}</div>
       {/* Fixed two-line envelope so a wrapped title never pushes the buttons out of line. */}
       <h3
         className="mt-3 grid place-items-center text-[20px] font-black uppercase leading-tight"
-        style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "0.04em", minHeight: 52 }}
+        style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)", letterSpacing: "0.04em", minHeight: "var(--door-title-h, 52px)" }}
       >
         {title}
       </h3>
       <div className="mt-3 w-full">{button}</div>
       {/* Support line BELOW the button; balanced wrap, two lines max on mobile. */}
-      <div className="sa-door-support mt-3 grid w-full place-items-center" style={{ minHeight: 38, fontFamily: BRAND_SANS }}>{support}</div>
+      <div className="sa-door-support mt-3 grid w-full place-items-center" style={{ minHeight: "var(--door-support-h, 38px)", fontFamily: BRAND_SANS }}>{support}</div>
       <div className="flex-1" />
     </div>
   );
@@ -180,5 +183,24 @@ export const DOOR_CARD_CSS = `
 .sa-door-card:hover { transform: translateY(-3px); box-shadow: 0 30px 70px -28px rgba(0,0,0,0.8), 0 4px 24px -4px rgba(0,0,0,0.45); }
 @media (prefers-reduced-motion: reduce) {
   .sa-door-card, .sa-door-card:hover { transform: none; transition: none; }
+}
+
+/* THE PHONE GETS SMALLER DOORS.
+
+   Two stacked doors at their desktop size made the chapter hero 1135px on a 390x844 phone —
+   1.34 screens before a single word of the page. The doors are not less important on a phone;
+   they are simply the WHOLE screen there, where on a desktop they sit side by side and cost one
+   row. Shrinking the icon envelope and the padding keeps both doors and their copy intact and
+   gets the hero back under one screen. The icon itself scales because the marks are drawn to
+   fill their box. */
+@media (max-width: 639px) {
+  .sa-door-card {
+    --door-icon-h: 76px; --door-pad-y: 20px; --door-min-h: 236px;
+    --door-title-h: 42px; --door-support-h: 32px;
+  }
+  /* The marks are rendered at a fixed pixel height by their call sites, so they are SCALED
+     rather than resized: 112 x 0.68 = 76, exactly the envelope. transform is visual only, so
+     the title below does not move and no mark needs a second size prop. */
+  .sa-door-icon > * { transform: scale(0.68); transform-origin: center; }
 }
 `;
