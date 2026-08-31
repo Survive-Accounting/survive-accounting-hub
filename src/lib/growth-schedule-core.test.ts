@@ -42,7 +42,7 @@ describe("channel priority", () => {
 });
 
 describe("planRange", () => {
-  const campus = (id: string, orgs: SchedOrg[]): SchedCampus => ({ campusId: id, name: id, orgs });
+  const campus = (id: string, orgs: SchedOrg[], priority: number | null = null): SchedCampus => ({ campusId: id, name: id, priority, orgs });
   it("schedules one sequence per org, consuming both tracks, and flags gaps", () => {
     const c = campus("A", [
       org({ orgKey: "council:ifc", kind: "council", councilType: "ifc", label: "IFC", contacts: [contact({ isPerson: true, name: "Pat", email: "pat@a.edu", instagram: "pat_" })] }),
@@ -63,11 +63,27 @@ describe("planRange", () => {
     const plan = planRange({ from: "2026-09-06", to: "2026-09-11", campuses: [campus("A", orgs)], touches: [] });
     expect(plan[0].items.length).toBeLessThanOrEqual(10);
   });
+  it("fills email slots with gaps even when DM is full (no early break)", () => {
+    // 15 DM-only chapters (fill the 10 DM cap, 5 deferred) + contactless councils, whose gaps are
+    // email-first. The email column must still fill with council gaps despite DM being full.
+    const dmOrgs = Array.from({ length: 15 }, (_, i) => org({ orgKey: `chapter:${i}`, kind: "chapter", contacts: [contact({ instagram: `h${i}` })] }));
+    const councilGaps = ["ifc", "panhellenic", "nphc", "mgc"].map((t) => org({ orgKey: `council:${t}`, kind: "council", councilType: t, label: t, contacts: [] }));
+    const plan = planRange({ from: "2026-09-06", to: "2026-09-11", campuses: [campus("A", [...dmOrgs, ...councilGaps])], touches: [] });
+    expect(plan[0].items.length).toBe(10); // DM cap respected, not exceeded
+    const emailGapCount = plan[0].gaps.filter((g) => g.orgKind === "council").length;
+    expect(emailGapCount).toBe(4); // all 4 council email gaps rendered despite DM being full
+  });
+  it("orders campuses by outreach priority (lower first, null last)", () => {
+    const mk = (id: string, pri: number | null) => campus(id, [org({ orgKey: "council:ifc", kind: "council", councilType: "ifc", contacts: [contact({ email: `ifc@${id}.edu` })] })], pri);
+    const plan = planRange({ from: "2026-09-06", to: "2026-09-11", campuses: [mk("Z", null), mk("B", 2), mk("A", 1)], touches: [] });
+    const firstThree = plan[0].items.map((i) => i.campusId);
+    expect(firstThree.slice(0, 3)).toEqual(["A", "B", "Z"]);
+  });
 });
 
 describe("follow-ups", () => {
   it("becomes due after 7 days with no reply, once", () => {
-    const touches: PriorTouch[] = [{ campusId: "A", orgKey: "chapter:1", contactId: "c1", channel: "dm", kind: "new", scheduledDate: "2026-09-08", sentAt: "2026-09-08T10:00:00Z", repliedAt: null, outcome: null }];
+    const touches: PriorTouch[] = [{ id: "t1", campusId: "A", orgKey: "chapter:1", contactId: "c1", channel: "dm", kind: "new", scheduledDate: "2026-09-08", sentAt: "2026-09-08T10:00:00Z", repliedAt: null, outcome: null }];
     expect(followUpsDue(touches, "2026-09-15")).toHaveLength(1); // 7 days later
     expect(followUpsDue(touches, "2026-09-14")).toHaveLength(0); // 6 days
     const replied = [...touches]; replied[0] = { ...replied[0], repliedAt: "2026-09-10T00:00:00Z" };

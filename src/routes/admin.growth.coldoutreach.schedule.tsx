@@ -10,12 +10,12 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import {
-  growthScheduleWeek, growthPrewarmWeek, growthMarkTouch, growthPrewarm,
+  growthScheduleWeek, growthPrewarmWeek, growthMarkTouch, growthDeleteTouch, growthMarkReplied, growthPrewarm,
   growthScheduleCsv, growthInstantlyPush,
   type SchedDay, type SchedColumn, type SchedSectionCol, type SchedCampusCol, type SchedContactView, type Owner,
 } from "@/lib/growth-schedule.functions";
-import { growthSaveCampusContacts } from "@/lib/growth-tranche.functions";
 import { addDays, dowOf, seasonWeeks, HANDOFF_DATE } from "@/lib/growth-schedule-core";
+import { ContactAddForm } from "@/components/growth/contact-add-form";
 import { ColdHeader } from "@/components/growth/ColdHeader";
 import { renderQueryState } from "@/components/growth/QueryState";
 import { cn } from "@/lib/utils";
@@ -48,6 +48,9 @@ function SchedulePage() {
   }, [weeks]);
   const [weekStart, setWeekStart] = useState(initialWeek);
   const [tab, setTab] = useState<"schedule" | "prewarm">("schedule");
+  // Which channel column(s) to show — persists across days and reloads (item 5).
+  const [channelView, setChannelView] = useState<"dm" | "email" | "both">(() => { try { const v = localStorage.getItem("co-sched-channel"); return v === "dm" || v === "email" ? v : "both"; } catch { return "both"; } });
+  const setChannel = (v: "dm" | "email" | "both") => { setChannelView(v); try { localStorage.setItem("co-sched-channel", v); } catch { /* ignore */ } };
 
   const wk = useQuery({ queryKey: ["schedule", owner, weekStart], queryFn: () => growthScheduleWeek({ data: { owner, weekStart } }) });
   const weekMeta = weeks.find((w) => w.start === weekStart);
@@ -101,7 +104,7 @@ function SchedulePage() {
               Nothing scheduled for {OWNERS.find((o) => o.id === owner)?.label} this week. Founder-first: Lee runs Sept 1–12 (Ole Miss + the Florida cluster); King takes over Sept 13.
             </div>
           )}
-          {wk.data.days.map((d) => <DayCard key={d.date} day={d} owner={owner} onChange={() => wk.refetch()} />)}
+          {wk.data.days.map((d) => <DayCard key={d.date} day={d} owner={owner} channelView={channelView} onChannel={setChannel} onChange={() => wk.refetch()} />)}
         </>
       )}
 
@@ -149,13 +152,17 @@ function NeedHelp() {
   );
 }
 
-function DayCard({ day, owner, onChange }: { day: SchedDay; owner: Owner; onChange: () => void }) {
+function DayCard({ day, owner, channelView, onChannel, onChange }: { day: SchedDay; owner: Owner; channelView: "dm" | "email" | "both"; onChannel: (v: "dm" | "email" | "both") => void; onChange: () => void }) {
   const t = todayYmd();
   const [open, setOpen] = useState(day.date <= t ? false : day.date === t); // keep collapsed; open deliberately
   const hasContent = day.columns.some((c) => c.sections.length > 0);
   if (!hasContent) return null; // founder-first: not this owner's window
   const status = day.date < t ? "past" : day.date === t ? "today" : "scheduled";
   const col = (ch: "dm" | "email") => day.columns.find((c) => c.channel === ch);
+  const dm = col("dm"), email = col("email");
+  const badgeTitle = `${dm?.readyToSend ?? 0} of ${dm?.budget ?? 0} Instagram · ${email?.readyToSend ?? 0} of ${email?.budget ?? 0} email ready to send`;
+  // Even when one channel is hidden, its counter still shows here so nothing is silently missed.
+  const shown = day.columns.filter((c) => channelView === "both" || c.channel === channelView);
   return (
     <div className="overflow-hidden rounded-lg border border-border">
       <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-2 bg-card px-3 py-2.5 text-left">
@@ -163,28 +170,50 @@ function DayCard({ day, owner, onChange }: { day: SchedDay; owner: Owner; onChan
         <span className="text-[13px] font-semibold uppercase tracking-wide">{fmtDay(day.date)}</span>
         <span className="text-[10px] uppercase tracking-wide text-muted-foreground">{day.sender}</span>
         {status === "today" && <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-primary">Today</span>}
-        <span className="ml-auto flex items-center gap-3 text-[10px] text-muted-foreground">
-          <span className="inline-flex items-center gap-0.5"><Instagram className="size-3 text-pink-400" /> {col("dm")?.readyToSend ?? 0}/{col("dm")?.budget ?? 0}</span>
-          <span className="inline-flex items-center gap-0.5"><Mail className="size-3 text-sky-400" /> {col("email")?.readyToSend ?? 0}/{col("email")?.budget ?? 0}</span>
+        <span title={badgeTitle} className="ml-auto flex items-center gap-3 text-[10px] text-muted-foreground">
+          <span className={cn("inline-flex items-center gap-0.5", channelView === "email" && "opacity-40")}><Instagram className="size-3 text-pink-400" /> {dm?.readyToSend ?? 0}/{dm?.budget ?? 0}</span>
+          <span className={cn("inline-flex items-center gap-0.5", channelView === "dm" && "opacity-40")}><Mail className="size-3 text-sky-400" /> {email?.readyToSend ?? 0}/{email?.budget ?? 0}</span>
         </span>
       </button>
       {open && (
-        <div className="grid gap-3 border-t border-border p-3 md:grid-cols-2">
-          {day.columns.map((c) => <ChannelColumn key={c.channel} col={c} date={day.date} sender={day.sender as "lee" | "king"} owner={owner} onChange={onChange} />)}
+        <div className="space-y-3 border-t border-border p-3">
+          <div className="flex justify-center">
+            <ChannelToggle value={channelView} onChange={onChannel} />
+          </div>
+          <div className={cn("grid gap-3", channelView === "both" && "md:grid-cols-2")}>
+            {shown.map((c) => <ChannelColumn key={c.channel} col={c} date={day.date} sender={day.sender as "lee" | "king"} owner={owner} onChange={onChange} />)}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
+function ChannelToggle({ value, onChange }: { value: "dm" | "email" | "both"; onChange: (v: "dm" | "email" | "both") => void }) {
+  const opt = (v: "dm" | "email" | "both", label: ReactNode) => (
+    <button onClick={() => onChange(v)} className={cn("inline-flex items-center gap-1 px-2.5 py-0.5", value === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>{label}</button>
+  );
+  return (
+    <div className="inline-flex overflow-hidden rounded-md border border-border text-[10px] font-medium">
+      {opt("dm", <><Instagram className="size-3" /> Instagram</>)}
+      {opt("email", <><Mail className="size-3" /> Email</>)}
+      {opt("both", "Both")}
+    </div>
+  );
+}
+
 function ChannelColumn({ col, date, sender, owner, onChange }: { col: SchedColumn; date: string; sender: "lee" | "king"; owner: Owner; onChange: () => void }) {
   const isDm = col.channel === "dm";
+  const assigned = col.readyToSend + col.gaps; // slots that map to an org (filled or gap)
+  const unassigned = Math.max(0, col.budget - assigned); // budget with no org left this week
   return (
     <div className="rounded-md border border-border">
-      <div className="flex items-center gap-2 border-b border-border bg-card px-2.5 py-1.5">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 border-b border-border bg-card px-2.5 py-1.5">
         {isDm ? <Instagram className="size-3.5 text-pink-400" /> : <Mail className="size-3.5 text-sky-400" />}
         <span className="text-[11px] font-bold uppercase tracking-wide">{isDm ? "Instagram" : "Email"}</span>
         <span className="text-[10px] text-muted-foreground"><strong className={col.readyToSend > 0 ? "text-foreground" : ""}>{col.readyToSend}</strong> of {col.budget} ready to send</span>
+        {col.gaps > 0 && <span className="text-[10px] text-amber-500">· {col.gaps} need a contact</span>}
+        {unassigned > 0 && <span title={`Only ${assigned} target${assigned === 1 ? "" : "s"} scheduled — ${unassigned} of the ${col.budget}-slot budget has no organization left to assign this week.`} className="text-[10px] text-muted-foreground/70">· {unassigned} slot{unassigned === 1 ? "" : "s"} unassigned</span>}
         <span className="ml-auto"><Tip which={col.channel} /></span>
       </div>
       <div className="divide-y divide-border/40">
@@ -227,7 +256,7 @@ function CampusBlock({ campus, date, sender, onChange }: { campus: SchedCampusCo
         {state === "ready" && <Check className="size-4 shrink-0 text-emerald-400" />}
         {state === "notready" && <X className="size-4 shrink-0 text-red-400" />}
         {state === "data" && <AlertTriangle className="size-3.5 shrink-0 text-amber-400" />}
-        <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">{state === "ready" ? `${campus.contactCount} contacts` : `${campus.coveredCount} of ${campus.neededCount}`}</span>
+        <span title={state === "ready" ? `${campus.contactCount} contacts on file` : `${campus.coveredCount} of ${campus.neededCount} needed organizations have a contact`} className="ml-auto shrink-0 text-[10px] text-muted-foreground">{state === "ready" ? `${campus.contactCount} contacts` : `${campus.coveredCount} of ${campus.neededCount} contacts`}</span>
       </button>
       {open && (
         <div className="space-y-1 px-2 pb-2">
@@ -250,13 +279,8 @@ function DataChecks({ checks }: { checks: { courseCode: boolean; chaptersSeeded:
 }
 
 function ContactLine({ c, campus, date, sender, onChange }: { c: SchedContactView; campus: SchedCampusCol; date: string; sender: "lee" | "king"; onChange: () => void }) {
+  const [adding, setAdding] = useState(false);
   if (c.gap) return <GapLine c={c} campus={campus} onChange={onChange} />;
-  const mark = useMutation({
-    mutationFn: (channel: "dm" | "story_reply" | "email") => growthMarkTouch({ data: { campusId: campus.campusId, orgKey: c.orgKey, contactId: c.contactId, channel, kind: c.kind, scheduledDate: date, sender } }),
-    onSuccess: () => onChange(),
-  });
-  const copyAndSend = (channel: "dm" | "story_reply" | "email", text: string) => { copyText(text, "Copied — marked sent."); mark.mutate(channel); };
-  const beforeHandoff = date < HANDOFF_DATE;
   const btn = "inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 text-[10px] hover:bg-muted";
   return (
     <div className="rounded border border-border/50 bg-card p-1.5 text-[11px]">
@@ -275,27 +299,55 @@ function ContactLine({ c, campus, date, sender, onChange }: { c: SchedContactVie
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-stretch gap-1">
+          {/* Copy is clipboard-only — marking sent is the checkbox below, never a side effect of Copy. */}
           {c.channel === "dm" ? (<>
-            <button onClick={() => copyAndSend("dm", c.messages.dm ?? "")} className={btn}><Copy className="size-3" /> Copy DM</button>
-            <button onClick={() => copyAndSend("story_reply", c.messages.story ?? "")} title="Reply to an active Story instead of a cold DM" className={btn}><MessageSquare className="size-3" /> Story reply</button>
+            <button onClick={() => copyText(c.messages.dm ?? "", "DM copied.")} className={btn}><Copy className="size-3" /> Copy DM</button>
+            <button onClick={() => copyText(c.messages.story ?? "", "Story reply copied.")} title="Reply to an active Story instead of a cold DM" className={btn}><MessageSquare className="size-3" /> Story reply</button>
           </>) : (
-            <button onClick={() => copyAndSend("email", c.messages.email ?? "")} className={btn}><Copy className="size-3" /> Copy email</button>
+            <button onClick={() => copyText(c.messages.email ?? "", "Email copied.")} className={btn}><Copy className="size-3" /> Copy email</button>
           )}
         </div>
       </div>
-      {beforeHandoff && <FollowupChecks storageKey={`co-fu:${date}:${campus.campusId}:${c.orgKey}:${c.channel}`} />}
+      <SentReplied c={c} campus={campus} date={date} sender={sender} onChange={onChange} />
+      {/* Every org gets +Add — a council legitimately has four or five contacts (item 4). */}
+      <div className="mt-1 border-t border-border/40 pt-1">
+        {adding
+          ? <ContactAddForm campusId={campus.campusId} orgKey={c.orgKey} orgLabel={c.orgLabel} onSaved={() => { setAdding(false); onChange(); }} onCancel={() => setAdding(false)} />
+          : <button onClick={() => setAdding(true)} className="inline-flex items-center gap-0.5 text-[9px] text-primary hover:underline"><Plus className="size-2.5" /> add another contact</button>}
+      </div>
     </div>
   );
 }
 
-// Manual-period follow-up tracking, localStorage only (removed after the Sept 13 handoff to Instantly).
-function FollowupChecks({ storageKey }: { storageKey: string }) {
-  const [st, setSt] = useState<{ followup?: boolean; replied?: boolean }>(() => { try { return JSON.parse(localStorage.getItem(storageKey) || "{}"); } catch { return {}; } });
-  const set = (patch: Partial<typeof st>) => { const next = { ...st, ...patch }; setSt(next); try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* ignore */ } };
+// Sent / replied for one row, from the real touch log. Sent writes/clears a touch (which drives
+// cooldown and the week's counts); replied toggles replied_at on it. After the Sept 13 handoff,
+// email is Instantly's job — those rows drop the checkboxes and show its status instead.
+function SentReplied({ c, campus, date, sender, onChange }: { c: SchedContactView; campus: SchedCampusCol; date: string; sender: "lee" | "king"; onChange: () => void }) {
+  const instantlyEmail = c.channel === "email" && date >= HANDOFF_DATE;
+  const markSent = useMutation({
+    mutationFn: (on: boolean) => on
+      ? growthMarkTouch({ data: { campusId: campus.campusId, orgKey: c.orgKey, contactId: c.contactId, channel: c.channel, kind: c.kind, scheduledDate: date, sender } })
+      : growthDeleteTouch({ data: { touchId: c.touchId! } }),
+    onSuccess: () => onChange(),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't update"),
+  });
+  const markReplied = useMutation({
+    mutationFn: (on: boolean) => growthMarkReplied({ data: { touchId: c.touchId!, replied: on } }),
+    onSuccess: () => onChange(),
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't update"),
+  });
+  if (instantlyEmail) {
+    return <div className="mt-1 border-t border-border/40 pt-1 text-[9px] italic text-muted-foreground">Sending handled by Instantly — status syncs here.</div>;
+  }
+  const busy = markSent.isPending || markReplied.isPending;
   return (
     <div className="mt-1 flex items-center gap-3 border-t border-border/40 pt-1 text-[9px] text-muted-foreground">
-      <label className="inline-flex items-center gap-1"><input type="checkbox" checked={!!st.followup} onChange={(e) => set({ followup: e.target.checked })} /> follow-up sent</label>
-      <label className="inline-flex items-center gap-1"><input type="checkbox" checked={!!st.replied} onChange={(e) => set({ replied: e.target.checked })} /> replied</label>
+      <label className="inline-flex items-center gap-1" title="Mark this contact sent — records the touch and starts the org's cooldown">
+        <input type="checkbox" disabled={busy || (c.sent && !c.touchId)} checked={c.sent} onChange={(e) => markSent.mutate(e.target.checked)} /> sent
+      </label>
+      <label className={cn("inline-flex items-center gap-1", !c.sent && "opacity-40")} title={c.sent ? "They replied" : "Mark sent first"}>
+        <input type="checkbox" disabled={busy || !c.sent || !c.touchId} checked={c.replied} onChange={(e) => markReplied.mutate(e.target.checked)} /> replied
+      </label>
     </div>
   );
 }
@@ -311,43 +363,7 @@ function GapLine({ c, campus, onChange }: { c: SchedContactView; campus: SchedCa
         <button onClick={() => setAdding((v) => !v)} className="inline-flex items-center gap-0.5 text-primary hover:underline"><Plus className="size-3" /> Add contact</button>
         <button onClick={() => window.open(`https://www.google.com/search?q=${encodeURIComponent(q)}`, "_blank", "noopener,noreferrer")} className="inline-flex items-center gap-0.5 text-muted-foreground hover:text-foreground">Find contact<ExternalLink className="size-2.5" /></button>
       </div>
-      {adding && <GapAddForm orgKey={c.orgKey} campusId={campus.campusId} onSaved={() => { setAdding(false); onChange(); }} />}
-    </div>
-  );
-}
-
-function GapAddForm({ orgKey, campusId, onSaved }: { orgKey: string; campusId: string; onSaved: () => void }) {
-  const [f, setF] = useState({ isPerson: false, name: "", role: "", email: "", instagram: "" });
-  const [k, rest] = orgKey.split(":");
-  const kind = (k === "council" ? "council" : k === "chapter" ? "chapter" : "club") as "council" | "chapter" | "club";
-  const save = useMutation({
-    mutationFn: () => growthSaveCampusContacts({ data: { campusId, contacts: [{
-      kind, entityId: k === "council" ? null : rest, councilType: k === "council" ? rest : null,
-      newClubName: null, newClubCategory: k === "club" ? "women_in_business" : null,
-      isPerson: f.isPerson, notFound: false, isRoleAccount: false,
-      name: f.name || null, role: f.role || null, email: f.email || null, instagram: f.instagram || null,
-    }] } }),
-    onSuccess: (r) => { if (r.saved > 0) { toast.success("Contact added."); onSaved(); } else toast.error(r.errors[0] ?? "Nothing saved — add an email or Instagram."); },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Save failed"),
-  });
-  const canSave = !!(f.email.trim() || f.instagram.trim());
-  return (
-    <div className="mt-1.5 space-y-1.5 rounded border border-primary/30 bg-background p-2">
-      <div className="inline-flex overflow-hidden rounded border border-border text-[10px]">
-        <button onClick={() => setF({ ...f, isPerson: false })} className={cn("px-2 py-0.5", !f.isPerson ? "bg-primary/15 text-primary" : "text-muted-foreground")}>Organization</button>
-        <button onClick={() => setF({ ...f, isPerson: true })} className={cn("px-2 py-0.5", f.isPerson ? "bg-primary/15 text-primary" : "text-muted-foreground")}>Person</button>
-      </div>
-      {f.isPerson && <div className="grid grid-cols-2 gap-1.5">
-        <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Name" className="rounded border border-border bg-card px-2 py-1 text-[11px]" />
-        <input value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })} placeholder="Role" className="rounded border border-border bg-card px-2 py-1 text-[11px]" />
-      </div>}
-      <div className="grid grid-cols-2 gap-1.5">
-        <input value={f.instagram} onChange={(e) => setF({ ...f, instagram: e.target.value })} placeholder="@instagram" className="rounded border border-pink-500/30 bg-card px-2 py-1 text-[11px]" />
-        <input value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} placeholder="Email" className="rounded border border-border bg-card px-2 py-1 text-[11px]" />
-      </div>
-      <div className="flex justify-end">
-        <button onClick={() => save.mutate()} disabled={!canSave || save.isPending} className="rounded bg-primary px-3 py-0.5 text-[10px] font-medium text-primary-foreground disabled:opacity-40">{save.isPending ? "…" : "Save contact"}</button>
-      </div>
+      {adding && <ContactAddForm campusId={campus.campusId} orgKey={c.orgKey} orgLabel={c.orgLabel} onSaved={() => { setAdding(false); onChange(); }} onCancel={() => setAdding(false)} />}
     </div>
   );
 }
