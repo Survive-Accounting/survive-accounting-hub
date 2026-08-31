@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronRight,
   Copy,
+  HelpCircle,
   Instagram,
   Landmark,
   Loader2,
@@ -226,15 +227,15 @@ function ColdOutreachPage() {
 }
 
 // Two counters per campus: emails on file and Instagram handles on file, count under each icon.
-function ContactCounters({ email, ig }: { email: number; ig: number }) {
-  const cell = (n: number, icon: ReactNode, title: string, tone: string) => (
-    <span title={title} className={cn("flex w-9 flex-col items-center gap-0.5", n > 0 ? tone : "text-muted-foreground")}>
+function ContactCounters({ email, ig, title }: { email: number; ig: number; title?: string }) {
+  const cell = (n: number, icon: ReactNode, cellTitle: string, tone: string) => (
+    <span title={cellTitle} className={cn("flex w-9 flex-col items-center gap-0.5", n > 0 ? tone : "text-muted-foreground")}>
       {icon}
       <span className="text-[11px] font-semibold leading-none">{n}</span>
     </span>
   );
   return (
-    <span className="flex shrink-0 items-center gap-1">
+    <span title={title} className="flex shrink-0 items-center gap-1">
       {cell(email, <Mail className="size-3.5" />, "Emails on file", "text-sky-400")}
       {cell(ig, <Instagram className="size-3.5" />, "Instagram handles on file", "text-pink-400")}
     </span>
@@ -281,6 +282,20 @@ const emptyRow = (o: Partial<Row>): Row => ({
 
 const draftKey = (campusId: string) => `coldoutreach:draft:${campusId}`;
 
+// Which org a draft/queued row belongs to. Councils key by type, chapters by id, clubs by
+// category (one slot per category). Routes the single open form + queued rows to the right
+// EntityRow, and keeps "only one form open anywhere" honest.
+const specOrgKey = (o: Partial<Row>): string =>
+  o.kind === "council"
+    ? `council:${o.councilType}`
+    : o.kind === "chapter"
+      ? `chapter:${o.entityId}`
+      : `club:${o.newClubCategory}`;
+const orgKeyOf = (r: Row) => specOrgKey(r);
+const rowHasContent = (r: Row) => !!(r.name.trim() || r.email.trim() || r.instagram.trim() || r.role.trim());
+const modeLabel = (m: "org" | "person" | "notfound") =>
+  m === "person" ? "Person" : m === "org" ? "Organization" : "Not found";
+
 function neededList(r: CampusReadiness): string[] {
   const out: string[] = [];
   if (!r.councilOk) out.push("No council or Greek Life / FSL office contact");
@@ -295,50 +310,99 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
   const slots = useQuery({ queryKey: ["co-slots", campus.campusId], queryFn: () => growthCampusContactSlots({ data: { campusId: campus.campusId } }) });
   const [open, setOpen] = useState<Record<string, boolean>>({ councils: true, chapters: false, clubs: false });
   const [showAll, setShowAll] = useState<Record<string, boolean>>({});
-  const [rows, setRows] = useState<Row[]>([]);
+  const [queued, setQueued] = useState<Row[]>([]);
+  // Only ONE form is open anywhere on the page. { orgKey, draft, editingKey } — editingKey is set
+  // when re-opening an already-queued row so Add replaces it instead of appending.
+  const [openForm, setOpenForm] = useState<{ orgKey: string; draft: Row; editingKey: string | null } | null>(null);
   const [roleFilter, setRoleFilter] = useState(false);
   const restored = useRef(false);
 
-  // Autosave the in-progress batch to browser storage, keyed by campus. Restore silently on return.
+  // Autosave the queued (added-but-unsaved) contacts to browser storage, keyed by campus.
   useEffect(() => {
     try {
       const raw = localStorage.getItem(draftKey(campus.campusId));
       if (raw) {
         const parsed = JSON.parse(raw) as Row[];
-        if (Array.isArray(parsed) && parsed.length) { setRows(parsed); restored.current = true; toast.message("Draft restored", { description: `${parsed.length} unsaved row${parsed.length === 1 ? "" : "s"} from last time.` }); }
+        if (Array.isArray(parsed) && parsed.length) { setQueued(parsed); restored.current = true; toast.message("Draft restored", { description: `${parsed.length} queued contact${parsed.length === 1 ? "" : "s"} from last time.` }); }
       }
     } catch { /* ignore */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campus.campusId]);
   useEffect(() => {
     try {
-      if (rows.length) localStorage.setItem(draftKey(campus.campusId), JSON.stringify(rows));
+      if (queued.length) localStorage.setItem(draftKey(campus.campusId), JSON.stringify(queued));
       else localStorage.removeItem(draftKey(campus.campusId));
     } catch { /* ignore */ }
-  }, [rows, campus.campusId]);
+  }, [queued, campus.campusId]);
 
-  const set = (key: string, patch: Partial<Row>) => setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
-  const add = (r: Partial<Row>) => setRows((rs) => [...rs, emptyRow(r)]);
-  const remove = (key: string) => setRows((rs) => rs.filter((r) => r.key !== key));
-  const rowsFor = (pred: (r: Row) => boolean) =>
-    rows.filter(pred).map((r) => <NewContactRow key={r.key} r={r} set={set} remove={remove} campusName={campus.name} />);
+  // ── one open form → a queued list → Save the batch once ────────────────────────────────
+  const setDraft = (patch: Partial<Row>) => setOpenForm((f) => (f ? { ...f, draft: { ...f.draft, ...patch } } : f));
+  const openFormFor = (spec: Partial<Row>) => {
+    const orgKey = specOrgKey(spec);
+    if (openForm) {
+      if (openForm.orgKey === orgKey && !openForm.editingKey) return; // already adding here
+      if (rowHasContent(openForm.draft) && !window.confirm("You have an unsaved contact open. Discard it and start a new one?")) return;
+    }
+    const draft = emptyRow(spec);
+    draft.isPerson = spec.isPerson ?? false;
+    if (spec.role) draft.role = spec.role;
+    setOpenForm({ orgKey, draft, editingKey: null });
+  };
+  const cancelForm = () => {
+    if (openForm && rowHasContent(openForm.draft) && !window.confirm("Discard this contact? What you typed will be lost.")) return;
+    setOpenForm(null);
+  };
+  // Switching type CLEARS every field so nothing bleeds across (an org IG must never survive into a
+  // person record). Confirms first only when the row has something in it.
+  const switchMode = (mode: "org" | "person" | "notfound") => {
+    if (!openForm) return;
+    const d = openForm.draft;
+    const cur = d.notFound ? "notfound" : d.isPerson ? "person" : "org";
+    if (cur === mode) return;
+    if (rowHasContent(d) && !window.confirm(`Switch to ${modeLabel(mode)}? This clears what you've typed.`)) return;
+    const cleared = emptyRow({ kind: d.kind, entityId: d.entityId, councilType: d.councilType, newClubName: d.newClubName, newClubCategory: d.newClubCategory, label: d.label });
+    cleared.key = d.key;
+    cleared.isPerson = mode === "person";
+    cleared.notFound = mode === "notfound";
+    setOpenForm({ ...openForm, draft: cleared });
+  };
+  const addQueued = () => {
+    if (!openForm) return;
+    const d = openForm.draft;
+    if (!d.name.trim() && !d.email.trim() && !d.instagram.trim()) { toast.error("Add a name, email, or Instagram before adding."); return; }
+    setQueued((q) => (openForm.editingKey ? q.map((x) => (x.key === openForm.editingKey ? d : x)) : [...q, d]));
+    setOpenForm(null);
+  };
+  const editQueued = (r: Row) => {
+    if (openForm && openForm.draft.key !== r.key && rowHasContent(openForm.draft) && !window.confirm("You have an unsaved contact open. Discard it to edit this one?")) return;
+    setOpenForm({ orgKey: orgKeyOf(r), draft: { ...r }, editingKey: r.key });
+  };
+  const removeQueued = (key: string) => setQueued((q) => q.filter((x) => x.key !== key));
+  const queuedFor = (orgKey: string) => queued.filter((r) => orgKeyOf(r) === orgKey);
 
-  const filled = rows.filter((r) => r.notFound || r.email.trim() || r.instagram.trim());
+  // Not found commits immediately (its own tiny save) so the org settles and stops reading as a gap.
+  const notFoundMut = useMutation({
+    mutationFn: (spec: Row) => growthSaveCampusContacts({ data: { campusId: campus.campusId, contacts: [{ kind: spec.kind, entityId: spec.entityId, councilType: spec.councilType, newClubName: spec.newClubName, newClubCategory: spec.newClubCategory, isPerson: false, notFound: true, isRoleAccount: false, igRoleAccount: false, name: null, role: null, email: null, instagram: null }] } }),
+    onSuccess: async () => { setOpenForm(null); await qc.invalidateQueries({ queryKey: ["co-slots", campus.campusId] }); onSaved(); toast.success("Marked not found."); },
+    onError: (e) => toast.error(e instanceof Error ? e.message : "Couldn't save"),
+  });
+  const markNotFound = (spec: Row) => { if (window.confirm(`Mark ${spec.label || "this organization"} as not found?\n\nNothing turned up for it. It stops appearing as a gap and won't be searched again — you can undo this later.`)) notFoundMut.mutate(spec); };
+
   const save = useMutation({
     mutationFn: () =>
       growthSaveCampusContacts({
         data: {
           campusId: campus.campusId,
-          contacts: filled.map((r) => ({
+          contacts: queued.map((r) => ({
             kind: r.kind, entityId: r.entityId, councilType: r.councilType,
             newClubName: r.newClubName, newClubCategory: r.newClubCategory,
-            isPerson: r.isPerson, notFound: r.notFound, isRoleAccount: r.isRoleAccount, igRoleAccount: r.igRoleAccount,
+            isPerson: r.isPerson, notFound: false, isRoleAccount: r.isRoleAccount, igRoleAccount: r.igRoleAccount,
             name: r.name || null, role: r.role || null, email: r.email || null, instagram: r.instagram || null,
           })),
         },
       }),
     onSuccess: async (res) => {
-      setRows([]);
+      setQueued([]);
       try { localStorage.removeItem(draftKey(campus.campusId)); } catch { /* ignore */ }
       await qc.invalidateQueries({ queryKey: ["co-slots", campus.campusId] });
       onSaved();
@@ -374,6 +438,31 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
     for (const cb of s.clubs) for (const c of cb.contacts) if (isRole(c)) out.push({ where: cb.name, c });
     return out;
   }, [s]);
+
+  // Everything an EntityRow needs to host the single add-form + its queued rows for one org.
+  const addProps = (spec: Partial<Row>) => {
+    const orgKey = specOrgKey(spec);
+    const formIsOpen = openForm?.orgKey === orgKey;
+    return {
+      onAdd: () => openFormFor(spec),
+      formIsOpen,
+      queuedNode: queuedFor(orgKey).map((r) => (
+        <QueuedRow key={r.key} r={r} editing={openForm?.editingKey === r.key} onEdit={() => editQueued(r)} onRemove={() => removeQueued(r.key)} />
+      )),
+      formNode: formIsOpen ? (
+        <AddForm
+          draft={openForm.draft}
+          editing={!!openForm.editingKey}
+          notFoundPending={notFoundMut.isPending}
+          onChange={setDraft}
+          onSwitch={switchMode}
+          onAdd={addQueued}
+          onCancel={cancelForm}
+          onMarkNotFound={() => markNotFound(openForm.draft)}
+        />
+      ) : null,
+    };
+  };
 
   const section = (id: string, n: number, title: string, hint: string, icon: any, children: ReactNode) => {
     const Icon = icon;
@@ -427,12 +516,10 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
       notFound={ch.notFound}
       muted={!ch.needed}
       person
-      onAdd={() => add({ kind: "chapter", entityId: ch.id, label: ch.name })}
       campusName={campus.name}
       onEdited={() => qc.invalidateQueries({ queryKey: ["co-slots", campus.campusId] })}
-    >
-      {rowsFor((r) => r.kind === "chapter" && r.entityId === ch.id)}
-    </EntityRow>
+      {...addProps({ kind: "chapter", entityId: ch.id, label: ch.name })}
+    />
   );
 
   return (
@@ -443,7 +530,7 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
         <div className="space-y-2 pb-24">
           <ReadinessBar r={s.readiness} />
           <div className="flex items-center gap-2 px-1 text-[10px] text-muted-foreground">
-            <span>Click a name (or <span className="text-primary">+ contact</span>) to add — stack rows, Save once.</span>
+            <span>Add contacts one at a time — each drops into a queue below its org. <span className="text-primary">Save</span> the whole batch once.</span>
             {roleAccounts.length > 0 && (
               <button onClick={() => setRoleFilter((v) => !v)} className={cn("ml-auto inline-flex items-center gap-1 rounded-full border px-2 py-0.5", roleFilter ? "border-amber-500/50 bg-amber-500/10 text-amber-500" : "border-border")}>
                 <Recycle className="size-3" /> {roleAccounts.length} role account{roleAccounts.length === 1 ? "" : "s"}
@@ -466,26 +553,29 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
             <>
               {section("councils", 1, "Councils & Greek Life Office", "Highest leverage — one yes opens 15+ chapters", Landmark,
                 <>
-                  {(s.councils).map((c) => (
-                    <EntityRow
-                      key={c.type}
-                      name={c.label}
-                      searchOrg={c.type === "fsl" ? "fraternity sorority life office" : `${c.label} council`}
-                      existing={c.contacts}
-                      notFound={c.notFound}
-                      person
-                      onAdd={() => add({ kind: "council", councilType: c.type, label: c.label })}
-                      campusName={campus.name}
-                      onEdited={() => qc.invalidateQueries({ queryKey: ["co-slots", campus.campusId] })}
-                    >
-                      {c.type === "fsl" && !c.contacts.length && rows.every((r) => r.councilType !== "fsl") && (
-                        <button onClick={() => add({ kind: "council", councilType: "fsl", label: c.label, isPerson: true, role: "FSL Director" })} className="text-left text-[10px] italic text-muted-foreground/70 hover:text-primary">
-                          + FSL Director (add a name when you have one — an email alone is enough to start)
-                        </button>
-                      )}
-                      {rowsFor((r) => r.kind === "council" && r.councilType === c.type)}
-                    </EntityRow>
-                  ))}
+                  {(s.councils).map((c) => {
+                    const spec = { kind: "council" as const, councilType: c.type, label: c.label };
+                    const showFsl = c.type === "fsl" && !c.contacts.length && !queuedFor(specOrgKey(spec)).length && openForm?.orgKey !== specOrgKey(spec);
+                    return (
+                      <EntityRow
+                        key={c.type}
+                        name={c.label}
+                        searchOrg={c.type === "fsl" ? "fraternity sorority life office" : `${c.label} council`}
+                        existing={c.contacts}
+                        notFound={c.notFound}
+                        person
+                        campusName={campus.name}
+                        onEdited={() => qc.invalidateQueries({ queryKey: ["co-slots", campus.campusId] })}
+                        {...addProps(spec)}
+                      >
+                        {showFsl && (
+                          <button onClick={() => openFormFor({ ...spec, isPerson: true, role: "FSL Director" })} className="text-left text-[10px] italic text-muted-foreground/70 hover:text-primary">
+                            + FSL Director (add a name when you have one — an email alone is enough to start)
+                          </button>
+                        )}
+                      </EntityRow>
+                    );
+                  })}
                 </>,
               )}
 
@@ -508,12 +598,10 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
                       existing={cl.contacts}
                       notFound={cl.notFound}
                       person
-                      onAdd={() => add({ kind: "club", entityId: cl.clubId, newClubName: cl.name, newClubCategory: cl.clubType, label: cl.name })}
                       campusName={campus.name}
                       onEdited={() => qc.invalidateQueries({ queryKey: ["co-slots", campus.campusId] })}
-                    >
-                      {rowsFor((r) => r.kind === "club" && r.newClubCategory === cl.clubType)}
-                    </EntityRow>
+                      {...addProps({ kind: "club", entityId: cl.clubId, newClubName: cl.name, newClubCategory: cl.clubType, label: cl.name })}
+                    />
                   ))}
                 </>,
               )}
@@ -523,13 +611,15 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
       )}
 
       <div className="sticky bottom-0 -mx-4 flex items-center gap-2 border-t border-border bg-background px-4 py-2.5">
-        <span className="text-[11px] text-muted-foreground">{filled.length} to save</span>
+        <span className="text-[11px] text-muted-foreground">
+          {queued.length} to save{openForm && rowHasContent(openForm.draft) ? " · 1 open (not added yet)" : ""}
+        </span>
         <button
           onClick={() => save.mutate()}
-          disabled={filled.length === 0 || save.isPending}
+          disabled={queued.length === 0 || save.isPending}
           className="ml-auto rounded-md bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-40"
         >
-          {save.isPending ? "Saving…" : `Save ${filled.length}`}
+          {save.isPending ? "Saving…" : `Save ${queued.length}`}
         </button>
       </div>
     </BottomSheet>
@@ -563,9 +653,12 @@ function RenameClub({ campusId, clubType, name, onRenamed }: { campusId: string;
 }
 
 function ReadinessBar({ r }: { r: CampusReadiness }) {
-  const item = (ok: boolean, label: string) => (
-    <span className={cn("inline-flex items-center gap-1", ok ? "text-emerald-400" : "text-muted-foreground")}>
+  // Each chip carries a ? that explains what the requirement means; when unmet the tooltip says so
+  // plainly ("No business club contact yet").
+  const item = (ok: boolean, label: string, met: string, unmet: string) => (
+    <span title={ok ? met : unmet} className={cn("inline-flex cursor-help items-center gap-1", ok ? "text-emerald-400" : "text-muted-foreground")}>
       {ok ? <Check className="size-3.5" /> : <X className="size-3.5 text-amber-400" />} {label}
+      <HelpCircle className="size-2.5 text-muted-foreground/50" />
     </span>
   );
   return (
@@ -573,10 +666,10 @@ function ReadinessBar({ r }: { r: CampusReadiness }) {
       {r.ready
         ? <span className="font-bold uppercase tracking-wide text-emerald-400">🎉 Ready for outreach!</span>
         : <span className="font-medium">Needed before launch:</span>}
-      {item(r.councilOk, "Council/FSL")}
-      {item(r.fratOk, "Frats")}
-      {item(r.sororityOk, "Sororities")}
-      {item(r.clubOk, "Clubs")}
+      {item(r.councilOk, "Council/FSL", "A council or Greek Life / FSL office contact is on file — one yes reaches every chapter under it.", "No council or Greek Life / FSL office contact yet — the highest-leverage one to get.")}
+      {item(r.fratOk, "Frats", "At least one fraternity chapter contact (email or Instagram) is on file.", "No fraternity contact yet — add one chapter to clear this.")}
+      {item(r.sororityOk, "Sororities", "At least one sorority chapter contact is on file.", "No sorority contact yet — add one chapter to clear this.")}
+      {item(r.clubOk, "Clubs", "A business club contact is on file (Women in Business, Finance, or Investing).", "No business club contact yet.")}
     </div>
   );
 }
@@ -584,15 +677,17 @@ function ReadinessBar({ r }: { r: CampusReadiness }) {
 // One org (council / chapter / club): clickable name, search, existing contacts (each editable),
 // not-found state, and any in-progress add rows.
 function EntityRow({
-  name, searchOrg, sub, headerExtra, existing, notFound, muted, onAdd, campusName, onEdited, children,
+  name, searchOrg, sub, headerExtra, existing, notFound, muted, onAdd, campusName, onEdited,
+  formIsOpen, queuedNode, formNode, children,
 }: {
   name: string; searchOrg?: string; sub?: ReactNode; headerExtra?: ReactNode; existing: ExistingContact[];
   notFound: boolean; muted?: boolean; person?: boolean; onAdd: () => void; campusName: string;
-  onEdited: () => void; children: ReactNode;
+  onEdited: () => void; formIsOpen?: boolean; queuedNode?: ReactNode; formNode?: ReactNode; children?: ReactNode;
 }) {
   const settled = notFound && existing.length === 0;
   const emails = existing.filter((c) => c.email && c.email.trim()).length;
   const igs = existing.filter((c) => c.instagram && c.instagram.trim()).length;
+  const counterTitle = `${emails} email${emails === 1 ? "" : "s"} · ${igs} Instagram`;
   return (
     <div className={cn("border-b border-border/30 py-2 last:border-0", (muted || settled) && "opacity-45 transition-opacity hover:opacity-100")}>
       <div className="flex items-start gap-2">
@@ -604,19 +699,41 @@ function EntityRow({
             {headerExtra}
             {settled && <span className="inline-flex items-center gap-0.5 italic text-amber-400"><Check className="size-2.5" /> not found</span>}
           </div>
-          {existing.map((c) => <ExistingRow key={c.id} c={c} onEdited={onEdited} />)}
+          {existing.map((c) => <ExistingRow key={c.id} c={c} orgLabel={name} campusName={campusName} onEdited={onEdited} />)}
           {children}
-          <button onClick={onAdd} className="mt-0.5 inline-flex items-center gap-0.5 text-[11px] text-primary hover:underline"><Plus className="size-3" /> contact</button>
+          {queuedNode}
+          {formNode}
+          {!formIsOpen && (
+            <button onClick={onAdd} className="mt-0.5 inline-flex items-center gap-0.5 text-[11px] text-primary hover:underline"><Plus className="size-3" /> contact</button>
+          )}
         </div>
-        {(emails > 0 || igs > 0) && <ContactCounters email={emails} ig={igs} />}
+        {(emails > 0 || igs > 0) && <ContactCounters email={emails} ig={igs} title={counterTitle} />}
       </div>
+    </div>
+  );
+}
+
+// A queued contact — added but not yet saved. Dimmed with an ⧗ marker; Edit reopens the form,
+// ✕ drops it. These survive a refresh via the browser autosave.
+function QueuedRow({ r, editing, onEdit, onRemove }: { r: Row; editing?: boolean; onEdit: () => void; onRemove: () => void }) {
+  const line = [r.name, r.role, r.email, igHandle(r.instagram)].filter((x) => x && String(x).trim()).join(" · ") || "contact";
+  return (
+    <div className={cn("flex items-center gap-1.5 rounded-md border border-dashed border-border/70 bg-muted/20 px-2 py-1 pl-1 text-[10px] text-muted-foreground", editing && "opacity-40")}>
+      <span title="Queued — not saved yet" className="shrink-0 text-muted-foreground/70">⧗</span>
+      <span className="min-w-0 truncate">{line}</span>
+      {r.isPerson && r.instagram && <Instagram className="size-2.5 shrink-0 text-pink-400" />}
+      <span className="shrink-0 rounded bg-muted px-1 text-[8.5px] uppercase tracking-wide text-muted-foreground/80">queued</span>
+      <span className="ml-auto flex shrink-0 items-center gap-1">
+        <button onClick={onEdit} title="Edit before saving" className="inline-flex items-center gap-0.5 rounded border border-border px-1.5 py-0.5 text-[9px] hover:bg-muted hover:text-foreground"><Pencil className="size-2.5" /> Edit</button>
+        <button onClick={onRemove} title="Remove from the queue" className="grid size-5 place-items-center rounded text-muted-foreground hover:bg-red-500/15 hover:text-red-400"><X className="size-3" /></button>
+      </span>
     </div>
   );
 }
 
 // Existing saved contact — read-only line with a personal-IG dot and role-account recycle icon,
 // plus an inline (non-modal) editor.
-function ExistingRow({ c, onEdited }: { c: ExistingContact; onEdited: () => void }) {
+function ExistingRow({ c, orgLabel, campusName, onEdited }: { c: ExistingContact; orgLabel: string; campusName: string; onEdited: () => void }) {
   const [editing, setEditing] = useState(false);
   const [f, setF] = useState({ name: c.name ?? "", role: c.role ?? "", email: c.email ?? "", instagram: c.instagram ?? "", isRoleAccount: c.isRoleAccount, igRoleAccount: c.igRoleAccount });
   const save = useMutation({
@@ -663,6 +780,7 @@ function ExistingRow({ c, onEdited }: { c: ExistingContact; onEdited: () => void
       {c.isPerson && c.instagram && <Instagram className="size-2.5 shrink-0 text-pink-400" />}
       {(c.isRoleAccount || c.igRoleAccount) && <span title={`Role account (${[c.isRoleAccount ? "email" : null, c.igRoleAccount ? "IG" : null].filter(Boolean).join(" + ")})`} className="inline-flex shrink-0"><Recycle className="size-2.5 text-amber-400" /></span>}
       <span className="ml-auto flex shrink-0 items-center gap-1">
+        <button onClick={() => copyText(dmTemplate(c.isPerson && c.name ? c.name : orgLabel, campusName), "DM copied — paste it into their Instagram.")} title="Copy a ready-to-send Instagram DM for this contact" className="inline-flex items-center gap-0.5 rounded border border-border px-1.5 py-0.5 text-[9px] hover:bg-muted hover:text-foreground"><Copy className="size-2.5" /> DM</button>
         <button onClick={() => setEditing(true)} title="Edit this contact" className="inline-flex items-center gap-0.5 rounded border border-border px-1.5 py-0.5 text-[9px] hover:bg-muted hover:text-foreground"><Pencil className="size-2.5" /> Edit</button>
         <button onClick={confirmDelete} disabled={del.isPending} title="Delete this contact" className="grid size-5 place-items-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-red-500/15 hover:text-red-400 group-hover:opacity-100"><X className="size-3" /></button>
       </span>
@@ -670,69 +788,79 @@ function ExistingRow({ c, onEdited }: { c: ExistingContact; onEdited: () => void
   );
 }
 
-// A new contact being entered — Org / Person / Not found, IG beside name for people, role chips,
-// role-account auto-suggest.
-function NewContactRow({ r, set, remove, forcePerson, campusName }: { r: Row; set: (k: string, p: Partial<Row>) => void; remove: (k: string) => void; forcePerson?: boolean; campusName: string }) {
-  const person = !r.notFound && (forcePerson || r.isPerson);
+// The single add-form. Org / Person / Not found. Switching type CLEARS the fields (handled by the
+// parent's switchMode) so nothing bleeds across. Add drops the contact into the queue; Not found is
+// its own confirm-then-commit. Copy DM lives on saved rows now, not here.
+function AddForm({ draft, editing, notFoundPending, onChange, onSwitch, onAdd, onCancel, onMarkNotFound }: {
+  draft: Row; editing: boolean; notFoundPending?: boolean;
+  onChange: (p: Partial<Row>) => void; onSwitch: (m: "org" | "person" | "notfound") => void;
+  onAdd: () => void; onCancel: () => void; onMarkNotFound: () => void;
+}) {
+  const mode: "org" | "person" | "notfound" = draft.notFound ? "notfound" : draft.isPerson ? "person" : "org";
+  const person = mode === "person";
   const onEmail = (email: string) => {
     const patch: Partial<Row> = { email };
-    if (!r.roleAcctTouched) patch.isRoleAccount = suggestRoleAccount(email); // auto-suggest until manually set
-    set(r.key, patch);
+    if (!draft.roleAcctTouched) patch.isRoleAccount = suggestRoleAccount(email); // auto-suggest until manually set
+    onChange(patch);
   };
+  const canAdd = !!(draft.name.trim() || draft.email.trim() || draft.instagram.trim());
   return (
-    <div className="rounded-md border border-border bg-card p-2">
+    <div className="rounded-md border border-primary/40 bg-card p-2">
       <div className="mb-1.5 flex items-center gap-2">
-        {!forcePerson && (
-          <div className="inline-flex overflow-hidden rounded border border-border text-[10px]">
-            <button onClick={() => set(r.key, { isPerson: false, notFound: false })} className={cn("px-2 py-0.5", !r.isPerson && !r.notFound ? "bg-primary/15 text-primary" : "text-muted-foreground")}>Organization</button>
-            <button onClick={() => set(r.key, { isPerson: true, notFound: false })} className={cn("px-2 py-0.5", r.isPerson && !r.notFound ? "bg-primary/15 text-primary" : "text-muted-foreground")}>Person</button>
-            <button onClick={() => set(r.key, { notFound: true, isPerson: false })} className={cn("px-2 py-0.5", r.notFound ? "bg-amber-500/15 text-amber-500" : "text-muted-foreground")}>Not found</button>
-          </div>
-        )}
-        <button onClick={() => remove(r.key)} className="ml-auto text-muted-foreground hover:text-foreground"><X className="size-3.5" /></button>
+        <div className="inline-flex overflow-hidden rounded border border-border text-[10px]">
+          <button type="button" onClick={() => onSwitch("org")} className={cn("px-2 py-0.5", mode === "org" ? "bg-primary/15 text-primary" : "text-muted-foreground")}>Organization</button>
+          <button type="button" onClick={() => onSwitch("person")} className={cn("px-2 py-0.5", mode === "person" ? "bg-primary/15 text-primary" : "text-muted-foreground")}>Person</button>
+          <button type="button" onClick={() => onSwitch("notfound")} className={cn("px-2 py-0.5", mode === "notfound" ? "bg-amber-500/15 text-amber-500" : "text-muted-foreground")}>Not found</button>
+        </div>
+        <span className="text-[9px] uppercase tracking-wide text-muted-foreground/60">{editing ? "editing" : "new"}</span>
+        <button type="button" onClick={onCancel} title="Cancel" className="ml-auto text-muted-foreground hover:text-foreground"><X className="size-3.5" /></button>
       </div>
 
-      {r.notFound ? (
-        <p className="text-[10px] italic text-muted-foreground">We'll record that {r.label || "this"} was checked and no contact was found.</p>
-      ) : (
-        <>
-          {person && (
-            <>
-              <div className="mb-1.5 flex flex-wrap gap-1">
-                {ROLE_CHIPS.map((role, i) => (
-                  <button key={role} onClick={() => set(r.key, { role })} className={cn("rounded-full border px-2 py-0.5 text-[10px]", r.role === role ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground hover:bg-muted", i === 0 && r.role !== role && "border-primary/40")}>
-                    {role}
-                  </button>
-                ))}
-              </div>
-              {/* Instagram sits beside name, above email — personal IGs are the highest-value field. */}
-              <div className="mb-1.5 grid grid-cols-2 gap-1.5">
-                <input value={r.name} onChange={(e) => set(r.key, { name: e.target.value })} placeholder="Name" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
-                <input value={r.instagram} onChange={(e) => set(r.key, { instagram: atHandle(e.target.value) })} placeholder="@personal IG" className="rounded border border-pink-500/30 bg-background px-2 py-1 text-[11px]" />
-              </div>
-              <input value={r.role} onChange={(e) => set(r.key, { role: e.target.value })} placeholder="Role (or pick a chip above)" className="mb-1.5 w-full rounded border border-border bg-background px-2 py-1 text-[11px]" />
-            </>
-          )}
-          <div className="grid grid-cols-2 gap-1.5">
-            <input value={r.email} onChange={(e) => onEmail(e.target.value)} placeholder="Email" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
-            {!person && <input value={r.instagram} onChange={(e) => set(r.key, { instagram: atHandle(e.target.value) })} placeholder="@org IG" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />}
+      {mode === "notfound" ? (
+        <div className="space-y-2">
+          <p className="text-[11px] text-muted-foreground">Nothing turned up for <strong className="text-foreground">{draft.label || "this organization"}</strong>. Mark it not found so it stops showing as a gap. You can undo it later.</p>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={onMarkNotFound} disabled={notFoundPending} className="rounded-md bg-amber-500/90 px-3 py-1 text-[11px] font-semibold text-white disabled:opacity-40">{notFoundPending ? "Saving…" : "Yes, not found"}</button>
+            <button type="button" onClick={onCancel} className="rounded-md border border-border px-3 py-1 text-[11px] text-muted-foreground">Cancel</button>
           </div>
+        </div>
+      ) : person ? (
+        <>
+          <div className="mb-1.5 flex flex-wrap gap-1">
+            {ROLE_CHIPS.map((role, i) => (
+              <button key={role} type="button" onClick={() => onChange({ role })} className={cn("rounded-full border px-2 py-0.5 text-[10px]", draft.role === role ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground hover:bg-muted", i === 0 && draft.role !== role && "border-primary/40")}>
+                {role}
+              </button>
+            ))}
+          </div>
+          {/* Instagram sits beside name, above email — a personal IG is the highest-value field. */}
+          <div className="mb-1.5 grid grid-cols-2 gap-1.5">
+            <input autoFocus value={draft.name} onChange={(e) => onChange({ name: e.target.value })} placeholder="Name" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
+            <input value={draft.instagram} onChange={(e) => onChange({ instagram: atHandle(e.target.value) })} placeholder="@personal IG" className="rounded border border-pink-500/30 bg-background px-2 py-1 text-[11px]" />
+          </div>
+          <input value={draft.role} onChange={(e) => onChange({ role: e.target.value })} placeholder="Role (or pick a chip above)" className="mb-1.5 w-full rounded border border-border bg-background px-2 py-1 text-[11px]" />
+          <input value={draft.email} onChange={(e) => onEmail(e.target.value)} placeholder="Email" className="w-full rounded border border-border bg-background px-2 py-1 text-[11px]" />
           <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[10px]">
-            {r.email.trim() && (
-              <label className="inline-flex items-center gap-1 text-muted-foreground" title="This email is a role/position inbox (president@…) that turns over each year">
-                <input type="checkbox" checked={r.isRoleAccount} onChange={(e) => set(r.key, { isRoleAccount: e.target.checked, roleAcctTouched: true })} />
-                <Recycle className="size-3" /> email role
-              </label>
-            )}
-            {r.instagram.trim() && (
-              <label className="inline-flex items-center gap-1 text-muted-foreground" title="This Instagram is an org/position handle (not a specific person's)">
-                <input type="checkbox" checked={r.igRoleAccount} onChange={(e) => set(r.key, { igRoleAccount: e.target.checked })} />
-                <Recycle className="size-3" /> IG role
-              </label>
-            )}
-            <button type="button" onClick={() => copyText(dmTemplate(person && r.name.trim() ? r.name.trim() : r.label, campusName), "DM copied — paste it into their Instagram.")} className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 text-muted-foreground hover:bg-muted hover:text-foreground">
-              <Copy className="size-3" /> Copy DM
-            </button>
+            <label className="inline-flex items-center gap-1 text-muted-foreground" title="This is a role/position account (president@…) that turns over each year — recheck it each semester">
+              <input type="checkbox" checked={draft.isRoleAccount} onChange={(e) => onChange({ isRoleAccount: e.target.checked, roleAcctTouched: true })} />
+              <Recycle className="size-3" /> role account
+            </label>
+            <div className="ml-auto flex items-center gap-1.5">
+              <button type="button" onClick={onCancel} className="rounded border border-border px-2.5 py-0.5 text-muted-foreground hover:bg-muted">Cancel</button>
+              <button type="button" onClick={onAdd} disabled={!canAdd} title={canAdd ? undefined : "Add a name, email, or Instagram first"} className="rounded bg-primary px-3 py-0.5 font-semibold text-primary-foreground disabled:opacity-40">{editing ? "Update" : "Add"}</button>
+            </div>
+          </div>
+        </>
+      ) : (
+        // Organization: email + Instagram only. No name, no role chips, no role-account box.
+        <>
+          <div className="grid grid-cols-2 gap-1.5">
+            <input autoFocus value={draft.email} onChange={(e) => onChange({ email: e.target.value })} placeholder="Email" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
+            <input value={draft.instagram} onChange={(e) => onChange({ instagram: atHandle(e.target.value) })} placeholder="@org IG" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
+          </div>
+          <div className="mt-1.5 flex items-center justify-end gap-1.5 text-[10px]">
+            <button type="button" onClick={onCancel} className="rounded border border-border px-2.5 py-0.5 text-muted-foreground hover:bg-muted">Cancel</button>
+            <button type="button" onClick={onAdd} disabled={!canAdd} title={canAdd ? undefined : "Add an email or Instagram first"} className="rounded bg-primary px-3 py-0.5 font-semibold text-primary-foreground disabled:opacity-40">{editing ? "Update" : "Add"}</button>
           </div>
         </>
       )}
