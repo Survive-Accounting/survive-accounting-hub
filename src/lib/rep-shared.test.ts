@@ -5,8 +5,9 @@
 import { describe, expect, it } from "bun:test";
 
 import {
-  ACTIVITY_KINDS, assignmentAfterQc, chapterState, contactDraftProblem, contactTypeForRole,
-  formatUsPhoneInput, mailtoHref, normalizeInstagram, shareEmail, shareKindForMethod, shareMessage,
+  ACTIVITY_KINDS, assignmentAfterQc, campusCapacity, chapterState, contactDraftProblem,
+  contactTypeForRole, dmMessage, formatUsPhoneInput, mailtoHref, nextDmStatus, normalizeInstagram,
+  onboardingProblem, reachCount, repSlugCandidate, shareEmail, shareKindForMethod, shareMessage,
   signupResolution, smsHref, REP_STATUSES,
 } from "@/lib/rep-shared";
 import { commissionCents } from "@/lib/referral-shared";
@@ -199,6 +200,66 @@ describe("picker type-to-search predicate", () => {
   });
   // The scope guardrail is structural: the handler is attached to the picker's trigger button
   // only, never document — a keystroke inside any other input can't reach it by construction.
+});
+
+describe("V2: campusCapacity (1 by default, 2 max split by council)", () => {
+  it("no approved reps → open", () => {
+    expect(campusCapacity([]).open).toBe(true);
+  });
+  it("one rep covering a single council → open for the other council", () => {
+    expect(campusCapacity(["ifc"]).open).toBe(true);
+    expect(campusCapacity(["panhellenic"]).open).toBe(true);
+  });
+  it("one rep covering both → campus closed", () => {
+    expect(campusCapacity(["both"]).open).toBe(false);
+  });
+  it("unknown/other coverage closes self-serve signup (Lee can still approve by hand)", () => {
+    expect(campusCapacity(["other"]).open).toBe(false);
+    expect(campusCapacity([null]).open).toBe(false);
+  });
+  it("two reps → never a third", () => {
+    expect(campusCapacity(["ifc", "panhellenic"]).open).toBe(false);
+    expect(campusCapacity(["ifc", "ifc"]).open).toBe(false);
+  });
+});
+
+describe("V2: coverage map + onboarding validation", () => {
+  it("counts members and know-someones separately", () => {
+    expect(reachCount({ a: "member", b: "knows_someone", c: "knows_someone" })).toEqual({ total: 3, member: 1, knows: 2 });
+    expect(reachCount({})).toEqual({ total: 0, member: 0, knows: 0 });
+  });
+  it("requires year, course status, and at least one reachable chapter", () => {
+    expect(onboardingProblem({ graduationYear: null, courseStatus: "taken", reach: { a: "member" } })).toContain("graduation");
+    expect(onboardingProblem({ graduationYear: 2027, courseStatus: null, reach: { a: "member" } })).toContain("course");
+    expect(onboardingProblem({ graduationYear: 2027, courseStatus: "taken", reach: {} })).toContain("at least one chapter");
+    expect(onboardingProblem({ graduationYear: 2027, courseStatus: "taken", reach: { a: "knows_someone" } })).toBeNull();
+  });
+});
+
+describe("V2: DM status ladder", () => {
+  it("first Copy DM marks dm_sent; later copies don't regress", () => {
+    expect(nextDmStatus("not_contacted", "copy_dm")).toBe("dm_sent");
+    expect(nextDmStatus("dm_sent", "copy_dm")).toBe("dm_sent");
+    expect(nextDmStatus("replied", "copy_dm")).toBe("replied");
+  });
+  it("mark_replied always lands on replied", () => {
+    expect(nextDmStatus("dm_sent", "mark_replied")).toBe("replied");
+    expect(nextDmStatus("replied", "mark_replied")).toBe("replied");
+  });
+});
+
+describe("V2: vanity slug + DM message", () => {
+  it("builds first-name-campus slugs, stripped and bounded", () => {
+    expect(repSlugCandidate("Sarah Test", "university-of-alabama")).toBe("sarah-alabama");
+    expect(repSlugCandidate("Lee", "university-of-mississippi")).toBe("lee-mississippi");
+    expect(repSlugCandidate("  ", null)).toBe("rep");
+  });
+  it("the DM always carries the tracked link and the chapter's name", () => {
+    const m = dmMessage({ chapterName: "Chi O", courseCode: "AC 210", shortUrl: "https://surviveaccounting.com/r/sarah-alabama" });
+    expect(m).toContain("https://surviveaccounting.com/r/sarah-alabama");
+    expect(m).toContain("Chi O");
+    expect(m).toContain("AC 210");
+  });
 });
 
 describe("commission", () => {

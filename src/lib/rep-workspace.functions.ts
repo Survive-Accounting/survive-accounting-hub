@@ -56,8 +56,10 @@ async function activity(db: DB, row: {
 
 // ── links ────────────────────────────────────────────────────────────────────────────────────
 
-/** The rep's main campus link (destination = their campus page). Created once, reused after. */
-export async function ensureMainCampusLink(db: DB, rep: Pick<RepRow, "id" | "campus_id" | "is_test">): Promise<{ id: string; code: string } | null> {
+/** The rep's main campus link (destination = their campus page). Created once, reused after.
+ *  V2: the code is a VANITY SLUG ("sarah-olemiss") when it's free — every /r/ link a rep shares
+ *  reads as theirs — falling back to numbered variants and finally a random code. */
+export async function ensureMainCampusLink(db: DB, rep: Pick<RepRow, "id" | "campus_id" | "is_test" | "name">): Promise<{ id: string; code: string } | null> {
   if (!rep.campus_id) return null;
   const { data: campus } = await db.from("campuses").select("slug,name,short_name").eq("id", rep.campus_id).maybeSingle();
   if (!campus?.slug) return null;
@@ -65,8 +67,18 @@ export async function ensureMainCampusLink(db: DB, rep: Pick<RepRow, "id" | "cam
     .eq("partner_id", rep.id).is("campus_greek_chapter_id", null).eq("active", true)
     .order("created_at", { ascending: true }).limit(1).maybeSingle();
   if (existing?.id) return existing as { id: string; code: string };
-  const { generateUniqueCode } = await import("@/lib/referral.server");
-  const code = await generateUniqueCode();
+
+  const { repSlugCandidate } = await import("@/lib/rep-shared");
+  const base = repSlugCandidate(rep.name ?? "rep", campus.slug as string);
+  let code: string | null = null;
+  for (const candidate of [base, `${base}-2`, `${base}-3`]) {
+    const { data: taken } = await db.from("referral_links").select("id").eq("code", candidate).maybeSingle();
+    if (!taken) { code = candidate; break; }
+  }
+  if (!code) {
+    const { generateUniqueCode } = await import("@/lib/referral.server");
+    code = await generateUniqueCode();
+  }
   const name = canonicalSchoolName(campus.slug as string, (campus.short_name as string) || (campus.name as string));
   const { data: ins } = await db.from("referral_links").insert({
     code, partner_id: rep.id, label: `${name} — main link`, destination_url: `/${campus.slug}`,
@@ -207,10 +219,11 @@ export async function buildWorkspace(db: DB, rep: RepRow): Promise<RepWorkspaceR
 
   // ── assignments (mine, and everyone's for this term to mark reserved chapters) ──
   const { data: myAsgRows } = await db.from("rep_chapter_assignments")
-    .select("campus_greek_chapter_id,status,term_id").eq("partner_id", rep.id).limit(2000);
-  const myAsg = (myAsgRows ?? []) as Array<{ campus_greek_chapter_id: string; status: AssignmentStatus; term_id: string }>;
-  const myLive = new Map(myAsg.filter((a) => a.term_id === tid && (a.status === "reserved" || a.status === "qualified"))
-    .map((a) => [a.campus_greek_chapter_id, a.status]));
+    .select("campus_greek_chapter_id,status,term_id,dm_status,dm_sent_at,replied_at").eq("partner_id", rep.id).limit(2000);
+  const myAsg = (myAsgRows ?? []) as Array<{ campus_greek_chapter_id: string; status: AssignmentStatus; term_id: string; dm_status: string | null; dm_sent_at: string | null; replied_at: string | null }>;
+  const myLiveRows = myAsg.filter((a) => a.term_id === tid && (a.status === "reserved" || a.status === "qualified"));
+  const myLive = new Map(myLiveRows.map((a) => [a.campus_greek_chapter_id, a.status]));
+  const myLiveById = new Map(myLiveRows.map((a) => [a.campus_greek_chapter_id, a]));
   const { data: termAsgRows } = await db.from("rep_chapter_assignments")
     .select("campus_greek_chapter_id,partner_id,status").eq("term_id", tid).in("status", ["reserved", "qualified"]).limit(5000);
   const othersLive = new Set(((termAsgRows ?? []) as Array<{ campus_greek_chapter_id: string; partner_id: string }>)
@@ -218,13 +231,15 @@ export async function buildWorkspace(db: DB, rep: RepRow): Promise<RepWorkspaceR
 
   // ── the campus chapter directory (SOCIAL councils only) ──
   const chapters: RepChapterRow[] = [];
+  const igUrlByChapter = new Map<string, string | null>();
   if (campus) {
     const { data: chRows } = await db.from("campus_greek_chapters")
-      .select("id,slug,greek_org_id,council,nickname,claim_status")
+      .select("id,slug,greek_org_id,council,nickname,claim_status,instagram_url")
       .eq("campus_id", campus.id).is("archived_at", null).limit(1000);
-    const rows = ((chRows ?? []) as Array<{ id: string; slug: string; greek_org_id: string | null; council: string | null; nickname: string | null; claim_status: string | null }>)
+    const rows = ((chRows ?? []) as Array<{ id: string; slug: string; greek_org_id: string | null; council: string | null; nickname: string | null; claim_status: string | null; instagram_url: string | null }>)
       .map((r) => ({ ...r, social: socialCouncil(r.council) }))
       .filter((r) => r.social !== null);
+    for (const r of rows) igUrlByChapter.set(r.id, r.instagram_url ?? null);
 
     // org names + letters (by campus-wide org id set — one IN over ~60 ids, not per row)
     const orgIds = Array.from(new Set(rows.map((r) => r.greek_org_id).filter(Boolean))) as string[];
@@ -276,6 +291,29 @@ export async function buildWorkspace(db: DB, rep: RepRow): Promise<RepWorkspaceR
     chapters.sort((a, b) => (b.memberCount ?? -1) - (a.memberCount ?? -1) || a.orgName.localeCompare(b.orgName));
   }
 
+  // ── V2: THE ASSIGNED LIST (the rep's working set) ──
+  // We supply the chapter's Instagram handle from enrichment; the rep DMs from their own account.
+  const igHandleOf = (url: string | null): string | null => {
+    const m = (url ?? "").match(/instagram\.com\/@?([A-Za-z0-9._]{2,40})/i);
+    return m ? `@${m[1]}` : null;
+  };
+  const assigned: import("@/lib/rep-shared").AssignedChapter[] = chapters
+    .filter((c) => myLiveById.has(c.id))
+    .map((c) => {
+      const a = myLiveById.get(c.id)!;
+      const igUrl = igUrlByChapter.get(c.id) ?? null;
+      const link = linkByChapter.get(c.id) ?? null;
+      return {
+        chapterId: c.id, name: c.nickname || c.orgName, letters: c.letters,
+        igHandle: igHandleOf(igUrl), igUrl,
+        dmStatus: ((a.dm_status as never) ?? "not_contacted"),
+        dmSentAt: a.dm_sent_at, repliedAt: a.replied_at,
+        claimed: c.claimed, linkCode: link?.code ?? null,
+        shortUrl: link ? `${ORIGIN}/r/${link.code}` : null,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+
   // ── campus-wide activity (labelled CAMPUS, not "yours") — last 7 days ──
   const campusActivity = { students: 0, identified: 0, questionsAnswered: 0, studyMs: 0 };
   if (campus) {
@@ -308,7 +346,10 @@ export async function buildWorkspace(db: DB, rep: RepRow): Promise<RepWorkspaceR
 
   return {
     ok: true,
-    repId: rep.id, name: rep.name, repStatus: (rep.rep_status ?? "active") as never, isTest: rep.is_test,
+    repId: rep.id, name: rep.name, repStatus: (rep.rep_status ?? "active") as never,
+    applicationStatus: (rep.application_status ?? "approved") as never, // pre-V2 rows default approved
+    assigned,
+    isTest: rep.is_test,
     campusSlug: campus?.slug ?? null, campusName: campus?.name ?? null, courseCode: campus?.courseCode ?? null,
     termId: tid, termLabel: term.label,
     mainLink: mainLinkRow ? { code: mainLinkRow.code, shortUrl: `${ORIGIN}/r/${mainLinkRow.code}` } : null,
@@ -590,6 +631,52 @@ export const setHousePosted = createServerFn({ method: "POST" })
       await db.from("rep_activity").delete().eq("partner_id", rep.id).eq("campus_greek_chapter_id", ch.id).eq("kind", "house_posted")
         .then(() => undefined, () => undefined);
     }
+    return { ok: true };
+  });
+
+// ── DM WORKFLOW (V2) — self-reported, like house_posted ──────────────────────────────────────
+// Copy DM marks the chapter dm_sent on first copy (the copy IS the action); Mark replied requires
+// the reply text, same pattern as the main outreach system.
+async function myLiveAssignment(db: DB, repId: string, chapterId: string): Promise<{ id: string; dm_status: string } | null> {
+  const { data } = await db.from("rep_chapter_assignments").select("id,dm_status")
+    .eq("partner_id", repId).eq("campus_greek_chapter_id", chapterId)
+    .eq("term_id", termId(termFor())).in("status", ["reserved", "qualified"]).maybeSingle();
+  return (data as { id: string; dm_status: string } | null) ?? null;
+}
+
+export const markDmCopied = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({ legacyToken: z.string().max(80).optional().nullable(), chapterId: z.string().uuid() }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
+    const db = await admin();
+    const { repFromSession } = await import("@/lib/rep-auth.server");
+    const s = await repFromSession(db, { legacyToken: data.legacyToken });
+    if (!("rep" in s)) return { ok: false, error: s.error };
+    const asg = await myLiveAssignment(db, s.rep.id, data.chapterId);
+    if (!asg) return { ok: false, error: "That chapter isn't assigned to you." };
+    if (asg.dm_status === "not_contacted") {
+      await db.from("rep_chapter_assignments").update({ dm_status: "dm_sent", dm_sent_at: new Date().toISOString() }).eq("id", asg.id);
+    }
+    await activity(db, { partner_id: s.rep.id, kind: "dm_copied", campus_greek_chapter_id: data.chapterId, is_test: s.rep.is_test });
+    return { ok: true };
+  });
+
+export const markDmReplied = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    legacyToken: z.string().max(80).optional().nullable(),
+    chapterId: z.string().uuid(),
+    replyText: z.string().trim().min(2).max(2000),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
+    const db = await admin();
+    const { repFromSession } = await import("@/lib/rep-auth.server");
+    const s = await repFromSession(db, { legacyToken: data.legacyToken });
+    if (!("rep" in s)) return { ok: false, error: s.error };
+    const asg = await myLiveAssignment(db, s.rep.id, data.chapterId);
+    if (!asg) return { ok: false, error: "That chapter isn't assigned to you." };
+    await db.from("rep_chapter_assignments").update({
+      dm_status: "replied", replied_at: new Date().toISOString(), reply_text: data.replyText.trim(),
+    }).eq("id", asg.id);
+    await activity(db, { partner_id: s.rep.id, kind: "dm_replied", campus_greek_chapter_id: data.chapterId, meta: { replyLen: data.replyText.trim().length }, is_test: s.rep.is_test });
     return { ok: true };
   });
 

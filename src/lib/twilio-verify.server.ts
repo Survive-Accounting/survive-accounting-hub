@@ -22,7 +22,9 @@ const VERIFY_BASE = "https://verify.twilio.com/v2/Services";
 function creds(): { sid: string; token: string; service: string } | null {
   const sid = process.env.TWILIO_ACCOUNT_SID ?? "";
   const token = process.env.TWILIO_AUTH_TOKEN ?? "";
-  const service = process.env.TWILIO_VERIFY_SERVICE_SID ?? "";
+  // Lee provisioned the Verify Service under a REPS-scoped name (2026-08-30) so a future second
+  // service for other verification can coexist; the generic name stays as a fallback.
+  const service = process.env.TWILIO_VERIFY_SERVICE_SID_REPS ?? process.env.TWILIO_VERIFY_SERVICE_SID ?? "";
   return sid && token && service ? { sid, token, service } : null;
 }
 

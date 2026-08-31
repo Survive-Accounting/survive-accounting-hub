@@ -215,6 +215,10 @@ export type RepWorkspace = {
   repId: string;
   name: string;
   repStatus: RepStatus;
+  /** V2 program state — 'setup'/'submitted'/… gate the workspace into the onboarding flow. */
+  applicationStatus: ApplicationStatus;
+  /** V2: the chapters approval assigned to this rep (their working list). */
+  assigned: AssignedChapter[];
   isTest: boolean;
   campusSlug: string | null;
   campusName: string | null;
@@ -287,6 +291,112 @@ export function formatUsPhoneInput(raw: string): string {
   if (d.length <= 6) return `(${d.slice(0, 3)}) ${d.slice(3)}`;
   return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
 }
+
+// ── V2: application-as-onboarding, coverage, and the DM workflow ─────────────────────────────
+
+/** Program review state — separate from the AUTH lifecycle (rep_status). A verified rep lands in
+ *  `setup`, submitting the coverage map moves them to `submitted`, Lee's call decides the rest.
+ *  Chapter tools unlock only at `approved`. */
+export const APPLICATION_STATUSES = ["setup", "submitted", "approved", "waitlisted", "declined"] as const;
+export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number];
+export const APPLICATION_STATUS_LABEL: Record<ApplicationStatus, string> = {
+  setup: "Setting up", submitted: "In review", approved: "Approved", waitlisted: "Waitlisted", declined: "Declined",
+};
+
+/** Who a rep can reach, by council — the axis campus capacity is gated on. */
+export const REP_COVERAGES = ["ifc", "panhellenic", "both", "other"] as const;
+export type RepCoverage = (typeof REP_COVERAGES)[number];
+export const REP_COVERAGE_LABEL: Record<RepCoverage, string> = {
+  ifc: "IFC (fraternities)", panhellenic: "Panhellenic (sororities)", both: "Both councils", other: "Other",
+};
+
+/** ONE REP PER CAMPUS BY DEFAULT; a second only when the first covers a single council; never
+ *  more than two. The data model allows more — this predicate is the UI/signup gate. */
+export function campusCapacity(approved: Array<RepCoverage | null>): { open: boolean; reason: "no_reps" | "one_single_council" | "covered_both" | "full" } {
+  if (approved.length === 0) return { open: true, reason: "no_reps" };
+  if (approved.length >= 2) return { open: false, reason: "full" };
+  const c = approved[0];
+  // An approved rep with unknown/other coverage is treated as covering the campus — Lee can
+  // still approve a second manually; self-serve signup stays shut.
+  if (c === "ifc" || c === "panhellenic") return { open: true, reason: "one_single_council" };
+  return { open: false, reason: "covered_both" };
+}
+
+/** The role chips on step 2 — the highest-signal question on the form. `weighted` roles get the
+ *  review-queue badge (role + access + motive). */
+export const CAMPUS_ROLE_CHIPS = [
+  { slug: "council_officer", label: "IFC or Panhellenic officer", weighted: true },
+  { slug: "recruitment_counselor", label: "Recruitment counselor", weighted: true },
+  { slug: "greek_life_office", label: "Greek Life office", weighted: false },
+  { slug: "business_frat", label: "Business fraternity", weighted: false },
+  { slug: "student_gov", label: "Student government", weighted: false },
+] as const;
+export type CampusRoleSlug = (typeof CAMPUS_ROLE_CHIPS)[number]["slug"];
+
+export const COURSE_STATUSES = [
+  { value: "taking_now", label: "Taking it now" },
+  { value: "taken", label: "Already took it" },
+  { value: "not_yet", label: "Haven't taken it" },
+] as const;
+export type CourseStatus = (typeof COURSE_STATUSES)[number]["value"];
+
+/** Coverage-map entry: 'member' | 'knows_someone'. No-connection is the absence of an entry. */
+export type ReachLevel = "member" | "knows_someone";
+export type ReachMap = Record<string, ReachLevel>; // chapterId → level
+
+export function reachCount(m: ReachMap): { total: number; member: number; knows: number } {
+  let member = 0, knows = 0;
+  for (const v of Object.values(m)) { if (v === "member") member++; else knows++; }
+  return { total: member + knows, member, knows };
+}
+
+/** Step-4 + basics validation for the onboarding submit. */
+export function onboardingProblem(d: { graduationYear: number | null; courseStatus: string | null; reach: ReachMap }): string | null {
+  const y = d.graduationYear ?? 0;
+  if (y < 2026 || y > 2032) return "Pick your graduation year.";
+  if (!d.courseStatus) return "Tell us where you are with the course.";
+  if (reachCount(d.reach).total === 0) return "Mark at least one chapter you could reach — that's the whole job.";
+  return null;
+}
+
+/** DM status ladder on an assignment. Self-reported, like house_posted. */
+export type DmStatus = "not_contacted" | "dm_sent" | "replied";
+export function nextDmStatus(current: DmStatus, action: "copy_dm" | "mark_replied"): DmStatus {
+  if (action === "copy_dm") return current === "not_contacted" ? "dm_sent" : current;
+  return "replied"; // mark_replied always lands on replied (re-marking is idempotent)
+}
+
+/** Suggested pace, with the why — shown as guidance, never enforced. */
+export const DM_PACE_NOTE = "Suggested pace: ~10 DMs a day. Blasting 40 chapters in an hour is how Instagram restricts YOUR account — slow is what keeps it working.";
+
+/** The prewritten DM a rep copies. Editable in the UI before copying; the tracked link is the
+ *  part that must survive edits. */
+export function dmMessage(i: { chapterName: string; courseCode: string | null; shortUrl: string }): string {
+  const course = i.courseCode ?? "intro accounting";
+  return `Hey! I'm the Survive Accounting rep on campus — we make free ${course} Exam 1 prep (real exam-style questions, worked start to finish). Totally free for ${i.chapterName}, no card or catch. Would you share it with the chapter? ${i.shortUrl}`;
+}
+
+/** Vanity /r/<slug> candidate for a rep's main link: "sarah-olemiss". The caller must still
+ *  guarantee uniqueness (suffix or fall back to a random code). */
+export function repSlugCandidate(name: string, campusSlug: string | null): string {
+  const first = (name.trim().split(/\s+/)[0] || "rep").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 16);
+  const campus = (campusSlug ?? "").toLowerCase().replace(/^university-of-/, "").replace(/[^a-z0-9]/g, "").slice(0, 12);
+  return [first || "rep", campus].filter(Boolean).join("-");
+}
+
+export type AssignedChapter = {
+  chapterId: string;
+  name: string;              // nickname preferred
+  letters: string | null;
+  igHandle: string | null;   // from enrichment; null renders as "no handle on file"
+  igUrl: string | null;
+  dmStatus: DmStatus;
+  dmSentAt: string | null;
+  repliedAt: string | null;
+  claimed: boolean;
+  linkCode: string | null;
+  shortUrl: string | null;
+};
 
 export const fmtMs = (ms: number): string => {
   const h = ms / 3_600_000;

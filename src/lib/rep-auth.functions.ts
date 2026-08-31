@@ -55,7 +55,7 @@ export const applyAsRep = createServerFn({ method: "POST" })
     venmo: z.string().trim().max(120).optional().nullable(),   // legacy input — no longer collected at signup
     isTest: z.boolean().optional(),
   }).parse(d))
-  .handler(async ({ data }): Promise<{ ok: boolean; state?: "verify" | "existing_active"; error?: string }> => {
+  .handler(async ({ data }): Promise<{ ok: boolean; state?: "verify" | "existing_active" | "campus_closed"; error?: string }> => {
     const db = await admin();
     const isTest = !!data.isTest && (await testEnabled());
 
@@ -91,6 +91,19 @@ export const applyAsRep = createServerFn({ method: "POST" })
         rep_status: "approved",
       }).eq("id", existing!.id);
       return { ok: true, state: "verify" };
+    }
+
+    // CAMPUS CAPACITY (V2): one rep by default, two max split by council. Counting only
+    // APPROVED reps of the same test-ness — a test rep never closes a real campus. Resumes and
+    // existing accounts bypass this; only brand-new signups hit the gate, and Lee can always
+    // approve past it by hand.
+    {
+      const { campusCapacity } = await import("@/lib/rep-shared");
+      const { data: approvedRows } = await db.from("referral_partners").select("rep_coverage")
+        .eq("type", "campus_rep").eq("campus_id", campusId)
+        .eq("application_status", "approved").eq("is_test", isTest).limit(10);
+      const cap = campusCapacity(((approvedRows ?? []) as Array<{ rep_coverage: string | null }>).map((r) => r.rep_coverage as never));
+      if (!cap.open) return { ok: true, state: "campus_closed" };
     }
 
     // Fresh signup. ENGINE STATUS 'paused' UNTIL VERIFIED: no link may attribute before the
