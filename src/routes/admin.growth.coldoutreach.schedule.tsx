@@ -2,11 +2,12 @@
 // sequence per contact. The plan is built whether contacts exist or not; an empty slot is a
 // work order, not an error. IG is always manual (copy-paste); email goes through Instantly.
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  AlertTriangle, Building2, Check, ChevronDown, ChevronRight, Copy, Download, ExternalLink,
-  HelpCircle, Instagram, Loader2, Mail, MessageSquare, Plus, Send, Sparkles, User, X, Zap,
+  AlertTriangle, Building2, Check, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown,
+  Copy, Download, ExternalLink, HelpCircle, Instagram, Loader2, Mail, MessageSquare, Plus, Send,
+  Sparkles, User, X, Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -28,6 +29,23 @@ const fmtDay = (d: string) => { const [y, m, dd] = d.split("-").map(Number); ret
 const OWNERS: { id: Owner; label: string }[] = [{ id: "lee", label: "Lee" }, { id: "king", label: "King" }, { id: "ej", label: "EJ" }];
 
 function todayYmd() { try { return new Date().toISOString().slice(0, 10); } catch { return "2026-09-01"; } }
+
+// Expand-all / collapse-all broadcast. `tick` bumps on each press; every collapsible listens and
+// snaps to `open`, then can still be toggled individually afterward. `tick: 0` = untouched, so the
+// first render keeps each section's own default (e.g. today's day open).
+type Expand = { tick: number; open: boolean };
+function useExpandSignal(expand: Expand, initial: boolean) {
+  // A section that mounts AFTER an expand-all press (because its parent day just opened) adopts the
+  // current target immediately; before any press it keeps its own default.
+  const [open, setOpen] = useState(expand.tick > 0 ? expand.open : initial);
+  const seen = useRef(expand.tick);
+  useEffect(() => {
+    if (expand.tick === seen.current) return; // only react to real presses, not the mount
+    seen.current = expand.tick;
+    setOpen(expand.open);
+  }, [expand.tick, expand.open]);
+  return [open, setOpen] as const;
+}
 
 // Bare Instagram handle from either an @handle or a full instagram.com URL.
 const igName = (s: string) => {
@@ -51,6 +69,9 @@ function SchedulePage() {
   // Which channel column(s) to show — persists across days and reloads (item 5).
   const [channelView, setChannelView] = useState<"dm" | "email" | "both">(() => { try { const v = localStorage.getItem("co-sched-channel"); return v === "dm" || v === "email" ? v : "both"; } catch { return "both"; } });
   const setChannel = (v: "dm" | "email" | "both") => { setChannelView(v); try { localStorage.setItem("co-sched-channel", v); } catch { /* ignore */ } };
+  // Expand/collapse everything at once, then still toggle individual sections.
+  const [expand, setExpand] = useState<Expand>({ tick: 0, open: false });
+  const toggleAll = () => setExpand((e) => ({ tick: e.tick + 1, open: !e.open }));
 
   const wk = useQuery({ queryKey: ["schedule", owner, weekStart], queryFn: () => growthScheduleWeek({ data: { owner, weekStart } }) });
   const weekMeta = weeks.find((w) => w.start === weekStart);
@@ -76,7 +97,10 @@ function SchedulePage() {
           {weeks.map((w) => <option key={w.start} value={w.start}>Week {w.index} · {MON[Number(w.start.split("-")[1]) - 1]} {Number(w.start.split("-")[2])}</option>)}
         </select>
         <button onClick={() => setWeekStart(addDays(weekStart, 7))} disabled={weekStart >= weeks[weeks.length - 1].start} className="rounded border border-border px-2 py-1 text-xs disabled:opacity-30">→</button>
-        <div className="ml-auto"><NeedHelp /></div>
+        <button onClick={toggleAll} title={expand.open ? "Collapse every day, section and campus" : "Open every day, section and campus so you can work straight down"} className="ml-auto inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] font-medium hover:bg-muted">
+          {expand.open ? <ChevronsDownUp className="size-3.5" /> : <ChevronsUpDown className="size-3.5" />} {expand.open ? "Collapse all" : "Expand all"}
+        </button>
+        <NeedHelp />
         <div className="inline-flex overflow-hidden rounded-lg border border-border text-xs">
           <button onClick={() => setTab("schedule")} className={cn("px-3 py-1.5 font-medium", tab === "schedule" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>Schedule</button>
           <button onClick={() => setTab("prewarm")} className={cn("px-3 py-1.5 font-medium", tab === "prewarm" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}>Pre-warm next week</button>
@@ -104,7 +128,7 @@ function SchedulePage() {
               Nothing scheduled for {OWNERS.find((o) => o.id === owner)?.label} this week. Founder-first: Lee runs Sept 1–12 (Ole Miss + the Florida cluster); King takes over Sept 13.
             </div>
           )}
-          {wk.data.days.map((d) => <DayCard key={d.date} day={d} owner={owner} channelView={channelView} onChannel={setChannel} onChange={() => wk.refetch()} />)}
+          {wk.data.days.map((d) => <DayCard key={d.date} day={d} owner={owner} channelView={channelView} onChannel={setChannel} expand={expand} onChange={() => wk.refetch()} />)}
         </>
       )}
 
@@ -152,9 +176,9 @@ function NeedHelp() {
   );
 }
 
-function DayCard({ day, owner, channelView, onChannel, onChange }: { day: SchedDay; owner: Owner; channelView: "dm" | "email" | "both"; onChannel: (v: "dm" | "email" | "both") => void; onChange: () => void }) {
+function DayCard({ day, owner, channelView, onChannel, expand, onChange }: { day: SchedDay; owner: Owner; channelView: "dm" | "email" | "both"; onChannel: (v: "dm" | "email" | "both") => void; expand: Expand; onChange: () => void }) {
   const t = todayYmd();
-  const [open, setOpen] = useState(day.date <= t ? false : day.date === t); // keep collapsed; open deliberately
+  const [open, setOpen] = useExpandSignal(expand, day.date <= t ? false : day.date === t); // default: today open
   const hasContent = day.columns.some((c) => c.sections.length > 0);
   if (!hasContent) return null; // founder-first: not this owner's window
   const status = day.date < t ? "past" : day.date === t ? "today" : "scheduled";
@@ -181,7 +205,7 @@ function DayCard({ day, owner, channelView, onChannel, onChange }: { day: SchedD
             <ChannelToggle value={channelView} onChange={onChannel} />
           </div>
           <div className={cn("grid gap-3", channelView === "both" && "md:grid-cols-2")}>
-            {shown.map((c) => <ChannelColumn key={c.channel} col={c} date={day.date} sender={day.sender as "lee" | "king"} owner={owner} onChange={onChange} />)}
+            {shown.map((c) => <ChannelColumn key={c.channel} col={c} date={day.date} sender={day.sender as "lee" | "king"} owner={owner} expand={expand} onChange={onChange} />)}
           </div>
         </div>
       )}
@@ -202,7 +226,7 @@ function ChannelToggle({ value, onChange }: { value: "dm" | "email" | "both"; on
   );
 }
 
-function ChannelColumn({ col, date, sender, owner, onChange }: { col: SchedColumn; date: string; sender: "lee" | "king"; owner: Owner; onChange: () => void }) {
+function ChannelColumn({ col, date, sender, owner, expand, onChange }: { col: SchedColumn; date: string; sender: "lee" | "king"; owner: Owner; expand: Expand; onChange: () => void }) {
   const isDm = col.channel === "dm";
   const assigned = col.readyToSend + col.gaps; // slots that map to an org (filled or gap)
   const unassigned = Math.max(0, col.budget - assigned); // budget with no org left this week
@@ -217,7 +241,7 @@ function ChannelColumn({ col, date, sender, owner, onChange }: { col: SchedColum
         <span className="ml-auto"><Tip which={col.channel} /></span>
       </div>
       <div className="divide-y divide-border/40">
-        {col.sections.map((s) => <SectionBlock key={s.section} sec={s} date={date} sender={sender} owner={owner} onChange={onChange} />)}
+        {col.sections.map((s) => <SectionBlock key={s.section} sec={s} date={date} sender={sender} owner={owner} expand={expand} onChange={onChange} />)}
         {!col.sections.length && <p className="p-2 text-[10px] text-muted-foreground">Nothing on this channel today.</p>}
       </div>
       {!isDm && col.sections.length > 0 && <EmailDayTools owner={owner} date={date} />}
@@ -225,8 +249,8 @@ function ChannelColumn({ col, date, sender, owner, onChange }: { col: SchedColum
   );
 }
 
-function SectionBlock({ sec, date, sender, owner, onChange }: { sec: SchedSectionCol; date: string; sender: "lee" | "king"; owner: Owner; onChange: () => void }) {
-  const [open, setOpen] = useState(false);
+function SectionBlock({ sec, date, sender, owner, expand, onChange }: { sec: SchedSectionCol; date: string; sender: "lee" | "king"; owner: Owner; expand: Expand; onChange: () => void }) {
+  const [open, setOpen] = useExpandSignal(expand, false);
   return (
     <div>
       <button onClick={() => setOpen((v) => !v)} className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-left">
@@ -235,7 +259,7 @@ function SectionBlock({ sec, date, sender, owner, onChange }: { sec: SchedSectio
         {sec.section === "rep" && <Tip which="rep" />}
         <span className="ml-auto text-[10px] text-muted-foreground">{sec.campuses.length} campus{sec.campuses.length === 1 ? "" : "es"}</span>
       </button>
-      {open && <div className="space-y-1 px-1.5 pb-1.5">{sec.campuses.map((c) => <CampusBlock key={c.campusId} campus={c} date={date} sender={sender} onChange={onChange} />)}</div>}
+      {open && <div className="space-y-1 px-1.5 pb-1.5">{sec.campuses.map((c) => <CampusBlock key={c.campusId} campus={c} date={date} sender={sender} expand={expand} onChange={onChange} />)}</div>}
     </div>
   );
 }
@@ -244,8 +268,8 @@ function Bolt({ color, ready }: { color: string | null; ready: boolean }) {
   return <Zap className={cn("size-3.5 shrink-0", ready && "animate-pulse")} style={{ color: color ?? undefined, fill: ready && color ? color : "transparent" }} />;
 }
 
-function CampusBlock({ campus, date, sender, onChange }: { campus: SchedCampusCol; date: string; sender: "lee" | "king"; onChange: () => void }) {
-  const [open, setOpen] = useState(false);
+function CampusBlock({ campus, date, sender, expand, onChange }: { campus: SchedCampusCol; date: string; sender: "lee" | "king"; expand: Expand; onChange: () => void }) {
+  const [open, setOpen] = useExpandSignal(expand, false);
   const state = !campus.dataReady ? "data" : campus.contactReady ? "ready" : "notready";
   return (
     <div className="overflow-hidden rounded border border-border/50 bg-background/40">
