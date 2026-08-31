@@ -60,6 +60,7 @@ export const growthAddContact = createServerFn({ method: "POST" })
         email: z.string().trim().max(200).nullable().optional(),
         instagram: z.string().trim().max(300).nullable().optional(),
         isRoleAccount: z.boolean().optional(),
+        igRoleAccount: z.boolean().optional(),
         sourceUrl: z.string().trim().max(500).nullable().optional(),
         note: z.string().trim().max(1000).nullable().optional(),
       })
@@ -110,6 +111,7 @@ export const growthAddContact = createServerFn({ method: "POST" })
       email,
       instagram,
       is_role_account: data.isRoleAccount ?? false,
+      ig_role_account: data.igRoleAccount ?? false,
       source_url: data.sourceUrl?.trim() || null,
       source_type: "manual_entry",
       confidence: "high", // a human found it and vouched for it
@@ -140,6 +142,7 @@ export const growthUpdateContact = createServerFn({ method: "POST" })
         email: z.string().trim().max(200).nullable().optional(),
         instagram: z.string().trim().max(300).nullable().optional(),
         isRoleAccount: z.boolean().optional(),
+        igRoleAccount: z.boolean().optional(),
         sourceUrl: z.string().trim().max(500).nullable().optional(),
         contactType: z.enum(CONTACT_TYPES).optional(),
         note: z.string().trim().max(1000).nullable().optional(),
@@ -165,6 +168,7 @@ export const growthUpdateContact = createServerFn({ method: "POST" })
     if (data.email !== undefined) patch.email = data.email?.trim().toLowerCase() || null;
     if (data.instagram !== undefined) patch.instagram = cleanHandle(data.instagram);
     if (data.isRoleAccount !== undefined) patch.is_role_account = data.isRoleAccount;
+    if (data.igRoleAccount !== undefined) patch.ig_role_account = data.igRoleAccount;
     if (data.sourceUrl !== undefined) patch.source_url = data.sourceUrl?.trim() || null;
     if (data.contactType !== undefined) patch.contact_type = data.contactType;
     if (data.note !== undefined) patch.qc_notes = data.note?.trim() || null;
