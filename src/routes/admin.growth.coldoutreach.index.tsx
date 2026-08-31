@@ -40,6 +40,7 @@ import {
 } from "@/lib/growth-tranche.functions";
 import { growthDeleteContact, growthUpdateContact } from "@/lib/growth-reach.functions";
 import { growthLogEnrichmentTime, growthAddFeedback, growthEnrichmentStats } from "@/lib/growth-enrich-feedback.functions";
+import { FindContactsPanel } from "@/components/growth/FindContactsPanel";
 import { AddForm, atHandle, ROLE_CHIPS, roleChipOf } from "@/components/growth/contact-add-form";
 import { VaProgress } from "@/components/growth/va-mode";
 import { BottomSheet } from "@/components/growth/BottomSheet";
@@ -642,6 +643,13 @@ export function AddContacts({ campus, onClose, onSaved, vaMode, onDone }: { camp
         <div className="flex h-32 items-center justify-center"><Loader2 className="size-4 animate-spin text-muted-foreground" /></div>
       ) : (
         <div className="space-y-2 pb-24" onPointerDownCapture={timer.ping} onKeyDownCapture={timer.ping}>
+          {/* FIND CONTACTS — two model calls and a review table. Bulk is for a fresh campus;
+              the manual accordion below stays for fixing one contact later (§8). */}
+          <FindContactsPanel
+            campusId={campus.campusId}
+            campusName={campus.name}
+            onImported={() => { void qc.invalidateQueries({ queryKey: ["co-slots", campus.campusId] }); onSaved(); }}
+          />
           {/* VA mode strips the ladder, the visible timer, and the feedback box (help lives in the
               floating bolt); progress becomes plain language. Everything else is the same panel. */}
           {!vaMode && (
