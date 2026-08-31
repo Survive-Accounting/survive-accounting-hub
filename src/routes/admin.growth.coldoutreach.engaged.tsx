@@ -22,11 +22,7 @@ import {
   ENGAGEMENT_WEIGHTS, listEngagedContacts, setContactFlag, type EngagedRow,
 } from "@/lib/engaged-contacts.functions";
 
-// FLAT, NOT NESTED. The file is admin.growth.coldoutreach_.engaged.tsx — the trailing underscore
-// tells TanStack not to nest this under the coldoutreach route, which renders no <Outlet/> and
-// would therefore swallow this page entirely. The URL is unchanged; the alternative was editing
-// another session's live route file to add an Outlet.
-export const Route = createFileRoute("/admin/growth/coldoutreach_/engaged")({
+export const Route = createFileRoute("/admin/growth/coldoutreach/engaged")({
   head: () => ({ meta: [{ title: "Engaged contacts — Survive" }, { name: "robots", content: "noindex" }] }),
   component: () => <AdminGate><EngagedPage /></AdminGate>,
 });
