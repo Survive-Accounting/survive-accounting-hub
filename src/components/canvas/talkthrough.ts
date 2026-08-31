@@ -328,6 +328,19 @@ export function sessionSegments(d: TTDoc, sessionId: string): TalkSegment[] {
     .sort((a, b) => a.seq - b.seq || a.startedAt.localeCompare(b.startedAt));
 }
 
+/** GHOST SEGMENTS — Whisper's stock-outro hallucinations that were already
+ *  written before the capture-side gate existed (2026-08-30). The gate stops
+ *  new ones; these are the ones already sitting in the transcript.
+ *
+ *  Transcript Law protects the words LEE SAID. These are machine noise, so
+ *  they can go — but never silently: this only FINDS them, the UI shows the
+ *  exact list, and removal is the usual soft archive (recoverable, syncs like
+ *  any other edit). Only whisper-sourced rows qualify; anything the live mic
+ *  heard is Lee's and is never offered. */
+export function ghostSegments(d: TTDoc, sessionId: string, isGhost: (whisper: string, live: string) => boolean): TalkSegment[] {
+  return sessionSegments(d, sessionId).filter((s) => s.source === "whisper" && isGhost(s.text, ""));
+}
+
 export function sessionTags(d: TTDoc, sessionId: string): TalkTag[] {
   return d.tags.filter((t) => t.sessionId === sessionId && !t.archivedAt).sort((a, b) => a.at.localeCompare(b.at));
 }
