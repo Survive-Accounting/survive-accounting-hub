@@ -455,6 +455,7 @@ export const TEMPLATES: TemplateDef[] = [
       "admin.growth.coldoutreach.index.tsx",
       "admin.growth.coldoutreach.schedule.tsx",
       "admin.growth.coldoutreach.activity.tsx",
+      "admin.growth.coldoutreach.feedback.tsx",
       "admin.growth.coldoutreach.engaged.tsx",
       "admin.growth.campaigns.tsx",
       "admin.growth.greek.tsx",
@@ -522,6 +523,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "c.$slug.tsx": "legacy redirect → /go/…",
   // Internal dev labs (noindex, not user-facing)
   "callout-demo.tsx": "dev lab (noindex)",
+  "admin.ideas.tsx": "internal (noindex) — Ideas to Save prompt vault",
   "blast-off.tsx": "filming room (noindex) — vertical Blast Off edit + capture",
   "blastoff-demo.tsx": "dev lab (noindex) — vertical Blast Off frame previews",
   "exhibit-demo.tsx": "dev lab (noindex)",
@@ -545,6 +547,7 @@ export const IGNORED_ROUTES: Record<string, string> = {
   "s.$campus.$chapter.tsx": "chapter share screen — link + ready-to-paste GroupMe message (noindex)",
   "s.$campus.council.tsx": "council share screen — one message with every chapter link (noindex)",
   "admin.growth.coldoutreach.engaged.tsx": "Engaged contacts — who actually moved: replies, ref clicks, forwards (admin, noindex)",
+  "admin.growth.coldoutreach.feedback.tsx": "Enrichment feedback — the running list of 'what would make this faster next time?' notes (admin, noindex)",
   "preview_.templates.tsx": "the template test harness — every reusable template with a known-good sample and its checklist (noindex)",
   "go.demo.tsx": "demo chapter page — outreach sales asset (noindex)",
   "go.demo.demo.tsx": "redirect → /go/demo",

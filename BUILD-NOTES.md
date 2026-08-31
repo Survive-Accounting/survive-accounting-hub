@@ -619,3 +619,18 @@ drained to 0 pending, no errors. The probe tag was soft-archived afterwards.
 
 Booth stars and context windows now persist across machines; the client's
 strip-and-retry degradation for the missing columns is no longer exercised.
+
+## 2026-08-31 — Ideas to Save (prompt vault) + its migration RUN
+
+`20260831_0900_ideas_vault.sql` applied to production via the house runner
+(token pulled from Vercel, `.env.vercel` deleted immediately after). Verified by
+read: `public.ideas` exists with all 12 columns. Verified by behaviour: an idea
+captured with ⌘I from /blast-off round-tripped with its categories, subcategory
+and auto-captured source path, appeared in /admin/ideas, and ranked correctly in
+Prioritize. The test row was deleted afterwards (0 rows remain).
+
+Design decisions worth keeping: the pill counts only IDEA + DRAFTED, because
+that is the work still in Lee's hands. There is no delete — PARKED is the
+archive. Prioritize is computed per-ask rather than stored, and is allowed to
+answer "none of these — go film", which is often correct. The dock mounts once
+in __root and hides itself on /admin/ideas so it can never cover Prioritize.

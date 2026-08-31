@@ -20,6 +20,7 @@ import appCss from "../styles.css?url";
 import { HOME_OG, ogMeta } from "../lib/og";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { TestModeBar } from "@/components/site/TestModeBar";
+import { IdeasDock } from "@/components/ideas/IdeasDock";
 
 function NotFoundComponent() {
   return (
@@ -151,6 +152,9 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <TestModeBar />
+      {/* IDEAS TO SAVE — the pill + drawer. Renders itself only on internal
+          surfaces (it checks the path); null everywhere a student can reach. */}
+      <IdeasDock />
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
     </QueryClientProvider>

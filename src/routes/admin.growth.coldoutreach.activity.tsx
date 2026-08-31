@@ -22,7 +22,7 @@ const weekStartSun = (ymd: string) => { const [y, m, d] = ymd.split("-").map(Num
 
 const PEOPLE: { id: "all" | "lee" | "king" | "ej"; label: string }[] = [{ id: "all", label: "All" }, { id: "lee", label: "Lee" }, { id: "king", label: "King" }, { id: "ej", label: "EJ" }];
 const WHENS: { id: "today" | "week" | "30" | "all"; label: string }[] = [{ id: "today", label: "Today" }, { id: "week", label: "This week" }, { id: "30", label: "Last 30 days" }, { id: "all", label: "All" }];
-const TYPES: { id: "all" | "contacts" | "outreach" | "replies" | "warmup"; label: string }[] = [{ id: "all", label: "All" }, { id: "contacts", label: "Contacts" }, { id: "outreach", label: "Outreach" }, { id: "replies", label: "Replies" }, { id: "warmup", label: "Warm-up" }];
+const TYPES: { id: "all" | "contacts" | "outreach" | "replies" | "warmup" | "feedback"; label: string }[] = [{ id: "all", label: "All" }, { id: "contacts", label: "Contacts" }, { id: "outreach", label: "Outreach" }, { id: "replies", label: "Replies" }, { id: "warmup", label: "Warm-up" }, { id: "feedback", label: "Feedback" }];
 
 function ActivityPage() {
   const [person, setPerson] = useState<(typeof PEOPLE)[number]["id"]>("all");
@@ -140,7 +140,9 @@ function Row({ e, onOpen }: { e: ActivityEvent; onOpen: () => void }) {
       <span className="text-foreground">{e.verb}</span>
       <span className="min-w-0 flex-1 truncate text-muted-foreground">
         {e.campusName}{e.org ? ` · ${e.org}` : ""}
-        {e.detail ? <span className={cn("ml-1", e.type === "reply_logged" ? OUTCOME_TONE[e.detail] ?? "text-muted-foreground" : "text-pink-400")}> · {e.type === "reply_logged" ? e.detail.replace(/_/g, " ") : e.detail}</span> : null}
+        {e.type === "feedback" && e.detail
+          ? <span className="ml-1 italic text-amber-300/90">{e.campusName ? " · " : ""}“{e.detail}”</span>
+          : e.detail ? <span className={cn("ml-1", e.type === "reply_logged" ? OUTCOME_TONE[e.detail] ?? "text-muted-foreground" : "text-pink-400")}> · {e.type === "reply_logged" ? e.detail.replace(/_/g, " ") : e.detail}</span> : null}
       </span>
     </button>
   );
