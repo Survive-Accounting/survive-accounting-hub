@@ -5,8 +5,8 @@ import { describe, expect, test } from "bun:test";
 import { AI_REGISTRY, costOf, sumUsage } from "@/lib/ai-registry";
 import { isWhisperHallucination } from "./talkthrough-audio";
 import {
-  BOARD_KINDS, emptyDoc, recentApprovedExamples, styleKindFor, styleNotesFor,
-  type BoardItem,
+  BOARD_KINDS, emptyDoc, ghostSegments, recentApprovedExamples, styleKindFor, styleNotesFor,
+  type BoardItem, type TalkSegment,
 } from "./talkthrough";
 import {
   buildMicroEditMessages, buildReviewMessages, buildReviewRegenMessages, parseMicroEdit, parseReview,
@@ -121,6 +121,70 @@ describe("whisper hallucination filter (the ghost-segment bug)", () => {
     expect(isWhisperHallucination("Debits on the left, credits on the right.", "")).toBe(false);
     expect(isWhisperHallucination("5. 6. 7. 8. 9. 10. 11. 13.", "")).toBe(false);
     expect(isWhisperHallucination("", "")).toBe(false);
+  });
+
+  // Seen in Lee's own transcript on 2026-08-30, after the first gate shipped.
+  test("the social-CTA family Lee actually hit", () => {
+    expect(isWhisperHallucination("📢 Share this video with your friends on social media.", "")).toBe(true);
+    expect(isWhisperHallucination("Please hit the bell icon.", "")).toBe(true);
+    expect(isWhisperHallucination("Link in the description below.", "")).toBe(true);
+    expect(isWhisperHallucination("Let me know in the comments below.", "")).toBe(true);
+    expect(isWhisperHallucination("Follow us on social media!", "")).toBe(true);
+  });
+  // Every string here was pulled from Lee's real 2026-08-29 session, where 13
+  // of 32 segments were Whisper filling silence.
+  test("other-language subtitle credits and stray training-data fragments", () => {
+    for (const ghost of [
+      "İzlediğiniz için teşekkür ederim.",   // Turkish, ×5 in one session
+      "Субтитры предоставил DimaTorzok",     // Russian subtitle credit
+      "시청 해주셔서 감사합니다.",
+      "Bon Appetit.",
+      "1 tsp of salt.",
+    ]) expect(isWhisperHallucination(ghost, ""), ghost).toBe(true);
+  });
+  // These patterns must stay narrow — each phrase below is real accounting talk.
+  test("accounting sentences that merely share vocabulary survive", () => {
+    for (const real of [
+      "Comment below the line on the balance sheet.",
+      "They spend a lot on social media advertising.",
+      "Share the load between the two columns.",
+      "We share revenue with the partner.",
+      "The bell curve of exam scores.",
+      // Lee's actual words from the same session the ghosts came from
+      "So, very interesting. This one will be fun. It's quite simple.",
+      "In the real world with analyzing transactions, there may be source documents.",
+      "Being sales receipts or things of that nature, you know old-school stuff.",
+      "5. 6. 7. 8. 9. 10.    11.  13.",
+    ]) expect(isWhisperHallucination(real, ""), real).toBe(false);
+  });
+});
+
+describe("ghost sweep — the ones written before the gate existed", () => {
+  const seg = (over: Partial<TalkSegment>): TalkSegment => ({
+    id: `s-${Math.random()}`, sessionId: "s1", seq: 0, text: "", source: "whisper",
+    whisperPending: false, audioPath: null, focusedCeqId: null, focusedCeqLabel: null,
+    startedAt: "2026-08-29T02:25:00Z", endedAt: null,
+    createdAt: "2026-08-29T02:25:00Z", updatedAt: "2026-08-29T02:25:00Z", syncedAt: null,
+    ...over,
+  });
+
+  test("finds whisper-sourced ghosts, never live-sourced words", () => {
+    const d = emptyDoc();
+    d.segments.push(
+      seg({ seq: 21, text: "If you like the video, don't forget to like it and subscribe to the channel." }),
+      seg({ seq: 22, text: "📢 Share this video with your friends on social media." }),
+      seg({ seq: 24, text: "😊😊😊😊😊😊😊😊" }),
+      seg({ seq: 25, text: "Revenues reset to zero at year end." }),
+      // the SAME text, but the live mic heard it — Lee's words, never offered
+      seg({ seq: 26, text: "Thanks for watching!", source: "live" }),
+    );
+    const ghosts = ghostSegments(d, "s1", isWhisperHallucination);
+    expect(ghosts.map((g) => g.seq)).toEqual([21, 22, 24]);
+  });
+  test("archived segments are already gone", () => {
+    const d = emptyDoc();
+    d.segments.push(seg({ seq: 1, text: "Thank you for watching!", archivedAt: "2026-08-30T00:00:00Z" }));
+    expect(ghostSegments(d, "s1", isWhisperHallucination)).toHaveLength(0);
   });
 });
 

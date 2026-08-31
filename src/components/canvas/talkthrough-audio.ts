@@ -72,16 +72,41 @@ const HALLUCINATION_PATTERNS: RegExp[] = [
   /thank(s| you) for watching/i,
   /subscribe to (my|the|our) channel/i,
   /see you (in the next|next) (video|time)/i,
+  // Seen live 2026-08-30 in Lee's own transcript, alongside the outros above.
+  // Each is narrow on purpose: bare "on social media" and bare "comment below"
+  // are real accounting talk (an advertising expense; a line on a statement),
+  // so the CTA verb has to be there too.
+  /share (this|the) video/i,
+  /(share|follow) (us |me )?on social media/i,
+  /(hit|ring|smash) the (bell|like)/i,
+  /(let me know )?in the comments? below/i,
+  /link in the description/i,
   /^thank you[.!]?$/i,
   /ご視聴|チャンネル登録|ありがとうございました/,
   /amara\.org|subtitles by|sous-titres|sottotitoli|untertitel|시청해|구독/i,
   /www\.|https?:\/\//i,
+  // Subtitle-credit and thanks-for-watching lines in other languages, all seen
+  // in Lee's own 2026-08-29 session. Turkish is Latin-script so the non-Latin
+  // guard below misses it; match the words themselves.
+  /izlediğiniz|teşekkür ederim|subtitles? provided|субтитры|подписывайтесь/i,
+  // Whisper's other silence filler: stray cooking / TV-dialogue fragments from
+  // its training data. Narrow, literal, anchored — never substrings of real
+  // accounting speech.
+  /^bon app[ée]tit[.!]?$/i,
+  /^\d+\s*(tsp|tbsp|cups?)\b/i,
 ];
+
+/** Lee dictates in English. A line carrying Cyrillic, CJK, Hangul, Arabic,
+ *  Hebrew, Thai, Greek — or the Turkish-only letters — is Whisper filling
+ *  silence from another language's training data, not something he said. */
+const NON_ENGLISH_SCRIPT =
+  /[Ѐ-ӿͰ-Ͽ֐-׿؀-ۿ฀-๿぀-ヿ㐀-鿿가-힯]|[İıĞğŞş]/;
 export function isWhisperHallucination(whisperText: string, liveText: string): boolean {
   if (liveText.trim()) return false; // the live mic heard real words — trust Whisper
   const t = whisperText.trim();
   if (!t) return false;
-  if (!/[a-zA-Z0-9]/.test(t)) return true; // Lee dictates in English; CJK-only / emoji-only = noise (digits are real — he reads sequences aloud)
+  if (!/[a-zA-Z0-9]/.test(t)) return true; // emoji-only / punctuation-only = noise
+  if (NON_ENGLISH_SCRIPT.test(t)) return true; // another language = not Lee
   return HALLUCINATION_PATTERNS.some((p) => p.test(t));
 }
 

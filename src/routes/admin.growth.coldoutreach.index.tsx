@@ -105,6 +105,8 @@ const suggestRoleAccount = (email: string) => {
   const lp = (email.split("@")[0] ?? "").toLowerCase().replace(/[._+-]/g, "");
   return !!lp && ROLE_LOCALPART.test(lp);
 };
+// Typing/pasting a bare handle auto-gets an @; a handle that already has @ or is a full URL is left alone.
+const atHandle = (v: string) => (v && !v.startsWith("@") && !/^https?:|instagram\.com/i.test(v) ? `@${v}` : v);
 // Display an Instagram handle from either a bare @handle or a full instagram.com URL.
 const igHandle = (s: string | null) => {
   if (!s) return null;
@@ -251,6 +253,7 @@ type Row = {
   isPerson: boolean;
   notFound: boolean;
   isRoleAccount: boolean;
+  igRoleAccount: boolean;
   roleAcctTouched: boolean;
   name: string;
   role: string;
@@ -268,6 +271,7 @@ const emptyRow = (o: Partial<Row>): Row => ({
   isPerson: o.isPerson ?? false,
   notFound: false,
   isRoleAccount: false,
+  igRoleAccount: false,
   roleAcctTouched: false,
   name: "",
   role: o.role ?? "",
@@ -328,7 +332,7 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
           contacts: filled.map((r) => ({
             kind: r.kind, entityId: r.entityId, councilType: r.councilType,
             newClubName: r.newClubName, newClubCategory: r.newClubCategory,
-            isPerson: r.isPerson, notFound: r.notFound, isRoleAccount: r.isRoleAccount,
+            isPerson: r.isPerson, notFound: r.notFound, isRoleAccount: r.isRoleAccount, igRoleAccount: r.igRoleAccount,
             name: r.name || null, role: r.role || null, email: r.email || null, instagram: r.instagram || null,
           })),
         },
@@ -364,9 +368,10 @@ function AddContacts({ campus, onClose, onSaved }: { campus: BoardCampus; onClos
   const roleAccounts = useMemo(() => {
     if (!s) return [] as { where: string; c: ExistingContact }[];
     const out: { where: string; c: ExistingContact }[] = [];
-    for (const cl of s.councils) for (const c of cl.contacts) if (c.isRoleAccount) out.push({ where: cl.label, c });
-    for (const ch of s.chapters) for (const c of ch.contacts) if (c.isRoleAccount) out.push({ where: ch.name, c });
-    for (const cb of s.clubs) for (const c of cb.contacts) if (c.isRoleAccount) out.push({ where: cb.name, c });
+    const isRole = (c: ExistingContact) => c.isRoleAccount || c.igRoleAccount;
+    for (const cl of s.councils) for (const c of cl.contacts) if (isRole(c)) out.push({ where: cl.label, c });
+    for (const ch of s.chapters) for (const c of ch.contacts) if (isRole(c)) out.push({ where: ch.name, c });
+    for (const cb of s.clubs) for (const c of cb.contacts) if (isRole(c)) out.push({ where: cb.name, c });
     return out;
   }, [s]);
 
@@ -613,9 +618,9 @@ function EntityRow({
 // plus an inline (non-modal) editor.
 function ExistingRow({ c, onEdited }: { c: ExistingContact; onEdited: () => void }) {
   const [editing, setEditing] = useState(false);
-  const [f, setF] = useState({ name: c.name ?? "", role: c.role ?? "", email: c.email ?? "", instagram: c.instagram ?? "", isRoleAccount: c.isRoleAccount });
+  const [f, setF] = useState({ name: c.name ?? "", role: c.role ?? "", email: c.email ?? "", instagram: c.instagram ?? "", isRoleAccount: c.isRoleAccount, igRoleAccount: c.igRoleAccount });
   const save = useMutation({
-    mutationFn: () => growthUpdateContact({ data: { qcId: c.id, name: f.name || null, role: f.role || null, email: f.email || null, instagram: f.instagram || null, isRoleAccount: f.isRoleAccount } }),
+    mutationFn: () => growthUpdateContact({ data: { qcId: c.id, name: f.name || null, role: f.role || null, email: f.email || null, instagram: f.instagram || null, isRoleAccount: f.isRoleAccount, igRoleAccount: f.igRoleAccount } }),
     onSuccess: (r) => { if (r.ok) { toast.success("Contact updated."); setEditing(false); onEdited(); } else toast.error(r.error ?? "Update failed"); },
     onError: (e) => toast.error(e instanceof Error ? e.message : "Update failed"),
   });
@@ -633,14 +638,17 @@ function ExistingRow({ c, onEdited }: { c: ExistingContact; onEdited: () => void
       <div className="space-y-1.5 rounded-md border border-primary/40 bg-card p-2 pl-2">
         <div className="grid grid-cols-2 gap-1.5">
           <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Name" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
-          <input value={f.instagram} onChange={(e) => setF({ ...f, instagram: e.target.value })} placeholder="@instagram" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
+          <input value={f.instagram} onChange={(e) => setF({ ...f, instagram: atHandle(e.target.value) })} placeholder="@instagram" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
           <input value={f.role} onChange={(e) => setF({ ...f, role: e.target.value })} placeholder="Role" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
           <input value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} placeholder="Email" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
         </div>
-        <div className="flex items-center gap-2 text-[10px]">
-          <label className="inline-flex items-center gap-1 text-muted-foreground">
-            <input type="checkbox" checked={f.isRoleAccount} onChange={(e) => setF({ ...f, isRoleAccount: e.target.checked })} /> <Recycle className="size-3" /> role account
-          </label>
+        <div className="flex flex-wrap items-center gap-3 text-[10px]">
+          {f.email.trim() && <label className="inline-flex items-center gap-1 text-muted-foreground" title="Email is a role/position inbox">
+            <input type="checkbox" checked={f.isRoleAccount} onChange={(e) => setF({ ...f, isRoleAccount: e.target.checked })} /> <Recycle className="size-3" /> email role
+          </label>}
+          {f.instagram.trim() && <label className="inline-flex items-center gap-1 text-muted-foreground" title="Instagram is an org/position handle">
+            <input type="checkbox" checked={f.igRoleAccount} onChange={(e) => setF({ ...f, igRoleAccount: e.target.checked })} /> <Recycle className="size-3" /> IG role
+          </label>}
           <button onClick={() => save.mutate()} disabled={save.isPending} className="ml-auto rounded bg-primary px-2 py-0.5 font-medium text-primary-foreground disabled:opacity-40">{save.isPending ? "…" : "Save"}</button>
           <button onClick={() => setEditing(false)} className="rounded border border-border px-2 py-0.5 text-muted-foreground">Cancel</button>
         </div>
@@ -653,7 +661,7 @@ function ExistingRow({ c, onEdited }: { c: ExistingContact; onEdited: () => void
       <Check className="size-2.5 shrink-0 text-emerald-400" />
       <span className="min-w-0 truncate">{line}</span>
       {c.isPerson && c.instagram && <Instagram className="size-2.5 shrink-0 text-pink-400" />}
-      {c.isRoleAccount && <Recycle className="size-2.5 shrink-0 text-amber-400" />}
+      {(c.isRoleAccount || c.igRoleAccount) && <span title={`Role account (${[c.isRoleAccount ? "email" : null, c.igRoleAccount ? "IG" : null].filter(Boolean).join(" + ")})`} className="inline-flex shrink-0"><Recycle className="size-2.5 text-amber-400" /></span>}
       <span className="ml-auto flex shrink-0 items-center gap-1">
         <button onClick={() => setEditing(true)} title="Edit this contact" className="inline-flex items-center gap-0.5 rounded border border-border px-1.5 py-0.5 text-[9px] hover:bg-muted hover:text-foreground"><Pencil className="size-2.5" /> Edit</button>
         <button onClick={confirmDelete} disabled={del.isPending} title="Delete this contact" className="grid size-5 place-items-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-red-500/15 hover:text-red-400 group-hover:opacity-100"><X className="size-3" /></button>
@@ -700,20 +708,28 @@ function NewContactRow({ r, set, remove, forcePerson, campusName }: { r: Row; se
               {/* Instagram sits beside name, above email — personal IGs are the highest-value field. */}
               <div className="mb-1.5 grid grid-cols-2 gap-1.5">
                 <input value={r.name} onChange={(e) => set(r.key, { name: e.target.value })} placeholder="Name" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
-                <input value={r.instagram} onChange={(e) => set(r.key, { instagram: e.target.value })} placeholder="@personal IG" className="rounded border border-pink-500/30 bg-background px-2 py-1 text-[11px]" />
+                <input value={r.instagram} onChange={(e) => set(r.key, { instagram: atHandle(e.target.value) })} placeholder="@personal IG" className="rounded border border-pink-500/30 bg-background px-2 py-1 text-[11px]" />
               </div>
               <input value={r.role} onChange={(e) => set(r.key, { role: e.target.value })} placeholder="Role (or pick a chip above)" className="mb-1.5 w-full rounded border border-border bg-background px-2 py-1 text-[11px]" />
             </>
           )}
           <div className="grid grid-cols-2 gap-1.5">
             <input value={r.email} onChange={(e) => onEmail(e.target.value)} placeholder="Email" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />
-            {!person && <input value={r.instagram} onChange={(e) => set(r.key, { instagram: e.target.value })} placeholder="@org IG" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />}
+            {!person && <input value={r.instagram} onChange={(e) => set(r.key, { instagram: atHandle(e.target.value) })} placeholder="@org IG" className="rounded border border-border bg-background px-2 py-1 text-[11px]" />}
           </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px]">
-            <label className="inline-flex items-center gap-1 text-muted-foreground" title="A role/position inbox that turns over each year">
-              <input type="checkbox" checked={r.isRoleAccount} onChange={(e) => set(r.key, { isRoleAccount: e.target.checked, roleAcctTouched: true })} />
-              <Recycle className="size-3" /> role account
-            </label>
+          <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[10px]">
+            {r.email.trim() && (
+              <label className="inline-flex items-center gap-1 text-muted-foreground" title="This email is a role/position inbox (president@…) that turns over each year">
+                <input type="checkbox" checked={r.isRoleAccount} onChange={(e) => set(r.key, { isRoleAccount: e.target.checked, roleAcctTouched: true })} />
+                <Recycle className="size-3" /> email role
+              </label>
+            )}
+            {r.instagram.trim() && (
+              <label className="inline-flex items-center gap-1 text-muted-foreground" title="This Instagram is an org/position handle (not a specific person's)">
+                <input type="checkbox" checked={r.igRoleAccount} onChange={(e) => set(r.key, { igRoleAccount: e.target.checked })} />
+                <Recycle className="size-3" /> IG role
+              </label>
+            )}
             <button type="button" onClick={() => copyText(dmTemplate(person && r.name.trim() ? r.name.trim() : r.label, campusName), "DM copied — paste it into their Instagram.")} className="inline-flex items-center gap-1 rounded border border-border px-2 py-0.5 text-muted-foreground hover:bg-muted hover:text-foreground">
               <Copy className="size-3" /> Copy DM
             </button>

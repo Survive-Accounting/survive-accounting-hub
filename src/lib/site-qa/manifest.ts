@@ -454,6 +454,7 @@ export const TEMPLATES: TemplateDef[] = [
       "admin.growth.coldoutreach.tsx",
       "admin.growth.coldoutreach.index.tsx",
       "admin.growth.coldoutreach.schedule.tsx",
+      "admin.growth.coldoutreach.activity.tsx",
       "admin.growth.coldoutreach.engaged.tsx",
       "admin.growth.campaigns.tsx",
       "admin.growth.greek.tsx",
