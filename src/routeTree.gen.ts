@@ -38,6 +38,7 @@ import { Route as ChaptersRouteImport } from './routes/chapters'
 import { Route as CeqRouteImport } from './routes/ceq'
 import { Route as CalloutDemoRouteImport } from './routes/callout-demo'
 import { Route as BlastoffDemoRouteImport } from './routes/blastoff-demo'
+import { Route as BlastOffRouteImport } from './routes/blast-off'
 import { Route as BeyondRouteImport } from './routes/beyond'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UIndexRouteImport } from './routes/u.index'
@@ -295,6 +296,11 @@ const CalloutDemoRoute = CalloutDemoRouteImport.update({
 const BlastoffDemoRoute = BlastoffDemoRouteImport.update({
   id: '/blastoff-demo',
   path: '/blastoff-demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlastOffRoute = BlastOffRouteImport.update({
+  id: '/blast-off',
+  path: '/blast-off',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BeyondRoute = BeyondRouteImport.update({
@@ -881,6 +887,7 @@ const AdminGrowthColdoutreachActivityRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/beyond': typeof BeyondRoute
+  '/blast-off': typeof BlastOffRoute
   '/blastoff-demo': typeof BlastoffDemoRoute
   '/callout-demo': typeof CalloutDemoRoute
   '/ceq': typeof CeqRouteWithChildren
@@ -1025,6 +1032,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/beyond': typeof BeyondRoute
+  '/blast-off': typeof BlastOffRoute
   '/blastoff-demo': typeof BlastoffDemoRoute
   '/callout-demo': typeof CalloutDemoRoute
   '/ceq': typeof CeqRouteWithChildren
@@ -1166,6 +1174,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/beyond': typeof BeyondRoute
+  '/blast-off': typeof BlastOffRoute
   '/blastoff-demo': typeof BlastoffDemoRoute
   '/callout-demo': typeof CalloutDemoRoute
   '/ceq': typeof CeqRouteWithChildren
@@ -1312,6 +1321,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/beyond'
+    | '/blast-off'
     | '/blastoff-demo'
     | '/callout-demo'
     | '/ceq'
@@ -1456,6 +1466,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/beyond'
+    | '/blast-off'
     | '/blastoff-demo'
     | '/callout-demo'
     | '/ceq'
@@ -1596,6 +1607,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/beyond'
+    | '/blast-off'
     | '/blastoff-demo'
     | '/callout-demo'
     | '/ceq'
@@ -1741,6 +1753,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BeyondRoute: typeof BeyondRoute
+  BlastOffRoute: typeof BlastOffRoute
   BlastoffDemoRoute: typeof BlastoffDemoRoute
   CalloutDemoRoute: typeof CalloutDemoRoute
   CeqRoute: typeof CeqRouteWithChildren
@@ -2023,6 +2036,13 @@ declare module '@tanstack/react-router' {
       path: '/blastoff-demo'
       fullPath: '/blastoff-demo'
       preLoaderRoute: typeof BlastoffDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blast-off': {
+      id: '/blast-off'
+      path: '/blast-off'
+      fullPath: '/blast-off'
+      preLoaderRoute: typeof BlastOffRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/beyond': {
@@ -3023,6 +3043,7 @@ const GoDemoRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BeyondRoute: BeyondRoute,
+  BlastOffRoute: BlastOffRoute,
   BlastoffDemoRoute: BlastoffDemoRoute,
   CalloutDemoRoute: CalloutDemoRoute,
   CeqRoute: CeqRouteWithChildren,
