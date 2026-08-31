@@ -43,7 +43,8 @@ function RepJoin() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   // form → verify (code entry) → done (navigating) · existing = "you already have an account"
-  const [stage, setStage] = useState<"form" | "verify" | "existing">("form");
+  // · closed = campus already has its rep team (1 by default, 2 max split by council)
+  const [stage, setStage] = useState<"form" | "verify" | "existing" | "closed">("form");
   const [code, setCode] = useState("");
   const [testHint, setTestHint] = useState(false);
   const [resent, setResent] = useState(false);
@@ -67,6 +68,7 @@ function RepJoin() {
       const r = await applyAsRep({ data: { name: name.trim(), email: email.trim(), phone: phone.trim(), campusSlug: campus!, isTest } });
       if (!r.ok) { setErr(r.error ?? "Couldn't sign you up — try again."); return; }
       if (r.state === "existing_active") { setStage("existing"); return; }
+      if (r.state === "campus_closed") { setStage("closed"); return; }
       // fresh or resumed signup → straight into phone verification
       if (await sendCode()) setStage("verify");
     } catch { setErr("Couldn't reach the server — try again in a moment."); }
@@ -100,6 +102,14 @@ function RepJoin() {
           Left/right padding is set as LONGHAND — the shorthand `padding` would silently override
           the class's padding-bottom (which is exactly how the old footer collision happened). */}
       <main style={{ position: "relative", zIndex: 1, maxWidth: 560, margin: "0 auto", paddingLeft: 20, paddingRight: 20, width: "100%" }} className="pb-24 sm:pb-32">
+
+        {stage === "closed" && (
+          <section className="pt-16 text-center" style={{ fontFamily: BRAND_SANS }}>
+            <h1 className="text-[26px] font-black leading-[1.1]" style={{ color: "var(--brand-cream)", fontFamily: BRAND_DISPLAY }}>This campus already has its rep team.</h1>
+            <p className="mx-auto mt-2 max-w-[40ch] text-[14px]" style={{ color: "var(--text-muted)" }}>We keep it to one or two reps per campus so nobody's stepping on each other. Spots open up — text Lee and he'll keep you in mind.</p>
+            <a href="sms:+16625658818" className="mt-5 inline-flex items-center rounded-xl px-6 text-[15px] font-black" style={CTA}>Text Lee</a>
+          </section>
+        )}
 
         {stage === "existing" && (
           <section className="pt-16 text-center" style={{ fontFamily: BRAND_SANS }}>

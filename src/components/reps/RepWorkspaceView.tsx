@@ -11,11 +11,11 @@ import { BRAND_DISPLAY, BRAND_SANS, Bolt } from "@/components/canvas/brand";
 import { boltForSlug } from "@/lib/schools";
 import { formatCents } from "@/lib/referral-shared";
 import {
-  CONTACT_ROLES, fmtMs, mailtoHref, smsHref, CHAPTER_STATE_LABEL,
-  type ChapterState, type RepChapterRow, type RepWorkspace, type ShareKit,
+  CONTACT_ROLES, DM_PACE_NOTE, dmMessage, fmtMs, mailtoHref, smsHref, CHAPTER_STATE_LABEL,
+  type AssignedChapter, type ChapterState, type RepChapterRow, type RepWorkspace, type ShareKit,
 } from "@/lib/rep-shared";
 import {
-  getShareKit, logRepShare, setHousePosted, submitRepContact, updateRepVenmoSession,
+  getShareKit, logRepShare, markDmCopied, markDmReplied, setHousePosted, submitRepContact, updateRepVenmoSession,
 } from "@/lib/rep-workspace.functions";
 
 // ── tiny shared bits ─────────────────────────────────────────────────────────────────────────
@@ -169,10 +169,16 @@ export function RepWorkspaceView({ d, readOnly = false, viewingAs, legacyToken, 
         </section>
       )}
 
-      {/* CHAPTER LEADERBOARD — the center of the product. */}
+      {/* YOUR CHAPTERS (V2) — the assigned working list. We supply the handles; the rep DMs
+          from their own account, at a sane pace. */}
+      {d.assigned.length > 0 && (
+        <AssignedSection d={d} readOnly={readOnly} legacyToken={legacyToken} reload={reload} copied={copied} copy={copy} openDrawer={(id) => setDrawer(id)} />
+      )}
+
+      {/* CHAPTER LEADERBOARD — the full campus picture. */}
       <section className="mt-6">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-[17px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Chapters at {d.campusName ?? "your campus"}</h2>
+          <h2 className="text-[17px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>{d.assigned.length > 0 ? `All chapters at ${d.campusName ?? "your campus"}` : `Chapters at ${d.campusName ?? "your campus"}`}</h2>
           <select value={sort} onChange={(e) => setSort(e.target.value)} className="rounded-lg px-2 text-[12.5px] font-bold" style={{ minHeight: 38, background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }} aria-label="Sort chapters">
             <option value="largest">Largest first</option>
             <option value="clicks">Most clicks</option>
@@ -224,6 +230,92 @@ export function RepWorkspaceView({ d, readOnly = false, viewingAs, legacyToken, 
   );
 }
 
+// ── YOUR CHAPTERS (V2): the assigned list + DM workflow ──────────────────────────────────────
+function AssignedSection({ d, readOnly, legacyToken, reload, copied, copy, openDrawer }: {
+  d: RepWorkspace; readOnly: boolean; legacyToken?: string | null; reload: () => void;
+  copied: string | null; copy: (k: string, t: string) => void; openDrawer: (chapterId: string) => void;
+}) {
+  const [template, setTemplate] = useState<string | null>(null); // null = default message
+  const [editing, setEditing] = useState(false);
+  const [replyFor, setReplyFor] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const messageFor = (c: AssignedChapter): string => {
+    const link = c.shortUrl ?? d.mainLink?.shortUrl ?? "";
+    if (template != null) return template.replaceAll("{chapter}", c.name).replaceAll("{link}", link);
+    return dmMessage({ chapterName: c.name, courseCode: d.courseCode, shortUrl: link });
+  };
+  const copyDm = (c: AssignedChapter) => {
+    if (readOnly) return;
+    copy(`dm-${c.chapterId}`, messageFor(c));
+    void markDmCopied({ data: { legacyToken, chapterId: c.chapterId } }).then(reload);
+  };
+  const saveReply = (c: AssignedChapter) => {
+    if (readOnly || replyText.trim().length < 2 || busy) return;
+    setBusy(true);
+    void markDmReplied({ data: { legacyToken, chapterId: c.chapterId, replyText: replyText.trim() } })
+      .then(() => { setReplyFor(null); setReplyText(""); reload(); })
+      .finally(() => setBusy(false));
+  };
+
+  return (
+    <section className="mt-6">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-[17px] font-black" style={{ fontFamily: BRAND_DISPLAY, color: "var(--brand-cream)" }}>Your chapters · {d.assigned.length} assigned</h2>
+        <button type="button" onClick={() => { setEditing((v) => !v); if (template == null) setTemplate(dmMessage({ chapterName: "{chapter}", courseCode: d.courseCode, shortUrl: "{link}" })); }}
+          className="rounded-lg px-3 py-1.5 text-[12px] font-bold" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)", color: "var(--text-muted)" }}>
+          {editing ? "Done editing" : "Edit DM message"}
+        </button>
+      </div>
+      {editing && (
+        <div className="mt-2 rounded-xl p-3" style={{ background: "var(--bg-surface)", border: "1px dashed var(--border-default)" }}>
+          <textarea value={template ?? ""} onChange={(e) => setTemplate(e.target.value)} rows={4}
+            className="sa-field w-full" style={{ width: "100%", borderRadius: 10, padding: "10px 12px", background: "var(--bg-input, rgba(0,0,0,0.22))", border: "1px solid var(--border-default)", color: "var(--brand-cream)", fontSize: 14.5, outline: "none" }} />
+          <p className="mt-1 text-[11.5px]" style={{ color: "var(--text-muted)" }}><code>{"{chapter}"}</code> and <code>{"{link}"}</code> fill in per chapter — keep <code>{"{link}"}</code> in there; it's your tracked link (it's how you get paid).</p>
+        </div>
+      )}
+      <div className="mt-2.5 grid gap-1.5">
+        {d.assigned.map((c) => (
+          <div key={c.chapterId} className="rounded-xl px-3.5 py-2.5" style={{ background: "var(--bg-surface)", border: "1px solid var(--border-default)" }}>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <button type="button" onClick={() => openDrawer(c.chapterId)} className="min-w-0 text-left">
+                <p className="truncate text-[14px] font-black" style={{ color: "var(--brand-cream)" }}>
+                  {c.letters && <span style={{ color: "var(--accent)", marginRight: 6 }}>{c.letters}</span>}{c.name}
+                  {c.igHandle && <span className="ml-2 text-[12px] font-bold" style={{ color: "var(--text-muted)" }}>{c.igHandle}</span>}
+                </p>
+                <p className="text-[11.5px]" style={{ color: "var(--text-muted)" }}>
+                  {c.claimed ? "✓ page claimed"
+                    : c.dmStatus === "replied" ? `● replied${c.repliedAt ? ` ${new Date(c.repliedAt).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}` : ""}`
+                    : c.dmStatus === "dm_sent" ? `● DM sent${c.dmSentAt ? ` ${new Date(c.dmSentAt).toLocaleDateString("en-US", { month: "numeric", day: "numeric" })}` : ""}`
+                    : "○ not contacted"}
+                  {!c.igHandle && " · no IG handle on file — use the kit in the drawer"}
+                </p>
+              </button>
+              <div className="flex shrink-0 flex-wrap gap-1.5">
+                {c.igUrl && <a href={readOnly ? undefined : c.igUrl} target="_blank" rel="noreferrer" aria-disabled={readOnly} className="inline-flex items-center rounded-lg px-2.5 text-[12px] font-black" style={{ minHeight: 38, background: "var(--bg-overlay)", border: "1px solid var(--border-default)", color: "var(--brand-cream)", opacity: readOnly ? 0.4 : 1 }}>Open IG</a>}
+                <button type="button" disabled={readOnly} onClick={() => copyDm(c)} className="rounded-lg px-2.5 text-[12px] font-black disabled:opacity-40" style={{ minHeight: 38, background: "rgba(252,163,17,0.14)", color: "var(--accent)" }}>{copied === `dm-${c.chapterId}` ? "Copied ⚡" : "Copy DM"}</button>
+                {c.dmStatus === "dm_sent" && !c.claimed && (
+                  <button type="button" disabled={readOnly} onClick={() => { setReplyFor(replyFor === c.chapterId ? null : c.chapterId); setReplyText(""); }} className="rounded-lg px-2.5 text-[12px] font-black disabled:opacity-40" style={{ minHeight: 38, background: "var(--bg-overlay)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}>Mark replied</button>
+                )}
+              </div>
+            </div>
+            {replyFor === c.chapterId && (
+              <div className="mt-2 flex gap-2">
+                <input value={replyText} onChange={(e) => setReplyText(e.target.value)} placeholder="What did they say? (required)"
+                  className="sa-field flex-1" style={{ minHeight: 40, borderRadius: 10, padding: "0 12px", background: "var(--bg-input, rgba(0,0,0,0.22))", border: "1px solid var(--border-default)", color: "var(--brand-cream)", fontSize: 14, outline: "none" }}
+                  onKeyDown={(e) => e.key === "Enter" && saveReply(c)} />
+                <button type="button" onClick={() => saveReply(c)} disabled={replyText.trim().length < 2 || busy} className="rounded-lg px-3 text-[12.5px] font-black disabled:opacity-40" style={{ minHeight: 40, background: "var(--accent)", color: "#0B1220" }}>Save</button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-[11.5px]" style={{ color: "var(--text-muted)" }}>{DM_PACE_NOTE} Tap a chapter for its flyer, QR and full kit.</p>
+    </section>
+  );
+}
+
 // ── onboarding (3 lines + optional video; dismissable) ───────────────────────────────────────
 function Onboarding({ videoUrl, repId }: { videoUrl: string | null; repId: string }) {
   const key = `sa-rep-onboarded-${repId}`;
@@ -264,6 +356,9 @@ function PayoutCard({ d, legacyToken, reload }: { d: RepWorkspace; legacyToken?:
         <p className="text-[13.5px] font-black" style={{ color: "var(--brand-cream)" }}>Next payout · {d.payout.nextLabel} — {formatCents(d.payout.dueCents)} due</p>
         <p className="text-[11.5px]" style={{ color: "var(--text-muted)" }}>Venmo, on the 1st (Oct–Jan). Purchases are confirmed first.</p>
       </div>
+      {(d.impact.commissionPendingCents + d.impact.commissionApprovedCents) > 0 && (
+        <p className="mt-1.5 text-[11.5px]" style={{ color: "var(--text-muted)" }}>Your first payout needs a quick W-9 (you're an independent contractor) — Lee sends it before paying out. Nothing to do right now.</p>
+      )}
       <div className="mt-2.5 flex flex-wrap items-end gap-2">
         <div className="flex-1" style={{ minWidth: 180 }}>
           <label style={LABEL}>Venmo — where you get paid</label>

@@ -392,6 +392,208 @@ export const adminReviewRepContact = createServerFn({ method: "POST" })
     return { ok: true, assignment: next };
   });
 
+// ── V2 APPLICATION REVIEW — the queue Lee works, call-first ──────────────────────────────────
+export type RepApplicationCard = {
+  partnerId: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  campusName: string | null;
+  isTest: boolean;
+  status: "submitted" | "waitlisted";
+  submittedAt: string | null;
+  graduationYear: number | null;
+  courseStatus: string | null;      // self-reported product/course exposure — honest, not tracked usage
+  ownChapterName: string | null;
+  roles: string[];
+  weightedRole: boolean;            // council officer / recruitment counselor → badge
+  reachable: number;                // the number that decides this
+  reachMember: number;
+  reachKnows: number;
+  pitch: string | null;
+  callAt: string | null;
+  callNotes: string | null;
+};
+
+export const adminListRepApplications = createServerFn({ method: "GET" })
+  .handler(async (): Promise<{ ok: boolean; applications: RepApplicationCard[] }> => {
+    await assertAdmin();
+    const db = await admin();
+    const { CAMPUS_ROLE_CHIPS } = await import("@/lib/rep-shared");
+    const weighted = new Set(CAMPUS_ROLE_CHIPS.filter((r) => r.weighted).map((r) => r.slug as string));
+
+    const { data: rows } = await db.from("referral_partners")
+      .select("id,name,email,phone,campus_id,is_test,application_status,onboarding_submitted_at,graduation_year,course_status,own_chapter_id,campus_roles,pitch,call_at,call_notes")
+      .eq("type", "campus_rep").in("application_status", ["submitted", "waitlisted"])
+      .order("onboarding_submitted_at", { ascending: true }).limit(300);
+    const apps = (rows ?? []) as Array<Record<string, unknown>>;
+    if (!apps.length) return { ok: true, applications: [] };
+    const ids = apps.map((a) => a.id as string);
+
+    // reach rollups
+    const reachBy = new Map<string, { member: number; knows: number }>();
+    for (let i = 0; i < ids.length; i += 100) {
+      const { data: rr } = await db.from("rep_chapter_reach").select("partner_id,reach").in("partner_id", ids.slice(i, i + 100)).limit(20000);
+      for (const r of (rr ?? []) as Array<{ partner_id: string; reach: string }>) {
+        const e = reachBy.get(r.partner_id) ?? { member: 0, knows: 0 };
+        if (r.reach === "member") e.member++; else e.knows++;
+        reachBy.set(r.partner_id, e);
+      }
+    }
+    // names for campus + own chapter
+    const campusIds = Array.from(new Set(apps.map((a) => a.campus_id).filter(Boolean))) as string[];
+    const campusById = new Map<string, string>();
+    if (campusIds.length) {
+      const { data: cs } = await db.from("campuses").select("id,slug,name,short_name").in("id", campusIds);
+      for (const c of (cs ?? []) as Array<{ id: string; slug: string; name: string; short_name: string | null }>) campusById.set(c.id, canonicalSchoolName(c.slug, c.short_name || c.name));
+    }
+    const chIds = Array.from(new Set(apps.map((a) => a.own_chapter_id).filter(Boolean))) as string[];
+    const chById = new Map<string, string>();
+    if (chIds.length) {
+      const { data: chs } = await db.from("campus_greek_chapters").select("id,slug,nickname,greek_org_id").in("id", chIds);
+      const rows2 = (chs ?? []) as Array<{ id: string; slug: string; nickname: string | null; greek_org_id: string | null }>;
+      const orgIds = Array.from(new Set(rows2.map((r) => r.greek_org_id).filter(Boolean))) as string[];
+      const orgNames = new Map<string, string>();
+      if (orgIds.length) {
+        const { data: orgs } = await db.from("greek_orgs").select("id,name").in("id", orgIds);
+        for (const o of (orgs ?? []) as Array<{ id: string; name: string }>) orgNames.set(o.id, o.name);
+      }
+      for (const r of rows2) chById.set(r.id, r.nickname || (r.greek_org_id ? orgNames.get(r.greek_org_id) : null) || r.slug);
+    }
+
+    const applications = apps.map((a) => {
+      const roles = Array.isArray(a.campus_roles) ? (a.campus_roles as string[]) : [];
+      const reach = reachBy.get(a.id as string) ?? { member: 0, knows: 0 };
+      return {
+        partnerId: a.id as string, name: a.name as string, email: (a.email as string) ?? null, phone: (a.phone as string) ?? null,
+        campusName: a.campus_id ? (campusById.get(a.campus_id as string) ?? null) : null,
+        isTest: !!a.is_test,
+        status: a.application_status as "submitted" | "waitlisted",
+        submittedAt: (a.onboarding_submitted_at as string) ?? null,
+        graduationYear: (a.graduation_year as number) ?? null,
+        courseStatus: (a.course_status as string) ?? null,
+        ownChapterName: a.own_chapter_id ? (chById.get(a.own_chapter_id as string) ?? null) : null,
+        roles, weightedRole: roles.some((r) => weighted.has(r)),
+        reachable: reach.member + reach.knows, reachMember: reach.member, reachKnows: reach.knows,
+        pitch: (a.pitch as string) ?? null,
+        callAt: (a.call_at as string) ?? null, callNotes: (a.call_notes as string) ?? null,
+      };
+    }).sort((a, b) => b.reachable - a.reachable);   // the number that decides this, descending
+    return { ok: true, applications };
+  });
+
+export const adminScheduleRepCall = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    partnerId: z.string().uuid(),
+    callAt: z.string().min(4).max(40),
+    notes: z.string().trim().max(2000).optional().nullable(),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; error?: string }> => {
+    await assertAdmin();
+    const db = await admin();
+    const by = await adminEmail();
+    const when = new Date(data.callAt);
+    if (Number.isNaN(when.getTime())) return { ok: false, error: "That date didn't parse." };
+    const { error } = await db.from("referral_partners")
+      .update({ call_at: when.toISOString(), ...(data.notes != null ? { call_notes: data.notes.trim() || null } : {}) })
+      .eq("id", data.partnerId).eq("type", "campus_rep");
+    if (error) return { ok: false, error: error.message };
+    const { data: rep } = await db.from("referral_partners").select("is_test").eq("id", data.partnerId).maybeSingle();
+    await db.from("rep_activity").insert({
+      partner_id: data.partnerId, kind: "call_scheduled", meta: { by, callAt: when.toISOString() }, is_test: !!rep?.is_test,
+    }).then(() => undefined, () => undefined);
+    return { ok: true };
+  });
+
+/** APPROVE / WAITLIST / DECLINE. Approving requires the coverage call (ifc/panhellenic/both/other
+ *  — the campus-capacity flag) and turns the coverage map into the working list: an assignment +
+ *  a rep×chapter link for every reachable chapter that isn't already held by another rep. */
+export const adminReviewApplication = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) => z.object({
+    partnerId: z.string().uuid(),
+    decision: z.enum(["approve", "waitlist", "decline"]),
+    coverage: z.enum(["ifc", "panhellenic", "both", "other"]).optional().nullable(),
+    callNotes: z.string().trim().max(2000).optional().nullable(),
+  }).parse(d))
+  .handler(async ({ data }): Promise<{ ok: boolean; assignedCount?: number; skipped?: number; error?: string }> => {
+    await assertAdmin();
+    const db = await admin();
+    const by = await adminEmail();
+    const { data: rep } = await db.from("referral_partners")
+      .select("id,name,campus_id,is_test,application_status").eq("id", data.partnerId).eq("type", "campus_rep").maybeSingle();
+    if (!rep?.id) return { ok: false, error: "Rep not found." };
+    const nowIso = new Date().toISOString();
+
+    if (data.decision !== "approve") {
+      const status = data.decision === "waitlist" ? "waitlisted" : "declined";
+      const { error } = await db.from("referral_partners").update({
+        application_status: status, reviewed_at: nowIso, reviewed_by: by,
+        ...(data.callNotes != null ? { call_notes: data.callNotes.trim() || null } : {}),
+      }).eq("id", rep.id);
+      if (error) return { ok: false, error: error.message };
+      await db.from("rep_activity").insert({
+        partner_id: rep.id, kind: status === "waitlisted" ? "application_waitlisted" : "application_declined",
+        meta: { by }, is_test: !!rep.is_test,
+      }).then(() => undefined, () => undefined);
+      return { ok: true };
+    }
+
+    if (!data.coverage) return { ok: false, error: "Pick the coverage (IFC / Panhellenic / both) — it's the campus-capacity flag." };
+    if (!rep.campus_id) return { ok: false, error: "Rep has no campus." };
+
+    const { error: upErr } = await db.from("referral_partners").update({
+      application_status: "approved", rep_coverage: data.coverage,
+      reviewed_at: nowIso, reviewed_by: by,
+      ...(data.callNotes != null ? { call_notes: data.callNotes.trim() || null } : {}),
+    }).eq("id", rep.id);
+    if (upErr) return { ok: false, error: upErr.message };
+
+    // The coverage map becomes the working list. The one-live-assignment-per-chapter index still
+    // rules — a chapter another rep already holds is SKIPPED, not stolen.
+    const { termFor, termId } = await import("@/lib/terms");
+    const tid = termId(termFor());
+    const { data: reachRows } = await db.from("rep_chapter_reach")
+      .select("campus_greek_chapter_id").eq("partner_id", rep.id).limit(1000);
+    const chapterIds = ((reachRows ?? []) as Array<{ campus_greek_chapter_id: string }>).map((r) => r.campus_greek_chapter_id);
+
+    let assignedCount = 0, skipped = 0;
+    if (chapterIds.length) {
+      const { data: campus } = await db.from("campuses").select("slug").eq("id", rep.campus_id).maybeSingle();
+      const { data: chRows } = await db.from("campus_greek_chapters")
+        .select("id,slug,nickname,greek_org_id").in("id", chapterIds.slice(0, 200));
+      const chs = (chRows ?? []) as Array<{ id: string; slug: string; nickname: string | null; greek_org_id: string | null }>;
+      const orgIds = Array.from(new Set(chs.map((c) => c.greek_org_id).filter(Boolean))) as string[];
+      const orgNames = new Map<string, string>();
+      if (orgIds.length) {
+        const { data: orgs } = await db.from("greek_orgs").select("id,name").in("id", orgIds);
+        for (const o of (orgs ?? []) as Array<{ id: string; name: string }>) orgNames.set(o.id, o.name);
+      }
+      const { ensureRepChapterLink } = await import("@/lib/rep-workspace.functions");
+      for (const ch of chs) {
+        const { data: ins, error: aErr } = await db.from("rep_chapter_assignments").insert({
+          partner_id: rep.id, campus_greek_chapter_id: ch.id, term_id: tid, status: "reserved",
+          is_test: !!rep.is_test, created_by: `admin:${by}`,
+        }).select("id").maybeSingle();
+        if (aErr || !ins?.id) { skipped++; continue; }   // unique-index conflict → another rep holds it
+        assignedCount++;
+        try {
+          if (campus?.slug) {
+            const orgName = ch.nickname || (ch.greek_org_id ? orgNames.get(ch.greek_org_id) : null) || ch.slug;
+            const link = await ensureRepChapterLink(db, { id: rep.id, is_test: !!rep.is_test }, { id: ch.id, slug: ch.slug, campusSlug: campus.slug as string, orgName });
+            await db.from("rep_chapter_assignments").update({ referral_link_id: link.id })
+              .eq("partner_id", rep.id).eq("campus_greek_chapter_id", ch.id).eq("term_id", tid);
+          }
+        } catch (e) { console.warn("assignment link deferred:", (e as Error).message); }
+      }
+    }
+
+    await db.from("rep_activity").insert({
+      partner_id: rep.id, kind: "application_approved",
+      meta: { by, coverage: data.coverage, assignedCount, skipped }, is_test: !!rep.is_test,
+    }).then(() => undefined, () => undefined);
+    return { ok: true, assignedCount, skipped };
+  });
+
 // ── REP DETAIL: assignments (for the roster drawer) ──────────────────────────────────────────
 export type AdminAssignmentRow = {
   id: string;

@@ -21,10 +21,11 @@ import {
 import { Money, TestToggle, useShowTest } from "@/components/reps/RepsKit";
 import {
   adminAssignmentAction, adminChangeRepCampus, adminListPendingRepContacts, adminListReps,
-  adminRepAction, adminRepAssignments, adminReviewRepContact,
-  type AdminRepRow,
+  adminListRepApplications, adminRepAction, adminRepAssignments, adminReviewApplication,
+  adminReviewRepContact, adminScheduleRepCall,
+  type AdminRepRow, type RepApplicationCard,
 } from "@/lib/rep-admin.functions";
-import { REP_STATUS_LABEL, type RepStatus } from "@/lib/rep-shared";
+import { REP_COVERAGES, REP_COVERAGE_LABEL, REP_STATUS_LABEL, type RepCoverage, type RepStatus } from "@/lib/rep-shared";
 
 export const Route = createFileRoute("/admin/reps/roster")({
   component: RosterPage,
@@ -50,6 +51,7 @@ function RosterPage() {
 
   const reps = useQuery({ queryKey: ["admin-reps"], queryFn: () => adminListReps() });
   const pending = useQuery({ queryKey: ["admin-rep-contacts"], queryFn: () => adminListPendingRepContacts() });
+  const apps = useQuery({ queryKey: ["admin-rep-apps"], queryFn: () => adminListRepApplications() });
 
   const rows = useMemo(() => {
     let list = reps.data?.reps ?? [];
@@ -61,7 +63,7 @@ function RosterPage() {
   }, [reps.data, showTest, status, q, sort]);
 
   const applications = useMemo(() => (reps.data?.reps ?? []).filter((r) => r.repStatus === "applied" && (showTest || !r.isTest)), [reps.data, showTest]);
-  const refresh = () => { void qc.invalidateQueries({ queryKey: ["admin-reps"] }); void qc.invalidateQueries({ queryKey: ["admin-rep-contacts"] }); };
+  const refresh = () => { void qc.invalidateQueries({ queryKey: ["admin-reps"] }); void qc.invalidateQueries({ queryKey: ["admin-rep-contacts"] }); void qc.invalidateQueries({ queryKey: ["admin-rep-apps"] }); };
 
   const act = useMutation({
     mutationFn: (v: { partnerId: string; action: "approve" | "pause" | "reactivate" | "deactivate" | "revoke_sessions" }) => adminRepAction({ data: v }),
@@ -99,6 +101,19 @@ function RosterPage() {
           <p className="mt-2 text-xs text-muted-foreground">Signup is self-verify now — these older rows just need the rep to verify their phone at /rep/dashboard. Approve clears them into that path; Decline deactivates.</p>
         </section>
       )}
+
+      {/* V2 APPLICATION QUEUE — call-first review, sorted by chapters reachable */}
+      <section className="rounded-xl border border-border p-4">
+        <h2 className="text-sm font-bold">Rep applications {apps.data?.applications.length ? `(${apps.data.applications.length})` : ""}</h2>
+        <p className="mt-0.5 text-xs text-muted-foreground">Sorted by chapters reachable — the number that decides this. Every applicant gets a call before approval; approving asks for the coverage call (the campus-capacity flag) and turns their coverage map into assigned chapters.</p>
+        {apps.isLoading && <p className="mt-2 text-sm text-muted-foreground"><Loader2 className="mr-1 inline h-3.5 w-3.5 animate-spin" />Loading…</p>}
+        {apps.data && apps.data.applications.length === 0 && <p className="mt-2 text-sm text-muted-foreground">No applications waiting ⚡</p>}
+        <div className="mt-2 grid gap-2">
+          {(apps.data?.applications ?? []).map((a) => (
+            <ApplicationCard key={a.partnerId} a={a} refresh={refresh} />
+          ))}
+        </div>
+      </section>
 
       {/* REP-SUBMITTED CONTACT QC */}
       <section className="rounded-xl border border-border p-4">
@@ -191,6 +206,72 @@ function RosterPage() {
       </section>
 
       {openRep && <RepDrawer rep={openRep} onClose={() => setOpenRep(null)} refresh={refresh} act={(action) => act.mutate({ partnerId: openRep.id, action })} busy={act.isPending} />}
+    </div>
+  );
+}
+
+// ── V2 application card — one applicant, everything the call needs ───────────────────────────
+function ApplicationCard({ a, refresh }: { a: RepApplicationCard; refresh: () => void }) {
+  const [coverage, setCoverage] = useState<RepCoverage | "">("");
+  const [callAt, setCallAt] = useState("");
+  const [notes, setNotes] = useState(a.callNotes ?? "");
+  const review = useMutation({
+    mutationFn: (v: { decision: "approve" | "waitlist" | "decline" }) =>
+      adminReviewApplication({ data: { partnerId: a.partnerId, decision: v.decision, coverage: coverage || null, callNotes: notes || null } }),
+    onSuccess: (r) => {
+      if (r.ok) { toast.success(r.assignedCount != null ? `Approved — ${r.assignedCount} chapter${r.assignedCount === 1 ? "" : "s"} assigned${r.skipped ? `, ${r.skipped} already held` : ""}.` : "Done."); refresh(); }
+      else toast.error(r.error ?? "Failed.");
+    },
+    onError: () => toast.error("Couldn't reach the server."),
+  });
+  const schedule = useMutation({
+    mutationFn: () => adminScheduleRepCall({ data: { partnerId: a.partnerId, callAt, notes: notes || null } }),
+    onSuccess: (r) => { if (r.ok) { toast.success("Call scheduled."); refresh(); } else toast.error(r.error ?? "Failed."); },
+  });
+  const courseLabel = a.courseStatus === "taking_now" ? "taking the course now" : a.courseStatus === "taken" ? "has taken the course" : a.courseStatus === "not_yet" ? "hasn't taken it" : "course status unknown";
+
+  return (
+    <div className="rounded-lg border border-border px-3.5 py-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">
+            {a.name}
+            {a.weightedRole && <span className="ml-1.5 rounded bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-600">COUNCIL ACCESS</span>}
+            {a.isTest && <span className="ml-1.5 rounded bg-orange-500/15 px-1 text-[10px] font-bold text-orange-600">TEST</span>}
+            <span className="font-normal text-muted-foreground"> · {a.campusName ?? "?"} · {a.ownChapterName ?? "no chapter"}{a.graduationYear ? ` · '${String(a.graduationYear).slice(2)}` : ""}</span>
+          </p>
+          <p className="text-xs text-muted-foreground">{[a.email, a.phone].filter(Boolean).join(" · ")} · {courseLabel}{a.roles.length ? ` · roles: ${a.roles.join(", ")}` : ""}</p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-lg font-bold leading-none">{a.reachable}</p>
+          <p className="text-[10px] uppercase text-muted-foreground">chapters reachable</p>
+          <p className="text-[11px] text-muted-foreground">member of {a.reachMember} · knows someone at {a.reachKnows}</p>
+        </div>
+      </div>
+      {a.pitch && <p className="mt-1.5 rounded bg-muted/40 px-2.5 py-1.5 text-xs italic">“{a.pitch}”</p>}
+      {a.callAt && <p className="mt-1.5 text-xs text-muted-foreground">📞 Call {new Date(a.callAt).toLocaleString()}{a.status === "waitlisted" ? " · currently waitlisted" : ""}</p>}
+      <div className="mt-2 flex flex-wrap items-end gap-2">
+        <div className="grid gap-0.5">
+          <label className="text-[10px] font-semibold uppercase text-muted-foreground">Schedule call</label>
+          <div className="flex gap-1.5">
+            <Input type="datetime-local" value={callAt} onChange={(e) => setCallAt(e.target.value)} className="h-8 w-[190px] text-xs" />
+            <Button size="sm" variant="outline" onClick={() => schedule.mutate()} disabled={!callAt || schedule.isPending}>Set</Button>
+          </div>
+        </div>
+        <div className="grid min-w-[200px] flex-1 gap-0.5">
+          <label className="text-[10px] font-semibold uppercase text-muted-foreground">Call notes</label>
+          <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="What they said on the call…" className="h-8 text-xs" />
+        </div>
+        <Select value={coverage} onValueChange={(v) => setCoverage(v as RepCoverage)}>
+          <SelectTrigger className="h-8 w-[190px] text-xs"><SelectValue placeholder="Coverage (for approve)" /></SelectTrigger>
+          <SelectContent>
+            {REP_COVERAGES.map((c) => <SelectItem key={c} value={c}>{REP_COVERAGE_LABEL[c]}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Button size="sm" onClick={() => review.mutate({ decision: "approve" })} disabled={!coverage || review.isPending}>Approve</Button>
+        <Button size="sm" variant="secondary" onClick={() => review.mutate({ decision: "waitlist" })} disabled={review.isPending}>Waitlist</Button>
+        <Button size="sm" variant="outline" onClick={() => review.mutate({ decision: "decline" })} disabled={review.isPending}>Decline</Button>
+      </div>
     </div>
   );
 }

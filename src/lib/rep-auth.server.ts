@@ -3,7 +3,7 @@
 // @tanstack/react-start/server, which the client build refuses. (Plain exports of a *.functions.ts
 // module are NOT stripped from the client bundle — only handler bodies are — which is exactly the
 // import-protection failure that moved this code out of rep-auth.functions.ts.)
-import type { RepStatus } from "@/lib/rep-shared";
+import type { ApplicationStatus, RepStatus } from "@/lib/rep-shared";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped-table convention
 type DB = { from: (t: string) => any };
@@ -21,13 +21,14 @@ export type RepRow = {
   is_test: boolean;
   status: string;
   rep_status: RepStatus | null;
+  application_status: ApplicationStatus | null;
   phone_verified_at: string | null;
   dashboard_token: string | null;
   default_commission_type: string;
   default_commission_rate: number;
 };
 
-export const REP_COLS = "id,name,email,phone,campus_id,venmo,is_test,status,rep_status,phone_verified_at,dashboard_token,default_commission_type,default_commission_rate";
+export const REP_COLS = "id,name,email,phone,campus_id,venmo,is_test,status,rep_status,application_status,phone_verified_at,dashboard_token,default_commission_type,default_commission_rate";
 
 export async function setRepCookie(token: string): Promise<void> {
   const { setCookie } = await import("@tanstack/react-start/server");

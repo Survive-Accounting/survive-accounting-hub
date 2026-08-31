@@ -14,6 +14,7 @@ import { DEFAULT_FRAME_THEME, FrameBackground, frameThemeVars } from "@/componen
 import { SiteHeader, useNavyDocument } from "@/components/site/SiteHeader";
 import { Footer } from "@/components/site/SiteFooter";
 import { RepWorkspaceView } from "@/components/reps/RepWorkspaceView";
+import { RepOnboarding } from "@/components/reps/RepOnboarding";
 import { checkRepVerification, repLogout, startRepVerification } from "@/lib/rep-auth.functions";
 import { getRepWorkspace } from "@/lib/rep-workspace.functions";
 import { formatUsPhoneInput, type RepWorkspace } from "@/lib/rep-shared";
@@ -70,7 +71,34 @@ function RepDashboardPage() {
             {st.s === "pending" && <button type="button" onClick={load} className="mt-4 rounded-xl px-4 text-[13.5px] font-black" style={{ minHeight: 44, background: "var(--bg-overlay)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}>Check again</button>}
           </div>
         )}
-        {st.s === "ready" && <RepWorkspaceView d={st.d} legacyToken={k ?? null} reload={load} onLogout={logout} />}
+        {st.s === "ready" && st.d.applicationStatus === "setup" && (
+          <RepOnboarding legacyToken={k ?? null} onSubmitted={load} />
+        )}
+        {st.s === "ready" && st.d.applicationStatus === "submitted" && (
+          <div className="mx-auto max-w-sm pt-16 text-center" style={{ fontFamily: BRAND_SANS }}>
+            <p className="text-[12px] font-black uppercase" style={{ color: "var(--accent)", letterSpacing: "0.14em" }}>In review</p>
+            <h1 className="mt-2 text-[22px] font-black" style={{ fontFamily: BRAND_DISPLAY }}>Coverage map in ⚡ Lee will call you.</h1>
+            <p className="mt-2 text-[14px]" style={{ color: "var(--text-muted)" }}>Every rep gets a quick call before chapters turn on — usually within a couple days. Your dashboard opens the moment you're approved.</p>
+            <button type="button" onClick={load} className="mt-4 rounded-xl px-4 text-[13.5px] font-black" style={{ minHeight: 44, background: "var(--bg-overlay)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}>Check again</button>
+            <p className="mt-4 text-[12px]" style={{ color: "var(--text-muted)" }}>Need to fix something? <button type="button" onClick={logout} className="font-bold underline underline-offset-4" style={{ color: "var(--accent)" }}>Sign out</button> and back in, or text Lee.</p>
+          </div>
+        )}
+        {st.s === "ready" && (st.d.applicationStatus === "waitlisted" || st.d.applicationStatus === "declined") && (
+          <div className="mx-auto max-w-sm pt-16 text-center" style={{ fontFamily: BRAND_SANS }}>
+            <h1 className="text-[22px] font-black" style={{ fontFamily: BRAND_DISPLAY }}>
+              {st.d.applicationStatus === "waitlisted" ? "You're on the waitlist." : "This one didn't work out."}
+            </h1>
+            <p className="mt-2 text-[14px]" style={{ color: "var(--text-muted)" }}>
+              {st.d.applicationStatus === "waitlisted"
+                ? "Your campus has rep coverage right now. Lee keeps this list — you'll hear from him the moment a spot opens."
+                : "Thanks for applying. Text Lee if you think that's a mistake — and Exam 1 is free for you either way."}
+            </p>
+            <a href="sms:+16625658818" className="mt-4 inline-flex items-center rounded-xl px-4 text-[13.5px] font-black" style={{ minHeight: 44, background: "var(--bg-overlay)", border: "1px solid var(--border-default)", color: "var(--brand-cream)" }}>Text Lee</a>
+          </div>
+        )}
+        {st.s === "ready" && st.d.applicationStatus === "approved" && (
+          <RepWorkspaceView d={st.d} legacyToken={k ?? null} reload={load} onLogout={logout} />
+        )}
       </main>
       <Footer />
     </div>
