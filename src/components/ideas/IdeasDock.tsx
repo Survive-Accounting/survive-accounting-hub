@@ -13,9 +13,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouterState } from "@tanstack/react-router";
 
 import { listIdeas, saveIdea } from "@/lib/ideas.functions";
+import { getAdminWho } from "@/components/AdminGate";
+import { IdeaRecorder, judgeTranscript, shouldTranscribe } from "./voice";
+import { uploadIdeaFile, transcribeIdeaAudio } from "./upload";
 import {
   CATEGORIES, CATEGORY_HINT, CATEGORY_LABEL, deriveTitle, knownSubcategories, newIdeaId,
-  unsubmittedCount, type Category, type Idea,
+  unsubmittedCount, type Attachment, type Category, type Idea,
 } from "./model";
 
 const GOLD = "#FCA311";
@@ -126,17 +129,25 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const ta = useRef<HTMLTextAreaElement>(null);
+  const file = useRef<HTMLInputElement>(null);
+  // VOICE. The audio is kept whatever the transcript does.
+  const [rec, setRec] = useState<IdeaRecorder | null>(null);
+  const [voiceMsg, setVoiceMsg] = useState<string | null>(null);
+  const [audio, setAudio] = useState<{ path: string; status: string } | null>(null);
+  const [files, setFiles] = useState<Attachment[]>([]);
+  const [, bump] = useState(0);
 
   useEffect(() => { ta.current?.focus(); }, []);
   const subs = useMemo(() => knownSubcategories(ideas), [ideas]);
 
   const save = useCallback(() => {
     const body = text.trim();
-    if (!body || busy) return;
+    // Audio alone is a valid idea: a failed transcript must not lose it.
+    if ((!body && !audio) || busy) return;
     setBusy(true); setErr(null);
     saveIdea({ data: {
       id: newIdeaId(),
-      title: deriveTitle(body),
+      title: deriveTitle(body) || (audio ? "Voice note" : ""),
       body,
       categories: cats,
       subcategory: sub.trim(),
@@ -147,10 +158,53 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
       context: {},
       promptMd: null,
       promptFilename: null,
+      createdBy: getAdminWho() ?? "",
+      sourceKind: audio ? "voice" : "web",
+      attachments: files,
+      audioPath: audio?.path ?? null,
+      transcriptStatus: audio?.status ?? null,
     } })
       .then(() => { onSaved(); onClose(); })
       .catch((e) => { setErr(e instanceof Error ? e.message : String(e)); setBusy(false); });
-  }, [text, cats, sub, pathname, busy, onSaved, onClose]);
+  }, [text, cats, sub, pathname, busy, audio, files, onSaved, onClose]);
+
+  /** HOLD to talk, or tap-tap for a longer note. Both gestures, one handler. */
+  const startRec = async () => {
+    if (rec) return;
+    setVoiceMsg(null);
+    const r = new IdeaRecorder(() => bump((n) => n + 1));
+    try { await r.start(); setRec(r); }
+    catch (e) { setVoiceMsg(e instanceof Error ? e.message : String(e)); }
+  };
+  const stopRec = async () => {
+    if (!rec) return;
+    const { blob, voicedMs } = await rec.stop();
+    setRec(null);
+    if (!shouldTranscribe(voicedMs)) { setVoiceMsg("Nothing heard — try again closer to the mic."); return; }
+    setVoiceMsg("Transcribing…");
+    try {
+      const r = await transcribeIdeaAudio(blob);
+      const judged = judgeTranscript(r.text, voicedMs);
+      setAudio({ path: r.path, status: r.error ? "failed" : judged.status });
+      if (judged.text) {
+        setText((v) => (v.trim() ? `${v.trimEnd()}\n${judged.text}` : judged.text));
+        setVoiceMsg("Transcribed — edit it if you like.");
+      } else {
+        // Kept on purpose: a rejected or failed transcript still has audio.
+        setVoiceMsg(judged.status === "rejected"
+          ? "That came back as noise — audio saved, type the idea."
+          : r.error ? "Transcription failed — audio saved, type the idea."
+          : "Nothing usable came back — audio saved.");
+      }
+    } catch (e) { setVoiceMsg(`Could not save the audio — ${e instanceof Error ? e.message : String(e)}`); }
+  };
+
+  const addFiles = async (list: FileList) => {
+    for (const f of Array.from(list)) {
+      try { const a = await uploadIdeaFile(f); setFiles((v) => [...v, a]); }
+      catch (e) { setErr(e instanceof Error ? e.message : String(e)); }
+    }
+  };
 
   // ⌘↵ saves and closes; Esc closes WITHOUT saving but keeps the draft in the
   // component above? No — Esc discards this draft deliberately: a half-idea
@@ -165,7 +219,8 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
     <div
       onKeyDown={onKey}
       style={{
-        position: "fixed", top: 0, right: 0, bottom: 0, width: 380, zIndex: 2147483001,
+        position: "fixed", top: 0, right: 0, bottom: 0, zIndex: 2147483001,
+        width: "min(380px, 100vw)",
         background: PANEL, borderLeft: `1px solid ${EDGE}`, boxShadow: "-14px 0 40px -18px rgba(0,0,0,0.9)",
         display: "flex", flexDirection: "column", fontFamily: "'Rubik', system-ui, sans-serif", color: CREAM,
       }}
@@ -191,6 +246,43 @@ function Drawer({ pathname, ideas, loadErr, onClose, onSaved }: {
             fontFamily: "inherit",
           }}
         />
+
+        {/* VOICE + FILES — the phone row. Hold the mic, or tap it twice. */}
+        <div className="flex items-center" style={{ gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+          <button
+            onPointerDown={(e) => { e.preventDefault(); void startRec(); }}
+            onPointerUp={() => { if (rec) void stopRec(); }}
+            onClick={() => { if (!rec) return; }}
+            title="Hold to record — or tap to start and tap again to stop"
+            style={{
+              display: "flex", alignItems: "center", gap: 7, minHeight: 42,
+              background: rec ? "#F8717122" : "transparent",
+              border: `1.5px solid ${rec ? "#F87171" : EDGE}`, color: rec ? "#F87171" : CREAM,
+              borderRadius: 12, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer",
+              touchAction: "none",
+            }}
+          >
+            🎙 {rec ? "Recording — release" : "Hold to talk"}
+            {rec && (
+              <span style={{ display: "inline-block", width: 44, height: 5, background: "rgba(244,239,230,0.18)", borderRadius: 999, overflow: "hidden" }}>
+                <span style={{ display: "block", height: "100%", width: `${Math.round(rec.level * 100)}%`, background: "#F87171" }} />
+              </span>
+            )}
+          </button>
+          <input ref={file} type="file" multiple style={{ display: "none" }}
+            onChange={(e) => { if (e.target.files) void addFiles(e.target.files); }} />
+          <button onClick={() => file.current?.click()}
+            style={{ minHeight: 42, background: "transparent", border: `1px solid ${EDGE}`, color: CREAM, borderRadius: 12, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            📎 Attach
+          </button>
+        </div>
+        {voiceMsg && <div style={{ fontSize: 11.5, color: MUTED, marginTop: 6 }}>{voiceMsg}</div>}
+        {audio && <div style={{ fontSize: 11, color: "#3BF5A0", marginTop: 4 }}>🎙 audio attached — kept whatever the transcript did</div>}
+        {files.length > 0 && (
+          <div style={{ fontSize: 11, color: MUTED, marginTop: 6 }}>
+            {files.map((f) => <div key={f.id}>📎 {f.name}</div>)}
+          </div>
+        )}
 
         <div style={{ fontSize: 11.5, color: MUTED, margin: "14px 0 6px" }}>Categories</div>
         <div className="flex flex-wrap" style={{ gap: 5 }}>
